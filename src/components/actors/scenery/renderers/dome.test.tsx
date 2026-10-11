@@ -42,7 +42,9 @@ describe('dome renderer', () => {
 
   it('the two dome paths meet at x with differing west/east fills', () => {
     const { container } = render(dome(makeCtx()));
-    const paths = container.querySelectorAll('[data-scenery="dome"] path');
+    // the two filled cap halves: not the world gem ring (a group of paths of its own, Phase 44) and
+    // not the hairline arc along the cap (an open path with no fill, Phase 44)
+    const paths = container.querySelectorAll('[data-scenery="dome"] > path:not([fill="none"])');
     expect(paths.length).toBe(2);
     expect(paths[0].getAttribute('fill')).not.toBe(paths[1].getAttribute('fill'));
     // Both paths reference the actor's own x (500) as a shared coordinate — the apex/base-centre

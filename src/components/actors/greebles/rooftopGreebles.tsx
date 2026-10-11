@@ -2,6 +2,59 @@ import React from 'react';
 import type { RooftopGreeble, GreebleRendererContext, GreebleRenderer, GreebleElement } from './greebleTypes';
 import { hslToString, applyColorShift } from '../../../utils/colorUtils';
 import colorTheme from '../../../constants/colorTheme.json';
+import type { GemPoint } from '../../robot/gem/polygon';
+import { GemRing } from '../material/GemRing';
+import {
+  ROOF_BOX_BEVEL_FACTOR,
+  WORLD_BEVEL_PX,
+  WORLD_GEM,
+  hairline,
+  ringFacets,
+  worldBevel,
+  type RingOptions,
+} from '../material/worldGemMaterial';
+
+// ========================================
+// WORLD GEM ROOF-BOX RINGS (docs/specs/WORLD_GEM_MATERIAL.md §1.4, assumption 7)
+// ========================================
+// Rooftop geometry is already in scene pixels, outside the scaled body group, so a ring is drawn
+// directly. A block gets the ring at 0.6 x the building's depth, through the shared 18 % cap and
+// the 1 px floor; it needs the hour's light, so no `ctx.light` means no ring and the renderer
+// is byte-identical to before. Rings are drawn after ALL of a greeble's fills, never between them,
+// so the fills keep their order and their child indexes; blocks never overlap, so nothing is
+// painted over.
+
+/** Ring depth for a roof box, before the cap and the floor. */
+const ROOF_BOX_BEVEL_PX = WORLD_BEVEL_PX * ROOF_BOX_BEVEL_FACTOR;
+
+interface RoofRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const rectPts = ({ x, y, w, h }: RoofRect): GemPoint[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+
+/** One roof block's ring element, or null when it is off, unlit or smaller than the floor allows. */
+function roofBoxRing(
+  key: string,
+  ctx: GreebleRendererContext,
+  pts: GemPoint[],
+  size: { w: number; h: number },
+  faceLightAt: (midX: number) => number,
+  opts?: RingOptions,
+): GreebleElement | null {
+  if (!WORLD_GEM.roofBoxes || !ctx.light) return null;
+  const depth = worldBevel(size.w, size.h, 1, ROOF_BOX_BEVEL_PX);
+  const facets = ringFacets(pts, depth, ctx.light, faceLightAt, ctx.colors.accent, opts);
+  return facets.length > 0 ? <GemRing key={key} facets={facets} /> : null;
+}
+
+/** The 1.5 px hairline for a really thin part (shaft, pipe, stilt, rod), or nothing when it is off. */
+const thinPart = () => (WORLD_GEM.members ? hairline() : undefined);
+
+const present = (els: Array<GreebleElement | null>): GreebleElement[] => els.filter((e): e is GreebleElement => e !== null);
 
 // ========================================
 // LAYOUT/PAINT SPLIT TYPES
@@ -19,6 +72,9 @@ import colorTheme from '../../../constants/colorTheme.json';
 export interface PitchedRoofLayout {
   slopePoints: string;
   wallPoints: string;
+  /** The same two polygons as numbers (and their bounding sizes), for the world gem rings. */
+  slope: { pts: GemPoint[]; w: number; h: number };
+  wall: { pts: GemPoint[]; w: number; h: number };
 }
 
 /** One tier of `renderCrownSpire`'s shaded (frontCornerX-aware) branch. `sideX` is stored
@@ -61,12 +117,25 @@ export type CrownSpireLayout =
  * @returns A React fragment of stack rects, or null if no stacks generated.
  */
 export function renderMachinery(ctx: GreebleRendererContext): GreebleElement | null {
+  return paintMachinery(computeMachineryLayout(ctx), ctx);
+}
+
+/** Geometry for `renderMachinery` — each stack's rect and its column index (its React key). */
+export interface MachineryLayout {
+  stacks: Array<RoofRect & { key: number }>;
+}
+
+/**
+ * The stacks' positions and sizes. Reads only `buildingWidth`/`buildingHeight`/`roofY`/`seed`, so
+ * the same input gives the same layout whatever the hour (docs/specs/WORLD_GEM_MATERIAL.md
+ * assumption 7: machinery now needs the hour for its rings, so it joins the layout/paint split).
+ */
+export function computeMachineryLayout(ctx: GreebleRendererContext): MachineryLayout {
   const { buildingWidth: bw, buildingHeight: bh, roofY, seed } = ctx;
 
   const colCount = Math.min(8, 5 + Math.floor(bw / 40)); // 5-8 columns
   const colW = bw / colCount;
   const stackW = Math.max(4, colW * 0.4);
-  const fill = hslToString(ctx.colors.accent);
 
   let r = seed;
   const prng = (): number => {
@@ -74,19 +143,27 @@ export function renderMachinery(ctx: GreebleRendererContext): GreebleElement | n
     return (r >>> 0) / 2 ** 32;
   };
 
-  const stacks: GreebleElement[] = [];
+  const stacks: MachineryLayout['stacks'] = [];
   for (let i = 0; i < colCount; i++) {
     if (prng() < 0.3) {
       const stackH = bh * (0.03 + prng() * 0.07); // 3-10% of building height
       const cx = colW * i + colW / 2;
       const x = cx - stackW / 2;
       const y = roofY - stackH;
-      stacks.push(<rect key={i} x={x} y={y} width={stackW} height={stackH} fill={fill} />);
+      stacks.push({ key: i, x, y, w: stackW, h: stackH });
     }
   }
+  return { stacks };
+}
 
-  if (stacks.length === 0) return null;
-  return <>{stacks}</>;
+/** Fills and rings over a `computeMachineryLayout` result — cheap, safe on every tick. */
+export function paintMachinery(layout: MachineryLayout, ctx: GreebleRendererContext): GreebleElement | null {
+  if (layout.stacks.length === 0) return null;
+  const fill = hslToString(ctx.colors.accent);
+  const fills = layout.stacks.map((s) => <rect key={s.key} x={s.x} y={s.y} width={s.w} height={s.h} fill={fill} />);
+  // single-tone at the roof average
+  const rings = present(layout.stacks.map((s) => roofBoxRing(`ring-${s.key}`, ctx, rectPts(s), s, () => ctx.lMultiplier)));
+  return <>{[...fills, ...rings]}</>;
 }
 
 /**
@@ -98,20 +175,37 @@ export function renderMachinery(ctx: GreebleRendererContext): GreebleElement | n
  * @returns A React fragment containing the stacked tier rectangles.
  */
 export function renderSteppeRoof(ctx: GreebleRendererContext): GreebleElement | null {
+  return paintSteppeRoof(computeSteppeRoofLayout(ctx), ctx);
+}
+
+/** Geometry for `renderSteppeRoof` — each tier's rect and its index (its React key). */
+export interface SteppeRoofLayout {
+  tiers: Array<RoofRect & { key: number }>;
+}
+
+/** The tiers' positions and sizes — `buildingWidth`/`buildingHeight`/`roofY`/`seed` only. */
+export function computeSteppeRoofLayout(ctx: GreebleRendererContext): SteppeRoofLayout {
   const tierCount = 1 + (ctx.seed % 3); // 1..3 tiers based on seed
   const tierWidthPcts = [0.8, 0.6, 0.4] as const;
   const tierH = ctx.buildingHeight * 0.02; // 2% of building height per tier
-  const fill = hslToString(ctx.colors.accent);
 
-  const tiers: GreebleElement[] = [];
+  const tiers: SteppeRoofLayout['tiers'] = [];
   for (let i = 0; i < tierCount; i++) {
     const w = ctx.buildingWidth * tierWidthPcts[i];
     const x = (ctx.buildingWidth - w) / 2; // centre each tier
     const y = ctx.roofY - tierH * (i + 1); // stack upward from roof
-    tiers.push(<rect key={i} x={x} y={y} width={w} height={tierH} fill={fill} />);
+    tiers.push({ key: i, x, y, w, h: tierH });
   }
+  return { tiers };
+}
 
-  return <>{tiers}</>;
+/** Fills and rings over a `computeSteppeRoofLayout` result — cheap, safe on every tick. */
+export function paintSteppeRoof(layout: SteppeRoofLayout, ctx: GreebleRendererContext): GreebleElement | null {
+  const fill = hslToString(ctx.colors.accent);
+  const fills = layout.tiers.map((t) => <rect key={t.key} x={t.x} y={t.y} width={t.w} height={t.h} fill={fill} />);
+  // single-tone at the roof average; a tier under the 1 px floor draws no ring
+  const rings = present(layout.tiers.map((t) => roofBoxRing(`ring-${t.key}`, ctx, rectPts(t), t, () => ctx.lMultiplier)));
+  return <>{[...fills, ...rings]}</>;
 }
 
 /**
@@ -153,6 +247,8 @@ export function computePitchedRoofLayout(ctx: GreebleRendererContext): PitchedRo
     slopePoints: `0,${roofY} ${frontCornerX},${roofY} ${frontCornerX},${ridgeY}`,
     // Side wall: flat rectangle — straight vertical parapet over the side face.
     wallPoints: `${frontCornerX},${ridgeY} ${bw},${ridgeY} ${bw},${roofY} ${frontCornerX},${roofY}`,
+    slope: { pts: [[0, roofY], [frontCornerX, roofY], [frontCornerX, ridgeY]], w: frontCornerX, h: h },
+    wall: { pts: [[frontCornerX, ridgeY], [bw, ridgeY], [bw, roofY], [frontCornerX, roofY]], w: bw - frontCornerX, h },
   };
 }
 
@@ -176,10 +272,17 @@ export function paintPitchedRoof(layout: PitchedRoofLayout | null, ctx: GreebleR
   const westFill = applyColorShift(ctx.colors.accent, noShift, ctx.westLMultiplier!);
   const eastFill = applyColorShift(ctx.colors.accent, noShift, ctx.eastLMultiplier!);
 
+  // Each polygon's ring is lit from its own face's multiplier, drawn after both fills.
+  const rings = present([
+    roofBoxRing('ring-slope', ctx, layout.slope.pts, layout.slope, () => ctx.westLMultiplier!),
+    roofBoxRing('ring-wall', ctx, layout.wall.pts, layout.wall, () => ctx.eastLMultiplier!),
+  ]);
+
   return (
     <>
       <polygon points={layout.slopePoints} fill={westFill} />
       <polygon points={layout.wallPoints} fill={eastFill} />
+      {rings}
     </>
   );
 }
@@ -296,15 +399,27 @@ export function paintCrownSpire(layout: CrownSpireLayout, ctx: GreebleRendererCo
       );
     });
     elements.push(
-      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={westFill} />,
+      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={westFill} {...thinPart()} />,
     );
+    // One two-faced ring per tier: the union of its front and side rects, the top and bottom
+    // facets split at the front corner so each half takes its own face's light. Drawn after all
+    // the fills (tiers are stacked, never overlapping).
+    layout.tiers.forEach((tier, i) => {
+      const w = tier.sideX + tier.sideW - tier.frontX;
+      const ring = roofBoxRing(
+        `ring-${i}`, ctx, rectPts({ x: tier.frontX, y: tier.y, w, h: tier.height }), { w, h: tier.height },
+        (midX) => (midX < tier.sideX ? ctx.westLMultiplier! : ctx.eastLMultiplier!),
+        { splitX: tier.sideX },
+      );
+      if (ring) elements.push(ring);
+    });
   } else {
     const fill = hslToString(ctx.colors.accent);
     layout.tiers.forEach((tier, i) => {
       elements.push(<rect key={`step-${i}`} x={tier.x} y={tier.y} width={tier.width} height={tier.height} fill={fill} />);
     });
     elements.push(
-      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={fill} />,
+      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={fill} {...thinPart()} />,
     );
   }
 
@@ -362,7 +477,7 @@ export function renderAntennae(ctx: GreebleRendererContext): GreebleElement | nu
   const lightR = Math.max(2, lineW * 1.5);
 
   const elements: GreebleElement[] = [
-    <rect key="shaft" x={lineX} y={lineY} width={lineW} height={lineH} fill={shaftFill} />,
+    <rect key="shaft" x={lineX} y={lineY} width={lineW} height={lineH} fill={shaftFill} {...thinPart()} />,
     <circle key="top-light" cx={bw / 2} cy={lineY} r={lightR} fill={lightFill} />,
   ];
 
@@ -389,37 +504,58 @@ export function renderAntennae(ctx: GreebleRendererContext): GreebleElement | nu
  * @returns A React fragment containing stilt rects, body rect, and cap polygon.
  */
 export function renderWaterTower(ctx: GreebleRendererContext): GreebleElement | null {
+  return paintWaterTower(computeWaterTowerLayout(ctx), ctx);
+}
+
+/** Geometry for `renderWaterTower` — the tank body, the cap's points and the stilts. */
+export interface WaterTowerLayout {
+  body: RoofRect;
+  capPoints: string;
+  stilts: Array<RoofRect & { key: number }>;
+}
+
+/** The tower's positions and sizes — `buildingWidth`/`buildingHeight`/`roofY`/`seed` only. */
+export function computeWaterTowerLayout(ctx: GreebleRendererContext): WaterTowerLayout {
   const { buildingWidth: bw, buildingHeight: bh, roofY, seed } = ctx;
 
   const totalH = bh * (0.15 + (seed % 6) * (0.05 / 5)); // 15-20% of building height
   const totalW = bw * 0.15;
   const thirdH = totalH / 3;
   const leftX = (bw - totalW) / 2;
-  const fill = hslToString(ctx.colors.accent);
 
-  const elements: GreebleElement[] = [];
-
-  elements.push(
-    <rect key="body" x={leftX} y={roofY - 2 * thirdH} width={totalW} height={thirdH} fill={fill} />,
-  );
+  const body = { x: leftX, y: roofY - 2 * thirdH, w: totalW, h: thirdH };
 
   const capBaseY = roofY - 2 * thirdH; // bottom of cap = top of body
   const capPoints =
     `${leftX},${capBaseY} ${leftX + totalW},${capBaseY} ${leftX + totalW / 2},${roofY - totalH}`;
-  elements.push(<polygon key="cap" points={capPoints} fill={fill} />);
 
   const stiltCount = 2 + (seed % 3); // 2, 3, or 4 stilts
   const stiltW = 2;
   const stiltH = thirdH;
   const stiltY = roofY - thirdH;
   const slotW = totalW / stiltCount;
+  const stilts: WaterTowerLayout['stilts'] = [];
   for (let i = 0; i < stiltCount; i++) {
     const stiltX = leftX + slotW * i + slotW / 2 - stiltW / 2; // centred in slot
-    elements.push(
-      <rect key={`stilt-${i}`} x={stiltX} y={stiltY} width={stiltW} height={stiltH} fill={fill} />,
-    );
+    stilts.push({ key: i, x: stiltX, y: stiltY, w: stiltW, h: stiltH });
   }
+  return { body, capPoints, stilts };
+}
 
+/** Fills and the body's ring over a `computeWaterTowerLayout` result — cheap, safe on every tick. */
+export function paintWaterTower(layout: WaterTowerLayout, ctx: GreebleRendererContext): GreebleElement | null {
+  const fill = hslToString(ctx.colors.accent);
+  const { body } = layout;
+  const elements: GreebleElement[] = [
+    <rect key="body" x={body.x} y={body.y} width={body.w} height={body.h} fill={fill} />,
+    <polygon key="cap" points={layout.capPoints} fill={fill} />,
+    ...layout.stilts.map((s) => (
+      <rect key={`stilt-${s.key}`} x={s.x} y={s.y} width={s.w} height={s.h} fill={fill} {...thinPart()} />
+    )),
+  ];
+  // The tank body is the block; the cap and stilts are thin parts. Single-tone at the roof average.
+  const ring = roofBoxRing('ring-body', ctx, rectPts(body), body, () => ctx.lMultiplier);
+  if (ring) elements.push(ring);
   return <>{elements}</>;
 }
 
@@ -443,9 +579,20 @@ export function renderCupola(ctx: GreebleRendererContext): GreebleElement | null
 
   // Upper half of an ellipse: arc from left edge to right edge along roofY,
   // sweeping clockwise (sweep-flag=1) which traces through the top of the dome.
-  const d = `M ${cx - rx},${roofY} A ${rx},${ry} 0 0 1 ${cx + rx},${roofY} Z`;
+  const arc = `M ${cx - rx},${roofY} A ${rx},${ry} 0 0 1 ${cx + rx},${roofY}`;
+  const dome = <path d={`${arc} Z`} fill={hslToString(ctx.colors.accent)} />;
 
-  return <path d={d} fill={hslToString(ctx.colors.accent)} />;
+  // The hairline runs along the arc only: the dome's base edge is not outlined. It is one open
+  // path of its own, after the filled dome (docs/specs/WORLD_GEM_MATERIAL.md §1.6). With the
+  // members switch off the cupola is the single filled path it always was.
+  const line = thinPart();
+  if (!line) return dome;
+  return (
+    <>
+      {dome}
+      <path d={arc} fill="none" {...line} />
+    </>
+  );
 }
 
 // ========================================
@@ -498,17 +645,17 @@ export function renderPipesValves(ctx: GreebleRendererContext): GreebleElement |
       const y = roofY - (prng() * 5);
       const len = bw * (0.3 + prng() * 0.4);
       const x = prng() * (bw - len);
-      elements.push(<rect key={`pipe-h-${i}`} x={x} y={y} width={len} height={2} fill={fill} />);
+      elements.push(<rect key={`pipe-h-${i}`} x={x} y={y} width={len} height={2} fill={fill} {...thinPart()} />);
       // valve at the left end sitting on roof
-      elements.push(<circle key={`valve-h-${i}`} cx={x} cy={y + 1} r={3} fill={fill} />);
+      elements.push(<circle key={`valve-h-${i}`} cx={x} cy={y + 1} r={3} fill={fill} {...thinPart()} />);
     } else {
       // vertical pipes start at roof and descend
       const len = bh * (0.1 + prng() * 0.1); // somewhat longer
       const x = prng() * bw;
       const y = roofY - len;
-      elements.push(<rect key={`pipe-v-${i}`} x={x} y={y} width={2} height={len} fill={fill} />);
+      elements.push(<rect key={`pipe-v-${i}`} x={x} y={y} width={2} height={len} fill={fill} {...thinPart()} />);
       // valve at top on roof
-      elements.push(<circle key={`valve-v-${i}`} cx={x + 1} cy={roofY} r={3} fill={fill} />);
+      elements.push(<circle key={`valve-v-${i}`} cx={x + 1} cy={roofY} r={3} fill={fill} {...thinPart()} />);
     }
   }
   return elements.length ? <>{elements}</> : null;
@@ -550,5 +697,18 @@ export const ROOFTOP_LAYOUT_PAINT: Partial<Record<RooftopGreeble, {
   crownSpire: {
     compute: computeCrownSpireLayout,
     paint: paintCrownSpire as (layout: unknown, ctx: GreebleRendererContext) => GreebleElement | null,
+  },
+  // Phase 44: the world gem roof-box ring needs the hour, so these three leave the static slot.
+  machinery: {
+    compute: computeMachineryLayout,
+    paint: paintMachinery as (layout: unknown, ctx: GreebleRendererContext) => GreebleElement | null,
+  },
+  waterTower: {
+    compute: computeWaterTowerLayout,
+    paint: paintWaterTower as (layout: unknown, ctx: GreebleRendererContext) => GreebleElement | null,
+  },
+  steppeRoof: {
+    compute: computeSteppeRoofLayout,
+    paint: paintSteppeRoof as (layout: unknown, ctx: GreebleRendererContext) => GreebleElement | null,
   },
 };

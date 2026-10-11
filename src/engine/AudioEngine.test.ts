@@ -278,6 +278,28 @@ describe('AudioEngine.reserveVoice — per-robot bus filter cutoff', () => {
   });
 });
 
+describe('AudioEngine.reserveVoice — replacing a robot\'s existing voice', () => {
+  // A world spawned before audio started reserves a voice at spawn, and loadInstruments / the power-on
+  // re-register reserve again for the same ids. The earlier graph must be torn down, not orphaned
+  // (still connected to the destination, never disposed) behind the new Map entry.
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+  afterEach(() => {
+    AudioEngine.releaseVoice('replaced-robot');
+  });
+
+  it('disposes the voice it replaces', () => {
+    AudioEngine.reserveVoice('replaced-robot', layered, TEST_ADSR);
+    const first = AudioEngine.getVoiceForRobot('replaced-robot')!;
+    const disposeFirst = vi.spyOn(first, 'dispose');
+
+    AudioEngine.reserveVoice('replaced-robot', layered, TEST_ADSR);
+
+    expect(disposeFirst).toHaveBeenCalledTimes(1);
+    expect(AudioEngine.getVoiceForRobot('replaced-robot')).not.toBe(first);
+  });
+});
+
 // The following audioMode tests were merged from AudioEngine.audioMode.test.ts
 // They require importing the locale store after a module reset to ensure
 // the AudioEngine and test share the same store instance.

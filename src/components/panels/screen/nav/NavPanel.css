@@ -1,61 +1,124 @@
+/* The panel's width, in the one place the viewport reads it (docs/specs/LAYOUT_REWORK.md §1.2, §4):
+   the sizes the sketch fixed by eye, as Crawford retuned them on 2026-10-10 (rest 96 → 124 px, so the
+   longest lore line, "TIMBRE & COLOR", fits one line; wide 260 → 200 px: the boxes had ~60 px of
+   empty side space for 56–99 px names), and the expand factor
+   NavPanel.tsx tweens (0 at rest, 1 while Probes or Companies list their entities). Declared on #screen-viewport itself, the element the
+   factor is written on — a var() derivation declared on an ancestor would not re-resolve against
+   the descendant's override (traitColors.ts's buildAccentStyle comment). ContentPane's left edge
+   reads --nav-panel-width from here (Task 7). */
+#screen-viewport {
+  --nav-panel-rest: 124px;
+  --nav-panel-wide: 200px;
+  --nav-panel-expand: 0;
+  --nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));
+  /* Phone (Task 5): the sheet the same panel opens in. Its band runs from the top bar's lower edge
+     (Header.css's --top-bar-bottom, Task 6) to PhoneBar's top (--phone-bar-clearance). */
+  --nav-sheet-width: 300px;
+}
+
+/* The desk rail, on the left edge (Crawford, 2026-10-10): no longer the full height — it hangs from the top
+   and its height is its content, so four boxes at rest are a short plate and a list of twelve robots grows it
+   until the cap. The cap is the screen (max-height, padding included), past which the plate scrolls
+   (below). The padding is room for the facade's walls, which sit up and left of its front face, and clearance
+   above and below. */
 .nav-panel {
-  will-change: transform;
-  display: flex;
-  width: fit-content;
   position: absolute;
-  top: calc(var(--power-corner-height) + 32px);
-  left: 16px;
-  max-width: calc(100% - 32px);
+  top: 0;
+  left: 0;
   z-index: 2;
-  /* If the tree grows taller than the screen (many expanded branches), let this box scroll
-     internally instead of running off-screen with no way to reach the rest — .screen-content's
-     own overflow: hidden (ScreenViewport.css) would otherwise just clip it silently.
-     Bugfix, found live via Playwright (Crawford: "Companies doesn't even make it on screen" —
-     confirmed by measuring real bounding boxes, not guessed): an earlier version of this rule
-     only subtracted this element's own `top: 32px` offset, on the wrong assumption that
-     .nav-panel starts near .screen-content's own top edge. It doesn't — .header (a sticky
-     sibling, ~109px tall) sits above it in flow first, so .nav-panel's real start position is
-     `headerHeight + 32px` down from .screen-content's top. Sizing the box to `100% - 32px`
-     regardless left it ~headerHeight px too tall, running its own bottom edge straight past
-     .screen-content's clipped boundary — silently cut off by that ancestor's overflow: hidden
-     before .nav-panel's own overflow-y: auto below ever got a chance to scroll to it. Fixed by
-     also subtracting --header-height, the same live-measured custom property (Header.tsx's own
-     ResizeObserver effect) ContentPane.css already reads for this identical "reserve space for
-     what .header occupies above me" problem. */
-  max-height: calc(100% - var(--header-height, var(--power-corner-height)) - 132px);
+  display: flex;
+  flex-direction: column;
+  width: var(--nav-panel-width);
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-xl) 0 40px var(--spacing-md);
 }
 
-@media screen and (min-width: 400px) {
-  .nav-panel {
-    top: 44px;
-    max-height: calc(100% - 118px);
-  }
+/* Takes its content's height, and shrinks (never stretches) to the panel's cap. A flex column itself (the
+   box's own rule is a row), so its face is a flexing child that shrinks to the box: a percentage height
+   would not resolve inside a content-sized flex item, and the face ran off the screen instead of scrolling
+   (found in Chrome, 560px high with the Probes list open). */
+.nav-panel > .sc-cabinet-box {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
-/* Oblique Cabinetry facade wrapper — only ever rendered as .nav-panel's one
-   child (NavPanel.tsx). display: block + height: auto (overriding
-   CabinetBox.css's own fixed height: var(--cabinet-box-height) default by
-   selector specificity) lets the front face size itself to NavTree's own
-   real content height, matching autoHeight's expectation — same pattern
-   DirectionalPanel.css uses for its own facade. Padding moved here from
-   .nav-panel itself (was padding: var(--spacing-lg) directly on the
-   sliding/inert panel) so it frames the box's real content instead of the
-   slide-transform host. */
-/* Relocated from ContentPane.css's own .content-pane__close (now just spacing here, since this
-   sits in normal flow between NavStatusBlock and NavTree rather than being absolutely positioned
-   over the content pane). */
-.nav-panel__home {
-  margin-bottom: var(--spacing-lg);
-}
-
-.nav-panel>.sc-cabinet-box>.sc-cabinet-box__front {
+/* The static popped facade (permanently popped, non-animating: `popped` + `skipMountAnimation` +
+   `autoHeight`), DirectionalPanel's and Header's. Its front face is the plate the boxes sit on and
+   scrolls when twelve robots outgrow the screen. */
+.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front {
   --color-surface: rgba(26, 26, 26, 0.75);
   display: block;
-  width: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   height: auto;
-  padding: 32px var(--spacing-lg) var(--spacing-lg);
-  max-height: calc(100vh - var(--power-corner-height) - 32px);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  box-sizing: border-box;
+  padding: var(--spacing-sm);
+  overflow-x: hidden;
+  overflow-y: auto;
   background-color: var(--color-surface);
+}
+
+/* With a list open the plate scrolls (twelve robots outgrow the screen), and its scrollbar sat 4 px from a
+   popped face (Crawford, 2026-10-10: the boxes collided with it). 16 px on the right leaves 12 px clear.
+   Only while a list is open: at rest there is no scrollbar, and the 124 px one-line labels are sized
+   against the 8 px. */
+.nav-panel:has(.nav-entity-list) > .sc-cabinet-box > .sc-cabinet-box__front {
+  padding-right: 16px;
+}
+
+.nav-panel__boxes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- Phone: the sheet (docs/specs/LAYOUT_REWORK.md §1.2; Task 5) ----------
+   The same panel in a Radix Dialog, 300 px from the left edge, over a scrim. Both fill the band
+   between the top bar and the bottom bar (PhoneBar.css's --phone-bar-clearance) and never run under
+   either, as the sketch draws them; the bars stay visible, and a tap on either is a tap outside. */
+.nav-sheet__scrim {
+  position: absolute;
+  top: var(--top-bar-bottom);
+  left: 0;
+  right: 0;
+  bottom: var(--phone-bar-clearance);
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.nav-sheet {
+  position: absolute;
+  top: var(--top-bar-bottom);
+  left: 0;
+  bottom: var(--phone-bar-clearance);
+  width: min(var(--nav-sheet-width), 100%);
+  z-index: var(--z-popover);
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.6);
+}
+
+.nav-sheet:focus {
+  outline: none;
+}
+
+/* Inside the sheet the panel fills it rather than sizing itself from --nav-panel-width, which belongs
+   to the desk rail (the sketch's .navsheet .rail). */
+.nav-sheet > .nav-panel {
+  position: static;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  /* The sheet is not the desk rail: its padding is the one the rail had before the desk's own. */
+  padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);
+}
+
+/* The sheet is a fixed band, so its plate fills it (the desk rail's plate takes its content's height). */
+.nav-sheet > .nav-panel > .sc-cabinet-box {
+  flex: 1 1 auto;
 }

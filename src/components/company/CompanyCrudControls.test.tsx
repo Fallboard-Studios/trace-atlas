@@ -1,10 +1,14 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 import { CompanyCreateForm, CompanyRenameDeleteForm } from './CompanyCrudControls';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { MAX_COMPANIES } from '@/constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 import { ADJECTIVES, COMPANY_NOUNS } from '@/systems/spawnSystem';
@@ -181,7 +185,10 @@ describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the ba
   it('renders with no accordion wrapper — no collapse/expand trigger, no aria-expanded anywhere', () => {
     render(<CompanyCreateForm />);
     expect(screen.queryByRole('button', { name: /manage companies/i })).toBeNull();
-    expect(document.querySelector('[aria-expanded]')).toBeNull();
+    // The only aria-expanded is the name input's help "?" (docs/tasks/LAYOUT_REWORK.md Task 12b) — no trigger.
+    const expandable = [...document.querySelectorAll('[aria-expanded]')];
+    expect(expandable.length).toBeGreaterThan(0);
+    expect(expandable.filter((el) => !el.classList.contains('sc-help__trigger'))).toEqual([]);
   });
 });
 
@@ -196,21 +203,6 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
   it('Rename input is disabled when no company is selected', () => {
     render(<CompanyRenameDeleteForm />);
     expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).disabled).toBe(true);
-  });
-
-  // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 1 — the draft auto-suggests a fresh name
-  // (suggestCompanyName's own generator) rather than pre-filling the selected company's current
-  // name, so the Rename button can always preview two different names without the user typing
-  // anything first.
-  it('Rename input is enabled and pre-filled with a generated suggestion — never the selected company\'s own current name', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    render(<CompanyRenameDeleteForm />);
-
-    const renameInput = screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement;
-    expect(renameInput.disabled).toBe(false);
-    expect(renameInput.value).not.toBe('Iron Consortium');
-    expect(renameInput.value.split(' ')).toHaveLength(2);
   });
 
   // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 3 — the Rename button's own label previews
@@ -335,7 +327,7 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
       expect(updateSpy).toHaveBeenCalledWith(localeId, 'c1', { name: 'Renamed' });
     });
 
-    it('switching the selected company resets the draft to a fresh generated suggestion, discarding an unsubmitted edit and never showing either company\'s own name', () => {
+    it('switching the selected company resets the draft to a fresh generated suggestion, discarding an unsubmitted edit', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#7a4f6d', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
@@ -344,10 +336,10 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Unsubmitted Edit' } });
       act(() => { useUIStore.getState().selectCompany('c2'); });
 
+      // The suggestion rolls from Math.random(), so only its shape can be asserted, never its value
+      // (asserting it differs from a fixture company's name flaked — see 6d743603).
       const newDraft = (screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).value;
       expect(newDraft).not.toBe('Unsubmitted Edit');
-      expect(newDraft).not.toBe('Iron Consortium');
-      expect(newDraft).not.toBe('Null Syndicate');
       expect(newDraft.split(' ')).toHaveLength(2);
     });
 
@@ -373,30 +365,6 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
       act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
 
       expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).value).toBe('Unsubmitted Edit');
-    });
-  });
-
-  describe('summary (the "RobotDisplaySection-equivalent" read-only glance)', () => {
-    it('shows the selected company\'s name and current member count', () => {
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyRenameDeleteForm />);
-
-      expect(screen.getByText('Iron Consortium')).toBeTruthy();
-      expect(screen.getByText('2 robots')).toBeTruthy();
-    });
-
-    it('uses singular "robot" for exactly one member', () => {
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyRenameDeleteForm />);
-
-      expect(screen.getByText('1 robot')).toBeTruthy();
-    });
-
-    it('renders nothing when no company is selected', () => {
-      render(<CompanyRenameDeleteForm />);
-      expect(screen.queryByText(/robots?$/)).toBeNull();
     });
   });
 
@@ -501,9 +469,10 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
         expect(screen.queryByRole('alertdialog')).toBeNull();
       });
 
-      it('after confirming, the selection falls back to All (not an empty/None state)', () => {
+      it('after confirming, no company is selected and you stay on Companies (Crawford, 2026-10-11)', () => {
         useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
         useUIStore.getState().selectCompany('c1');
+        useUIStore.getState().setActiveHubTile('companies');
         render(<CompanyRenameDeleteForm />);
 
         act(() => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i })));
@@ -511,6 +480,7 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
 
         expect(useUIStore.getState().allRobotsSelected).toBe(true);
         expect(useUIStore.getState().selectedCompanyId).toBeNull();
+        expect(useUIStore.getState().activeHubTile).toBe('companies');
       });
     });
   });
@@ -525,5 +495,68 @@ describe('CompanyCrudControls reads its copy from src/content (docs/specs/CONTEN
     expect(source).not.toMatch(/aria-label="[A-Za-z]/);
     expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
     expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 23 (Task 17's deferral): the delete confirm used to portal to <body>,
+// against the UI Shell guardrail. It goes into #screen-viewport like the Settings confirms, sets its own
+// text colour there, and gives focus back to the button that opened it.
+describe('CompanyRenameDeleteForm — the delete confirm stays inside the screen (the UI Shell guardrail)', () => {
+  const localeId = getActiveLocaleId();
+
+  beforeEach(() => {
+    useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [], companies: [{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] }],
+    } as unknown as Partial<Locale>);
+    useUIStore.getState().selectCompany('c1');
+  });
+
+  afterEach(() => {
+    document.getElementById('screen-viewport')?.remove();
+  });
+
+  const openDelete = () => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+
+  it('portals into #screen-viewport when the screen exists', () => {
+    const viewport = document.createElement('div');
+    viewport.id = 'screen-viewport';
+    document.body.appendChild(viewport);
+    render(<CompanyRenameDeleteForm />);
+    openDelete();
+    expect(viewport.contains(screen.getByRole('alertdialog'))).toBe(true);
+  });
+
+  it('with no screen it opens in place, never as a child of <body>', () => {
+    const { container } = render(<CompanyRenameDeleteForm />);
+    openDelete();
+    expect(container.contains(screen.getByRole('alertdialog'))).toBe(true);
+  });
+
+  it('CSS: the dialog sets its own text colour rather than inheriting the screen\'s', () => {
+    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'CompanyCrudControls.css'), 'utf-8');
+    expect(getCssRuleBody(css, '.company-delete-confirm__content')).toContain('color: var(--color-text-primary-fixed);');
+  });
+
+  it('Escape gives focus back to the Delete button that opened it', async () => {
+    render(<CompanyRenameDeleteForm />);
+    const del = screen.getByRole('button', { name: /^delete\b/i });
+    act(() => del.focus());
+    fireEvent.click(del);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(del);
+  });
+
+  it('Cancel gives focus back too', async () => {
+    render(<CompanyRenameDeleteForm />);
+    const del = screen.getByRole('button', { name: /^delete\b/i });
+    act(() => del.focus());
+    fireEvent.click(del);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(document.activeElement).toBe(del);
   });
 });

@@ -8,7 +8,6 @@
   /* Numerators here are unitless (matching --power-switch-coefficient's own unitless value in
      index.css) -- see that file's comment for why a <length> numerator would break in Firefox. */
   --rocker-light-width: calc(var(--power-switch-width) * (37 / var(--power-switch-coefficient)));
-  --rocker-light-height: calc(var(--power-switch-width) * (13 / var(--power-switch-coefficient)));
 
   display: flex;
   flex-direction: column;
@@ -20,30 +19,10 @@
 }
 
 /* ----------------------------------------
-   Indicator light housing — recessed pocket
-   mounted above the rocker switch
-   ---------------------------------------- */
-.rocker-light-housing {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: calc(var(--power-switch-width) * (58 / var(--power-switch-coefficient)));
-  height: calc(var(--power-switch-width) * (27 / var(--power-switch-coefficient)));
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 3px;
-  box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.85),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.3),
-    0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-/* ----------------------------------------
-   Indicator light — rectangular translucent lens
+   Indicator light — rectangular translucent lens, lying on the rocker's top face (see the pivot rules at
+   the end of this file). Its size and place come from those rules.
    ---------------------------------------- */
 .rocker-light {
-
-  width: var(--rocker-light-width);
-  height: var(--rocker-light-height);
   border-radius: 2px;
   background: currentColor;
   /* Fine dot-grid overlaid on the solid colour simulates a physical
@@ -105,9 +84,11 @@
 .rocker-bezel {
   display: flex;
   justify-content: center;
+  --rocker-bezel-padding: 3px;
+  position: relative;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 6px 6px 7px 7px;
-  padding: 3px;
+  padding: var(--rocker-bezel-padding);
   box-shadow:
     inset 0 3px 8px rgba(0, 0, 0, 0.85),
     inset 0 -1px 3px rgba(0, 0, 0, 0.4),
@@ -290,4 +271,32 @@
   }
 
   /* No will-change override needed — SVG attr tweens don't use compositing */
+}
+/* ----------------------------------------
+   The light lies ON the rocker (Crawford, 2026-10-10; the sketch's Q11, both shells). The pivot is a layer
+   laid over exactly the button (inset by the bezel's padding), so its percentages are the rocker's own and
+   its rotation origin is the rocker's ridge. PowerRockerSwitch.tsx / rockerGeometry.ts own its transform —
+   tilted forward at rest, rocked flat with the top face on a press — so there is no transform here. It never
+   takes a click: the button under it is the target.
+   The lens is 10px tall, centred 22% of the rocker's height (plus 2.5px) down, on the top face (y 15–44 of 90 at rest, 5–44 pressed), centred
+   across it and clear of the power glyph on the lower face. A 2px black border rings the lens; it is drawn
+   outside the 10px (content-box) and the top offset takes it back, so the lens itself has not moved.
+   ---------------------------------------- */
+.rocker-light-pivot {
+  position: absolute;
+  inset: var(--rocker-bezel-padding);
+  pointer-events: none;
+}
+
+.rocker-light-pivot .rocker-light {
+  --rocker-light-border: 2px;
+  position: absolute;
+  top: calc(22% - 2.5px - var(--rocker-light-border));
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  box-sizing: content-box;
+  width: 60%;
+  height: 10px;
+  border: var(--rocker-light-border) solid #000;
 }

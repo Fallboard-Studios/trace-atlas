@@ -1,43 +1,55 @@
-/* "Where am I" readout, now partly interactive (Root, and the Probes/Companies branch segment,
-   are real navigation links — see NavBreadcrumb.tsx's own doc comment) — pointer-events: none on
-   the outer shell so the plain-text parts still never intercept a click meant for WorldView
-   underneath (same reasoning as .content-pane__home), re-enabled per-link on
-   .nav-breadcrumb__segment--link below. Anchored to .screen-content (position: absolute — that
-   container is ScreenViewport.css's own position: relative context), not position: fixed against
-   the viewport — same convention NavPanel/ContentPane already use, so it stays correctly placed
-   within the tablet shell rather than the browser window, and other content (WorldView,
-   ContentPane) can render underneath it at the bottom edge. */
+/* The breadcrumb's band height, declared on #screen-viewport beside the other shell sizes (NavPanel.css,
+   PhoneBar.css, Header.css): the content surface keeps this much free at its foot on the desk
+   (ContentPane.css's padding-bottom), so the breadcrumb never sits over content. */
+#screen-viewport {
+  --nav-breadcrumb-height: var(--spacing-2xl);
+}
+
+/* Desk (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 8): a well at the content
+   surface's bottom-left corner — the same left and bottom as .content-pane (ContentPane.css), the corner
+   the meta box takes on the Deck (MetaBox.css). Over the surface (z-index 1), inside the band it keeps
+   free. One line, end-truncated with an ellipsis: a block, so text-overflow cuts its inline segments.
+   pointer-events: none so the plain parts never take a click; the buttons take theirs back. */
 .nav-breadcrumb {
   position: absolute;
+  left: calc(var(--nav-panel-width) + var(--spacing-lg));
+  bottom: calc(var(--spacing-2xl) + var(--spacing-lg));
   z-index: 2;
-  display: flex;
-  align-items: center;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px 4px 0 0;
-  background: var(--color-bg);
+  display: block;
+  max-width: calc(100% - var(--nav-panel-width) - 2 * var(--spacing-lg));
+  height: var(--nav-breadcrumb-height);
+  line-height: calc(var(--nav-breadcrumb-height) - 2px);
+  box-sizing: border-box;
+  padding: 0 var(--spacing-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* A well (spec §1.1: in = read), in index.css's shared tokens and the header accent
+     (NavBreadcrumb.tsx), as the meta box and the phone bar wear it. */
+  border: 1px solid var(--color-accent);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
   font-family: var(--font-mono);
   font-size: var(--font-size-label);
   color: var(--color-text-muted);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   pointer-events: none;
-  max-width: 100%;
 }
 
-/* End-truncates ("Root / Probes / A Very Long...") when the line overflows. Not the previous
-   front-truncation (RTL) trick — that relied on the whole breadcrumb being one plain-text node,
-   which doesn't hold once some segments are separate interactive <button>s; a row this short now
-   (breadcrumb depth was capped by one level, docs/specs/NAV_LAYOUT_REWRITE.md follow-up) rarely
-   needs truncating in the first place. A plain block, not a flex child of .nav-breadcrumb itself —
-   text-overflow: ellipsis only works on a block's own inline content, not across separate flex
-   items, so the flex row above exists solely to center/position this one block as a whole. */
-.nav-breadcrumb__inner {
-  display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  max-width: 100%;
+/* Phone: inline text inside PhoneBar's well, which is the well and holds the line (PhoneBar.css). It
+   drops its own well, place and size, and takes the bar's type. */
+.nav-breadcrumb--bar {
+  position: static;
+  display: inline;
+  height: auto;
+  max-width: none;
+  line-height: inherit;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  font-size: inherit;
 }
 
 .nav-breadcrumb__crumb {
@@ -48,10 +60,8 @@
   color: inherit;
 }
 
-/* Root and the Probes/Companies branch segment — real navigation, re-enabling pointer-events the
-   shell above turns off for everything else. Reset to plain text otherwise (no button chrome) —
-   underlined to read as a link, matching this readout's existing muted/uppercase mono style
-   rather than introducing a new visual language for one small control. */
+/* An ancestor — real navigation, re-enabling the pointer-events the well turns off. No button chrome:
+   underlined to read as a link, in the readout's own muted / uppercase mono type. */
 .nav-breadcrumb__segment--link {
   pointer-events: auto;
   cursor: pointer;
@@ -64,6 +74,7 @@
   text-transform: inherit;
   letter-spacing: inherit;
   text-decoration: underline;
+  text-decoration-color: var(--color-accent);
   text-underline-offset: 2px;
 }
 
@@ -75,30 +86,4 @@
 .nav-breadcrumb__segment--link:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-}
-
-/* Full-width along the bottom, matching NavPanel's own off-canvas breakpoint
-   (useIsNavPanelSlideAway) — not a new one. safe-area-inset-bottom clears the iOS home-indicator
-   gesture area; no existing precedent for it elsewhere in this codebase, so this is a fresh need,
-   not a copy. */
-.nav-breadcrumb--mobile {
-  left: 0;
-  right: 0;
-  bottom: var(--spacing-2xl);
-  justify-content: center;
-  border-radius: 0;
-  border-width: 1px 0 0;
-  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
-  width: 100%;
-}
-
-/* Docked (desktop/tablet) — bottom-left of .screen-content, sized to its own content rather than
-   full-bleed. Note: the ?debug overlay (AudioDebugHud.css) occupies roughly the same corner of the
-   real viewport (it's position: fixed, a 4px/4px offset, not scoped to .screen-content) — both are
-   passive/non-interactive, so an occasional visual overlap when both are on screen (opt-in ?debug
-   only) is a known, accepted minor collision, not fixed here. */
-.nav-breadcrumb--desktop {
-  left: 14px;
-  bottom: var(--spacing-2xl);
-  max-width: min(480px, calc(100vw - 32px));
 }

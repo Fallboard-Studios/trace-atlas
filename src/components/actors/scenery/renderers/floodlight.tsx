@@ -3,6 +3,7 @@ import { applyColorShift, hslToString } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { FloodlightParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 floodlight row)
@@ -70,18 +71,22 @@ export const floodlight: SceneryRenderer = ({ actor, params, cap, eastL, westL, 
     `${beamGroundX},${y}`,
   ].join(' ');
 
+  // Thin members and curves take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6); lamps, lit bars,
+  // beams, pools, highlight strips, valves and floats are left exactly as they are.
+  const member = WORLD_GEM.others ? hairline() : undefined;
+
   return (
     <g data-scenery="floodlight">
-      <rect data-floodlight="mast" x={x - MAST_W / 2} y={mastTop} width={MAST_W} height={mastH} fill={mastFill} />
+      <rect data-floodlight="mast" x={x - MAST_W / 2} y={mastTop} width={MAST_W} height={mastH} fill={mastFill} {...member} />
       <rect
         data-floodlight="arm"
         x={Math.min(x, headX)}
         y={mastTop - 1}
         width={Math.abs(headOffset)}
         height={2}
-        fill={mastFill}
+        fill={mastFill} {...member}
       />
-      <rect data-floodlight="head" x={headX - HEAD_W / 2} y={headTop} width={HEAD_W} height={HEAD_H} fill={headFill} />
+      <rect data-floodlight="head" x={headX - HEAD_W / 2} y={headTop} width={HEAD_W} height={HEAD_H} fill={headFill} {...member} />
       <rect
         data-floodlight="lit-bar"
         x={headX - LIT_BAR_W / 2}

@@ -8,6 +8,7 @@ import { LightShafts } from './LightShafts';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { stopRobotLifecycle } from '@/systems/robotSystems';
 import { initializeLocale } from '@/systems/worldTransition';
@@ -237,12 +238,15 @@ export function OceanScene({
   );
 
   // Bring the active locale online on mount — guarded factory placement + the
-  // fixed 12-robot roster + robot-lifecycle tick start, via the same
-  // initializeLocale helper Sector Settings' retransmit action uses, so this
-  // setup logic exists in exactly one place (src/systems/worldTransition.ts).
-  // It's idempotent on factories/robots (skips if the locale is already
-  // populated — e.g. a power cycle where the scene unmounts/remounts but
-  // actors/robots persist in the store), so calling it again here is safe.
+  // fixed 12-robot roster, via the same initializeLocale helper Sector
+  // Settings' retransmit action uses, so this setup logic exists in exactly
+  // one place (src/systems/worldTransition.ts). WorldView mounts in both power
+  // states now (docs/specs/LAYOUT_REWORK.md §1.9), so this runs once per page
+  // load, usually while the tablet is off: the world builds as a still frame
+  // and its systems (lifecycle tick, work loop, swells) start only if the
+  // tablet is already on. Otherwise powerController.powerOnSequence() starts
+  // them on the rocker. It's idempotent on factories/robots (skips if the
+  // locale is already populated), so calling it again here is safe.
   //
   // Immediately after, if a shareable link's ?session= payload is present
   // (roadmap Phase 21), apply its robotOverrides/companyDiffs/globalAudio on
@@ -253,14 +257,14 @@ export function OceanScene({
   // calling applySessionPayload's normal retransmitWorld path here would
   // tear that locale down and rebuild it a second time in the same boot.
   //
-  // consumeSessionSharePayload, NOT getSessionSharePayload — this effect
-  // reruns on every power cycle (unmount/remount, e.g. the power switch),
-  // and getSessionSharePayload would keep returning the same payload forever,
-  // re-applying it (re-registering every robot's melody, reapplying company
-  // membership) on every power-on for as long as ?session= stays in the URL.
+  // consumeSessionSharePayload, NOT getSessionSharePayload — getSessionSharePayload
+  // would keep returning the same payload forever, so any remount of this scene
+  // would re-apply it (re-registering every robot's melody, reapplying company
+  // membership) for as long as ?session= stays in the URL. (The scene no longer
+  // remounts on a power cycle, but it is still a mount effect.)
   // consumeSessionSharePayload returns it once per page load, then null.
   useEffect(() => {
-    initializeLocale(localeId);
+    initializeLocale(localeId, { startSystems: useUIStore.getState().isPoweredOn });
 
     const sharePayload = consumeSessionSharePayload();
     if (sharePayload) {
@@ -270,7 +274,7 @@ export function OceanScene({
     return () => {
       stopRobotLifecycle();
     };
-    // Intentionally mount-only: this scene mounts once per power-on, and
+    // Intentionally mount-only: this scene mounts once per page load, and
     // initializeLocale itself is what changes an active locale now (Sector
     // Settings' retransmit action) — not a re-render of this component.
     // eslint-disable-next-line react-hooks/exhaustive-deps

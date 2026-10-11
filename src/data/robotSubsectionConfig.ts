@@ -1,9 +1,9 @@
 /**
  * Canonical section/subsection shape for a robot/company's Levels/Composition/Envelope/Source
  * stacked view (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — one source of truth for
- * useNavTree.ts (which reads it to build the probes/companies per-entity nav-tree nodes) and for
- * RobotOptionsTab.tsx/CompanyOptionsSection.tsx (which read it to build their stacked accordion
- * views), which otherwise each hand-duplicate the exact same id/label/trait table and risk
+ * RobotScreen.tsx and CompanyScreen.tsx (their section tabs, docs/tasks/LAYOUT_REWORK.md Tasks 16 and 23)
+ * and the breadcrumb (navActions.ts), which
+ * otherwise each hand-duplicate the exact same id/label/trait table and risk
  * drifting apart (e.g. a future label rename landing in only one of the several places it used to
  * be typed out).
  *
@@ -32,7 +32,7 @@ export interface RobotSubsectionEntry {
 
 /** The only 4 Trait values ROBOT_SECTIONS_CONFIG ever uses — narrower than Trait itself (which
  *  also covers company/seed/header, used elsewhere in the app) so a consumer's own trait->style
- *  mapping (RobotOptionsTab.tsx/CompanyOptionsSection.tsx) can be a Record<RobotOptionsTrait, ...>
+ *  mapping (RobotScreen.tsx/CompanyOptionsSection.tsx) can be a Record<RobotOptionsTrait, ...>
  *  literal instead of a switch with a silent default — TypeScript then refuses to compile if a
  *  new section here ever uses a trait neither mapping handles, rather than silently rendering an
  *  unstyled accordion at runtime. */
@@ -50,9 +50,8 @@ export interface RobotSectionEntry {
   subsections: RobotSubsectionEntry[];
 }
 
-/** Tree order == render order, for both the nav tree (useNavTree.ts) and the stacked content
- *  views (RobotOptionsTab.tsx/CompanyOptionsSection.tsx) — one array, both consumers iterate it
- *  directly instead of each hand-declaring their own order. */
+/** Render order, for the robot and company screens' tabs (RobotScreen.tsx, CompanyScreen.tsx) — one
+ *  array, both consumers iterate it directly instead of each hand-declaring their own order. */
 export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
     id: 'volume', content: 'probe.dynamics', trait: 'output',
@@ -95,23 +94,41 @@ export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
  */
 export const SOURCE_OSCILLATOR_SUBSECTIONS = ['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator'] as const;
 
-/** Every accordion-bearing subsection id RobotSectionAccordionStack renders for `prefix`, in tree
- *  order — excludes a subsection merged into a sibling (mergedInto set, e.g. 'frequency'/Pitches,
- *  which has no accordion of its own). Lives alongside ROBOT_SECTIONS_CONFIG (not in
- *  RobotSectionAccordionStack.tsx) since it's a pure derivation of this table, not
- *  component-specific logic — also keeps that file component-only for React Fast Refresh. */
-export function subsectionIds(prefix: string): string[] {
-  return ROBOT_SECTIONS_CONFIG.flatMap((section) => section.subsections
-    .filter((sub) => !sub.mergedInto)
-    .map((sub) => `${prefix}.${section.id}.${sub.id}`));
+// ========================================
+// THE ROBOT SCREEN'S TABS (docs/tasks/LAYOUT_REWORK.md Task 16)
+// ========================================
+// Read by RobotScreen and the breadcrumb alike, so the two always name the same tab.
+
+/** The section the robot screen opens on when none is stored (the plan: Source, Core Oscillator). */
+export const DEFAULT_ROBOT_SECTION: RobotSection = 'source';
+
+/** A section's own panels: its subsections with an accordion of their own (a merged one, Pitches,
+ *  lives inside Composition's panel). */
+function ownPanels(section: RobotSectionEntry): RobotSubsectionEntry[] {
+  return section.subsections.filter((sub) => !sub.mergedInto);
 }
 
-/** Every real AccordionContainer id RobotSectionAccordionStack renders for `prefix` —
- *  subsectionIds() plus each section's own wrapping accordion id, for a section that has one
- *  (only 'source' today). */
-export function accordionIds(prefix: string): string[] {
-  const wrapping = ROBOT_SECTIONS_CONFIG
-    .filter((section) => section.accordion)
-    .map((section) => `${prefix}.${section.id}`);
-  return [...subsectionIds(prefix), ...wrapping];
+/** A section's tab is named after the panel it shows, as its accordion was: Source's own wrapper, else
+ *  its one panel's (Levels, not the tree's old "Dynamics" row). */
+export function sectionTabContent(section: RobotSectionEntry): ContentKey {
+  return section.accordion ?? ownPanels(section)[0].accordion!;
+}
+
+/** The sub-tab row: a section's panels when it has more than one (Source's three oscillators); a
+ *  section with one panel shows it with no sub row. */
+export function sectionSubTabs(section: RobotSectionEntry): RobotSubsectionEntry[] {
+  const panels = ownPanels(section);
+  return panels.length > 1 ? panels : [];
+}
+
+/** The open section: the stored one, else Source. */
+export function activeRobotSection(stored: RobotSection | null): RobotSection {
+  return stored ?? DEFAULT_ROBOT_SECTION;
+}
+
+/** The panel a section shows: the stored sub-tab when it is one of this section's, else its first —
+ *  SectionTabs' own stale-value rule. A section with one panel always shows that one. */
+export function activeRobotSubsection(sectionId: RobotSection, stored: RobotSubsection | null): RobotSubsection {
+  const panels = ownPanels(ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId)!);
+  return panels.find((sub) => sub.id === stored)?.id ?? panels[0].id;
 }

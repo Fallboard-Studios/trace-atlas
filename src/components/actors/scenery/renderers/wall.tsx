@@ -1,6 +1,8 @@
 import colorTheme from '../../../../constants/colorTheme.json';
-import { applyColorShift } from '../../../../utils/colorUtils';
+import { applyColorShift, shiftHSL } from '../../../../utils/colorUtils';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 /** Cap rail thickness, scene units (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 wall row). */
 const CAP_RAIL_H = 5;
@@ -24,11 +26,25 @@ export const wall: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => {
   const eastFill = applyColorShift(colorTheme.body.base, bodyShift, eastL * cap);
   const railFill = applyColorShift(colorTheme.shell.shadow, NO_SHIFT, ((eastL + westL) / 2) * cap);
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): the full rect, top and bottom split
+  // at the centre line so each half takes its own face's light. The cap rail moves inside it,
+  // inset by the depth from the top and both sides, or the ring's top facet would bury it.
+  const d = WORLD_GEM.massScenery ? worldBevel(p.w, p.h) : 0;
+  const ring = ringFacets(
+    [[x - half, y - p.h], [x + half, y - p.h], [x + half, y], [x - half, y]],
+    d,
+    worldLightVector(eastL, westL),
+    (midX) => (midX < x ? westL : eastL) * cap,
+    shiftHSL(colorTheme.body.base, bodyShift),
+    { splitX: x },
+  );
+
   return (
     <g data-scenery="wall">
       <rect x={x - half} y={y - p.h} width={half} height={p.h} fill={westFill} />
       <rect x={x} y={y - p.h} width={half} height={p.h} fill={eastFill} />
-      <rect x={x - half} y={y - p.h} width={p.w} height={CAP_RAIL_H} fill={railFill} />
+      <rect x={x - half + d} y={y - p.h + d} width={p.w - 2 * d} height={CAP_RAIL_H} fill={railFill} />
+      <GemRing facets={ring} />
     </g>
   );
 };

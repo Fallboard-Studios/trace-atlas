@@ -7,6 +7,7 @@
  * docs/reference/ROBOT_DATA_GRID.md's Component column.
  */
 import type { LfoLink } from './lfo';
+import type { ContentHelp } from '@/content';
 
 // ========================================
 // BASE
@@ -18,6 +19,9 @@ export interface ControlSchemaBase {
    *  Rendered by this control's own internally-composed <DualLabel />. */
   loreLabel?: string;
   humanLabel?: string;
+  /** The "?" on the control's label (docs/specs/LAYOUT_REWORK.md §1.4) — spread in by `labels()` from
+   *  the content entry's `help`; absent = no "?". */
+  help?: ContentHelp;
 }
 
 // ========================================
@@ -122,7 +126,13 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  option that omits it renders `humanLabel` alone exactly as before. Not every option set has a
    *  documented lore counterpart (docs/reference/text-content-tables.md's Waveform Names table is
    *  the only one that does today), so this is per-option, not a schema-wide requirement. */
-  options: { value: string; humanLabel: string; loreLabel?: string; color?: string }[];
+  options: { value: string; humanLabel: string; loreLabel?: string; color?: string; dividerBefore?: boolean }[];
+  /** 'cabinet' (the default, omitted by every consumer before the off screen) is the popped cabinetry
+   *  box. 'muted' (docs/specs/LAYOUT_REWORK.md §1.9) is the powered-off look: each option is the box's own
+   *  shape and size with no walls, no pop timeline and no glow, the selected one a monochrome fill.
+   *  `dividerBefore` on an option draws a thin rule ahead of it in either appearance — the off screen's
+   *  line between the three presets and the user's saves. */
+  appearance?: 'cabinet' | 'muted';
 }
 
 export interface ToggleSchema extends ControlSchemaBase {

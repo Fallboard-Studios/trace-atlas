@@ -90,6 +90,13 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
  * the unconditional stop+start pairs below are what re-subscribe the ticks,
  * not just what handles a locale swap.
  *
+ * Two halves (docs/specs/LAYOUT_REWORK.md §1.9). The BUILD half (district,
+ * roster, companies) always runs. The START half (startLocaleSystems below)
+ * runs only when `startSystems` is true, the default: a world built while the
+ * tablet is off is a still frame (no lifecycle tick, no work loop, no swells)
+ * until powerController.powerOnSequence() calls startLocaleSystems for it.
+ * A powered-off boot or retransmit passes `startSystems: false`.
+ *
  * No job is assigned here: the work loop (restarted below, like the ticks)
  * picks each robot's first job at its first site (Phase 43, spec §1.1).
  *
@@ -98,7 +105,7 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
  * caller passing a partially-populated locale will skip the setup it thinks
  * is already done — pass a genuinely empty locale if you want it to run.
  */
-export function initializeLocale(localeId: string): void {
+export function initializeLocale(localeId: string, { startSystems = true }: { startSystems?: boolean } = {}): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   if (!locale) return;
 
@@ -108,10 +115,24 @@ export function initializeLocale(localeId: string): void {
     spawnInitialCompanies(localeId); // Roadmap Phase 10 — same guard as the roster it depends on
   }
 
+  if (startSystems) startLocaleSystems(localeId);
+}
+
+/**
+ * The START half of bringing a locale online: the robot-lifecycle tick, the
+ * work loop and the Audio Swells tick, each as an unconditional stop+start
+ * pair so a repeat call (a second power-on, a retransmit) never double-starts
+ * and BeatClock's post-killAll empty listener table is re-subscribed. Builds
+ * nothing: the world and roster must already exist (the work loop reads the
+ * world's sites and stations once at start). Called by initializeLocale when
+ * its `startSystems` is true and by powerController.powerOnSequence() for a
+ * world that was built while the tablet was off.
+ */
+export function startLocaleSystems(localeId: string): void {
   stopRobotLifecycle();
   startRobotLifecycle(localeId);
   // After the world and roster exist: the loop reads the world's sites and stations once at start,
-  // and adopts any robot already mounted (a power-on mounts the scene before this runs).
+  // and adopts any robot already mounted (WorldView mounts before power-on now, so it always has).
   stopWorkLoop();
   startWorkLoop(localeId);
   stopAudioSwells();
@@ -160,7 +181,7 @@ function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId
   if (oldLocaleId) useLocaleStore.getState().removeLocale(oldLocaleId);
   const newLocale = buildLocale(oldAttenuationStyle.id, coordinates);
   useLocaleStore.getState().addLocale(oldAttenuationStyle.id, newLocale);
-  initializeLocale(newLocale.id);
+  initializeLocale(newLocale.id, { startSystems: useUIStore.getState().isPoweredOn });
   useAttenuationStyleStore.getState().setCurrentLocale(oldAttenuationStyle.id, newLocale.id);
 }
 
@@ -269,7 +290,7 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
 
   const newLocale = buildLocale(newAttenuationStyle.id, coordinates);
   useLocaleStore.getState().addLocale(newAttenuationStyle.id, newLocale);
-  initializeLocale(newLocale.id);
+  initializeLocale(newLocale.id, { startSystems: useUIStore.getState().isPoweredOn });
   useAttenuationStyleStore.getState().setCurrentLocale(newAttenuationStyle.id, newLocale.id);
 
   finalizeAttenuationStyleTransition(newAttenuationStyle, oldAttenuationStyle);

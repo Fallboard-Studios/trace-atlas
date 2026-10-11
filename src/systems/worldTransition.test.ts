@@ -30,13 +30,14 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
-import { initializeLocale, retransmitWorld } from './worldTransition';
+import { initializeLocale, retransmitWorld, startLocaleSystems } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells } from './audioSwells';
 import * as audioSwellsModule from './audioSwells';
 import * as workLoopModule from './workLoop';
+import * as robotSystemsModule from './robotSystems';
 import { MAX_ROBOTS } from '../constants';
 import { computeLocaleHour } from '../constants/time';
 import { DockingState } from '../types/Robot';
@@ -49,7 +50,7 @@ import type { Robot } from '../types/Robot';
 function resetStores() {
   useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
   useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
-  useUIStore.setState({ selectedRobotId: null, activeHubTile: null });
+  useUIStore.setState({ selectedRobotId: null, activeHubTile: null, isPoweredOn: false });
 }
 
 const makeRobot = (id: string): Robot => ({
@@ -527,6 +528,7 @@ describe('worldTransition', () => {
   describe('robot lifecycle tick ordering', () => {
     it('stops the previous tick before starting the new locale\'s', async () => {
       const { subscribeToMeasure } = await import('../engine/beatClock');
+      useUIStore.setState({ isPoweredOn: true }); // a powered-on retransmit restarts the systems (Task 26)
       initializeLocale(DEFAULT_LOCALE_ID); // first tick running
       const firstUnsubscribe = vi.mocked(subscribeToMeasure).mock.results[0].value;
 
@@ -537,6 +539,176 @@ describe('worldTransition', () => {
       const unsubOrder = firstUnsubscribe.mock.invocationCallOrder[0];
       const secondSubscribeOrder = vi.mocked(subscribeToMeasure).mock.invocationCallOrder[1];
       expect(unsubOrder).toBeLessThan(secondSubscribeOrder);
+    });
+  });
+
+  // Roadmap Phase 45, docs/tasks/LAYOUT_REWORK.md Task 26: the world builds before power-on and its
+  // systems start on the rocker. initializeLocale is split into the build half (always) and the start
+  // half (only when startSystems is true), so a world built while off is a still frame.
+  describe('the world before power-on (startSystems: false)', () => {
+    function spyOnStartHalf() {
+      return {
+        lifecycleStart: vi.spyOn(robotSystemsModule, 'startRobotLifecycle'),
+        lifecycleStop: vi.spyOn(robotSystemsModule, 'stopRobotLifecycle'),
+        workStart: vi.spyOn(workLoopModule, 'startWorkLoop'),
+        workStop: vi.spyOn(workLoopModule, 'stopWorkLoop'),
+        swellsStart: vi.spyOn(audioSwellsModule, 'startAudioSwells'),
+        swellsStop: vi.spyOn(audioSwellsModule, 'stopAudioSwells'),
+      };
+    }
+
+    it('builds the world and the twelve-robot roster with companies, with no audio context started', () => {
+      const startSpy = vi.spyOn(AudioEngine, 'start');
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      expect(locale.actors.length).toBeGreaterThan(0);
+      expect(locale.robots).toHaveLength(MAX_ROBOTS);
+      expect(locale.companies.length).toBeGreaterThan(0);
+      expect(startSpy).not.toHaveBeenCalled();
+    });
+
+    it('starts none of the three systems, and does not touch their stop halves either', async () => {
+      const spies = spyOnStartHalf();
+      const { subscribeToMeasure, scheduleRepeat } = await import('../engine/beatClock');
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
+      expect(subscribeToMeasure).not.toHaveBeenCalled();
+      expect(scheduleRepeat).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent on a populated locale: a second off-build keeps the same actors, robots and companies', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const first = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const second = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      expect(second.actors).toBe(first.actors);
+      expect(second.robots).toBe(first.robots);
+      expect(second.companies).toBe(first.companies);
+    });
+
+    it('does nothing, and does not throw, for an unknown locale id', () => {
+      const spies = spyOnStartHalf();
+      expect(() => initializeLocale('nonexistent', { startSystems: false })).not.toThrow();
+      expect(spies.lifecycleStart).not.toHaveBeenCalled();
+    });
+
+    it('treats an options object without startSystems as the default (start)', () => {
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      initializeLocale(DEFAULT_LOCALE_ID, {});
+      expect(workStart).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('startLocaleSystems — the start half on its own', () => {
+    it('stops then starts the robot lifecycle, work loop and audio swells for the locale, once each, after a pre-power build', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const lifecycleStart = vi.spyOn(robotSystemsModule, 'startRobotLifecycle');
+      const lifecycleStop = vi.spyOn(robotSystemsModule, 'stopRobotLifecycle');
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
+      const swellsStart = vi.spyOn(audioSwellsModule, 'startAudioSwells');
+      const swellsStop = vi.spyOn(audioSwellsModule, 'stopAudioSwells');
+
+      startLocaleSystems(DEFAULT_LOCALE_ID);
+
+      expect(lifecycleStart).toHaveBeenCalledTimes(1);
+      expect(lifecycleStart).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
+      expect(workStart).toHaveBeenCalledTimes(1);
+      expect(workStart).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
+      expect(swellsStart).toHaveBeenCalledTimes(1);
+      expect(swellsStart).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
+      expect(lifecycleStop.mock.invocationCallOrder[0]).toBeLessThan(lifecycleStart.mock.invocationCallOrder[0]);
+      expect(workStop.mock.invocationCallOrder[0]).toBeLessThan(workStart.mock.invocationCallOrder[0]);
+      expect(swellsStop.mock.invocationCallOrder[0]).toBeLessThan(swellsStart.mock.invocationCallOrder[0]);
+    });
+
+    it('builds nothing: it never places a district or spawns a roster', () => {
+      startLocaleSystems(DEFAULT_LOCALE_ID);
+      const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      expect(locale.actors).toHaveLength(0);
+      expect(locale.robots).toHaveLength(0);
+    });
+
+    it('does not double-start on a second call: exactly one lifecycle subscription stays live (the stop-then-start pairs hold)', async () => {
+      const { subscribeToMeasure } = await import('../engine/beatClock');
+      const unsubscribes: ReturnType<typeof vi.fn>[] = [];
+      vi.mocked(subscribeToMeasure).mockImplementation(() => {
+        const unsubscribe = vi.fn();
+        unsubscribes.push(unsubscribe);
+        return unsubscribe;
+      });
+      try {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+
+        startLocaleSystems(DEFAULT_LOCALE_ID);
+        startLocaleSystems(DEFAULT_LOCALE_ID);
+
+        expect(unsubscribes).toHaveLength(2);
+        expect(unsubscribes[0]).toHaveBeenCalledTimes(1);
+        expect(unsubscribes[1]).not.toHaveBeenCalled();
+      } finally {
+        vi.mocked(subscribeToMeasure).mockImplementation(() => vi.fn());
+      }
+    });
+
+    it('does not throw for an unknown locale id', () => {
+      expect(() => startLocaleSystems('nonexistent')).not.toThrow();
+    });
+  });
+
+  describe('retransmitWorld follows the power state', () => {
+    const MOVES = [
+      ['coordinates only', { coordinates: { x: 500, y: 500 } }],
+      ['Attenuation Style and coordinates', { attenuationStyleName: 'Brinemouth', coordinates: { x: 500, y: 500 } }],
+    ] as const;
+
+    it.each(MOVES)('powered off (%s): builds the new world and starts no system', async (_label, input) => {
+      const { subscribeToMeasure, scheduleRepeat } = await import('../engine/beatClock');
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+
+      retransmitWorld(input);
+
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const locale = useLocaleStore.getState().getLocaleById(style.currentLocaleId!)!;
+      expect(locale.robots).toHaveLength(MAX_ROBOTS);
+      expect(locale.actors.length).toBeGreaterThan(0);
+      expect(workStart).not.toHaveBeenCalled();
+      expect(subscribeToMeasure).not.toHaveBeenCalled();
+      expect(scheduleRepeat).not.toHaveBeenCalled();
+    });
+
+    it.each(MOVES)('powered on (%s): builds the new world and starts the systems for it', (_label, input) => {
+      useUIStore.setState({ isPoweredOn: true });
+      initializeLocale(DEFAULT_LOCALE_ID);
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      const swellsStart = vi.spyOn(audioSwellsModule, 'startAudioSwells');
+
+      retransmitWorld(input);
+
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      expect(workStart).toHaveBeenCalledTimes(1);
+      expect(workStart).toHaveBeenCalledWith(style.currentLocaleId);
+      expect(swellsStart).toHaveBeenCalledTimes(1);
+      expect(swellsStart).toHaveBeenCalledWith(style.currentLocaleId);
+    });
+
+    it('reads the power state at the moment of the retransmit, not at import time', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      retransmitWorld({ coordinates: { x: 10, y: 10 } });
+      expect(workStart).not.toHaveBeenCalled();
+
+      useUIStore.setState({ isPoweredOn: true });
+      retransmitWorld({ coordinates: { x: 20, y: 20 } });
+      expect(workStart).toHaveBeenCalledTimes(1);
+    });
+
+    it('an Attenuation-Style-only retransmit keeps the preserved locale and starts nothing new, powered or not', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      retransmitWorld({ attenuationStyleName: 'Saltwhistle' });
+      expect(workStart).not.toHaveBeenCalled();
     });
   });
 });

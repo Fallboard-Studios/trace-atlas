@@ -169,3 +169,16 @@ describe(':root color-accent-a/-b mechanism (Task 4)', () => {
     expect(cssSource).not.toContain('assets/color-theme.json');
   });
 });
+
+describe(':root power switch geometry', () => {
+  const rootBody = getCssRuleBody(cssSource, ':root');
+  // Crawford, 2026-10-10: the switch is 1.75 times as tall as it is wide (it was 2), and the power corner,
+  // which is derived from it, follows. The light's border is 2px (PowerRockerSwitch.light.test.tsx).
+  it('makes the switch 1.75 times as tall as it is wide', () => {
+    expect(rootBody).toContain('--power-switch-height: calc(var(--power-switch-width) * 1.75);');
+  });
+
+  it('still derives the corner from the switch, not from a second number', () => {
+    expect(rootBody).toContain('--power-corner-height: calc(var(--power-switch-height) + (var(--power-corner-margin) * 2));');
+  });
+});

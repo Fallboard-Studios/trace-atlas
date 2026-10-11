@@ -13,28 +13,6 @@
   gap: 0.75rem;
 }
 
-.company-summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.company-summary__swatch {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.company-summary__name {
-  font-weight: 600;
-}
-
-.company-summary__count {
-  color: var(--color-text-muted);
-}
-
 /* Explicit z-index, matching this codebase's own layering convention (Header uses --z-header:
    40, NavToggleButton uses 10) rather than relying only on Radix's Portal rendering after #root
    in <body> — that DOM-order stacking is correct today (neither #root nor <body> establishes a
@@ -58,6 +36,9 @@
   padding: 1.25rem;
   max-width: 360px;
   background: var(--color-surface);
+  /* Its own text colour: inside the screen it would inherit a dark one and the title would vanish
+     (found in Chrome for the Settings confirms once they portalled into #screen-viewport, Task 17). */
+  color: var(--color-text-primary-fixed);
   border: 1px solid var(--color-border);
   border-radius: 8px;
 }

@@ -1,0 +1,46 @@
+/* A nav box fills its column (the panel, or the entity list under a parent box); the button stays the
+   whole hit area, the CabinetBox inside it only draws — Button.css's split, full width instead of
+   fit-content, the way NavCabinetRow.css widened its own box. */
+.nav-box {
+  display: flex;
+  width: 100%;
+  /* The shared label size query (TYPE_SCALE.md): DualLabel drops to its compact sizes below 120 px,
+     which is what the 116 px panel at rest needs. Safe here, unlike on Button (Button.css): this box
+     takes its width from its column, never from its content, so size containment cannot collapse it. */
+  container-type: inline-size;
+  container-name: sc-control;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-control);
+  text-align: left;
+}
+
+.nav-box:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.nav-box .sc-cabinet-box,
+.nav-box .sc-cabinet-box__front {
+  width: 100%;
+}
+
+/* A face with text on it is the live surface (Button.css's rule), in the box's own accent. The side
+   padding is trimmed from CabinetBox's 14 px to 4 px (Crawford, 2026-10-10: "cut the side padding
+   down") so a label fits the panel at rest; a long one wraps, centred. */
+.nav-box .sc-cabinet-box__front {
+  padding: 0 4px;
+  background: var(--color-accent-gradient);
+  text-align: center;
+}
+
+/* The name follows the box's own text colour, so a light identity colour gets dark text
+   (getRobotColorStyle) — DualLabel.css's forced-white default would vanish on it, the case
+   NavTreeNode.css opted its own rows out for. */
+.nav-box .sc-dual-label__human {
+  color: var(--color-text-primary);
+}

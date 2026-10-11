@@ -16,7 +16,6 @@ import {
   NOTE_VARIANCE_SCHEMA,
 } from '@/data/robotOptionsConfig';
 import { DEV_TUNING } from '@/constants';
-import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import type { DirectionalPanelSchema } from '@/types/controls';
 
 import { CONTENT } from '@/content';
@@ -261,12 +260,6 @@ export interface PingControlsCompositionSectionProps {
   onNoteVarianceChange: (value: number) => void;
   disabled?: boolean;
   style?: CSSProperties;
-  /** Scroll anchor id for the Note Variance slider specifically — the nav tree's "Pitches" leaf
-   *  (`<prefix>.melody.frequency`) has no accordion or top-level anchor of its own anymore (its
-   *  content merged into this Composition section), so a click on it needs a real anchor to land
-   *  on. Registered here, not by the caller, since Note Variance is nested inside this shared
-   *  section's own row, not something a caller could wrap externally. */
-  noteVarianceAnchorId?: string;
 }
 
 /**
@@ -287,7 +280,6 @@ function PingControlsCompositionSectionInner({
   onNoteVarianceChange,
   disabled,
   style,
-  noteVarianceAnchorId,
 }: PingControlsCompositionSectionProps) {
   const [octMin, octMax] = value.octaveRange;
   // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
@@ -302,12 +294,9 @@ function PingControlsCompositionSectionInner({
       </DirectionalPanel>
       <DirectionalPanel schema={COMPOSITION_ROW2_SCHEMA}>
         <SliderLinear schema={PITCH_REPEAT_SCHEMA} value={value.pitchRepeat} onChange={onPitchRepeatChange} disabled={pitchRepeatDisabled} />
-        <div
-          ref={noteVarianceAnchorId ? (el) => {
-            if (el) setSectionRef(noteVarianceAnchorId, el);
-            else clearSectionRef(noteVarianceAnchorId);
-          } : undefined}
-        >
+        {/* The wrapper held the retired "Pitches" scroll anchor (docs/tasks/LAYOUT_REWORK.md Task 18);
+            kept so the row lays out exactly as it did. */}
+        <div>
           <SliderLinear schema={NOTE_VARIANCE_SCHEMA} value={value.noteVariance} onChange={onNoteVarianceChange} disabled={disabled} />
         </div>
       </DirectionalPanel>

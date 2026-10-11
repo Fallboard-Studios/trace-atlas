@@ -198,6 +198,15 @@
   .phone .stage-robot .halo { position: absolute; inset: -14px -14px 20px; border: 2px dashed rgba(255, 255, 255, .35); border-radius: 50%; }
   .phone .telemetry { position: absolute; left: 10px; right: 10px; bottom: 70px; z-index: 3; }
   .phone .telemetry .glass.strip { width: 100%; box-sizing: border-box; justify-content: center; font-size: 12px; gap: 10px; }
+  /* ---------- sticky frame bars (2026-10-08, Crawford: "bad UX to have the options so far from the views they impact") ----------
+     Each frame is a <section class="frame">; its heading + toggles sit in a .bar that sticks to the top of the viewport while that
+     frame is in view and releases at the section's end, so a toggle is never more than one glance from what it changes. */
+  .frame { position: relative; }
+  .frame > .bar { position: sticky; top: 0; z-index: 40; background: var(--bg); padding: 6px 0 8px; margin: 0 0 8px; border-bottom: 1px solid #2a323a; box-shadow: 0 8px 16px -8px rgba(0, 0, 0, .8); }
+  .frame > .bar h2 { margin: 14px 0 6px; border: 0; padding: 0; }
+  .frame > .bar .controls { margin: 0; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: var(--bg); border: 1px solid #41ad9f; padding: 8px 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .7); max-width: 420px; }
+  .fixedpanel .controls { margin: 0; }
 </style>
 </head>
 <body>
@@ -222,44 +231,54 @@
   </ol>
 </div>
 
-<h2>B1 — Deck (desktop): console strip, nothing else over the world</h2>
+<section class="frame">
+<div class="bar"><h2>B1 — Deck (desktop): console strip, nothing else over the world</h2></div>
 <div class="desk" id="b1"></div>
 <p class="cap">Five branch keys, the breadcrumb, telemetry, mute and a small volume strip in one 64 px strip. The power corner is unchanged.
   No welcome card; the copy moves to the off screen and the feed.</p>
+</section>
 
-<h2>B2 — Robot detail (desktop): tracked robot on the stage, inspector on the right</h2>
+<section class="frame">
+<div class="bar"><h2>B2 — Robot detail (desktop): tracked robot on the stage, inspector on the right</h2></div>
 <div class="desk" id="b2"></div>
 <p class="cap">The robot keeps working in the world with a halo and a name tag; the view pans to keep it in the open half. The inspector header
   carries name, status, battery and a one-box company select. Envelope is open; the other three show their values in one line.
   The diagnostic feed at the bottom describes the focused control (Decay Time).</p>
+</section>
 
-<h2>B3 — Fleet Params → LFO Bank (desktop): one-box selects, lane dial, feed</h2>
+<section class="frame">
+<div class="bar"><h2>B3 — Fleet Params → LFO Bank (desktop): one-box selects, lane dial, feed</h2>
 <div class="controls">
   <span>Open accordion:</span>
   <button data-b3="pacing">Pacing</button>
   <button data-b3="lfo" class="on">LFO Bank</button>
   <button data-b3="eq">EQ &amp; Filters</button>
   <button id="b3list">Shape list open</button>
-</div>
+</div></div>
 <div class="desk" id="b3"></div>
 <p class="cap">Lane and Shape are one box each and open a list. EQ shows one lane dial per band instead of a five-box picker and a depth
   slider. Closed groups still tell you their values.</p>
+</section>
 
-<h2>B4 — Probes (desktop): compact rows, name tags on the stage</h2>
+<section class="frame">
+<div class="bar"><h2>B4 — Probes (desktop): compact rows, name tags on the stage</h2>
 <div class="controls">
   <button id="b4filter">Filter: Rust Syndicate</button>
-</div>
+</div></div>
 <div class="desk" id="b4"></div>
 <p class="cap">Rows are a small gem, name, job, status and a thin battery strip, with the company as a colour bar. A row click pans the stage to
   that robot. Companies remains its own branch with the same rows grouped and rename/delete at the top.</p>
+</section>
 
-<h2>B5 — Phone: Deck, robot detail as a bottom sheet, Fleet Params sheet</h2>
+<section class="frame">
+<div class="bar"><h2>B5 — Phone: Deck, robot detail as a bottom sheet, Fleet Params sheet</h2>
 <div class="controls">
   <button id="b5full">Sheet full height</button>
-</div>
+</div></div>
 <div class="phones" id="b5"></div>
 <p class="cap">The five keys are the bottom bar. The sheet sits at half height by default so the tracked robot stays visible above it; drag the
   handle for full height. Mute and power are the only things at the top.</p>
+</section>
 
 <script>
 // ---------- palette ----------

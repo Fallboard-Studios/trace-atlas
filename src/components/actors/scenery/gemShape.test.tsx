@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
-import { GemShape, accentBase } from './gemShape';
+import { GemShape, accentBase, facetMultiplier, gemOutlineStroke } from './gemShape';
 import { assertNinetyFortyFive } from './sceneryTestHelpers';
 
 const BASE = { h: 20, s: 55, l: 42 };
@@ -15,6 +15,57 @@ function renderGem(overrides: Partial<Parameters<typeof GemShape>[0]> = {}) {
 describe('accentBase', () => {
   it('is hsl(hue, 55, 42) — spec §1.10', () => {
     expect(accentBase(120)).toEqual({ h: 120, s: 55, l: 42 });
+  });
+});
+
+describe('facetMultiplier (exported so the world material shares the one table)', () => {
+  it('maps the three extreme shades to 0.5 / 1.1 / 1.25', () => {
+    expect(facetMultiplier(-1)).toBe(0.5);
+    expect(facetMultiplier(0)).toBe(1.1);
+    expect(facetMultiplier(1)).toBe(1.25);
+  });
+
+  it('quantizes a raw shade to the nearest of the three levels before the lookup', () => {
+    expect(facetMultiplier(0.4)).toBe(1.1);
+    expect(facetMultiplier(0.8)).toBe(1.25);
+    expect(facetMultiplier(-0.8)).toBe(0.5);
+    expect(facetMultiplier(-0.2)).toBe(1.1);
+  });
+
+  it('flips tone exactly at the quantizer midpoints, ±0.5', () => {
+    expect(facetMultiplier(0.49)).toBe(1.1);
+    expect(facetMultiplier(0.5)).toBe(1.25);
+    expect(facetMultiplier(-0.49)).toBe(1.1);
+    expect(facetMultiplier(-0.51)).toBe(0.5);
+  });
+
+  it('a unit-vector dot product that overshoots ±1 by float error still lands on the extreme tone', () => {
+    expect(facetMultiplier(1 + Number.EPSILON)).toBe(1.25);
+    expect(facetMultiplier(-1 - Number.EPSILON)).toBe(0.5);
+  });
+});
+
+describe('gemOutlineStroke', () => {
+  function outlineStroke(container: HTMLElement): string | null | undefined {
+    return Array.from(container.querySelectorAll('[data-shape="gem"] polygon'))
+      .find((p) => p.getAttribute('fill') === 'none')
+      ?.getAttribute('stroke');
+  }
+
+  it('equals the stroke attribute of the outline polygon GemShape draws', () => {
+    const { container } = renderGem();
+    expect(outlineStroke(container)).toBe(gemOutlineStroke());
+  });
+
+  it('is the same colour whatever the lighting — a material edge, never lit or capped', () => {
+    const { container: dim } = renderGem({ eastL: 0.1, westL: 0.1, cap: 0.3, lit: false });
+    const { container: lit } = renderGem({ eastL: 1.05, westL: 0.3, cap: 1, lit: true, nightDepth: 1 });
+    expect(outlineStroke(dim)).toBe(gemOutlineStroke());
+    expect(outlineStroke(lit)).toBe(gemOutlineStroke());
+  });
+
+  it('is an hsl() colour string', () => {
+    expect(gemOutlineStroke()).toMatch(/^hsl\(/);
   });
 });
 

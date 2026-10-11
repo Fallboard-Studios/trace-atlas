@@ -3,10 +3,14 @@ import { applyColorShift } from '../../../../utils/colorUtils';
 import { GemShape, accentBase } from '../gemShape';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 pylon row)
 // ========================================
+
+/** The members' hairline, or nothing when the members switch is off — spread onto the element. */
+const member = () => (WORLD_GEM.members ? hairline() : undefined);
 
 /** Cross-arm height fractions: ¼, ½, ¾ of the tower's height. */
 const ARM_STEPS = [1, 2, 3] as const;
@@ -69,9 +73,10 @@ export const pylon: SceneryRenderer = ({ actor, params, cap, eastL, westL, night
 
   return (
     <g data-scenery="pylon">
-      <polygon points={towerPoints} fill={steel} />
+      {/* members: the tower and the cross-arms take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6) */}
+      <polygon points={towerPoints} fill={steel} {...member()} />
       {pylonArms(x, y, w, h).map((arm, i) => (
-        <rect key={i} x={arm.x0} y={arm.y} width={arm.x1 - arm.x0} height={ARM_THICKNESS} fill={steel} />
+        <rect key={i} x={arm.x0} y={arm.y} width={arm.x1 - arm.x0} height={ARM_THICKNESS} fill={steel} {...member()} />
       ))}
       {gems ? (
         <GemShape

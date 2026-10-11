@@ -92,7 +92,7 @@ function ToggleInner({ schema, value, onChange, disabled, boxSize, children }: T
 
   return (
     <div className={withActiveClass('sc-toggle', value)}>
-      {!children && <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />}
+      {!children && <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />}
       <Switch.Root
         className={`sc-toggle__root${contentSized ? '' : ' sc-toggle__root--bare'}`}
         style={cabinetTokens}

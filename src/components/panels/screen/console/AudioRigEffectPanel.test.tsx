@@ -5,6 +5,12 @@ import { render, screen, within, fireEvent, act } from '@testing-library/react';
 // Real lfoEngine would construct a real Tone.LFO on first setter call (getOrCreateLfo -> new
 // Tone.LFO(...)), which throws without a real AudioContext.
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
+// The LfoLink lane names follow the shell (docs/tasks/LAYOUT_REWORK.md Task 14); pinned to desk so the
+// lane radios read "Core LFO (A)" … whatever stubMatchMedia below answers for the shell's query.
+vi.mock('@/components/panels/screen/useShell', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/panels/screen/useShell')>()),
+  useShell: () => 'desk',
+}));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual implementation) so
 // the re-render cascade tests can tell whether a SPECIFIC sibling control's own render body
@@ -416,14 +422,14 @@ describe('AudioRigEffectPanel', () => {
 
       const midRow = rowOf('Mid');
       const lowRow = rowOf('Bass');
-      expect(within(midRow).getByRole('radio', { name: 'Accent LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(midRow).getByRole('radio', { name: 'Accent LFO (C)' }).getAttribute('aria-checked')).toBe('true');
       expect(within(midRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('65');
       expect(within(lowRow).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
     });
 
     it("choosing a lane on Mid's LfoLink calls setGlobalLfoLink('eq3.mid', { lane, depth })", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      fireEvent.click(within(rowOf('Mid')).getByRole('radio', { name: 'Core LFO' }));
+      fireEvent.click(within(rowOf('Mid')).getByRole('radio', { name: 'Core LFO (A)' }));
 
       expect(useAudioStore.getState().globalLfoLinks['eq3.mid']).toEqual({ lane: 'a', depth: 0 });
     });
@@ -504,7 +510,7 @@ describe('AudioRigEffectPanel', () => {
       // shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the next microtask.
       await act(async () => { await Promise.resolve(); });
 
-      expect(within(row).getByRole('radio', { name: 'Companion LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(row).getByRole('radio', { name: 'Companion LFO (B)' }).getAttribute('aria-checked')).toBe('true');
       expect(depthSliderOf(row).getAttribute('aria-valuenow')).toBe('45');
       expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeNull();
     });
@@ -517,7 +523,7 @@ describe('AudioRigEffectPanel', () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
       const row = rowOf('Bass');
 
-      expect(within(row).getByRole('radio', { name: 'Core LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(row).getByRole('radio', { name: 'Core LFO (A)' }).getAttribute('aria-checked')).toBe('true');
       expect(within(row).queryByText(HELD_OFF)).toBeNull();
       expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeNull();
     });

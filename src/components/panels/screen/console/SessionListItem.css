@@ -1,7 +1,18 @@
+/* One line per save, a divider under it (the sketch's Save & Share, docs/tasks/LAYOUT_REWORK.md Task 17
+   follow-up). It wraps only as whole groups: the title, then the actions under it on a narrow row. */
 .session-list-item {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: 0.5rem;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Load / Share / Delete as one unit that never splits across lines or shrinks. */
+.session-list-item__actions {
+  display: flex;
+  flex: none;
   gap: 0.5rem;
 }
 
@@ -17,9 +28,11 @@
 /* The name + timestamp group takes the row's flex share (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
    §1.6); before, the name alone was `flex: 1` and pushed the timestamp to the far end, beside the
    buttons. min-width: 0 on both lets a long name still ellipsise inside the group. Pinned by
-   SessionListItem.test.tsx's CSS scan. */
+   SessionListItem.test.tsx's CSS scan. The share has a 10rem basis (Task 17 follow-up; it was `flex: 1`, a
+   zero basis), so a row too narrow for the title and the actions wraps the actions under the title
+   instead of squeezing the name to a few letters. */
 .session-list-item__title {
-  flex: 1;
+  flex: 1 1 10rem;
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
@@ -60,6 +73,9 @@
   padding: 1.25rem;
   max-width: 360px;
   background: var(--color-surface);
+  /* Its own text colour: inside the screen it would inherit a dark one and the title would vanish
+     (found in Chrome once it portalled into #screen-viewport, Task 17 follow-up). */
+  color: var(--color-text-primary-fixed);
   border: 1px solid var(--color-border);
   border-radius: 8px;
 }

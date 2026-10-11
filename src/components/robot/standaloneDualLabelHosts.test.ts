@@ -13,28 +13,9 @@ import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 // per spec §1.5 (no container-type — that's explicitly out of scope,
 // §1.4's own scope decision).
 //
-// Deviation from the spec's literal wrapper-selector guesses, found while
-// implementing: RobotSelectionCard.tsx renders its standalone DualLabel rows
-// through TWO different wrapper classes, not one — .robot-selection-card__row
-// (the name row) and .robot-selection-card__field (job/battery/docking/audio,
-// inside .robot-selection-card__meta-grid). Rather than duplicate the same 2
-// declarations onto two selectors (and risk a 3rd future row wrapper being
-// missed), this targets the shared ROOT .robot-selection-card instead, which
-// covers both via inheritance — RadioButton's own explicit font-family
-// (Toggle/RadioButton/etc. all set their own) still wins by cascade
-// regardless.
+// RobotSelectionCard and its stylesheet were deleted with the Probes list (docs/tasks/LAYOUT_REWORK.md
+// Task 21); the roster tile that replaced it renders no standalone DualLabel.
 //
-// Roadmap 15.2 update (docs/specs/ROBOT_CARDS_REDESIGN.md): RobotSelectionCard
-// dropped every standalone <DualLabel> row entirely (Name/Job/Docking now
-// render as bare text with no lore/human caption), so the single
-// .robot-selection-card__value class this suite used to check no longer
-// exists — replaced by three leaf classes with genuinely different sizing
-// (.__name at --font-size-heading-sm, the new visual-hierarchy "title" per
-// the confirmed intent; .__job/.__status-line at --font-size-label, same
-// token the old .__value used). The root-level font-family/font-weight
-// assertions above are unaffected — .robot-selection-card itself, and the
-// DualLabel this suite's own root-inheritance rationale describes, are still
-// real (the company RadioButton's own internally-composed DualLabel).
 // RobotDisplaySection.tsx (Roadmap 15.3 update: restructured from a single
 // .robot-display-section__row wrapper class into a centered-avatar grid,
 // .robot-display-section__field/__field--*) still targets its shared root
@@ -48,14 +29,16 @@ import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
-describe('RobotSelectionCard.css standalone DualLabel host', () => {
+// RobotDisplaySection was deleted by docs/tasks/LAYOUT_REWORK.md Task 16; its standalone DualLabels (the
+// meta captions) moved into RobotScreen's avatar column, which carries the same host rules.
+describe('RobotScreen.css standalone DualLabel host (the avatar column, from RobotDisplaySection.css)', () => {
   const cssSource = readFileSync(
-    resolve(repoRoot, 'src/components/selection/RobotSelectionCard.css'),
+    resolve(repoRoot, 'src/components/panels/screen/screens/RobotScreen.css'),
     'utf-8',
   );
 
-  it('sets font-family/font-weight on the shared root (.robot-selection-card), covering both DualLabel wrapper classes it uses', () => {
-    const body = getCssRuleBody(cssSource, '.robot-selection-card');
+  it('sets font-family/font-weight on the column (.robot-screen__avatar-column)', () => {
+    const body = getCssRuleBody(cssSource, '.robot-screen__avatar-column');
     expect(body).not.toBeNull();
     expect(body).toContain('font-family: var(--font-controls);');
     expect(body).toContain('font-weight: var(--font-weight-control);');
@@ -66,43 +49,8 @@ describe('RobotSelectionCard.css standalone DualLabel host', () => {
     expect(cssSource).not.toContain('container-name');
   });
 
-  it('has no leftover reference to the removed --font-size-sm token anywhere in the file', () => {
-    expect(cssSource).not.toContain('var(--font-size-sm)');
-  });
-
-  it('.__job/.__status-line use --font-size-label, same token the old (now-removed) .__value used', () => {
-    const body = getCssRuleBody(cssSource, '.robot-selection-card__job');
-    expect(body).not.toBeNull();
-    expect(body).toContain('font-size: var(--font-size-label);');
-  });
-
-  it('.__name uses --font-size-heading-sm — the visual-hierarchy "title" treatment, not --font-size-label', () => {
-    const body = getCssRuleBody(cssSource, '.robot-selection-card__name');
-    expect(body).not.toBeNull();
-    expect(body).toContain('font-size: var(--font-size-heading-sm);');
-  });
-});
-
-describe('RobotDisplaySection.css standalone DualLabel host', () => {
-  const cssSource = readFileSync(
-    resolve(repoRoot, 'src/components/robot/RobotDisplaySection.css'),
-    'utf-8',
-  );
-
-  it('sets font-family/font-weight on the root (.robot-display-section)', () => {
-    const body = getCssRuleBody(cssSource, '.robot-display-section');
-    expect(body).not.toBeNull();
-    expect(body).toContain('font-family: var(--font-controls);');
-    expect(body).toContain('font-weight: var(--font-weight-control);');
-  });
-
-  it('gains no container-type/container-name (out of scope per spec §1.4)', () => {
-    expect(cssSource).not.toContain('container-type');
-    expect(cssSource).not.toContain('container-name');
-  });
-
-  it('tokenizes .__value\'s font-weight to --font-weight-medium (same 600 value, not renumbered)', () => {
-    const body = getCssRuleBody(cssSource, '.robot-display-section__value');
+  it('tokenizes the meta value\'s font-weight to --font-weight-medium (same 600 value, not renumbered)', () => {
+    const body = getCssRuleBody(cssSource, '.robot-screen__meta-value');
     expect(body).not.toBeNull();
     expect(body).toContain('font-weight: var(--font-weight-medium);');
     expect(body).not.toContain('font-weight: 600;');

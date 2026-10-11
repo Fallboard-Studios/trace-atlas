@@ -9,7 +9,6 @@ import { DualLabel } from './DualLabel';
 import { getAccordionDuration, getAccordionFadeDuration } from './accordionAnimation';
 import { withActiveClass } from './activeClass';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
-import { notifyAccordionAnimationComplete } from '@/utils/accordionSync';
 import type { AccordionSchema } from '@/types/controls';
 import './AccordionContainer.css';
 
@@ -52,8 +51,9 @@ const cabinetTokens = {
  * multiple AccordionContainer instances side by side. `open` is fully
  * controlled by the caller (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.5) —
  * this component owns no open/closed state of its own, and mounts whatever
- * `children` it's given unconditionally; lazy-mount-on-approach is the
- * caller's own concern (useSectionObserver), not this component's.
+ * `children` it's given unconditionally; lazy mounting is the caller's own
+ * concern (CompanyOptionsSection mounts a section on its first open), not
+ * this component's.
  * Expand/collapse animates via a GSAP timeline registered in timelineMap,
  * following PowerRockerSwitch.tsx's pattern, and respects
  * prefers-reduced-motion the same way PowerRockerSwitch.css does.
@@ -145,10 +145,6 @@ function AccordionContainerInner({ schema, children, open, onOpenChange, style }
         ease: 'power2.out',
         onComplete: () => {
           el.style.height = 'auto';
-          // Nav-click sequencing (docs/specs/NAV_ACCORDION_SYNC.md's follow-up fix) — a queued
-          // scroll waits for this, since scrolling before the tween finishes lands on the
-          // pre-expansion position.
-          notifyAccordionAnimationComplete(schema.id);
         },
       });
       if (innerEl) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useShareStatus } from './useShareStatus';
 import { Button } from '@/components/ui/controls/Button';
@@ -6,7 +6,7 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { SessionEntry } from '@/types/session';
-import { formatSessionTimestamp } from '@/utils/helpers';
+import { formatSessionTimestamp, getScreenViewportDomNode } from '@/utils/helpers';
 import { LOAD_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
 
 import { CONTENT, fill } from '@/content';
@@ -43,6 +43,14 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   };
 
   const handleShare = () => share(entry.payload);
+  // A modal Radix dialog gives focus back only to its own Trigger, and the Delete button is not one, so
+  // the button that opened it is kept and focused again on close (Task 5's nav sheet does the same).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openConfirm = () => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConfirmOpen(true);
+  };
+  const returnFocus = () => openerRef.current?.focus();
 
   const handleConfirmDelete = () => {
     deleteNamedSession(entry.name);
@@ -50,9 +58,27 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
     onChange?.();
   };
 
-  const loadSchema = { ...LOAD_SESSION_SCHEMA, humanLabel: fill('session.load', { session: label }) };
-  const shareSchema = { ...SHARE_SESSION_SCHEMA, humanLabel: fill('session.share', { session: label }) };
-  const deleteSchema = { ...DELETE_SESSION_SCHEMA, humanLabel: fill('session.delete', { session: label }) };
+  // Each button's face is its short name ("Load"); its accessible name carries the session, so the rows'
+  // buttons stay apart for a screen reader (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up — the name used
+  // to be the face too, so every row repeated its session three times).
+  const screenNode = confirmOpen ? getScreenViewportDomNode() : null;
+  const confirm = (
+    <>
+      <AlertDialog.Overlay className="session-delete-confirm__overlay" />
+      <AlertDialog.Content className="session-delete-confirm__content" onCloseAutoFocus={returnFocus}>
+        <AlertDialog.Title className="session-delete-confirm__title">{fill('session.delete.confirmTitle', { session: label })}</AlertDialog.Title>
+        <AlertDialog.Description className="session-delete-confirm__description">
+          {CONTENT['session.delete.confirmBody'].human}
+        </AlertDialog.Description>
+        <div className="session-delete-confirm__actions">
+          <AlertDialog.Cancel className="session-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
+          <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
+            {CONTENT['session.delete'].human}
+          </AlertDialog.Action>
+        </div>
+      </AlertDialog.Content>
+    </>
+  );
 
   return (
     <div className="session-list-item">
@@ -63,9 +89,12 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
         <span className="session-list-item__label">{label}</span>
         <span className="session-list-item__saved-at">{formatSessionTimestamp(entry.savedAt)}</span>
       </span>
-      <Button schema={loadSchema} onClick={handleLoad} />
-      <Button schema={shareSchema} onClick={handleShare} />
-      <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
+      {/* One group, so a narrow row wraps the three buttons under the title together. */}
+      <span className="session-list-item__actions">
+        <Button schema={LOAD_SESSION_SCHEMA} face="single" accessibleName={fill('session.load', { session: label })} onClick={handleLoad} />
+        <Button schema={SHARE_SESSION_SCHEMA} face="single" accessibleName={fill('session.share', { session: label })} onClick={handleShare} />
+        <Button schema={DELETE_SESSION_SCHEMA} face="single" accessibleName={fill('session.delete', { session: label })} onClick={openConfirm} />
+      </span>
       {shareStatus === 'copied' && (
         <span className="session-list-item__share-status" role="status">
           {CONTENT['session.status.linkCopied'].human}
@@ -77,22 +106,10 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
         </span>
       )}
 
+      {/* Into the screen, never <body> (the UI Shell guardrail; HelpPopover's way, Task 12); in place
+          when there is no screen (a component test). */}
       <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="session-delete-confirm__overlay" />
-          <AlertDialog.Content className="session-delete-confirm__content">
-            <AlertDialog.Title className="session-delete-confirm__title">{fill('session.delete.confirmTitle', { session: label })}</AlertDialog.Title>
-            <AlertDialog.Description className="session-delete-confirm__description">
-              {CONTENT['session.delete.confirmBody'].human}
-            </AlertDialog.Description>
-            <div className="session-delete-confirm__actions">
-              <AlertDialog.Cancel className="session-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
-              <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                {CONTENT['session.delete'].human}
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
+        {screenNode ? <AlertDialog.Portal container={screenNode}>{confirm}</AlertDialog.Portal> : confirm}
       </AlertDialog.Root>
     </div>
   );

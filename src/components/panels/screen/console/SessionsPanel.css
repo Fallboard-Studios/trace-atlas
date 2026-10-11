@@ -10,10 +10,49 @@
   gap: 0.5rem;
 }
 
+/* The sketch's save row (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up): the name, Save Session and
+   Share live on one line, the buttons on the input's bottom edge. The input takes the room, from a
+   260 px basis (the sketch's), so on a phone it fills its line and the two buttons wrap under it. */
+.sessions-panel__save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-sm);
+}
+
+.sessions-panel__save-row .sc-text-input-facade {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+/* A label row (DualLabel) over its content: Saved Sessions over the list, Factory Reset over the reset.
+   Standalone DualLabel hosts set the controls' face (TYPE_SCALE.md Task 8). */
+.sessions-panel__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  font-family: var(--font-controls);
+  font-weight: var(--font-weight-control);
+}
+
+/* The rows draw their own dividers (SessionListItem.css). */
 .sessions-panel__list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+}
+
+/* The reset runs the full width, as the sketch draws it: the button, its cabinet and the front face
+   together, so the hit area is the box (Button.css's fit-content reasoning). */
+.sessions-panel__reset .sc-button {
+  width: 100%;
+}
+
+.sessions-panel__reset .sc-cabinet-box {
+  width: 100%;
+}
+
+.sessions-panel__reset .sc-cabinet-box__front {
+  width: 100%;
 }
 
 .sessions-panel__save-status {
@@ -56,6 +95,9 @@
   padding: 1.25rem;
   max-width: 360px;
   background: var(--color-surface);
+  /* Its own text colour: inside the screen it would inherit a dark one and the title would vanish
+     (found in Chrome once it portalled into #screen-viewport, Task 17 follow-up). */
+  color: var(--color-text-primary-fixed);
   border: 1px solid var(--color-border);
   border-radius: 8px;
 }

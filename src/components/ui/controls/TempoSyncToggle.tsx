@@ -43,7 +43,7 @@ function TempoSyncToggleInner({ schemaId, synced, onChange, disabled }: TempoSyn
     <div className="sc-tempo-sync-toggle">
       {/* Toggle suppresses its own label when it has facade content (the facade carries it), so the
           toggle's label is rendered here: the box's content is the mode, this is what the box IS. */}
-      <DualLabel loreLabel={TOGGLE_LABELS.loreLabel} humanLabel={TOGGLE_LABELS.humanLabel} />
+      <DualLabel loreLabel={TOGGLE_LABELS.loreLabel} humanLabel={TOGGLE_LABELS.humanLabel} help={TOGGLE_LABELS.help} />
       <Toggle schema={schema} value={synced} onChange={onChange} disabled={disabled}>
         <ToggleFacade value={synced} off={FREE_CONTENT} on={SYNC_CONTENT} />
       </Toggle>

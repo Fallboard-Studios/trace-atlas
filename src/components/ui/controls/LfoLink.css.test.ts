@@ -27,21 +27,41 @@ describe('LfoLink.css layout', () => {
     expect(body).toContain('container-name: sc-control;');
   });
 
-  it('lays Lane and Depth out as a row when the tier says row', () => {
-    const body = getCssRuleBody(cssSource, ".sc-lfo-link[data-orientation='row']");
+  // docs/tasks/LAYOUT_REWORK.md Task 14 (Crawford, 2026-10-10: "App sizes, wrap"): the lane row and the
+  // 8-box depth strip share one row where both fit, and the strip wraps under the lane row where they do
+  // not; each line is one cabinet row. Each declaration pinned here was removed one at a time in Chrome and
+  // changed the layout; four that changed nothing were deleted instead (see LfoLink.css).
+  it('lays the lane row and the depth strip out in one wrapping row', () => {
+    const body = getCssRuleBody(cssSource, '.sc-lfo-link__row');
     expect(body).not.toBeNull();
-    expect(body).toContain('flex-direction: row;');
-    expect(body).toContain('align-items: flex-start;');
+    expect(body).toContain('display: flex;');
+    expect(body).toContain('flex-wrap: wrap;');
   });
 
-  it('gives the row\'s two children equal, content-independent halves that can shrink below their content', () => {
-    const body = getCssRuleBody(cssSource, ".sc-lfo-link[data-orientation='row'] > *");
+  // RadioButton's root is a full-width sc-control size container (RadioButton.css), and inline-size
+  // containment collapses an element whose width comes from its content (leafControlContainerQuery.test.ts's
+  // documented bug — 0 px here, in Chrome). In this row the lane radio's width comes from its options, so it
+  // drops both; at full width the strip could never share its line.
+  it('sizes the lane radio by its options, with no containment of its own', () => {
+    const body = getCssRuleBody(cssSource, '.sc-lfo-link__row > .sc-radio-button');
     expect(body).not.toBeNull();
-    expect(body).toContain('flex: 1 1 0;');
-    expect(body).toContain('min-width: 0;');
+    expect(body).toContain('container-type: normal;');
+    expect(body).toContain('width: auto;');
   });
 
-  it('needs no column rule of its own — column is the base rule, not a second orientation rule', () => {
-    expect(getCssRuleBody(cssSource, ".sc-lfo-link[data-orientation='column']")).toBeNull();
+  // The depth slider fits its box count to its own width. LfoLink.tsx sets --lfo-link-depth-length to an
+  // 8-box track at the tier's sizes: as its flex-basis the line breaks as if the strip were 8 boxes long;
+  // it never grows past it, and it shrinks with a narrower line (the 320 px phone fits 7). Without the basis
+  // the strip collapses to 0 px. It keeps its own containment, which is what lets it shrink.
+  it('offers the depth strip an 8-box basis, and keeps its own containment', () => {
+    const body = getCssRuleBody(cssSource, ".sc-lfo-link__row > .sc-slider-linear[data-orientation='horizontal']");
+    expect(body).not.toBeNull();
+    expect(body).toContain('flex-basis: var(--lfo-link-depth-length);');
+    expect(body).not.toContain('container-type');
+  });
+
+  it('switches nothing by tier any more — no data-orientation rule is left', () => {
+    expect(cssSource).not.toContain('data-orientation=\'row\'');
+    expect(cssSource).not.toContain('data-orientation=\'column\'');
   });
 });

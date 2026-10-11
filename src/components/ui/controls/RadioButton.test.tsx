@@ -368,6 +368,8 @@ describe('RadioButton — option label vocabulary (docs/specs/CONTENT_LAYER.md, 
     render(<RadioButton schema={content} value="natural" onChange={() => {}} />);
     expect(screen.getByRole('radio', { name: 'Natural Decay' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Controlled Decay' })).toBeTruthy();
+    // The option's lore is back on its face, above the human label (Crawford, 2026-10-10), but the
+    // accessible name stays the human label alone.
     expect(screen.getByText('Dissipation')).toBeTruthy();
   });
 
@@ -375,5 +377,108 @@ describe('RadioButton — option label vocabulary (docs/specs/CONTENT_LAYER.md, 
     // @ts-expect-error — `label` was renamed to `humanLabel`; a stale option is a type error, not a runtime fallback
     const stale: RadioButtonSchema['options'][number] = { value: 'x', label: 'X' };
     expect(stale.value).toBe('x');
+  });
+});
+
+describe('RadioButton — appearance "muted" (docs/tasks/LAYOUT_REWORK.md Task 27)', () => {
+  // The off screen's picker: power is off, so nothing pops, glows or comes off the plate. Each option
+  // is the box's own shape and size with no cabinet walls, the selected one a monochrome fill.
+  const muted: RadioButtonSchema = {
+    id: 'transmission',
+    type: 'radio',
+    humanLabel: 'Transmission',
+    appearance: 'muted',
+    options: [
+      { value: 'a', humanLabel: 'Kryndara' },
+      { value: 'b', humanLabel: 'Vessport Null', loreLabel: 'Preset' },
+      { value: 'c', humanLabel: 'Dusk Run', dividerBefore: true },
+    ],
+  };
+
+  it('renders no CabinetBox for any option — no walls, no pop timeline', () => {
+    const { container } = render(<RadioButton schema={muted} value="b" onChange={() => {}} />);
+    expect(screen.queryAllByTestId('cabinet-box')).toHaveLength(0);
+    expect(container.querySelector('.sc-cabinet-box')).toBeNull();
+    expect(container.querySelector('[class*="sc-cabinet-box__"]')).toBeNull();
+  });
+
+  it('still renders each option as a radio with its face, and marks the value selected', () => {
+    render(<RadioButton schema={muted} value="b" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'Vessport Null' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Kryndara' }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByText('Preset')).toBeTruthy();
+  });
+
+  it('marks the group and the selected face as muted so the monochrome fill can key off them', () => {
+    const { container } = render(<RadioButton schema={muted} value="b" onChange={() => {}} />);
+    expect(container.querySelector('.sc-radio-button--muted')).not.toBeNull();
+    const faces = container.querySelectorAll('.sc-radio-button__flat');
+    expect(faces).toHaveLength(3);
+    expect(screen.getByRole('radio', { name: 'Vessport Null' }).getAttribute('data-state')).toBe('on');
+  });
+
+  it('takes the box\'s own height from the cabinet tier, so it is the same size as a cabinet option', () => {
+    const { container } = render(<RadioButton schema={muted} value="b" onChange={() => {}} />);
+    const flat = container.querySelector<HTMLElement>('.sc-radio-button__flat');
+    expect(flat?.style.getPropertyValue('--cabinet-box-height')).toMatch(/^\d+px$/);
+  });
+
+  it('honours boxSize for the flat face\'s height too', () => {
+    const { container } = render(<RadioButton schema={muted} value="b" onChange={() => {}} boxSize={50} />);
+    const flat = container.querySelector<HTMLElement>('.sc-radio-button__flat');
+    expect(flat?.style.getPropertyValue('--cabinet-box-height')).toBe('50px');
+  });
+
+  it('calls onChange on selection and swallows re-clicking the selected one, as the cabinet one does', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={muted} value="b" onChange={onChange} />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Kryndara' }));
+    expect(onChange).toHaveBeenCalledWith('a');
+    onChange.mockClear();
+    fireEvent.click(screen.getByRole('radio', { name: 'Vessport Null' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing selected for an empty value', () => {
+    render(<RadioButton schema={muted} value="" onChange={() => {}} />);
+    for (const name of ['Kryndara', 'Vessport Null', 'Dusk Run']) {
+      expect(screen.getByRole('radio', { name }).getAttribute('aria-checked')).toBe('false');
+    }
+  });
+
+  it('draws a divider only before an option that asks for one', () => {
+    const { container } = render(<RadioButton schema={muted} value="a" onChange={() => {}} />);
+    const dividers = container.querySelectorAll('.sc-radio-button__divider');
+    expect(dividers).toHaveLength(1);
+    expect(dividers[0].getAttribute('aria-hidden')).toBe('true');
+    // Sits between the second and third items.
+    expect(dividers[0].nextElementSibling).toBe(screen.getByRole('radio', { name: 'Dusk Run' }));
+  });
+
+  it('never pops on hover — the muted option has no CabinetBox to pop', () => {
+    render(<RadioButton schema={muted} value="b" onChange={() => {}} />);
+    fireEvent.mouseEnter(screen.getByRole('radio', { name: 'Kryndara' }));
+    expect(screen.queryAllByTestId('cabinet-box')).toHaveLength(0);
+  });
+
+  it('a disabled muted group does not call onChange', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={muted} value="b" onChange={onChange} disabled />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Kryndara' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps the cabinet look when appearance is omitted or "cabinet" — the default is unchanged', () => {
+    const { rerender } = render(<RadioButton schema={schema} value="sine" onChange={() => {}} />);
+    expect(screen.getAllByTestId('cabinet-box')).toHaveLength(4);
+    rerender(<RadioButton schema={{ ...schema, appearance: 'cabinet' }} value="sine" onChange={() => {}} />);
+    expect(screen.getAllByTestId('cabinet-box')).toHaveLength(4);
+  });
+
+  it('draws a divider on a cabinet group too when an option asks (the field is not muted-only)', () => {
+    const { container } = render(
+      <RadioButton schema={{ ...schema, options: [schema.options[0], { ...schema.options[1], dividerBefore: true }] }} value="triangle" onChange={() => {}} />,
+    );
+    expect(container.querySelectorAll('.sc-radio-button__divider')).toHaveLength(1);
   });
 });

@@ -57,7 +57,15 @@ function renderKind(actor: Actor): HTMLElement {
     accent: { primary: 0, secondary: 30 },
     gems: true,
   };
-  return render(SCENERY_RENDERERS[kind]!(ctx)).container;
+  const container = render(SCENERY_RENDERERS[kind]!(ctx)).container;
+  // A work anchor is the geometry of the element it names; the 1.5 px hairline (Phase 44) is an
+  // outline drawn around that geometry, and would add 0.75 px to every measured extent. Work sites
+  // do not move for it, so measure the shapes without it. Gem outlines (2 px) are left as they are.
+  container.querySelectorAll('[stroke-width="1.5"]').forEach((el) => {
+    el.removeAttribute('stroke');
+    el.removeAttribute('stroke-width');
+  });
+  return container;
 }
 
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
@@ -295,7 +303,8 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
         const beamRight = { x: num(beam, 'x') + num(beam, 'width'), y: num(beam, 'y') };
         const fg = anchorsOf(actor, true);
         close(fg.points[0], beamLeft);
-        close(fg.points[1], { x: num(hanger, 'x1'), y: num(beam, 'y') });
+        // the hanger is a 3 px wide rect since Phase 44 (it was a stroked line): its centre line
+        close(fg.points[1], { x: num(hanger, 'x') + num(hanger, 'width') / 2, y: num(beam, 'y') });
         close(fg.points[2], beamRight);
         const mid = anchorsOf(actor, false);
         close(mid.points[0], beamLeft);

@@ -1,10 +1,13 @@
 # World Gem Material (Option A)
 
-> **Sketch gate passed (roadmap Phase 44, 2026-10-08)** — sketch
-> [docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540). Intent, spec
-> and plan not started. This file is the hand-over: every decision made in the 2026-10-08 session and
-> everything the sketch's code does that the real code should copy. The next session starts at
-> `interview-me` with this file and the sketch open, not at a blank page.
+> **Superseded in part (roadmap Phase 44, built 2026-10-09)** — the intent
+> [docs/intent/world-gem-material.md](../intent/world-gem-material.md) wins wherever the two differ. Its
+> "Supersedes the idea doc" section lists three rulings made after this file was written: members get the
+> 1.5 px hairline, the terrain is in, and everything else solid gets the hairline too. Spec
+> [docs/specs/WORLD_GEM_MATERIAL.md](../specs/WORLD_GEM_MATERIAL.md), plan
+> [docs/tasks/WORLD_GEM_MATERIAL.md](../tasks/WORLD_GEM_MATERIAL.md), sketch
+> [docs/sketches/gem-factories.html](../sketches/gem-factories.html). What follows is the original
+> 2026-10-08 hand-over, kept as written for its decisions and the sketch's implementation notes.
 
 Written 2026-10-08 from a sketch-first discussion (not the idea-refine skill): Crawford asked
 "what if the world and buildings matched the gem style?", the options were laid out in chat, option A

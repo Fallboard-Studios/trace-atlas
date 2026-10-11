@@ -7,29 +7,18 @@
   padding: 0 var(--spacing-lg);
 }
 
+/* Scrolls inside the content surface. The surface itself now stops at the top bar, the nav panel and
+   the bottom bar (ContentPane.css, docs/tasks/LAYOUT_REWORK.md Task 7), so the per-breakpoint header,
+   nav and edge clearances this padding used to carry are gone: only a margin from the surface's edge.
+   The right padding is room for a popped facade's front face, which sits 4 px right of its box
+   (cabinetGeometry.ts's computeCabinetFrontFaceOffset): without it a full-width accordion overflows
+   and the scroller draws a horizontal scrollbar. */
 .console-panel__content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  --console-header-clearance: 180px;
-  --console-nav-panel-clearance: 0;
-  --console-edge-clearance: 0;
-  padding: var(--console-header-clearance) var(--console-edge-clearance) 0 var(--console-nav-panel-clearance);
-}
-
-@media screen and (min-width: 600px) {
-  .console-panel__content {
-    --console-header-clearance: 245px;
-  }
-}
-
-@media screen and (min-width: 48em) {
-  .console-panel__content {
-    --console-header-clearance: 195px;
-    --console-nav-panel-clearance: 320px;
-    --console-edge-clearance: 32px;
-  }
+  padding: var(--spacing-lg) var(--spacing-sm) var(--spacing-lg) 0;
 }
 
 .console-panel__stub {

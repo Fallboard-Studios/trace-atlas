@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
-import { useLayoutEffect } from 'react';
+import { Profiler, useLayoutEffect } from 'react';
 
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
@@ -114,6 +114,44 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       const { container: midnight } = draw(makeRobot(), true);
       expect(noonFill).not.toBeNull(); // null === null would pass vacuously
       expect(topFace(midnight)).toBe(noonFill);
+    });
+
+    // Code review 2026-10-11: the roster draws twelve ignoreDaylight bodies, and the clock ticks once a
+    // second; a body that ignores daylight has nothing to redraw when the hour changes.
+    it('with ignoreDaylight, a clock tick re-renders nothing', () => {
+      useUIStore.getState().setActiveLocaleLocalTime(12);
+      const robot = makeRobot();
+      const counter = { renders: 0 };
+      render(
+        <svg>
+          <Profiler id="body" onRender={() => counter.renders++}>
+            <RobotBody robot={robot} ignoreDaylight />
+          </Profiler>
+        </svg>,
+      );
+      const before = counter.renders;
+
+      act(() => useUIStore.getState().setActiveLocaleLocalTime(13));
+
+      expect(counter.renders).toBe(before);
+    });
+
+    it('without ignoreDaylight, a clock tick does re-render (the guard above is not vacuous)', () => {
+      useUIStore.getState().setActiveLocaleLocalTime(12);
+      const robot = makeRobot();
+      const counter = { renders: 0 };
+      render(
+        <svg>
+          <Profiler id="body" onRender={() => counter.renders++}>
+            <RobotBody robot={robot} />
+          </Profiler>
+        </svg>,
+      );
+      const before = counter.renders;
+
+      act(() => useUIStore.getState().setActiveLocaleLocalTime(13));
+
+      expect(counter.renders).toBeGreaterThan(before);
     });
 
     it('the top face at neutral daylight is the identity colour', () => {

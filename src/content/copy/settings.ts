@@ -34,9 +34,20 @@ export const settings = {
       standard: { human: 'Standard' },
       full: { human: 'Full' },
     },
+    help: { human: 'Sets both limits below to one level at once. Full runs everything, Light suits phones and older devices, and Standard sits between; drag either slider afterwards to fine-tune.' },
   },
-  'settings.quality.robotLoad': { human: 'Voice Limit', lore: 'Fleet Size', unit: '%' },
-  'settings.quality.effectsLoad': { human: 'Effects Limit', lore: 'Trace Budget', unit: '%' },
+  'settings.quality.robotLoad': {
+    human: 'Voice Limit',
+    lore: 'Fleet Size',
+    unit: '%',
+    help: { human: 'How many probes can play sound at once, and how many notes they can hold. Probes over the limit keep working silently until a slot frees up. Lower it if the sound crackles or cuts out.' },
+  },
+  'settings.quality.effectsLoad': {
+    human: 'Effects Limit',
+    lore: 'Trace Budget',
+    unit: '%',
+    help: { human: 'How much automatic motion the effects can run at once. Lowering it switches off the LFO lanes’ drift first, then the LFOs on the filters. Lower it if the sound crackles or cuts out.' },
+  },
   'settings.seeds': {
     human: 'Seeds',
     lore: 'Foundry',

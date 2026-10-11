@@ -7,7 +7,6 @@ import { AUDIO_EFFECTS_LOAD_SCHEMA, AUDIO_LOAD_PANEL_SCHEMA, AUDIO_LOAD_PRESET_S
 import { AUDIO_LOAD_PRESETS } from '@/constants';
 import { useAudioStore } from '@/stores/audioStore';
 import { describeLimits, effectsLoadToLimits, presetForLoads, robotLoadToLimits } from '@/utils/audioBudget';
-import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import type { DirectionalPanelSchema } from '@/types/controls';
 import './AudioLoadPanel.css';
 
@@ -18,19 +17,10 @@ import './AudioLoadPanel.css';
 const AUDIO_LOAD_PRESET_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.presetRow', type: 'directionalPanel', orientation: 'responsive' };
 const AUDIO_LOAD_SLIDERS_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.slidersRow', type: 'directionalPanel', orientation: 'responsive' };
 
-/** Ref callback registering/clearing a nav scroll anchor (src/utils/sectionRefs.ts) — matches
- *  navTreeConfig.ts's own settings.quality.robotLoad/effectsLoad tree node ids (Settings ->
- *  Performance's own 3rd tree level). */
-function sectionAnchorRef(id: string) {
-  return (el: HTMLDivElement | null) => {
-    if (el) setSectionRef(id, el);
-    else clearSectionRef(id);
-  };
-}
-
 /**
- * The Audio Load control (docs/specs/AUDIO_LOAD_BUDGET.md §4.5) — rendered from Settings -> Quality
- * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 13, SettingsContent.tsx). Previously sat inside
+ * The Audio Load control (docs/specs/AUDIO_LOAD_BUDGET.md §4.5) — rendered as Settings' Audio Quality
+ * tab (SettingsScreen.tsx, docs/tasks/LAYOUT_REWORK.md Task 17; first moved to Settings by
+ * docs/tasks/NAV_LAYOUT_REWRITE.md Task 13). Previously sat inside
  * AudioRigDrawer's Transport & Composition accordion, next to a Tempo slider that itself relocated
  * to Settings -> Tempo (Task 12) — both moved out once "Quality"/"Tempo" became real tree leaves.
  * A preset radio and two fine sliders (Robot Load, Effects Load) are three views of TWO stored
@@ -71,10 +61,10 @@ export const AudioLoadPanel = memo(function AudioLoadPanel() {
         </p>
       </DirectionalPanel>
       <DirectionalPanel schema={AUDIO_LOAD_SLIDERS_ROW_SCHEMA}>
-        <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.robotLoad')}>
+        <div className="audio-rig-drawer__param-row">
           <SliderLinear schema={AUDIO_ROBOT_LOAD_SCHEMA} value={Math.round(robotLoad * 100)} onChange={handleRobotSlider} />
         </div>
-        <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.effectsLoad')}>
+        <div className="audio-rig-drawer__param-row">
           <SliderLinear schema={AUDIO_EFFECTS_LOAD_SCHEMA} value={Math.round(effectsLoad * 100)} onChange={handleEffectsSlider} />
         </div>
       </DirectionalPanel>

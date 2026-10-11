@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
+import { selectBranch } from '@/components/panels/screen/nav/navActions';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { getScreenViewportDomNode } from '@/utils/helpers';
 import { generateCompanyName } from '@/systems/spawnSystem';
 import { COMPANY_NAME_INPUT_SCHEMA, CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } from '@/data/companyConfig';
 import { MAX_COMPANIES } from '@/constants';
@@ -104,28 +106,6 @@ export function CompanyCreateForm() {
 }
 
 /**
- * A read-only glance at the selected company — name, its own identity color swatch, and current
- * member count — the "RobotDisplaySection-equivalent summary" spec §2's Node -> Content Mapping
- * table calls for on a bare "Company X" tree node. Genuinely needed, not just decorative: Rename's
- * own input below is pre-filled with a fresh SUGGESTED name (docs/tasks/
- * COMPANY_CRUD_BUTTON_PREVIEW.md Task 1), never the company's actual current name, so without this
- * summary there would be no visible read-only display of what the company is actually called
- * right now (Delete's own button label is the only other place it survives). Minimal by design —
- * the spec names no further fields, and this mirrors RobotDisplaySection's own scope (a handful of
- * read-only identity rows, not a full editor).
- */
-function CompanySummary({ company }: { company: Company }) {
-  const robotCount = company.robotIds.length;
-  return (
-    <div className="company-summary">
-      <span className="company-summary__swatch" style={{ backgroundColor: company.color }} aria-hidden="true" />
-      <span className="company-summary__name">{company.name}</span>
-      <span className="company-summary__count">{robotCount} {robotCount === 1 ? 'robot' : 'robots'}</span>
-    </div>
-  );
-}
-
-/**
  * Rename/Delete half of Companies CRUD (Roadmap Phase 10; relocated into the nav tree by
  * docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is a specific "Company X" tree node's
  * own content, rendered only once a company is actually selected). Split out of the old combined
@@ -151,7 +131,6 @@ export function CompanyRenameDeleteForm() {
   const localeId = getActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   // See CompanyCrudControls' own pre-split history for why this resets on SELECTION change
@@ -164,6 +143,15 @@ export function CompanyRenameDeleteForm() {
   }
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // A modal Radix dialog gives focus back only to its own Trigger, and the Delete button is not one, so
+  // the button that opened it is kept and focused again on close (SessionsPanel's confirm does the same).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openConfirm = () => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConfirmOpen(true);
+  };
+  const returnFocus = () => openerRef.current?.focus();
 
   // selectedCompany, not selectedCompanyId — uiStore isn't reset by a locale reseed, so
   // selectedCompanyId can point at a company that no longer exists even when the id itself is
@@ -193,14 +181,37 @@ export function CompanyRenameDeleteForm() {
   const handleConfirmDelete = () => {
     if (!selectedCompany) return;
     useLocaleStore.getState().removeCompany(localeId, selectedCompany.id);
-    selectAllRobots();
+    // Back to the Companies page (the roster board), where the company's row is now gone (Crawford,
+    // 2026-10-11). The company's own screen no longer has anything to show.
+    selectBranch('companies');
     setConfirmOpen(false);
   };
 
+  // Into the screen, never <body> (the UI Shell guardrail; HelpPopover's way); in place when there is no
+  // screen (a component test).
+  const screenNode = confirmOpen ? getScreenViewportDomNode() : null;
+  const deleteConfirm = (
+    <>
+      <AlertDialog.Overlay className="company-delete-confirm__overlay" />
+      <AlertDialog.Content className="company-delete-confirm__content" onCloseAutoFocus={returnFocus}>
+        <AlertDialog.Title className="company-delete-confirm__title">
+          {fill('company.delete.confirmTitle', { company: selectedCompany?.name ?? '' })}
+        </AlertDialog.Title>
+        <AlertDialog.Description className="company-delete-confirm__description">
+          {CONTENT['company.delete.confirmBody'].human}
+        </AlertDialog.Description>
+        <div className="company-delete-confirm__actions">
+          <AlertDialog.Cancel className="company-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
+          <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
+            {CONTENT['company.delete'].human}
+          </AlertDialog.Action>
+        </div>
+      </AlertDialog.Content>
+    </>
+  );
+
   return (
     <div className="company-rename-delete-form">
-      {selectedCompany && <CompanySummary company={selectedCompany} />}
-
       <div className="company-rename-delete-form__rename">
         <TextInput
           schema={RENAME_NAME_SCHEMA}
@@ -215,26 +226,10 @@ export function CompanyRenameDeleteForm() {
         />
       </div>
 
-      <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} disabled={!hasSelectedCompany} />
+      <Button schema={deleteSchema} onClick={openConfirm} disabled={!hasSelectedCompany} />
 
       <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="company-delete-confirm__overlay" />
-          <AlertDialog.Content className="company-delete-confirm__content">
-            <AlertDialog.Title className="company-delete-confirm__title">
-              {fill('company.delete.confirmTitle', { company: selectedCompany?.name ?? '' })}
-            </AlertDialog.Title>
-            <AlertDialog.Description className="company-delete-confirm__description">
-              {CONTENT['company.delete.confirmBody'].human}
-            </AlertDialog.Description>
-            <div className="company-delete-confirm__actions">
-              <AlertDialog.Cancel className="company-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
-              <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                {CONTENT['company.delete'].human}
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
+        {screenNode ? <AlertDialog.Portal container={screenNode}>{deleteConfirm}</AlertDialog.Portal> : deleteConfirm}
       </AlertDialog.Root>
     </div>
   );

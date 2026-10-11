@@ -8,10 +8,14 @@ import { describe, it, expect } from 'vitest';
 import {
   ROBOT_SECTIONS_CONFIG,
   SOURCE_OSCILLATOR_SUBSECTIONS,
-  subsectionIds,
-  accordionIds,
+  DEFAULT_ROBOT_SECTION,
+  sectionTabContent,
+  sectionSubTabs,
+  activeRobotSection,
+  activeRobotSubsection,
 } from './robotSubsectionConfig';
 import { CONTENT, labels } from '@/content';
+import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 
 // ========================================
 // TESTS
@@ -117,33 +121,55 @@ describe('SOURCE_OSCILLATOR_SUBSECTIONS', () => {
   });
 });
 
-describe('subsectionIds', () => {
-  it('lists exactly the 6 accordion-bearing subsection ids, in tree order, excluding frequency', () => {
-    expect(subsectionIds('probes.r1')).toEqual([
-      'probes.r1.volume.audioSettings',
-      'probes.r1.melody.rhythm',
-      'probes.r1.envelope.pingContour',
-      'probes.r1.source.baselineOscillator',
-      'probes.r1.source.coaxialOscillator',
-      'probes.r1.source.harmonicOscillator',
+// docs/tasks/LAYOUT_REWORK.md Task 16: the robot screen's tabs, read by RobotScreen and the breadcrumb
+// alike, so the two always name the same tab.
+describe('the robot screen tabs', () => {
+  const section = (id: RobotSection) => ROBOT_SECTIONS_CONFIG.find((s) => s.id === id)!;
+
+  it('names each tab after the panel it shows, as the accordions did: Levels, Composition, Envelope, Source', () => {
+    expect(ROBOT_SECTIONS_CONFIG.map((s) => labels(sectionTabContent(s)).humanLabel)).toEqual([
+      CONTENT['probe.levels'].human,
+      CONTENT['probe.composition'].human,
+      CONTENT['probe.envelope'].human,
+      CONTENT['probe.source'].human,
     ]);
   });
 
-  it('reflects whatever prefix is given — company/All-Probes mode included', () => {
-    expect(subsectionIds('companies.c1')[0]).toBe('companies.c1.volume.audioSettings');
+  it('gives only Source a sub-tab row (its three oscillators); a section with one panel has none', () => {
+    expect(sectionSubTabs(section('source')).map((sub) => sub.id)).toEqual([...SOURCE_OSCILLATOR_SUBSECTIONS]);
+    expect(sectionSubTabs(section('volume'))).toEqual([]);
+    expect(sectionSubTabs(section('envelope'))).toEqual([]);
   });
-});
 
-describe('accordionIds', () => {
-  it("lists the 6 subsection ids plus source's own wrapping accordion id, in order", () => {
-    expect(accordionIds('probes.r1')).toEqual([
-      'probes.r1.volume.audioSettings',
-      'probes.r1.melody.rhythm',
-      'probes.r1.envelope.pingContour',
-      'probes.r1.source.baselineOscillator',
-      'probes.r1.source.coaxialOscillator',
-      'probes.r1.source.harmonicOscillator',
-      'probes.r1.source',
-    ]);
+  it("never gives a merged subsection (Pitches, inside Composition's panel) a tab of its own", () => {
+    expect(sectionSubTabs(section('melody'))).toEqual([]);
+    for (const s of ROBOT_SECTIONS_CONFIG) {
+      expect(sectionSubTabs(s).some((sub) => sub.mergedInto)).toBe(false);
+    }
+  });
+
+  it('opens on Source when no section is stored (the plan: Source, Core Oscillator)', () => {
+    expect(DEFAULT_ROBOT_SECTION).toBe('source');
+    expect(activeRobotSection(null)).toBe('source');
+  });
+
+  it.each(['volume', 'melody', 'envelope', 'source'] as const)('a stored section (%s) is the open one', (stored) => {
+    expect(activeRobotSection(stored)).toBe(stored);
+  });
+
+  it.each<[RobotSection, RobotSubsection | null, RobotSubsection]>([
+    ['source', null, 'baselineOscillator'],
+    ['source', 'coaxialOscillator', 'coaxialOscillator'],
+    ['source', 'harmonicOscillator', 'harmonicOscillator'],
+    // Not this section's: its first, as SectionTabs falls back for a stale value.
+    ['source', 'rhythm', 'baselineOscillator'],
+    // A section with one panel shows that panel, whatever is stored.
+    ['volume', null, 'audioSettings'],
+    ['volume', 'coaxialOscillator', 'audioSettings'],
+    ['melody', null, 'rhythm'],
+    ['melody', 'frequency', 'rhythm'],
+    ['envelope', 'baselineOscillator', 'pingContour'],
+  ])('on %s with %s stored, the panel shown is %s', (sectionId, stored, expected) => {
+    expect(activeRobotSubsection(sectionId, stored)).toBe(expected);
   });
 });

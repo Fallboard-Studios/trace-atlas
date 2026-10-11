@@ -27,9 +27,17 @@ const FACET_RAW_SHADE = { upper: 1, lower: -1, side: 1 / 3 } as const;
 /** §1.10's named facet multipliers, keyed by quantized shade level. */
 const FACET_MULTIPLIER: Record<number, number> = { [-1]: 0.5, 0: 1.1, 1: 1.25 };
 
-function facetMultiplier(rawShade: number): number {
+/** A raw shade (−1..1) quantized to the three tone levels, then looked up in §1.10's table.
+ *  Exported so the world gem material (docs/specs/WORLD_GEM_MATERIAL.md §1.2) shares the one table. */
+export function facetMultiplier(rawShade: number): number {
   const quantized = quantizeShade(rawShade, GEM_FACET_TONES);
   return FACET_MULTIPLIER[quantized] ?? 1;
+}
+
+/** The outline's colour: `body.shadow` at GEM_OUTLINE_L_MULTIPLIER. One copy — `GemShape` draws it
+ *  and the world material's hairline reuses it (docs/DUPLICATE_VALUE_AUDIT.md's bug class). */
+export function gemOutlineStroke(): string {
+  return applyColorShift(colorTheme.body.shadow, NO_SHIFT, GEM_OUTLINE_L_MULTIPLIER);
 }
 
 /** Lit-gem base colour (§1.10): `hsl(primary, 55, 42)`. */
@@ -80,7 +88,7 @@ export function GemShape({ cx, cy, w, h, base, lit, eastL, westL, nightDepth, ca
   const upperFill = applyColorShift(base, NO_SHIFT, glow * facetMultiplier(FACET_RAW_SHADE.upper));
   const lowerFill = applyColorShift(base, NO_SHIFT, glow * facetMultiplier(FACET_RAW_SHADE.lower));
   const sideFill = applyColorShift(base, NO_SHIFT, glow * facetMultiplier(FACET_RAW_SHADE.side));
-  const outlineStroke = applyColorShift(colorTheme.body.shadow, NO_SHIFT, GEM_OUTLINE_L_MULTIPLIER);
+  const outlineStroke = gemOutlineStroke();
 
   return (
     <g data-shape="gem">

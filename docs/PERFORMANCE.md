@@ -1265,6 +1265,143 @@ on the phone; the plan makes the Pixel run the gate. If it does miss, the fallba
 `BACK_HOSTS_ENABLED` staying false on main. Smaller options, all unmeasured: promote `robots-back` only while a
 robot is in it, or collapse `mid` into a non-composited layer by reordering what overlaps it.
 
+## World Gem Material — the Task 19 perf gate (2026-10-09, Phase 44)
+
+Gate ([docs/tasks/WORLD_GEM_MATERIAL.md](tasks/WORLD_GEM_MATERIAL.md) Task 19): the world gem material
+(bevel ring on every mass, 1.5 px hairline on everything else solid) idle busy/Paint within each build's own
+round-to-round spread of `main`, on the three pinned worlds. **Passed** on all three — `dense`, `ventfield`
+and `yard`. No cut was needed.
+
+**Method:** production builds served side by side from scratch `--outDir`s — `main` `6802c8b4` (the
+branch's merge base, from a throwaway `git worktree`) on :4181 (`index-Fsw5VSqs.js`) and the branch tip
+`2b405cfb` (Task 18, all six `WORLD_GEM` switches on) on :4182 (`index-1APSSzjo.js`). The served bundle
+filenames were checked against each build's own before any number was taken (the D3 gate's gotcha). Worlds
+are the D2 gate's coordinates — `dense` (−500, −480), `ventfield` (−500, −495), `yard` (−500, −455) —
+re-verified against the real `pickDistrict` on this tree before the run, and encoded with
+`encodeSessionPayload` (`attenuationStyleName: 'alpha'`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides).
+`x = −500` makes the in-world hour 20 (`abs(x % 24)`), identical for both builds, so the run is a night
+look; the 9 am light vector is judged by eye at Checkpoint C / Task 20, not here. `npm run perf:idle
+--throttle 1 --only none --port 9301` (stock-only window, desktop 1280×900, headless); foreground, one
+call at a time, orphaned headless-Chrome count 0 before and after. Three rounds per world per build, order
+rotated (`dense` and `yard` M B B M M B, `ventfield` B M M B B M; M = `main`, B = branch).
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| World | Build | main busy (ms) | Paint (ms) | Compositor::Update (ms) | Factories | Bubble/factory circles |
+|---|---|---|---|---|---|---|
+| dense | `main` (`6802c8b4`) | 3245 · 3349 · 3558 | 240 · 241 · 258 | 572 · 559 · 592 | 59 | 753 |
+| dense | branch (`2b405cfb`) | 3302 · 3435 · 3419 | 258 · 234 · 257 | 505 · 469 · 496 | 59 | 753 |
+| ventfield | `main` (`6802c8b4`) | 2534 · 2600 · 2445 | 181 · 192 · 183 | 192 · 204 · 192 | 4 | 149 |
+| ventfield | branch (`2b405cfb`) | 2578 · 2589 · 2569 | 184 · 197 · 181 | 192 · 205 · 189 | 4 | 149 |
+| yard | `main` (`6802c8b4`) | 3397 · 3311 · 3431 | 257 · 247 · 241 | 356 · 329 · 340 | 18 | 265 |
+| yard | branch (`2b405cfb`) | 3392 · 3410 · 3456 | 241 · 237 · 247 | 283 · 273 · 280 | 18 | 265 |
+
+(Values in run order within each build, not sorted.)
+
+Medians (branch vs `main`): **dense** busy 3419 vs 3349 (**+2.1 %**), Paint 257 vs 241 (**+6.6 %**);
+**ventfield** busy 2578 vs 2534 (**+1.7 %**), Paint 184 vs 183 (**+0.5 %**); **yard** busy 3410 vs 3397
+(**+0.4 %**), Paint 241 vs 247 (**−2.4 %**). Each delta sits inside the spread `main` shows against
+itself on the same world (busy 3245–3558, 2445–2600, 3311–3431; Paint 240–258, 181–192, 241–257) —
+`dense` Paint's +16 ms is the nearest to the edge, and the branch's own Paint rounds (234–258) straddle
+`main`'s, so it does not read as a regression. Factory and circle counts are identical build to build on
+every world: the same placement, only the material changed.
+
+- **Compositor::Update is lower on the branch on `dense` (median 496 vs 572, −13 %) and `yard` (280 vs
+  340, −18 %), flat on `ventfield`.** Every branch round is below every `main` round on those two worlds,
+  so it is not round noise, but the cause was not investigated (not a gate metric, and the gate is about
+  regressions). Recorded as observed, not claimed as a win.
+- **Ablation, one round per world, `WORLD_GEM.members`/`.others` off and `.terrain` off,** built from
+  patches never committed (:4183 `index-lhM0ZxD-.js`, :4184 `index-Bmgtymba.js`), each next to a stock-branch
+  control in the same session. Nothing separates from its control: `dense` branch 3395 / 255, no
+  hairlines 3438 / 240, no terrain 3356 / 253 (busy ms / Paint ms); `ventfield` no terrain 2646 / 195,
+  branch 2506 / 183, no hairlines 2703 / 170. So neither the hairlines nor the terrain ring carries a cost
+  the idle window can resolve, which is also why no cut order had to be exercised.
+- **`yard`'s ablation round was run twice because the machine drifted.** The first attempt's control read
+  4354 / 292 (against 3392–3456 / 237–247 in the gate rounds) with the ablated builds at 3241 · 4185, so it
+  was discarded. The re-run, controls at both ends, read branch 3733 / 259, no hairlines 3952 / 259, no
+  terrain 3708 / 250, branch 4003 / 275 — the controls themselves span 3733–4003, wider than any
+  ablation's gap to them. Same-session comparison is the only valid reading; absolute `yard` numbers in
+  the ablation round are not comparable with the gate table.
+
+**Verdict:** no miss to report. No lever was pulled — every switch stays on, and the cut order
+(hairlines, then terrain; never factories or mass) was not exercised. The Pixel is Task 20's.
+
+## Layout Rework — the Task 29 perf gate (2026-10-10, Phase 45)
+
+Gate ([docs/tasks/LAYOUT_REWORK.md](tasks/LAYOUT_REWORK.md) Task 29): idle busy and Paint on the Deck and on
+Fleet Params within the noise band of `main`, and a powered-off screen that runs no frame loop (no periodic
+long tasks, paint count flat). **The first branch build passed the powered-on half and failed the powered-off
+half**; the cause was an old bug, fixed in `153c2956`, after which both halves hold.
+
+**Method:** production builds served side by side from scratch `--outDir`s — `main` `6802c8b4` (the branch's
+merge base, from a throwaway `git worktree`) on :4181 (`index-Fsw5VSqs.js`), the branch at Checkpoint D
+`9703ef90` on :4182 (`index-CSM65Zeo.js`), and the branch with the fix `153c2956` on :4184
+(`index-BSzQfKQY.js`). Each port's served bundle filename was checked against its build before any number was
+taken. One pinned world for all: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides,
+encoded with `encodeSessionPayload` (version 2); every run loaded the same 12 robots, 2 factories, 36 circles.
+`npm run perf:idle --throttle 1 --only none --port 9301` (stock window, desktop 1280×900, headless), foreground,
+one run at a time, orphaned headless-Chrome count 0 before and after. Three rounds per cell, order rotated
+(M = `main`, B = Checkpoint D, F = fixed). Two harness additions, in this commit: `--steps "Fleet Params"`
+clicks the named buttons after power-on (both builds reach the Fleet Params screen — same heading), and
+`--stay-off` skips the power-on click; power-on is now a real mouse click (the branch's rocker ignores a
+scripted `.click()`), and the stock line reports `Paint n` and long tasks (> 50 ms main-thread tasks).
+
+### Results (6 s idle window, 1×, `--only none`; values in run order)
+
+| Screen | Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | Paint n |
+|---|---|---|---|---|---|
+| Deck | `main` | 2165 · 2025 · 2088 | 167 · 169 · 163 | 142 · 143 · 143 | 1061–1071 |
+| Deck | Checkpoint D (B) | 1999 · 2037 · 2269 | 169 · 170 · 160 | 130 · 134 · 125 | 1047–1074 |
+| Deck, second set | `main` | 2096 · 2171 · 1918 | 171 · 161 · 157 | 147 · 140 · 134 | 1059–1074 |
+| Deck, second set | fixed (F) | 1425 · 1366 · 1426 | 146 · 145 · 149 | 125 · 124 · 130 | 1071–1080 |
+| Fleet Params | `main` | 2085 · 2063 · 2236 | 172 · 168 · 176 | 241 · 232 · 244 | 1063–1067 |
+| Fleet Params | Checkpoint D (B) | 2163 · 2166 · 2091 | 180 · 170 · 178 | 272 · 266 · 289 | 1066–1069 |
+| Fleet Params, second set | `main` | 2088 · 2107 · 2149 | 176 · 176 · 176 | 241 · 242 · 243 | 1078–1085 |
+| Fleet Params, second set | fixed (F) | 1539 · 1470 · 1550 | 156 · 161 · 165 | 280 · 272 · 298 | 1072–1075 |
+
+**Powered on: passed.** Checkpoint D against `main` on the Deck: busy 2037 vs 2088 (median), Paint 169 vs 167;
+on Fleet Params: busy 2163 vs 2085, Paint 178 vs 172 — every branch round inside the spread `main` shows against
+itself (busy 2025–2236, Paint 163–176). With the fix the branch is *below* `main`: Deck busy 1425 vs 2096
+(**−32 %**), Paint 146 vs 161; Fleet Params busy 1539 vs 2107 (**−27 %**), Paint 161 vs 176. The fix is not
+part of the layout rework's own cost; it is a bug `main` has too (below), so the like-for-like reading of the
+rework is the Checkpoint D rows.
+
+- **Compositor::Update is higher on Fleet Params on the branch** (266–289 vs 232–244 ms, about +15–20 %; 272–298
+  with the fix) and *lower* on the Deck (125–134 vs 142–147). Not a gate metric and not investigated; it is
+  there in both branch builds, so it comes from the Fleet Params screen's own structure (section tabs, the
+  opaque content surface), not from the halo fix. Recorded as observed.
+- Fleet Params content differs by design (`main`: the accordion stack, 1 slider mounted; branch: 9 tabs, 4
+  sliders), so that row compares the screens, not identical DOM.
+
+### Powered off
+
+| Build | busy (ms) | Paint (ms) | Paint n | long tasks |
+|---|---|---|---|---|
+| `main` (no world behind the power button) | 24 · 24 · 24 | 0 | 0 | 0 |
+| Checkpoint D (B) | 999 · 947 · 893 | 41 · 41 · 41 | 353 · 349 · 361 | 1 · 2 · 0 |
+| fixed (F) | 200 · 226 · 206 | 2 · 3 · 3 | 26 · 26 · 26 | 0 · 0 · 0 |
+
+**Checkpoint D failed this half**: 350 paints in 6 s (one per frame) and about 1 s of main-thread time in 6 s,
+on a world that is meant to be still. Attribution (the harness's invalidation list) put it on
+`ellipse.gem__halo`: about 17,000 attribute style recalcs in the window, and a `MutationObserver` over 48 s
+counted a steady ~2,250 gradient-stop writes and ~375 halo `rx`/`ry` writes per second, never settling.
+
+**Cause, a bug older than this branch.** `RobotBody` builds a new `{ rx, ry, stops }` object on every render and
+`useHaloMotion`'s dial-change effect listed that object as its dependency, so every re-render started a 0.5 s
+tween of the halo's attributes — even when nothing had changed. The same write rate is on `main` powered on
+(9,600–11,300 stop writes per 4 s, measured with the same probe). Proven before it was fixed: a scratch build with
+the dependency list changed to the dial's values took the halo writes to ~0. `153c2956` keys the effect on
+`rx`, `ry` and a string of the stops, with four new tests (an equal-valued fresh object and twenty equal
+re-renders start no tween; ry, rx, one stop's offset or opacity alone each still do) and five mutants killed.
+
+**Powered off after the fix: passed**, with one note. The remaining ~26 paints are not a frame loop: they are a
+1 Hz tick — the moving scene layer repaints 6 times in 6 s and the meta box 6 times (the paint-by-node
+table; attributed by node, the cause is presumed to be the per-second lighting fills and the clock, not
+traced) — plus the rocker light's own breathing animation (46 animation style recalcs). Paint count is flat at
+about 4 per second, long tasks 0. Not zero: something still ticks once a second behind the off screen.
+
+**Verdict:** no miss remains. No cut was needed. The Pixel is not part of this gate.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

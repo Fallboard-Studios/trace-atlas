@@ -1,8 +1,17 @@
-/* One line saying what the current Audio Load position means (describeLimits) — plain muted copy under the controls. */
+/* One line saying what the current Audio Load position means (describeLimits). A readout, so a well
+   (docs/specs/LAYOUT_REWORK.md §1.1: in = read; §1.8: "the limits readout as a well"), in index.css's
+   shared tokens and the panel's accent, as the meta box and the robot screen's meta wells are. Beside the
+   preset radio on the desk it keeps its own height instead of stretching to the radio's (the sketch's
+   .limits). */
 .audio-load-panel__readout {
   margin: 0;
-  padding: 4px 8px 8px;
+  align-self: flex-start;
+  padding: 6px var(--spacing-md);
+  border: 1px solid var(--color-accent);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
+  color: var(--color-text-primary-fixed);
+  font-family: var(--font-mono);
   font-size: var(--font-size-label-lore);
-  color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }

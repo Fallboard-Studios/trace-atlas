@@ -249,6 +249,62 @@ Render-time effect (`Factory.tsx` and every derelict-capable scenery renderer):
 - Lit elements stay un-capped by `ROW_L_CAP` as above, but are themselves turned off by the
   `nightDepth` forcing — a derelict building is dark, not merely dim.
 
+### World Gem Material (Phase 44)
+
+Every solid in the world reads as one carved material with the gem robots (Phase 39). Two treatments,
+one rule — **mass gets the robots' bevel ring, everything else solid gets a hairline** — specified in
+[docs/specs/WORLD_GEM_MATERIAL.md](specs/WORLD_GEM_MATERIAL.md) and settled by eye in
+`docs/sketches/gem-factories.html` first: a constant changes there before it changes in code. All of it
+lives in `src/components/actors/material/`.
+
+- **The ring.** Factory bodies, the rooftop blocks, the mass scenery families and the terrain get the
+  robots' bevel ring: the outline, its inset by `worldBevel(w, h, scale)`, and one trapezoid facet per
+  edge between them. The depth is `WORLD_BEVEL_PX` (8 px) × the item's scale, through `bevelDepth`'s one
+  18 % short-side cap, and **under `RING_MIN_PX` (1 px) there is no ring at all**. Rooftop blocks use
+  `ROOF_BOX_BEVEL_FACTOR` (0.6) × the building's depth. `ringFacets` builds the facets from the robot
+  generator's own `inset` and `edgeNormals`; `GemRing` draws them as one `<g data-gem="ring">` of merged
+  `<path>`s and returns `null` — not an empty group — at depth 0, which is what makes a switched-off piece
+  render exactly as before. The ring has no outline of its own: each facet's stroke is its own fully
+  shaded tone (0.6 px, round-joined), so neighbours close without a seam.
+- **Three tones.** A facet's shade is its outward normal · the light vector, quantized by
+  `quantizeShade` to three levels and looked up through `facetMultiplier` — the scenery gem accents' own
+  table: 1.25 lit, 1.1 neutral, 0.5 shaded. That multiplies the face's own lightness multiplier (depth cap
+  and derelict dimming already folded in) through `applyColorShift`, so a facet changes colour only when
+  the once-a-second lighting tick moves it. Nothing here animates.
+- **The hour's light.** `worldLightVector(eastL, westL)` is a unit vector toward the sun: sideways by
+  the east/west lightness gap over `LIGHT_LATERAL_SPAN` (0.7), always from above. It is the hour's sun,
+  **not the robots' fixed top-left `GEM_LIGHT`** — a building takes the sun and a robot does not. At 9 am
+  the top and east facets are lit and the west and bottom shaded; at noon both sides quantize neutral; at
+  night every face sits near the lightness floor anyway. A two-faced body (a factory, a tank, a wall)
+  splits its horizontal edges at the front corner (`splitX`) so each half takes its own face's light.
+- **The hairline.** Everything solid that is not mass — thin members, curves, and the six other
+  families — spreads `hairline()` onto its existing element: a `HAIRLINE_PX` (1.5 px) stroke in
+  `gemOutlineStroke()` (`body.shadow` at 0.8 lightness, one copy shared with `GemShape`), never lit and
+  never capped. On the darkest steel it is nearly the fill's own tone; if it is ever lost, the lever is
+  its colour, not its weight. Which family gets which is in "World gem treatment" under Scenery families.
+- **Left alone.** Windows, belt courses (inset by the ring, otherwise unchanged), lamps, portholes,
+  indicator lights and labels; boulders, beacon heads, pylon heads (`GemShape` keeps its own 2 px
+  outline) and the charging stations; the wreck's deck rail and keel strip; the dome's hatch plate; the
+  floodlight's bar, beam and pool; vent plumes and mouth glow. Placement, silhouettes, ground-lock
+  geometry and work sites do not move.
+- **Facades sit inside the ring.** The window clip and the facade zones shrink by the ring margin per
+  axis, so the grid is centred inside the ring rather than under it; at depth 0 the clip is the old
+  `2, 2, 96, 96`. The ring is a pixel-space sibling of the factory's scaled body group, never inside it —
+  `Factory.tsx` draws in a 0–100 box under a non-uniform `scale(width/100, height/100)`, and a ring
+  inside that would stretch.
+- **Terrain.** The ring is drawn after the ridge and ground polygons in their static layers. The 8 px
+  bevel does not hold on the polygon as drawn — on most seeded worlds a miter that deep inverts (the last
+  flat run can be 0.3 px wide, steps can have zero length, the last 45° step can overshoot the frame, the
+  ground sits 5 px above the bottom). So the ring is built on `terrainRingOutline`: the profile extended
+  `TERRAIN_RING_MARGIN` (32 px) past the frame, duplicate and collinear vertices removed, and the extension's
+  facets dropped by `terrainRingSkipEdge`. The `data-terrain` polygon and its `points` are unchanged. At
+  9 am flat runs and east-facing steps are lit and west-facing steps neutral — never shaded under an east
+  sun.
+- **Switches.** `WORLD_GEM` is six code constants — `factories`, `massScenery`, `roofBoxes`, `terrain`,
+  `members`, `others` — with no setting and no UI. Each is one idle-paint ablation and one mock target; a
+  piece that is off renders exactly as before (its ring depth is 0, or its `hairline()` is spread as
+  undefined). The perf record is in PERFORMANCE.md, "World Gem Material — the Task 19 perf gate".
+
 ---
 
 ## Day/Night Cycle (Lightness Curve)
@@ -436,6 +492,47 @@ local shift and folding the new style's shift and lean, so a Sector Settings ret
 walls, tanks, domes, containers and scaffolds right alongside the skyline. Structural families are
 untouched, since they store no shift to recompute.
 
+### World gem treatment
+
+Roadmap Phase 44 gives every family one of two treatments, or neither (see "World Gem Material" under
+Color System for the rules). Each renderer reads exactly the `WORLD_GEM` switches in the last column —
+`massScenery` for a ring, `members` for the hairline on a body-bearing family's thin parts and curves,
+`others` for the hairline on the six families that have no ring — and a test pins the column against the
+renderer source.
+
+| Family | Ring | Hairline | Switches |
+|---|---|---|---|
+| tank | the shouldered hexagon, both faces as one outline split at the corner | — | `massScenery` |
+| wall | the full rect, split at `x` | — | `massScenery` |
+| dome | the base rect | mast, cap arc | `massScenery`, `members` |
+| containers | each box | — | `massScenery` |
+| scaffold | the solid lower block | posts, levels, braces | `massScenery`, `members` |
+| wreck | hull, deckhouse, funnel | — | `massScenery` |
+| vent | each step rect | — | `massScenery` |
+| crane | the load | posts, beam, brace, hanger | `massScenery`, `members` |
+| pylon | — | tower, cross-arms | `members` |
+| beacon | — | mast, foot plate | `members` |
+| pipeline | — | stanchions, pipe, riser, flange | `others` |
+| turbine | — | post, nacelle, blades, hub | `others` |
+| tether | — | anchor, line, dog-leg, riser | `others` |
+| floodlight | — | mast, arm, head | `others` |
+| dish | — | post, reflector, feed | `others` |
+| boulder | — | — | — |
+
+- **Draw order.** A ring is appended after the body it rings and before any lamp, gauge, porthole or
+  label on that face. The wreck's hull ring is drawn last, over the keel strip. A vent rings each step
+  separately: the union polygon's ledges (0.05 × the width per side) are narrower than the bevel.
+- **Inset to make room.** The tank's belts are inset by the ring on both sides, and the wall's cap rail
+  from the top and both sides, so neither paints over a facet.
+- **The crane's hanger** was a stroked `<line>`; it is a `<rect>` of the same footprint now, whatever the
+  switches, so it takes the hairline like every other thin member. `craneLayout` and the work anchors read
+  the load, not the hanger, so nothing moved.
+- **Pipe bridges** (`pipeBridges.tsx`, not a scenery actor and not lit) take the same hairline under
+  `others` on the bar and posts.
+- **Silhouettes.** `svgElementExtent` counts half a stroke, so the silhouette boxes of ringed and
+  hairlined scenery grow by half a stroke on their own. Bridges are measured from the layout, not a
+  renderer, so `midgroundSilhouettes.ts` widens their boxes by `HAIRLINE_PX / 2` while `others` is on.
+
 ### The 90/45 test helper
 
 Every scenery shape, like every factory shape, draws on a 90°/45° grid. `assertNinetyFortyFive`
@@ -443,6 +540,14 @@ Every scenery shape, like every factory shape, draws on a 90°/45° grid. `asser
 horizontal, vertical or exactly 45°, treating the interior of a `rotate(±45)` group (turbine's blades,
 dish's ellipse) as grid-by-construction rather than failing it. Every family's test runs this helper
 over 50 seeds.
+
+A `[data-gem="ring"]` group (the world gem material's bevel ring, see "World gem treatment" above) is
+skipped the same way: a miter inset joins an outer vertex to its inner one along the corner's bisector,
+67.5° at a 135° corner — a construction edge, not a drawn silhouette edge. In practice the helper only
+queries `polygon` and `line`, and `GemRing` draws `<path>`, so ring facets are never reached; the skip is a
+guard that keeps a future `<polygon>` ring from failing every sweep. The NaN sweep still covers the ring.
+Only the ring is exempt: a hairline is a stroke attribute on an existing element, so those shapes are
+still checked edge by edge.
 
 ---
 
@@ -818,11 +923,21 @@ design.
 Rooftop greebles are rendered **above** the building path (lower y in SVG
 viewBox coordinates). They are not clipped by the body clip path.
 
+Since Phase 44 the block greebles — machinery, the water tower's body, the crown spire's tiers, the
+pitched roof and the steppe roof — carry a bevel ring at `ROOF_BOX_BEVEL_FACTOR` (0.6) × the building's
+depth, through the shared 18 % cap and the 1 px floor (`RING_MIN_PX`, so the smallest tiers draw none).
+A ring needs the hour's light, which reaches the greebles as the optional `GreebleRendererContext.light`;
+with no `ctx.light` (the silhouette measurers, the older tests) no ring is drawn. Thin parts — shafts,
+rods, stilts, pipes, valves and the cupola's arc — take `hairline()` instead. Machinery, water tower and
+steppe roof moved into `ROOFTOP_LAYOUT_PAINT` (layout once, fills and rings per tick).
+
 #### Machinery
 - **Aspect ratio:** ~5 × 3
 - **Drawing:** Iterate through columns; each column has a 30% chance of a
   stack appearing. Stack height is random up to the greeble's height
   dimension.
+
+- **World gem:** each stack takes a bevel ring, lit at the roof's average lightness.
 
 #### Antennae
 - **Aspect ratio:** 2 × [5–20]
@@ -831,31 +946,43 @@ viewBox coordinates). They are not clipped by the body clip path.
   is 1 × [>10], add a second light at the vertical centre that does
   **not** flicker.
 
+- **World gem:** the shaft takes the 1.5 px hairline (`members`).
+
 #### Water Tower
 - **Aspect ratio:** 1 × 3
 - **Drawing:** Bottom third = support stilts, middle third = rectangle
   (tank body), top third = triangle (roof cap).
+
+- **World gem:** the tank body takes a ring; the stilts take the hairline.
 
 #### Cupola
 - **Aspect ratio:** 4 × 3
 - **Drawing:** A rounded dome that spans the full width of the roof
   section it sits on.
 
+- **World gem:** the dome's arc takes the hairline.
+
 #### Crown Spire
 - **Aspect ratio:** 3 × 4
 - **Drawing:** A stepped/terraced roof attachment spanning the full roof
   width, topped with an antenna.
+
+- **World gem:** each tier is one two-faced ring (front and side faces split at the front corner, each lit as its fill is); the antenna rod takes the hairline.
 
 #### Pitched Roof
 - **Aspect ratio:** 1 × 1
 - **Drawing:** A right-triangle roof spanning the full roof width. The
   apex is the diagonal edge.
 
+- **World gem:** the slope and the wall each take a ring lit by the face their fill uses (west and east).
+
 #### Steppe Roof
 - **Aspect ratio:** varies (short)
 - **Drawing:** Up to three progressively narrower horizontal tiers:
   bottom row ≈ 80% roof width, second ≈ 60%, third (if present) ≈ 40%.
   Each tier is ~1% of building height tall.
+
+- **World gem:** each tier takes a ring, lit at the roof's average lightness.
 
 ---
 

@@ -1,0 +1,106 @@
+/* The roster board (docs/specs/LAYOUT_REWORK.md §1.5): rows per group, the leading cell a fixed column so
+   every row's tiles start on one line, the tiles flowing right and wrapping. Colour comes inline: the
+   board in its trait, each row in its company's colour (Freelance in the companies trait). */
+.roster-board {
+  --roster-tile-width: 250px;
+  --roster-lead-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.roster-board__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.roster-board__action {
+  display: inline-flex;
+}
+
+.roster-board__create[hidden] {
+  display: none;
+}
+
+.roster-board__rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.roster-board__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0 8px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.roster-board__row:last-child {
+  border-bottom: 0;
+}
+
+.roster-board__lead {
+  display: flex;
+  flex: 0 0 var(--roster-lead-width);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* A long company name (128 characters) ellipsizes inside the column instead of widening it. */
+.roster-board__lead .sc-cabinet-box,
+.roster-board__lead .sc-cabinet-box__front {
+  max-width: 100%;
+}
+
+.roster-board__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-board__count {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+}
+
+.roster-board__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ----------------------------------------------------------------- phone: one column, scrolling */
+
+/* The leading cell sits over its tiles, the name box and count side by side, and the tiles stack full
+   width; ConsolePanel's pane scrolls. */
+.roster-board--phone .roster-board__row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-sm);
+}
+
+.roster-board--phone .roster-board__lead {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.roster-board--phone .roster-board__tiles {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.roster-board--phone .roster-tile {
+  width: 100%;
+}

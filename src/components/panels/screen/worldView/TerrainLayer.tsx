@@ -1,3 +1,4 @@
+import { terrainRingOutline, terrainRingSkipEdge } from './terrainRingOutline';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getLocaleNoiseMap } from '@/utils/noiseMaps';
@@ -5,6 +6,8 @@ import { getTerrainProfile } from '@/systems/terrainProfile';
 import { getLighting, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
 import { applyColorShift } from '@/utils/colorUtils';
 import colorTheme from '@/constants/colorTheme.json';
+import { GemRing } from '@/components/actors/material/GemRing';
+import { WORLD_BEVEL_PX, WORLD_GEM, ringFacets, worldLightVector } from '@/components/actors/material/worldGemMaterial';
 
 // ========================================
 // TYPES
@@ -56,9 +59,22 @@ export function TerrainLayer({ localeId, part, width, height }: TerrainLayerProp
   const { eastL, westL } = getLighting(cycleMeasure);
   const m = (eastL + westL) / 2;
 
-  const fill = part === 'ridge'
-    ? applyColorShift(colorTheme.shadowDepth, NO_SHIFT, 1 + m * 1.2)
-    : applyColorShift(colorTheme.body.shadow, NO_SHIFT, m * 0.9);
+  const base = part === 'ridge' ? colorTheme.shadowDepth : colorTheme.body.shadow;
+  const lightness = part === 'ridge' ? 1 + m * 1.2 : m * 0.9;
+  const fill = applyColorShift(base, NO_SHIFT, lightness);
+
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.7): each 45 degree step and flat run of
+  // the profile takes the hour's sun like a facet, in the polygon's own material. It is built on an
+  // extended, simplified outline (the polygon as drawn cannot hold an 8 px bevel on real worlds, see
+  // terrainRingOutline.ts) and carries no facet on the frame. The polygon and its points are untouched.
+  const ring = ringFacets(
+    terrainRingOutline(steps, width, height),
+    WORLD_GEM.terrain ? WORLD_BEVEL_PX : 0,
+    worldLightVector(eastL, westL),
+    () => lightness,
+    base,
+    { skipEdge: terrainRingSkipEdge(width, height) },
+  );
 
   const points = [
     `${steps[0].x0},${steps[0].y0}`,
@@ -67,5 +83,10 @@ export function TerrainLayer({ localeId, part, width, height }: TerrainLayerProp
     `0,${height}`,
   ].join(' ');
 
-  return <polygon data-terrain={part} points={points} fill={fill} />;
+  return (
+    <>
+      <polygon data-terrain={part} points={points} fill={fill} />
+      <GemRing facets={ring} />
+    </>
+  );
 }

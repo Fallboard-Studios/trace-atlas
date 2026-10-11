@@ -14,3 +14,46 @@
     margin: 16px 8px 16px 16px;
     box-shadow: inset 0 0 8px var(--color-accent-b);
 }
+/* The expander (docs/specs/LAYOUT_REWORK.md §1.3, Crawford 2026-10-10): the headline and the More / Less
+   button share the first row, the descriptions span the row under both. The body is folded by its
+   `hidden` attribute, so nothing here may set its display. */
+.sc-intro-panel--collapsible {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "head toggle" "body body";
+    column-gap: 16px;
+    align-items: center;
+}
+
+.sc-intro-panel--collapsible > .loreLabel {
+    grid-area: head;
+    margin: 0;
+}
+
+.sc-intro-panel__toggle {
+    grid-area: toggle;
+}
+
+.sc-intro-panel__body {
+    grid-area: body;
+}
+
+/* The phone shell (Crawford, 2026-10-10, option a): beside the button the headline wrapped to 135–270 px,
+   so here it takes the full width at a smaller size and the button gets its own line under it, on the
+   same right-hand side as the desk's. The panel's own margin and padding tighten too: at the desk's
+   16 px the intro sat 32 px in from each side of the pane. */
+#screen-viewport[data-shell='phone'] .sc-intro-panel--collapsible {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "toggle" "body";
+    row-gap: 8px;
+    margin: 8px 0;
+    padding: 12px;
+}
+
+#screen-viewport[data-shell='phone'] .sc-intro-panel--collapsible > .loreLabel {
+    font-size: var(--font-size-heading-sm);
+}
+
+#screen-viewport[data-shell='phone'] .sc-intro-panel__toggle {
+    justify-self: end;
+}

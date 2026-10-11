@@ -34,7 +34,7 @@ function StepperInner({ schema, value, onChange, disabled }: StepperProps) {
 
   return (
     <div className="sc-stepper">
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <div className="sc-stepper__controls">
         <button
           type="button"

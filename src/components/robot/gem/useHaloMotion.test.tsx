@@ -252,6 +252,54 @@ describe('useHaloMotion — mount state, dial tween, reduced motion (Phase 41, T
     expect([...timelineMap.keys()].filter((k) => k === 'halo-world-r1')).toHaveLength(1);
   });
 
+  // RobotBody builds a brand-new `{ rx, ry, stops }` object every render, so the dial tween must key on the
+  // dial's VALUES, not the object: a re-render that changes nothing used to start a 0.5 s tween each time,
+  // and a robot that re-renders a few times a second then writes its halo's attributes on every frame,
+  // forever — the powered-off world's frame loop (layout rework Task 29).
+  it('a re-render with a fresh, equal-valued halo object (new stops array too) creates no tween and no gsap.set', () => {
+    const { rerender } = render(<Harness haloDial={halo()} />);
+    setCalls.length = 0;
+    createdTimelines.length = 0;
+    rerender(<Harness haloDial={halo()} />);
+    expect(createdTimelines).toHaveLength(0);
+    expect(setCalls).toHaveLength(0);
+    expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);
+  });
+
+  it('twenty equal-valued re-renders in a row start no tween, and leave an in-flight one alone', () => {
+    const { rerender } = render(<Harness haloDial={halo()} />);
+    rerender(<Harness haloDial={halo({ rx: 40, ry: 20 })} />);
+    const inFlight = timelineMap.get('halo-world-r1') as unknown as FakeTimeline;
+    createdTimelines.length = 0;
+    for (let i = 0; i < 20; i++) rerender(<Harness haloDial={halo({ rx: 40, ry: 20 })} />);
+    expect(createdTimelines).toHaveLength(0);
+    expect(inFlight.kill).not.toHaveBeenCalled();
+    expect(timelineMap.get('halo-world-r1')).toBe(inFlight);
+  });
+
+  it('a change to ry alone, rx alone, or one stop alone each still starts a tween', () => {
+    const { rerender } = render(<Harness haloDial={halo()} />);
+    for (const changed of [halo({ ry: 31 }), halo({ rx: 61 }), halo({ stops: stops(0.56) })]) {
+      createdTimelines.length = 0;
+      rerender(<Harness haloDial={changed} />);
+      expect(createdTimelines).toHaveLength(1);
+      rerender(<Harness haloDial={halo()} />); // back to the base, itself a change
+    }
+  });
+
+  it('a stop with the same offset but a different opacity (or the reverse) counts as a change', () => {
+    const base = stops();
+    const { rerender } = render(<Harness haloDial={halo({ stops: base })} />);
+    createdTimelines.length = 0;
+    const opacityOnly = base.map((s, i) => (i === 2 ? { ...s, opacity: s.opacity + 0.01 } : s));
+    rerender(<Harness haloDial={halo({ stops: opacityOnly })} />);
+    expect(createdTimelines).toHaveLength(1);
+    createdTimelines.length = 0;
+    // Built from the render before it, so the offset is the only thing that differs.
+    rerender(<Harness haloDial={halo({ stops: opacityOnly.map((s, i) => (i === 2 ? { ...s, offset: s.offset + 0.01 } : s)) })} />);
+    expect(createdTimelines).toHaveLength(1);
+  });
+
   it('a dimOpacity change alone touches no gsap.* call', () => {
     const dial = halo(); // the same reference across both renders — isolates dimOpacity as the only change
     const { rerender } = render(<Harness haloDial={dial} dimOpacity={1} />);

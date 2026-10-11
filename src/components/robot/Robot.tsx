@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useRef } from 'react';
+import { memo, useRef, type CSSProperties } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
@@ -11,6 +11,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../../stores/attenuationStyleStore';
 import { onRobotMounted } from '../../systems/workLoop';
+import { selectEntity } from '../panels/screen/nav/navActions';
 
 // ========================================
 // TYPES
@@ -49,7 +50,6 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
   const selectRobot = useUIStore((s) => s.selectRobot);
   const activeHubTile = useUIStore((s) => s.activeHubTile);
-  const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const localeId = useAttenuationStyleStore((s) => selectCurrentAttenuationStyle(s)?.currentLocaleId ?? '');
   const robot = useLocaleStore((s) => s.locales[localeId]?.robots?.find((r) => r.id === robotId));
@@ -60,6 +60,11 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // allRobotsSelected, selectedCompanyId null) glows nobody, since a highlight on every robot
   // would mark nothing apart.
   const isCompanyMember = selectedCompanyId !== null && robot?.companyId === selectedCompanyId;
+  // The colour a member's halo wears (docs/specs/LAYOUT_REWORK.md §1.7). A string, so another company's or
+  // robot's write re-renders nothing here; read only for a member, so the other eleven robots do no lookup.
+  const companyColor = useLocaleStore((s) => (isCompanyMember
+    ? s.locales[localeId]?.companies?.find((c) => c.id === selectedCompanyId)?.color
+    : undefined));
 
   // useGSAP fires before paint (like useLayoutEffect), preventing a single frame at (0,0).
   // Intentionally run this effect only on mount so GSAP owns transforms.
@@ -91,10 +96,19 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // at all in that state (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.7) — with no .console element
   // present to block anything, this click reaches WorldView for free, no pointer-events
   // special-casing needed the way the old console--grid mechanism once provided.
+  // From the Deck or the Probes tile it is a nav pick like any other (navActions): the robot's screen
+  // opens and the nav list collapses to the panel's rest width (spec §1.2). On any other tile it only
+  // moves the selection, which the halo shows.
   const handleClick = () => {
-    selectRobot(robot.id);
-    if (activeHubTile === null) setActiveHubTile('robots');
+    if (activeHubTile === null || activeHubTile === 'robots') selectEntity({ robotId: robot.id });
+    else selectRobot(robot.id);
   };
+
+  // Selection is a halo only: the selected robot wears its own identityColor, a member of the selected
+  // company the company's. The more specific selection wins when a robot is both. OceanScene.css reads
+  // --halo for its drop-shadows and falls back to its old cyan where there is none.
+  const halo = isSelected ? robot.identityColor : isCompanyMember ? companyColor : undefined;
+  const style: CSSProperties = { cursor: 'pointer', ...(halo ? { ['--halo' as string]: halo } : null) };
 
   const className = ['robot', isSelected && 'selected', isCompanyMember && 'isCompanyMember']
     .filter(Boolean)
@@ -110,7 +124,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
       id={`world-robot-${robotId}`}
       className={className}
       onClick={handleClick}
-      style={{ cursor: 'pointer' }}
+      style={style}
     >
       <g className="robot__row">
         <RobotBody robot={robot} motion="world" />

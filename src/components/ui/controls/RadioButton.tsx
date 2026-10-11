@@ -1,10 +1,10 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import { memo, useId, useState, type CSSProperties } from 'react';
+import { Fragment, memo, useId, useState, type CSSProperties } from 'react';
 
 import { CabinetBox } from './CabinetBox';
 import { DualLabel } from './DualLabel';
 import { resolveAccessibleName } from './accessibleName';
-import { useVoxelTrackGap } from './useCabinetBoxHeight';
+import { useCabinetBoxHeight, useVoxelTrackGap } from './useCabinetBoxHeight';
 import { CABINET_REST_POP } from '@/utils/cabinetGeometry';
 import { getRobotColorStyle } from '@/utils/traitColors';
 import type { RadioButtonSchema } from '@/types/controls';
@@ -101,7 +101,19 @@ interface RadioButtonProps {
  *  no new CSS needed, since CabinetBox.css's rest-state hint and RadioButton.css's
  *  [data-state='on'] front-face tint both already read those properties ambiently. An option
  *  that omits `color` renders with no inline style at all, identical to every consumer that
- *  predates this (Audio Setting, Decay Mode, per-layer Type, Header's nav group, …). */
+ *  predates this (Audio Setting, Decay Mode, per-layer Type, Header's nav group, …).
+ *
+ *  The option face (docs/specs/LAYOUT_REWORK.md §1.4): an option with a `loreLabel` shows it small
+ *  above its `humanLabel`, inside the same fixed-height box; one without is one line of its
+ *  `humanLabel` (Task 13 dropped the lore; Crawford brought it back, 2026-10-10). Drawn here, not with
+ *  DualLabel: the face is two small spans so each line can stop at the control's width with its own
+ *  one-line ellipsis cap (RadioButton.css), which DualLabel's wrapping lines cannot. The accessible name
+ *  is the human label alone.
+ *
+ *  `schema.appearance === 'muted'` (docs/tasks/LAYOUT_REWORK.md Task 27) swaps each CabinetBox for a
+ *  flat `.sc-radio-button__flat` face of the same height: no walls, no pop timeline, no hover pop, no
+ *  glow, the selected one a monochrome fill (RadioButton.css). It is the powered-off screen's picker —
+ *  nothing there comes off the plate. */
 function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSize }: RadioButtonProps) {
   // Reuses the same breakpoint-tier gap VoxelTrack (11.1.3) uses between its
   // own boxes — not renamed to something RadioButton-neutral; see
@@ -109,6 +121,8 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
   const gap = useVoxelTrackGap();
   const rowTokens = { '--cabinet-radio-gap': `${gap}px` } as CSSProperties;
   const instanceId = useId();
+  const tierBoxHeight = useCabinetBoxHeight();
+  const muted = schema.appearance === 'muted';
   const [hoveredValue, setHoveredValue] = useState<string | null>(null);
 
   // See the bugfix note above — clears a stale hover left behind by a
@@ -123,8 +137,8 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
   }
 
   return (
-    <div className="sc-radio-button">
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+    <div className={muted ? 'sc-radio-button sc-radio-button--muted' : 'sc-radio-button'}>
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <ToggleGroup.Root
         type="single"
         className="sc-radio-button__root"
@@ -134,27 +148,43 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
         aria-label={resolveAccessibleName(schema)}
         disabled={disabled}
       >
-        {schema.options.map((option) => (
-          <ToggleGroup.Item
-            key={option.value}
-            className="sc-radio-button__item"
-            value={option.value}
-            aria-label={option.humanLabel}
-            style={option.color ? getRobotColorStyle(option.color) : undefined}
-            onMouseEnter={() => setHoveredValue(option.value)}
-            onMouseLeave={() => setHoveredValue((current) => (current === option.value ? null : current))}
-          >
-            <CabinetBox
-              popped={
-                option.value === value || (!disabled && option.value === hoveredValue) ? true : CABINET_REST_POP
-              }
-              timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
-              {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
-            >
-              <DualLabel loreLabel={option.loreLabel} humanLabel={option.humanLabel} />
-            </CabinetBox>
-          </ToggleGroup.Item>
-        ))}
+        {schema.options.map((option) => {
+          const face = (
+            <span className="sc-radio-button__face">
+              {option.loreLabel && <span className="sc-radio-button__lore">{option.loreLabel}</span>}
+              <span className="sc-radio-button__label">{option.humanLabel}</span>
+            </span>
+          );
+          return (
+            <Fragment key={option.value}>
+              {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" />}
+              <ToggleGroup.Item
+                className="sc-radio-button__item"
+                value={option.value}
+                aria-label={option.humanLabel}
+                style={option.color ? getRobotColorStyle(option.color) : undefined}
+                onMouseEnter={muted ? undefined : () => setHoveredValue(option.value)}
+                onMouseLeave={muted ? undefined : () => setHoveredValue((current) => (current === option.value ? null : current))}
+              >
+                {muted ? (
+                  <span className="sc-radio-button__flat" style={{ '--cabinet-box-height': `${boxSize ?? tierBoxHeight}px` } as CSSProperties}>
+                    {face}
+                  </span>
+                ) : (
+                  <CabinetBox
+                    popped={
+                      option.value === value || (!disabled && option.value === hoveredValue) ? true : CABINET_REST_POP
+                    }
+                    timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
+                    {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
+                  >
+                    {face}
+                  </CabinetBox>
+                )}
+              </ToggleGroup.Item>
+            </Fragment>
+          );
+        })}
       </ToggleGroup.Root>
     </div>
   );

@@ -220,7 +220,7 @@ itself changed along with the generation mechanism. Confirmed acceptable during 
 `interview-me` pass, not a regression.
 
 The standalone Reset Melody control (`RESET_MELODY_SCHEMA`, `robotOptionsConfig.ts`; wired through
-`RobotOptionsTab.tsx`/`PingControlsDrawer.tsx`) was removed entirely as part of this phase — under
+`RobotScreen.tsx`/`PingControlsDrawer.tsx`) was removed entirely as part of this phase — under
 full determinism there's nothing left for a manual reroll to do that changing an attribute doesn't
 already do.
 

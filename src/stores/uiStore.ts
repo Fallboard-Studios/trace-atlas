@@ -19,23 +19,17 @@ export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
  *  once Fleet Params itself is expanded (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) —
  *  there is no independent per-group toggle state anymore. */
 export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'output';
-/** Which of Settings' 3 children is currently selected — added in Task 11
- *  (docs/tasks/NAV_LAYOUT_REWRITE.md), beyond the spec's original §1.3 field list. Settings
- *  isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc comment),
- *  so it needs its own field rather than reusing selectedSection; ContentPane's Settings content
- *  component reads this to pick which of the 3 leaf contents (Performance/Presets/Sessions) to
- *  render. Volume was removed (Header already carries its own always-visible volume slider) and
- *  Tempo moved to Fleet Params -> Pacing. `sessions` added by Session Storage's Task 10
- *  (docs/tasks/SESSION_STORAGE.md, Roadmap Phase 20). */
+/** Settings' three tabs — Audio Quality, Seeds, Save & Share (docs/specs/LAYOUT_REWORK.md §1.8).
+ *  Settings isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc
+ *  comment), so it needs its own field rather than reusing selectedSection; SettingsScreen reads it
+ *  as its open tab (navActions' SETTINGS_LEAVES is the order). Volume was removed (Header carries
+ *  the volume slider) and Tempo moved to Fleet Params -> Pacing. `sessions` added by Session
+ *  Storage's Task 10 (docs/tasks/SESSION_STORAGE.md, Roadmap Phase 20). The tree's third level
+ *  under a leaf (Voice Limit, Location…) retired with the stacked screen (LAYOUT_REWORK.md Task 17). */
 export type SettingsLeaf = 'quality' | 'sectorSettings' | 'sessions';
-/** The 3rd tree level under a Settings leaf — Quality's Robot Load/Effects Load (AudioLoadPanel's
- *  own AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA) and Presets' Attenuation Style/
- *  Coordinates (SectorSettingsDrawer's own ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA) — pure scroll/
- *  highlight targets around controls that already exist in those panels, not new UI. Flat union,
- *  same reasoning as RobotSubsection: no name collides across the 2 parent leaves. */
-export type SettingsSubsection = 'robotLoad' | 'effectsLoad' | 'attenuationStyle' | 'coordinates';
-/** Which Fleet Params effect leaf is currently selected — added in Task 14
- *  (docs/tasks/NAV_LAYOUT_REWRITE.md), same reasoning as SettingsLeaf: Fleet Params' 5 groups
+/** A Fleet Params sub-tab — fleetParamsSubsection's type (docs/specs/LAYOUT_REWORK.md §1.10). Added in
+ *  Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) for the tree's effect leaf, a field that retired with the
+ *  stacked scroll (LAYOUT_REWORK.md Task 18); same reasoning as SettingsLeaf: Fleet Params' 5 groups
  *  (Pacing/LFO Bank/EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the
  *  7 real effect leaves underneath EQ & Filters/Time & Space/Output (EQ/HPF/LPF/Reverb/Delay/
  *  Compression/Limiter) all map onto AUDIO_RIG_CONFIG's own AudioRigEffectKey — reused directly
@@ -57,10 +51,10 @@ export type RobotSubsection =
   | 'baselineOscillator'
   | 'coaxialOscillator'
   | 'harmonicOscillator';
-/** Which of the 4 top-level tree branches is peeked open — its own accordion-of-one level,
- *  independent of every per-branch expandedXxxId field below (those track which CHILD within an
- *  already-expanded branch is peeked open, not whether the branch itself is). Bugfix: this field
- *  was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
+/** Which of the 4 top-level branches is open in the nav panel (its entity list, for Probes and
+ *  Companies). The tree's per-branch fields, which tracked which probe or company was peeked
+ *  open, retired with the stacked scroll (docs/tasks/LAYOUT_REWORK.md Task 18). Bugfix: this
+ *  field was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
  *  for a bare single-segment node id ('settings', 'fleetParams', 'probes', 'companies'), so every
  *  top-level node's own +/- button was a silent no-op and its children could never render, found
  *  live by Crawford after Checkpoint 3. */
@@ -110,21 +104,22 @@ export interface UIStore {
   selectedSubsection: RobotSubsection | null;
   /** Mobile only; desktop/tablet ignore this and stay docked-open. */
   isNavPanelOpen: boolean;
-  /** Accordion-of-one within the Probes branch — peek-without-navigating expansion. */
-  expandedProbeId: string | null;
-  /** Accordion-of-one within the Companies branch. */
-  expandedCompanyId: string | null;
-  /** Which of Settings' 2 children is selected — see SettingsLeaf's own doc comment. */
+  /** The Settings screen's open tab — see SettingsLeaf's own doc comment. null reads as the first,
+   *  Audio Quality (navActions' activeSettingsLeaf), which is what every nav pick stores. */
   selectedSettingsLeaf: SettingsLeaf | null;
-  /** Which Settings subsection (3rd tree level) is selected — see SettingsSubsection's own doc
-   *  comment. null when only a SettingsLeaf (or nothing) is selected. */
-  selectedSettingsSubsection: SettingsSubsection | null;
-  /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
-  selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
+  /** The Fleet Params screen's open section tab (docs/specs/LAYOUT_REWORK.md §1.10). Always one: the
+   *  screen is tabs, so there is no "no section" state. */
+  fleetParamsSection: FleetParamsGroup;
+  /** The open sub-tab inside that section — null reads as the section's first (navActions'
+   *  activeFleetParamsSubsection). Pacing has no sub-tabs. */
+  fleetParamsSubsection: SelectedFleetParamsEffect | null;
   /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
   expandedTopLevelBranch: TopLevelBranch | null;
   /** Whether the "All Probes" bulk-edit leaf is selected — see its own doc comment above. */
   allProbesSelected: boolean;
+  /** Which roster tile's Move popover (desk) / sheet (phone) is open — null when none. One at a time:
+   *  opening another tile's replaces it (docs/specs/LAYOUT_REWORK.md §1.5, §1.10). */
+  movePanelRobotId: string | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -136,24 +131,24 @@ export interface UIStore {
   selectRobot: (id: string | null) => void;
   selectCompany: (id: string) => void;
   selectAllRobots: () => void;
-  /** Clears selectedCompanyId alone — distinct from selectAllRobots, which also flips
-   *  allRobotsSelected (the Robots tab's own, unrelated company filter default). Added Task 20
-   *  (docs/tasks/NAV_LAYOUT_REWRITE.md): navigating to the bare "Companies" tree node must show
-   *  the Create form regardless of whatever the Robots tab's own filter is doing. */
-  clearSelectedCompany: () => void;
   setActiveHubTile: (tile: HubTile | null) => void;
   setActiveLocaleTemperature: (t: number | null) => void;
   setSelectedSection: (s: RobotSection | null) => void;
   setSelectedSubsection: (s: RobotSubsection | null) => void;
   setNavPanelOpen: (open: boolean) => void;
-  setExpandedProbeId: (id: string | null) => void;
-  setExpandedCompanyId: (id: string | null) => void;
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
-  setSelectedSettingsSubsection: (s: SettingsSubsection | null) => void;
-  setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
+  /** Also resets fleetParamsSubsection to null: a sub-tab belongs to its section. */
+  setFleetParamsSection: (s: FleetParamsGroup) => void;
+  setFleetParamsSubsection: (s: SelectedFleetParamsEffect | null) => void;
   setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
   setAllProbesSelected: (v: boolean) => void;
+  openMovePanel: (robotId: string) => void;
+  closeMovePanel: () => void;
 }
+
+/** The Fleet Params tab the screen opens on, and every nav pick returns to (docs/tasks/LAYOUT_REWORK.md
+ *  Task 15: the sketch's approved frame opens on LFO Bank). */
+export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'lfoBank';
 
 // ========================================
 // STORE
@@ -174,13 +169,12 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedSection: null,
   selectedSubsection: null,
   isNavPanelOpen: false,
-  expandedProbeId: null,
-  expandedCompanyId: null,
   selectedSettingsLeaf: null,
-  selectedSettingsSubsection: null,
-  selectedFleetParamsEffect: null,
+  fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+  fleetParamsSubsection: null,
   expandedTopLevelBranch: null,
   allProbesSelected: false,
+  movePanelRobotId: null,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -200,19 +194,18 @@ export const useUIStore = create<UIStore>((set) => ({
   selectRobot: (id) => set({ selectedRobotId: id, selectedSection: null, selectedSubsection: null }),
   selectCompany: (id) => set({ selectedCompanyId: id, allRobotsSelected: false }),
   selectAllRobots: () => set({ allRobotsSelected: true, selectedCompanyId: null }),
-  clearSelectedCompany: () => set({ selectedCompanyId: null }),
   setActiveHubTile: (tile) => set({ activeHubTile: tile }),
   setActiveLocaleTemperature: (t) => set({ activeLocaleTemperature: t }),
   setSelectedSection: (s) => set({ selectedSection: s }),
   setSelectedSubsection: (s) => set({ selectedSubsection: s }),
   setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
-  setExpandedProbeId: (id) => set({ expandedProbeId: id }),
-  setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
-  setSelectedSettingsSubsection: (s) => set({ selectedSettingsSubsection: s }),
-  setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
+  setFleetParamsSection: (s) => set({ fleetParamsSection: s, fleetParamsSubsection: null }),
+  setFleetParamsSubsection: (s) => set({ fleetParamsSubsection: s }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),
+  openMovePanel: (robotId) => set({ movePanelRobotId: robotId }),
+  closeMovePanel: () => set({ movePanelRobotId: null }),
 }));
 
 // ========================================

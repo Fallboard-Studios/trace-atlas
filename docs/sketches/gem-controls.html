@@ -1,0 +1,404 @@
+<!doctype html>
+<!-- STATUS (2026-10-08, Crawford, after dragging these): REJECTED. "Really glad I tried that. I don't like it, and it's
+     better to know that." What stays is the cabinetry on everything interactive — "it looks like parts of the screen
+     are coming off, at you, futuristically." The gem material stays behind the glass (world + robots). Panels went
+     the other way instead: faceplate + silkscreen + wells, see layout-rework.html's material toggle and header. Kept
+     as the record of what a gem control set looks like, so it is not re-proposed.
+
+<!-- Gem controls — the control primitives in the gem material, replacing cabinetry. Sketch, before any intent doc.
+     Built 2026-10-08 on feature/world-gem (uncommitted; nothing here touches the live renderer or any component).
+
+     Where it came from (Crawford, 2026-10-08, after choosing layout option A and the gem ring on containers): "I love
+     the cabinetry popout, but it just doesn't fit with the gem aesthetic. I think I like it because I drew it, though.
+     I suppose I can let it go, if we can do the gem thing right. I still dislike knobs, but won't rule them out. I'm
+     not a huge fan of sliders either. With the gem aesthetic, do we have a good answer to 'easily use the mouse/finger
+     to select between a fluid range of values'? … a very multifaceted gem that lights up different facets as the value
+     goes up."
+
+     The answer this page mocks: keep the one thing a slider gets right — an AXIS the finger can follow — and drop the
+     rest. The control is a CRYSTAL BAR: a pointed rod cut into facets along its length (a step-cut stone). A beam of
+     light enters at the low end and travels as the value rises; facets the beam has passed are LIT, the one it is
+     crossing is MID, the rest are DARK (the robots' three-tone rule doing the partial-fill work). The beam's bright
+     head is the handle. Drag anywhere on the bar and the head follows. Hover / focus / drag give the bar a halo
+     (Phase 41's language), brightening continuously, never a pop.
+       G1 SliderLinear — equal facets. LIVE: drag the bars. Toggles: facet count (8 / 12 / 24), beam head on / off.
+       G2 SliderLog — the rod TAPERS and the facets grow geometrically, so the bar is an honest picture of its own
+          scale. SliderCenteredZero — the beam starts at a seam in the middle and travels either way.
+       G3 Vertical — the same rod stood on end.
+       G4 Toggle (a two-facet gem, one lit), RadioButton (a bar whose facets are the options), Button (one facet that
+          lights on press). One geometry — "a facet is a unit you can fill or choose" — for the whole library.
+       G5 Side by side with cabinetry (today), including one small panel composed each way inside a gem container.
+       G6 Phone — 44 px bars, finger-sized.
+
+     Assumptions (not the live renderer):
+       S1 Under the hood nothing changes: Radix Slider / Toggle / RadioGroup keep keyboard and ARIA. This page's own
+          pointer + arrow-key handling stands in for them. The render is one SVG per control.
+       S2 The halo is a CSS drop-shadow here. The GSAP cabinet pop / wall fade are gone by design, not approximated.
+       S3 Control shapes are FIXED (every slider is the same rod), unlike containers, which are seeded. Controls should
+          be uniform so a row of them reads as a row; the container's silhouette is where identity lives.
+       S4 Colours are the app's trait pairs; fonts from Google Fonts here instead of the self-hosted packages.
+       S5 Facet tones: lit facets alternate two close tones so adjacent facets read as separate cuts; a 1 px dark seam
+          between facets; the ring (3 px, three tones, fixed top-left light) is the same ring as the containers.
+
+     Open (for Crawford):
+       Q1 Rod shape: pointed terminations (as drawn) or a chamfered rectangle like the containers?
+       Q2 Facet count: 8 / 12 / 24? 12 matches today's voxel rows; 24 reads smoother but each facet is small on a phone.
+       Q3 Is the beam head needed as a handle, or is the lit / mid boundary enough? (toggle on G1)
+       Q4 Log as a tapering rod — yes? It is the most opinionated shape on the page.
+       Q5 The exact value stays as a readout beside the bar (facets quantize what you see). Keep?
+       Q6 Halo on hover, or only on focus / drag?
+       Q7 Radio: facets with labels under them (as drawn) or labels inside the facets? Long labels decide this.
+       Q8 Phone: 44 px tall bars; vertical sliders at 44 px wide. Enough?
+     Verdicts: (pending) -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Gem controls — sketch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
+    --ac: #41ad9f; --ac2: #68cb97; --dark: #1b2128; --dark2: #202830;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  p.note a { color: var(--ac2); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending b { color: #e8b84a; }
+  .pending ol { margin: 6px 0 0 18px; padding: 0; }
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+  .cap { font-size: 12px; color: var(--mut); margin: 6px 0 0; font-family: var(--fc); }
+  /* sticky frame bars (Crawford's rule, 2026-10-08) */
+  .frame { position: relative; }
+  .frame > .bar { position: sticky; top: 0; z-index: 40; background: var(--bg); padding: 6px 0 8px; margin: 0 0 8px; border-bottom: 1px solid #2a323a; box-shadow: 0 8px 16px -8px rgba(0, 0, 0, .8); }
+  .frame > .bar h2 { margin: 14px 0 6px; border: 0; padding: 0; }
+  .frame > .bar .controls { margin: 0; }
+
+  /* ---------- frames ---------- */
+  .stage { position: relative; background: #0b0f14; border: 12px solid #1e2126; border-radius: 6px; padding: 28px 32px; box-sizing: border-box; font-family: var(--fc); display: grid; gap: 22px 40px; align-content: start; }
+  .stage.cols2 { grid-template-columns: 1fr 1fr; }
+  .stage.cols3 { grid-template-columns: repeat(3, max-content); }
+  .phone { width: 375px; height: 640px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid #1e2126; border-radius: 28px; font-family: var(--fc); padding: 20px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; }
+
+  /* ---------- labels, as the app's dl ---------- */
+  .ctl { display: flex; flex-direction: column; gap: 6px; }
+  .dl { display: flex; flex-direction: column; line-height: 1.15; }
+  .dl .lore { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  .dl .hum { font-size: 14px; color: #fff; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .val { font-size: 12px; color: var(--mut); font-family: ui-monospace, monospace; min-width: 64px; }
+  .vrow { display: flex; gap: 28px; align-items: flex-end; }
+  .vrow .ctl { align-items: center; }
+
+  /* ---------- the gem bar ---------- */
+  .gbar { position: relative; display: block; touch-action: none; cursor: ew-resize; outline: none; border-radius: 4px; }
+  .gbar.vert { cursor: ns-resize; }
+  .gbar svg { display: block; overflow: visible; transition: filter .18s ease; }
+  .gbar:hover svg, .gbar:focus-visible svg { filter: drop-shadow(0 0 3px var(--ac)) drop-shadow(0 0 8px color-mix(in srgb, var(--ac) 55%, transparent)); }
+  .gbar.drag svg { filter: drop-shadow(0 0 4px var(--ac2)) drop-shadow(0 0 14px color-mix(in srgb, var(--ac) 75%, transparent)); }
+  .gbar:focus-visible { box-shadow: 0 0 0 2px var(--ac2); }
+  .gbar .lbl { position: absolute; left: 0; right: 0; top: 100%; display: flex; font-size: 11px; color: var(--mut); pointer-events: none; }
+  .gbar .lbl span { text-align: center; }
+  .gbar .lbl span.on { color: #fff; }
+
+  /* ---------- cabinetry, for G5 (as the layout sketches draw it) ---------- */
+  .cab { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surf); color: var(--txt); padding: 0 12px; height: 34px; font-size: 13px; white-space: nowrap; line-height: 1.1; box-sizing: border-box; }
+  .cab.pop { background: var(--ac); color: #0b0f14; box-shadow: 0 0 12px color-mix(in srgb, var(--ac) 55%, transparent); }
+  .cab.pop::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 4px; background: color-mix(in srgb, var(--ac), white 28%); transform: skewX(-50deg); transform-origin: bottom left; }
+  .cab.pop::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 4px; background: color-mix(in srgb, var(--ac), black 32%); transform: skewY(-50deg); transform-origin: top right; }
+  .cab.frame { background: var(--surf2); border: 1px solid var(--line); }
+  .radio { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+  .vox { display: inline-flex; gap: 4px; }
+  .vox i { width: var(--b, 26px); height: var(--b, 26px); background: #1b2128; display: block; box-sizing: border-box; }
+  .vox i.on { background: var(--ac); box-shadow: inset -3px -3px 0 color-mix(in srgb, var(--ac), black 32%), inset 2px 2px 0 color-mix(in srgb, var(--ac), white 18%); }
+  .panel { position: relative; width: 460px; padding: 22px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; }
+  .panel.cabinet { background: var(--surf2); border: 1px solid var(--line); }
+  .panel .gemring { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .panel > *:not(.gemring) { position: relative; z-index: 1; }
+  .panel h3 { margin: 0; font-size: 18px; font-family: var(--fs); }
+</style>
+</head>
+<body>
+<h1>Gem controls: the crystal bar, and the rest of the primitives as facets</h1>
+<p class="note">The control set in the gem material, to decide whether cabinetry can be let go. The bars are <b>live</b>: drag them with a mouse
+  or a finger, or focus one and use the arrow keys. Companion to <a href="layout-rework.html">layout-rework</a> (option A, gem ring on
+  containers). Static otherwise; judge the shape, the readability of the lit / mid / dark split, and whether the axis is obvious.</p>
+
+<div class="pending">
+  <b>Open for Crawford:</b>
+  <ol>
+    <li>Rod shape: pointed ends (as drawn) or a chamfered rectangle like the containers?</li>
+    <li>Facet count: 8 / 12 / 24? (toggle on G1)</li>
+    <li>Is the beam head needed as a handle, or is the lit / mid boundary enough? (toggle on G1)</li>
+    <li>Log as a tapering rod. Yes?</li>
+    <li>Keep the exact value as a readout beside the bar?</li>
+    <li>Halo on hover, or only on focus / drag?</li>
+    <li>Radio labels under the facets, or inside them?</li>
+    <li>Phone: 44 px tall bars, 44 px wide vertical ones. Enough?</li>
+  </ol>
+</div>
+
+<section class="frame">
+<div class="bar"><h2>G1 — SliderLinear: the crystal bar. Drag it.</h2>
+<div class="controls">
+  <span>Facets:</span><button data-n="8">8</button><button data-n="12" class="on">12</button><button data-n="24">24</button>
+  <span style="margin-left:12px">Beam head:</span><button id="headtog" class="on">on</button>
+</div></div>
+<div class="stage cols2" id="g1"></div>
+<p class="cap">A pointed rod, step-cut into facets. The beam enters at the left; passed facets are lit (two alternating close tones so the cuts read),
+  the facet being crossed is mid, the rest are dark. The bright head is the handle, with a halo on hover and a stronger one while dragging.
+  The exact value sits beside the bar as today.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>G2 — SliderLog (tapering rod) and SliderCenteredZero (seam in the middle)</h2></div>
+<div class="stage cols2" id="g2"></div>
+<p class="cap">Log: the rod is thin at the low end and the facets grow geometrically, so a frequency slider looks like what it is. Centered zero:
+  the beam starts at the seam and travels either way; at zero only the seam glows.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>G3 — Vertical</h2></div>
+<div class="stage" id="g3"></div>
+<p class="cap">The same rod stood on end, beam from the bottom. Drag up and down.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>G4 — Toggle, RadioButton, Button: facets as units you choose</h2></div>
+<div class="stage cols3" id="g4"></div>
+<p class="cap">A toggle is a two-facet gem with one lit. A radio is a bar whose facets are the options. A button is one facet that lights while pressed.
+  Click them.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>G5 — Beside cabinetry: the same panel composed each way</h2></div>
+<div class="stage cols2" id="g5"></div>
+<p class="cap">Left: today's cabinetry inside a cabinet frame. Right: gem controls inside a gem container (the seeded chamfered polygon from the
+  layout sketch). The question this frame asks is whether the right-hand panel is one material.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>G6 — Phone</h2></div>
+<div class="phone" id="g6"></div>
+<p class="cap">Bars at 44 px tall, edge to edge; vertical bars 44 px wide. Drag with a finger.</p>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const TRAIT = { composition: ['#5bbf6a', '#8ee07c'], spectral: ['#4f7fc0', '#7aa6e0'], timeSpace: ['#b05a8a', '#d07ab0'], output: ['#d9792b', '#e8a04a'], deck: ['#41ad9f', '#68cb97'] };
+const ac = (t) => `--ac:${TRAIT[t][0]};--ac2:${TRAIT[t][1]}`;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+let FACETS = 12, HEAD = true;
+
+// ---------- rod profiles: top(x) / bot(x) for a rod of w × h ----------
+function profile(kind, w, h) {
+  const c = h / 2; // pointed terminations at 45°
+  if (kind === 'taper') {
+    const hl = h * 0.5; // height at the low end
+    const top = (x) => x < c ? h / 2 - (x / c) * (hl / 2) : x > w - c ? h / 2 - ((w - x) / c) * (h / 2) : (h / 2 - hl / 2) * (1 - (x - c) / (w - 2 * c));
+    return { top, bot: (x) => h - top(x), c };
+  }
+  const top = (x) => x < c ? h / 2 - x : x > w - c ? h / 2 - (w - x) : 0;
+  return { top, bot: (x) => h - top(x), c };
+}
+function outerPoly(p, w, h) { return [[0, h / 2], [p.c, p.top(p.c)], [w - p.c, p.top(w - p.c)], [w, h / 2], [w - p.c, p.bot(w - p.c)], [p.c, p.bot(p.c)]]; }
+function facetXs(kind, n, w) {
+  if (kind === 'taper') { const r = 1.32; const xs = []; for (let i = 0; i <= n; i++) xs.push(w * (Math.pow(r, i) - 1) / (Math.pow(r, n) - 1)); return xs; }
+  return Array.from({ length: n + 1 }, (_, i) => (i * w) / n);
+}
+function facetPoly(p, w, x0, x1) {
+  const brk = [p.c, w - p.c].filter((b) => b > x0 && b < x1);
+  const topPts = [[x0, p.top(x0)], ...brk.map((b) => [b, p.top(b)]), [x1, p.top(x1)]];
+  const botPts = [[x1, p.bot(x1)], ...brk.slice().reverse().map((b) => [b, p.bot(b)]), [x0, p.bot(x0)]];
+  return [...topPts, ...botPts];
+}
+/** Miter inset of a convex polygon listed clockwise on screen (y down) — as the layout sketch's containers. */
+function inset(poly, d) {
+  const n = poly.length; const lines = [];
+  for (let i = 0; i < n; i++) {
+    const a = poly[i], b = poly[(i + 1) % n]; const dx = b[0] - a[0], dy = b[1] - a[1]; const len = Math.hypot(dx, dy) || 1;
+    const nx = dy / len, ny = -dx / len; lines.push({ p: [a[0] - nx * d, a[1] - ny * d], q: [b[0] - nx * d, b[1] - ny * d], nx, ny });
+  }
+  const inner = [];
+  for (let i = 0; i < n; i++) {
+    const L1 = lines[(i - 1 + n) % n], L2 = lines[i];
+    const [x1, y1] = L1.p, [x2, y2] = L1.q, [x3, y3] = L2.p, [x4, y4] = L2.q;
+    const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (Math.abs(den) < 1e-6) { inner.push(L2.p); continue; }
+    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den; inner.push([x1 + t * (x2 - x1), y1 + t * (y2 - y1)]);
+  }
+  return { inner, lines };
+}
+const P = (pts) => pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+const ringTone = (sh) => sh > 0.3 ? 'color-mix(in srgb, var(--ac) 62%, white 16%)' : sh < -0.3 ? 'color-mix(in srgb, var(--ac) 40%, black 54%)' : 'color-mix(in srgb, var(--ac) 52%, black 22%)';
+function ringSvg(outer, d) {
+  const { inner, lines } = inset(outer, d); const L = -Math.SQRT1_2; let s = '';
+  for (let i = 0; i < outer.length; i++) { const j = (i + 1) % outer.length; s += `<polygon points="${P([outer[i], outer[j], inner[j], inner[i]])}" fill="${ringTone(lines[i].nx * L + lines[i].ny * L)}"/>`; }
+  return s;
+}
+
+/** The bar. kind: 'linear' | 'taper' | 'center'. value 0..1 (center: 0.5 is zero). Returns SVG markup. */
+function barSvg(kind, value, w, h, n = FACETS, head = HEAD) {
+  const p = profile(kind === 'taper' ? 'taper' : 'rod', w, h); const outer = outerPoly(p, w, h);
+  const xs = facetXs(kind, n, w); const vx = value * w; const mid = w / 2;
+  let facets = '';
+  for (let i = 0; i < n; i++) {
+    const x0 = xs[i], x1 = xs[i + 1]; let state;
+    if (kind === 'center') {
+      const lo = Math.min(mid, vx), hi = Math.max(mid, vx);
+      state = x1 <= lo || x0 >= hi ? 'dark' : x0 >= lo && x1 <= hi ? 'lit' : 'mid';
+      if (Math.abs(vx - mid) < 0.5) state = 'dark';
+    } else state = x1 <= vx ? 'lit' : x0 >= vx ? 'dark' : 'mid';
+    const fill = state === 'lit' ? (i % 2 ? 'var(--ac)' : 'color-mix(in srgb, var(--ac) 88%, white 12%)') : state === 'mid' ? 'color-mix(in srgb, var(--ac) 50%, var(--dark))' : (i % 2 ? 'var(--dark)' : 'var(--dark2)');
+    facets += `<polygon points="${P(facetPoly(p, w, x0, x1))}" fill="${fill}" stroke="rgba(0,0,0,.55)" stroke-width="1"/>`;
+  }
+  let headMark = '';
+  if (kind === 'center') headMark += `<line x1="${mid}" y1="${p.top(mid) + 2}" x2="${mid}" y2="${p.bot(mid) - 2}" stroke="${Math.abs(vx - mid) < 0.5 ? '#fff' : 'rgba(255,255,255,.35)'}" stroke-width="1.5"/>`;
+  if (head) headMark += `<line x1="${vx}" y1="${p.top(vx) + 1}" x2="${vx}" y2="${p.bot(vx) - 1}" stroke="#fff" stroke-width="2.5" stroke-linecap="round" style="filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 6px var(--ac2))"/>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polygon points="${P(outer)}" fill="var(--dark)"/>${facets}${ringSvg(outer, 3)}${headMark}</svg>`;
+}
+
+// ---------- live bars ----------
+const BARS = new Map(); let uid = 0;
+function bar(opts) { // {kind, value, w, h, trait, lore, hum, fmt, vert}
+  const id = 'bar' + (++uid); BARS.set(id, { ...opts });
+  const o = BARS.get(id); const svg = barSvg(o.kind, o.value, o.w, o.h);
+  const box = o.vert ? `width:${o.h}px;height:${o.w}px` : `width:${o.w}px;height:${o.h}px`;
+  const wrap = `<div class="gbar${o.vert ? ' vert' : ''}" id="${id}" tabindex="0" role="slider" aria-valuenow="${o.value.toFixed(2)}" style="${ac(o.trait)};${box}"><div class="rot" style="${o.vert ? `transform:rotate(-90deg) translate(-${o.w}px,0);transform-origin:0 0;width:${o.w}px;height:${o.h}px` : ''}">${svg}</div></div>`;
+  const readout = `<span class="val" id="${id}v">${o.fmt(o.value)}</span>`;
+  return o.vert
+    ? `<div class="ctl">${readout}${wrap}<div class="dl" style="align-items:center;text-align:center"><span class="lore">${o.lore}</span><span class="hum">${o.hum}</span></div></div>`
+    : `<div class="ctl"><div class="dl"><span class="lore">${o.lore}</span><span class="hum">${o.hum}</span></div><div class="row">${wrap}${readout}</div></div>`;
+}
+function redraw(id) { const o = BARS.get(id); const el = $('#' + id); if (!el) return; el.querySelector('.rot').innerHTML = barSvg(o.kind, o.value, o.w, o.h); el.setAttribute('aria-valuenow', o.value.toFixed(2)); const v = $('#' + id + 'v'); if (v) v.textContent = o.fmt(o.value); }
+function wireBars() {
+  for (const el of $$('.gbar[role="slider"]')) {
+    const id = el.id, o = BARS.get(id); if (!o || el.dataset.wired) continue; el.dataset.wired = '1';
+    const set = (e) => { const r = el.getBoundingClientRect(); const t = o.vert ? 1 - (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width; o.value = clamp(t, 0, 1); redraw(id); };
+    el.addEventListener('pointerdown', (e) => { el.setPointerCapture(e.pointerId); el.classList.add('drag'); set(e); });
+    el.addEventListener('pointermove', (e) => { if (el.classList.contains('drag')) set(e); });
+    const up = () => el.classList.remove('drag'); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('keydown', (e) => { const step = e.shiftKey ? 0.1 : 1 / FACETS; if (['ArrowRight', 'ArrowUp'].includes(e.key)) { o.value = clamp(o.value + step, 0, 1); redraw(id); e.preventDefault(); } if (['ArrowLeft', 'ArrowDown'].includes(e.key)) { o.value = clamp(o.value - step, 0, 1); redraw(id); e.preventDefault(); } });
+  }
+}
+const pct = (v) => `${Math.round(v * 100)}%`;
+const hz = (v) => { const f = 20 * Math.pow(1000, v); return f >= 1000 ? `${(f / 1000).toFixed(1)} kHz` : `${Math.round(f)} Hz`; };
+const db = (v) => { const d = (v - 0.5) * 24; return `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} dB`; };
+const secs = (v) => `${(v * 4).toFixed(2)} s`;
+
+// ---------- facet-unit controls: toggle, radio, button ----------
+function unitSvg(labels, cur, w, h, pressed = false) {
+  const p = profile('rod', w, h); const outer = outerPoly(p, w, h); const n = labels.length; let s = '';
+  for (let i = 0; i < n; i++) { const x0 = (i * w) / n, x1 = ((i + 1) * w) / n; const on = i === cur; s += `<polygon points="${P(facetPoly(p, w, x0, x1))}" fill="${on ? (pressed ? 'color-mix(in srgb, var(--ac) 80%, white 20%)' : 'var(--ac)') : (i % 2 ? 'var(--dark)' : 'var(--dark2)')}" stroke="rgba(0,0,0,.55)" stroke-width="1"/>`; }
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polygon points="${P(outer)}" fill="var(--dark)"/>${s}${ringSvg(outer, 3)}</svg>`;
+}
+const UNITS = new Map();
+function unit(opts) { // {labels, cur, w, h, trait, lore, hum, kind:'toggle'|'radio'|'button'}
+  const id = 'unit' + (++uid); UNITS.set(id, { ...opts });
+  const o = UNITS.get(id);
+  const lbl = o.kind === 'button' ? '' : `<div class="lbl">${o.labels.map((l, i) => `<span class="${i === o.cur ? 'on' : ''}" style="flex:1">${l}</span>`).join('')}</div>`;
+  const inner = o.kind === 'button' ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,.8)">${o.labels[0]}</div>` : '';
+  return `<div class="ctl"><div class="dl"><span class="lore">${o.lore}</span><span class="hum">${o.hum}</span></div><div class="gbar" id="${id}" tabindex="0" role="${o.kind === 'toggle' ? 'switch' : o.kind === 'radio' ? 'radiogroup' : 'button'}" style="${ac(o.trait)};width:${o.w}px;height:${o.h}px;cursor:pointer;margin-bottom:18px">${unitSvg(o.labels, o.cur, o.w, o.h)}${inner}${lbl}</div></div>`;
+}
+function wireUnits() {
+  for (const el of $$('.gbar[role="switch"], .gbar[role="radiogroup"], .gbar[role="button"]')) {
+    const id = el.id, o = UNITS.get(id); if (!o || el.dataset.wired) continue; el.dataset.wired = '1';
+    const draw = (pressed) => { el.querySelector('svg').outerHTML = unitSvg(o.labels, o.cur, o.w, o.h, pressed); const lb = el.querySelector('.lbl'); if (lb) lb.innerHTML = o.labels.map((l, i) => `<span class="${i === o.cur ? 'on' : ''}" style="flex:1">${l}</span>`).join(''); };
+    if (o.kind === 'button') { el.addEventListener('pointerdown', () => { o.cur = 0; draw(true); }); el.addEventListener('pointerup', () => { o.cur = -1; draw(false); }); el.addEventListener('pointerleave', () => { o.cur = -1; draw(false); }); }
+    else el.addEventListener('click', (e) => { const r = el.getBoundingClientRect(); const i = Math.floor(((e.clientX - r.left) / r.width) * o.labels.length); o.cur = o.kind === 'toggle' ? (o.cur ? 0 : 1) : clamp(i, 0, o.labels.length - 1); draw(false); });
+  }
+}
+
+// ---------- containers (G5): the seeded chamfered polygon from the layout sketch ----------
+function hash32(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+function gemCuts(seed) { let h = hash32(seed) || 1; const next = () => { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h; }; const SET = [0, 12, 24, 40]; const pick = (cap) => Math.min(SET[next() % SET.length], cap ?? 99); return [{ dx: pick(14), dy: pick(14) }, { dx: pick(), dy: pick() }, { dx: pick(), dy: pick() }, { dx: pick(), dy: pick() }]; }
+function containerSvg(w, h, seed, depth = 6) {
+  const c = gemCuts(seed); const pts = [[c[0].dx, 0], [w - c[1].dx, 0], [w, c[1].dy], [w, h - c[2].dy], [w - c[2].dx, h], [c[3].dx, h], [0, h - c[3].dy], [0, c[0].dy]];
+  const outer = []; for (const p of pts) { const q = outer[outer.length - 1]; if (!q || q[0] !== p[0] || q[1] !== p[1]) outer.push(p); }
+  if (outer[0][0] === outer[outer.length - 1][0] && outer[0][1] === outer[outer.length - 1][1]) outer.pop();
+  const { inner } = inset(outer, depth);
+  return `<svg class="gemring" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polygon points="${P(outer)}" fill="rgba(0,0,0,.55)"/>${ringSvg(outer, depth)}<polygon points="${P(inner)}" fill="var(--surf2)"/></svg>`;
+}
+
+// ---------- frames ----------
+function renderG1() {
+  $('#g1').innerHTML = [
+    bar({ kind: 'linear', value: 0.72, w: 420, h: 36, trait: 'composition', lore: 'Payload Density', hum: 'Note Density', fmt: pct }),
+    bar({ kind: 'linear', value: 0.35, w: 420, h: 36, trait: 'spectral', lore: 'Feed Saturation', hum: 'Core Gain', fmt: pct }),
+    bar({ kind: 'linear', value: 0.0, w: 420, h: 36, trait: 'timeSpace', lore: 'Ping Onset', hum: 'Attack Time', fmt: secs }),
+    bar({ kind: 'linear', value: 1.0, w: 420, h: 36, trait: 'output', lore: 'Transducer Pressure', hum: 'Volume', fmt: pct }),
+  ].join(''); wireBars();
+}
+function renderG2() {
+  $('#g2').innerHTML = [
+    bar({ kind: 'taper', value: 0.55, w: 420, h: 36, trait: 'spectral', lore: 'Top Extraction', hum: 'Low-Pass', fmt: hz }),
+    bar({ kind: 'center', value: 0.58, w: 420, h: 36, trait: 'spectral', lore: 'Sub-Band', hum: 'Bass', fmt: db }),
+    bar({ kind: 'taper', value: 0.12, w: 420, h: 36, trait: 'timeSpace', lore: 'Mutation Cadence', hum: 'Rate', fmt: (v) => `${(0.05 * Math.pow(400, v)).toFixed(2)} Hz` }),
+    bar({ kind: 'center', value: 0.5, w: 420, h: 36, trait: 'composition', lore: 'Feed Drift', hum: 'Core Detune', fmt: (v) => `${Math.round((v - 0.5) * 100)} cents` }),
+  ].join(''); wireBars();
+}
+function renderG3() {
+  $('#g3').innerHTML = `<div class="vrow">${[
+    bar({ kind: 'linear', value: 0.6, w: 220, h: 36, trait: 'output', lore: 'Sub-Band', hum: 'Bass', fmt: pct, vert: true }),
+    bar({ kind: 'linear', value: 0.3, w: 220, h: 36, trait: 'output', lore: 'Medial Band', hum: 'Mid', fmt: pct, vert: true }),
+    bar({ kind: 'taper', value: 0.8, w: 220, h: 36, trait: 'spectral', lore: 'Crest Band', hum: 'Treble', fmt: hz, vert: true }),
+    bar({ kind: 'center', value: 0.35, w: 220, h: 36, trait: 'composition', lore: 'Trace Pulse', hum: 'Rate Drift', fmt: db, vert: true }),
+  ].join('')}</div>`; wireBars();
+}
+function renderG4() {
+  $('#g4').innerHTML = [
+    unit({ kind: 'toggle', labels: ['Float', 'Anchored'], cur: 1, w: 160, h: 36, trait: 'timeSpace', lore: 'Anchoring', hum: 'Tempo Sync' }),
+    unit({ kind: 'radio', labels: ['Sine', 'Triangle', 'Sawtooth', 'Square', 'Pulse'], cur: 4, w: 420, h: 36, trait: 'spectral', lore: 'Feed Geometry', hum: 'Core Type' }),
+    unit({ kind: 'button', labels: ['Save Session'], cur: -1, w: 150, h: 36, trait: 'deck', lore: 'Commit', hum: 'Save' }),
+    unit({ kind: 'toggle', labels: ['Off', 'On'], cur: 0, w: 110, h: 36, trait: 'output', lore: 'Acoustic Emission', hum: 'Mute' }),
+    unit({ kind: 'radio', labels: ['Off', 'A', 'B', 'C', 'D'], cur: 3, w: 200, h: 36, trait: 'timeSpace', lore: 'Signature Lane', hum: 'Gain Link' }),
+    unit({ kind: 'button', labels: ['Delete'], cur: -1, w: 110, h: 36, trait: 'output', lore: 'Discard', hum: 'Delete' }),
+  ].join(''); wireUnits();
+}
+function renderG5() {
+  const vox = (n, on) => `<span class="vox">${Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
+  const cabRadio = (opts, sel) => `<span class="radio">${opts.map((o) => `<span class="cab${o === sel ? ' pop' : ' frame'}">${o}</span>`).join('')}</span>`;
+  const cabinet = `<div class="panel cabinet" style="${ac('spectral')}"><h3>Source · Core Oscillator</h3>
+    <div class="ctl"><div class="dl"><span class="lore">Feed Geometry</span><span class="hum">Core Type</span></div>${cabRadio(['Sine', 'Triangle', 'Sawtooth', 'Square', 'Pulse'], 'Pulse')}</div>
+    <div class="ctl"><div class="dl"><span class="lore">Feed Saturation</span><span class="hum">Core Gain</span></div><div class="row">${vox(12, 9)}<span class="val">1.07</span></div></div>
+    <div class="ctl"><div class="dl"><span class="lore">Signature Lane</span><span class="hum">Gain Link</span></div><div class="row">${cabRadio(['Off', 'A', 'B', 'C', 'D'], 'D')}${vox(8, 3)}</div></div>
+    <div class="ctl"><div class="dl"><span class="lore">Anchoring</span><span class="hum">Tempo Sync</span></div>${cabRadio(['Float', 'Anchored'], 'Anchored')}</div>
+  </div>`;
+  const gem = `<div class="panel" style="${ac('spectral')}" id="g5panel"><h3>Source · Core Oscillator</h3>
+    ${unit({ kind: 'radio', labels: ['Sine', 'Triangle', 'Sawtooth', 'Square', 'Pulse'], cur: 4, w: 400, h: 32, trait: 'spectral', lore: 'Feed Geometry', hum: 'Core Type' })}
+    ${bar({ kind: 'linear', value: 0.75, w: 330, h: 32, trait: 'spectral', lore: 'Feed Saturation', hum: 'Core Gain', fmt: (v) => (v * 1.43).toFixed(2) })}
+    <div class="ctl"><div class="dl"><span class="lore">Signature Lane</span><span class="hum">Gain Link</span></div><div class="row">${unit({ kind: 'radio', labels: ['Off', 'A', 'B', 'C', 'D'], cur: 4, w: 180, h: 32, trait: 'timeSpace', lore: '', hum: '' }).replace('<div class="dl"><span class="lore"></span><span class="hum"></span></div>', '')}${bar({ kind: 'linear', value: 0.35, w: 150, h: 32, trait: 'timeSpace', lore: '', hum: '', fmt: pct }).replace('<div class="dl"><span class="lore"></span><span class="hum"></span></div>', '')}</div></div>
+    ${unit({ kind: 'toggle', labels: ['Float', 'Anchored'], cur: 1, w: 160, h: 32, trait: 'timeSpace', lore: 'Anchoring', hum: 'Tempo Sync' })}
+  </div>`;
+  $('#g5').innerHTML = cabinet + gem;
+  const pn = $('#g5panel'); pn.insertAdjacentHTML('afterbegin', containerSvg(pn.offsetWidth, pn.offsetHeight, 'probes', 6));
+  wireBars(); wireUnits();
+}
+function renderG6() {
+  $('#g6').innerHTML = [
+    bar({ kind: 'linear', value: 0.72, w: 323, h: 44, trait: 'composition', lore: 'Payload Density', hum: 'Note Density', fmt: pct }),
+    bar({ kind: 'taper', value: 0.5, w: 323, h: 44, trait: 'spectral', lore: 'Top Extraction', hum: 'Low-Pass', fmt: hz }),
+    bar({ kind: 'center', value: 0.4, w: 323, h: 44, trait: 'spectral', lore: 'Sub-Band', hum: 'Bass', fmt: db }),
+    unit({ kind: 'radio', labels: ['Off', 'A', 'B', 'C', 'D'], cur: 2, w: 323, h: 44, trait: 'timeSpace', lore: 'Signature Lane', hum: 'Gain Link' }),
+    `<div class="vrow" style="justify-content:center;margin-top:6px">${[
+      bar({ kind: 'linear', value: 0.6, w: 180, h: 44, trait: 'output', lore: 'Bass', hum: 'EQ', fmt: pct, vert: true }),
+      bar({ kind: 'linear', value: 0.3, w: 180, h: 44, trait: 'output', lore: 'Mid', hum: 'EQ', fmt: pct, vert: true }),
+      bar({ kind: 'linear', value: 0.8, w: 180, h: 44, trait: 'output', lore: 'Treble', hum: 'EQ', fmt: pct, vert: true }),
+    ].join('')}</div>`,
+  ].join(''); wireBars(); wireUnits();
+}
+
+// ---------- toggles ----------
+for (const b of $$('[data-n]')) b.addEventListener('click', () => { for (const o of $$('[data-n]')) o.classList.toggle('on', o === b); FACETS = Number(b.dataset.n); for (const id of BARS.keys()) redraw(id); });
+$('#headtog').addEventListener('click', (e) => { HEAD = e.currentTarget.classList.toggle('on'); e.currentTarget.textContent = HEAD ? 'on' : 'off'; for (const id of BARS.keys()) redraw(id); });
+renderG1(); renderG2(); renderG3(); renderG4(); renderG5(); renderG6();
+</script>
+</body>
+</html>

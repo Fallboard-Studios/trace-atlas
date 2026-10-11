@@ -1,262 +1,819 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
-import { NavPanel } from './NavPanel';
-import { useUIStore } from '@/stores/uiStore';
-import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
-vi.mock('./NavTree', () => ({ NavTree: () => <div data-testid="nav-tree-stub" /> }));
+import { NavPanel } from './NavPanel';
+import { goHome } from './navActions';
+import { useUIStore } from '@/stores/uiStore';
+import { useLocaleStore } from '@/stores/localeStore';
+import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
+import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
+import { labels, type ContentKey } from '@/content';
+import type { HubTile } from '@/types/hub';
+import type { Robot } from '@/types/Robot';
+import type { Company } from '@/types/Company';
+import type { Locale } from '@/types/locale';
+
+/*
+ * docs/tasks/LAYOUT_REWORK.md Task 4 (spec §1.2): one panel of five parent boxes that expands in place
+ * for Probes and Companies. CabinetBox is stubbed to expose `popped`; gsap is stubbed to record each
+ * call and apply custom properties to their target at once, so the expand factor the width timeline
+ * writes on #screen-viewport is readable from the DOM.
+ */
+
+vi.mock('@/components/ui/controls/CabinetBox', () => ({
+  CabinetBox: ({ popped, timelineKey, children }: { popped: boolean | number; timelineKey: string; children?: React.ReactNode }) => (
+    <div data-testid="cabinet-box" data-popped={String(popped)} data-timeline-key={timelineKey}>
+      {children}
+    </div>
+  ),
+}));
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 
-// Local gsap mock (overrides vitest.setup.ts's shared one, same pattern other
-// GSAP-timeline tests in this codebase use) — captures each .to() call's vars so the
-// prefers-reduced-motion duration assertion below can inspect it directly, while still
-// supporting CabinetBox's own timeline().fromTo() chain (Header.test.tsx's own comment
-// documents the same need: real CabinetBox instances — the nav-panel facade and, since the
-// relocated Home button, its own CabinetBox too — render inside this tree).
-let lastToVars: Record<string, unknown> | undefined;
+const gsapLog = vi.hoisted(() => ({ calls: [] as { kind: 'set' | 'to'; vars: Record<string, unknown> }[] }));
 vi.mock('gsap', () => {
-  const chainable = {
-    to: (_target: unknown, vars: Record<string, unknown>) => {
-      lastToVars = vars;
-      return chainable;
-    },
-    fromTo: (_a?: unknown, _b?: unknown, _config?: unknown) => chainable,
-    set: () => chainable,
-    kill: () => {},
+  const applyCustomProperties = (target: unknown, vars: Record<string, unknown>) => {
+    if (!(target instanceof HTMLElement)) return;
+    for (const [key, value] of Object.entries(vars)) {
+      if (key.startsWith('--')) target.style.setProperty(key, String(value));
+    }
   };
-  // gsap.set() is also called directly on the top-level module (not only via a timeline
-  // instance) when NavPanel resets a stale mobile transform on returning to desktop/tablet.
-  return { default: { timeline: vi.fn(() => chainable), set: vi.fn() } };
+  const timeline = () => {
+    const tl = {
+      to: (target: unknown, vars: Record<string, unknown>) => {
+        gsapLog.calls.push({ kind: 'to', vars });
+        applyCustomProperties(target, vars);
+        return tl;
+      },
+      kill: () => {},
+    };
+    return tl;
+  };
+  return {
+    default: {
+      timeline: vi.fn(timeline),
+      set: vi.fn((target: unknown, vars: Record<string, unknown>) => {
+        gsapLog.calls.push({ kind: 'set', vars });
+        applyCustomProperties(target, vars);
+      }),
+    },
+  };
 });
 
-/** Stubs window.matchMedia for NavPanel's own dock breakpoint (useNavPanelSlideAway.ts,
- *  min-width query, NAV_PANEL_DOCK_MIN_WIDTH = 768px, independent of the shared Cabinet tier)
- *  plus prefers-reduced-motion, independently controllable. `mobile: true` means below the dock
- *  breakpoint, i.e. the min-width query doesn't match. */
-function stubMatchMedia(initial: { mobile: boolean; reducedMotion: boolean }) {
-  const state = { ...initial };
+/** useShell's desk query (min-width) and prefers-reduced-motion, each controllable. */
+function stubMatchMedia({ desk, reducedMotion = false }: { desk: boolean; reducedMotion?: boolean }) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
-    value: vi.fn().mockImplementation((query: string) => {
-      const matches = query.includes('reduced-motion') ? state.reducedMotion : !state.mobile;
-      return {
-        matches,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      };
+    value: (query: string) => ({
+      matches: query.includes('reduced-motion') ? reducedMotion : desk,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
     }),
   });
 }
 
-const UI_INITIAL_STATE = useUIStore.getState();
+const realMatchMedia = window.matchMedia;
+const localeId = getActiveLocaleId();
+const human = (key: ContentKey) => labels(key).humanLabel;
+const BOX_ORDER: ContentKey[] = ['nav.home', 'fleet.root', 'probe.root', 'company.root', 'settings.root'];
 
-function resetUIStore() {
-  useUIStore.setState(UI_INITIAL_STATE, true);
+function seedRoster() {
+  useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+  useLocaleStore.getState().addRobot(localeId, { id: 'r1', name: 'Tidal Wisp', identityColor: '#ae5378' } as unknown as Robot);
+  useLocaleStore.getState().addRobot(localeId, { id: 'r2', name: 'Glass Drifter', identityColor: '#e8e4d8' } as unknown as Robot);
+  useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Rust Syndicate', color: '#ae5378', robotIds: [] } as Company);
 }
 
-describe('NavPanel — docked (desktop/tablet) vs. slide-off (mobile) (docs/tasks/NAV_LAYOUT_REWRITE.md Task 6)', () => {
-  beforeEach(() => {
-    resetUIStore();
-    lastToVars = undefined;
-    vi.clearAllMocks();
+function renderPanel() {
+  return render(
+    <main id={SCREEN_VIEWPORT_ID}>
+      <NavPanel />
+    </main>,
+  );
+}
+
+const nav = () => screen.getByRole('navigation', { name: human('nav.toggle') });
+const box = (key: ContentKey) => within(nav()).getByRole('button', { name: human(key) });
+const poppedOf = (button: HTMLElement) => within(button).getByTestId('cabinet-box').getAttribute('data-popped');
+const expandFactor = () => document.getElementById(SCREEN_VIEWPORT_ID)!.style.getPropertyValue('--nav-panel-expand');
+const entityList = () => nav().querySelector('.nav-entity-list');
+
+beforeEach(() => {
+  useUIStore.setState(useUIStore.getInitialState(), true);
+  seedRoster();
+  gsapLog.calls.length = 0;
+  vi.clearAllMocks();
+  stubMatchMedia({ desk: true });
+});
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+});
+
+describe('NavPanel — five parent boxes (desk)', () => {
+  it('is a navigation landmark holding the five boxes in the sketch order, named from the content layer', () => {
+    renderPanel();
+    const names = within(nav()).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names).toEqual(BOX_ORDER.map(human));
   });
-  afterEach(() => {
-    vi.restoreAllMocks();
+
+  it("shows each box's lore label with its human label", () => {
+    renderPanel();
+    for (const key of BOX_ORDER) {
+      const { loreLabel, humanLabel } = labels(key);
+      expect(loreLabel).toBeTruthy();
+      expect(box(key).textContent).toContain(loreLabel);
+      expect(box(key).textContent).toContain(humanLabel);
+    }
   });
 
-  it('above the breakpoint, renders open regardless of isNavPanelOpen — desktop/tablet ignores it entirely', () => {
-    stubMatchMedia({ mobile: false, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(false);
-
-    render(<NavPanel />);
-
-    expect(screen.getByTestId('nav-panel').getAttribute('data-open')).toBe('true');
-    expect(screen.getByTestId('nav-panel').getAttribute('inert')).toBeNull();
+  it("keeps the panel's static popped facade around the boxes", () => {
+    renderPanel();
+    const facade = within(nav())
+      .getAllByTestId('cabinet-box')
+      .find((el) => el.getAttribute('data-timeline-key') === 'cabinet-nav-panel-facade');
+    expect(facade?.getAttribute('data-popped')).toBe('true');
+    expect(within(facade!).getAllByRole('button')).toHaveLength(BOX_ORDER.length);
   });
 
-  it('below the breakpoint with isNavPanelOpen false, renders closed and inert', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(false);
-
-    render(<NavPanel />);
-
-    expect(screen.getByTestId('nav-panel').getAttribute('data-open')).toBe('false');
-    expect(screen.getByTestId('nav-panel').getAttribute('inert')).not.toBeNull();
+  it.each([
+    [null, 'nav.home'],
+    ['audioRig', 'fleet.root'],
+    ['robots', 'probe.root'],
+    ['companies', 'company.root'],
+    ['settings', 'settings.root'],
+  ] as [HubTile | null, ContentKey][])('with tile %s open, only the %s box is popped and marked current', (tile, activeKey) => {
+    useUIStore.setState({ activeHubTile: tile });
+    renderPanel();
+    for (const key of BOX_ORDER) {
+      const isActive = key === activeKey;
+      expect(poppedOf(box(key)) === 'true').toBe(isActive);
+      expect(box(key).getAttribute('aria-current')).toBe(isActive ? 'true' : null);
+    }
   });
 
-  it('below the breakpoint with isNavPanelOpen true, renders open and not inert', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(true);
+  it.each([
+    ['fleet.root', 'audioRig'],
+    ['probe.root', 'robots'],
+    ['company.root', 'companies'],
+    ['settings.root', 'settings'],
+  ] as [ContentKey, HubTile][])('clicking %s opens the %s tile and pops its box', (key, tile) => {
+    renderPanel();
+    fireEvent.click(box(key));
+    expect(useUIStore.getState().activeHubTile).toBe(tile);
+    expect(poppedOf(box(key))).toBe('true');
+    expect(poppedOf(box('nav.home'))).not.toBe('true');
+  });
 
-    render(<NavPanel />);
+  it('clicking Deck goes home: no tile, nothing expanded, no entity', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+    renderPanel();
+    fireEvent.click(box('nav.home'));
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: null, expandedTopLevelBranch: null, selectedRobotId: null });
+  });
 
-    expect(screen.getByTestId('nav-panel').getAttribute('data-open')).toBe('true');
-    expect(screen.getByTestId('nav-panel').getAttribute('inert')).toBeNull();
+  it('picking a parent clears the entity, Probes included (navActions, Crawford 2026-10-09)', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+    expect(useUIStore.getState().activeHubTile).toBe('robots');
+  });
+
+  it('a resting box pops while hovered, focused or pressed, and returns to rest after; the active box stays popped', () => {
+    renderPanel();
+    const settings = box('settings.root');
+    const rest = poppedOf(settings);
+    expect(rest).not.toBe('true');
+
+    fireEvent.mouseEnter(settings);
+    expect(poppedOf(settings)).toBe('true');
+    fireEvent.mouseLeave(settings);
+    expect(poppedOf(settings)).toBe(rest);
+
+    fireEvent.focus(settings);
+    expect(poppedOf(settings)).toBe('true');
+    fireEvent.blur(settings);
+    expect(poppedOf(settings)).toBe(rest);
+
+    fireEvent.pointerDown(settings);
+    expect(poppedOf(settings)).toBe('true');
+    fireEvent.pointerUp(settings);
+    expect(poppedOf(settings)).toBe(rest);
+
+    const deck = box('nav.home');
+    fireEvent.mouseEnter(deck);
+    fireEvent.mouseLeave(deck);
+    expect(poppedOf(deck)).toBe('true');
   });
 });
 
-describe('NavPanel — selecting a node auto-closes the panel on mobile only (Task 6)', () => {
-  beforeEach(() => {
-    resetUIStore();
-    lastToVars = undefined;
-    vi.clearAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
+describe('NavPanel — Probes and Companies expand in place (desk)', () => {
+  it.each([
+    ['probe.root', 'probe.all'],
+    ['company.root', 'nav.entity.newCompany'],
+  ] as [ContentKey, ContentKey][])('selecting %s lists its entities under its own box, %s first, and sets the wide value', (key, firstEntity) => {
+    renderPanel();
+    expect(expandFactor()).toBe('0');
+
+    fireEvent.click(box(key));
+
+    const list = box(key).closest('li')!.querySelector<HTMLElement>('.nav-entity-list');
+    expect(list).not.toBeNull();
+    expect(within(list!).getAllByRole('button')[0].getAttribute('aria-label')).toBe(human(firstEntity));
+    expect(expandFactor()).toBe('1');
   });
 
-  it('on mobile, a selection change (selectedRobotId) closes the panel', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(true);
+  it.each(['nav.home', 'fleet.root', 'settings.root'] as ContentKey[])('selecting %s lists nothing and returns to the rest value', (key) => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    renderPanel();
+    expect(expandFactor()).toBe('1');
+
+    fireEvent.click(box(key));
+
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+  });
+
+  it('switching straight from Probes to Companies swaps the list and stays wide', () => {
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    fireEvent.click(box('company.root'));
+    expect(nav().querySelectorAll('.nav-entity-list')).toHaveLength(1);
+    expect(box('company.root').closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
+    expect(expandFactor()).toBe('1');
+  });
+
+  it('the list and the width follow expandedTopLevelBranch: the Probes tile with its list collapsed lists nothing, at rest', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
+    renderPanel();
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+    expect(poppedOf(box('probe.root'))).toBe('true');
+  });
+
+  it('a stale expanded field for another branch lists nothing', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes' });
+    renderPanel();
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+  });
+
+  // Crawford, 2026-10-09: "back, then collapse".
+  it.each(['probe.root', 'company.root'] as ContentKey[])(
+    'clicking the open %s box on its own page collapses the list to rest, and again reopens it',
+    (key) => {
+      renderPanel();
+      fireEvent.click(box(key));
+      expect(expandFactor()).toBe('1');
+
+      fireEvent.click(box(key));
+      expect(entityList()).toBeNull();
+      expect(expandFactor()).toBe('0');
+      expect(poppedOf(box(key))).toBe('true');
+      expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
+
+      fireEvent.click(box(key));
+      expect(box(key).closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
+      expect(expandFactor()).toBe('1');
+    },
+  );
+
+  // Crawford, 2026-10-10: picking a robot collapses the list, so the robot screen gets the rest width.
+  it('picking a robot collapses the list to the rest width; clicking Probes goes back to the page with the list open; the next click collapses', () => {
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    fireEvent.click(within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' }));
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+    expect(poppedOf(box('probe.root'))).toBe('true');
+
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+    expect(entityList()).not.toBeNull();
+    expect(expandFactor()).toBe('1');
+
+    fireEvent.click(box('probe.root'));
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+  });
+
+  it('marks the open Probes / Companies box aria-expanded, and only that box', () => {
+    renderPanel();
+    expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
+    expect(box('company.root').getAttribute('aria-expanded')).toBe('false');
+    expect(box('fleet.root').getAttribute('aria-expanded')).toBeNull();
+    expect(box('nav.home').getAttribute('aria-expanded')).toBeNull();
+
+    fireEvent.click(box('probe.root'));
+    expect(box('probe.root').getAttribute('aria-expanded')).toBe('true');
+    expect(box('company.root').getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(box('probe.root'));
+    expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('mounting with a branch already open sets the wide value at once, without a tween', () => {
+    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+    renderPanel();
+    expect(expandFactor()).toBe('1');
+    expect(gsapLog.calls.map((c) => c.kind)).toEqual(['set']);
+    expect(setTimeline).not.toHaveBeenCalled();
+  });
+
+  it('widening and narrowing each run the nav-panel-width timeline with a nonzero duration', () => {
+    renderPanel();
+    gsapLog.calls.length = 0;
+
+    fireEvent.click(box('probe.root'));
+    expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
+    expect(gsapLog.calls.at(-1)).toMatchObject({ kind: 'to', vars: { '--nav-panel-expand': 1 } });
+    expect(gsapLog.calls.at(-1)!.vars.duration).toBeGreaterThan(0);
+
+    fireEvent.click(box('settings.root'));
+    expect(setTimeline).toHaveBeenCalledTimes(2);
+    expect(gsapLog.calls.at(-1)).toMatchObject({ kind: 'to', vars: { '--nav-panel-expand': 0 } });
+    expect(gsapLog.calls.at(-1)!.vars.duration).toBeGreaterThan(0);
+  });
+
+  it('kills the previous width timeline before starting the next', () => {
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    vi.mocked(killTimeline).mockClear();
+    fireEvent.click(box('settings.root'));
+    expect(killTimeline).toHaveBeenCalledWith('nav-panel-width');
+    expect(vi.mocked(killTimeline).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(setTimeline).mock.invocationCallOrder.at(-1)!);
+  });
+
+  it('moving between two leaves (no width change) starts no timeline', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig' });
+    renderPanel();
+    fireEvent.click(box('settings.root'));
+    expect(setTimeline).not.toHaveBeenCalled();
+  });
+
+  it('under reduced motion the width changes at once and no timeline runs', () => {
+    stubMatchMedia({ desk: true, reducedMotion: true });
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    expect(expandFactor()).toBe('1');
+    expect(setTimeline).not.toHaveBeenCalled();
+    expect(gsapLog.calls.every((c) => c.kind === 'set')).toBe(true);
+  });
+
+  it('unmounting kills the width timeline and takes the expand factor off the viewport', () => {
+    const viewport = document.body.appendChild(Object.assign(document.createElement('main'), { id: SCREEN_VIEWPORT_ID }));
+    const { unmount } = render(<NavPanel />, { container: viewport });
+    fireEvent.click(box('probe.root'));
+    expect(viewport.style.getPropertyValue('--nav-panel-expand')).toBe('1');
+    vi.mocked(killTimeline).mockClear();
+
+    unmount();
+
+    expect(killTimeline).toHaveBeenCalledWith('nav-panel-width');
+    expect(viewport.style.getPropertyValue('--nav-panel-expand')).toBe('');
+    viewport.remove();
+  });
+
+  it('renders and switches branches with no screen viewport in the document, writing nothing', () => {
     render(<NavPanel />);
+    fireEvent.click(box('probe.root'));
+    expect(entityList()).not.toBeNull();
+    expect(gsapLog.calls).toHaveLength(0);
+    expect(setTimeline).not.toHaveBeenCalled();
+  });
+});
 
-    act(() => {
-      useUIStore.getState().selectRobot('r1');
+describe('NavPanel — keyboard', () => {
+  it('every box and entity is a native button in reading order, none taken out of the tab sequence', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    renderPanel();
+    const buttons = within(nav()).getAllByRole('button');
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+      human('nav.home'),
+      human('fleet.root'),
+      human('probe.root'),
+      human('probe.all'),
+      'Tidal Wisp',
+      'Glass Drifter',
+      human('company.root'),
+      human('settings.root'),
+    ]);
+    for (const b of buttons) {
+      expect(b.tagName).toBe('BUTTON');
+      expect(b.getAttribute('type')).toBe('button');
+      expect(b.getAttribute('tabindex')).toBeNull();
+      expect((b as HTMLButtonElement).disabled).toBe(false);
+    }
+  });
+});
+
+// Code review 2026-10-11: a pick collapses the list, which unmounts the very button that had focus; the
+// browser then drops focus on <body> and a keyboard user restarts from the top of the page.
+describe('NavPanel — focus survives the focused box leaving (desk)', () => {
+  const openProbes = () => {
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    return within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' });
+  };
+
+  it('picking the focused entity leaves focus on the open branch box', () => {
+    const tidal = openProbes();
+    act(() => tidal.focus());
+
+    fireEvent.click(tidal);
+
+    expect(entityList()).toBeNull();
+    expect(document.activeElement).toBe(box('probe.root'));
+  });
+
+  it('going home (a breadcrumb Root press) while an entity has focus lands on the Deck box', () => {
+    const tidal = openProbes();
+    act(() => tidal.focus());
+
+    act(() => goHome());
+
+    expect(entityList()).toBeNull();
+    expect(document.activeElement).toBe(box('nav.home'));
+  });
+
+  it('leaves focus alone while the focused box is still there', () => {
+    openProbes();
+    act(() => box('probe.root').focus());
+
+    fireEvent.click(box('probe.root'));
+
+    expect(document.activeElement).toBe(box('probe.root'));
+  });
+
+  it('leaves focus alone when it was never in the panel', () => {
+    const tidal = openProbes();
+    const outside = document.createElement('input');
+    document.body.appendChild(outside);
+    act(() => outside.focus());
+
+    fireEvent.click(tidal);
+
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+});
+
+describe('NavPanel — the phone sheet (Task 5)', () => {
+  const sheet = () => screen.getByRole('dialog', { name: human('nav.toggle') });
+  const scrim = () => document.querySelector<HTMLElement>('.nav-sheet__scrim');
+  /** Radix arms its outside-press listener a tick after the sheet opens. */
+  const afterOpenTick = () => act(() => new Promise((r) => setTimeout(r, 0)));
+
+  function openSheet(state: Partial<ReturnType<typeof useUIStore.getState>> = {}) {
+    stubMatchMedia({ desk: false });
+    useUIStore.setState({ isNavPanelOpen: true, ...state });
+    return renderPanel();
+  }
+
+  it('on the phone shell the panel is not in the DOM until the sheet opens, then the same five boxes sit in a dialog', () => {
+    stubMatchMedia({ desk: false });
+    renderPanel();
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(scrim()).toBeNull();
+
+    act(() => useUIStore.getState().setNavPanelOpen(true));
+
+    expect(sheet().contains(nav())).toBe(true);
+    expect(within(nav()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(BOX_ORDER.map(human));
+    expect(scrim()).not.toBeNull();
+  });
+
+  // Radix marks a modal by hiding everything else from assistive tech, not with aria-modal.
+  it('is modal: while it is open everything outside it is hidden from assistive tech, and comes back on close', () => {
+    stubMatchMedia({ desk: false });
+    const outside = document.body.appendChild(document.createElement('div'));
+    renderPanel();
+
+    act(() => useUIStore.getState().setNavPanelOpen(true));
+    expect(outside.getAttribute('aria-hidden')).toBe('true');
+    expect(sheet().closest('[aria-hidden="true"]')).toBeNull();
+
+    act(() => useUIStore.getState().setNavPanelOpen(false));
+    expect(outside.getAttribute('aria-hidden')).toBeNull();
+    outside.remove();
+  });
+
+  // UI Shell guardrail (CLAUDE.md): interactive UI lives inside ScreenViewport only — no portal to <body>.
+  it('renders the sheet and its scrim inside the screen viewport', () => {
+    openSheet();
+    const viewport = document.getElementById(SCREEN_VIEWPORT_ID)!;
+    expect(viewport.contains(sheet())).toBe(true);
+    expect(viewport.contains(scrim())).toBe(true);
+  });
+
+  it('opens with the open branch expanded in place, as the desk panel shows it', () => {
+    openSheet({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    expect(within(sheet()).getByRole('button', { name: 'Tidal Wisp' })).toBeTruthy();
+  });
+
+  it.each([
+    ['nav.home', null],
+    ['fleet.root', 'audioRig'],
+    ['probe.root', 'robots'],
+    ['company.root', 'companies'],
+    ['settings.root', 'settings'],
+  ] as [ContentKey, HubTile | null][])('picking %s opens it and closes the sheet', (key, tile) => {
+    openSheet({ activeHubTile: key === 'nav.home' ? 'settings' : null });
+    fireEvent.click(box(key));
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+    expect(useUIStore.getState().activeHubTile).toBe(tile);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(scrim()).toBeNull();
+  });
+
+  it.each([
+    ['Tidal Wisp', { selectedRobotId: 'r1' }, 'robots', 'probes'],
+    [human('probe.all'), { allProbesSelected: true }, 'robots', 'probes'],
+    ['Rust Syndicate', { selectedCompanyId: 'c1' }, 'companies', 'companies'],
+  ] as const)('picking the entity %s selects it and closes the sheet', (name, selected, tile, branch) => {
+    openSheet({ activeHubTile: tile, expandedTopLevelBranch: branch });
+    fireEvent.click(within(sheet()).getByRole('button', { name }));
+    expect(useUIStore.getState()).toMatchObject({ ...selected, isNavPanelOpen: false });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('collapsing the open list in place is not a pick: the sheet stays open', () => {
+    openSheet({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+    expect(entityList()).toBeNull();
+  });
+
+  it('+ New Company opens its form in the sheet and is not a pick', () => {
+    openSheet({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+    const newCompany = within(sheet()).getByRole('button', { name: human('nav.entity.newCompany') });
+    fireEvent.click(newCompany);
+    expect(newCompany.getAttribute('aria-expanded')).toBe('true');
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+  });
+
+  it('moves focus into the sheet on open', () => {
+    openSheet();
+    expect(sheet().contains(document.activeElement)).toBe(true);
+  });
+
+  it('traps focus: Tab from the last box wraps to the first, Shift+Tab from the first to the last', () => {
+    openSheet();
+    const buttons = within(sheet()).getAllByRole('button');
+    const [first, last] = [buttons[0], buttons.at(-1)!];
+
+    act(() => last.focus());
+    fireEvent.keyDown(last, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  // The menu that opens the sheet is PhoneBar's, not a Dialog.Trigger, and a modal Radix Dialog only
+  // hands focus back to its own Trigger — so NavPanel returns it to whatever had it. Radix moves focus a
+  // tick after the sheet unmounts.
+  describe('focus goes back to what opened the sheet', () => {
+    function openFrom(opener: HTMLElement) {
+      stubMatchMedia({ desk: false });
+      opener.focus();
+      renderPanel();
+      act(() => useUIStore.getState().setNavPanelOpen(true));
+      expect(sheet().contains(document.activeElement)).toBe(true);
+    }
+
+    it('on Escape', async () => {
+      const opener = document.body.appendChild(document.createElement('button'));
+      openFrom(opener);
+
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      await afterOpenTick();
+
+      expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(opener);
+      opener.remove();
     });
+
+    it('after a pick, whose box leaves with the sheet', async () => {
+      const opener = document.body.appendChild(document.createElement('button'));
+      openFrom(opener);
+
+      fireEvent.click(box('settings.root'));
+      await afterOpenTick();
+
+      expect(document.activeElement).toBe(opener);
+      opener.remove();
+    });
+
+    it('not when the opener has left the document meanwhile (no focus on a detached node, no throw)', async () => {
+      const opener = document.body.appendChild(document.createElement('button'));
+      openFrom(opener);
+      opener.remove();
+
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      await afterOpenTick();
+
+      expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+      expect(document.activeElement).not.toBe(opener);
+    });
+  });
+
+  it('closes on a press on the scrim, and only outside the sheet', async () => {
+    openSheet();
+    await afterOpenTick();
+
+    fireEvent.pointerDown(box('settings.root'));
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+
+    fireEvent.pointerDown(scrim()!);
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  // Code review 2026-10-11: the flag outlived a rotation to the desk shell and reopened the modal sheet
+  // when the phone came back.
+  it('clears the sheet flag when the shell becomes desk, so rotating back does not reopen it', () => {
+    const listeners = new Set<() => void>();
+    let desk = false;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('reduced-motion') ? false : desk,
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }),
+    });
+    useUIStore.setState({ isNavPanelOpen: true });
+    renderPanel();
+    expect(sheet()).toBeTruthy();
+
+    desk = true;
+    act(() => listeners.forEach((listener) => listener()));
 
     expect(useUIStore.getState().isNavPanelOpen).toBe(false);
   });
 
-  it('on desktop/tablet, a selection change leaves isNavPanelOpen untouched', () => {
-    stubMatchMedia({ mobile: false, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(true);
-    render(<NavPanel />);
-
-    act(() => {
-      useUIStore.getState().selectRobot('r1');
-    });
-
-    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
-  });
-
-  it('does not close on mount, only on a real subsequent selection change', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(true);
-
-    render(<NavPanel />);
-
-    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+  it('the desk shell renders no sheet and no scrim, whatever isNavPanelOpen says', () => {
+    useUIStore.setState({ isNavPanelOpen: true });
+    renderPanel();
+    expect(nav()).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(scrim()).toBeNull();
   });
 });
 
-describe('NavPanel — GSAP timeline lifecycle (Task 6)', () => {
-  beforeEach(() => {
-    resetUIStore();
-    lastToVars = undefined;
-    vi.clearAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+describe('NavPanel.css — the phone sheet', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
 
-  it('registers a timeline in timelineMap when isNavPanelOpen changes on mobile', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(false);
-    render(<NavPanel />);
-
-    act(() => {
-      useUIStore.getState().setNavPanelOpen(true);
-    });
-
-    expect(setTimeline).toHaveBeenCalled();
+  it('the sheet is 300 px on the left edge, between the top bar and the bottom bar, never under either', () => {
+    const body = getCssRuleBody(css, '.nav-sheet');
+    expect(body).not.toBeNull();
+    for (const declaration of ['position: absolute;', 'left: 0;', 'bottom: var(--phone-bar-clearance);', 'width: min(var(--nav-sheet-width), 100%);']) {
+      expect(body).toContain(declaration);
+    }
+    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--nav-sheet-width: 300px;');
   });
 
-  it('kills its timeline on unmount — no orphaned GSAP instance', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    const { unmount } = render(<NavPanel />);
-
-    unmount();
-
-    expect(killTimeline).toHaveBeenCalled();
+  it('the scrim spans the same band, full width', () => {
+    const body = getCssRuleBody(css, '.nav-sheet__scrim');
+    expect(body).not.toBeNull();
+    for (const declaration of ['position: absolute;', 'left: 0;', 'right: 0;', 'bottom: var(--phone-bar-clearance);']) {
+      expect(body).toContain(declaration);
+    }
   });
 
-  it('respects prefers-reduced-motion — the slide tween gets duration 0', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: true });
-    useUIStore.getState().setNavPanelOpen(false);
-    render(<NavPanel />);
-
-    act(() => {
-      useUIStore.getState().setNavPanelOpen(true);
-    });
-
-    expect(lastToVars?.duration).toBe(0);
+  // Task 6: the top bar's lower edge is Header.css's --top-bar-bottom — the header or the power corner,
+  // whichever reaches lower. Task 5's own header clearance tucked the sheet 4–16 px over the header and
+  // 9 px under the power corner (measured in Chrome).
+  it('the sheet and the scrim share one top edge: the top bar', () => {
+    const top = (selector: string) => getCssRuleBody(css, selector)?.match(/(^|\s)top: ([^;]+);/)?.[2];
+    expect(top('.nav-sheet')).toBe('var(--top-bar-bottom)');
+    expect(top('.nav-sheet__scrim')).toBe('var(--top-bar-bottom)');
   });
 
-  it('animates with a nonzero duration when reduced motion is not requested', () => {
-    stubMatchMedia({ mobile: true, reducedMotion: false });
-    useUIStore.getState().setNavPanelOpen(false);
-    render(<NavPanel />);
-
-    act(() => {
-      useUIStore.getState().setNavPanelOpen(true);
-    });
-
-    expect(lastToVars?.duration).toBeGreaterThan(0);
+  it('inside the sheet the panel fills it instead of sizing itself from --nav-panel-width', () => {
+    const body = getCssRuleBody(css, '.nav-sheet > .nav-panel');
+    expect(body).toContain('position: static;');
+    expect(body).toContain('width: 100%;');
+    expect(body).toContain('height: 100%;');
   });
 });
 
-// Relocated from ContentPane.test.tsx's own former "always-present close button" block (Task 8)
-// — same reset behavior, just renamed to "Home" and always present here (NavPanel renders
-// regardless of activeHubTile, unlike the old ContentPane host).
-describe('NavPanel — Home button (relocated from ContentPane\'s former Close button)', () => {
-  beforeEach(() => {
-    resetUIStore();
-    lastToVars = undefined;
-    vi.clearAllMocks();
-    stubMatchMedia({ mobile: false, reducedMotion: false });
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+describe('NavPanel.css — the width contract', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
 
-  it('shows a Home button even when nothing is selected', () => {
-    render(<NavPanel />);
-    expect(screen.getByRole('button', { name: 'Deck' })).toBeTruthy();
+  it('derives --nav-panel-width on the screen viewport from the rest and wide sizes and the expand factor', () => {
+    const body = getCssRuleBody(css, '#screen-viewport');
+    expect(body).not.toBeNull();
+    // Crawford, 2026-10-10: the rest width wider (124 px, so "TIMBRE & COLOR" fits one line), the wide
+    // one narrower (less side padding).
+    expect(body).toContain('--nav-panel-rest: 124px;');
+    expect(body).toContain('--nav-panel-wide: 200px;');
+    expect(body).toContain('--nav-panel-expand: 0;');
+    expect(body).toContain(
+      '--nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));',
+    );
   });
 
-  it('clicking Home clears activeHubTile back to the blank hub', () => {
-    useUIStore.getState().setActiveHubTile('audioRig');
-    render(<NavPanel />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deck' }));
-
-    expect(useUIStore.getState().activeHubTile).toBeNull();
+  it('sizes the panel from --nav-panel-width', () => {
+    expect(getCssRuleBody(css, '.nav-panel')).toContain('width: var(--nav-panel-width);');
   });
 
-  it('clicking Home also clears selectedRobotId/selectedSection back to the blank/landing state', () => {
-    useUIStore.getState().setActiveHubTile('robots');
-    useUIStore.getState().selectRobot('r1');
-    useUIStore.getState().setSelectedSection('volume');
-    render(<NavPanel />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deck' }));
-
-    expect(useUIStore.getState().selectedRobotId).toBeNull();
-    expect(useUIStore.getState().selectedSection).toBeNull();
+  // Crawford, 2026-10-10: the boxes collided with the list's scrollbar. With a list open (the panel
+  // scrolls when twelve robots outgrow it) the plate keeps 16 px on the right, 12 px clear of a popped
+  // face; at rest it keeps its 8 px, which the 124 px one-line labels were sized against.
+  it('keeps 16 px on the right of the plate while a list is open, and its 8 px padding at rest', () => {
+    const front = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front');
+    expect(front).toMatch(/padding:\s*var\(--spacing-sm\);/);
+    expect(getCssRuleBody(css, '.nav-panel:has(.nav-entity-list) > .sc-cabinet-box > .sc-cabinet-box__front')).toMatch(/padding-right:\s*16px;/);
   });
 
-  it('clicking Home resets company selection back to "All" (allRobotsSelected)', () => {
-    useUIStore.getState().setActiveHubTile('companies');
-    useUIStore.getState().selectCompany('c1');
-    render(<NavPanel />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deck' }));
-
-    expect(useUIStore.getState().selectedCompanyId).toBeNull();
-    expect(useUIStore.getState().allRobotsSelected).toBe(true);
+  // Crawford, 2026-10-10: "cut the side padding down". A box's face keeps 4 px a side, not 8.
+  it("a nav box's face has 4 px of side padding", () => {
+    const boxCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavBox.css'), 'utf-8');
+    // The face's own rule, not the shared `.nav-box .sc-cabinet-box, …__front` width rule before it.
+    const faceRules = [...boxCss.matchAll(/(?:^|\n)\.nav-box \.sc-cabinet-box__front \{([^}]*)\}/g)].map((m) => m[1]);
+    expect(faceRules.join('')).toMatch(/padding:\s*0 4px;/);
+    expect(faceRules.join('')).not.toMatch(/padding:\s*0 var\(--spacing-sm\)/);
   });
 });
 
 describe('NavPanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'NavPanel.tsx'), 'utf8');
+  it('carries no copy literal of its own', () => {
+    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.tsx'), 'utf8');
     expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
     expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
-    expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
+    expect(source).not.toMatch(/>\s*[A-Z][a-z]+( [A-Za-z]+)*\s*</);
+  });
+});
+
+// Crawford, 2026-10-10: on the desk the rail's padding is `var(--spacing-xl) 0 40px var(--spacing-md)` and the
+// panel no longer takes the full height: its height comes from its content, capped at the screen so a long list
+// still scrolls inside the plate. The phone's sheet is not the desk rail: it keeps its own padding and fills the
+// sheet.
+describe('NavPanel.css — the desk rail sizes itself from its content', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
+  const rail = () => getCssRuleBody(css, '.nav-panel');
+  const sheetPanel = () => getCssRuleBody(css, '.nav-sheet > .nav-panel');
+
+  it('pads 24px above, 40px below and 12px on the left, none on the right', () => {
+    expect(rail()).toContain('padding: var(--spacing-xl) 0 40px var(--spacing-md);');
+  });
+
+  it('hangs from the top and is no longer pinned to the bottom, so its height is its content', () => {
+    expect(rail()).toContain('top: 0;');
+    expect(rail()).not.toMatch(/(^|\s)bottom:/);
+    expect(rail()).not.toMatch(/(^|\s)height:/);
+  });
+
+  it('is capped at the screen, padding included, so twelve robots scroll inside the plate instead of running off', () => {
+    expect(rail()).toContain('max-height: 100%;');
+    expect(rail()).toContain('box-sizing: border-box;');
+  });
+
+  it('lets the facade shrink to that cap rather than stretch to fill it', () => {
+    const box = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box');
+    expect(box).toContain('flex: 0 1 auto;');
+    expect(box).toContain('min-height: 0;');
+  });
+
+  // Found in Chrome at 560px high with the Probes list open: a percentage height inside a content-sized flex item
+  // does not resolve, so the plate's face ran to 968px inside a 464px box and off the screen instead of
+  // scrolling. The facade is a flex column and the face is its flexing child, which shrinks to the cap.
+  it('makes the facade a flex column, so its face shrinks to the capped height and scrolls', () => {
+    const box = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box');
+    expect(box).toContain('display: flex;');
+    expect(box).toContain('flex-direction: column;');
+    const front = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front');
+    expect(front).toContain('flex: 1 1 auto;');
+    expect(front).toContain('min-height: 0;');
+    expect(front).toContain('overflow-y: auto;');
+    // CabinetBox.css gives every front face a fixed height; auto lets this one be its content's, then flex.
+    expect(front).toContain('height: auto;');
+  });
+
+  it('keeps the plate filling the phone sheet, as it did before the desk rail took its content height', () => {
+    const body = getCssRuleBody(css, '.nav-sheet > .nav-panel > .sc-cabinet-box');
+    expect(body).not.toBeNull();
+    expect(body).toContain('flex: 1 1 auto;');
+  });
+
+  it('keeps the phone sheet as it was: its own padding, the full sheet height, no screen cap', () => {
+    const body = sheetPanel();
+    expect(body).toContain('height: 100%;');
+    expect(body).toContain('max-height: none;');
+    expect(body).toContain('padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);');
   });
 });

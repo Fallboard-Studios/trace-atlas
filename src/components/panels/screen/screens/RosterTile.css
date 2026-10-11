@@ -1,0 +1,214 @@
+/* A roster row-tile (docs/specs/LAYOUT_REWORK.md §1.5): a fixed width, so a status word changing or the
+   battery draining never resizes it, and the row's tiles wrap on a steady grid. --roster-tile-width lives
+   on the board (RosterBoard.css). */
+.roster-tile {
+  position: relative;
+  width: var(--roster-tile-width);
+  box-sizing: border-box;
+  list-style: none;
+}
+
+/* The whole face is the button: the gem, then the name, status line and battery stacked beside it. */
+.roster-tile__face {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--color-surface);
+  color: var(--color-text-primary-fixed);
+  font-family: var(--font-controls);
+  font-weight: var(--font-weight-control);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Engaged, the tile wears its robot's colour, as the sketch's hovered tile does. */
+.roster-tile__face:hover,
+.roster-tile__face:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), 0 0 14px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+.roster-tile__face:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.roster-tile__gem {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 44px;
+}
+
+.roster-tile__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The name stays white whatever the identity colour, as the selection card's did (Crawford, 2026-10-06). */
+.roster-tile__name {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-tile__status {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ the Move chip (Task 22)
+
+   The sketch's quiet "⇄ Move" (.tile .mv): a frame-style box in the tile's top-right corner, beside the
+   face button. On the desk it is invisible until the tile is hovered or holds keyboard focus, and stays
+   while its panel is open; --move-chip-height comes inline from MOVE_CHIP_HEIGHT (RosterTile.tsx). */
+.roster-tile__move {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-controls);
+  font-size: var(--font-size-label);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.roster-tile:hover .roster-tile__move {
+  opacity: 1;
+}
+
+.roster-tile:focus-within .roster-tile__move {
+  opacity: 1;
+}
+
+.roster-tile__move[data-state='open'] {
+  opacity: 1;
+}
+
+.roster-tile__move:hover,
+.roster-tile__move:focus-visible,
+.roster-tile__move[data-state='open'] {
+  color: var(--color-text-primary-fixed);
+}
+
+.roster-tile__move:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.roster-tile__move .sc-cabinet-box__front {
+  height: var(--move-chip-height);
+  padding: 0 8px;
+}
+
+.roster-tile__move-label {
+  white-space: nowrap;
+}
+
+/* The chip covers the name line's right end ("⇄ Move" is 71 px wide, 6 px in from the tile's edge, the
+   name 10 px in: 72 px clears it, measured in Chrome); the name ellipsizes short of it at rest too, so it
+   never reflows as the chip fades in. */
+.roster-tile--desk .roster-tile__name {
+  padding-right: 72px;
+}
+
+/* Phone: no hover, so the chip is a small always-on glyph (the sketch's .phone .tile .mv), a square
+   --move-chip-height box, centred in a full --touch-target-size press area (spec §3). */
+.roster-tile--phone .roster-tile__move {
+  top: 0;
+  right: 0;
+  min-width: var(--touch-target-size);
+  min-height: var(--touch-target-size);
+  opacity: 0.55;
+}
+
+.roster-tile--phone .roster-tile__move .sc-cabinet-box__front {
+  width: var(--move-chip-height);
+  padding: 0;
+}
+
+.roster-tile--phone .roster-tile__name {
+  padding-right: var(--touch-target-size);
+}
+
+/* ------------------------------------------------------------------ the Move panel and sheet
+
+   A flat plate (spec §3: only the options inside it are cabinetry). Both portal into ScreenViewport. */
+.roster-move__panel {
+  --move-panel-width: 480px;
+  z-index: var(--z-popover);
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--content-surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  color: var(--color-text-primary-fixed);
+}
+
+.roster-move__panel:focus {
+  outline: none;
+}
+
+/* Desk: under the tile, at a set width the options wrap inside. Never content-sized: RadioButton is an
+   inline-size container (sc-control), which has no width of its own, so a shrink-to-fit popover folded
+   to 26 px around it (found in Chrome). Seven options (six companies + Freelance) never fit one line,
+   so the sketch's single nowrap row became a wrapping one. */
+.roster-move__panel:not(.roster-move__sheet) {
+  width: min(var(--move-panel-width), calc(100vw - 2 * var(--spacing-lg)));
+}
+
+
+/* Phone: a bottom sheet over a scrim, in the band between the top bar and PhoneBar (the nav sheet's
+   band), the options stacked. */
+.roster-move__scrim {
+  position: absolute;
+  top: var(--top-bar-bottom);
+  left: 0;
+  right: 0;
+  bottom: var(--phone-bar-clearance);
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.roster-move__sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--phone-bar-clearance);
+  max-height: calc(100% - var(--top-bar-bottom) - var(--phone-bar-clearance));
+  overflow-y: auto;
+  border-width: 1px 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.roster-move__sheet .sc-radio-button__root {
+  flex-direction: column;
+}
+
+/* The positioned box VoxelTrack overlays; its size comes inline (RosterTile.tsx). */
+.roster-tile__battery {
+  position: relative;
+  display: block;
+  margin-top: 4px;
+}

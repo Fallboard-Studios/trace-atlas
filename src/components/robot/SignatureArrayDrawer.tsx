@@ -239,7 +239,7 @@ export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * leaf, and the tree node itself carries that label, so there's no accordion header left to show
  * it on. Robot Drift (`RobotDriftPanel`) is gone entirely as of docs/tasks/LFO_BANK.md Task 15 —
  * modulation now goes through the per-row LfoLink controls below, and lane-level drift lives only
- * in LfoBankLanePanel (FleetParamsContent.tsx's own LFO Bank leaves).
+ * in LfoBankLanePanel (FleetParamsScreen's LFO Bank sub-tabs).
  *
  * Otherwise purely presentational as of Roadmap Phase 10 (Task 16) — no `robot` prop, no store
  * access at all as of Task 12/15 (RobotDriftPanel's own global lfoDrift subscription is gone with

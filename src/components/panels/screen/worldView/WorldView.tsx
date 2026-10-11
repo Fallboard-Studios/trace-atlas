@@ -1,5 +1,7 @@
 import AttenuationStyleView from '@/components/panels/screen/worldView/AttenuationStyleView';
+import { MetaBox } from '@/components/panels/screen/worldView/MetaBox';
 import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
+import { useUIStore } from '@/stores/uiStore';
 
 import './WorldView.css'
 
@@ -10,10 +12,15 @@ function WorldView() {
   // Style is actually current or AttenuationStyleView's lookup fails and the
   // whole world disappears.
   const currentAttenuationStyleId = useAttenuationStyleStore((s) => s.currentAttenuationStyleId);
+  // The world dims under the opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3), which
+  // ContentPane renders exactly while a branch is open; the Deck has none and stays bright.
+  const dimmed = useUIStore((s) => s.activeHubTile !== null);
 
   return (
-    <div className="world-view">
+    <div className="world-view" data-dimmed={dimmed ? '' : undefined}>
       <AttenuationStyleView attenuationStyleId={currentAttenuationStyleId} />
+      {/* The world's own readout, top of the Deck, right of the nav (spec §1.7). */}
+      <MetaBox />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { factoryGeometry } from '../components/actors/factoryGeometry';
 import { hashActorId } from '../components/actors/factoryBubbleProps';
 import { ROOFTOP_RENDERERS } from '../components/actors/greebles/rooftopGreebles';
 import { pipeBridgeLayout, type BridgeRect } from '../components/actors/scenery/pipeBridgeLayout';
+import { HAIRLINE_PX, WORLD_GEM } from '../components/actors/material/worldGemMaterial';
 import { SCENERY_GEM_ACCENTS, SCENERY_RENDERERS } from '../components/actors/scenery/Scenery';
 import { deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
 import { WORLD_BOUNDS } from '../constants/sceneDepth';
@@ -41,7 +42,15 @@ const ANY_COLORS = { body: ANY_HSL, accent: ANY_HSL, greeble: ANY_HSL, illuminat
 // ========================================
 const shifted = (e: Extent, dx: number, dy: number): Box => ({ x0: e.x0 + dx, y0: e.y0 + dy, x1: e.x1 + dx, y1: e.y1 + dy });
 
-const rectBox = (r: BridgeRect): Box => ({ x0: r.x, y0: r.y, x1: r.x + r.width, y1: r.y + r.height });
+/**
+ * A bridge part's box. Bridges are measured from the layout, not from a renderer, so the 1.5 px
+ * hairline they now draw (Phase 44, docs/specs/WORLD_GEM_MATERIAL.md assumption 10) has to be
+ * added here: half of it on every side, exactly what `svgElementExtent` adds for a stroked shape.
+ */
+const rectBox = (r: BridgeRect): Box => {
+  const e = WORLD_GEM.others ? HAIRLINE_PX / 2 : 0;
+  return { x0: r.x - e, y0: r.y - e, x1: r.x + r.width + e, y1: r.y + r.height + e };
+};
 
 /** The depth OceanScene draws the actor at — an unresolvable row isn't drawn in any group. */
 const depthOf = (a: Actor) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth;

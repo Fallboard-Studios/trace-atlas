@@ -4,6 +4,7 @@ import { GemShape, accentBase } from '../gemShape';
 import { NO_SHIFT } from '../sceneryColor';
 import type { BeaconParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 beacon row)
@@ -35,11 +36,13 @@ export const beacon: SceneryRenderer = ({ actor, params, cap, eastL, westL, nigh
 
   const m = (eastL + westL) / 2;
   const steel = applyColorShift(colorTheme.body.shadow, NO_SHIFT, m * cap * 1.15);
+  const member = WORLD_GEM.members ? hairline() : undefined;
 
   return (
     <g data-scenery="beacon">
-      <rect x={x - MAST_WIDTH / 2} y={y - mastH} width={MAST_WIDTH} height={mastH} fill={steel} />
-      <rect x={x - w / 2} y={y - BEACON_FOOT_HEIGHT} width={w} height={BEACON_FOOT_HEIGHT} fill={steel} />
+      {/* members: the mast and the foot plate take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6) */}
+      <rect x={x - MAST_WIDTH / 2} y={y - mastH} width={MAST_WIDTH} height={mastH} fill={steel} {...member} />
+      <rect x={x - w / 2} y={y - BEACON_FOOT_HEIGHT} width={w} height={BEACON_FOOT_HEIGHT} fill={steel} {...member} />
       <GemShape
         cx={gem.cx}
         cy={gem.cy}

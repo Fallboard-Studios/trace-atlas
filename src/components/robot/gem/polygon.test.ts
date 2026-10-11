@@ -253,6 +253,42 @@ describe('bevelDepth', () => {
     expect(bevelDepth(10, 10)).toBeCloseTo(1.8, 9);
     expect(bevelDepth(10, 40)).toBeCloseTo(1.8, 9);
   });
+
+  describe('with an explicit depth (the world material passes its own, through the one 18% cap)', () => {
+    it('returns the requested depth when the short side is big enough', () => {
+      expect(bevelDepth(200, 300, 8)).toBe(8);
+    });
+
+    it('caps at 18% of the short side when the requested depth is too deep', () => {
+      expect(bevelDepth(30, 300, 8)).toBeCloseTo(5.4, 9);
+    });
+
+    it('caps on the short side whichever way round the box is', () => {
+      expect(bevelDepth(300, 30, 8)).toBeCloseTo(5.4, 9);
+    });
+
+    it('is exactly at the cap when the requested depth equals it', () => {
+      expect(bevelDepth(50, 80, 9)).toBeCloseTo(9, 9);
+    });
+
+    it('is 0 for a depth of 0, however big the box', () => {
+      expect(bevelDepth(200, 300, 0)).toBe(0);
+    });
+
+    it('is 0 for a degenerate box with a zero side', () => {
+      expect(bevelDepth(0, 300, 8)).toBe(0);
+    });
+
+    it('may go deeper than GEM_BEVEL_DEPTH — the robots default is a default, not a ceiling', () => {
+      expect(bevelDepth(200, 300, 8)).toBeGreaterThan(GEM_BEVEL_DEPTH);
+    });
+
+    it('an explicit GEM_BEVEL_DEPTH matches the default on every box', () => {
+      for (const [w, h] of [[24, 16], [10, 10], [10, 40], [200, 300]]) {
+        expect(bevelDepth(w, h, GEM_BEVEL_DEPTH)).toBe(bevelDepth(w, h));
+      }
+    });
+  });
 });
 
 describe('bevelHolds — the rejection rule that keeps facets from bow-tying', () => {

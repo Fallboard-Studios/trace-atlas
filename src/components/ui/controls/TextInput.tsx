@@ -52,7 +52,7 @@ function TextInputInner({ schema, value, onChange, numeric, disabled }: TextInpu
         timelineKey={`cabinet-text-input-facade-${schema.id}`}
       >
         <div className="sc-text-input">
-          <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+          <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
           <input
             type={numeric ? 'number' : 'text'}
             inputMode={numeric ? 'decimal' : undefined}

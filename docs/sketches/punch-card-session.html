@@ -1,0 +1,638 @@
+<!doctype html>
+<!-- STATUS (2026-10-08, Crawford): PARKED FOR VERSION 2. "Great for version 2 — rein it back in and stick to things
+     within the tablet for now." Nothing on this page is in scope for the current layout rework; everything outside
+     ScreenViewport (sleeve keys, side slot, desk, the Atlas card) waits. Verdicts reached before parking, so they are
+     not re-litigated later: the object is a SLAB of the world's gem material, not paper; the HEX face ("love the hex
+     one"); the lore is trace / atlas / retransmit; ONE card that is itself the Atlas (C5/C6, a mini computer with its
+     own display, all CRUD on it) beats the drawer of slabs (C3/C4); replay is a CUE (one elapsed-measure integer in
+     the payload, captured on CUT), never a recording, and cueing must also align the wall-clock visual day with the
+     measure, since today those are two clocks. In-tablet pieces that survive on their own: the off-screen etched
+     label (backlog item 2) and the cue integer on the share link (a Phase 21 follow-up, not UI).
+
+     Punch-card sessions and a tactile sleeve transport — sketch, before any intent doc. Built 2026-10-08 on
+     feature/world-gem (uncommitted; nothing here touches the live renderer or any component).
+
+     Where it came from (Crawford, 2026-10-08, in the layout-rework conversation): the rocker switch is physically part
+     of the shell, not a screen control. An earlier idea — side-loaded cassette-deck buttons that latch and pop each
+     other out — was dropped when the transport was removed. With the World Clock (Phase 20.5) making the day
+     replayable and Session Storage / Shareable Link (Phases 20, 21) already carrying a compressed payload, the
+     question was whether the transport comes back, and what the "tape" is. This page's first draft answered: a punch
+     card whose holes ARE the session payload. The lore pass below kept the "visible data" idea and replaced the paper.
+
+     Lore (Crawford's question, 2026-10-08: "what's the lore reason, maybe they're not paper?"): a saved session is a
+     TRACE, a captured transmission; the file of them is the ATLAS (the product's name); loading one is a retransmission
+     (`retransmitWorld` in worldTransition.ts). The object is a SLAB of the world's gem material (Phase 44) with the
+     trace cut into it; the content is LIGHT: dark in the file, lit when seated, and the beam runs along the screen's
+     two existing light-beam rails (ScreenViewport's `.screen-rail`). Paper was the first draft and is kept only as
+     a comparison face. Verbs renamed with the material: PUNCH → CUT, SHRED → BLANK (the slab is quenched and
+     returns to the file empty, reusable), overwrite = re-cut the same slab, a share link = a trace RECEIVED.
+
+     The idea in one line each:
+       I1 A session is a slab. Its face is rendered from the payload bytes, so two sessions never look the same,
+          and a shared link IS a slab someone handed you. The printed header strip carries the name, the locale code
+          and coordinates, and the date it was cut; the SPINE repeats name/code/date for the slot stub and the file.
+       I2 Cards are physical objects, so they live OUTSIDE the tablet, on the app's existing `.real-world` surface
+          (App.tsx), as a sibling of Tablet — never on a screen. The slot is on the tablet's edge (side-loaded on
+          desktop, bottom edge on the phone) and a seated card shows its SPINE as a stub: name, locale code, date.
+          The card file on the desk stands cards on their spines like a catalogue drawer, with a shredder beside it.
+          No card = bare seed. (First draft had the slot in the power corner and a tray on the off screen; Crawford's
+          2026-10-08 call: a screen cannot hold a tray, so both moved out.)
+       I3 The transport is a row of mechanical keys in the power corner: REW · PLAY · PAUSE · FF · CUT · EJECT. One
+          of PLAY / PAUSE is latched (pressed flat); REW / FF are momentary and step the world clock by eight
+          measures (two hours of the 96-measure day) through a world transition; CUT is Save (cut a new slab from
+          the current state, ejected onto the desk); EJECT pulls the slab and returns the device to the seed (new:
+          no such operation exists today). A counter window shows the measure of day and the local time.
+       I4 The off screen keeps the M5 etched label only; the "reserved picker slot" is gone, because the picking
+          happens on the desk, not on a screen.
+       I5 Phone: the page is the desk. The tablet is the top of the page, the slot is on its bottom edge with the
+          spine showing below, and the atlas and the blanker sit further down; scrolling down is looking at the desk.
+
+     Assumptions (not the live renderer):
+       S1 Hole patterns here come from a small string hash of a fake payload, not the real deflate-raw base64url
+          output. In the app it would be the real bytes, so the card is deterministic for a given session.
+       S2 Keys are drawn with the cabinet language: an unpressed key is "popped" (raised, skewed top and left walls),
+          a pressed key is flat. The GSAP pop, glow and wall fade are not reproduced.
+       S3 The card is manila on a dark shell on purpose: it reads as paper against the cabinet, and the app has no
+          other light surface, so it cannot be confused for a control.
+       S4 Copy is placeholder where the app has no string yet (the slab header, "CUT", "BLANK", the atlas labels).
+
+     Guardrail note (CLAUDE.md / docs/UI_SHELL.md): "All interactive UI lives inside ScreenViewport only — never in
+     the decorative SleeveContainer." I2–I3 put a slot and six keys IN the sleeve. That is a deliberate amendment of
+     the guardrail (sleeve = device-level controls: power, transport, card; screen = everything per-entity), not a
+     relaxation, and it must be recorded as such in the intent doc before any task touches SleeveContainer.
+
+     Open (for Crawford):
+       Q1 Slab + light (the lore pick), paper punch card, or something else? The four faces in C1 compare.
+          VERDICT 2026-10-08: slab, HEX face ("love the hex one"). Etched trace stays as the runner-up.
+       Q2 Side slot on the tablet's edge (right on desktop, bottom on the phone) with the spine as the stub. Yes?
+       Q3 REW / FF step the world clock (I3). Is that a feature you want? It is the one new, non-trivial button.
+          Without it the deck is PLAY · PAUSE · CUT · EJECT.
+       Q4 CUT as the Save verb everywhere (Sessions panel included), BLANK as Delete, re-cut as overwrite?
+       Q5 EJECT is new: nothing returns the world to the bare seed after a load today. Build it?
+       Q6 Does the slab print the robot/company override count as a second line, or stay header-only?
+       Q7 Phone: keys as the bottom bar (replacing Option B's five branch keys there) or hidden behind the menu?
+       Q8 The desk is a third interactive zone (screen = software, sleeve = device, desk = objects). Record the
+          UI Shell guardrail amendment that way?
+     Verdicts: (pending) -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Trace slabs — sessions as objects, sketch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Titillium+Web:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif; --fm: 'IBM Plex Mono', ui-monospace, monospace;
+    --ac: #41ad9f; --ac2: #68cb97;
+    --card: #e8dcb8; --card2: #d9cba0; --ink: #3a3326; --hole: #0b0f14;
+    --shell: #1e2126; --shell2: #15181c; --key: #2a2e34; --key2: #1c2024;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  p.note a { color: var(--ac2); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending b { color: #e8b84a; }
+  .pending ol { margin: 6px 0 0 18px; padding: 0; }
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+  .cap { font-size: 12px; color: var(--mut); margin: 6px 0 0; font-family: var(--fc); }
+
+  /* ---------- frames ---------- */
+  .desk { width: 1600px; height: 900px; position: relative; overflow: hidden; background: #0b0f14; border: 12px solid var(--shell); border-radius: 6px; zoom: .68; box-shadow: 0 0 0 1px #000; font-family: var(--fc); }
+  .stage { width: 1100px; height: 420px; position: relative; overflow: hidden; background: var(--bg); font-family: var(--fc); display: flex; align-items: center; justify-content: center; gap: 48px; }
+  .phones { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .phone { width: 375px; height: 812px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid var(--shell); border-radius: 28px; font-family: var(--fc); }
+
+  /* ---------- world (simplified, as the other sketches) ---------- */
+  .world { position: absolute; inset: 0; }
+  .world svg { width: 100%; height: 100%; display: block; }
+  .world.dim { filter: brightness(.35) blur(2px); }
+
+  /* ---------- the card ---------- */
+  .card { position: relative; width: 620px; height: 273px; background: linear-gradient(170deg, var(--card) 0%, var(--card2) 100%); color: var(--ink); box-sizing: border-box; padding: 12px 18px 10px; font-family: var(--fm); clip-path: polygon(22px 0, 100% 0, 100% 100%, 0 100%, 0 22px); box-shadow: 0 10px 24px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(0, 0, 0, .12); }
+  .card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: rgba(0, 0, 0, .08); }
+  .card .hd { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #6a5f45; }
+  .card .nm { font-family: var(--fs); font-size: 24px; font-weight: 700; letter-spacing: .02em; color: var(--ink); margin-top: 2px; line-height: 1; }
+  .card .meta { display: flex; gap: 22px; font-size: 11px; margin-top: 4px; color: #4c4433; }
+  .card .meta b { font-weight: 500; color: var(--ink); }
+  .card .holes { position: absolute; left: 18px; right: 18px; bottom: 12px; display: grid; grid-template-columns: repeat(40, 1fr); grid-auto-rows: 13px; gap: 1px 0; }
+  .card .holes i { display: block; width: 7px; height: 11px; margin: 1px auto; border-radius: 1.5px; background: transparent; }
+  .card .holes i.on { background: var(--hole); box-shadow: inset 0 1px 0 rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .18); }
+  .card .colnum { position: absolute; left: 18px; right: 18px; bottom: 172px; display: grid; grid-template-columns: repeat(40, 1fr); font-size: 6px; color: #8a7e60; text-align: center; }
+  .card .rownum { position: absolute; left: 6px; bottom: 12px; display: grid; grid-auto-rows: 13px; font-size: 6px; color: #8a7e60; line-height: 13px; }
+  .card.blank { background: linear-gradient(170deg, #ded3b2, #cfc396); }
+  .card.blank .nm { color: #8a7e60; }
+  .card.small { zoom: .42; }
+  /* the data face: an SVG in the holes area for the non-paper faces */
+  .card .face { position: absolute; left: 18px; right: 18px; bottom: 12px; height: 166px; }
+  .card .face svg { width: 100%; height: 100%; display: block; }
+  /* slab material: a slice of the world gem (Phase 44) instead of paper — dark mass, 1.5 px hairline edge */
+  .card.slab { background: linear-gradient(160deg, #1b2630 0%, #0f161c 55%, #141d25 100%); color: #d6e2ea; box-shadow: 0 10px 24px rgba(0, 0, 0, .65), inset 0 0 0 1.5px rgba(160, 200, 210, .45), inset 0 0 40px rgba(65, 173, 159, .08); }
+  .card.slab::before { background: rgba(160, 200, 210, .25); }
+  .card.slab .hd { color: #7f949f; }
+  .card.slab .nm { color: #eef4f7; text-shadow: 0 0 14px rgba(104, 203, 151, .35); }
+  .card.slab .meta { color: #9fb2bd; }
+  .card.slab .meta b { color: #eef4f7; }
+  .card.slab .colnum, .card.slab .rownum { color: #4a5a64; }
+  .card.slab.blank { background: linear-gradient(160deg, #18212a, #0d1317); }
+  .card.slab.blank .nm { color: #5c6c76; text-shadow: none; }
+  /* a seated slab is LIT: the cut pattern carries light, the edge hairline brightens, the spine glows */
+  .card.slab.lit { box-shadow: 0 10px 24px rgba(0, 0, 0, .65), inset 0 0 0 1.5px rgba(143, 224, 207, .9), inset 0 0 40px rgba(65, 173, 159, .18), 0 0 28px rgba(65, 173, 159, .5); }
+  .card.slab.lit .face { filter: drop-shadow(0 0 3px #8fe0cf) drop-shadow(0 0 10px rgba(65, 173, 159, .7)); }
+  .card.slab.lit .spine { color: #fff; text-shadow: 0 0 10px #8fe0cf, 0 0 22px rgba(65, 173, 159, .8); border-left-color: rgba(143, 224, 207, .6); }
+  .card.slab.lit .nm { text-shadow: 0 0 14px rgba(143, 224, 207, .8); }
+  /* the screen's two light-beam rails (ScreenViewport's .screen-rail), dark until a trace is seated */
+  .tab .rail { position: absolute; left: 14px; right: 14px; height: 3px; background: #1a2027; border-radius: 2px; z-index: 6; }
+  .tab .rail.top { top: 2px; } .tab .rail.bot { bottom: 2px; }
+  .tab .rail.lit { background: linear-gradient(90deg, transparent 0%, #41ad9f 12%, #8fe0cf 40%, #ffffff 50%, #8fe0cf 60%, #41ad9f 88%, transparent 100%); box-shadow: 0 0 10px #41ad9f, 0 0 26px rgba(65, 173, 159, .7); }
+  .tab .rail.lit::after { content: ""; position: absolute; right: -16px; top: -2px; width: 18px; height: 7px; border-radius: 4px; background: #8fe0cf; box-shadow: 0 0 12px #8fe0cf; }
+
+  /* ---------- the sleeve corner: power, slot, keys, counter ---------- */
+  .corner { position: absolute; top: 14px; right: 14px; width: 352px; background: var(--shell); border: 2px solid #26292e; border-radius: 4px; padding: 12px; box-sizing: border-box; display: grid; grid-template-columns: 1fr 76px; gap: 12px; z-index: 5; }
+  .power { width: 76px; height: 140px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; box-sizing: border-box; }
+  .power .lens { width: 44px; height: 12px; border-radius: 2px; background: #2fbf4a; box-shadow: 0 0 10px #2fbf4a; }
+  .power .lens.off { background: #c0333a; box-shadow: 0 0 8px #c0333a; }
+  .power .rocker { width: 40px; height: 78px; background: linear-gradient(#525252, #3a3a3a 48%, #2b2b2b 52%, #444); border-radius: 3px; display: flex; align-items: flex-end; justify-content: center; color: #aaa; font-size: 14px; padding-bottom: 8px; box-sizing: border-box; }
+  .deck { display: flex; flex-direction: column; gap: 10px; }
+  .slot { position: relative; height: 52px; background: var(--shell2); border: 1px solid #0a0c0f; border-radius: 3px; box-shadow: inset 0 4px 10px rgba(0, 0, 0, .7); overflow: hidden; }
+  .slot .slit { position: absolute; left: 10px; right: 10px; bottom: 10px; height: 8px; background: #05070a; border-radius: 2px; box-shadow: inset 0 2px 3px #000; }
+  .slot .edge { position: absolute; left: 22px; right: 22px; bottom: 14px; height: 30px; background: linear-gradient(170deg, var(--card), var(--card2)); color: var(--ink); font-family: var(--fm); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px 0; box-sizing: border-box; clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); box-shadow: 0 -2px 6px rgba(0, 0, 0, .5); display: flex; justify-content: space-between; }
+  .slot .edge b { font-family: var(--fs); font-size: 12px; letter-spacing: .02em; text-transform: none; font-weight: 700; }
+  .slot .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #4b535b; padding-bottom: 10px; }
+  .slot .notch { position: absolute; left: 50%; bottom: 6px; width: 46px; height: 16px; transform: translateX(-50%); background: #05070a; border-radius: 8px 8px 0 0; }
+  .counter { display: flex; align-items: center; justify-content: space-between; background: #0d1116; border: 1px solid #0a0c0f; border-radius: 3px; padding: 4px 10px; font-family: var(--fm); font-size: 12px; color: var(--ac2); text-shadow: 0 0 8px var(--ac); box-shadow: inset 0 0 8px rgba(0, 0, 0, .8); }
+  .counter .lbl { font-size: 8px; letter-spacing: .14em; color: #4b535b; text-shadow: none; }
+  .keys { display: flex; gap: 6px; }
+  .key { position: relative; flex: 1; height: 44px; background: var(--key); border: 1px solid #0a0c0f; color: #cfd6dc; font-family: var(--fs); font-size: 11px; font-weight: 700; letter-spacing: .08em; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; box-sizing: border-box; transform: translateY(-4px); }
+  .key::before { content: ""; position: absolute; left: 0; right: 0; top: -5px; height: 5px; background: #3b4048; transform: skewX(-50deg); transform-origin: bottom left; }
+  .key::after { content: ""; position: absolute; top: 0; bottom: 0; left: -5px; width: 5px; background: #0f1215; transform: skewY(-50deg); transform-origin: top right; }
+  .key .ic { position: absolute; top: 6px; left: 0; right: 0; text-align: center; font-size: 13px; color: #9aa3ab; letter-spacing: 0; }
+  .key.down { transform: none; background: var(--key2); color: var(--ac2); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .8); }
+  .key.down::before, .key.down::after { display: none; }
+  .key.down .ic { color: var(--ac2); text-shadow: 0 0 8px var(--ac); }
+  .key.punch .ic { color: #8fe0cf; }
+  .key.punch.down .ic { color: #ffffff; text-shadow: 0 0 10px #8fe0cf; }
+
+  /* ---------- the spine: the card's trailing short edge, readable when seated side-on or filed ---------- */
+  .card .spine { position: absolute; right: 0; top: 0; bottom: 0; width: 34px; border-left: 1px solid rgba(0, 0, 0, .18); display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--fs); font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--ink); background: rgba(0, 0, 0, .04); }
+  .card .spine small { font-family: var(--fm); font-size: 8px; font-weight: 400; letter-spacing: .08em; opacity: .7; margin-top: 10px; }
+  .card.slab .spine { border-left-color: rgba(160, 200, 210, .3); color: #eef4f7; background: rgba(255, 255, 255, .03); }
+  .card .holes, .card .face, .card .colnum { right: 46px; }
+  .card .hd, .card .nm, .card .meta { margin-right: 36px; }
+
+  /* ---------- the desk: real-world gradient, a smaller tablet, a side slot, the card file, the shredder ---------- */
+  .deskbg { position: absolute; inset: 0; background: linear-gradient(135deg, hsl(0, 0%, 10%) 11.7%, hsl(253, 14%, 45%) 27%, hsl(251, 17%, 26%) 42.3%, hsl(0, 0%, 10%) 57.7%, hsl(0, 0%, 10%) 73%, hsl(253, 14%, 45%) 88.3%, hsl(251, 17%, 26%)); }
+  .tab { position: absolute; left: 40px; top: 60px; width: 1100px; height: 780px; background: #0b0f14; border: 12px solid var(--shell); border-radius: 6px; box-shadow: 0 24px 60px rgba(0, 0, 0, .6), 0 0 0 1px #000; overflow: visible; }
+  .tab .screen { position: absolute; inset: 0; overflow: hidden; }
+  .tab .corner { top: 10px; right: 10px; zoom: .9; }
+  .sideslot { position: absolute; right: -14px; top: 300px; width: 16px; height: 300px; background: #05070a; border-radius: 0 3px 3px 0; box-shadow: inset 2px 0 4px #000; }
+  .sideslot .stub { position: absolute; left: 12px; top: 13px; width: 64px; height: 273px; overflow: hidden; }
+  .sideslot .stub .card { position: absolute; right: 0; top: 0; }
+  .sideslot .lbl { position: absolute; left: 24px; top: -18px; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: rgba(200, 220, 230, .5); white-space: nowrap; }
+  .shelf { position: absolute; left: 1230px; top: 120px; width: 340px; bottom: 60px; display: flex; flex-direction: column; gap: 18px; }
+  .shelf .lbl { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: rgba(200, 220, 230, .45); }
+  .file { position: relative; height: 300px; background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .08); border-radius: 4px; padding: 14px; box-sizing: border-box; display: flex; align-items: flex-end; gap: 6px; box-shadow: inset 0 10px 30px rgba(0, 0, 0, .5); }
+  .file .sp { width: 34px; height: 273px; position: relative; overflow: hidden; cursor: pointer; transition: transform .2s ease; }
+  .file .sp .card { position: absolute; right: 0; top: 0; }
+  .file .sp:hover { transform: translateY(-10px); }
+  .file .sp.lift { transform: translateY(-40px); }
+  .lifted { position: absolute; left: 1180px; top: 440px; zoom: .62; transform: rotate(-6deg); z-index: 3; }
+  .lifted .card { box-shadow: 0 30px 50px rgba(0, 0, 0, .7); }
+  /* the blanker: a slot that quenches a slab's light; the slab returns to the file empty, reusable */
+  .shred { height: 52px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; box-sizing: border-box; font-family: var(--fs); font-size: 12px; letter-spacing: .14em; color: #6f8a95; position: relative; }
+  .shred::before { content: ""; position: absolute; left: 16px; right: 16px; top: 10px; height: 6px; background: #05070a; border-radius: 2px; box-shadow: inset 0 2px 3px #000; }
+  .shred .teeth { position: absolute; left: 16px; right: 16px; top: 10px; height: 6px; background: repeating-linear-gradient(90deg, rgba(143, 224, 207, .25) 0 3px, transparent 3px 7px); }
+
+  /* ---------- option 2: ONE card, the Atlas — a data half (hex) that seats, and a display half that stays out ---------- */
+  .acard { position: relative; width: 620px; height: 273px; display: flex; background: linear-gradient(160deg, #1b2630 0%, #0f161c 55%, #141d25 100%); box-shadow: 0 10px 24px rgba(0, 0, 0, .65), inset 0 0 0 1.5px rgba(160, 200, 210, .45); box-sizing: border-box; clip-path: polygon(22px 0, 100% 0, 100% 100%, 0 100%, 0 22px); font-family: var(--fm); }
+  .acard .data { position: relative; width: 300px; flex: 0 0 300px; padding: 14px 10px 14px 18px; box-sizing: border-box; border-right: 1px solid rgba(160, 200, 210, .25); }
+  .acard .data svg { width: 100%; height: 100%; display: block; opacity: .35; }
+  .acard .data .lbl { position: absolute; left: 24px; top: 4px; font-size: 7px; letter-spacing: .14em; text-transform: uppercase; color: #4a5a64; }
+  .acard.lit .data svg { opacity: 1; filter: drop-shadow(0 0 3px #8fe0cf) drop-shadow(0 0 10px rgba(65, 173, 159, .7)); }
+  .acard.lit { box-shadow: 0 10px 24px rgba(0, 0, 0, .65), inset 0 0 0 1.5px rgba(143, 224, 207, .9), 0 0 28px rgba(65, 173, 159, .5); }
+  .acard .disp { flex: 1; margin: 12px 12px 12px 10px; background: #061012; border: 1px solid rgba(143, 224, 207, .25); box-shadow: inset 0 0 18px rgba(0, 0, 0, .9), inset 0 0 2px rgba(143, 224, 207, .3); color: #8fe0cf; font-size: 11px; line-height: 1.35; padding: 8px 10px; box-sizing: border-box; display: flex; flex-direction: column; text-shadow: 0 0 6px rgba(143, 224, 207, .55); overflow: hidden; }
+  .acard .disp .hd { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: #4f8f86; border-bottom: 1px dashed rgba(143, 224, 207, .25); padding-bottom: 4px; margin-bottom: 6px; }
+  .acard .disp .row { display: flex; gap: 8px; white-space: nowrap; padding: 1px 4px; }
+  .acard .disp .row .n { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .acard .disp .row .m { color: #4f8f86; font-size: 9px; }
+  .acard .disp .row.cur { background: rgba(143, 224, 207, .16); color: #ffffff; }
+  .acard .disp .row.cur::before { content: "▸"; margin-right: -4px; }
+  .acard .disp .row:not(.cur)::before { content: " "; display: inline-block; width: 7px; }
+  .acard .disp .sec { font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: #4f8f86; margin: 6px 0 2px 4px; }
+  .acard .disp .big { font-family: var(--fs); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .02em; margin: 4px 0 2px; }
+  .acard .disp .soft { margin-top: auto; display: flex; gap: 6px; }
+  .acard .disp .soft span { flex: 1; text-align: center; border: 1px solid rgba(143, 224, 207, .35); padding: 3px 0; font-size: 9px; letter-spacing: .14em; }
+  .acard .disp .soft span.hot { background: rgba(143, 224, 207, .18); color: #fff; }
+  .acard .disp .blink { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  /* seated: the card is translated so the data half is inside the tablet; the tablet's own shell covers it */
+  .acard.seated { position: absolute; }
+  .seatcover { position: absolute; left: 0; top: 0; bottom: 0; width: 300px; background: var(--shell); z-index: 2; }
+  /* vertical variant for the phone: data half on top (goes up into the tablet's bottom edge), display below */
+  .acard.vert { width: 273px; height: 620px; flex-direction: column; clip-path: polygon(0 0, 100% 0, 100% 100%, 22px 100%, 0 calc(100% - 22px)); }
+  .acard.vert .data { width: auto; flex: 0 0 300px; border-right: 0; border-bottom: 1px solid rgba(160, 200, 210, .25); padding: 14px; }
+  .acard.vert .data svg { transform: rotate(90deg) scale(1.7); transform-origin: center; }
+  .acard.vert .disp { margin: 10px 12px 12px; }
+
+  /* ---------- off screen + tray ---------- */
+  .etch { position: absolute; left: 0; right: 0; top: 120px; text-align: center; color: rgba(200, 220, 230, .35); text-shadow: 0 0 12px rgba(120, 200, 190, .25); letter-spacing: .12em; }
+  .etch h3 { font-family: var(--fs); font-size: 34px; margin: 0 0 6px; font-weight: 700; }
+  .etch p { margin: 0; font-size: 13px; letter-spacing: .06em; }
+  .tray { position: absolute; left: 0; right: 0; top: 300px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .tray .lbl { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: rgba(200, 220, 230, .35); }
+  .fan { display: flex; align-items: flex-end; gap: 18px; }
+  .fan .card { width: 620px; height: 273px; zoom: .5; cursor: pointer; transition: transform .2s ease; }
+  .fan .card:hover { transform: translateY(-14px); }
+  .fan .card.sel { outline: 3px solid var(--ac); outline-offset: 4px; }
+  .offbg { position: absolute; inset: 0; background: linear-gradient(100deg, #2a2b3a 0%, #121a22 35%, #0e1a1c 60%, #1c1e2c 100%); opacity: .9; }
+
+  /* ---------- phone ---------- */
+  .phone .top { position: absolute; left: 0; right: 0; top: 0; height: 64px; background: rgba(10, 13, 16, .95); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; box-sizing: border-box; z-index: 5; }
+  .phone .top .pw { width: 44px; height: 44px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; margin-left: auto; }
+  .phone .top .counter { font-size: 11px; padding: 3px 8px; }
+  .phone .pslot { position: absolute; left: 12px; right: 12px; top: 72px; height: 44px; z-index: 4; }
+  .phone .pslot .slot { height: 44px; }
+  .phone .pslot .slot .edge { height: 24px; bottom: 12px; font-size: 8px; padding-top: 4px; }
+  .phone .pslot .slot .edge b { font-size: 11px; }
+  .phone .keys { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(10, 13, 16, .96); border-top: 1px solid var(--line); padding: 10px 8px 6px; box-sizing: border-box; z-index: 6; }
+  .phone .keys .key { height: 40px; font-size: 9px; }
+  .phone .ptray { position: absolute; left: 0; right: 0; top: 330px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .phone .ptray .lbl { font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: rgba(200, 220, 230, .35); }
+  .phone .pfan { display: flex; gap: 10px; padding: 0 12px; width: 100%; box-sizing: border-box; overflow: hidden; }
+  .phone .pfan .card { width: 620px; height: 273px; zoom: .36; flex: 0 0 auto; }
+  /* ---------- sticky frame bars (2026-10-08, Crawford: "bad UX to have the options so far from the views they impact") ----------
+     Each frame is a <section class="frame">; its heading + toggles sit in a .bar that sticks to the top of the viewport while that
+     frame is in view and releases at the section's end, so a toggle is never more than one glance from what it changes. */
+  .frame { position: relative; }
+  .frame > .bar { position: sticky; top: 0; z-index: 40; background: var(--bg); padding: 6px 0 8px; margin: 0 0 8px; border-bottom: 1px solid #2a323a; box-shadow: 0 8px 16px -8px rgba(0, 0, 0, .8); }
+  .frame > .bar h2 { margin: 14px 0 6px; border: 0; padding: 0; }
+  .frame > .bar .controls { margin: 0; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: var(--bg); border: 1px solid #41ad9f; padding: 8px 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .7); max-width: 420px; }
+  .fixedpanel .controls { margin: 0; }
+</style>
+</head>
+<body>
+<h1>Trace slabs: sessions as objects, and a tactile sleeve transport</h1>
+<p class="note"><b>Lore (2026-10-08):</b> a saved session is a <b>trace</b>, a captured transmission; the file of them on the desk is the <b>atlas</b>;
+  loading one is a retransmission (the code already calls it <code>retransmitWorld</code>). The object is a slab of the world's gem material with the
+  trace cut into it; the content is light. A slab is dark in the file and lit when seated, and the screen's two light-beam rails carry the beam.
+  Started as a paper punch card (still selectable as a face for comparison); the paper went when the lore did not support it.
+  Companion to <a href="layout-rework.html">layout-rework</a> / <a href="layout-rework-option-b.html">option B</a>: with the transport and
+  volume on the sleeve, the screen's slim header goes away entirely. Static, judged by eye. Desktop frames are 1600 × 900 at 68 %; the phone is 375 × 812.</p>
+
+<div class="pending">
+  <b>Open for Crawford:</b>
+  <ol>
+    <li>Slab + light (the lore pick), paper punch card, or something else? Compare the faces in C1.</li>
+    <li>Side slot on the tablet edge (desktop) and bottom edge (phone), with the spine as the stub. Yes?</li>
+    <li>REW / FF step the world clock by eight measures through a world transition. Is that a feature you want? Without it the deck is PLAY · PAUSE · CUT · EJECT.</li>
+    <li>CUT as the Save verb everywhere (Sessions panel included), BLANK as Delete, re-cut as overwrite?</li>
+    <li>EJECT is new: nothing returns the world to the bare seed after a load today. Build it?</li>
+    <li>Does the slab print the override count as a second line, or stay header-only?</li>
+    <li>Phone: keys as the bottom bar, or behind the menu?</li>
+  </ol>
+  <p style="margin:8px 0 0"><b>Guardrail:</b> this puts interactive controls in the sleeve AND interactive objects on the desk outside the tablet. That is a deliberate amendment of the UI Shell rule (screen = software, sleeve = device hardware, desk = objects), to be recorded in the intent doc, not relaxed quietly.</p>
+</div>
+
+<section class="frame">
+<div class="bar"><h2>C1 — The card, full size</h2>
+<div class="controls">
+  <button data-c1="a" class="on">Session "Dusk Run"</button>
+  <button data-c1="b">Session "Rust Syndicate test"</button>
+  <button data-c1="blank">Blank (bare seed)</button>
+  <span style="margin-left:14px">Face:</span>
+  <button data-face="holes">Punch holes (paper)</button>
+  <button data-face="hex" class="on">Hex cells + finder (slab) — Crawford's pick</button>
+  <button data-face="trace">Etched trace (slab)</button>
+  <button data-face="facets">Colour facets (slab)</button>
+</div></div>
+<div class="stage" id="c1"></div>
+<p class="cap">Cut corner for orientation. Header strip: who punched it, name, locale code and coordinates, date, and a short checksum. The face
+  carries the payload; the face chosen here is used on every other frame too. <b>Punch holes</b> is 1960s paper, twelve rows by forty columns.
+  <b>Hex cells</b> is a Maxicode-style grid with a bullseye finder, drawn on a slab of the world gem material. <b>Etched trace</b> runs the data as
+  PCB-style conductive traces with pads, the lore word made literal. <b>Colour facets</b> is an HCCB-style triangle grid in the four trait colours,
+  two bits per cell. All four hash the same fake payload; the app would use the real bytes.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>C2 — The sleeve corner, desktop: power, counter, keys</h2>
+<div class="controls">
+  <button id="c2card" class="on">(slot moved to the tablet edge — see C3)</button>
+  <span>Latched:</span>
+  <button data-c2key="play" class="on">PLAY</button>
+  <button data-c2key="pause">PAUSE</button>
+  <button data-c2key="punch">CUT (momentary)</button>
+</div></div>
+<div class="desk" id="c2"></div>
+<p class="cap">The counter window reads measure of day and local time. Keys are the cabinet language: raised when up, flat when down. PLAY and PAUSE
+  latch each other out; REW, FF, CUT and EJECT are momentary. No header on the screen any more: mute and volume would be a thumbwheel on the sleeve edge.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>C3 — The desk: cards are objects, so they live outside the tablet</h2>
+<div class="controls">
+  <button id="c3off">Powered off</button>
+  <button id="c3seated" class="on">Card seated (side slot)</button>
+  <button id="c3lift">Card lifted from the file</button>
+</div></div>
+<div class="desk" id="c3"></div>
+<p class="cap">The frame is the app's existing <code>.real-world</code> surface, not the screen. The tablet shrinks to leave a shelf. The slot is on the
+  tablet's right edge, side-loaded, and the seated slab is <b>lit</b>: its spine glows as the stub (name, locale code, date) and the screen's two
+  light-beam rails carry the beam. The atlas on the shelf stands slabs on their spines like a catalogue drawer, blanks included, so it scales past six.
+  Lift one to see its face; drag it to the slot to seat it, or to the blanker to quench it (confirm dialog as today), after which it returns to the
+  file as a blank. CUT ejects a newly cut slab from the slot onto the shelf. The off screen needs no picker any more, only the label.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>C5 — Option 2: ONE card, the Atlas. A mini computer: pick on its display, it renders the hex, it seats</h2>
+<div class="controls">
+  <span>Card state:</span>
+  <button data-c5="menu" class="on">Menu — choose a trace or preset</button>
+  <button data-c5="rendered">Rendered — hex lit, waiting to seat</button>
+  <button data-c5="seated">Seated — data half in the slot, display out</button>
+  <button data-c5="cut">Seated — CUT pressed, naming</button>
+</div></div>
+<div class="desk" id="c5"></div>
+<p class="cap">One object instead of a drawer. The left half is the data face, the right half is a small monochrome display with the whole atlas on it:
+  user traces, then factory presets (read-only). Pick one and the data half lights with its hex; slide it into the side slot and only the data half
+  goes in, so the display stays out and readable: the active trace, its cue, and the soft keys. CUT on the tablet writes the current state to the
+  card: the display asks for a name (suggested as today), then renders. BLANK and BEAM (copy link) are soft keys on the card. A received link shows
+  up as a new row. All CRUD is on the card; the tablet never lists sessions again.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>C6 — Option 2 on the phone: the card seats into the tablet's bottom edge, display half below</h2></div>
+<div class="phones" id="c6"></div>
+<p class="cap">The data half goes up into the tablet; the display half below is the bottom sheet, justified physically. Scroll down to it.</p>
+</section>
+
+<section class="frame">
+<div class="bar"><h2>C4 — Option 1 on the phone: the page is the desk</h2></div>
+<div class="phones" id="c4"></div>
+<p class="cap">The tablet is the top of the page, the slot is on its bottom edge and the seated card's spine shows below it, and the card file and shredder
+  sit further down. Scrolling down is looking at the desk. Tap a card to seat it; it slides up into the slot.</p>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+// ---------- sessions (fake payloads; the app would use the real compressed bytes) ----------
+const SESSIONS = {
+  a: { name: 'Dusk Run', code: 'qb9mezm3', xy: '(−86, 59)', date: '2026-10-08 22:17', payload: 'H4sIAAAAAAAA_3WQQU7DMBBF9z2FNcsGxXZSB7JDCMQCtRKwjdI4bg1xHNkTGoS4O2OHSqys-fvfzzcvgQ5G91n2' },
+  b: { name: 'Rust Syndicate test', code: 'qb9mezm3', xy: '(−86, 59)', date: '2026-10-06 09:41', payload: 'N4IgdghgtgpiBcIDGB7AzgFwJYBsAmIANCAE4D2ANgM4BGAlgOYQD6ArhjsgDYrQQCGYAcyE' },
+  c: { name: 'Night, all freelance', code: 'k2x8pq0d', xy: '(12, −140)', date: '2026-10-04 00:47', payload: 'eJyrVkrOz1PSUcpJLElVslJQ0lFKzs8rKUpNVbJSUEpMSVWqBQBz1gjw' },
+};
+function hash32(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+function bits(payload, n) { // n pseudo-random bits from the payload, ~28 % on
+  const out = []; let h = hash32(payload);
+  for (let i = 0; i < n; i++) { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; out.push((h % 100) < 28); }
+  return out;
+}
+function checksum(payload) { return (hash32(payload) % 0xffff).toString(16).padStart(4, '0').toUpperCase(); }
+
+// ---------- data faces (all read the same bit array; W × H = 584 × 166 in the holes area) ----------
+let FACE = 'hex'; // Crawford's pick, 2026-10-08 ("love the hex one")
+const TRAIT4 = ['#41ad9f', '#4f6fb0', '#d9792b', '#c46a7e']; // Deck, Fleet, Probes, Settings trait bases
+
+/** Hex cells with a central bullseye finder (Maxicode-style). ~30 × 11 cells. */
+function faceHex(on) {
+  const r = 8, w = Math.sqrt(3) * r, cols = 34, rows = 11; let out = '';
+  const cx = 292, cy = 83;
+  const hexPts = (x, y) => Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 3 * i + Math.PI / 6; return `${(x + r * Math.cos(a)).toFixed(1)},${(y + r * Math.sin(a)).toFixed(1)}`; }).join(' ');
+  let k = 0;
+  for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+    const x = 10 + col * w + (row % 2 ? w / 2 : 0), y = 12 + row * r * 1.5;
+    if (Math.hypot(x - cx, y - cy) < 34) continue; // finder keep-out
+    const b = on[k++ % on.length];
+    out += `<polygon points="${hexPts(x, y)}" fill="${b ? '#8fe0cf' : 'none'}" stroke="rgba(160,200,210,.22)" stroke-width="1"${b ? ' opacity=".9"' : ''}/>`;
+  }
+  const rings = [30, 22, 14, 6].map((rr, i) => `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="none" stroke="${i % 2 ? '#8fe0cf' : 'rgba(160,200,210,.5)'}" stroke-width="3.5"/>`).join('');
+  return `<svg viewBox="0 0 584 166">${out}${rings}</svg>`;
+}
+/** PCB-style etched traces: per row, runs of on-bits become a trace with pads at each end. */
+function faceTrace(on) {
+  const rows = 10, cols = 48, cw = 584 / cols, rh = 166 / rows; let out = '';
+  for (let row = 0; row < rows; row++) {
+    const y = rh * row + rh / 2; let run = null;
+    for (let col = 0; col <= cols; col++) {
+      const b = col < cols && on[row * cols + col];
+      if (b && run === null) run = col;
+      if (!b && run !== null) {
+        const x1 = run * cw + 3, x2 = col * cw - 3;
+        out += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#8fe0cf" stroke-width="2.2" stroke-linecap="round" opacity=".85"/>`;
+        out += `<circle cx="${x1}" cy="${y}" r="3" fill="#0f161c" stroke="#8fe0cf" stroke-width="1.6"/><circle cx="${x2}" cy="${y}" r="3" fill="#0f161c" stroke="#8fe0cf" stroke-width="1.6"/>`;
+        // a via dropping to the next row every third run, so it reads as a routed board
+        if (row < rows - 1 && (run % 3 === 0)) out += `<line x1="${x2}" y1="${y}" x2="${x2}" y2="${y + rh}" stroke="rgba(143,224,207,.45)" stroke-width="1.4"/>`;
+        run = null;
+      }
+    }
+  }
+  const grid = `<rect x="0" y="0" width="584" height="166" fill="none" stroke="rgba(160,200,210,.18)" stroke-dasharray="2 6"/>`;
+  return `<svg viewBox="0 0 584 166">${grid}${out}</svg>`;
+}
+/** HCCB-style colour triangles: two bits per cell pick one of four trait colours; a third bit blanks the cell. */
+function faceFacets(on) {
+  const rows = 8, cols = 40, cw = 584 / cols, rh = 166 / rows; let out = ''; let k = 0;
+  for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+    const b0 = on[k++ % on.length], b1 = on[k++ % on.length], blank = on[k++ % on.length] && on[k % on.length];
+    const x = col * cw, y = row * rh, up = (row + col) % 2 === 0;
+    const pts = up ? `${x},${y + rh} ${x + cw / 2},${y} ${x + cw},${y + rh}` : `${x},${y} ${x + cw},${y} ${x + cw / 2},${y + rh}`;
+    const fill = blank ? 'none' : TRAIT4[(b0 ? 2 : 0) + (b1 ? 1 : 0)];
+    out += `<polygon points="${pts}" fill="${fill}" stroke="rgba(13,17,22,.6)" stroke-width=".8"${blank ? '' : ' opacity=".88"'}/>`;
+  }
+  return `<svg viewBox="0 0 584 166">${out}</svg>`;
+}
+
+function card(s, cls = '') {
+  const slab = FACE !== 'holes' ? ' slab' : '';
+  if (!s) return `<div class="card blank${slab} ${cls}"><div class="hd"><span>Meridia Telemetry Group · Trace Slab</span><span>blank</span></div><div class="nm">— name on cut —</div><div class="meta"><span>uncut · seats as the bare seed</span></div><div class="spine" style="opacity:.5">blank</div></div>`;
+  const on = bits(s.payload, 12 * 48);
+  let body;
+  if (FACE === 'holes') {
+    const holes = on.slice(0, 12 * 40).map((b) => `<i class="${b ? 'on' : ''}"></i>`).join('');
+    const colnum = Array.from({ length: 40 }, (_, i) => `<span>${i + 1}</span>`).join('');
+    const rownum = Array.from({ length: 12 }, (_, i) => `<span>${i}</span>`).join('');
+    body = `<div class="colnum">${colnum}</div><div class="rownum">${rownum}</div><div class="holes">${holes}</div>`;
+  } else {
+    body = `<div class="face">${FACE === 'hex' ? faceHex(on) : FACE === 'trace' ? faceTrace(on) : faceFacets(on)}</div>`;
+  }
+  return `<div class="card${slab} ${cls}">
+    <div class="hd"><span>Meridia Telemetry Group · Trace ${slab ? 'Slab' : 'Card'}</span><span>CK ${checksum(s.payload)}</span></div>
+    <div class="nm">${s.name}</div>
+    <div class="meta"><span>locale <b>${s.code}</b> @ ${s.xy}</span><span>${slab ? 'cut' : 'punched'} <b>${s.date}</b></span><span>${s.payload.length} B</span></div>
+    ${body}
+    <div class="spine">${s.name}<small>${s.code} · ${s.date.slice(0, 10)}</small></div>
+  </div>`;
+}
+
+// ---------- world (simplified city, as the other sketches) ----------
+const BODY = { h: 200, s: 15, l: 19 };
+const hsl = (h, s, l) => `hsl(${h}, ${s}%, ${Math.max(0, Math.min(100, l)).toFixed(1)}%)`;
+const BG = [[60, 120, 420], [250, 95, 300], [420, 140, 470], [640, 100, 350], [1300, 150, 300], [1500, 110, 420], [1700, 140, 330]];
+const MID = [[150, 110, 230], [560, 130, 260], [880, 100, 200], [1130, 140, 420], [1600, 120, 240]];
+function building([x, w, h], floor, cap) {
+  const k = 0.68 * cap; const west = hsl(BODY.h, BODY.s, BODY.l * k), east = hsl(BODY.h, BODY.s, BODY.l * k * 1.35); const corner = x + w * 0.62;
+  return `<rect x="${x}" y="${floor - h}" width="${w}" height="${h}" fill="${west}"/><rect x="${corner}" y="${floor - h}" width="${x + w - corner}" height="${h}" fill="${east}"/>`;
+}
+function worldSvg() {
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(205,45%,16%)"/><stop offset="1" stop-color="hsl(230,45%,7%)"/></linearGradient></defs>
+    <rect width="1920" height="1080" fill="url(#w)"/><g>${BG.map((b) => building(b, 990, 0.7)).join('')}</g><g>${MID.map((b) => building(b, 1022, 0.85)).join('')}</g><rect y="1050" width="1920" height="30" fill="hsl(230,45%,5%)"/></svg>`;
+}
+
+// ---------- sleeve pieces ----------
+const power = (off = false) => `<div class="power"><div class="lens${off ? ' off' : ''}"></div><div class="rocker">⏻</div></div>`;
+function slot(s) {
+  const slab = FACE !== 'holes' ? ' style="background:linear-gradient(160deg,#1b2630,#0f161c);color:#d6e2ea;box-shadow:0 -2px 6px rgba(0,0,0,.5),inset 0 0 0 1.5px rgba(160,200,210,.45)"' : '';
+  return `<div class="slot">${s ? `<div class="edge"${slab}><b>${s.name}</b><span>${s.code} · ${s.date.slice(0, 10)}</span></div>` : `<div class="empty">no card · bare seed</div>`}<div class="slit"></div><div class="notch"></div></div>`;
+}
+const counter = (m = 47) => `<div class="counter"><span><span class="lbl">MEASURE </span>${String(m).padStart(3, '0')} / 096</span><span><span class="lbl">LOCAL </span>22:17</span><span><span class="lbl">TEMP </span>−57 °C</span></div>`;
+const KEYS = [['rew', '⏮', 'REW'], ['play', '▶', 'PLAY'], ['pause', '⏸', 'PAUSE'], ['ff', '⏭', 'FF'], ['punch', '✦', 'CUT'], ['eject', '⏏', 'EJECT']];
+function keys(down) { return `<div class="keys">${KEYS.map(([k, ic, l]) => `<div class="key ${k}${down.includes(k) ? ' down' : ''}"><span class="ic">${ic}</span>${l}</div>`).join('')}</div>`; }
+function corner(s, down, off = false, withSlot = false) { return `<div class="corner"><div class="deck">${withSlot ? slot(s) : ''}${counter()}${keys(down)}</div>${power(off)}</div>`; }
+/** The side slot on the tablet's right edge; a seated card shows its spine as a stub. */
+function sideSlot(s) { return `<div class="sideslot"><span class="lbl">${s ? 'seated · lit' : 'no slab · bare seed'}</span>${s ? `<div class="stub">${card(s, 'lit')}</div>` : ''}</div>`; }
+/** The file on the desk — the atlas: spines standing in a drawer, one optionally lifted; null = a blank slab. */
+function cardFile(list, lift) { return `<div class="file">${list.map((s, i) => `<div class="sp${i === lift ? ' lift' : ''}">${card(s)}</div>`).join('')}</div>`; }
+const shredder = () => `<div class="shred"><span class="teeth"></span>BLANK</div>`;
+const rails = (lit) => `<div class="rail top${lit ? ' lit' : ''}"></div><div class="rail bot${lit ? ' lit' : ''}"></div>`;
+
+// ---------- C1 ----------
+function renderC1() {
+  const which = $$('[data-c1]').find((b) => b.classList.contains('on'))?.dataset.c1 ?? 'a';
+  $('#c1').innerHTML = card(which === 'blank' ? null : SESSIONS[which]);
+}
+
+// ---------- C2 ----------
+function renderC2() {
+  const seated = $('#c2card').classList.contains('on');
+  const latched = $$('[data-c2key]').find((b) => b.classList.contains('on'))?.dataset.c2key ?? 'play';
+  const down = latched === 'punch' ? ['play', 'punch'] : [latched];
+  $('#c2').innerHTML = `<div class="world">${worldSvg()}</div>${corner(seated ? SESSIONS.a : null, down)}`;
+}
+
+// ---------- C3: the desk ----------
+function renderC3() {
+  const off = $('#c3off').classList.contains('on');
+  const seated = $('#c3seated').classList.contains('on');
+  const lifted = $('#c3lift').classList.contains('on');
+  const list = [SESSIONS.a, SESSIONS.b, SESSIONS.c, null, null];
+  const screen = off
+    ? `<div class="offbg" style="position:absolute;inset:0"></div><div class="etch" style="top:300px"><h3>TRACE ATLAS</h3><p>A Meridia Telemetry Group product</p><p style="margin-top:14px;color:rgba(200,220,230,.55)">Press the power switch to begin. Sound will play.</p></div>`
+    : `<div class="world">${worldSvg()}</div>`;
+  $('#c3').innerHTML = `<div class="deskbg"></div>
+    <div class="tab"><div class="screen">${screen}</div>${rails(seated && !off)}${corner(null, off ? [] : ['play'], off)}${sideSlot(seated ? SESSIONS.a : null)}</div>
+    <div class="shelf"><span class="lbl">The atlas · 3 cut · 2 blank</span>${cardFile(list, lifted ? 1 : -1)}<span class="lbl">Blanker</span>${shredder()}</div>
+    ${lifted ? `<div class="lifted">${card(SESSIONS.b)}</div>` : ''}`;
+}
+
+// ---------- Option 2: the Atlas card ----------
+const PRESETS = [['Harbour', 'ab12cd34'], ['Trench', 'k2x8pq0d'], ['Reef Night', 'zz90qq11'], ['Open Water', 'mm41ee77']];
+function atlasDisplay(state, cur) {
+  const traces = [SESSIONS.a, SESSIONS.b, SESSIONS.c];
+  if (state === 'menu') {
+    return `<div class="hd"><span>Atlas · 3 traces · 4 presets</span><span>mesh ok</span></div>
+      <div class="sec">traces</div>
+      ${traces.map((s, i) => `<div class="row${i === cur ? ' cur' : ''}"><span class="n">${s.name}</span><span class="m">${s.code} · ${s.date.slice(5, 10)}</span></div>`).join('')}
+      <div class="sec">presets</div>
+      ${PRESETS.map(([n, c]) => `<div class="row"><span class="n">${n}</span><span class="m">${c}</span></div>`).join('')}
+      <div class="soft"><span class="hot">RENDER</span><span>BLANK</span><span>BEAM</span></div>`;
+  }
+  const s = traces[cur];
+  if (state === 'rendered') {
+    return `<div class="hd"><span>Rendered</span><span>CK ${checksum(s.payload)}</span></div>
+      <div class="big">${s.name}</div>
+      <div class="row"><span class="n">locale ${s.code} @ ${s.xy}</span></div>
+      <div class="row"><span class="n">cue d02 m047 · cut ${s.date}</span></div>
+      <div class="row"><span class="n">theme ambient · 4 overrides</span></div>
+      <div class="row" style="margin-top:8px;color:#fff"><span class="n blink">◂ seat the card</span></div>
+      <div class="soft"><span>BACK</span><span>BLANK</span><span class="hot">BEAM</span></div>`;
+  }
+  if (state === 'cut') {
+    return `<div class="hd"><span>Cut</span><span>d02 m051</span></div>
+      <div class="sec">name</div>
+      <div class="big">Dusk Run II<span class="blink">_</span></div>
+      <div class="row"><span class="n">locale ${s.code} @ ${s.xy} · theme ambient</span></div>
+      <div class="row"><span class="n">replaces nothing · new trace</span></div>
+      <div class="soft"><span class="hot">CUT</span><span>CANCEL</span></div>`;
+  }
+  return `<div class="hd"><span>Seated · lit</span><span>CK ${checksum(s.payload)}</span></div>
+    <div class="big">${s.name}</div>
+    <div class="row"><span class="n">locale ${s.code} @ ${s.xy}</span></div>
+    <div class="row"><span class="n">cue d02 m047 · now d02 m051</span></div>
+    <div class="row"><span class="n">theme ambient · 4 overrides</span></div>
+    <div class="soft"><span>MENU</span><span>BLANK</span><span class="hot">BEAM</span></div>`;
+}
+function atlasCard(state, cur = 0, vert = false) {
+  const s = [SESSIONS.a, SESSIONS.b, SESSIONS.c][cur];
+  const lit = state !== 'menu';
+  const hex = faceHex(bits(lit ? s.payload : 'blank', 12 * 48)).replace('viewBox="0 0 584 166"', 'viewBox="0 0 584 166" preserveAspectRatio="xMidYMid meet"');
+  return `<div class="acard${lit ? ' lit' : ''}${vert ? ' vert' : ''}"><div class="data"><span class="lbl">${lit ? 'trace · lit' : 'no trace rendered'}</span>${hex}</div><div class="disp">${atlasDisplay(state, cur)}</div></div>`;
+}
+
+// ---------- C5: the desk with one Atlas card ----------
+function renderC5() {
+  const state = $$('[data-c5]').find((b) => b.classList.contains('on'))?.dataset.c5 ?? 'menu';
+  const seated = state === 'seated' || state === 'cut';
+  const down = state === 'cut' ? ['play', 'punch'] : ['play'];
+  // the card sits on the desk to the right of the tablet; seated, it is translated left so the data half is behind the tablet's edge
+  const cardPos = seated ? 'left:870px;top:373px' : 'left:1190px;top:373px';
+  $('#c5').innerHTML = `<div class="deskbg"></div>
+    ${seated ? '' : `<div style="position:absolute;${cardPos};z-index:3">${atlasCard(state)}</div>`}
+    <div class="tab" style="z-index:${seated ? 4 : 1}"><div class="screen"><div class="world">${worldSvg()}</div></div>${rails(seated)}${corner(null, down)}<div class="sideslot" style="z-index:5"><span class="lbl">${seated ? 'seated · lit' : 'empty'}</span></div></div>
+    ${seated ? `<div style="position:absolute;${cardPos};z-index:2">${atlasCard(state)}</div>` : ''}`;
+}
+
+// ---------- C6: option 2 on the phone ----------
+function renderC6() {
+  const top = `<div class="top">${counter(51)}<div class="pw">⏻</div></div>`;
+  const phone = `<div class="phone" style="height:812px;background:transparent;border-color:transparent">
+    <div class="deskbg" style="border-radius:20px"></div>
+    <div style="position:absolute;left:51px;top:150px;z-index:1">${atlasCard('seated', 0, true)}</div>
+    <div style="position:absolute;left:0;right:0;top:0;height:440px;background:#0b0f14;border:8px solid var(--shell);border-bottom-width:10px;border-radius:20px 20px 10px 10px;box-sizing:border-box;z-index:2;box-shadow:0 16px 40px rgba(0,0,0,.6)">
+      <div style="position:absolute;inset:0;overflow:hidden;border-radius:12px"><div class="world">${worldSvg()}</div>${top}${keys(['play']).replace('class="keys"', 'class="keys" style="height:58px;padding:8px 6px 4px"')}</div>
+      <div class="rail top lit" style="position:absolute;left:12px;right:12px;top:4px;height:3px;border-radius:2px;z-index:6"></div>
+      <div class="rail bot lit" style="position:absolute;left:12px;right:12px;bottom:4px;height:3px;border-radius:2px;z-index:6"></div>
+      <div style="position:absolute;left:40px;right:40px;bottom:-14px;height:12px;background:#05070a;border-radius:0 0 3px 3px;box-shadow:inset 0 2px 4px #000"></div>
+    </div>
+  </div>`;
+  $('#c6').innerHTML = phone;
+}
+
+// ---------- C4: phone, the page is the desk ----------
+function renderC4() {
+  const top = `<div class="top">${counter(47)}<div class="pw">⏻</div></div>`;
+  // the tablet is the top ~440 px of the page; the slot is on its bottom edge; the desk continues below
+  const phone = `<div class="phone" style="height:812px;background:transparent;border-color:transparent">
+    <div class="deskbg" style="border-radius:20px"></div>
+    <div style="position:absolute;left:0;right:0;top:0;height:440px;background:#0b0f14;border:8px solid var(--shell);border-bottom-width:10px;border-radius:20px 20px 10px 10px;box-sizing:border-box;overflow:visible;box-shadow:0 16px 40px rgba(0,0,0,.6)">
+      <div style="position:absolute;inset:0;overflow:hidden;border-radius:12px"><div class="world">${worldSvg()}</div>${top}${keys(['play']).replace('class="keys"', 'class="keys" style="height:58px;padding:8px 6px 4px"')}</div>
+      <div style="position:absolute;left:60px;right:60px;bottom:-16px;height:14px;background:#05070a;border-radius:0 0 3px 3px;box-shadow:inset 0 2px 4px #000"></div>
+      <div style="position:absolute;left:50%;bottom:-78px;width:273px;height:64px;transform:translateX(-50%);overflow:hidden"><div style="position:absolute;left:0;top:-209px;transform:rotate(90deg);transform-origin:0 0;translate:273px 0">${card(SESSIONS.a, 'lit')}</div></div>
+      <div class="rail top lit" style="position:absolute;left:12px;right:12px;top:4px;height:3px;border-radius:2px;z-index:6"></div>
+      <div class="rail bot lit" style="position:absolute;left:12px;right:12px;bottom:4px;height:3px;border-radius:2px;z-index:6"></div>
+    </div>
+    <div style="position:absolute;left:12px;right:12px;top:540px"><span class="lbl" style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(200,220,230,.45)">Card file</span>
+      <div class="file" style="height:150px;margin-top:8px;padding:10px;align-items:flex-end;zoom:.5">${[SESSIONS.a, SESSIONS.b, SESSIONS.c].map((s) => `<div class="sp">${card(s)}</div>`).join('')}</div>
+      <div class="shred" style="margin-top:12px;height:40px;font-size:10px">${'<span class="teeth"></span>'}BLANK</div>
+    </div>
+  </div>`;
+  $('#c4').innerHTML = phone;
+}
+
+// ---------- toggles ----------
+function toggle(id, fn) { $(id).addEventListener('click', (e) => { e.currentTarget.classList.toggle('on'); fn(); }); }
+for (const b of $$('[data-c1]')) b.addEventListener('click', () => { for (const o of $$('[data-c1]')) o.classList.toggle('on', o === b); renderC1(); });
+for (const b of $$('[data-face]')) b.addEventListener('click', () => { for (const o of $$('[data-face]')) o.classList.toggle('on', o === b); FACE = b.dataset.face; renderC1(); renderC2(); renderC3(); renderC4(); renderC5(); renderC6(); });
+toggle('#c2card', renderC2);
+for (const b of $$('[data-c2key]')) b.addEventListener('click', () => { for (const o of $$('[data-c2key]')) o.classList.toggle('on', o === b); renderC2(); });
+toggle('#c3off', renderC3); toggle('#c3seated', renderC3); toggle('#c3lift', renderC3);
+for (const b of $$('[data-c5]')) b.addEventListener('click', () => { for (const o of $$('[data-c5]')) o.classList.toggle('on', o === b); renderC5(); });
+renderC1(); renderC2(); renderC3(); renderC4(); renderC5(); renderC6();
+</script>
+</body>
+</html>

@@ -1,6 +1,29 @@
 <!doctype html>
-<!-- Layout rework — sketch, before any intent doc. Built 2026-10-08 on feature/jobs-depth (uncommitted; nothing
-     here touches the live renderer or any component).
+<!-- Layout rework — sketch, before any intent doc. Built 2026-10-08 on feature/jobs-depth, restructured 2026-10-09
+     (uncommitted; nothing here touches the live renderer or any component).
+
+     BUILT 2026-10-10 on feature/layout-rework (roadmap Phase 45). This sketch is now the RECORD of the design, not the
+     plan: where it and the app differ, the app and docs/UI_SHELL.md win (the decisions made while building are in the
+     roadmap entry).
+
+     PAGE STRUCTURE (2026-10-09, Crawford: "get some tabs at the top — main, nav, and one for each view; within the tabs
+     any sliders/options should be fixed so we can access them while looking at different iterations"):
+       Main      — the overview: every frame at its defaults, the way the design currently stands (option A, faceplate
+                   material on, no hardware keys). The rejected soft-keys frame is folded away at the bottom as a record.
+       Nav       — the rail + ENTITY FLYOUT at 1:1 scale (not 68 %), with states: flyout open / closed, which branch is
+                   active, hover on a rail box; the phone's hamburger + off-canvas sheet beside it. 2026-10-09, Crawford:
+                   the first cut (rail + a tree drawer repeating the branches) "feels redundant with the double panel and
+                   seemingly duplicate buttons" — so the flyout now holds ONLY the active branch's entities under a title
+                   that is not a button; leaves have no flyout. Second cut, same day: "it looks broken in its off state.
+                   maybe the slide-out portion shouldn't be visible at all? maybe the parent buttons just exist as a
+                   smallish side panel, and it just expands to display the probes and companies" — so now ONE PANEL:
+                   96 px at rest, widening to 260 px in place for Probes / Companies with the entities under the active
+                   box, content shifting right; leaves never change shape. The phone sheet is the same panel.
+       Off       — the powered-off tablet, desktop and phone: the etched label and the "press power, sound will play"
+                   line (backlog item 2). The "reserved transmission picker" slot is gone (the Atlas card is parked).
+       Deck / Fleet Params / Robot / Roster / Company / Settings — one tab per view, desktop frame + phone frame side by side,
+                   that view's options in a FIXED panel (bottom-right) so they stay reachable while scrolling.
+       The material switch (faceplate on / cabinetry-on-panels off) is page-wide and lives in the tab bar.
 
      The problem (Crawford, 2026-10-08, from twelve desktop and six phone screenshots): the powered-off screen says
      nothing about what the switch does; the header and the permanently docked nav crowd every screen; the world
@@ -10,20 +33,66 @@
      list is twelve identical cards that are mostly company radios; the robot detail's avatar is a fixed background
      with viewport-unit margins; on phones the fixed header hides scrolled content and the hamburger floats mid-screen.
 
-     What this page mocks up (static CSS/HTML, judged by eye, nothing wired):
-       M1 Deck, desktop — slim header (mute + small volume strip) beside the power corner, a five-box nav RAIL on the
-          left edge with the tree sliding out from it (shallow: branch + entity only), the world bright, a telemetry
-          strip bottom-left in the glow-glass style, a hover label on a robot. Toggles: drawer open, world dimmed.
-       M2 Fleet Params → LFO Bank, desktop — world dimmed under an OPAQUE content surface; one collapsible intro
-          per screen; sections as a sticky tab row (one mounted at a time) with sub-tabs for the four lanes;
-          single-line radio options; shorter voxel rows; a help popover on a control's label.
-       M3 Robot detail, desktop — a fixed avatar column (big gem, meta in two columns, battery, company) beside a
-          scrolling controls column; the compact LfoLink (Off A B C D + a short depth strip).
-       M4 Roster board, desktop — Probes and Companies merged: avatar tiles grouped under company headers,
-          Freelance as a group, All Probes as the top row; no per-card company radio.
-       M5 Phone — off screen with an etched label and a reserved picker slot; Deck with mute + power at the top and
-          menu + telemetry in a bottom bar; robot detail with a sticky avatar band (toggle: expanded / shrunk) and
-          edge-to-edge voxel rows; the header owning its band so content never scrolls under it.
+     What the views mock up (static CSS/HTML, judged by eye, nothing wired):
+       Deck — slim header (mute + small volume strip) beside the power corner, the one nav panel on the left edge, the
+          world bright, the META BOX bottom-left in the glow-glass style: the world line, plus the selected robot's
+          line and / or the selected company's line (2026-10-09, Crawford: robots carry no text box; selection reads
+          out in the meta box; in the world a selection is a halo only).
+       Fleet Params → LFO Bank — world dimmed under an OPAQUE content surface; one collapsible intro per screen;
+          sections as a tab row (one mounted at a time) with sub-tabs for the four lanes; single-line radio options;
+          shorter voxel rows; a help popover on a control's label.
+          VERDICT 2026-10-09: APPROVED as drawn ("I approve of the fleet params layout") — which carries Q3 (section
+          tabs, one mounted at a time), Q4 (sections only in the content's tab row) and Q5 (single-line radios + help
+          popover) from leans to decisions for this view.
+          Same day, one addition: lane titles carry their letter — "Core LFO (LFO A)" … "Overtone LFO (LFO D)" — and
+          on desktop the FULL lane name is shown wherever possible; the phone's narrow sub-tab row keeps "LFO A".
+       Robot detail — a fixed avatar column (big gem, meta in two columns, battery, company) beside a scrolling
+          controls column; the compact LfoLink (a single-line lane row + a short depth strip: full names "Core LFO (A)"
+          on desktop per the rule above, letters on the phone; the "Links: full lane names" option compares the two).
+          VERDICT 2026-10-09: APPROVED ("the rest of it looks good"); on the phone the avatar band is the SMALL form —
+          "the smaller avatar setting on mobile is the way to go". The expanded band stays only as the comparison toggle.
+       Roster board — Probes and Companies merged: avatar tiles grouped under company headers, Freelance as a
+          group, All Probes as the top row; no per-card company radio.
+          2026-10-09, Crawford: "i don't see the freelance group stuff" — the 6-column grid of tall tiles ran ~1080 px
+          for four groups against a 758 px content area, so Freelance was clipped on every frame (a layout flaw, not a
+          toggle). Second cut: side-by-side COLUMNS of compact rows (gem 56×44, name, one status line, battery
+          strip). Then Crawford: "we can have up to 6 companies, so rows of companies and a freelance row i think is
+          the way to go here … at that number of companies columns don't fit well" — third cut, now the default: one
+          ROW per group (name box + count as the leading cell, members flowing right, wrapping if a company is
+          large); seven groups fit the 758 px area. The grid stays behind the "Layout" option as the record; the
+          columns cut was REMOVED from the page ("remove it and the rejected columns plan"); "Six companies" draws
+          the MAX_COMPANIES case. The phone lists rows in one column and scrolls.
+          The head's "Filter" button was REMOVED the same day (Crawford: "what's the filter button for on roster?") —
+          a carry-over from the flat Probes list, where picking a company filters the twelve cards to its members
+          (robotListFilter.ts); on a board already grouped by company it only hid the other groups.
+          VERDICT 2026-10-09: ROSTER TAB APPROVED ("ok, i'm approving the roster tab") — rows per group, the Move
+          chip, the six-company case, the phone list. "On desktop the move button should appear on hover": hover-only
+          is the call; the always-visible chip option is rejected and kept only as the comparison.
+          Reassignment (2026-10-09, Crawford asked "how do you change a robot's assigned company?"; three options
+          offered — robot detail only / a Move action on the tile / drag between groups — he chose the tile action for
+          "a smooth UX", noting the old per-card radios "were huge", so "a more subtle way"): a quiet "⇄ Move" chip on
+          the tile (hover-only on desktop, a small always-on glyph on the phone) opens the SAME company radio the
+          robot detail's avatar column carries — a small flat panel under the tile on desktop, a bottom sheet on the
+          phone. Picking closes it and the tile glides to its new group. The robot detail stays the second place, as
+          in the app today (RobotSelectionCard / RobotDisplaySection → assignRobotToCompany).
+       Company detail — (2026-10-09, Crawford: "how do you edit a company's audio attributes? once selected, we can
+          change the audio attributes of all of a company's robots at once") the robot screen with the avatar column
+          swapped for a company column: the name as a popped box in the company colour, member count, the members as
+          small gem tiles (tap one → that probe), a well stating the broadcast rule once, Rename / Delete. The controls
+          column is the robot's, unchanged — the same four section tabs and controls; the app's CompanyOptionsSection
+          already renders those sections with value/onChange, values from the company's last edit falling back per
+          field to its first member (COMPANIES.md), so nothing new is built. Reached from the nav's Companies entity
+          and the roster's company header; "All Probes" is the same screen for the whole fleet (no colour, no Rename /
+          Delete, no halo). The roster headers lost Edit group / Rename / Delete — the name box opens the detail.
+          No per-field "own vs inherited" marker (the app has none today).
+          VERDICT 2026-10-09: APPROVED ("ok, i'll accept that"), roster-header trim included.
+       Settings — Audio Quality / Seeds / Save & Share as the three section tabs (the app's own section titles from
+          src/content/copy/settings.ts; the sketch first carried my stand-in names Audio Profile / Audio Seeds /
+          Sessions, corrected 2026-10-09 when Crawford approved the tab: "frankly, settings looks good, too").
+       Phone (inside each view's tab) — mute + power at the top, menu + breadcrumb/telemetry in a bottom bar; robot
+          detail with a sticky avatar band (the SMALL form, decided 2026-10-09; the expanded form is kept only as the
+          comparison toggle) and edge-to-edge voxel rows; the header owning its band so content never scrolls under it.
+       (Rejected, kept folded on Main) Soft keys — six hardware keys in the bottom strip with on-screen legends.
 
      Assumptions (not the live renderer):
        S1 Cabinet boxes are drawn as a flat front face with a skewed top and left wall; the app's GSAP pop, glow and
@@ -34,18 +103,59 @@
           robots, as the earlier sketches draw them. The dim is a plain brightness/blur, not a tint slot.
        S4 Copy is the app's current strings where one exists, placeholder otherwise.
 
-     Open (for Crawford):
-       Q1 Rail + drawer (M1) or a plain hamburger everywhere? The rail keeps orientation at 96 px instead of 320.
-       Q2 World dimmed and blurred under an opaque content surface (M2–M4), or keep some glass?
-       Q3 Section tabs with one section mounted at a time (M2, M3) — this reverses the 2026-09-24 stacked-scroll
-          call and retires accordionSync / scrollspy / view-fade. Yes?
-       Q4 Nav tree cut to branch + entity (M1 drawer); sections live only in the content's tab row.
-       Q5 Single-line radio options with lore in the help popover (M2, M3) — lose the lore eyebrow on options?
-       Q6 Compact LfoLink (M3): a letter row and a short depth strip. Lane names only in the popover.
-       Q7 Roster board replacing both the Probes list and the Companies index (M4) — one nav branch, not two.
-       Q8 Phone bottom bar = menu + breadcrumb/telemetry (M5); top = mute + power only; volume flies out of mute.
-       Q9 Off-screen label copy and the reserved picker slot (M5).
-     Verdicts: (pending) -->
+     DECIDED (2026-10-08/09, Crawford):
+       D1 OPTION A — content covers the world, which dims under an opaque surface. "The better choice by far."
+       D2 DEPTH MEANS SOMETHING — out = act (cabinetry, only on interactive things: "parts of the screen coming off,
+          at you"), flat = structure (faceplate + silkscreen), in = read (wells). Gem rings on containers and a gem
+          control set were sketched and rejected (gem-controls.html kept as the record); the gem material stays
+          behind the glass, on the world and robots only.
+          AMENDED 2026-10-09 (spec review, Crawford: "i still want the static cabinetry effect with the trait colors
+          used … the new components should be styled to match the existing ones"): panels, section frames and the
+          nav panel KEEP today's permanently popped, non-animating CabinetBox facade in their trait colour; "flat =
+          structure" applies to the content surface over the dimmed world and to labels only; new components match
+          the existing ones. The page's material switch now defaults to cabinetry-on-panels.
+       D3 NO HARDWARE KEYS beyond the power rocker — the Atlas card / sleeve transport is parked for version 2
+          (punch-card-session.html) and soft keys were rejected: "too hard to always give them purpose, and it
+          doesn't really work on mobile."
+       D4 BUILD ON THE EXISTING COMPONENTS (2026-10-09, Crawford: "we should be using as much of the existing components
+          as possible when building this") — the rework is a recomposition of the 14 primitives in
+          src/components/ui/controls/ (docs/COMPONENT_LIBRARY.md), CabinetBox and the ControlSchema contract, not a new
+          widget set. Sliders DEFINITELY keep their pop-out boxes. The nav boxes stay cabinetry too ("I like what we
+          have so much already"); a gem-style nav was floated and NOT pursued — D2 already keeps the gem material off
+          UI chrome.
+
+     Open (for Crawford) — leans in brackets:
+       Q1 Rail + drawer or a plain hamburger everywhere? [rail on desktop/tablet, hamburger on phone]
+       Q2 World dimmed and blurred under the opaque surface, or keep some glass? [dimmed; decided with A]
+       Q3 Section tabs with one section mounted at a time — reverses the 2026-09-24 stacked-scroll call and retires
+          accordionSync / scrollspy / section anchors. [yes, as an explicit decision]
+       Q4 Nav tree cut to branch + entity; sections live only in the content's tab row. [yes, follows from Q3]
+       Q5 Single-line radio options with the lore name in the help popover. [yes; the popover also takes backlog item 4]
+       Q6 Compact LfoLink: a letter row and a short depth strip. [yes] — 2026-10-09: desktop shows the full lane names
+           in that row ("Core LFO (A)"); the letter row is the phone form.
+       Q7 Roster board replacing both the Probes list and the Companies index. [yes] — VERDICT 2026-10-09: yes, the
+           Roster tab is approved (see its entry above).
+       Q8 Phone bottom bar = menu + breadcrumb/telemetry; top = mute + power only; volume flies out of mute. [yes]
+       Q9 Off-screen label copy. [placeholder copy here; Crawford's]
+           VERDICT 2026-10-09: the off state with the world faintly visible is APPROVED. And because the world is now built
+           before power-on, the splash gains two picker rows: TRANSMISSION ("three presets and then the user's saves if
+           they have any" — a preset is a factory transmission, a save is the user's own session) and THEME (new feature:
+           Calm / Classic / Active = one named set of min / max loading bands applied system-wide at generation only;
+           Classic = exactly today's bands; switching = retransmit, like changing coordinates or loading a session).
+           See docs/ideas/themes.md. Toggle "Splash pickers" on the Off tab.
+       Q10 Soft keys — VERDICT 2026-10-09: NO (see D3).
+       Q1  VERDICT 2026-10-09: ONE PANEL, expanding in place for Probes / Companies — "i'm happy with the nav."
+       Q9 AMENDMENT 2026-10-09 (Crawford, during the intent interview): the splash's selection radios "shouldn't pop out at
+           this point because the power is off. at most the background should have a monochrome selected styling. it
+           can be the same shape and size as the radio buttons" — drawn as .cab.sel (monochrome fill, no walls, no
+           glow). And "we can skip the theme row for now": the Theme row belongs to the themes phase; the "Theme row"
+           option on the Off tab draws it for that later phase under the same rule.
+       Q11 Phone power button with the light IN the button (Crawford's suggestion, drawn here; desktop keeps the app's
+           recessed housing above the rocker). [yes]
+     Shell accuracy (2026-10-09, Crawford): "the inworld tablet has a tactile border along the top and bottom within the
+       screen at all times, and the power button is part of the top one" — every frame now draws the two strips
+       (Tablet.tsx's top / bottom sleeve strips) with the power corner flush in the top one, on desktop and phone.
+     -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -58,27 +168,64 @@
     --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
     --ac: #41ad9f; --ac2: #68cb97;
   }
-  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px; }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 72px 24px 120px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  h2 small { font-weight: 400; color: var(--mut); font-size: 12px; margin-left: 10px; font-family: var(--fc); }
   p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
-  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  p.note a { color: var(--ac2); }
+  .pending, .decided { border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; }
   .pending b { color: #e8b84a; }
-  .pending ol { margin: 6px 0 0 18px; padding: 0; }
+  .decided { background: #10302a; border: 1px solid #41ad9f; }
+  .decided b { color: #68cb97; }
+  .pending ol, .decided ol { margin: 6px 0 0 18px; padding: 0; }
   .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
   .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
   .controls button.on { background: #41ad9f; color: var(--bg); }
+  .controls .grp { display: inline-flex; gap: 4px; align-items: center; }
+  .controls .lbl { color: var(--mut); margin-right: 2px; }
+  .cap { font-size: 12px; color: var(--mut); margin: 6px 0 0; font-family: var(--fc); max-width: 1100px; }
+  details.rejected { margin: 40px 0 0; border: 1px dashed #5a4a2a; padding: 8px 14px; max-width: 1100px; font-family: var(--fc); }
+  details.rejected summary { cursor: pointer; color: #e8b84a; font-size: 14px; }
+  details.rejected .desk { margin-top: 12px; }
+
+  /* ---------- page shell: tab bar + pages + per-page fixed options ---------- */
+  .tabbar { position: fixed; left: 0; right: 0; top: 0; z-index: 60; background: #0b0f14; border-bottom: 1px solid #2a323a; display: flex; align-items: center; gap: 6px; padding: 8px 24px; box-shadow: 0 8px 20px rgba(0, 0, 0, .6); font-family: var(--fc); }
+  .tabbar .ttl { font-family: var(--fs); font-size: 15px; font-weight: 700; letter-spacing: .06em; margin-right: 14px; color: #fff; }
+  .tabbar button { background: var(--surf); color: var(--txt); border: 1px solid #2a323a; padding: 6px 14px; cursor: pointer; font-family: var(--fc); font-size: 13px; }
+  .tabbar button.on { background: #41ad9f; color: var(--bg); border-color: #41ad9f; }
+  .tabbar .sp { flex: 1; }
+  .tabbar .mat { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mut); }
+  .tabbar .mat button { border-color: #41ad9f; }
+  .page { display: none; }
+  .page.on { display: block; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #0b0f14; border: 1px solid #41ad9f; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .7); max-width: 460px; font-family: var(--fc); }
+  .fixedpanel .ttl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #68cb97; margin-bottom: 6px; }
+  .fixedpanel .controls { margin: 4px 0; }
+  .pair { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
 
   /* ---------- frames ---------- */
-  .desk { width: 1600px; height: 900px; position: relative; overflow: hidden; background: #0b0f14; border: 12px solid #1e2126; border-radius: 6px; zoom: .68; box-shadow: 0 0 0 1px #000; font-family: var(--fc); }
+  .desk { --st: 16px; --sb: 48px; width: 1600px; height: 900px; position: relative; overflow: hidden; background: #0b0f14; border: 12px solid #1e2126; border-radius: 6px; zoom: .68; box-shadow: 0 0 0 1px #000; font-family: var(--fc); }
+  /* ---------- the tablet shell (2026-10-09, Crawford, for accuracy): a tactile border along the top and bottom of the
+     screen at ALL times (Tablet.tsx's sleeve-container__top-strip, 12 px, and __bottom-strip with the wordmark), on
+     every tier; the power corner is PART OF the top one — it hangs from the top edge where the strip ends, not floating
+     inside the screen. --st / --sb are the two strip heights; everything on screen sits between them. ---------- */
+  .strip { position: absolute; left: 0; right: 0; background: #1e2126; z-index: 6; box-sizing: border-box; }
+  .strip.top { top: 0; height: var(--st); border-bottom: 1px solid #0a0c0f; box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .05); }
+  .strip.bot { bottom: 0; height: var(--sb); border-top: 1px solid #0a0c0f; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); display: flex; align-items: center; padding-left: 24px; }
+  .strip .wm { font-family: var(--fs); font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: #3a3f46; }
+  .desk.crop { width: 760px; zoom: 1; }
   .phones { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
-  .phone { width: 375px; height: 812px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid #1e2126; border-radius: 28px; font-family: var(--fc); }
-  .cap { font-size: 12px; color: var(--mut); margin: 6px 0 0; font-family: var(--fc); }
+  .phone { --st: 12px; --sb: 32px; width: 375px; height: 812px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid #1e2126; border-radius: 28px; font-family: var(--fc); }
+  .phone .strip.bot { padding-left: 14px; }
+  .phone .strip .wm { font-size: 9px; }
 
   /* ---------- world ---------- */
-  .world { position: absolute; inset: 0; }
+  .world { position: absolute; inset: var(--st, 0) 0 var(--sb, 0) 0; }
   .world svg { width: 100%; height: 100%; display: block; }
   .world.dim { filter: brightness(.42) blur(2px); }
+  .world.off { filter: brightness(.12) blur(3px); }
 
   /* ---------- cabinet language ---------- */
   .cab { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surf); color: var(--txt); padding: 0 12px; height: 34px; font-size: 13px; white-space: nowrap; line-height: 1.1; box-sizing: border-box; }
@@ -88,6 +235,9 @@
   .cab.pop::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 4px; background: color-mix(in srgb, var(--ac), white 28%); transform: skewX(-50deg); transform-origin: bottom left; }
   .cab.pop::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 4px; background: color-mix(in srgb, var(--ac), black 32%); transform: skewY(-50deg); transform-origin: top right; }
   .cab.frame { background: var(--surf2); border: 1px solid var(--line); }
+  .cab.hover { box-shadow: 0 0 0 1px var(--ac), 0 0 14px color-mix(in srgb, var(--ac) 60%, transparent); color: #fff; }
+  .cab.hover .lore { color: var(--ac2); }
+  .cab.input { align-items: flex-start; font-family: ui-monospace, monospace; color: #fff; min-width: 120px; }
   .radio { display: inline-flex; gap: 8px; flex-wrap: wrap; }
   .vox { display: inline-flex; gap: 4px; }
   .vox i { width: var(--b, 26px); height: var(--b, 26px); background: #1b2128; display: block; box-sizing: border-box; }
@@ -104,29 +254,66 @@
   .glass p { margin: 0; font-size: 12.5px; line-height: 1.4; }
   .glass.strip { padding: 6px 14px; font-size: 13px; display: inline-flex; gap: 18px; align-items: center; }
   .glass.strip b { font-weight: 600; }
+  .glass.strip.meta { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .glass.strip .line { display: inline-flex; gap: 10px; align-items: center; white-space: nowrap; }
+  .glass.strip .line.sel { color: var(--ac2); text-shadow: 0 0 12px var(--ac); border-top: 1px solid color-mix(in srgb, var(--ac2) 35%, transparent); padding-top: 4px; }
+  .glass.strip .line .k { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); text-shadow: none; margin-right: 2px; }
+  .phone .bot .glass.strip.meta { gap: 2px; font-size: 10.5px; padding: 3px 8px; }
+  .phone .bot .glass.strip .line { gap: 6px; }
   .pop-help { position: absolute; width: 300px; z-index: 5; }
   .pop-help::before { content: ""; position: absolute; left: 24px; top: -8px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--ac2); }
 
+  /* ---------- faceplate, silkscreen, wells (body.plate; the tab bar's material switch) ----------
+     Crawford, 2026-10-08: the cabinetry works because it is MOTION TOWARD YOU; cabinetry on panels was "a little
+     cheesy, and takes away from the cabinetry on the interactive stuff." DEPTH MEANS SOMETHING, three depths —
+       OUT (toward you) = things you ACT on: cabinetry, unchanged; the only layer that moves, pops or glows.
+       FLAT (on the faceplate) = STRUCTURE: panels, section frames, nav tree body, labels, intro copy — an instrument's
+         front panel: matte plate, one subtle surface texture, SILKSCREEN lines at one weight, no fill, no depth.
+       IN (recessed) = things you READ: value readouts, telemetry, breadcrumb, the help popover — WELLS cut into the
+         plate like an LCD window. Inner top/left shadow = the cabinetry's light from the other side. */
+  .plate { --ink: color-mix(in srgb, var(--ac) 42%, #7f8a93); --plateface: #11161b; }
+  .plate .content, .plate .avcol, .plate .hdr, .plate .rail, .plate .phone .scroll, .plate .phone .band, .plate .phone .top, .plate .phone .bot, .plate .phone .flyout {
+    background-color: var(--plateface); background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .014) 0 2px, transparent 2px 6px);
+    border: 1px solid #05070a; box-shadow: none; }
+  .plate .avcol { background-color: #12171c; }
+  .plate .phone .band { border-width: 0 0 1px; }
+  .plate .content .tabs { border-bottom: 1px solid var(--ink); }
+  .plate .content .head { margin: 0 18px; padding: 12px 0 10px; border-bottom: 1px solid var(--ink); }
+  .plate .content .head h2 { font-weight: 600; letter-spacing: .04em; }
+  .plate .dl .lore { color: var(--ink); }
+  .plate .group { border: 1px solid var(--ink); padding: 20px 12px 12px; margin-top: 12px; position: relative; }
+  .plate .group .ghead { position: absolute; top: -18px; left: 10px; background: var(--plateface); padding: 0 8px; }
+  .plate .tile { background: transparent; border: 1px solid var(--ink); }
+  .plate .phone .tabs { border-bottom: 1px solid var(--ink); padding-bottom: 8px; margin: 0 12px; padding-left: 0; padding-right: 0; }
+  .plate .srow { border-bottom: 1px solid var(--ink); }
+  .plate .ctl .val, .plate .avcol .meta .dl .hum, .plate .crumb, .plate .tile .st:last-of-type, .plate .hdr .val, .plate .limits {
+    display: inline-block; background: #070a0d; color: var(--ac2); text-shadow: 0 0 8px color-mix(in srgb, var(--ac) 60%, transparent);
+    font-family: ui-monospace, monospace; font-size: 11px; padding: 2px 8px; border: 0; align-self: flex-start;
+    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .95), inset 2px 2px 4px rgba(0, 0, 0, .7), inset -1px -1px 0 rgba(255, 255, 255, .05); }
+  .plate .avcol .meta .dl .hum { margin-top: 3px; font-size: 12px; }
+  .plate .glass { box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .9), inset 0 0 8px var(--ac2); }
+  .plate .pop-help { border-width: 1px; }
+
   /* ---------- shell pieces (desktop) ---------- */
-  .power { position: absolute; top: 14px; right: 14px; width: 76px; height: 140px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; box-sizing: border-box; }
+  .power { position: absolute; top: 0; right: 0; width: 76px; height: 140px; background: #1e2126; border: 2px solid #26292e; border-top: 0; border-right: 0; border-radius: 0 0 0 6px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 14px; box-sizing: border-box; z-index: 7; }
+  .power .housing { width: 56px; height: 24px; background: #0b0d10; border-radius: 3px; box-shadow: inset 0 2px 4px #000; display: flex; align-items: center; justify-content: center; }
   .power .lens { width: 44px; height: 12px; border-radius: 2px; background: #2fbf4a; box-shadow: 0 0 10px #2fbf4a; }
   .power .lens.off { background: #c0333a; box-shadow: 0 0 8px #c0333a; }
   .power .rocker { width: 40px; height: 78px; background: linear-gradient(#525252, #3a3a3a 48%, #2b2b2b 52%, #444); border-radius: 3px; display: flex; align-items: flex-end; justify-content: center; color: #aaa; font-size: 14px; padding-bottom: 8px; box-sizing: border-box; }
-  .hdr { position: absolute; top: 22px; right: 104px; display: inline-flex; align-items: center; gap: 10px; background: var(--surf2); border: 1px solid var(--line); padding: 8px 12px; }
+  .hdr { position: absolute; top: calc(var(--st) + 8px); right: 96px; display: inline-flex; align-items: center; gap: 10px; background: var(--surf2); border: 1px solid var(--line); padding: 8px 12px; z-index: 4; }
   .hdr .cab { height: 30px; width: 36px; padding: 0; font-size: 15px; }
-  .rail { position: absolute; left: 0; top: 0; bottom: 0; width: 96px; background: rgba(10, 13, 16, .92); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; padding: 14px 8px; box-sizing: border-box; }
-  .rail .cab { width: 80px; height: 46px; padding: 0 4px; }
+  .rail { position: absolute; left: 0; top: var(--st); bottom: var(--sb); width: 96px; background: rgba(10, 13, 16, .92); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; padding: 14px 8px; box-sizing: border-box; z-index: 3; }
+  .rail .cab { width: 100%; height: 46px; padding: 0 4px; flex: 0 0 auto; }
+  .rail.wide { width: 260px; }
+  .rail .kids { display: flex; flex-direction: column; gap: 4px; margin: 0 0 4px 10px; padding-left: 10px; border-left: 2px solid var(--ac); }
+  .rail .kids .cab { height: 30px; font-size: 12px; align-items: flex-start; padding: 0 10px; }
+  .rail.wide ~ .content, .rail.wide ~ .split { left: 276px; }
+  .rail.wide ~ .crumb { left: 274px; }
+  .plate .rail .kids { border-left: 1px solid var(--ink); }
   .rail .cab .hum { font-size: 12px; }
-  .drawer { position: absolute; left: 96px; top: 0; bottom: 0; width: 272px; background: #101418; border-right: 1px solid var(--line); padding: 14px 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; overflow: hidden; transition: transform .25s ease; }
-  .drawer.closed { transform: translateX(-110%); }
-  .drawer .row { display: flex; align-items: center; gap: 8px; }
-  .drawer .row .cab { flex: 1; align-items: flex-start; padding: 0 10px; height: 40px; }
-  .drawer .row .tog { width: 32px; height: 32px; padding: 0; }
-  .drawer .kids { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--ac); display: flex; flex-direction: column; gap: 6px; }
-  .drawer .kids .cab { height: 32px; font-size: 12px; }
-  .crumb { position: absolute; left: 110px; bottom: 14px; font-size: 13px; color: var(--mut); background: rgba(10, 13, 16, .9); padding: 6px 12px; border: 1px solid var(--line); }
+  .crumb { position: absolute; left: 110px; bottom: calc(var(--sb) + 14px); font-size: 13px; color: var(--mut); background: rgba(10, 13, 16, .9); padding: 6px 12px; border: 1px solid var(--line); z-index: 3; }
   .crumb u { color: var(--txt); text-decoration-color: var(--ac); }
-  .content { position: absolute; left: 112px; top: 76px; right: 16px; bottom: 16px; background: var(--surf2); border: 1px solid var(--line); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+  .content { position: absolute; left: 112px; top: calc(var(--st) + 62px); right: 16px; bottom: calc(var(--sb) + 16px); background: var(--surf2); border: 1px solid var(--line); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
   .content .head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 0; }
   .content .head h2 { margin: 0; border: 0; padding: 0; font-size: 22px; }
   .content .tabs { display: flex; gap: 8px; padding: 12px 18px 0; border-bottom: 1px solid var(--line); }
@@ -135,18 +322,56 @@
   .content .tabs.sub .cab { height: 30px; font-size: 12px; }
   .content .body { padding: 16px 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 28px; align-content: start; overflow: hidden; }
   .content .body.two { grid-template-columns: repeat(2, 1fr); }
+  .content .body.one { grid-template-columns: 1fr; }
   .intro-bar { display: flex; align-items: center; gap: 10px; margin: 10px 18px 0; }
   .intro-bar .cab { height: 28px; font-size: 12px; }
-  .split { position: absolute; left: 112px; top: 76px; right: 16px; bottom: 16px; display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
+  .split { position: absolute; left: 112px; top: calc(var(--st) + 62px); right: 16px; bottom: calc(var(--sb) + 16px); display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
   .avcol { background: rgba(20, 26, 32, .82); border: 1px solid var(--line); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
   .avcol .gem { width: 100%; height: 300px; display: block; }
   .avcol h2 { margin: 0; border: 0; padding: 0; font-size: 26px; }
   .avcol .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
   .avcol .meta .dl .hum { font-size: 15px; }
+  /* company detail: the avatar column swapped for a company column (name box, member tiles, the broadcast well, CRUD) */
+  .avcol .cotitle .cab { height: 52px; font-size: 22px; padding: 0 16px; align-items: flex-start; }
+  .avcol .members { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .avcol .members .mem, .phone .pmem .mem { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--mut); padding: 6px 2px; border: 1px solid var(--line); background: var(--surf); white-space: nowrap; overflow: hidden; }
+  .avcol .glass.strip { display: block; font-size: 12.5px; line-height: 1.4; }
+  .plate .avcol .members .mem, .plate .phone .pmem .mem { background: transparent; border-color: var(--ink); }
   .split .content { position: static; }
   .link { display: inline-flex; align-items: center; gap: 10px; }
   .link .cab { height: 26px; width: 30px; padding: 0; font-size: 12px; }
   .link .radio { gap: 4px; }
+  .link.full .cab { width: auto; padding: 0 8px; }
+  .limits { font-size: 11px; color: var(--mut); font-family: ui-monospace, monospace; }
+  .srows { display: flex; flex-direction: column; }
+  .srow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .srow .nm { flex: 1; font-size: 14px; color: #fff; }
+  .srow .dt { font-size: 11px; color: var(--mut); font-family: ui-monospace, monospace; }
+  .srow .cab { height: 28px; font-size: 12px; }
+  .etch { position: absolute; left: 0; right: 0; top: 42%; transform: translateY(-50%); text-align: center; color: rgba(200, 220, 230, .35); text-shadow: 0 0 12px rgba(120, 200, 190, .25); letter-spacing: .12em; z-index: 2; }
+  .etch h3 { font-family: var(--fs); font-size: 44px; margin: 0 0 8px; font-weight: 700; }
+  .etch p { margin: 0; font-size: 15px; letter-spacing: .06em; }
+  .etch p.go { margin-top: 18px; color: rgba(200, 220, 230, .55); }
+  /* splash pickers (2026-10-09, Crawford: "this is the opportunity to add in some preset selections and themes right on
+     the splash screen"): two single-line radio rows under the label — PRESET (the Attenuation Style presets that live in
+     Settings → Seeds today) and THEME (new: a system-wide set of min / max loading bands — Calm / Classic / Active).
+     Controls are cabinetry even here (you press them); the readout under them is a well. Picking retransmits the faint
+     world behind the glass, so the splash previews the choice before any sound. Power stays the only way to start sound. */
+  .splash { position: absolute; left: 0; right: 0; top: 58%; display: flex; flex-direction: column; align-items: center; gap: 18px; z-index: 3; }
+  .splash .prow { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .splash .prow .lore { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: rgba(200, 220, 230, .45); }
+  .splash .divider { width: 1px; height: 26px; background: rgba(200, 220, 230, .25); margin: 0 6px; align-self: center; }
+  /* power is off: the splash's selected option never pops — a monochrome fill in the radio box's own shape and size, no walls, no glow */
+  .splash .cab.sel { background: rgba(207, 214, 220, .9); color: #0b0f14; border: 1px solid rgba(207, 214, 220, .9); box-shadow: none; }
+  .splash .cab.sel .lore { color: #0b0f14; opacity: .7; }
+  .splash .cab.frame { color: rgba(207, 214, 220, .75); }
+  .plate .splash .divider { background: var(--ink); }
+  .splash .readout { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ac2); text-shadow: 0 0 8px color-mix(in srgb, var(--ac) 60%, transparent); background: #070a0d; padding: 4px 12px; box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .95), inset 2px 2px 4px rgba(0, 0, 0, .7), inset -1px -1px 0 rgba(255, 255, 255, .05); letter-spacing: .04em; }
+  .phone .splash { top: 50%; gap: 12px; padding: 0 12px; }
+  .phone .splash .radio { justify-content: center; gap: 6px; }
+  .phone .splash .cab { height: 36px; font-size: 12px; padding: 0 10px; }
+  .phone .splash .readout { font-size: 10px; text-align: center; }
+  .phone .etch.withsplash { top: 24%; }
 
   /* ---------- roster ---------- */
   .roster { padding: 16px 18px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
@@ -160,17 +385,62 @@
   .tile .nm { font-size: 15px; color: #fff; font-weight: 600; }
   .tile .st { font-size: 11px; color: var(--mut); }
   .tile .vox { margin-top: 4px; }
+  /* reassignment: the quiet Move chip (hover-only on desktop, or always via .roster.chips), the flat move panel under
+     the tile (desktop) and the bottom sheet (phone). The chip and the options are cabinetry = act; the panel plate is flat. */
+  .tile { position: relative; }
+  .tile .mv { position: absolute; top: 6px; right: 6px; z-index: 2; height: 22px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; letter-spacing: .04em; color: var(--mut); background: var(--surf2); border: 1px solid var(--line); opacity: 0; transition: opacity .15s; }
+  .tile.hover .mv, .roster.chips .tile .mv { opacity: .9; }
+  .tile.hover { box-shadow: 0 0 0 1px var(--ac), 0 0 14px color-mix(in srgb, var(--ac) 45%, transparent); }
+  .tile.hover .mv { color: #fff; border-color: var(--ac); }
+  .movepop { position: absolute; left: 0; top: calc(100% + 8px); z-index: 6; background: var(--surf2); border: 1px solid var(--line); padding: 10px 12px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; white-space: nowrap; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); }
+  .movepop::before { content: ""; position: absolute; left: 24px; top: -8px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--line); }
+  .movepop .radio { flex-wrap: nowrap; }
+  .plate .tile .mv { background: var(--plateface); border-color: var(--ink); }
+  .plate .movepop { background: var(--plateface); border-color: var(--ink); }
+  .plate .movepop::before { border-bottom-color: var(--ink); }
+  .phone .tile .mv { opacity: .55; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; justify-content: center; font-size: 13px; }
+  .phone .msheet { position: absolute; left: 0; right: 0; bottom: calc(var(--sb) + 56px); z-index: 5; background: var(--surf2); border-top: 1px solid var(--line); padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 -8px 24px rgba(0, 0, 0, .6); }
+  .phone .msheet .radio.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+  .phone .msheet .radio.stack .cab { height: 44px; font-size: 15px; }
+  .plate .phone .msheet { background: var(--plateface); border-color: var(--ink); }
+  /* compact row-tile (2026-10-09): the tile grid clipped the Freelance group — four groups of tall tiles (~1080 px)
+     never fit the 758 px content area; rows of 56 px do. (A group-columns cut lived here briefly and was removed.) */
+  .tile.row { flex-direction: row; align-items: center; gap: 10px; padding: 8px 10px; }
+  .tile.row svg { width: 56px; height: 44px; flex: 0 0 auto; }
+  .tile.row .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .tile.row.hover .txt, .roster.chips .tile.row .txt { padding-right: 64px; }
+  /* roster as ROWS per group (2026-10-09, Crawford: "we can have up to 6 companies, so rows of companies and a freelance
+     row" — seven groups never fit as columns). One strip per group: the name box + count as a leading cell, the
+     members as compact row-tiles flowing right and wrapping if a company is large. .roster.rows is the default. */
+  .roster.rows { gap: 6px; }
+  .roster.rows .group { flex-direction: row; align-items: center; gap: 14px; padding: 6px 0 8px; border-bottom: 1px solid var(--line); }
+  .roster.rows .group:last-child { border-bottom: 0; }
+  .roster.rows .group .ghead { flex: 0 0 200px; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .roster.rows .tiles { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; min-width: 0; }
+  .roster.rows .tile.row { width: 250px; box-sizing: border-box; }
+  .plate .roster.rows .group { border: 0; border-bottom: 1px solid var(--ink); padding: 6px 0 8px; margin: 0; }
+  .plate .roster.rows .group:last-child { border-bottom: 0; }
+  .plate .roster.rows .group .ghead { position: static; background: none; padding: 0; }
+  .tile.row .txt .nm { font-size: 14px; }
+  .tile.row .txt .st { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.row .txt .vox { margin-top: 3px; }
+  .tile.row .mv { top: 50%; right: 8px; transform: translateY(-50%); }
+  .phone .tile.row svg { width: 44px; height: 36px; }
+  .phone .tile.row .txt { padding-right: 30px; }
 
   /* ---------- phone ---------- */
-  .phone .top { position: absolute; left: 0; right: 0; top: 0; height: 64px; background: rgba(10, 13, 16, .95); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; box-sizing: border-box; z-index: 3; }
+  .phone .top { position: absolute; left: 0; right: 0; top: var(--st); height: 64px; background: rgba(10, 13, 16, .95); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; box-sizing: border-box; z-index: 5; }
   .phone .top .cab { height: 40px; }
   .phone .top .sp { flex: 1; }
-  .phone .top .pw { width: 44px; height: 44px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; }
-  .phone .bot { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; background: rgba(10, 13, 16, .95); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 10px; box-sizing: border-box; z-index: 3; }
+  .phone .pw { position: absolute; top: 0; right: 12px; width: 48px; height: 64px; background: #1e2126; border: 2px solid #26292e; border-top: 0; border-radius: 0 0 6px 6px; display: flex; align-items: center; justify-content: center; z-index: 8; box-sizing: border-box; }
+  .phone .pw .rk { width: 30px; height: 46px; background: linear-gradient(#525252, #3a3a3a 48%, #2b2b2b 52%, #444); border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 6px 0 5px; box-sizing: border-box; color: #aaa; font-size: 12px; }
+  .phone .pw .rk .lens { width: 18px; height: 5px; border-radius: 2px; background: #2fbf4a; box-shadow: 0 0 8px #2fbf4a; }
+  .phone .pw .rk .lens.off { background: #c0333a; box-shadow: 0 0 7px #c0333a; }
+  .phone .bot { position: absolute; left: 0; right: 0; bottom: var(--sb); height: 56px; background: rgba(10, 13, 16, .95); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 10px; box-sizing: border-box; z-index: 5; }
   .phone .bot .cab { height: 40px; width: 44px; padding: 0; font-size: 18px; }
-  .phone .bot .crumb { position: static; background: none; border: 0; padding: 0; flex: 1; font-size: 12px; }
+  .phone .bot .crumb { position: static; background: none; border: 0; padding: 0; flex: 1; font-size: 12px; box-shadow: none !important; }
   .phone .bot .glass.strip { flex: 1; padding: 5px 10px; font-size: 11px; gap: 10px; }
-  .phone .scroll { position: absolute; left: 0; right: 0; top: 64px; bottom: 56px; overflow: hidden; background: var(--surf2); }
+  .phone .scroll { position: absolute; left: 0; right: 0; top: calc(var(--st) + 64px); bottom: calc(var(--sb) + 56px); overflow: hidden; background: var(--surf2); }
   .phone .band { position: sticky; top: 0; background: rgba(20, 26, 32, .96); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 10px 12px; box-sizing: border-box; z-index: 2; }
   .phone .band svg { flex: 0 0 auto; }
   .phone .band.big { flex-direction: column; align-items: center; }
@@ -178,75 +448,262 @@
   .phone .band.small svg { width: 72px; height: 58px; }
   .phone .band h2 { margin: 0; border: 0; padding: 0; font-size: 20px; }
   .phone .band .st { font-size: 11px; color: var(--mut); }
+  .phone .band .sw { width: 40px; height: 40px; flex: 0 0 auto; background: var(--ac); border: 1px solid rgba(255, 255, 255, .25); }
+  .phone .pmem { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 12px 0; }
+  .phone .crud { display: flex; gap: 8px; padding: 10px 12px 0; }
   .phone .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow: hidden; white-space: nowrap; }
   .phone .tabs .cab { height: 32px; font-size: 12px; padding: 0 10px; }
   .phone .body { padding: 12px 12px; display: flex; flex-direction: column; gap: 14px; }
   .phone .body .vox { --b: 36px; }
-  .phone .etch { position: absolute; left: 24px; right: 24px; top: 45%; transform: translateY(-50%); text-align: center; color: rgba(200, 220, 230, .35); text-shadow: 0 0 12px rgba(120, 200, 190, .25); letter-spacing: .12em; }
-  .phone .etch h3 { font-family: var(--fs); font-size: 26px; margin: 0 0 6px; font-weight: 700; }
-  .phone .etch p { margin: 0; font-size: 12px; letter-spacing: .06em; }
-  .phone .etch .slot { margin: 26px auto 0; width: 220px; height: 44px; border: 1px dashed rgba(200, 220, 230, .18); display: flex; align-items: center; justify-content: center; font-size: 10px; text-transform: uppercase; }
-  .phone .flyout { position: absolute; left: 12px; top: 68px; z-index: 4; background: var(--surf2); border: 1px solid var(--line); padding: 10px; display: none; }
+  .phone .etch { top: 45%; left: 24px; right: 24px; }
+  .phone .etch h3 { font-size: 26px; }
+  .phone .etch p { font-size: 12px; }
+  .phone .flyout { position: absolute; left: 12px; top: calc(var(--st) + 68px); z-index: 6; background: var(--surf2); border: 1px solid var(--line); padding: 10px; display: none; }
   .phone .flyout.show { display: block; }
+  .phone .scrim { position: absolute; left: 0; right: 0; top: calc(var(--st) + 64px); bottom: calc(var(--sb) + 56px); background: rgba(0, 0, 0, .6); z-index: 3; }
+  .phone .navsheet { position: absolute; left: 0; top: calc(var(--st) + 64px); bottom: calc(var(--sb) + 56px); width: 300px; z-index: 4; box-shadow: 8px 0 24px rgba(0, 0, 0, .6); }
+  .phone .navsheet { width: 300px; }
+  .phone .navsheet .rail { position: static; width: 100%; height: 100%; border-right: 1px solid var(--line); }
+  .phone .ptiles { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .phone .ptiles .tile svg { width: 72px; height: 58px; }
+  .phone .ptiles .tile .nm { font-size: 13px; }
+  .phone .ptiles .tile .st { font-size: 10px; }
+  .phone .roster { padding: 12px; gap: 14px; }
+
+  /* ---------- rejected: M6 soft keys (record only) ---------- */
+  .m6screen { position: absolute; left: 0; top: 0; right: 0; bottom: 88px; overflow: hidden; }
+  .m6screen .content, .m6screen .split { bottom: 46px; }
+  .m6screen .crumb { bottom: 44px; }
+  .legends { position: absolute; left: 0; right: 0; bottom: 0; height: 34px; display: flex; justify-content: center; gap: 14px; align-items: flex-end; padding-bottom: 6px; box-sizing: border-box; background: linear-gradient(transparent, rgba(5, 7, 10, .9) 40%); z-index: 6; }
+  .legends .lg { position: relative; width: 150px; height: 22px; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--mut); background: #070a0d; box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .95), inset 2px 2px 4px rgba(0, 0, 0, .7), inset -1px -1px 0 rgba(255, 255, 255, .05); white-space: nowrap; overflow: hidden; }
+  .legends .lg.on { color: var(--ac2); text-shadow: 0 0 8px var(--ac); }
+  .legends .lg.blank { opacity: .3; }
+  .legends .lg.back { color: #cfd6dc; }
+  .legends .lg::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 2px; height: 6px; background: #4b535b; }
+  .keystrip { position: absolute; left: 0; right: 0; bottom: 0; height: 88px; background: #1e2126; border-top: 1px solid #0a0c0f; display: flex; justify-content: center; gap: 14px; align-items: center; box-sizing: border-box; }
+  .keystrip .wm { position: absolute; left: 24px; bottom: 10px; font-family: var(--fs); font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: #3a3f46; }
+  .keystrip .key { width: 150px; height: 54px; font-size: 14px; }
+  .keystrip .key .n { position: absolute; right: 6px; bottom: 3px; font-size: 9px; color: rgba(255, 255, 255, .18); font-family: ui-monospace, monospace; }
+  .keystrip .key.pop .n { color: rgba(0, 0, 0, .35); }
+  .keystrip .key.flat { background: #15181c; border: 1px solid #0a0c0f; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), inset 0 -2px 0 rgba(0, 0, 0, .5); }
 </style>
 </head>
 <body>
-<h1>Layout rework — five mockups, desktop and phone</h1>
-<p class="note">Static mockups of the proposals from the 2026-10-08 screenshot review. Nothing is wired to the app; the cabinet
-  pop, glow and wall fade are approximated. Judge structure and density, not the pixel finish. Each desktop frame is
-  1600 × 900 shown at 68 %; the phone frames are 375 × 812 at full size.</p>
 
-<div class="pending">
-  <b>Open for Crawford:</b>
+<div class="tabbar">
+  <span class="ttl">LAYOUT REWORK</span>
+  <button data-tab="main" class="on">Main</button>
+  <button data-tab="nav">Nav</button>
+  <button data-tab="off">Off</button>
+  <button data-tab="deck">Deck</button>
+  <button data-tab="fleet">Fleet Params</button>
+  <button data-tab="robot">Robot</button>
+  <button data-tab="roster">Roster</button>
+  <button data-tab="company">Company</button>
+  <button data-tab="settings">Settings</button>
+  <span class="sp"></span>
+  <span class="mat">Panels: <button data-material>faceplate + silkscreen + wells (tried)</button><span>off = cabinetry on panels, as the app is today — the call (2026-10-09: the static facade in trait colours stays)</span></span>
+</div>
+
+<!-- ================= MAIN ================= -->
+<section class="page on" data-page="main">
+<h1>Layout rework — option A, as it currently stands</h1>
+<p class="note">Every frame at its defaults. The tablet shell is drawn as the app has it: a tactile strip along the top and the bottom of the screen on every
+  tier, the power corner hanging from the top one, the wordmark on the bottom one. Iterate on the view tabs, where each view has its own fixed options; this tab is the overview.
+  Desktop frames are 1600 × 900 at 68 %; phones are 375 × 812 at full size. Judge structure and density, not the pixel finish.</p>
+
+<div class="decided">
+  <b>Decided:</b>
   <ol>
-    <li>Rail + drawer, or a plain hamburger everywhere? (M1)</li>
-    <li>World dimmed and blurred under an opaque content surface? (M2–M4)</li>
-    <li>Section tabs, one section mounted at a time, replacing the accordion stack? (M2, M3) — reverses the 2026-09-24 stacked-scroll call.</li>
-    <li>Nav tree cut to branch + entity? (M1 drawer)</li>
-    <li>Single-line radio options, lore moved into the help popover? (M2, M3)</li>
-    <li>Compact LfoLink: letter row + short depth strip? (M3)</li>
-    <li>Roster board replacing both the Probes list and the Companies index? (M4)</li>
-    <li>Phone: menu + breadcrumb in a bottom bar, mute + power at the top, volume flies out of mute? (M5)</li>
-    <li>Off-screen label copy and the reserved picker slot? (M5)</li>
+    <li><b>Option A.</b> Content covers the world, which dims under an opaque surface. "The better choice by far."</li>
+    <li><b>Depth means something.</b> Out = act (cabinetry, only on interactive things), flat = structure (faceplate + silkscreen), in = read (wells). Gem rings and gem controls were tried and rejected; the gem material stays behind the glass. Amended 2026-10-09: panels keep today's static cabinetry facade in trait colours; flat applies to the content surface and labels only.</li>
+    <li><b>No hardware keys beyond the power rocker.</b> The Atlas card is parked for v2; soft keys were rejected (hard to always give them purpose, doesn't work on mobile).</li>
+    <li><b>Build on the existing components.</b> A recomposition of the 14 control primitives, CabinetBox and ControlSchema, not a new widget set. Sliders keep their pop-out boxes; the nav boxes stay cabinetry (a gem-style nav was floated and not pursued).</li>
+  </ol>
+</div>
+<div class="pending">
+  <b>Open for Crawford (leans in brackets):</b>
+  <ol>
+    <li>Rail + drawer, or a plain hamburger everywhere? [rail on desktop/tablet, hamburger on phone] — see the Nav tab.</li>
+    <li>Section tabs, one section mounted at a time, replacing the accordion stack? [yes] — reverses the 2026-09-24 stacked-scroll call and retires accordionSync / scrollspy / section anchors.</li>
+    <li>Nav tree cut to branch + entity? [yes, follows from 2]</li>
+    <li>Roster board replacing both the Probes list and the Companies index? [yes] — approved 2026-10-09: rows per group, Move chip on hover, Company detail behind the header.</li>
+    <li>Phone: menu + breadcrumb in a bottom bar, mute + power at the top, volume flies out of mute? [yes]</li>
+    <li>Single-line radio options, lore moved into the help popover? [yes; the popover also takes backlog item 4]</li>
+    <li>Compact LfoLink: single-line lane row + short depth strip? [yes] — full lane names on desktop, letters on the phone.</li>
+    <li>Off-screen label copy. [placeholder here]</li>
   </ol>
 </div>
 
-<h2>M1 — Deck (desktop): rail nav, slim header, bright world, telemetry strip</h2>
-<div class="controls">
-  <button id="m1drawer">Drawer open</button>
-  <button id="m1dim">World dimmed (as under content)</button>
+<h2>Deck <small>nav panel at rest, world bright</small></h2>
+<div class="desk" id="main-deck"></div>
+<h2>Fleet Params → LFO Bank <small>opaque surface, section tabs, help popover</small></h2>
+<div class="desk" id="main-fleet"></div>
+<h2>Robot detail <small>avatar column, section tabs, compact LfoLink</small></h2>
+<div class="desk" id="main-robot"></div>
+<h2>Roster board <small>Probes + Companies as one screen</small></h2>
+<div class="desk" id="main-roster"></div>
+<h2>Company detail <small>the robot screen with the column swapped; every edit reaches every member</small></h2>
+<div class="desk" id="main-company"></div>
+<h2>Settings <small>Audio Quality / Seeds / Save &amp; Share</small></h2>
+<div class="desk" id="main-settings"></div>
+<h2>Phone <small>off, Deck, robot, Fleet Params, roster, Settings</small></h2>
+<div class="phones" id="main-phones"></div>
+
+<details class="rejected">
+  <summary>Rejected 2026-10-09 — soft keys: six hardware keys in the bottom strip with on-screen legends. Kept as the record; "too hard to always give them purpose, and it doesn't really work on mobile."</summary>
+  <div class="desk" id="main-m6"></div>
+</details>
+</section>
+
+<!-- ================= NAV ================= -->
+<section class="page" data-page="nav">
+<h1>Nav — rail and drawer at 1:1</h1>
+<p class="note">The left 760 px of the desktop screen at full scale. <b>One panel.</b> Five parent boxes in a 96 px side panel at rest. Probes and
+  Companies expand in place: the panel widens to 260 px, the branch's entities list under its box (All Probes + the twelve robots in their identity
+  colours; New Company + the companies), and the content shifts right while it is wide. Deck, Fleet Params and Settings never expand, so a leaf
+  never changes shape and nothing slides out from behind anything. Clicking the active box again collapses the list. Boxes and rows are cabinetry;
+  the panel surface is plate; the breadcrumb is a well.</p>
+<div class="pair">
+  <div><div class="desk crop" id="nav-crop"></div><p class="cap">Desktop, 1:1. Hover shows the halo a box gets before it is pressed; the popped box is the active branch. Switch the branch to Fleet Params
+  or Settings to see the rest state: the panel stays 96 px.</p></div>
+  <div><div class="phone" id="nav-phone"></div><p class="cap">Phone: the hamburger opens the same panel as a sheet over a scrim, the active branch expanded in place. Picking closes it.</p></div>
 </div>
-<div class="desk" id="m1"></div>
-<p class="cap">The rail is 96 px and always visible. The tree slides out from it and stops at entity level. The telemetry strip
-  carries what the nav status block showed. The hover label on a robot shows click-to-select exists.</p>
-
-<h2>M2 — Fleet Params → LFO Bank (desktop): opaque content, one intro, section tabs, help popover</h2>
-<div class="controls">
-  <button id="m2intro">Intro expanded</button>
-  <button id="m2help" class="on">Help popover on Rate</button>
+<div class="fixedpanel"><div class="ttl">Nav options</div>
+  <div class="controls"><button data-opt="expanded" class="on">Expanded in place (Probes / Companies only)</button><button data-opt="hover">Hover on Probes box</button><button data-opt="sheet" class="on">Phone sheet open</button></div>
+  <div class="controls"><span class="lbl">Active branch:</span><span class="grp"><button data-radio="branch" data-val="deck">Deck</button><button data-radio="branch" data-val="fleet">Fleet Params</button><button data-radio="branch" data-val="probes" class="on">Probes</button><button data-radio="branch" data-val="companies">Companies</button><button data-radio="branch" data-val="settings">Settings</button></span></div>
 </div>
-<div class="desk" id="m2"></div>
-<p class="cap">One section mounted at a time; lanes are sub-tabs. Radio options are single-line. Voxel rows are 12 boxes in three columns.
-  The lore name of each option lives in the popover, so the control row shrinks without losing it.</p>
+</section>
 
-<h2>M3 — Robot detail (desktop): fixed avatar column, controls column, compact LfoLink</h2>
-<div class="desk" id="m3"></div>
-<p class="cap">The avatar never scrolls. Meta sits in two columns under it with battery and company. The controls column has the same tab
-  row as M2. Each linkable field carries a letter row and a short depth strip instead of a five-box two-line picker.</p>
-
-<h2>M4 — Roster board (desktop): Probes + Companies as one screen</h2>
-<div class="desk" id="m4"></div>
-<p class="cap">Company headers are cabinet boxes in the company colour with rename, delete and bulk-edit behind them. Tiles are avatar,
-  name, one status line and a thin battery strip. No per-card company radio; assignment is a move between groups.</p>
-
-<h2>M5 — Phone: off screen, Deck, robot detail, Fleet content</h2>
-<div class="controls">
-  <button id="m5band" class="on">Avatar band expanded</button>
-  <button id="m5fly">Volume flyout open</button>
+<!-- ================= OFF ================= -->
+<section class="page" data-page="off">
+<h1>Off — the powered-off tablet</h1>
+<p class="note"><b>Approved 2026-10-09:</b> the off state with the world faintly visible. Since that changes how the app loads (the world is built before
+  power-on), the splash becomes the place to choose: a <b>Transmission</b> row — three factory presets, a divider, then the user's saved sessions if
+  there are any — and a <b>Theme</b> row (new: Calm / Classic / Active, a system-wide set of min / max loading bands). Picking retransmits the faint world
+  behind the glass, a silent preview; the rocker is still the only way to start sound. The two strips and the power corner stay as when powered on,
+  only the light changes, red breathing. Band figures in the readout are placeholders.</p>
+<div class="pair">
+  <div><div class="desk" id="off-desk"></div></div>
+  <div><div class="phone" id="off-phone"></div></div>
 </div>
-<div class="phones" id="m5"></div>
-<p class="cap">The header owns its 64 px band and content starts under it. Menu and breadcrumb live in a 56 px bottom bar. Voxel rows run
-  edge to edge at 36 px boxes. The avatar band shrinks on scroll from 190 px to 58 px.</p>
+<div class="fixedpanel"><div class="ttl">Off options</div>
+  <div class="controls"><button data-opt="world" class="on">World faintly visible behind the glass</button><button data-opt="splash" class="on">Splash pickers</button><button data-opt="saves" class="on">User has saves</button><button data-opt="themerow">Theme row (themes phase — skipped for now)</button></div>
+  <div class="controls"><span class="lbl">Theme:</span><span class="grp"><button data-radio="theme" data-val="calm">Calm</button><button data-radio="theme" data-val="classic" class="on">Classic</button><button data-radio="theme" data-val="active">Active</button></span></div>
+  <div class="controls"><span class="lbl">Picked:</span><span class="grp"><button data-radio="preset" data-val="Kryndara">Kryndara</button><button data-radio="preset" data-val="Vessport Null" class="on">Vessport Null</button><button data-radio="preset" data-val="Halcyon Drift">Halcyon Drift</button><button data-radio="preset" data-val="Dusk Run">save: Dusk Run</button><button data-radio="preset" data-val="Night, all freelance">save: Night, all freelance</button></span></div>
+</div>
+</section>
+
+<!-- ================= DECK ================= -->
+<section class="page" data-page="deck">
+<h1>Deck — nothing selected</h1>
+<p class="note">Slim header (mute + volume strip) beside the power corner, the nav panel on the left, the world bright. <b>Robots carry no text box.</b>
+  The glass well bottom-left is the <b>meta box</b>: the world line always (time, temperature, probes emitting, locale); when a robot is selected its
+  line joins it (name, job, state, battery, company), and when a company is selected, the company's line (name, members, emitting). In the world,
+  selection is a halo only, in the robot's identity colour, or the company colour on every member. No welcome card: the Deck is the world.</p>
+<div class="pair">
+  <div><div class="desk" id="deck-desk"></div></div>
+  <div><div class="phone" id="deck-phone"></div></div>
+</div>
+<div class="fixedpanel"><div class="ttl">Deck options</div>
+  <div class="controls"><span class="lbl">Selected in the world:</span><span class="grp"><button data-radio="sel" data-val="none">nothing</button><button data-radio="sel" data-val="robot" class="on">a robot</button><button data-radio="sel" data-val="company">a company</button><button data-radio="sel" data-val="both">robot + company</button></span></div>
+  <div class="controls"><button data-opt="halo" class="on">Halo on the selected robot(s)</button><button data-opt="hover">Hover on Probes box</button><button data-opt="dim">World dimmed (as under content)</button><button data-opt="fly">Phone: volume flyout</button></div>
+</div>
+</section>
+
+<!-- ================= FLEET ================= -->
+<section class="page" data-page="fleet">
+<h1>Fleet Params → LFO Bank</h1>
+<p class="note">World dimmed under the opaque surface. One collapsible intro per screen. Sections as a tab row, one mounted at a time, with sub-tabs for
+  the four lanes, titled "Core LFO (LFO A)" … on desktop and "LFO A" … on the phone. Single-line radio options; the lore name lives in the help
+  popover. Voxel rows are 12 boxes in three columns. Approved 2026-10-09.</p>
+<div class="pair">
+  <div><div class="desk" id="fleet-desk"></div></div>
+  <div><div class="phone" id="fleet-phone"></div></div>
+</div>
+<div class="fixedpanel"><div class="ttl">Fleet Params options</div>
+  <div class="controls"><button data-opt="intro">Intro expanded</button><button data-opt="help" class="on">Help popover on Rate</button><button data-opt="links" class="on">Links: full lane names (EQ)</button></div>
+  <div class="controls"><span class="lbl">Section:</span><span class="grp"><button data-radio="sec" data-val="0">Pacing</button><button data-radio="sec" data-val="1" class="on">LFO Bank</button><button data-radio="sec" data-val="2">EQ &amp; Filters</button><button data-radio="sec" data-val="3">Time &amp; Space</button><button data-radio="sec" data-val="4">Output</button></span></div>
+</div>
+</section>
+
+<!-- ================= ROBOT ================= -->
+<section class="page" data-page="robot">
+<h1>Robot detail — Tidal Wisp</h1>
+<p class="note">A fixed avatar column (big gem, meta in two columns as wells, battery, company) beside the controls column with the same tab row as
+  Fleet Params. Each linkable field carries a single-line lane row (full lane names on desktop, letters on the phone) and a short depth strip
+  instead of a five-box two-line picker. Approved 2026-10-09; on the phone the avatar band is the small form.</p>
+<div class="pair">
+  <div><div class="desk" id="robot-desk"></div></div>
+  <div><div class="phone" id="robot-phone"></div></div>
+</div>
+<div class="fixedpanel"><div class="ttl">Robot options</div>
+  <div class="controls"><span class="lbl">Section:</span><span class="grp"><button data-radio="sec" data-val="0">Levels</button><button data-radio="sec" data-val="1">Composition</button><button data-radio="sec" data-val="2">Envelope</button><button data-radio="sec" data-val="3" class="on">Source</button></span></div>
+  <div class="controls"><button data-opt="band">Phone: avatar band expanded (rejected — small is the call)</button><button data-opt="help">Help popover on Core Gain</button><button data-opt="links" class="on">Links: full lane names (Levels)</button></div>
+</div>
+</section>
+
+<!-- ================= ROSTER ================= -->
+<section class="page" data-page="roster">
+<h1>Roster board — Probes + Companies</h1>
+<p class="note">Company headers are cabinet boxes in the company colour; tapping one opens the Company detail, where rename, delete and the bulk edit live
+  (the header's own Edit group / Rename / Delete cabs were dropped 2026-10-09). The group box is silkscreen with the header breaking the line.
+  Each group is one ROW: the name box and count as a leading cell, the members as compact row-tiles (gem, name, one status line, battery strip)
+  flowing right. Crawford, 2026-10-09: the first cut's tile grid clipped the Freelance group ("i don't see the freelance group stuff"); a
+  group-columns cut fixed that but "we can have up to 6 companies … at that number of companies columns don't fit well" — hence rows, and
+  the columns cut was removed. The grid stays behind the Layout option as the record; "Six companies" shows the fullest board the app
+  allows (MAX_COMPANIES = 6, plus Freelance). The head's Filter button (a carry-over from the flat Probes list's one-company filter) was
+  removed the same day: the board is grouped by company already, so it only hid the other groups. The phone lists the same rows in one
+  column and scrolls. Approved 2026-10-09; on desktop the Move chip appears on hover (the always-visible chip is rejected). Tiles are avatar,
+  name, one status line and a thin battery strip. No per-card company radio (the old cards were
+  mostly huge two-line radios). Reassignment, 2026-10-09 (option 2 of three): a quiet "⇄ Move" chip on the tile — on desktop it fades in on hover
+  (or stays visible with the chip option), on the phone it is a small always-on glyph — opens the same company radio the Robot detail's avatar
+  column carries (the app's RadioButton + assignRobotToCompany, unchanged): a small flat panel under the tile on desktop, a bottom sheet over a
+  scrim on the phone. Picking closes it and the tile glides to its new group (a GSAP flip; the group counts tick). Tap-hold on a phone tile is a
+  shortcut to the same sheet.</p>
+<div class="pair">
+  <div><div class="desk" id="roster-desk"></div></div>
+  <div><div class="phone" id="roster-phone"></div></div>
+</div>
+<div class="fixedpanel"><div class="ttl">Roster options</div>
+  <div class="controls"><button data-opt="intro">Intro expanded</button><button data-opt="freelance" class="on">Freelance group shown</button><button data-opt="six">Six companies (MAX_COMPANIES) + Freelance</button></div>
+  <div class="controls"><span class="lbl">Layout:</span><span class="grp"><button data-radio="layout" data-val="rows" class="on">Rows per group</button><button data-radio="layout" data-val="grid">Tile grid (first cut — clipped Freelance)</button></span></div>
+  <div class="controls"><span class="lbl">Move:</span><button data-opt="hover" class="on">Desktop: hover on Tidal Wisp</button><button data-opt="chip">Desktop: chip always visible (rejected — hover is the call)</button><button data-opt="move" class="on">Desktop: move panel open</button></div>
+  <div class="controls"><button data-opt="pchip" class="on">Phone: ⇄ chip on every tile</button><button data-opt="sheet" class="on">Phone: move sheet open</button></div>
+</div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section class="page" data-page="company">
+<h1>Company detail — Rust Syndicate</h1>
+<p class="note">The robot screen with the avatar column swapped for a company column: the name as a popped cabinet box in the company colour, the member
+  count, the members as small gem tiles (tap one to open that probe), a recessed well stating the broadcast rule once, and Rename / Delete. The
+  controls column is the robot's, unchanged — the same four section tabs and the same controls; every edit reaches every member once (broadcast,
+  not link; a value shows the company's last edit, falling back per field to its first member). Reached from the nav's Companies entity and from
+  the roster's company header. "All Probes" is the same screen for the whole fleet: no colour, no Rename / Delete, no halo. Approved 2026-10-09.</p>
+<div class="pair">
+  <div><div class="desk" id="company-desk"></div></div>
+  <div><div class="phone" id="company-phone"></div></div>
+</div>
+<div class="fixedpanel"><div class="ttl">Company options</div>
+  <div class="controls"><span class="lbl">Section:</span><span class="grp"><button data-radio="sec" data-val="0" class="on">Levels</button><button data-radio="sec" data-val="1">Composition</button><button data-radio="sec" data-val="2">Envelope</button><button data-radio="sec" data-val="3">Source</button></span></div>
+  <div class="controls"><button data-opt="all">All Probes form (whole fleet)</button><button data-opt="help">Help popover on Core Gain (Source)</button><button data-opt="links" class="on">Links: full lane names (Levels)</button></div>
+</div>
+</section>
+<section class="page" data-page="settings">
+<h1>Settings</h1>
+<p class="note">Three section tabs, the app's own (src/content/copy/settings.ts): Audio Quality (the two load sliders and their preset radio, with the
+  limits readout as a well), Seeds (Attenuation Style and the locale coordinates), Save &amp; Share (name, save, share, and the saved list with
+  Load / Share / Delete per row). Approved 2026-10-09 — the tabs first carried stand-in names (Audio Profile / Audio Seeds / Sessions), corrected
+  to the content layer's titles on approval.</p>
+<div class="pair">
+  <div><div class="desk" id="settings-desk"></div></div>
+  <div><div class="phone" id="settings-phone"></div></div>
+</div>
+<div class="fixedpanel"><div class="ttl">Settings options</div>
+  <div class="controls"><span class="lbl">Section:</span><span class="grp"><button data-radio="sec" data-val="0" class="on">Audio Quality</button><button data-radio="sec" data-val="1">Seeds</button><button data-radio="sec" data-val="2">Save &amp; Share</button></span></div>
+</div>
+</section>
 
 <script>
 // ---------- palette ----------
@@ -261,12 +718,23 @@ const NAMES = ['Tidal Wisp', 'Glass Drifter', 'Azure Beacon', 'Null Wisp', 'Neon
 const JOBS = ['Salvage', 'Structural Inspection', 'Vent Extraction', 'Structural Inspection', 'Structural Inspection', 'Maintenance', 'Vent Extraction', 'Salvage', 'Structural Inspection', 'Salvage', 'Acoustic Survey', 'Salvage'];
 const STATE = ['Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Docked · Returning · Disabled', 'Docked · Returning · Disabled'];
 const BATT = [40, 40, 40, 40, 16, 16, 70, 28, 70, 28, 15, 10];
+const GROUPS = [['Rust Syndicate', [0, 5, 7, 11]], ['Iron Crew', [1, 6, 9]], ['Neon Division', [2, 3, 4]], ['Freelance', [8, 10]]];
+// MAX_COMPANIES = 6 (src/constants): the fullest board — six companies + Freelance = 7 groups, the 12 robots spread
+// 3·2·2·2·1·1·1 (single-member companies included). Names are placeholders in the app's Adjective + Noun shape.
+const COMPANY6 = { ...COMPANY, 'Brine Collective': '#5bb7c6', 'Cobalt Guild': '#a9e583', 'Hollow Cartel': '#cd5e57' };
+const GROUPS6 = [['Rust Syndicate', [0, 5, 7]], ['Iron Crew', [1, 6]], ['Neon Division', [2, 3]], ['Brine Collective', [4, 9]], ['Cobalt Guild', [11]], ['Hollow Cartel', [8]], ['Freelance', [10]]];
+// The company assignment radio (the app's RadioButton: Freelance + every company, single-line per Q5), shared by the
+// robot detail's avatar column and the roster's Move panel / sheet — one control, two places, like the app today.
+function companyRadio(sel, cls = '', map = COMPANY) {
+  return `<span class="radio ${cls}">${cab('Freelance', sel === 'Freelance' ? 'pop' : 'frame', ac('companies'))}${Object.entries(map).map(([n, h]) => cab(n, n === sel ? 'pop' : 'frame', acHex(h))).join('')}</span>`;
+}
 
 const ac = (t) => `--ac:${TRAIT[t][0]};--ac2:${TRAIT[t][1]}`;
 const acHex = (a, b) => `--ac:${a};--ac2:${b || a}`;
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-// ---------- colour helpers (as the earlier sketches) ----------
+// ---------- colour helpers ----------
 function hexToHsl(hex) {
   const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
@@ -283,7 +751,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 function vox(n, on, b = 26, mid = 0) {
   return `<span class="vox" style="--b:${b}px">${Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : i < on + mid ? 'mid' : ''}"></i>`).join('')}</span>`;
 }
-function voxCentered(n, v, b = 26) { // v in -1..1 around a dead-centre seam
+function voxCentered(n, v, b = 26) {
   const half = n / 2; const k = Math.round(Math.abs(v) * half);
   return `<span class="vox" style="--b:${b}px">${Array.from({ length: n }, (_, i) => {
     const on = v >= 0 ? i >= half && i < half + k : i < half && i >= half - k; return `<i class="${on ? 'on' : ''}"></i>`;
@@ -294,9 +762,19 @@ function ctl(lore, hum, body, val, help) { return `<div class="ctl">${dl(lore, h
 function radio(opts, sel, lore) {
   return `<span class="radio">${opts.map((o, i) => `<span class="cab${o === sel ? ' pop' : ''}">${lore ? `<span class="lore">${lore[i]}</span>` : ''}${o}</span>`).join('')}</span>`;
 }
-function link(lane, depth, b = 16) { return `<span class="link">${radio(['Off', 'A', 'B', 'C', 'D'], lane)}${vox(8, depth, b)}</span>`; }
+// The four LFO Bank lanes (src/content/copy/fleet.ts, fleet.lfoBank.laneA–D) with their letters. 2026-10-09, Crawford:
+// titles carry the letter ("Core LFO (LFO A)") and desktop shows the full name wherever possible; letters are the phone form.
+const LFO_LANES = [['Core LFO', 'A'], ['Companion LFO', 'B'], ['Accent LFO', 'C'], ['Overtone LFO', 'D']];
+const laneTitles = (full) => LFO_LANES.map(([n, l]) => (full ? `${n} (LFO ${l})` : `LFO ${l}`));
+function link(lane, depth, b = 16, full = false) {
+  const opts = ['Off', ...LFO_LANES.map(([n, l]) => (full ? `${n} (${l})` : l))];
+  const sel = lane === 'Off' ? 'Off' : opts[1 + LFO_LANES.findIndex(([, l]) => l === lane)];
+  return `<span class="link${full ? ' full' : ''}">${radio(opts, sel)}${vox(8, depth, b)}</span>`;
+}
 function cab(text, cls = '', style = '') { return `<span class="cab ${cls}" style="${style}">${text}</span>`; }
 function cab2(lore, hum, cls = '', style = '') { return `<span class="cab ${cls}" style="${style}"><span class="lore">${lore}</span><span class="hum">${hum}</span></span>`; }
+function input(lore, value, w = 160) { return `<span class="cab frame input" style="width:${w}px"><span class="lore">${lore}</span>${value}</span>`; }
+const helpPop = (title, body, lore, style) => `<div class="glass pop-help" style="${ac('deck')};${style}"><h3>${title}</h3><p>${body}</p><p style="margin-top:6px;color:var(--mut)">Lore: ${lore}.</p></div>`;
 
 /** Simplified gem robot centred on (0,0), 100 × 80, as docs/sketches/robot-depth-tint.html draws it. */
 function gemMarkup(hex) {
@@ -325,9 +803,8 @@ function building([x, w, h], floor, cap, d) {
   const corner = x + w * 0.62;
   return `<rect x="${x}" y="${floor - h}" width="${w}" height="${h}" fill="${west}"/><rect x="${corner}" y="${floor - h}" width="${x + w - corner}" height="${h}" fill="${east}"/>`;
 }
-function worldSvg(robots = true, hover = false) {
+function worldSvg(robots = true, halo = null) {
   const d = 0.35;
-  const sc = 1600 / 1920;
   const body = `
     <defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(205,45%,16%)"/><stop offset="1" stop-color="hsl(230,45%,7%)"/></linearGradient></defs>
     <rect width="1920" height="1080" fill="url(#w)"/>
@@ -343,154 +820,337 @@ function worldSvg(robots = true, hover = false) {
       <g transform="translate(900 430) scale(.55)">${gemMarkup('#5bb7c6')}</g>
       <g transform="translate(1500 600) scale(.55)">${gemMarkup('#e2b149')}</g>
       <g transform="translate(1420 300) scale(.9)">${gemMarkup('#e2b149')}</g>` : ''}
+    ${halo ? halo.map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="66" fill="none" stroke="${c}" stroke-width="4" stroke-dasharray="10 8" opacity=".8"/>`).join('') : ''}
     <g>${FG.map((b) => building(b, 1050, 1, d)).join('')}</g>`;
-  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">${body}</svg>` +
-    (hover ? `<div class="glass strip" style="${ac('deck')};position:absolute;left:${430 * sc}px;top:${600 * sc + 22}px;padding:4px 10px;font-size:13px"><b>Tidal Wisp</b> Salvage · Emitting</div>` : '');
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">${body}</svg>`;
 }
 
-// ---------- shell pieces ----------
-function power(off = false) { return `<div class="power"><div class="lens${off ? ' off' : ''}"></div><div class="rocker">⏻</div></div>`; }
+// ---------- shell pieces (desktop) ----------
+/** Desktop power corner, as the app: a recessed light housing ABOVE the rocker. Hangs from the top strip. */
+function power(off = false) { return `<div class="power"><div class="housing"><div class="lens${off ? ' off' : ''}"></div></div><div class="rocker">⏻</div></div>`; }
+/** The two tactile strips, present on every frame on every tier. */
+const shell = () => `<div class="strip top"></div><div class="strip bot"><span class="wm">Trace Atlas</span></div>`;
+/** Phone power button: hangs from the top strip; the light is IN the button (Crawford, 2026-10-09: "maybe we could put the light in the tactile button"). */
+const phonePower = (off = false) => `<div class="pw"><div class="rk"><span class="lens${off ? ' off' : ''}"></span><span>⏻</span></div></div>`;
 function header() { return `<div class="hdr" style="${ac('deck')}">${cab('🔊')}${vox(8, 8, 18)}<span class="val" style="font-size:11px;color:var(--mut)">100%</span></div>`; }
-function rail(active) {
-  const items = [['deck', 'Monitor', 'Deck'], ['fleet', 'Environment', 'Fleet Params'], ['probes', 'Timbre & Color', 'Probes'], ['companies', 'Unity & Variety', 'Companies'], ['settings', 'Navigation', 'Settings']];
-  return `<div class="rail">${items.map(([t, l, h]) => cab2(l, h, t === active ? 'pop' : '', ac(t))).join('')}</div>`;
+const BRANCHES = [['deck', 'Monitor', 'Deck'], ['fleet', 'Environment', 'Fleet Params'], ['probes', 'Timbre & Color', 'Probes'], ['companies', 'Unity & Variety', 'Companies'], ['settings', 'Navigation', 'Settings']];
+/** THE ONE NAV PANEL (2026-10-09, Crawford: "maybe the slide-out portion shouldn't be visible at all? maybe the parent
+ *  buttons just exist as a smallish side panel, and it just expands to display the probes and companies"). Five parent
+ *  boxes in a 96 px panel at rest. Probes and Companies EXPAND IN PLACE: the panel widens to 260 px and the branch's
+ *  entities list under its box; the content shifts right while it is wide. Fleet Params, Settings and Deck never expand,
+ *  so nothing slides and a leaf never changes shape. Clicking the active box again collapses the list. */
+const HAS_ENTITIES = { probes: true, companies: true };
+function rail(active, hover = null, expanded = true, entity = null) {
+  const wide = expanded && !!HAS_ENTITIES[active];
+  const kids = active === 'probes'
+    ? cab('All Probes — the whole fleet', entity === 'all' ? 'pop' : 'frame', ac('deck')) + NAMES.map((n, i) => cab(n, i === 0 && entity !== 'all' ? 'pop' : '', acHex(IDENTITY[i]))).join('')
+    : active === 'companies' ? cab('+ New Company', 'frame', ac('companies')) + Object.entries(COMPANY).map(([n, c]) => cab(n, n === entity ? 'pop' : '', acHex(c))).join('') : '';
+  return `<div class="rail${wide ? ' wide' : ''}">${BRANCHES.map(([t, l, h]) => cab2(l, h, t === active ? 'pop' : t === hover ? 'hover' : '', ac(t)) + (wide && t === active ? `<div class="kids" style="${ac(t)}">${kids}</div>` : '')).join('')}</div>`;
 }
-function drawer(closed) {
-  const robots = NAMES.slice(0, 12).map((n, i) => cab(n, i === 0 ? 'pop' : '', acHex(IDENTITY[i]))).join('');
-  return `<div class="drawer${closed ? ' closed' : ''}">
-    ${cab('Home', 'frame', ac('deck'))}
-    <div class="row">${cab2('Environment', 'Fleet Params', '', ac('fleet'))}${cab('+', 'tog frame', ac('fleet'))}</div>
-    <div class="row">${cab2('Timbre & Color', 'Probes', 'pop', ac('probes'))}${cab('−', 'tog pop', ac('probes'))}</div>
-    <div class="kids" style="${ac('probes')}">${cab('All Probes', '', ac('deck'))}${robots}</div>
-    <div class="row">${cab2('Unity & Variety', 'Companies', '', ac('companies'))}${cab('+', 'tog frame', ac('companies'))}</div>
-    <div class="row">${cab2('Navigation', 'Settings', '', ac('settings'))}${cab('+', 'tog frame', ac('settings'))}</div>
-  </div>`;
+/** The META BOX (2026-10-09, Crawford: "the robots shouldn't have the text box. if the user selects a robot, that info should go
+ *  in the meta text box at the bottom with the world info. similarly, if the user selects a company, the company name should
+ *  probably appear down there as well."). One glass well: the world line always; a probe line and / or a company line when selected. */
+const WORLD_LINE = `<b>22:17</b> −57 °C <span>·</span> <b>6 / 12</b> probes emitting <span>·</span> qb9mezm3 @ (−86, 59)`;
+function selLines(sel, phone = false) {
+  const lines = [];
+  if (sel === 'robot' || sel === 'both') lines.push(`<span class="line sel" style="${acHex('#ae5378')}"><span class="k">probe</span><b>Tidal Wisp</b> <span>·</span> Salvage <span>·</span> Active <span>·</span> Emitting <span>·</span> 85%${phone ? '' : ' <span>·</span> Rust Syndicate'}</span>`);
+  if (sel === 'company' || sel === 'both') lines.push(`<span class="line sel" style="${acHex(COMPANY['Rust Syndicate'])}"><span class="k">company</span><b>Rust Syndicate</b> <span>·</span> 4 probes <span>·</span> 3 emitting</span>`);
+  return lines.join('');
 }
-const telemetry = () => `<div class="glass strip" style="${ac('deck')};position:absolute;left:112px;bottom:14px"><b>22:17</b> −57 °C <span>·</span> <b>6 / 12</b> probes emitting <span>·</span> qb9mezm3 @ (−86, 59)</div>`;
+const telemetry = (bottom = 14, sel = 'none') => `<div class="glass strip meta" style="${ac('deck')};position:absolute;left:112px;bottom:calc(var(--sb) + ${bottom}px);z-index:3"><span class="line">${WORLD_LINE}</span>${selLines(sel)}</div>`;
+/** Which robots get a halo in the world for a given selection: the robot itself, or every member of the company. */
+const haloFor = (sel) => sel === 'robot' || sel === 'both' ? [[520, 560, '#ae5378']] : sel === 'company' ? [[520, 560, COMPANY['Rust Syndicate']], [1500, 600, COMPANY['Rust Syndicate']], [1420, 300, COMPANY['Rust Syndicate']]] : null;
 const crumb = (parts) => `<div class="crumb">${parts.map((p, i) => i < parts.length - 1 ? `<u>${p}</u>` : p).join(' / ')}</div>`;
+const dimWorld = () => `${shell()}<div class="world dim">${worldSvg(true)}</div>${power()}${header()}`;
 
-// ---------- M1 ----------
-function renderM1() {
-  const open = $('#m1drawer').classList.contains('on'), dim = $('#m1dim').classList.contains('on');
-  $('#m1').innerHTML = `<div class="world${dim ? ' dim' : ''}">${worldSvg(true, !dim)}</div>${power()}${header()}${rail('deck')}${drawer(!open)}${telemetry()}`;
+// ---------- view bodies (shared by desktop and phone where sensible) ----------
+const FLEET_TABS = [['Pacing', 'composition'], ['LFO Bank', 'timeSpace'], ['EQ & Filters', 'spectral'], ['Time & Space', 'timeSpace'], ['Output', 'output']];
+function fleetBody(sec, help, b = 12, full = false) {
+  if (sec === 0) return ctl('Ping Rate', 'Tempo', vox(b, 4), '97 BPM', true) + ctl('Trace Skip Rate', 'Automation Rate', vox(b, 8), '8 / measure', true) + ctl('Trace Runway', 'Automation Length', vox(b, 2), '5 measures', true) + ctl('Trace Width', 'Automation Range', vox(b, 3), '35%', true);
+  if (sec === 1) return ctl('Mutation Type', 'Shape', radio(['Triangle', 'Sine', 'Square', 'Sawtooth'], 'Sine'), '', true) + ctl('Mutation Cadence', 'Rate', vox(b, 2), '4 bars', true) + ctl('Anchoring', 'Tempo Sync', radio(['Float', 'Anchored'], 'Anchored'), '', true) + ctl('Trace Pulse', 'Rate Drift', voxCentered(b, .3), '21%', true) + ctl('Trace Bending', 'Depth Drift', voxCentered(b, -.15), '−7%', true) +
+    (help ? helpPop('Rate', "How fast this lane's invisible hand turns its knob back and forth. Anchored to tempo it is measured in bars; floating it is measured in Hz.", 'Mutation Cadence', 'left:calc(33% + 28px);top:78px') : '');
+  if (sec === 2) return ctl('Sub-Band', 'Bass', voxCentered(b, .3), '+1.9 dB', true) + ctl('Signature Lane', 'Bass Link', link('C', 2, 16, full), '18%', true) + ctl('Medial Band', 'Mid', voxCentered(b, .25), '+1.7 dB', true) + ctl('Signature Lane', 'Mid Link', link('Off', 0, 16, full), '', true) + ctl('Crest Band', 'Treble', voxCentered(b, -.2), '−1.2 dB', true) + ctl('Top Extraction', 'High-Pass', vox(b, 1), '80 Hz', true) + ctl('Floor Extraction', 'Low-Pass', vox(b, 10), '9.2 kHz', true);
+  if (sec === 3) return ctl('Echo Bloom', 'Reverb Decay', vox(b, 6), '2.4 s', true) + ctl('Echo Weight', 'Reverb Wet', vox(b, 4), '30%', true) + ctl('Return Delay', 'Delay Time', radio(['1/16', '1/8', '1/4', '1/2'], '1/8'), '', true) + ctl('Return Feedback', 'Delay Feedback', vox(b, 5), '42%', true) + ctl('Return Weight', 'Delay Wet', vox(b, 3), '22%', true);
+  return ctl('Pressure Ratio', 'Compressor', radio(['2:1', '4:1', '8:1'], '4:1'), '', true) + ctl('Pressure Knee', 'Threshold', voxCentered(b, -.4), '−18 dB', true) + ctl('Ceiling', 'Limiter', vox(b, 11), '−1 dB', true);
 }
-
-// ---------- M2 ----------
-function renderM2() {
-  const intro = $('#m2intro').classList.contains('on'), help = $('#m2help').classList.contains('on');
-  const tabs = ['Pacing', 'LFO Bank', 'EQ & Filters', 'Time & Space', 'Output'];
-  const traits = ['composition', 'timeSpace', 'spectral', 'timeSpace', 'output'];
-  const lanes = ['Core LFO', 'Companion LFO', 'Accent LFO', 'Overtone LFO'];
-  $('#m2').innerHTML = `<div class="world dim">${worldSvg(true)}</div>${power()}${header()}${rail('fleet')}
-    <div class="content" style="${ac('timeSpace')}">
+const FLEET_SUBS = [null, laneTitles(true), ['3-Band EQ', 'High-Pass', 'Low-Pass'], ['Reverb', 'Delay'], ['Compressor', 'Limiter']];
+function fleetDesk(o) {
+  const sec = o.sec ?? 1; const subs = FLEET_SUBS[sec];
+  return dimWorld() + rail('fleet') + `<div class="content" style="${ac(FLEET_TABS[sec][1])}">
       <div class="head"><h2>Fleet Params</h2>${cab('Help ?', 'frame', ac('deck'))}</div>
-      <div class="intro-bar">${cab(intro ? '− Fleet Params — your key to mesh-wide performance.' : '+ Fleet Params — your key to mesh-wide performance.', 'frame', ac('fleet'))}</div>
-      ${intro ? `<div class="glass" style="${ac('fleet')};margin:10px 18px 0"><p>Fleets of probes stay synchronized through Meridia Comms Group's Undersea Mesh Network, broadcasting the same audio signature settings to every unit at once.</p><p style="margin-top:6px;color:#cfd6dc">This screen holds every control that shapes the sound of your whole fleet at once. Changes here apply to every probe simultaneously; to adjust one probe at a time, use the Probes screen instead.</p></div>` : ''}
-      <div class="tabs">${tabs.map((t, i) => cab(t, i === 1 ? 'pop' : 'frame', ac(traits[i]))).join('')}</div>
-      <div class="tabs sub">${lanes.map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>
-      <div class="body" style="position:relative">
-        ${ctl('Mutation Type', 'Shape', radio(['Triangle', 'Sine', 'Square', 'Sawtooth'], 'Sine'), '', true)}
-        ${ctl('Mutation Cadence', 'Rate', vox(12, 2), '4 bars', true)}
-        ${ctl('Anchoring', 'Tempo Sync', radio(['Float', 'Anchored'], 'Anchored'), '', true)}
-        ${ctl('Trace Pulse', 'Rate Drift', voxCentered(12, .3), '21%', true)}
-        ${ctl('Trace Bending', 'Depth Drift', voxCentered(12, -.15), '−7%', true)}
-        ${help ? `<div class="glass pop-help" style="${ac('deck')};left:calc(33% + 28px);top:78px"><h3>Rate</h3><p>How fast this lane's invisible hand turns its knob back and forth. Anchored to tempo it is measured in bars; floating it is measured in Hz.</p><p style="margin-top:6px;color:var(--mut)">Lore: Mutation Cadence.</p></div>` : ''}
-      </div>
-    </div>${crumb(['Root', 'Fleet Params', 'LFO Bank'])}`;
+      <div class="intro-bar">${cab((o.intro ? '− ' : '+ ') + 'Fleet Params — your key to mesh-wide performance.', 'frame', ac('fleet'))}</div>
+      ${o.intro ? `<div class="glass" style="${ac('fleet')};margin:10px 18px 0"><p>Fleets of probes stay synchronized through Meridia Comms Group's Undersea Mesh Network, broadcasting the same audio signature settings to every unit at once.</p><p style="margin-top:6px;color:#cfd6dc">This screen holds every control that shapes the sound of your whole fleet at once. Changes here apply to every probe simultaneously; to adjust one probe at a time, use the Probes screen instead.</p></div>` : ''}
+      <div class="tabs">${FLEET_TABS.map(([t, tr], i) => cab(t, i === sec ? 'pop' : 'frame', ac(tr))).join('')}</div>
+      ${subs ? `<div class="tabs sub">${subs.map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>` : ''}
+      <div class="body" style="position:relative">${fleetBody(sec, o.help, 12, o.links)}</div>
+    </div>` + crumb(['Root', 'Fleet Params', FLEET_TABS[sec][0]]);
 }
 
-// ---------- M3 ----------
-function renderM3() {
+const ROBOT_TABS = [['Levels', 'output'], ['Composition', 'composition'], ['Envelope', 'timeSpace'], ['Source', 'spectral']];
+const ROBOT_SUBS = [null, ['Rhythm', 'Pitches'], null, ['Core Oscillator', 'Companion Oscillator', 'Accent Oscillator']];
+function robotBody(sec, help, b = 12, full = false) {
+  if (sec === 0) return ctl('Diagnostic Feed', 'Audio Mode', radio(['Auto', 'Solo', 'Mute'], 'Auto'), '', true) + ctl('Transducer Pressure', 'Volume', vox(b, 8), '76%', true) + ctl('Signature Lane', 'Volume Link', link('Off', 0, 16, full), '', true);
+  if (sec === 1) return ctl('Payload Density', 'Note Density', vox(b, 7), '72%', true) + ctl('Payload Subgroups', 'Phrase Length', vox(b, 5), '5', true) + ctl('Payload Duplication', 'Pitch Repeat Chance', vox(b, 9), '92%', true) + ctl('Ping Variance', 'Note Variance', vox(b, 4), '4', true) + ctl('Ping Floor', 'Lowest Octave', vox(b, 5), '5', true) + ctl('Ping Ceiling', 'Highest Octave', vox(b, 7), '7', true);
+  if (sec === 2) return ctl('Ping Onset', 'Attack Time', vox(b, 2), '0.2 s', true) + ctl('Ping Settling', 'Decay Time', vox(b, 4), '0.5 s', true) + ctl('Ping Hold', 'Sustain Level', vox(b, 6), '60%', true) + ctl('Ping Fade', 'Release Time', vox(b, 7), '1.2 s', true);
+  return ctl('Feed Geometry', 'Core Type', radio(['Sine', 'Triangle', 'Sawtooth', 'Square', 'Pulse'], 'Pulse'), '', true) + ctl('Feed Saturation', 'Core Gain', vox(b, 9), '1.07', true) + ctl('Signature Lane', 'Gain Link', link('D', 3), '35%', true) + ctl('Feed Drift', 'Core Detune', voxCentered(b, .08), '1 cents', true) + ctl('Signature Lane', 'Detune Link', link('D', 1), '9%', true) + ctl('Feed Alignment', 'Core Phase', vox(b, 11), '254', true) + ctl('Feed Break', 'Core Interval', vox(b, 6), '0.5', true) +
+    (help ? helpPop('Core Gain', 'How loud the core oscillator is inside the mix of this probe’s three layers. Zero mutes the layer; the lane dial beside it lets an LFO sway it.', 'Feed Saturation', 'left:calc(50% + 28px);top:78px') : '');
+}
+function avatarColumn() {
   const hex = '#ae5378';
-  const tabs = [['Levels', 'output'], ['Composition', 'composition'], ['Envelope', 'timeSpace'], ['Source', 'spectral']];
-  $('#m3').innerHTML = `<div class="world dim">${worldSvg(true)}</div>${power()}${header()}${rail('probes')}
-    <div class="split">
-      <div class="avcol" style="${acHex(hex)}">
+  return `<div class="avcol" style="${acHex(hex)}">
         ${gemSvg(hex, '100%', 300).replace('<svg', '<svg class="gem"')}
         <h2>Tidal Wisp</h2>
-        <div class="meta">
-          ${dl('Assigned Protocol', 'Salvage')}${dl('Docking State', 'Docked')}
-          ${dl('Operational Phase', 'Charging')}${dl('Acoustic Emission State', 'Disabled')}
-        </div>
+        <div class="meta">${dl('Assigned Protocol', 'Salvage')}${dl('Docking State', 'Docked')}${dl('Operational Phase', 'Charging')}${dl('Acoustic Emission State', 'Disabled')}</div>
         ${ctl('Power Cell Status', 'Battery Data', vox(16, 13, 18), '85%')}
-        ${ctl('Unit Affiliation', 'Company', `<span class="radio">${cab('Freelance', 'frame')}${cab('Rust Syndicate', 'pop', acHex(COMPANY['Rust Syndicate']))}${cab('Iron Crew', 'frame', acHex(COMPANY['Iron Crew']))}${cab('Neon Division', 'frame', acHex(COMPANY['Neon Division']))}</span>`)}
+        ${ctl('Unit Affiliation', 'Company', companyRadio('Rust Syndicate'))}
+      </div>`;
+}
+function robotDesk(o) {
+  const sec = o.sec ?? 3; const subs = ROBOT_SUBS[sec];
+  return dimWorld() + rail('probes') + `<div class="split">${avatarColumn()}
+      <div class="content" style="${ac(ROBOT_TABS[sec][1])}">
+        <div class="tabs" style="padding-top:14px">${ROBOT_TABS.map(([t, tr], i) => cab(t, i === sec ? 'pop' : 'frame', ac(tr))).join('')}</div>
+        ${subs ? `<div class="tabs sub">${subs.map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>` : ''}
+        <div class="body two" style="position:relative">${robotBody(sec, o.help, 12, o.links)}</div>
       </div>
-      <div class="content" style="${ac('spectral')}">
-        <div class="tabs" style="padding-top:14px">${tabs.map(([t, tr], i) => cab(t, i === 3 ? 'pop' : 'frame', ac(tr))).join('')}</div>
-        <div class="tabs sub">${['Core Oscillator', 'Companion Oscillator', 'Accent Oscillator'].map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>
-        <div class="body two">
-          ${ctl('Feed Geometry', 'Core Type', radio(['Sine', 'Triangle', 'Sawtooth', 'Square', 'Pulse'], 'Pulse'), '', true)}
-          ${ctl('Feed Saturation', 'Core Gain', vox(12, 9), '1.07', true)}
-          ${ctl('Signature Lane', 'Gain Link', link('D', 3), '35%', true)}
-          ${ctl('Feed Drift', 'Core Detune', voxCentered(12, .08), '1 cents', true)}
-          ${ctl('Signature Lane', 'Detune Link', link('D', 1), '9%', true)}
-          ${ctl('Feed Alignment', 'Core Phase', vox(12, 11), '254', true)}
-          ${ctl('Feed Break', 'Core Interval', vox(12, 6), '0.5', true)}
-        </div>
-      </div>
-    </div>${crumb(['Root', 'Probes', 'Tidal Wisp', 'Source'])}`;
+    </div>` + crumb(['Root', 'Probes', 'Tidal Wisp', ROBOT_TABS[sec][0]]);
 }
 
-// ---------- M4 ----------
-function renderM4() {
-  const groups = [['Rust Syndicate', [0, 5, 7, 11]], ['Iron Crew', [1, 6, 9]], ['Neon Division', [2, 3, 4]], ['Freelance', [8, 10]]];
-  const tile = (i) => `<div class="tile" style="${acHex(IDENTITY[i])}">${gemSvg(IDENTITY[i], 120, 96)}<span class="nm">${NAMES[i]}</span><span class="st">${JOBS[i]}</span><span class="st">${STATE[i]}</span>${vox(10, Math.round(BATT[i] / 10), 10)}</div>`;
-  $('#m4').innerHTML = `<div class="world dim">${worldSvg(true)}</div>${power()}${header()}${rail('probes')}
-    <div class="content" style="${ac('probes')}">
+function rosterDesk(o) {
+  const src = o.six ? GROUPS6 : GROUPS; const cmap = o.six ? COMPANY6 : COMPANY;
+  const groups = src.filter(([g]) => (o.freelance ?? true) || g !== 'Freelance');
+  // Reassignment (2026-10-09): a quiet "Move" chip on the tile — hover-only, or always with o.chip — opens a small
+  // flat panel under the tile holding the shared company radio. Picking closes it; the tile glides to its new group.
+  const movePanel = `<div class="movepop">${dl('Unit Affiliation', 'Move Tidal Wisp to')}${companyRadio('Rust Syndicate', '', cmap)}</div>`;
+  // 2026-10-09, Crawford: "i don't see the freelance group stuff" — the 6-column grid of tall tiles ran ~1080 px for four
+  // groups against a 758 px content area, so Freelance (the fourth group) was clipped on every frame. A group-columns
+  // cut fixed that but "we can have up to 6 companies … at that number of companies columns don't fit well" (removed
+  // from the page at his request). Default = ROWS: one strip per group, the name box as a leading cell and the members
+  // flowing right. o.layout = rows | grid (the clipped first cut, kept as the record).
+  const layout = o.layout || 'rows'; const rowTiles = layout !== 'grid'; const hov = (i) => (o.hover && i === 0 ? ' hover' : ''); const pop = (i) => (o.move && i === 0 ? movePanel : '');
+  const tile = (i) => rowTiles
+    ? `<div class="tile row${hov(i)}" style="${acHex(IDENTITY[i])}"><span class="mv">⇄ Move</span>${gemSvg(IDENTITY[i], 56, 44)}<div class="txt"><span class="nm">${NAMES[i]}</span><span class="st">${JOBS[i]} · ${STATE[i]}</span>${vox(10, Math.round(BATT[i] / 10), 8)}</div>${pop(i)}</div>`
+    : `<div class="tile${hov(i)}" style="${acHex(IDENTITY[i])}"><span class="mv">⇄ Move</span>${gemSvg(IDENTITY[i], 120, 96)}<span class="nm">${NAMES[i]}</span><span class="st">${JOBS[i]}</span><span class="st">${STATE[i]}</span>${vox(10, Math.round(BATT[i] / 10), 10)}${pop(i)}</div>`;
+  return dimWorld() + rail('probes') + `<div class="content" style="${ac('probes')}">
       <div class="head"><h2>Probes</h2><span class="radio">${cab('All Probes — edit the whole fleet', 'frame', ac('deck'))}${cab('+ New company', 'frame', ac('companies'))}</span></div>
-      <div class="intro-bar">${cab('+ Probes — your fleet at a glance.', 'frame', ac('probes'))}</div>
-      <div class="roster">
-        ${groups.map(([g, ids]) => `<div class="group" style="${g === 'Freelance' ? ac('companies') : acHex(COMPANY[g])}">
-          <div class="ghead">${cab(g, g === 'Freelance' ? 'frame' : 'pop')}<span class="n">${ids.length} probes</span>${g === 'Freelance' ? '' : cab('Edit group', 'frame') + cab('Rename', 'frame') + cab('Delete', 'frame')}</div>
+      <div class="intro-bar">${cab((o.intro ? '− ' : '+ ') + 'Probes — your fleet at a glance.', 'frame', ac('probes'))}</div>
+      ${o.intro ? `<div class="glass" style="${ac('probes')};margin:10px 18px 0"><p>Every unit on the mesh, grouped by the company that runs it. Select a tile to inspect and edit that probe; a company header edits its whole group at once.</p></div>` : ''}
+      <div class="roster${o.chip ? ' chips' : ''}${layout === 'rows' ? ' rows' : ''}">
+        ${groups.map(([g, ids]) => `<div class="group" style="${g === 'Freelance' ? ac('companies') : acHex(cmap[g])}">
+          <div class="ghead">${cab(g, g === 'Freelance' ? 'frame' : 'pop')}<span class="n">${ids.length} probes</span></div>
           <div class="tiles">${ids.map(tile).join('')}</div>
         </div>`).join('')}
       </div>
-    </div>${crumb(['Root', 'Probes'])}`;
+    </div>` + crumb(['Root', 'Probes']);
 }
 
-// ---------- M5 ----------
-function renderM5() {
-  const big = $('#m5band').classList.contains('on'), fly = $('#m5fly').classList.contains('on');
-  const hex = '#ae5378';
-  const phoneTop = (menuBottom = true) => `<div class="top" style="${ac('deck')}">${cab('🔊')}<span class="sp"></span><div class="pw">⏻</div></div>
+const SETTINGS_TABS = ['Audio Quality', 'Seeds', 'Save & Share']; // the app's section titles (settings.quality / .seeds / .sessions)
+function settingsBody(sec, b = 12) {
+  if (sec === 0) return ctl('Acoustic Load Protocol', 'Preset', radio(['Light', 'Standard', 'Full'], 'Standard'), '', true) + ctl('Fleet Size', 'Voice Limit', vox(b, 7), '60%', true) + ctl('Trace Budget', 'Effects Limit', vox(b, 7), '60%', true) +
+    `<div class="ctl">${dl('Diagnostic Readout', 'Limits')}<span class="limits">audible 8 / 12 · poly 12 · filter LFOs on · drift off</span></div>`;
+  if (sec === 1) return ctl('Attenuation Style', 'Preset', radio(['Harbour', 'Trench', 'Reef Night', 'Open Water'], 'Trench'), '', true) + `<div class="ctl">${dl('Plot Tuning', 'Locale Coordinates', true)}<span class="radio">${input('x', '−86')}${input('y', '59')}</span></div>` + `<div class="ctl">${dl('Retransmit', 'Apply')}<span class="radio">${cab('Retransmit world', 'pop', ac('deck'))}${cab('Share link', 'frame', ac('deck'))}</span></div>`;
+  const rows = [['Dusk Run', 'Oct 8, 10:17 PM'], ['Rust Syndicate test', 'Oct 6, 9:41 AM'], ['Night, all freelance', 'Oct 4, 12:47 AM']];
+  return `<div class="ctl">${dl('Trace Name', 'Session Name')}<span class="radio">${input('name', 'Harbour Drift II', 260)}${cab('Save Session', 'pop', ac('deck'))}${cab('Share live', 'frame', ac('deck'))}</span></div>` +
+    `<div class="ctl" style="grid-column:1 / -1">${dl('Stored Traces', 'Saved Sessions')}<div class="srows">${rows.map(([n, d]) => `<div class="srow"><span class="nm">${n}</span><span class="dt">${d}</span>${cab('Load', 'frame', ac('deck'))}${cab('Share', 'frame', ac('deck'))}${cab('Delete', 'frame', ac('output'))}</div>`).join('')}</div></div>` +
+    `<div class="ctl" style="grid-column:1 / -1">${dl('Factory Reset', 'Clear Local Storage')}${cab('Reset to Factory Settings', 'frame', ac('output'))}</div>`;
+}
+function settingsDesk(o) {
+  const sec = o.sec ?? 0;
+  return dimWorld() + rail('settings') + `<div class="content" style="${ac('settings')}">
+      <div class="head"><h2>Settings</h2>${cab('Help ?', 'frame', ac('deck'))}</div>
+      <div class="tabs">${SETTINGS_TABS.map((t, i) => cab(t, i === sec ? 'pop' : 'frame', ac('settings')))}</div>
+      <div class="body${sec === 2 ? ' two' : ''}">${settingsBody(sec)}</div>
+    </div>` + crumb(['Root', 'Settings', SETTINGS_TABS[sec]]);
+}
+function deckDesk(o) {
+  const dim = !!o.dim;
+  return `${shell()}<div class="world${dim ? ' dim' : ''}">${worldSvg(true, o.halo === false ? null : haloFor(o.sel))}</div>${power()}${header()}${rail('deck', o.hover ? 'probes' : null)}${telemetry(14, o.sel)}`;
+}
+/** THEMES (idea, 2026-10-09): one named set of min / max LOADING bands applied system-wide at generation — tempo, delay
+ *  and reverb lengths, robot envelope lengths, density. Classic = exactly today's bands. The bands shown in the readout are
+ *  illustrative placeholders, not tuned values. */
+const THEMES = [
+  ['calm', 'Drift', 'Calm', '60–78 BPM · reverb 4–8 s · delay ½–1 bar · long tones'],
+  ['classic', 'Baseline', 'Classic', '80–120 BPM · reverb 1–3 s · delay ⅛–¼ · as built'],
+  ['active', 'Surge', 'Active', '118–150 BPM · reverb 0.4–1.2 s · delay 1/16 · short tones'],
+];
+/** Crawford, 2026-10-09: "it'll be three presets and then the user's saves if they have any." A preset is a factory transmission
+ *  (a curated session); a save is one of the user's own (the Sessions list). Which three, and their names, are Crawford's call —
+ *  the Attenuation Style names stand in here. */
+const PRESETS = [['Kryndara', 'kr1nd4ra'], ['Vessport Null', 'qb9mezm3'], ['Halcyon Drift', 'h4lcy0n']];
+const SAVES = [['Dusk Run', 'Oct 8'], ['Rust Syndicate test', 'Oct 6'], ['Night, all freelance', 'Oct 4']];
+function splash(o, phone = false) {
+  const theme = THEMES.find((t) => t[0] === (o.theme || 'classic')) || THEMES[1];
+  const preset = o.preset || 'Vessport Null';
+  const saves = o.saves === false ? [] : SAVES;
+  // 2026-10-09 amendment (Crawford, interview): the splash pickers must NOT pop — the power is off, so nothing glows or
+  // comes off the plate; the selected option gets at most a MONOCHROME background, same shape and size as a radio box
+  // (.cab.sel). The Theme row is skipped for this phase (o.themerow draws it for the themes phase, same rule).
+  const presets = `<span class="radio">${PRESETS.map(([n]) => cab(n, n === preset ? 'sel' : 'frame', ac('settings'))).join('')}${saves.length ? `<span class="divider"></span>${saves.map(([n]) => cab(n, n === preset ? 'sel' : 'frame', ac('deck'))).join('')}` : ''}</span>`;
+  const themes = `<span class="radio">${THEMES.map(([id, lore, hum]) => cab2(lore, hum, id === theme[0] ? 'sel' : 'frame', ac(id === 'calm' ? 'timeSpace' : id === 'active' ? 'output' : 'deck'))).join('')}</span>`;
+  const save = SAVES.find(([n]) => n === preset);
+  const code = save ? `saved ${save[1]}` : `preset · ${PRESETS.find(([n]) => n === preset)?.[1] || '—'}`;
+  return `<div class="splash" style="${ac('deck')}">
+    <div class="prow"><span class="lore">Transmission${saves.length ? ' — three presets, then your saves' : ' — three presets'}</span>${presets}</div>
+    ${o.themerow ? `<div class="prow"><span class="lore">Theme</span>${themes}</div>` : ''}
+    <span class="readout">${preset} · ${code}${o.themerow ? `${phone ? '<br>' : ' · '}${theme[2]}: ${theme[3]}` : ''}</span>
+  </div>`;
+}
+function offDesk(o) {
+  return `${shell()}<div class="world off" style="${o.world === false ? 'display:none' : ''}">${worldSvg(false)}</div>${power(true)}
+    <div class="etch" style="top:${o.splash ? '30%' : '42%'}"><h3>TRACE ATLAS</h3><p>A Meridia Telemetry Group product</p><p class="go">${o.splash ? 'Pick a transmission and a theme, then press the power switch. Sound will play.' : 'Press the power switch to begin. Sound will play.'}</p></div>${o.splash ? splash(o) : ''}`;
+}
+
+// ---------- phones ----------
+const phoneTop = (fly = false) => `${shell()}${phonePower()}<div class="top" style="${ac('deck')}">${cab('🔊')}<span class="sp"></span></div>
     <div class="flyout${fly ? ' show' : ''}" style="${ac('deck')}">${ctl('Transducer Pressure', 'Volume', vox(8, 8, 28), '100%')}</div>`;
-  const phoneBot = (inner) => `<div class="bot" style="${ac('deck')}">${cab('☰')}${inner}</div>`;
-  const off = `<div class="phone"><div class="top" style="background:none;border:0"><span class="sp"></span><div class="pw" style="border-color:#3a2a2a"><span style="width:26px;height:7px;background:#c0333a;box-shadow:0 0 8px #c0333a;display:block"></span></div></div>
-    <div class="etch"><h3>TRACE ATLAS</h3><p>A Meridia Telemetry Group product</p><p style="margin-top:14px;color:rgba(200,220,230,.55)">Press the power switch to begin.<br>Sound will play.</p><div class="slot">transmission picker — reserved</div></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(100deg,#2a2b3a 0%,#121a22 35%,#0e1a1c 60%,#1c1e2c 100%);opacity:.9;z-index:-1"></div></div>`;
-  const deck = `<div class="phone"><div class="world">${worldSvg(true)}</div>${phoneTop()}${phoneBot(`<div class="glass strip" style="${ac('deck')}"><b>22:17</b> −57 °C · <b>6/12</b> emitting</div>`)}</div>`;
-  const robot = `<div class="phone"><div class="scroll" style="${ac('spectral')}">
-      <div class="band ${big ? 'big' : 'small'}" style="${acHex(hex)}">${gemSvg(hex, 72, 58)}<div><h2>Tidal Wisp</h2><span class="st">Salvage · Docked · Charging · Disabled · 85%</span></div></div>
-      <div class="tabs">${['Levels', 'Composition', 'Envelope', 'Source'].map((t, i) => cab(t, i === 1 ? 'pop' : 'frame')).join('')}</div>
-      <div class="body" style="${ac('composition')}">
-        ${ctl('Payload Density', 'Note Density', vox(8, 6, 36), '72%', true)}
-        ${ctl('Payload Subgroups', 'Phrase Length', vox(8, 5, 36), '5', true)}
-        ${ctl('Payload Duplication', 'Pitch Repeat Chance', vox(8, 7, 36), '92%', true)}
-        ${ctl('Ping Variance', 'Note Variance', vox(8, 4, 36), '4', true)}
-        ${ctl('Ping Floor', 'Lowest Octave', vox(8, 2, 36), '2', true)}
-      </div>
-    </div>${phoneTop()}${phoneBot(`<div class="crumb"><u>Root</u> / <u>Probes</u> / Tidal Wisp</div>`)}</div>`;
-  const fleet = `<div class="phone"><div class="scroll" style="${ac('spectral')}">
-      <div style="padding:12px 12px 0"><h2 style="margin:0;border:0;padding:0;font-size:20px">Fleet Params</h2></div>
-      <div class="tabs">${['Pacing', 'LFO Bank', 'EQ & Filters', 'Time & Space'].map((t, i) => cab(t, i === 2 ? 'pop' : 'frame')).join('')}</div>
-      <div class="tabs" style="padding-top:6px">${['3-Band EQ', 'High-Pass', 'Low-Pass'].map((t, i) => cab(t, i === 0 ? 'pop' : 'frame')).join('')}</div>
-      <div class="body">
-        ${ctl('Sub-Band', 'Bass', voxCentered(8, .3, 36), '1.9 dB', true)}
-        ${ctl('Signature Lane', 'Bass Link', link('C', 2, 22), '18%', true)}
-        ${ctl('Medial Band', 'Mid', voxCentered(8, .25, 36), '1.7 dB', true)}
-        ${ctl('Signature Lane', 'Mid Link', link('Off', 0, 22), '', true)}
-        ${ctl('Crest Band', 'Treble', voxCentered(8, -.2, 36), '−1.2 dB', true)}
-      </div>
-    </div>${phoneTop()}${phoneBot(`<div class="crumb"><u>Root</u> / <u>Fleet Params</u> / EQ</div>`)}</div>`;
-  $('#m5').innerHTML = [off, deck, robot, fleet].join('');
+const phoneBot = (inner) => `<div class="bot" style="${ac('deck')}">${cab('☰')}${inner}</div>`;
+const phoneCrumb = (parts) => `<div class="crumb">${parts.map((p, i) => i < parts.length - 1 ? `<u>${p}</u>` : p).join(' / ')}</div>`;
+function offPhone(o) {
+  return `<div class="phone">${shell()}<div class="world off" style="${o.world === false ? 'display:none' : ''}">${worldSvg(false)}</div>${phonePower(true)}
+    <div class="etch${o.splash ? ' withsplash' : ''}"><h3>TRACE ATLAS</h3><p>A Meridia Telemetry Group product</p><p class="go">${o.splash ? 'Pick a transmission and a theme,<br>then press power. Sound will play.' : 'Press the power switch to begin.<br>Sound will play.'}</p></div>${o.splash ? splash(o, true) : ''}</div>`;
+}
+function deckPhone(o) {
+  return `<div class="phone"><div class="world">${worldSvg(true, o.halo === false ? null : haloFor(o.sel))}</div>${phoneTop(o.fly)}${phoneBot(`<div class="glass strip meta" style="${ac('deck')}"><span class="line"><b>22:17</b> −57 °C · <b>6/12</b> emitting</span>${selLines(o.sel, true)}</div>`)}</div>`;
+}
+function robotPhone(o) {
+  const hex = '#ae5378'; const sec = o.sec ?? 1;
+  return `<div class="phone"><div class="scroll" style="${ac(ROBOT_TABS[sec][1])}">
+      <div class="band ${o.band ? 'big' : 'small'}" style="${acHex(hex)}">${gemSvg(hex, 72, 58)}<div><h2>Tidal Wisp</h2><span class="st">Salvage · Docked · Charging · Disabled · 85%</span></div></div>
+      <div class="tabs">${ROBOT_TABS.map(([t], i) => cab(t, i === sec ? 'pop' : 'frame')).join('')}</div>
+      <div class="body">${robotBody(sec, false, 8)}</div>
+    </div>${phoneTop()}${phoneBot(phoneCrumb(['Root', 'Probes', 'Tidal Wisp']))}</div>`;
 }
 
-// ---------- toggles ----------
-function toggle(id, fn) { $(id).addEventListener('click', (e) => { e.currentTarget.classList.toggle('on'); fn(); }); }
-toggle('#m1drawer', renderM1); toggle('#m1dim', renderM1);
-toggle('#m2intro', renderM2); toggle('#m2help', renderM2);
-toggle('#m5band', renderM5); toggle('#m5fly', renderM5);
-renderM1(); renderM2(); renderM3(); renderM4(); renderM5();
+// Company detail (2026-10-09): the robot screen with the avatar column swapped for a company column. Same four section
+// tabs, same controls (the app's CompanyOptionsSection already renders the robot sections with value/onChange); every
+// edit broadcasts once to every member (COMPANIES.md: broadcast, not link). o.all = the "All Probes" whole-fleet form.
+const CO = { name: 'Rust Syndicate', hex: COMPANY['Rust Syndicate'], members: GROUPS[0][1] };
+const memberTile = (i, w, h) => `<div class="mem" style="${acHex(IDENTITY[i])}">${gemSvg(IDENTITY[i], w, h)}<span>${NAMES[i]}</span></div>`;
+function companyColumn(o) {
+  const all = !!o.all; const members = all ? NAMES.map((_, i) => i) : CO.members;
+  return `<div class="avcol company" style="${all ? ac('deck') : acHex(CO.hex)}">
+        <div class="cotitle">${cab2(all ? 'Fleet-wide edit' : 'Unit Affiliation', all ? 'All Probes' : CO.name, 'pop')}</div>
+        <div class="meta">${dl('Mesh Share', `${members.length} of 12 probes`)}${dl('Affiliation Signal', all ? 'No halo — nothing to mark apart' : 'Halo on every member')}</div>
+        <div class="members">${members.map((i) => memberTile(i, 64, 52)).join('')}</div>
+        <div class="glass strip">Edits on this screen reach all ${members.length} probes at once — one broadcast, never a link. A probe edited on its own afterwards keeps its own value.</div>
+        ${all ? '' : `<span class="radio">${cab('Rename', 'frame')}${cab('Delete', 'frame')}</span>`}
+      </div>`;
+}
+function companyDesk(o) {
+  const sec = o.sec ?? 0; const subs = ROBOT_SUBS[sec]; const all = !!o.all;
+  return dimWorld() + rail(all ? 'probes' : 'companies', null, true, all ? 'all' : CO.name) + `<div class="split">${companyColumn(o)}
+      <div class="content" style="${ac(ROBOT_TABS[sec][1])}">
+        <div class="tabs" style="padding-top:14px">${ROBOT_TABS.map(([t, tr], i) => cab(t, i === sec ? 'pop' : 'frame', ac(tr))).join('')}</div>
+        ${subs ? `<div class="tabs sub">${subs.map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>` : ''}
+        <div class="body two" style="position:relative">${robotBody(sec, o.help, 12, o.links)}</div>
+      </div>
+    </div>` + crumb(all ? ['Root', 'Probes', 'All Probes', ROBOT_TABS[sec][0]] : ['Root', 'Companies', CO.name, ROBOT_TABS[sec][0]]);
+}
+function companyPhone(o) {
+  const sec = o.sec ?? 0; const all = !!o.all; const members = all ? NAMES.map((_, i) => i) : CO.members;
+  return `<div class="phone"><div class="scroll" style="${ac(ROBOT_TABS[sec][1])}">
+      <div class="band small" style="${all ? ac('deck') : acHex(CO.hex)}"><span class="sw"></span><div><h2>${all ? 'All Probes' : CO.name}</h2><span class="st">${members.length} probes · edits reach every member</span></div></div>
+      <div class="pmem">${members.map((i) => memberTile(i, 44, 36)).join('')}</div>
+      ${all ? '' : `<div class="crud">${cab('Rename', 'frame')}${cab('Delete', 'frame')}</div>`}
+      <div class="tabs">${ROBOT_TABS.map(([t], i) => cab(t, i === sec ? 'pop' : 'frame')).join('')}</div>
+      <div class="body">${robotBody(sec, false, 8)}</div>
+    </div>${phoneTop()}${phoneBot(phoneCrumb(all ? ['Root', 'Probes', 'All Probes'] : ['Root', 'Companies', CO.name]))}</div>`;
+}
+function fleetPhone(o) {
+  const sec = o.sec ?? 2; const subs = sec === 1 ? laneTitles(false) : FLEET_SUBS[sec];
+  return `<div class="phone"><div class="scroll" style="${ac(FLEET_TABS[sec][1])}">
+      <div style="padding:12px 12px 0"><h2 style="margin:0;border:0;padding:0;font-size:20px">Fleet Params</h2></div>
+      <div class="tabs">${FLEET_TABS.map(([t], i) => cab(t, i === sec ? 'pop' : 'frame')).join('')}</div>
+      ${subs ? `<div class="tabs" style="padding-top:6px">${subs.map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>` : ''}
+      <div class="body">${fleetBody(sec, false, 8)}</div>
+    </div>${phoneTop()}${phoneBot(phoneCrumb(['Root', 'Fleet Params', FLEET_TABS[sec][0]]))}</div>`;
+}
+function rosterPhone(o) {
+  const src = o.six ? GROUPS6 : GROUPS; const cmap = o.six ? COMPANY6 : COMPANY;
+  const groups = src.filter(([g]) => (o.freelance ?? true) || g !== 'Freelance');
+  // Phone: no hover, so the chip is a small always-on glyph (o.pchip); tapping it (or a tap-hold on the tile) opens a
+  // bottom sheet over a scrim with the same company radio stacked at 44 px rows. Tap outside or pick to close.
+  // Rows in one column; the phone's roster scrolls (12 rows + 4 headers never fit a 648 px scroll area, as a real phone list wouldn't).
+  const tile = (i) => `<div class="tile row" style="${acHex(IDENTITY[i])}">${o.pchip ? '<span class="mv">⇄</span>' : ''}${gemSvg(IDENTITY[i], 44, 36)}<div class="txt"><span class="nm">${NAMES[i]}</span><span class="st">${STATE[i]}</span>${vox(8, Math.round(BATT[i] / 12.5), 6)}</div></div>`;
+  const sheet = o.sheet ? `<div class="scrim"></div><div class="msheet">${dl('Unit Affiliation', 'Move Tidal Wisp to')}${companyRadio('Rust Syndicate', 'stack', cmap)}</div>` : '';
+  return `<div class="phone"><div class="scroll" style="${ac('probes')};overflow-y:auto">
+      <div style="padding:12px 12px 0;display:flex;gap:8px;align-items:center"><h2 style="margin:0;border:0;padding:0;font-size:20px;flex:1">Probes</h2>${cab('All', 'frame', ac('deck'))}${cab('+', 'frame', ac('companies'))}</div>
+      <div class="roster">${groups.map(([g, ids]) => `<div class="group" style="${g === 'Freelance' ? ac('companies') : acHex(cmap[g])}"><div class="ghead">${cab(g, g === 'Freelance' ? 'frame' : 'pop')}<span class="n">${ids.length}</span></div><div class="ptiles">${ids.map(tile).join('')}</div></div>`).join('')}</div>
+    </div>${phoneTop()}${sheet}${phoneBot(o.sheet ? `<div class="crumb">moving Tidal Wisp — tap outside or pick to close</div>` : phoneCrumb(['Root', 'Probes']))}</div>`;
+}
+function settingsPhone(o) {
+  const sec = o.sec ?? 0;
+  return `<div class="phone"><div class="scroll" style="${ac('settings')}">
+      <div style="padding:12px 12px 0"><h2 style="margin:0;border:0;padding:0;font-size:20px">Settings</h2></div>
+      <div class="tabs">${SETTINGS_TABS.map((t, i) => cab(t, i === sec ? 'pop' : 'frame')).join('')}</div>
+      <div class="body">${settingsBody(sec, 8)}</div>
+    </div>${phoneTop()}${phoneBot(phoneCrumb(['Root', 'Settings', SETTINGS_TABS[sec]]))}</div>`;
+}
+function navPhone(o) {
+  const sheet = o.sheet ? `<div class="scrim"></div><div class="navsheet">${rail(o.branch, null, true)}</div>` : '';
+  return `<div class="phone"><div class="world">${worldSvg(true)}</div>${phoneTop()}${sheet}${phoneBot(o.sheet ? `<div class="crumb">menu open — tap outside or pick to close</div>` : `<div class="glass strip" style="${ac('deck')}"><b>22:17</b> −57 °C · <b>6/12</b> emitting</div>`)}</div>`;
+}
+
+// ---------- nav crop (1:1) ----------
+function navCrop(o) {
+  const b = o.branch;
+  const t = b === 'deck' ? null : b === 'fleet' ? ['fleet', 'Fleet Params', FLEET_TABS, 1] : b === 'probes' ? ['probes', 'Probes', null, 0] : b === 'companies' ? ['companies', 'Companies', null, 0] : ['settings', 'Settings', SETTINGS_TABS.map((s) => [s, 'settings']), 0];
+  const content = t ? `<div class="content" style="${ac(t[0])}"><div class="head"><h2>${t[1]}</h2>${cab('Help ?', 'frame', ac('deck'))}</div>${t[2] ? `<div class="tabs">${t[2].map(([n, tr], i) => cab(n, i === t[3] ? 'pop' : 'frame', ac(tr))).join('')}</div>` : ''}<div class="body one"><span class="limits" style="opacity:.6">— the view's content, see its tab —</span></div></div>` : telemetry();
+  const crumbParts = b === 'deck' ? null : b === 'probes' ? ['Root', 'Probes', 'Tidal Wisp'] : ['Root', t[1]];
+  return `${shell()}<div class="world${b === 'deck' ? '' : ' dim'}">${worldSvg(true)}</div>${power()}${header()}${rail(b, o.hover ? 'probes' : null, o.expanded)}${content}${crumbParts ? crumb(crumbParts) : ''}`;
+}
+
+// ---------- rejected M6 soft keys (record only, rendered static on the Main tab) ----------
+function m6static() {
+  const legends = ['Back', 'Levels', 'Composition', 'Envelope', 'Source', ''], traits = ['deck', 'output', 'composition', 'timeSpace', 'spectral', 'deck'], on = 4;
+  const lg = `<div class="legends">${legends.map((l, i) => `<div class="lg${i === on ? ' on' : ''}${l ? '' : ' blank'}${i === 0 ? ' back' : ''}" style="${ac(traits[i])}">${l || '·'}</div>`).join('')}</div>`;
+  const keys = `<div class="keystrip"><span class="wm">Trace Atlas</span>${legends.map((l, i) => `<span class="cab key ${i === on ? 'pop' : 'flat'}" style="${ac(traits[i])}"><span class="n">${i + 1}</span></span>`).join('')}</div>`;
+  return `<div class="m6screen">${dimWorld()}<div class="split" style="left:16px">${avatarColumn()}<div class="content" style="${ac('spectral')}"><div class="head"><h2>Source</h2></div><div class="body two">${robotBody(3, false)}</div></div></div>${crumb(['Root', 'Probes', 'Tidal Wisp'])}${lg}</div>${keys}`;
+}
+
+// ---------- page shell: tabs, per-page options, renderers ----------
+const opt = (page, key) => !!$(`.page[data-page="${page}"] [data-opt="${key}"]`)?.classList.contains('on');
+const rad = (page, group) => $(`.page[data-page="${page}"] [data-radio="${group}"].on`)?.dataset.val;
+const RENDER = {
+  main() {
+    $('#main-deck').innerHTML = deckDesk({ hover: false, dim: false, sel: 'robot' });
+    $('#main-fleet').innerHTML = fleetDesk({ sec: 1, intro: false, help: true, links: true });
+    $('#main-robot').innerHTML = robotDesk({ sec: 3, links: true });
+    $('#main-roster').innerHTML = rosterDesk({ intro: false, freelance: true });
+    $('#main-company').innerHTML = companyDesk({ sec: 0, links: true });
+    $('#main-settings').innerHTML = settingsDesk({ sec: 0 });
+    $('#main-phones').innerHTML = offPhone({}) + deckPhone({ sel: 'robot' }) + robotPhone({ band: false, sec: 1 }) + fleetPhone({ sec: 2 }) + rosterPhone({ freelance: true }) + companyPhone({ sec: 0 }) + settingsPhone({ sec: 2 });
+    $('#main-m6').innerHTML = m6static();
+  },
+  nav() { const o = { expanded: opt('nav', 'expanded'), hover: opt('nav', 'hover'), sheet: opt('nav', 'sheet'), branch: rad('nav', 'branch') || 'probes' }; $('#nav-crop').innerHTML = navCrop(o); $('#nav-phone').innerHTML = navPhone(o); },
+  off() { const o = { world: opt('off', 'world'), splash: opt('off', 'splash'), saves: opt('off', 'saves'), themerow: opt('off', 'themerow'), theme: rad('off', 'theme') || 'classic', preset: rad('off', 'preset') || 'Vessport Null' }; $('#off-desk').innerHTML = offDesk(o); $('#off-phone').innerHTML = offPhone(o); },
+  deck() { const o = { hover: opt('deck', 'hover'), dim: opt('deck', 'dim'), fly: opt('deck', 'fly'), halo: opt('deck', 'halo'), sel: rad('deck', 'sel') || 'none' }; $('#deck-desk').innerHTML = deckDesk(o); $('#deck-phone').innerHTML = deckPhone(o); },
+  fleet() { const o = { intro: opt('fleet', 'intro'), help: opt('fleet', 'help'), links: opt('fleet', 'links'), sec: Number(rad('fleet', 'sec') ?? 1) }; $('#fleet-desk').innerHTML = fleetDesk(o); $('#fleet-phone').innerHTML = fleetPhone(o); },
+  robot() { const o = { band: opt('robot', 'band'), help: opt('robot', 'help'), links: opt('robot', 'links'), sec: Number(rad('robot', 'sec') ?? 3) }; $('#robot-desk').innerHTML = robotDesk(o); $('#robot-phone').innerHTML = robotPhone(o); },
+  roster() { const o = { intro: opt('roster', 'intro'), freelance: opt('roster', 'freelance'), six: opt('roster', 'six'), layout: rad('roster', 'layout') || 'rows', hover: opt('roster', 'hover'), chip: opt('roster', 'chip'), move: opt('roster', 'move'), pchip: opt('roster', 'pchip'), sheet: opt('roster', 'sheet') }; $('#roster-desk').innerHTML = rosterDesk(o); $('#roster-phone').innerHTML = rosterPhone(o); },
+  company() { const o = { all: opt('company', 'all'), help: opt('company', 'help'), links: opt('company', 'links'), sec: Number(rad('company', 'sec') ?? 0) }; $('#company-desk').innerHTML = companyDesk(o); $('#company-phone').innerHTML = companyPhone(o); },
+  settings() { const o = { sec: Number(rad('settings', 'sec') ?? 0) }; $('#settings-desk').innerHTML = settingsDesk(o); $('#settings-phone').innerHTML = settingsPhone(o); },
+};
+function showPage(p) {
+  if (!RENDER[p]) p = 'main';
+  for (const el of $$('.page')) el.classList.toggle('on', el.dataset.page === p);
+  for (const b of $$('.tabbar [data-tab]')) b.classList.toggle('on', b.dataset.tab === p);
+  if (location.hash !== '#' + p) history.replaceState(null, '', '#' + p);
+  RENDER[p]();
+  window.scrollTo(0, 0);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab], [data-opt], [data-radio], [data-material]'); if (!b) return;
+  if (b.dataset.tab !== undefined) return showPage(b.dataset.tab);
+  if (b.dataset.material !== undefined) { const on = b.classList.toggle('on'); document.body.classList.toggle('plate', on); return; }
+  const page = b.closest('.page').dataset.page;
+  if (b.dataset.opt !== undefined) b.classList.toggle('on');
+  else for (const o of $$(`.page[data-page="${page}"] [data-radio="${b.dataset.radio}"]`)) o.classList.toggle('on', o === b);
+  RENDER[page]();
+});
+window.addEventListener('hashchange', () => showPage(location.hash.slice(1)));
+showPage(location.hash.slice(1) || 'main');
 </script>
 </body>
 </html>

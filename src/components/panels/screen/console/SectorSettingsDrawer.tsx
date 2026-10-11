@@ -16,20 +16,9 @@ import {
   COORDINATE_PRESETS,
 } from '@/data/sectorSettingsConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
-import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import type { ButtonSchema } from '@/types/controls';
 import { labels, fill, type ContentKey } from '@/content';
 import './SectorSettingsDrawer.css';
-
-/** Ref callback registering/clearing a nav scroll anchor (src/utils/sectionRefs.ts) — matches
- *  navTreeConfig.ts's own settings.sectorSettings.attenuationStyle/coordinates tree node ids
- *  (Settings -> Presets' own 3rd tree level). */
-function sectionAnchorRef(id: string) {
-  return (el: HTMLDivElement | null) => {
-    if (el) setSectionRef(id, el);
-    else clearSectionRef(id);
-  };
-}
 
 const RANDOM_ATTENUATION_STYLE_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomPlanet', type: 'button', ...labels('sector.random.attenuationStyle') };
 const RANDOM_COORDS_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomCoords', type: 'button', ...labels('sector.random.coords') };
@@ -99,7 +88,7 @@ export function SectorSettingsDrawer() {
         </div>
       </div>
 
-      <div className="sector-settings-drawer__section" ref={sectionAnchorRef('settings.sectorSettings.attenuationStyle')}>
+      <div className="sector-settings-drawer__section">
         <TextInput schema={ATTENUATION_STYLE_SCHEMA} value={attenuationStyleNameDraft} onChange={setAttenuationStyleNameDraft} />
         <div className="sector-settings-drawer__presets">
           {ATTENUATION_STYLE_PRESETS.map((preset) => (
@@ -113,7 +102,7 @@ export function SectorSettingsDrawer() {
         </div>
       </div>
 
-      <div className="sector-settings-drawer__section" ref={sectionAnchorRef('settings.sectorSettings.coordinates')}>
+      <div className="sector-settings-drawer__section">
         <CoordsInput schema={COORDS_SCHEMA} value={coordsDraft} onChange={setCoordsDraft} />
         <div className="sector-settings-drawer__presets">
           {COORDINATE_PRESETS.map((preset) => (

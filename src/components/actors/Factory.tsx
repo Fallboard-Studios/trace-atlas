@@ -13,6 +13,8 @@ import { ROOFTOP_RENDERERS, ROOFTOP_LAYOUT_PAINT } from './greebles/rooftopGreeb
 import { FACADE_RENDERERS, FACADE_LAYOUT_PAINT } from './greebles/facadeGreebles';
 import type { RooftopGreeble, FacadeGreeble, GreebleRendererContext, GreebleElement, GreebleRenderer } from './greebles/greebleTypes';
 import { useUIStore } from '../../stores/uiStore';
+import { GemRing } from './material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from './material/worldGemMaterial';
 
 // ========================================
 // DEBUG LIGHTING
@@ -42,6 +44,9 @@ const DEBUG_LIGHTING_PRESET = null as keyof typeof LIGHTING_PRESETS | null;
 
 /** Belt course thickness in normalised 0-100 SVG units. */
 const BELT_H = 2;
+
+/** The body clip's minimum margin on each side, in normalised 0-100 SVG units. */
+const CLIP_MARGIN = 2;
 
 // ========================================
 // STATIC/DYNAMIC GREEBLE RESOLUTION
@@ -150,6 +155,24 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     const actualWidth = width * (actor.scaleX ?? 1);
     const actualHeight = height * (actor.scaleY ?? 1);
 
+    // The world gem ring's depth (docs/specs/WORLD_GEM_MATERIAL.md §1.4) is a function of the
+    // building's size and scale alone, so it is fixed for the factory's lifetime. In the 0-100 box
+    // it is a different share of each side (the box scales non-uniformly), hence per axis. The
+    // window clip keeps its 2 % margin or the ring, whichever is deeper, so no window sits half
+    // under the ring; belts are inset by the ring only. At depth 0 the clip is today's
+    // 2, 2, 96, 96 and the belts span the full width.
+    const bodyScale = actor.scaleX ?? 1;
+    const ringDepth = WORLD_GEM.factories ? worldBevel(actualWidth, actualHeight, bodyScale) : 0;
+    const ringBoxX = (100 * ringDepth) / actualWidth;
+    const ringBoxY = (100 * ringDepth) / actualHeight;
+    const clipMarginX = Math.max(ringBoxX, CLIP_MARGIN);
+    const clipMarginY = Math.max(ringBoxY, CLIP_MARGIN);
+    // The facade grid is centred inside the clip, so the layout contexts below are shrunk by the
+    // same margin — but only with the ring on, so that off, every layout is byte-identical.
+    const facadeInsetX = ringDepth > 0 ? clipMarginX : 0;
+    const facadeInsetY = ringDepth > 0 ? clipMarginY : 0;
+    const facadeFrontCornerX = frontCornerX - facadeInsetX;
+
     // Layout-only context: lighting fields carry dummy defined values, never read for their
     // actual value by any layout function — but computePitchedRoofLayout/computeCrownSpireLayout
     // both branch on eastLMultiplier/westLMultiplier's *definedness* (shaded vs. unshaded
@@ -190,14 +213,20 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
         seed: buildingSeed,
         colors: shiftedColors,
         lMultiplier: 1,
-        frontCornerX,
+        frontCornerX: facadeFrontCornerX,
       };
       if (beltCourseCount === 0) {
-        // No belt courses — windows span full facade height
+        // No belt courses — windows span full facade height. With the ring on the zone is given
+        // explicitly (the clip's own margin top and bottom): left undefined, the grid would be
+        // derived over the silhouette height in pixels and run off the box.
+        const zoneY = facadeInsetY > 0 ? facadeInsetY : undefined;
+        const zoneHeight = facadeInsetY > 0 ? 100 - 2 * facadeInsetY : undefined;
         facadeZones.push({
-          zoneY: undefined,
-          zoneHeight: undefined,
-          slot: resolveGreebleSlot<FacadeGreeble>(facadeGreeble, FACADE_RENDERERS, FACADE_LAYOUT_PAINT, baseFacadeLayoutCtx),
+          zoneY,
+          zoneHeight,
+          slot: resolveGreebleSlot<FacadeGreeble>(
+            facadeGreeble, FACADE_RENDERERS, FACADE_LAYOUT_PAINT, { ...baseFacadeLayoutCtx, zoneY, zoneHeight },
+          ),
         });
       } else {
         // Divide facade into (beltCourseCount + 1) window zones separated by belt rects
@@ -205,16 +234,20 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
         const zoneH = (100 - totalBeltH) / (beltCourseCount + 1);
         for (let i = 0; i <= beltCourseCount; i++) {
           const zoneY = i * (zoneH + BELT_H);
+          // The grid is derived over the zone shrunk by the ring margin at the facade's own top
+          // and bottom edges; the belts below stay where the zone arithmetic put them.
+          const layoutY = zoneY + (i === 0 ? facadeInsetY : 0);
+          const layoutH = zoneH - (i === 0 ? facadeInsetY : 0) - (i === beltCourseCount ? facadeInsetY : 0);
           const zoneLayoutCtx: GreebleRendererContext = {
             ...baseFacadeLayoutCtx,
-            zoneY,
-            zoneHeight: zoneH,
+            zoneY: layoutY,
+            zoneHeight: layoutH,
             // independent seed per zone for varied window patterns
             seed: buildingSeed + 1000 * (i + 1),
           };
           facadeZones.push({
-            zoneY,
-            zoneHeight: zoneH,
+            zoneY: layoutY,
+            zoneHeight: layoutH,
             slot: resolveGreebleSlot<FacadeGreeble>(facadeGreeble, FACADE_RENDERERS, FACADE_LAYOUT_PAINT, zoneLayoutCtx),
           });
           if (i < beltCourseCount) beltSeparatorYs.push(zoneY + zoneH);
@@ -225,7 +258,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     return {
       variant, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
       actualWidth, actualHeight, rooftopSlot, facadeGreeble, beltCourseCount, facadeZones,
-      beltSeparatorYs,
+      beltSeparatorYs, bodyScale, ringDepth, ringBoxX, clipMarginX, clipMarginY, facadeInsetX,
+      facadeFrontCornerX,
     };
   }, [
     actor.id, actor.position.x, actor.position.y, actor.config?.row, actor.config?.district, actor.config?.hueShift, actor.config?.satShift,
@@ -236,7 +270,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   const {
     variant, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
     actualWidth, actualHeight, rooftopSlot, facadeGreeble, beltCourseCount, facadeZones,
-    beltSeparatorYs,
+    beltSeparatorYs, bodyScale, ringDepth, ringBoxX, clipMarginX, clipMarginY, facadeInsetX,
+    facadeFrontCornerX,
   } = staticVisual;
 
   // Everything below is cheap and recomputed every render, in step with the once/sec tick.
@@ -291,6 +326,23 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   const eastFill = applyColorShift(bodyColor, { hueShift: 0, satShift: 0 }, eastLMultiplier * lCap);
   const westFill = applyColorShift(bodyColor, { hueShift: 0, satShift: 0 }, westLMultiplier * lCap);
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.4). Drawn in scene pixels as a sibling
+  // of the scaled body, never inside the 0-100 box: that group scales non-uniformly on every
+  // non-square building, so an 8 px ring built there would be 8 % of the width one way and 8 % of
+  // the height the other. Tick-time work outside `staticVisual`, like every lighting-driven fill.
+  const frontCornerPx = (frontCornerX / 100) * actualWidth;
+  const light = worldLightVector(eastLMultiplier, westLMultiplier);
+  const ring = ringFacets(
+    [[0, 0], [actualWidth, 0], [actualWidth, actualHeight], [0, actualHeight]],
+    ringDepth,
+    light,
+    // Each face's own lightness with its depth cap (and derelict dimming) folded in — exactly the
+    // multipliers `westFill` / `eastFill` use, so a derelict's ring dims with its building.
+    (midX) => (midX < frontCornerPx ? westLMultiplier : eastLMultiplier) * lCap,
+    bodyColor,
+    { splitX: frontCornerPx },
+  );
+
   const transform = bottomAnchorTransform(actor, height);
   const safeId = String(actor.id).replace(/[^a-zA-Z0-9-_]/g, '-');
   const bodyClipId = `body-clip-${safeId}`;
@@ -305,9 +357,11 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     lMultiplier: roofLMultiplier,
     eastLMultiplier,
     westLMultiplier,
-    frontCornerX: (frontCornerX / 100) * actualWidth,
+    frontCornerX: frontCornerPx,
     nightDepth,
     flickerEpoch,
+    // paint context only: the layout context never carries the hour (spec §1.4)
+    light,
   };
   // Derelict: the antenna's indicator light goes dark (§1.6) — it's the only rooftop greeble
   // with a lit element (ROOFTOP_RENDERERS' other 7 renderers are inert geometry), so it's
@@ -331,7 +385,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
       lMultiplier: roofLMultiplier,
       eastLMultiplier,
       westLMultiplier,
-      frontCornerX,
+      frontCornerX: facadeFrontCornerX,
       zoneY: zone.zoneY,
       zoneHeight: zone.zoneHeight,
       nightDepth,
@@ -358,8 +412,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
       const beltElements: React.ReactElement[] = beltSeparatorYs.map((by, i) => (
         // Belt separators: left rect = west face, right rect = east face
         <React.Fragment key={`belt-${i}`}>
-          <rect x={0} y={by} width={frontCornerX} height={BELT_H} fill={westBeltFill} />
-          <rect x={frontCornerX} y={by} width={100 - frontCornerX} height={BELT_H} fill={eastBeltFill} />
+          <rect x={ringBoxX} y={by} width={frontCornerX - ringBoxX} height={BELT_H} fill={westBeltFill} />
+          <rect x={frontCornerX} y={by} width={100 - frontCornerX - ringBoxX} height={BELT_H} fill={eastBeltFill} />
         </React.Fragment>
       ));
       facadeContent = <>{zoneElements}</>;
@@ -378,7 +432,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
         <defs>
           {/* Full body clip — keeps facade greebles inside building bounds */}
           <clipPath id={bodyClipId}>
-            <rect x="2" y="2" width="96" height="96" />
+            <rect x={clipMarginX} y={clipMarginY} width={100 - 2 * clipMarginX} height={100 - 2 * clipMarginY} />
           </clipPath>
           {/* Right-face clip (x ≥ frontCornerX) — left/west is the base rect */}
           <clipPath id={westClipId}>
@@ -396,10 +450,21 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
             <rect x="0" y="0" width="100" height="100" fill={eastFill} />
           </g>
           {/* Facade greebles clipped to body bounds */}
-          <g clipPath={`url(#${bodyClipId})`}>{facadeContent}</g>
+          {/* With the ring on, the whole facade sits inside the ring's left margin: its layout is
+              derived with the front corner pulled in by the same amount (see staticVisual), so
+              the west face is centred in [margin, front corner] and the seam does not move. */}
+          <g clipPath={`url(#${bodyClipId})`}>
+            {facadeInsetX > 0 ? (
+              <g data-facade-inset="ring" transform={`translate(${facadeInsetX}, 0)`}>{facadeContent}</g>
+            ) : (
+              facadeContent
+            )}
+          </g>
           {/* Belt separators rendered outside the body clip so they span full width */}
           {beltContent}
         </g>
+        {/* world gem ring: pixel space, after the scaled body and before the rooftop greeble */}
+        <GemRing facets={ring} scale={bodyScale} />
         {/* rooftop greeble rendered outside scaled group so it's not clipped */}
         {rooftopElement}
       </g>

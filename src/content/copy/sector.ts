@@ -9,8 +9,17 @@ import type { ContentEntry } from '../types';
  * conflict row in the inventory. `[c]` strings are verbatim placeholders for the review gate.
  */
 export const sector = {
-  'sector.attenuationStyle': { human: 'Atmosphere', lore: 'Attenuation Style', placeholder: 'Enter a new attenuation style…' },
-  'sector.coords': { human: 'Location', lore: 'Atlas Vector' },
+  'sector.attenuationStyle': {
+    human: 'Atmosphere',
+    lore: 'Attenuation Style',
+    placeholder: 'Enter a new attenuation style…',
+    help: { human: 'A name that seeds the whole world — its terrain, its tempo and the fleet’s sound. The same name always makes the same world. Type one or pick one, then press Retransmit to go there.' },
+  },
+  'sector.coords': {
+    human: 'Location',
+    lore: 'Atlas Vector',
+    help: { human: 'Which spot in this world you’re tuned to. Each location has its own probes, companies and melodies. Enter an X and a Y or pick one, then press Retransmit to go there.' },
+  },
   'sector.coords.x': { human: 'X', lore: 'LATERAL VECTOR [c]' },
   'sector.coords.y': { human: 'Y', lore: 'VERTICAL VECTOR [c]' },
   'sector.retransmit': { human: 'Retransmit', lore: 'RETRANSMIT' },

@@ -15,7 +15,7 @@ import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 // actually --font-mono — .power-confirm__description and .power-confirm__btn
 // have no font-family override at all (they inherit the document default,
 // --font-sans/Rajdhani). This task still doesn't touch font-family on any of
-// the 5 files below — it's a pure size-token migration regardless of which
+// the files below — it's a pure size-token migration regardless of which
 // family a given line happens to already have.
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -52,17 +52,9 @@ describe('PowerRockerSwitch.css confirm dialog', () => {
   });
 });
 
-describe('Header.css status row', () => {
-  const cssSource = readFileSync(resolve(repoRoot, 'src/components/panels/screen/Header.css'), 'utf-8');
-
-  it('sizes the status row with --font-size-label, keeping --font-mono untouched', () => {
-    const body = getCssRuleBody(cssSource, '.header .header__row--status');
-    expect(body).not.toBeNull();
-    expect(body).toContain('font-family: var(--font-mono);');
-    expect(body).toContain('font-size: var(--font-size-label);');
-    expect(body).not.toContain('var(--font-size-sm)');
-  });
-});
+// Header.css's status row (.header .header__row--status) was checked here. The slim header
+// (docs/tasks/LAYOUT_REWORK.md Task 6) deleted that rule as dead: no component had rendered the row
+// since the time and temperature readout moved out of the header (NavStatusBlock, then MetaBox).
 
 describe('ConsolePanel.css stub (confirmed dead — zero .tsx consumers, migrated anyway per spec §7 item 5)', () => {
   const cssSource = readFileSync(

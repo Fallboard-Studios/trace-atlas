@@ -1,0 +1,115 @@
+/* The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9). It sits over the still world (WorldView,
+   z-index 0) as a dark scrim — a plain translucent layer rather than a backdrop filter, which would
+   repaint the whole scene behind it (the idle-paint budget, docs/PERFORMANCE.md). The picker is a muted
+   RadioButton: flat boxes, one light fill for the pick. Nothing here lifts off the plate. */
+.off-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgba(5, 8, 11, 0.67);
+}
+
+.off-screen__etch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  text-align: center;
+  color: rgba(200, 220, 230, 0.65);
+  letter-spacing: 0.12em;
+}
+
+.off-screen__label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.off-screen__lore,
+.off-screen__hint {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  letter-spacing: 0.06em;
+}
+
+.off-screen__hint {
+  color: rgba(200, 220, 230, 0.88);
+}
+
+.off-screen__picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  max-width: 100%;
+}
+
+.off-screen__picker .sc-radio-button {
+  align-items: center;
+}
+
+.off-screen__picker .sc-radio-button__root {
+  justify-content: center;
+}
+
+/* A well (in = read, as the breadcrumb and the meta box): the pick's name and code. Its height is held
+   when nothing is picked, so the row above does not shift on the first pick. */
+.off-screen__readout {
+  margin: 0;
+  min-height: 1.75rem;
+  padding: 4px 12px;
+  box-sizing: border-box;
+  max-width: 100%;
+  background: var(--well-background);
+  box-shadow: var(--well-inset);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--color-text-primary-fixed);
+  letter-spacing: 0.04em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Phone shell (docs/tasks/LAYOUT_REWORK.md Task 28; the sketch's .phone .splash). ScreenViewport marks
+   the shell from useShell(), so no media query here. The label sits higher: the column starts at the top
+   with room above it, not centred, and a short screen (a phone on its side) scrolls rather than clipping
+   the picker. The label is sized to fit 320 px and a long word breaks before it runs past the glass. The
+   picker takes the screen's width, its options centred and wrapping, a little tighter than the desk's.
+   The readout wraps, centred and balanced, so a long save name takes a second line. */
+#screen-viewport[data-shell='phone'] .off-screen {
+  justify-content: flex-start;
+  padding-top: 12vh;
+  gap: var(--spacing-lg);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#screen-viewport[data-shell='phone'] .off-screen__label {
+  font-size: 1.75rem;
+  overflow-wrap: anywhere;
+}
+
+#screen-viewport[data-shell='phone'] .off-screen__picker {
+  width: 100%;
+}
+
+#screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__flat {
+  padding: 0 10px;
+}
+
+#screen-viewport[data-shell='phone'] .off-screen__readout {
+  font-size: var(--font-size-label-compact);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}

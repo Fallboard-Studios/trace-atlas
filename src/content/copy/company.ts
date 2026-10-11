@@ -28,17 +28,57 @@ export const company = {
   'company.assign': {
     human: 'Company',
     lore: 'UNIT AFFILIATION',
+    /** The roster's Move panel / sheet title over this same radio (docs/specs/LAYOUT_REWORK.md §1.5). */
+    template: 'Move {name} to',
     options: {
       freelance: { human: 'Freelance' },
     },
+    help: { human: 'Which company this probe belongs to. A change to a company’s settings reaches every probe in it at that moment; moving a probe in or out changes nothing about its sound. Freelance probes belong to no company.' },
   },
-  'company.selection': { human: 'Company Selection', lore: 'REGISTERED CONSORTIA' },
-  'company.name': { human: 'Company Name', lore: 'DESIGNATION', placeholder: 'Enter a company name…' },
-  'company.name.create': { human: 'New Company Name' },
-  'company.name.rename': { human: 'Rename Company' },
+  'company.name': {
+    human: 'Company Name',
+    lore: 'DESIGNATION',
+    placeholder: 'Enter a company name…',
+    help: { human: 'The company’s name, up to 128 characters. It is only a label: it shows in the company lists and pickers, and changes nothing about the sound.' },
+  },
+  'company.name.create': {
+    human: 'New Company Name',
+    help: { human: 'A name for a new company. Press Create to make it; it starts with no probes, and you move probes into it with each probe’s Company picker.' },
+  },
+  'company.name.rename': {
+    human: 'Rename Company',
+    help: { human: 'A new name for the selected company. Press Rename to apply it; its probes and settings stay as they are.' },
+  },
   'company.create': { human: 'Create', lore: 'COMMISSION UNIT', template: 'Create {name}' },
   'company.rename': { human: 'Rename', lore: 'REDESIGNATE UNIT', template: 'Rename {company} > {name}' },
   'company.delete': { human: 'Delete', lore: 'DECOMMISSION UNIT', template: 'Delete {company}' },
   'company.delete.confirmTitle': { human: 'Delete?', template: 'Delete {company}?' },
   'company.delete.confirmBody': { human: 'Its member robots become Freelance. This can\'t be undone.' },
+
+  // ---------------------------------------------------------------- company detail
+  // The company column (docs/specs/LAYOUT_REWORK.md §1.6), copy from the approved sketch. Readouts are
+  // a label (human + lore) over a value; counts are slots, the fleet size included.
+  'company.detail.share': { human: 'Fleet Share', lore: 'Mesh Share', template: '{n} of {total} probes' },
+  'company.detail.signal': {
+    human: 'Halo',
+    lore: 'Affiliation Signal',
+    options: {
+      company: { human: 'Halo on every member' },
+      all: { human: 'No halo — nothing to mark apart' },
+    },
+  },
+  /** Stated once in the column: edits broadcast, never link (docs/COMPANIES.md). One member and none
+   *  have their own forms — the plural sentence would read "all 1 probes" / "all 0 probes". */
+  'company.detail.broadcastNote': {
+    human: 'Broadcast note',
+    template: 'Edits on this screen reach all {n} probes at once — one broadcast, never a link. A probe edited on its own afterwards keeps its own value.',
+  },
+  'company.detail.broadcastNote.one': {
+    human: 'Edits on this screen reach its one probe — one broadcast, never a link. If it is edited on its own afterwards, it keeps its own value.',
+  },
+  'company.detail.broadcastNote.none': {
+    human: 'This company has no probes yet, so an edit here has nothing to reach. Move a probe in from the Probes roster first.',
+  },
+  /** The All form's eyebrow over its title (the title itself is `probe.all`). */
+  'company.detail.allForm': { human: 'Fleet-wide edit' },
 } as const satisfies Record<string, ContentEntry>;

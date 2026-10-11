@@ -1,10 +1,24 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 import Header from './Header';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { ACCENT_COLORS } from '@/constants/accentColors';
+import { getTimeline } from '@/animation/timelineMap';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
+import { labels } from '@/content';
+import { CABINET_BOX_HEIGHT, CABINET_VOXEL_GAP, type CabinetTier } from '@/utils/cabinetBreakpoints';
+import { CABINET_REST_POP } from '@/utils/cabinetGeometry';
+import {
+  computeFittedBoxCount,
+  computeVoxelTrackLength,
+  computeVoxelTrackTrailingReserve,
+  VOXEL_TRACK_MIN_BOX_COUNT,
+} from '@/utils/voxelTrackMath';
 
 function setStoreFixtures() {
   useAudioStore.setState({ isMuted: false, volume: 0.6 });
@@ -18,16 +32,14 @@ function setStoreFixtures() {
   });
 }
 
-/** Stubs window.matchMedia for the three min-width queries Header's own nav-clearance shift reads
- *  (HEADER_NAV_CLEARANCE_MIN_WIDTH = 400px, HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH = 640px,
- *  NAV_PANEL_DOCK_MIN_WIDTH = 768px — see useNavPanelSlideAway.ts/NavPanel.test.tsx's own stub
- *  convention for the last one). atLeast640 defaults false (narrow tier) when omitted. */
-function stubMatchMedia({ atLeast400, atLeast640 = false, docked }: { atLeast400: boolean; atLeast640?: boolean; docked: boolean }) {
+/** Stubs window.matchMedia: useShell's desk query (768px) answers `desk`; the 400px / 640px queries the
+ *  removed nav-clearance slide used to read answer `wide`, so a test can sit in the band where it fired. */
+function stubShell(desk: boolean, wide = desk) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query.includes('768px') ? docked : query.includes('640px') ? atLeast640 : query.includes('400px') ? atLeast400 : false,
+      matches: query.includes('768px') ? desk : query.includes('reduced-motion') ? false : wide,
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -35,11 +47,23 @@ function stubMatchMedia({ atLeast400, atLeast640 = false, docked }: { atLeast400
   });
 }
 
-// Local gsap mock (overrides vitest.setup.ts's shared one, same pattern NavPanel.test.tsx's own
-// nav-panel-slide tween test uses) — captures the nav-clearance effect's own .to() call so the
-// tests below can assert its exact xPercent/x, while still supporting CabinetBox's own
-// timeline().fromTo() chain and top-level gsap.set() (3 real CabinetBox instances render inside
-// Header: the header facade, Mute's own box, and the volume slider's voxel-track boxes).
+const realMatchMedia = window.matchMedia;
+const VOLUME_NAME = labels('header.volume').humanLabel;
+
+// CabinetBox stubbed to expose how far each box is popped (NavPanel.test.tsx's stub): the phone's volume
+// box pops while its pop-out is open, and with gsap mocked the real box shows that nowhere in the DOM.
+vi.mock('@/components/ui/controls/CabinetBox', () => ({
+  CabinetBox: ({ popped, timelineKey, children }: { popped: boolean | number; timelineKey: string; children?: React.ReactNode }) => (
+    <div className="sc-cabinet-box" data-popped={String(popped)} data-timeline-key={timelineKey}>
+      {children}
+    </div>
+  ),
+}));
+
+// Local gsap mock (overrides vitest.setup.ts's shared one) — records every .to() call, so the test that
+// the nav-clearance slide is gone can see that nothing tweens the header's box, while still supporting
+// CabinetBox's own timeline().fromTo() chain and top-level gsap.set() (the header facade, Mute's box,
+// the volume trigger's box on the phone and the slider's voxel-track boxes all render real CabinetBoxes).
 let lastToVars: Record<string, unknown> | undefined;
 vi.mock('gsap', () => {
   const chainable = {
@@ -90,6 +114,11 @@ class MockResizeObserver {
   fire(height: number) {
     this.callback([{ contentRect: { height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
   }
+
+  /** A width report as a real observer's: the border box's inline size (the row's padding counts). */
+  fireWidth(width: number) {
+    this.callback([{ contentRect: { width: width - 100 }, borderBoxSize: [{ inlineSize: width, blockSize: 0 }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
 }
 
 /** CabinetBox (Toggle's mute box + RadioButton's 3 option boxes — 4 real
@@ -111,14 +140,20 @@ describe('Header', () => {
     MockResizeObserver.instances = [];
     originalResizeObserver = globalThis.ResizeObserver;
     (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = MockResizeObserver;
+    // The behaviour tests below predate the shells and read the slider inline, as the desk shows it
+    // (docs/tasks/LAYOUT_REWORK.md Task 6: they pass unmodified). The phone's pop-out has its own block.
+    stubShell(true);
+    lastToVars = undefined;
   });
 
   afterEach(() => {
     (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = originalResizeObserver;
     document.documentElement.style.removeProperty('--header-height');
+    document.documentElement.style.removeProperty('--header-width');
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
   });
 
-  it('renders a master volume slider bound to audioStore.volume, always visible alongside Mute (moved back after Task 11 per Crawford\'s follow-up call — still also present at Settings -> Volume, see SettingsContent.test.tsx)', () => {
+  it('renders a master volume slider bound to audioStore.volume, always visible alongside Mute (moved back after Task 11 per Crawford\'s follow-up call)', () => {
     render(<Header />);
     const slider = screen.getByRole('slider', { name: /volume/i });
     expect(slider.getAttribute('aria-valuenow')).toBe('60');
@@ -141,9 +176,9 @@ describe('Header', () => {
     expect(slider.getAttribute('data-disabled')).toBe('');
   });
 
-  // Time/temp status readout moved to NavStatusBlock (nav/NavStatusBlock.tsx) as part of
-  // a232a48 "header now interacts with nav panel" — Header no longer renders it at all.
-  // See NavStatusBlock.test.tsx for the equivalent coverage (HH:MM, °C, NO TEMP fallback).
+  // Time/temp status readout moved to NavStatusBlock as part of a232a48 "header now interacts with
+  // nav panel", then to the meta box (worldView/MetaBox.tsx, layout rework Task 8) — Header no
+  // longer renders it at all. See MetaBox.test.tsx for the equivalent coverage (HH:MM, °C, NO TEMP fallback).
 
   it('renders mute as a switch reflecting audioStore.isMuted', () => {
     render(<Header />);
@@ -185,7 +220,7 @@ describe('Header', () => {
     expect((screen.getByRole('switch', { name: /mute/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('renders no nav RadioButton — navigation now lives entirely in NavTree (docs/tasks/NAV_LAYOUT_REWRITE.md Task 10)', () => {
+  it('renders no nav RadioButton — navigation lives entirely in NavPanel (docs/specs/LAYOUT_REWORK.md §1.2)', () => {
     render(<Header />);
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByRole('radiogroup')).toBeNull();
@@ -230,6 +265,57 @@ describe('Header', () => {
     });
   });
 
+  // Crawford, 2026-10-10: the meta box sits at the top, level with the header, and must stop short of it. The
+  // header's width is as content-sized as its height (the volume slider's width plus the power corner's
+  // reserve), so it is measured, not typed in twice: the row's border-box width, written to the root the same
+  // way --header-height is, for MetaBox.css to subtract.
+  describe('--header-width measurement', () => {
+    const rowObserver = (container: HTMLElement) => {
+      const row = container.querySelector('.header__row')!;
+      const found = MockResizeObserver.instances.find((o) => o.observedTargets.includes(row));
+      if (!found) throw new Error('No MockResizeObserver observed .header__row');
+      return found;
+    };
+
+    it('writes the border-box width of the row to document.documentElement as --header-width', () => {
+      const { container } = render(<Header />);
+      act(() => rowObserver(container).fireWidth(372));
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('372px');
+    });
+
+    it('updates it when the row resizes, not just once on mount', () => {
+      const { container } = render(<Header />);
+      const observer = rowObserver(container);
+      act(() => observer.fireWidth(372));
+      act(() => observer.fireWidth(296));
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('296px');
+    });
+
+    it('measures the row separately from the header root, so --header-height stays the height of the header', () => {
+      const { container } = render(<Header />);
+      const root = findHeaderHeightObserver(container.querySelector('header')!);
+      expect(root.observedTargets).not.toContain(container.querySelector('.header__row'));
+      act(() => root.fire(140));
+      expect(document.documentElement.style.getPropertyValue('--header-height')).toBe('140px');
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('');
+    });
+
+    it('disconnects the width observer on unmount', () => {
+      const { container, unmount } = render(<Header />);
+      const observer = rowObserver(container);
+      expect(observer.disconnected).toBe(false);
+      unmount();
+      expect(observer.disconnected).toBe(true);
+    });
+
+    it('does not leave a stale width behind when the header unmounts (powered off)', () => {
+      const { container, unmount } = render(<Header />);
+      act(() => rowObserver(container).fireWidth(372));
+      unmount();
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('');
+    });
+  });
+
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 15) — the Header
   // trait's own colors (teal/green, rebalanced from emerald/indigo — see traitColors.ts's own
   // comment) on the header root.
@@ -240,73 +326,191 @@ describe('Header', () => {
     expect(root.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.green);
   });
 
-  // NavPanel's own slide-off overlaps Header's volume slider between HEADER_NAV_CLEARANCE_MIN_WIDTH
-  // (400px) and NavPanel's own dock breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, 768px — see
-  // useNavPanelSlideAway.ts). Header.tsx shifts its own cabinet box right in that range so Mute
-  // stays reachable while NavPanel is open.
-  describe('.header>.sc-cabinet-box nav-clearance shift', () => {
-    beforeEach(() => {
-      lastToVars = undefined;
-    });
-
-    it('shifts right (xPercent: 100, x: -154) in the narrow clearance tier (400-639px) when NavPanel opens', () => {
-      stubMatchMedia({ atLeast400: true, atLeast640: false, docked: false });
-      setStoreFixtures();
+  // docs/tasks/LAYOUT_REWORK.md Task 6: the nav-clearance slide is gone. The phone's nav is a sheet below
+  // the top bar (Task 5) and the desk panel never reaches the header, so nothing moves on isNavPanelOpen.
+  describe('no nav-clearance slide', () => {
+    it.each([
+      ['phone, in the 400-767 px band where it used to fire', false, true],
+      ['phone, below 400 px', false, false],
+      ['desk', true, true],
+    ])('%s: opening and closing the nav tweens nothing and registers no header-cabinet-nav-clearance timeline', (_band, desk, wide) => {
+      stubShell(desk, wide);
       render(<Header />);
 
-      act(() => {
-        useUIStore.getState().setNavPanelOpen(true);
+      act(() => useUIStore.getState().setNavPanelOpen(true));
+      expect(getTimeline('header-cabinet-nav-clearance')).toBeUndefined();
+      act(() => useUIStore.getState().setNavPanelOpen(false));
+
+      expect(lastToVars).toBeUndefined();
+      expect(getTimeline('header-cabinet-nav-clearance')).toBeUndefined();
+    });
+  });
+
+  describe('desk shell: mute and the slider in one row', () => {
+    it('renders mute then the volume slider in the header row, and no volume pop-out box', () => {
+      const { container } = render(<Header />);
+      const row = container.querySelector<HTMLElement>('.header__row')!;
+      const mute = within(row).getByRole('switch', { name: /mute/i });
+      const slider = within(row).getByRole('slider', { name: /volume/i });
+      expect(mute.compareDocumentPosition(slider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
+      expect(container.querySelector('.header__volume-popover')).toBeNull();
+    });
+  });
+
+  // Crawford, 2026-10-09: "Volume box beside mute" — mute stays one press, and a ▾ box beside it opens
+  // the volume pop-out (a Radix Popover holding the slider).
+  describe('phone shell: mute, and the volume pop-out from the box beside it', () => {
+    beforeEach(() => stubShell(false));
+
+    const volumeBox = () => screen.getByRole('button', { name: VOLUME_NAME });
+    const popover = () => document.querySelector<HTMLElement>('.header__volume-popover');
+    const tick = () => act(() => new Promise((r) => setTimeout(r, 0)));
+
+    it('renders mute and the volume box, and no slider until the box opens the pop-out', () => {
+      render(<Header />);
+      expect(screen.getByRole('switch', { name: /mute/i })).toBeTruthy();
+      expect(volumeBox().getAttribute('aria-expanded')).toBe('false');
+      expect(volumeBox().getAttribute('aria-haspopup')).toBe('dialog');
+      expect(screen.queryByRole('slider')).toBeNull();
+      expect(popover()).toBeNull();
+    });
+
+    it('the volume box sits right after mute in the one header row, its glyph hidden from assistive tech', () => {
+      const { container } = render(<Header />);
+      const row = container.querySelector<HTMLElement>('.header__row')!;
+      const mute = within(row).getByRole('switch', { name: /mute/i });
+      const box = within(row).getByRole('button', { name: VOLUME_NAME });
+      expect(mute.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(within(box).getByText('▾').getAttribute('aria-hidden')).toBe('true');
+    });
+
+    // Toggle's fixed-square face (the --bare root at an explicit boxSize), the ▾ box's size: two
+    // matching 44 px touch targets (spec §3: touch targets stay >= --touch-target-size on the phone).
+    it('mute is the same fixed 44 px square as the volume box', () => {
+      render(<Header />);
+      const mute = screen.getByRole('switch', { name: /mute/i });
+      expect(mute.classList.contains('sc-toggle__root--bare')).toBe(true);
+      expect(mute.style.getPropertyValue('--cabinet-toggle-box-size')).toBe('44px');
+    });
+
+    it('the volume box pops while the pop-out is open and rests when it is shut, as a Toggle does while on', () => {
+      render(<Header />);
+      const popped = () => volumeBox().querySelector('.sc-cabinet-box')!.getAttribute('data-popped');
+      expect(volumeBox().getAttribute('data-state')).toBe('closed');
+      expect(popped()).toBe(String(CABINET_REST_POP));
+
+      fireEvent.click(volumeBox());
+      expect(volumeBox().getAttribute('data-state')).toBe('open');
+      expect(popped()).toBe('true');
+
+      fireEvent.click(volumeBox());
+      expect(popped()).toBe(String(CABINET_REST_POP));
+    });
+
+    it('mute still flips audioStore.isMuted in one press and leaves the volume alone', () => {
+      useAudioStore.setState({ volume: 0.8, isMuted: false });
+      render(<Header />);
+      fireEvent.click(screen.getByRole('switch', { name: /mute/i }));
+      expect(useAudioStore.getState().isMuted).toBe(true);
+      expect(useAudioStore.getState().volume).toBe(0.8);
+      expect(popover()).toBeNull();
+    });
+
+    it('pressing the volume box opens the pop-out with the slider bound to audioStore.volume', () => {
+      render(<Header />);
+      fireEvent.click(volumeBox());
+      expect(volumeBox().getAttribute('aria-expanded')).toBe('true');
+      const slider = within(popover()!).getByRole('slider', { name: /volume/i });
+      expect(slider.getAttribute('aria-valuenow')).toBe('60');
+    });
+
+    it('the pop-out slider drives the store as the desk one does', () => {
+      render(<Header />);
+      fireEvent.click(volumeBox());
+      const slider = within(popover()!).getByRole('slider', { name: /volume/i });
+      act(() => slider.focus());
+      fireEvent.keyDown(slider, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().volume).toBeGreaterThan(0.6);
+    });
+
+    it('Escape closes the pop-out and hands focus back to the volume box', async () => {
+      render(<Header />);
+      act(() => volumeBox().focus());
+      fireEvent.click(volumeBox());
+      expect(popover()).not.toBeNull();
+
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      await tick();
+
+      expect(popover()).toBeNull();
+      expect(screen.queryByRole('slider')).toBeNull();
+      expect(volumeBox().getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(volumeBox());
+    });
+
+    it('a second press on the volume box closes it', () => {
+      render(<Header />);
+      fireEvent.click(volumeBox());
+      fireEvent.click(volumeBox());
+      expect(popover()).toBeNull();
+    });
+
+    it('a press outside closes it', async () => {
+      render(<Header />);
+      fireEvent.click(volumeBox());
+      await tick();
+      fireEvent.pointerDown(document.body);
+      expect(popover()).toBeNull();
+    });
+
+    // UI Shell guardrail (CLAUDE.md): interactive UI lives inside ScreenViewport only — no portal to <body>.
+    it('renders the pop-out inside the header', () => {
+      const { container } = render(<Header />);
+      fireEvent.click(volumeBox());
+      expect(container.querySelector('header')!.contains(popover())).toBe(true);
+    });
+
+    it('disables the volume box when powered off, so the pop-out cannot open', () => {
+      useUIStore.setState({ isPoweredOn: false });
+      render(<Header />);
+      expect((volumeBox() as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(volumeBox());
+      expect(popover()).toBeNull();
+    });
+
+    it('widening to the desk shell with the pop-out open puts the slider back in the row; narrowing again finds the pop-out shut', () => {
+      let desk = false;
+      const listeners = new Set<() => void>();
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+          get matches() {
+            return query.includes('768px') ? desk : false;
+          },
+          media: query,
+          addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+          removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+        }),
       });
+      const setShell = (next: boolean) =>
+        act(() => {
+          desk = next;
+          listeners.forEach((listener) => listener());
+        });
 
-      expect(lastToVars?.xPercent).toBe(100);
-      expect(lastToVars?.x).toBe(-154);
-    });
+      const { container } = render(<Header />);
+      fireEvent.click(volumeBox());
+      expect(popover()).not.toBeNull();
 
-    it('shifts right (xPercent: 100, x: -188) in the wide clearance tier (>=640px) when NavPanel opens', () => {
-      stubMatchMedia({ atLeast400: true, atLeast640: true, docked: false });
-      setStoreFixtures();
-      render(<Header />);
+      setShell(true);
+      expect(popover()).toBeNull();
+      expect(within(container.querySelector<HTMLElement>('.header__row')!).getByRole('slider', { name: /volume/i })).toBeTruthy();
 
-      act(() => {
-        useUIStore.getState().setNavPanelOpen(true);
-      });
-
-      expect(lastToVars?.xPercent).toBe(100);
-      expect(lastToVars?.x).toBe(-188);
-    });
-
-    it('shifts back (xPercent: 0, x: 0) when NavPanel closes again within the clearance range', () => {
-      stubMatchMedia({ atLeast400: true, docked: false });
-      setStoreFixtures();
-      useUIStore.setState({ isNavPanelOpen: true });
-      render(<Header />);
-
-      act(() => {
-        useUIStore.getState().setNavPanelOpen(false);
-      });
-
-      expect(lastToVars?.xPercent).toBe(0);
-      expect(lastToVars?.x).toBe(0);
-    });
-
-    it('never shifts below the clearance range (<400px wide), even with NavPanel open', () => {
-      stubMatchMedia({ atLeast400: false, docked: false });
-      setStoreFixtures();
-      useUIStore.setState({ isNavPanelOpen: true });
-      render(<Header />);
-
-      expect(lastToVars?.xPercent).toBe(0);
-      expect(lastToVars?.x).toBe(0);
-    });
-
-    it('never shifts once NavPanel is permanently docked (>=768px wide), even with isNavPanelOpen true', () => {
-      stubMatchMedia({ atLeast400: true, docked: true });
-      setStoreFixtures();
-      useUIStore.setState({ isNavPanelOpen: true });
-      render(<Header />);
-
-      expect(lastToVars?.xPercent).toBe(0);
-      expect(lastToVars?.x).toBe(0);
+      setShell(false);
+      expect(popover()).toBeNull();
+      expect(volumeBox().getAttribute('aria-expanded')).toBe('false');
     });
   });
 });
@@ -318,5 +522,86 @@ describe('Header reads its copy from src/content (docs/specs/CONTENT_LAYER.md, T
     const source = readFileSync(resolve(__dirname, 'Header.tsx'), 'utf8');
     expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
     expect(source).not.toMatch(/\[c\]/);
+  });
+});
+
+// Found in Chrome: a 176 px slider overflowed the desk header by 8 px — the voxel boxes follow the
+// cabinet tier (48 px on the desktop tier) and a track never draws fewer than three, so its shortest
+// track is 184 px there. The width is that track, from the tier tables, so no tier overflows it.
+describe('the volume slider width holds the shortest track at every cabinet tier', () => {
+  it.each(Object.keys(CABINET_BOX_HEIGHT) as CabinetTier[])('%s tier', (tier) => {
+    stubShell(true);
+    const { container } = render(<Header />);
+    const width = parseFloat(container.querySelector<HTMLElement>('header')!.style.getPropertyValue('--header-volume-width'));
+    expect(width).toBeGreaterThan(0);
+
+    const reserve = computeVoxelTrackTrailingReserve('horizontal');
+    const boxes = computeFittedBoxCount(width - reserve, CABINET_BOX_HEIGHT[tier], CABINET_VOXEL_GAP[tier]);
+    expect(boxes).toBeGreaterThanOrEqual(VOXEL_TRACK_MIN_BOX_COUNT);
+    expect(computeVoxelTrackLength(boxes, CABINET_BOX_HEIGHT[tier], CABINET_VOXEL_GAP[tier]) + reserve).toBeLessThanOrEqual(width);
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+  });
+});
+
+describe('Header.tsx — the slide and its constants are gone (Task 6)', () => {
+  it('reads no nav-panel flag and no media query of its own: the shell comes from useShell', () => {
+    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'Header.tsx'), 'utf8');
+    expect(source).not.toMatch(/HEADER_NAV_CLEARANCE|isNavPanelOpen|matchMedia|nav-clearance/);
+    expect(source).toMatch(/useShell\(\)/);
+  });
+});
+
+describe('Header.css — one row beside the power corner', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'Header.css'), 'utf-8');
+
+  it('has no media query: what differs by shell comes from useShell (spec Assumption 1), not the stylesheet', () => {
+    expect(css).not.toMatch(/@media/);
+  });
+
+  it('sits at --header-top, the one offset the top bar is measured from', () => {
+    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--header-top: 20px;');
+    expect(getCssRuleBody(css, '.header')).toContain('top: var(--header-top);');
+  });
+
+  // Measured in Chrome: the power corner (126 px on the phone, 160 on the desk) reaches lower than the
+  // header, and the nav sheet ran 9 px under it at 320 px. The top bar ends where the lower of the two does.
+  it('declares the top bar\'s lower edge as the header or the power corner beside it, whichever reaches lower', () => {
+    expect(getCssRuleBody(css, '#screen-viewport')).toContain(
+      '--top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height));',
+    );
+  });
+
+  it('the row never wraps and keeps the power corner clear on its right', () => {
+    const body = getCssRuleBody(css, '.header__row');
+    expect(body).not.toBeNull();
+    expect(body).toContain('flex-wrap: nowrap;');
+    expect(body).toContain('calc(var(--power-corner-width) + var(--spacing-md))');
+  });
+
+  // The 320 px fit: on the phone the row is mute and the volume box, two fixed touch targets and a gap,
+  // beside the power corner's reserve — nothing in it grows with content or holds a min-width.
+  it('the volume box is a fixed touch target that never grows or shrinks', () => {
+    const body = getCssRuleBody(css, '.header__volume-trigger');
+    expect(body).not.toBeNull();
+    expect(body).toContain('flex: 0 0 auto;');
+    expect(getCssRuleBody(css, '.header__volume-trigger .sc-cabinet-box__front')).toContain('width: var(--touch-target-size);');
+  });
+
+  it('the slider, desk row or pop-out, has one width and no min-width of its own', () => {
+    const row = getCssRuleBody(css, '.header__row .sc-slider-linear');
+    expect(row).toContain('width: var(--header-volume-width);');
+    expect(row).not.toMatch(/min-width/);
+    expect(getCssRuleBody(css, '.header__volume-popover .sc-slider-linear')).toContain('width: var(--header-volume-width);');
+  });
+
+  it('the volume box reads as on while open: the accent fill a checked Toggle gets', () => {
+    expect(getCssRuleBody(css, ".header__volume-trigger[data-state='open'] .sc-cabinet-box__front")).toContain(
+      'background: var(--color-accent-gradient);',
+    );
+  });
+
+  it('the pop-out takes pointer events back from the header, which lets presses through to the world', () => {
+    expect(getCssRuleBody(css, '.header')).toContain('pointer-events: none;');
+    expect(getCssRuleBody(css, '.header__volume-popover')).toContain('pointer-events: auto;');
   });
 });

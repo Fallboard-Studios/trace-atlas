@@ -22,7 +22,9 @@ Entry shape (`src/content/types.ts`):
 | `template` | no | a `{slot}` form of the name for dynamic accessible names (`'Delete {company}'`); `human` stays the slot-free label |
 | `placeholder` | no | text-input hint |
 | `unit` | no | value suffix a slider renders (`'Hz'`, `' measures'`) |
-| `options` | no | per-value copy for radios and enum badges, keyed by the stored value: `{ natural: { human, lore? } }` |
+| `options` | no | per-value copy for radios and enum badges, keyed by the stored value: `{ natural: { human, lore?, short? } }`. An option's `short` is a compact form for where the phone shell has no room (the lane letter 'A' on `LfoLink`'s lane row); it is read by its consumer, never spread by `options()` / `optionsRecord()` |
+| `help` | no | `ContentHelp`: `{ human, lore? }`, what the control does, for the "?" on its label. `labels()` carries it into the schema (`SchemaLabels.help`), `DualLabel` renders the `HelpPopover` ([COMPONENT_LIBRARY.md](COMPONENT_LIBRARY.md)). Plain text, never markup. Present on every value control; written in the copy-tone guide's human voice at the length of the existing intro descriptions |
+| `short` | no | a compact form of the name where the phone shell has no room: 'LFO A' for the Core LFO lane. Read by its own helper, `laneTitle(lane, shell)` (`src/data/lfoConfig.ts`: "Core LFO (LFO A)" on the desk, the `short` alone on the phone), never spread by `labels()` |
 
 ## Keys
 

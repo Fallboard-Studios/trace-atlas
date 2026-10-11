@@ -19,11 +19,10 @@
   font-size: var(--font-size-label);
   /* Fixed, not the dynamic --color-text-primary — a human label (accordion triggers, every leaf
      control's own label) must stay white even under an ancestor's light robot/company color
-     override (traitColors.ts's getRobotColorStyle). Three places deliberately opt back into the
-     dynamic value instead, because the label itself IS the entity's own title/swatch text sitting
-     on that light color as its own background: NavCabinetRow.css's title (never routed through
-     DualLabel to begin with), NavTreeNode.css's own name-button row, and RadioButton.css's
-     selected/tinted option. */
+     override (traitColors.ts's getRobotColorStyle). A label that IS the entity's own title/swatch
+     text, sitting on that light color as its own background, opts back into the dynamic value
+     instead: RadioButton.css's selected/tinted option does, on its own single-line label (no
+     DualLabel inside an option since docs/tasks/LAYOUT_REWORK.md Task 13). */
   color: var(--color-text-primary-fixed);
 
 }
@@ -40,4 +39,11 @@
   .sc-dual-label__human {
     font-size: var(--font-size-label-compact);
   }
+}
+
+/* The line carrying the help "?" (HelpPopover): the name, then the "?" after it, centred on the line. */
+.sc-dual-label__line {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }

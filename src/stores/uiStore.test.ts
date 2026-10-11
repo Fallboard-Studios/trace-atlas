@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useUIStore } from './uiStore';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION } from './uiStore';
 
 const INITIAL_STATE = useUIStore.getState();
 
@@ -79,31 +79,6 @@ describe('uiStore — selectedCompanyId (Roadmap Phase 10)', () => {
     useUIStore.getState().selectCompany('company-0-abc');
     useUIStore.getState().selectRobot('robot-0-xyz');
     expect(useUIStore.getState().selectedCompanyId).toBe('company-0-abc');
-  });
-});
-
-describe('uiStore — clearSelectedCompany (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the bare "Companies" tree node)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('clears selectedCompanyId back to null', () => {
-    useUIStore.getState().selectCompany('company-0-abc');
-    useUIStore.getState().clearSelectedCompany();
-    expect(useUIStore.getState().selectedCompanyId).toBeNull();
-  });
-
-  it('never touches allRobotsSelected — distinct from selectAllRobots, a different concern (the Companies tree vs. the Robots tab\'s own company filter)', () => {
-    useUIStore.getState().selectCompany('company-0-abc'); // clears allRobotsSelected to false
-    useUIStore.getState().clearSelectedCompany();
-    expect(useUIStore.getState().allRobotsSelected).toBe(false);
-  });
-
-  it('is a no-op on selectedRobotId', () => {
-    useUIStore.getState().selectRobot('robot-0-xyz');
-    useUIStore.getState().selectCompany('company-0-abc');
-    useUIStore.getState().clearSelectedCompany();
-    expect(useUIStore.getState().selectedRobotId).toBe('robot-0-xyz');
   });
 });
 
@@ -210,64 +185,6 @@ describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/NA
   });
 });
 
-describe('uiStore — expandedProbeId (accordion-of-one within the Probes branch)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedProbeId).toBeNull();
-  });
-
-  it('setExpandedProbeId sets the expanded probe, replacing any other', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-    useUIStore.getState().setExpandedProbeId('robot-1-abc');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-1-abc');
-  });
-
-  it('setExpandedProbeId(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedProbeId(null);
-    expect(useUIStore.getState().expandedProbeId).toBeNull();
-  });
-
-  it('is independent of expandedCompanyId', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-  });
-});
-
-describe('uiStore — expandedCompanyId (accordion-of-one within the Companies branch)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedCompanyId).toBeNull();
-  });
-
-  it('setExpandedCompanyId sets the expanded company, replacing any other', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-    useUIStore.getState().setExpandedCompanyId('company-1-def');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-1-def');
-  });
-
-  it('setExpandedCompanyId(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedCompanyId(null);
-    expect(useUIStore.getState().expandedCompanyId).toBeNull();
-  });
-
-  it('is independent of expandedProbeId — expanding a probe never collapses an expanded company', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-  });
-});
-
 describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 11)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
@@ -294,33 +211,107 @@ describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/t
     expect(useUIStore.getState().selectedSection).toBe('melody');
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
   });
+
+  it('accepts the third leaf, Save & Share', () => {
+    useUIStore.getState().setSelectedSettingsLeaf('sessions');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('sessions');
+  });
+
+  // docs/tasks/LAYOUT_REWORK.md Task 17 (spec §1.10): the leaf is the Settings tab; the subsection below
+  // it was the tree's third level, read by nothing once the stacked screen's scrollspy is gone.
+  it('has no Settings subsection: the field and its setter are retired', () => {
+    const state = useUIStore.getState() as unknown as Record<string, unknown>;
+    expect('selectedSettingsSubsection' in state).toBe(false);
+    expect('setSelectedSettingsSubsection' in state).toBe(false);
+    expect('selectedSettingsSubsection' in useUIStore.getInitialState()).toBe(false);
+  });
 });
 
-describe('uiStore — selectedFleetParamsEffect (which effect leaf is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 14)', () => {
+// docs/tasks/LAYOUT_REWORK.md Task 18 (spec §1.10): the tree's accordion-of-one fields and the
+// stacked Fleet Params screen's effect leaf retired with the stacked scroll.
+describe('uiStore — the stacked scroll\'s fields are retired', () => {
+  it.each([
+    ['expandedProbeId', 'setExpandedProbeId'],
+    ['expandedCompanyId', 'setExpandedCompanyId'],
+    ['selectedFleetParamsEffect', 'setSelectedFleetParamsEffect'],
+  ])('has no %s and no %s', (field, setter) => {
+    const state = useUIStore.getState() as unknown as Record<string, unknown>;
+    expect(field in state).toBe(false);
+    expect(setter in state).toBe(false);
+    expect(field in useUIStore.getInitialState()).toBe(false);
+  });
+});
+
+describe('uiStore — the initial state is spec §1.10\'s table', () => {
+  // §1.10's kept and new fields.
+  const NAV_FIELDS = [
+    'activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
+    'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection', 'selectedSettingsLeaf',
+    'isPoweredOn', 'isNavPanelOpen',
+    'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
+  ];
+  // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are.
+  const OTHER_FIELDS = ['activeView', 'theme', 'language', 'isFullscreen', 'activeLocaleLocalTime', 'activeLocaleTemperature'];
+
+  const initial = useUIStore.getInitialState() as unknown as Record<string, unknown>;
+  const fields = Object.keys(initial).filter((key) => typeof initial[key] !== 'function');
+
+  it('holds exactly those fields', () => {
+    expect([...fields].sort()).toEqual([...NAV_FIELDS, ...OTHER_FIELDS].sort());
+  });
+
+  it('is JSON-serialisable: every field survives a round trip unchanged', () => {
+    const data = Object.fromEntries(fields.map((key) => [key, initial[key]]));
+    expect(JSON.parse(JSON.stringify(data))).toStrictEqual(data);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 15 (spec §1.10): the Fleet Params screen's tab and sub-tab.
+describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Params tab and sub-tab)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });
 
-  it('defaults to null — no effect leaf chosen until one is selected', () => {
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+  it('defaults to LFO Bank at no sub-tab — the screen reads null as the group\'s first, lane A', () => {
+    expect(DEFAULT_FLEET_PARAMS_SECTION).toBe('lfoBank');
+    expect(useUIStore.getState().fleetParamsSection).toBe(DEFAULT_FLEET_PARAMS_SECTION);
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
-  it('setSelectedFleetParamsEffect sets one of the 7 AudioRigEffectKeys', () => {
-    useUIStore.getState().setSelectedFleetParamsEffect('eq3');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
+  it('setFleetParamsSubsection round-trips a sub-tab and leaves the section alone', () => {
+    useUIStore.getState().setFleetParamsSubsection('laneC');
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('laneC');
+    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    useUIStore.getState().setFleetParamsSubsection(null);
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
-  it('setSelectedFleetParamsEffect(null) clears back to no leaf chosen', () => {
-    useUIStore.getState().setSelectedFleetParamsEffect('delay');
-    useUIStore.getState().setSelectedFleetParamsEffect(null);
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+  it('setFleetParamsSection round-trips a section and resets the sub-tab, which belonged to the old one', () => {
+    useUIStore.getState().setFleetParamsSubsection('laneC');
+    useUIStore.getState().setFleetParamsSection('timeSpace');
+    expect(useUIStore.getState().fleetParamsSection).toBe('timeSpace');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
-  it('is independent of selectedSettingsLeaf — Fleet Params and Settings are different branches', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('quality');
-    useUIStore.getState().setSelectedFleetParamsEffect('compressor');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
+  it('re-picking the same section also resets its sub-tab (the breadcrumb\'s group segment goes to the group)', () => {
+    useUIStore.getState().setFleetParamsSection('eqFilters');
+    useUIStore.getState().setFleetParamsSubsection('filterLPF');
+    useUIStore.getState().setFleetParamsSection('eqFilters');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+  });
+
+  it('touches no other nav field', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', selectedSettingsLeaf: 'quality', selectedSection: 'source' });
+    useUIStore.getState().setFleetParamsSection('output');
+    useUIStore.getState().setFleetParamsSubsection('limiter');
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', selectedSettingsLeaf: 'quality', selectedSection: 'source' });
+  });
+
+  it('stays JSON-serialisable', () => {
+    useUIStore.getState().setFleetParamsSection('output');
+    useUIStore.getState().setFleetParamsSubsection('limiter');
+    const { fleetParamsSection, fleetParamsSubsection } = useUIStore.getState();
+    expect(JSON.parse(JSON.stringify({ fleetParamsSection, fleetParamsSubsection }))).toEqual({ fleetParamsSection: 'output', fleetParamsSubsection: 'limiter' });
   });
 });
 
@@ -344,15 +335,6 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
     useUIStore.getState().setExpandedTopLevelBranch('probes');
     useUIStore.getState().setExpandedTopLevelBranch(null);
     expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
-  });
-
-  it('is independent of the per-branch expandedXxxId fields — its own level, own accordion-of-one', () => {
-    useUIStore.getState().setExpandedTopLevelBranch('probes');
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
   });
 });
 
@@ -422,5 +404,41 @@ describe('uiStore — allProbesSelected (which Probes content view is active, do
     useUIStore.getState().setAllProbesSelected(true);
     expect(useUIStore.getState().allRobotsSelected).toBe(false);
     expect(useUIStore.getState().allProbesSelected).toBe(true);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 20 (spec §1.10): which roster tile's Move popover / sheet is open.
+describe('uiStore — movePanelRobotId (the open Move panel)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('starts closed', () => {
+    expect(useUIStore.getInitialState().movePanelRobotId).toBeNull();
+  });
+
+  it('openMovePanel then closeMovePanel round-trips', () => {
+    useUIStore.getState().openMovePanel('r4');
+    expect(useUIStore.getState().movePanelRobotId).toBe('r4');
+    useUIStore.getState().closeMovePanel();
+    expect(useUIStore.getState().movePanelRobotId).toBeNull();
+  });
+
+  it('opening another tile panel replaces the first: one panel at a time', () => {
+    useUIStore.getState().openMovePanel('r4');
+    useUIStore.getState().openMovePanel('r7');
+    expect(useUIStore.getState().movePanelRobotId).toBe('r7');
+  });
+
+  it('closing when nothing is open stays closed', () => {
+    useUIStore.getState().closeMovePanel();
+    expect(useUIStore.getState().movePanelRobotId).toBeNull();
+  });
+
+  it('touches no other field', () => {
+    const before = useUIStore.getState();
+    useUIStore.getState().openMovePanel('r4');
+    useUIStore.getState().closeMovePanel();
+    expect(useUIStore.getState()).toStrictEqual(before);
   });
 });

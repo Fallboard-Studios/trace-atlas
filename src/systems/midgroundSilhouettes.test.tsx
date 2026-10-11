@@ -21,6 +21,7 @@ import { useUIStore } from '../stores/uiStore';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { shapeExtents, unionExtent, type ShapeExtent } from '../testUtils/svgShapeExtents';
 import { WORLD_BOUNDS } from '../constants/sceneDepth';
+import { WORLD_GEM } from '../components/actors/material/worldGemMaterial';
 import { ActorType, type Actor, type DistrictName } from '../types/Actor';
 
 // ========================================
@@ -88,7 +89,10 @@ function expectTight(box: Box | undefined, drawn: Box | null, where: string, tol
 }
 
 /** A rendered factory's drawn shapes in scene units: the body box (its scaled 100×100 rect) and
- *  every rooftop shape, which sits in the outer translate only. */
+ *  every rooftop shape, which sits in the outer translate only. The world gem rings (Phase 44) are
+ *  left out: the body's ring is the body's own material in the same pixel box, and a roof block's
+ *  ring sits on its block's edge, so the footprint of each is the box already measured (the
+ *  body's half-stroke overhang is pinned by the ring test below). */
 function factoryShapes(actor: Actor): ShapeExtent[] {
   const { container } = render(<svg><Factory actor={actor} /></svg>);
   const outer = container.querySelector('g[data-factory-type]')!;
@@ -96,7 +100,11 @@ function factoryShapes(actor: Actor): ShapeExtent[] {
   const [tx, ty] = [Number(m[1]), Number(m[2])];
   const roof = outer.cloneNode(true) as Element;
   for (const child of [...roof.children]) {
-    if (child.tagName === 'defs' || child.getAttribute('transform')?.startsWith('scale')) child.remove();
+    if (
+      child.tagName === 'defs'
+      || child.getAttribute('transform')?.startsWith('scale')
+      || child.getAttribute('data-gem') === 'ring'
+    ) child.remove();
   }
   const body = factoryGeometry(actor).box;
   return [
@@ -142,6 +150,30 @@ describe('midground silhouettes (Phase 43 Task 32, spec §1.10) — what a layer
         else expect(boxes, `${a.id} draws no rooftop greeble`).toHaveLength(1);
       }
     });
+  });
+
+  it('a factory\'s world gem ring stays inside its body box, bar half its 0.6 px stroke', () => {
+    // The ring is strokes centred on the body's outer edge, so it overhangs the box by half a
+    // stroke (0.3 px × the actor scale). That is the whole overhang: the silhouette stays the body box.
+    const actors = WORLDS.flatMap((w) => w.actors).filter((a) => a.type === ActorType.FACTORY).slice(0, 40);
+    expect(actors.length).toBeGreaterThan(0);
+    for (const a of actors) {
+      const { container } = render(<svg><Factory actor={a} /></svg>);
+      const outer = container.querySelector('g[data-factory-type]')!;
+      const ring = outer.querySelector('g[data-gem="ring"]')!;
+      const t = outer.getAttribute('transform')!.match(/translate\(\s*([-\d.e]+)[\s,]+([-\d.e]+)\s*\)/)!;
+      const drawn = unionExtent(shapeExtents(ring).map((s) => ({
+        ...s, x0: s.x0 + Number(t[1]), x1: s.x1 + Number(t[1]), y0: s.y0 + Number(t[2]), y1: s.y1 + Number(t[2]),
+      })))!;
+      const body = factoryGeometry(a).box;
+      const slack = 0.3 * (a.scaleX ?? 1) + 0.01; // + the ring writes coordinates to 2 dp (up to 0.005)
+      expect(drawn.x0, a.id).toBeGreaterThanOrEqual(body.x0 - slack);
+      expect(drawn.x1, a.id).toBeLessThanOrEqual(body.x1 + slack);
+      expect(drawn.y1, a.id).toBeLessThanOrEqual(body.y1 + slack);
+      // and it reaches the box's edges: the ring really sits on the body, not floating inside it
+      expect(drawn.x0, a.id).toBeLessThanOrEqual(body.x0 + 0.01);
+      expect(drawn.x1, a.id).toBeGreaterThanOrEqual(body.x1 - 0.01);
+    }
   });
 
   it('any depth: pitched roofs and crown spires (their shape reads frontCornerX) are exact too', () => {
@@ -199,6 +231,29 @@ describe('midground silhouettes (Phase 43 Task 32, spec §1.10) — what a layer
       expectCovered(shapeExtents(render(<svg><PipeBridges factories={factories} /></svg>).container), boxes, w.id);
     }
     expect(bridges).toBeGreaterThan(0);
+  });
+
+  it('a bridge\'s bar and post silhouettes are widened by half the hairline (0.75 px), and exact with the switch off', () => {
+    const w = WORLDS.find((world) => pipeBridgeLayout(world.actors.filter((a) => a.type === ActorType.FACTORY && depthOf(a) === 'midground')).length > 0)!;
+    const mid = w.actors.filter((a) => a.type === ActorType.FACTORY && depthOf(a) === 'midground');
+    const layout = pipeBridgeLayout(mid);
+    const bridgeBoxes = () => midgroundSilhouettes(w.actors, []).slice(-layout.length * 2);
+    const rects = layout.flatMap((b) => [b.bar, b.post]);
+    const grown = (e: number) => rects.map((r) => ({ x0: r.x - e, y0: r.y - e, x1: r.x + r.width + e, y1: r.y + r.height + e }));
+
+    const on = bridgeBoxes();
+    expect(on).toHaveLength(rects.length);
+    on.forEach((box, i) => {
+      for (const k of ['x0', 'y0', 'x1', 'y1'] as const) expect(box[k], `${i} ${k}`).toBeCloseTo(grown(0.75)[i][k], 9);
+    });
+
+    const switches = WORLD_GEM as { others: boolean };
+    switches.others = false;
+    try {
+      expect(bridgeBoxes()).toEqual(grown(0));
+    } finally {
+      switches.others = true;
+    }
   });
 
   it('the ground: one box per step, from its higher end down to the scene bottom', () => {

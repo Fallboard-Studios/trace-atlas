@@ -35,15 +35,6 @@ art. Crawford wants to swap in something more considered, possibly one of his ow
 abstract paintings. Pure asset + `background` CSS swap on `SleeveContainer.css` — no
 architecture impact. Blocked on Crawford supplying the artwork.
 
-### 2. Onload: Power-Off Intro Text
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority. Today, powering
-off shows nothing but the static sleeve shell + rocker switch (`SleeveContainer.tsx` has
-no off-state content at all) — a new user gets no explanation of what powering on will
-do. Needs a small text block added to the off-state UI, plus actual copy explaining what
-happens on power-on. Content not yet written; a placeholder can stand in until Crawford
-has final copy.
-
 ### 3. Onload: Sleeve Logo
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority.
@@ -53,15 +44,6 @@ wordmark — a CSS `::before` pseudo-element on `.sleeve-container__bottom-strip
 Crawford wants a real image logo, bottom-right — open question whether it replaces the
 text wordmark or sits alongside it. Blocked only on the logo artwork itself (a favicon
 cube, `public/favicon.svg`, exists but isn't a wordmark-scale logo).
-
-### 4. Helper Text on Inputs (Info Icon)
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Very low priority — mainly
-blocked on the amount of content (a blurb per control) needed, not on technical
-complexity. `ControlSchema` (`src/types/controls.ts`) has no helper/hint-text field
-today. Concept: a small "i"/"?" icon per control that reveals a short blurb about what it
-does on tap/hover. Deliberately scoped small (Crawford's own call) rather than a
-schema-wide addition touching all 14 primitives.
 
 ### 5. Sector Settings: AS/Coords/Favorites Reorganization
 
@@ -88,28 +70,105 @@ per-robot/per-locale value.
 Note (2026-10-06): roadmap Phase 43 puts docked robots inside 2–3 charging stations (capacity 6
 each), so the robots sharing a station are a natural grouping for "who syncs with whom".
 
-### 7. Audio: More Chord Progressions + Selection UI
+### 7. Audio: Tagged Chord Progressions, Seeded Mood Chain + Tag Filter
 
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
-behind launch. `HARMONY_PALETTES` (`harmonySystem.ts`) is a fixed array, sequentially
-cycled automatically (the `feature/harmony-palette-update` rewrite — see project memory
-— is confirmed merged) with no user-facing selection at all. Adding more palettes is
-straightforward; adding a way to choose them is the real feature — needs a new UI
-control, location not yet decided (Sector Settings vs. Audio Rig are the likely
-candidates).
+Requested by Crawford (`docs/todo/temp.md`), 2026-09-11, as "more chord progressions +
+selection UI". Low priority — deprioritized behind launch. Design discussed with Crawford
+2026-10-09 and recorded here; **not interviewed, not specced** — needs its own `/interview-me`
+pass when picked up, which should start from the "Open" list below.
 
-### 9. Visuals: Better Building Details
+**What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
+`HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
+sequentially at `MEASURES_PER_PALETTE_ENTRY = 2`, so one lap is 24 measures. The active index is
+derived statelessly from `getCurrentMeasure()` on every tick and wraps by array length (the
+September 2026 rewrite that replaced the hour-keyed `TIME_PITCHES`; merged). Nothing seeds it,
+nothing selects it, nothing persists it; `powerController.start` calls `resetHarmony()` back to
+entry 0. Two production consumers only: `AudioEngine.processMelodyStep` reads `getAvailableNotes()`
+per step, and `powerController`. Palette **slot position carries musical weight**:
+`melodyGenerator.ts`'s `NOTE_INDEX_WEIGHTS` (0.35 → 0.03) biases melodies toward low indices, and
+the existing palettes put the root at slots 0 and 5 and the fifth at slot 1 — every new progression
+must honour that slot convention or every melody changes character.
 
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
-behind launch. Factories already have a real system to extend (`docs/BUILDING_DESIGN.md`:
-silhouette base + rooftop greebles + seeded facade/window/color variation) — scope is
-more likely additional greeble/variant variety within that existing system than a
-structural change, but not yet confirmed with Crawford.
+**Crawford's design (2026-10-09):**
 
-**Superseded (2026-10-08)** by roadmap Phase 44, World Gem Material
-([docs/ideas/world-gem-material.md](../ideas/world-gem-material.md)): the building-detail work is
-the gem bevel ring on every mass in the world, sketched and gate-passed. Any greeble-variety
-follow-up is a later, separate item. Move this item to the archive when Phase 44 ships.
+- **Progression** = `{ id, tags, measuresPerEntry?, palettes: EighthNotes[] }`. Progressions may
+  differ in length; `measuresPerEntry` defaults to 1 when omitted (the "multiples of two" constraint
+  goes away — the tick becomes per-measure and computes (progression, entry) from the measure).
+- **Content convention, not mechanism:** each progression ends leading to C; openings may be other
+  reasonable chords. Hoped for, not enforced — the chain joins the last chord of one progression to
+  the first of the next, so it only lands if openings mostly follow a dominant well.
+- **Seeded, so reproducible**, with mood steered by **tags**. Each progression carries tags. A
+  ranked tag queue (earlier = more likely, same decaying-weight idea as `NOTE_INDEX_WEIGHTS`) holds
+  the tags of the current progression and the last-played one. Each pick: draw a tag from the
+  queue, then a progression carrying that tag. Then update the queue: the chosen tag first, the new
+  progression's other tags next, the just-finished progression's tags after, anything older dropped
+  (de-duplicated) — a two-progression window with the chosen tag pinned in front, i.e. mood
+  momentum.
+- **User tag filter, maybe:** a multiselect of tags so the user can limit the feeling.
+- **Themes** (`docs/ideas/themes.md`) might weight the initial tag differently per theme.
+
+**Leans from the discussion (Claude's, unconfirmed by Crawford):**
+
+- **Determinism model.** Keep the whole chain a pure function of (seed, theme, filter, measures
+  since chain start): replay the seeded choices from the chain's start whenever the active
+  progression is needed, or memoise the chain as it grows. Never an accumulated live-only state —
+  that would break share links, power-cycle resets and the World Clock replay.
+- **Seed = the Attenuation Style**, same source as BPM (`src/utils/bpmSeed.ts`; use
+  `getUniformSeededVal` for discrete picks). Reseeds on style change; nothing new in the payload for
+  the chain itself.
+- **Theme list as the opening queue.** At chain start the queue is empty; let the theme supply an
+  ordered tag list and treat it as the queue for the first draw, with the same decay weights. Classic
+  = a default ordering that has to exist anyway, so harmony does not depend on the themes phase —
+  it ships with the default and one injection point. Fits the decided "themes affect generation
+  only" rule. Consequence: with a two-progression window plus momentum the chain forgets its opening
+  after a while; if a theme should *hold* a mood, the hook is the theme presetting the default tag
+  filter (user may still edit it), not a standing bias in the draw.
+- **Tag filter semantics.** User state, not seed: a JSON `string[]` of allowed tag ids in
+  `audioStore` plus an optional `SessionPayload` field, absent/empty = all tags allowed (same
+  convention as the optional pacing fields; travels in share links for free). Carried forward across
+  Attenuation Style switches like the swell settings, not reseeded like BPM. **Any-match**: a
+  progression is reachable if at least one of its tags is allowed; queue entries the filter excludes
+  are skipped; if nothing in the queue is allowed, draw uniformly over the allowed set. A live filter
+  change lets the current progression finish and governs the next pick — so the live sequence and a
+  reloaded one can differ, the same class of divergence a live BPM edit already causes; recomputing
+  from measure 0 on change would jump chords mid-phrase.
+- **Chain anchor.** A live retransmit does **not** reset the transport (`worldTransition.ts` stamps
+  the new locale's `createdAtMeasure` from the running count), so the chain needs its own start
+  measure when the seed changes live. Reusing `createdAtMeasure` matches the World Clock replay but
+  would also restart harmony on a coordinate-only change where the harmony seed has not changed; a
+  harmony-owned anchor set only on seed change avoids that.
+- **Catalogue tests over runtime wildcards:** (a) every tag reachable from every other through the
+  catalogue (otherwise a tag cluster can never be left), (b) each tag on at least two or three
+  progressions (otherwise a one-tag filter loops one progression), (c) slot convention / 8 notes /
+  no octave digits.
+- **Tag ids as a string union** with display labels in `src/content/` (content layer); the restore
+  boundary drops unknown tags from an old payload, the same way `sanitizeLaneSync` does for `sync`.
+- **UI home: Audio Rig, Pacing section, beside BPM** (`AudioRigDrawer.tsx`) — it is a live audio
+  control, not a generation band, so not beside the Attenuation Style radio or the theme picker. No
+  multiselect primitive exists among the 14 controls (`RadioButton` is single-select); cheapest build
+  is a row of `Toggle`s in a `PanelGroup`, and the largest-content-size rule applies. Land it on the
+  reworked layout (roadmap 22 / Layout Rework), not the current drawer.
+- **Debug HUD** line showing current progression id, entry and the tag queue — the cheapest way to
+  tune the decay ratio by ear.
+
+**Open (for the interview):**
+
+1. The opening draw when no theme system exists yet — just the Classic default ordering, or a fixed
+   opening progression?
+2. Decay ratio (the stickiness knob). Geometric 0.5 makes the front tag win about half the time.
+3. Immediate repeats: is the progression that just finished eligible again?
+4. Within the chosen tag: uniform among its progressions, or a second ranked list? (Lean: uniform.)
+5. Whether themes colour only the opening or also preset the filter (see the theme lean above).
+6. Anchor on seed change: `createdAtMeasure` or a harmony-owned start measure.
+7. Does a user-facing tag vocabulary need lore-voice names (`docs/reference/copy-tone-guide.md`), and
+   how many tags (lean: 5–8).
+
+**Side effects to accept:** adding a progression later changes the chain for every existing seed,
+exactly as widening any seeded range does. Changing a tag id later is a payload migration.
+
+A possible phase two — users authoring their own progressions and tags — is item 20 below; it
+reopens the "tag ids as a string union" and "catalogue tests" leans above, so decide it before the
+spec fixes those.
 
 ### 10. Visuals: Atmospheric Animations
 
@@ -242,3 +301,259 @@ correctly so — it would need a real-elapsed-time primitive this phase delibera
 build (out of scope, see `docs/intent/world-clock-deterministic-lifecycle-replay.md`). Swell
 ramp interpolation is "not replayable" in the same sense LFO phase is, but has an existing,
 reusable fix (normalize to target value) already proven by Session Storage.
+
+### 18. Telemetry: Charts of Notes Played, Jobs Worked, Fleet Activity
+
+Raised by Crawford, 2026-10-09, during the districts brainstorm on `feature/layout-rework`
+("what other data analysis could we implement? Charts and graphs of notes played, jobs
+worked, etc?"). Not yet scoped; needs its own `/interview-me` pass. Siblings: roadmap
+[46](roadmap.md#46-mobile-deck-camera-the-world-crop-on-phones) (the letterbox band is one
+candidate home), [47](roadmap.md#47-neighbourhood-map-coherent-districts-and-the-visited-log)
+(the visited log is the first wall-clock record), and roadmap
+[32](roadmap.md#32-robot-melody-history--configuration-scrubber) (per-robot melody history —
+should share whatever storage decision this makes).
+
+The useful split, verified against the code 2026-10-09, is not "which charts" but **what already
+exists, what can be replayed for free, and what needs a new log**:
+
+- **Free, because it is deterministic.** Roadmap 20.5 made docking a pure replay from seed +
+  elapsed measures (`replayLifecycle` / `stepRobotLifecycle`, `src/systems/robotSystems.ts`), so
+  battery curves, dock cycles, pitch-drift history and the fleet's active-vs-docked count over the
+  day are computable on demand with no logging — `lifecycleSim.ts`'s `activeCountsOverTime`
+  already produces the last one. Melodies are loops of note indices, so notes played per robot per
+  hour = melody × measures elapsed × docked state. The harmony palette is a function of the
+  transport measure (`src/engine/harmonySystem.ts` derives its index from `beatClock.ts`'s
+  `getCurrentMeasure`, two measures per entry; `getCurrentHour` has no production caller since the
+  September 2026 rewrite), so "which palette when" is a lookup and "which palettes you've heard"
+  falls out of time spent — and stays one if item 7's seeded chain lands, since that chain is
+  designed to be a pure function of seed and measure. Swell *triggers* are seeded by
+  measure (item 17 above); ramp interpolation is not, and doesn't need to be for a chart.
+- **Cheap, one counter at an existing seam.** Every note goes through `AudioEngine.scheduleNote`
+  from one internal call site (the melody playback loop), so a per-robot tally of the eight palette
+  degrees is an array increment. `src/engine/audioDiagnostics.ts` already snapshots audible,
+  sounding, load and playback health about once a second for the `?debug` HUD
+  (`subscribeDiagnostics`, `DiagInfo`); a bounded ring buffer behind the same subscribe gives a
+  load / dropout sparkline.
+- **Needs a new log, because it is wall-clock.** Jobs. The work loop (`src/systems/workLoop.ts`)
+  knows robot, site, job and every activity transition (the `onLifecycleChange` seam,
+  `Robot.siteId` / `Robot.job` / `Robot.activity`), but nothing records a visit today. A visit
+  record — robot, site, job, start, end — is the one real logging addition, and it unlocks hours
+  per job, sites visited, site popularity, variety per robot, and a heat map of work across the
+  world that pairs with roadmap 46's minimap. Same for user actions (edits per robot, time per
+  coordinate), which roadmap 47's visited log starts.
+
+**Charts that would mean something to a user, in the Meridia telemetry fiction** (lore voice per
+`docs/reference/copy-tone-guide.md`): a note signature per robot (eight bars for the eight palette
+degrees) and the fleet's combined one; a strip chart of the last stretch of measures, who sounded
+when, dock gaps visible; the day's palette wheel with the current hour marked and time spent in
+each wedge; fleet activity over the day (active vs charging) with swells as markers; jobs — hours
+by job type, busiest site, each robot's variety; audio health — sounding robots against the
+budget, dropouts on phones; session totals in the style of a year-end wrap (longest-serving robot,
+most-played degree, districts discovered out of nine).
+
+**Constraints that shape the build:**
+
+- Charts are readouts, so under the UI depth rule they are recessed wells — flat, in the app
+  palette, never gem material (gem stays on world and robots).
+- They update on the measure tick or the diagnostics tick, never per frame
+  (docs/ANIMATION_SYSTEM.md); nothing in a chart may touch the audio path.
+- Per-note / per-measure records live in a module with a subscribe, like the diagnostics, with
+  only bounded aggregates in Zustand (JSON-serialisable) and only what is worth keeping in session
+  storage (`docs/SESSION_STORAGE.md` — a visit log would be a new payload field, optional, absent =
+  none, like every field added since v1).
+- Labels through the content layer (`src/content/`); use the `dataviz` skill when the charts are
+  actually drawn.
+
+**Open:** where it lives — a new Telemetry leaf in the nav, per-robot stats on the robot detail
+screen, or roadmap 46's letterbox band if the 16:9 fit is chosen after all. And whether any of it
+survives a reload (the visit log is the only part that can't be recomputed).
+
+### 19. Short World Link: Bring Back `?seed=`, `?x=` and `?y=`
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework`, reversing the Phase 21 call that removed
+them: "I want to bring `?seed=`, `?x=`, and `?y=` back actually, they're so much better to use if a
+user didn't change anything than the current json soup, especially if they want to share an
+untweaked world with someone." Not yet interviewed or specced — needs its own `/interview-me`. Sits
+beside roadmap [21](roadmap.md#21-sector-settings-shareable-linkimportexport) (the `?session=` link,
+which stays for tweaked worlds) and roadmap
+[48](roadmap.md#48-one-day-clock-remove-the-measure-based-day)'s dead-code sweep, which leaves the old
+override primitives alone until this item decides their fate.
+
+**The case, verified 2026-10-09.** An untweaked world is fully determined by two values: the
+Attenuation Style's *name* (the seed for the Audio Rig, the LFO Bank, tempo and swells, via
+`deriveAttenuationStyleSeed`) and the locale's integer coordinates (robots, companies, melodies,
+district, terrain, stations, via `getLocaleNoiseMap`). `SessionPayload` says so itself
+(`src/types/session.ts:52–58`). Yet `?session=` always carries `globalAudio`, `lfoBank` and
+`globalLfoLinks` whole — "never diffed", by design — so even an untouched world shares as a long
+base64 blob (`encodeSessionPayload`, `src/utils/sessionShareUtils.ts:361`). `?seed=pelagos7&x=12&y=68`
+is the same world in a link a person can read, type and remember.
+
+**What exists.** The boot seam the short form needs is already the `?session=` one: at module load
+`src/stores/attenuationStyleStore.ts:23` pins `DEFAULT_ATTENUATION_STYLE_NAME` and
+`src/stores/localeStore.ts:73–77` pins `DEFAULT_LOCALE_COORDINATES` from `getSessionSharePayload()`,
+before first paint (no flash of the wrong world); `OceanScene.tsx`'s mount effect consumes the
+payload once for its side effects. The old primitives survive in `src/utils/seedUtils.ts` with no
+production caller: the sanitising `setGlobalAttenuationStyleSeedOverride` and its getter (still read
+by `deriveAttenuationStyleSeed`, `getSeededVal.ts:29`, `noiseMaps.ts:55` and the debug HUD, whose
+world line has printed "random" ever since), `parseCoordinateParam`, and the
+`LocaleCoordinateOverride` setter / getter. Their URL readers in `seedUtils.ts` and `main.tsx` were
+deleted (Phase 21 Task 0). The perf harness's `--world name:x:y` option assumed the params and has
+been dead since ([PERFORMANCE.md](../PERFORMANCE.md) lines 52, 295, 382, 721);
+[PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md) lines 23–38 still document the removed
+mechanism as live.
+
+**The constraint that killed them, which the spec must answer**
+([SECTOR_SETTINGS_SHARABLE_LINK.md](../specs/SECTOR_SETTINGS_SHARABLE_LINK.md) §7 item 1): the old
+`?seed=` worked by setting a *persistent, sanitising* module override, which (a) lowercased and
+stripped the style's name, so a shared "Pelagos 7!" arrived as "pelagos7" under a different display
+name, and (b) stayed set for the whole session, so every Attenuation Style created afterwards silently
+inherited the pinned seed. The recommended shape is therefore **a second wire format for the same boot
+path, not a revival of the override**: decode `?seed=&x=&y=` into a minimal `SessionPayload`
+(`attenuationStyleName` = the exact, URL-decoded name; `coordinates`; everything else absent, so
+`applySessionPayload` leaves the freshly seeded values alone as it already does for older payloads)
+and hand it to the existing `getSessionSharePayload` / `consumeSessionSharePayload` seam. Then nothing
+persists, nothing is sanitised, later styles are untouched, and the `seedUtils.ts` primitives become
+deletable (roadmap 48 picks them up). If both forms are present, `?session=` wins — the Phase 21
+interview's answer to the same question.
+
+**Questions for the interview:**
+
+- Param names: `?seed=` was the style's seed, which is its name; `?style=` or `?world=` may read
+  better now that the name is a human string. Case and spaces must round-trip exactly.
+- Each axis independent as before (`?x=5` alone pins x, y stays random), or all-or-nothing?
+- Does the Sessions panel's Share (`SessionListItem.tsx` / `SessionsPanel.tsx`, `buildShareUrl`)
+  emit the short form automatically when the live state equals the seeded baseline, offer both, or
+  is the short form something a user composes by hand? Detecting "untweaked" means comparing against
+  what the seed would regenerate (`generateGlobalAudioSettings`, `generateLfoBankSettings` and
+  `generateGlobalLfoLinks` in `src/utils/globalAudioSeed.ts`, plus the seeded BPM), not just checking
+  that `robotOverrides` and `companyDiffs` are empty.
+- The off screen's three transmission presets ([docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md)
+  Task 25) are untweaked worlds — store them as `(name, x, y)` triples and print them as short links?
+- Settings → Seeds already shows the style name and coordinates; a "copy short link" there is the
+  obvious home. Whether Retransmit updates the address bar is open (`?session=` is never cleared
+  today, by design).
+
+**Knock-ons once built:** the HUD's world line reads a real name again; the perf harness's `--world`
+pinning comes back to life and [PERFORMANCE.md](../PERFORMANCE.md)'s suspect `charlie` / `bravo`
+baselines can be re-measured honestly; PROCEDURAL_GENERATION.md is rewritten around the new mechanism;
+[SESSION_STORAGE.md](../SESSION_STORAGE.md)'s "Shareable Links" section gains the second form.
+
+### 20. Audio: User-Authored Progressions and Tags (Editor UI) — Maybe
+
+Raised by Crawford, 2026-10-09, straight after item 7's design discussion: "could we build a UI
+where a user could easily create their own palettes and tags?" Crawford's verdict: **a maybe**. Not
+interviewed, not specced. Strictly phase two of item 7 — the chain and a built-in catalogue ship
+first — and, if it ever graduates, it is its own roadmap phase rather than a backlog line. Lands on
+the reworked layout (roadmap 22), never the current drawers.
+
+**The design problem is musical, not technical.** A palette is 8 *weighted* slots, not a chord:
+`melodyGenerator.ts`'s `NOTE_INDEX_WEIGHTS` gives slot 0 about a third of all melody notes and slot
+7 about three percent, and the built-in palettes use that on purpose (the fourth entry puts F, the
+seventh of G7, in slot 0 so the fleet leans on the tension note). A user typing eight pitch classes
+into eight boxes would need to know that. The proposed answer: **author chords, not slots** — root +
+quality (+ one extension) and a voicing template fills the eight slots in a sensible weight order,
+with an "edit slots" disclosure for anyone who wants the F-over-G7 trick. One chord per entry is also
+what keeps the editor usable at phone width.
+
+**Audition through the fleet, not a preview synth.** `setAvailableNotes` (`harmonySystem.ts`) exists
+with no production caller; a preview button temporarily overrides the live palette so the whole
+fleet plays the chord being edited in its own melodies and voices, then hands control back to the
+chain. No new audio code, and no Tone node in a component (CLAUDE.md forbids it anyway).
+
+**Precedents already in the codebase (verified 2026-10-09):** user-created companies (random ids,
+persisted whole in `SessionPayload.userCreatedCompanies` because there is no seed to regenerate them
+from — the exact shape user progressions need); the Sessions panel's name input / save / load /
+confirmed-delete library CRUD; `TextInput` (names), `RadioButton` (root, quality), `Stepper`
+(measures per entry), a `Toggle` row (tags), `PanelGroup` / `AccordionContainer`. User-typed names
+bypass the content-layer guard the same way robot and company names do; built-in tag labels stay in
+`src/content/`. **No primitive for reordering entries exists** — that is the one new interaction.
+
+**What it forces back onto item 7's design:**
+
+- Tag ids stop being a closed string union; user tags make the type a plain string, and the restore
+  sanitizer must accept any tag the payload's own progressions define instead of dropping unknowns.
+- The catalogue tests (reachability, coverage) cannot cover user content — they become authoring-time
+  hints in the editor, and the draw keeps its uniform fallback at runtime regardless.
+- Library vs payload: a progression is made once and wanted everywhere (argues for a local library,
+  like the sessions list), but a share link must reproduce the chain (argues for embedding). Lean:
+  both — library for reuse, embedded copies in the payload for sharing; a progression is a few dozen
+  characters, so the link cost is negligible.
+- Adding a user progression reshuffles the seed's chain, exactly as adding a built-in one does —
+  worth saying in the editor.
+
+**Open:** whether it is for Crawford (a composing tool with slot-level control) or for players (chord
+picker only); whether built-ins are forkable; whether a library is shareable on its own; the voicing
+templates themselves (the bulk of the musical work).
+
+### 21. Audio Palette Trials: Robot Dynamics, Gate Length, Humanize and Rests
+
+From the 2026-10-09 audio-palette conversation. Roadmap
+[50](roadmap.md#50-audio-palette-new-attributes-without-new-libraries) carries the four picks and the
+shared constraints (the phone gate, where nodes may go, replayability, seeding and saving); these are
+the per-robot ideas Crawford kept back "to try and see what works". All four are trigger-time
+arithmetic in `AudioEngine.scheduleNote` and the playback loop — no nodes, no budget cost — and all
+replay exactly when seeded off the note index, the way velocity does (`computeNoteVelocitySeeded`,
+`src/engine/AudioEngine.ts:452`).
+
+- **Dynamics range and accents.** Velocity variance is a fixed seeded rate and width today
+  (`VELOCITY_VARIANCE_RATE`, `NOTE_VELOCITY_BASELINE`). A per-robot "dynamics" slider widens or
+  flattens it; an accent pattern on the 16-step grid (`MelodyEvent.startStep`) would be a second step.
+- **Gate length.** A per-robot multiplier on each event's duration before `triggerAttackRelease` —
+  staccato (0.3) to legato (1.0 and beyond, overlapping the next onset). Each layer's Synth is
+  monophonic, so an overlap retriggers; with roadmap 50.1's portamento set, that overlap is the glide.
+- **Humanize.** A seeded timing offset per note (± a few ms, scaled by a per-robot or global slider)
+  added to the schedule time, inside `MIN_LEAD`. Seeded by note index, so it replays. Pacing section if
+  global, Envelope if per robot.
+- **Rests.** A seeded per-robot skip chance per event ("sparseness"): the melody keeps its stored
+  steps, playback drops some. Composition section. Touches Pitch Repeat and the harmony palette only
+  through what is heard.
+
+Try order: dynamics first (cheapest to hear), then rests, gate, humanize. Each a short branch; drop
+what does not earn its slider.
+
+### 22. Audio Palette Trials: More Global Pedals to Audition
+
+The single-instance Tone 15 effects not picked for roadmap 50.3 / 50.4 — each one slot in
+`wireGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:144`) with a `wet`, each behind the phone
+gate, auditioned one at a time on the Pixel:
+
+- `Chorus` (own LFO: `frequency`, `delayTime`, `depth`, `spread`), `Tremolo` (`frequency`, `depth`,
+  `spread`), `Vibrato` (`frequency`, `depth`), `FrequencyShifter` (`frequency` — strange, and
+  on-brand), and whichever of AutoWah / Phaser 50.4 did not choose. The ones with an internal
+  oscillator are wall-clock (backlog 17's accepted class); Free | Sync (roadmap 33) could apply to
+  their `frequency`.
+- `StereoWidener` (`width`, no clock, cheap) — and a mono fold for phone speakers is the same control
+  at 0.
+- `PingPongDelay` as an alternative delay topology (stereo bounce) — a *type* radio on the Delay row
+  rather than a second delay; `Freeverb` / `JCReverb` as algorithmic reverb colours beside the
+  convolution `Reverb` (cheaper per sample than the impulse response, but metallic) — again a type
+  radio, not a second reverb.
+
+Keep what passes the gate and earns a lore name; the rest stays here as "tried, no".
+
+### 23. Audio Palette Trials: Dynamics Processing and Ducking
+
+`Tone.MultibandCompressor` (low / mid / high compressors with two crossovers) as a richer Output stage
+than the single `Compressor`; `Tone.Gate` (`threshold`, `smoothing`) to close the chain between phrases
+on a sparse world; and `Tone.Follower` driving a `Gain` for sidechain-style ducking — the fleet dipping
+under a soloed robot (`audioMode: 'solo'`), or under a swell. Ducking is the interesting one: a
+*behaviour*, not a knob. The follower's output is a signal, so it needs a `Tone.Multiply` / `Scale`
+pair into the dry bus's gain — no other nodes. All three react to the signal and carry no clock, so
+they replay in the follower sense. Output section tab. Phone gate as always; multiband is three
+compressors.
+
+### 24. Audio Palette Trials: Transport Groove and Tempo Walk
+
+`Tone.Transport.swing` (0–1) and `swingSubdivision` (`'8n'` / `'16n'`) exist on the transport the
+melody loop already runs on. A Pacing-section Swing slider is one store field and one transport write,
+and **every** robot swings together. Check first that swing reaches the playback loop's scheduled
+times — the `8n` step scheduler ([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) §Playback loop) computes its
+own offsets from the tick, and Tone applies swing to the transport's own event times. Ties to backlog
+[6](#6-audio-groove-feature) (Groove: robots syncing while docked) and to item 7 (progressions): a
+global swing is the simplest groove and may be enough.
+
+**Tempo walk:** a slow seeded random walk on BPM (± a few BPM over many measures, `getSeededVal` by
+measure, the swells pattern) as Pacing's equivalent of an LFO — replayable by construction, but BPM
+moves everything that counts measures, so the fleet's lifecycle speeds and slows with it (accepted:
+the 2026-10-09 time decision keeps the lifecycle on measures) and Sync-mode lanes follow. Try swing
+first; the walk only if a world feels too metronomic.

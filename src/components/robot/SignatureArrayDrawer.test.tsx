@@ -8,6 +8,12 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 // unless timelineMap itself is mocked — the established convention every GSAP-timeline test in
 // this codebase uses (e.g. AudioRigDrawer.test.tsx).
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
+// The LfoLink lane names follow the shell (docs/tasks/LAYOUT_REWORK.md Task 14); pinned to desk so the
+// lane radios read "Core LFO (A)" … whatever matchMedia stub a test installs.
+vi.mock('@/components/panels/screen/useShell', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/panels/screen/useShell')>()),
+  useShell: () => 'desk',
+}));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual implementation) so
 // a per-layer cascade regression test (docs/todo/backlog.md #27 follow-up, 2026-09-15) can tell
@@ -270,7 +276,7 @@ describe('SignatureArrayDrawer', () => {
       );
       const gainRow = linkRow(layerSection(container, 'layer0'), 'Core Gain');
       const detuneRow = linkRow(layerSection(container, 'layer0'), 'Core Detune');
-      expect(within(gainRow).getByRole('radio', { name: 'Companion LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(gainRow).getByRole('radio', { name: 'Companion LFO (B)' }).getAttribute('aria-checked')).toBe('true');
       expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('40');
       // Detune's own link is untouched — still the default Off/0.
       expect(within(detuneRow).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
@@ -290,7 +296,7 @@ describe('SignatureArrayDrawer', () => {
         />,
       );
       const gainRow = linkRow(layerSection(container, 'layer1'), 'Companion Gain');
-      fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
+      fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO (A)' }));
 
       expect(onLfoChange).toHaveBeenCalledWith('layer1.gain', { lane: 'a', depth: 30 });
     });
@@ -323,7 +329,7 @@ describe('SignatureArrayDrawer', () => {
         <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={onStructuralChange} onLfoChange={() => {}} />,
       );
       const gainRow = linkRow(layerSection(container, 'layer0'), 'Core Gain');
-      fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
+      fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO (A)' }));
 
       expect(onContinuousChange).not.toHaveBeenCalled();
       expect(onStructuralChange).not.toHaveBeenCalled();
@@ -656,7 +662,7 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
     const layerEl = screen.getByText(CONTENT['probe.source.companion'].human).closest('.sc-directional-panel') as HTMLElement;
     const gainRow = linkRow(layerEl, 'Companion Gain');
 
-    fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
+    fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO (A)' }));
 
     expect(onLfoFieldChange).toHaveBeenCalledWith(1, 'layer1.gain', { lane: 'a', depth: 25 });
   });

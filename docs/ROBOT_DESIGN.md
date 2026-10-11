@@ -71,6 +71,13 @@ flat face. `src/components/robot/gem/gemShading.ts`:
   imports it from `gemShading.ts` for its own three-tone gem accents, rather than re-deriving tone
   quantisation or reusing the robot generator (`getRobotGem`) — see BUILDING_DESIGN.md "Scenery
   families".
+- **The world shares the material, not the light** (roadmap Phase 44, BUILDING_DESIGN.md "World Gem
+  Material"): factories, mass scenery and terrain wear the same bevel ring, built from this module's
+  pieces — `quantizeShade` for the three tones, `polygon.ts`'s `inset` and `edgeNormals` for the
+  geometry, and `bevelDepth`'s one 18 % short-side cap (it takes a depth parameter, so the world's 8 px
+  goes through the same cap instead of a second copy). The light is the exception: a robot keeps the
+  fixed top-left `GEM_LIGHT`, while a world body is lit by `worldLightVector` — the hour's east/west
+  sun — so a building takes the sun and a robot does not.
 
 `RobotGem` draws each part's facets as one `<path>` per tone (`facetPaths` in `gemPaths.ts`), its
 face as one polygon and its boundary lines as one path — about 40 drawn shapes per robot.

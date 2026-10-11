@@ -883,45 +883,65 @@ All Crawford's unless marked; each is recorded in the plan's "As shipped" notes.
 
 ## 44. World Gem Material (Option A)
 
-Idea [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), sketch
-[docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540). **Sketch gate
-passed 2026-10-08** (Crawford: "a great little blend of both art styles"; asked for the expansion past
-the factories, which the sketch now carries). Intent, spec and plan not started — the idea doc holds
-every decision made so far and the sketch's implementation notes, so the next session starts at
-`interview-me`, not at the sketch.
+Idea [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), intent
+[docs/intent/world-gem-material.md](../intent/world-gem-material.md), spec
+[docs/specs/WORLD_GEM_MATERIAL.md](../specs/WORLD_GEM_MATERIAL.md), plan
+[docs/tasks/WORLD_GEM_MATERIAL.md](../tasks/WORLD_GEM_MATERIAL.md), sketch
+[docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540; sketch gate passed
+2026-10-08 — Crawford: "a great little blend of both art styles"). **Built on `feature/world-gem`,
+2026-10-08 to 2026-10-09 (Tasks 1–19, 21 and 22); not yet merged.** The idle-paint perf gate (Task 19)
+passed on all three pinned worlds with no cut — docs/PERFORMANCE.md, "World Gem Material — the Task 19
+perf gate". **Still owed: Task 20** — Crawford's by-eye look at the live 1920 × 1080 world at 9 am, noon,
+3 pm and 10 pm, and the Pixel listen — then the PR.
 
 ### About
 
 The gem robots (Phase 39) and the world they sit in read as "one style randomly placed on another"
-(Crawford, 2026-10-08). Option A closes the gap by material, not form: every mass in the world gets
-the robots' bevel ring — an inset outline, one trapezoid facet per edge, three quantized tones
-(`quantizeShade` from `gemShading.ts`, the 0.5 / 1.1 / 1.25 multipliers from `gemShape.tsx`) and the
-scenery gem outline — while its silhouette, windows, belts and greebles stay exactly as they are.
-Bevel 0 is byte-identical to today's renderer. The rule for what gets it: **mass gets the ring,
-members stay lines** — factories, tanks, walls, dome bases, containers, scaffold blocks, wreck hulls
-and deckhouses, vent steps and crane loads are mass; posts, beams, masts, pylon towers and scaffold
-frames are members. Terrain is its own switch (the ring runs along the ridge and ground profiles).
-Curves stay smooth (the dome cap). Boulders, beacon heads, pylon heads and the charging stations are
-already gem and are untouched.
+(Crawford, 2026-10-08). Option A closes the gap by material, not form. The rule for what gets what:
+**mass gets the robots' bevel ring, everything else solid gets a 1.5 px hairline.**
 
-Two rulings already made: **the hour-driven east/west sun wins** on buildings (the facet light vector
-is sideways by `eastL − westL`, always from above; the robots keep their own fixed top-left light),
-and **the windows stay**. The dials were ruled the same day: **bevel 8 px, facet contrast 1.0, lateral
-sun 1.0, no outline, no boundary lines, roof boxes bevelled** — so the material is the ring and its
-three tones alone, without the scenery gem's outline stroke. Still open: whether the world section's
-"mass gets the ring, members stay lines" rule and the terrain switch stand.
+- **Mass** — factories and their rooftop blocks, tanks, walls, dome bases, containers, scaffold blocks,
+  wreck hulls, deckhouses and funnels, vent steps, crane loads, and the terrain's ridge and ground
+  profiles — gets an 8 px inset outline (× the item's own scale, through the robots' one 18 % short-side
+  cap, and no ring under 1 px), one trapezoid facet per edge, and three quantized tones (`quantizeShade`
+  from `gemShading.ts`, the 0.5 / 1.1 / 1.25 multipliers from `gemShape.tsx`). Rooftop blocks use 0.6 ×
+  the building's depth. There is no outline stroke on mass.
+- **Everything else solid** — members (posts, beams, masts, pylon towers, scaffold frames), curves (the
+  dome cap's arc, the dish reflector, the turbine hub) and the six families the world scene left out
+  (dish, turbine, floodlight, tether, pipeline, the pipe bridges) — gets the hairline, in the scenery
+  gem outline's colour. Thin rooftop parts and the cupola's arc get it too.
+- **Left alone:** silhouettes, windows (re-centred inside the ring), belts, lamps, greebles' placement,
+  boulders, beacon heads, pylon heads and the charging stations.
 
-Perf: static-layer content only, repainted on the once-a-second lighting tick, never per frame. Adds
-roughly 9 shapes per factory and about 170 across a world's scenery and terrain — a few hundred on top
-of the ~2,500 static shapes the Districts gates found cost nothing measurable at idle
-(docs/PERFORMANCE.md). The idle-paint harness is still the formal gate, in the D2 gate's shape, and
-the Pixel the honest one. No CSS transition on any facet fill (the 17.2.5 rule). Depends on
-[42](#42-world-view-districts) (the families) and [39](#39-gem-polygon-robots-branch-a) (the material).
+Three rulings were made after the idea doc and supersede it (the intent's "Supersedes the idea doc"):
+members get the hairline instead of nothing; the terrain is in (its switch survives only as a code
+constant for the A/B); and everything else solid gets the hairline too. The other rulings stand: **the
+hour-driven east/west sun wins** on buildings (`worldLightVector`; the robots keep their own fixed
+top-left light), **the windows stay**, bevel 8 px, facet contrast 1.0, lateral sun 1.0, no boundary
+lines. A bevel of 0 renders as today's renderer did; the six `WORLD_GEM` switches in
+`material/worldGemMaterial.ts` are code constants, no setting and no UI.
+
+Built differently from the spec, found while building: the terrain's 8 px bevel does not hold on the
+polygon as drawn (a miter that deep inverts on most seeded worlds), so its ring is built on an extended
+outline (`terrainRingOutline`); at 9 am only east-facing steps and flat runs are lit, west-facing steps
+are neutral; the crane hanger is a `<rect>` now whatever the switches; and `midgroundSilhouettes.ts`
+widens the bridge boxes by half a hairline. Docs: BUILDING_DESIGN.md ("World Gem Material", "World gem
+treatment"), ROBOT_DESIGN.md ("Bevel and shading"), PERFORMANCE.md, and the executable pin in
+`src/docs/worldGemMaterialDocs.test.ts`.
+
+Perf: static-layer content only, repainted on the once-a-second lighting tick, never per frame. The
+Task 19 gate (2026-10-09) ran `main` `6802c8b4` against the branch on `dense`, `ventfield` and `yard`,
+three rounds each: median main-thread busy +2.1 % / +1.7 % / +0.4 % and Paint +6.6 % / +0.5 % / −2.4 %,
+every delta inside `main`'s own round-to-round spread; one ablation round with the hairlines off and the
+terrain off separated from nothing. No cut was taken; the Pixel is Task 20's. No CSS transition on any
+facet fill (the 17.2.5 rule). Depends on [42](#42-world-view-districts) (the families) and
+[39](#39-gem-polygon-robots-branch-a) (the material).
 
 ### Supersedes
 
 - [docs/todo/backlog.md](backlog.md) item 9 (Visuals: Better Building Details) — the material pass is
-  the building-detail work; any greeble-variety follow-up is a later, separate item.
+  the building-detail work; any greeble-variety follow-up is a later, separate item. Item 9 has moved to
+  [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
 
 ### Not Doing (and why)
 
@@ -931,7 +951,565 @@ the Pixel the honest one. No CSS transition on any facet fill (the 17.2.5 rule).
 - **The robots' fixed top-left light on buildings** — ruled out; the east/west sun is the world's
   only sunlight.
 - **Replacing windows with emissive vertex lights** — ruled out; the windows stay.
-- **A ring on members or curves** — members get at most a thin outline behind a switch; arcs are
-  never faceted (the 90/45 grid rule).
-- **A union ring on the vent cone** — its ledges (~3 px) are narrower than the bevel, so the ring
+- **A ring on members or curves** — they get the hairline, never a ring; arcs are never faceted (the
+  90/45 grid rule).
+- **A union ring on the vent cone** — its ledges are narrower than the bevel, so the ring
   self-intersects; each step is ringed as its own block instead.
+
+## 45. Layout Rework (shell, nav, section tabs, roster, off screen)
+
+Intent [docs/intent/layout-rework.md](../intent/layout-rework.md) (confirmed via `interview-me`,
+2026-10-09), spec [docs/specs/LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md), plan
+[docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md), sketch
+[docs/sketches/layout-rework.html](../sketches/layout-rework.html) (every view tab approved; its header
+is the record of the design, no longer the plan). Docs: [UI_SHELL.md](../UI_SHELL.md),
+[COMPONENT_LIBRARY.md](../COMPONENT_LIBRARY.md), [COMPANIES.md](../COMPANIES.md),
+[SESSION_STORAGE.md](../SESSION_STORAGE.md). **Built on `feature/layout-rework`, 2026-10-09 to
+2026-10-11 (Tasks 1–32); not yet merged.** The idle-paint gate (Task 29) passed after one fix —
+docs/PERFORMANCE.md, "Layout Rework — the Task 29 perf gate". Task 30 (Crawford's screenshot check) was
+signed off on 2026-10-11. **Still owed: the Pixel listen** — then the PR.
+
+### About
+
+Crawford's twelve desktop and six phone screenshots (2026-10-08) named the problems: the off screen says
+nothing about what the switch does; the header and the permanently docked nav crowd every screen; the world
+shows through a 75 % glass under every control; the same information is stated three times per screen (nav
+tree depth, accordion headers, two intro panels); every radio option is a two-line cabinet box; the Probes
+list is twelve identical cards that are mostly company radios; and on phones the fixed header hides scrolled
+content. The shell and every screen were rebuilt to the sketch. Nothing below the UI changed: the session
+payload, the share link and the audio path are untouched.
+
+- **One shell switch.** `useShell()` (768 px) is the only desk/phone branch; `useCabinetTier` keeps sizing
+  controls. The phone shell holds down to 320 px.
+- **One nav panel, five boxes** (Deck, Fleet Params, Probes, Companies, Settings) that expands in place for
+  Probes and Companies, all selection through `navActions.ts`; on the phone the same panel is a sheet opened
+  from a bottom bar. The tree, the stacked accordion screens, scrollspy and `accordionSync` are deleted.
+- **An opaque content surface** over the dimmed world, a slim header (mute and volume), and a meta box on the
+  Deck carrying the world line and the selected robot's and company's lines; selected robots and company
+  members get a halo in their own and the company's colour.
+- **Section tabs** (`SectionTabs`, one section in the DOM at a time) on Fleet Params, the robot screen, the
+  company screen and Settings; a "?" help popover on every value control (`ContentEntry.help`); single-line
+  `RadioButton` faces; a compact `LfoLink`.
+- **The roster board** replaces the Probes list and the Companies index: a row per company then Freelance,
+  tiles with a quiet Move chip (popover on the desk, sheet on the phone) and a `Flip` glide. **The company
+  screen** is the robot screen with a company column, edited through `useCompanyOptions`.
+- **An off screen** that explains the power switch, over the world built before power-on (`initializeLocale`
+  split into build and start halves) and a Transmission picker of three preset worlds and the user's saves.
+
+### Decisions made while building
+
+- Picking a parent box goes to that branch's page and a pick collapses the list (Crawford, 2026-10-09 and
+  2026-10-10); the panel's rest and wide widths are 124 and 200 px. Deleting a company selects All Probes.
+- The phone's breadcrumb drops Root; the narrow desk (768–1000 px) was left as it is, and the top bar's empty
+  space left of the rocker is flagged for a later pass.
+- Option lore is back on the `RadioButton` face as a second line (not a popover), and every intro is a
+  collapsed More / Less expander with its headline showing, stacked on the phone.
+- The Freelance row is always present, even empty; a robot with an orphan `companyId` reads as Freelance.
+- The three presets (Kryndara, Vessport Null, Halcyon Drift) and the off-screen copy are placeholders
+  until Crawford curates them.
+- **A bug older than this branch, found by the perf gate:** `useHaloMotion` started a 0.5 s tween on every
+  re-render because `RobotBody` hands it a fresh object each time, so every halo wrote its attributes on every
+  frame (about 2,250 stop writes a second, on `main` too). Fixed in `153c2956`; the powered-off world went from
+  ~350 paints in 6 s to ~26, and the powered-on Deck's idle main-thread time fell about 32 %.
+- A known-flaky company-name test was removed on Crawford's word (`6d743603`).
+
+### Supersedes
+
+- [docs/todo/backlog.md](backlog.md) item 2 (Onload: Power-Off Intro Text) — the off screen's label, power
+  hint and Transmission row. Item 4 (Helper Text on Inputs) — `ContentEntry.help` and `HelpPopover`. Both
+  moved to [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
+
+### Open
+
+- The meta box's selection lines were deleted after the code review (2026-10-11): every selection opens a branch
+  and `goHome` clears both ids, so the Deck never has a selection. The halo stays; bring the lines back from git
+  history (commit before this note) if a surface ever shows them.
+- Compositor::Update is about 15–20 % higher on Fleet Params than on `main` (not a gate metric, not
+  investigated).
+- The Move sheet's 500 ms tap-hold was not tested on a touch device.
+
+### Not Doing (and why)
+
+- **The theme engine and the Theme row** — [docs/ideas/themes.md](../ideas/themes.md) is its own phase, with
+  its own interview; the sketch keeps the row behind an option under the same no-pop rule.
+- **The Atlas card, sleeve transport keys, a desk, any hardware key** beyond the power rocker — parked for
+  v2 (`punch-card-session.html`); soft keys were sketched and rejected.
+- **Drag between roster groups** — needs a keyboard fallback and is bad in a scrolling board on phones; the
+  Move chip is the reassignment.
+- **A per-field "own versus inherited" marker on the company screen**, **a roster filter**, **any gem
+  material on UI chrome or controls** (tried in `gem-controls.html`, rejected), and **option B** and the other
+  nav and roster cuts the sketch tried.
+- **Changes to the payload, the share link, the audio path or the Audio Load Budget.**
+
+## 46. Mobile Deck Camera (the world crop on phones)
+
+Raised by Crawford, 2026-10-09, during the districts brainstorm on `feature/layout-rework`. Not yet
+interviewed or specced; the fit question below is the decision to make. Sequenced **before** the
+layout-rework plan ([docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md), not yet written) is
+locked, because any answer changes the Deck tab of
+[docs/sketches/layout-rework.html](../sketches/layout-rework.html) and
+[docs/specs/LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md) §1.7.
+
+### About
+
+The scene is a fixed 1920 × 1080 stage drawn with `preserveAspectRatio="xMidYMid slice"` (cover) in
+`OceanScene.tsx`'s `SceneLayer`, and `WorldView.css` clips the overflow ("nothing ever needs to
+scroll"). On a portrait phone that scales the world to the deck's height and crops the sides — on the
+sketch's 375 × 812 phone, with roughly 740 px of deck, the user sees about 28 % of the world's width.
+Crawford: "users miss a LOT."
+
+Measured against that phone (robot size is the gem body at the scene scale, approximate):
+
+| Fit | World height | Visible width | Robot |
+|---|---|---|---|
+| Today, cover | 740 px | 28 % | about 40 px |
+| 16:9 contain (letterbox) | 211 px | 100 % | about 12 px |
+| 2 × screen width, panned | 422 px | 50 % | about 23 px |
+
+A 16:9 letterbox (Crawford's first thought) shows everything but puts robots under tap size and
+loses the gem facets, lit lines and halos; it is the right fit for landscape phones and tablets and
+the wrong one for a portrait phone. Recommendation (2026-10-09): **move the window, don't shrink the
+stage.**
+
+1. **Pan.** Keep the cover fit and make the world view a native horizontal scroller with scroll
+   snap. Compositor-driven, no per-frame JavaScript, no new scene layer; momentum and tap-vs-swipe
+   come free. The "nothing scrolls" line in `WorldView.css` describes today's layout, it is not a
+   guardrail. The six stacked layers scroll as one container, so scene-to-pixel mapping is unchanged.
+2. **Idle drift (optional).** One GSAP tween on the layer stack's transform, registered in
+   `timelineMap`, killed on touch. A moving-layer change, so it goes through the idle-paint gate
+   (docs/PERFORMANCE.md), but it is one transform, not per-element work.
+3. **Camera (later).** Follow the selected robot, or cut to work sites on semantic triggers from the
+   work loop (Phase 43's `onLifecycleChange` seam). Fits the architecture; a bigger design pass.
+4. **Overview, if wanted:** a schematic minimap (terrain profile line, building dots, the viewport
+   rectangle), static per world — never a second render of the scene, which would double the DOM.
+   Robots as moving dots on it would be a moving layer and a separate perf-gated decision.
+
+Also on the table for the letterbox band, if the 16:9 fit is chosen anyway: the small phone avatar
+band the Robot screen already approved (tap to select, the camera pans to the robot), the meta box
+grown into a telemetry strip, a 24-hour clock, or nothing (a monitor letterbox is on-brand for the
+sleeve). The neighbourhood map is [47](#47-neighbourhood-map-coherent-districts-and-the-visited-log).
+
+### Not Doing (and why)
+
+- **A portrait world (re-placing recipes for a tall `WORLD_BOUNDS`)** — the same coordinates would
+  show a different place on a phone than on a desktop, which defeats the share link and the
+  "coordinates are the place" promise. The stage stays 1920 × 1080 everywhere.
+- **Rendering the scene twice (overview + zoom)** — doubles the static DOM; the 17.2.5 and Phase 42
+  gates were passed on one scene.
+
+## 47. Neighbourhood Map, Coherent Districts and the Visited Log
+
+Raised by Crawford, 2026-10-09, in the same brainstorm: "a map of the nearby world, color coded by
+district", and, some day, a server tracking where people went with a map of "discovered" areas. Not
+yet interviewed or specced. Depends on [42](#42-world-view-districts) (the districts) and, for where
+it is shown, on [46](#46-mobile-deck-camera-the-world-crop-on-phones) and the layout rework.
+
+### About
+
+**The map has a hidden prerequisite.** A locale's noise map is seeded by hashing its coordinate pair
+as text — ``createNoise2D(alea(`${x}:${y}`))`` in `src/utils/noiseMaps.ts` — so two neighbouring plots
+share nothing, and `pickDistrict` (`src/systems/districts.ts`) draws on that map. Coloured by district,
+a map of the neighbourhood is noise, not regions. For it to mean anything, the district pick needs a
+**second, world-level field over coordinates**: seeded cells (Voronoi-style, each carrying a district
+label) or low-frequency noise, so there is a wreck field to the east and a habitat belt to the north.
+Constraints on that field:
+
+- **Even spread stays.** Phase 42 pinned every district at ≥ 8 of the 121-coordinate grid
+  (`districts.test.ts`, `lifecycleSim.ts`'s `SIM_SEED_COORDS`); simplex output is bell-curved, which is
+  why `getUniformSeededVal` exists (docs/PROCEDURAL_GENERATION.md). Cellular labelling gives an even
+  spread by construction; quantised low-frequency simplex fights it.
+- **It is a generation change.** Every coordinate's district changes, so saved sessions and share
+  links (which regenerate the locale from its coordinates) show a different place. Phase 42 accepted
+  the same break; it is a conscious call again, not a side effect.
+- **Everything else per locale stays as it is** — the recipe rows, derelict rolls, terrain, roster
+  and stations still come from the locale's own map. Only *which* recipe is chosen moves to the
+  world field.
+
+Upside beyond the map: coherent regions make navigation a concept ("go east into the vent fields")
+and give the Settings → Seeds coordinates a reason to be stepped rather than typed.
+
+**What a map can show today, honestly, with no generation change:**
+
+- **The visited log.** A local store of coordinates, first-seen time and district — JSON in Zustand,
+  persisted beside the sessions in `localStorage` (`sessionStorageEngine.ts`'s pattern). Fog of war
+  for one person; the current plot highlighted; tapping a plot retransmits to it (navigation lives
+  inside `ScreenViewport`, per the UI-shell rule).
+- **The day/night stripe.** A plot's hour is set by its x alone (`buildLocale`'s
+  `dayStartTimestamp`, `abs(x % 24)`), so the map has vertical day/night bands that move with the
+  wall clock, free and spatially coherent already.
+- **District per plot** is cheap to compute on demand (one `alea` + `createNoise2D` + three samples;
+  the test suite does 121 of them), but it needs its own cache keyed by coordinates — the live
+  `localeMaps` cache is keyed by locale id.
+
+### Not Doing (and why)
+
+- **A server, user accounts, and a shared "discovered" map** — Crawford, 2026-10-09: "a bit much to
+  add now." The visited log gives one person the same screen; a server later only merges everyone's
+  sets, and the map component would not change. Nothing in the local design should assume a
+  server, and nothing should block one.
+- **Per-plot roster, derelict counts or station counts on the map** — those need `spawnSystem` or
+  `placeDistrict` per plot; too heavy for a map that paints many plots at once. District and hour
+  only, until measured otherwise.
+- **Colouring the map by district before the field is coherent** — it would look like a bug.
+
+## 48. One Day Clock: Remove the Measure-Based Day
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework` ("should we have two clocks like this? It
+often feels like it adds some complexity … I don't want bpm making days only take 30 seconds").
+Decided the same day: **replayability is the top priority**, so the fleet lifecycle, the harmony
+palette and the swells stay on measures and the World Clock replay
+([20.5](#205-world-clock-deterministic-lifecycle-replay)) is untouched; the in-world day is the wall
+clock, a fixed `DAY_DURATION_MS` (6 real minutes) from each locale's own `dayStartTimestamp`, never
+tempo. The two clocks stay because they count different things. What goes is every line of code and
+doc that still claims measures make a day — all of it dead or wrong today, verified against the code
+2026-10-09 (inventory below). Widened the same day at Crawford's word ("add the rest to item 48") to the same class
+elsewhere — a spot check found a dozen more exports, fields and dials nothing turns (items 7–10). A
+cleanup, not a feature: no visual change, no audio change, no payload
+change, no new dependency. It amends a CLAUDE.md Guardrail, which this decision authorises.
+Independent of the layout rework (it touches the lighting components, the beat clock and
+`AudioEngine`, none of which the rework edits); its own short branch off `main`, a task list rather
+than a full spec.
+
+### About
+
+**What is true today.** The visual day is `computeLocaleHour(locale.dayStartTimestamp)`
+(`src/constants/time.ts`): 6 minutes, started at hour `abs(x % 24)` by `buildLocale`
+(`src/systems/worldTransition.ts:64`). `AttenuationStyleView`'s per-second tick writes it to
+`uiStore.activeLocaleLocalTime`, and ten components read it from there. The musical clock is the beat
+clock's measure count: battery, docking and pitch drift tick per measure (`src/systems/robotSystems.ts`,
+the replay), the harmony palette advances every 2 measures with no hour meaning
+(`src/engine/harmonySystem.ts`; [HARMONY_SYSTEM.md](../HARMONY_SYSTEM.md) already states the
+decoupling), swells roll per 16n. Nothing musical reads the day; nothing visual reads a measure. The
+musical day is dead in practice and survives only as vocabulary.
+
+**Incorrect code to remove** (each with its tests):
+
+1. **`getCurrentHour()` and `MEASURES_PER_HOUR`** (`src/engine/beatClock.ts:22`, `:141`) — zero
+   production callers; `src/constants/index.ts:72` already says so.
+2. **The `% DAY_CYCLE_MEASURES` wrap on `subscribeToMeasure`'s callback argument**
+   (`beatClock.ts:58`). Both live subscribers route around it or misuse it: `startRobotLifecycle`
+   ignores the argument and reads `getCurrentMeasure()` because a wrapped count made a hold set near
+   the boundary unreachable (`robotSystems.ts:232–237`), and `AudioEngine` writes it into a dead field
+   (next item). Pass the real monotonic measure. Reword the trap notes at `robotSystems.ts:232–236`
+   and in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md)'s audio-swells paragraph (the `% 96` sentence).
+3. **`Locale.currentMeasure`** (`src/types/locale.ts:29`) — written every measure by
+   `src/engine/AudioEngine.ts:541–543` (the wrapped value), re-written as a mount-time no-op by
+   `src/App.tsx:28–34`, read by nothing. A Zustand write on every measure for no reader; any selector
+   that takes the whole locale object re-renders on it (`LocaleView.tsx`'s own comment records paying
+   that cost). Delete the subscription and its "updates visuals (lighting) and allows harmony to
+   derive from measures" comment (both false today), the `App.tsx` effect, the field, its `0` defaults
+   (`src/stores/localeStore.ts:97`, `worldTransition.ts:69`) and `currentMeasure` in the 14 test files
+   that build a `Locale`. Correct the `createdAtMeasure` doc comment (`types/locale.ts:19–24`), which
+   calls the field "never incremented by the real tick system" — the writer was `AudioEngine`'s
+   subscriber, not the lifecycle tick.
+4. **The hour → "light measure" → angle round trip in five components** —
+   `src/components/actors/Factory.tsx:286–304`, `actors/scenery/Scenery.tsx:91–92`,
+   `worldView/LightShafts.tsx:58–59`, `worldView/TerrainLayer.tsx:57–58`, `worldView/WaterColumn.tsx:39–40`
+   each compute `(localTime / 24) * DAY_CYCLE_MEASURES` to feed `getLighting(measure)`
+   (`src/utils/lightingUtils.ts:90`), which divides by 96 again. `getLighting(hour)` takes the 0–24
+   hour directly; same curve, same gamma, landmarks restated in hours (midnight 0, east peak 9, noon
+   12, west peak 15). `FLICKER_PERIOD` (8 measures, "roughly every 2 hours") becomes 2 hours and
+   `buildingPhase = buildingSeed % FLICKER_PERIOD` keeps its spread in the new unit; `Factory.tsx:37`'s
+   "driven by `currentMeasure`" comment goes with it. `src/components/robot/RobotBody.tsx:85` already
+   takes the hour straight — the model to follow. `DAY_CYCLE_MEASURES` leaves `lightingUtils.ts` and
+   the six lighting tests that import it.
+5. **`DAY_CYCLE_MEASURES`** (`src/constants/index.ts:76`) — no consumer left after 1–4. Delete it and
+   its comment. [DUPLICATE_VALUE_AUDIT.md](../DUPLICATE_VALUE_AUDIT.md) item 2 is marked superseded by
+   this phase: it centralised a constant that turned out to have no reason to exist.
+6. **Docs.** CLAUDE.md's Melody Logic guardrail loses "96 measures = 1 day cycle" and gains the
+   wall-clock rule — proposed wording: *"Melodies must store note indices (0..7), never literal pitch
+   strings. The in-world day is wall-clock: a fixed `DAY_DURATION_MS` (6 real minutes) from the
+   locale's `dayStartTimestamp`, never tempo. Measures count music and the fleet's lifecycle; nothing
+   musical defines a day."* Then [BEAT_CLOCK.md](../BEAT_CLOCK.md) (the constants table,
+   `getCurrentHour`, "fires … wrapped to `0..95`", "Day/night derivation is always …"),
+   [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) ("96 measures = 1 full day/night cycle" and the
+   `getCurrentHour` import in its example), [BUILDING_DESIGN.md](../BUILDING_DESIGN.md) §Day/Night
+   Cycle (rewritten around the hour), and the docs test.
+
+**Verification.** A parity test first: `getLighting` at hours 0 / 9 / 12 / 15 equals the old function
+at measures 0 / 36 / 48 / 60, then the measure form is deleted. The World Clock prove-it test
+(`robotSystems.test.ts`) unchanged and green. Full suite, types, lint. `npm run perf` idle-paint A/B
+against the branch base (docs/PERFORMANCE.md): one fewer store write per measure should be neutral or
+better, never worse. One before/after screenshot at a fixed hour confirms no visual change.
+
+**The same class elsewhere** (spot check at Crawford's "can you spot check for other similar dead
+code?", 2026-10-09: a scripted reference count over `src/` with tests excluded, every hit then read by
+hand; added to this item the same day, "add the rest to item 48"). The seed and coordinate override
+primitives in `src/utils/seedUtils.ts` are deliberately NOT on this list — backlog item 19 brings
+`?seed=`/`?x=`/`?y=` back and decides their fate (see Not Doing).
+
+7. **Dials nothing turns, in `uiStore`** (`src/stores/uiStore.ts`): `activeView` + `setActiveView` +
+   the `ActiveView` type (the pre-hub view switch, zero references); `isFullscreen` + `setFullscreen`
+   (zero references; the comment at `:222` describes components that do not exist); `theme` +
+   `setTheme` (read once by `src/utils/realWorldGradient.ts`, never set — the constant `'dark'` left
+   by the cut Console Theming phase, [11](#11-console-theming--cut); the gradient hardcodes dark);
+   `language` + `setLanguage` (no reader — the two text hits are the English word in comments).
+8. **Fields written but never read, or neither** (`src/types/Robot.ts:137–139`): `Robot.createdAt`,
+   stamped at spawn "for removal ordering" (`src/systems/spawnSystem.ts:707`) and read nowhere;
+   `Robot.lastInteractionMeasure`, no reader and no writer since `interactionSystem.ts` was deleted
+   ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) already records it). Neither is in `SessionPayload`.
+9. **Stubs and self-admitted keepers** — production never calls them; tests keep them alive:
+   `attachFlickerAnimation` (`src/components/actors/greebles/rooftopGreebles.tsx:616`, a placeholder
+   returning a no-op, four tests asserting the no-op); `loadToLimits` (`src/utils/audioBudget.ts:92`,
+   its own comment says it is kept only so a pre-split test still runs); `withLoadParam`
+   (`audioBudget.ts:184`, its comment says "every existing caller uses it" — there are none,
+   `audioBudgetSystem.ts:131` calls `withParam` directly); `gridUnitsToDuration`
+   (`src/engine/melodyGenerator.ts:384`, "kept as a general-purpose utility", unused); `loadSession`
+   (`src/utils/sessionStorageEngine.ts:81`, no caller — `SessionListItem.tsx:40` applies the listed
+   entry's own payload; [SESSION_STORAGE.md](../SESSION_STORAGE.md) lists it as live API and drops
+   it); `pickSilhouetteFill` and `assertInViewBox` (`src/components/actors/silhouetteUtils.ts:48`,
+   `:76` — the second has no reference anywhere, not even a test); `nearestAccentIndex` and
+   `isWarmHue` (`src/utils/accentLean.ts:93`, `:134`, test-only). Each goes with its tests.
+10. **Stale comments naming removed things**: "CompanyManager" at `uiStore.ts:88` (the component is
+    gone; the field it describes, `selectedCompanyId`, is live); "`TIME_PITCHES`" at
+    `src/constants/index.ts:57` (the palette table has been `HARMONY_PALETTES` since the sequencing
+    rewrite).
+
+**Excluded on purpose:** the nav tree family (`useNavTree`, `navTreeConfig`, `accordionSync`,
+`useAccordionOpenState`, `useSectionObserver`, `RobotSectionAccordionStack`), which the layout
+rework's Tasks 9 and 18 delete; the ~250 exports referenced only by tests as deliberate seams
+(constants, `lifecycleSim.ts`'s sim runners, `src/testUtils/`); and the ~100 exported types used only
+inside their own file (export hygiene, not dead code). The scripted count is a heuristic — re-run it
+and re-read each hit before deleting, since the tree moves.
+
+### Not Doing (and why)
+
+- **Moving battery, docking or pitch drift onto the wall clock** — replayability is the top priority
+  (Crawford, 2026-10-09). The fleet cycles in bars and runs faster at a higher BPM; accepted.
+- **Deriving the day from measures (one musical clock)** — a day would be 384 beats ÷ BPM: 1.9
+  minutes at the slider's 200, 19 at its 20, and the off screen's lit world would freeze at one hour
+  with the transport stopped. The "30-second day" Crawford ruled out.
+- **Changing the 6-minute day** — not asked; it would be a separate dial, and the arrival-hour-by-x
+  rule depends on the day length only through `dayStartTimestamp`.
+- **Tempo-syncing the LFOs** — backlog item 17: free-running Hz is intentional.
+- **Removing `seedUtils.ts`'s seed and coordinate override primitives**
+  (`setGlobalAttenuationStyleSeedOverride` and its getter, `parseCoordinateParam`,
+  `setLocaleCoordinateOverride`, `getLocaleCoordinateOverride`, `LocaleCoordinateOverride`) — no
+  production caller today, but backlog item 19 brings `?seed=`/`?x=`/`?y=` back and its spec decides
+  whether they are reused or replaced by the `?session=` boot path. They join this list only if
+  replaced.
+
+## 49. Robot Pan: a Pan Slider Beside Volume, with Auto
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "we need to give the user panning ability
+on the robots … put it in the section with volume, along with an 'auto' button that connects it to the
+robot as it works today." Not yet interviewed or specced. A small audio-UI phase on top of the Robot
+screen the layout rework delivers (its Levels tab,
+[docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md) Task 16); the component it extends,
+`AudioSettingSection`, is reused unchanged by the rework, so the code can land before or after it —
+build after, so the slider is laid out once, on the screen that ships.
+
+### About
+
+**What exists, verified 2026-10-09.** Every reserved robot already has a stereo panner on its own bus
+(`composite.output → panner → busGain → busFilter → chain`, `src/engine/AudioEngine.ts:611–679`), and
+it already follows the robot: `updateAllPanners` (`AudioEngine.ts:308`) runs once per 16th-note tick
+from the melody playback loop (`:422`), reads each robot's **live GSAP x** through
+`getRef('robot-<id>')` (`getRobotVisualX`, `:204` — falling back to `Robot.position.x`, then to the
+scene's centre), maps it with `calculatePanFromPosition(x) = x / WORLD_WIDTH − 0.5`
+(`src/engine/audioEngine/panning.ts`, so the whole 1920-wide stage spans only **±0.5**, "keeps voices
+more centered for a cohesive mix"), and skips the AudioParam write when the value moved less than
+0.0005. So a robot's sound already swims across the field with it, leg by leg. There is no user
+control over any of this; `AudioAttributes`, `CompanyOptionsSnapshot` and `RobotAudioOverrideDiff`
+have no pan field, and pan is neither an LFO target (`RobotLfoTargetId`, `src/types/lfo.ts`) nor a
+swell attribute (`SwellRobotAttributeId`).
+
+**The feature.** In the Levels block — `AudioSettingSection.tsx`, today the Audio Setting radio over
+the Volume slider — a **Pan** row: a centred-zero slider (left … centre … right) and an **Auto** toggle.
+Auto on, the default and today's behaviour: the panner follows the robot's position exactly as above
+and the slider reads the live value back (read-only). Auto off: the slider's value is written to the
+panner and `updateAllPanners` leaves that robot alone. Companies broadcast both, the way Volume does.
+
+**Shape, as a starting point for the spec (not decided):**
+
+- **Model** — two JSON-serialisable fields on `Robot`: `panAuto: boolean` (spawn default `true`) and
+  `pan: number` in [−1, 1] (default 0), kept separately so a manual position survives a round trip
+  through Auto. Seeded like everything else at spawn (`spawnSystem.ts`), i.e. always `true` / `0` — no
+  noise draw, so no change to any existing world.
+- **Actions** — `applyPan` / `applyPanAuto` in `src/systems/robotOptionsActions.ts`, mirroring
+  `applyVolume` (`:35`: `updateRobot` + one engine call). Engine: `AudioEngine.updateRobotPan(id, value)`
+  on the pattern of `updateRobotMasterVolume` (`:887`), and a module-level `manualPanByRobot` map the
+  hot loop consults, so `updateAllPanners` stays store-free and simply `continue`s past a manual robot
+  (cleared in `releaseVoice`, like `lastPanByRobot`).
+- **UI** — `SliderCenteredZero` (`src/types/controls.ts:104`; the Oblique Cabinetry centred slider,
+  [11.1.5](#1115-oblique-cabinetry-slidercenteredzero)) and `Toggle` (`:128`), composed in
+  `AudioSettingSection` with a third `DirectionalPanel` row; schema in `robotOptionsConfig.ts` beside
+  `VOLUME_SCHEMA`. Existing components only (layout decision 10). The toggle holds its largest-content
+  size on flip. Both controls get a help popover description (layout spec §1.4).
+- **Company** — `CompanyOptionsSnapshot` gains `pan?` / `panAuto?`; `CompanyOptionsSection`'s handler
+  mirrors `handleVolumeChange` (`:313`: broadcast to every member, patch the snapshot). Broadcast, not
+  link ([COMPANIES.md](../COMPANIES.md)).
+- **Content** — `probe.pan` (human "Pan", a lore name in the
+  [copy-tone-guide](../reference/copy-tone-guide.md)'s voice, unit L/R) and `probe.pan.auto`, plus
+  their descriptions, in `src/content/copy/probe.ts`. Never a literal in the component.
+- **Persistence** — `masterVolume` is on [SESSION_STORAGE.md](../SESSION_STORAGE.md)'s "explicitly
+  never persisted" list; pan should follow the same rule unless the interview says otherwise (Auto is
+  the default, so an untouched robot needs nothing saved either way).
+
+**Guardrails this must respect.** Pan is an audio setting and reaches the body through **no** dial —
+[ROBOT_DESIGN.md](../ROBOT_DESIGN.md)'s dial list is unchanged and the Visual Mapping guardrail holds
+(nothing on the gem moves with pan). The panner write stays inside `AudioEngine`, on the transport
+tick, never from a GSAP callback. No new Tone nodes: the panner exists already, so the Audio Load
+Budget is untouched, and manual robots mean fewer writes per tick, not more.
+
+**Questions for the interview:**
+
+- Range and labels: does a manual pan get the full ±1, or the ±0.5 the auto mapping keeps to? Slider
+  shows L / R percentages, or just a centred bar?
+- While Auto is on, does the slider show the live value (a small per-tick store write, or a read on
+  the lighting tick) or sit greyed at centre?
+- Does a company's Auto broadcast as well as its pan value, and what does the company screen show
+  when members disagree (today's resolve-to-snapshot rule)?
+- Should a user-panned robot stop following when it swims — yes by definition — and should turning
+  Auto back on snap or glide to the live position (a `rampTo` on the panner, same as volume)?
+- Phone speakers are mono: nothing to do, but worth saying in the help copy?
+
+### Not Doing (and why)
+
+- **A pan LFO target** — autopan is tempting, but the per-robot `volume` LFO target was removed as
+  "not as impactful as I had hoped" (docs/specs/LFO_LOAD_FIX.md); a pan target is the same class of
+  decision and a separate one, with its own load cost on phones.
+- **Pan as an audio-swell attribute** — swells ride volume and the global chain; adding a target is a
+  swells design change, not a slider.
+- **Changing the auto mapping** (its ±0.5 span or the visual-x read) — "as it works today" is the
+  brief; a wider auto field would change every existing world's mix.
+- **Any visual sign of pan on the robot** — the Visual Mapping guardrail.
+
+## 50. Audio Palette: New Attributes Without New Libraries
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "what other audio attributes, aside from
+changing up the oscillators, could we use without adding more libs … global effects, plugins, wah
+pedals, portamento", then "if we can organize it and make it happen without distortion, then i want to
+at least try it … let's get your suggested ones into the roadmap, and add the rest as backlogs for us
+to try and see what works." Four sub-phases below, in build order (50.1 → 50.4); the rest of the menu
+is backlog items 21–24 ([backlog.md](backlog.md#21-audio-palette-trials-robot-dynamics-gate-length-humanize-and-rests)).
+Not yet interviewed or specced — each sub-phase gets its own `/interview-me` → spec → plan, each small
+enough to land in a sitting. Build after the layout rework's Phase 2 (section tabs), so every new
+control is laid out once on the screens that ship.
+
+### About
+
+**Grounding (verified 2026-10-09).** Tone.js `^15.1.22` is the only audio dependency and nothing is
+added. Today the app constructs: per robot, up to three `Tone.Synth` layers
+(`src/engine/audioEngine/compositeVoice.ts:143` — oscillator type / pulse width / detune / phase /
+per-layer gain, one shared ADSR with no curve settings) into a bus of `Panner → Gain → Filter`
+(`src/engine/AudioEngine.ts:611–679`; the filter's cutoff is `AudioAttributes.filterFreq`, seeded only,
+no UI); globally `EQ3 → LPF → HPF → Delay → Reverb → Compressor → Limiter`, or the Compressor ahead of
+the Delay under Controlled Decay (`src/engine/audioEngine/globalFx.ts:147–149`); two `Tone.LFO`
+engines; nothing else. Robot LFO targets are layer gain / detune (`src/types/lfo.ts:43`); global targets
+are the EQ bands and filter frequency / Q (`:76`). Everything below is a Tone 15 class or parameter the
+app does not use yet.
+
+**Shared constraints — every sub-phase, no exceptions:**
+
+- **"Without distortion" is the gate.** Each sub-phase is measured the way the Audio Load Budget was
+  ([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) §Audio Load Budget; the archived spec
+  [AUDIO_LOAD_BUDGET.md](../specs/archive/AUDIO_LOAD_BUDGET.md) §7;
+  [scratchy-audio-phones.md](scratchy-audio-phones.md)): the same `?session=` world, A/B against the
+  branch base on the Pixel, the `?debug` HUD's output-underrun count (`src/utils/audioHealth.ts`) at
+  Standard and at Full, plus `npm run perf` on the desktop. A feature that raises underruns ships
+  behind the Effects Limit — a new `LOAD_*_MIN` threshold beside `LOAD_FILTER_LFOS_MIN`
+  (`src/constants/index.ts:44–46`) — or not at all.
+- **Where nodes may be added.** New nodes go on the global chain (one instance) or as a per-robot
+  send `Gain` (one cheap node each). Robots otherwise get *parameters on nodes they already have*.
+  Twelve of anything else is the phone's problem.
+- **Replayability stays first** (the 2026-10-09 time decision, [48](#48-one-day-clock-remove-the-measure-based-day)).
+  Every decision — a seeded default, a humanize offset, a skip roll — keys off
+  `getSeededVal(noiseMap, dataId, …)` and the measure or note index, the way velocity already does
+  (`computeNoteVelocitySeeded`, `AudioEngine.ts:452`). An effect's *internal* oscillator (Chorus,
+  Phaser, Tremolo…) is wall-clock like the LFO Bank's phase: the accepted class, recorded in
+  backlog 17.
+- **Architecture rules.** Every AudioParam write lives in `AudioEngine` / `globalFx.ts`, on the
+  transport tick or from an action, never from a GSAP callback. State stays JSON-serialisable:
+  numbers and strings on `AudioAttributes` / `OscillatorLayer` / `GlobalAudioSettings`, never a node.
+- **Seeded and saved like the existing fields.** Spawn: a new `dataId` draw in `spawnSystem.ts` /
+  `globalAudioSeed.ts`, with a row in `GLOBAL_AUDIO_LOADING_RANGES`
+  (`src/data/globalAudioLoadingRanges.ts`) mirrored in
+  [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md), and a band in the themes idea
+  ([themes.md](../ideas/themes.md)). Session: optional on `SessionPayload` / `RobotAudioOverrideDiff`,
+  absent = the seeded value, like every field since v1. **A seeded default changes every existing
+  world; a default of *off* does not** — each sub-phase says which it chooses, and "off" is the safe
+  first cut for a trial.
+- **UI.** Content keys with lore names in the
+  [copy-tone-guide](../reference/copy-tone-guide.md)'s voice, a help popover per control, existing
+  primitives only (layout decision 10), inside the Fleet Params / Robot section tabs
+  ([LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md) §1.4 / §1.5). Companies broadcast per-robot fields
+  the way Volume does (`CompanyOptionsSnapshot`). Nothing reaches the robot's body (Visual Mapping
+  guardrail).
+
+### Not Doing (and why)
+
+- **Per-robot effect nodes** (a chorus or a distortion each) — twelve instances on a phone; sends
+  and parameters instead.
+- **`Tone.PitchShift`** (granular, the heaviest effect in the library) and **`Panner3D`** per robot
+  (HRTF per source) — neither clears the gate by inspection.
+- **`AutoFilter` on the global chain** — already achievable: the global LPF plus a Bank lane.
+- **New oscillator types** (`fat`, `am`, `fm`, partials) — "aside from changing up the oscillators",
+  Crawford's own exclusion; a separate conversation.
+
+## 50.1 Robot Articulation: Portamento, Envelope Curves, Bus Filter
+
+Zero new nodes: three per-robot attributes that are parameters on nodes every robot already has, so
+the budget cost is nil and the phone gate is a formality.
+
+- **Portamento.** `Tone.Synth` is a `Monophonic`; its `portamento` (seconds) is never set, so every
+  note steps. One slider per robot (0 = today) glides each layer's frequency into the next note.
+  Envelope section, beside ADSR. Default: off for every existing robot, or a low seeded chance of a
+  glider — the interview decides; off leaves every world sounding as it does today.
+- **Envelope curves.** `Tone.Envelope` accepts `attackCurve` / `releaseCurve` of
+  `linear | exponential | sine | cosine | bounce | ripple | step` (and `decayCurve` linear /
+  exponential); both sit at Tone's defaults today. A single-line "contour shape" radio beside the ADSR
+  sliders; `ADSREnvelope` (`src/types/Robot.ts:53`) gains two optional string fields.
+- **The bus filter, exposed.** `AudioAttributes.filterFreq` drives each robot's bus `Tone.Filter`
+  (`resolveBusFilterCutoff`, `AudioEngine.ts:150`; `0` = open) but has no control, although
+  `RobotAudioOverrideDiff` already carries it (`src/types/session.ts:22`). Add Cutoff and Resonance (Q)
+  sliders and a type radio (lowpass / bandpass / highpass): a resonant bandpass *is* the wah, and a
+  Bank lane on its frequency is an autowah. The per-robot LFO target `bus.frequency` is an *option*
+  here, gated by `filterLfosEnabled`, since robot LFO count is what the budget fights
+  ([17.2.7](#1727-performance-robot-lfo-priming)). Section: Source (spectral) or Levels — spec decides.
+
+Verification: the composite-voice tests extended; a headless test that a glide / curve / cutoff edit
+reaches the Tone node through the voice's `set` path (`compositeVoice.ts:240`); the phone A/B above,
+expected flat.
+
+## 50.2 Robot Sends: Per-Robot Reverb and Delay Depth
+
+One `Gain` per robot. Today Reverb and Delay are inserts on the global chain with one `wet` each, so
+every robot sits at the same depth. A per-robot **send** into each — `busFilter → sendGain → effect
+input`, dry path unchanged — gives each robot its own distance, and pairs with
+[49](#49-robot-pan-a-pan-slider-beside-volume-with-auto): pan is where, send is how far. Companies
+broadcast it, so a company can be "the far ones".
+
+The interview must decide the topology: a true send / return (effect `wet` = 1, the global "wet"
+sliders become return levels, the `reverb.wet` / `delay.wet` rows of `GLOBAL_AUDIO_LOADING_RANGES`
+re-ranged) versus keeping the inserts and adding sends on top (simpler, but a robot then has two paths
+into the same reverb). `wireGlobalFxChain` (`globalFx.ts:144`) is the one place the chain is wired and
+already rewires on the Decay toggle, so the send bus belongs there. Seeded default: every robot at the
+depth the insert gives today, so no world changes until a user moves one. Swells currently ride
+`reverb.wet` / `delay.wet` (audioSwells.ts's off-equivalent check); they keep riding the global return,
+never a send. Phone gate: twelve `Gain`s is the cheapest node there is, but this is a topology change,
+so it is measured.
+
+## 50.3 Global Colour: Saturation and BitCrusher
+
+Two single-instance nodes on the global chain, each with a lore name — a degraded transmission is
+on-brand. `Tone.Distortion` (soft overdrive: `distortion` 0–1, `oversample`) or `Tone.Chebyshev`
+(harmonic waveshaper: integer `order`) — one of the two, chosen in the interview, since they fill the
+same slot — plus `Tone.BitCrusher` (`bits`). Both have `wet`, so the seeded default can be fully dry
+(no world changes) or a gentle seeded band (every world gains grit — the Phase 42 kind of call).
+Position: after the filters and before the Decay stage, a new slot in both of `wireGlobalFxChain`'s
+orderings. Fleet Params gets a new section tab ("Colour") or two rows in Output — spec decides against
+the rework's tab row. Both are LFO-able (`distortion`, `wet`) if a Bank target is wanted later, not in
+this sub-phase. Phone gate: waveshapers are cheap, `oversample: '4x'` is not — the gate sets the
+allowed values and the Effects Limit drops oversampling first.
+
+## 50.4 Global Modulation Pedal: AutoWah or Phaser
+
+One single-instance node, chosen in the interview. `Tone.AutoWah` is an envelope follower driving a
+bandpass (`baseFrequency`, `octaves`, `sensitivity`, `Q`, `gain`, `follower`): it reacts to the fleet's
+own dynamics and has no clock, so it is replayable in the only sense that matters. `Tone.Phaser`
+(`frequency`, `octaves`, `baseFrequency`, `stages`, `Q`) carries its own LFO, so its phase is
+wall-clock — the LFO Bank's accepted class — and its `frequency` could take the Free | Sync treatment
+([33](#33-free--sync-toggle)). Either lands as one more slot in `wireGlobalFxChain` with `wet`, seeded
+default dry or a low seeded band, the same call as 50.3. Whichever is not chosen moves to backlog 22.
+Phone gate: a follower is a few nodes; Phaser's `stages` multiplies allpass filters, so the gate caps it.

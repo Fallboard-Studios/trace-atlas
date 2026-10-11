@@ -4,6 +4,7 @@ import colorTheme from '../../../constants/colorTheme.json';
 import { hslToString } from '../../../utils/colorUtils';
 import { pipeBridgeLayout } from './pipeBridgeLayout';
 import type { Actor } from '../../../types/Actor';
+import { WORLD_GEM, hairline } from '../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 "Pipe bridges")
@@ -24,13 +25,18 @@ interface PipeBridgesProps {
  * created — this is a pure render-time derivation from the factories already placed; the
  * geometry, and its reading of the spec's bar height, is `pipeBridgeLayout` (pipeBridgeLayout.ts).
  */
-export const PipeBridges: React.FC<PipeBridgesProps> = ({ factories }) => (
-  <g data-scenery="pipe-bridges">
-    {pipeBridgeLayout(factories).map(({ key, bar, post }) => (
-      <g key={key} data-pipe-bridge="">
-        <rect data-pipe-bridge-part="bar" x={bar.x} y={bar.y} width={bar.width} height={bar.height} fill={BAR_FILL} />
-        <rect data-pipe-bridge-part="post" x={post.x} y={post.y} width={post.width} height={post.height} fill={BAR_FILL} />
-      </g>
-    ))}
-  </g>
-);
+export const PipeBridges: React.FC<PipeBridgesProps> = ({ factories }) => {
+  // The bar and the post are thin members: they take the hairline (docs/specs/WORLD_GEM_MATERIAL.md
+  // §1.6). Its colour is fixed, so there is still no lighting tick here.
+  const member = WORLD_GEM.others ? hairline() : undefined;
+  return (
+    <g data-scenery="pipe-bridges">
+      {pipeBridgeLayout(factories).map(({ key, bar, post }) => (
+        <g key={key} data-pipe-bridge="">
+          <rect data-pipe-bridge-part="bar" x={bar.x} y={bar.y} width={bar.width} height={bar.height} fill={BAR_FILL} {...member} />
+          <rect data-pipe-bridge-part="post" x={post.x} y={post.y} width={post.width} height={post.height} fill={BAR_FILL} {...member} />
+        </g>
+      ))}
+    </g>
+  );
+};

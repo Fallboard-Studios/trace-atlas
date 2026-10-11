@@ -8,6 +8,9 @@
 export interface ContentOption {
   human: string;
   lore?: string;
+  /** A compact form of the option where the phone shell has no room for `human` — the lane letter 'A'
+   *  on LfoLink's lane row. Read by its own consumer, never spread by `options()` / `optionsRecord()`. */
+  short?: string;
 }
 
 export interface ContentIntro {
@@ -39,6 +42,22 @@ export interface ContentEntry {
   unit?: string;
   /** Per-value copy for radio groups and enum badges — keyed by the stored value. */
   options?: Record<string, ContentOption>;
+  /** What the control does, for the "?" on its label (docs/specs/LAYOUT_REWORK.md §1.4). Present on
+   *  every value control; `labels()` carries it into the schema. */
+  help?: ContentHelp;
+  /** A compact form of the name where the phone shell has no room for `human` — 'LFO A' for the
+   *  Core LFO lane. Read by its own helper (`laneTitle`), never spread by `labels()`. */
+  short?: string;
+}
+
+/** A control's help popover copy: the human description, and optionally a lore description to sit
+ *  under the entry's own lore name. Plain text — the popover renders it as text, never as markup. */
+export interface ContentHelp {
+  /** Human voice (docs/reference/copy-tone-guide.md): what the control does, for someone who may not
+   *  know synths. */
+  human: string;
+  /** Lore voice: an in-universe line for the lore name. Absent = the popover shows the name alone. */
+  lore?: string;
 }
 
 /** The closed list of top-level key areas (spec §1.2). A key's first segment must be one of these. */
@@ -53,6 +72,7 @@ export interface SchemaLabels {
   loreLabel?: string;
   placeholder?: string;
   unit?: string;
+  help?: ContentHelp;
 }
 
 export interface SchemaOption {

@@ -68,7 +68,7 @@ function DirectionalPanelInner({ schema, children }: DirectionalPanelProps) {
 
   const panel = (
     <div className="sc-directional-panel" data-panel-id={schema.id} ref={ref}>
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <div className="sc-directional-panel__content" data-orientation={orientation}>
         {children}
       </div>

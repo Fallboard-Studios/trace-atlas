@@ -2,6 +2,7 @@ import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 tether row)
@@ -46,12 +47,16 @@ export const tether: SceneryRenderer = ({ actor, params, cap, eastL, westL, nigh
     `${x + half45},${lineTopY - half45}`,
   ].join(' ');
 
+  // Thin members and curves take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6); lamps, lit bars,
+  // beams, pools, highlight strips, valves and floats are left exactly as they are.
+  const member = WORLD_GEM.others ? hairline() : undefined;
+
   return (
     <g data-scenery="tether">
-      <rect data-tether="anchor" x={x - ANCHOR_W / 2} y={anchorTop} width={ANCHOR_W} height={ANCHOR_H} fill={fill} />
-      <rect data-tether="line" x={x - half45} y={lineTopY} width={LINE_W} height={anchorTop - lineTopY} fill={fill} />
-      <polygon data-tether="dogleg" points={doglegPoints} fill={fill} />
-      <rect data-tether="riser" x={kinkX - half45} y={OFF_FRAME_Y} width={LINE_W} height={kinkY - OFF_FRAME_Y} fill={fill} />
+      <rect data-tether="anchor" x={x - ANCHOR_W / 2} y={anchorTop} width={ANCHOR_W} height={ANCHOR_H} fill={fill} {...member} />
+      <rect data-tether="line" x={x - half45} y={lineTopY} width={LINE_W} height={anchorTop - lineTopY} fill={fill} {...member} />
+      <polygon data-tether="dogleg" points={doglegPoints} fill={fill} {...member} />
+      <rect data-tether="riser" x={kinkX - half45} y={OFF_FRAME_Y} width={LINE_W} height={kinkY - OFF_FRAME_Y} fill={fill} {...member} />
       {hasFloat && (
         <ellipse
           data-tether="float"

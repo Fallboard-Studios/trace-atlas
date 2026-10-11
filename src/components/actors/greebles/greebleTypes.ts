@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { HSL } from '../../../utils/colorUtils';
+import type { GemPoint } from '../../robot/gem/polygon';
 
 // ========================================
 // GREEBLE TYPE DEFINITIONS
@@ -81,6 +82,12 @@ export interface GreebleRendererContext {
    * that control window existence and opacity.
    */
   flickerEpoch?: number;
+  /**
+   * The hour's unit light vector (`worldLightVector`, docs/specs/WORLD_GEM_MATERIAL.md §1.4):
+   * set by Factory.tsx's rooftop PAINT context only, never its layout context. When present, the
+   * rooftop block greebles draw their world gem ring; absent, they render exactly as before.
+   */
+  light?: GemPoint;
 }
 
 /**

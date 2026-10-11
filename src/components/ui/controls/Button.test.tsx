@@ -179,3 +179,86 @@ describe('Button', () => {
     });
   });
 });
+
+// docs/tasks/LAYOUT_REWORK.md Task 17 follow-up (Crawford, 2026-10-10: "Save & Share only"): an opt-in
+// single-line face, the sketch's compact button, with the lore left to the control's label row as
+// RadioButton's options do (Task 13); and an accessible name apart from the face, so a list row's
+// button can read "Load" while it is named "Load Dusk Run".
+describe('Button — the single-line face and the accessible-name override', () => {
+  const schema: ButtonSchema = { id: 'session.load', type: 'button', loreLabel: 'RESTORE STATE', humanLabel: 'Load' };
+
+  it('face="single" draws the human label alone, on one line, with no DualLabel and no lore', () => {
+    const { container } = render(<Button schema={schema} face="single" onClick={() => {}} />);
+    const label = container.querySelector('.sc-button__label');
+    expect(label?.textContent).toBe('Load');
+    expect(container.querySelector('.sc-dual-label')).toBeNull();
+    expect(screen.queryByText('RESTORE STATE')).toBeNull();
+  });
+
+  it('the default face is still the DualLabel, lore over human', () => {
+    const { container } = render(<Button schema={schema} onClick={() => {}} />);
+    expect(container.querySelector('.sc-dual-label')).not.toBeNull();
+    expect(container.querySelector('.sc-button__label')).toBeNull();
+    expect(screen.getByText('RESTORE STATE')).toBeTruthy();
+  });
+
+  it('accessibleName names the button without changing its face', () => {
+    render(<Button schema={schema} face="single" accessibleName="Load Dusk Run" onClick={() => {}} />);
+    const button = screen.getByRole('button', { name: 'Load Dusk Run' });
+    expect(button.textContent).toBe('Load');
+  });
+
+  it('accessibleName works with the dual face too', () => {
+    render(<Button schema={schema} accessibleName="Load Dusk Run" onClick={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Load Dusk Run' }).textContent).toContain('Load');
+  });
+
+  it('a single face with no humanLabel falls back to the lore, as the accessible name does', () => {
+    const { container } = render(<Button schema={{ id: 'x', type: 'button', loreLabel: 'PURGE' }} face="single" onClick={() => {}} />);
+    expect(container.querySelector('.sc-button__label')?.textContent).toBe('PURGE');
+  });
+
+  it('a single-face button still clicks, disables and pops as every Button does', () => {
+    const onClick = vi.fn();
+    const { rerender } = render(<Button schema={schema} face="single" onClick={onClick} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    fireEvent.mouseEnter(screen.getByRole('button'));
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('true');
+    rerender(<Button schema={schema} face="single" onClick={onClick} disabled />);
+    expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+// Crawford, 2026-10-10: the intro expander (IntroPanel's "More") is a Button that discloses a region,
+// so Button can carry the disclosure state.
+describe('Button — as a disclosure (expanded / controls)', () => {
+  const schema: ButtonSchema = { id: 'intro.toggle', type: 'button', humanLabel: 'More' };
+
+  it('carries aria-expanded and aria-controls when given them', () => {
+    const { rerender } = render(<Button schema={schema} onClick={() => {}} expanded={false} controls="intro-body" />);
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button').getAttribute('aria-controls')).toBe('intro-body');
+    rerender(<Button schema={schema} onClick={() => {}} expanded controls="intro-body" />);
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('an ordinary button carries neither', () => {
+    render(<Button schema={schema} onClick={() => {}} />);
+    expect(screen.getByRole('button').hasAttribute('aria-expanded')).toBe(false);
+    expect(screen.getByRole('button').hasAttribute('aria-controls')).toBe(false);
+  });
+});
+
+describe('Button.css — the single-line face', () => {
+  it('reads as DualLabel\'s human line does, on one line', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const { getCssRuleBody } = await import('@/testUtils/cssRuleBody');
+    const body = getCssRuleBody(readFileSync(resolve(__dirname, 'Button.css'), 'utf8'), '.sc-button__label');
+    expect(body).not.toBeNull();
+    for (const d of ['font-family: var(--font-mono);', 'font-size: var(--font-size-label);', 'color: var(--color-text-primary-fixed);', 'white-space: nowrap;']) {
+      expect(body).toContain(d);
+    }
+  });
+});

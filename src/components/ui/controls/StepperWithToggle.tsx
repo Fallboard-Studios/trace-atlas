@@ -25,7 +25,7 @@ interface StepperWithToggleProps {
  *  plain `isActive` class (see Toggle.tsx) so a consumer can write
  *  `.sc-stepper-toggle.isActive { ... }`. */
 function StepperWithToggleInner({ schema, value, onChange, disabled }: StepperWithToggleProps) {
-  const toggleSchema: ToggleSchema = { id: `${schema.id}.active`, type: 'toggle', loreLabel: schema.loreLabel, humanLabel: schema.humanLabel };
+  const toggleSchema: ToggleSchema = { id: `${schema.id}.active`, type: 'toggle', loreLabel: schema.loreLabel, humanLabel: schema.humanLabel, help: schema.help };
   const stepperSchema: StepperSchema = { id: schema.id, type: 'stepper', min: schema.min, max: schema.max };
 
   return (
