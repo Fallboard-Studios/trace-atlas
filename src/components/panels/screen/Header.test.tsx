@@ -393,6 +393,22 @@ describe('Header', () => {
       expect(row(container).classList.contains('header__row--phone')).toBe(true);
     });
 
+    // Crawford, 2026-10-11: the well and the panel share one width and one inset from the tablet's edge, so
+    // they live in one stack and the stack sets both.
+    it('holds the well and the panel in one stack, well first', () => {
+      const { container } = render(<Header />);
+      const stack = container.querySelector('.header__stack')!;
+      expect(stack).not.toBeNull();
+      expect(Array.from(stack.children).map((c) => (c.classList.contains('header__well') ? 'well' : c.classList.contains('sc-cabinet-box') ? 'panel' : '?'))).toEqual(['well', 'panel']);
+    });
+
+    // Crawford, 2026-10-11: "at least a 12px gap between the menu/mute/etc buttons".
+    it('keeps at least 12 px between the controls', () => {
+      const { container } = render(<Header />);
+      const gap = parseFloat(container.querySelector<HTMLElement>('header')!.style.getPropertyValue('--header-row-gap'));
+      expect(gap).toBeGreaterThanOrEqual(12);
+    });
+
     it('keeps the menu and mute reachable: both are 44 px touch targets in the controls row', () => {
       const { container } = render(<Header />);
       for (const sw of within(row(container)).getAllByRole('switch')) {
@@ -725,39 +741,51 @@ describe('Header.css — one row beside the power corner', () => {
     );
   });
 
-  // Crawford, 2026-10-11: the header stacks the well over the panel on the phone, the panel pinned to the
-  // left; the well spans the free band left of the power corner and takes presses back (it scrolls).
-  it('the phone header stacks the well over a left-pinned panel', () => {
-    const header = getCssRuleBody(css, '.header--phone');
-    expect(header).toContain('flex-direction: column;');
-    expect(header).toContain('align-items: flex-start;');
+  // Crawford, 2026-10-11: the well and the panel under it take one width and sit one inset from the tablet's
+  // edge. The stack is as wide as the wider of the two (the well's text is its content), up to the free band
+  // left of the power corner; both stretch to it, and a longer well scrolls.
+  it('the phone stack is content-wide, capped at the free band, inset from the left edge', () => {
+    expect(getCssRuleBody(css, '.header--phone')).toContain('flex-direction: column;');
+    const stack = getCssRuleBody(css, '.header__stack');
+    for (const declaration of [
+      'display: flex;',
+      'flex-direction: column;',
+      'width: fit-content;',
+      'max-width: calc(100% - var(--power-corner-width) - 2 * var(--spacing-md));',
+      'margin-left: var(--spacing-md);',
+      'gap: var(--header-row-gap);',
+    ]) {
+      expect(stack).toContain(declaration);
+    }
+    expect(getCssRuleBody(css, '.header__stack > .sc-cabinet-box')).toContain('align-self: stretch;');
+    // The desk's plate rule (.header > .sc-cabinet-box > .sc-cabinet-box__front) misses the stack's, so the
+    // stack's front restates it: a block, no padding of its own, as wide as the stack (measured in Chrome:
+    // without it the plate overran the well by 15 px and the controls sat 14 px in from the panel's edge).
+    const front = getCssRuleBody(css, '.header__stack > .sc-cabinet-box > .sc-cabinet-box__front');
+    for (const declaration of ['display: block;', 'width: 100%;', 'height: auto;', 'padding: 0;', 'box-sizing: border-box;']) {
+      expect(front).toContain(declaration);
+    }
     expect(getCssRuleBody(css, '.header--phone .header__row')).toContain('padding: var(--spacing-sm) var(--spacing-md);');
     expect(getCssRuleBody(css, '.header__controls')).toContain('display: flex;');
   });
 
-  // The well holds all the info and scrolls sideways, across the free band left of the power corner.
-  it('the well scrolls sideways and never truncates, between the left margin and the power corner', () => {
+  // The well holds all the info and scrolls sideways when it is longer than the stack.
+  it('the well scrolls sideways and never truncates, and stretches to the stack', () => {
     const body = getCssRuleBody(css, '.header__well');
     expect(body).not.toBeNull();
-    for (const declaration of [
-      'align-self: stretch;',
-      'overflow-x: auto;',
-      'white-space: nowrap;',
-      'min-width: 0;',
-      'pointer-events: auto;',
-      'margin: 0 calc(var(--power-corner-width) + var(--spacing-md)) 0 var(--spacing-md);',
-    ]) {
+    for (const declaration of ['align-self: stretch;', 'overflow-x: auto;', 'white-space: nowrap;', 'min-width: 0;', 'pointer-events: auto;']) {
       expect(body).toContain(declaration);
     }
     expect(body).not.toContain('text-overflow');
+    expect(body).not.toContain('margin');
   });
 
-  // The ruler mirrors the room left of the power corner, so what the observer reports is what the controls
-  // line has: the panel's left padding, to the corner's reserve; the panel's own two paddings are the rest.
+  // The ruler mirrors the room the controls line has: the stack's inset and the panel's padding on the left,
+  // the corner's reserve and the same two on the right.
   it('the ruler is an empty, invisible box spanning the free band left of the power corner', () => {
     const body = getCssRuleBody(css, '.header__ruler');
     expect(body).not.toBeNull();
-    for (const declaration of ['position: absolute;', 'height: 0;', 'visibility: hidden;', 'pointer-events: none;', 'left: var(--spacing-md);', 'right: calc(var(--power-corner-width) + var(--spacing-md));']) {
+    for (const declaration of ['position: absolute;', 'height: 0;', 'visibility: hidden;', 'pointer-events: none;', 'left: calc(2 * var(--spacing-md));', 'right: calc(var(--power-corner-width) + 2 * var(--spacing-md));']) {
       expect(body).toContain(declaration);
     }
   });

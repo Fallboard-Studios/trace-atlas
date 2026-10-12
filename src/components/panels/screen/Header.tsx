@@ -50,9 +50,10 @@ const HEADER_VOLUME_WIDTH =
   computeVoxelTrackLength(VOXEL_TRACK_MIN_BOX_COUNT, CABINET_BOX_HEIGHT.desktop, CABINET_VOXEL_GAP.desktop) +
   computeVoxelTrackTrailingReserve('horizontal');
 
-/** The gap between the controls in a line (Header.css reads it as --header-row-gap), and the one number the
- *  phone's fit check adds up beside the boxes and the slider. */
-const HEADER_ROW_GAP = 8;
+/** The gap between the controls in a line, and between the phone's well and its panel (Header.css reads it
+ *  as --header-row-gap); Crawford, 2026-10-11: at least 12 px between the buttons. It is also the one number
+ *  the phone's fit check adds up beside the boxes and the slider. */
+const HEADER_ROW_GAP = 12;
 
 /** What the phone's controls line needs to show the slider in place of the ▾ box: the menu, mute and the
  *  slider at its one width, and the two gaps between them. */
@@ -181,38 +182,49 @@ function Header() {
     <SliderLinear schema={MASTER_VOLUME_SCHEMA} value={volume * 100} onChange={handleVolumeChange} disabled={!isPoweredOn} />
   );
 
+  /* Oblique Cabinetry facade — decorative only, matching
+       DirectionalPanel's own top-level facade (permanently popped,
+     non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
+     value/state tie-in). See DirectionalPanel.tsx's own comment and
+     docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */
+  const panel = (
+    <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
+      <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>
+        <div className="header__controls">
+          {shell === 'phone' && <PhoneMenu />}
+          <Toggle
+            schema={MUTE_SCHEMA}
+            value={isMuted}
+            onChange={(v) => useAudioStore.getState().setMuted(v)}
+            disabled={!isPoweredOn}
+            boxSize={CABINET_TOGGLE_BOX_SIZE}
+          >
+            {/* Single glyph, swapped on isMuted — unlike the old two-string
+               text facade, both icons render at the same intrinsic width so
+               there's no box-resize-on-toggle concern to guard against.
+               aria-hidden: the switch's own aria-label (resolveAccessibleName
+               above) already carries the accessible name. */}
+            <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
+          </Toggle>
+          {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
+        </div>
+      </div>
+    </CabinetBox>
+  );
+
   return (
     <header ref={headerRef} className={shell === 'phone' ? 'header header--phone' : 'header'} style={HEADER_STYLE}>
-      {/* Oblique Cabinetry facade — decorative only, matching
-         DirectionalPanel's own top-level facade (permanently popped,
-         non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
-         value/state tie-in). See DirectionalPanel.tsx's own comment and
-         docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       {shell === 'phone' && <span ref={rulerRef} className="header__ruler" aria-hidden="true" />}
-      {/* Phone: the well runs along the top of the app, outside the panel (Crawford, 2026-10-11). */}
-      {shell === 'phone' && <PhoneWell />}
-      <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
-        <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>
-          <div className="header__controls">
-            {shell === 'phone' && <PhoneMenu />}
-            <Toggle
-              schema={MUTE_SCHEMA}
-              value={isMuted}
-              onChange={(v) => useAudioStore.getState().setMuted(v)}
-              disabled={!isPoweredOn}
-              boxSize={CABINET_TOGGLE_BOX_SIZE}
-            >
-              {/* Single glyph, swapped on isMuted — unlike the old two-string
-                 text facade, both icons render at the same intrinsic width so
-                 there's no box-resize-on-toggle concern to guard against.
-                 aria-hidden: the switch's own aria-label (resolveAccessibleName
-                 above) already carries the accessible name. */}
-              <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
-            </Toggle>
-            {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
-          </div>
+      {/* Phone: the well and the panel share one stack, so they take one width and one inset from the tablet's
+          edge (Crawford, 2026-10-11): the well along the top, outside the panel. */}
+      {shell === 'phone' ? (
+        <div className="header__stack">
+          <PhoneWell />
+          {panel}
         </div>
-      </CabinetBox>
+      ) : (
+        panel
+      )}
     </header>
   );
 }
