@@ -15,7 +15,12 @@ vi.mock('@/components/panels/screen/console/ConsolePanel', () => ({
 }));
 // Mobile Deck Camera (Task 8): deckCamera.test.ts already covers registerDeckScroller's own
 // behaviour; this file only needs to see that WorldView calls it, not what it does.
-vi.mock('@/animation/deckCamera', () => ({ registerDeckScroller: vi.fn() }));
+vi.mock('@/animation/deckCamera', () => ({
+  registerDeckScroller: vi.fn(),
+  // OceanScene's followed-robot marker reads these; the camera follows nobody here.
+  getFollowedRobotId: () => null,
+  subscribeFollowedRobot: () => () => {},
+}));
 
 // ========================================
 // IMPORTS
