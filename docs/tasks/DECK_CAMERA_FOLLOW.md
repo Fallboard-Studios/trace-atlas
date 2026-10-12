@@ -407,13 +407,13 @@ bypassing the cooldown check the same way the robot override does.
 
 ### Checkpoint B: Crawford's dev look
 
-- [ ] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` all clean.
-- [ ] The spec §5.3 walk in the dev server: left alone (settle/drift/repeat, low-battery
+- [x] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` all clean.
+- [x] The spec §5.3 walk in the dev server: left alone (settle/drift/repeat, low-battery
       preference), touch mid-follow (freeze, 8 s wait on release), a followed robot docking
       (release, no chase), robot edit-return (undocked → jump; docked → no-op), company
       edit-return (member pool; fallback when the company is all-docked), reduced motion (instant
       floats).
-- [ ] **Stop and report.** Crawford answers spec §7 Q1–Q3 against the live thing; any change is the
+- [x] **Stop and report.** Crawford answers spec §7 Q1–Q3 against the live thing; any change is the
       one task/assumption named beside each question.
 
 ### Phase 4: Gates
