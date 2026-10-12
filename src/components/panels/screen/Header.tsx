@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import * as Popover from '@radix-ui/react-popover';
 
 import { useShell } from './useShell';
+import { PhoneMenu, PhoneWell } from './PhoneBar';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle, CABINET_TOGGLE_BOX_SIZE } from '@/components/ui/controls/Toggle';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -49,9 +50,19 @@ const HEADER_VOLUME_WIDTH =
   computeVoxelTrackLength(VOXEL_TRACK_MIN_BOX_COUNT, CABINET_BOX_HEIGHT.desktop, CABINET_VOXEL_GAP.desktop) +
   computeVoxelTrackTrailingReserve('horizontal');
 
+/** The gap between the controls in a line, and between the phone's well and its panel (Header.css reads it
+ *  as --header-row-gap); Crawford, 2026-10-11: at least 12 px between the buttons. It is also the one number
+ *  the phone's fit check adds up beside the boxes and the slider. */
+const HEADER_ROW_GAP = 12;
+
+/** What the phone's controls line needs to show the slider in place of the ▾ box: the menu, mute and the
+ *  slider at its one width, and the two gaps between them. */
+const PHONE_INLINE_VOLUME_NEED = 2 * CABINET_TOGGLE_BOX_SIZE + 2 * HEADER_ROW_GAP + HEADER_VOLUME_WIDTH;
+
 const HEADER_STYLE = {
   ...getTraitColorStyle('header'),
   '--header-volume-width': `${HEADER_VOLUME_WIDTH}px`,
+  '--header-row-gap': `${HEADER_ROW_GAP}px`,
 } as CSSProperties;
 
 /**
@@ -93,7 +104,10 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
 /**
  * The slim header (docs/specs/LAYOUT_REWORK.md §1.1; docs/tasks/LAYOUT_REWORK.md Task 6): one cabinet
  * row beside the power corner, in its static popped facade. On the desk shell, mute and the master
- * volume slider; on the phone shell, mute and the ▾ box that opens the slider in a pop-out. The slide
+ * volume slider; on the phone shell, the nav menu, mute and the ▾ box that opens the slider in a pop-out,
+ * under the well (world line or breadcrumb, scrolling sideways) along the top of the app, the panel pinned
+ * to the left; once the free band has room for the slider's three boxes, the slider takes the ▾ box's place
+ * (Crawford, 2026-10-11: the phone's bottom bar moved up here, beside the power corner). The slide
  * that once moved the row out of the nav panel's way is gone: the phone's nav is a sheet below the top
  * bar and the desk panel never reaches the header, so nothing here moves with the nav.
  *
@@ -103,7 +117,11 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  const rulerRef = useRef<HTMLSpanElement>(null);
   const shell = useShell();
+  // Phone only: the free band left of the power corner has room for the slider (Crawford, 2026-10-11: once
+  // three of its boxes fit, the ▾ box goes and the slider shows on screen). False until the ruler reports.
+  const [roomForVolume, setRoomForVolume] = useState(false);
 
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
 
@@ -127,7 +145,9 @@ function Header() {
   // row's real width (the volume slider's width and the power corner's reserve, so not a constant to type in a
   // second time), which is a sibling's to read, so it goes to the root beside --header-height. The row, not the
   // header root: the root spans the screen, and the facade hugs the row. Border box, since the row's padding is
-  // the corner's reserve. Removed with the header (powered off), so no stale width survives.
+  // the corner's reserve. Removed with the header (powered off), so no stale width survives. It follows the
+  // shell: the phone wraps the panel in a stack the desk lacks, so crossing the breakpoint remounts the row,
+  // and an observer left on the old row would measure nothing for the new one.
   useEffect(() => {
     const row = rowRef.current;
     if (!row) return;
@@ -141,7 +161,19 @@ function Header() {
       observer.disconnect();
       document.documentElement.style.removeProperty('--header-width');
     };
-  }, []);
+  }, [shell]);
+
+  // The ruler is an empty box mirroring that free band (Header.css), so its content width is the room the
+  // controls line has, whatever the screen, the corner or the zoom make it. The desk shows the slider always.
+  useEffect(() => {
+    const ruler = rulerRef.current;
+    if (!ruler) return;
+    const observer = new ResizeObserver((entries) => {
+      setRoomForVolume(entries[0].contentRect.width >= PHONE_INLINE_VOLUME_NEED);
+    });
+    observer.observe(ruler);
+    return () => observer.disconnect();
+  }, [shell]);
 
   const handleVolumeChange = (pct: number) => {
     if (!isPoweredOn) return;
@@ -152,15 +184,16 @@ function Header() {
     <SliderLinear schema={MASTER_VOLUME_SCHEMA} value={volume * 100} onChange={handleVolumeChange} disabled={!isPoweredOn} />
   );
 
-  return (
-    <header ref={headerRef} className="header" style={HEADER_STYLE}>
-      {/* Oblique Cabinetry facade — decorative only, matching
-         DirectionalPanel's own top-level facade (permanently popped,
-         non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
-         value/state tie-in). See DirectionalPanel.tsx's own comment and
-         docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
-      <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
-        <div ref={rowRef} className="header__row">
+  /* Oblique Cabinetry facade — decorative only, matching
+       DirectionalPanel's own top-level facade (permanently popped,
+     non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
+     value/state tie-in). See DirectionalPanel.tsx's own comment and
+     docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */
+  const panel = (
+    <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
+      <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>
+        <div className="header__controls">
+          {shell === 'phone' && <PhoneMenu />}
           <Toggle
             schema={MUTE_SCHEMA}
             value={isMuted}
@@ -175,9 +208,25 @@ function Header() {
                above) already carries the accessible name. */}
             <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
           </Toggle>
-          {shell === 'desk' ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
+          {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
         </div>
-      </CabinetBox>
+      </div>
+    </CabinetBox>
+  );
+
+  return (
+    <header ref={headerRef} className={shell === 'phone' ? 'header header--phone' : 'header'} style={HEADER_STYLE}>
+      {shell === 'phone' && <span ref={rulerRef} className="header__ruler" aria-hidden="true" />}
+      {/* Phone: the well and the panel share one stack, so they take one width and one inset from the tablet's
+          edge (Crawford, 2026-10-11): the well along the top, outside the panel. */}
+      {shell === 'phone' ? (
+        <div className="header__stack">
+          <PhoneWell />
+          {panel}
+        </div>
+      ) : (
+        panel
+      )}
     </header>
   );
 }

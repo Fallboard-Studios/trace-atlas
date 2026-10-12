@@ -13,7 +13,7 @@
    header, and the nav sheet ran 9 px under it at 320 px. --header-height is Header's own measure
    (Header.tsx); 0 until the first measure, when the corner holds the edge. */
 #screen-viewport {
-  --header-top: 20px;
+  --header-top: var(--spacing-xl);
   --top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height));
 }
 
@@ -54,15 +54,106 @@
   flex-direction: row;
   align-items: center;
   flex-wrap: nowrap;
-  gap: var(--spacing-sm);
+  gap: var(--header-row-gap);
   padding: var(--spacing-sm) calc(var(--power-corner-width) + var(--spacing-md)) var(--spacing-sm) var(--spacing-md);
   background-color: var(--color-bg);
   pointer-events: all;
 }
 
+/* ---------- Phone: the well along the top, the controls panel under it, one width ----------
+   (Crawford, 2026-10-11: the bottom bar moved up beside the power corner, which is hardware and cannot
+   move.) The header holds one stack: the well, then the cabinet panel with the menu, mute and the volume
+   box or slider. The stack is as wide as the wider of the two (the well's text is its content), capped at
+   the free band left of the corner, and inset from the tablet's edge by one margin; the well and the panel
+   both stretch to it, so they share width and inset, and a well longer than the stack scrolls. The corner
+   is as tall as the stack, so the band costs the content no more room than the corner already did
+   (--top-bar-bottom). */
+.header--phone {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.header__stack {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  max-width: calc(100% - var(--power-corner-width) - 2 * var(--spacing-md));
+  margin-left: var(--spacing-md);
+  gap: var(--header-row-gap);
+}
+
+/* CabinetBox's root is inline-flex: stretched it fills the stack, and its front plate fills it. */
+.header__stack > .sc-cabinet-box {
+  align-self: stretch;
+}
+
+.header__stack > .sc-cabinet-box > .sc-cabinet-box__front {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* The panel's own padding is the plain pair, not the desk's corner reserve: the corner is beside the
+   stack, not under the panel (Header.tsx's ruler checks the controls fit). */
+.header--phone .header__row {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+/* The controls line: the menu (phone only), mute, and the ▾ box or the slider. */
+.header__controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--header-row-gap);
+}
+
+/* An empty box mirroring the room the controls line has: the stack's inset and the panel's padding on the
+   left, the corner's reserve and the same two on the right. Header.tsx observes its width to decide between the ▾ box and the slider, so the answer
+   is the room the controls line really has. Zero height and invisible: it takes no space and no presses. */
+.header__ruler {
+  position: absolute;
+  top: 0;
+  left: calc(2 * var(--spacing-md));
+  right: calc(var(--power-corner-width) + 2 * var(--spacing-md));
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* A readout, so a well (spec §1.1: in = read): the sketch's glow glass in index.css's well tokens, an
+   inner shadow in the header's accent. It reads the world line on the Deck (MetaBox.tsx's WorldLine) and
+   the breadcrumb elsewhere (NavBreadcrumb's bar variant), both inline, and shows all of it: one line that
+   scrolls sideways when it is longer than the stack. It stretches to the stack's width and takes presses
+   back from the header (pointer-events: none) so it can be scrolled
+   and its breadcrumb ancestors can be pressed. A block, not a flex row: the line-height centres the text. */
+.header__well {
+  align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  white-space: nowrap;
+  box-sizing: border-box;
+  min-height: var(--spacing-2xl);
+  line-height: calc(var(--spacing-2xl) - 2px);
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-accent);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label-compact);
+  letter-spacing: 0.03em;
+  pointer-events: auto;
+}
+
 /* Toggle.css's .sc-toggle is width: 100% and an inline-size container, written for a toggle in its own
-   labelled row; in this flex row it is just its 44 px box (TempoSyncToggle.css's override). */
-.header__row > .sc-toggle {
+   labelled row; in this flex row it is just its 44 px box (TempoSyncToggle.css's override). The phone's
+   menu is the same Toggle, so this sizes it too. */
+.header__controls > .sc-toggle {
   flex: 0 0 auto;
   width: auto;
   container-type: normal;
@@ -70,7 +161,7 @@
 
 /* SliderLinear self-fits its box count to a width it is given, never one it derives from its own
    content (useVoxelTrackBoxCount.ts), so it gets a fixed width: no flex, no min-width. */
-.header__row .sc-slider-linear {
+.header__controls .sc-slider-linear {
   flex: 0 0 auto;
   width: var(--header-volume-width);
 }

@@ -4,7 +4,6 @@ import ContentPane from '@/components/panels/screen/console/ContentPane';
 import { OffScreen } from '@/components/panels/screen/screens/OffScreen';
 import NavPanel from '@/components/panels/screen/nav/NavPanel';
 import NavBreadcrumb from '@/components/panels/screen/nav/NavBreadcrumb';
-import PhoneBar from '@/components/panels/screen/PhoneBar';
 import { useShell } from '@/components/panels/screen/useShell';
 import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
 import './ScreenViewport.css';
@@ -33,7 +32,6 @@ function ScreenViewport({ isPoweredOn }: ScreenViewportProps) {
         {isPoweredOn && <NavPanel />}
         {isPoweredOn && <ContentPane />}
         {isPoweredOn && <NavBreadcrumb />}
-        {isPoweredOn && <PhoneBar />}
       </div>
 
       <svg className="screen-rail left-light-beam" viewBox="0 0 100 2" width="100%" height="2" aria-hidden="true" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>

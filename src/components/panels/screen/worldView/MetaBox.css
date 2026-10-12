@@ -10,14 +10,12 @@
   left: calc(var(--nav-panel-width) + var(--spacing-lg));
   top: var(--header-top);
   z-index: 1;
-  /* One line that never runs off the screen or under the header: cut short with an ellipsis instead. The
-     header is right-anchored and content-sized, so Header.tsx publishes its measured width (--header-width,
-     0 until the first measure) to subtract here beside the nav panel's. */
+  /* Never runs off the screen or under the header: it wraps within this width instead of being cut short
+     (Crawford, 2026-10-12: above 768 px it ran into the volume bar). The header is right-anchored and
+     content-sized, so Header.tsx publishes its measured width (--header-width, 0 until the first measure)
+     to subtract here beside the nav panel's. */
   max-width: calc(100% - var(--nav-panel-width) - var(--header-width, 0px) - 2 * var(--spacing-lg));
   box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   padding: 6px var(--spacing-md);
   /* A well (spec §1.1: in = read), in index.css's shared tokens and the header accent (MetaBox.tsx). */
   border: 1px solid var(--color-accent);
@@ -31,10 +29,16 @@
   pointer-events: none;
 }
 
-/* The world line's three fields, spaced as the sketch's line is (gap 10px); inline, so the box's (or
-   PhoneBar's well's) one-line ellipsis cuts them. */
-.world-line__field + .world-line__field {
-  margin-left: var(--spacing-md);
+/* The world line's three fields, spaced as the sketch's line is (gap 10px). Inline-blocks, so the meta box
+   can wrap between them (adjacent inline spans offer no break); the phone well's nowrap keeps them on one
+   line. The gap is a right margin on all but the last, so a wrapped line starts flush left. */
+.world-line__field {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.world-line__field:not(:last-child) {
+  margin-right: var(--spacing-md);
 }
 
 /* The clock holds its width (Crawford, 2026-10-10): its digits are not the same width (a proportional font

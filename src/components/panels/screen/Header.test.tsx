@@ -115,6 +115,11 @@ class MockResizeObserver {
     this.callback([{ contentRect: { height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
   }
 
+  /** A content-box width report: the free band left of the power corner, as the ruler reports it. */
+  fireContentWidth(width: number) {
+    this.callback([{ contentRect: { width, height: 0 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+
   /** A width report as a real observer's: the border box's inline size (the row's padding counts). */
   fireWidth(width: number) {
     this.callback([{ contentRect: { width: width - 100 }, borderBoxSize: [{ inlineSize: width, blockSize: 0 }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
@@ -308,6 +313,42 @@ describe('Header', () => {
       expect(observer.disconnected).toBe(true);
     });
 
+    // Crawford, 2026-10-12: resizing from the phone up to the desk left the meta box running into the volume
+    // bar. The phone wraps the panel in a stack the desk does not have, so crossing the breakpoint remounts
+    // the row; an observer that stays on the old row measures nothing for the new one.
+    it('follows the row across the phone-to-desk breakpoint: the new row is observed, the old one let go', () => {
+      let desk = false;
+      const listeners = new Set<() => void>();
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+          get matches() {
+            return query.includes('768px') ? desk : false;
+          },
+          media: query,
+          addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+          removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+        }),
+      });
+      const { container } = render(<Header />);
+      const phoneRow = container.querySelector('.header__row')!;
+      const phoneObserver = rowObserver(container);
+
+      act(() => {
+        desk = true;
+        listeners.forEach((listener) => listener());
+      });
+
+      const deskRow = container.querySelector('.header__row')!;
+      expect(deskRow).not.toBe(phoneRow);
+      expect(phoneObserver.disconnected).toBe(true);
+      const live = MockResizeObserver.instances.find((o) => !o.disconnected && o.observedTargets.includes(deskRow));
+      expect(live).toBeTruthy();
+      act(() => live!.fireWidth(354));
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('354px');
+    });
+
     it('does not leave a stale width behind when the header unmounts (powered off)', () => {
       const { container, unmount } = render(<Header />);
       act(() => rowObserver(container).fireWidth(372));
@@ -355,6 +396,142 @@ describe('Header', () => {
       expect(mute.compareDocumentPosition(slider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
       expect(container.querySelector('.header__volume-popover')).toBeNull();
+    });
+
+    it('carries no nav menu and no well: the desk has the nav panel, the meta box and the breadcrumb', () => {
+      const { container } = render(<Header />);
+      expect(screen.queryByRole('switch', { name: labels('nav.toggle').humanLabel })).toBeNull();
+      expect(container.querySelector('.header__well')).toBeNull();
+      expect(container.querySelector('.header__row--phone')).toBeNull();
+    });
+  });
+
+  // Crawford, 2026-10-11: on the phone the well runs along the top of the app, outside the panel; under it,
+  // pinned to the left, is the panel holding the menu, mute and the volume box (or the slider).
+  describe('phone shell: the well along the top, the controls panel under it', () => {
+    beforeEach(() => stubShell(false));
+
+    const row = (container: HTMLElement) => container.querySelector<HTMLElement>('.header__row')!;
+    const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it('puts the well first, outside the panel, then the panel with the menu, mute and the volume box in order', () => {
+      const { container } = render(<Header />);
+      const menu = within(row(container)).getByRole('switch', { name: labels('nav.toggle').humanLabel });
+      const mute = within(row(container)).getByRole('switch', { name: /mute/i });
+      const volume = within(row(container)).getByRole('button', { name: VOLUME_NAME });
+      const well = container.querySelector('.header__well')!;
+      expect(well).not.toBeNull();
+      expect(row(container).contains(well)).toBe(false);
+      expect(container.querySelector('.sc-cabinet-box')!.contains(well)).toBe(false);
+      expect(follows(well, menu)).toBe(true);
+      expect(follows(menu, mute)).toBe(true);
+      expect(follows(mute, volume)).toBe(true);
+      expect(row(container).classList.contains('header__row--phone')).toBe(true);
+    });
+
+    // Crawford, 2026-10-11: the well and the panel share one width and one inset from the tablet's edge, so
+    // they live in one stack and the stack sets both.
+    it('holds the well and the panel in one stack, well first', () => {
+      const { container } = render(<Header />);
+      const stack = container.querySelector('.header__stack')!;
+      expect(stack).not.toBeNull();
+      expect(Array.from(stack.children).map((c) => (c.classList.contains('header__well') ? 'well' : c.classList.contains('sc-cabinet-box') ? 'panel' : '?'))).toEqual(['well', 'panel']);
+    });
+
+    // Crawford, 2026-10-11: "at least a 12px gap between the menu/mute/etc buttons".
+    it('keeps at least 12 px between the controls', () => {
+      const { container } = render(<Header />);
+      const gap = parseFloat(container.querySelector<HTMLElement>('header')!.style.getPropertyValue('--header-row-gap'));
+      expect(gap).toBeGreaterThanOrEqual(12);
+    });
+
+    it('keeps the menu and mute reachable: both are 44 px touch targets in the controls row', () => {
+      const { container } = render(<Header />);
+      for (const sw of within(row(container)).getAllByRole('switch')) {
+        expect(sw.style.getPropertyValue('--cabinet-toggle-box-size')).toBe('44px');
+      }
+    });
+
+    it('the menu opens the nav sheet, and the well reads the world line on the Deck', () => {
+      const { container } = render(<Header />);
+      fireEvent.click(within(row(container)).getByRole('switch', { name: labels('nav.toggle').humanLabel }));
+      expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+      useUIStore.setState({ isNavPanelOpen: false });
+    });
+
+    // Crawford, 2026-10-11: once the band has room for the volume slider at its shortest track (three boxes), the
+    // ▾ box goes and the slider shows on screen in the same row. The room is the free band left of the power
+    // corner, which the ruler (an empty box mirroring it) reports; the need is the three boxes of the row.
+    describe('the volume slider replaces the ▾ box once it fits', () => {
+      const rulerObserver = (container: HTMLElement) => {
+        const ruler = container.querySelector('.header__ruler');
+        const found = MockResizeObserver.instances.find((o) => ruler && o.observedTargets.includes(ruler));
+        if (!found) throw new Error('No MockResizeObserver observed .header__ruler');
+        return found;
+      };
+      const need = (container: HTMLElement) => {
+        const style = container.querySelector<HTMLElement>('header')!.style;
+        return 2 * 44 + 2 * parseFloat(style.getPropertyValue('--header-row-gap')) + parseFloat(style.getPropertyValue('--header-volume-width'));
+      };
+
+      it('shows the ▾ box until the band has been measured', () => {
+        render(<Header />);
+        expect(screen.getByRole('button', { name: VOLUME_NAME })).toBeTruthy();
+        expect(screen.queryByRole('slider')).toBeNull();
+      });
+
+      it('is short of room one pixel under the need: the ▾ box stays, no slider on screen', () => {
+        const { container } = render(<Header />);
+        act(() => rulerObserver(container).fireContentWidth(need(container) - 1));
+        expect(screen.getByRole('button', { name: VOLUME_NAME })).toBeTruthy();
+        expect(screen.queryByRole('slider')).toBeNull();
+      });
+
+      it('has room at exactly the need: the ▾ box is gone and the slider sits after mute in the controls row', () => {
+        const { container } = render(<Header />);
+        act(() => rulerObserver(container).fireContentWidth(need(container)));
+        expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
+        const controls = container.querySelector<HTMLElement>('.header__controls')!;
+        const menu = within(controls).getByRole('switch', { name: labels('nav.toggle').humanLabel });
+        const mute = within(controls).getByRole('switch', { name: /mute/i });
+        const slider = within(controls).getByRole('slider', { name: /volume/i });
+        expect(follows(menu, mute)).toBe(true);
+        expect(follows(mute, slider)).toBe(true);
+        expect(slider.getAttribute('aria-valuenow')).toBe('60');
+        expect(container.querySelector('.header__volume-popover')).toBeNull();
+      });
+
+      it('swaps back to the ▾ box when the band narrows again', () => {
+        const { container } = render(<Header />);
+        act(() => rulerObserver(container).fireContentWidth(need(container) + 40));
+        expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
+        act(() => rulerObserver(container).fireContentWidth(need(container) - 40));
+        expect(screen.getByRole('button', { name: VOLUME_NAME })).toBeTruthy();
+        expect(screen.queryByRole('slider')).toBeNull();
+      });
+
+      it('closes an open pop-out when the room arrives, and never mounts two sliders at once', () => {
+        const { container } = render(<Header />);
+        fireEvent.click(screen.getByRole('button', { name: VOLUME_NAME }));
+        expect(screen.getAllByRole('slider')).toHaveLength(1);
+        act(() => rulerObserver(container).fireContentWidth(need(container)));
+        expect(container.querySelector('.header__volume-popover')).toBeNull();
+        expect(screen.getAllByRole('slider')).toHaveLength(1);
+      });
+
+      it('the desk shell has no ruler: it always shows the slider', () => {
+        stubShell(true);
+        const { container } = render(<Header />);
+        expect(container.querySelector('.header__ruler')).toBeNull();
+      });
+    });
+
+    it('the world line shows in the well on the Deck; a branch shows the breadcrumb there', () => {
+      const { container } = render(<Header />);
+      expect(container.querySelector('.header__well .world-line')).not.toBeNull();
+      act(() => useUIStore.setState({ activeHubTile: 'settings' }));
+      expect(container.querySelector('.header__well .world-line')).toBeNull();
+      expect(container.querySelector('.header__well [role="navigation"]')).not.toBeNull();
     });
   });
 
@@ -558,8 +735,12 @@ describe('Header.css — one row beside the power corner', () => {
     expect(css).not.toMatch(/@media/);
   });
 
-  it('sits at --header-top, the one offset the top bar is measured from', () => {
-    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--header-top: 20px;');
+  // Crawford, 2026-10-12: the header, the meta box and the nav panel's plate share one top margin, the nav's:
+  // its padding-top, --spacing-xl, so the three plates start level.
+  it("sits at --header-top, the one offset the top bar is measured from, the nav plate's own top margin", () => {
+    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--header-top: var(--spacing-xl);');
+    const navCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'nav/NavPanel.css'), 'utf-8');
+    expect(getCssRuleBody(navCss, '.nav-panel')).toMatch(/padding:\s*var\(--spacing-xl\)/);
     expect(getCssRuleBody(css, '.header')).toContain('top: var(--header-top);');
   });
 
@@ -588,7 +769,7 @@ describe('Header.css — one row beside the power corner', () => {
   });
 
   it('the slider, desk row or pop-out, has one width and no min-width of its own', () => {
-    const row = getCssRuleBody(css, '.header__row .sc-slider-linear');
+    const row = getCssRuleBody(css, '.header__controls .sc-slider-linear');
     expect(row).toContain('width: var(--header-volume-width);');
     expect(row).not.toMatch(/min-width/);
     expect(getCssRuleBody(css, '.header__volume-popover .sc-slider-linear')).toContain('width: var(--header-volume-width);');
@@ -598,6 +779,71 @@ describe('Header.css — one row beside the power corner', () => {
     expect(getCssRuleBody(css, ".header__volume-trigger[data-state='open'] .sc-cabinet-box__front")).toContain(
       'background: var(--color-accent-gradient);',
     );
+  });
+
+  // Crawford, 2026-10-11: the well and the panel under it take one width and sit one inset from the tablet's
+  // edge. The stack is as wide as the wider of the two (the well's text is its content), up to the free band
+  // left of the power corner; both stretch to it, and a longer well scrolls.
+  it('the phone stack is content-wide, capped at the free band, inset from the left edge', () => {
+    expect(getCssRuleBody(css, '.header--phone')).toContain('flex-direction: column;');
+    const stack = getCssRuleBody(css, '.header__stack');
+    for (const declaration of [
+      'display: flex;',
+      'flex-direction: column;',
+      'width: fit-content;',
+      'max-width: calc(100% - var(--power-corner-width) - 2 * var(--spacing-md));',
+      'margin-left: var(--spacing-md);',
+      'gap: var(--header-row-gap);',
+    ]) {
+      expect(stack).toContain(declaration);
+    }
+    expect(getCssRuleBody(css, '.header__stack > .sc-cabinet-box')).toContain('align-self: stretch;');
+    // The desk's plate rule (.header > .sc-cabinet-box > .sc-cabinet-box__front) misses the stack's, so the
+    // stack's front restates it: a block, no padding of its own, as wide as the stack (measured in Chrome:
+    // without it the plate overran the well by 15 px and the controls sat 14 px in from the panel's edge).
+    const front = getCssRuleBody(css, '.header__stack > .sc-cabinet-box > .sc-cabinet-box__front');
+    for (const declaration of ['display: block;', 'width: 100%;', 'height: auto;', 'padding: 0;', 'box-sizing: border-box;']) {
+      expect(front).toContain(declaration);
+    }
+    expect(getCssRuleBody(css, '.header--phone .header__row')).toContain('padding: var(--spacing-sm) var(--spacing-md);');
+    expect(getCssRuleBody(css, '.header__controls')).toContain('display: flex;');
+  });
+
+  // The well holds all the info and scrolls sideways when it is longer than the stack.
+  it('the well scrolls sideways and never truncates, and stretches to the stack', () => {
+    const body = getCssRuleBody(css, '.header__well');
+    expect(body).not.toBeNull();
+    for (const declaration of ['align-self: stretch;', 'overflow-x: auto;', 'white-space: nowrap;', 'min-width: 0;', 'pointer-events: auto;']) {
+      expect(body).toContain(declaration);
+    }
+    expect(body).not.toContain('text-overflow');
+    expect(body).not.toContain('margin');
+  });
+
+  // The ruler mirrors the room the controls line has: the stack's inset and the panel's padding on the left,
+  // the corner's reserve and the same two on the right.
+  it('the ruler is an empty, invisible box spanning the free band left of the power corner', () => {
+    const body = getCssRuleBody(css, '.header__ruler');
+    expect(body).not.toBeNull();
+    for (const declaration of ['position: absolute;', 'height: 0;', 'visibility: hidden;', 'pointer-events: none;', 'left: calc(2 * var(--spacing-md));', 'right: calc(var(--power-corner-width) + 2 * var(--spacing-md));']) {
+      expect(body).toContain(declaration);
+    }
+  });
+
+  it('the well wears the shared well tokens (index.css), as the meta box and the breadcrumb do', () => {
+    const body = getCssRuleBody(css, '.header__well');
+    expect(body).toContain('background: var(--well-background);');
+    expect(body).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
+  });
+
+  // Toggle.css makes .sc-toggle width: 100% and an inline-size container; the existing .header__controls > .sc-toggle
+  // override already sizes the menu to its 44 px box, so the menu needs no rule of its own.
+  it('the menu is sized by the same controls rule as mute', () => {
+    expect(getCssRuleBody(css, '.header__controls > .sc-toggle')).toContain('width: auto;');
+  });
+
+  it('the phone band leaves the bottom alone: no bar, no bottom clearance variable', () => {
+    expect(css).not.toMatch(/phone-bar-/);
   });
 
   it('the pop-out takes pointer events back from the header, which lets presses through to the world', () => {
