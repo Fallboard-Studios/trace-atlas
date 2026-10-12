@@ -58,9 +58,9 @@ let floatCount = 0;
 let followedId: string | null = null;
 const followedListeners = new Set<() => void>();
 
-/** The robot whose screen was most recently open. The store clears `selectedRobotId` before the
- *  hub tile closes (spec assumption 11), so the edit-return override keeps its own copy. */
-let lastSelectedRobotId: string | null = null;
+/** The robot or company whose screen was most recently open. The store clears the live selection
+ *  before the hub tile closes (spec assumption 11), so the edit-return overrides keep their own copy. */
+let lastSelected: { kind: 'robot' | 'company'; id: string } | null = null;
 let unsubscribeUI: (() => void) | null = null;
 
 /** Names the followed robot (or none) and tells subscribers, only if it changed. */
@@ -125,7 +125,7 @@ export function registerDeckScroller(el: HTMLElement | null): void {
   gsap.ticker.remove(tick);
   unsubscribeUI?.();
   unsubscribeUI = null;
-  lastSelectedRobotId = null;
+  lastSelected = null;
   scroller = el;
   held = false;
   cancelAutomaticMotion();
@@ -272,16 +272,33 @@ function followSubject(el: HTMLElement, id: string, now: number): void {
   if (target !== null) el.scrollLeft = target;
 }
 
-/** Robot edit-return (spec §1.4): remembers the robot whose screen is open, and when the hub closes
- *  back to the Deck floats to it, with no cooldown wait, if it is still out and about. Otherwise
- *  the loop carries on untouched. */
-function onUIChange(state: { selectedRobotId: string | null; activeHubTile: unknown }, prev: typeof state): void {
+interface EditReturnState {
+  selectedRobotId: string | null;
+  selectedCompanyId: string | null;
+  activeHubTile: unknown;
+}
+
+/** Edit-return (spec §1.4): remembers the robot or company whose screen is open, and when the hub
+ *  closes back to the Deck floats there with no cooldown wait. A robot must still be out and about,
+ *  else the loop carries on untouched; a company is `pick`ed from its undocked members, or from
+ *  every undocked robot when it has none (assumption 13). */
+function onUIChange(state: EditReturnState, prev: EditReturnState): void {
   if (state.selectedRobotId && state.selectedRobotId !== prev.selectedRobotId) {
-    lastSelectedRobotId = state.selectedRobotId;
+    lastSelected = { kind: 'robot', id: state.selectedRobotId };
   }
-  if (prev.activeHubTile === null || state.activeHubTile !== null || lastSelectedRobotId === null) return;
-  if (!undockedRobotIds().includes(lastSelectedRobotId)) return;
-  moveCameraTo(lastSelectedRobotId);
+  if (state.selectedCompanyId && state.selectedCompanyId !== prev.selectedCompanyId) {
+    lastSelected = { kind: 'company', id: state.selectedCompanyId };
+  }
+  if (prev.activeHubTile === null || state.activeHubTile !== null || lastSelected === null) return;
+  const undocked = undockedRobotIds();
+  if (lastSelected.kind === 'robot') {
+    if (undocked.includes(lastSelected.id)) moveCameraTo(lastSelected.id);
+    return;
+  }
+  const companyId = lastSelected.id;
+  const members = currentRobots().filter((r) => r.companyId === companyId && undocked.includes(r.id));
+  const winner = pick(members.length > 0 ? members.map((r) => r.id) : undocked);
+  if (winner !== null) moveCameraTo(winner);
 }
 
 /** The one per-frame handler (spec §1.2): tracks the subject, or once the cooldown has passed
@@ -313,7 +330,7 @@ export function __deckCameraStateForTest(): { held: boolean; cooldownStartedAt: 
 export function __resetDeckCameraForTest(): void {
   held = false;
   cooldownStartedAt = -Infinity;
-  lastSelectedRobotId = null;
+  lastSelected = null;
   followedListeners.clear();
   cancelAutomaticMotion();
 }

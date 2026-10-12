@@ -1295,6 +1295,164 @@ describe('deckCamera', () => {
     }
   });
 
+  describe('company edit-return (deck-camera follow, Task 9)', () => {
+    let fake: FakeScroller;
+
+    /** Company c1: alpha (out, 40), beta (out, 70), gamma (docked, 60). Company c2: epsilon (out, 55)
+     *  and delta (out, 10). Company c3: only omega, docked. Company c4: zeta and eta, out and tied at
+     *  45, far from and near the viewport. Globally epsilon is the loop's own pick (lowest above 50),
+     *  so a company pick that lands anywhere else was narrowed by the company. */
+    beforeEach(() => {
+      vi.spyOn(performance, 'now').mockReturnValue(1000);
+      fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      seedLocale([
+        ['alpha', DockingState.Active, 40],
+        ['beta', DockingState.Recalled, 70],
+        ['gamma', DockingState.Docked, 60],
+        ['epsilon', DockingState.Active, 55],
+        ['delta', DockingState.Active, 10],
+        ['omega', DockingState.Docked, 30],
+        ['zeta', DockingState.Active, 45],
+        ['eta', DockingState.Active, 45],
+      ]);
+      const companies: Record<string, string> = {
+        alpha: 'c1', beta: 'c1', gamma: 'c1', epsilon: 'c2', delta: 'c2', omega: 'c3', zeta: 'c4', eta: 'c4',
+      };
+      for (const [id, companyId] of Object.entries(companies)) {
+        useLocaleStore.getState().updateRobot(LOCALE, id, { companyId });
+      }
+      const xs: Record<string, number> = {
+        alpha: 960, beta: 300, gamma: 1500, epsilon: 2200, delta: 2600, omega: 100, zeta: 3000, eta: 500,
+      };
+      for (const [id, x] of Object.entries(xs)) makeRobotRef(id, x);
+      useUIStore.setState({ selectedRobotId: null, selectedCompanyId: null, activeHubTile: null });
+    });
+
+    afterEach(() => {
+      useLocaleStore.setState({ locales: {} });
+      useUIStore.setState({ selectedRobotId: null, selectedCompanyId: null, activeHubTile: null });
+    });
+
+    function openCompanyAndReturn(id: string): void {
+      useUIStore.getState().selectCompany(id);
+      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile(null);
+    }
+
+    it('floats to the lowest-battery undocked member above the threshold, never a non-member', () => {
+      openCompanyAndReturn('c1');
+
+      // Globally epsilon (55) would win; docked gamma (60) is a member but not out.
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('with no member above the threshold, takes the lowest member overall', () => {
+      useLocaleStore.getState().updateRobot(LOCALE, 'beta', { batteryLevel: 20 });
+
+      openCompanyAndReturn('c1');
+
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('breaks a tie inside the pool by nearness to the viewport', () => {
+      openCompanyAndReturn('c4');
+
+      expect(getFollowedRobotId()).toBe('eta');
+    });
+
+    it('falls back to the whole undocked locale when every member is docked', () => {
+      openCompanyAndReturn('c3');
+
+      expect(getFollowedRobotId()).toBe('epsilon');
+    });
+
+    it('does nothing when nothing in the locale is undocked at all', () => {
+      for (const id of ['alpha', 'beta', 'epsilon', 'delta', 'zeta', 'eta']) {
+        setDocking(id, DockingState.Docked);
+      }
+
+      openCompanyAndReturn('c3');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+      expect(getFollowedRobotId()).toBeNull();
+    });
+
+    it('goes at once, without waiting out the cooldown', () => {
+      fake.dispatchEvent({ type: 'pointerup' });
+      tick();
+      expect(gsap.timeline).not.toHaveBeenCalled();
+
+      openCompanyAndReturn('c1');
+
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('acts on the most recently selected company only', () => {
+      useUIStore.getState().selectCompany('c1');
+      useUIStore.getState().selectCompany('c4');
+      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(getFollowedRobotId()).toBe('eta');
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('acts on the company when it came after a robot', () => {
+      useUIStore.getState().selectRobot('delta');
+      useUIStore.getState().selectCompany('c1');
+      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('acts on the robot when it came after a company', () => {
+      useUIStore.getState().selectCompany('c1');
+      useUIStore.getState().selectRobot('delta');
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(getFollowedRobotId()).toBe('delta');
+    });
+
+    it('triggers nothing while browsing within the hub', () => {
+      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().selectCompany('c1');
+      useUIStore.getState().setActiveHubTile('robots');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('selecting all robots is not a company selection', () => {
+      useUIStore.getState().selectAllRobots();
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('still knows the company when goHome clears the live selection before the tile closes', () => {
+      selectEntity({ companyId: 'c1' });
+      expect(useUIStore.getState().selectedCompanyId).toBe('c1');
+
+      goHome();
+
+      expect(useUIStore.getState().selectedCompanyId).toBeNull();
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('replaces a follow already running', () => {
+      tick();
+      (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+      expect(getFollowedRobotId()).toBe('epsilon');
+
+      openCompanyAndReturn('c1');
+
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+  });
+
   describe('source boundaries', () => {
     const source = () => readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
 
