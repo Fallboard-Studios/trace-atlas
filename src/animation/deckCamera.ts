@@ -6,8 +6,9 @@
 // it only reads robots from the locale store. It holds the touch/release input model: a finger (or
 // pointer) on the deck scroller freezes the camera and kills any float in flight; letting go starts
 // the cooldown clock; a wheel does both at once. It also holds the pick algorithm (which robot to
-// follow). The follow ticker builds on both in a later task. Nothing here reads audio state
-// or calls AudioEngine (CLAUDE.md "Strict Separation").
+// follow) and the one gsap.ticker handler that runs the loop: float to the pick, follow it up to
+// DECK_CAMERA_FOLLOW_MS or until it docks, rest DECK_CAMERA_COOLDOWN_MS, pick again. Nothing here
+// reads audio state or calls AudioEngine (CLAUDE.md "Strict Separation").
 
 // ========================================
 // IMPORTS
@@ -16,6 +17,8 @@ import gsap from 'gsap';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 
 import {
+  DECK_CAMERA_COOLDOWN_MS,
+  DECK_CAMERA_FOLLOW_MS,
   DECK_CAMERA_MIN_BATTERY_PCT,
   DECK_CAMERA_PAN_S,
   DECK_CAMERA_TIMELINE_ID,
@@ -39,10 +42,26 @@ let held = false;
 /** When the user last let go (or wheeled), or the last follow ended. `-Infinity` at boot, so the
  *  first pick has no wait. */
 let cooldownStartedAt = -Infinity;
+/** The robot the camera is tracking each frame; null while floating, resting or held. */
+let subjectId: string | null = null;
+/** When the float to the subject landed, which is when its follow time begins. */
+let followStartedAt = 0;
+/** Identifies the float in flight, so a stale tween callback (one cancelled or replaced since)
+ *  can tell it is no longer current. Null when no float is in flight. A finished tween stays
+ *  registered in timelineMap, so that map cannot answer this. */
+let currentFloat: number | null = null;
+let floatCount = 0;
+
+/** Drops whatever the camera was doing on its own: the float in flight and the followed robot. */
+function cancelAutomaticMotion(): void {
+  currentFloat = null;
+  subjectId = null;
+}
 
 /** Touch or pointer down: freeze the camera where it is. */
 function handleHold(): void {
   held = true;
+  cancelAutomaticMotion();
   killTimeline(DECK_CAMERA_TIMELINE_ID);
 }
 
@@ -55,6 +74,7 @@ function handleRelease(): void {
 /** A wheel has no "down" phase worth holding for, so it freezes and releases in the same breath
  *  (spec §1.4). */
 function handleWheel(): void {
+  cancelAutomaticMotion();
   killTimeline(DECK_CAMERA_TIMELINE_ID);
   handleRelease();
 }
@@ -75,18 +95,22 @@ const LISTENERS: ReadonlyArray<readonly [string, () => void]> = [
  * Remembers (or forgets) the deck's scroll container and attaches/detaches the five user-input
  * listeners. There is no `scroll` listener: with touch and release as the only "the user did
  * something" signals, the camera's own `scrollLeft` writes can never be mistaken for one. Changing
- * or dropping the scroller lets go of any hold, since its `pointerup` would never arrive.
+ * or dropping the scroller lets go of any hold, since its `pointerup` would never arrive, and
+ * drops any float or follow, which belonged to the old scroller. While a scroller is registered a
+ * single `gsap.ticker` handler (`tick`) does the per-frame work.
  */
 export function registerDeckScroller(el: HTMLElement | null): void {
   if (scroller) {
     for (const [type, handler] of LISTENERS) scroller.removeEventListener(type, handler);
   }
+  gsap.ticker.remove(tick);
   scroller = el;
   held = false;
+  cancelAutomaticMotion();
+  killTimeline(DECK_CAMERA_TIMELINE_ID);
   if (scroller) {
     for (const [type, handler] of LISTENERS) scroller.addEventListener(type, handler);
-  } else {
-    killTimeline(DECK_CAMERA_TIMELINE_ID);
+    gsap.ticker.add(tick);
   }
 }
 
@@ -149,13 +173,28 @@ export function pick(candidateIds: string[]): string | null {
 
 /** Builds, registers and plays the `deck-camera` tween to `x` (spec §1.2, assumptions 4, 8, 9).
  *  `setTimeline` kills any tween already registered under `DECK_CAMERA_TIMELINE_ID`. */
-function createCameraTween(x: number): void {
+function createCameraTween(x: number, robotId: string): void {
   if (!scroller) return;
   const duration = prefersReducedMotion() ? 0 : DECK_CAMERA_PAN_S;
+  const float = ++floatCount;
+  currentFloat = float;
   const tl = gsap.timeline({ paused: true });
   tl.to(scroller, {
     scrollTo: { x, autoKill: true },
     duration,
+    // Landing starts the follow; being killed (a scroll auto-kills the tween) starts a rest. Either
+    // is ignored if the float was cancelled or replaced meanwhile.
+    onComplete: () => {
+      if (currentFloat !== float) return;
+      currentFloat = null;
+      subjectId = robotId;
+      followStartedAt = performance.now();
+    },
+    onInterrupt: () => {
+      if (currentFloat !== float) return;
+      currentFloat = null;
+      cooldownStartedAt = performance.now();
+    },
     // power1.inOut, not power2 (too sharp at the spec's 0.8s, read as a snap) or sine (too flat
     // in the middle, still read as abrupt — Crawford, manual check): a stronger, longer slow-in
     // and slow-out than sine, short of power2's sharper curve.
@@ -165,13 +204,47 @@ function createCameraTween(x: number): void {
   tl.play();
 }
 
-/** Floats the camera to a robot if its target resolves. Returns whether it did. Exported until
- *  Task 7 wires it to the pick algorithm and the follow ticker. */
+/** Floats the camera to a robot if its target resolves, and follows it once it lands. Returns
+ *  whether the float started. */
 export function moveCameraTo(robotId: string): boolean {
   const x = targetFor(robotId);
   if (x === null) return false;
-  createCameraTween(x);
+  createCameraTween(x, robotId);
   return true;
+}
+
+/** Lets go of the followed robot and starts the rest before the next pick. */
+function endFollow(now: number): void {
+  killTimeline(DECK_CAMERA_TIMELINE_ID);
+  subjectId = null;
+  cooldownStartedAt = now;
+}
+
+/** While following: tracks the subject's live position, until it docks, leaves the locale or its
+ *  follow time is up. */
+function followSubject(el: HTMLElement, id: string, now: number): void {
+  const robot = currentRobots().find((r) => r.id === id);
+  if (!robot || robot.docking === DockingState.Docked || now - followStartedAt >= DECK_CAMERA_FOLLOW_MS) {
+    endFollow(now);
+    return;
+  }
+  const target = targetFor(id);
+  if (target !== null) el.scrollLeft = target;
+}
+
+/** The one per-frame handler (spec §1.2): tracks the subject, or once the cooldown has passed
+ *  picks the next robot. Does nothing while the user holds the scroller or a float is in flight. */
+function tick(): void {
+  if (!scroller || held) return;
+  const now = performance.now();
+  if (subjectId !== null) {
+    followSubject(scroller, subjectId, now);
+    return;
+  }
+  if (currentFloat !== null || now - cooldownStartedAt < DECK_CAMERA_COOLDOWN_MS) return;
+  const id = pick(undockedRobotIds());
+  // A winner whose ref has not mounted cannot be floated to: rest rather than retry every frame.
+  if (id !== null && !moveCameraTo(id)) cooldownStartedAt = now;
 }
 
 // ========================================
@@ -183,8 +256,10 @@ export function __deckCameraStateForTest(): { held: boolean; cooldownStartedAt: 
   return { held, cooldownStartedAt };
 }
 
-/** Resets the module to its just-imported state: not held, boot cooldown sentinel. */
+/** Resets the module to its just-imported state: not held, no float or follow, boot cooldown
+ *  sentinel. */
 export function __resetDeckCameraForTest(): void {
   held = false;
   cooldownStartedAt = -Infinity;
+  cancelAutomaticMotion();
 }

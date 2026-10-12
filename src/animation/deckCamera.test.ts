@@ -18,8 +18,10 @@ import {
   __resetDeckCameraForTest,
 } from './deckCamera';
 import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
-import { setRef, clearRefs } from '../utils/refs';
+import { setRef, getRef, clearRefs } from '../utils/refs';
 import {
+  DECK_CAMERA_COOLDOWN_MS,
+  DECK_CAMERA_FOLLOW_MS,
   DECK_CAMERA_MIN_BATTERY_PCT,
   DECK_CAMERA_PAN_S,
   DECK_CAMERA_TIMELINE_ID,
@@ -43,6 +45,9 @@ interface RecordingTimeline {
   play: ReturnType<typeof vi.fn>;
   to: ReturnType<typeof vi.fn>;
 }
+
+// The handlers currently on the fake ticker; `tick()` below runs them like one frame.
+const tickers = vi.hoisted(() => new Set<() => void>());
 
 vi.mock('gsap', () => {
   const props = new WeakMap<object, Record<string, number>>();
@@ -69,6 +74,10 @@ vi.mock('gsap', () => {
     set: vi.fn((target: object, vars: Record<string, number>) => Object.assign(propsOf(target), vars)),
     getProperty: vi.fn((target: object, prop: string) => propsOf(target)[prop] ?? 0),
     registerPlugin: vi.fn(),
+    ticker: {
+      add: vi.fn((fn: () => void) => tickers.add(fn)),
+      remove: vi.fn((fn: () => void) => tickers.delete(fn)),
+    },
   };
   return { default: mocked, ...mocked };
 });
@@ -119,6 +128,32 @@ function makeRobotRef(id: string, x: number): SVGGElement {
   gsap.set(g, { x });
   setRef(`robot-${id}`, g);
   return g;
+}
+
+const LOCALE = 'deck-camera-test';
+
+/** Distinct battery, docking and (via makeRobotRef) position on every robot. */
+function seedLocale(robots: Array<[id: string, docking: DockingState, battery: number]>): void {
+  useLocaleStore.setState({
+    locales: {
+      [LOCALE]: {
+        id: LOCALE, attenuationStyleId: 'pelagos', name: LOCALE, coordinates: { x: 3, y: 7 },
+        dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [], currentMeasure: 0,
+        robots: robots.map(([id, docking, batteryLevel]) => ({ id, docking, batteryLevel }) as Robot),
+      },
+    },
+  });
+  useAttenuationStyleStore.getState().setCurrentLocale('pelagos', LOCALE);
+}
+
+/** Changes one seeded robot's docking state, the way the lifecycle does. */
+function setDocking(id: string, docking: DockingState): void {
+  useLocaleStore.getState().updateRobot(LOCALE, id, { docking });
+}
+
+/** Runs one frame of the fake ticker. */
+function tick(): void {
+  [...tickers].forEach((fn) => fn());
 }
 
 /** The single timeline the mock's `gsap.timeline()` most recently created. */
@@ -450,22 +485,6 @@ describe('deckCamera', () => {
   });
 
   describe('undockedRobotIds and pick (deck-camera follow, Task 6)', () => {
-    const LOCALE = 'deck-camera-test';
-
-    /** Distinct battery, docking and (via makeRobotRef) position on every robot. */
-    function seedLocale(robots: Array<[id: string, docking: DockingState, battery: number]>): void {
-      useLocaleStore.setState({
-        locales: {
-          [LOCALE]: {
-            id: LOCALE, attenuationStyleId: 'pelagos', name: LOCALE, coordinates: { x: 3, y: 7 },
-            dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [], currentMeasure: 0,
-            robots: robots.map(([id, docking, batteryLevel]) => ({ id, docking, batteryLevel }) as Robot),
-          },
-        },
-      });
-      useAttenuationStyleStore.getState().setCurrentLocale('pelagos', LOCALE);
-    }
-
     afterEach(() => {
       useLocaleStore.setState({ locales: {} });
     });
@@ -605,6 +624,349 @@ describe('deckCamera', () => {
         pick(['a']);
 
         expect(gsap.timeline).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('the ticker (deck-camera follow, Task 7)', () => {
+    const FOLLOW = DECK_CAMERA_FOLLOW_MS;
+    const COOLDOWN = DECK_CAMERA_COOLDOWN_MS;
+    let now: ReturnType<typeof vi.spyOn>;
+    let fake: FakeScroller;
+
+    /** `alpha` (x 960, battery 40) and `beta` (x 300, battery 70) out on the deck. With beta above
+     *  the threshold, beta is the first pick; alpha is the second. */
+    beforeEach(() => {
+      now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+      fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      seedLocale([['alpha', DockingState.Active, 40], ['beta', DockingState.Recalled, 70]]);
+      makeRobotRef('alpha', 960);
+      makeRobotRef('beta', 300);
+    });
+
+    afterEach(() => {
+      useLocaleStore.setState({ locales: {} });
+    });
+
+    /** The first tick picks beta; completing its float starts the follow at the current time. */
+    function startFollowingBeta(): void {
+      tick();
+      (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+    }
+
+    describe('the handler', () => {
+      it('is on the ticker once a scroller is registered and off it after unregistering', () => {
+        expect(tickers.size).toBe(1);
+
+        registerDeckScroller(null);
+
+        expect(tickers.size).toBe(0);
+      });
+
+      it('stays a single handler when the scroller is swapped', () => {
+        registerDeckScroller(makeFakeScroller() as unknown as HTMLElement);
+
+        expect(tickers.size).toBe(1);
+      });
+
+      it('does nothing once removed, even if its frame still runs', () => {
+        const [handler] = [...tickers];
+        registerDeckScroller(null);
+
+        handler();
+
+        expect(gsap.timeline).not.toHaveBeenCalled();
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(-Infinity);
+      });
+    });
+
+    describe('picking', () => {
+      it('picks and floats on the very first tick at boot, with no wait', () => {
+        tick();
+
+        expect(lastToVars(lastCreatedTimeline()).scrollTo).toEqual({ x: 412.5, autoKill: true });
+      });
+
+      it('does not pick again while its float is in flight, even once the cooldown has passed', () => {
+        tick();
+        now.mockReturnValue(1000 + COOLDOWN * 3);
+        tick();
+        tick();
+
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+      });
+
+      it('picks again once a follow has ended and the cooldown has passed', () => {
+        startFollowingBeta();
+        now.mockReturnValue(1000 + FOLLOW);
+        tick(); // follow ends
+        now.mockReturnValue(1000 + FOLLOW + COOLDOWN);
+        tick();
+
+        expect(gsap.timeline).toHaveBeenCalledTimes(2);
+      });
+
+      it('waits the full cooldown after a pick finds nobody, then tries again', () => {
+        seedLocale([['alpha', DockingState.Docked, 40], ['beta', DockingState.Undocking, 70]]);
+
+        tick();
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(1000);
+        now.mockReturnValue(1000 + COOLDOWN - 1);
+        tick();
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(1000);
+
+        setDocking('beta', DockingState.Active);
+        now.mockReturnValue(1000 + COOLDOWN);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+      });
+
+      it('restarts the cooldown instead of retrying every frame when the winner cannot be targeted', () => {
+        clearRefs(); // both robots lose their ref: pick still names one, the float cannot start
+
+        tick();
+        now.mockReturnValue(1000 + COOLDOWN - 1);
+        tick();
+
+        expect(gsap.timeline).not.toHaveBeenCalled();
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(1000);
+      });
+    });
+
+    describe('following', () => {
+      it('writes the subject\'s live position into scrollLeft every tick', () => {
+        startFollowingBeta();
+        fake.scrollLeft = -1;
+
+        tick();
+        expect(fake.scrollLeft).toBe(412.5); // beta x 300 → 300·2 − 187.5
+
+        gsap.set((getRef('robot-beta') as SVGGElement), { x: 700 });
+        tick();
+        expect(fake.scrollLeft).toBe(1212.5);
+      });
+
+      it('clamps the written position to the scroller\'s range', () => {
+        startFollowingBeta();
+        gsap.set((getRef('robot-beta') as SVGGElement), { x: 1910 });
+
+        tick();
+
+        expect(fake.scrollLeft).toBe(3465);
+      });
+
+      it('keeps the last position when the subject\'s ref disappears mid-follow, without throwing', () => {
+        startFollowingBeta();
+        tick();
+        const before = fake.scrollLeft;
+        clearRefs();
+
+        expect(() => tick()).not.toThrow();
+        expect(fake.scrollLeft).toBe(before);
+      });
+
+      it('does not write scrollLeft before the float lands (the tween owns it until then)', () => {
+        tick();
+        fake.scrollLeft = 77;
+        tick();
+
+        expect(fake.scrollLeft).toBe(77);
+      });
+
+      it('ends the follow on the tick where exactly FOLLOW_MS have passed, not one ms before', () => {
+        startFollowingBeta();
+
+        now.mockReturnValue(1000 + FOLLOW - 1);
+        fake.scrollLeft = -1;
+        tick();
+        expect(fake.scrollLeft).toBe(412.5);
+
+        now.mockReturnValue(1000 + FOLLOW);
+        fake.scrollLeft = -1;
+        tick();
+        expect(fake.scrollLeft).toBe(-1);
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(1000 + FOLLOW);
+      });
+
+      it('times the follow from when the float landed, not from when it began', () => {
+        tick(); // float begins at 1000
+        now.mockReturnValue(1500);
+        (lastToVars(lastCreatedTimeline()).onComplete as () => void)(); // lands at 1500
+
+        now.mockReturnValue(1000 + FOLLOW); // 20 s after the float began, 19.5 s after it landed
+        fake.scrollLeft = -1;
+        tick();
+
+        expect(fake.scrollLeft).toBe(412.5);
+      });
+
+      it('ends the follow on the next tick when the subject docks, however briefly it was followed', () => {
+        startFollowingBeta();
+        tick();
+        setDocking('beta', DockingState.Docked);
+        now.mockReturnValue(1001);
+        fake.scrollLeft = -1;
+
+        tick();
+
+        expect(fake.scrollLeft).toBe(-1);
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(1001);
+      });
+
+      it('keeps following a subject that is recalled', () => {
+        startFollowingBeta();
+        setDocking('beta', DockingState.Recalled);
+        now.mockReturnValue(1000 + FOLLOW - 1);
+        fake.scrollLeft = -1;
+
+        tick();
+
+        expect(fake.scrollLeft).toBe(412.5);
+      });
+
+      it('ends the follow when the subject has left the locale altogether', () => {
+        startFollowingBeta();
+        seedLocale([['alpha', DockingState.Active, 40]]);
+        now.mockReturnValue(2000);
+        fake.scrollLeft = -1;
+
+        tick();
+
+        expect(fake.scrollLeft).toBe(-1);
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(2000);
+      });
+
+      it('kills a deck-camera timeline still registered when the follow ends', () => {
+        startFollowingBeta();
+        const tl = getTimeline(DECK_CAMERA_TIMELINE_ID)!;
+        now.mockReturnValue(1000 + FOLLOW);
+
+        tick();
+
+        expect(tl.kill).toHaveBeenCalled();
+        expect(timelineMap.has(DECK_CAMERA_TIMELINE_ID)).toBe(false);
+      });
+
+      it('does not pick again until the cooldown has fully elapsed after a follow ends', () => {
+        startFollowingBeta();
+        now.mockReturnValue(1000 + FOLLOW);
+        tick(); // follow ends; cooldown starts here
+
+        now.mockReturnValue(1000 + FOLLOW + COOLDOWN - 1);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+
+        now.mockReturnValue(1000 + FOLLOW + COOLDOWN);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('the user taking over', () => {
+      it('does nothing while held: no write, no pick', () => {
+        fake.dispatchEvent({ type: 'pointerdown' });
+        now.mockReturnValue(1000 + COOLDOWN * 5);
+
+        tick();
+
+        expect(gsap.timeline).not.toHaveBeenCalled();
+      });
+
+      it('freezes a follow on touch, and releasing waits a full cooldown before anything moves', () => {
+        startFollowingBeta();
+        fake.dispatchEvent({ type: 'touchstart' });
+        now.mockReturnValue(5000);
+        fake.dispatchEvent({ type: 'touchend' });
+        fake.scrollLeft = -1;
+
+        tick(); // released, but the follow is gone and the cooldown has only just begun
+        expect(fake.scrollLeft).toBe(-1);
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+
+        now.mockReturnValue(5000 + COOLDOWN - 1);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+
+        now.mockReturnValue(5000 + COOLDOWN);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(2);
+      });
+
+      it('a wheel ends a follow the same way', () => {
+        startFollowingBeta();
+        now.mockReturnValue(5000);
+        fake.dispatchEvent({ type: 'wheel' });
+        fake.scrollLeft = -1;
+
+        tick();
+
+        expect(fake.scrollLeft).toBe(-1);
+      });
+
+      it('a touch during the float cancels it, so the float landing later cannot start a follow', () => {
+        tick();
+        const landed = lastToVars(lastCreatedTimeline()).onComplete as () => void;
+        fake.dispatchEvent({ type: 'pointerdown' });
+        fake.dispatchEvent({ type: 'pointerup' });
+        landed();
+        fake.scrollLeft = -1;
+
+        tick();
+
+        expect(fake.scrollLeft).toBe(-1);
+      });
+
+      it('picks again after a cancelled float once the cooldown passes (the float guard is released)', () => {
+        tick();
+        fake.dispatchEvent({ type: 'pointerdown' });
+        now.mockReturnValue(3000);
+        fake.dispatchEvent({ type: 'pointerup' });
+        now.mockReturnValue(3000 + COOLDOWN);
+
+        tick();
+
+        expect(gsap.timeline).toHaveBeenCalledTimes(2);
+      });
+
+      it('an interrupted float (the tween auto-killed by a scroll) rests a full cooldown, then picks again', () => {
+        tick();
+        now.mockReturnValue(2000);
+        (lastToVars(lastCreatedTimeline()).onInterrupt as () => void)();
+
+        now.mockReturnValue(2000 + COOLDOWN - 1);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+
+        now.mockReturnValue(2000 + COOLDOWN);
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(2);
+      });
+
+      it('a float cancelled by touch ignores its late interrupt callback', () => {
+        tick();
+        const interrupted = lastToVars(lastCreatedTimeline()).onInterrupt as () => void;
+        fake.dispatchEvent({ type: 'pointerdown' });
+        now.mockReturnValue(4000);
+        fake.dispatchEvent({ type: 'pointerup' });
+
+        now.mockReturnValue(9000);
+        interrupted();
+
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(4000);
+      });
+
+      it('unregistering mid-follow drops the subject, so a new scroller does not resume it', () => {
+        startFollowingBeta();
+        registerDeckScroller(null);
+        const next = makeFakeScroller(3840, 375, 0);
+        registerDeckScroller(next as unknown as HTMLElement);
+        next.scrollLeft = -1;
+        now.mockReturnValue(1000 + 1); // still inside the old follow window
+
+        tick();
+
+        expect(next.scrollLeft).toBe(-1);
       });
     });
   });
