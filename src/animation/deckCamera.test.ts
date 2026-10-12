@@ -12,12 +12,21 @@ import {
   registerDeckScroller,
   deckCameraTargetFor,
   moveCameraTo,
+  undockedRobotIds,
+  pick,
   __deckCameraStateForTest,
   __resetDeckCameraForTest,
 } from './deckCamera';
 import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
 import { setRef, clearRefs } from '../utils/refs';
-import { DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '../constants/deckCamera';
+import {
+  DECK_CAMERA_MIN_BATTERY_PCT,
+  DECK_CAMERA_PAN_S,
+  DECK_CAMERA_TIMELINE_ID,
+} from '../constants/deckCamera';
+import { useLocaleStore } from '../stores/localeStore';
+import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
+import { DockingState, type Robot } from '../types/Robot';
 import * as deckCameraModule from './deckCamera';
 
 // ----------------------------------------
@@ -440,12 +449,171 @@ describe('deckCamera', () => {
     });
   });
 
+  describe('undockedRobotIds and pick (deck-camera follow, Task 6)', () => {
+    const LOCALE = 'deck-camera-test';
+
+    /** Distinct battery, docking and (via makeRobotRef) position on every robot. */
+    function seedLocale(robots: Array<[id: string, docking: DockingState, battery: number]>): void {
+      useLocaleStore.setState({
+        locales: {
+          [LOCALE]: {
+            id: LOCALE, attenuationStyleId: 'pelagos', name: LOCALE, coordinates: { x: 3, y: 7 },
+            dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [], currentMeasure: 0,
+            robots: robots.map(([id, docking, batteryLevel]) => ({ id, docking, batteryLevel }) as Robot),
+          },
+        },
+      });
+      useAttenuationStyleStore.getState().setCurrentLocale('pelagos', LOCALE);
+    }
+
+    afterEach(() => {
+      useLocaleStore.setState({ locales: {} });
+    });
+
+    describe('undockedRobotIds', () => {
+      it('includes Active and Recalled robots and excludes Docked and Undocking ones', () => {
+        seedLocale([
+          ['docked', DockingState.Docked, 11],
+          ['undocking', DockingState.Undocking, 22],
+          ['active', DockingState.Active, 33],
+          ['recalled', DockingState.Recalled, 44],
+        ]);
+
+        expect(undockedRobotIds()).toEqual(['active', 'recalled']);
+      });
+
+      it('is empty when the current locale has no robots or does not exist', () => {
+        seedLocale([]);
+        expect(undockedRobotIds()).toEqual([]);
+
+        useLocaleStore.setState({ locales: {} });
+        expect(undockedRobotIds()).toEqual([]);
+      });
+    });
+
+    describe('pick', () => {
+      beforeEach(() => {
+        registerDeckScroller(makeFakeScroller(3840, 375, 0) as unknown as HTMLElement);
+      });
+
+      it('prefers the lowest battery among robots above the threshold', () => {
+        seedLocale([['a', 'active', 90], ['b', 'active', 61], ['c', 'active', 75]]);
+        ['a', 'b', 'c'].forEach((id, i) => makeRobotRef(id, 300 + i * 400));
+
+        expect(pick(['a', 'b', 'c'])).toBe('b');
+      });
+
+      it('ignores a robot at or below the threshold while any robot is above it', () => {
+        seedLocale([['low', 'active', 8], ['mid', 'active', 50], ['high', 'active', 83]]);
+        ['low', 'mid', 'high'].forEach((id, i) => makeRobotRef(id, 300 + i * 400));
+
+        expect(pick(['low', 'mid', 'high'])).toBe('high');
+      });
+
+      it('treats a battery of exactly the threshold as not above it', () => {
+        seedLocale([['edge', 'active', DECK_CAMERA_MIN_BATTERY_PCT], ['just', 'active', DECK_CAMERA_MIN_BATTERY_PCT + 1]]);
+        makeRobotRef('edge', 300);
+        makeRobotRef('just', 700);
+
+        expect(pick(['edge', 'just'])).toBe('just');
+      });
+
+      it('falls back to the lowest battery overall when none is above the threshold', () => {
+        seedLocale([['a', 'active', 37], ['b', 'active', 12], ['c', 'active', DECK_CAMERA_MIN_BATTERY_PCT]]);
+        ['a', 'b', 'c'].forEach((id, i) => makeRobotRef(id, 300 + i * 400));
+
+        expect(pick(['a', 'b', 'c'])).toBe('b');
+      });
+
+      it('breaks a battery tie toward the robot closer to the viewport centre', () => {
+        const fake = makeFakeScroller(3840, 375, 1700);
+        registerDeckScroller(fake as unknown as HTMLElement);
+        seedLocale([['far', 'active', 64], ['near', 'active', 64], ['farther', 'active', 64]]);
+        makeRobotRef('far', 200);
+        makeRobotRef('near', 880); // target 1560: 140 px from the scroll position
+        makeRobotRef('farther', 1500);
+
+        expect(pick(['far', 'near', 'farther'])).toBe('near');
+      });
+
+      it('measures a tie by robot centre against viewport centre, not by raw scroll target', () => {
+        // Viewport 1700..2075, centre 1887.5. Robot centres: near 1760 (127.5 away), far 2280
+        // (392.5 away), so near wins. Their scroll targets are 1572.5 and 2092.5; compared raw
+        // against the viewport centre (315 vs 205) far would win, so this pins the centre reading.
+        const fake = makeFakeScroller(3840, 375, 1700);
+        registerDeckScroller(fake as unknown as HTMLElement);
+        seedLocale([['far', 'active', 64], ['near', 'active', 64]]);
+        makeRobotRef('far', 1140);
+        makeRobotRef('near', 880);
+
+        expect(pick(['far', 'near'])).toBe('near');
+      });
+
+      it('breaks a fallback-pool tie by position too', () => {
+        const fake = makeFakeScroller(3840, 375, 100);
+        registerDeckScroller(fake as unknown as HTMLElement);
+        seedLocale([['right', 'active', 20], ['left', 'active', 20]]);
+        makeRobotRef('right', 1500);
+        makeRobotRef('left', 150);
+
+        expect(pick(['right', 'left'])).toBe('left');
+      });
+
+      it('ranks a robot with no ref last in a tie, but can still pick it when it is the only one', () => {
+        seedLocale([['ghost', 'active', 64], ['seen', 'active', 64]]);
+        makeRobotRef('seen', 900);
+
+        expect(pick(['ghost', 'seen'])).toBe('seen');
+        expect(pick(['ghost'])).toBe('ghost');
+      });
+
+      it('returns the sole candidate whatever its battery', () => {
+        seedLocale([['only', 'active', 3]]);
+        makeRobotRef('only', 500);
+
+        expect(pick(['only'])).toBe('only');
+      });
+
+      it('skips an id that is not in the current locale', () => {
+        seedLocale([['here', 'active', 70]]);
+        makeRobotRef('here', 500);
+
+        expect(pick(['stranger', 'here'])).toBe('here');
+      });
+
+      it('an empty list picks nothing and restarts the cooldown at the current time', () => {
+        vi.spyOn(performance, 'now').mockReturnValue(12345);
+
+        expect(pick([])).toBeNull();
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(12345);
+      });
+
+      it('a non-empty list leaves the cooldown stamp alone', () => {
+        seedLocale([['a', 'active', 70]]);
+        makeRobotRef('a', 500);
+        vi.spyOn(performance, 'now').mockReturnValue(999);
+
+        pick(['a']);
+
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(-Infinity);
+      });
+
+      it('starts no float yet — Task 7 wires the winner into motion', () => {
+        seedLocale([['a', 'active', 70]]);
+        makeRobotRef('a', 500);
+
+        pick(['a']);
+
+        expect(gsap.timeline).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('source boundaries', () => {
     const source = () => readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
 
-    it('imports nothing from @/engine or @/stores, so the camera never reaches audio or the store', () => {
+    it('imports nothing from @/engine, so the camera never reaches audio', () => {
       expect(source()).not.toMatch(/@\/engine/);
-      expect(source()).not.toMatch(/@\/stores/);
     });
 
     it('uses no timers or frame loops (CLAUDE.md: GSAP only)', () => {

@@ -2,10 +2,11 @@
 // DECK CAMERA (docs/specs/DECK_CAMERA_FOLLOW.md §1.2, §1.4, Phase 46)
 // ========================================
 // A runtime module in the pattern of timelineMap.ts / refs.ts: module-level state, no React, no
-// store (CLAUDE.md: runtime-only objects like DOM elements stay out of Zustand). This task holds
-// the touch/release input model: a finger (or pointer) on the deck scroller freezes the camera and
-// kills any float in flight; letting go starts the cooldown clock; a wheel does both at once. The
-// pick algorithm and the follow ticker build on it in later tasks. Nothing here reads audio state
+// store state of its own (CLAUDE.md: runtime-only objects like DOM elements stay out of Zustand);
+// it only reads robots from the locale store. It holds the touch/release input model: a finger (or
+// pointer) on the deck scroller freezes the camera and kills any float in flight; letting go starts
+// the cooldown clock; a wheel does both at once. It also holds the pick algorithm (which robot to
+// follow). The follow ticker builds on both in a later task. Nothing here reads audio state
 // or calls AudioEngine (CLAUDE.md "Strict Separation").
 
 // ========================================
@@ -14,8 +15,15 @@
 import gsap from 'gsap';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 
-import { DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '@/constants/deckCamera';
+import {
+  DECK_CAMERA_MIN_BATTERY_PCT,
+  DECK_CAMERA_PAN_S,
+  DECK_CAMERA_TIMELINE_ID,
+} from '@/constants/deckCamera';
 import { WORLD_BOUNDS } from '@/constants/sceneDepth';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
+import { useLocaleStore } from '@/stores/localeStore';
+import { DockingState, type Robot } from '@/types/Robot';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
@@ -99,6 +107,45 @@ function targetFor(robotId: string): number | null {
 
 /** `targetFor`, exported for tests. */
 export const deckCameraTargetFor = targetFor;
+
+/** The active locale's robots, found the way OceanScene finds its locale. */
+function currentRobots(): Robot[] {
+  const localeId = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.currentLocaleId;
+  return (localeId && useLocaleStore.getState().getLocaleById(localeId)?.robots) || [];
+}
+
+/** The ids of the current locale's robots that are out and about (`Active` or `Recalled`), the
+ *  pool the camera picks from (spec §1.3). Reads the locale the way OceanScene does. */
+export function undockedRobotIds(): string[] {
+  return currentRobots()
+    .filter((r) => r.docking === DockingState.Active || r.docking === DockingState.Recalled)
+    .map((r) => r.id);
+}
+
+/**
+ * Chooses which of `candidateIds` to follow (spec §1.3): the lowest battery among those above
+ * `DECK_CAMERA_MIN_BATTERY_PCT`, else the lowest overall; a tie goes to the robot whose target is
+ * nearest the scroller's current position, i.e. whose centre is nearest the viewport centre. Ids
+ * not in the current locale are skipped. Returns `null` for an empty pool and restarts the
+ * cooldown, so the next attempt is a full `DECK_CAMERA_COOLDOWN_MS` away. Starts no motion.
+ */
+export function pick(candidateIds: string[]): string | null {
+  const pool = currentRobots().filter((r) => candidateIds.includes(r.id));
+  if (pool.length === 0) {
+    cooldownStartedAt = performance.now();
+    return null;
+  }
+  const preferred = pool.filter((r) => r.batteryLevel > DECK_CAMERA_MIN_BATTERY_PCT);
+  const ranked = preferred.length > 0 ? preferred : pool;
+  const lowest = Math.min(...ranked.map((r) => r.batteryLevel));
+  const tied = ranked.filter((r) => r.batteryLevel === lowest);
+  const from = scroller?.scrollLeft ?? 0;
+  const distance = (id: string) => {
+    const target = targetFor(id);
+    return target === null ? Infinity : Math.abs(target - from);
+  };
+  return tied.reduce((best, r) => (distance(r.id) < distance(best.id) ? r : best)).id;
+}
 
 /** Builds, registers and plays the `deck-camera` tween to `x` (spec §1.2, assumptions 4, 8, 9).
  *  `setTimeline` kills any tween already registered under `DECK_CAMERA_TIMELINE_ID`. */
