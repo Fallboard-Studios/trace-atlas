@@ -145,7 +145,9 @@ function Header() {
   // row's real width (the volume slider's width and the power corner's reserve, so not a constant to type in a
   // second time), which is a sibling's to read, so it goes to the root beside --header-height. The row, not the
   // header root: the root spans the screen, and the facade hugs the row. Border box, since the row's padding is
-  // the corner's reserve. Removed with the header (powered off), so no stale width survives.
+  // the corner's reserve. Removed with the header (powered off), so no stale width survives. It follows the
+  // shell: the phone wraps the panel in a stack the desk lacks, so crossing the breakpoint remounts the row,
+  // and an observer left on the old row would measure nothing for the new one.
   useEffect(() => {
     const row = rowRef.current;
     if (!row) return;
@@ -159,7 +161,7 @@ function Header() {
       observer.disconnect();
       document.documentElement.style.removeProperty('--header-width');
     };
-  }, []);
+  }, [shell]);
 
   // The ruler is an empty box mirroring that free band (Header.css), so its content width is the room the
   // controls line has, whatever the screen, the corner or the zoom make it. The desk shows the slider always.

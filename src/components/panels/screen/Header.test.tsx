@@ -313,6 +313,42 @@ describe('Header', () => {
       expect(observer.disconnected).toBe(true);
     });
 
+    // Crawford, 2026-10-12: resizing from the phone up to the desk left the meta box running into the volume
+    // bar. The phone wraps the panel in a stack the desk does not have, so crossing the breakpoint remounts
+    // the row; an observer that stays on the old row measures nothing for the new one.
+    it('follows the row across the phone-to-desk breakpoint: the new row is observed, the old one let go', () => {
+      let desk = false;
+      const listeners = new Set<() => void>();
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+          get matches() {
+            return query.includes('768px') ? desk : false;
+          },
+          media: query,
+          addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+          removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+        }),
+      });
+      const { container } = render(<Header />);
+      const phoneRow = container.querySelector('.header__row')!;
+      const phoneObserver = rowObserver(container);
+
+      act(() => {
+        desk = true;
+        listeners.forEach((listener) => listener());
+      });
+
+      const deskRow = container.querySelector('.header__row')!;
+      expect(deskRow).not.toBe(phoneRow);
+      expect(phoneObserver.disconnected).toBe(true);
+      const live = MockResizeObserver.instances.find((o) => !o.disconnected && o.observedTargets.includes(deskRow));
+      expect(live).toBeTruthy();
+      act(() => live!.fireWidth(354));
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('354px');
+    });
+
     it('does not leave a stale width behind when the header unmounts (powered off)', () => {
       const { container, unmount } = render(<Header />);
       act(() => rowObserver(container).fireWidth(372));
