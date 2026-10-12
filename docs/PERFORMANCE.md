@@ -1511,6 +1511,44 @@ and a 375 px pinned world/locale chosen so no robot goes `'active'` in the windo
 cost as its own separately-labelled round per the original Task 11 wording; or (b) accept both causes
 as read here and move on — neither is a surprise relative to the spec's own named risks.
 
+## Deck Camera Follow — the Task 10 perf gate (Phase 46)
+
+Gate ([docs/tasks/DECK_CAMERA_FOLLOW.md](tasks/DECK_CAMERA_FOLLOW.md) Task 10): idle busy and Paint on the
+finished branch within each build's round-to-round spread, plus one continuous-tracking round, recorded not gated.
+
+**Method:** production builds from clean `git worktree` checkouts (the working tree had unrelated uncommitted
+OceanScene edits, so it was not built) — `main` `26afd526` on :4183 (`index-BqL4ymWK.js`), branch `5c791ee1`
+(Checkpoint B) on :4182 (`index-D_bR8rLX.js`); each port's served bundle was checked against its build. Pinned
+`?session=` world: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2.
+`npm run perf:idle --throttle 1 --only none`, desktop 1280×900 headless, foreground, one run at a time, order
+rotated (M B B M M B), orphaned headless Chrome 0 afterwards. (:4181 was held by a stale server, so `main` ran on :4183.)
+
+### Results (6 s idle window, 1×; values in run order)
+
+| Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | Paint n | long tasks |
+|---|---|---|---|---|---|
+| `main` | 1248 · 1283 · 1265 | 155 · 151 · 146 | 129 · 127 · 125 | 1080–1083 | 0 |
+| branch | 1523 · 1551 · 1607 | 157 · 158 · 168 | 145 · 144 · 154 | 1083–1089 | 0 |
+
+Medians: busy 1265 → 1551 (+286 ms, +23 %), Paint 151 → 158 (+7), Compositor::Update 127 → 145 (+18). Paint is
+inside `main`'s spread plus noise; **busy is not** — the branch's lowest round (1523) is above `main`'s highest (1283).
+
+### Continuous-tracking round (30 s window, one run each, recorded not gated)
+
+| Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | Paint n | long tasks |
+|---|---|---|---|---|---|
+| `main` | 5294 | 548 | 442 | 3708 | 5 |
+| branch | 5203 | 501 | 481 | 3330 | 4 |
+
+Over 30 s the branch is *not* busier than `main` (5203 vs 5294), i.e. about 1040 ms per 6 s on both. So the
+6 s-window gap is not a steady per-frame cost of the follow ticker; it is something that falls inside the short
+window. Not isolated — candidates are a float starting inside the 6 s window (as the Task 11 write-up of
+[Mobile Deck Camera](#mobile-deck-camera--the-task-11-perf-gate-phase-46) found for a cut) and a one-off start-up
+cost. One sample each; no 30 s repeat.
+
+**Verdict: the idle-busy criterion is not met as measured** (busy +23 % outside the spread); Paint holds. Reported,
+not waved through. Crawford's call: accept given the 30 s result, or isolate the in-window cost first.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
