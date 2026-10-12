@@ -13,12 +13,21 @@ vi.mock('@/components/panels/screen/console/ConsolePanel', () => ({
   ConsolePanel: () => <div data-testid="console-panel-stub" />,
   default: () => <div data-testid="console-panel-stub" />,
 }));
+// Mobile Deck Camera (Task 8): deckCamera.test.ts already covers registerDeckScroller's own
+// behaviour; this file only needs to see that WorldView calls it, not what it does.
+vi.mock('@/animation/deckCamera', () => ({
+  registerDeckScroller: vi.fn(),
+  // OceanScene's followed-robot marker reads these; the camera follows nobody here.
+  getFollowedRobotId: () => null,
+  subscribeFollowedRobot: () => () => {},
+}));
 
 // ========================================
 // IMPORTS
 // ========================================
 import WorldView from './WorldView';
 import ContentPane from '@/components/panels/screen/console/ContentPane';
+import { registerDeckScroller } from '@/animation/deckCamera';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -131,6 +140,105 @@ describe('WorldView — carries the meta box', () => {
     useUIStore.getState().setActiveHubTile('audioRig');
     render(<WorldView />);
     expect(document.querySelector('.meta-box')).toBeNull();
+  });
+});
+
+// Mobile Deck Camera (spec §1.1, assumptions 1, 3): the scroller wraps AttenuationStyleView
+// alone — MetaBox stays pinned, a direct sibling of .world-view — and centres itself once, on
+// mount, so an unpanned phone sees the same middle slice it always has.
+describe('WorldView — the deck scroller (Mobile Deck Camera)', () => {
+  const realMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    // MetaBox reads useShell(), which reads matchMedia — the desk shell's query.
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({ matches: !query.includes('reduced-motion'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+  });
+
+  it('wraps the attenuation-style view in .world-view__scroller, and keeps the meta box out of it', () => {
+    render(<WorldView />);
+    const scroller = document.querySelector('.world-view__scroller');
+    expect(scroller).not.toBeNull();
+    expect(scroller!.querySelector('.attenuation-style-view')).not.toBeNull();
+    expect(scroller!.querySelector('.meta-box')).toBeNull();
+    expect(document.querySelector('.world-view > .meta-box')).not.toBeNull();
+  });
+
+  it('centres scrollLeft on mount: (scrollWidth − clientWidth) / 2, seeded with non-default sizes', () => {
+    // jsdom lays nothing out (scrollWidth/clientWidth are always 0 there), so the sizes are
+    // stubbed on the element's own prototype before mount — the ref callback reads them
+    // synchronously while the node is attached, before the test gets control back, so there is
+    // no later point at which stubbing the found element itself would still run in time.
+    const scrollWidthSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+      .mockReturnValue(2000);
+    const clientWidthSpy = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockReturnValue(500);
+    try {
+      render(<WorldView />);
+      const scroller = document.querySelector('.world-view__scroller') as HTMLDivElement;
+      expect(scroller.scrollLeft).toBe(750);
+    } finally {
+      scrollWidthSpy.mockRestore();
+      clientWidthSpy.mockRestore();
+    }
+  });
+});
+
+// Mobile Deck Camera (Task 8, spec §1.1): the scroller hands itself to the camera module on
+// mount and unmount, and only then — a re-render in between must not re-register it.
+describe('WorldView — hands the scroller to the camera module', () => {
+  const realMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({ matches: !query.includes('reduced-motion'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+    vi.mocked(registerDeckScroller).mockClear();
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+  });
+
+  it('calls registerDeckScroller once with the scroller element on mount', () => {
+    render(<WorldView />);
+    const scroller = document.querySelector('.world-view__scroller');
+    expect(registerDeckScroller).toHaveBeenCalledTimes(1);
+    expect(registerDeckScroller).toHaveBeenCalledWith(scroller);
+  });
+
+  it('calls registerDeckScroller(null) on unmount', () => {
+    const { unmount } = render(<WorldView />);
+    vi.mocked(registerDeckScroller).mockClear();
+
+    unmount();
+
+    expect(registerDeckScroller).toHaveBeenCalledTimes(1);
+    expect(registerDeckScroller).toHaveBeenCalledWith(null);
+  });
+
+  it('calls neither again on a re-render in between', () => {
+    const { rerender } = render(<WorldView />);
+    vi.mocked(registerDeckScroller).mockClear();
+
+    rerender(<WorldView />);
+
+    expect(registerDeckScroller).not.toHaveBeenCalled();
   });
 });
 

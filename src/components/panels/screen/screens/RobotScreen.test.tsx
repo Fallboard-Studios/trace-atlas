@@ -117,8 +117,13 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
   return { ...actual, RadioButton: RadioButtonSchemaCapture };
 });
 
+// Task 9: the gem button's click wiring is tested here; the module's own pan/idle/target behaviour
+// has its own suite (deckCamera.test.ts).
+vi.mock('@/animation/deckCamera', () => ({ moveCameraTo: vi.fn() }));
+
 import { RobotScreen } from './RobotScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
+import { moveCameraTo } from '@/animation/deckCamera';
 import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -768,6 +773,43 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
     act(() => shell.set('phone'));
     expect(band(container)).not.toBeNull();
     expect(mounted()).toEqual(['ping-contour-drawer-stub']);
+  });
+});
+
+describe('RobotScreen — the gem is not a camera control (deck-camera follow, Task 2)', () => {
+  it.each(['desk', 'phone'] as const)('%s: the gem renders bare, with no button around it', (shellKind) => {
+    shell.set(shellKind);
+    selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
+    const { container } = render(<RobotScreen />);
+    const gem = container.querySelector('svg.robot-screen__gem');
+    expect(gem).not.toBeNull();
+    expect(gem!.closest('button')).toBeNull();
+    expect(container.querySelector('.robot-screen__pan')).toBeNull();
+  });
+
+  it.each(['desk', 'phone'] as const)('%s: clicking the gem never reaches the deck camera', (shellKind) => {
+    shell.set(shellKind);
+    selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
+    const { container } = render(<RobotScreen />);
+    fireEvent.click(container.querySelector('svg.robot-screen__gem')!);
+    expect(moveCameraTo).not.toHaveBeenCalled();
+  });
+
+  it('an unnamed robot gets no pan button either', () => {
+    selectRobot(makeRobot('r9', { name: '' }));
+    const { container } = render(<RobotScreen />);
+    const gem = container.querySelector('svg.robot-screen__gem');
+    expect(gem).not.toBeNull();
+    expect(gem!.closest('button')).toBeNull();
+  });
+
+  it('leaves selectedRobotId and activeHubTile unchanged when the gem is clicked', () => {
+    selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
+    useUIStore.getState().setActiveHubTile('robots');
+    const { container } = render(<RobotScreen />);
+    fireEvent.click(container.querySelector('svg.robot-screen__gem')!);
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
 });
 

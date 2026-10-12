@@ -4,6 +4,10 @@
 import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 
+// Deck-camera follow Task 3: the camera is mocked only to prove the work loop never calls it; its own
+// behaviour has its own suite (deckCamera.test.ts).
+vi.mock('@/animation/deckCamera', () => ({ registerDeckScroller: vi.fn() }));
+
 import { startWorkLoop, stopWorkLoop, next, getSiteState, onLifecycleChange, onRobotMounted } from './workLoop';
 import { siteCooldown } from './siteChoice';
 import { placeDistrict } from './districts';
@@ -33,6 +37,7 @@ import {
 import type { Actor } from '../types/Actor';
 import type { DockingState, JobType, Robot } from '../types/Robot';
 import type { Vec2 } from '../types/Vec2';
+import * as deckCameraModule from '@/animation/deckCamera';
 
 // vitest.setup.ts mocks gsap and fires every timeline's onComplete on a microtask, which would
 // spin the wait → next → wait cycle forever. Real GSAP with the global timeline paused: nothing
@@ -998,6 +1003,42 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
     expect(timelineMap.size).toBe(0);
     land('r1', 'recalled', 'recalled');
     expect(get('r1').activity).toBe('returning'); // control: its own locale reacts
+  });
+
+  // Deck-camera follow, Task 3: the work loop no longer talks to the camera at all. Every export of
+  // the (mocked) module is a spy; none may be called by any lifecycle change.
+  describe('lifecycle changes leave the deck camera alone (deck-camera follow, Task 3)', () => {
+    const cameraSpies = () => Object.values(deckCameraModule).filter((v) => vi.isMockFunction(v));
+
+    beforeEach(() => {
+      cameraSpies().forEach((spy) => spy.mockClear());
+    });
+
+    it('mocks at least one camera export, so the guard below can fail', () => {
+      expect(cameraSpies().length).toBeGreaterThan(0);
+    });
+
+    it.each(['active', 'recalled', 'docked'] as const)('%s calls nothing on the camera, with a loop running and a station robot', (to) => {
+      const { a } = sitesForSwitch();
+      registerLocale([a], []);
+      const s = stations()[0];
+      setRobots([
+        robot('r1', s.port, { activity: 'charging', stationId: s.id }),
+        robot('r2', { x: 400, y: 400 }, { activity: 'working' }), // a working robot: the old cut preferred it
+      ]);
+      startWorkLoop(LOCALE, { now, backHosts: false, rand: () => 0 });
+      onLifecycleChange(LOCALE, 'r1', to);
+      cameraSpies().forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    });
+
+    it('also stays silent with no loop running, or for another locale', () => {
+      const { a } = sitesForSwitch();
+      registerLocale([a], [robot('r1', siteOf(a).park, { activity: 'waiting' })]);
+      onLifecycleChange(LOCALE, 'r1', 'active');
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      onLifecycleChange('elsewhere', 'r1', 'active');
+      cameraSpies().forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    });
   });
 
   it('stop kills the station arcs and ripples too', () => {

@@ -18,13 +18,37 @@
      scaled up and cropped as needed so its background rect is never
      smaller than the tablet in either direction — never scaled down with
      letterbox bars outside it. overflow: hidden here (redundant with the
-     SVG's own default clip, but explicit) is what turns that crop into a
-     clean edge instead of visible bleed; nothing ever needs to scroll. */
+     scroller's own horizontal scrolling, but explicit) is what turns a crop
+     into a clean edge instead of visible bleed. The scroller inside
+     (.world-view__scroller) is what actually pans the stage (Mobile Deck
+     Camera, spec §1.1); this box stays decoupled from the console grid
+     exactly as before. */
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
   /* border: yellow 1px solid; */
+}
+
+/* Mobile Deck Camera (spec §1.1, assumption 11): the only thing that scrolls. Wraps
+   AttenuationStyleView alone — MetaBox stays a sibling of this element, pinned to .world-view.
+   No scroll-snap: a camera pan or a swipe both just rest wherever they stop (Crawford, post-ship:
+   proximity snap fought GSAP's ScrollToPlugin, which disables then restores scroll-snap-type
+   around its own tween). overscroll-behavior-x: contain stops
+   a swipe past the stage's edge from navigating the page (there's no edge gesture to conflict
+   with — the phone shell's nav is a sheet, not a swipe). No visible scrollbar: the world is not
+   a document. */
+.world-view__scroller {
+  position: absolute;
+  inset: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.world-view__scroller::-webkit-scrollbar {
+  display: none;
 }
 
 /* Under the opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md

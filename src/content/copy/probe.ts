@@ -73,6 +73,8 @@ export const probe = {
       maintenance: { human: 'Maintenance', lore: 'GRID INFRASTRUCTURE MAINTENANCE' },
     },
   },
+  /** The world view's caption above the robot the Deck camera is following: its name, then its job. */
+  'probe.followMarker': { human: 'Followed probe', template: '{name} | {job}' },
   'probe.job.unassigned': { human: 'Unassigned', lore: 'NO PROTOCOL ASSIGNED' },
   'probe.battery': { human: 'Battery Data', lore: 'POWER CELL STATUS', unit: '%' },
   'probe.status.docking': {

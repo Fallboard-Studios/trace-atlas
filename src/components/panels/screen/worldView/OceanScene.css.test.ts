@@ -16,11 +16,17 @@ import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 const cssSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'OceanScene.css'), 'utf-8');
 
 describe('OceanScene.css scene layers', () => {
-  it('the scene is a positioned box its layers stack inside', () => {
+  // Mobile Deck Camera (spec assumption 2): the stage is sized by aspect ratio, not inset: 0, so
+  // a box at or wider than 16:9 is pixel-identical to the old fixed box (min-width: 100% wins)
+  // and a narrower box overflows horizontally for the scroller (WorldView.css) to pan.
+  it('the scene is a 16:9 stage box its layers stack inside', () => {
     const body = getCssRuleBody(cssSource, '.ocean-scene');
     expect(body).not.toBeNull();
-    expect(body).toContain('position: absolute;');
-    expect(body).toContain('inset: 0;');
+    expect(body).toContain('position: relative;');
+    expect(body).toContain('height: 100%;');
+    expect(body).toContain('min-width: 100%;');
+    expect(body).toContain('aspect-ratio: 16 / 9;');
+    expect(body).not.toContain('inset: 0;');
   });
 
   it('every layer fills the scene box exactly, so the four viewBoxes map to the same pixels', () => {

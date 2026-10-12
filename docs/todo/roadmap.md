@@ -1043,12 +1043,22 @@ payload, the share link and the audio path are untouched.
 
 ## 46. Mobile Deck Camera (the world crop on phones)
 
-Raised by Crawford, 2026-10-09, during the districts brainstorm on `feature/layout-rework`. Not yet
-interviewed or specced; the fit question below is the decision to make. Sequenced **before** the
-layout-rework plan ([docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md), not yet written) is
-locked, because any answer changes the Deck tab of
-[docs/sketches/layout-rework.html](../sketches/layout-rework.html) and
-[docs/specs/LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md) §1.7.
+Raised by Crawford, 2026-10-09, during the districts brainstorm on `feature/layout-rework`. **Built
+2026-10-11 on `feature/deck-camera`** in two passes: first the fit, the native scroller and an
+idle-cut camera ([intent](../intent/mobile-deck-camera.md)), then that camera's trigger model
+replaced by a continuous follow loop ([intent](../intent/deck-camera-follow.md),
+[spec](../specs/DECK_CAMERA_FOLLOW.md), [plan](../tasks/DECK_CAMERA_FOLLOW.md)). The code is
+`src/animation/deckCamera.ts`; how it works is in
+[docs/ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md) ("Deck camera").
+
+### What was built
+
+The world view is a native horizontal scroller over the unchanged 1920 × 1080 stage (move the
+window, don't shrink the stage), and the camera always has a subject. It **picks** a robot (lowest
+battery among those above 50 %, else the lowest overall), floats to it, **follows** it for up to
+20 s or until it docks, rests for an 8 s **cooldown**, then picks again. Two things interrupt it:
+the user's touch, and backing out of a robot's or company's screen to the Deck, which floats
+straight to that robot (or a member of that company). Tap-to-pan and the idle-cut model are gone.
 
 ### About
 
@@ -1075,12 +1085,10 @@ stage.**
    snap. Compositor-driven, no per-frame JavaScript, no new scene layer; momentum and tap-vs-swipe
    come free. The "nothing scrolls" line in `WorldView.css` describes today's layout, it is not a
    guardrail. The six stacked layers scroll as one container, so scene-to-pixel mapping is unchanged.
-2. **Idle drift (optional).** One GSAP tween on the layer stack's transform, registered in
-   `timelineMap`, killed on touch. A moving-layer change, so it goes through the idle-paint gate
-   (docs/PERFORMANCE.md), but it is one transform, not per-element work.
-3. **Camera (later).** Follow the selected robot, or cut to work sites on semantic triggers from the
-   work loop (Phase 43's `onLifecycleChange` seam). Fits the architecture; a bigger design pass.
-4. **Overview, if wanted:** a schematic minimap (terrain profile line, building dots, the viewport
+2. **Drift and a camera.** Proposed then as an optional GSAP drift, and a later camera that follows
+   the selected robot or cuts to work sites on the work loop's semantic triggers. Both were
+   superseded by the follow loop (see "What was built").
+3. **Overview, if wanted:** a schematic minimap (terrain profile line, building dots, the viewport
    rectangle), static per world — never a second render of the scene, which would double the DOM.
    Robots as moving dots on it would be a moving layer and a separate perf-gated decision.
 
@@ -1089,6 +1097,9 @@ band the Robot screen already approved (tap to select, the camera pans to the ro
 grown into a telemetry strip, a 24-hour clock, or nothing (a monitor letterbox is on-brand for the
 sleeve). The neighbourhood map is [47](#47-neighbourhood-map-coherent-districts-and-the-visited-log).
 
+The recommendation above is the 2026-10-09 brainstorm, kept as the record of why the fit is a
+scroller. Only its first step shipped as written.
+
 ### Not Doing (and why)
 
 - **A portrait world (re-placing recipes for a tall `WORLD_BOUNDS`)** — the same coordinates would
@@ -1096,6 +1107,32 @@ sleeve). The neighbourhood map is [47](#47-neighbourhood-map-coherent-districts-
   "coordinates are the place" promise. The stage stays 1920 × 1080 everywhere.
 - **Rendering the scene twice (overview + zoom)** — doubles the static DOM; the 17.2.5 and Phase 42
   gates were passed on one scene.
+- **Tap-to-pan or any manual "jump to this robot" control** — the camera chooses; the user's only
+  levers are touch (freeze) and backing out of an edit screen.
+
+### Decisions made after the spec
+
+- **An empty pool restarts the cooldown (2026-10-11).** When every candidate is docked, `pick`
+  returns `null` and restarts the cooldown, so the camera retries after a full 8 s rather than every
+  frame.
+- **The wheel is an instant touch and release (assumption 8, spec Q1).** A wheel tick freezes the
+  camera and starts the cooldown in the same breath. Inferred from the touch/release rule, not stated
+  in the interview for the desktop case; revisit only if a mouse-wheel user finds the camera
+  re-picks too eagerly.
+- **The tie-break is the viewport centre (assumption 3, spec Q2).** Equal batteries go to the robot
+  whose target is nearest the scroller's current viewport centre, not the just-ended subject's last
+  position; the two agree whenever `pick` runs after the camera has settled.
+- **The float is `power1.inOut` over 1.4 s, not the spec's 0.8 s (Crawford, manual check).** Shorter
+  or sharper read as a snap on the stage's width.
+
+### Gate results
+
+- **Idle paint (Task 10, 6 s window): missed, accepted.** Busy +23 % (1265 → 1551 ms median) against
+  `main`, outside the round-to-round spread; Paint held and a 30 s tracking round showed no gap, so
+  the cause is unexplained (docs/PERFORMANCE.md, "Deck Camera Follow — the Task 10 perf gate").
+- **Pixel underruns (Task 11): not measured, signed off.** No `?debug` A/B counts were captured;
+  Crawford reported the phone running great and signed off the walk (docs/PERFORMANCE.md, "Deck
+  Camera Follow — the Task 11 Pixel check").
 
 ## 47. Neighbourhood Map, Coherent Districts and the Visited Log
 

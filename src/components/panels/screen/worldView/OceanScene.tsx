@@ -5,6 +5,7 @@ import './OceanScene.css';
 import { TerrainLayer } from './TerrainLayer';
 import { WaterColumn } from './WaterColumn';
 import { LightShafts } from './LightShafts';
+import { FollowedRobotMarker } from './FollowedRobotMarker';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -385,6 +386,9 @@ export function OceanScene({
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
           ))}
         </g>
+        {/* The Deck camera's followed-robot marker (square + "name | job"), over everything in the
+            row; renders nothing unless the camera is following. */}
+        <FollowedRobotMarker localeId={localeId} />
       </SceneLayer>
 
       {/* Static front layer: tint D, then the foreground-row factories (closest to the viewer). */}

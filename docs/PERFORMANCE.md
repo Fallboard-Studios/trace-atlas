@@ -1402,6 +1402,167 @@ about 4 per second, long tasks 0. Not zero: something still ticks once a second 
 
 **Verdict:** no miss remains. No cut was needed. The Pixel is not part of this gate.
 
+## Mobile Deck Camera — the Task 11 perf gate (Phase 46)
+
+Gate ([docs/tasks/MOBILE_DECK_CAMERA.md](tasks/MOBILE_DECK_CAMERA.md) Task 11): idle busy and Paint on
+the finished branch within `main`'s round-to-round spread, at the default width and at 375 px (where
+the new scroller overflows), plus one round with a camera cut forced inside the idle window.
+
+**No "Checkpoint A" (scroller-only) baseline exists in this file** — Tasks 1–10 were built and
+committed without that intermediate measurement being recorded here, so this gate compares the
+*finished* branch against `main` directly; there is no scroller-alone number to isolate the scroller's
+share of any delta from the camera module's.
+
+**Method:** `main` (`26afd526`, the branch's own merge-base — a clean checkout, no other product
+difference) on :4182, this branch at `7c8ea183` **plus its uncommitted Checkpoint-B ease/duration
+tweak** (`power1.inOut`, 1.4 s — the working tree as it stands) on :4181. Both production builds
+(`npm run build` + `vite preview`), served side by side, headless Chrome, desktop 1280×900 and
+375×812, `npm run perf:idle --throttle 1 --only none`, one pinned world (`?session=`, Attenuation
+Style `alpha`, locale `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2 — the same
+world the Phase 45 Task 29 gate used). Three rounds per build per width, foreground, one call at a
+time, start order rotated each round, orphaned-Chrome count 0 before and after (checked by filtered
+`Win32_Process` query). Cells read `median (min–max)`.
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| Width | Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | long tasks |
+|---|---|---|---|---|---|
+| 1280 | `main` | 1363 (1360–1400) | 143 (142–147) | 125 (123–126) | 0 |
+| 1280 | branch | **1456** (1448–1458) | **165** (161–169) | **155** (150–161) | 0 |
+| 375 | `main` | 1337 (1283–1385) | 153 (151–157) | 95 (95–98) | 0 |
+| 375 | branch | **1441** (1407–1441) | **170** (167–174) | **132** (128–133) | 0 · 0 · 1 |
+
+### Reading
+
+**Does not cleanly pass the stated criterion.** At both widths the branch's busy/Paint/Compositor
+medians sit *outside* `main`'s own round-to-round spread, not inside it: at 375 px the branch's lowest
+busy round (1407 ms) is still above `main`'s highest (1385 ms) — a consistent gap, not round noise.
+
+- **1280 px:** busy +93 ms (+6.8 %), Paint +22 ms (+15.4 %), Compositor::Update +30 ms (+24 %).
+- **375 px:** busy +104 ms (+7.8 %), Paint +17 ms (+11.1 %), Compositor::Update +37 ms (+38.9 %).
+- Compositor::Update carries the largest relative increase at both widths — consistent with the
+  risk this phase's plan called out (a scroll container changing how the six absolutely positioned
+  layers composite), though whether it is the scroller, the extra `.ocean-scene__snap` marks, or the
+  `deckCamera.ts` module's own `scroll`/`pointerdown`/`wheel` listeners was not isolated (no
+  scroller-only build exists to test against).
+- One of three 375 px branch rounds logged 1 long task (≥ 50 ms, Chrome's own threshold, not the
+  ≥ 100 ms audible-pause line); the other two rounds, and every 1280 px round on either build, logged
+  none. Not treated as a pattern on a single occurrence.
+- Absolute deltas are small (17–37 ms inside a 6 s window) and no round crossed the ≥ 100 ms
+  audible-pause threshold on either build. Compositor layer counts at 375 px (branch, one sample):
+  25 layers, 19 drawing content, 16 with an owning node, DPR 2 — the four moving-layer elements
+  (`robots-back`, `mid`, `robots`, `front`) each reported at the stage's own CSS size (1444×812 at
+  375 px, wider than the 375 px viewport), consistent with them still being separately composited
+  rather than collapsed into the static layers; this was read from the harness's own layer summary,
+  not DevTools' Layers panel directly.
+
+**Not declared PASS.** Per the gate's own wording ("miss: stop and report") this is reported rather
+than waved through: a real, repeatable, three-round-consistent regression, modest in absolute terms,
+concentrated in Compositor::Update, isolated to neither the Phase-1 scroller nor the camera module
+specifically. Candidate next steps if this is worth chasing: `contain: paint` or
+`will-change: scroll-position` on `.world-view__scroller` (the mitigations Checkpoint A's own
+write-up names), tried one at a time; or accept it as the scroller's cost, same as the Phase 45
+Fleet-Params-vs-Deck Compositor::Update difference was accepted as structural. **Crawford's call.**
+
+### Root-cause follow-up (same day): two separate causes, not one
+
+The "isolated to neither" line above was resolved by building a third variant — `e4cba4f4` (Task 5's
+tip: the scroller and snap marks, no camera module or triggers yet) — and serving it alongside `main`
+and the finished branch, 3 rotated rounds at 375 px. Medians: `main` busy 1336 / Paint 155 /
+Compositor 96; **scroller-only** busy 1365 / Paint 152 / Compositor 107; **full branch** busy 1407 /
+Paint 171 / Compositor 131. Two distinct, additive causes, not one:
+
+1. **The aspect-ratio stage box rasters at its full stage width, not the visible slice — on every
+   viewport narrower than 16:9, including this gate's own 1280×900 default-width round.** `.ocean-scene`
+   reported `scrollWidth` 1444 px at a 375 px viewport (DPR 2, ≈ 106.7 MB of compositor-layer memory)
+   against `main`'s exactly-viewport-sized 343 px (≈ 34.7 MB) — a ≈ 3× bigger raster surface for the
+   same four moving SVG layers, because the browser must be ready to show any scrolled position, not
+   just the part on screen right now. **This also fires at 1280×900**: that viewport's own aspect ratio
+   (1.42:1) is narrower than 16:9, so the stage box is 1543 px wide against a 1248 px client width — a
+   1.24× area increase that lines up almost exactly with the measured +24 % Compositor::Update at that
+   width. The spec's assumption 2 ("every desktop frame... is byte-identical") only holds at or above a
+   true 16:9 viewport (1920×1080, 1600×900) — **1280×900 is not wide enough**, so the gate's own
+   "default width" round was never a clean no-scroll control to begin with. This cause alone explains
+   essentially all of the 1280 px delta and roughly a third of the 375 px delta (scroller-only vs `main`:
+   +11 ms Compositor, +2 % busy, flat Paint).
+2. **A real, deterministic deck-camera cut fires inside the nominally-idle 375 px trace window on this
+   pinned world, and accounts for the rest.** Probed directly: `.world-view__scroller.scrollLeft` reads
+   551 (the centred start, `(1444−343)/2`) immediately before the stock trace begins and **0**
+   immediately after, on every run tried. Cause: the deck camera's idle gate is keyed to *user* input
+   (`noteDeckUserInput`), and the headless harness never performs any — so `isDeckCameraIdle()` is
+   unconditionally true for the harness's entire life, and the first robot in this world
+   (Attenuation Style `alpha`, locale `(0, 50)`) to reach `'active'` inside the 8–14 s settle/window
+   fires a real `cutDeckCameraTo`, landing off-screen and panning the full width. This is not a bug —
+   it is the feature working as designed — but it means the "stock" window compared one build doing a
+   real 1.4 s animated scroll against another doing nothing, which is not the steady-state idle
+   comparison the gate intends. It explains the *remaining* 375 px gap beyond cause 1 (scroller-only
+   vs full branch: +19 ms Paint, +24 ms Compositor, both beyond cause 1's share) and the one stray long
+   task recorded above. The forced-cut round Task 11 asks for turned out to already be sitting inside
+   the "stock" numbers, unlabelled.
+
+**Revised reading:** the steady-state, no-cut cost of this feature is cause 1 alone — modest (+11 ms
+Compositor at 375 px; the ≈ +24 % at 1280 px is explained by the harness's own too-narrow default
+viewport, not a 1600×900+ phone-or-desktop frame) and the expected, spec-acknowledged price of a
+scroller that must be ready to show the whole stage. Cause 2 is not a steady-state cost at all; it is
+what a cut genuinely costs, and the gate's "stock" window picked it up only because this pinned
+world's timing happens to line up with it. **Re-measurement options, Crawford's call:** (a) re-run
+with a wider default-width comparison (≥ 1600×900) so cause 1 reads correctly as near-zero on desktop,
+and a 375 px pinned world/locale chosen so no robot goes `'active'` in the window, reporting the cut's
+cost as its own separately-labelled round per the original Task 11 wording; or (b) accept both causes
+as read here and move on — neither is a surprise relative to the spec's own named risks.
+
+## Deck Camera Follow — the Task 10 perf gate (Phase 46)
+
+Gate ([docs/tasks/DECK_CAMERA_FOLLOW.md](tasks/DECK_CAMERA_FOLLOW.md) Task 10): idle busy and Paint on the
+finished branch within each build's round-to-round spread, plus one continuous-tracking round, recorded not gated.
+
+**Method:** production builds from clean `git worktree` checkouts (the working tree had unrelated uncommitted
+OceanScene edits, so it was not built) — `main` `26afd526` on :4183 (`index-BqL4ymWK.js`), branch `5c791ee1`
+(Checkpoint B) on :4182 (`index-D_bR8rLX.js`); each port's served bundle was checked against its build. Pinned
+`?session=` world: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2.
+`npm run perf:idle --throttle 1 --only none`, desktop 1280×900 headless, foreground, one run at a time, order
+rotated (M B B M M B), orphaned headless Chrome 0 afterwards. (:4181 was held by a stale server, so `main` ran on :4183.)
+
+### Results (6 s idle window, 1×; values in run order)
+
+| Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | Paint n | long tasks |
+|---|---|---|---|---|---|
+| `main` | 1248 · 1283 · 1265 | 155 · 151 · 146 | 129 · 127 · 125 | 1080–1083 | 0 |
+| branch | 1523 · 1551 · 1607 | 157 · 158 · 168 | 145 · 144 · 154 | 1083–1089 | 0 |
+
+Medians: busy 1265 → 1551 (+286 ms, +23 %), Paint 151 → 158 (+7), Compositor::Update 127 → 145 (+18). Paint is
+inside `main`'s spread plus noise; **busy is not** — the branch's lowest round (1523) is above `main`'s highest (1283).
+
+### Continuous-tracking round (30 s window, one run each, recorded not gated)
+
+| Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | Paint n | long tasks |
+|---|---|---|---|---|---|
+| `main` | 5294 | 548 | 442 | 3708 | 5 |
+| branch | 5203 | 501 | 481 | 3330 | 4 |
+
+Over 30 s the branch is *not* busier than `main` (5203 vs 5294), i.e. about 1040 ms per 6 s on both. So the
+6 s-window gap is not a steady per-frame cost of the follow ticker; it is something that falls inside the short
+window. Not isolated — candidates are a float starting inside the 6 s window (as the Task 11 write-up of
+[Mobile Deck Camera](#mobile-deck-camera--the-task-11-perf-gate-phase-46) found for a cut) and a one-off start-up
+cost. One sample each; no 30 s repeat.
+
+**Verdict: the idle-busy criterion is not met as measured** (busy +23 % outside the spread); Paint holds. Reported,
+not waved through. Crawford's call: accept given the 30 s result, or isolate the in-window cost first.
+
+## Deck Camera Follow — the Task 11 Pixel check (Phase 46)
+
+Gate ([docs/tasks/DECK_CAMERA_FOLLOW.md](tasks/DECK_CAMERA_FOLLOW.md) Task 11): Pixel underrun A/B, `main` against the
+branch, then the §5.3 walk on the phone.
+
+**Not run as specified.** The three two-minute `?debug` listens per build were not captured, so there is **no
+underrun table** for this phase and nothing to compare against the 17.2.6 spread. What exists is Crawford's
+report (2026-10-11), after the Task 10 gate: the Pixel "has been running great lately" with the deck camera on
+the branch. That is an observation, not a measurement; it does not show underruns within the 17.2.6 spread.
+
+**Sign-off:** given verbally by Crawford on that basis; no constant (follow/cooldown durations, battery threshold)
+was re-tuned. The Task 10 idle-busy miss (+23 % in the 6 s window, no gap over 30 s) therefore stands as accepted,
+not explained. Re-measure with the `?debug` overlay if audio trouble appears on this feature.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

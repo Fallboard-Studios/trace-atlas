@@ -29,6 +29,10 @@ vi.mock('@/components/stations/ChargingStation', () => ({
     <g data-station-mock={props.station.id} data-fragment={props.fragment} />
   ),
 }));
+// The Deck camera's followed-robot marker, as a stub that records the locale it was handed.
+vi.mock('./FollowedRobotMarker', () => ({
+  FollowedRobotMarker: (props: { localeId: string }) => <g id="followed-robot-marker" data-followed-marker-mock={props.localeId} />,
+}));
 // Records what the scene hands its bubble layer (which actors, what total) without running
 // BubbleStream's GSAP timelines.
 const bubbleLayerMock = vi.fn((_props: { actors: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
@@ -680,7 +684,7 @@ describe('OceanScene', () => {
       const layer = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
       const groupsOf = (name: string) => Array.from(layer(name).querySelectorAll(':scope > g')).map((g) => g.id);
       expect(groupsOf('robots-back')).toEqual(['station-l4-layer', 'robot-back-layer']);
-      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
+      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer', 'followed-robot-marker']);
       for (const [name, id, fragment] of [
         ['robots-back', 'station-l4-layer', 'l4'],
         ['robots', 'station-l3-layer', 'l3'],
@@ -715,6 +719,17 @@ describe('OceanScene', () => {
       expect(getRef('robot-dissolve-layer')).toBe(layer);
       unmount();
       expect(getRef('robot-dissolve-layer')).toBeUndefined();
+    });
+
+    // The Deck camera's followed-robot marker moves every frame, so it lives in a moving layer —
+    // in a static one it would repaint the foreground factories each frame — and last in it, so it
+    // draws over the robots, the dissolve copies and the station's front fragment.
+    it('renders the followed-robot marker last in the front robot layer, handed the locale id', () => {
+      const { container } = render(<OceanScene />);
+      const layer = container.querySelector('svg[data-scene-layer="robots"]')!;
+
+      expect(layer.lastElementChild?.getAttribute('data-followed-marker-mock')).toBe(DEFAULT_LOCALE_ID);
+      expect(container.querySelectorAll('[data-followed-marker-mock]')).toHaveLength(1);
     });
 
     it('a copy the loop appends survives a scene re-render', () => {
