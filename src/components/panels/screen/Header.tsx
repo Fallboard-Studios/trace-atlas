@@ -104,9 +104,9 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
  * The slim header (docs/specs/LAYOUT_REWORK.md §1.1; docs/tasks/LAYOUT_REWORK.md Task 6): one cabinet
  * row beside the power corner, in its static popped facade. On the desk shell, mute and the master
  * volume slider; on the phone shell, the nav menu, mute and the ▾ box that opens the slider in a pop-out,
- * with the well (world line or breadcrumb, scrolling sideways) on a second line under them; once the free
- * band has room for the slider's three boxes, the slider takes the ▾ box's place (Crawford, 2026-10-11: the
- * phone's bottom bar moved up here, right-aligned beside the power corner). The slide
+ * under the well (world line or breadcrumb, scrolling sideways) along the top of the app, the panel pinned
+ * to the left; once the free band has room for the slider's three boxes, the slider takes the ▾ box's place
+ * (Crawford, 2026-10-11: the phone's bottom bar moved up here, beside the power corner). The slide
  * that once moved the row out of the nav panel's way is gone: the phone's nav is a sheet below the top
  * bar and the desk panel never reaches the header, so nothing here moves with the nav.
  *
@@ -189,6 +189,8 @@ function Header() {
          value/state tie-in). See DirectionalPanel.tsx's own comment and
          docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       {shell === 'phone' && <span ref={rulerRef} className="header__ruler" aria-hidden="true" />}
+      {/* Phone: the well runs along the top of the app, outside the panel (Crawford, 2026-10-11). */}
+      {shell === 'phone' && <PhoneWell />}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
         <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>
           <div className="header__controls">
@@ -209,7 +211,6 @@ function Header() {
             </Toggle>
             {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
           </div>
-          {shell === 'phone' && <PhoneWell />}
         </div>
       </CabinetBox>
     </header>

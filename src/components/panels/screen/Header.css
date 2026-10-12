@@ -60,16 +60,22 @@
   pointer-events: all;
 }
 
-/* ---------- Phone: the controls on a first line, the well on a second, all at the right ----------
+/* ---------- Phone: the well along the top, the controls panel under it, pinned left ----------
    (Crawford, 2026-10-11: the bottom bar moved up beside the power corner, which is hardware and cannot
-   move; everything stays right-aligned so the band blocks as little of the world as it can.) The header is
-   right-anchored and its facade hugs the row, so the band is as wide as its controls line and no wider: the
-   well adds no width of its own (below). The corner is as tall as the two lines, so the band costs the
-   content no more room than the corner already did (--top-bar-bottom). */
-.header__row--phone {
+   move.) The header stacks two things: the well, across the free band left of the corner, and under it
+   the cabinet panel holding the menu, mute and the volume box or slider, which hugs its content at the
+   left. The corner is as tall as the two together, so the band costs the content no more room than the
+   corner already did (--top-bar-bottom). */
+.header--phone {
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   gap: var(--header-row-gap);
+}
+
+/* The panel's own padding is the plain pair, not the desk's corner reserve: the corner is beside the
+   well, not under the panel, which stops short of it (Header.tsx's ruler checks it fits). */
+.header--phone .header__row {
+  padding: var(--spacing-sm) var(--spacing-md);
 }
 
 /* The controls line: the menu (phone only), mute, and the ▾ box or the slider. */
@@ -97,11 +103,12 @@
 /* A readout, so a well (spec §1.1: in = read): the sketch's glow glass in index.css's well tokens, an
    inner shadow in the header's accent. It reads the world line on the Deck (MetaBox.tsx's WorldLine) and
    the breadcrumb elsewhere (NavBreadcrumb's bar variant), both inline, and shows all of it: one line that
-   scrolls sideways when it is longer than the band. Inline-size containment gives it no intrinsic width,
-   so a long line widens nothing: the band stays the controls line's width and the well fills it. A block,
-   not a flex row: the line-height centres the text. */
+   scrolls sideways when it is longer than the band. It spans the free band, from the left margin to the
+   corner's reserve, and takes presses back from the header (pointer-events: none) so it can be scrolled
+   and its breadcrumb ancestors can be pressed. A block, not a flex row: the line-height centres the text. */
 .header__well {
-  contain: inline-size;
+  align-self: stretch;
+  margin: 0 calc(var(--power-corner-width) + var(--spacing-md)) 0 var(--spacing-md);
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -118,6 +125,7 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-label-compact);
   letter-spacing: 0.03em;
+  pointer-events: auto;
 }
 
 /* Toggle.css's .sc-toggle is width: 100% and an inline-size container, written for a toggle in its own

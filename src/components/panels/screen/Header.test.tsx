@@ -370,25 +370,26 @@ describe('Header', () => {
     });
   });
 
-  // Crawford, 2026-10-11: on the phone the menu and the well move up from the bottom bar into the header's
-  // band, left of the power corner: the menu first on the controls row, mute and the volume box after it,
-  // and the well on a second row under them.
-  describe('phone shell: the menu and the well share the header band', () => {
+  // Crawford, 2026-10-11: on the phone the well runs along the top of the app, outside the panel; under it,
+  // pinned to the left, is the panel holding the menu, mute and the volume box (or the slider).
+  describe('phone shell: the well along the top, the controls panel under it', () => {
     beforeEach(() => stubShell(false));
 
     const row = (container: HTMLElement) => container.querySelector<HTMLElement>('.header__row')!;
     const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-    it('puts the nav menu first in the row, then mute, then the volume box, then the well', () => {
+    it('puts the well first, outside the panel, then the panel with the menu, mute and the volume box in order', () => {
       const { container } = render(<Header />);
       const menu = within(row(container)).getByRole('switch', { name: labels('nav.toggle').humanLabel });
       const mute = within(row(container)).getByRole('switch', { name: /mute/i });
       const volume = within(row(container)).getByRole('button', { name: VOLUME_NAME });
-      const well = row(container).querySelector('.header__well')!;
+      const well = container.querySelector('.header__well')!;
       expect(well).not.toBeNull();
+      expect(row(container).contains(well)).toBe(false);
+      expect(container.querySelector('.sc-cabinet-box')!.contains(well)).toBe(false);
+      expect(follows(well, menu)).toBe(true);
       expect(follows(menu, mute)).toBe(true);
       expect(follows(mute, volume)).toBe(true);
-      expect(follows(volume, well)).toBe(true);
       expect(row(container).classList.contains('header__row--phone')).toBe(true);
     });
 
@@ -724,29 +725,35 @@ describe('Header.css — one row beside the power corner', () => {
     );
   });
 
-  // Crawford, 2026-10-11: the band is right-aligned and hugs its content, so it covers as little of the
-  // screen as it can. The header is right-anchored (justify-content: flex-end), so the facade needs no width
-  // of its own; the phone row stacks the controls line over the well.
-  it('the phone band hugs its content at the right: no width of its own, and the row stacks its two lines', () => {
-    expect(getCssRuleBody(css, '.header')).toContain('justify-content: flex-end;');
-    expect(css).not.toContain('.header--phone');
-    expect(getCssRuleBody(css, '.header__row--phone')).toContain('flex-direction: column;');
+  // Crawford, 2026-10-11: the header stacks the well over the panel on the phone, the panel pinned to the
+  // left; the well spans the free band left of the power corner and takes presses back (it scrolls).
+  it('the phone header stacks the well over a left-pinned panel', () => {
+    const header = getCssRuleBody(css, '.header--phone');
+    expect(header).toContain('flex-direction: column;');
+    expect(header).toContain('align-items: flex-start;');
+    expect(getCssRuleBody(css, '.header--phone .header__row')).toContain('padding: var(--spacing-sm) var(--spacing-md);');
     expect(getCssRuleBody(css, '.header__controls')).toContain('display: flex;');
   });
 
-  // The well holds all the info and scrolls sideways: it contributes no width of its own to the band
-  // (inline-size containment), so a long line cannot widen the band; the overflow scrolls instead.
-  it('the well scrolls sideways, never truncates, and adds no width to the band', () => {
+  // The well holds all the info and scrolls sideways, across the free band left of the power corner.
+  it('the well scrolls sideways and never truncates, between the left margin and the power corner', () => {
     const body = getCssRuleBody(css, '.header__well');
     expect(body).not.toBeNull();
-    for (const declaration of ['overflow-x: auto;', 'white-space: nowrap;', 'contain: inline-size;', 'min-width: 0;']) {
+    for (const declaration of [
+      'align-self: stretch;',
+      'overflow-x: auto;',
+      'white-space: nowrap;',
+      'min-width: 0;',
+      'pointer-events: auto;',
+      'margin: 0 calc(var(--power-corner-width) + var(--spacing-md)) 0 var(--spacing-md);',
+    ]) {
       expect(body).toContain(declaration);
     }
     expect(body).not.toContain('text-overflow');
   });
 
   // The ruler mirrors the room left of the power corner, so what the observer reports is what the controls
-  // line has: the row's left padding and the corner's reserve, the same two the row's own padding uses.
+  // line has: the panel's left padding, to the corner's reserve; the panel's own two paddings are the rest.
   it('the ruler is an empty, invisible box spanning the free band left of the power corner', () => {
     const body = getCssRuleBody(css, '.header__ruler');
     expect(body).not.toBeNull();
