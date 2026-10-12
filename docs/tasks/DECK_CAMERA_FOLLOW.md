@@ -428,13 +428,14 @@ forced transition.
 
 **Acceptance criteria:**
 - [ ] Pass: median idle busy and Paint within each build's round-to-round spread, no worse than the
-      shipped phase's Checkpoint A/Task 11 numbers (docs/PERFORMANCE.md).
-- [ ] The continuous-tracking round is recorded, not gated (same convention as the shipped phase's
+      shipped phase's Checkpoint A/Task 11 numbers (docs/PERFORMANCE.md). **MISSED**: busy +23 %
+      (1265 → 1551 ms); Paint held; accepted by Crawford 2026-10-11, not explained.
+- [x] The continuous-tracking round is recorded, not gated (same convention as the shipped phase's
       forced-cut round).
-- [ ] Recorded in PERFORMANCE.md under "Deck Camera Follow — the Task 10 perf gate (Phase 46)".
+- [x] Recorded in PERFORMANCE.md under "Deck Camera Follow — the Task 10 perf gate (Phase 46)".
 
 **Verification:**
-- [ ] **Stop and report** the numbers before any change.
+- [x] **Stop and report** the numbers before any change.
 
 **Dependencies:** Checkpoint B.
 
@@ -450,12 +451,14 @@ untouched long enough to see at least one full follow→cooldown→pick cycle. T
 as Checkpoint B, on the phone.
 
 **Acceptance criteria:**
-- [ ] Underruns on the branch within the run-to-run spread already recorded for 17.2.6.
-- [ ] Crawford signs off the walk, or names the change (the follow/cooldown durations and the
-      battery threshold are the likely ones; each is one constant from Task 4).
+- [ ] Underruns on the branch within the run-to-run spread already recorded for 17.2.6. **Not
+      measured**: no A/B counts were captured; Crawford reports the Pixel running great (2026-10-11).
+- [x] Crawford signs off the walk, or names the change (the follow/cooldown durations and the
+      battery threshold are the likely ones; each is one constant from Task 4). Signed off verbally,
+      no change named.
 
 **Verification:**
-- [ ] Manual (Crawford). **Stop and report.**
+- [x] Manual (Crawford). **Stop and report.**
 
 **Dependencies:** Task 10.
 

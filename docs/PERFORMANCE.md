@@ -1549,6 +1549,20 @@ cost. One sample each; no 30 s repeat.
 **Verdict: the idle-busy criterion is not met as measured** (busy +23 % outside the spread); Paint holds. Reported,
 not waved through. Crawford's call: accept given the 30 s result, or isolate the in-window cost first.
 
+## Deck Camera Follow — the Task 11 Pixel check (Phase 46)
+
+Gate ([docs/tasks/DECK_CAMERA_FOLLOW.md](tasks/DECK_CAMERA_FOLLOW.md) Task 11): Pixel underrun A/B, `main` against the
+branch, then the §5.3 walk on the phone.
+
+**Not run as specified.** The three two-minute `?debug` listens per build were not captured, so there is **no
+underrun table** for this phase and nothing to compare against the 17.2.6 spread. What exists is Crawford's
+report (2026-10-11), after the Task 10 gate: the Pixel "has been running great lately" with the deck camera on
+the branch. That is an observation, not a measurement; it does not show underruns within the 17.2.6 spread.
+
+**Sign-off:** given verbally by Crawford on that basis; no constant (follow/cooldown durations, battery threshold)
+was re-tuned. The Task 10 idle-busy miss (+23 % in the 6 s window, no gap over 30 s) therefore stands as accepted,
+not explained. Re-measure with the `?debug` overlay if audio trouble appears on this feature.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
