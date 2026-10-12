@@ -13,7 +13,7 @@
    header, and the nav sheet ran 9 px under it at 320 px. --header-height is Header's own measure
    (Header.tsx); 0 until the first measure, when the corner holds the edge. */
 #screen-viewport {
-  --header-top: 20px;
+  --header-top: var(--spacing-xl);
   --top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height));
 }
 

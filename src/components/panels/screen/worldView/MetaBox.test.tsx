@@ -252,10 +252,23 @@ describe('MetaBox.css — the glow-glass well at the top of the Deck, right of t
     expect(box).toContain('pointer-events: none;');
   });
 
-  it('holds one line, cut short with an ellipsis rather than wrapping or overflowing the screen', () => {
+  // Crawford, 2026-10-12: above 768 px the one-line box ran into the volume bar; it wraps instead of being cut
+  // short. Its max-width still stops it short of the nav and the header.
+  it('wraps rather than cutting its text short, inside the max-width that keeps it off the header', () => {
     const box = getCssRuleBody(css, '.meta-box');
-    for (const d of ['white-space: nowrap;', 'overflow: hidden;', 'text-overflow: ellipsis;']) expect(box).toContain(d);
+    expect(box).not.toMatch(/white-space:\s*nowrap/);
+    expect(box).not.toContain('text-overflow');
+    expect(box).not.toMatch(/overflow:\s*hidden/);
     expect(declaration(box, 'max-width')).toMatch(/var\(--nav-panel-width\)/);
+  });
+
+  // Adjacent inline spans with no space between them offer no place to break, so the fields are inline-blocks:
+  // each wraps whole onto the next line, and the gap between them is a right margin that a wrapped line drops.
+  it('lets the three fields wrap whole, spaced by a right margin rather than a left one', () => {
+    const field = getCssRuleBody(css, '.world-line__field');
+    expect(field).toContain('display: inline-block;');
+    expect(declaration(getCssRuleBody(css, '.world-line__field:not(:last-child)'), 'margin-right')).toBe('var(--spacing-md)');
+    expect(css).not.toContain('.world-line__field + .world-line__field');
   });
 });
 
