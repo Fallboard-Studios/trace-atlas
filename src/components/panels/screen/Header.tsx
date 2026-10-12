@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import * as Popover from '@radix-ui/react-popover';
 
 import { useShell } from './useShell';
+import { PhoneMenu, PhoneWell } from './PhoneBar';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle, CABINET_TOGGLE_BOX_SIZE } from '@/components/ui/controls/Toggle';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -93,7 +94,9 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
 /**
  * The slim header (docs/specs/LAYOUT_REWORK.md §1.1; docs/tasks/LAYOUT_REWORK.md Task 6): one cabinet
  * row beside the power corner, in its static popped facade. On the desk shell, mute and the master
- * volume slider; on the phone shell, mute and the ▾ box that opens the slider in a pop-out. The slide
+ * volume slider; on the phone shell, the nav menu, mute and the ▾ box that opens the slider in a pop-out,
+ * with the well (world line or breadcrumb) on a second line under them (Crawford, 2026-10-11: the phone's
+ * bottom bar moved up here, left of the power corner). The slide
  * that once moved the row out of the nav panel's way is gone: the phone's nav is a sheet below the top
  * bar and the desk panel never reaches the header, so nothing here moves with the nav.
  *
@@ -153,14 +156,15 @@ function Header() {
   );
 
   return (
-    <header ref={headerRef} className="header" style={HEADER_STYLE}>
+    <header ref={headerRef} className={shell === 'phone' ? 'header header--phone' : 'header'} style={HEADER_STYLE}>
       {/* Oblique Cabinetry facade — decorative only, matching
          DirectionalPanel's own top-level facade (permanently popped,
          non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
          value/state tie-in). See DirectionalPanel.tsx's own comment and
          docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
-        <div ref={rowRef} className="header__row">
+        <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>
+          {shell === 'phone' && <PhoneMenu />}
           <Toggle
             schema={MUTE_SCHEMA}
             value={isMuted}
@@ -176,6 +180,7 @@ function Header() {
             <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
           </Toggle>
           {shell === 'desk' ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
+          {shell === 'phone' && <PhoneWell />}
         </div>
       </CabinetBox>
     </header>

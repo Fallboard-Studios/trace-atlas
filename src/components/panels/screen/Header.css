@@ -60,8 +60,56 @@
   pointer-events: all;
 }
 
+/* ---------- Phone: the menu, mute and the volume box on a first line, the well on a second ----------
+   (Crawford, 2026-10-11: the bottom bar moved up beside the power corner, which is hardware and cannot
+   move). The corner is as tall as the two lines, so the band costs the content no more room than the
+   corner already did (--top-bar-bottom). The facade fills the screen's width so the row's right
+   padding, the corner's reserve, reaches the corner; the controls sit at the left, and the well takes
+   the whole second line of what is left. */
+.header--phone > .sc-cabinet-box {
+  width: 100%;
+}
+
+.header--phone > .sc-cabinet-box > .sc-cabinet-box__front {
+  width: 100%;
+}
+
+.header--phone .header__row {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.header__row--phone {
+  flex-wrap: wrap;
+}
+
+/* A readout, so a well (spec §1.1: in = read): the sketch's glow glass in index.css's well tokens, an
+   inner shadow in the header's accent. It reads the world line on the Deck (MetaBox.tsx's WorldLine) and
+   the breadcrumb elsewhere (NavBreadcrumb's bar variant), both inline. A full line of its own that may
+   shrink to nothing: one line, cut short with an ellipsis, so nothing overflows at 320 px. A block, not a
+   flex row: text-overflow only cuts a block's own inline content, so the line-height centres the text. */
+.header__well {
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+  height: var(--spacing-2xl);
+  line-height: calc(var(--spacing-2xl) - 2px);
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-accent);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label-compact);
+  letter-spacing: 0.03em;
+}
+
 /* Toggle.css's .sc-toggle is width: 100% and an inline-size container, written for a toggle in its own
-   labelled row; in this flex row it is just its 44 px box (TempoSyncToggle.css's override). */
+   labelled row; in this flex row it is just its 44 px box (TempoSyncToggle.css's override). The phone's
+   menu is the same Toggle, so this sizes it too. */
 .header__row > .sc-toggle {
   flex: 0 0 auto;
   width: auto;

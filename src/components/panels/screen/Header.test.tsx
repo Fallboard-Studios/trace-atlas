@@ -356,6 +356,58 @@ describe('Header', () => {
       expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
       expect(container.querySelector('.header__volume-popover')).toBeNull();
     });
+
+    it('carries no nav menu and no well: the desk has the nav panel, the meta box and the breadcrumb', () => {
+      const { container } = render(<Header />);
+      expect(screen.queryByRole('switch', { name: labels('nav.toggle').humanLabel })).toBeNull();
+      expect(container.querySelector('.header__well')).toBeNull();
+      expect(container.querySelector('.header__row--phone')).toBeNull();
+    });
+  });
+
+  // Crawford, 2026-10-11: on the phone the menu and the well move up from the bottom bar into the header's
+  // band, left of the power corner: the menu first on the controls row, mute and the volume box after it,
+  // and the well on a second row under them.
+  describe('phone shell: the menu and the well share the header band', () => {
+    beforeEach(() => stubShell(false));
+
+    const row = (container: HTMLElement) => container.querySelector<HTMLElement>('.header__row')!;
+    const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it('puts the nav menu first in the row, then mute, then the volume box, then the well', () => {
+      const { container } = render(<Header />);
+      const menu = within(row(container)).getByRole('switch', { name: labels('nav.toggle').humanLabel });
+      const mute = within(row(container)).getByRole('switch', { name: /mute/i });
+      const volume = within(row(container)).getByRole('button', { name: VOLUME_NAME });
+      const well = row(container).querySelector('.header__well')!;
+      expect(well).not.toBeNull();
+      expect(follows(menu, mute)).toBe(true);
+      expect(follows(mute, volume)).toBe(true);
+      expect(follows(volume, well)).toBe(true);
+      expect(row(container).classList.contains('header__row--phone')).toBe(true);
+    });
+
+    it('keeps the menu and mute reachable: both are 44 px touch targets in the controls row', () => {
+      const { container } = render(<Header />);
+      for (const sw of within(row(container)).getAllByRole('switch')) {
+        expect(sw.style.getPropertyValue('--cabinet-toggle-box-size')).toBe('44px');
+      }
+    });
+
+    it('the menu opens the nav sheet, and the well reads the world line on the Deck', () => {
+      const { container } = render(<Header />);
+      fireEvent.click(within(row(container)).getByRole('switch', { name: labels('nav.toggle').humanLabel }));
+      expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+      useUIStore.setState({ isNavPanelOpen: false });
+    });
+
+    it('the world line shows in the well on the Deck; a branch shows the breadcrumb there', () => {
+      const { container } = render(<Header />);
+      expect(container.querySelector('.header__well .world-line')).not.toBeNull();
+      act(() => useUIStore.setState({ activeHubTile: 'settings' }));
+      expect(container.querySelector('.header__well .world-line')).toBeNull();
+      expect(container.querySelector('.header__well [role="navigation"]')).not.toBeNull();
+    });
   });
 
   // Crawford, 2026-10-09: "Volume box beside mute" — mute stays one press, and a ▾ box beside it opens
@@ -598,6 +650,40 @@ describe('Header.css — one row beside the power corner', () => {
     expect(getCssRuleBody(css, ".header__volume-trigger[data-state='open'] .sc-cabinet-box__front")).toContain(
       'background: var(--color-accent-gradient);',
     );
+  });
+
+  // Crawford, 2026-10-11: on the phone the row wraps to two lines. The controls fill the first; the well is
+  // its own full-width second line, left of the power corner (the row's right padding keeps the corner clear).
+  it('the phone row wraps, and fills the screen so its right padding reaches the power corner', () => {
+    const body = getCssRuleBody(css, '.header__row--phone');
+    expect(body).toContain('flex-wrap: wrap;');
+    expect(getCssRuleBody(css, '.header--phone > .sc-cabinet-box')).toContain('width: 100%;');
+    expect(getCssRuleBody(css, '.header--phone > .sc-cabinet-box > .sc-cabinet-box__front')).toContain('width: 100%;');
+    expect(getCssRuleBody(css, '.header--phone .header__row')).toContain('width: 100%;');
+  });
+
+  it('the well takes a full line of its own and can shrink to nothing, cutting its one line short with an ellipsis', () => {
+    const body = getCssRuleBody(css, '.header__well');
+    expect(body).not.toBeNull();
+    for (const declaration of ['flex: 1 0 100%;', 'min-width: 0;', 'overflow: hidden;', 'text-overflow: ellipsis;', 'white-space: nowrap;']) {
+      expect(body).toContain(declaration);
+    }
+  });
+
+  it('the well wears the shared well tokens (index.css), as the meta box and the breadcrumb do', () => {
+    const body = getCssRuleBody(css, '.header__well');
+    expect(body).toContain('background: var(--well-background);');
+    expect(body).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
+  });
+
+  // Toggle.css makes .sc-toggle width: 100% and an inline-size container; the existing .header__row > .sc-toggle
+  // override already sizes the menu to its 44 px box, so the menu needs no rule of its own.
+  it('the menu is sized by the same row rule as mute', () => {
+    expect(getCssRuleBody(css, '.header__row > .sc-toggle')).toContain('width: auto;');
+  });
+
+  it('the phone band leaves the bottom alone: no bar, no bottom clearance variable', () => {
+    expect(css).not.toMatch(/phone-bar-/);
   });
 
   it('the pop-out takes pointer events back from the header, which lets presses through to the world', () => {

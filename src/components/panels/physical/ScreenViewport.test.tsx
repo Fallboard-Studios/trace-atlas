@@ -29,20 +29,17 @@ vi.mock('@/components/panels/screen/nav/NavPanel', () => ({
 vi.mock('@/components/panels/screen/nav/NavBreadcrumb', () => ({
   default: () => <div data-testid="nav-breadcrumb-stub" />,
 }));
-vi.mock('@/components/panels/screen/PhoneBar', () => ({
-  default: () => <div data-testid="phone-bar-stub" />,
-}));
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 9 (spec §1.1): the shell after the tree — Header, WorldView (which
  * carries the meta box), the one nav panel (the phone's sheet inside it), the content surface, the
- * breadcrumb (desk) and the phone bar (each renders only on its shell). The nav tree is deleted.
+ * and the breadcrumb (desk). The phone menu and well ride in Header (2026-10-11). The nav tree is deleted.
  */
 
-const COMPOSITION = ['header-stub', 'world-view-stub', 'nav-panel-stub', 'content-pane-stub', 'nav-breadcrumb-stub', 'phone-bar-stub'];
+const COMPOSITION = ['header-stub', 'world-view-stub', 'nav-panel-stub', 'content-pane-stub', 'nav-breadcrumb-stub'];
 
 describe('ScreenViewport', () => {
-  it('renders Header, WorldView, NavPanel, ContentPane, NavBreadcrumb and PhoneBar when powered on, and nothing else', () => {
+  it('renders Header, WorldView, NavPanel, ContentPane, and NavBreadcrumb when powered on, and nothing else', () => {
     const { container } = render(<ScreenViewport isPoweredOn={true} />);
     const children = Array.from(container.querySelector('.screen-content')!.children);
     expect(children.map((child) => child.getAttribute('data-testid'))).toEqual(COMPOSITION);
@@ -82,7 +79,7 @@ describe('ScreenViewport', () => {
   });
 
   // The shell reaches CSS here, from the one switch (useShell), so a stylesheet never needs a media query
-  // of its own to tell the phone from the desk (ContentPane.css stops above PhoneBar on the phone).
+  // of its own to tell the phone from the desk .
   it.each([
     [true, 'desk'],
     [false, 'phone'],
