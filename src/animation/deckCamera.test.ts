@@ -14,6 +14,8 @@ import {
   moveCameraTo,
   undockedRobotIds,
   pick,
+  getFollowedRobotId,
+  subscribeFollowedRobot,
   __deckCameraStateForTest,
   __resetDeckCameraForTest,
 } from './deckCamera';
@@ -860,6 +862,130 @@ describe('deckCamera', () => {
         now.mockReturnValue(1000 + FOLLOW + COOLDOWN);
         tick();
         expect(gsap.timeline).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('the followed robot (the world-view indicator reads it)', () => {
+      it('is null at boot', () => {
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('names the picked robot as soon as the float to it begins, and keeps naming it once it lands', () => {
+        tick();
+        expect(getFollowedRobotId()).toBe('beta');
+
+        (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+        expect(getFollowedRobotId()).toBe('beta');
+      });
+
+      it('notifies subscribers once when the float begins and not again when it lands', () => {
+        const listener = vi.fn();
+        subscribeFollowedRobot(listener);
+
+        tick();
+        (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+
+        expect(listener).toHaveBeenCalledTimes(1);
+      });
+
+      it('reads the new value from inside the notification', () => {
+        const seen: Array<string | null> = [];
+        subscribeFollowedRobot(() => seen.push(getFollowedRobotId()));
+
+        startFollowingBeta();
+        now.mockReturnValue(1000 + FOLLOW);
+        tick();
+
+        expect(seen).toEqual(['beta', null]);
+      });
+
+      it('clears when the follow times out', () => {
+        startFollowingBeta();
+        now.mockReturnValue(1000 + FOLLOW - 1);
+        tick();
+        expect(getFollowedRobotId()).toBe('beta');
+
+        now.mockReturnValue(1000 + FOLLOW);
+        tick();
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('clears when the subject docks', () => {
+        startFollowingBeta();
+        setDocking('beta', DockingState.Docked);
+
+        tick();
+
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it.each(['pointerdown', 'touchstart', 'wheel'])('clears on %s, mid-float or mid-follow', (type) => {
+        tick();
+        fake.dispatchEvent({ type });
+        expect(getFollowedRobotId()).toBeNull();
+
+        fake.dispatchEvent({ type: 'pointerup' });
+        now.mockReturnValue(1000 + COOLDOWN);
+        startFollowingBeta();
+        expect(getFollowedRobotId()).toBe('beta');
+        fake.dispatchEvent({ type });
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('clears when the float is interrupted', () => {
+        tick();
+
+        (lastToVars(lastCreatedTimeline()).onInterrupt as () => void)();
+
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('clears when the scroller is unregistered or swapped', () => {
+        tick();
+        registerDeckScroller(makeFakeScroller() as unknown as HTMLElement);
+        expect(getFollowedRobotId()).toBeNull();
+
+        tick();
+        expect(getFollowedRobotId()).toBe('beta');
+        registerDeckScroller(null);
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('does not notify when nothing changes', () => {
+        const listener = vi.fn();
+        subscribeFollowedRobot(listener);
+
+        fake.dispatchEvent({ type: 'pointerdown' });
+        fake.dispatchEvent({ type: 'pointerup' });
+        fake.dispatchEvent({ type: 'wheel' });
+
+        expect(listener).not.toHaveBeenCalled();
+      });
+
+      it('stops notifying a subscriber once it unsubscribes, leaving the others', () => {
+        const gone = vi.fn();
+        const kept = vi.fn();
+        const unsubscribe = subscribeFollowedRobot(gone);
+        subscribeFollowedRobot(kept);
+        unsubscribe();
+
+        tick();
+
+        expect(gone).not.toHaveBeenCalled();
+        expect(kept).toHaveBeenCalledTimes(1);
+      });
+
+      it('the reset helper clears the followed robot and every subscriber', () => {
+        const listener = vi.fn();
+        subscribeFollowedRobot(listener);
+        tick();
+        listener.mockClear();
+
+        __resetDeckCameraForTest();
+        expect(getFollowedRobotId()).toBeNull();
+
+        tick(); // handler is still on the fake ticker; the reset must have dropped the subscriber
+        expect(listener).not.toHaveBeenCalled();
       });
     });
 

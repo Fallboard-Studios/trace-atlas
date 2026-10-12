@@ -52,10 +52,23 @@ let followStartedAt = 0;
 let currentFloat: number | null = null;
 let floatCount = 0;
 
+/** The robot the camera is floating to or following, for the world view's indicator. Unlike
+ *  `subjectId` it is set when the float begins, so the marker appears as the camera heads there. */
+let followedId: string | null = null;
+const followedListeners = new Set<() => void>();
+
+/** Names the followed robot (or none) and tells subscribers, only if it changed. */
+function setFollowed(id: string | null): void {
+  if (followedId === id) return;
+  followedId = id;
+  followedListeners.forEach((listener) => listener());
+}
+
 /** Drops whatever the camera was doing on its own: the float in flight and the followed robot. */
 function cancelAutomaticMotion(): void {
   currentFloat = null;
   subjectId = null;
+  setFollowed(null);
 }
 
 /** Touch or pointer down: freeze the camera where it is. */
@@ -112,6 +125,19 @@ export function registerDeckScroller(el: HTMLElement | null): void {
     for (const [type, handler] of LISTENERS) scroller.addEventListener(type, handler);
     gsap.ticker.add(tick);
   }
+}
+
+/** The id of the robot the camera is floating to or following, or null. For `useSyncExternalStore`. */
+export function getFollowedRobotId(): string | null {
+  return followedId;
+}
+
+/** Calls `listener` whenever the followed robot changes; returns the unsubscribe. */
+export function subscribeFollowedRobot(listener: () => void): () => void {
+  followedListeners.add(listener);
+  return () => {
+    followedListeners.delete(listener);
+  };
 }
 
 /**
@@ -178,6 +204,7 @@ function createCameraTween(x: number, robotId: string): void {
   const duration = prefersReducedMotion() ? 0 : DECK_CAMERA_PAN_S;
   const float = ++floatCount;
   currentFloat = float;
+  setFollowed(robotId);
   const tl = gsap.timeline({ paused: true });
   tl.to(scroller, {
     scrollTo: { x, autoKill: true },
@@ -193,6 +220,7 @@ function createCameraTween(x: number, robotId: string): void {
     onInterrupt: () => {
       if (currentFloat !== float) return;
       currentFloat = null;
+      setFollowed(null);
       cooldownStartedAt = performance.now();
     },
     // power1.inOut, not power2 (too sharp at the spec's 0.8s, read as a snap) or sine (too flat
@@ -217,6 +245,7 @@ export function moveCameraTo(robotId: string): boolean {
 function endFollow(now: number): void {
   killTimeline(DECK_CAMERA_TIMELINE_ID);
   subjectId = null;
+  setFollowed(null);
   cooldownStartedAt = now;
 }
 
@@ -261,5 +290,6 @@ export function __deckCameraStateForTest(): { held: boolean; cooldownStartedAt: 
 export function __resetDeckCameraForTest(): void {
   held = false;
   cooldownStartedAt = -Infinity;
+  followedListeners.clear();
   cancelAutomaticMotion();
 }
