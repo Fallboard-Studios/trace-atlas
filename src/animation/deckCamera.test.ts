@@ -74,16 +74,10 @@ vi.mock('gsap/ScrollToPlugin', () => ({ ScrollToPlugin: {} }));
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const here = dirname(fileURLToPath(import.meta.url));
 
-interface FakeScrollerStyle {
-  scrollSnapType: string;
-  removeProperty: ReturnType<typeof vi.fn>;
-}
-
 interface FakeScroller {
   scrollWidth: number;
   clientWidth: number;
   scrollLeft: number;
-  style: FakeScrollerStyle;
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
   dispatchEvent: ReturnType<typeof vi.fn>;
@@ -91,22 +85,13 @@ interface FakeScroller {
 
 /** The fake scroller object Task 6's spec calls for: `{ scrollWidth, clientWidth, scrollLeft,
  *  addEventListener, removeEventListener, dispatchEvent }`, with a working listener registry so
- *  `dispatchEvent` actually reaches what `registerDeckScroller` attached. `style` is a minimal
- *  stand-in for CSSStyleDeclaration (post-ship follow-up: the camera forces scroll-snap-type off
- *  after its own tween, so real DOM style assignment/removal needs to be observable in tests). */
+ *  `dispatchEvent` actually reaches what `registerDeckScroller` attached. */
 function makeFakeScroller(scrollWidth = 3840, clientWidth = 375, scrollLeft = 0): FakeScroller {
   const listeners = new Map<string, Set<(e: { type: string }) => void>>();
-  const style: FakeScrollerStyle = {
-    scrollSnapType: '',
-    removeProperty: vi.fn((prop: string) => {
-      if (prop === 'scroll-snap-type') style.scrollSnapType = '';
-    }),
-  };
   return {
     scrollWidth,
     clientWidth,
     scrollLeft,
-    style,
     addEventListener: vi.fn((type: string, fn: (e: { type: string }) => void) => {
       if (!listeners.has(type)) listeners.set(type, new Set());
       listeners.get(type)!.add(fn);
@@ -421,81 +406,6 @@ describe('deckCamera', () => {
       const [, vars] = tl.to.mock.calls[0];
       expect(vars.scrollTo).toEqual({ x: 1732.5, autoKill: true });
       expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBe(tl as never);
-    });
-  });
-
-  describe('scroll-snap suppression after a camera move (post-ship follow-up)', () => {
-    // Root cause (found reading node_modules/gsap/src/ScrollToPlugin.js): ScrollToPlugin disables
-    // scroll-snap-type on the target for the duration of its own tween (to avoid fighting it), then
-    // restores the original value at the very end via a scrollLeft nudge. Our five quarter-stage
-    // snap marks have no relation to a robot's position, so restoring `x proximity` at an
-    // off-mark landing lets the browser "correct" it — a pan that visibly finishes, then an
-    // instant, unrequested shift. The camera now re-forces snap off itself after every tween and
-    // only lets a real user gesture turn it back on.
-    // The gap this closes: GSAP's ScrollToPlugin only disables-then-restores scroll-snap-type for
-    // a tween if it finds snap ALREADY on at init() time. Suppressing only reactively (onComplete)
-    // left the very FIRST tween of a session unprotected -- nothing had set it to 'none' yet, so
-    // GSAP's own init->disable->restore dance ran for that one tween exactly where the race lives,
-    // and never again afterward (every later tween's init() already finds it off and skips the
-    // dance entirely). Matches what was seen live: only ever the first camera move, deterministically.
-    it('forces scroll-snap-type off immediately on registration, before any tween ever runs', () => {
-      const fake = makeFakeScroller(3840, 375);
-      fake.style.scrollSnapType = 'x proximity'; // the CSS rule's cascaded value, pre-registration
-
-      registerDeckScroller(fake as unknown as HTMLElement);
-
-      expect(fake.style.scrollSnapType).toBe('none');
-    });
-
-    it('forces scroll-snap-type off once a pan completes', () => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      panDeckCameraTo('alpha');
-      fake.style.scrollSnapType = 'x proximity'; // simulate ScrollToPlugin's own restore
-      (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
-
-      expect(fake.style.scrollSnapType).toBe('none');
-    });
-
-    it('forces scroll-snap-type off on an interrupted move too (autoKill)', () => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      panDeckCameraTo('alpha');
-      fake.style.scrollSnapType = 'x proximity';
-      (lastToVars(lastCreatedTimeline()).onInterrupt as () => void)();
-
-      expect(fake.style.scrollSnapType).toBe('none');
-    });
-
-    it.each(['pointerdown', 'touchstart', 'wheel'])('a real %s gesture clears the forced-off override', (type) => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      panDeckCameraTo('alpha');
-      (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
-      expect(fake.style.scrollSnapType).toBe('none');
-
-      fake.dispatchEvent({ type });
-
-      expect(fake.style.removeProperty).toHaveBeenCalledWith('scroll-snap-type');
-    });
-
-    it('the camera\'s own scroll events (mid-tween) do not clear the override', () => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      panDeckCameraTo('alpha');
-      const vars = lastToVars(lastCreatedTimeline());
-      (vars.onStart as () => void)();
-      fake.dispatchEvent({ type: 'scroll' }); // the tween's own write, cameraScrolling is true
-
-      expect(fake.style.removeProperty).not.toHaveBeenCalled();
     });
   });
 

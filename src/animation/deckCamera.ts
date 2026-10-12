@@ -30,24 +30,10 @@ let lastCutAt = -Infinity;
 let cameraScrolling = false;
 
 /** The scroller's own input listener: a camera tween's own scroll events don't count as the
- *  user asking for something (spec assumption 8); `cameraScrolling` excludes them. A real gesture
- *  also clears the forced-off scroll-snap override below, so native swipe-to-snap resumes. */
+ *  user asking for something (spec assumption 8); `cameraScrolling` excludes them. */
 function handleScrollerInput(): void {
   if (cameraScrolling) return;
   noteDeckUserInput();
-  scroller?.style.removeProperty('scroll-snap-type');
-}
-
-/**
- * Forces scroll-snap-type off on the scroller (root cause: node_modules/gsap/src/ScrollToPlugin.js
- * disables scroll-snap-type for the duration of its own tween to avoid fighting it, then restores
- * the original value at the end via a scrollLeft nudge; our quarter-stage snap marks have no
- * relation to a robot's position, so restoring it at an off-mark landing let the browser visibly
- * "correct" the camera a moment after it had already settled). Re-forced after every camera move;
- * cleared only by a real user gesture (handleScrollerInput above).
- */
-function suppressScrollSnap(): void {
-  if (scroller) scroller.style.scrollSnapType = 'none';
 }
 
 // ========================================
@@ -67,11 +53,7 @@ export function isDeckCameraIdle(now = performance.now()): boolean {
 
 /**
  * Remembers (or forgets) the deck's scroll container and attaches/detaches the four user-input
- * listeners that keep the idle clock honest (spec §1.1, §1.2). Also forces scroll-snap off right
- * away: GSAP's ScrollToPlugin only runs its own disable/restore dance for a tween when it finds
- * snap already ON at that tween's start, so suppressing it only reactively (after a move
- * completes) left the very first tween of a session — the one with no prior override yet —
- * exposed to the restore race every time (`suppressScrollSnap`'s doc comment has the full story).
+ * listeners that keep the idle clock honest (spec §1.1, §1.2).
  */
 export function registerDeckScroller(el: HTMLElement | null): void {
   if (scroller) {
@@ -86,7 +68,6 @@ export function registerDeckScroller(el: HTMLElement | null): void {
     scroller.addEventListener('touchstart', handleScrollerInput);
     scroller.addEventListener('wheel', handleScrollerInput);
     scroller.addEventListener('scroll', handleScrollerInput);
-    suppressScrollSnap();
   } else {
     killTimeline(DECK_CAMERA_TIMELINE_ID);
   }
@@ -143,11 +124,9 @@ function createCameraTween(x: number): void {
     },
     onComplete: () => {
       cameraScrolling = false;
-      suppressScrollSnap();
     },
     onInterrupt: () => {
       cameraScrolling = false;
-      suppressScrollSnap();
     },
   });
   setTimeline(DECK_CAMERA_TIMELINE_ID, tl);
