@@ -104,6 +104,10 @@ const LISTENERS: ReadonlyArray<readonly [string, () => void]> = [
   ['wheel', handleWheel],
   ['pointerup', handleRelease],
   ['touchend', handleRelease],
+  // A cancelled touch (system gesture, notification, rotation) never sends an up event; without
+  // these `held` would stay true and freeze the camera until the scroller is re-registered.
+  ['pointercancel', handleRelease],
+  ['touchcancel', handleRelease],
 ];
 
 // ========================================
@@ -111,8 +115,8 @@ const LISTENERS: ReadonlyArray<readonly [string, () => void]> = [
 // ========================================
 
 /**
- * Remembers (or forgets) the deck's scroll container and attaches/detaches the five user-input
- * listeners. There is no `scroll` listener: with touch and release as the only "the user did
+ * Remembers (or forgets) the deck's scroll container and attaches/detaches the seven user-input
+ * listeners (hold, release, cancel, wheel). There is no `scroll` listener: with touch and release as the only "the user did
  * something" signals, the camera's own `scrollLeft` writes can never be mistaken for one. Changing
  * or dropping the scroller lets go of any hold, since its `pointerup` would never arrive, and
  * drops any float or follow, which belonged to the old scroller. While a scroller is registered a

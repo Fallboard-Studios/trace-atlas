@@ -69,7 +69,7 @@ removal, uncommitted).
    programmatic `scrollLeft` write never fires `pointerdown`, `touchstart` or `wheel`, so once
    those three are the only "the user touched it" signals (assumption 8), nothing can mistake the
    camera's own motion for a touch, and the distinction is no longer needed.
-8. **"Touch" = `pointerdown`/`touchstart`; "release" = `pointerup`/`touchend`; `wheel` has no
+8. **"Touch" = `pointerdown`/`touchstart`; "release" = `pointerup`/`touchend`, or their `pointercancel`/`touchcancel` (added in review: a cancelled touch sends no up event and would leave `held` stuck); `wheel` has no
    separate release**, so a `wheel` event is treated as an instantaneous touch-then-release: kill
    whatever the camera is doing, then immediately start the 8 s cooldown (there is no "held" state
    to wait out for a wheel tick). A real `pointerdown`/`touchstart` enters a held state — the camera

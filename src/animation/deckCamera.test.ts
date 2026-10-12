@@ -189,12 +189,20 @@ describe('deckCamera', () => {
   });
 
   describe('listeners (deck-camera follow, Task 5)', () => {
-    it('attaches pointerdown, touchstart, wheel, pointerup and touchend, and no scroll listener', () => {
+    it('attaches the hold, release and cancel listeners plus wheel, and no scroll listener', () => {
       const fake = makeFakeScroller();
       registerDeckScroller(fake as unknown as HTMLElement);
 
       const types = fake.addEventListener.mock.calls.map(([type]) => type).sort();
-      expect(types).toEqual(['pointerdown', 'pointerup', 'touchend', 'touchstart', 'wheel']);
+      expect(types).toEqual([
+        'pointercancel',
+        'pointerdown',
+        'pointerup',
+        'touchcancel',
+        'touchend',
+        'touchstart',
+        'wheel',
+      ]);
     });
 
     it('detaches exactly the listeners it attached when the scroller is unregistered', () => {
@@ -214,8 +222,8 @@ describe('deckCamera', () => {
       registerDeckScroller(first as unknown as HTMLElement);
       registerDeckScroller(second as unknown as HTMLElement);
 
-      expect(first.removeEventListener).toHaveBeenCalledTimes(5);
-      expect(second.addEventListener).toHaveBeenCalledTimes(5);
+      expect(first.removeEventListener).toHaveBeenCalledTimes(7);
+      expect(second.addEventListener).toHaveBeenCalledTimes(7);
     });
 
     it('registerDeckScroller(null) kills the registered deck-camera timeline', () => {
@@ -278,6 +286,8 @@ describe('deckCamera', () => {
     it.each([
       ['pointerdown', 'pointerup'],
       ['touchstart', 'touchend'],
+      ['pointerdown', 'pointercancel'],
+      ['touchstart', 'touchcancel'],
     ])('%s then %s releases the hold and stamps the cooldown at the release time', (down, up) => {
       const fake = makeFakeScroller();
       registerDeckScroller(fake as unknown as HTMLElement);

@@ -760,7 +760,6 @@ export function next(robotId: string): void {
  * and its next() sends it home. `'active'`: charging, it exits; returning, it turns back (the slot
  * frees with the activity) and goes to work; entering, the arc finishes and turns it back at the
  * port. `'docked'`: nothing — the entry ends in 'charging' on its own.
- *
  */
 export function onLifecycleChange(localeId: string, robotId: string, to: LifecycleChange): void {
   const loop = run;

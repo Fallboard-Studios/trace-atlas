@@ -377,7 +377,7 @@ The module is runtime-only, in the pattern of `timelineMap` and the ref registry
 
 **The three overrides** (all in the same module):
 
-- **Touch and wheel.** `pointerdown`/`touchstart` on the scroller freeze the camera and kill any float in flight; `pointerup`/`touchend` start the cooldown. A `wheel` does both at once. There is no `scroll` listener, so the camera's own writes can never be mistaken for the user.
+- **Touch and wheel.** `pointerdown`/`touchstart` on the scroller freeze the camera and kill any float in flight; `pointerup`/`touchend` (or `pointercancel`/`touchcancel`, so an interrupted touch cannot leave the camera held) start the cooldown. A `wheel` does both at once. There is no `scroll` listener, so the camera's own writes can never be mistaken for the user.
 - **Robot edit-return.** The module subscribes to `uiStore` and remembers the last `selectedRobotId`. When `activeHubTile` goes from set to `null` (the Deck is back), it floats straight to that robot with no cooldown wait, if the robot is still undocked; if it is docked, nothing happens and the loop carries on.
 - **Company edit-return.** The same edge with `selectedCompanyId`: `pick` from that company's undocked members, or from every undocked robot when it has none.
 
