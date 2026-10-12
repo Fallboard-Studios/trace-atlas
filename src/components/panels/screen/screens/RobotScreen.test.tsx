@@ -119,11 +119,11 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
 
 // Task 9: the gem button's click wiring is tested here; the module's own pan/idle/target behaviour
 // has its own suite (deckCamera.test.ts).
-vi.mock('@/animation/deckCamera', () => ({ panDeckCameraTo: vi.fn() }));
+vi.mock('@/animation/deckCamera', () => ({ moveCameraTo: vi.fn() }));
 
 import { RobotScreen } from './RobotScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
-import { panDeckCameraTo } from '@/animation/deckCamera';
+import { moveCameraTo } from '@/animation/deckCamera';
 import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -792,7 +792,7 @@ describe('RobotScreen — the gem is not a camera control (deck-camera follow, T
     selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
     const { container } = render(<RobotScreen />);
     fireEvent.click(container.querySelector('svg.robot-screen__gem')!);
-    expect(panDeckCameraTo).not.toHaveBeenCalled();
+    expect(moveCameraTo).not.toHaveBeenCalled();
   });
 
   it('an unnamed robot gets no pan button either', () => {

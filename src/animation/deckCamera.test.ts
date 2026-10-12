@@ -10,17 +10,15 @@ import gsap from 'gsap';
 
 import {
   registerDeckScroller,
-  noteDeckUserInput,
-  isDeckCameraIdle,
   deckCameraTargetFor,
-  panDeckCameraTo,
-  cutDeckCameraTo,
-  __setDeckCameraScrolling,
+  moveCameraTo,
+  __deckCameraStateForTest,
   __resetDeckCameraForTest,
 } from './deckCamera';
 import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
 import { setRef, clearRefs } from '../utils/refs';
-import { DECK_CAMERA_CUT_COOLDOWN_MS, DECK_CAMERA_IDLE_MS, DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '../constants/deckCamera';
+import { DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '../constants/deckCamera';
+import * as deckCameraModule from './deckCamera';
 
 // ----------------------------------------
 // RECORDING GSAP MOCK
@@ -127,6 +125,7 @@ function lastToVars(tl: RecordingTimeline): Record<string, unknown> {
 }
 
 // ========================================
+// ========================================
 // TESTS
 // ========================================
 describe('deckCamera', () => {
@@ -141,28 +140,13 @@ describe('deckCamera', () => {
     vi.restoreAllMocks();
   });
 
-  describe('isDeckCameraIdle (Task 6)', () => {
-    it('is true before any input has ever been seen', () => {
-      expect(isDeckCameraIdle()).toBe(true);
-    });
-
-    it('is false one ms short of the idle window and true exactly at it', () => {
-      vi.spyOn(performance, 'now').mockReturnValue(1000);
-      noteDeckUserInput();
-      vi.restoreAllMocks();
-
-      expect(isDeckCameraIdle(1000 + 7999)).toBe(false);
-      expect(isDeckCameraIdle(1000 + 8000)).toBe(true);
-    });
-  });
-
-  describe('scroller input listeners (Task 6)', () => {
-    it('attaches pointerdown, touchstart, wheel and scroll on registration', () => {
+  describe('listeners (deck-camera follow, Task 5)', () => {
+    it('attaches pointerdown, touchstart, wheel, pointerup and touchend, and no scroll listener', () => {
       const fake = makeFakeScroller();
       registerDeckScroller(fake as unknown as HTMLElement);
 
-      const types = fake.addEventListener.mock.calls.map(([type]) => type);
-      expect(types.sort()).toEqual(['pointerdown', 'scroll', 'touchstart', 'wheel']);
+      const types = fake.addEventListener.mock.calls.map(([type]) => type).sort();
+      expect(types).toEqual(['pointerdown', 'pointerup', 'touchend', 'touchstart', 'wheel']);
     });
 
     it('detaches exactly the listeners it attached when the scroller is unregistered', () => {
@@ -176,34 +160,21 @@ describe('deckCamera', () => {
       expect(detached).toEqual(attached);
     });
 
-    it.each(['pointerdown', 'touchstart', 'wheel', 'scroll'])('a %s event stamps user input', (type) => {
-      const fake = makeFakeScroller();
-      registerDeckScroller(fake as unknown as HTMLElement);
-      vi.spyOn(performance, 'now').mockReturnValue(5000);
+    it('moves its listeners when a different scroller is registered', () => {
+      const first = makeFakeScroller();
+      const second = makeFakeScroller();
+      registerDeckScroller(first as unknown as HTMLElement);
+      registerDeckScroller(second as unknown as HTMLElement);
 
-      fake.dispatchEvent({ type });
-
-      expect(isDeckCameraIdle(5000 + 7999)).toBe(false);
-      expect(isDeckCameraIdle(5000 + 8000)).toBe(true);
-    });
-
-    it('ignores a scroll event while the camera is mid-tween', () => {
-      const fake = makeFakeScroller();
-      registerDeckScroller(fake as unknown as HTMLElement);
-      __setDeckCameraScrolling(true);
-      vi.spyOn(performance, 'now').mockReturnValue(5000);
-
-      fake.dispatchEvent({ type: 'scroll' });
-
-      // Never stamped — still idle at the very moment of the (ignored) event.
-      expect(isDeckCameraIdle(5000)).toBe(true);
+      expect(first.removeEventListener).toHaveBeenCalledTimes(5);
+      expect(second.addEventListener).toHaveBeenCalledTimes(5);
     });
 
     it('registerDeckScroller(null) kills the registered deck-camera timeline', () => {
       const fake = makeFakeScroller();
       registerDeckScroller(fake as unknown as HTMLElement);
       makeRobotRef('alpha', 960);
-      panDeckCameraTo('alpha');
+      moveCameraTo('alpha');
       const tl = getTimeline(DECK_CAMERA_TIMELINE_ID);
       expect(tl).toBeDefined();
 
@@ -214,7 +185,154 @@ describe('deckCamera', () => {
     });
   });
 
-  describe('deckCameraTargetFor (Task 6)', () => {
+  describe('touch and release (deck-camera follow, Task 5)', () => {
+    /** A camera float in flight, so a gesture has something to kill. */
+    function floatInFlight(fake: FakeScroller) {
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+      moveCameraTo('alpha');
+      return getTimeline(DECK_CAMERA_TIMELINE_ID)!;
+    }
+
+    it('starts not held, with the boot cooldown sentinel', () => {
+      expect(__deckCameraStateForTest()).toEqual({ held: false, cooldownStartedAt: -Infinity });
+    });
+
+    it.each(['pointerdown', 'touchstart'])('%s holds the camera and kills the running float', (type) => {
+      const fake = makeFakeScroller();
+      const tl = floatInFlight(fake);
+
+      fake.dispatchEvent({ type });
+
+      expect(__deckCameraStateForTest().held).toBe(true);
+      expect(tl.kill).toHaveBeenCalled();
+      expect(timelineMap.has(DECK_CAMERA_TIMELINE_ID)).toBe(false);
+    });
+
+    it.each(['pointerdown', 'touchstart'])('%s with no float running holds without throwing', (type) => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+
+      expect(() => fake.dispatchEvent({ type })).not.toThrow();
+      expect(__deckCameraStateForTest().held).toBe(true);
+    });
+
+    it.each(['pointerdown', 'touchstart'])('%s does not start the cooldown, only letting go does', (type) => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      vi.spyOn(performance, 'now').mockReturnValue(4000);
+
+      fake.dispatchEvent({ type });
+
+      expect(__deckCameraStateForTest().cooldownStartedAt).toBe(-Infinity);
+    });
+
+    it.each([
+      ['pointerdown', 'pointerup'],
+      ['touchstart', 'touchend'],
+    ])('%s then %s releases the hold and stamps the cooldown at the release time', (down, up) => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      const now = vi.spyOn(performance, 'now');
+      now.mockReturnValue(4000);
+      fake.dispatchEvent({ type: down });
+      now.mockReturnValue(6500);
+
+      fake.dispatchEvent({ type: up });
+
+      expect(__deckCameraStateForTest()).toEqual({ held: false, cooldownStartedAt: 6500 });
+    });
+
+    it('a second touch restamps the cooldown from the latest release', () => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      const now = vi.spyOn(performance, 'now');
+      now.mockReturnValue(1000);
+      fake.dispatchEvent({ type: 'pointerdown' });
+      fake.dispatchEvent({ type: 'pointerup' });
+      now.mockReturnValue(9000);
+      fake.dispatchEvent({ type: 'touchstart' });
+      fake.dispatchEvent({ type: 'touchend' });
+
+      expect(__deckCameraStateForTest().cooldownStartedAt).toBe(9000);
+    });
+
+    it('wheel kills the float and stamps the cooldown in one go, never leaving the camera held', () => {
+      const fake = makeFakeScroller();
+      const tl = floatInFlight(fake);
+      vi.spyOn(performance, 'now').mockReturnValue(7200);
+
+      fake.dispatchEvent({ type: 'wheel' });
+
+      expect(tl.kill).toHaveBeenCalled();
+      expect(timelineMap.has(DECK_CAMERA_TIMELINE_ID)).toBe(false);
+      expect(__deckCameraStateForTest()).toEqual({ held: false, cooldownStartedAt: 7200 });
+    });
+
+    it('wheel with no float running still stamps the cooldown', () => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      vi.spyOn(performance, 'now').mockReturnValue(3300);
+
+      fake.dispatchEvent({ type: 'wheel' });
+
+      expect(__deckCameraStateForTest().cooldownStartedAt).toBe(3300);
+    });
+
+    it('a scroll event does nothing now, so the camera cannot mistake its own writes for the user', () => {
+      const fake = makeFakeScroller();
+      const tl = floatInFlight(fake);
+      vi.spyOn(performance, 'now').mockReturnValue(5000);
+
+      fake.dispatchEvent({ type: 'scroll' });
+
+      expect(__deckCameraStateForTest()).toEqual({ held: false, cooldownStartedAt: -Infinity });
+      expect(tl.kill).not.toHaveBeenCalled();
+    });
+
+    it('unregistering while held lets go, so a lost pointerup cannot freeze the next scroller', () => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      fake.dispatchEvent({ type: 'pointerdown' });
+      expect(__deckCameraStateForTest().held).toBe(true);
+
+      registerDeckScroller(null);
+
+      expect(__deckCameraStateForTest().held).toBe(false);
+    });
+
+    it('swapping scrollers while held lets go too', () => {
+      const first = makeFakeScroller();
+      registerDeckScroller(first as unknown as HTMLElement);
+      first.dispatchEvent({ type: 'touchstart' });
+
+      registerDeckScroller(makeFakeScroller() as unknown as HTMLElement);
+
+      expect(__deckCameraStateForTest().held).toBe(false);
+    });
+
+    it('the reset helper restores the boot state', () => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      fake.dispatchEvent({ type: 'pointerdown' });
+      fake.dispatchEvent({ type: 'pointerup' });
+
+      __resetDeckCameraForTest();
+
+      expect(__deckCameraStateForTest()).toEqual({ held: false, cooldownStartedAt: -Infinity });
+    });
+  });
+
+  describe('the superseded idle-cut model is gone (deck-camera follow, Task 5)', () => {
+    it.each(['panDeckCameraTo', 'cutDeckCameraTo', 'noteDeckUserInput', 'isDeckCameraIdle', '__setDeckCameraScrolling'])(
+      'no longer exports %s',
+      (name) => {
+        expect(deckCameraModule).not.toHaveProperty(name);
+      },
+    );
+  });
+
+  describe('deckCameraTargetFor', () => {
     it('scales the robot x to the stage pixel width and centres it in the viewport', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);
@@ -253,22 +371,30 @@ describe('deckCamera', () => {
     });
   });
 
-  describe('panDeckCameraTo (Task 7)', () => {
-    it('does nothing when the robot has no ref', () => {
+  // The float itself (Task 7 wires it to pick() and the ticker); these are the shipped tween's
+  // behaviours, carried over from the old pan tests.
+  describe('moveCameraTo', () => {
+    it('does nothing and reports false when the robot has no ref', () => {
       const fake = makeFakeScroller();
       registerDeckScroller(fake as unknown as HTMLElement);
 
-      panDeckCameraTo('nobody');
-
+      expect(moveCameraTo('nobody')).toBe(false);
       expect(gsap.timeline).not.toHaveBeenCalled();
     });
 
-    it('tweens scrollLeft to the resolved target with autoKill', () => {
+    it('does nothing when there is no scroller', () => {
+      makeRobotRef('alpha', 960);
+
+      expect(moveCameraTo('alpha')).toBe(false);
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('tweens scrollLeft to the resolved target with autoKill and reports true', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);
       makeRobotRef('alpha', 960);
 
-      panDeckCameraTo('alpha');
+      expect(moveCameraTo('alpha')).toBe(true);
 
       const tl = lastCreatedTimeline();
       const [target, vars] = tl.to.mock.calls[0];
@@ -277,23 +403,12 @@ describe('deckCamera', () => {
       expect(tl.play).toHaveBeenCalled();
     });
 
-    it('still tweens even while the user is not idle — a tap is never idle-gated', () => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-      noteDeckUserInput();
-
-      panDeckCameraTo('alpha');
-
-      expect(gsap.timeline).toHaveBeenCalledTimes(1);
-    });
-
     it('full duration without reduced motion, 0 under prefers-reduced-motion', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);
       makeRobotRef('alpha', 960);
 
-      panDeckCameraTo('alpha');
+      moveCameraTo('alpha');
       expect(lastToVars(lastCreatedTimeline()).duration).toBe(DECK_CAMERA_PAN_S);
 
       const original = window.matchMedia;
@@ -301,195 +416,44 @@ describe('deckCamera', () => {
         matches: query.includes('prefers-reduced-motion'),
       })) as unknown as typeof window.matchMedia;
 
-      panDeckCameraTo('alpha');
+      moveCameraTo('alpha');
       expect(lastToVars(lastCreatedTimeline()).duration).toBe(0);
 
       window.matchMedia = original;
     });
 
-    it('registers the tween as deck-camera and a second pan kills and replaces the first', () => {
+    it('registers the tween as deck-camera and a second move kills and replaces the first', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);
       makeRobotRef('alpha', 960);
       makeRobotRef('beta', 100);
 
-      panDeckCameraTo('alpha');
+      moveCameraTo('alpha');
       const first = getTimeline(DECK_CAMERA_TIMELINE_ID);
 
-      panDeckCameraTo('beta');
+      moveCameraTo('beta');
       const second = getTimeline(DECK_CAMERA_TIMELINE_ID);
 
       expect(second).not.toBe(first);
       expect(first!.kill).toHaveBeenCalled();
       expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBe(second);
     });
-
-    it('cameraScrolling is set between onStart and onComplete, driven by the tween callbacks', () => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      panDeckCameraTo('alpha');
-      const vars = lastToVars(lastCreatedTimeline());
-      vi.spyOn(performance, 'now').mockReturnValue(9000);
-
-      (vars.onStart as () => void)();
-      fake.dispatchEvent({ type: 'scroll' });
-      // Mid-tween: the camera's own scroll did not stamp user input, so idle stays true at 9000.
-      expect(isDeckCameraIdle(9000)).toBe(true);
-
-      (vars.onComplete as () => void)();
-      fake.dispatchEvent({ type: 'scroll' });
-      // After onComplete, the flag is clear again: this scroll is the user's and does stamp.
-      expect(isDeckCameraIdle(9000 + 7999)).toBe(false);
-    });
-
-    it('onInterrupt clears cameraScrolling too, so the next scroll stamps input', () => {
-      const fake = makeFakeScroller(3840, 375);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      panDeckCameraTo('alpha');
-      const vars = lastToVars(lastCreatedTimeline());
-      vi.spyOn(performance, 'now').mockReturnValue(9000);
-
-      (vars.onStart as () => void)();
-      (vars.onInterrupt as () => void)();
-      fake.dispatchEvent({ type: 'scroll' });
-
-      expect(isDeckCameraIdle(9000 + 7999)).toBe(false);
-    });
   });
 
-  describe('cutDeckCameraTo (Task 7)', () => {
-    it('does nothing while the user is not idle', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 1910); // 5% of the window — off screen, were idle checked second
-      noteDeckUserInput();
+  describe('source boundaries', () => {
+    const source = () => readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
 
-      cutDeckCameraTo('alpha');
-
-      expect(gsap.timeline).not.toHaveBeenCalled();
+    it('imports nothing from @/engine or @/stores, so the camera never reaches audio or the store', () => {
+      expect(source()).not.toMatch(/@\/engine/);
+      expect(source()).not.toMatch(/@\/stores/);
     });
 
-    it('does nothing when the robot centre is at 50% of the window (already on screen)', () => {
-      // scrollLeft 0, scale 2: a robot at scene x 93.75 sits at pixel 187.5 — exactly 50% of 375.
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 93.75);
-
-      cutDeckCameraTo('alpha');
-
-      expect(gsap.timeline).not.toHaveBeenCalled();
+    it('uses no timers or frame loops (CLAUDE.md: GSAP only)', () => {
+      expect(source()).not.toMatch(/setTimeout|setInterval|requestAnimationFrame|queueMicrotask/);
     });
 
-    it('tweens when the robot centre is at 5% of the window (off screen)', () => {
-      // scale 2: scene x 9.375 -> pixel 18.75 == 5% of 375.
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 9.375);
-
-      cutDeckCameraTo('alpha');
-
-      expect(gsap.timeline).toHaveBeenCalledTimes(1);
-    });
-
-    it('is otherwise identical to a pan: same target, autoKill, registered as deck-camera', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 960);
-
-      cutDeckCameraTo('alpha');
-
-      const tl = lastCreatedTimeline();
-      const [, vars] = tl.to.mock.calls[0];
-      expect(vars.scrollTo).toEqual({ x: 1732.5, autoKill: true });
-      expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBe(tl as never);
-    });
-  });
-
-  describe('cutDeckCameraTo cooldown (post-ship follow-up: no whiplash between two quick cuts)', () => {
-    it('a second cut inside the cooldown window does nothing, even to an off-screen robot', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 9.375); // off screen (5%)
-      makeRobotRef('beta', 9.375 + 1); // also off screen, a hair further along
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000);
-      cutDeckCameraTo('alpha');
-      expect(gsap.timeline).toHaveBeenCalledTimes(1);
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000 + DECK_CAMERA_CUT_COOLDOWN_MS - 1);
-      cutDeckCameraTo('beta');
-      expect(gsap.timeline).toHaveBeenCalledTimes(1); // still just the first
-    });
-
-    it('a cut exactly at the cooldown boundary is allowed', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 9.375);
-      makeRobotRef('beta', 9.375 + 1);
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000);
-      cutDeckCameraTo('alpha');
-      vi.spyOn(performance, 'now').mockReturnValue(1000 + DECK_CAMERA_CUT_COOLDOWN_MS);
-      cutDeckCameraTo('beta');
-
-      expect(gsap.timeline).toHaveBeenCalledTimes(2);
-    });
-
-    it('a cut suppressed by the on-screen check never starts the cooldown clock', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('onscreen', 93.75); // 50% -- already on screen, suppressed
-      makeRobotRef('offscreen', 9.375); // 5% -- off screen
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000);
-      cutDeckCameraTo('onscreen');
-      expect(gsap.timeline).not.toHaveBeenCalled();
-
-      cutDeckCameraTo('offscreen'); // same instant -- no time has passed
-      expect(gsap.timeline).toHaveBeenCalledTimes(1);
-    });
-
-    it('a cut suppressed by the idle gate never starts the cooldown clock', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 9.375);
-      makeRobotRef('beta', 9.375 + 1);
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000);
-      noteDeckUserInput(); // not idle until 1000 + DECK_CAMERA_IDLE_MS
-
-      cutDeckCameraTo('alpha');
-      expect(gsap.timeline).not.toHaveBeenCalled();
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000 + DECK_CAMERA_IDLE_MS);
-      cutDeckCameraTo('beta'); // idle again; the suppressed first cut left no cooldown behind
-      expect(gsap.timeline).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not gate panDeckCameraTo -- a tap right after a cut still moves the camera', () => {
-      const fake = makeFakeScroller(3840, 375, 0);
-      registerDeckScroller(fake as unknown as HTMLElement);
-      makeRobotRef('alpha', 9.375);
-      makeRobotRef('beta', 9.375 + 1);
-
-      vi.spyOn(performance, 'now').mockReturnValue(1000);
-      cutDeckCameraTo('alpha');
-      expect(gsap.timeline).toHaveBeenCalledTimes(1);
-
-      panDeckCameraTo('beta'); // same instant, no cooldown applies to a user tap
-      expect(gsap.timeline).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('source boundaries (Task 7)', () => {
-    it('imports nothing from @/engine or @/stores — the camera never reaches audio or the store', () => {
-      const source = readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
-      expect(source).not.toMatch(/@\/engine/);
-      expect(source).not.toMatch(/@\/stores/);
+    it('listens for no scroll event', () => {
+      expect(source()).not.toMatch(/['"]scroll['"]/);
     });
   });
 });

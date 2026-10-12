@@ -38,7 +38,10 @@ describe('deck camera follow constants', () => {
     expect(deckCameraConstants.DECK_CAMERA_TIMELINE_ID).toBe('deck-camera');
   });
 
-  it('no longer exports the station-cut chance (the lifecycle cut is gone)', () => {
-    expect(deckCameraConstants).not.toHaveProperty('DECK_CAMERA_STATION_CHANCE');
-  });
+  it.each(['DECK_CAMERA_STATION_CHANCE', 'DECK_CAMERA_IDLE_MS', 'DECK_CAMERA_CUT_COOLDOWN_MS'])(
+    'no longer exports %s (the idle-cut model is gone)',
+    (name) => {
+      expect(deckCameraConstants).not.toHaveProperty(name);
+    },
+  );
 });

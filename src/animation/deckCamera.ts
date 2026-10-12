@@ -1,11 +1,12 @@
 // ========================================
-// DECK CAMERA (docs/specs/MOBILE_DECK_CAMERA.md §1.2, Phase 46)
+// DECK CAMERA (docs/specs/DECK_CAMERA_FOLLOW.md §1.2, §1.4, Phase 46)
 // ========================================
 // A runtime module in the pattern of timelineMap.ts / refs.ts: module-level state, no React, no
-// store (CLAUDE.md: runtime-only objects like DOM elements stay out of Zustand). Pans the deck
-// scroller to a robot on tap (panDeckCameraTo) and cuts to one that goes active while the user
-// is idle (cutDeckCameraTo). Nothing here reads audio state or calls AudioEngine (CLAUDE.md
-// "Strict Separation").
+// store (CLAUDE.md: runtime-only objects like DOM elements stay out of Zustand). This task holds
+// the touch/release input model: a finger (or pointer) on the deck scroller freezes the camera and
+// kills any float in flight; letting go starts the cooldown clock; a wheel does both at once. The
+// pick algorithm and the follow ticker build on it in later tasks. Nothing here reads audio state
+// or calls AudioEngine (CLAUDE.md "Strict Separation").
 
 // ========================================
 // IMPORTS
@@ -13,7 +14,7 @@
 import gsap from 'gsap';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 
-import { DECK_CAMERA_CUT_COOLDOWN_MS, DECK_CAMERA_IDLE_MS, DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '@/constants/deckCamera';
+import { DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '@/constants/deckCamera';
 import { WORLD_BOUNDS } from '@/constants/sceneDepth';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
@@ -25,49 +26,57 @@ gsap.registerPlugin(ScrollToPlugin);
 // MODULE STATE
 // ========================================
 let scroller: HTMLElement | null = null;
-let lastUserInputAt = -Infinity;
-let lastCutAt = -Infinity;
-let cameraScrolling = false;
+/** A finger or pointer is down on the scroller: the camera does nothing until it lifts. */
+let held = false;
+/** When the user last let go (or wheeled), or the last follow ended. `-Infinity` at boot, so the
+ *  first pick has no wait. */
+let cooldownStartedAt = -Infinity;
 
-/** The scroller's own input listener: a camera tween's own scroll events don't count as the
- *  user asking for something (spec assumption 8); `cameraScrolling` excludes them. */
-function handleScrollerInput(): void {
-  if (cameraScrolling) return;
-  noteDeckUserInput();
+/** Touch or pointer down: freeze the camera where it is. */
+function handleHold(): void {
+  held = true;
+  killTimeline(DECK_CAMERA_TIMELINE_ID);
 }
+
+/** Touch or pointer up: the cooldown starts from the release. */
+function handleRelease(): void {
+  held = false;
+  cooldownStartedAt = performance.now();
+}
+
+/** A wheel has no "down" phase worth holding for, so it freezes and releases in the same breath
+ *  (spec §1.4). */
+function handleWheel(): void {
+  killTimeline(DECK_CAMERA_TIMELINE_ID);
+  handleRelease();
+}
+
+const LISTENERS: ReadonlyArray<readonly [string, () => void]> = [
+  ['pointerdown', handleHold],
+  ['touchstart', handleHold],
+  ['wheel', handleWheel],
+  ['pointerup', handleRelease],
+  ['touchend', handleRelease],
+];
 
 // ========================================
 // EXPORTS
 // ========================================
 
-/** Stamps the idle clock. Exported for tests and for the scroller's own input listeners. */
-export function noteDeckUserInput(): void {
-  lastUserInputAt = performance.now();
-}
-
-/** No user scroll/touch/wheel has reached the scroller for `DECK_CAMERA_IDLE_MS` (spec
- *  assumption 8). True before any input has ever been seen. */
-export function isDeckCameraIdle(now = performance.now()): boolean {
-  return now - lastUserInputAt >= DECK_CAMERA_IDLE_MS;
-}
-
 /**
- * Remembers (or forgets) the deck's scroll container and attaches/detaches the four user-input
- * listeners that keep the idle clock honest (spec §1.1, §1.2).
+ * Remembers (or forgets) the deck's scroll container and attaches/detaches the five user-input
+ * listeners. There is no `scroll` listener: with touch and release as the only "the user did
+ * something" signals, the camera's own `scrollLeft` writes can never be mistaken for one. Changing
+ * or dropping the scroller lets go of any hold, since its `pointerup` would never arrive.
  */
 export function registerDeckScroller(el: HTMLElement | null): void {
   if (scroller) {
-    scroller.removeEventListener('pointerdown', handleScrollerInput);
-    scroller.removeEventListener('touchstart', handleScrollerInput);
-    scroller.removeEventListener('wheel', handleScrollerInput);
-    scroller.removeEventListener('scroll', handleScrollerInput);
+    for (const [type, handler] of LISTENERS) scroller.removeEventListener(type, handler);
   }
   scroller = el;
+  held = false;
   if (scroller) {
-    scroller.addEventListener('pointerdown', handleScrollerInput);
-    scroller.addEventListener('touchstart', handleScrollerInput);
-    scroller.addEventListener('wheel', handleScrollerInput);
-    scroller.addEventListener('scroll', handleScrollerInput);
+    for (const [type, handler] of LISTENERS) scroller.addEventListener(type, handler);
   } else {
     killTimeline(DECK_CAMERA_TIMELINE_ID);
   }
@@ -88,23 +97,8 @@ function targetFor(robotId: string): number | null {
   return Math.min(max, Math.max(0, x * scale - scroller.clientWidth / 2));
 }
 
-/** `targetFor`, exported for tests; `panDeckCameraTo`/`cutDeckCameraTo` are its only real
- *  callers. */
+/** `targetFor`, exported for tests. */
 export const deckCameraTargetFor = targetFor;
-
-/** Whether a robot's centre is already inside the middle 80 % of the viewport (spec §1.2, §7
- *  Q5) — a cut to a robot already on screen does nothing. False (not on screen) when there is
- *  no scroller or the robot has no ref. */
-function isRobotOnScreen(robotId: string): boolean {
-  if (!scroller) return false;
-  const el = getRef(`robot-${robotId}`);
-  if (!el) return false;
-  const scale = scroller.scrollWidth / WORLD_BOUNDS.width;
-  const x = Number(gsap.getProperty(el, 'x'));
-  const viewportX = x * scale - scroller.scrollLeft;
-  const margin = scroller.clientWidth * 0.1;
-  return viewportX >= margin && viewportX <= scroller.clientWidth - margin;
-}
 
 /** Builds, registers and plays the `deck-camera` tween to `x` (spec §1.2, assumptions 4, 8, 9).
  *  `setTimeline` kills any tween already registered under `DECK_CAMERA_TIMELINE_ID`. */
@@ -119,62 +113,31 @@ function createCameraTween(x: number): void {
     // in the middle, still read as abrupt — Crawford, manual check): a stronger, longer slow-in
     // and slow-out than sine, short of power2's sharper curve.
     ease: 'power1.inOut',
-    onStart: () => {
-      cameraScrolling = true;
-    },
-    onComplete: () => {
-      cameraScrolling = false;
-    },
-    onInterrupt: () => {
-      cameraScrolling = false;
-    },
   });
   setTimeline(DECK_CAMERA_TIMELINE_ID, tl);
   tl.play();
 }
 
-/** Builds the tween if the target resolves. Returns whether it did, so a cut knows whether to
- *  start its own cooldown clock — a no-op (no ref, no scroller) never should. */
-function moveCameraTo(robotId: string): boolean {
+/** Floats the camera to a robot if its target resolves. Returns whether it did. Exported until
+ *  Task 7 wires it to the pick algorithm and the follow ticker. */
+export function moveCameraTo(robotId: string): boolean {
   const x = targetFor(robotId);
   if (x === null) return false;
   createCameraTween(x);
   return true;
 }
 
-/** The user's pan (spec §1.2): never idle-gated — a tap is always the user asking. The cooldown
- *  below applies only to automatic cuts, same exemption. */
-export function panDeckCameraTo(robotId: string): void {
-  moveCameraTo(robotId);
-}
-
-/** The semantic cut (spec §1.2, assumptions 7, 8): does nothing while the user is not idle, or
- *  when the robot is already on screen (no cut to where we already are), or when the last cut was
- *  less than DECK_CAMERA_CUT_COOLDOWN_MS ago (Crawford, post-ship: two robots going active close
- *  together whiplashed the camera from one target straight to the next, with no gap to read
- *  either one). A cut this function suppresses never starts the cooldown clock. */
-export function cutDeckCameraTo(robotId: string): void {
-  if (!isDeckCameraIdle()) return;
-  const now = performance.now();
-  if (now - lastCutAt < DECK_CAMERA_CUT_COOLDOWN_MS) return;
-  if (isRobotOnScreen(robotId)) return;
-  if (moveCameraTo(robotId)) lastCutAt = now;
-}
-
 // ========================================
 // TEST-ONLY
 // ========================================
 
-/** Drives the `cameraScrolling` flag directly. Task 7's tween `onStart`/`onComplete`/
- *  `onInterrupt` callbacks are the real driver; this stays as a direct lever for tests. */
-export function __setDeckCameraScrolling(value: boolean): void {
-  cameraScrolling = value;
+/** The input model's state, for assertions. */
+export function __deckCameraStateForTest(): { held: boolean; cooldownStartedAt: number } {
+  return { held, cooldownStartedAt };
 }
 
-/** Resets the module to its just-imported state: no input yet, camera not mid-tween, no cut
- *  cooldown in effect. */
+/** Resets the module to its just-imported state: not held, boot cooldown sentinel. */
 export function __resetDeckCameraForTest(): void {
-  lastUserInputAt = -Infinity;
-  lastCutAt = -Infinity;
-  cameraScrolling = false;
+  held = false;
+  cooldownStartedAt = -Infinity;
 }

@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, t
 
 // Deck-camera follow Task 3: the camera is mocked only to prove the work loop never calls it; its own
 // behaviour has its own suite (deckCamera.test.ts).
-vi.mock('@/animation/deckCamera', () => ({ cutDeckCameraTo: vi.fn() }));
+vi.mock('@/animation/deckCamera', () => ({ registerDeckScroller: vi.fn() }));
 
 import { startWorkLoop, stopWorkLoop, next, getSiteState, onLifecycleChange, onRobotMounted } from './workLoop';
 import { siteCooldown } from './siteChoice';
