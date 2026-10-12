@@ -500,10 +500,10 @@ and the two gate results in one line each. Intent and spec headers gain a "Built
 `feature/deck-camera`" line, matching the layout-rework intent's style.
 
 **Acceptance criteria:**
-- [ ] Roadmap 46 reads as a record of the follow model, not the superseded idle-cut one.
+- [x] Roadmap 46 reads as a record of the follow model, not the superseded idle-cut one.
 
 **Verification:**
-- [ ] `npx vitest run src/docs` passes (roadmap links resolve).
+- [x] `npx vitest run src/docs` passes (roadmap links resolve).
 
 **Dependencies:** Task 12.
 

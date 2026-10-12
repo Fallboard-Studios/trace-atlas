@@ -167,3 +167,113 @@ describe('CLAUDE.md', () => {
     expect(line).not.toMatch(/idle[- ]cut/i);
   });
 });
+
+/** Roadmap entry 46, from its `##` heading to the next `##` heading. */
+function roadmapEntry46(): string {
+  const text = read('docs/todo/roadmap.md');
+  const start = text.search(/^## 46\. /m);
+  expect(start, 'roadmap.md has a "## 46." entry').toBeGreaterThanOrEqual(0);
+  const bodyStart = text.indexOf('\n', start) + 1;
+  const next = text.slice(bodyStart).search(/^## /m);
+  return next === -1 ? text.slice(start) : text.slice(start, bodyStart + next);
+}
+
+describe('roadmap 46 records the follow model, not the superseded idle-cut one', () => {
+  it('no longer says it is unbuilt or not yet interviewed', () => {
+    const entry = roadmapEntry46();
+    expect(entry).not.toMatch(/not yet interviewed/i);
+    expect(entry).not.toMatch(/Camera \(later\)/);
+    expect(entry).not.toMatch(/Idle drift \(optional\)/);
+  });
+
+  it('links the intent, the spec and the plan, and every link resolves', () => {
+    const entry = roadmapEntry46();
+    for (const target of [
+      'docs/intent/deck-camera-follow.md',
+      'docs/specs/DECK_CAMERA_FOLLOW.md',
+      'docs/tasks/DECK_CAMERA_FOLLOW.md',
+    ]) {
+      expect(entry, `entry links ${target}`).toContain(target.replace(/^docs\//, ''));
+    }
+    for (const [, link] of entry.matchAll(/\]\((\.\.\/[^)#]+)(?:#[^)]*)?\)/g)) {
+      expect(existsSync(resolve(repoRoot, 'docs/todo', link)), `${link} exists`).toBe(true);
+    }
+  });
+
+  it('describes the follow, cooldown and pick loop', () => {
+    const entry = roadmapEntry46();
+    expect(entry).toMatch(/follow/i);
+    expect(entry).toMatch(/cooldown/i);
+    expect(entry).toMatch(/\bpick/i);
+    expect(entry).toMatch(/feature\/deck-camera/);
+  });
+
+  describe('Decisions made after the spec', () => {
+    const decisions = () => {
+      const entry = roadmapEntry46();
+      const start = entry.search(/^### Decisions made after the spec/m);
+      expect(
+        start,
+        'entry 46 has a "Decisions made after the spec" subsection'
+      ).toBeGreaterThanOrEqual(0);
+      const bodyStart = entry.indexOf('\n', start) + 1;
+      const next = entry.slice(bodyStart).search(/^### /m);
+      return next === -1 ? entry.slice(start) : entry.slice(start, bodyStart + next);
+    };
+
+    it('records the empty-pool cooldown restart', () => {
+      expect(decisions()).toMatch(/empty pool/i);
+      expect(decisions()).toMatch(/cooldown/i);
+    });
+
+    it('records the wheel as an instant touch and release', () => {
+      expect(decisions()).toMatch(/wheel/i);
+      expect(decisions()).toMatch(/release/i);
+    });
+
+    it('records the viewport-centre tie-break', () => {
+      expect(decisions()).toMatch(/tie/i);
+      expect(decisions()).toMatch(/viewport cent(re|er)/i);
+    });
+  });
+
+  describe('the two gate results, one line each', () => {
+    const gates = () => {
+      const entry = roadmapEntry46();
+      const start = entry.search(/^### Gate results/m);
+      expect(start, 'entry 46 has a "Gate results" subsection').toBeGreaterThanOrEqual(0);
+      const bodyStart = entry.indexOf('\n', start) + 1;
+      const next = entry.slice(bodyStart).search(/^### /m);
+      return next === -1 ? entry.slice(bodyStart) : entry.slice(bodyStart, bodyStart + next);
+    };
+
+    it('has an idle-paint line that reports the miss, and a Pixel line', () => {
+      const lines = gates()
+        .split('\n')
+        .filter((l) => l.startsWith('- '));
+      expect(lines, 'exactly one bullet per gate').toHaveLength(2);
+      expect(lines[0]).toMatch(/idle/i);
+      expect(lines[0]).toMatch(/\+23\s?%|missed|miss/i);
+      expect(lines[1]).toMatch(/Pixel/);
+    });
+
+    it('points at PERFORMANCE.md, whose Task 10 and Task 11 sections exist', () => {
+      expect(gates()).toContain('PERFORMANCE.md');
+      const perf = read('docs/PERFORMANCE.md');
+      expect(perf).toMatch(/^## Deck Camera Follow — the Task 10 perf gate \(Phase 46\)$/m);
+      expect(perf).toMatch(/^## Deck Camera Follow — the Task 11 Pixel check \(Phase 46\)$/m);
+    });
+  });
+});
+
+describe('the intent and spec headers say where the phase was built', () => {
+  it.each(['docs/intent/deck-camera-follow.md', 'docs/specs/DECK_CAMERA_FOLLOW.md'])(
+    '%s',
+    (doc) => {
+      const head = read(doc).split('\n').slice(0, 30).join('\n');
+      expect(head).toMatch(
+        /Built[^\n]*2026-10-1\d[^\n]*`feature\/deck-camera`|Built[^\n]*`feature\/deck-camera`/
+      );
+    }
+  );
+});

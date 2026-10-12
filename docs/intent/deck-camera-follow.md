@@ -1,6 +1,7 @@
 # Intent: Deck Camera — Continuous Follow
 
 Confirmed via `interview-me` on 2026-10-11, ahead of a `spec-driven-development` pass.
+**Built 2026-10-11 on `feature/deck-camera`** (roadmap [46](../todo/roadmap.md#46-mobile-deck-camera-the-world-crop-on-phones)); gate results are recorded there.
 Roadmap entry: [46](../todo/roadmap.md#46-mobile-deck-camera-the-world-crop-on-phones). Supersedes the
 tap-to-pan and idle-cut behavior described in [mobile-deck-camera.md](mobile-deck-camera.md) and shipped
 in `src/animation/deckCamera.ts` on `feature/deck-camera` — this phase replaces that module's trigger

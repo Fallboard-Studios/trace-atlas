@@ -12,6 +12,9 @@
 >   `?session=` link, this branch against `main` (docs/AUDIO_SYSTEM.md, "?debug")
 > - Dev server: `npm run dev`
 
+**Built 2026-10-11 on `feature/deck-camera`**; decisions made after this spec and the two gate results
+are recorded under [roadmap 46](../todo/roadmap.md#46-mobile-deck-camera-the-world-crop-on-phones).
+
 Roadmap Phase 46. Intent: [docs/intent/deck-camera-follow.md](../intent/deck-camera-follow.md)
 (confirmed 2026-10-11; where this spec and the intent differ, the intent wins). No sketch: the
 visible result is a camera that is always doing something, not a new static layout. Branch
