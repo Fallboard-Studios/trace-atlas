@@ -479,12 +479,12 @@ doc and this spec name only files and exports that exist: `deckCamera.ts`'s curr
 five constants, the `uiStore` fields read.
 
 **Acceptance criteria:**
-- [ ] The docs test passes and fails when one named export is renamed in the doc (mutation check).
-- [ ] CLAUDE.md's reference-doc line for ANIMATION_SYSTEM.md mentions the follow loop, not the old
+- [x] The docs test passes and fails when one named export is renamed in the doc (mutation check).
+- [x] CLAUDE.md's reference-doc line for ANIMATION_SYSTEM.md mentions the follow loop, not the old
       idle-cut description.
 
 **Verification:**
-- [ ] `npx vitest run src/docs` passes.
+- [x] `npx vitest run src/docs` passes.
 
 **Dependencies:** Task 11.
 

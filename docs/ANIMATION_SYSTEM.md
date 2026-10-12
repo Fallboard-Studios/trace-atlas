@@ -362,6 +362,27 @@ Three families of UI timelines, all in `timelineMap`, none touching audio:
 
 The glide imports `Flip` from `gsap/dist/Flip`: `gsap/Flip` fails type-checking on Windows (`TS1149`, the `Flip.d.ts`/`flip.d.ts` casing); the global gsap mock in tests has a no-op `registerPlugin` and the tests mock `gsap/dist/Flip` with a recording fake. The header's old slide out of the nav's way is gone: the nav no longer reaches the header.
 
+### Deck camera (Phase 46)
+
+On a viewport narrower than the stage's 16:9 the world view is a horizontal scroller, and `src/animation/deckCamera.ts` pans it on its own. It follows one robot at a time, and the loop is: **pick** a robot, **float** to it, **follow** it, rest for a **cooldown**, pick again. Spec: [docs/specs/DECK_CAMERA_FOLLOW.md](specs/DECK_CAMERA_FOLLOW.md).
+
+The module is runtime-only, in the pattern of `timelineMap` and the ref registry: module-level variables, no React, no Zustand state of its own. It reads robots from the locale store and nothing else from the app's stores except the three `uiStore` fields below. It never reads audio state and never calls `AudioEngine` (Strict Separation).
+
+**The loop.** One `gsap.ticker` handler, added in `registerDeckScroller` and removed when the scroller goes, does all per-frame work. Every clock is a `performance.now()` comparison inside it; there are no timers.
+
+1. **Pick** (`pick(candidateIds)`): among the candidates, the lowest battery above `DECK_CAMERA_MIN_BATTERY_PCT`, else the lowest overall; a tie goes to the robot whose target is nearest the scroller's current position. An empty pool returns `null` and restarts the cooldown. The ticker picks from `undockedRobotIds()` (robots that are `Active` or `Recalled`; docked ones are never chosen, and a robot's position on screen never matters).
+2. **Float** (`moveCameraTo(robotId)`): a `gsap` timeline of length `DECK_CAMERA_PAN_S` scrolls to the robot's target (its live scene x scaled to the stage's pixel width, centred, clamped to the scroll range; `deckCameraTargetFor` exposes it for tests). It is registered in `timelineMap` under `DECK_CAMERA_TIMELINE_ID`, so a new float kills the old one. Under `prefers-reduced-motion` the duration is 0.
+3. **Follow**: once the float lands, each tick writes the subject's live target to `scrollLeft` until `DECK_CAMERA_FOLLOW_MS` is up, the robot docks, or it leaves the locale.
+4. **Cooldown**: `DECK_CAMERA_COOLDOWN_MS` of rest, then the ticker picks again. The first pick after boot has no wait.
+
+**The three overrides** (all in the same module):
+
+- **Touch and wheel.** `pointerdown`/`touchstart` on the scroller freeze the camera and kill any float in flight; `pointerup`/`touchend` start the cooldown. A `wheel` does both at once. There is no `scroll` listener, so the camera's own writes can never be mistaken for the user.
+- **Robot edit-return.** The module subscribes to `uiStore` and remembers the last `selectedRobotId`. When `activeHubTile` goes from set to `null` (the Deck is back), it floats straight to that robot with no cooldown wait, if the robot is still undocked; if it is docked, nothing happens and the loop carries on.
+- **Company edit-return.** The same edge with `selectedCompanyId`: `pick` from that company's undocked members, or from every undocked robot when it has none.
+
+**Who may call in.** Nothing else may call into the module. `WorldView` registers the scroller (`registerDeckScroller`); `FollowedRobotMarker` reads the followed robot (`getFollowedRobotId`, `subscribeFollowedRobot`) to draw its marker. There is no manual "jump to this robot" control and no tap-to-pan; a new trigger belongs inside the module, behind the loop's own rules.
+
 ### UI and system animations
 Other systems follow the same model:
 
