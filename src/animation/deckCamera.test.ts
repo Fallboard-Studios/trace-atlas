@@ -29,6 +29,8 @@ import {
   DECK_CAMERA_TIMELINE_ID,
 } from '../constants/deckCamera';
 import { useLocaleStore } from '../stores/localeStore';
+import { useUIStore } from '../stores/uiStore';
+import { goHome, selectEntity } from '../components/panels/screen/nav/navActions';
 import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { DockingState, type Robot } from '../types/Robot';
 import * as deckCameraModule from './deckCamera';
@@ -1095,6 +1097,202 @@ describe('deckCamera', () => {
         expect(next.scrollLeft).toBe(-1);
       });
     });
+  });
+
+  describe('robot edit-return (deck-camera follow, Task 8)', () => {
+    let now: ReturnType<typeof vi.spyOn>;
+    let fake: FakeScroller;
+
+    /** `alpha` (x 960, battery 40) and `beta` (x 300, battery 70) out on the deck; `gamma` (x 1500)
+     *  docked. With beta above the threshold, beta is the loop's own first pick. */
+    beforeEach(() => {
+      now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+      fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      seedLocale([
+        ['alpha', DockingState.Active, 40],
+        ['beta', DockingState.Recalled, 70],
+        ['gamma', DockingState.Docked, 20],
+      ]);
+      makeRobotRef('alpha', 960);
+      makeRobotRef('beta', 300);
+      makeRobotRef('gamma', 1500);
+      useUIStore.setState({ selectedRobotId: null, selectedCompanyId: null, activeHubTile: null });
+    });
+
+    afterEach(() => {
+      useLocaleStore.setState({ locales: {} });
+      useUIStore.setState({ selectedRobotId: null, selectedCompanyId: null, activeHubTile: null });
+    });
+
+    /** Opens a robot's screen from the Deck and comes back, the way the hub does. */
+    function openRobotAndReturn(id: string): void {
+      useUIStore.getState().selectRobot(id);
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().setActiveHubTile(null);
+    }
+
+    const floatTarget = () => (lastToVars(lastCreatedTimeline()).scrollTo as { x: number }).x;
+
+    it('floats straight to the robot whose screen was open, with no cooldown wait', () => {
+      // The user has only just let go: a normal pick is a full cooldown away.
+      fake.dispatchEvent({ type: 'pointerup' });
+      tick();
+      expect(gsap.timeline).not.toHaveBeenCalled();
+
+      openRobotAndReturn('alpha');
+
+      expect(floatTarget()).toBe(deckCameraTargetFor('alpha'));
+      expect(getFollowedRobotId()).toBe('alpha');
+    });
+
+    it('works for a Recalled robot too', () => {
+      openRobotAndReturn('beta');
+
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('interrupts a follow already running: the old subject is no longer tracked', () => {
+      tickPickAndLand();
+      expect(getFollowedRobotId()).toBe('beta');
+      vi.mocked(gsap.timeline).mockClear();
+
+      openRobotAndReturn('alpha');
+      fake.scrollLeft = -1;
+      tick();
+
+      expect(getFollowedRobotId()).toBe('alpha');
+      expect(floatTarget()).toBe(deckCameraTargetFor('alpha'));
+      expect(fake.scrollLeft).toBe(-1); // mid-float: the ticker does not also write beta's target
+    });
+
+    it('lands the forced float into a follow of that robot', () => {
+      openRobotAndReturn('alpha');
+      (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+      fake.scrollLeft = -1;
+
+      tick();
+
+      expect(fake.scrollLeft).toBe(deckCameraTargetFor('alpha'));
+    });
+
+    it('does nothing for a Docked robot, leaving a running follow exactly as it was', () => {
+      tickPickAndLand();
+      vi.mocked(gsap.timeline).mockClear();
+
+      openRobotAndReturn('gamma');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+      expect(getFollowedRobotId()).toBe('beta');
+    });
+
+    it('does nothing for an Undocking robot', () => {
+      setDocking('alpha', DockingState.Undocking);
+
+      openRobotAndReturn('alpha');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+      expect(getFollowedRobotId()).toBeNull();
+    });
+
+    it('does not disturb a cooldown in progress when the robot is ineligible', () => {
+      tickPickAndLand();
+      setDocking('beta', DockingState.Docked);
+      tick(); // the dock ends the follow and starts the rest
+      const rest = __deckCameraStateForTest().cooldownStartedAt;
+      now.mockReturnValue(1000 + 500);
+
+      openRobotAndReturn('gamma');
+
+      expect(__deckCameraStateForTest().cooldownStartedAt).toBe(rest);
+    });
+
+    it('acts on the most recently selected robot only', () => {
+      useUIStore.getState().selectRobot('beta');
+      useUIStore.getState().selectRobot('alpha');
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(getFollowedRobotId()).toBe('alpha');
+      expect(vi.mocked(gsap.timeline)).toHaveBeenCalledTimes(1);
+    });
+
+    it('triggers nothing while browsing within the hub, with no return to the Deck', () => {
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().selectRobot('alpha');
+      useUIStore.getState().setActiveHubTile('settings');
+      useUIStore.getState().selectRobot('beta');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('triggers nothing on returning to the Deck when no robot was ever selected', () => {
+      useUIStore.getState().setActiveHubTile('settings');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('fires once per return: a second null write is not a second edge', () => {
+      openRobotAndReturn('alpha');
+      vi.mocked(gsap.timeline).mockClear();
+
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('still knows the robot when goHome clears the live selection before the tile closes', () => {
+      selectEntity({ robotId: 'alpha' });
+      expect(useUIStore.getState().selectedRobotId).toBe('alpha');
+
+      goHome();
+
+      expect(useUIStore.getState().selectedRobotId).toBeNull();
+      expect(getFollowedRobotId()).toBe('alpha');
+    });
+
+    it('does nothing when the robot has no ref to float to', () => {
+      clearRefs();
+
+      openRobotAndReturn('alpha');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+      expect(getFollowedRobotId()).toBeNull();
+    });
+
+    it('does nothing when the robot has left the locale', () => {
+      useUIStore.getState().selectRobot('ghost');
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('stops listening once the scroller is unregistered', () => {
+      registerDeckScroller(null);
+
+      openRobotAndReturn('alpha');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('forgets a selection made before the scroller was registered (fresh module state)', () => {
+      registerDeckScroller(null);
+      useUIStore.getState().selectRobot('alpha');
+      registerDeckScroller(fake as unknown as HTMLElement);
+
+      useUIStore.getState().setActiveHubTile('robots');
+      useUIStore.getState().setActiveHubTile(null);
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    /** The loop's own first tick picks beta; landing starts its follow. */
+    function tickPickAndLand(): void {
+      tick();
+      (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+    }
   });
 
   describe('source boundaries', () => {

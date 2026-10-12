@@ -26,6 +26,7 @@ import {
 import { WORLD_BOUNDS } from '@/constants/sceneDepth';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useUIStore } from '@/stores/uiStore';
 import { DockingState, type Robot } from '@/types/Robot';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
@@ -56,6 +57,11 @@ let floatCount = 0;
  *  `subjectId` it is set when the float begins, so the marker appears as the camera heads there. */
 let followedId: string | null = null;
 const followedListeners = new Set<() => void>();
+
+/** The robot whose screen was most recently open. The store clears `selectedRobotId` before the
+ *  hub tile closes (spec assumption 11), so the edit-return override keeps its own copy. */
+let lastSelectedRobotId: string | null = null;
+let unsubscribeUI: (() => void) | null = null;
 
 /** Names the followed robot (or none) and tells subscribers, only if it changed. */
 function setFollowed(id: string | null): void {
@@ -117,6 +123,9 @@ export function registerDeckScroller(el: HTMLElement | null): void {
     for (const [type, handler] of LISTENERS) scroller.removeEventListener(type, handler);
   }
   gsap.ticker.remove(tick);
+  unsubscribeUI?.();
+  unsubscribeUI = null;
+  lastSelectedRobotId = null;
   scroller = el;
   held = false;
   cancelAutomaticMotion();
@@ -124,6 +133,7 @@ export function registerDeckScroller(el: HTMLElement | null): void {
   if (scroller) {
     for (const [type, handler] of LISTENERS) scroller.addEventListener(type, handler);
     gsap.ticker.add(tick);
+    unsubscribeUI = useUIStore.subscribe(onUIChange);
   }
 }
 
@@ -232,11 +242,12 @@ function createCameraTween(x: number, robotId: string): void {
   tl.play();
 }
 
-/** Floats the camera to a robot if its target resolves, and follows it once it lands. Returns
- *  whether the float started. */
+/** Floats the camera to a robot if its target resolves, and follows it once it lands, dropping
+ *  whatever it was following. Returns whether the float started. */
 export function moveCameraTo(robotId: string): boolean {
   const x = targetFor(robotId);
   if (x === null) return false;
+  cancelAutomaticMotion();
   createCameraTween(x, robotId);
   return true;
 }
@@ -259,6 +270,18 @@ function followSubject(el: HTMLElement, id: string, now: number): void {
   }
   const target = targetFor(id);
   if (target !== null) el.scrollLeft = target;
+}
+
+/** Robot edit-return (spec §1.4): remembers the robot whose screen is open, and when the hub closes
+ *  back to the Deck floats to it, with no cooldown wait, if it is still out and about. Otherwise
+ *  the loop carries on untouched. */
+function onUIChange(state: { selectedRobotId: string | null; activeHubTile: unknown }, prev: typeof state): void {
+  if (state.selectedRobotId && state.selectedRobotId !== prev.selectedRobotId) {
+    lastSelectedRobotId = state.selectedRobotId;
+  }
+  if (prev.activeHubTile === null || state.activeHubTile !== null || lastSelectedRobotId === null) return;
+  if (!undockedRobotIds().includes(lastSelectedRobotId)) return;
+  moveCameraTo(lastSelectedRobotId);
 }
 
 /** The one per-frame handler (spec §1.2): tracks the subject, or once the cooldown has passed
@@ -290,6 +313,7 @@ export function __deckCameraStateForTest(): { held: boolean; cooldownStartedAt: 
 export function __resetDeckCameraForTest(): void {
   held = false;
   cooldownStartedAt = -Infinity;
+  lastSelectedRobotId = null;
   followedListeners.clear();
   cancelAutomaticMotion();
 }
