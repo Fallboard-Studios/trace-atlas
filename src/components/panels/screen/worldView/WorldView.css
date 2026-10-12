@@ -30,19 +30,19 @@
   /* border: yellow 1px solid; */
 }
 
-/* Mobile Deck Camera (spec §1.1, assumptions 1, 11): the only thing that scrolls. Wraps
+/* Mobile Deck Camera (spec §1.1, assumption 11): the only thing that scrolls. Wraps
    AttenuationStyleView alone — MetaBox stays a sibling of this element, pinned to .world-view.
-   scroll-snap-type: x proximity (not mandatory) pairs with OceanScene.css's quarter-stage snap
-   marks: a camera pan that lands between marks stays put, and a swipe that stops near one
-   settles on it. overscroll-behavior-x: contain stops a swipe past the stage's edge from
-   navigating the page (there's no edge gesture to conflict with — the phone shell's nav is a
-   sheet, not a swipe). No visible scrollbar: the world is not a document. */
+   No scroll-snap: a camera pan or a swipe both just rest wherever they stop (Crawford, post-ship:
+   proximity snap fought GSAP's ScrollToPlugin, which disables then restores scroll-snap-type
+   around its own tween). overscroll-behavior-x: contain stops
+   a swipe past the stage's edge from navigating the page (there's no edge gesture to conflict
+   with — the phone shell's nav is a sheet, not a swipe). No visible scrollbar: the world is not
+   a document. */
 .world-view__scroller {
   position: absolute;
   inset: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
 }

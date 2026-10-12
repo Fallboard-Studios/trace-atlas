@@ -754,26 +754,6 @@ describe('OceanScene', () => {
     });
   });
 
-  // Mobile Deck Camera (spec assumption 10, Task 5): five quarter-stage proximity snap marks,
-  // from a SNAP_FRACTIONS constant array rather than hand-written, so a different stride (§7 Q1)
-  // is a one-array edit.
-  describe('snap marks (Mobile Deck Camera, Task 5)', () => {
-    it('renders exactly five .ocean-scene__snap marks, in order, at 0/25/50/75/100%, direct children of .ocean-scene', () => {
-      const { container } = render(<OceanScene />);
-      const scene = container.querySelector('.ocean-scene')!;
-      const marks = Array.from(scene.querySelectorAll(':scope > .ocean-scene__snap'));
-      expect(marks).toHaveLength(5);
-      expect(marks.map((m) => (m as HTMLElement).style.left)).toEqual(['0%', '25%', '50%', '75%', '100%']);
-    });
-
-    it('places no snap mark inside any svg layer', () => {
-      const { container } = render(<OceanScene />);
-      for (const layer of container.querySelectorAll('svg.ocean-scene__layer')) {
-        expect(layer.querySelector('.ocean-scene__snap')).toBeNull();
-      }
-    });
-  });
-
   // Scenery actors (docs/specs/WORLD_VIEW_DISTRICTS.md §1.8, roadmap Phase 42 Task 11): rendered
   // in the same depth group as factories, interleaved in the recipe's own row order.
   describe('scenery interleave (roadmap Phase 42 Task 11)', () => {

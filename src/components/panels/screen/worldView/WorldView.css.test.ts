@@ -13,14 +13,14 @@ import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 const cssSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'WorldView.css'), 'utf-8');
 
 describe('WorldView.css — the scroller', () => {
-  it('fills .world-view and scrolls horizontally only, with proximity snap and a contained overscroll', () => {
+  it('fills .world-view and scrolls horizontally only, with a contained overscroll', () => {
     const body = getCssRuleBody(cssSource, '.world-view__scroller');
     expect(body).not.toBeNull();
     expect(body).toContain('position: absolute;');
     expect(body).toContain('inset: 0;');
     expect(body).toContain('overflow-x: auto;');
     expect(body).toContain('overflow-y: hidden;');
-    expect(body).toContain('scroll-snap-type: x proximity;');
+    expect(body).not.toMatch(/scroll-snap/);
     expect(body).toContain('overscroll-behavior-x: contain;');
     expect(body).toContain('scrollbar-width: none;');
   });

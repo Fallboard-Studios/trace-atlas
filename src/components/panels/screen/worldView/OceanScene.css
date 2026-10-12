@@ -17,20 +17,6 @@
   aspect-ratio: 16 / 9;
 }
 
-/* Mobile Deck Camera (spec assumption 10): quarter-stage proximity snap marks, direct children
-   of .ocean-scene (not a layer — they take no clicks and carry nothing visible). Zero width so
-   each is a line at its `left` fraction, not a box; `scroll-snap-align: start` pairs with
-   WorldView.css's `scroll-snap-type: x proximity` on the scroller, so a camera pan that lands
-   between marks stays put and a swipe that stops near one settles there. */
-.ocean-scene__snap {
-  position: absolute;
-  top: 0;
-  width: 0;
-  height: 100%;
-  scroll-snap-align: start;
-  pointer-events: none;
-}
-
 .ocean-scene__layer {
   position: absolute;
   inset: 0;
