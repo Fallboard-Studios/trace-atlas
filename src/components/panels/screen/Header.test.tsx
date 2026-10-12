@@ -115,6 +115,11 @@ class MockResizeObserver {
     this.callback([{ contentRect: { height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
   }
 
+  /** A content-box width report: the free band left of the power corner, as the ruler reports it. */
+  fireContentWidth(width: number) {
+    this.callback([{ contentRect: { width, height: 0 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+
   /** A width report as a real observer's: the border box's inline size (the row's padding counts). */
   fireWidth(width: number) {
     this.callback([{ contentRect: { width: width - 100 }, borderBoxSize: [{ inlineSize: width, blockSize: 0 }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
@@ -401,6 +406,73 @@ describe('Header', () => {
       useUIStore.setState({ isNavPanelOpen: false });
     });
 
+    // Crawford, 2026-10-11: once the band has room for the volume slider at its shortest track (three boxes), the
+    // ▾ box goes and the slider shows on screen in the same row. The room is the free band left of the power
+    // corner, which the ruler (an empty box mirroring it) reports; the need is the three boxes of the row.
+    describe('the volume slider replaces the ▾ box once it fits', () => {
+      const rulerObserver = (container: HTMLElement) => {
+        const ruler = container.querySelector('.header__ruler');
+        const found = MockResizeObserver.instances.find((o) => ruler && o.observedTargets.includes(ruler));
+        if (!found) throw new Error('No MockResizeObserver observed .header__ruler');
+        return found;
+      };
+      const need = (container: HTMLElement) => {
+        const style = container.querySelector<HTMLElement>('header')!.style;
+        return 2 * 44 + 2 * parseFloat(style.getPropertyValue('--header-row-gap')) + parseFloat(style.getPropertyValue('--header-volume-width'));
+      };
+
+      it('shows the ▾ box until the band has been measured', () => {
+        render(<Header />);
+        expect(screen.getByRole('button', { name: VOLUME_NAME })).toBeTruthy();
+        expect(screen.queryByRole('slider')).toBeNull();
+      });
+
+      it('is short of room one pixel under the need: the ▾ box stays, no slider on screen', () => {
+        const { container } = render(<Header />);
+        act(() => rulerObserver(container).fireContentWidth(need(container) - 1));
+        expect(screen.getByRole('button', { name: VOLUME_NAME })).toBeTruthy();
+        expect(screen.queryByRole('slider')).toBeNull();
+      });
+
+      it('has room at exactly the need: the ▾ box is gone and the slider sits after mute in the controls row', () => {
+        const { container } = render(<Header />);
+        act(() => rulerObserver(container).fireContentWidth(need(container)));
+        expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
+        const controls = container.querySelector<HTMLElement>('.header__controls')!;
+        const menu = within(controls).getByRole('switch', { name: labels('nav.toggle').humanLabel });
+        const mute = within(controls).getByRole('switch', { name: /mute/i });
+        const slider = within(controls).getByRole('slider', { name: /volume/i });
+        expect(follows(menu, mute)).toBe(true);
+        expect(follows(mute, slider)).toBe(true);
+        expect(slider.getAttribute('aria-valuenow')).toBe('60');
+        expect(container.querySelector('.header__volume-popover')).toBeNull();
+      });
+
+      it('swaps back to the ▾ box when the band narrows again', () => {
+        const { container } = render(<Header />);
+        act(() => rulerObserver(container).fireContentWidth(need(container) + 40));
+        expect(screen.queryByRole('button', { name: VOLUME_NAME })).toBeNull();
+        act(() => rulerObserver(container).fireContentWidth(need(container) - 40));
+        expect(screen.getByRole('button', { name: VOLUME_NAME })).toBeTruthy();
+        expect(screen.queryByRole('slider')).toBeNull();
+      });
+
+      it('closes an open pop-out when the room arrives, and never mounts two sliders at once', () => {
+        const { container } = render(<Header />);
+        fireEvent.click(screen.getByRole('button', { name: VOLUME_NAME }));
+        expect(screen.getAllByRole('slider')).toHaveLength(1);
+        act(() => rulerObserver(container).fireContentWidth(need(container)));
+        expect(container.querySelector('.header__volume-popover')).toBeNull();
+        expect(screen.getAllByRole('slider')).toHaveLength(1);
+      });
+
+      it('the desk shell has no ruler: it always shows the slider', () => {
+        stubShell(true);
+        const { container } = render(<Header />);
+        expect(container.querySelector('.header__ruler')).toBeNull();
+      });
+    });
+
     it('the world line shows in the well on the Deck; a branch shows the breadcrumb there', () => {
       const { container } = render(<Header />);
       expect(container.querySelector('.header__well .world-line')).not.toBeNull();
@@ -640,7 +712,7 @@ describe('Header.css — one row beside the power corner', () => {
   });
 
   it('the slider, desk row or pop-out, has one width and no min-width of its own', () => {
-    const row = getCssRuleBody(css, '.header__row .sc-slider-linear');
+    const row = getCssRuleBody(css, '.header__controls .sc-slider-linear');
     expect(row).toContain('width: var(--header-volume-width);');
     expect(row).not.toMatch(/min-width/);
     expect(getCssRuleBody(css, '.header__volume-popover .sc-slider-linear')).toContain('width: var(--header-volume-width);');
@@ -652,20 +724,33 @@ describe('Header.css — one row beside the power corner', () => {
     );
   });
 
-  // Crawford, 2026-10-11: on the phone the row wraps to two lines. The controls fill the first; the well is
-  // its own full-width second line, left of the power corner (the row's right padding keeps the corner clear).
-  it('the phone row wraps, and fills the screen so its right padding reaches the power corner', () => {
-    const body = getCssRuleBody(css, '.header__row--phone');
-    expect(body).toContain('flex-wrap: wrap;');
-    expect(getCssRuleBody(css, '.header--phone > .sc-cabinet-box')).toContain('width: 100%;');
-    expect(getCssRuleBody(css, '.header--phone > .sc-cabinet-box > .sc-cabinet-box__front')).toContain('width: 100%;');
-    expect(getCssRuleBody(css, '.header--phone .header__row')).toContain('width: 100%;');
+  // Crawford, 2026-10-11: the band is right-aligned and hugs its content, so it covers as little of the
+  // screen as it can. The header is right-anchored (justify-content: flex-end), so the facade needs no width
+  // of its own; the phone row stacks the controls line over the well.
+  it('the phone band hugs its content at the right: no width of its own, and the row stacks its two lines', () => {
+    expect(getCssRuleBody(css, '.header')).toContain('justify-content: flex-end;');
+    expect(css).not.toContain('.header--phone');
+    expect(getCssRuleBody(css, '.header__row--phone')).toContain('flex-direction: column;');
+    expect(getCssRuleBody(css, '.header__controls')).toContain('display: flex;');
   });
 
-  it('the well takes a full line of its own and can shrink to nothing, cutting its one line short with an ellipsis', () => {
+  // The well holds all the info and scrolls sideways: it contributes no width of its own to the band
+  // (inline-size containment), so a long line cannot widen the band; the overflow scrolls instead.
+  it('the well scrolls sideways, never truncates, and adds no width to the band', () => {
     const body = getCssRuleBody(css, '.header__well');
     expect(body).not.toBeNull();
-    for (const declaration of ['flex: 1 0 100%;', 'min-width: 0;', 'overflow: hidden;', 'text-overflow: ellipsis;', 'white-space: nowrap;']) {
+    for (const declaration of ['overflow-x: auto;', 'white-space: nowrap;', 'contain: inline-size;', 'min-width: 0;']) {
+      expect(body).toContain(declaration);
+    }
+    expect(body).not.toContain('text-overflow');
+  });
+
+  // The ruler mirrors the room left of the power corner, so what the observer reports is what the controls
+  // line has: the row's left padding and the corner's reserve, the same two the row's own padding uses.
+  it('the ruler is an empty, invisible box spanning the free band left of the power corner', () => {
+    const body = getCssRuleBody(css, '.header__ruler');
+    expect(body).not.toBeNull();
+    for (const declaration of ['position: absolute;', 'height: 0;', 'visibility: hidden;', 'pointer-events: none;', 'left: var(--spacing-md);', 'right: calc(var(--power-corner-width) + var(--spacing-md));']) {
       expect(body).toContain(declaration);
     }
   });
@@ -676,10 +761,10 @@ describe('Header.css — one row beside the power corner', () => {
     expect(body).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
   });
 
-  // Toggle.css makes .sc-toggle width: 100% and an inline-size container; the existing .header__row > .sc-toggle
+  // Toggle.css makes .sc-toggle width: 100% and an inline-size container; the existing .header__controls > .sc-toggle
   // override already sizes the menu to its 44 px box, so the menu needs no rule of its own.
-  it('the menu is sized by the same row rule as mute', () => {
-    expect(getCssRuleBody(css, '.header__row > .sc-toggle')).toContain('width: auto;');
+  it('the menu is sized by the same controls rule as mute', () => {
+    expect(getCssRuleBody(css, '.header__controls > .sc-toggle')).toContain('width: auto;');
   });
 
   it('the phone band leaves the bottom alone: no bar, no bottom clearance variable', () => {

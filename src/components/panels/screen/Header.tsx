@@ -50,9 +50,18 @@ const HEADER_VOLUME_WIDTH =
   computeVoxelTrackLength(VOXEL_TRACK_MIN_BOX_COUNT, CABINET_BOX_HEIGHT.desktop, CABINET_VOXEL_GAP.desktop) +
   computeVoxelTrackTrailingReserve('horizontal');
 
+/** The gap between the controls in a line (Header.css reads it as --header-row-gap), and the one number the
+ *  phone's fit check adds up beside the boxes and the slider. */
+const HEADER_ROW_GAP = 8;
+
+/** What the phone's controls line needs to show the slider in place of the ▾ box: the menu, mute and the
+ *  slider at its one width, and the two gaps between them. */
+const PHONE_INLINE_VOLUME_NEED = 2 * CABINET_TOGGLE_BOX_SIZE + 2 * HEADER_ROW_GAP + HEADER_VOLUME_WIDTH;
+
 const HEADER_STYLE = {
   ...getTraitColorStyle('header'),
   '--header-volume-width': `${HEADER_VOLUME_WIDTH}px`,
+  '--header-row-gap': `${HEADER_ROW_GAP}px`,
 } as CSSProperties;
 
 /**
@@ -95,8 +104,9 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
  * The slim header (docs/specs/LAYOUT_REWORK.md §1.1; docs/tasks/LAYOUT_REWORK.md Task 6): one cabinet
  * row beside the power corner, in its static popped facade. On the desk shell, mute and the master
  * volume slider; on the phone shell, the nav menu, mute and the ▾ box that opens the slider in a pop-out,
- * with the well (world line or breadcrumb) on a second line under them (Crawford, 2026-10-11: the phone's
- * bottom bar moved up here, left of the power corner). The slide
+ * with the well (world line or breadcrumb, scrolling sideways) on a second line under them; once the free
+ * band has room for the slider's three boxes, the slider takes the ▾ box's place (Crawford, 2026-10-11: the
+ * phone's bottom bar moved up here, right-aligned beside the power corner). The slide
  * that once moved the row out of the nav panel's way is gone: the phone's nav is a sheet below the top
  * bar and the desk panel never reaches the header, so nothing here moves with the nav.
  *
@@ -106,7 +116,11 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  const rulerRef = useRef<HTMLSpanElement>(null);
   const shell = useShell();
+  // Phone only: the free band left of the power corner has room for the slider (Crawford, 2026-10-11: once
+  // three of its boxes fit, the ▾ box goes and the slider shows on screen). False until the ruler reports.
+  const [roomForVolume, setRoomForVolume] = useState(false);
 
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
 
@@ -146,6 +160,18 @@ function Header() {
     };
   }, []);
 
+  // The ruler is an empty box mirroring that free band (Header.css), so its content width is the room the
+  // controls line has, whatever the screen, the corner or the zoom make it. The desk shows the slider always.
+  useEffect(() => {
+    const ruler = rulerRef.current;
+    if (!ruler) return;
+    const observer = new ResizeObserver((entries) => {
+      setRoomForVolume(entries[0].contentRect.width >= PHONE_INLINE_VOLUME_NEED);
+    });
+    observer.observe(ruler);
+    return () => observer.disconnect();
+  }, [shell]);
+
   const handleVolumeChange = (pct: number) => {
     if (!isPoweredOn) return;
     useAudioStore.getState().setVolume(pct / 100);
@@ -162,24 +188,27 @@ function Header() {
          non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
          value/state tie-in). See DirectionalPanel.tsx's own comment and
          docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
+      {shell === 'phone' && <span ref={rulerRef} className="header__ruler" aria-hidden="true" />}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
         <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>
-          {shell === 'phone' && <PhoneMenu />}
-          <Toggle
-            schema={MUTE_SCHEMA}
-            value={isMuted}
-            onChange={(v) => useAudioStore.getState().setMuted(v)}
-            disabled={!isPoweredOn}
-            boxSize={CABINET_TOGGLE_BOX_SIZE}
-          >
-            {/* Single glyph, swapped on isMuted — unlike the old two-string
-               text facade, both icons render at the same intrinsic width so
-               there's no box-resize-on-toggle concern to guard against.
-               aria-hidden: the switch's own aria-label (resolveAccessibleName
-               above) already carries the accessible name. */}
-            <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
-          </Toggle>
-          {shell === 'desk' ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
+          <div className="header__controls">
+            {shell === 'phone' && <PhoneMenu />}
+            <Toggle
+              schema={MUTE_SCHEMA}
+              value={isMuted}
+              onChange={(v) => useAudioStore.getState().setMuted(v)}
+              disabled={!isPoweredOn}
+              boxSize={CABINET_TOGGLE_BOX_SIZE}
+            >
+              {/* Single glyph, swapped on isMuted — unlike the old two-string
+                 text facade, both icons render at the same intrinsic width so
+                 there's no box-resize-on-toggle concern to guard against.
+                 aria-hidden: the switch's own aria-label (resolveAccessibleName
+                 above) already carries the accessible name. */}
+              <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
+            </Toggle>
+            {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
+          </div>
           {shell === 'phone' && <PhoneWell />}
         </div>
       </CabinetBox>
