@@ -102,15 +102,16 @@ describe('worldLightVector', () => {
   });
 
   describe('LIGHT_LATERAL_SPAN is pinned to the lighting curve', () => {
-    const measures = Array.from({ length: 96 }, (_, m) => m);
-    const laterals = measures.map((m) => {
-      const { eastL, westL } = getLighting(m);
+    // Quarter-hour steps across the day: index i is hour i / 4, so index 36 is 9 am.
+    const hours = Array.from({ length: 96 }, (_, i) => i / 4);
+    const laterals = hours.map((h) => {
+      const { eastL, westL } = getLighting(h);
       return lateral(worldLightVector(eastL, westL));
     });
 
     // The vector is normalised, so |x| < 1 whatever the span and cannot pin it; the unnormalised
-    // sideways component (x / -y) can. On the real curve it peaks at ~1.093 (measures 31-32 and
-    // 64-65, about 8 am / 4 pm) and is 1.006 at 9 am (the spec's quoted gap of 0.704 / 0.7).
+    // sideways component (x / -y) can. On the real curve it peaks at ~1.093 (about 8 am / 4 pm)
+    // and is 1.006 at 9 am (the spec's quoted gap of 0.704 / 0.7).
     it('the unnormalised sideways component never exceeds 1.1 over a whole day', () => {
       // A span that is too small (0.5) lifts the peak to ~1.53 and fails here.
       for (const l of laterals) expect(Math.abs(l)).toBeLessThanOrEqual(1.1);
@@ -127,13 +128,13 @@ describe('worldLightVector', () => {
     });
 
     it('is east-leaning in the morning, west-leaning in the afternoon, and level at noon', () => {
-      const at = (m: number) => {
-        const { eastL, westL } = getLighting(m);
+      const at = (hour: number) => {
+        const { eastL, westL } = getLighting(hour);
         return worldLightVector(eastL, westL)[0];
       };
-      expect(at(36)).toBeGreaterThan(0);
-      expect(at(60)).toBeLessThan(0);
-      expect(Math.abs(at(48))).toBeLessThan(1e-9);
+      expect(at(9)).toBeGreaterThan(0);
+      expect(at(15)).toBeLessThan(0);
+      expect(Math.abs(at(12))).toBeLessThan(1e-9);
     });
   });
 });

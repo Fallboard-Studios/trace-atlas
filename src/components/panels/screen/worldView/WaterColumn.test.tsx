@@ -3,7 +3,7 @@ import { act, render, cleanup } from '@testing-library/react';
 
 import { WaterColumn } from './WaterColumn';
 import { useUIStore } from '@/stores/uiStore';
-import { getLighting, getNightDepth, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 
 // ========================================
 // FIXTURES
@@ -16,8 +16,7 @@ function setLocalTime(hour: number | null) {
 }
 
 function dAt(hour: number): number {
-  const lightMeasure = (hour / 24) * DAY_CYCLE_MEASURES;
-  const { eastL, westL } = getLighting(lightMeasure % DAY_CYCLE_MEASURES);
+  const { eastL, westL } = getLighting(hour);
   return 1 - getNightDepth(eastL, westL);
 }
 

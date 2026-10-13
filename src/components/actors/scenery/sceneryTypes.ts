@@ -15,9 +15,9 @@ export interface SceneryContext {
   params: SceneryParams;
   /** `ROW_L_CAP[depth] * (derelict ? DERELICT_L_CAP : 1)` — multiply into eastL/westL before applyColorShift. */
   cap: number;
-  /** `getLighting(lightMeasure).eastL` — cap-free; the renderer applies `cap` itself. */
+  /** `getLighting(hour).eastL` — cap-free; the renderer applies `cap` itself. */
   eastL: number;
-  /** `getLighting(lightMeasure).westL` — cap-free; the renderer applies `cap` itself. */
+  /** `getLighting(hour).westL` — cap-free; the renderer applies `cap` itself. */
   westL: number;
   /** 0 when derelict (§1.6); otherwise `getNightDepth(eastL, westL)`. */
   nightDepth: number;

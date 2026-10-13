@@ -34,7 +34,7 @@ const LIGHTING_PRESETS = {
 
 /**
  * Set to one of the preset keys to preview lighting.
- * Set to `null` to use the live day/night cycle driven by `currentMeasure`.
+ * Set to `null` to use the live day/night cycle driven by the locale's local hour.
  */
 const DEBUG_LIGHTING_PRESET = null as keyof typeof LIGHTING_PRESETS | null;
 
@@ -290,19 +290,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
 
   const preset = DEBUG_LIGHTING_PRESET ? LIGHTING_PRESETS[DEBUG_LIGHTING_PRESET] : null;
 
-  // Map the quantised `lightMeasure` (0..dayLength-1) into the 0..95 cycle
-  // expected by `getLighting`. This keeps the relative sun position correct
-  // even when `dayLengthMeasures` is changed from the default 96.
-  const eastLMultiplier = (() => {
-    if (preset) return preset.east;
-    const cycleMeasure = lightMeasure % DAY_CYCLE_MEASURES;
-    return getLighting(cycleMeasure).eastL;
-  })();
-  const westLMultiplier = (() => {
-    if (preset) return preset.west;
-    const cycleMeasure = lightMeasure % DAY_CYCLE_MEASURES;
-    return getLighting(cycleMeasure).westL;
-  })();
+  const eastLMultiplier = preset ? preset.east : getLighting(localTime).eastL;
+  const westLMultiplier = preset ? preset.west : getLighting(localTime).westL;
 
   const derelict = !!actor.config?.derelict;
 

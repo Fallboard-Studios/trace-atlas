@@ -5,7 +5,7 @@ import { LightShafts } from './LightShafts';
 import { evictLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
-import { getLighting, getNightDepth, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 import { assertNinetyFortyFive } from '@/components/actors/scenery/sceneryTestHelpers';
 import type { Locale } from '@/types/locale';
 
@@ -34,8 +34,7 @@ function getGroup(container: HTMLElement) {
 }
 
 function ndAt(hour: number): number {
-  const lightMeasure = (hour / 24) * DAY_CYCLE_MEASURES;
-  const { eastL, westL } = getLighting(lightMeasure % DAY_CYCLE_MEASURES);
+  const { eastL, westL } = getLighting(hour);
   return getNightDepth(eastL, westL);
 }
 
