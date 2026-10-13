@@ -70,6 +70,7 @@ function input(count: number, over: Partial<Omit<JobTimelineInput, 'robot' | 'ro
     site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], paths: { outline: SITE_PATH } },
     job: JobType.VentExtraction,
     bpm: 110,
+    decorTier: 'all',
     bodyScale: 1.2,
     layerScale: 1,
     reducedMotion: false,

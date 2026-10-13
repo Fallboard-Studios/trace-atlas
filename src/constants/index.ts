@@ -292,6 +292,13 @@ export const FLICKER_SPARKS = 3;
  *  Counts and opacities never vary. */
 export const DECOR_JITTER = 0.15;
 
+/** The decoration tier a job runs at, by Robot Load (docs/specs/JOB_DECORATION.md Assumption 9;
+ *  jobMoves/decor/decorTier.ts). Below Standard, then from Standard to below Full; Full is always
+ *  'all'. Both are 'all' today, so every preset runs every decoration; if the idle-paint perf gate
+ *  misses, binding the ladder (Light 'none', Standard 'cheap') is these two constants and nothing else. */
+export const DECOR_TIER_BELOW_STANDARD: 'none' | 'cheap' | 'all' = 'all';
+export const DECOR_TIER_BELOW_FULL: 'none' | 'cheap' | 'all' = 'all';
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

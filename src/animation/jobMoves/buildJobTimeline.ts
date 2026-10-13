@@ -30,6 +30,7 @@ import { addCarry, carryTargets } from './carry';
 import { addFan, fanTargets } from './fan';
 import { turnRanks, workVariation, type WorkVariation } from './variation';
 import { sceneToOrbiterLocal, type OrbiterCorner } from './sceneToOrbiterLocal';
+import type { DecorTier } from './decor/decorTier';
 import type { JobTimelineData, MoveEvents } from './decor/events';
 import { setTimeline } from '../timelineMap';
 import { getRobotGem } from '../../components/robot/gem/polygon';
@@ -53,6 +54,9 @@ export interface JobTimelineInput {
   orbiters: readonly Element[];
   /** The live transport tempo at job start. */
   bpm: number;
+  /** How much decoration this run draws (`decorTier(robotLoad)`, read once by the work loop beside
+   *  `bpm`). Not used by the timeline yet (Task 6). */
+  decorTier: DecorTier;
   bodyScale: number;
   layerScale: number;
   reducedMotion: boolean;

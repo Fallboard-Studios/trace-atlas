@@ -19,6 +19,7 @@ import * as stationsModule from './stations';
 import { getTimeline, killAllTimelines, timelineMap } from '../animation/timelineMap';
 import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry, isLayerSwitching } from '../animation/robotMotionRegistry';
 import * as buildJobTimelineModule from '../animation/jobMoves/buildJobTimeline';
+import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
 import { stationRippleKey } from '../animation/stationRipple';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
@@ -32,7 +33,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import {
-  BACK_HOSTS_ENABLED, BACK_LAYER_SCALE, BOB_PX, LAYER_DISSOLVE_SECONDS, STATION_ARC_SECONDS, STATION_PORT_SCALE, STATION_REDUCED_ARC_SECONDS, SWIM_SPEED, WAIT_RETRY_SECONDS,
+  AUDIO_LOAD_PRESETS, BACK_HOSTS_ENABLED, BACK_LAYER_SCALE, BOB_PX, LAYER_DISSOLVE_SECONDS, STATION_ARC_SECONDS, STATION_PORT_SCALE, STATION_REDUCED_ARC_SECONDS, SWIM_SPEED, WAIT_RETRY_SECONDS,
 } from '../constants';
 import type { Actor } from '../types/Actor';
 import type { DockingState, JobType, Robot } from '../types/Robot';
@@ -2003,5 +2004,91 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(isHidden(first.el)).toBe(true);
       expect(getTimeline('station-r1')).toBeUndefined();
     });
+  });
+});
+
+describe('workLoop — the decoration tier (Job decorations Task 5, spec Assumption 9)', () => {
+  const LADDER = { belowStandard: 'none', belowFull: 'cheap' } as const;
+  const realDecorTier = decorTierModule.decorTier;
+  let jobSpy: MockInstance<typeof buildJobTimelineModule.buildJobTimeline>;
+  let tierSpy: MockInstance<typeof decorTierModule.decorTier>;
+  let savedLoad: number;
+  beforeEach(() => {
+    savedLoad = useAudioStore.getState().robotLoad;
+    jobSpy = vi.spyOn(buildJobTimelineModule, 'buildJobTimeline');
+    tierSpy = vi.spyOn(decorTierModule, 'decorTier');
+  });
+  afterEach(() => {
+    jobSpy.mockRestore();
+    tierSpy.mockRestore();
+    useAudioStore.setState({ robotLoad: savedLoad });
+  });
+
+  /** One robot arrives at a site and starts its job; the arrival is where the loop reads the tier. */
+  function arrive() {
+    const { a } = sitesForSwitch();
+    registerLocale([a], [robot('r1', { x: 200, y: 200 })]);
+    startWorkLoop(LOCALE, { now, backHosts: false });
+    mount('r1');
+    next('r1');
+    finish('swim-r1');
+  }
+
+  it('passes the decoration tier for the store robotLoad beside bpm: all at every preset today', () => {
+    for (const load of [AUDIO_LOAD_PRESETS.light, AUDIO_LOAD_PRESETS.standard, AUDIO_LOAD_PRESETS.full]) {
+      useAudioStore.setState({ robotLoad: load });
+      arrive();
+      expect(jobSpy, String(load)).toHaveBeenCalledTimes(1);
+      const call = jobSpy.mock.calls[0][0];
+      expect(call.decorTier, String(load)).toBe('all');
+      expect(call.bpm).toBe(BPM);
+      jobSpy.mockClear();
+      stopWorkLoop();
+      killAllTimelines();
+      clearRefs();
+      clearRobotMotionRegistry();
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('asks decorTier with the live robotLoad, once per job', () => {
+    useAudioStore.setState({ robotLoad: 0.37 });
+    arrive();
+    expect(tierSpy).toHaveBeenCalledTimes(1);
+    expect(tierSpy).toHaveBeenCalledWith(0.37);
+  });
+
+  it('with the ladder substituted, Light builds the job at none, Standard at cheap, Full at all', () => {
+    tierSpy.mockImplementation((load) => realDecorTier(load, LADDER));
+    const expected = [
+      [AUDIO_LOAD_PRESETS.light, 'none'],
+      [AUDIO_LOAD_PRESETS.standard, 'cheap'],
+      [AUDIO_LOAD_PRESETS.full, 'all'],
+    ] as const;
+    for (const [load, tier] of expected) {
+      useAudioStore.setState({ robotLoad: load });
+      arrive();
+      expect(jobSpy.mock.calls[0][0].decorTier, String(load)).toBe(tier);
+      jobSpy.mockClear();
+      stopWorkLoop();
+      killAllTimelines();
+      clearRefs();
+      clearRobotMotionRegistry();
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('the tier does not touch the job: its duration is still jobDuration(bpm) at every rung', () => {
+    tierSpy.mockImplementation((load) => realDecorTier(load, LADDER));
+    for (const load of [AUDIO_LOAD_PRESETS.light, AUDIO_LOAD_PRESETS.full]) {
+      useAudioStore.setState({ robotLoad: load });
+      arrive();
+      expect(Math.abs(getTimeline('work-r1')!.duration() - jobDuration(BPM))).toBeLessThanOrEqual(1 / 60);
+      stopWorkLoop();
+      killAllTimelines();
+      clearRefs();
+      clearRobotMotionRegistry();
+      document.body.innerHTML = '';
+    }
   });
 });
