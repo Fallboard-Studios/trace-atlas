@@ -216,7 +216,7 @@ beforeAll(() => {
   gsap.globalTimeline.pause();
   useLocaleStore.getState().addLocale('pelagos', {
     id: 'work-loop-integration-world', attenuationStyleId: 'pelagos', name: 'w', coordinates: { x: 3, y: 7 },
-    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [], currentMeasure: 0,
+    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [],
   });
   WORLD = placeDistrict('work-loop-integration-world');
   WORLD_LOCALE = useLocaleStore.getState().getLocaleById('work-loop-integration-world')!;

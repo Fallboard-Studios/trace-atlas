@@ -55,7 +55,7 @@ beforeAll(() => {
     const id = `bevel0-${x}-${y}`;
     useLocaleStore.getState().addLocale('pelagos', {
       id, attenuationStyleId: 'pelagos', name: id, coordinates: { x, y },
-      dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [], currentMeasure: 0,
+      dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [],
     });
     for (const placed of placeDistrict(id)) {
       // The placer's body hue/sat shift varies from run to run (it reads the attenuation style's

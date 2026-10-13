@@ -87,14 +87,12 @@ const DEFAULT_LOCALE: Locale = {
   // Literal 0, not getCurrentMeasure() -- this module-level constant is constructed before
   // BeatClock could ever have advanced past its own 0 default, and calling getCurrentMeasure()
   // here at module-load time would make every test that mocks beatClock (nearly all of them,
-  // transitively) need to include that export or fail to import this module at all. Same
-  // already-hardcoded-not-computed treatment as currentMeasure below. See docs/specs/
+  // transitively) need to include that export or fail to import this module at all. See docs/specs/
   // WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md.
   createdAtMeasure: 0,
   robots: [],
   actors: [],
   companies: [],
-  currentMeasure: 0,
 };
 
 // Reuse DEFAULT_LOCALE.coordinates rather than a second hardcoded x/y pair

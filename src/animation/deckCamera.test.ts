@@ -140,7 +140,7 @@ function seedLocale(robots: Array<[id: string, docking: DockingState, battery: n
     locales: {
       [LOCALE]: {
         id: LOCALE, attenuationStyleId: 'pelagos', name: LOCALE, coordinates: { x: 3, y: 7 },
-        dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [], currentMeasure: 0,
+        dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [],
         robots: robots.map(([id, docking, batteryLevel]) => ({ id, docking, batteryLevel }) as Robot),
       },
     },

@@ -2202,6 +2202,17 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
     const beatClock = await import('./beatClock');
     expect(beatClock.initBeatClock).toHaveBeenCalled();
   });
+
+  it('does not subscribe to measures — no measure is mirrored into the locale store (roadmap 48)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const beatClock = await import('./beatClock');
+    vi.mocked(beatClock.subscribeToMeasure).mockClear();
+
+    await AudioEngine.start();
+
+    expect(beatClock.initBeatClock).toHaveBeenCalled();
+    expect(beatClock.subscribeToMeasure).not.toHaveBeenCalled();
+  });
 });
 
 describe('AudioEngine.start — primes the just-built global FX chain from currently-seeded globalAudio state', () => {

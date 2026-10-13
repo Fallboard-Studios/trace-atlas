@@ -41,7 +41,7 @@ let MIDGROUND: Actor[] = [];
 function registerLocale(id: string, x: number, y: number): void {
   useLocaleStore.getState().addLocale('pelagos', {
     id, attenuationStyleId: 'pelagos', name: id, coordinates: { x, y },
-    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [], currentMeasure: 0,
+    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [],
   });
 }
 

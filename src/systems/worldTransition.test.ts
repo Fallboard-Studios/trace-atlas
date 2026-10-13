@@ -283,6 +283,13 @@ describe('worldTransition', () => {
       expect(computeLocaleHour(newLocale.dayStartTimestamp)).toBeCloseTo(Math.abs(-37 % 24), 0);
     });
 
+    it('builds a locale with no per-measure field — the day is wall-clock, nothing mirrors a measure into the Locale (roadmap 48)', () => {
+      retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
+      const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
+      expect(newLocale).not.toHaveProperty('currentMeasure');
+    });
+
     it("stamps the new locale's createdAtMeasure from getCurrentMeasure() at construction time (World Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md)", () => {
       vi.mocked(getCurrentMeasure).mockReturnValue(137);
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
