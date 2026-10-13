@@ -86,8 +86,6 @@ vi.mock('gsap', () => {
   return { default: mocked, ...mocked };
 });
 
-vi.mock('gsap/ScrollToPlugin', () => ({ ScrollToPlugin: {} }));
-
 // ========================================
 // FIXTURES
 // ========================================
@@ -447,7 +445,7 @@ describe('deckCamera', () => {
       expect(gsap.timeline).not.toHaveBeenCalled();
     });
 
-    it('tweens scrollLeft to the resolved target with autoKill and reports true', () => {
+    it('tweens a progress proxy to 1, not the scroller itself, and reports true', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);
       makeRobotRef('alpha', 960);
@@ -456,9 +454,75 @@ describe('deckCamera', () => {
 
       const tl = lastCreatedTimeline();
       const [target, vars] = tl.to.mock.calls[0];
-      expect(target).toBe(fake);
-      expect(vars.scrollTo).toEqual({ x: 1732.5, autoKill: true });
+      expect(target).not.toBe(fake);
+      expect((target as { p: number }).p).toBe(0);
+      expect(vars.p).toBe(1);
+      expect(vars.scrollTo).toBeUndefined();
       expect(tl.play).toHaveBeenCalled();
+    });
+
+    /** The float chases the robot's live position (the stale-target fix, 2026-10-12): each update
+     *  writes start + progress × (live target − start), so a robot that moves during the float is
+     *  still centred when the float lands, and the first follow write is no jump. */
+    describe('chasing a moving robot', () => {
+      function floatTo(id: string, from: number): { fake: FakeScroller; proxy: { p: number }; onUpdate: () => void } {
+        const fake = makeFakeScroller(3840, 375, from);
+        registerDeckScroller(fake as unknown as HTMLElement);
+        moveCameraTo(id);
+        const tl = lastCreatedTimeline();
+        const [proxy, vars] = tl.to.mock.calls[0] as [{ p: number }, Record<string, unknown>];
+        return { fake, proxy, onUpdate: vars.onUpdate as () => void };
+      }
+
+      it('writes the blend of the start and the live target at each progress', () => {
+        const alpha = makeRobotRef('alpha', 960); // target 1732.5
+        const { fake, proxy, onUpdate } = floatTo('alpha', 2000);
+
+        proxy.p = 0.5;
+        onUpdate();
+        expect(fake.scrollLeft).toBeCloseTo(2000 + 0.5 * (1732.5 - 2000));
+
+        // The robot moves right mid-float: the blend aims at where it is now, not where it was.
+        gsap.set(alpha, { x: 1100 }); // target 2012.5
+        proxy.p = 0.75;
+        onUpdate();
+        expect(fake.scrollLeft).toBeCloseTo(2000 + 0.75 * (2012.5 - 2000));
+      });
+
+      it('lands exactly on the live target, so the follow\'s first write is no jump', () => {
+        const alpha = makeRobotRef('alpha', 960);
+        const { fake, proxy, onUpdate } = floatTo('alpha', 2000);
+
+        gsap.set(alpha, { x: 1200 });
+        proxy.p = 1;
+        onUpdate();
+
+        expect(fake.scrollLeft).toBeCloseTo(deckCameraTargetFor('alpha')!);
+      });
+
+      it('holds the last known target when the robot\'s ref vanishes mid-float', () => {
+        makeRobotRef('alpha', 960);
+        const { fake, proxy, onUpdate } = floatTo('alpha', 2000);
+
+        proxy.p = 0.5;
+        onUpdate();
+        clearRefs();
+        proxy.p = 1;
+        onUpdate();
+
+        expect(fake.scrollLeft).toBeCloseTo(1732.5);
+      });
+
+      it('writes the landing position on completion even if no update ran (reduced motion)', () => {
+        makeRobotRef('alpha', 960);
+        const fake = makeFakeScroller(3840, 375, 2000);
+        registerDeckScroller(fake as unknown as HTMLElement);
+        moveCameraTo('alpha');
+
+        (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+
+        expect(fake.scrollLeft).toBeCloseTo(1732.5);
+      });
     });
 
     it('full duration without reduced motion, 0 under prefers-reduced-motion', () => {
@@ -699,7 +763,11 @@ describe('deckCamera', () => {
       it('picks and floats on the very first tick at boot, with no wait', () => {
         tick();
 
-        expect(lastToVars(lastCreatedTimeline()).scrollTo).toEqual({ x: 412.5, autoKill: true });
+        // beta's target is 412.5; the float lands there (its onUpdate at progress 1 writes it).
+        const [proxy, vars] = lastCreatedTimeline().to.mock.calls[0] as [{ p: number }, Record<string, unknown>];
+        proxy.p = 1;
+        (vars.onUpdate as () => void)();
+        expect(fake.scrollLeft).toBeCloseTo(412.5);
       });
 
       it('does not pick again while its float is in flight, even once the cooldown has passed', () => {
@@ -1142,7 +1210,13 @@ describe('deckCamera', () => {
       useUIStore.getState().setActiveHubTile(null);
     }
 
-    const floatTarget = () => (lastToVars(lastCreatedTimeline()).scrollTo as { x: number }).x;
+    /** Where the latest float lands: runs its update at progress 1 and reads the scroller. */
+    const floatTarget = () => {
+      const [proxy, vars] = lastCreatedTimeline().to.mock.calls[0] as [{ p: number }, Record<string, unknown>];
+      proxy.p = 1;
+      (vars.onUpdate as () => void)();
+      return fake.scrollLeft;
+    };
 
     it('floats straight to the robot whose screen was open, with no cooldown wait', () => {
       // The user has only just let go: a normal pick is a full cooldown away.
@@ -1172,8 +1246,8 @@ describe('deckCamera', () => {
       tick();
 
       expect(getFollowedRobotId()).toBe('alpha');
-      expect(floatTarget()).toBe(deckCameraTargetFor('alpha'));
       expect(fake.scrollLeft).toBe(-1); // mid-float: the ticker does not also write beta's target
+      expect(floatTarget()).toBe(deckCameraTargetFor('alpha'));
     });
 
     it('lands the forced float into a follow of that robot', () => {

@@ -176,8 +176,11 @@ function pick(candidateIds: readonly string[]): void {
   a no-op that also restarts the cooldown clock (`cooldownStartedAt = performance.now()`) — the
   next attempt is another full `DECK_CAMERA_COOLDOWN_MS` later, not next tick (Crawford, 2026-10-11;
   resolves what was Open Question Q3 in the first draft of this spec).
-- On a winner: builds and plays the existing float tween (`createCameraTween`, unchanged —
-  `DECK_CAMERA_PAN_S`, `power1.inOut`, instant under `prefers-reduced-motion`), and its `onComplete`
+- On a winner: builds and plays the float tween (`createCameraTween` — `DECK_CAMERA_PAN_S`,
+  `power1.inOut`, instant under `prefers-reduced-motion`; since 2026-10-12 it eases a progress
+  value and writes `start + progress × (live target − start)` on each update, chasing the robot's
+  live position instead of a `scrollTo` snapshot taken at pick time, so the landing is exactly the
+  follow's first write — see ANIMATION_SYSTEM.md "Float"), and its `onComplete`
   sets `subjectId = winner`, `followStartedAt = performance.now()`. `onInterrupt` (an override
   arriving mid-float) does the same — the interrupting caller is responsible for having already
   called `pick`/forced the right winner before the new tween starts.
