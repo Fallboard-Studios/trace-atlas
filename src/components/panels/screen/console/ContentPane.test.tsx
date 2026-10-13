@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 import ContentPane from './ContentPane';
-import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 
 // This test is about ContentPane's own blank-state/active-tile dispatch (spec §7 Q6 —
@@ -17,25 +16,14 @@ vi.mock('./ConsolePanel', () => ({
 
 const UI_INITIAL_STATE = useUIStore.getState();
 
-describe('ContentPane — blank/landing state renders a sized-to-content home card, not a full-bleed pane', () => {
+describe('ContentPane — the Deck renders nothing, an active tile renders the pane', () => {
   beforeEach(() => {
     useUIStore.setState(UI_INITIAL_STATE, true);
   });
 
-  it('renders .content-pane__home with a welcome accordion when activeHubTile is null, not .content-pane', () => {
+  it('renders nothing on the Deck (activeHubTile is null)', () => {
     const { container } = render(<ContentPane />);
-    expect(container.querySelector('.content-pane__home')).toBeTruthy();
-    expect(container.querySelector('.content-pane')).toBeNull();
-    expect(screen.getByText(CONTENT['home.root'].human)).toBeTruthy();
-    expect(screen.getByRole('heading', { name: CONTENT['home.root'].intro.lore })).toBeTruthy();
-  });
-
-  it('starts the welcome accordion open, and collapses it on trigger click', () => {
-    render(<ContentPane />);
-    const trigger = screen.getByText(CONTENT['home.root'].human).closest('button')!;
-    expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(trigger);
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(container.firstChild).toBeNull();
   });
 
   it('does not render ConsolePanel in the blank/landing state', () => {
@@ -131,10 +119,6 @@ describe('ContentPane.css — the opaque content surface', () => {
     expect(body).toContain('left: 0;');
     expect(body).toContain('right: 0;');
     expect(body).toContain('bottom: var(--phone-bar-clearance);');
-  });
-
-  it('the Deck’s home card is not a surface: the world stays bright around it', async () => {
-    expect(await ruleBody('ContentPane.css', '.content-pane__home')).not.toContain('--content-surface');
   });
 
   it('ConsolePanel.css carries none of the old header / nav / edge clearances or their breakpoints', async () => {
