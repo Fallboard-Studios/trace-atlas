@@ -11,7 +11,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo
 convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status: T1–T13 done (2026-10-13). T14 perf gate MISSED and stopped for Crawford's decision; see "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
+> **Status: T1–T13 done (2026-10-13). T14 perf gate missed, accepted by Crawford (2026-10-13); T15 Pixel run is next, his; see "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
 > Crawford's to confirm before Task 1; the defaults the tasks assume are: no battery dim (Q1), identity
 > colour (Q2), count-1 shapes as sketched (Q3), `onInterrupt` pinned by T6 (Q4), droplet numbers kept (Q5).
 
@@ -334,7 +334,7 @@ foreground, one run at a time, orphaned Chrome 0, four alternated rounds (docs/P
 - [ ] Miss → stop; Crawford picks the rung: (1) bind the tier ladder (T5 constants) and re-measure at Standard; (2) halve `INSPECT_TRAIL_SEGMENTS` and `FLUID_DROPS` on `'cheap'`; each rung its own commit and re-measure.
 
 **Verification:**
-- [ ] The run table in this file under "Perf gate results".
+- [x] The run table in this file under "Perf gate results".
 
 **Dependencies:** T13. **Files:** this plan, `docs/PERFORMANCE.md` (results only). **Scope:** S.
 
@@ -390,7 +390,7 @@ depends on it.
 
 ## Perf gate results
 
-**Task 14, 2026-10-13: MISSED on busy and paint. Stopped for Crawford; no rung applied.** Full method,
+**Task 14, 2026-10-13: MISSED on busy and paint. Crawford accepted it and sent it to the Pixel run (T15); no rung applied.** Full method,
 buckets and reasoning: [docs/PERFORMANCE.md](../PERFORMANCE.md) "Job Decorations — the Task 14 perf gate".
 
 Branch `37ed92cb` (T13) vs parent `07274cf6` (`various-small-fixes`, the merge base), production builds side by

@@ -1624,6 +1624,11 @@ writes per frame (skip a write when its value is unchanged), or fewer nodes at `
 **Not measured:** one pinned world with whichever jobs the three visible robots happened to be running; no
 worst case with every robot working a heavy job (Inspection or Fluid). The Pixel run (Task 15) is the real gate.
 
+**Decision (Crawford, 2026-10-13): accept the miss and go to the Pixel run (Task 15).** The ladder stays unbound and
+no write or node was cut. The Pixel run is the gate: Full Audio Load Budget with a working fleet, as the J4 gate's
+was. If it shows new dropouts or visible stutter on a job, the next step is cutting Full-tier cost (skip unchanged
+attribute writes, or fewer nodes at `'all'`), not the tier ladder.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
