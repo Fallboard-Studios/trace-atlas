@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
+  PAN_SCHEMA,
+  PAN_AUTO_SCHEMA,
+  PAN_ROW_PANEL_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -32,11 +35,14 @@ import {
   RHYTHMIC_DENSITY_MIN, RHYTHMIC_DENSITY_MAX, OCTAVE_RANGE_MIN, OCTAVE_RANGE_MAX,
   PITCH_REPEAT_MIN, PITCH_REPEAT_MAX, RHYTHMIC_MOTIF_LENGTH_MIN, RHYTHMIC_MOTIF_LENGTH_MAX,
   NOTE_VARIANCE_MIN, NOTE_VARIANCE_MAX,
+  PAN_MIN, PAN_MAX, PAN_DISPLAY_SCALE,
 } from '@/constants';
 
 const ALL_TOP_LEVEL_SCHEMAS = [
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
+  PAN_SCHEMA,
+  PAN_AUTO_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -124,6 +130,70 @@ describe('robotOptionsConfig', () => {
     expect(VOLUME_SCHEMA.max).toBe(100);
     expect(VOLUME_SCHEMA.step).toBe(1);
     expect(VOLUME_SCHEMA.unit).toBe('%');
+  });
+
+  // docs/specs/ROBOT_PAN.md §1.5 — the Pan slider, its Auto toggle and the row that holds them.
+  describe('Pan', () => {
+    it('PAN_SCHEMA is a horizontal sliderCenteredZero displaying -100..100 in steps of 1, with no unit', () => {
+      expect(PAN_SCHEMA.type).toBe('sliderCenteredZero');
+      expect(PAN_SCHEMA.min).toBe(-100);
+      expect(PAN_SCHEMA.max).toBe(100);
+      expect(PAN_SCHEMA.step).toBe(1);
+      expect(PAN_SCHEMA.orientation).toBe('horizontal');
+      expect(PAN_SCHEMA.unit).toBeUndefined();
+    });
+
+    it('PAN_SCHEMA bounds are the stored range times PAN_DISPLAY_SCALE, so the display and the store cannot drift apart', () => {
+      expect(PAN_SCHEMA.min).toBe(PAN_MIN * PAN_DISPLAY_SCALE);
+      expect(PAN_SCHEMA.max).toBe(PAN_MAX * PAN_DISPLAY_SCALE);
+      expect(PAN_SCHEMA.min).toBe(-PAN_SCHEMA.max);
+    });
+
+    it('PAN_SCHEMA is labeled and helped from probe.pan', () => {
+      expect(PAN_SCHEMA.humanLabel).toBe(CONTENT['probe.pan'].human);
+      expect(PAN_SCHEMA.loreLabel).toBe(CONTENT['probe.pan'].lore);
+      expect(PAN_SCHEMA.help?.human.trim()).toBeTruthy();
+      expect(PAN_SCHEMA.help).toEqual(CONTENT['probe.pan'].help);
+    });
+
+    it('PAN_AUTO_SCHEMA is a toggle labeled and helped from probe.pan.auto', () => {
+      expect(PAN_AUTO_SCHEMA.type).toBe('toggle');
+      expect(PAN_AUTO_SCHEMA.humanLabel).toBe(CONTENT['probe.pan.auto'].human);
+      expect(PAN_AUTO_SCHEMA.loreLabel).toBe(CONTENT['probe.pan.auto'].lore);
+      expect(PAN_AUTO_SCHEMA.help?.human.trim()).toBeTruthy();
+    });
+
+    it('the slider and the toggle are told apart in the accessible name (different human words)', () => {
+      expect(PAN_SCHEMA.humanLabel).not.toBe(PAN_AUTO_SCHEMA.humanLabel);
+    });
+
+    it('PAN_ROW_PANEL_SCHEMA is an unlabeled row-orientation directionalPanel', () => {
+      expect(PAN_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'row' });
+      expect(PAN_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
+      expect(PAN_ROW_PANEL_SCHEMA.humanLabel).toBeUndefined();
+    });
+
+    it('the three Pan schemas carry unique robotOptions.* ids, none colliding with Volume', () => {
+      const ids = [PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, PAN_ROW_PANEL_SCHEMA.id, VOLUME_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
+      ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('the Pan schemas are JSON-serializable', () => {
+      [PAN_SCHEMA, PAN_AUTO_SCHEMA, PAN_ROW_PANEL_SCHEMA].forEach((schema) => {
+        expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
+      });
+    });
+
+    it('the Levels section intro names Pan and Auto, so the sentence the user reads covers the new row', () => {
+      const description = CONTENT['probe.levels'].intro?.humanDescription ?? '';
+      expect(description).toContain(CONTENT['probe.pan'].human);
+      expect(description).toContain(CONTENT['probe.pan.auto'].human);
+    });
+
+    it('the help copy says phone speakers are mono, so nobody hunts for a difference they cannot hear', () => {
+      expect(CONTENT['probe.pan'].help?.human.toLowerCase()).toContain('mono');
+    });
   });
 
   it('no longer exports a VOLUME_LFO_TARGET — the Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 3)', () => {

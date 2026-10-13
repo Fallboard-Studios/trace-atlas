@@ -33,6 +33,9 @@ import {
   OCTAVE_RANGE_MAX,
   PITCH_REPEAT_MIN,
   PITCH_REPEAT_MAX,
+  PAN_DISPLAY_SCALE,
+  PAN_MIN,
+  PAN_MAX,
 } from '@/constants';
 
 // ========================================
@@ -90,6 +93,37 @@ export const VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.volumeSettingsColumn',
   type: 'directionalPanel',
   orientation: 'column',
+};
+
+/**
+ * Display-only -100..100 in steps of 1, no unit and no L/R letters (docs/specs/ROBOT_PAN.md assumption
+ * 1); the stored value is -1..1 (Robot.pan). Same display-vs-storage split as Volume — the bounds
+ * come from the stored range times PAN_DISPLAY_SCALE so the two cannot drift. The component
+ * consuming this one renders it readOnly while Auto is on.
+ */
+export const PAN_SCHEMA: SliderCenteredZeroSchema = {
+  id: 'robotOptions.pan',
+  type: 'sliderCenteredZero',
+  ...labels('probe.pan'),
+  min: PAN_MIN * PAN_DISPLAY_SCALE,
+  max: PAN_MAX * PAN_DISPLAY_SCALE,
+  step: 1,
+  orientation: 'horizontal',
+};
+
+/** Pan's Auto toggle (Robot.panAuto): on follows the robot across the field, off holds `pan`. */
+export const PAN_AUTO_SCHEMA: ToggleSchema = {
+  id: 'robotOptions.panAuto',
+  type: 'toggle',
+  ...labels('probe.pan.auto'),
+};
+
+/** The Pan slider and its Auto toggle side by side, unlabeled — pure layout, the third row of
+ *  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA. */
+export const PAN_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.panRow',
+  type: 'directionalPanel',
+  orientation: 'row',
 };
 
 // ========================================
