@@ -199,7 +199,9 @@ in its `onComplete` unlocks them, releases the site with the cooldown and calls 
 picks its moves (`JOB_MOVES`): Vent Extraction gathers and pulses, Acoustic Survey fans then rings,
 Structural Inspection traces the outline, Fluid Monitoring traces the pipe then pulses at the valve,
 Salvage carries and Maintenance rings with a spark flicker. The timeline itself is in
-[ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-timeline).
+[ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-timeline). The same timeline carries the job's decoration:
+one `.robot__work` group in the robot's row, made when the job starts and removed when it ends or is killed
+(animation only, nothing here changes) — [Job decorations](ANIMATION_SYSTEM.md#job-decorations).
 
 **Coordinates.** Station ports and site `park`s are robot **centres**; `position` is the gem
 canvas's top-left. `robotCentre(robot, gem)` / `positionForCentre(centre, gem)`

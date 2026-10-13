@@ -11,7 +11,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo
 convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status: T1–T13 done (2026-10-13). T14 perf gate missed, accepted by Crawford (2026-10-13); T15 Pixel run is next, his; see "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
+> **Status: T1–T14 done and T16 docs done (2026-10-13). T14 perf gate missed, accepted by Crawford (2026-10-13). T15 Pixel run NOT RUN: Crawford could not test and asked to continue; it is still owed. See "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
 > Crawford's to confirm before Task 1; the defaults the tasks assume are: no battery dim (Q1), identity
 > colour (Q2), count-1 shapes as sketched (Q3), `onInterrupt` pinned by T6 (Q4), droplet numbers kept (Q5).
 
@@ -343,6 +343,10 @@ foreground, one run at a time, orphaned Chrome 0, four alternated rounds (docs/P
 **Description:** Crawford runs the branch on the Pixel at Full with a working fleet: no new dropouts, no
 visible stutter on a job. Any tuning request goes to the sketch first, then the constant, then this plan.
 
+**Status: NOT RUN (2026-10-13).** Crawford could not test on the Pixel and asked to continue as if it were fine. That is a
+decision to proceed, recorded as such in docs/PERFORMANCE.md; it is not a pass, and this task stays open until he runs it
+(LAN production preview, Full, working fleet, about 3 minutes, `?debug` optional).
+
 **Acceptance criteria:**
 - [ ] "Pixel is fine" (or the tuning loop closed) recorded here with the date.
 
@@ -358,11 +362,11 @@ the Phase 52 gate row; roadmap `## 52. Job Decorations` (About, decisions, links
 sketch STATUS header; `src/docs/jobDecorationDocs.test.ts` pins symbols and the table against `JOB_MOVES`.
 
 **Acceptance criteria:**
-- [ ] Docs test green: every named symbol exists in its file; the decoration table's job keys equal `Object.keys(JOB_MOVES)`; roadmap entry links intent, spec, plan, sketch; intent headed Shipped.
-- [ ] No doc claims a number that differs from its constant (the test reads the constants).
+- [x] Docs test green: every named symbol exists in its file; the decoration table's job keys equal `Object.keys(JOB_MOVES)`; roadmap entry links intent, spec, plan, sketch; intent headed Shipped.
+- [x] No doc claims a number that differs from its constant (the test reads the constants).
 
 **Verification:**
-- [ ] `npx vitest run src/docs/jobDecorationDocs.test.ts`, then `npm test`
+- [x] `npx vitest run src/docs/jobDecorationDocs.test.ts`, then `npm test`
 
 **Dependencies:** T15. **Files:** the five docs, the roadmap, the intent, the sketch header, the docs test. **Scope:** M (docs only).
 

@@ -1565,3 +1565,55 @@ JSON-serialisable session.
   opens on the first tab.
 - Whether any Guide passage is linked from the help popovers or section intros (a "more in the
   Guide" line), which would need a cross-branch nav action in `navActions.ts`.
+
+## 52. Job Decorations (six small animations on the orbiters' work)
+
+Intent [docs/intent/job-decorations.md](../intent/job-decorations.md), spec
+[docs/specs/JOB_DECORATION.md](../specs/JOB_DECORATION.md), plan
+[docs/tasks/JOB_DECORATION.md](../tasks/JOB_DECORATION.md), sketch
+[docs/sketches/job-decorations.html](../sketches/job-decorations.html) (Verdict 1, 2026-10-12: all six rows kept at
+Crawford's settings). **Built on `feature/job-decorations`, 2026-10-12 to 2026-10-13 (Tasks 1–14 and 16); not yet
+merged.** The idle-paint perf gate (Task 14) **missed** — busy +11 %, paint +18.5 % against the branch's merge
+base, every run outside the parent's spread — and Crawford accepted it (docs/PERFORMANCE.md, "Job Decorations — the
+Task 14 perf gate"). **Still owed: Task 15** — the Pixel listen at Full with a working fleet, which was **not run**
+(Crawford could not test on 2026-10-13 and asked to continue) — then the PR. Crawford said "everything looks good
+so far" of the live build while it was made; Checkpoint C's formal verdicts were not written into the sketch.
+
+### About
+
+While a robot works, its job gains one decoration drawn over the orbiters: tethers and motes (Vent Extraction),
+ping arcs and a wired ring (Acoustic Survey), a scan trail and vertex ticks (Structural Inspection), droplets and
+a spinning valve (Fluid Monitoring), a wired load (Salvage), sparks and a flash (Maintenance). Each is a pure
+state module plus a builder that makes its SVG nodes once, in a `<g class="robot__work">` appended to the robot's
+`.robot__row`, and removes them when the job ends or is killed. As built, in
+[ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-decorations).
+
+**Decisions.**
+
+- **Six rows kept, at Crawford's numbers** — he went bigger than the brief's "small", and the sketch's defaults are
+  the constants.
+- **Variation is fixed per robot**, ±15 % on twelve size and timing factors, drawn from the end of the
+  `${gemSeed}:work` stream so no existing draw moved. Counts and opacities never vary.
+- **Decorations live in the robot's row frame**, so they scale with the back row and unmount with the robot.
+- **Writes run from the job timeline's `onUpdate`**, not one tween per decoration, so an orbiter's live position
+  is current when a wire reads it; cleanup wraps `tl.kill` because `onInterrupt` misses the silent finish.
+- **The tier ladder ships unbound.** `decorTier(robotLoad)` is plumbed through the work loop and every preset
+  draws everything; Full is always `'all'`, so binding the ladder could never lower the Full-tier cost.
+
+### Not Doing (and why)
+
+- **Cards and the detail avatar** — decorations are world animation; the cards keep their still body.
+- **Per-run or audio-driven variation** — a robot should work the same way each job, and the Visual Mapping
+  guardrail keeps audio out of the body.
+- **Changing move timing** — the moves, `moveWindows` and `jobDuration` are untouched.
+- **Binding the tier ladder now** — the perf miss was at Full, which the ladder cannot reach; revisit only if the
+  Pixel run shows a problem at Standard or Light.
+- **A battery dim** — decorations play only while Active, never critical.
+- **New dependencies** — GSAP and `createElementNS` only.
+
+### Open
+
+- The Pixel listen (Task 15), at Full with a working fleet.
+- Spec questions 1, 2, 3 and 5 (battery dim, identity colour, count 1, droplet numbers) shipped as the spec
+  proposed them and were not separately confirmed by Crawford.
+- If the Pixel shows trouble: cut the Full-tier cost (skip unchanged attribute writes, or fewer nodes at `'all'`).

@@ -207,6 +207,84 @@ doesn't turn with the phase: it always opens upward over the site.
 Every move ends each orbiter at its rest scale and opacity, so the reattach only flies them home.
 Reduced motion runs no move at all (see "Job timeline").
 
+### Job decorations
+[src/animation/jobMoves/decor/](../src/animation/jobMoves/decor/) (Phase 52, spec
+[JOB_DECORATION.md](specs/JOB_DECORATION.md)) draws one small flourish over a working robot's orbiters,
+one per job, as SVG nodes made for the run and removed when it ends. They are animation only: no
+`AudioEngine`, `BeatClock` or store is read or written (Strict Separation), the job's moves and timing are
+untouched, and cards and the detail avatar never get them. Every shape wears the robot's `identityColor` or
+the gem light colour, with gradients but no SVG filter (a test pins it in `RobotGem.test.tsx`).
+
+**The run** ([jobDecor.ts](../src/animation/jobMoves/decor/jobDecor.ts)). `addWork` calls `addJobDecor(tl, run)`
+after the moves are on the job timeline. When the tier is not `'none'`, the robot has a `.robot__row` and the
+job has an entry in `DECOR_BUILDERS`, it appends one `<g class="robot__work" data-job>` (with its own `<defs>`)
+as the **last child of `.robot__row`**, after `g.gem`: it draws over the body and the orbiters, scales with
+the back row for free and unmounts with the robot. Idle robots carry none; reduced motion plans no moves, so
+`addWork` is never reached and it gets none.
+
+- **One write hook.** `addWork` hands the builder a `DecorRun` (the plan's events, the variation, the orbiters' rest
+  scales); the builder gets a `DecorContext` (`ctx`: the group, its `<defs>`, the tier, the frame helpers). It makes
+  its nodes once and calls `ctx.run(t0, t1, write)` once. `write(t)` runs
+  from the job timeline's own `onUpdate`, so it fires after every child tween has rendered: a decoration that
+  reads an orbiter (`ctx.pose(j)`, the GSAP `x`/`y`/`scale` through `orbiterLocalToRowLocal`) never sees the
+  previous update's value, and a seek or the silent finish lands exactly. A playhead leaving the window gets one
+  last `write` at the nearest edge, where every shape is invisible. There is no tween of its own per
+  decoration, and no store read inside the callback.
+- **Frames** ([frames.ts](../src/animation/jobMoves/decor/frames.ts)). Everything is drawn in the group's
+  row-local frame: `sceneToRowLocal` maps a scene point (a site point, a route, a vent mouth) into it, and
+  `orbiterLocalToRowLocal` maps an orbiter's live position. Sizes scale with the row, so a back-row robot's
+  decorations shrink with it. [polyline.ts](../src/animation/jobMoves/decor/polyline.ts) (`polyLen`, `polyAt`,
+  `polyVertices`) walks a route for the trail, the ticks and the droplets.
+- **The counter-bob.** The group sits outside `g.gem`, so the body's bob would carry it. `addJobDecor` adds
+  the bob inverted over the layer scale (`BOB_PX` (6) ÷ `layerScale`), so a wire anchored to a site point stays
+  on it.
+- **Cleanup.** The group is removed by a `tl.call` at the window's end and by a wrap of `tl.kill`. GSAP's
+  `onInterrupt` fires only below progress 1, so it would miss the work loop's silent finish
+  (`progress(1, true)`, then kill); every path ends in `kill()`, so the wrap covers a world transition
+  (`killAllTimelines`), `stopWorkLoop` and the complete. [workLoop.integration.test.ts](../src/systems/workLoop.integration.test.ts)
+  pins each against the real loop.
+- **Plan events** ([events.ts](../src/animation/jobMoves/decor/events.ts)). `planStep` in `buildJobTimeline.ts`
+  fills a typed `MoveEvents` per step (times, routes, ring angles, per-orbiter starts), so a decoration reads
+  the plan instead of re-deriving a tweened position.
+
+| Job | Builder | Draws | Tier `'cheap'` | Counts |
+|---|---|---|---|---|
+| `ventExtraction` | [ventDecor.ts](../src/animation/jobMoves/decor/ventDecor.ts) `addVentDecor` | A wire from each orbiter to the vent mouth that brightens from the mouth on its pulse (`wireGlowAlpha`), and motes that rise off the mouth (`moteAt`). The orbiter's pulse is `pulseAmount` against `HOVER_PULSE_SCALE` (1.3). | motes only | `VENT_MOTES` (3) per orbiter |
+| `acousticSurvey` | [surveyDecor.ts](../src/animation/jobMoves/decor/surveyDecor.ts) `addSurveyDecor` | Small arcs leave each orbiter on every fan ping (`pingArc`), widening and thinning; during the ring the orbiters are wired into a faint polygon, bright at the corners (`chordState`). | nothing | `SURVEY_ARCS` (3) per orbiter |
+| `structuralInspection` | [inspectionDecor.ts](../src/animation/jobMoves/decor/inspectionDecor.ts) `addInspectionDecor` | A short trail behind each orbiter along the outline (`trailSegments`) and a tick at every interior vertex as the lead passes (`tickAt`). | ticks only | `INSPECT_TRAIL_SEGMENTS` (8) per orbiter |
+| `fluidMonitoring` | [fluidDecor.ts](../src/animation/jobMoves/decor/fluidDecor.ts) `addFluidDecor` | Droplets flowing along the pipe behind the lead (`dropAt`), and at the valve a square that spins faster with each pulse (`valveAngle`). | valve only | `FLUID_DROPS` (10) |
+| `salvage` | [salvageDecor.ts](../src/animation/jobMoves/decor/salvageDecor.ts) `addSalvageDecor` | A gem load hung on wires between the orbiters: it grows at pick-up (`loadScale`), swings on the carry, shrinks at the drop; the wires go slack on the return (`slackWire`). | nothing | one load, two wires per orbiter |
+| `maintenance` | [maintenanceDecor.ts](../src/animation/jobMoves/decor/maintenanceDecor.ts) `addMaintenanceDecor` | On every flicker chord the orbiter throws line sparks outward (`sparkAt`) and a brief flash (`flashAt`). | same as `'all'` | `MAINT_SPARKS` (5) per orbiter and chord |
+
+The table's job keys are `JOB_MOVES`' and `DECOR_BUILDERS`'; a docs test pins that, and pins every number
+written here as `NAME` (value) against `src/constants/index.ts`. Each job's other knobs (`VENT_FADE` (0.5),
+`SURVEY_PING_LIFE` (1.4), `INSPECT_TICK_LIFE` (3), `FLUID_DROP_LAG` (0.33), `FLUID_VALVE_SIZE` (14),
+`SALVAGE_HANG` (24), `SALVAGE_SWING_DEG` (10), `MAINT_SPARK_LIFE` (1.2)) are one constant each, with the
+sketch's defaults ([job-decorations.html](sketches/job-decorations.html)).
+
+Each builder is the pure-state pattern of `haloWaves.ts`: the named functions are maths on `(t, events,
+variation, frames)` and return plain shape data, and the `add…` builder only creates nodes and writes
+attributes. A window ends after the last shape it draws (a spark, tick or arc life), clamped to the job, so
+nothing is cut; every shape is invisible at both ends of its window, so nothing pops at a move boundary or the
+reattach.
+
+**Variation.** Twelve factors per robot (`ventRise`, `ventLife`, `surveyReach`, `surveyLife`, `trailLength`,
+`tickLife`, `dropLag`, `valveSize`, `hang`, `loadSize`, `sparkReach`, `sparkLife`), each within ±`DECOR_JITTER`
+(0.15) of the sketched value, plus the seeded `sparkDirs`, `moteDrift`, `swingPhase` and `loadSeed`. They are
+appended to the end of the `${gemSeed}:work` stream in `variation.ts`, so no existing draw moved; counts and
+opacities never vary. A robot works the same way every job.
+
+**Tier.** `decorTier(robotLoad)` ([decorTier.ts](../src/animation/jobMoves/decor/decorTier.ts)) is read once per
+job start in `work()`, beside `bpm`, and handed to `buildJobTimeline`. The ladder is **unbound**:
+`DECOR_TIER_BELOW_STANDARD` and `DECOR_TIER_BELOW_FULL` are both `'all'`, so every Audio Load preset draws
+everything. **Full is always `'all'`**, so binding the ladder (Light `'none'`, Standard `'cheap'`) can never
+lower the Full-tier cost. The idle-paint gate measured that cost at +11 % busy and +18.5 % paint against the
+parent ([PERFORMANCE.md](PERFORMANCE.md), "Job Decorations — the Task 14 perf gate"); it was accepted, and the
+Pixel run that is meant to judge it has not been done.
+
+**Keys.** Decorations add no `timelineMap` key: they live on the existing `work-${robotId}` timeline and die
+with it.
+
 ### Station arcs
 A robot enters and leaves a charging station through one arc timeline, keyed
 `` `station-${robotId}` `` (`workLoop.ts`'s `stationArc`), over `STATION_ARC_SECONDS` (1 s):

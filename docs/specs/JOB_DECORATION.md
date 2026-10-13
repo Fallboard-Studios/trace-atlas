@@ -1,6 +1,9 @@
 # Phase Spec: Job Decorations (six small animations on the orbiters' work)
 
-Roadmap Phase 52 (proposed; 51 is the Guide). Intent: [docs/intent/job-decorations.md](../intent/job-decorations.md)
+> **Shipped (roadmap Phase 52, 2026-10-13, Tasks 1–14 and 16; Pixel listen not run).** What differs from this spec is in
+> [As Shipped](#as-shipped) at the end. The idle-paint gate missed and was accepted (docs/PERFORMANCE.md).
+
+Roadmap Phase 52 (51 is the Guide). Intent: [docs/intent/job-decorations.md](../intent/job-decorations.md)
 (confirmed 2026-10-12, 4 questions). Sketch: [docs/sketches/job-decorations.html](../sketches/job-decorations.html)
 (Verdict 1, 2026-10-12: all six rows kept; Crawford's settings are its defaults and every constant below).
 Builds on shipped Phase 43 ([ROBOT_JOBS_AND_STATIONS.md](ROBOT_JOBS_AND_STATIONS.md) §1.9, the moves in
@@ -431,11 +434,14 @@ banners and file headers as in `ring.ts`.
 
 1. **Battery dim.** The halo waves multiply their alpha by the robot's dim opacity. Decorations play
    only while Active (never critical), so the proposal is **no dim** — simpler, and the sketch has none.
-   Confirm or route `dimOpacity` through the group's opacity.
+   Confirm or route `dimOpacity` through the group's opacity. **Recorded (2026-10-13):** shipped with the proposal (no dim);
+   not separately confirmed by Crawford.
 2. **Identity vs company colour.** The halo wears the company colour; the orbiters and these
-   decorations the identity colour (intent). Confirm identity.
+   decorations the identity colour (intent). Confirm identity. **Recorded (2026-10-13):** shipped as identity colour; not
+   separately confirmed by Crawford.
 3. **Count 1.** Vent/Survey/Inspection/Fluid/Maintenance degrade naturally; Salvage hangs the load on
-   one wire; the survey polygon vanishes. Accept as sketched.
+   one wire; the survey polygon vanishes. Accept as sketched. **Recorded (2026-10-13):** shipped as sketched; not separately
+   confirmed by Crawford.
 4. ~~**`onInterrupt` on timelines.**~~ Resolved in Task 6: it fires on a mid-run kill but not after the
    silent finish (progress already 1), so `kill()` is wrapped instead (Assumption 5).
 5. **Droplet lag × count exceeds short runs.** ~~At 200 BPM only ~7 of 10 drops start.~~ *Measured in
@@ -444,6 +450,26 @@ banners and file headers as in `ring.ts`.
    drop only needs `k × lag` seconds after the lead starts. What the long lag costs at 200 BPM is that the
    late drops are still on the pipe when the window closes: the brightest drop at the cut was alpha 0.34
    (0.085 for the pinned seed with 3 orbiters, which is 0 at 20–160 BPM). Keep Crawford's numbers (sketch-binding) or cap
-   `FLUID_DROPS × lag`? Proposal: keep.
+   `FLUID_DROPS × lag`? Proposal: keep. **Recorded (2026-10-13):** kept; not separately confirmed by Crawford.
 6. ~~**Load fill helper.**~~ Resolved while writing: `src/utils/colorUtils.ts` has `hexToHsl` and
    `hslToString`; the load fill uses them (§1.7).
+
+## As Shipped
+
+Where the build differs from the text above (the code and ANIMATION_SYSTEM.md "Job decorations" are the reference):
+
+1. **One write hook, not a proxy tween per decoration.** A builder calls `ctx.run(t0, t1, write)` once and `write`
+   runs from the job timeline's own `onUpdate`, after every child has rendered, so `ctx.pose` reads the current
+   orbiter position and scale. A tween that starts before the moves would read the previous update's.
+2. **Cleanup is a `tl.call` at the window's end plus a wrap of `tl.kill`.** `onInterrupt` fires only below
+   progress 1 and so misses the work loop's silent finish (`progress(1, true)`, then kill); every path ends in
+   `kill()` (Question 4, Assumption 5).
+3. **Windows outlive the moves where a shape needs it**, clamped to the job: a spark life after the last Maintenance
+   chord, a tick life after the Inspection trace, the last arc's death after the Survey fan, `VENT_FADE` either side of
+   the Vent pulse. The spec's windows were the moves alone and would have cut those shapes short.
+4. **The `'cheap'` tier, per job:** Maintenance the same as `'all'`; Vent the motes; Inspection the ticks; Fluid the
+   valve; Survey and Salvage nothing (no group). The spec named shapes for only some of these. The ladder is unbound,
+   so none of it runs today, and Full is always `'all'`.
+5. **Fluid at 200 BPM** (Question 5) was measured: all ten drops show at every tempo.
+6. **The perf gate missed and was accepted, and the Pixel listen was not run** (docs/PERFORMANCE.md, "Job Decorations —
+   the Task 14 perf gate").

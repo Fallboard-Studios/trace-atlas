@@ -1,11 +1,15 @@
 # Intent: Job Decorations
 
+> **Shipped (roadmap Phase 52, 2026-10-13)** — spec [docs/specs/JOB_DECORATION.md](../specs/JOB_DECORATION.md), plan
+> [docs/tasks/JOB_DECORATION.md](../tasks/JOB_DECORATION.md). Every decision below held. The idle-paint gate missed (busy +11 %,
+> paint +18.5 %) and Crawford accepted it; the Pixel listen was not run. Branch `feature/job-decorations`, not yet merged.
+
 Confirmed 2026-10-12 via the interview-me skill (4 questions, every guess confirmed). Builds on
 shipped Phase 43 (robot jobs; the five moves in `src/animation/jobMoves/`, documented in
 [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-moves)) and on the halo-waves precedent
 (`src/components/robot/gem/haloWaves.ts`, branch `various-small-fixes`). Sketch, with Crawford's
 settings as the defaults and Verdict 1 in its header:
-[docs/sketches/job-decorations.html](../sketches/job-decorations.html). Spec: next (not yet written).
+[docs/sketches/job-decorations.html](../sketches/job-decorations.html). Spec: [docs/specs/JOB_DECORATION.md](../specs/JOB_DECORATION.md), plan [docs/tasks/JOB_DECORATION.md](../tasks/JOB_DECORATION.md).
 
 - **Outcome:** The six sketched decorations built onto the live `work-${robotId}` job timelines at
   the sketch's settings — each a pure maths module plus per-run SVG nodes created at job start and

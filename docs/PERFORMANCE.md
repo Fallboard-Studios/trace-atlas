@@ -1629,6 +1629,11 @@ no write or node was cut. The Pixel run is the gate: Full Audio Load Budget with
 was. If it shows new dropouts or visible stutter on a job, the next step is cutting Full-tier cost (skip unchanged
 attribute writes, or fewer nodes at `'all'`), not the tier ladder.
 
+**Update (2026-10-13): the Pixel run (Task 15) was not run.** Crawford could not test and asked to continue as if it
+were fine. That is a decision to proceed, not a measurement: there is no underrun table for this phase and nothing
+to compare against the 17.2.6 spread. Re-measure with the `?debug` overlay on the Pixel, at Full with a working
+fleet, if audio trouble or stutter on a job appears.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
