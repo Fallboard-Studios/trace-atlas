@@ -1439,11 +1439,11 @@ control is laid out once on the screens that ship.
 
 ### About
 
-**Grounding (verified 2026-10-09).** Tone.js `^15.1.22` is the only audio dependency and nothing is
+**Grounding (verified 2026-10-09, citations re-verified 2026-10-13).** Tone.js `^15.1.22` is the only audio dependency and nothing is
 added. Today the app constructs: per robot, up to three `Tone.Synth` layers
 (`src/engine/audioEngine/compositeVoice.ts:143` — oscillator type / pulse width / detune / phase /
 per-layer gain, one shared ADSR with no curve settings) into a bus of `Panner → Gain → Filter`
-(`src/engine/AudioEngine.ts:611–679`; the filter's cutoff is `AudioAttributes.filterFreq`, seeded only,
+(`src/engine/AudioEngine.ts:685–708`; the filter's cutoff is `AudioAttributes.filterFreq`, seeded only,
 no UI); globally `EQ3 → LPF → HPF → Delay → Reverb → Compressor → Limiter`, or the Compressor ahead of
 the Delay under Controlled Decay (`src/engine/audioEngine/globalFx.ts:147–149`); two `Tone.LFO`
 engines; nothing else. Robot LFO targets are layer gain / detune (`src/types/lfo.ts:43`); global targets
@@ -1457,7 +1457,9 @@ app does not use yet.
   [AUDIO_LOAD_BUDGET.md](../specs/archive/AUDIO_LOAD_BUDGET.md) §7;
   [scratchy-audio-phones.md](scratchy-audio-phones.md)): the same `?session=` world, A/B against the
   branch base on the Pixel, the `?debug` HUD's output-underrun count (`src/utils/audioHealth.ts`) at
-  Standard and at Full, plus `npm run perf` on the desktop. A feature that raises underruns ships
+  Standard and at Full, plus `npm run perf` on the desktop, against the series baseline recorded in
+  [scratchy-audio-phones.md](scratchy-audio-phones.md#baseline-for-the-audio-palette-series-roadmap-50--crawfords-run-2026-10-13)
+  (seed `alpha`, Full: 0 underruns in 3:00 on `main` at `ca2b6868`). A feature that raises underruns ships
   behind the Effects Limit — a new `LOAD_*_MIN` threshold beside `LOAD_FILTER_LFOS_MIN`
   (`src/constants/index.ts:44–46`) — or not at all.
 - **Where nodes may be added.** New nodes go on the global chain (one instance) or as a per-robot
@@ -1466,7 +1468,7 @@ app does not use yet.
 - **Replayability stays first** (the 2026-10-09 time decision, [48](#48-one-day-clock-remove-the-measure-based-day)).
   Every decision — a seeded default, a humanize offset, a skip roll — keys off
   `getSeededVal(noiseMap, dataId, …)` and the measure or note index, the way velocity already does
-  (`computeNoteVelocitySeeded`, `AudioEngine.ts:452`). An effect's *internal* oscillator (Chorus,
+  (`computeNoteVelocitySeeded`, `AudioEngine.ts:491`). An effect's *internal* oscillator (Chorus,
   Phaser, Tremolo…) is wall-clock like the LFO Bank's phase: the accepted class, recorded in
   backlog 17.
 - **Architecture rules.** Every AudioParam write lives in `AudioEngine` / `globalFx.ts`, on the
@@ -1511,7 +1513,7 @@ the budget cost is nil and the phone gate is a formality.
   exponential); both sit at Tone's defaults today. A single-line "contour shape" radio beside the ADSR
   sliders; `ADSREnvelope` (`src/types/Robot.ts:53`) gains two optional string fields.
 - **The bus filter, exposed.** `AudioAttributes.filterFreq` drives each robot's bus `Tone.Filter`
-  (`resolveBusFilterCutoff`, `AudioEngine.ts:150`; `0` = open) but has no control, although
+  (`resolveBusFilterCutoff`, `AudioEngine.ts:175`; `0` = open; Q is the fixed `ROBOT_BUS_FILTER_Q = 1`, `AudioEngine.ts:172`) but has no control, although
   `RobotAudioOverrideDiff` already carries it (`src/types/session.ts:22`). Add Cutoff and Resonance (Q)
   sliders and a type radio (lowpass / bandpass / highpass): a resonant bandpass *is* the wah, and a
   Bank lane on its frequency is an autowah. The per-robot LFO target `bus.frequency` is an *option*
@@ -1533,7 +1535,7 @@ broadcast it, so a company can be "the far ones".
 The interview must decide the topology: a true send / return (effect `wet` = 1, the global "wet"
 sliders become return levels, the `reverb.wet` / `delay.wet` rows of `GLOBAL_AUDIO_LOADING_RANGES`
 re-ranged) versus keeping the inserts and adding sends on top (simpler, but a robot then has two paths
-into the same reverb). `wireGlobalFxChain` (`globalFx.ts:144`) is the one place the chain is wired and
+into the same reverb). `wireGlobalFxChain` (`globalFx.ts:146`) is the one place the chain is wired and
 already rewires on the Decay toggle, so the send bus belongs there. Seeded default: every robot at the
 depth the insert gives today, so no world changes until a user moves one. Swells currently ride
 `reverb.wet` / `delay.wet` (audioSwells.ts's off-equivalent check); they keep riding the global return,
