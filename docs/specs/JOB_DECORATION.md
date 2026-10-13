@@ -109,6 +109,10 @@ shape's alpha is 0 at both ends of its window, so nothing pops at a move boundar
 `t0`/`t1` are the move's `[start, end]` from `moveWindows`; everything is in timeline seconds and scene
 units. `buildJobTimeline.test.ts` pins each shape against the existing move maths (a pulse `start` equals
 `t0 + rank × slot`; a ring `sparkChords` equals `sparkChords(v.sparks[corner], RING_SEGMENTS)`).
+A ring that does not flicker (Acoustic Survey's) has `sparkChords: []` for every orbiter: the events say
+what happens, and only Maintenance sparks. The run's events are kept on the timeline as
+`tl.data = { events: MoveEvents[] }`, one per step in table order (`[]` under reduced motion, which
+plans no moves); the types live in `decor/events.ts`.
 
 ### 1.3 Vent Extraction — tethers + motes (`decor/ventDecor.ts`)
 

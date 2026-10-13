@@ -24,12 +24,13 @@ import gsap from 'gsap';
 import { jobDuration } from './jobDuration';
 import { JOB_MOVES, moveWindows, stepPath, stepPoint, type MoveStep } from './jobMoveTable';
 import { addHoverPulse, hoverPulseTargets } from './hoverPulse';
-import { addTrace, traceRoute } from './trace';
+import { addTrace, traceRoute, traceTimes } from './trace';
 import { RING_SEGMENTS, addRing, addSparkFlicker, ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
 import { addCarry, carryTargets } from './carry';
 import { addFan, fanTargets } from './fan';
 import { turnRanks, workVariation, type WorkVariation } from './variation';
 import { sceneToOrbiterLocal, type OrbiterCorner } from './sceneToOrbiterLocal';
+import type { JobTimelineData, MoveEvents } from './decor/events';
 import { setTimeline } from '../timelineMap';
 import { getRobotGem } from '../../components/robot/gem/polygon';
 import { orbiterPlan, ATTACH_DURATION } from '../../components/robot/gem/orbiterMotion';
@@ -72,12 +73,13 @@ interface WorkContext {
   restOpacities: readonly number[];
 }
 
-/** One step, planned: each orbiter's route in scene units, in slot order (its first vertex is
- *  where the step's approach flies it), and the move's tweens over [start, end], given those
- *  routes mapped into each orbiter's local frame. */
+/** One step, planned over its work window: each orbiter's route in scene units, in slot order (its
+ *  first vertex is where the step's approach flies it), the move's typed events (decor/events.ts),
+ *  and its tweens, given those routes mapped into each orbiter's local frame. */
 interface PlannedStep {
   routes: Vec2[][];
-  add(tl: gsap.core.Timeline, localRoutes: readonly (readonly Vec2[])[], start: number, end: number): void;
+  events: MoveEvents;
+  add(tl: gsap.core.Timeline, localRoutes: readonly (readonly Vec2[])[]): void;
 }
 
 // ========================================
@@ -89,47 +91,92 @@ const REDUCED_PULSE_OPACITY = 0.8;
 // ========================================
 // HELPERS
 // ========================================
-/** The one place a move's targets and tweens are picked. The return type makes it exhaustive:
- *  a move missing here is a type error. */
-function planStep(step: MoveStep, w: WorkContext): PlannedStep {
+/** The one place a move's targets, events and tweens are picked, over its work window [t0, t1]. The
+ *  return type makes it exhaustive: a move missing here is a type error. */
+function planStep(step: MoveStep, w: WorkContext, t0: number, t1: number): PlannedStep {
   const count = w.orbiters.length;
   const v = w.variation;
+  const slot = count > 0 ? (t1 - t0) / count : 0;
   switch (step.move) {
-    case 'hoverPulse':
+    case 'hoverPulse': {
+      const point = stepPoint(w.site, step.point);
+      const targets = hoverPulseTargets(point, count, v.phase);
       return {
-        routes: hoverPulseTargets(stepPoint(w.site, step.point), count, v.phase).map((target) => [target]),
-        add: (tl, _local, start, end) => addHoverPulse(tl, w.orbiters, w.restScales, start, end, w.ranks),
+        routes: targets.map((target) => [target]),
+        events: {
+          kind: 'pulse',
+          point,
+          t0,
+          t1,
+          slot,
+          orbs: w.shown.map((corner, j) => ({ corner, start: t0 + w.ranks[j] * slot, target: targets[j] })),
+        },
+        add: (tl) => addHoverPulse(tl, w.orbiters, w.restScales, t0, t1, w.ranks),
       };
-    case 'fan':
+    }
+    case 'fan': {
+      const point = stepPoint(w.site, step.point);
+      const targets = fanTargets(point, count);
       return {
-        routes: fanTargets(stepPoint(w.site, step.point), count).map((target) => [target]),
-        add: (tl, _local, start, end) => addFan(tl, w.orbiters, w.restScales, start, end, w.ranks),
+        routes: targets.map((target) => [target]),
+        events: {
+          kind: 'fan',
+          point,
+          t0,
+          t1,
+          slot,
+          orbs: w.shown.map((corner, j) => {
+            const dx = targets[j].x - point.x;
+            const dy = targets[j].y - point.y;
+            const len = Math.hypot(dx, dy);
+            return { corner, start: t0 + w.ranks[j] * slot, target: targets[j], dir: { x: dx / len, y: dy / len } };
+          }),
+        },
+        add: (tl) => addFan(tl, w.orbiters, w.restScales, t0, t1, w.ranks),
       };
+    }
     case 'trace': {
       const route = traceRoute(stepPath(w.site, step.path), v.traceReversed);
+      const { starts, run } = traceTimes(w.ranks, t0, t1);
       return {
         routes: w.orbiters.map(() => route),
-        add: (tl, local, start, end) => addTrace(tl, w.orbiters, local, w.ranks, start, end),
+        events: { kind: 'trace', route, t0, t1, run, orbs: w.shown.map((corner, j) => ({ corner, start: starts[j] })) },
+        add: (tl, local) => addTrace(tl, w.orbiters, local, w.ranks, t0, t1),
       };
     }
     case 'ring': {
       const radius = ringRadius(v.radiusScale);
       const centre = stepPoint(w.site, step.point);
+      const angles = ringStartAngles(count, v.phase);
+      // Only a flickering ring (Maintenance) sparks; the events say what happens, so the rest carry none.
+      const chords = w.shown.map((corner) => (step.flicker ? sparkChords(v.sparks[corner], RING_SEGMENTS) : []));
       return {
-        routes: ringStartAngles(count, v.phase).map((a) => ringRoute(centre, radius, a, v.ringDirection)),
-        add: (tl, local, start, end) => {
-          addRing(tl, w.orbiters, local, start, end);
-          if (!step.flicker) return;
-          const chords = w.shown.map((corner) => sparkChords(v.sparks[corner], RING_SEGMENTS));
-          addSparkFlicker(tl, w.orbiters, chords, w.restOpacities, start, end, RING_SEGMENTS);
+        routes: angles.map((a) => ringRoute(centre, radius, a, v.ringDirection)),
+        events: {
+          kind: 'ring',
+          centre,
+          radius,
+          direction: v.ringDirection,
+          t0,
+          t1,
+          orbs: w.shown.map((corner, j) => ({ corner, startAngle: angles[j], sparkChords: chords[j] })),
+        },
+        add: (tl, local) => {
+          addRing(tl, w.orbiters, local, t0, t1);
+          if (step.flicker) addSparkFlicker(tl, w.orbiters, chords, w.restOpacities, t0, t1, RING_SEGMENTS);
         },
       };
     }
-    case 'carry':
+    case 'carry': {
+      const a = stepPoint(w.site, step.from);
+      const b = stepPoint(w.site, step.to);
+      const pairs = carryTargets(a, b, count);
       return {
-        routes: carryTargets(stepPoint(w.site, step.from), stepPoint(w.site, step.to), count).map((p) => [p.from, p.to]),
-        add: (tl, local, start, end) => addCarry(tl, w.orbiters, local, w.restScales, start, end),
+        routes: pairs.map((p) => [p.from, p.to]),
+        events: { kind: 'carry', a, b, t0, t1, orbs: w.shown.map((corner, j) => ({ corner, offset: pairs[j].from.x - a.x })) },
+        add: (tl, local) => addCarry(tl, w.orbiters, local, w.restScales, t0, t1),
       };
+    }
   }
 }
 
@@ -152,8 +199,11 @@ export function buildJobTimeline(input: JobTimelineInput): gsap.core.Timeline {
   const cycle = duration / cycles;
   const tl = gsap.timeline({ paused: true, onComplete: input.onComplete });
 
+  const data: JobTimelineData = { events: [] };
+  tl.data = data;
+
   if (input.reducedMotion) addReducedPulse(tl, input.robotEl, cycle, cycles);
-  else addWork(tl, input, duration, cycle, cycles);
+  else data.events = addWork(tl, input, duration, cycle, cycles);
 
   setTimeline(`work-${input.robot.id}`, tl);
   return tl;
@@ -174,14 +224,14 @@ function addReducedPulse(tl: gsap.core.Timeline, robotEl: Element, cycle: number
 }
 
 /** The bob, the detach, the job's moves and the reattach. Every move ends each orbiter at its
- *  rest scale and opacity, so the reattach only flies it home. */
+ *  rest scale and opacity, so the reattach only flies it home. Returns each move's events. */
 function addWork(
   tl: gsap.core.Timeline,
   { robot, robotEl, site, job, orbiters, bodyScale, layerScale }: JobTimelineInput,
   duration: number,
   cycle: number,
   cycles: number,
-): void {
+): MoveEvents[] {
   const gem = getRobotGem(robot.gemSeed);
   const shown = orbiterPlan(robot.gemSeed).cornerOrder.slice(0, orbiters.length) as OrbiterCorner[];
   const variation = workVariation(robot.gemSeed);
@@ -203,9 +253,9 @@ function addWork(
 
   const steps = JOB_MOVES[job];
   const windows = moveWindows(steps.length, duration);
-  steps.forEach((step, k) => {
+  const events = steps.map((step, k) => {
     const { approach, start, end } = windows[k];
-    const planned = planStep(step, work);
+    const planned = planStep(step, work, start, end);
     const localRoutes = planned.routes.map(toLocal);
 
     // The approach: from the dock (the detach) or from where the last move left the orbiter.
@@ -214,10 +264,12 @@ function addWork(
       tl.to(el, { x: first.x, y: first.y, duration: start - approach, ease: 'sine.inOut' }, approach);
     });
 
-    planned.add(tl, localRoutes, start, end);
+    planned.add(tl, localRoutes);
+    return planned.events;
   });
 
   orbiters.forEach((el) => {
     tl.to(el, { x: 0, y: 0, duration: ATTACH_DURATION, ease: 'sine.inOut' }, duration - ATTACH_DURATION);
   });
+  return events;
 }
