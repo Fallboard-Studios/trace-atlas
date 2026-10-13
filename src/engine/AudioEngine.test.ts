@@ -132,7 +132,6 @@ vi.mock('./harmonySystem', () => ({
 // Mock beat clock
 vi.mock('./beatClock', () => ({
   initBeatClock: vi.fn((_transport?: unknown) => undefined),
-  getCurrentHour: vi.fn(() => 0),
   getCurrentMeasure: vi.fn(() => 0),
   getCurrentBeat: vi.fn(() => 0),
   subscribeToMeasure: vi.fn((_cb?: unknown) => undefined),  // ← add

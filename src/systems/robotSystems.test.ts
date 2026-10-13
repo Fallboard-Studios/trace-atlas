@@ -617,12 +617,12 @@ describe('robotSystems', () => {
       stopRobotLifecycle();
     });
 
-    it('drives the tick with getCurrentMeasure() (unwrapped), not the wrapped 0-95 value subscribeToMeasure hands its callback — the wrapped value is what would strand a robot at the day-cycle boundary', () => {
-      // getCurrentMeasure() is the real, monotonic (never-wrapped) measure count;
-      // subscribeToMeasure's own callback argument is wrapped to 0-95 by BeatClock
-      // itself (see beatClock.ts) and must never be used for hold arithmetic.
-      // Simulate the exact scenario that broke: BeatClock wraps 95 back to 0 for
-      // the callback argument, while the true unwrapped count keeps climbing.
+    it('drives the tick with getCurrentMeasure() (monotonic), whatever value subscribeToMeasure hands its callback', () => {
+      // getCurrentMeasure() is the real, monotonic measure count that
+      // dockingHoldUntilMeasure arithmetic needs. A wrapped count once stranded a
+      // robot at the boundary (BeatClock used to wrap the callback argument at 96;
+      // it no longer does). The tick must not depend on the argument either way:
+      // here it is deliberately 0 while the true count is 1247.
       (getCurrentMeasure as ReturnType<typeof vi.fn>).mockReturnValueOnce(1247);
 
       const robot = makeRobot({
@@ -633,11 +633,11 @@ describe('robotSystems', () => {
 
       startRobotLifecycle(DEFAULT_LOCALE_ID);
       const tickCallback = (subscribeToMeasure as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      tickCallback(0); // the wrapped argument BeatClock would actually pass at this instant
+      tickCallback(0); // an argument that disagrees with the true count; the tick must ignore it
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.docking).toBe(DockingState.Recalled);
-      // Must be derived from getCurrentMeasure() (1247 + 1), not the wrapped
+      // Must be derived from getCurrentMeasure() (1247 + 1), not the
       // callback argument (0 + 1 = 1) — the old bug would produce 1 here.
       expect(updated?.dockingHoldUntilMeasure).toBe(1248);
 

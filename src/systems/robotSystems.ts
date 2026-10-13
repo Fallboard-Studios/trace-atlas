@@ -226,11 +226,10 @@ export function startRobotLifecycle(localeId: string): void {
   if (lifecycleUnsubscribe !== null) {
     return;
   }
-  // Deliberately ignore the callback's own `measure` argument — BeatClock
-  // wraps it to 0-95 for listeners (see beatClock.ts), but dockingHoldUntilMeasure
-  // arithmetic needs a monotonic count that never wraps, or a hold set right
-  // before the day-cycle boundary becomes permanently unreachable. getCurrentMeasure()
-  // is the real, unwrapped counter — use that instead.
+  // dockingHoldUntilMeasure arithmetic needs the monotonic measure count — a
+  // wrapped one would leave a hold set near the wrap permanently unreachable.
+  // BeatClock passes listeners that same real count; read it from getCurrentMeasure()
+  // so the tick keeps one source for it.
   lifecycleUnsubscribe = subscribeToMeasure(() => tickRobotLifecycle(localeId, getCurrentMeasure()));
 }
 
