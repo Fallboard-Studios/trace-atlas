@@ -39,7 +39,7 @@ Critical architecture rules (short)
 - State: Keep only serialisable primitives/objects/arrays in Zustand. Derived values and complex objects belong in helpers or modules (e.g., timelines, synths, DOM refs).
 
 Guardrails (must not be relaxed)
-- Melody Logic: "Melodies must store note indices (0..7), never literal pitch strings; 96 measures = 1 day cycle."
+- Melody Logic: "Melodies must store note indices (0..7), never literal pitch strings. The in-world day is wall-clock: a fixed `DAY_DURATION_MS` (6 real minutes) from the locale's `dayStartTimestamp`, never tempo. Measures count music and the fleet's lifecycle; nothing musical defines a day."
 - Visual Mapping: "A robot's body is seeded, permanent gem-polygon geometry (derived from `Robot.gemSeed`) in its `identityColor` — identity and seed, not audio. Audio and composition settings reach the body only through the dials listed in ROBOT_DESIGN.md, each continuous or animated, never a pop. The backing, Mids and Top keep their seeded polygon count, sides and boundary-line layout on every edit; orbiters may attach and detach by their hop, never popping. Day/night lightness and battery dimming remain the two overlay exceptions."
 - Strict Separation: "GSAP timelines must only trigger semantic state changes, never call AudioEngine directly."
 - UI Shell: "All interactive UI (transport, navigation, controls) lives inside GlassViewport only — never in the decorative SleeveContainer."

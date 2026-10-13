@@ -54,7 +54,7 @@ export const LOAD_FILTER_LFOS_MIN = 0.4;
 export const LOAD_PLAYBACK_BELOW = 0.61;
 
 /**
- * Fixed size of the harmony palette — every hour-equivalent's `TIME_PITCHES` entry
+ * Fixed size of the harmony palette — every `HARMONY_PALETTES` entry
  * (harmonySystem.ts) is exactly 8 notes, structurally enforced by the `EighthNotes`
  * tuple type. This constant is for the bare-literal bounds derived from that size
  * (note-index clamping, unweighted random pick) elsewhere in melodyGenerator.ts —
@@ -62,18 +62,6 @@ export const LOAD_PLAYBACK_BELOW = 0.61;
  * which is a different concept (max tuning-knob value) that happens to equal 8 too.
  */
 export const NOTE_PALETTE_SIZE = 8;
-
-/**
- * CLAUDE.md guardrail: "96 measures = 1 day cycle." Single source of truth for
- * both real day-cycle consumers — beatClock.ts's measure-wrap math and
- * lightingUtils.ts's building-lighting phase (Factory.tsx). Previously
- * declared independently in each (docs/DUPLICATE_VALUE_AUDIT.md item 2);
- * centralized here so the two can't silently diverge. beatClock.ts's own
- * getCurrentHour() has no production callers today (harmonySystem.ts derives
- * its palette index from getCurrentMeasure() instead, per
- * docs/specs/HARMONY_PALETTE_SEQUENCING.md) but still shares this constant.
- */
-export const DAY_CYCLE_MEASURES = 96;
 
 /**
  * Fixed real-world milliseconds per full in-world day (6 minutes), and the

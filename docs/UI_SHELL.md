@@ -80,7 +80,7 @@ Each section's panel opens with its group's intro as an expander that starts col
 
 ## uiStore
 
-UI-only, JSON-serializable state (`src/stores/uiStore.ts`): `activeView`, `theme`, `language`, `isPoweredOn`, `isFullscreen`, `activeLocaleLocalTime`, `activeLocaleTemperature` (decorative, read by the world line and the header), and the selection fields below. No Tone nodes, GSAP timelines or DOM refs.
+UI-only, JSON-serializable state (`src/stores/uiStore.ts`): `isPoweredOn`, `activeLocaleLocalTime` (the wall-clock hour, 0–24), `activeLocaleTemperature` (decorative, read by the world line and the header), and the selection fields below. No Tone nodes, GSAP timelines or DOM refs.
 
 | Field | Meaning |
 |---|---|

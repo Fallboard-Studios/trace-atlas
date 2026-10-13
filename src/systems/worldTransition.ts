@@ -66,7 +66,6 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
     robots: [],
     actors: [],
     companies: [],
-    currentMeasure: 0,
   };
 }
 

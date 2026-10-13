@@ -10,7 +10,7 @@ import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot } fro
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
-import { resetBeatClock, subscribeToMeasure, initBeatClock } from './beatClock';
+import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY } from '../constants';
 
@@ -111,9 +111,6 @@ let soundingRobots: ReadonlySet<string> | null = null;
 let polyphonyCap = MAX_POLYPHONY;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
-// Unsubscribe handle for the BeatClock measure listener; prevents duplicate
-// listeners if start() is called more than once without an intervening killAll().
-let _unsubscribeMeasure: (() => void) | null = null;
 
 // Step registry: Map<stepNumber (1-16), events at that step>
 const stepRegistry = new Map<number, MelodyEventEntry[]>();
@@ -557,16 +554,6 @@ export const AudioEngine = {
     }
 
     initBeatClock(transport);
-    // Ensure `currentMeasure` in the ocean store is driven by the BeatClock.
-    // This updates visuals (lighting) and allows harmony to derive from measures.
-    try {
-      _unsubscribeMeasure?.();
-      _unsubscribeMeasure = subscribeToMeasure((m: number) => {
-        useLocaleStore.getState().setLocaleData(getActiveLocaleId(), { currentMeasure: m });
-      });
-    } catch (err) {
-      devWarn('[AudioEngine] subscribeToMeasure failed', err);
-    }
     startMelodyPlayback();
     scheduleHarmonyCycle();
 
@@ -1175,7 +1162,6 @@ export const AudioEngine = {
       // Reset beatClock so initBeatClock() re-registers its internal tick on next start.
       // transport.cancel() above cleared the old 16n tick; resetBeatClock() lets it be recreated.
       resetBeatClock();
-      _unsubscribeMeasure = null; // resetBeatClock cleared the listener array; drop the stale ref
     } catch (err) {
       devWarn('[AudioEngine] killAll failed', err);
     }

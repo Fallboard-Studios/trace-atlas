@@ -13,7 +13,7 @@ import { getTerrainProfile, __clearTerrainProfileCache, type Step } from '@/syst
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
-import { getLighting, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting } from '@/utils/lightingUtils';
 import { applyColorShift } from '@/utils/colorUtils';
 import colorTheme from '@/constants/colorTheme.json';
 import type { Locale } from '@/types/locale';
@@ -49,7 +49,7 @@ function yAt(steps: Step[], x: number): number {
 
 /** The ridge's and the ground's own fill multiplier and base colour (spec §1.3). */
 function material(part: 'ridge' | 'ground', hour: number) {
-  const { eastL, westL } = getLighting(((hour / 24) * DAY_CYCLE_MEASURES) % DAY_CYCLE_MEASURES);
+  const { eastL, westL } = getLighting(hour);
   const m = (eastL + westL) / 2;
   return part === 'ridge'
     ? { base: colorTheme.shadowDepth, mult: 1 + m * 1.2 }

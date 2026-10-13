@@ -75,7 +75,6 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     melody: [],
     audioAttributes: baseline.audioAttributes,
     octaveRange: baseline.octaveRange,
-    createdAt: Date.now(),
     masterVolume: 0.6,
     docking: 'active',
     batteryLevel: 100,

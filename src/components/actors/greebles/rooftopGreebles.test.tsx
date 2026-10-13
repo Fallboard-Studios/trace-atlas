@@ -12,7 +12,6 @@ import {
   renderWaterTower,
   renderCupola,
   renderPipesValves,
-  attachFlickerAnimation,
   ROOFTOP_RENDERERS,
   computePitchedRoofLayout,
   paintPitchedRoof,
@@ -557,22 +556,6 @@ describe('renderAntennae', () => {
     const el = renderAntennae({ ...ctx, seed: 0 }) as EL;
     const shaft = (React.Children.toArray(el.props.children) as EL[])[0];
     expect(shaft.props.x).toBeCloseTo(49);
-  });
-});
-
-// ========================================
-// FLICKER ANIMATION UTILITY TESTS
-// ========================================
-
-describe('attachFlickerAnimation', () => {
-  it('returns a cleanup function', () => {
-    const cleanup = attachFlickerAnimation({ current: null });
-    expect(typeof cleanup).toBe('function');
-  });
-
-  it('cleanup function does not throw', () => {
-    const cleanup = attachFlickerAnimation({ current: null });
-    expect(() => cleanup()).not.toThrow();
   });
 });
 

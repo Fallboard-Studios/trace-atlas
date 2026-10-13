@@ -1,5 +1,5 @@
 import { useUIStore } from '@/stores/uiStore';
-import { getLighting, getNightDepth, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 import { lerp } from '@/utils/math';
 
 // ========================================
@@ -36,9 +36,7 @@ const GLOW_OMIT_THRESHOLD = 0.2;
 export function WaterColumn({ localeId, width, height }: WaterColumnProps) {
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
 
-  const lightMeasure = (localTime / 24) * DAY_CYCLE_MEASURES;
-  const cycleMeasure = lightMeasure % DAY_CYCLE_MEASURES;
-  const { eastL, westL } = getLighting(cycleMeasure);
+  const { eastL, westL } = getLighting(localTime);
   const d = 1 - getNightDepth(eastL, westL);
 
   const topL = Math.round(lerp(8, 30, d));

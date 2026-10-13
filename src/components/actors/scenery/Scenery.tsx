@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import type { Actor, SceneryKind } from '../../../types/Actor';
 import { getRecipeRow, deriveAsAccentPair } from '../../../systems/factoryPlacementSystem';
 import { ROW_L_CAP, DERELICT_L_CAP } from '../../../constants/sceneDepth';
-import { getLighting, getNightDepth, DAY_CYCLE_MEASURES } from '../../../utils/lightingUtils';
+import { getLighting, getNightDepth } from '../../../utils/lightingUtils';
 import { useUIStore } from '../../../stores/uiStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../../../stores/attenuationStyleStore';
 import { getAttenuationStyleNoiseMap } from '../../../utils/noiseMaps';
@@ -88,8 +88,7 @@ const SceneryInner: React.FC<SceneryProps> = ({ actor }) => {
   }, [attenuationStyle]);
 
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
-  const lightMeasure = (localTime / 24) * DAY_CYCLE_MEASURES;
-  const { eastL, westL } = getLighting(lightMeasure % DAY_CYCLE_MEASURES);
+  const { eastL, westL } = getLighting(localTime);
   const nightDepth = derelict ? 0 : getNightDepth(eastL, westL);
   const cap = ROW_L_CAP[depth] * (derelict ? DERELICT_L_CAP : 1);
 

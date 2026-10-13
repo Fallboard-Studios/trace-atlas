@@ -31,7 +31,6 @@ const makeRobot = (id: string): Robot => ({
     filterFreq: 0,
   },
   octaveRange: [3, 4],
-  createdAt: Date.now(),
   masterVolume: 0.7,
   docking: DockingState.Active,
   activity: 'exiting',
@@ -374,15 +373,19 @@ describe('localeStore', () => {
   });
 
   describe('setLocaleData', () => {
-    it('updates currentMeasure', () => {
-      useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { currentMeasure: 42 });
-      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].currentMeasure).toBe(42);
+    it('updates a field', () => {
+      useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { name: 'Renamed' });
+      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].name).toBe('Renamed');
     });
 
     it('merges partial data without overwriting unrelated fields', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-      useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { currentMeasure: 10 });
+      useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { name: 'Renamed' });
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots).toHaveLength(1);
+    });
+
+    it('the default locale carries no per-measure field (roadmap 48)', () => {
+      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID]).not.toHaveProperty('currentMeasure');
     });
   });
 

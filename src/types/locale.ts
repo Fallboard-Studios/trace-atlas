@@ -19,14 +19,11 @@ export interface Locale {
   /** BeatClock measure this locale's roster was created at (getCurrentMeasure() at build time,
    *  same stamping point as dayStartTimestamp) -- docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md.
    *  Elapsed measures for lifecycle replay purposes is always
-   *  `getCurrentMeasure() - createdAtMeasure`, never separately tracked. NOT the same field as
-   *  `currentMeasure` below, which is unrelated legacy state never incremented by the real tick
-   *  system -- do not conflate the two. */
+   *  `getCurrentMeasure() - createdAtMeasure`, never separately tracked. */
   createdAtMeasure: number;
   robots: Robot[];
   actors: Actor[];
   companies: Company[];
-  currentMeasure: number;
   /** The "All" selection's own edit snapshot (CompanyButtonRow's All button, uiStore's
    *  allRobotsSelected) — same role as Company.lastEditedOptions, but locale-scoped rather than
    *  company-scoped, since "All" has no Company object of its own to store it on. Optional and

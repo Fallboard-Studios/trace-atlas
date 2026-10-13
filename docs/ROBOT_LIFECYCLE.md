@@ -392,10 +392,9 @@ wall-clock time, and nothing the replay computes reads them.
 
 **`Locale.createdAtMeasure: number`** (`types/locale.ts`) — stamped once, at the same point
 `dayStartTimestamp` is (`worldTransition.ts`'s `buildLocale`), reading `getCurrentMeasure()` at
-that moment. **Not** the pre-existing `Locale.currentMeasure` field, which is unrelated legacy
-state never incremented by the real tick system (its only use is a mount-time no-op self-write in
-`App.tsx` to force a re-render). Elapsed measures for replay purposes is always
-`getCurrentMeasure() - locale.createdAtMeasure`.
+that moment. Elapsed measures for replay purposes is always
+`getCurrentMeasure() - locale.createdAtMeasure`; no per-measure counter is stored on the locale
+(the old per-measure mirror on the locale was removed with the One Day Clock phase, roadmap 48).
 
 **`RobotLifecycleSnapshot`** (`robotSystems.ts`) — the subset of `Robot` a replay reads or writes,
 deliberately narrower than `Robot`: `id`, `docking`, `batteryLevel`, `dockingHoldUntilMeasure`,
@@ -546,7 +545,6 @@ verified requirement. `audioMode` (unaffected by the power cycle, since it lives
   on `scale`.
 - **The station ignores daylight**: the robots dim at night, the station doesn't. No spec rule asks
   for it.
-- `Robot.lastInteractionMeasure` has had no writer since Task 6 deleted `interactionSystem.ts`.
 
 ## Testing Notes
 

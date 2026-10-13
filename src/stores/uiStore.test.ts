@@ -242,6 +242,23 @@ describe('uiStore — the stacked scroll\'s fields are retired', () => {
   });
 });
 
+// Roadmap 48: dials nothing turned. The pre-hub view switch, the fullscreen intent whose component
+// never existed, the 'dark' constant the cut Console Theming phase left behind, and a language no
+// text layer reads (copy lives in src/content/).
+describe('uiStore — the dials nothing turned are retired', () => {
+  it.each([
+    ['activeView', 'setActiveView'],
+    ['isFullscreen', 'setFullscreen'],
+    ['theme', 'setTheme'],
+    ['language', 'setLanguage'],
+  ])('has no %s and no %s', (field, setter) => {
+    const state = useUIStore.getState() as unknown as Record<string, unknown>;
+    expect(field in state).toBe(false);
+    expect(setter in state).toBe(false);
+    expect(field in useUIStore.getInitialState()).toBe(false);
+  });
+});
+
 describe('uiStore — the initial state is spec §1.10\'s table', () => {
   // §1.10's kept and new fields.
   const NAV_FIELDS = [
@@ -251,7 +268,7 @@ describe('uiStore — the initial state is spec §1.10\'s table', () => {
     'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
   ];
   // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are.
-  const OTHER_FIELDS = ['activeView', 'theme', 'language', 'isFullscreen', 'activeLocaleLocalTime', 'activeLocaleTemperature'];
+  const OTHER_FIELDS = ['activeLocaleLocalTime', 'activeLocaleTemperature'];
 
   const initial = useUIStore.getInitialState() as unknown as Record<string, unknown>;
   const fields = Object.keys(initial).filter((key) => typeof initial[key] !== 'function');

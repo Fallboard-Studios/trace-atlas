@@ -1,4 +1,3 @@
-import React from 'react';
 import type { RooftopGreeble, GreebleRendererContext, GreebleRenderer, GreebleElement } from './greebleTypes';
 import { hslToString, applyColorShift } from '../../../utils/colorUtils';
 import colorTheme from '../../../constants/colorTheme.json';
@@ -593,28 +592,6 @@ export function renderCupola(ctx: GreebleRendererContext): GreebleElement | null
       <path d={arc} fill="none" {...line} />
     </>
   );
-}
-
-// ========================================
-// ANIMATION UTILITIES
-// ========================================
-
-/**
- * Stub utility for attaching a GSAP ticker-driven flicker animation to an
- * antenna indicator light element. Full implementation is deferred to a later
- * refinement pass.
- *
- * Future implementation will:
- *   1. Read the element via `ref.current` — do NOT use `document.getElementById()`.
- *   2. Register a `gsap.ticker.add()` handler that varies `opacity` slightly
- *      each frame to simulate a real-world indicator blink.
- *   3. Return a cleanup that calls `gsap.ticker.remove()` to prevent leaks.
- *
- * @param _ref - React ref pointing to the SVG circle element to animate (unused until implemented).
- * @returns A cleanup function that removes the ticker listener (currently a no-op).
- */
-export function attachFlickerAnimation(_ref: React.RefObject<SVGCircleElement | null>): () => void {
-  return () => { };
 }
 
 // ---------------------------------------

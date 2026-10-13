@@ -132,7 +132,6 @@ vi.mock('./harmonySystem', () => ({
 // Mock beat clock
 vi.mock('./beatClock', () => ({
   initBeatClock: vi.fn((_transport?: unknown) => undefined),
-  getCurrentHour: vi.fn(() => 0),
   getCurrentMeasure: vi.fn(() => 0),
   getCurrentBeat: vi.fn(() => 0),
   subscribeToMeasure: vi.fn((_cb?: unknown) => undefined),  // ← add
@@ -203,7 +202,6 @@ describe('AudioEngine.reReserveVoice', () => {
               id: 'r1',
               name: '',
               position: { x: 960, y: 0 },
-              createdAt: Date.now(),
               melody: [],
               octaveRange: [3, 4],
               masterVolume: 0.8,
@@ -719,8 +717,8 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
     // Populate locale robots: one muted, one normal
     merged_useLocaleStore.getState().setLocaleData(merged_DEFAULT_LOCALE_ID, {
       robots: [
-        { id: 'r-muted', audioMode: 'mute', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, createdAt: Date.now(), name: '', state: 'idle', direction: 'right' },
-        { id: 'r-other', audioMode: 'none', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, createdAt: Date.now(), name: '', state: 'idle', direction: 'right' },
+        { id: 'r-muted', audioMode: 'mute', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right' },
+        { id: 'r-other', audioMode: 'none', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right' },
       ],
     });
 
@@ -798,8 +796,8 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
 
     merged_useLocaleStore.getState().setLocaleData(merged_DEFAULT_LOCALE_ID, {
       robots: [
-        { id: 'r-solo', audioMode: 'solo', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.9, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, createdAt: Date.now(), name: '', state: 'idle', direction: 'right' },
-        { id: 'r-other2', audioMode: 'none', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.9, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, createdAt: Date.now(), name: '', state: 'idle', direction: 'right' },
+        { id: 'r-solo', audioMode: 'solo', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.9, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right' },
+        { id: 'r-other2', audioMode: 'none', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.9, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right' },
       ],
     });
 
@@ -840,8 +838,8 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
 
     merged_useLocaleStore.getState().setLocaleData(merged_DEFAULT_LOCALE_ID, {
       robots: [
-        { id: 'r-h', audioMode: 'highlight', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, createdAt: Date.now(), name: '', state: 'idle', direction: 'right' },
-        { id: 'r-nh', audioMode: 'none', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, createdAt: Date.now(), name: '', state: 'idle', direction: 'right' },
+        { id: 'r-h', audioMode: 'highlight', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right' },
+        { id: 'r-nh', audioMode: 'none', audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 }, masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right' },
       ],
     });
 
@@ -1054,7 +1052,6 @@ describe('AudioEngine - Motif Group Accent', () => {
       melody: [],
       octaveRange: [3, 4] as [number, number],
       position: { x: 0, y: 0 },
-      createdAt: Date.now(),
       name: '',
       state: 'idle' as const,
       direction: 'right' as const,
@@ -1234,7 +1231,6 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       melody: [],
       octaveRange: overrides.octaveRange ?? ([3, 4] as [number, number]),
       position: { x: 0, y: 0 },
-      createdAt: Date.now(),
       name: '',
       state: 'idle' as const,
       direction: 'right' as const,
@@ -1534,7 +1530,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
         masterVolume: 0.8, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the
         // Panner mock's own default pan.value of 0, so an unwanted write is detectable.
-        position: { x: 0, y: 0 }, createdAt: Date.now(), name: '',
+        position: { x: 0, y: 0 }, name: '',
         docking: 'active' as const, activity: 'exiting' as const, batteryLevel: 100,
       }],
     });
@@ -2202,6 +2198,17 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
     await expect(AudioEngine.start()).resolves.not.toThrow();
     const beatClock = await import('./beatClock');
     expect(beatClock.initBeatClock).toHaveBeenCalled();
+  });
+
+  it('does not subscribe to measures — no measure is mirrored into the locale store (roadmap 48)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const beatClock = await import('./beatClock');
+    vi.mocked(beatClock.subscribeToMeasure).mockClear();
+
+    await AudioEngine.start();
+
+    expect(beatClock.initBeatClock).toHaveBeenCalled();
+    expect(beatClock.subscribeToMeasure).not.toHaveBeenCalled();
   });
 });
 

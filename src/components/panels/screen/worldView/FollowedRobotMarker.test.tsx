@@ -68,7 +68,7 @@ function seed(...robots: Robot[]): void {
     locales: {
       [LOCALE]: {
         id: LOCALE, attenuationStyleId: 'pelagos', name: LOCALE, coordinates: { x: 3, y: 7 },
-        dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [], currentMeasure: 0, robots,
+        dayStartTimestamp: 0, createdAtMeasure: 0, companies: [], actors: [], robots,
       },
     },
   });

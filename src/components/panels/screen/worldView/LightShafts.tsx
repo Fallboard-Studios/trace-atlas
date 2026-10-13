@@ -2,7 +2,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getLocaleNoiseMap } from '@/utils/noiseMaps';
 import { getSeededVal } from '@/utils/getSeededVal';
-import { getLighting, getNightDepth, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 import { hslToString } from '@/utils/colorUtils';
 import colorTheme from '@/constants/colorTheme.json';
 
@@ -55,9 +55,7 @@ export function LightShafts({ localeId }: LightShaftsProps) {
 
   if (!locale) return null;
 
-  const lightMeasure = (localTime / 24) * DAY_CYCLE_MEASURES;
-  const cycleMeasure = lightMeasure % DAY_CYCLE_MEASURES;
-  const { eastL, westL } = getLighting(cycleMeasure);
+  const { eastL, westL } = getLighting(localTime);
   const nightDepth = getNightDepth(eastL, westL);
 
   const topOpacity = OPACITY_SCALE * (1 - nightDepth);

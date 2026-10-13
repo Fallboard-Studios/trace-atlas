@@ -3,7 +3,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getLocaleNoiseMap } from '@/utils/noiseMaps';
 import { getTerrainProfile } from '@/systems/terrainProfile';
-import { getLighting, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting } from '@/utils/lightingUtils';
 import { applyColorShift } from '@/utils/colorUtils';
 import colorTheme from '@/constants/colorTheme.json';
 import { GemRing } from '@/components/actors/material/GemRing';
@@ -52,11 +52,8 @@ export function TerrainLayer({ localeId, part, width, height }: TerrainLayerProp
   const profile = getTerrainProfile(localeId, noiseMap);
   const steps = part === 'ridge' ? profile.ridge : profile.ground;
 
-  // Same lightMeasure derivation as Factory.tsx: activeLocaleLocalTime (0..24) mapped into the
-  // 0..DAY_CYCLE_MEASURES cycle getLighting expects.
-  const lightMeasure = (localTime / 24) * DAY_CYCLE_MEASURES;
-  const cycleMeasure = lightMeasure % DAY_CYCLE_MEASURES;
-  const { eastL, westL } = getLighting(cycleMeasure);
+  // activeLocaleLocalTime (0..24) is the hour getLighting takes, as in Factory.tsx.
+  const { eastL, westL } = getLighting(localTime);
   const m = (eastL + westL) / 2;
 
   const base = part === 'ridge' ? colorTheme.shadowDepth : colorTheme.body.shadow;

@@ -63,7 +63,7 @@ function registerLocale(actors: Actor[], robots: Robot[]): void {
     locales: {
       [LOCALE]: {
         id: LOCALE, attenuationStyleId: 'pelagos', name: LOCALE, coordinates: { x: 3, y: 7 },
-        dayStartTimestamp: 0, createdAtMeasure: 0, robots, actors, companies: [], currentMeasure: 0,
+        dayStartTimestamp: 0, createdAtMeasure: 0, robots, actors, companies: [],
       },
     },
   });
@@ -135,7 +135,7 @@ beforeAll(() => {
   gsap.globalTimeline.pause();
   useLocaleStore.getState().addLocale('pelagos', {
     id: 'work-loop-world', attenuationStyleId: 'pelagos', name: 'w', coordinates: { x: 3, y: 7 },
-    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [], currentMeasure: 0,
+    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [],
   });
   WORLD = placeDistrict('work-loop-world');
   // The J1–J3 tests run with background hosts off (`backHosts: false` on every start before the

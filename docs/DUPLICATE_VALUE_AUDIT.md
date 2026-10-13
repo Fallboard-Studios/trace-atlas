@@ -59,8 +59,12 @@ when bubble timing moved to wall-clock seconds spread across all bubble-eligible
 `Factory.tsx`/`BubbleStream.tsx` line citations in this item are historical.
 
 ### 2. `MEASURES_PER_CYCLE` / `DAY_CYCLE_MEASURES` — one guardrail, two constants
-**Status:** ☑ fixed (2026-09-03) · **Confidence:** high — pure centralization, same pattern as
-items 3–5, confirmed by full test/lint/type-check pass.
+**Status:** ☑ fixed (2026-09-03), then **superseded** by the One Day Clock phase (roadmap 48,
+2026-10-13): the constant turned out to have no reason to exist. The in-world day is wall-clock, so
+nothing musical defines one; `DAY_CYCLE_MEASURES`, `getCurrentHour()` and `subscribeToMeasure`'s
+wrap were deleted, and the lighting helpers take the locale's hour directly. What follows is the
+record of the centralisation as it was. · **Confidence:** high — pure centralization, same pattern
+as items 3–5, confirmed by full test/lint/type-check pass.
 
 CLAUDE.md's guardrail ("96 measures = 1 day cycle") was encoded as two separately-declared module
 constants, each `96`, in unrelated subsystems with no shared import:

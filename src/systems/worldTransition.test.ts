@@ -62,7 +62,6 @@ const makeRobot = (id: string): Robot => ({
   melody: [],
   audioAttributes: { waveform: 'sine', adsr: { attack: 0, decay: 0, sustain: 0, release: 0 }, filterFreq: 0 },
   octaveRange: [3, 4],
-  createdAt: Date.now(),
   masterVolume: 0.7,
   docking: DockingState.Active,
   activity: 'exiting',
@@ -281,6 +280,13 @@ describe('worldTransition', () => {
       const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
       const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
       expect(computeLocaleHour(newLocale.dayStartTimestamp)).toBeCloseTo(Math.abs(-37 % 24), 0);
+    });
+
+    it('builds a locale with no per-measure field — the day is wall-clock, nothing mirrors a measure into the Locale (roadmap 48)', () => {
+      retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
+      const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
+      expect(newLocale).not.toHaveProperty('currentMeasure');
     });
 
     it("stamps the new locale's createdAtMeasure from getCurrentMeasure() at construction time (World Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md)", () => {

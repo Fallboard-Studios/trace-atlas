@@ -32,7 +32,6 @@ const TEST_LOCALE: Locale = {
   robots: [],
   actors: [],
   companies: [],
-  currentMeasure: 5,
 };
 
 function setStoreFixtures() {

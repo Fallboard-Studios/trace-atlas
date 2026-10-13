@@ -6,7 +6,7 @@ import { getTerrainProfile, __clearTerrainProfileCache } from '@/systems/terrain
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
-import { getLighting, DAY_CYCLE_MEASURES } from '@/utils/lightingUtils';
+import { getLighting } from '@/utils/lightingUtils';
 import type { Locale } from '@/types/locale';
 
 // ========================================
@@ -130,8 +130,7 @@ describe('TerrainLayer', () => {
           <TerrainLayer localeId={TEST_LOCALE.id} part="ground" width={1920} height={1080} />
         </>,
       );
-      const cycleMeasure = (12 / 24) * DAY_CYCLE_MEASURES;
-      const { eastL, westL } = getLighting(cycleMeasure);
+      const { eastL, westL } = getLighting(12);
       const m = (eastL + westL) / 2;
       const expectedRidgeL = Math.round(10 * (1 + m * 1.2));
       const expectedGroundL = Math.round(12 * (m * 0.9));

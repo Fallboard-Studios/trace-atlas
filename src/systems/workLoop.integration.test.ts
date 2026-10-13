@@ -72,7 +72,6 @@ function robot(id: string, centre: Vec2, over: Partial<Robot> = {}): Robot {
       layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }],
     },
     octaveRange: [3, 4],
-    createdAt: 0,
     masterVolume: 0.7,
     docking: 'active',
     batteryLevel: 100,
@@ -216,7 +215,7 @@ beforeAll(() => {
   gsap.globalTimeline.pause();
   useLocaleStore.getState().addLocale('pelagos', {
     id: 'work-loop-integration-world', attenuationStyleId: 'pelagos', name: 'w', coordinates: { x: 3, y: 7 },
-    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [], currentMeasure: 0,
+    dayStartTimestamp: 0, createdAtMeasure: 0, robots: [], actors: [], companies: [],
   });
   WORLD = placeDistrict('work-loop-integration-world');
   WORLD_LOCALE = useLocaleStore.getState().getLocaleById('work-loop-integration-world')!;

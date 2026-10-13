@@ -76,7 +76,7 @@ export interface GreebleRendererContext {
    */
   nightDepth?: number;
   /**
-   * Epoch counter that increments every `FLICKER_PERIOD` measures.
+   * Epoch counter that increments every `FLICKER_PERIOD` in-world hours.
    * Changing this value re-rolls each window’s lit state independently,
    * producing the occasional on/off flicker without touching the LCG draws
    * that control window existence and opacity.

@@ -79,7 +79,6 @@ function registerLocale(id: string, x: number, y: number): void {
     robots: [],
     actors: [],
     companies: [],
-    currentMeasure: 0,
   });
 }
 

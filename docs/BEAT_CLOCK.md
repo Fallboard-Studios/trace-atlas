@@ -10,7 +10,7 @@ Source of truth: [`src/engine/beatClock.ts`](../src/engine/beatClock.ts).
 
 ```typescript
 import {
-  initBeatClock, getCurrentBeat, getCurrentMeasure, getCurrentHour,
+  initBeatClock, getCurrentBeat, getCurrentMeasure, getCurrentMeasurePrecise,
   subscribeToMeasure, scheduleRepeat, cancelSchedule, resetBeatClock,
 } from '../engine/beatClock';
 ```
@@ -22,8 +22,8 @@ import {
 | Name | Value |
 |---|---|
 | `BEATS_PER_MEASURE` | `4` (4/4 time) |
-| `MEASURES_PER_HOUR` | `4` |
-| `DAY_CYCLE_MEASURES` (imported from `constants/index.ts`) | `96` (24 hours × 4 measures) |
+
+Measures count **music and the fleet's lifecycle** (battery, docking, pitch drift, the harmony palette) — never a day. The in-world day is wall-clock: a fixed `DAY_DURATION_MS` (6 real minutes, `src/constants/time.ts`) from each locale's own `dayStartTimestamp`, read through `computeLocaleHour`. Tempo cannot shorten or stretch it, and nothing here derives an hour.
 
 ## API
 
@@ -34,12 +34,12 @@ Idempotent — no-ops if already initialized. Registers one internal `'16n'` tic
 - `currentBeat = measure * 4 + beat + sixteenths / 4` (float, 0-based)
 - `currentMeasure = measure` (int, 0-based)
 
-and fires every measure listener once per measure change, with the value wrapped to `0..95`.
+and fires every measure listener once per measure change, with the real, monotonic measure count — the same value `getCurrentMeasure()` returns. It never wraps, so hold-until arithmetic (`dockingHoldUntilMeasure`) is safe at any session length.
 
 ```typescript
 getCurrentBeat(): number      // float, 0-based
 getCurrentMeasure(): number   // int, 0-based
-getCurrentHour(): number      // floor((currentMeasure % 96) / 4), clamped 0..23 — always derived, never stored
+getCurrentMeasurePrecise(): number  // float, getCurrentBeat() / 4 — sub-measure resolution, still monotonic
 subscribeToMeasure(callback: (measure: number) => void): () => void  // returns an UNSUBSCRIBE function — capture and call it on cleanup
 scheduleRepeat(interval: string, callback: () => void): string       // returns an opaque schedule ID
 cancelSchedule(scheduleId: string): void
@@ -59,10 +59,10 @@ const scheduleId = scheduleRepeat('30m', () => spawnRobot());
 cancelSchedule(scheduleId);
 
 // Reading position
-const hour = getCurrentHour(); // 0..23, derived on demand
+const measure = getCurrentMeasure(); // int, 0-based, never wraps
 ```
 
-Day/night derivation is always `floor(currentMeasure % 96 / 4)` — computed on demand, never persisted to state.
+Day/night is **not** derived from the beat clock: the lighting helpers take the locale's wall-clock hour (`getLighting(hour)`, [BUILDING_DESIGN.md](BUILDING_DESIGN.md#daynight-cycle-lightness-curve)).
 
 ## Forbidden
 

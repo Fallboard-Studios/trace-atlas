@@ -32,7 +32,6 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
       ],
     },
     octaveRange: [3, 5],
-    createdAt: Date.now(),
     masterVolume: 0.6,
     docking: 'active',
     batteryLevel: 100,

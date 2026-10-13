@@ -1,26 +1,12 @@
 // ========================================
-// IMPORTS
-// ========================================
-import { DAY_CYCLE_MEASURES } from '../constants';
-
-// ========================================
 // CONSTANTS
 // ========================================
 
-/**
- * Total measures in one full day/night cycle. Re-exported from
- * constants/index.ts (the single source of truth shared with
- * beatClock.ts — see docs/DUPLICATE_VALUE_AUDIT.md item 2) rather than
- * declared locally, so existing `from './lightingUtils'` imports
- * (Factory.tsx, lightingUtils.test.ts) don't need to change.
- */
-export { DAY_CYCLE_MEASURES };
+/** In-world hours between a building's window flicker re-rolls. */
+export const FLICKER_PERIOD = 2;
 
-/**
- * How many measures elapse between window flicker re-rolls.
- * At 96 measures/day this is roughly every 2 "hours".
- */
-export const FLICKER_PERIOD = 8;
+/** How many evenly spaced phase offsets buildings are spread over inside one flicker period. */
+const FLICKER_PHASE_SLOTS = 8;
 
 /**
  * Minimum lightness multiplier applied at the darkest point of night.
@@ -68,15 +54,14 @@ export function getNightDepth(eastL: number, westL: number): number {
 }
 
 /**
- * Computes east/west lightness multipliers for a given measure in the
- * 96-measure day/night cycle.
+ * Computes east/west lightness multipliers for a given hour of the in-world day.
  *
- * Cycle landmarks (measure → time-of-day equivalent):
- *  - m = 0   → midnight  (both faces dark)
- *  - m = 36  → 9 am      (east face at peak)
- *  - m = 48  → noon      (both faces equal, bright)
- *  - m = 60  → 3 pm      (west face at peak)
- *  - m = 96  → midnight  (wraps to 0)
+ * Cycle landmarks (hour of day):
+ *  - 0   → midnight  (both faces dark)
+ *  - 9   → 9 am      (east face at peak)
+ *  - 12  → noon      (both faces equal, bright)
+ *  - 15  → 3 pm      (west face at peak)
+ *  - 24  → midnight  (wraps to 0)
  *
  * **East face** = right side of building (x ≥ frontCornerX).
  * **West face** = left side of building  (x < frontCornerX).
@@ -84,15 +69,15 @@ export function getNightDepth(eastL: number, westL: number): number {
  * The raw sine values are gamma-corrected with {@link GAMMA} = 2.2 before
  * scaling into the [{@link NIGHT_L}, {@link PEAK_L}] output range.
  *
- * @param measure - Current measure count; wraps automatically at 96.
+ * @param hour - Hour of the in-world day, a 0..24 float (`computeLocaleHour`); wraps at 24.
  * @returns `{ eastL, westL }` — lightness multipliers for east and west faces.
  */
-export function getLighting(measure: number): { eastL: number; westL: number } {
-  const θ = ((measure % DAY_CYCLE_MEASURES) / DAY_CYCLE_MEASURES) * 2 * Math.PI;
+export function getLighting(hour: number): { eastL: number; westL: number } {
+  const θ = ((hour % 24) / 24) * 2 * Math.PI;
 
-  // Base formula: (sin(θ - π/2) + 1) / 2 → 0 at m=0 (midnight), 1 at m=48 (noon)
-  // East face: phase-advance by π/4  → peaks at θ = 3π/4 → m = 36 (9 am)
-  // West face: phase-delay  by π/4  → peaks at θ = 5π/4 → m = 60 (3 pm)
+  // Base formula: (sin(θ - π/2) + 1) / 2 → 0 at hour 0 (midnight), 1 at hour 12 (noon)
+  // East face: phase-advance by π/4  → peaks at θ = 3π/4 → hour 9
+  // West face: phase-delay  by π/4  → peaks at θ = 5π/4 → hour 15
   const eastRaw = (Math.sin(θ - Math.PI / 2 + Math.PI / 4) + 1) / 2;
   const westRaw = (Math.sin(θ - Math.PI / 2 - Math.PI / 4) + 1) / 2;
 
@@ -100,4 +85,26 @@ export function getLighting(measure: number): { eastL: number; westL: number } {
   const westL = NIGHT_L + (PEAK_L - NIGHT_L) * Math.pow(westRaw, GAMMA);
 
   return { eastL, westL };
+}
+
+/**
+ * A building's flicker phase offset in in-world hours, 0..FLICKER_PERIOD (exclusive), stepped in
+ * `FLICKER_PERIOD / FLICKER_PHASE_SLOTS` hours (a quarter hour). It staggers window re-rolls so no
+ * two buildings re-render on the same tick at an epoch boundary.
+ *
+ * @param buildingSeed - The building's stable id hash.
+ */
+export function flickerPhase(buildingSeed: number): number {
+  return (buildingSeed % FLICKER_PHASE_SLOTS) * (FLICKER_PERIOD / FLICKER_PHASE_SLOTS);
+}
+
+/**
+ * The window-flicker epoch for a building: increments every {@link FLICKER_PERIOD} hours, shifted
+ * by the building's {@link flickerPhase}. Feeds the seeded window re-roll.
+ *
+ * @param hour - Hour of the in-world day, a 0..24 float.
+ * @param phase - The building's {@link flickerPhase}.
+ */
+export function getFlickerEpoch(hour: number, phase: number): number {
+  return Math.floor((hour + phase) / FLICKER_PERIOD);
 }

@@ -19,7 +19,6 @@ let initBeatClock: (transport?: typeof mockTransport) => void;
 let getCurrentBeat: () => number;
 let getCurrentMeasure: () => number;
 let getCurrentMeasurePrecise: () => number;
-let getCurrentHour: () => number;
 let parseTransportPosition: (rawPosition: unknown) => { measure: number; beat: number; sixteenths: number };
 let subscribeToMeasure: (cb: (m: number) => void) => () => void;
 let resetBeatClock: () => void;
@@ -38,7 +37,6 @@ describe('beatClock', () => {
       getCurrentBeat,
       getCurrentMeasure,
       getCurrentMeasurePrecise,
-      getCurrentHour,
       parseTransportPosition,
       subscribeToMeasure,
       resetBeatClock,
@@ -56,7 +54,6 @@ describe('beatClock', () => {
     callbacks[0]?.();
     expect(getCurrentMeasure()).toBe(2);
     expect(getCurrentBeat()).toBeCloseTo(9.5);
-    expect(getCurrentHour()).toBe(0);
   });
 
   describe('getCurrentMeasurePrecise', () => {
@@ -79,10 +76,10 @@ describe('beatClock', () => {
       expect(getCurrentMeasurePrecise()).toBeCloseTo(5.5); // precise value still moved
     });
 
-    it('is unwrapped, like getCurrentMeasure() and unlike subscribeToMeasure\'s own callback argument', () => {
+    it('is monotonic, like getCurrentMeasure() — nothing wraps it', () => {
       mockTransport.position = '97:1:0';
       callbacks[0]?.();
-      expect(getCurrentMeasurePrecise()).toBeCloseTo(97.25); // NOT wrapped to 1.25 at the 96-measure boundary
+      expect(getCurrentMeasurePrecise()).toBeCloseTo(97.25);
     });
 
     it('resets to 0 after resetBeatClock', () => {
@@ -99,17 +96,37 @@ describe('beatClock', () => {
     expect(mockTransport.scheduleRepeat).toHaveBeenCalledTimes(1);
   });
 
-  it('wraps the measure passed to listeners at the 96-measure cycle boundary', () => {
+  it('passes the real, monotonic measure to listeners — it never wraps', () => {
     const listener = vi.fn();
     subscribeToMeasure(listener);
 
+    mockTransport.position = '95:0:0';
+    callbacks[0]?.();
+    expect(listener).toHaveBeenLastCalledWith(95);
+
     mockTransport.position = '96:0:0';
     callbacks[0]?.();
-    expect(listener).toHaveBeenCalledWith(0);
+    expect(listener).toHaveBeenLastCalledWith(96);
 
-    mockTransport.position = '97:0:0';
+    mockTransport.position = '1247:3:0';
     callbacks[0]?.();
-    expect(listener).toHaveBeenCalledWith(1);
+    expect(listener).toHaveBeenLastCalledWith(1247);
+    expect(listener).toHaveBeenLastCalledWith(getCurrentMeasure());
+  });
+
+  it('notifies once per measure, not once per 16n tick', () => {
+    const listener = vi.fn();
+    subscribeToMeasure(listener);
+
+    mockTransport.position = '3:0:0';
+    callbacks[0]?.();
+    mockTransport.position = '3:2:0';
+    callbacks[0]?.();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    mockTransport.position = '4:0:0';
+    callbacks[0]?.();
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it('isolates listener errors so one throwing subscriber does not block others', () => {
@@ -185,7 +202,6 @@ describe('beatClock', () => {
       resetBeatClock();
       expect(getCurrentMeasure()).toBe(0);
       expect(getCurrentBeat()).toBe(0);
-      expect(getCurrentHour()).toBe(0);
     });
 
     it('calls transport.clear with the internal tick id on reset', () => {

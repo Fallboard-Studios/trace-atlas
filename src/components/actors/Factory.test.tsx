@@ -10,7 +10,7 @@ import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import type { FactoryVariant } from './factoryVariants';
 import * as colorUtils from '../../utils/colorUtils';
 import { hslToString } from '../../utils/colorUtils';
-import { getLighting, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
+import { getLighting } from '../../utils/lightingUtils';
 import { useAttenuationStyleStore } from '../../stores/attenuationStyleStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -39,7 +39,6 @@ const TEST_LOCALE: Locale = {
   robots: [],
   actors: [],
   companies: [],
-  currentMeasure: 0,
 };
 
 function setStoreFixtures() {
@@ -162,12 +161,12 @@ describe('Factory — renders every variant without crashing', () => {
 
 describe('Factory — body fill tracks the day/night lighting cycle', () => {
   it('body fill differs between a day and a night activeLocaleLocalTime', () => {
-    setLocalTime(12); // noon — lightMeasure 48, both faces near peak brightness
+    setLocalTime(12); // noon — hour 12, both faces near peak brightness
     const { container } = render(<Factory actor={makeActor({}, idsByVariant.Monolith)} />);
     const dayFills = getBodyFills(container);
     expect(dayFills.length).toBeGreaterThanOrEqual(2);
 
-    setLocalTime(0); // midnight — lightMeasure 0, both faces near minimum brightness
+    setLocalTime(0); // midnight — hour 0, both faces near minimum brightness
     const nightFills = getBodyFills(container);
 
     expect(nightFills).not.toEqual(dayFills);
@@ -375,11 +374,10 @@ describe('Factory — Task 4: staticVisual isolates geometry from the lighting t
 });
 
 describe('Factory — Task 6: depth lightness cap and derelict rendering', () => {
-  // Mirrors Factory.tsx's own localTime → lightMeasure → getLighting derivation so the
+  // Mirrors Factory.tsx's own localTime → getLighting derivation so the
   // expected east-face multiplier matches exactly what the component computes.
   function eastLAt(hour: number): number {
-    const lightMeasure = (hour / 24) * DAY_CYCLE_MEASURES;
-    return getLighting(lightMeasure % DAY_CYCLE_MEASURES).eastL;
+    return getLighting(hour).eastL;
   }
 
   /** Reads back whichever FactoryVariant actually got selected — the test doesn't care
@@ -527,7 +525,7 @@ describe('Factory — the world gem body ring', () => {
     return { W, H, fc: (g.frontCornerX / 100) * W, variant: g.variant };
   }
 
-  const hour = (h: number) => getLighting(((h / 24) * DAY_CYCLE_MEASURES) % DAY_CYCLE_MEASURES);
+  const hour = (h: number) => getLighting(h);
   const body = (variant: FactoryVariant) => VARIANT_CONF[variant].colors.body;
   const fill = (variant: FactoryVariant, m: number) => colorUtils.applyColorShift(body(variant), NO_SHIFT, m);
 

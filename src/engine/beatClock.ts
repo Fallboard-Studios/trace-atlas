@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import { devWarn } from '../utils/helpers';
-import { BEATS_PER_MEASURE, DAY_CYCLE_MEASURES } from '../constants';
+import { BEATS_PER_MEASURE } from '../constants';
 import { generateUUID } from '../utils/randomId';
 
 // Minimal transport-like interface to avoid importing Tone.js here.
@@ -15,11 +15,6 @@ interface TransportLike {
 
 // Transport instance is provided by AudioEngine to avoid importing Tone here.
 let transportInstance: TransportLike | null = null;
-
-// ========================================
-// CONSTANTS
-// ========================================
-const MEASURES_PER_HOUR = 4;
 
 // ========================================
 // INTERNAL STATE
@@ -55,10 +50,9 @@ export function initBeatClock(transport?: TransportLike): void {
     currentMeasure = measure;
     if (currentMeasure !== lastNotifiedMeasure) {
       lastNotifiedMeasure = currentMeasure;
-      const wrappedMeasure = currentMeasure % DAY_CYCLE_MEASURES;
       measureListeners.forEach(fn => {
         try {
-          fn(wrappedMeasure);
+          fn(currentMeasure);
         } catch (err) {
           devWarn('[BeatClock] measure listener threw', err);
         }
@@ -93,10 +87,11 @@ export function parseTransportPosition(rawPosition: unknown): { measure: number;
 
 /**
  * Register a callback to be fired once per measure change.
- * The callback receives the wrapped measure (0–95).
+ * The callback receives the real, monotonic measure count (the same value as
+ * `getCurrentMeasure()`); it never wraps.
  * Safe to call before or after initialization.
  *
- * @param callback - Called with the new wrapped measure on each measure tick.
+ * @param callback - Called with the new measure on each measure tick.
  */
 export function subscribeToMeasure(callback: (measure: number) => void): () => void {
   measureListeners.push(callback);
@@ -123,24 +118,13 @@ export function getCurrentMeasure(): number {
 /**
  * Returns the current measure as a continuous float (unwrapped, sub-measure
  * precision) — e.g. 12.75 is three-quarters through measure 12. Derived from
- * `getCurrentBeat()` the same way `getCurrentHour()` derives from
- * `getCurrentMeasure()`. For callers needing finer-than-once-per-measure
+ * `getCurrentBeat()`. For callers needing finer-than-once-per-measure
  * resolution (e.g. audioSwells.ts's 16n advance tick) without re-deriving
- * BEATS_PER_MEASURE themselves. Unwrapped like `getCurrentMeasure()` — never
- * the `% DAY_CYCLE_MEASURES`-wrapped value `subscribeToMeasure`'s own
- * callback argument carries.
+ * BEATS_PER_MEASURE themselves. Monotonic like `getCurrentMeasure()` — nothing
+ * wraps it.
  */
 export function getCurrentMeasurePrecise(): number {
   return currentBeat / BEATS_PER_MEASURE;
-}
-
-/**
- * Returns the derived hour (0-23) from current measure position.
- * 96 measures = 1 full day cycle, 4 measures = 1 hour equivalent.
- */
-export function getCurrentHour(): number {
-  const derivedHour = Math.floor((currentMeasure % DAY_CYCLE_MEASURES) / MEASURES_PER_HOUR);
-  return Math.max(0, Math.min(23, derivedHour));
 }
 
 /**
