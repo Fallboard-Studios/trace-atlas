@@ -29,6 +29,7 @@ import type { OrbiterCorner } from '../sceneToOrbiterLocal';
 import type { WorkVariation } from '../variation';
 import type { DecorTier } from './decorTier';
 import type { MoveEvents } from './events';
+import { addFluidDecor } from './fluidDecor';
 import { orbiterLocalToRowLocal, sceneToRowLocal } from './frames';
 import { addInspectionDecor } from './inspectionDecor';
 import { addMaintenanceDecor } from './maintenanceDecor';
@@ -107,6 +108,7 @@ export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
   [JobType.Maintenance]: addMaintenanceDecor,
   [JobType.VentExtraction]: addVentDecor,
   [JobType.StructuralInspection]: addInspectionDecor,
+  [JobType.FluidMonitoring]: addFluidDecor,
 };
 
 // ========================================

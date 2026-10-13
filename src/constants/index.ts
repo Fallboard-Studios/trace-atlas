@@ -338,6 +338,20 @@ export const INSPECT_TRAIL_OPACITY = 1;
 export const INSPECT_TICK_LENGTH = 6;
 export const INSPECT_TICK_LIFE = 3;
 
+/** Fluid Monitoring's droplets and spinning valve (docs/specs/JOB_DECORATION.md §1.6;
+ *  decor/fluidDecor.ts; sketch docs/sketches/job-decorations.html, row "fluidMonitoring", Crawford's
+ *  settings): FLUID_DROPS droplets follow the lead along the pipe, each FLUID_DROP_LAG seconds behind
+ *  the one before and FLUID_DROP_RADIUS wide at the head. At the valve a square of FLUID_VALVE_SIZE
+ *  turns at FLUID_SPIN_BASE degrees a second, gaining FLUID_SPIN_STEP at each orbiter's pulse, and
+ *  fades over FLUID_VALVE_FADE seconds at both ends of the pulse. */
+export const FLUID_DROPS = 10;
+export const FLUID_DROP_LAG = 0.33;
+export const FLUID_DROP_RADIUS = 3;
+export const FLUID_VALVE_SIZE = 14;
+export const FLUID_SPIN_BASE = 90;
+export const FLUID_SPIN_STEP = 90;
+export const FLUID_VALVE_FADE = 0.3;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

@@ -195,14 +195,24 @@ Tier `'cheap'` draws the ticks only (§1.9).
 - **Droplets** (trace window): `FLUID_DROPS` (10) `<circle>`s. Drop `k` (1-based) is at
   `polyAt(route, (t − lead.start − k × FLUID_DROP_LAG) / run)`, `FLUID_DROP_LAG` 0.33 s × factor; hidden
   outside (0, 1]; `y` wobbles `± 0.8 × sin(9t + k)`; radius `FLUID_DROP_RADIUS` 3 × (0.6 + 0.4 × fade),
-  opacity `0.85 × fade`, `fade = 1 − (k − 1) / FLUID_DROPS`; light colour. (At 200 BPM the last drops
-  never start — Q5.)
+  opacity `0.85 × fade`, `fade = 1 − (k − 1) / FLUID_DROPS`; light colour. (Q5 expected the last
+  drops never to start at 200 BPM; *as measured (Task 10)* every drop shows at every tempo, because the
+  window runs to the pulse end, not the trace end — see Q5.)
 - **Valve** (pulse window, `FLUID_VALVE_FADE` 0.3 s edges): a radial-gradient glow `<circle>` (light
   colour, `.9 / .25 / 0` at `0 / .5 / 1`, radius `1.4 × size`, opacity 0.5), an outer `<rect>` outline
   (light colour, width 1, opacity 0.9) and an inner filled `<rect>` (identity colour, 0.45 × size,
   opacity 0.8) at the valve point, `size = FLUID_VALVE_SIZE 14 × factor × window alpha`. Rotation:
   rate starts at `FLUID_SPIN_BASE` 90 °/s and gains `FLUID_SPIN_STEP` 90 °/s at each orbiter's pulse
   start (sorted); angle = the piecewise integral to `t`; the outer rect turns `+angle`, the inner `−angle`.
+  *As built (Task 10):* one window spans the trace `t0` to the pulse `t1` (the drops keep flowing under
+  the valve's pulse); the glow's opacity is the constant 0.5 and it fades by shrinking with the window
+  alpha, as the sketch's does; tier `'cheap'` draws the valve only (§1.9's list names "valve", not
+  droplets); `valveAngle` takes the pulse's `t0` as well (`valveAngle(t, t0, starts, base, step)`, 0
+  at `t0`), so the base rate keeps a defined meaning. The plan starts the first pulse at `t0` (rank 0),
+  so in a real run the base rate runs for a zero-length stretch and the first pulse already turns at
+  `base + step` (180 °/s): `FLUID_SPIN_BASE` is inert today and the spin is 180 / 270 / 360 °/s for
+  three orbiters. A drop is drawn while its `u` is in (0, 1], so it appears at the pipe's start and
+  vanishes at its end without a fade, as in the sketch.
 
 ### 1.7 Salvage — wired load (`decor/salvageDecor.ts`)
 
@@ -400,7 +410,12 @@ banners and file headers as in `ring.ts`.
    one wire; the survey polygon vanishes. Accept as sketched.
 4. ~~**`onInterrupt` on timelines.**~~ Resolved in Task 6: it fires on a mid-run kill but not after the
    silent finish (progress already 1), so `kill()` is wrapped instead (Assumption 5).
-5. **Droplet lag × count exceeds short runs.** At 200 BPM (6 s job, ~2.3 s trace) only ~7 of 10 drops
-   start. Keep Crawford's numbers (sketch-binding) or cap `FLUID_DROPS × lag` at the run? Proposal: keep.
+5. **Droplet lag × count exceeds short runs.** ~~At 200 BPM only ~7 of 10 drops start.~~ *Measured in
+   Task 10 (8 seeds × 20/60/110/160/200 BPM × 1–4 orbiters, the three-vertex pipe fixture):* all ten drops
+   show at every tempo, because the decoration's window runs from the trace start to the pulse end and a
+   drop only needs `k × lag` seconds after the lead starts. What the long lag costs at 200 BPM is that the
+   late drops are still on the pipe when the window closes: the brightest drop at the cut was alpha 0.34
+   (0.085 for the pinned seed with 3 orbiters, which is 0 at 20–160 BPM). Keep Crawford's numbers (sketch-binding) or cap
+   `FLUID_DROPS × lag`? Proposal: keep.
 6. ~~**Load fill helper.**~~ Resolved while writing: `src/utils/colorUtils.ts` has `hexToHsl` and
    `hslToString`; the load fill uses them (§1.7).
