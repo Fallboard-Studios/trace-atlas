@@ -79,6 +79,7 @@ import { useHaloMotion, type HaloMotionDial } from './useHaloMotion';
 import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
 import { HALO_HOLE } from './haloDials';
 import { rippleCycles, ripplePosition, rippleEnvelope } from './haloRipple';
+import { WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TOTAL_SECONDS, waveState } from './haloWaves';
 
 // ========================================
 // FIXTURES
@@ -116,6 +117,8 @@ function Harness({
   dimOpacity = 1,
   enabled = true,
   withRipple = false,
+  withWaves = false,
+  withTrail = false,
   onDecorateArc,
 }: {
   robotId?: string;
@@ -126,6 +129,10 @@ function Harness({
   /** Renders `ellipse.gem__ripple` + its 5-stop gradient, matching RobotGem's real markup (Task 9),
    *  so `decorateArc` has elements to find. */
   withRipple?: boolean;
+  /** Renders the three `path.gem__wave` elements of RobotGem's `g.gem__waves`, so `decorateArc` plays the waves. */
+  withWaves?: boolean;
+  /** Names the two trail gradients on the waves group, as RobotGem does, so `decorateArc` makes trail strips. */
+  withTrail?: boolean;
   /** Receives the hook's `decorateArc` on every render — the test drives it directly. */
   onDecorateArc?: (decorateArc: ReturnType<typeof useHaloMotion>['decorateArc']) => void;
 }) {
@@ -151,6 +158,11 @@ function Harness({
           )}
         </defs>
         <ellipse className="gem__halo" cx={0} cy={0} rx={haloDial.rx} ry={haloDial.ry} opacity={1} />
+        {withWaves && (
+          <g className="gem__waves" data-trail-id={withTrail ? 'trail-test' : undefined} data-trail-counter-id={withTrail ? 'trail-counter-test' : undefined}>
+            {Array.from({ length: WAVE_PATH_COUNT }, (_, i) => <path key={i} className="gem__wave" data-wave={i} d="" opacity={0} />)}
+          </g>
+        )}
         {withRipple && <ellipse className="gem__ripple" cx={0} cy={0} rx={haloDial.rx} ry={haloDial.ry} fill={`url(#${rippleId})`} opacity={0} />}
       </g>
     </svg>
@@ -348,6 +360,174 @@ describe('useHaloMotion — mount state, dial tween, reduced motion (Phase 41, T
 
     // Mounting/changing the avatar instance must not have touched the world instance's key.
     expect(timelineMap.has('halo-world-r1')).toBe(true);
+  });
+});
+
+describe('useHaloMotion.decorateArc — the triangular waves (haloWaves.ts)', () => {
+  function mount(dimOpacity = 1) {
+    let decorateArc!: ReturnType<typeof useHaloMotion>['decorateArc'];
+    const { container } = render(
+      <Harness haloDial={halo()} dimOpacity={dimOpacity} withRipple withWaves onDecorateArc={(d) => { decorateArc = d; }} />,
+    );
+    return { container, decorateArc, paths: [...container.querySelectorAll<SVGPathElement>('path.gem__wave')] };
+  }
+
+  type WaveSet = { attr: { d: string; 'stroke-width': number }; opacity: number };
+  /** Plays the decorator and returns the arc's timeline and the waves' own (the one it creates). */
+  const arcOf = (decorateArc: ReturnType<typeof useHaloMotion>['decorateArc'], kind: 'spawn' | 'despawn') => {
+    const arc = gsap.timeline() as unknown as FakeTimeline;
+    const before = createdTimelines.length;
+    decorateArc(kind, 1, arc as unknown as Parameters<typeof decorateArc>[2]);
+    const waves = createdTimelines[before] as FakeTimeline | undefined;
+    return { arc, waves: waves ?? arc };
+  };
+
+  it('runs on a timeline of its own, registered under the halo key — the arc timeline gains nothing, so its onComplete is never held back', () => {
+    const { container, decorateArc } = mount();
+    const { arc, waves } = arcOf(decorateArc, 'spawn');
+    expect(arc.children).toHaveLength(0);
+    expect(waves).not.toBe(arc);
+    expect(waves.children).toHaveLength(1);
+    expect(timelineMap.get('halo-waves-world-r1')).toBe(waves);
+    waves.progress(0.5);
+    expect(setsFor(rippleEllipse(container))).toHaveLength(0);
+  });
+
+  it('a spawn run lasts WAVE_TOTAL_SECONDS (longer than the 1 s arc); a despawn run is squeezed into the arc', () => {
+    const { decorateArc } = mount();
+    expect(arcOf(decorateArc, 'spawn').waves.children[0].vars.duration).toBe(WAVE_TOTAL_SECONDS);
+    expect(WAVE_TOTAL_SECONDS).toBeGreaterThan(1);
+    expect(arcOf(decorateArc, 'despawn').waves.children[0].vars.duration).toBe(1);
+  });
+
+  it('is killed when the robot body unmounts', () => {
+    const { decorateArc } = mount();
+    const { waves } = arcOf(decorateArc, 'spawn');
+    cleanup();
+    expect(waves.kill).toHaveBeenCalled();
+    expect(timelineMap.has('halo-waves-world-r1')).toBe(false);
+  });
+
+  it('spawn: mid-arc the first wave is drawn at its own strength, the second fainter, the third not yet launched', () => {
+    const { decorateArc, paths } = mount(1);
+    const tl = arcOf(decorateArc, 'spawn').waves;
+    tl.progress(0.3);
+    const [w0, w1, w2] = paths.map((p) => lastSetFor(p)!.vars as unknown as WaveSet);
+    expect(w0.attr.d).not.toBe('');
+    expect(w0.opacity).toBeCloseTo(waveState('spawn', 0.3, 0).alpha, 10);
+    expect(w1.opacity).toBeCloseTo(waveState('spawn', 0.3, 1).alpha, 10);
+    expect(w1.opacity).toBeLessThan(w0.opacity);
+    expect(w2.attr.d).toBe('');
+    expect(w2.opacity).toBe(0);
+  });
+
+  describe('the trails', () => {
+    const mountTrail = () => {
+      let decorateArc!: ReturnType<typeof useHaloMotion>['decorateArc'];
+      const { container } = render(
+        <Harness haloDial={halo()} withRipple withWaves withTrail onDecorateArc={(d) => { decorateArc = d; }} />,
+      );
+      return { container, decorateArc, group: container.querySelector('g.gem__waves')! };
+    };
+    const strips = (group: Element) => [...group.querySelectorAll('path.gem__wave-trail')] as SVGPathElement[];
+
+    it('none at rest; six pieces per wave (two halves of a tail behind each line), behind the lines, made when the run starts', () => {
+      const { decorateArc, group } = mountTrail();
+      expect(strips(group)).toHaveLength(0);
+      arcOf(decorateArc, 'spawn');
+      expect(strips(group)).toHaveLength(6 * WAVE_PATH_COUNT);
+      // behind the lines: every strip comes before the first wave line in the group
+      const children = [...group.children];
+      const firstLine = children.findIndex((c) => c.classList.contains('gem__wave'));
+      children.slice(0, firstLine).forEach((c) => expect(c.classList.contains('gem__wave-trail')).toBe(true));
+      expect(children.slice(0, firstLine)).toHaveLength(6 * WAVE_PATH_COUNT);
+    });
+
+    it('each half is filled with its own side gradient, the counter wave in the other colour', () => {
+      const { decorateArc, group } = mountTrail();
+      arcOf(decorateArc, 'spawn');
+      const fills = strips(group).map((s) => s.getAttribute('fill'));
+      // one half of each side per edge: three of each gradient per wave
+      for (const side of ['right', 'left']) {
+        expect(fills.filter((f) => f === `url(#trail-test-${side})`)).toHaveLength(3 * WAVE_COUNTER_INDEX);
+        expect(fills.filter((f) => f === `url(#trail-counter-test-${side})`)).toHaveLength(3);
+      }
+    });
+
+    it('while the waves run each strip takes its shape, matrix and the wave own opacity', () => {
+      const { decorateArc, group } = mountTrail();
+      const { waves } = arcOf(decorateArc, 'spawn');
+      waves.progress(0.3);
+      const first = strips(group)[0];
+      const set = lastSetFor(first)!.vars as unknown as { attr: { d: string; transform: string }; opacity: number };
+      expect(set.attr.d).toMatch(/^M/);
+      expect(set.attr.transform).toMatch(/^matrix\(/);
+      expect(set.opacity).toBeGreaterThan(0);
+    });
+
+    it('a wave not yet launched has no trail drawn', () => {
+      const { decorateArc, group } = mountTrail();
+      const { waves } = arcOf(decorateArc, 'spawn');
+      waves.progress(0.3); // the third outward wave starts later
+      const undrawn = strips(group).filter((s) => (lastSetFor(s)!.vars as unknown as { opacity: number }).opacity === 0);
+      expect(undrawn.length).toBeGreaterThan(0);
+      undrawn.forEach((s) => expect((lastSetFor(s)!.vars as unknown as { attr: { d: string } }).attr.d).toBe(''));
+    });
+
+    it('removed when the run ends, and a run cut short leaves none behind for the next', () => {
+      const { decorateArc, group } = mountTrail();
+      const first = arcOf(decorateArc, 'spawn');
+      expect(strips(group)).toHaveLength(6 * WAVE_PATH_COUNT);
+      (first.waves.children[0].vars.onComplete as () => void)();
+      expect(strips(group)).toHaveLength(0);
+
+      arcOf(decorateArc, 'spawn');
+      arcOf(decorateArc, 'despawn'); // the first was never completed
+      expect(strips(group)).toHaveLength(6 * WAVE_PATH_COUNT);
+    });
+
+    it('without the gradients the waves still play, as bare lines', () => {
+      const { decorateArc, paths } = mount(1); // no withTrail
+      const { waves } = arcOf(decorateArc, 'spawn');
+      waves.progress(0.3);
+      expect((lastSetFor(paths[0])!.vars as unknown as WaveSet).attr.d).not.toBe('');
+    });
+  });
+
+  it('the counter wave is written like the others, from its own state, travelling the other way', () => {
+    const { decorateArc, paths } = mount(1);
+    const tl = arcOf(decorateArc, 'spawn').waves;
+    tl.progress(0.2);
+    const counter = lastSetFor(paths[WAVE_COUNTER_INDEX])!.vars as unknown as WaveSet;
+    expect(counter.opacity).toBeCloseTo(waveState('spawn', 0.2, WAVE_COUNTER_INDEX).alpha, 10);
+    expect(counter.opacity).toBeGreaterThan(0);
+    expect(counter.attr.d).not.toBe('');
+  });
+
+  it('despawn: the same waves converge, and are gone by the end', () => {
+    const { decorateArc, paths } = mount(1);
+    const tl = arcOf(decorateArc, 'despawn').waves;
+    tl.progress(0.7);
+    expect((lastSetFor(paths[0])!.vars as unknown as WaveSet).opacity).toBeCloseTo(waveState('spawn', 0.3, 0).alpha, 10);
+    tl.progress(1);
+    paths.forEach((p) => expect((lastSetFor(p)!.vars as unknown as WaveSet).opacity).toBe(0));
+  });
+
+  it('opacity follows the battery dim; the stroke width is the scene-unit width over the group scale (1 where jsdom has no getCTM)', () => {
+    const { decorateArc, paths } = mount(0.5);
+    const tl = arcOf(decorateArc, 'spawn').waves;
+    tl.progress(0.3);
+    const w0 = lastSetFor(paths[0])!.vars as unknown as WaveSet;
+    expect(w0.opacity).toBeCloseTo(0.5 * waveState('spawn', 0.3, 0).alpha, 10);
+    expect(w0.attr['stroke-width']).toBe(WAVE_LINE_WIDTH);
+  });
+
+  it('reduced motion: nothing is added to the arc', () => {
+    setMatchMedia(true);
+    const { decorateArc } = mount();
+    const { arc, waves } = arcOf(decorateArc, 'spawn');
+    expect(arc.children).toHaveLength(0);
+    expect(waves).toBe(arc); // no timeline of its own was created
   });
 });
 

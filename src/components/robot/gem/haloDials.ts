@@ -31,7 +31,7 @@ export interface HaloStop {
 export interface HaloDials {
   /** Company colour, else identityColor (intent table row "Halo colour"). */
   color: string;
-  /** HALO_RADIUS_MIN + (HALO_RADIUS_MAX − MIN) × volume → 20…40 units (row "Halo size"). */
+  /** HALO_RADIUS_MIN + (HALO_RADIUS_MAX − MIN) × volume → 110…130 units (row "Halo size", resized 2026-10-12). */
   radius: number;
   /** Exactly six (`haloStops`). */
   stops: HaloStop[];
@@ -43,10 +43,14 @@ export interface HaloDials {
 /** Units of radius that stay invisible inside the halo (intent table row "Halo hole"): the body sits there. */
 export const HALO_HOLE = 10;
 
-/** Radius range on masterVolume (intent table row "Halo size"): 20 at volume 0, 40 at volume 1.
- *  At k = 2 the largest rx is 80 on a 160-wide canvas — inside it, so cards clip nothing. */
-export const HALO_RADIUS_MIN = 20;
-export const HALO_RADIUS_MAX = 40;
+/** Radius range on masterVolume (intent table row "Halo size"): 110 at volume 0, 130 at volume 1 (Crawford,
+ *  2026-10-12: the halo on a station exit/enter arc should be larger than the station itself, whose box is
+ *  STATION_BOX_W × STATION_BOX_H = 200 × 200, so even the quietest robot's ry of 110 clears its half-height
+ *  of 100). It was 20…40, then 30…60 for an hour. The halo only shows on those arcs, in the world, which
+ *  clips nothing; rx is radius × widthFactor, wider again, and wider than the 160-wide canvas a card draws
+ *  on, but cards never render the halo (RobotGem gates it on orbiters.motion). */
+export const HALO_RADIUS_MIN = 110;
+export const HALO_RADIUS_MAX = 130;
 
 /** Peak stop opacity at the end of the attack (intent table row "Halo shape"): the cap against the lit Mids. */
 export const HALO_PEAK = 0.55;

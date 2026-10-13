@@ -8,8 +8,9 @@ import { render } from '@testing-library/react';
 import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo, type RobotGemRipple } from './RobotGem';
 import source from './RobotGem.tsx?raw';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
-import { gemPalette, type GemPalette, type GemPartPaint } from './gemPalette';
+import { gemPalette, GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { quadPath } from './gemPaths';
+import { WAVE_COUNTER_INDEX, WAVE_PATH_COUNT, WAVE_TRAIL_SIDES, trailGradient } from './haloWaves';
 
 // ========================================
 // FIXTURES
@@ -493,6 +494,44 @@ describe('RobotGem — halo: radial-gradient ellipse behind the Mids (Phase 41, 
     const halos = [...container.querySelectorAll('ellipse.gem__halo')];
     expect(halos.map((h) => h.getAttribute('fill'))).toEqual(['url(#halo-world-r1)', 'url(#halo-avatar-r1)']);
     expect(gradients[1].querySelector('stop')!.getAttribute('stop-color')).toBe('#123456');
+  });
+
+  it('triangular waves (haloWaves.ts): the outward waves and the counter wave, all empty, invisible paths in the halo colour, only where the ripple is drawn (world/avatar)', () => {
+    const withRipple = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO, { gradientId: 'ripple-world-r1' });
+    const group = withRipple.querySelector('g.gem__waves')!;
+    expect(group.getAttribute('stroke')).toBe(HALO.color);
+    const paths = [...group.querySelectorAll('path.gem__wave')];
+    expect(paths).toHaveLength(WAVE_PATH_COUNT);
+    // the last one, the counter wave, wears the gem's light colour; the rest take the group's halo colour
+    expect(paths[WAVE_COUNTER_INDEX].getAttribute('stroke')).toBe(GEM_LIGHT_COLOR);
+    expect(paths.filter((p) => p.hasAttribute('stroke'))).toHaveLength(1);
+    paths.forEach((p) => {
+      expect(p.getAttribute('d')).toBe('');
+      expect(p.getAttribute('opacity')).toBe('0');
+    });
+    expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('g.gem__waves')).toBeNull();
+  });
+
+  it('the waves trails: a gradient for each half of the tail, in the halo colour and the counter wave own, named by the group; no filter anywhere', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO, { gradientId: 'ripple-world-r1' });
+    const group = container.querySelector('g.gem__waves')!;
+    const gradient = (base: string, side: string) => container.querySelector(`linearGradient[id="${base}-${side}"]`)!;
+    const trailId = group.getAttribute('data-trail-id')!;
+    const counterId = group.getAttribute('data-trail-counter-id')!;
+    for (const [base, color] of [[trailId, HALO.color], [counterId, GEM_LIGHT_COLOR]] as const) {
+      for (const side of WAVE_TRAIL_SIDES) {
+        const g = gradient(base, side);
+        expect(g).not.toBeNull();
+        const v = trailGradient(side);
+        expect([g.getAttribute('x1'), g.getAttribute('y1'), g.getAttribute('x2'), g.getAttribute('y2')]).toEqual([v.x1, v.y1, v.x2, v.y2].map(String));
+        expect([...g.querySelectorAll('stop')].map((s) => s.getAttribute('stop-opacity'))).toEqual(['1', '0']);
+        expect(g.querySelector('stop')!.getAttribute('stop-color')).toBe(color);
+      }
+    }
+    // none of the trail strips exist at rest: they are made for the length of a run
+    expect(container.querySelector('.gem__wave-trail')).toBeNull();
+    expect(container.querySelector('filter')).toBeNull();
+    expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('linearGradient')).toBeNull();
   });
 
   it('no ripple prop → no .gem__ripple, even in motion mode', () => {

@@ -16,6 +16,7 @@ import {
 } from './haloDials';
 import source from './haloDials.ts?raw';
 import type { ADSREnvelope } from '@/types/Robot';
+import { STATION_BOX_H } from '@/constants';
 
 // ========================================
 // FIXTURES
@@ -154,23 +155,23 @@ describe('haloStops — inputs clamped to the spawn ranges', () => {
 // ========================================
 // TESTS — haloDials (spec §1.1: radius from volume, colour from company)
 // ========================================
-describe('haloDials — radius (intent table row "Halo size", volume → 20…40)', () => {
+describe('haloDials — radius (intent table row "Halo size", volume → 110…130)', () => {
   it.each([
-    [0, 20],
-    [0.5, 30],
-    [1, 40],
+    [0, 110],
+    [0.5, 120],
+    [1, 130],
   ])('volume %d → radius %d', (masterVolume, radius) => {
     expect(haloDials(robotFixture({ masterVolume }), undefined).radius).toBeCloseTo(radius, 10);
   });
 
-  it('volume 1.5 clamps to radius 40; volume -1 clamps to radius 20', () => {
-    expect(haloDials(robotFixture({ masterVolume: 1.5 }), undefined).radius).toBe(40);
-    expect(haloDials(robotFixture({ masterVolume: -1 }), undefined).radius).toBe(20);
+  it('volume 1.5 clamps to radius 130; volume -1 clamps to radius 110', () => {
+    expect(haloDials(robotFixture({ masterVolume: 1.5 }), undefined).radius).toBe(130);
+    expect(haloDials(robotFixture({ masterVolume: -1 }), undefined).radius).toBe(110);
   });
 
   it('the hole offset follows the radius (a volume edit moves stop 1)', () => {
-    expect(haloDials(robotFixture({ masterVolume: 0 }), undefined).stops[1].offset).toBeCloseTo(10 / 20, 10);
-    expect(haloDials(robotFixture({ masterVolume: 1 }), undefined).stops[1].offset).toBeCloseTo(10 / 40, 10);
+    expect(haloDials(robotFixture({ masterVolume: 0 }), undefined).stops[1].offset).toBeCloseTo(10 / 110, 10);
+    expect(haloDials(robotFixture({ masterVolume: 1 }), undefined).stops[1].offset).toBeCloseTo(10 / 130, 10);
   });
 
   it('stops are haloStops of the robot envelope at that radius', () => {
@@ -178,7 +179,7 @@ describe('haloDials — radius (intent table row "Halo size", volume → 20…40
       masterVolume: 0.5,
       audioAttributes: { adsr: adsr({ attack: 2, sustain: 0.3 }) } as HaloDialsInput['audioAttributes'],
     });
-    expect(haloDials(robot, undefined).stops).toEqual(haloStops(adsr({ attack: 2, sustain: 0.3 }), 30));
+    expect(haloDials(robot, undefined).stops).toEqual(haloStops(adsr({ attack: 2, sustain: 0.3 }), 120)); // volume 0.5 → radius 120
   });
 });
 
@@ -203,10 +204,12 @@ describe('haloDials — colour (intent table row "Halo colour")', () => {
 });
 
 describe('haloDials — constants match the intent table / sketch defaults', () => {
-  it('hole 10, radius 20-40, peak 0.55, hold 1, tween 0.5', () => {
+  it('hole 10, radius 110-130, peak 0.55, hold 1, tween 0.5', () => {
     expect(HALO_HOLE).toBe(10);
-    expect(HALO_RADIUS_MIN).toBe(20);
-    expect(HALO_RADIUS_MAX).toBe(40);
+    expect(HALO_RADIUS_MIN).toBe(110);
+    expect(HALO_RADIUS_MAX).toBe(130);
+    // larger than the station itself (200 × 200 box): even the smallest halo's height clears it
+    expect(2 * HALO_RADIUS_MIN).toBeGreaterThan(STATION_BOX_H);
     expect(HALO_PEAK).toBe(0.55);
     expect(HALO_HOLD).toBe(1);
     expect(HALO_TWEEN).toBe(0.5);

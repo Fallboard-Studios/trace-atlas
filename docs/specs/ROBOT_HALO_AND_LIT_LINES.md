@@ -124,8 +124,44 @@ non-decreasing by construction; the stop *count* never changes, so a tween is st
 The hole offset depends on the radius, so a volume edit moves stop 1 as well as `rx`/`ry`.
 
 **Shape**: `rx = radius × widthFactor`, `ry = radius`, centred on `(gemWidth / 2, GEM_CANVAS_H / 2)`.
-At k = 2 the largest halo is rx 80 on a 160-wide canvas, ry 40 on 80 tall — inside the canvas, so
-cards clip nothing and `gemMotionViewBox` needs no extra pad.
+(Originally 20…40; 110…130 since 2026-10-12, so it clears the 200 × 200 station.) At k = 2 the largest halo is now rx 260 — wider than a 160-wide canvas — but cards never render the halo (RobotGem gates it on `orbiters.motion`), so
+nothing clips it and `gemMotionViewBox` needs no extra pad.
+
+#### 1.1b Triangular waves (experiment, Crawford 2026-10-12)
+
+`gem/haloWaves.ts` (`HALO_STYLE = 'waves'`; set it to `'ellipse'` for the gradient halo and ripple ring above, which are
+still rendered either way) replaces what a station exit/enter arc shows with four triangular waves. Each is a
+point-up triangle outline that grows from nothing at the robot's centre until its inscribed circle has a radius of
+`WAVE_BREAK_RADIUS` (40 scene units); there its three edges break apart and keep moving outward, perpendicular to
+themselves, for `WAVE_DRIFT` (50) units, shrinking toward the middle of each bar from its ~139-unit length to
+nothing (they do not fade). They move at `WAVE_SPEED` (56.25 units a second), and start
+`WAVE_STAGGER_SECONDS` (`WAVE_SPACING` / speed, about 0.53) apart so they stay 30 units from each other, at strengths
+0.9 / 0.5 / 0.25 / 0.12. A fifth triangle, the **counter wave** (`WAVE_COUNTER_INDEX`, strength 0.7), goes the other
+way: it starts at the far end (90 units out) with the first wave and closes in on the centre at the same speed, crossing
+the first wave half way, in the gem's light colour (`GEM_LIGHT_COLOR`) rather than the halo's — a robot's only other
+colour. It is the outward run read backwards: short bars at the far end that lengthen as they come in, a closed triangle
+inside the break radius that shrinks to a point. Entering the station (`despawn`) plays it in
+reverse.
+
+Timing: a spawn run lasts `WAVE_TOTAL_SECONDS` (about 3.2 s), longer than the 1 s station arc, so `decorateArc` plays
+the waves on a timeline of their own (`halo-waves-{context}-{robotId}` in `timelineMap`, killed with the body) rather
+than as a child of the arc, which would hold back the arc's `onComplete` and the robot's next step. A despawn run is
+squeezed into the arc, since the robot, and the halo inside it, is hidden when the arc ends. Distances are scene units:
+each frame the halo group's transform (`getCTM`) gives its scale, and the waves' centre is pinned to the scene point
+the robot stood on when they began, so a spawn run that outlasts the arc stays at the station as the robot swims off.
+Every line has a **trail** (Crawford, 2026-10-12, after trying a kite and a notch on each side — "too much"): one
+gradient on the side the line has come from, so a wave reads as a bright line with a fading tail, and nothing ahead of
+it. "Behind" is the inside of an outward wave and the outside of the counter wave, and every wave swaps sides while a
+despawn plays the run backwards. `WAVE_TRAIL` gives its depth: 1 scene unit at the ends of a bar and 12 at its middle,
+running straight between the two (a kite, swelling at the middle of the line). No filter: plain `linearGradient`s. The trail is two halves (right and left of the
+middle), each filled by its own gradient (`trailGradient(side)`, in objectBoundingBox units, so it needs no knowledge of
+the bar's length): full strength at the middle of the line, where the tail is deepest, fading along the direction
+square to the half's slanted edge to nothing on it, so it is gone at the bar's ends. `RobotGem`'s defs hold the two gradients in the halo colour and two in the light
+colour for the counter wave. `waveTrails` makes the halves of each edge (six per wave, `WAVE_TRAIL_SIDES` order) in the
+edge's own frame (x along the edge, y running back from it) with a `matrix()` that stands them on the edge. A robot at
+rest carries none: `decorateArc` creates them, behind the lines, for the length of a run, and removes them when it ends
+(or before the next run, if one was cut short). The volume and envelope dials drive only the ellipse, so they do nothing visible while waves are the style; the
+battery dim still scales the opacity.
 
 ### 1.2 Body line dials (`gem/bodyLineDials.ts`, pure)
 

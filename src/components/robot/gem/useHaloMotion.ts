@@ -19,6 +19,7 @@ import { setTimeline, killTimeline } from '../../../animation/timelineMap';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import { HALO_HOLE, HALO_TWEEN, type HaloStop } from './haloDials';
 import { rippleCycles, ripplePosition, rippleEnvelope, rippleStops } from './haloRipple';
+import { HALO_STYLE, WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_TOTAL_SECONDS, mapPoint, unmapPoint, waveState, wavePath, waveTrails, WAVE_TRAIL_SIDES, type Matrix2D } from './haloWaves';
 
 // ========================================
 // TYPES
@@ -76,6 +77,15 @@ function queryRippleEllipse(root: SVGGElement): SVGEllipseElement | null {
   return root.querySelector<SVGEllipseElement>('.gem__ripple');
 }
 
+/** This group's transform to scene units, read off its current chain (the arc scales the robot from
+ *  STATION_PORT_SCALE to 1 while the waves play, on top of the gem's and the row's own scale, and it swims
+ *  away after) — so the waves can be sized, and pinned, in scene units. null where the browser cannot say
+ *  (jsdom has no getCTM). */
+function sceneMatrixOf(el: SVGGraphicsElement): Matrix2D | null {
+  const ctm = typeof el.getCTM === 'function' ? el.getCTM() : null;
+  return ctm && Math.hypot(ctm.a, ctm.b) > 0.001 ? ctm : null;
+}
+
 /** The ripple ellipse's own five stops — found via the gradient its `fill` references (its id is
  *  per-instance, so there's no fixed selector; the halo's six stops live in a different gradient
  *  entirely, so this never collides with `queryStops`). */
@@ -93,6 +103,7 @@ function queryRippleStops(root: SVGGElement, rippleEllipse: SVGEllipseElement): 
 export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enabled }: UseHaloMotionOptions): UseHaloMotionResult {
   const reducedMotion = prefersReducedMotion();
   const key = `halo-${context}-${robotId}`;
+  const wavesKey = `halo-waves-${context}-${robotId}`;
 
   // Read live by decorateArc (Task 11) — dimOpacity is never tweened by this hook, so a battery
   // edit between arcs needs no gsap.* call at all; only the next arc ever shows it.
@@ -172,8 +183,96 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
   // Memoised (Phase 43): `RobotBody` registers it in robotMotionRegistry, and a fresh function
   // every render would re-register on every audio edit. Everything it reads live is a ref.
   // ----------------------------------------
+  // The waves' own timeline (see decorateArc) is killed with the robot's body.
+  useEffect(() => () => killTimeline(wavesKey), [wavesKey]);
+
   const decorateArc = useCallback<ArcDecorator>((kind, duration, arcTl) => {
     if (reducedMotion || !root.current) return;
+    const group = root.current;
+    const wavePaths = HALO_STYLE === 'waves' ? [...group.querySelectorAll<SVGPathElement>('.gem__wave')] : [];
+    const waveCentre = queryHaloEllipse(group);
+    // Waves when the style says so and their paths are drawn; otherwise the ripple ring below.
+    if (wavePaths.length > 0 && waveCentre) {
+      const paths = wavePaths;
+      const cx = Number(waveCentre.getAttribute('cx'));
+      const cy = Number(waveCentre.getAttribute('cy'));
+      const waveProxy = { u: 0 };
+      // The trails (RobotGem's gradients, named on the waves' group): six pieces per wave, two halves of a fading tail
+      // behind each line, made here for the length of a run and removed at its end, so a robot at rest carries none. Without the gradients (a render
+      // that lacks them) the waves are bare lines.
+      const waveGroup = group.querySelector<SVGGElement>('.gem__waves');
+      const trailIds = [waveGroup?.getAttribute('data-trail-id'), waveGroup?.getAttribute('data-trail-counter-id')];
+      const trailEls: SVGPathElement[][] = [];
+      // Strips left by a run that was cut short (its timeline replaced) would stay as they were drawn.
+      waveGroup?.querySelectorAll('.gem__wave-trail').forEach((strip) => strip.remove());
+      if (waveGroup && trailIds[0] && trailIds[1]) {
+        paths.forEach((_, i) => {
+          const fillId = i === WAVE_COUNTER_INDEX ? trailIds[1] : trailIds[0];
+          // The order waveTrails returns them in: WAVE_TRAIL_SIDES, edge by edge.
+          const strips = Array.from({ length: 3 * WAVE_TRAIL_SIDES.length }, (_, j) => {
+            const side = WAVE_TRAIL_SIDES[j % WAVE_TRAIL_SIDES.length];
+            const strip = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            strip.setAttribute('class', 'gem__wave-trail');
+            strip.setAttribute('fill', `url(#${fillId}-${side})`);
+            strip.setAttribute('stroke', 'none');
+            strip.setAttribute('d', '');
+            strip.setAttribute('opacity', '0');
+            // Behind the lines.
+            waveGroup.insertBefore(strip, waveGroup.firstChild);
+            return strip;
+          });
+          trailEls.push(strips);
+        });
+      }
+      // Where the waves are centred in the scene: taken on the first frame, then held, so a spawn run — which
+      // outlasts the arc — stays at the station when the robot swims off, instead of riding along with it.
+      let anchor: { x: number; y: number } | null = null;
+      // A timeline of its own, not a child of the arc's: a spawn run (WAVE_TOTAL_SECONDS) is longer than the
+      // 1 s arc, and a longer child would hold back the arc's onComplete — the robot's next step. A despawn
+      // run is squeezed into the arc, since the robot (and the halo inside it) is hidden when the arc ends.
+      const wavesTl = gsap.timeline();
+      wavesTl.to(
+        waveProxy,
+        {
+          u: 1,
+          duration: kind === 'spawn' ? WAVE_TOTAL_SECONDS : duration,
+          ease: 'none',
+          onUpdate: () => {
+            const matrix = sceneMatrixOf(group);
+            if (matrix && !anchor) anchor = mapPoint(matrix, cx, cy);
+            const scale = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
+            const centre = matrix && anchor ? unmapPoint(matrix, anchor.x, anchor.y) : { x: cx, y: cy };
+            paths.forEach((path, i) => {
+              const state = waveState(kind, waveProxy.u, i);
+              // A line's trail is behind it: on the inside of a wave moving out, the outside of one moving in
+              // (the counter wave, or any wave while a despawn plays the run backwards).
+              const movingOutward = (kind === 'spawn') !== (i === WAVE_COUNTER_INDEX);
+              const trails = waveTrails(state, movingOutward, centre.x, centre.y, scale);
+              (trailEls[i] ?? []).forEach((strip, j) => {
+                const trail = trails[j];
+                gsap.set(strip, {
+                  attr: { d: trail?.d ?? '', transform: trail?.transform ?? '' },
+                  opacity: trail ? state.alpha * dimOpacityRef.current : 0,
+                });
+              });
+              gsap.set(path, {
+                attr: { d: wavePath(state, centre.x, centre.y, scale), 'stroke-width': WAVE_LINE_WIDTH / scale },
+                opacity: state.alpha * dimOpacityRef.current,
+              });
+            });
+          },
+          // Whatever the last frame left: nothing drawn.
+          onComplete: () => {
+            paths.forEach((path) => gsap.set(path, { attr: { d: '' }, opacity: 0 }));
+            // The trail strips go with the run.
+            trailEls.flat().forEach((strip) => strip.remove());
+          },
+        },
+        0,
+      );
+      setTimeline(wavesKey, wavesTl);
+      return;
+    }
     const haloEllipse = queryHaloEllipse(root.current);
     const rippleEllipse = queryRippleEllipse(root.current);
     if (!haloEllipse || !rippleEllipse) return;
@@ -202,7 +301,7 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
       },
       0,
     );
-  }, [reducedMotion, root]);
+  }, [reducedMotion, root, wavesKey]);
 
   return { decorateArc };
 }

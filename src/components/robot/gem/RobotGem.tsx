@@ -7,6 +7,8 @@ import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as R
 import type { GemPalette, GemPartPaint } from './gemPalette';
 import { facetPaths, linesPath } from './gemPaths';
 import type { HaloStop } from './haloDials';
+import { GEM_LIGHT_COLOR } from './gemPalette';
+import { HALO_STYLE, WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TRAIL_SIDES, trailGradient } from './haloWaves';
 
 // ========================================
 // TYPES
@@ -235,10 +237,45 @@ function HaloLayer({ cx, cy, halo, ripple }: { cx: number; cy: number; halo: Rob
             ))}
           </radialGradient>
         )}
+        {/* The waves' trails: for each of the two colours (the halo's, and the counter wave's), a gradient for each half
+            of the trail behind a line (haloWaves.ts `trailGradient`, in objectBoundingBox units). The trail shapes
+            themselves are made by `decorateArc` for the length of a run, not drawn at rest. */}
+        {frozen.ripple && HALO_STYLE === 'waves' && (
+          <>
+            {([['trail', frozen.halo.color], ['trail-counter', GEM_LIGHT_COLOR]] as const).flatMap(([name, color]) =>
+              WAVE_TRAIL_SIDES.map((side) => {
+                const v = trailGradient(side);
+                return (
+                  <linearGradient key={`${name}-${side}`} id={`${frozen.halo.gradientId}-${name}-${side}`} className="gem__wave-trail-gradient" x1={v.x1} y1={v.y1} x2={v.x2} y2={v.y2}>
+                    <stop offset="0%" stopColor={color} stopOpacity={1} />
+                    <stop offset="100%" stopColor={color} stopOpacity={0} />
+                  </linearGradient>
+                );
+              }),
+            )}
+          </>
+        )}
       </defs>
       <ellipse className="gem__halo" cx={cx} cy={cy} rx={frozen.halo.rx} ry={frozen.halo.ry} fill={`url(#${frozen.halo.gradientId})`} opacity={frozen.halo.opacity} />
       {frozen.ripple && (
         <ellipse className="gem__ripple" cx={cx} cy={cy} rx={frozen.halo.rx} ry={frozen.halo.ry} fill={`url(#${frozen.ripple.gradientId})`} opacity={0} />
+      )}
+      {/* The triangular waves (haloWaves.ts, an experiment): empty, invisible paths until `decorateWaves` writes
+          their `d`, opacity and stroke width each frame of a station arc. */}
+      {frozen.ripple && HALO_STYLE === 'waves' && (
+        <g className="gem__waves" data-trail-id={`${frozen.halo.gradientId}-trail`} data-trail-counter-id={`${frozen.halo.gradientId}-trail-counter`} fill="none" stroke={frozen.halo.color} strokeWidth={WAVE_LINE_WIDTH} strokeLinejoin="miter">
+          {Array.from({ length: WAVE_PATH_COUNT }, (_, i) => (
+            <path
+              key={i}
+              className={i === WAVE_COUNTER_INDEX ? 'gem__wave gem__wave--counter' : 'gem__wave'}
+              data-wave={i}
+              d=""
+              opacity={0}
+              // The counter wave (travelling inward) wears the gem's light colour, not the halo's.
+              stroke={i === WAVE_COUNTER_INDEX ? GEM_LIGHT_COLOR : undefined}
+            />
+          ))}
+        </g>
       )}
     </>
   );

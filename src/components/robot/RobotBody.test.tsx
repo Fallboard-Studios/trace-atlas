@@ -607,11 +607,13 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
           expect(getOrbiterWork('r-reg')).toBeDefined();
         });
 
-        it('the registered decorateArc is useHaloMotion’s own — it writes the ripple onto the arc timeline it is given', () => {
+        it('the registered decorateArc is useHaloMotion’s own — the triangular waves play on a timeline of their own (haloWaves.ts), leaving the arc timeline alone', () => {
           draw(makeRobot({ id: 'r-reg' }), false, 'world');
           const arcTl = { to: vi.fn() };
+          expect(timelineMap.has('halo-waves-world-r-reg')).toBe(false);
           getArcDecorator('r-reg')!('spawn', 1, arcTl as unknown as Parameters<ArcDecorator>[2]);
-          expect(arcTl.to).toHaveBeenCalledTimes(1);
+          expect(arcTl.to).not.toHaveBeenCalled();
+          expect(timelineMap.has('halo-waves-world-r-reg')).toBe(true);
         });
 
         it('motion="avatar" and cards (no motion) never register', () => {
