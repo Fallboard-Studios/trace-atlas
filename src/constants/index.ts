@@ -287,6 +287,11 @@ export const FAN_PING_SCALE = 1.5;
 export const FLICKER_OPACITY = 0.25;
 export const FLICKER_SPARKS = 3;
 
+/** Job decorations (docs/specs/JOB_DECORATION.md §1.9): each robot's twelve decoration sizes and
+ *  timings are its own, within ±DECOR_JITTER of the sketched value (jobMoves/variation.ts).
+ *  Counts and opacities never vary. */
+export const DECOR_JITTER = 0.15;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

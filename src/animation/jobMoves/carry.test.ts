@@ -4,7 +4,7 @@
 import gsap from 'gsap';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { carryTargets, addCarry, CARRY_SPACING } from './carry';
+import { carryTargets, addCarry, CARRY_SPACING, LOADED, ARRIVED, DROPPED, RETURNED } from './carry';
 import { CARRY_SHRINK } from '../../constants';
 import type { Vec2 } from '../../types/Vec2';
 
@@ -46,6 +46,15 @@ describe('carry constants (spec §1.9, Task 0b — kept as sketched)', () => {
   it('shrinks to ×0.7 while loaded, side by side 8 u apart', () => {
     expect(CARRY_SHRINK).toBe(0.7);
     expect(CARRY_SPACING).toBe(8);
+  });
+
+  it('exports the four phase fractions the Salvage decoration reads: loaded 10 %, arrived 45 %, dropped 55 %, returned 90 %', () => {
+    expect([LOADED, ARRIVED, DROPPED, RETURNED]).toEqual([0.1, 0.45, 0.55, 0.9]);
+  });
+
+  it('the phases are strictly increasing and inside the move', () => {
+    const phases = [0, LOADED, ARRIVED, DROPPED, RETURNED, 1];
+    for (let k = 1; k < phases.length; k++) expect(phases[k]).toBeGreaterThan(phases[k - 1]);
   });
 });
 

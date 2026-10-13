@@ -200,7 +200,8 @@ orbiter is there then). Age fraction `a` over `MAINT_SPARK_LIFE` 1.2 s × factor
 - **Flash**: a radial-gradient `<circle>` at the event position, radius `MAINT_FLASH_RADIUS (12) × (1 − a / .5)`
   while `a < .5`, opacity .8; light colour.
 - **Sparks**: `MAINT_SPARKS` (5) `<line>`s per chord, direction
-  `angle + (sparkDirs[corner][chordIndex][s] − .5) × MAINT_SPREAD (120°)`, from the event position
+  `angle + (sparkDirs[corner][chordIndex][s % 3] − .5) × MAINT_SPREAD (120°)` (`sparkDirs` has three
+  draws per chord and a chord shows five sparks, so the index wraps, as in the sketch), from the event position
   `+ dir × MAINT_SPARK_REACH (30 × factor) × smooth(a)`, length `MAINT_SPARK_LENGTH (8) × (1 − a)`,
   opacity `1 − a`; spark 0 light colour, the rest identity.
 
