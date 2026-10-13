@@ -6,8 +6,6 @@ import type { AudioRigEffectKey } from '@/data/audioRigConfig';
 // TYPES
 // ========================================
 
-export type ActiveView = 'ocean' | 'robot' | 'composition' | 'fx' | 'settings';
-export type Theme = 'dark' | 'light';
 /** A leaf section within whatever entity is selected (a robot, a company, or
  *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
@@ -67,11 +65,7 @@ export type TopLevelBranch = 'settings' | 'fleetParams' | 'probes' | 'companies'
  *  routing — selecting "All Probes" in the tree does not imply that filter is set, and vice versa. */
 
 export interface UIStore {
-  activeView: ActiveView;
-  theme: Theme;
-  language: string;
   isPoweredOn: boolean;
-  isFullscreen: boolean;
   activeLocaleLocalTime: number | null;
   /** Live decorative temperature (°C) for the active locale — Header's row 2
    *  readout. Purely cosmetic, never read by any other system. Same shape/
@@ -79,7 +73,7 @@ export interface UIStore {
    *  docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3. */
   activeLocaleTemperature: number | null;
   selectedRobotId: string | null;
-  /** The company (Roadmap Phase 10) currently selected in the Robots tab's CompanyManager —
+  /** The company (Roadmap Phase 10) currently selected from the nav panel's company list —
    *  null whenever allRobotsSelected is true (the default). Independent of selectedRobotId:
    *  selecting one never touches the other. Drives both the company-glow world-view highlight and
    *  which company's values the CompanyOptionsSection panel is bound to. Mutually exclusive with
@@ -121,10 +115,6 @@ export interface UIStore {
    *  opening another tile's replaces it (docs/specs/LAYOUT_REWORK.md §1.5, §1.10). */
   movePanelRobotId: string | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
-  setActiveView: (v: ActiveView) => void;
-  setTheme: (t: Theme) => void;
-  setLanguage: (lang: string) => void;
-  setFullscreen: (f: boolean) => void;
   setPowerOn: () => void;
   setPowerOff: () => void;
   /** Also resets selectedSection to null — see its own implementation comment. */
@@ -155,10 +145,6 @@ export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'lfoBank';
 // ========================================
 
 export const useUIStore = create<UIStore>((set) => ({
-  activeView: 'ocean',
-  theme: 'dark',
-  language: 'en',
-  isFullscreen: false,
   isPoweredOn: false,
   activeLocaleLocalTime: null,
   activeLocaleTemperature: null,
@@ -176,10 +162,6 @@ export const useUIStore = create<UIStore>((set) => ({
   allProbesSelected: false,
   movePanelRobotId: null,
 
-  setActiveView: (v) => set({ activeView: v }),
-  setTheme: (t) => set({ theme: t }),
-  setLanguage: (lang) => set({ language: lang }),
-  setFullscreen: (f) => set({ isFullscreen: f }),
   setPowerOn: () => set({ isPoweredOn: true }),
   setPowerOff: () => set({ isPoweredOn: false }),
   setActiveLocaleLocalTime: (t) => set({ activeLocaleLocalTime: t }),
@@ -212,5 +194,3 @@ export const useUIStore = create<UIStore>((set) => ({
 // NOTES
 // ========================================
 // This store intentionally keeps only JSON-serializable primitives.
-// Fullscreen intent is stored here; components should call the
-// browser Fullscreen API in response to `isFullscreen` changes.
