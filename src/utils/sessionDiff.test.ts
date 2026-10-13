@@ -144,6 +144,43 @@ describe('computeRobotAudioOverrideDiff', () => {
     expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ pitchRepeat: 10 });
   });
 
+  describe('pan (Robot Pan T11)', () => {
+    it('diffs a manual robot to its pan alone', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { panAuto: false, pan: 0.4 });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ pan: 0.4 });
+    });
+
+    it('keeps a negative manual pan, and the extremes', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { panAuto: false, pan: -1 }), baseline)).toEqual({ pan: -1 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { panAuto: false, pan: 1 }), baseline)).toEqual({ pan: 1 });
+    });
+
+    it('rounds to two decimals, the slider step', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { panAuto: false, pan: 0.123456 });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ pan: 0.12 });
+    });
+
+    it('keeps a manual pan of exactly 0: Auto off at the centre is still a change from Auto', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { panAuto: false, pan: 0 });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ pan: 0 });
+    });
+
+    it('diffs an Auto robot with a stale pan to nothing', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { panAuto: true, pan: 0.4 });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({});
+    });
+
+    it('diffs an older robot with neither field to nothing', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline)).toEqual({});
+    });
+  });
+
   it('diffs octaveRange alone when only octaveRange changed', () => {
     const baseline = makeBaseline();
     const live = makeLiveRobot(baseline, { octaveRange: [1, 3] });
@@ -729,6 +766,90 @@ describe('applySessionPayload', () => {
     const callForRobot = primeSpy.mock.calls.find((call) => (call[0] as Robot).id === robot.id);
     expect(callForRobot?.[1]).toEqual(['layer1.gain']);
     primeSpy.mockRestore();
+  });
+
+  describe('pan across a session restore (Robot Pan T11)', () => {
+    function manualRobotPayload(pan: number) {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { panAuto: false, pan });
+      return { localeId, robot, payload: buildSessionPayload() };
+    }
+
+    it('captures a manual robot as a pan key and nothing else', () => {
+      const { robot, payload } = manualRobotPayload(0.4);
+      expect(payload.robotOverrides[robot.id]).toEqual({ pan: 0.4 });
+    });
+
+    it('restores pan and switches Auto off, and primes the engine once with the stored value', () => {
+      const { robot, payload } = manualRobotPayload(-0.25);
+      const primeSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+      primeSpy.mockClear();
+      applySessionPayload(payload);
+
+      const restored = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+      expect(restored.pan).toBe(-0.25);
+      expect(restored.panAuto).toBe(false);
+      expect(primeSpy.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, -0.25]]);
+      primeSpy.mockRestore();
+    });
+
+    it('a payload without pan leaves every robot on Auto and never primes a pan', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      const primeSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(currentLocale()!.robots.every((r) => r.panAuto === true && r.pan === 0)).toBe(true);
+      expect(primeSpy).not.toHaveBeenCalled();
+      primeSpy.mockRestore();
+    });
+
+    it('round-trips one manual robot among eleven Auto robots and writes no other override', () => {
+      const { localeId, robot, payload } = manualRobotPayload(0.4);
+      const roster = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(roster).toHaveLength(12);
+      vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+      applySessionPayload(payload);
+
+      const restored = currentLocale()!.robots;
+      expect(restored.filter((r) => !r.panAuto).map((r) => [r.id, r.pan])).toEqual([[robot.id, 0.4]]);
+      expect(buildSessionPayload().robotOverrides).toEqual({ [robot.id]: { pan: 0.4 } });
+    });
+
+    it('a hand-edited out-of-range pan is stored clamped and the engine is primed with the stored value', () => {
+      const { robot, payload } = manualRobotPayload(0.4);
+      const wild = { ...payload, robotOverrides: { [robot.id]: { pan: 7 } } };
+      const primeSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applySessionPayload(wild, { skipLocaleRebuild: true });
+
+      expect(currentLocale()!.robots.find((r) => r.id === robot.id)!.pan).toBe(1);
+      expect(primeSpy).toHaveBeenCalledWith(robot.id, 1);
+      primeSpy.mockRestore();
+    });
+
+    it('a non-finite pan is ignored: the robot stays Auto and nothing is primed', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const wild = { ...buildSessionPayload(), robotOverrides: { [robot.id]: { pan: Number.NaN } } };
+      const primeSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applySessionPayload(wild, { skipLocaleRebuild: true });
+
+      const restored = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+      expect(restored.panAuto).toBe(true);
+      expect(primeSpy).not.toHaveBeenCalled();
+      primeSpy.mockRestore();
+    });
   });
 
   it('when the audio context is running, pushes lfoBank/globalLfoLinks through replaceLfoBankLane/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {

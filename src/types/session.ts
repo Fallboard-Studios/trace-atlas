@@ -25,6 +25,10 @@ export interface RobotAudioOverrideDiff {
   noteVariance?: { active: boolean; value: number };
   pitchRepeat?: number;
   octaveRange?: [number, number];
+  /** Present ⇒ Auto off at this value (−1…1). Absent ⇒ Auto, the default. There is no panAuto key:
+   *  "Auto on" is the baseline for every robot, so it is the absence of this field
+   *  (docs/specs/ROBOT_PAN.md assumption 3). Unlike masterVolume, a manual pan is a composition choice. */
+  pan?: number;
   name?: string;
   /** Only the targets whose link differs from the spawn seed baseline (LFO Bank, docs/tasks/
    *  LFO_BANK.md Task 18) — an untouched target has no key here, same "absent means untouched"
