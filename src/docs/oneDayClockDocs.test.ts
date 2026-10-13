@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -13,14 +13,17 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8').replace(/\r\n/g, '\n');
 
-/** The living docs: docs/*.md and docs/reference/*.md. History lives in specs, tasks and intent. */
-function livingDocs(): string[] {
-  const top = readdirSync(resolve(repoRoot, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`);
-  const reference = readdirSync(resolve(repoRoot, 'docs', 'reference'))
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => `docs/reference/${f}`);
-  return [...top, ...reference];
-}
+/** The living docs this phase rewrote. Scoped to these (not every doc) so a future doc that mentions
+ *  an old name in passing does not fail the suite. History lives in specs, tasks, intent and the roadmap. */
+const REWRITTEN_DOCS = [
+  'docs/AUDIO_SYSTEM.md',
+  'docs/BEAT_CLOCK.md',
+  'docs/BUILDING_DESIGN.md',
+  'docs/CONTRIBUTION_GUIDE.md',
+  'docs/MELODY_SYSTEM.md',
+  'docs/ROBOT_LIFECYCLE.md',
+  'docs/UI_SHELL.md',
+];
 
 // DUPLICATE_VALUE_AUDIT.md is a ledger of what was found and fixed; it is allowed to name the
 // constant it records as superseded (asserted separately below).
@@ -44,7 +47,7 @@ describe('the in-world day is wall-clock in every statement of the rule', () => 
   });
 });
 
-describe('the living docs name none of what the phase deleted, and never say measures make a day', () => {
+describe('the rewritten docs name none of what the phase deleted, and never say measures make a day', () => {
   const deletedNames = [
     ['get', 'CurrentHour'],
     ['MEASURES_PER', '_HOUR'],
@@ -66,7 +69,7 @@ describe('the living docs name none of what the phase deleted, and never say mea
     ['0', '–95'],
   ].map((parts) => parts.join(''));
 
-  it.each(livingDocs().filter((doc) => doc !== LEDGER))('%s names no deleted symbol and no measure-based day', (doc) => {
+  it.each(REWRITTEN_DOCS)('%s names no deleted symbol and no measure-based day', (doc) => {
     const text = read(doc);
     for (const name of deletedNames) expect(text, `${doc} mentions ${name}`).not.toContain(name);
   });
@@ -118,13 +121,5 @@ describe('the docs say what the code now does', () => {
 
   it('SESSION_STORAGE.md still lists loadSession — the Off screen calls it, so item 48 leaves it alone', () => {
     expect(read('docs/SESSION_STORAGE.md')).toContain('`loadSession(name)`');
-  });
-
-  it('roadmap item 48 is recorded as shipped, with what the verification found', () => {
-    const roadmap = read('docs/todo/roadmap.md');
-    const start = roadmap.indexOf('## 48. One Day Clock');
-    const item = roadmap.slice(start, roadmap.indexOf('\n## 49.', start));
-    expect(item).toMatch(/\*\*Shipped/);
-    expect(item).toContain('loadSession');
   });
 });

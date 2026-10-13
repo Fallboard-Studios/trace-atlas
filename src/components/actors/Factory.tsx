@@ -289,8 +289,9 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
 
   const preset = DEBUG_LIGHTING_PRESET ? LIGHTING_PRESETS[DEBUG_LIGHTING_PRESET] : null;
 
-  const eastLMultiplier = preset ? preset.east : getLighting(localTime).eastL;
-  const westLMultiplier = preset ? preset.west : getLighting(localTime).westL;
+  const { eastL: eastLMultiplier, westL: westLMultiplier } = preset
+    ? { eastL: preset.east, westL: preset.west }
+    : getLighting(localTime);
 
   const derelict = !!actor.config?.derelict;
 

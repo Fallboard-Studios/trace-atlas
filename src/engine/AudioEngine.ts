@@ -111,6 +111,7 @@ let soundingRobots: ReadonlySet<string> | null = null;
 let polyphonyCap = MAX_POLYPHONY;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
+
 // Step registry: Map<stepNumber (1-16), events at that step>
 const stepRegistry = new Map<number, MelodyEventEntry[]>();
 
