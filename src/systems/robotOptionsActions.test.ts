@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
-  applyAudioMode, applyVolume,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
   applyPitchRepeat,
@@ -94,6 +94,180 @@ describe('robotOptionsActions', () => {
 
       expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { masterVolume: 0.55 });
       expect(volumeSpy).toHaveBeenCalledWith(robot.id, 0.55);
+    });
+  });
+
+  // docs/specs/ROBOT_PAN.md §1.2 — the Pan slider's two actions, on applyVolume's shape.
+  describe('applyPan', () => {
+    function storedRobot(overrides: Partial<Robot> = {}): Robot {
+      const robot = makeRobot({ pan: 0, panAuto: false, ...overrides });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      return robot;
+    }
+    function storedPan(id: string): number | undefined {
+      return useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id)?.pan;
+    }
+
+    it('converts a -100..100 display number to -1..1, writes the store, and ramps the live panner', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, 40);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { pan: 0.4 });
+      expect(panSpy).toHaveBeenCalledTimes(1);
+      expect(panSpy).toHaveBeenCalledWith(robot.id, 0.4);
+      expect(storedPan(robot.id)).toBe(0.4);
+    });
+
+    it('carries a negative display number through signed', () => {
+      const robot = storedRobot();
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, -75);
+
+      expect(panSpy).toHaveBeenCalledWith(robot.id, -0.75);
+      expect(storedPan(robot.id)).toBe(-0.75);
+    });
+
+    it('passes the exact travel limits through unchanged', () => {
+      const robot = storedRobot();
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, 100);
+      applyPan(robot, localeId, -100);
+
+      expect(panSpy).toHaveBeenNthCalledWith(1, robot.id, 1);
+      expect(panSpy).toHaveBeenNthCalledWith(2, robot.id, -1);
+    });
+
+    it('clamps a display number past +100 to 1 for both the store and the engine', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, 150);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { pan: 1 });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, 1);
+    });
+
+    it('clamps a display number past -100 to -1 for both the store and the engine', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, -4000);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { pan: -1 });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, -1);
+    });
+
+    it('sends a centred display number as 0, not as a skipped write', () => {
+      const robot = storedRobot({ pan: 0.6 });
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, 0);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { pan: 0 });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, 0);
+      expect(storedPan(robot.id)).toBe(0);
+    });
+
+    it('keeps a fractional display number fractional (pan is not truncated)', () => {
+      const robot = storedRobot();
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, 12.5);
+
+      expect(panSpy).toHaveBeenCalledWith(robot.id, 0.125);
+      expect(storedPan(robot.id)).toBe(0.125);
+    });
+
+    it('never touches panAuto (the slider only writes pan)', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPan(robot, localeId, 20);
+
+      expect(updateSpy.mock.calls[0][2]).not.toHaveProperty('panAuto');
+    });
+  });
+
+  describe('applyPanAuto', () => {
+    function storedRobot(overrides: Partial<Robot> = {}): Robot {
+      const robot = makeRobot({ pan: 0, panAuto: true, ...overrides });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      return robot;
+    }
+    function storedRobotNow(id: string): Robot | undefined {
+      return useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
+    }
+
+    it('Auto off copies the live value into pan, flips the flag in the same write, and pins the engine there', () => {
+      const robot = storedRobot({ pan: 0.9 });
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      vi.spyOn(AudioEngine, 'getLivePan').mockReturnValue(-0.3);
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPanAuto(robot, localeId, false);
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { panAuto: false, pan: -0.3 });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, -0.3);
+      expect(storedRobotNow(robot.id)).toMatchObject({ panAuto: false, pan: -0.3 });
+    });
+
+    it('Auto off falls back to the robot own pan when the engine has no live value yet', () => {
+      const robot = storedRobot({ pan: 0.1 });
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      vi.spyOn(AudioEngine, 'getLivePan').mockReturnValue(undefined);
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPanAuto(robot, localeId, false);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { panAuto: false, pan: 0.1 });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, 0.1);
+    });
+
+    it('Auto off with a live value of exactly 0 uses 0, not the stale robot pan (nullish, not falsy)', () => {
+      const robot = storedRobot({ pan: 0.8 });
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      vi.spyOn(AudioEngine, 'getLivePan').mockReturnValue(0);
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPanAuto(robot, localeId, false);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { panAuto: false, pan: 0 });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, 0);
+    });
+
+    it('Auto off reads the live value for the robot it was given, by id', () => {
+      const robot = storedRobot({ id: 'r7' });
+      const liveSpy = vi.spyOn(AudioEngine, 'getLivePan').mockReturnValue(0.2);
+      vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPanAuto(robot, localeId, false);
+
+      expect(liveSpy).toHaveBeenCalledWith('r7');
+    });
+
+    it('Auto on writes only the flag (pan is left as it was) and hands the robot back with null', () => {
+      const robot = storedRobot({ panAuto: false, pan: 0.7 });
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const liveSpy = vi.spyOn(AudioEngine, 'getLivePan');
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+      applyPanAuto(robot, localeId, true);
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(updateSpy.mock.calls[0][2]).toStrictEqual({ panAuto: true });
+      expect(panSpy).toHaveBeenCalledWith(robot.id, null);
+      expect(liveSpy).not.toHaveBeenCalled();
+      expect(storedRobotNow(robot.id)).toMatchObject({ panAuto: true, pan: 0.7 });
     });
   });
 
