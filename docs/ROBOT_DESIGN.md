@@ -112,6 +112,11 @@ nothing else:
 Waveform, filter frequency, phase and detune have no visual mapping on gem robots (later branches
 in [gem-polygon-robots.md](ideas/gem-polygon-robots.md) may map them to geometry or motion).
 
+Pan (`Robot.pan` / `Robot.panAuto`, Roadmap Phase 49) reaches the body through no dial: the list above is
+unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads either field (pinned by
+`src/docs/robotPanDocs.test.ts`). Switching Auto off stops only the audio panner following the robot; the
+robot keeps swimming.
+
 ## Orbiters
 
 The four orbiter polygons are the one part of the body composition settings drive directly (Roadmap

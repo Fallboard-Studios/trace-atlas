@@ -215,7 +215,8 @@ describe('SESSION_STORAGE.md: pan is persisted, masterVolume is not', () => {
 });
 
 describe('AUDIO_SYSTEM.md: the Panning item describes Auto and manual', () => {
-  const panning = section(read('docs/AUDIO_SYSTEM.md'), '4. **Panning.**', /\n\d+\. \*\*/);
+  // The item is one paragraph, so the section ends at the first blank line.
+  const panning = section(read('docs/AUDIO_SYSTEM.md'), '4. **Panning.**', /\n\n/);
 
   it.each(['Auto', 'updateRobotPan', 'getLivePan', 'robotPanReadoutStore', 'PAN_RAMP_SECONDS', 'panAuto'])('names %s', (name) => {
     expect(panning).toContain(name);

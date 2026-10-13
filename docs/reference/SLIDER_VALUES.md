@@ -146,6 +146,12 @@ slider's own `step: 1`.
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
 | Volume | Linear | % | 0 | 100 | 1 | 65⁵ | 85⁵ |
+| Pan | Centered-zero | — | -100 | 100 | 1 | — | — |
+
+Pan has no seed range, so no load range: a spawned robot is Auto at `0`. It is stored as a `-1..1` fraction
+(`Robot.pan`, `PAN_MIN`/`PAN_MAX`) and displayed ×`PAN_DISPLAY_SCALE`, with no rounding step beyond the slider's
+own `1`. While Auto is on the slider is a read-only readout of the engine's position-follow pan (`-0.5..0.5`,
+so `-50..50` on screen); only with Auto off does it take the full `-100..100`.
 
 ⁵ Stored as a `0..1` fraction (`Robot.masterVolume`), seeded from `MASTER_VOLUME_MIN`/`MAX`
 (`0.65`–`0.85`, `spawnSystem.ts`), then quantized in percent-space
