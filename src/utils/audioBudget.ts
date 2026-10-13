@@ -80,19 +80,6 @@ export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
   };
 }
 
-/**
- * One dial in, every cap out — merges `robotLoadToLimits(audioLoad)` and `effectsLoadToLimits(audioLoad)`
- * at the SAME position on both axes, the shape the single Audio Load dial had before it shipped as two
- * independent sliders (docs/specs/AUDIO_LOAD_BUDGET.md §1.2). No production caller moves both axes
- * together anymore — `AudioLoadPanel`/`audioDiagnostics` merge the two split functions with each
- * slider's own independent value instead. Kept only so `audioBudget.test.ts`'s pre-split coverage
- * (which asserts the combined shape at one shared dial position) still exercises real code; code-review
- * finding 2026-09-22.
- */
-export function loadToLimits(audioLoad: number): LoadLimits {
-  return { ...robotLoadToLimits(audioLoad), ...effectsLoadToLimits(audioLoad) };
-}
-
 /** The latency hint for a Robot Load slider position (used at page load, before any Tone node exists). */
 export function latencyForLoad(audioLoad: number): LoadLatencyHint {
   return robotLoadToLimits(audioLoad).latencyHint;
@@ -178,11 +165,6 @@ export function withParam(search: string, name: string, value: string | null): s
   }
   if (!placed && value !== null) next.push(`${name}=${value}`);
   return next.length > 0 ? `?${next.join('&')}` : '';
-}
-
-/** `withParam` fixed to the `load` (robot-axis) key — kept as its own name since every existing caller/URL uses it. */
-export function withLoadParam(search: string, value: string | null): string {
-  return withParam(search, 'load', value);
 }
 
 /** Whether the primary pointer is coarse (phone-like). Browser-only; false without matchMedia or if it throws. */

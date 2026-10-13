@@ -18,7 +18,6 @@ import {
   detectDefaultAudioLoad,
   effectsLoadToLimits,
   latencyForLoad,
-  loadToLimits,
   loadToSearchParam,
   orderByArrival,
   parseLoadParam,
@@ -28,7 +27,6 @@ import {
   resolveInitialAudioLoad,
   resolveInitialEffectsLoad,
   robotLoadToLimits,
-  withLoadParam,
   withParam,
 } from './audioBudget';
 
@@ -39,11 +37,15 @@ import {
 /** 0, 0.01, … 1 — the whole dial. */
 const dial = Array.from({ length: 101 }, (_, i) => i / 100);
 
+/** Both axes at one shared dial position — the shape the single Audio Load dial had before it shipped
+ *  as two sliders. A test oracle only: production merges each slider's own independent value. */
+const loadToLimits = (load: number) => ({ ...robotLoadToLimits(load), ...effectsLoadToLimits(load) });
+
 // ========================================
-// loadToLimits
+// both axes at one shared dial position
 // ========================================
 
-describe('loadToLimits', () => {
+describe('the two axes at one shared dial position', () => {
   it('at Full (1): 12 robots, 16 notes, drift and filter LFOs on, interactive', () => {
     // Literal numbers as well as the constants, so a constant that drifts away from today is caught here.
     expect(loadToLimits(1)).toEqual({
@@ -192,54 +194,54 @@ describe('clampAudioLoad', () => {
     expect(clampAudioLoad(Infinity)).toBe(1);
   });
 
-  it('treats NaN as Full, matching loadToLimits', () => {
+  it('treats NaN as Full, matching the split limits', () => {
     expect(clampAudioLoad(NaN)).toBe(1);
   });
 });
 
 // ========================================
-// withLoadParam
+// withParam — the `load` key
 // ========================================
 
-describe('withLoadParam', () => {
+describe('withParam on the load key', () => {
   it('adds ?load= to an empty query', () => {
-    expect(withLoadParam('', 'light')).toBe('?load=light');
+    expect(withParam('', 'load', 'light')).toBe('?load=light');
   });
 
   it('appends after the other params and leaves them byte-for-byte alone (a bare ?debug stays bare)', () => {
-    expect(withLoadParam('?debug&seed=bravo&x=-150&y=90', 'light')).toBe('?debug&seed=bravo&x=-150&y=90&load=light');
-    expect(withLoadParam('?seed=a%20b&latency=playback', '45')).toBe('?seed=a%20b&latency=playback&load=45');
+    expect(withParam('?debug&seed=bravo&x=-150&y=90', 'load', 'light')).toBe('?debug&seed=bravo&x=-150&y=90&load=light');
+    expect(withParam('?seed=a%20b&latency=playback', 'load', '45')).toBe('?seed=a%20b&latency=playback&load=45');
   });
 
   it('replaces an existing load in place, keeping its position', () => {
-    expect(withLoadParam('?load=full&debug', 'light')).toBe('?load=light&debug');
-    expect(withLoadParam('?debug&load=full&seed=x', 'standard')).toBe('?debug&load=standard&seed=x');
+    expect(withParam('?load=full&debug', 'load', 'light')).toBe('?load=light&debug');
+    expect(withParam('?debug&load=full&seed=x', 'load', 'standard')).toBe('?debug&load=standard&seed=x');
   });
 
   it('collapses a repeated load to one', () => {
-    expect(withLoadParam('?load=a&x=1&load=b', 'light')).toBe('?load=light&x=1');
+    expect(withParam('?load=a&x=1&load=b', 'load', 'light')).toBe('?load=light&x=1');
   });
 
   it('removes load when given null, and the whole query when nothing else is left', () => {
-    expect(withLoadParam('?debug&load=light', null)).toBe('?debug');
-    expect(withLoadParam('?load=light', null)).toBe('');
-    expect(withLoadParam('', null)).toBe('');
-    expect(withLoadParam('?debug', null)).toBe('?debug');
+    expect(withParam('?debug&load=light', 'load', null)).toBe('?debug');
+    expect(withParam('?load=light', 'load', null)).toBe('');
+    expect(withParam('', 'load', null)).toBe('');
+    expect(withParam('?debug', 'load', null)).toBe('?debug');
   });
 
   it('accepts a query without the leading ?', () => {
-    expect(withLoadParam('debug&load=full', 'light')).toBe('?debug&load=light');
+    expect(withParam('debug&load=full', 'load', 'light')).toBe('?debug&load=light');
   });
 
   it('does not touch a param that merely starts with "load" or another key ending in load', () => {
-    expect(withLoadParam('?loader=1&preload=2', 'light')).toBe('?loader=1&preload=2&load=light');
-    expect(withLoadParam('?loader=1&load=full', null)).toBe('?loader=1');
+    expect(withParam('?loader=1&preload=2', 'load', 'light')).toBe('?loader=1&preload=2&load=light');
+    expect(withParam('?loader=1&load=full', 'load', null)).toBe('?loader=1');
   });
 
   it('round-trips through resolveInitialAudioLoad for every whole percent', () => {
     for (let percent = 0; percent <= 100; percent++) {
       const load = percent / 100;
-      const search = withLoadParam('?debug', loadToSearchParam(load));
+      const search = withParam('?debug', 'load', loadToSearchParam(load));
       expect(resolveInitialAudioLoad({ search, coarsePointer: false }), `${percent}%`).toBe(load);
     }
   });
@@ -700,41 +702,8 @@ describe('reconcileSounding', () => {
 // robotLoadToLimits / effectsLoadToLimits (the two-slider split)
 // ========================================
 
-describe('robotLoadToLimits', () => {
-  it('agrees with loadToLimits on the robot-axis fields across the whole dial', () => {
-    for (const t of dial) {
-      const combined = loadToLimits(t);
-      const robot = robotLoadToLimits(t);
-      expect(robot).toEqual({
-        maxAudibleRobots: combined.maxAudibleRobots,
-        maxPolyphony: combined.maxPolyphony,
-        latencyHint: combined.latencyHint,
-      });
-    }
-  });
-});
-
-describe('effectsLoadToLimits', () => {
-  it('agrees with loadToLimits on the effects-axis fields across the whole dial', () => {
-    for (const t of dial) {
-      const combined = loadToLimits(t);
-      const effects = effectsLoadToLimits(t);
-      expect(effects).toEqual({
-        driftEnabled: combined.driftEnabled,
-        filterLfosEnabled: combined.filterLfosEnabled,
-      });
-    }
-  });
-});
-
-describe('loadToLimits as the merge of both axes', () => {
-  it('equals robotLoadToLimits(x) + effectsLoadToLimits(x) merged, for any x', () => {
-    for (const t of dial) {
-      expect(loadToLimits(t)).toEqual({ ...robotLoadToLimits(t), ...effectsLoadToLimits(t) });
-    }
-  });
-
-  it('lets the two axes move independently when combined by hand (not through loadToLimits)', () => {
+describe('the two axes combined', () => {
+  it('lets the two axes move independently', () => {
     const merged = { ...robotLoadToLimits(AUDIO_LOAD_PRESETS.full), ...effectsLoadToLimits(AUDIO_LOAD_PRESETS.light) };
     expect(merged.maxAudibleRobots).toBe(12);
     expect(merged.maxPolyphony).toBe(16);
@@ -766,21 +735,10 @@ describe('presetForLoads', () => {
 });
 
 // ========================================
-// withParam (the generalized form withLoadParam wraps)
+// withParam on another key
 // ========================================
 
 describe('withParam', () => {
-  it('behaves exactly like withLoadParam when the name is "load"', () => {
-    for (const [search, value] of [
-      ['', 'light'],
-      ['?debug&seed=bravo', 'light'],
-      ['?load=full&debug', 'light'],
-      ['?debug&load=light', null],
-    ] as const) {
-      expect(withParam(search, 'load', value)).toBe(withLoadParam(search, value));
-    }
-  });
-
   it('operates on a different key without disturbing an existing load param', () => {
     expect(withParam('?load=standard', 'fxLoad', 'light')).toBe('?load=standard&fxLoad=light');
     expect(withParam('?load=standard&fxLoad=full', 'fxLoad', 'light')).toBe('?load=standard&fxLoad=light');
