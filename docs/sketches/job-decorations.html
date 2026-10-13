@@ -1,0 +1,721 @@
+<!doctype html>
+<!-- STATUS: sketch gate OPEN (2026-10-12, branch various-small-fixes). Job decorations — small per-job animations that ride
+     on the shipped Phase 43 job timelines (docs/ANIMATION_SYSTEM.md "Job moves"). Nothing here touches the live renderer:
+     the robot generator, hosts, moves and keyframe interpolator are docs/sketches/robot-jobs-and-stations.html's, trimmed.
+     Each frame below plays ONE job on a loop with its decoration drawn over the orbiters by a pure function of time, so
+     the same maths can port to proxy tweens on the `work-${robotId}` timeline (seeks and the silent finish must land).
+
+     The set proposed to Crawford (2026-10-12), one per job:
+       ventExtraction        tether wires orbiter → vent mouth; a wire brightens from the mouth on its orbiter's pulse,
+                             and motes rise off the mouth, shrinking as they go
+       acousticSurvey        on each fan ping a small arc leaves the orbiter facing away from the mast, widening and
+                             thinning; during the ring the orbiters are wired into a faint polygon, bright at the vertices
+       structuralInspection  a short scan segment trails each orbiter along the outline; the leader leaves a tick at
+                             every vertex that fades
+       fluidMonitoring       droplets flow along the pipe behind the lead orbiter; at the valve a small square spins,
+                             stepping up with each pulse
+       salvage               a small gem load hangs on wires between the orbiters: grows at pick-up, swings on the carry,
+                             shrinks at the drop; the wires go slack and vanish on the return
+       maintenance           on each flicker chord the orbiter throws line sparks outward that shrink and fade, with a
+                             brief light-colour flash
+
+     Rules every decoration keeps (CLAUDE.md guardrails + the halo-waves precedent in src/components/robot/gem/haloWaves.ts):
+       * identity colour + the gem light colour (#fff3c4) only; gradients allowed, NO SVG filters
+       * everything grows in and shrinks or fades out — nothing pops; every orbiter ends at rest for the reattach
+       * one decoration group per job run, created at job start and removed on complete/stop; idle robots carry none
+       * seeded per-robot variation appended to the END of the `${gemSeed}:work` Alea stream (no existing draw moves)
+       * never on cards or the detail avatar; reduced motion draws none of it
+       * every knob is one constant (the sliders in each bar)
+
+     Gate questions (header "pending" box below). Verdicts go here when Crawford has looked. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Job decorations — sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px 24px 120px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0; }
+  h2 small { color: #9aa; font-weight: normal; font-size: 12px; margin-left: 8px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 980px; margin: 4px 0 12px; }
+  code { color: #e8b84a; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; max-width: 980px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 10px 14px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  .controls label { color: #9aa; display: flex; align-items: center; gap: 5px; }
+  .controls input[type=range] { width: 90px; }
+  .controls span.v { font-family: monospace; color: #e4e6ea; min-width: 34px; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 3px 6px; font-family: monospace; width: 90px; }
+  .controls select { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 2px 6px; font-family: monospace; }
+  button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 3px 10px; cursor: pointer; font-size: 12px; }
+  button.on { background: #41ad9f; color: #12161a; }
+  section.frame { margin: 0 0 36px; max-width: 980px; }
+  .frame > .bar { position: sticky; top: 0; z-index: 10; background: #12161a; border-bottom: 1px solid #333; padding: 10px 0 8px; display: flex; flex-direction: column; gap: 6px; }
+  .frame .desc { font-size: 12px; color: #9aa; margin: 8px 0; }
+  .stage { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; font-size: 10px; color: #8a8f99; font-family: monospace; display: inline-block; }
+  .stage svg { display: block; margin: 0 auto 4px; background: #12161a; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #0b0f14; border: 1px solid #41ad9f; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.7); max-width: 420px; }
+  .fixedpanel .ttl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #68cb97; margin-bottom: 6px; }
+  .fixedpanel .controls { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<h1>Job decorations — sketch</h1>
+<p class="note">Six frames, one job each, looping. The shipped job timeline (bob, detach, moves, reattach) is replayed from the jobs sketch; the new part is the <b>decoration</b> drawn over the orbiters in each frame, in the robot's identity colour and the gem light colour, with no filters. Knobs in each frame's bar are the constants the real thing would carry. The panel bottom-right is page-wide.</p>
+<div class="pending"><b>Gate questions:</b> Does each decoration say what the job is from across the world, or is it noise at world scale (try zoom 1)? Are they small enough — the brief was <i>small</i>? Do the wires (vent tethers, survey polygon, salvage load) read as wires or as stray lines? Does anything pop at a move boundary or at the reattach? Which rows change, which are cut?</div>
+
+<div class="fixedpanel">
+  <div class="ttl">Page-wide</div>
+  <div class="controls">
+    <label>Seed <input type="text" id="seed" value="still-echo" /></label>
+    <label>Robot <select id="robotIdx"></select></label>
+    <label>Orbiters <input type="range" id="count" min="1" max="4" step="1" value="4" /><span class="v"></span></label>
+  </div>
+  <div class="controls">
+    <label>BPM <input type="range" id="bpm" min="20" max="200" step="1" value="110" /><span class="v"></span></label>
+    <label>Rate <input type="range" id="rate" min="0.25" max="2" step="0.25" value="1" /><span class="v"></span>×</label>
+    <label>Zoom <input type="range" id="zoom" min="1" max="2.5" step="0.25" value="1.5" /><span class="v"></span>×</label>
+  </div>
+  <div class="controls">
+    <label><input type="checkbox" id="reduced" /> reduced motion</label>
+    <label><input type="checkbox" id="overlay" /> points + paths</label>
+    <label><input type="checkbox" id="decoOn" checked /> decorations</label>
+    <button id="btnPause">Pause all</button>
+  </div>
+</div>
+
+<div id="frames"></div>
+
+<script>
+// ---------- seeded rng + colour + geometry (Phase 39 sketch, as trimmed for Task 0a/0b) ----------
+function rngFrom(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^= h >>> 16) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+const range = (R, lo, hi) => lo + R() * (hi - lo);
+const $ = id => document.getElementById(id);
+const num = id => +$(id).value;
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const f2 = n => n.toFixed(2);
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)} ${clamp(s, 0, 100).toFixed(1)}% ${clamp(l, 0, 100).toFixed(1)}%)`;
+function tone(hex, dl, ds = 0) { const [h, s, l] = hexToHsl(hex); return hsl(h, s + ds, l + dl); }
+const ACCENT = { orange:'#da7e1b', red:'#cd5e57', pink:'#ae5378', purple:'#7a5484', plum:'#65617f', blue:'#4f6d7a', cyan:'#428d95', teal:'#41ad9f', green:'#68cb97', lime:'#a9e583', yellow:'#e9e377', tangerine:'#e2b149', beige:'#f7f5d3', emerald:'#4fc27a', indigo:'#5a5c9e' };
+const ACCENT_NAMES = Object.keys(ACCENT);
+const BACKING = '#0e1013', MID_DARK = '#262a31', LIGHT_DOT = '#fff3c4';
+const TAN = { 15: Math.tan(Math.PI / 12), 30: Math.tan(Math.PI / 6), 45: 1, 60: Math.tan(Math.PI / 3), 75: Math.tan(5 * Math.PI / 12) };
+const CORNERS = [
+  { p: (w, h) => [0, 0], a: [0, 1], b: [1, 0] }, { p: (w, h) => [w, 0], a: [-1, 0], b: [0, 1] },
+  { p: (w, h) => [w, h], a: [0, -1], b: [-1, 0] }, { p: (w, h) => [0, h], a: [1, 0], b: [0, -1] },
+];
+const add = (p, v, k) => [p[0] + v[0] * k, p[1] + v[1] * k];
+const ptsStr = p => p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ');
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p[0]; y += p[1]; } return [x / pts.length, y / pts.length]; }
+function edgeNormals(pts) {
+  let area = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  const sgn = area > 0 ? -1 : 1; const out = [];
+  for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const dx = q[0] - p[0], dy = q[1] - p[1]; const len = Math.hypot(dx, dy) || 1; out.push([sgn * -dy / len, sgn * dx / len]); }
+  return out;
+}
+function inset(pts, d) {
+  const N = edgeNormals(pts); const n = pts.length; const res = [];
+  for (let i = 0; i < n; i++) {
+    const i0 = (i - 1 + n) % n;
+    const [p0, p1] = [add(pts[i0], N[i0], -d), add(pts[i], N[i0], -d)];
+    const [q0, q1] = [add(pts[i], N[i], -d), add(pts[(i + 1) % n], N[i], -d)];
+    const r = [p1[0] - p0[0], p1[1] - p0[1]], s = [q1[0] - q0[0], q1[1] - q0[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-6) { res.push(q0); continue; }
+    const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
+    res.push([p0[0] + r[0] * t, p0[1] + r[1] * t]);
+  }
+  return res;
+}
+function inside(pt, pts) {
+  let ok = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
+  } return ok;
+}
+function quantize(shade, k) { if (!k || k < 2) return shade; const s = k - 1; return (2 * Math.round(((shade + 1) / 2) * s) - s) / s; }
+const LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
+const TONES = 3;
+function genLine(R, inner) {
+  const n = inner.length; const safe = inset(inner, 0.4);
+  for (let tries = 0; tries < 60; tries++) {
+    const e1 = Math.floor(R() * n); let e2 = Math.floor(R() * n); if (e2 === e1) continue;
+    const at = (e, t) => { const p = safe[e], q = safe[(e + 1) % n]; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+    const s = at(e1, range(R, .2, .8)), f = at(e2, range(R, .2, .8));
+    const dx = f[0] - s[0], dy = f[1] - s[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const path = R() < .5 ? [s, [s[0] + diag[0], s[1] + diag[1]], f] : [s, [f[0] - diag[0], f[1] - diag[1]], f];
+    if (Math.hypot(dx, dy) < 4) continue;
+    let ok = true;
+    for (let k = 0; k < path.length - 1 && ok; k++) for (let t = .1; t < 1; t += .15) {
+      const p = [path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t];
+      if (!inside(p, safe)) { ok = false; break; }
+    }
+    if (ok) return path;
+  }
+  return null;
+}
+function gemMarkup(outer, bevel, toneOf, base) {
+  const shortest = Math.min(...outer.map((p, i) => Math.hypot(p[0] - outer[(i + 1) % outer.length][0], p[1] - outer[(i + 1) % outer.length][1])));
+  const d = Math.min(bevel, Math.max(0.6, shortest * 0.3));
+  const inner = inset(outer, d); const N = edgeNormals(outer); const g = [];
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length; const shade = quantize(N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1], TONES);
+    g.push(`<polygon points="${ptsStr([outer[i], outer[j], inner[j], inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
+  }
+  g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
+  return { markup: g.join(''), inner };
+}
+function genPolygon(R, w, h, opts) {
+  const minDim = Math.min(w, h);
+  for (let tries = 0; tries < 400; tries++) {
+    const pts = []; let sides = 4, right = 0, concave = 0;
+    const kinds = opts.convex ? ['none', 'chamfer', 'chamfer', 'double'] : ['none', 'chamfer', 'chamfer', 'double', 'step'];
+    for (let i = 0; i < 4; i++) {
+      const C = CORNERS[i], P = C.p(w, h); let kind = pick(R, kinds);
+      const lenA = i % 2 === 0 ? h : w, lenB = i % 2 === 0 ? w : h; const capA = 0.45 * lenA, capB = 0.45 * lenB;
+      const cut = range(R, 0.22, 0.42) * minDim;
+      if (kind === 'step') {
+        const phi = pick(R, [45, 60]); const t = TAN[phi];
+        const B = Math.min(minDim * range(R, 0.25, 0.34), capB, (capA - 0.1) / t);
+        if (B >= 0.2 * minDim) { const A = Math.min(B * t + cut * range(R, 0.3, 0.6), capA);
+          pts.push(add(P, C.a, A), add(add(P, C.a, A - B * t), C.b, B), add(P, C.b, B)); sides += 2; right += 1; concave += 1; continue; }
+        kind = 'chamfer';
+      }
+      if (kind === 'none') { pts.push(P); right++; continue; }
+      if (kind === 'chamfer') { const phi = pick(R, [15, 30, 45, 60, 75]); const t = TAN[phi];
+        let La = t >= 1 ? cut : cut * t, Lb = t >= 1 ? cut / t : cut; const k = Math.min(1, capA / La, capB / Lb); La *= k; Lb *= k;
+        pts.push(add(P, C.a, La), add(P, C.b, Lb)); sides += 1; continue; }
+      const [p1, p2] = pick(R, [[75, 15], [60, 30]]); const T1 = TAN[p1], T2 = TAN[p2];
+      const v = (1 - T2) / (T1 - T2), u = 1 - v * T1; const A = Math.min(cut, capA), B = Math.min(cut * range(R, 0.8, 1.25), capB);
+      pts.push(add(P, C.a, A), add(add(P, C.a, A * u), C.b, B * v), add(P, C.b, B)); sides += 2;
+    }
+    if (sides < 8 || sides > 12 || right > opts.maxRight || concave > opts.maxConcave) continue;
+    return { pts, w, h };
+  }
+  return null;
+}
+const CANVAS_H = 80;
+const BASE_RULES = { convex: true, maxConcave: 0, maxRight: 4 }, MAIN_RULES = { convex: false, maxConcave: 2, maxRight: 4 }, ORBIT_RULES = { convex: false, maxConcave: 4, maxRight: 4 };
+function makeRobot(seed, idx, colorName) {
+  const R = rngFrom(seed + ':' + idx);
+  const H = CANVAS_H, W = CANVAS_H * pick(R, [1, 1.25, 1.5, 1.75, 2]), k = W / CANVAS_H; const parts = [];
+  parts.push({ role: 'backing', x: (W - 25 * k) / 2, y: (H - 25) / 2, poly: genPolygon(R, 25 * k, 25, BASE_RULES), lines: 0 });
+  const orbs = []; for (let i = 0; i < 4; i++) orbs.push({ role: 'orbit', poly: genPolygon(R, 24, 16, ORBIT_RULES), lines: 1 });
+  const mw2 = range(R, 20, 24) * k, mh2 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2 - mw2, y: (H - mh2) / 2, lit: R() < .7, poly: genPolygon(R, mw2, mh2, MAIN_RULES), lines: 2 });
+  const mw1 = range(R, 20, 24) * k, mh1 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2, y: (H - mh1) / 2, lit: R() < .7, poly: genPolygon(R, mw1, mh1, MAIN_RULES), lines: 2 });
+  const tx = (W - 32 * k) / 2, ty = (H - 32) / 2;
+  parts.push({ role: 'top', x: tx, y: ty, poly: genPolygon(R, 32 * k, 32, MAIN_RULES), lines: 4, lights: 2 });
+  const docks = [[tx, ty], [tx + 32 * k, ty], [tx, ty + 32], [tx + 32 * k, ty + 32]];
+  docks.forEach(([cx, cy], i) => { orbs[i].x = cx - 12; orbs[i].y = cy - 8; parts.push(orbs[i]); });
+  return { W, H, k, color: ACCENT[colorName], colorName, parts, docks, decoSeed: seed + ':deco:' + idx, gemSeed: seed + ':' + idx };
+}
+function renderRobotParts(robot, bevel) {
+  const R = rngFrom(robot.decoSeed); const body = []; const orbs = [];
+  for (const part of robot.parts) {
+    const poly = part.poly; if (!poly) continue; const g = [];
+    const isOrb = part.role === 'orbit';
+    g.push(`<g transform="translate(${isOrb ? -12 : part.x.toFixed(2)} ${isOrb ? -8 : part.y.toFixed(2)})">`);
+    if (part.role === 'backing') { g.push(`<polygon points="${ptsStr(poly.pts)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/></g>`); body.push(g.join('')); continue; }
+    const midLit = part.role === 'mid' && part.lit;
+    const toneOf = s => midLit ? tone(robot.color, -16 + s * 12 * .7, -18) : part.role === 'mid' ? tone(MID_DARK, s * 12 * .5) : tone(robot.color, s * 12);
+    const base = midLit ? tone(robot.color, -16, -18) : part.role === 'mid' ? MID_DARK : robot.color;
+    const { markup, inner } = gemMarkup(poly.pts, Math.min(bevel, Math.min(poly.w, poly.h) * 0.18), toneOf, base);
+    g.push(markup);
+    const lineColor = midLit ? tone(robot.color, -32, -18) : part.role === 'mid' ? tone(MID_DARK, -8) : tone(robot.color, -26);
+    for (let k = 0; k < part.lines; k++) { const path = genLine(R, inner); if (path) g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`); }
+    if (part.lights) { const c = centroid(inner); for (let k = 0; k < part.lights; k++) { const v = inner[Math.floor(R() * inner.length)]; const p = [v[0] + (c[0] - v[0]) * .3, v[1] + (c[1] - v[1]) * .3];
+      g.push(`<circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="3" fill="${LIGHT_DOT}" opacity=".18"/><circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="1.4" fill="${LIGHT_DOT}"/>`); } }
+    g.push('</g>'); (isOrb ? orbs : body).push(g.join(''));
+  }
+  return { body: body.join(''), orbs };
+}
+
+// ---------- hosts (the jobs sketch's two hand-placed sites) ----------
+const GROUND = 270;
+const domeArc = (cx, cy, r, a0, a1, n) => { const out = []; for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } return out; };
+const DOME = { cx: 440, cy: GROUND, r: 85 };
+const domeHull = domeArc(DOME.cx, DOME.cy, DOME.r, 180, 360, 24);
+const hullAt = deg => { const a = deg * Math.PI / 180; return [DOME.cx + DOME.r * Math.cos(a), DOME.cy + DOME.r * Math.sin(a)]; };
+const HOSTS = {
+  factory: {
+    name: 'Refinery-style factory', centre: 130, roof: 118,
+    draw: `<polygon points="60,170 200,170 200,${GROUND} 60,${GROUND}" fill="#1b2129" stroke="#2d3540" stroke-width="1"/>` +
+          `<polygon points="170,170 170,120 186,120 186,170" fill="#232a33" stroke="#2d3540" stroke-width="1"/>` +
+          `<line x1="90" y1="170" x2="90" y2="140" stroke="#3a4552" stroke-width="2"/><circle cx="90" cy="138" r="2.5" fill="#3a4552"/>` +
+          `<polyline points="70,250 70,215 150,215 150,235 190,235" fill="none" stroke="#3a4552" stroke-width="3" stroke-linejoin="round"/>` +
+          `<circle cx="110" cy="215" r="4" fill="#2d3540" stroke="#4a5768" stroke-width="1"/>` +
+          `<rect x="84" y="196" width="12" height="8" fill="#2d3540"/>`,
+    points: { mouth: [178, 116], mast: [90, 136], valve: [110, 215], a: [90, 200], b: [236, GROUND - 6] },
+    paths: { outline: [[60, 170], [90, 170], [90, 140], [90, 170], [170, 170], [170, 120], [186, 120], [186, 170], [200, 170]],
+             pipe: [[70, 250], [70, 215], [150, 215], [150, 235], [190, 235]] },
+  },
+  dome: {
+    name: 'Dome', centre: DOME.cx, roof: 170,
+    draw: `<polygon points="${ptsStr(domeHull.concat([[DOME.cx + DOME.r, GROUND], [DOME.cx - DOME.r, GROUND]]))}" fill="#1b2129" stroke="#2d3540" stroke-width="1"/>` +
+          `<line x1="${DOME.cx}" y1="${GROUND - DOME.r}" x2="${DOME.cx}" y2="172" stroke="#3a4552" stroke-width="2"/><circle cx="${DOME.cx}" cy="171" r="2.5" fill="#3a4552"/>` +
+          `<circle cx="${hullAt(-40)[0].toFixed(1)}" cy="${hullAt(-40)[1].toFixed(1)}" r="5" fill="#232a33" stroke="#3a4552" stroke-width="1.5"/>` +
+          `<polyline points="350,268 350,255 530,255 530,268" fill="none" stroke="#3a4552" stroke-width="3" stroke-linejoin="round"/>` +
+          `<circle cx="350" cy="255" r="4" fill="#2d3540" stroke="#4a5768" stroke-width="1"/>` +
+          `<rect x="434" y="228" width="12" height="8" fill="#2d3540"/>`,
+    points: { mouth: hullAt(-40), mast: [DOME.cx, 168], valve: [350, 255], a: [DOME.cx, 232], b: [570, GROUND - 6] },
+    paths: { outline: domeHull, pipe: [[350, 268], [350, 255], [530, 255], [530, 268]] },
+  },
+};
+function siteOf(hostId) { const h = HOSTS[hostId]; return { id: hostId, points: { ...h.points }, paths: { ...h.paths }, host: h }; }
+
+// ---------- polyline helpers ----------
+function polyLen(path) { let L = 0; for (let i = 0; i < path.length - 1; i++) L += Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]); return L; }
+function polyAt(path, u) {
+  const segs = []; let total = 0;
+  for (let i = 0; i < path.length - 1; i++) { const L = Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]); segs.push(L); total += L; }
+  let d = clamp(u, 0, 1) * total;
+  for (let i = 0; i < segs.length; i++) { if (d <= segs[i] || i === segs.length - 1) { const t = segs[i] ? d / segs[i] : 0; return [lerp(path[i][0], path[i + 1][0], t), lerp(path[i][1], path[i + 1][1], t)]; } d -= segs[i]; }
+  return path[path.length - 1];
+}
+/** Each vertex's u along the path, with the incoming direction. */
+function polyVertices(path) {
+  const total = polyLen(path); const out = []; let d = 0;
+  for (let i = 0; i < path.length; i++) {
+    if (i > 0) d += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+    const prev = path[Math.max(0, i - 1)], next = path[Math.min(path.length - 1, i + 1)];
+    const dx = next[0] - prev[0], dy = next[1] - prev[1]; const L = Math.hypot(dx, dy) || 1;
+    out.push({ p: path[i], u: total ? d / total : 0, dir: [dx / L, dy / L] });
+  }
+  return out;
+}
+
+// ---------- keyframes ----------
+const kf = (keys, t, x, y, s = 1, op = 1, lin = false) => keys.push({ t, x, y, s, op, lin });
+function sampleAt(keys, t) {
+  if (t <= keys[0].t) return keys[0];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i].t) {
+    const a = keys[i - 1], b = keys[i]; let u = (t - a.t) / ((b.t - a.t) || 1e-9); if (!b.lin) u = u * u * (3 - 2 * u);
+    return { x: lerp(a.x, b.x, u), y: lerp(a.y, b.y, u), s: lerp(a.s, b.s, u), op: lerp(a.op, b.op, u) };
+  }
+  return keys[keys.length - 1];
+}
+
+// ---------- the five shipped moves (spec §1.9, constants as shipped), each also recording `meta` for its decoration ----------
+const C = { gatherR: 14, pulse: 1.3, ringR: 24, revs: 1.5, stagger: 0.12, shrink: 0.7, fanR: 40, fanSpread: 120, ping: 1.5, attach: 1, bob: 6 };
+const RING_SEGS = 36;
+const MOVES = {
+  hoverPulse(ctx, t0, t1, travel, point) {
+    const { n, v } = ctx; const slot = (t1 - t0 - travel) / n; const meta = { kind: 'pulse', point, t0: t0 + travel, t1, slot, orbs: [] };
+    ctx.orbs.forEach((o) => {
+      const a = v.phase + o.i * 2 * Math.PI / n; const x = point[0] + C.gatherR * Math.cos(a), y = point[1] + C.gatherR * Math.sin(a);
+      kf(o.keys, t0 + travel, x, y);
+      const start = t0 + travel + v.order.indexOf(o.i) % n * slot;
+      kf(o.keys, start, x, y, 1); kf(o.keys, start + slot / 2, x, y, C.pulse); kf(o.keys, start + slot, x, y, 1);
+      kf(o.keys, t1, x, y, 1);
+      meta.orbs.push({ i: o.i, start, pos: [x, y] });
+    });
+    ctx.meta.push(meta);
+  },
+  trace(ctx, t0, t1, travel, path) {
+    const { n, v } = ctx; const P = v.traceRev ? path.slice().reverse() : path; const len = t1 - t0 - travel;
+    const stag = C.stagger * len, run = Math.max(0.1, len - (n - 1) * stag);
+    const meta = { kind: 'trace', P, t0: t0 + travel, t1, run, orbs: [] };
+    ctx.orbs.forEach((o, j) => {
+      const p0 = polyAt(P, 0); kf(o.keys, t0 + travel, p0[0], p0[1]);
+      const start = t0 + travel + j * stag; kf(o.keys, start, p0[0], p0[1], 1, 1, true);
+      for (let k = 1; k <= 24; k++) { const u = k / 24; const p = polyAt(P, u); kf(o.keys, start + u * run, p[0], p[1], 1, 1, true); }
+      const pe = polyAt(P, 1); kf(o.keys, t1, pe[0], pe[1], 1, 1, true);
+      meta.orbs.push({ i: o.i, start });
+    });
+    ctx.meta.push(meta);
+  },
+  ring(ctx, t0, t1, travel, point, opts = {}) {
+    const { n, v } = ctx; const r = C.ringR * v.radiusK; const len = t1 - t0 - travel;
+    const meta = { kind: 'ring', point, r, t0: t0 + travel, t1, len, flicker: !!opts.flicker, orbs: [] };
+    ctx.orbs.forEach((o) => {
+      const sparks = new Set(); if (opts.flicker) for (let k = 0; k < 3; k++) sparks.add(Math.floor(v.sparks[o.i][k] * RING_SEGS));
+      const angleAt = tau => v.phase + o.i * 2 * Math.PI / n + v.ringDir * 2 * Math.PI * C.revs * tau;
+      for (let k = 0; k <= RING_SEGS; k++) {
+        const tau = k / RING_SEGS; const a = angleAt(tau);
+        kf(o.keys, t0 + travel + tau * len, point[0] + r * Math.cos(a), point[1] + r * Math.sin(a), 1, sparks.has(k) ? 0.25 : 1, k > 0);
+      }
+      meta.orbs.push({ i: o.i, sparks: [...sparks].sort((a, b) => a - b), angleAt });
+    });
+    ctx.meta.push(meta);
+  },
+  carry(ctx, t0, t1, travel, a, b) {
+    const { n } = ctx; const len = t1 - t0 - travel; const T = t0 + travel;
+    const meta = { kind: 'carry', a, b, t0: T, t1, len, orbs: [] };
+    ctx.orbs.forEach((o, j) => {
+      const off = (j - (n - 1) / 2) * 8; const ax = a[0] + off, ay = a[1], bx = b[0] + off, by = b[1];
+      kf(o.keys, T, ax, ay, 1);
+      kf(o.keys, T + len * .1, ax, ay, C.shrink);
+      kf(o.keys, T + len * .45, bx, by, C.shrink);
+      kf(o.keys, T + len * .55, bx, by, 1);
+      kf(o.keys, T + len * .9, ax, ay, 1);
+      kf(o.keys, t1, ax, ay, 1);
+      meta.orbs.push({ i: o.i, off });
+    });
+    ctx.meta.push(meta);
+  },
+  fan(ctx, t0, t1, travel, point) {
+    const { n, v } = ctx; const slot = (t1 - t0 - travel) / n; const step = n > 1 ? C.fanSpread / (n - 1) : 0;
+    const meta = { kind: 'fan', point, t0: t0 + travel, t1, slot, orbs: [] };
+    ctx.orbs.forEach((o, j) => {
+      const deg = -90 + (j - (n - 1) / 2) * step; const a = deg * Math.PI / 180;
+      const x = point[0] + C.fanR * Math.cos(a), y = point[1] + C.fanR * Math.sin(a);
+      kf(o.keys, t0 + travel, x, y);
+      const start = t0 + travel + v.order.indexOf(o.i) % n * slot;
+      kf(o.keys, start, x, y, 1); kf(o.keys, start + slot / 2, x, y, C.ping); kf(o.keys, start + slot, x, y, 1);
+      kf(o.keys, t1, x, y, 1);
+      meta.orbs.push({ i: o.i, start, pos: [x, y], dir: [Math.cos(a), Math.sin(a)] });
+    });
+    ctx.meta.push(meta);
+  },
+};
+const JOBS = {
+  ventExtraction:       [['hoverPulse', 'mouth']],
+  acousticSurvey:       [['fan', 'mast'], ['ring', 'mast']],
+  structuralInspection: [['trace', 'outline']],
+  fluidMonitoring:      [['trace', 'pipe'], ['hoverPulse', 'valve']],
+  salvage:              [['carry', 'a', 'b']],
+  maintenance:          [['ring', 'mouth', { flicker: true }]],
+};
+
+function baseSeconds(bpm) { return lerp(10, 6, clamp((bpm - 20) / 180, 0, 1)); }
+/** Per-robot variation: the shipped draws in the shipped order, then the DECORATION draws appended (never reorder). */
+function variation(robot) {
+  const R = rngFrom(robot.gemSeed + ':work');
+  const order = [0, 1, 2, 3]; for (let i = 3; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const v = { order, ringDir: R() < .5 ? 1 : -1, radiusK: range(R, .85, 1.15), traceRev: R() < .5, phase: R() * 2 * Math.PI, parkDx: range(R, -40, 40), sparks: [0, 1, 2, 3].map(() => [R(), R(), R()]) };
+  // --- appended for the decorations ---
+  v.sparkDirs = [0, 1, 2, 3].map(() => [0, 1, 2].map(() => [R(), R(), R()]));   // per corner, per spark chord, per spark line: an angle offset
+  v.moteDrift = [0, 1, 2, 3].map(() => [R(), R(), R(), R()]);                      // per corner, per mote: x drift
+  v.swingPhase = R() * 2 * Math.PI;                                                 // the salvage load's swing
+  v.loadSeed = R();                                                                  // the load's shape
+  return v;
+}
+function planRun(job, hostId, robot, v, n, bpm) {
+  const site = siteOf(hostId);
+  const park = [clamp(site.host.centre + v.parkDx, 60, 560), site.host.roof - 70];
+  const origin = [park[0] - robot.W / 2, park[1] - robot.H / 2];
+  const D = baseSeconds(bpm);
+  const active = v.order.slice(0, n);
+  const orbs = active.map(i => ({ i, keys: [], dock: [origin[0] + robot.docks[i][0], origin[1] + robot.docks[i][1]] }));
+  for (const o of orbs) kf(o.keys, 0, o.dock[0], o.dock[1]);
+  const ctx = { orbs, n, v, site, meta: [] };
+  const moves = JOBS[job]; const span = D - C.attach; const share = span / moves.length;
+  moves.forEach((m, idx) => {
+    const t0 = idx * share, t1 = (idx + 1) * share;
+    const travel = idx === 0 ? Math.min(C.attach, share * .4) : Math.min(0.35, share * .25);
+    const [name, k1, k2] = m; const opts = typeof m[m.length - 1] === 'object' ? m[m.length - 1] : {};
+    const target = name === 'trace' ? site.paths[k1] : site.points[k1];
+    if (name === 'carry') MOVES.carry(ctx, t0, t1, travel, site.points[k1], site.points[k2]);
+    else MOVES[name](ctx, t0, t1, travel, target, opts);
+  });
+  for (const o of orbs) kf(o.keys, D, o.dock[0], o.dock[1]);
+  return { job, hostId, D, n, orbs, origin, park, bobCycles: Math.max(1, Math.round(D / 1.2)), site, meta: ctx.meta, v };
+}
+
+// ---------- drawing helpers for decorations ----------
+const LIGHT_C = LIGHT_DOT;
+const line = (a, b, stroke, w, op, extra = '') => `<line x1="${f2(a[0])}" y1="${f2(a[1])}" x2="${f2(b[0])}" y2="${f2(b[1])}" stroke="${stroke}" stroke-width="${f2(w)}" opacity="${op.toFixed(3)}" stroke-linecap="round" ${extra}/>`;
+const dot = (p, r, fill, op) => `<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="${f2(Math.max(0, r))}" fill="${fill}" opacity="${op.toFixed(3)}"/>`;
+const arcPath = (c, r, a0, a1) => { const p = a => [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]; const s = p(a0), e = p(a1); return `M${f2(s[0])} ${f2(s[1])}A${f2(r)} ${f2(r)} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${f2(e[0])} ${f2(e[1])}`; };
+/** A linear gradient in scene units between two points: light colour at `a` fading to nothing by `fade` of the way to `b`. */
+const lineGrad = (id, a, b, color, alpha, fade = 0.6) => `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${f2(a[0])}" y1="${f2(a[1])}" x2="${f2(b[0])}" y2="${f2(b[1])}"><stop offset="0" stop-color="${color}" stop-opacity="${alpha.toFixed(3)}"/><stop offset="${fade}" stop-color="${color}" stop-opacity="0"/></linearGradient>`;
+/** Bright at both ends, nothing in the middle. */
+const endsGrad = (id, a, b, color, alpha) => `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${f2(a[0])}" y1="${f2(a[1])}" x2="${f2(b[0])}" y2="${f2(b[1])}"><stop offset="0" stop-color="${color}" stop-opacity="${alpha.toFixed(3)}"/><stop offset=".5" stop-color="${color}" stop-opacity="0"/><stop offset="1" stop-color="${color}" stop-opacity="${alpha.toFixed(3)}"/></linearGradient>`;
+const glowGrad = (id, color) => `<radialGradient id="${id}"><stop offset="0" stop-color="${color}" stop-opacity=".9"/><stop offset=".5" stop-color="${color}" stop-opacity=".25"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`;
+/** 0 → 1 → 0 window with soft edges of `edge` seconds at both ends of [t0, t1]. */
+const windowAlpha = (t, t0, t1, edge) => clamp(Math.min((t - t0) / edge, (t1 - t) / edge), 0, 1);
+const smooth = u => u * u * (3 - 2 * u);
+const poseOf = (plan, i, t) => sampleAt(plan.orbs.find(o => o.i === i).keys, t);
+
+// ---------- the six decorations: (frame, t, poses) → markup drawn over the orbiters ----------
+// poses: { [corner]: { x, y, s, op } } for the shown corners. K = the frame's knob values. v = the robot's variation.
+const DECOS = {
+  ventExtraction: {
+    title: 'tethers + motes',
+    desc: 'A thin wire from each orbiter to the vent mouth. On an orbiter\'s pulse its wire brightens from the mouth outward (a gradient in the light colour), and a few motes rise off the mouth, shrinking as they go.',
+    knobs: [['wireOp', 'Wire opacity', 0, 0.6, 0.02, 0.22], ['wireW', 'Wire width', 0.3, 2, 0.1, 0.8], ['motes', 'Motes per pulse', 0, 6, 1, 3], ['moteRise', 'Mote rise', 4, 40, 1, 18], ['moteLife', 'Mote life', 0.3, 2, 0.05, 0.9], ['moteR', 'Mote radius', 0.5, 4, 0.1, 1.6]],
+    host: 'factory',
+    draw(F, t, poses, K, v, color, id) {
+      const m = F.plan.meta[0]; if (!m) return ''; const mouth = m.point; const out = []; const defs = [];
+      const win = windowAlpha(t, m.t0 - 0.5, m.t1 + 0.4, 0.5); if (win <= 0) return '';
+      m.orbs.forEach((o, j) => {
+        const p = poses[o.i]; const q = [p.x, p.y];
+        const pulse = clamp((p.s - 1) / (C.pulse - 1), 0, 1);
+        out.push(line(mouth, q, color, K.wireW, K.wireOp * win));
+        if (pulse > 0) { defs.push(lineGrad(`${id}-w${j}`, mouth, q, LIGHT_C, pulse * win)); out.push(line(mouth, q, `url(#${id}-w${j})`, K.wireW + 0.6, 1)); }
+        for (let k = 0; k < K.motes; k++) {
+          const born = o.start + k * (m.slot / Math.max(1, K.motes)); const age = t - born;
+          if (age < 0 || age > K.moteLife) continue; const u = age / K.moteLife;
+          const dx = (v.moteDrift[o.i][k % 4] - 0.5) * 10 * u;
+          out.push(dot([mouth[0] + dx, mouth[1] - K.moteRise * smooth(u)], K.moteR * (1 - u), LIGHT_C, (1 - u) * 0.9 * win));
+        }
+      });
+      return `<defs>${defs.join('')}</defs>${out.join('')}`;
+    },
+  },
+  acousticSurvey: {
+    title: 'ping arcs + wired ring',
+    desc: 'On each fan ping a small arc leaves the orbiter facing away from the mast, widening and thinning to nothing. During the ring the orbiters are wired into a faint rotating polygon, bright at the vertices and fading at the middles of the chords.',
+    knobs: [['pingReach', 'Ping reach', 6, 40, 1, 18], ['pingLife', 'Ping life', 0.2, 1.5, 0.05, 0.6], ['pingSpan', 'Ping span', 20, 160, 5, 70], ['pings', 'Arcs per ping', 1, 3, 1, 2], ['chordOp', 'Chord opacity', 0, 1, 0.05, 0.6], ['chordW', 'Chord width', 0.3, 2, 0.1, 0.8]],
+    host: 'dome',
+    draw(F, t, poses, K, v, color, id) {
+      const out = []; const defs = [];
+      const fan = F.plan.meta.find(x => x.kind === 'fan'), ring = F.plan.meta.find(x => x.kind === 'ring');
+      if (fan) fan.orbs.forEach((o) => {
+        for (let a = 0; a < K.pings; a++) {
+          const age = t - (o.start + a * 0.15); if (age < 0 || age > K.pingLife) continue; const u = age / K.pingLife;
+          const r = 3 + K.pingReach * smooth(u); const face = Math.atan2(o.dir[1], o.dir[0]); const half = K.pingSpan * Math.PI / 360;
+          out.push(`<path d="${arcPath(o.pos, r, face - half, face + half)}" fill="none" stroke="${LIGHT_C}" stroke-width="${f2(lerp(1.2, 0.3, u))}" opacity="${((1 - u) * 0.9).toFixed(3)}" stroke-linecap="round"/>`);
+        }
+      });
+      if (ring && ring.orbs.length > 1) {
+        const win = windowAlpha(t, ring.t0, ring.t1, 0.35);
+        if (win > 0) {
+          const pts = ring.orbs.map(o => [poses[o.i].x, poses[o.i].y]);
+          const n = pts.length;
+          for (let j = 0; j < (n === 2 ? 1 : n); j++) {
+            const a = pts[j], b = pts[(j + 1) % n];
+            defs.push(endsGrad(`${id}-c${j}`, a, b, LIGHT_C, K.chordOp * win));
+            out.push(line(a, b, color, K.chordW, K.chordOp * 0.35 * win));
+            out.push(line(a, b, `url(#${id}-c${j})`, K.chordW + 0.4, 1));
+          }
+        }
+      }
+      return `<defs>${defs.join('')}</defs>${out.join('')}`;
+    },
+  },
+  structuralInspection: {
+    title: 'scan trail + vertex ticks',
+    desc: 'A short bright segment trails each orbiter along the outline, fading back (the halo waves\' tail on a path). At each vertex the lead orbiter leaves a small tick, square to the path, that fades.',
+    knobs: [['trailLen', 'Trail length', 4, 60, 1, 22], ['trailW', 'Trail width', 0.5, 4, 0.1, 2], ['trailOp', 'Trail opacity', 0, 1, 0.05, 0.8], ['tickLen', 'Tick length', 2, 12, 0.5, 5], ['tickLife', 'Tick life', 0.3, 3, 0.1, 1.2]],
+    host: 'factory',
+    draw(F, t, poses, K, v, color, id) {
+      const m = F.plan.meta[0]; if (!m) return ''; const out = []; const total = polyLen(m.P); const N = 8;
+      m.orbs.forEach((o) => {
+        const u = (t - o.start) / m.run; if (u <= 0 || u > 1) return;
+        const back = K.trailLen / total; let prev = polyAt(m.P, u);
+        for (let k = 1; k <= N; k++) {
+          const uu = u - back * k / N; if (uu < 0) break; const p = polyAt(m.P, uu); const fade = 1 - (k - 1) / N;
+          out.push(line(prev, p, k <= 2 ? LIGHT_C : color, K.trailW * fade, K.trailOp * fade)); prev = p;
+        }
+      });
+      const lead = m.orbs[0]; const verts = polyVertices(m.P);
+      verts.forEach((vx, k) => {
+        if (k === 0 || k === verts.length - 1) return;
+        const age = t - (lead.start + vx.u * m.run); if (age < 0 || age > K.tickLife) return; const u = age / K.tickLife;
+        const grow = Math.min(1, age / 0.1); const nrm = [-vx.dir[1], vx.dir[0]]; const h = K.tickLen * grow / 2;
+        out.push(line([vx.p[0] - nrm[0] * h, vx.p[1] - nrm[1] * h], [vx.p[0] + nrm[0] * h, vx.p[1] + nrm[1] * h], LIGHT_C, 1, (1 - u) * 0.9));
+      });
+      return out.join('');
+    },
+  },
+  fluidMonitoring: {
+    title: 'droplets + spinning valve',
+    desc: 'Droplets flow along the pipe behind the lead orbiter, each a beat behind the one before. At the valve a small square spins while the orbiters pulse, its spin stepping up with every pulse, and fades out as the move ends.',
+    knobs: [['drops', 'Droplets', 0, 10, 1, 5], ['dropLag', 'Droplet lag', 0.05, 0.4, 0.01, 0.12], ['dropR', 'Droplet radius', 0.5, 3, 0.1, 1.3], ['valveSize', 'Valve size', 2, 14, 0.5, 6], ['spin0', 'Spin base °/s', 0, 360, 10, 90], ['spinStep', 'Spin step °/s', 0, 360, 10, 90]],
+    host: 'factory',
+    draw(F, t, poses, K, v, color, id) {
+      const out = []; const defs = [];
+      const tr = F.plan.meta.find(x => x.kind === 'trace'), pu = F.plan.meta.find(x => x.kind === 'pulse');
+      if (tr) {
+        const lead = tr.orbs[0];
+        for (let k = 1; k <= K.drops; k++) {
+          const u = (t - lead.start - k * K.dropLag) / tr.run; if (u <= 0 || u > 1) continue;
+          const p = polyAt(tr.P, u); const wob = Math.sin(t * 9 + k) * 0.8; const fade = 1 - (k - 1) / Math.max(1, K.drops);
+          out.push(dot([p[0], p[1] + wob], K.dropR * (0.6 + 0.4 * fade), LIGHT_C, 0.85 * fade));
+        }
+      }
+      if (pu) {
+        const win = windowAlpha(t, pu.t0, pu.t1, 0.3);
+        if (win > 0) {
+          const starts = pu.orbs.map(o => o.start).sort((a, b) => a - b);
+          let angle = 0, rate = K.spin0, last = pu.t0;
+          for (const s of starts) { if (s > t) break; angle += rate * (s - last); last = s; rate += K.spinStep; }
+          angle += rate * (t - last);
+          const c = pu.point; const h = K.valveSize / 2 * win;
+          defs.push(glowGrad(`${id}-g`, LIGHT_C));
+          out.push(dot(c, K.valveSize * 1.4 * win, `url(#${id}-g)`, 0.5));
+          out.push(`<rect x="${f2(c[0] - h)}" y="${f2(c[1] - h)}" width="${f2(2 * h)}" height="${f2(2 * h)}" fill="none" stroke="${LIGHT_C}" stroke-width="1" opacity="${(0.9 * win).toFixed(3)}" transform="rotate(${f2(angle)} ${f2(c[0])} ${f2(c[1])})"/>`);
+          out.push(`<rect x="${f2(c[0] - h * 0.45)}" y="${f2(c[1] - h * 0.45)}" width="${f2(h * 0.9)}" height="${f2(h * 0.9)}" fill="${color}" opacity="${(0.8 * win).toFixed(3)}" transform="rotate(${f2(-angle)} ${f2(c[0])} ${f2(c[1])})"/>`);
+        }
+      }
+      return `<defs>${defs.join('')}</defs>${out.join('')}`;
+    },
+  },
+  salvage: {
+    title: 'wired load',
+    desc: 'A small gem load hangs on wires below the orbiters. It grows at the pick-up as they shrink, swings a little on the carry, and shrinks away at the drop as they grow back. The wires go slack (sag) and fade on the return.',
+    knobs: [['hang', 'Hang depth', 2, 24, 0.5, 10], ['loadSize', 'Load size', 2, 12, 0.5, 5], ['swing', 'Swing °', 0, 30, 1, 10], ['wireOp', 'Wire opacity', 0, 1, 0.05, 0.6], ['sag', 'Slack sag', 0, 16, 0.5, 6]],
+    host: 'dome',
+    draw(F, t, poses, K, v, color, id) {
+      const m = F.plan.meta[0]; if (!m) return ''; const out = []; const defs = [];
+      const f = (t - m.t0) / m.len; if (f < 0 || f > 1) return '';
+      const pts = m.orbs.map(o => [poses[o.i].x, poses[o.i].y]); const mid = centroid(pts);
+      // load scale: grows over [0, .1], full until .45, gone by .55
+      const scale = f < 0.1 ? smooth(f / 0.1) : f < 0.45 ? 1 : f < 0.55 ? 1 - smooth((f - 0.45) / 0.1) : 0;
+      if (scale > 0) {
+        const carrying = f > 0.1 && f < 0.45; const sw = carrying ? Math.sin((f - 0.1) / 0.35 * Math.PI * 3 + v.swingPhase) * K.swing * Math.sin((f - 0.1) / 0.35 * Math.PI) : 0;
+        const ang = sw * Math.PI / 180; const top = [mid[0] + Math.sin(ang) * K.hang * 0.3, mid[1] + K.hang * 0.3];
+        const c = [mid[0] + Math.sin(ang) * K.hang, mid[1] + Math.cos(ang) * K.hang];
+        const s = K.loadSize * scale; const shape = v.loadSeed < 0.5 ? 'diamond' : 'hex';
+        const poly = shape === 'diamond' ? [[0, -s], [s * 0.7, 0], [0, s], [-s * 0.7, 0]] : [[0, -s], [s * 0.85, -s * 0.5], [s * 0.85, s * 0.5], [0, s], [-s * 0.85, s * 0.5], [-s * 0.85, -s * 0.5]];
+        for (const p of pts) out.push(line(p, c, color, 0.7, K.wireOp * scale));
+        defs.push(glowGrad(`${id}-g`, LIGHT_C));
+        out.push(dot(c, s * 1.8, `url(#${id}-g)`, 0.45 * scale));
+        out.push(`<polygon points="${ptsStr(poly)}" fill="${tone(color, -8)}" stroke="${LIGHT_C}" stroke-width=".8" opacity="${(0.95 * scale).toFixed(3)}" transform="translate(${f2(c[0])} ${f2(c[1])}) rotate(${f2(sw * 1.5)})"/>`);
+      }
+      // the slack wires on the return: still tied to the drop point, sagging and fading
+      if (f >= 0.55 && f < 0.9) {
+        const u = (f - 0.55) / 0.35; const drop = [m.b[0], m.b[1] + K.hang];
+        pts.forEach((p, j) => {
+          const cx = (p[0] + drop[0]) / 2, cy = Math.max(p[1], drop[1]) + K.sag * smooth(u);
+          out.push(`<path d="M${f2(p[0])} ${f2(p[1])}Q${f2(cx)} ${f2(cy)} ${f2(drop[0])} ${f2(drop[1])}" fill="none" stroke="${color}" stroke-width=".7" opacity="${(K.wireOp * (1 - u)).toFixed(3)}"/>`);
+        });
+      }
+      return `<defs>${defs.join('')}</defs>${out.join('')}`;
+    },
+  },
+  maintenance: {
+    title: 'sparks + flash',
+    desc: 'On each flicker chord (the shipped opacity dip) the orbiter throws a few line sparks outward from the ring that shrink and fade, with a brief flash in the light colour at the orbiter.',
+    knobs: [['sparks', 'Sparks per chord', 1, 5, 1, 3], ['reach', 'Spark reach', 4, 30, 1, 12], ['sparkLen', 'Spark length', 1, 8, 0.5, 4], ['sparkLife', 'Spark life', 0.2, 1.2, 0.05, 0.45], ['spread', 'Spread °', 0, 120, 5, 50], ['flashR', 'Flash radius', 0, 12, 0.5, 5]],
+    host: 'dome',
+    draw(F, t, poses, K, v, color, id) {
+      const m = F.plan.meta[0]; if (!m) return ''; const out = []; const defs = [];
+      defs.push(glowGrad(`${id}-g`, LIGHT_C));
+      m.orbs.forEach((o) => {
+        o.sparks.forEach((k, si) => {
+          const at = m.t0 + (k + 0.5) / RING_SEGS * m.len; const age = t - at;
+          if (age < 0 || age > K.sparkLife) return; const u = age / K.sparkLife;
+          const a = o.angleAt((k + 0.5) / RING_SEGS); const c = [m.point[0] + m.r * Math.cos(a), m.point[1] + m.r * Math.sin(a)];
+          if (u < 0.5) out.push(dot(c, K.flashR * (1 - u / 0.5), `url(#${id}-g)`, 0.8));
+          for (let s = 0; s < K.sparks; s++) {
+            const off = (v.sparkDirs[o.i][si % 3][s % 3] - 0.5) * K.spread * Math.PI / 180; const dir = a + off;
+            const d = K.reach * smooth(u); const L = K.sparkLen * (1 - u);
+            const p0 = [c[0] + Math.cos(dir) * d, c[1] + Math.sin(dir) * d], p1 = [p0[0] + Math.cos(dir) * L, p0[1] + Math.sin(dir) * L];
+            out.push(line(p0, p1, s === 0 ? LIGHT_C : color, 1, (1 - u)));
+          }
+        });
+      });
+      return `<defs>${defs.join('')}</defs>${out.join('')}`;
+    },
+  },
+};
+
+// ---------- frames ----------
+const VIEW_W = 620, VIEW_H = 300;
+const P = { seed: 'still-echo', roster: [], robot: null, v: null, playing: true, last: null };
+const FRAMES = [];
+function buildFrames() {
+  const root = $('frames'); root.innerHTML = '';
+  for (const [job, deco] of Object.entries(DECOS)) {
+    const F = { job, deco, hostId: deco.host, plan: null, t: 0, rest: 0, K: {} };
+    const id = 'f-' + job;
+    const sec = document.createElement('section'); sec.className = 'frame'; sec.id = id;
+    const knobs = deco.knobs.map(([k, label, lo, hi, step, val]) => `<label>${label} <input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${step}" value="${val}" /><span class="v">${val}</span></label>`).join('');
+    sec.innerHTML = `<div class="bar"><div class="controls"><h2>${job} <small>${deco.title}</small></h2>
+        <label>Host <select class="host"><option value="factory"${deco.host === 'factory' ? ' selected' : ''}>factory</option><option value="dome"${deco.host === 'dome' ? ' selected' : ''}>dome</option></select></label>
+        <button class="replay">Replay</button><span class="v clock"></span></div>
+        <div class="controls knobs">${knobs}</div></div>
+      <p class="desc">${deco.desc}</p>
+      <div class="stage"></div>`;
+    root.appendChild(sec);
+    F.el = sec; F.stage = sec.querySelector('.stage'); F.clock = sec.querySelector('.clock');
+    for (const r of sec.querySelectorAll('.knobs input')) { F.K[r.dataset.k] = +r.value; r.oninput = () => { F.K[r.dataset.k] = +r.value; r.nextElementSibling.textContent = r.value; }; }
+    sec.querySelector('.host').onchange = e => { F.hostId = e.target.value; startFrame(F); };
+    sec.querySelector('.replay').onclick = () => startFrame(F);
+    FRAMES.push(F);
+  }
+}
+function buildRoster() {
+  P.seed = $('seed').value || 'still-echo'; P.roster = [];
+  const Rc = rngFrom(P.seed + ':roster'); const names = ACCENT_NAMES.slice();
+  for (let i = 0; i < 12; i++) P.roster.push(makeRobot(P.seed, i, names.splice(Math.floor(Rc() * names.length), 1)[0]));
+  $('robotIdx').innerHTML = P.roster.map((r, i) => `<option value="${i}">${i} · ${r.colorName}</option>`).join('');
+  pickRobot(0);
+}
+function pickRobot(i) { P.robot = P.roster[i]; P.v = variation(P.robot); for (const F of FRAMES) startFrame(F); }
+function startFrame(F) {
+  F.plan = planRun(F.job, F.hostId, P.robot, P.v, num('count'), num('bpm')); F.t = 0; F.rest = 0;
+  renderStage(F);
+}
+function renderStage(F) {
+  const zoom = num('zoom'); const site = F.plan.site; const parts = renderRobotParts(P.robot, 2.5);
+  const overlay = $('overlay').checked ? (() => {
+    const g = [];
+    for (const [k, p] of Object.entries(site.paths)) g.push(`<polyline points="${ptsStr(p)}" fill="none" stroke="${k === 'outline' ? '#4aa3ff' : '#e2b149'}" stroke-width=".8" stroke-dasharray="3 2" opacity=".6"/>`);
+    for (const [k, p] of Object.entries(site.points)) g.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="none" stroke="#fff3c4" stroke-width=".8"/><text x="${(p[0] + 5).toFixed(1)}" y="${(p[1] - 4).toFixed(1)}" font-size="8" fill="#9aa" font-family="monospace">${k}</text>`);
+    return g.join('');
+  })() : '';
+  F.stage.innerHTML =
+    `<svg width="${VIEW_W * zoom}" height="${VIEW_H * zoom}" viewBox="0 0 ${VIEW_W} ${VIEW_H}">` +
+    `<line x1="0" y1="${GROUND}" x2="${VIEW_W}" y2="${GROUND}" stroke="#222a33" stroke-width="1"/>` +
+    HOSTS.factory.draw + HOSTS.dome.draw +
+    `<g class="robotG">${parts.body}</g>${[0, 1, 2, 3].map(i => `<g class="orb" data-i="${i}" opacity="0">${parts.orbs[i]}</g>`).join('')}` +
+    `<g class="deco"></g><g class="overlay">${overlay}</g></svg>` +
+    `<div>${P.seed}:${P.roster.indexOf(P.robot)} · ${P.robot.colorName} · ${HOSTS[F.hostId].name}</div>`;
+  F.svg = F.stage.querySelector('svg'); F.robotG = F.svg.querySelector('.robotG'); F.decoG = F.svg.querySelector('.deco');
+  F.orbEls = {}; for (const g of F.svg.querySelectorAll('.orb')) F.orbEls[+g.dataset.i] = g;
+  pose(F);
+}
+function pose(F) {
+  const p = F.plan; const t = clamp(F.t, 0, p.D); const reduced = $('reduced').checked;
+  const bobY = reduced ? 0 : C.bob * Math.sin(2 * Math.PI * p.bobCycles * t / p.D);
+  F.robotG.setAttribute('transform', `translate(${f2(p.origin[0])} ${f2(p.origin[1] + bobY)})`);
+  F.robotG.setAttribute('opacity', reduced ? (0.8 + 0.2 * Math.sin(2 * Math.PI * p.bobCycles * t / p.D)).toFixed(3) : '1');
+  const poses = {};
+  for (const [i, g] of Object.entries(F.orbEls)) {
+    const o = p.orbs.find(q => q.i === +i);
+    if (!o) { g.setAttribute('opacity', '0'); continue; }
+    if (reduced) { g.setAttribute('opacity', F.robotG.getAttribute('opacity')); g.setAttribute('transform', `translate(${f2(o.dock[0])} ${f2(o.dock[1])})`); continue; }
+    const k = sampleAt(o.keys, t); const docked = t < 0.001 || t >= p.D - 0.001;
+    const y = k.y + (docked ? bobY : 0);
+    g.setAttribute('opacity', k.op.toFixed(3)); g.setAttribute('transform', `translate(${f2(k.x)} ${f2(y)}) scale(${k.s.toFixed(3)})`);
+    poses[o.i] = { x: k.x, y, s: k.s, op: k.op };
+  }
+  F.decoG.innerHTML = (!reduced && $('decoOn').checked) ? F.deco.draw(F, t, poses, F.K, p.v, P.robot.color, F.job) : '';
+  F.clock.textContent = `${t.toFixed(1)} / ${p.D.toFixed(1)} s`;
+}
+function frame(now) {
+  if (P.last == null) P.last = now; const dt = Math.min(0.1, (now - P.last) / 1000); P.last = now;
+  if (P.playing) for (const F of FRAMES) {
+    if (!F.plan) continue;
+    if (F.rest) { if (now >= F.rest) { F.rest = 0; F.t = 0; } continue; }
+    F.t += dt * num('rate');
+    if (F.t >= F.plan.D) { F.t = F.plan.D; F.rest = now + 900; }
+    pose(F);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- wiring ----------
+for (const el of document.querySelectorAll('.fixedpanel input[type=range]')) {
+  const span = el.parentElement.querySelector('span.v'); const show = () => { span.textContent = el.value; }; show();
+  el.oninput = () => { show(); if (el.id === 'rate') return; if (el.id === 'zoom') { for (const F of FRAMES) renderStage(F); return; } for (const F of FRAMES) startFrame(F); };
+}
+for (const id of ['reduced', 'overlay', 'decoOn']) $(id).onchange = () => { for (const F of FRAMES) renderStage(F); };
+$('seed').onchange = () => buildRoster();
+$('robotIdx').onchange = () => pickRobot(+$('robotIdx').value);
+$('btnPause').onclick = () => { P.playing = !P.playing; $('btnPause').textContent = P.playing ? 'Pause all' : 'Play all'; };
+buildFrames(); buildRoster(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
