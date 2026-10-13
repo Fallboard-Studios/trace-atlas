@@ -179,7 +179,6 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, // will land exactly at critical after drain
         job: undefined,
       });
-      // A second Active robot so the "never leave zero Active" guard doesn't hold this one back.
       const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
       setupLocaleWithRobots([robot, companion]);
 
@@ -198,7 +197,6 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      // A second Active robot so the "never leave zero Active" guard doesn't hold this one back.
       const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
       setupLocaleWithRobots([robot, companion]);
       let dockingAtSeam: DockingState | undefined;
@@ -257,7 +255,7 @@ describe('robotSystems', () => {
       expect(updated?.batteryLevel).toBe(5);
     });
 
-    it('the sole Active robot stays Active at/below critical battery instead of being recalled, so the roster is never fully Docked', () => {
+    it('the sole Active robot is recalled at critical battery like any other — the fleet may fall silent (no keep-one-playing guard)', () => {
       const robot = makeRobot({
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
@@ -268,12 +266,12 @@ describe('robotSystems', () => {
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
-      expect(updated?.docking).toBe(DockingState.Active); // held, not Recalled
-      expect(seam).not.toHaveBeenCalled();
+      expect(updated?.docking).toBe(DockingState.Recalled);
+      expect(updated?.dockingHoldUntilMeasure).toBe(11);
+      expect(seam).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, robot.id, 'recalled');
     });
 
-    it('the sole Active robot floors at 0 battery and keeps being held rather than being recalled', () => {
+    it('a sole Active robot that drains to 0 battery is recalled too, not held at the floor', () => {
       const robot = makeRobot({ batteryLevel: BATTERY_DRAIN_ACTIVE, job: undefined }); // drains to exactly 0
       setupLocaleWithRobots([robot]);
 
@@ -281,22 +279,10 @@ describe('robotSystems', () => {
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.batteryLevel).toBe(0);
-      expect(updated?.docking).toBe(DockingState.Active);
-    });
-
-    it('a held-back robot departs on a later tick once another robot has landed back on Active', () => {
-      const robot = makeRobot({ batteryLevel: 0, job: undefined }); // already floored, held Active
-      const revivedCompanion = makeRobot({ id: 'robot-revived', batteryLevel: 100, job: undefined }); // now Active
-      setupLocaleWithRobots([robot, revivedCompanion]);
-
-      tickRobotLifecycle(DEFAULT_LOCALE_ID, 20);
-
-      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.docking).toBe(DockingState.Recalled);
-      expect(updated?.dockingHoldUntilMeasure).toBe(21);
     });
 
-    it('when two robots cross critical in the same tick, only one departs — the other is held to protect the invariant', () => {
+    it('when two robots cross critical in the same tick, both depart — nothing holds the last one back', () => {
       const robotA = makeRobot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
       const robotB = makeRobot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
       setupLocaleWithRobots([robotA, robotB]);
@@ -305,9 +291,7 @@ describe('robotSystems', () => {
 
       const updatedA = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robotA.id);
       const updatedB = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robotB.id);
-      const dockingStates = [updatedA?.docking, updatedB?.docking];
-      expect(dockingStates).toContain(DockingState.Recalled);
-      expect(dockingStates).toContain(DockingState.Active); // held — otherwise both would leave and the roster would empty
+      expect([updatedA?.docking, updatedB?.docking]).toEqual([DockingState.Recalled, DockingState.Recalled]);
     });
   });
 
@@ -648,7 +632,6 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      // A second Active robot so the "never leave zero Active" guard doesn't hold this one back.
       const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
       setupLocaleWithRobots([robot, companion]);
 
@@ -779,25 +762,20 @@ describe('robotSystems', () => {
       expect(result.dockingHoldUntilMeasure).toBe(11);
     });
 
-    it('the only Active robot stays Active at/under critical battery -- never zero Active robots', () => {
+    it('the only Active robot is recalled at/under critical battery — nothing keeps one playing', () => {
       const onlyActive = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
       const dockedOther = makeSnapshot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 50 });
       const [result] = stepRobotLifecycle([onlyActive, dockedOther], 10, TEST_NOISE_MAP);
-      expect(result.docking).toBe(DockingState.Active);
-      expect(result.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
+      expect(result.docking).toBe(DockingState.Recalled);
+      expect(result.dockingHoldUntilMeasure).toBe(11);
     });
 
-    it('re-reads the in-progress working roster, not a stale pre-step snapshot -- an earlier departure this same step is already visible to a later check', () => {
-      // Two Active robots, BOTH at critical, no other Active robot anywhere. Processed in array
-      // order: A departs first (B is still marked Active at that moment, so A is not "the last
-      // one"). When B is then evaluated, A has already transitioned away from Active in the
-      // WORKING array -- so B must find itself alone and stay Active, even though B's own
-      // pre-step snapshot showed two Active robots.
+    it('two robots at critical in the same step both depart', () => {
       const a = makeSnapshot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
       const b = makeSnapshot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
       const [resultA, resultB] = stepRobotLifecycle([a, b], 10, TEST_NOISE_MAP);
       expect(resultA.docking).toBe(DockingState.Recalled);
-      expect(resultB.docking).toBe(DockingState.Active);
+      expect(resultB.docking).toBe(DockingState.Recalled);
     });
 
     it('a Docked robot reaching full battery begins Undocking with a hold, not immediate Active', () => {
@@ -1023,10 +1001,11 @@ describe('robotSystems', () => {
   });
 
   describe('prove-it: replay matches realtime (docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 7)', () => {
-    it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/melody for all 12 robots, exercising both the "never zero Active" invariant and a dock-triggered melody drift', () => {
+    it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/melody for all 12 robots, exercising both the recall of the last Active robot and a dock-triggered melody drift', () => {
       // Contrived starting state, not left to chance: robot 0 is the ONLY Active robot, reaching
-      // the critical threshold on the last tick -- guarantees the invariant fires (it must stay
-      // Active, there's no one else). Robot 1 is already Recalled, still holding the
+      // the critical threshold on the last tick -- it is recalled like any other (the fleet may go
+      // silent: no keep-one-playing guard), the one transition that reads the whole roster in no case.
+      // Robot 1 is already Recalled, still holding the
       // job it was assigned before it was recalled (the real landOnDocked path never clears
       // job -- see docs/ROBOT_LIFECYCLE.md), with its hold elapsing on the very first tick --
       // guarantees both a dock-triggered melody drift AND a non-undefined job survive the landing
@@ -1037,7 +1016,7 @@ describe('robotSystems', () => {
       // Robot 0 holds a job (Phase 43 Task 3): the replay snapshot no longer carries one, so a job
       // surcharge creeping back into the live tick would make its real battery diverge from replay.
       // It starts exactly REPLAY_MEASURES drains above critical, so it reaches critical on the last
-      // tick (invariant fires) without ever flooring at 0 -- a floor would let a surcharged live run
+      // tick without ever flooring at 0 -- a floor would let a surcharged live run
       // and the flat replay converge on 0 and hide the surcharge (found by Task 3's mutation check).
       const REPLAY_MEASURES = 5;
       const robots: Robot[] = [
@@ -1083,10 +1062,10 @@ describe('robotSystems', () => {
 
       const replayResult = replayLifecycle(initialSnapshots, 0, REPLAY_MEASURES, noiseMap);
 
-      // The invariant actually fired: robot 0 stayed Active despite reaching critical battery
-      // (exactly critical -- above the 0 floor, so the battery comparison below is meaningful).
+      // The last Active robot was recalled on reaching critical battery (exactly critical -- above
+      // the 0 floor, so the battery comparison below is meaningful).
       const realtimeRobot0 = realtimeResult.find((r) => r.id === 'prove-it-0')!;
-      expect(realtimeRobot0.docking).toBe(DockingState.Active);
+      expect(realtimeRobot0.docking).toBe(DockingState.Recalled);
       expect(realtimeRobot0.batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
       // The drift actually fired: robot 1 landed on Docked with a melody different from its start.
       // Its job survives the landing untouched -- the real landOnDocked path never clears it.

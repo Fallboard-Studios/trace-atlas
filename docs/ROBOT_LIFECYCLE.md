@@ -105,16 +105,12 @@ Docked ─────────────────▶ Undocking
 - **`Active` → `Recalled`**: triggered the measure an `Active` robot's battery reaches
   `BATTERY_CRITICAL_THRESHOLD` (10) or below. `beginRecall` writes the docking state and hold, then
   calls `onLifecycleChange(…, 'recalled')` (see "Recall" below).
-  - **Invariant — never zero `Active` robots**: before honoring a critical-battery trigger, the
-    step checks whether any *other* robot is currently `Active`, reading the working roster as
-    already updated this measure (not the stale pre-tick snapshot, so an earlier robot's recall
-    *this same tick* is already reflected). If not — this is the last one standing — the
-    transition is skipped and the robot stays `Active` regardless of battery, which keeps draining
-    and floors at 0 (visually reflected by the existing battery-dim overlay, see `ROBOT_DESIGN.md`).
-    It is re-evaluated every subsequent tick, so the moment any other robot lands back on `Active`,
-    this robot's very next tick sees `stillActiveElsewhere = true` and is recalled normally — no
-    separate "release" signal needed, just the same check re-run. When two robots cross critical
-    in the same tick, iteration order means the first is recalled and the second is held.
+  - **No keep-one-playing guard** (removed 2026-10-12, Crawford: "a little silence is good for the
+    ear"). Every robot is recalled on its own battery, whatever the rest of the fleet is doing, so
+    when the last Active robot reaches critical it is recalled like any other and the fleet can go
+    quiet until a docked robot recharges and lands on `Active`. The tick no longer reads joint
+    roster state at all: each robot's transition is per-robot arithmetic (which is also what makes
+    the replay simple). Before this, the last robot stayed `Active` and drained to a floor of 0.
 - **The hold**: `dockingHoldUntilMeasure` is set to `measure + 1` at the moment of triggering. The
   robot lands (`Undocking` → `Active`, `Recalled` → `Docked`) the first measure tick at or after
   that value — "up to one measure," not always a full one: a threshold crossed right after a
@@ -409,7 +405,7 @@ snapshot, so the two stay numerically in sync.
 
 **`stepRobotLifecycle(roster, measure, noiseMap, drain = activeDrain): RobotLifecycleSnapshot[]`**
 (`robotSystems.ts`) — one measure's worth of transition for an entire roster, pure. Mirrors
-`tickRobotLifecycle`'s battery/docking arithmetic and the never-zero-`Active` invariant exactly
+`tickRobotLifecycle`'s battery/docking arithmetic exactly
 (mutates a local working array in roster order, so within-measure ordering effects match a real
 tick bit for bit), plus a `Recalled`→`Docked` landing's pitch drift
 (`reRollMelodyPitches`/`DOCKED_PITCH_DRIFT_RATIO`, seeded identically to the live path:
@@ -559,8 +555,8 @@ cover:
 - threshold-triggered `Undocking`/`Recalled` entry with the hold, not an immediate landing; hold-elapsed landing on `Active`/`Docked`
 - `landOnActive`/`landOnDocked` setting `audioMode` (not touching voice reservation/melody registration), writing no position, job or swim themselves, and calling `onLifecycleChange` with the right `to`; the `./workLoop` import as the tick's only route to visuals
 - `landOnDocked` re-registering the drifted melody with `AudioEngine` so a manual mute override plays the post-drift pitches
-- the never-zero-`Active` invariant: a sole `Active` robot at/below critical battery stays `Active` (including floored at exactly 0) instead of being recalled; it is recalled on a later tick once another robot has landed back on `Active`; and when two robots cross critical in the same tick, only one is recalled while the other is held
-- `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, pitch drift matching the live seed formula, no cross-robot seed collision, compounding drift, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster run for N real ticks and separately replayed, asserted identical field for field (mutation-checked against a broken invariant guard, the pre-drift melody and a job surcharge)
+- no keep-one-playing guard: a sole `Active` robot at/below critical battery (including one that drains to exactly 0) is recalled like any other, and two robots crossing critical in the same tick are both recalled
+- `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, pitch drift matching the live seed formula, no cross-robot seed collision, compounding drift, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster run for N real ticks and separately replayed, asserted identical field for field (mutation-checked against the pre-drift melody and a job surcharge)
 - the work loop: one robot per site, the cooldown, the job sticking until no ready site hosts it, recall in each activity, both turn-backs, adoption on mount and on start, settling, the body-less timelines, stop finishing a job silently, and callbacks that never touch `AudioEngine` (spy); every mutant run in Tasks 22–24 is killed
 - the two robot rows (J4; plus `layerSwitch.test.ts` and `midgroundSilhouettes.test.tsx`): front → back and back → front legs, the switch point's clear run, the skip with no switch point, the 0.75 row scale, the dissolve copy in both directions and every interruption of it (stop, recall, a dropped leg's re-mount, an overlapping fade), exits into the back row, and `stations.test.ts`' guards that no station box or exiting robot overlaps a midground silhouette (0 of 284 over the grid). The J1–J3 loop tests run with `backHosts: false`
 - the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case)

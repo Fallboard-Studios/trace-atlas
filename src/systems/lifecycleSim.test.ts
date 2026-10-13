@@ -165,12 +165,12 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
     });  });
 
   describe('activeCountsOverTime', () => {
-    it('returns one Active count per measure, never zero (the never-zero-Active invariant) and never above the roster', () => {
+    it('returns one Active count per measure, never above the roster (it may reach zero: the fleet can fall silent)', () => {
       const noiseMap = simNoiseMap(-40, 80);
       const counts = activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(6), 300);
       expect(counts).toHaveLength(300);
       for (const n of counts) {
-        expect(n).toBeGreaterThanOrEqual(1);
+        expect(n).toBeGreaterThanOrEqual(0);
         expect(n).toBeLessThanOrEqual(MAX_ROBOTS);
       }
     });
