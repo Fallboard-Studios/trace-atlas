@@ -27,7 +27,14 @@
        * never on cards or the detail avatar; reduced motion draws none of it
        * every knob is one constant (the sliders in each bar)
 
-     Gate questions (header "pending" box below). Verdicts go here when Crawford has looked. -->
+     Gate questions (header "pending" box below). Verdicts go here when Crawford has looked.
+
+     VERDICT 1 (Crawford, 2026-10-12): all six rows KEPT; his preferred settings are now the slider defaults below. He
+     pushed nearly every knob to the top of its first range (the brief said "small"; he went big: mote rise 40, radius
+     3.4; ping reach 36 with 3 arcs; trail width 4 at full opacity; 10 droplets of radius 3, valve 14; load 12 on a
+     24 hang, full wire opacity, sag 16; 5 sparks reaching 30, spread 120, flash 12), so those ranges were doubled to
+     leave headroom. Hosts as he had them: vent/survey/inspection/salvage on the dome, fluid/maintenance on the factory.
+     Still open: the world-scale read (zoom 1), move-boundary pops, and whether anything is now too big. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -451,8 +458,8 @@ const DECOS = {
   ventExtraction: {
     title: 'tethers + motes',
     desc: 'A thin wire from each orbiter to the vent mouth. On an orbiter\'s pulse its wire brightens from the mouth outward (a gradient in the light colour), and a few motes rise off the mouth, shrinking as they go.',
-    knobs: [['wireOp', 'Wire opacity', 0, 0.6, 0.02, 0.22], ['wireW', 'Wire width', 0.3, 2, 0.1, 0.8], ['motes', 'Motes per pulse', 0, 6, 1, 3], ['moteRise', 'Mote rise', 4, 40, 1, 18], ['moteLife', 'Mote life', 0.3, 2, 0.05, 0.9], ['moteR', 'Mote radius', 0.5, 4, 0.1, 1.6]],
-    host: 'factory',
+    knobs: [['wireOp', 'Wire opacity', 0, 1, 0.02, 0.5], ['wireW', 'Wire width', 0.3, 4, 0.1, 1.8], ['motes', 'Motes per pulse', 0, 6, 1, 3], ['moteRise', 'Mote rise', 4, 80, 1, 40], ['moteLife', 'Mote life', 0.3, 4, 0.05, 1.8], ['moteR', 'Mote radius', 0.5, 8, 0.1, 3.4]],
+    host: 'dome',
     draw(F, t, poses, K, v, color, id) {
       const m = F.plan.meta[0]; if (!m) return ''; const mouth = m.point; const out = []; const defs = [];
       const win = windowAlpha(t, m.t0 - 0.5, m.t1 + 0.4, 0.5); if (win <= 0) return '';
@@ -474,7 +481,7 @@ const DECOS = {
   acousticSurvey: {
     title: 'ping arcs + wired ring',
     desc: 'On each fan ping a small arc leaves the orbiter facing away from the mast, widening and thinning to nothing. During the ring the orbiters are wired into a faint rotating polygon, bright at the vertices and fading at the middles of the chords.',
-    knobs: [['pingReach', 'Ping reach', 6, 40, 1, 18], ['pingLife', 'Ping life', 0.2, 1.5, 0.05, 0.6], ['pingSpan', 'Ping span', 20, 160, 5, 70], ['pings', 'Arcs per ping', 1, 3, 1, 2], ['chordOp', 'Chord opacity', 0, 1, 0.05, 0.6], ['chordW', 'Chord width', 0.3, 2, 0.1, 0.8]],
+    knobs: [['pingReach', 'Ping reach', 6, 80, 1, 36], ['pingLife', 'Ping life', 0.2, 3, 0.05, 1.4], ['pingSpan', 'Ping span', 20, 160, 5, 80], ['pings', 'Arcs per ping', 1, 6, 1, 3], ['chordOp', 'Chord opacity', 0, 1, 0.05, 1], ['chordW', 'Chord width', 0.3, 2, 0.1, 0.6]],
     host: 'dome',
     draw(F, t, poses, K, v, color, id) {
       const out = []; const defs = [];
@@ -505,8 +512,8 @@ const DECOS = {
   structuralInspection: {
     title: 'scan trail + vertex ticks',
     desc: 'A short bright segment trails each orbiter along the outline, fading back (the halo waves\' tail on a path). At each vertex the lead orbiter leaves a small tick, square to the path, that fades.',
-    knobs: [['trailLen', 'Trail length', 4, 60, 1, 22], ['trailW', 'Trail width', 0.5, 4, 0.1, 2], ['trailOp', 'Trail opacity', 0, 1, 0.05, 0.8], ['tickLen', 'Tick length', 2, 12, 0.5, 5], ['tickLife', 'Tick life', 0.3, 3, 0.1, 1.2]],
-    host: 'factory',
+    knobs: [['trailLen', 'Trail length', 4, 60, 1, 20], ['trailW', 'Trail width', 0.5, 8, 0.1, 4], ['trailOp', 'Trail opacity', 0, 1, 0.05, 1], ['tickLen', 'Tick length', 2, 12, 0.5, 6], ['tickLife', 'Tick life', 0.3, 6, 0.1, 3]],
+    host: 'dome',
     draw(F, t, poses, K, v, color, id) {
       const m = F.plan.meta[0]; if (!m) return ''; const out = []; const total = polyLen(m.P); const N = 8;
       m.orbs.forEach((o) => {
@@ -530,7 +537,7 @@ const DECOS = {
   fluidMonitoring: {
     title: 'droplets + spinning valve',
     desc: 'Droplets flow along the pipe behind the lead orbiter, each a beat behind the one before. At the valve a small square spins while the orbiters pulse, its spin stepping up with every pulse, and fades out as the move ends.',
-    knobs: [['drops', 'Droplets', 0, 10, 1, 5], ['dropLag', 'Droplet lag', 0.05, 0.4, 0.01, 0.12], ['dropR', 'Droplet radius', 0.5, 3, 0.1, 1.3], ['valveSize', 'Valve size', 2, 14, 0.5, 6], ['spin0', 'Spin base °/s', 0, 360, 10, 90], ['spinStep', 'Spin step °/s', 0, 360, 10, 90]],
+    knobs: [['drops', 'Droplets', 0, 20, 1, 10], ['dropLag', 'Droplet lag', 0.05, 0.6, 0.01, 0.33], ['dropR', 'Droplet radius', 0.5, 6, 0.1, 3], ['valveSize', 'Valve size', 2, 28, 0.5, 14], ['spin0', 'Spin base °/s', 0, 360, 10, 90], ['spinStep', 'Spin step °/s', 0, 360, 10, 90]],
     host: 'factory',
     draw(F, t, poses, K, v, color, id) {
       const out = []; const defs = [];
@@ -563,7 +570,7 @@ const DECOS = {
   salvage: {
     title: 'wired load',
     desc: 'A small gem load hangs on wires below the orbiters. It grows at the pick-up as they shrink, swings a little on the carry, and shrinks away at the drop as they grow back. The wires go slack (sag) and fade on the return.',
-    knobs: [['hang', 'Hang depth', 2, 24, 0.5, 10], ['loadSize', 'Load size', 2, 12, 0.5, 5], ['swing', 'Swing °', 0, 30, 1, 10], ['wireOp', 'Wire opacity', 0, 1, 0.05, 0.6], ['sag', 'Slack sag', 0, 16, 0.5, 6]],
+    knobs: [['hang', 'Hang depth', 2, 48, 0.5, 24], ['loadSize', 'Load size', 2, 24, 0.5, 12], ['swing', 'Swing °', 0, 30, 1, 10], ['wireOp', 'Wire opacity', 0, 1, 0.05, 1], ['sag', 'Slack sag', 0, 32, 0.5, 16]],
     host: 'dome',
     draw(F, t, poses, K, v, color, id) {
       const m = F.plan.meta[0]; if (!m) return ''; const out = []; const defs = [];
@@ -596,8 +603,8 @@ const DECOS = {
   maintenance: {
     title: 'sparks + flash',
     desc: 'On each flicker chord (the shipped opacity dip) the orbiter throws a few line sparks outward from the ring that shrink and fade, with a brief flash in the light colour at the orbiter.',
-    knobs: [['sparks', 'Sparks per chord', 1, 5, 1, 3], ['reach', 'Spark reach', 4, 30, 1, 12], ['sparkLen', 'Spark length', 1, 8, 0.5, 4], ['sparkLife', 'Spark life', 0.2, 1.2, 0.05, 0.45], ['spread', 'Spread °', 0, 120, 5, 50], ['flashR', 'Flash radius', 0, 12, 0.5, 5]],
-    host: 'dome',
+    knobs: [['sparks', 'Sparks per chord', 1, 10, 1, 5], ['reach', 'Spark reach', 4, 60, 1, 30], ['sparkLen', 'Spark length', 1, 16, 0.5, 8], ['sparkLife', 'Spark life', 0.2, 2.5, 0.05, 1.2], ['spread', 'Spread °', 0, 360, 5, 120], ['flashR', 'Flash radius', 0, 24, 0.5, 12]],
+    host: 'factory',
     draw(F, t, poses, K, v, color, id) {
       const m = F.plan.meta[0]; if (!m) return ''; const out = []; const defs = [];
       defs.push(glowGrad(`${id}-g`, LIGHT_C));
