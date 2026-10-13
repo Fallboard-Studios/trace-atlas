@@ -308,7 +308,7 @@ Raised by Crawford, 2026-10-09, during the districts brainstorm on `feature/layo
 ("what other data analysis could we implement? Charts and graphs of notes played, jobs
 worked, etc?"). Not yet scoped; needs its own `/interview-me` pass. Siblings: roadmap
 [46](roadmap.md#46-mobile-deck-camera-the-world-crop-on-phones) (the letterbox band is one
-candidate home), [47](roadmap.md#47-neighbourhood-map-coherent-districts-and-the-visited-log)
+candidate home), [25](#25-neighbourhood-map-coherent-districts-and-the-visited-log)
 (the visited log is the first wall-clock record), and roadmap
 [32](roadmap.md#32-robot-melody-history--configuration-scrubber) (per-robot melody history —
 should share whatever storage decision this makes).
@@ -340,7 +340,7 @@ exists, what can be replayed for free, and what needs a new log**:
   record — robot, site, job, start, end — is the one real logging addition, and it unlocks hours
   per job, sites visited, site popularity, variety per robot, and a heat map of work across the
   world that pairs with roadmap 46's minimap. Same for user actions (edits per robot, time per
-  coordinate), which roadmap 47's visited log starts.
+  coordinate), which item 25's visited log starts.
 
 **Charts that would mean something to a user, in the Meridia telemetry fiction** (lore voice per
 `docs/reference/copy-tone-guide.md`): a note signature per robot (eight bars for the eight palette
@@ -557,3 +557,62 @@ measure, the swells pattern) as Pacing's equivalent of an LFO — replayable by 
 moves everything that counts measures, so the fleet's lifecycle speeds and slows with it (accepted:
 the 2026-10-09 time decision keeps the lifecycle on measures) and Sync-mode lanes follow. Try swing
 first; the walk only if a world feels too metronomic.
+
+### 25. Neighbourhood Map, Coherent Districts and the Visited Log
+
+Raised by Crawford, 2026-10-09, in the same brainstorm: "a map of the nearby world, color coded by
+district", and, some day, a server tracking where people went with a map of "discovered" areas. Not
+yet interviewed or specced. Depends on roadmap [42](roadmap.md#42-world-view-districts) (the districts) and, for where
+it is shown, on roadmap [46](roadmap.md#46-mobile-deck-camera-the-world-crop-on-phones) and the layout rework.
+
+**Moved here from roadmap phase 47 on 2026-10-12** (Crawford: not ready to implement it, and nothing relies on it —
+checked: the only references were cross-notes in roadmap 46, the mobile-deck-camera intent doc and backlog 18, all
+repointed here). The roadmap number is not reused.
+
+#### About
+
+**The map has a hidden prerequisite.** A locale's noise map is seeded by hashing its coordinate pair
+as text — ``createNoise2D(alea(`${x}:${y}`))`` in `src/utils/noiseMaps.ts` — so two neighbouring plots
+share nothing, and `pickDistrict` (`src/systems/districts.ts`) draws on that map. Coloured by district,
+a map of the neighbourhood is noise, not regions. For it to mean anything, the district pick needs a
+**second, world-level field over coordinates**: seeded cells (Voronoi-style, each carrying a district
+label) or low-frequency noise, so there is a wreck field to the east and a habitat belt to the north.
+Constraints on that field:
+
+- **Even spread stays.** Phase 42 pinned every district at ≥ 8 of the 121-coordinate grid
+  (`districts.test.ts`, `lifecycleSim.ts`'s `SIM_SEED_COORDS`); simplex output is bell-curved, which is
+  why `getUniformSeededVal` exists (docs/PROCEDURAL_GENERATION.md). Cellular labelling gives an even
+  spread by construction; quantised low-frequency simplex fights it.
+- **It is a generation change.** Every coordinate's district changes, so saved sessions and share
+  links (which regenerate the locale from its coordinates) show a different place. Phase 42 accepted
+  the same break; it is a conscious call again, not a side effect.
+- **Everything else per locale stays as it is** — the recipe rows, derelict rolls, terrain, roster
+  and stations still come from the locale's own map. Only *which* recipe is chosen moves to the
+  world field.
+
+Upside beyond the map: coherent regions make navigation a concept ("go east into the vent fields")
+and give the Settings → Seeds coordinates a reason to be stepped rather than typed.
+
+**What a map can show today, honestly, with no generation change:**
+
+- **The visited log.** A local store of coordinates, first-seen time and district — JSON in Zustand,
+  persisted beside the sessions in `localStorage` (`sessionStorageEngine.ts`'s pattern). Fog of war
+  for one person; the current plot highlighted; tapping a plot retransmits to it (navigation lives
+  inside `ScreenViewport`, per the UI-shell rule).
+- **The day/night stripe.** A plot's hour is set by its x alone (`buildLocale`'s
+  `dayStartTimestamp`, `abs(x % 24)`), so the map has vertical day/night bands that move with the
+  wall clock, free and spatially coherent already.
+- **District per plot** is cheap to compute on demand (one `alea` + `createNoise2D` + three samples;
+  the test suite does 121 of them), but it needs its own cache keyed by coordinates — the live
+  `localeMaps` cache is keyed by locale id.
+
+#### Not Doing (and why)
+
+- **A server, user accounts, and a shared "discovered" map** — Crawford, 2026-10-09: "a bit much to
+  add now." The visited log gives one person the same screen; a server later only merges everyone's
+  sets, and the map component would not change. Nothing in the local design should assume a
+  server, and nothing should block one.
+- **Per-plot roster, derelict counts or station counts on the map** — those need `spawnSystem` or
+  `placeDistrict` per plot; too heavy for a map that paints many plots at once. District and hour
+  only, until measured otherwise.
+- **Colouring the map by district before the field is coherent** — it would look like a bug.
