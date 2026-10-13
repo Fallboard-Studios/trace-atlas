@@ -36,7 +36,7 @@ import {
   type GlobalLfoTargetId,
 } from '../types/lfo';
 import { devWarn } from '../utils/helpers';
-import { MIN_LEAD } from '../constants';
+import { MIN_LEAD, ROBOT_BUS_FILTER_FREQ_RANGE } from '../constants';
 
 // ========================================
 // STATE (module-scoped, runtime-only — never put these in Zustand)
@@ -79,7 +79,7 @@ const links = new Map<string, LinkRecord>();
 /** Whether the four lanes' drift secondaries are currently wired in — the Audio Load Budget's drift tier (setDriftEnabled). */
 let driftEnabled = true;
 
-/** Whether lpf./hpf. link Gains may be connected right now — the Audio Load Budget's filter tier (setFilterLinksEnabled). */
+/** Whether lpf./hpf./bus. link Gains may be connected right now — the Audio Load Budget's filter tier (setFilterLinksEnabled). */
 let filterLinksEnabled = true;
 
 /** ~33-second cycle for each lane's drift secondary — the same fixed rate the old per-group drift pools used
@@ -98,9 +98,9 @@ function isRobotTarget(target: LfoTargetId): boolean {
   return (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(target);
 }
 
-/** Global filter (frequency/Q) targets — the only links setFilterLinksEnabled can suspend. */
+/** Filter-tier targets (global lpf./hpf. frequency/Q and a robot's bus.frequency) — the only links setFilterLinksEnabled can suspend. */
 function isFilterTarget(target: LfoTargetId): boolean {
-  return /^(lpf|hpf)\./.test(target);
+  return /^(lpf|hpf|bus)\./.test(target);
 }
 
 /** Real value range per robot field — copied from lfoEngine.ts (see this file's header comment). */
@@ -122,6 +122,7 @@ function globalSeedRangeKey(target: GlobalLfoTargetId): GlobalAudioSeedFieldKey 
 function resolveLfoOutputRange(target: LfoTargetId): { min: number; max: number } | null {
   const robotFieldMatch = /^layer\d+\.(gain|detune)$/.exec(target);
   if (robotFieldMatch) return ROBOT_LFO_FIELD_RANGE[robotFieldMatch[1]];
+  if (target === 'bus.frequency') return ROBOT_BUS_FILTER_FREQ_RANGE;
   if (!isRobotTarget(target)) {
     const range = GLOBAL_AUDIO_SEED_RANGES[globalSeedRangeKey(target as GlobalLfoTargetId)];
     return range ? { min: range.min, max: range.max } : null;
@@ -384,7 +385,7 @@ function setDriftEnabled(enabled: boolean): void {
   }
 }
 
-/** Suspend/restore every lpf./hpf. link's Gain (the Audio Load Budget's filter tier). EQ-gain
+/** Suspend/restore every lpf./hpf./bus. link's Gain (the Audio Load Budget's filter tier). EQ-gain
  *  links and every robot link are never affected. Idempotent; link records are always kept. */
 function setFilterLinksEnabled(enabled: boolean): void {
   if (enabled === filterLinksEnabled) return;
