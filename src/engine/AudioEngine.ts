@@ -288,6 +288,8 @@ async function loadInstruments(): Promise<void> {
               robot.masterVolume,
               robot.audioAttributes?.filterFreq,
             );
+            // The engine keeps no pan state across a reservation; the store does (Robot Pan §1.3).
+            if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
           }
         } catch (err) {
           devWarn('[AudioEngine] Failed post-load reservation for robot', robot.id, err);
@@ -817,7 +819,7 @@ export const AudioEngine = {
       if (!Array.isArray(layers) || layers.length === 0) return false;
 
       AudioEngine.releaseVoice(robotId);
-      return AudioEngine.reserveVoice(
+      const reserved = AudioEngine.reserveVoice(
         robotId,
         layers,
         robot.audioAttributes.adsr,
@@ -827,6 +829,10 @@ export const AudioEngine = {
         robot.masterVolume,
         robot.audioAttributes?.filterFreq,
       );
+      // releaseVoice just cleared this robot's manual pan; hand it back from the store (Robot Pan §1.3).
+      // Done here, not by the caller, so every reReserveVoice caller is covered.
+      if (robot.panAuto === false) AudioEngine.updateRobotPan(robotId, robot.pan);
+      return reserved;
     } catch (err) {
       devWarn('[AudioEngine] reReserveVoice failed', err);
       return false;

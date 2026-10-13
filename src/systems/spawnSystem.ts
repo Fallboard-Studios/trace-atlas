@@ -730,6 +730,8 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   try {
     const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
     if (Array.isArray(layers) && layers.length > 0) {
+      // No manual-pan prime here, unlike the other reservation sites: a spawned robot is always
+      // `panAuto: true` (above), so there is nothing to hand the engine (docs/specs/ROBOT_PAN.md §1.3).
       const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
       // Prime this robot's seeded lane links into the bank engine now that it has a live voice to
       // connect against (docs/specs/LFO_BANK.md) — without this, seeded links sit in state, shown
@@ -885,6 +887,9 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
       const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
       if (Array.isArray(layers) && layers.length > 0) {
         AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
+        // releaseVoice above cleared this robot's engine-side pan; the store is the source of truth,
+        // so a manual robot is handed back (docs/specs/ROBOT_PAN.md §1.3).
+        if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
       }
     } catch (err) {
       if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: reserveVoice failed for', robot.id, err);

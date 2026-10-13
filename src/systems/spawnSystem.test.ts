@@ -449,6 +449,16 @@ describe('spawnSystem', () => {
       }
     });
 
+    // A spawned robot is always Auto (panAuto: true above), so there is nothing to hand to the engine.
+    it('never calls updateRobotPan at spawn - every new robot follows its position', () => {
+      const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan');
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
+
+      expect(panSpy).not.toHaveBeenCalled();
+    });
+
     it('draws nothing from the noise map for pan (no new getSeededVal key)', () => {
       vi.mocked(getSeededVal).mockClear();
 
@@ -1070,6 +1080,105 @@ describe('spawnSystem', () => {
       const primeRosterSpy = vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
       expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(primeRosterSpy).toHaveBeenCalledWith([]);
+    });
+
+    // Robot Pan T4 (docs/specs/ROBOT_PAN.md section 1.3): the engine forgets a robot's pan when its
+    // voice is released, and this pass releases every voice - so a manual robot is handed back from the store.
+    describe('re-primes a manual pan (Robot Pan T4)', () => {
+      const setManual = (robotId: string, pan: number) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robotId, { panAuto: false, pan });
+
+      it('calls updateRobotPan once, with the stored pan, for the one manual robot only', () => {
+        vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        setManual(robots[1].id, 0.6);
+        const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(panSpy.mock.calls).toEqual([[robots[1].id, 0.6]]);
+      });
+
+      it('primes after that robot is reserved, not before - the release has already cleared the engine', () => {
+        const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+        setManual(robot.id, -1);
+        const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+        reserveSpy.mockClear();
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(panSpy).toHaveBeenCalledWith(robot.id, -1);
+        expect(reserveSpy.mock.invocationCallOrder[0]).toBeLessThan(panSpy.mock.invocationCallOrder[0]);
+      });
+
+      it('never calls updateRobotPan when every robot is on Auto, even one carrying a stale pan', () => {
+        vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robots[0].id, { pan: 0.9 }); // Auto still true
+        const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(panSpy).not.toHaveBeenCalled();
+      });
+
+      it('does not prime a manual robot that has no layers to reserve', () => {
+        vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robot.id, {
+          panAuto: false,
+          pan: 0.6,
+          audioAttributes: { ...robot.audioAttributes, layers: [] },
+        });
+        const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => {});
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(panSpy).not.toHaveBeenCalled();
+      });
+
+      it('a throwing prime on one robot neither stops the pass nor skips the next robot', () => {
+        vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        const primeRosterSpy = vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        setManual(robots[0].id, 0.6);
+        setManual(robots[1].id, -0.2);
+        const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementationOnce(() => { throw new Error('boom'); });
+        panSpy.mockImplementation(() => {});
+        const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        registerSpy.mockClear();
+
+        expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
+
+        expect(panSpy.mock.calls).toEqual([[robots[0].id, 0.6], [robots[1].id, -0.2]]);
+        // Melody registration is independent of the prime failing, and the roster pass still ran.
+        expect(registerSpy).toHaveBeenCalledTimes(2);
+        expect(primeRosterSpy).toHaveBeenCalledTimes(1);
+      });
     });
 
   });
