@@ -35,7 +35,7 @@ function mount(count: number, row = true) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   document.body.appendChild(svg);
   const robotEl = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
-  const robot = { id: 'r7', position: { x: 400, y: 300 }, gemSeed: GEM_SEED };
+  const robot = { id: 'r7', position: { x: 400, y: 300 }, gemSeed: GEM_SEED, identityColor: '#3fa7c9' };
   gsap.set(robotEl, { x: robot.position.x, y: robot.position.y });
   let rowEl: Element | null = null;
   let host: Element = robotEl;
@@ -101,13 +101,20 @@ function sceneOf(i: ReturnType<typeof input>, group: Element, p: Vec2): Vec2 {
   };
 }
 
+// The shipped table has real builders; these tests run against a table holding only the stub, and
+// put the shipped one back after.
+const SHIPPED = { ...DECOR_BUILDERS };
+const clearBuilders = () => Object.keys(DECOR_BUILDERS).forEach((job) => delete DECOR_BUILDERS[job as JobType]);
+
 beforeEach(() => {
+  clearBuilders();
   DECOR_BUILDERS[JobType.VentExtraction] = stub();
 });
 
 afterEach(() => {
   killAllTimelines();
-  delete DECOR_BUILDERS[JobType.VentExtraction];
+  clearBuilders();
+  Object.assign(DECOR_BUILDERS, SHIPPED);
   vi.restoreAllMocks();
   document.body.innerHTML = '';
 });

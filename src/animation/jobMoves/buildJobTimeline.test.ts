@@ -50,7 +50,7 @@ function mount(count: number, restScale = 1, gemSeed = GEM_SEED) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   document.body.appendChild(svg);
   const robotEl = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
-  const robot = { id: 'r7', position: { x: 400, y: 300 }, gemSeed };
+  const robot = { id: 'r7', position: { x: 400, y: 300 }, gemSeed, identityColor: '#3fa7c9' };
   gsap.set(robotEl, { x: robot.position.x, y: robot.position.y });
   const orbiters = Array.from({ length: count }, () => {
     const copy = robotEl.appendChild(document.createElementNS(SVG_NS, 'g'));

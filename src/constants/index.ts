@@ -299,6 +299,18 @@ export const DECOR_JITTER = 0.15;
 export const DECOR_TIER_BELOW_STANDARD: 'none' | 'cheap' | 'all' = 'all';
 export const DECOR_TIER_BELOW_FULL: 'none' | 'cheap' | 'all' = 'all';
 
+/** Maintenance's sparks and flash (docs/specs/JOB_DECORATION.md §1.8; decor/maintenanceDecor.ts;
+ *  sketch docs/sketches/job-decorations.html, row "maintenance", Crawford's settings): on each
+ *  flicker chord, MAINT_SPARKS line sparks fly MAINT_SPARK_REACH scene units out over
+ *  MAINT_SPARK_LIFE seconds, MAINT_SPARK_LENGTH long at birth, spread over MAINT_SPREAD_DEG
+ *  degrees about the chord's direction, with a light flash of MAINT_FLASH_RADIUS at the orbiter. */
+export const MAINT_SPARKS = 5;
+export const MAINT_SPARK_REACH = 30;
+export const MAINT_SPARK_LENGTH = 8;
+export const MAINT_SPARK_LIFE = 1.2;
+export const MAINT_SPREAD_DEG = 120;
+export const MAINT_FLASH_RADIUS = 12;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

@@ -23,9 +23,11 @@ import type { WorkVariation } from '../variation';
 import type { DecorTier } from './decorTier';
 import type { MoveEvents } from './events';
 import { sceneToRowLocal } from './frames';
+import { addMaintenanceDecor } from './maintenanceDecor';
+import { svgEl } from './svg';
 import type { RobotGem } from '../../../components/robot/gem/polygon';
 import { BOB_PX } from '../../../constants';
-import type { JobType } from '../../../types/Robot';
+import { JobType } from '../../../types/Robot';
 import type { Vec2 } from '../../../types/Vec2';
 
 // ========================================
@@ -57,6 +59,8 @@ export interface DecorContext {
   tier: DecorTier;
   job: JobType;
   robotId: string;
+  /** The robot's `identityColor`; the other colour a decoration wears is `GEM_LIGHT_COLOR`. */
+  identityColor: string;
   variation: WorkVariation;
   shown: readonly OrbiterCorner[];
   events: readonly MoveEvents[];
@@ -76,10 +80,11 @@ export type DecorBuilder = (ctx: DecorContext) => void;
 // ========================================
 // CONSTANTS
 // ========================================
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-/** The builders by job. A job without an entry draws nothing. Each decoration slice registers here. */
-export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {};
+/** The builders by job. A job without an entry draws nothing. Each decoration slice registers here;
+ *  removing a slice removes one entry and its files. Mutable so tests can substitute a stub. */
+export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
+  [JobType.Maintenance]: addMaintenanceDecor,
+};
 
 // ========================================
 // EXPORTS
@@ -96,10 +101,8 @@ export function addJobDecor(tl: gsap.core.Timeline, run: DecorRun): void {
   const row = input.robotEl.querySelector('.robot__row');
   if (input.decorTier === 'none' || !build || !row) return;
 
-  const group = document.createElementNS(SVG_NS, 'g');
-  group.setAttribute('class', 'robot__work');
-  group.setAttribute('data-job', input.job);
-  const defs = group.appendChild(document.createElementNS(SVG_NS, 'defs'));
+  const group = svgEl('g', { class: 'robot__work', 'data-job': input.job });
+  const defs = group.appendChild(svgEl('defs'));
   row.appendChild(group);
   const remove = () => group.remove();
 
@@ -112,6 +115,7 @@ export function addJobDecor(tl: gsap.core.Timeline, run: DecorRun): void {
     tier: input.decorTier,
     job: input.job,
     robotId: input.robot.id,
+    identityColor: input.robot.identityColor,
     variation,
     shown,
     events,

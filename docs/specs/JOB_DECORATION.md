@@ -201,7 +201,9 @@ Window: carry `t0` to `t1`, `f = (t − t0) / (t1 − t0)`, the move's own phase
 
 ### 1.8 Maintenance — sparks + flash (`decor/maintenanceDecor.ts`)
 
-Window: ring `t0` to `t1`. Per orbiter, per spark chord `k` (its `sparkChords`), event time
+Window: ring `t0` to `t1` plus one spark life (`MAINT_SPARK_LIFE × factor`), clamped to the job — *as
+built (Task 7):* a chord near the end of the ring has most of its 1.2 s life left when the ring ends, so
+a window that stopped at `t1` would remove the group with those sparks still lit (a pop). Per orbiter, per spark chord `k` (its `sparkChords`), event time
 `t0 + (k + .5) / RING_SEGMENTS × (t1 − t0)` and event position = the ring point at angle
 `startAngle + direction × 2π × RING_REVOLUTIONS × (k + .5) / RING_SEGMENTS` (a fixed point; the
 orbiter is there then). Age fraction `a` over `MAINT_SPARK_LIFE` 1.2 s × factor:
@@ -214,7 +216,14 @@ orbiter is there then). Age fraction `a` over `MAINT_SPARK_LIFE` 1.2 s × factor
   `+ dir × MAINT_SPARK_REACH (30 × factor) × smooth(a)`, length `MAINT_SPARK_LENGTH (8) × (1 − a)`,
   opacity `1 − a`; spark 0 light colour, the rest identity.
 
-Node counts are fixed per run (`orbiters × FLICKER_SPARKS × (1 + MAINT_SPARKS)`), created once.
+Node counts are fixed per run, created once: `(1 + MAINT_SPARKS)` per spark chord, so at most
+`orbiters × FLICKER_SPARKS × (1 + MAINT_SPARKS)` (two draws on one chord spark once, `sparkChords`
+de-duplicates, and that chord gets one set of nodes). *As built:* the pure state is `sparkEvents(ring,
+toRow)`, `sparkAt(t, event, s, v)`, `flashAt(t, event, v)` and `maintenanceWindow(ring, v, duration)`;
+the plan's `v` on `sparkEvents` and `knobs` on `sparkAt` were dropped (the events need no variation and
+the knobs are the `MAINT_*` constants). Positions are row-local, so reach and length scale with the back
+row. A spark born in the last few chords can still be cut by the reattach (the window ends at the job's
+end), at an alpha of at most about 0.3.
 
 ### 1.9 Variation and tier (`variation.ts`, `decor/decorTier.ts`)
 

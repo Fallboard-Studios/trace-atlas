@@ -49,7 +49,7 @@ import type { WorkSite } from '../../systems/workSites';
 // TYPES
 // ========================================
 export interface JobTimelineInput {
-  robot: Pick<Robot, 'id' | 'position' | 'gemSeed'>;
+  robot: Pick<Robot, 'id' | 'position' | 'gemSeed' | 'identityColor'>;
   /** The robot's `.robot` group (`getRef(\`robot-${id}\`)`), at `robot.position`. */
   robotEl: Element;
   site: Pick<WorkSite, 'points' | 'paths'>;
