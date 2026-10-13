@@ -6,7 +6,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 import { buildJobTimeline, type JobTimelineInput } from '../buildJobTimeline';
 import { DECOR_BUILDERS, type DecorBuilder, type DecorContext } from './jobDecor';
-import { sceneToRowLocal } from './frames';
+import { orbiterLocalToRowLocal, sceneToRowLocal } from './frames';
 import { jobDuration } from '../jobDuration';
 import { workVariation } from '../variation';
 import type { OrbiterCorner } from '../sceneToOrbiterLocal';
@@ -73,7 +73,7 @@ function input(over: Partial<Omit<JobTimelineInput, 'robot' | 'robotEl' | 'orbit
   return i;
 }
 
-/** A builder that draws one wire (`line`) whose end sits on `ANCHOR` and runs its one proxy tween
+/** A builder that draws one wire (`line`) whose end sits on `ANCHOR` and calls run once
  *  over [from, to] (default: the whole job). */
 function stub(from?: number, to?: number) {
   return vi.fn<DecorBuilder>((ctx: DecorContext) => {
@@ -211,7 +211,7 @@ describe('addJobDecor — the run ends (Assumption 5, Q4)', () => {
     expect(works(i)).toHaveLength(0);
   });
 
-  it('a decoration that ends before the job removes its group when its tween completes, not at the end of the job', () => {
+  it('a decoration that ends before the job removes its group when its window ends, not at the end of the job', () => {
     DECOR_BUILDERS[JobType.VentExtraction] = stub(1, 2);
     const i = input();
     const tl = buildJobTimeline(i);
@@ -221,7 +221,7 @@ describe('addJobDecor — the run ends (Assumption 5, Q4)', () => {
     expect(works(i)).toHaveLength(0);
   });
 
-  it('the proxy tween writes (the builder callback runs with timeline time) while the group lives', () => {
+  it('the writes run with the timeline time while the group lives', () => {
     const i = input();
     const tl = buildJobTimeline(i);
     tl.time(3);
@@ -243,12 +243,12 @@ describe('addJobDecor — the run ends (Assumption 5, Q4)', () => {
     expect(works(i)).toHaveLength(0);
   });
 
-  it('a builder may run one proxy tween only (spec: one tween per decoration)', () => {
+  it('a builder may call run once only', () => {
     DECOR_BUILDERS[JobType.VentExtraction] = vi.fn((ctx: DecorContext) => {
       ctx.run(0, 1, () => {});
       ctx.run(1, 2, () => {});
     });
-    expect(() => buildJobTimeline(input())).toThrow(/one proxy tween/);
+    expect(() => buildJobTimeline(input())).toThrow(/run once/);
   });
 });
 
@@ -353,5 +353,121 @@ describe('addJobDecor — the counter-bob (Assumption 3)', () => {
       killAllTimelines();
       document.body.innerHTML = '';
     }
+  });
+});
+
+describe('addJobDecor: the orbiters, for builders that anchor to them (Task 8)', () => {
+  /** The context a builder gets, captured from a run whose tween plays the whole job. */
+  function capture(over: Partial<Omit<JobTimelineInput, 'robot' | 'robotEl' | 'orbiters'>> = {}, restScale = 1) {
+    let ctx!: DecorContext;
+    DECOR_BUILDERS[JobType.VentExtraction] = (c) => {
+      ctx = c;
+      c.run(0, c.duration, () => {});
+    };
+    const i = input(over);
+    gsap.set(i.orbiters, { scale: restScale });
+    const tl = buildJobTimeline(i);
+    return { i, tl, ctx };
+  }
+
+  it('hands over the locked orbiters and the scales they rest at', () => {
+    const { i, ctx } = capture({}, 0.8);
+    expect(ctx.orbiters).toEqual(i.orbiters);
+    expect(ctx.restScales).toEqual([0.8, 0.8, 0.8]);
+  });
+
+  it.each([1, 0.75])('pose(j) is the dock at rest, in the group frame (layer scale %s)', (layerScale) => {
+    const { i, ctx } = capture({ layerScale });
+    const gem = getRobotGem(GEM_SEED);
+    ctx.shown.forEach((corner, j) => {
+      const dock = orbiterLocalToRowLocal({ x: 0, y: 0 }, { gem, bodyScale: i.bodyScale, corner });
+      const pose = ctx.pose(j);
+      expect(pose.x).toBeCloseTo(dock.x, 9);
+      expect(pose.y).toBeCloseTo(dock.y, 9);
+      expect(pose.scale).toBe(1);
+    });
+  });
+
+  it.each([1, 0.75])('pose(j) follows the orbiter to its pulse target and reads its live scale (layer scale %s)', (layerScale) => {
+    const { tl, ctx } = capture({ layerScale }, 0.8);
+    const pulse = ctx.events.find((e) => e.kind === 'pulse')!;
+    if (pulse.kind !== 'pulse') throw new Error('no pulse');
+    pulse.orbs.forEach((orb, j) => {
+      tl.time(orb.start + pulse.slot / 2);
+      const pose = ctx.pose(j);
+      const want = ctx.toRow(orb.target);
+      expect(pose.x).toBeCloseTo(want.x, 2);
+      expect(pose.y).toBeCloseTo(want.y, 2);
+      expect(pose.scale).toBeCloseTo(0.8 * 1.3, 3);
+    });
+  });
+});
+
+describe('addJobDecor: when the writes run (Task 8)', () => {
+  /** A stub that records every `write(t)` and, with it, orbiter 0's pose at that moment. */
+  function recorder(from: number, to: number) {
+    const calls: { t: number; scale: number }[] = [];
+    DECOR_BUILDERS[JobType.VentExtraction] = (ctx) => {
+      ctx.group.appendChild(document.createElementNS(SVG_NS, 'line'));
+      ctx.run(from, to, (t) => calls.push({ t, scale: ctx.pose(0).scale }));
+    };
+    return calls;
+  }
+
+  it('writes after the moves have rendered: a seek into a pulse reads the scale the orbiter has now, not the last update\'s', () => {
+    const calls = recorder(0, jobDuration(110));
+    const i = input();
+    const tl = buildJobTimeline(i);
+    const pulse = (tl.data as { events: { slot: number; orbs: { start: number }[] }[] }).events[0];
+    const mid = pulse.orbs[0].start + pulse.slot / 2; // the middle of orbiter 0 slot, where it peaks
+    tl.time(0.2);
+    tl.time(mid);
+    const last = calls[calls.length - 1];
+    expect(last.t).toBeCloseTo(mid, 9);
+    expect(last.scale).toBeCloseTo(num(i.orbiters[0], 'scale'), 9);
+    expect(last.scale).toBeGreaterThan(1);
+  });
+
+  it('writes nothing before the window and nothing until the playhead is in it', () => {
+    const calls = recorder(2, 3);
+    buildJobTimeline(input()).time(1.5);
+    expect(calls).toEqual([]);
+  });
+
+  it('writes at the playhead time while it is in the window, clamped to the window', () => {
+    const calls = recorder(2, 3);
+    const tl = buildJobTimeline(input());
+    tl.time(2.25);
+    tl.time(2.75);
+    expect(calls.map((c) => c.t)).toEqual([2.25, 2.75]);
+  });
+
+  it('a seek back out of the window writes once at its start edge, then stops writing', () => {
+    const calls = recorder(2, 3);
+    const tl = buildJobTimeline(input());
+    tl.time(2.5);
+    tl.time(1);
+    tl.time(0.5);
+    expect(calls.map((c) => c.t)).toEqual([2.5, 2]);
+  });
+
+  it('the first update past the window writes once at its end edge, and the group goes', () => {
+    const calls = recorder(2, 3);
+    const i = input();
+    const tl = buildJobTimeline(i);
+    tl.time(2.5);
+    tl.time(4);
+    tl.time(5);
+    expect(calls.map((c) => c.t)).toEqual([2.5, 3]);
+    expect(works(i)).toHaveLength(0);
+  });
+
+  it('a window clamped to the job writes the clamped edge, never past the end of the job', () => {
+    const d = jobDuration(110);
+    const calls = recorder(d - 1, d + 5);
+    const tl = buildJobTimeline(input());
+    tl.time(d - 0.5);
+    tl.progress(1);
+    expect(Math.max(...calls.map((c) => c.t))).toBeLessThanOrEqual(d);
   });
 });

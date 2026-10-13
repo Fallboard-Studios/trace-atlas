@@ -8,7 +8,7 @@
 // Pure state, thin builder, as haloWaves.ts: `sparkEvents` turns the ring's plan events into one
 // event per chord (its time, its fixed place on the ring, its angle); `sparkAt` and `flashAt` are the
 // shapes at a time `t`; `addMaintenanceDecor` makes the nodes once and writes those shapes from the
-// decoration's one proxy tween. Everything is in the group's row-local frame, so reach and length
+// decoration's one write hook (ctx.run). Everything is in the group's row-local frame, so reach and length
 // scale with the back row like the rest of the robot. Ported from the sketch's `maintenance`.
 //
 // The tween outlives the ring by a spark life (maintenanceWindow): the last chords' sparks play out
@@ -145,7 +145,7 @@ export function maintenanceWindow(ring: RingEvents, v: WorkVariation, duration: 
 // BUILDER
 // ========================================
 /** Makes the six nodes per spark chord (a flash and MAINT_SPARKS sparks), once, and writes them from
- *  the one proxy tween. 'cheap' and 'all' draw the same: sparks and the flash are the cheap tier. */
+ *  the one write hook. 'cheap' and 'all' draw the same: sparks and the flash are the cheap tier. */
 export const addMaintenanceDecor: DecorBuilder = (ctx) => {
   const ring = ctx.events.find((e): e is RingEvents => e.kind === 'ring');
   if (!ring) return;

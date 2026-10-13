@@ -299,6 +299,20 @@ export const DECOR_JITTER = 0.15;
 export const DECOR_TIER_BELOW_STANDARD: 'none' | 'cheap' | 'all' = 'all';
 export const DECOR_TIER_BELOW_FULL: 'none' | 'cheap' | 'all' = 'all';
 
+/** Vent Extraction's tethers and motes (docs/specs/JOB_DECORATION.md §1.3; decor/ventDecor.ts; sketch
+ *  docs/sketches/job-decorations.html, row "ventExtraction", Crawford's settings): a wire from each
+ *  orbiter to the vent mouth (VENT_WIRE_WIDTH wide, VENT_WIRE_OPACITY opaque) that brightens on its
+ *  orbiter's pulse, and VENT_MOTES motes per pulse that rise VENT_MOTE_RISE scene units off the mouth
+ *  over VENT_MOTE_LIFE seconds, shrinking from VENT_MOTE_RADIUS. The whole thing fades in and out over
+ *  VENT_FADE seconds either side of the pulse. */
+export const VENT_FADE = 0.5;
+export const VENT_MOTES = 3;
+export const VENT_MOTE_LIFE = 1.8;
+export const VENT_MOTE_RISE = 40;
+export const VENT_MOTE_RADIUS = 3.4;
+export const VENT_WIRE_WIDTH = 1.8;
+export const VENT_WIRE_OPACITY = 0.5;
+
 /** Maintenance's sparks and flash (docs/specs/JOB_DECORATION.md §1.8; decor/maintenanceDecor.ts;
  *  sketch docs/sketches/job-decorations.html, row "maintenance", Crawford's settings): on each
  *  flicker chord, MAINT_SPARKS line sparks fly MAINT_SPARK_REACH scene units out over

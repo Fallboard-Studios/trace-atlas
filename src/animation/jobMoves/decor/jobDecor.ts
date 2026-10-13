@@ -9,22 +9,30 @@
 // This file owns the container only: the group, its `<defs>`, the counter-bob that holds a wire
 // anchored to a site point still while the body bobs, the row-local frame, and the cleanup. What is
 // drawn inside is a per-job builder (DECOR_BUILDERS), each a pure state function plus an `add…` that
-// creates its nodes once and calls `ctx.run` for its one proxy tween.
+// creates its nodes once and calls `ctx.run` once for its writes.
+//
+// The writes run from the job timeline's own `onUpdate`, not from a tween of their own: GSAP renders
+// a timeline's children in start order, so a tween that starts before the moves would read the
+// orbiters' positions and scales from the previous update. The timeline's `onUpdate` fires after
+// every child has rendered, so a seek lands and a wire never lags the orbiter it follows.
 //
 // Animation only: nothing here touches AudioEngine, BeatClock or a store (Strict Separation).
 
 // ========================================
 // IMPORTS
 // ========================================
+import gsap from 'gsap';
+
 import { bob } from '../bob';
 import type { JobTimelineInput } from '../buildJobTimeline';
 import type { OrbiterCorner } from '../sceneToOrbiterLocal';
 import type { WorkVariation } from '../variation';
 import type { DecorTier } from './decorTier';
 import type { MoveEvents } from './events';
-import { sceneToRowLocal } from './frames';
+import { orbiterLocalToRowLocal, sceneToRowLocal } from './frames';
 import { addMaintenanceDecor } from './maintenanceDecor';
 import { svgEl } from './svg';
+import { addVentDecor } from './ventDecor';
 import type { RobotGem } from '../../../components/robot/gem/polygon';
 import { BOB_PX } from '../../../constants';
 import { JobType } from '../../../types/Robot';
@@ -42,6 +50,8 @@ export interface DecorRun {
   variation: WorkVariation;
   /** One entry per move, in table order. */
   events: readonly MoveEvents[];
+  /** Each locked orbiter's scale at job start, by slot (what a pulse is measured from). */
+  restScales: readonly number[];
   /** The job's length, seconds: jobDuration(bpm). */
   duration: number;
   /** The bob: whole cycles of `cycle` seconds fitting the job. */
@@ -64,13 +74,23 @@ export interface DecorContext {
   variation: WorkVariation;
   shown: readonly OrbiterCorner[];
   events: readonly MoveEvents[];
+  /** The locked `.gem__orbiter-local` groups, by slot (`shown[j]` is orbiter j's corner). */
+  orbiters: readonly Element[];
+  /** Each orbiter's scale at job start, by slot. */
+  restScales: readonly number[];
   duration: number;
   /** A scene point in the group's frame (frames.ts `sceneToRowLocal`). */
   toRow(p: Vec2): Vec2;
+  /** Orbiter `j`'s live centre in the group's frame (its GSAP x/y through `orbiterLocalToRowLocal`)
+   *  and its live GSAP scale. Reads the tween values now, so call it from `run`'s `write`. */
+  pose(j: number): { x: number; y: number; scale: number };
   /**
-   * The decoration's one proxy tween: `write(t)` runs with the timeline time on every update from
-   * `t0` to `t1`, `ease: 'none'`. The window is clamped to the job, so a fade that would start
-   * before 0 or end after the reattach never lengthens the timeline. May be called once.
+   * The decoration's writes: `write(t)` runs with the timeline time on every update while the
+   * playhead is in `[t0, t1]`, after all the moves have rendered, so `pose` is current. The window
+   * is clamped to the job, so a fade that would start before 0 or end after the reattach never
+   * lengthens the timeline. A playhead that leaves the window (a seek back, or the next update past
+   * the end) gets one last `write` at the nearest edge, where every shape is invisible. The group is
+   * removed when the playhead passes `t1`. May be called once.
    */
   run(t0: number, t1: number, write: (t: number) => void): void;
 }
@@ -84,6 +104,7 @@ export type DecorBuilder = (ctx: DecorContext) => void;
  *  removing a slice removes one entry and its files. Mutable so tests can substitute a stub. */
 export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
   [JobType.Maintenance]: addMaintenanceDecor,
+  [JobType.VentExtraction]: addVentDecor,
 };
 
 // ========================================
@@ -92,11 +113,11 @@ export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
 /**
  * Adds the job's decoration to its timeline, when its tier is not 'none', the robot has a
  * `.robot__row` and the job has a builder. (Reduced motion never gets here: buildJobTimeline plans
- * no moves for it, so `addWork` is not called.) The group is removed when the proxy tween
- * completes and when the timeline is killed (whatever its progress).
+ * no moves for it, so `addWork` is not called.) The group is removed when the decoration's window
+ * ends and when the timeline is killed (whatever its progress).
  */
 export function addJobDecor(tl: gsap.core.Timeline, run: DecorRun): void {
-  const { input, gem, shown, variation, events, duration, cycle, cycles } = run;
+  const { input, gem, shown, variation, events, restScales, duration, cycle, cycles } = run;
   const build = DECOR_BUILDERS[input.job];
   const row = input.robotEl.querySelector('.robot__row');
   if (input.decorTier === 'none' || !build || !row) return;
@@ -119,17 +140,33 @@ export function addJobDecor(tl: gsap.core.Timeline, run: DecorRun): void {
     variation,
     shown,
     events,
+    orbiters: input.orbiters,
+    restScales,
     duration,
     toRow: (p) => sceneToRowLocal(p, frame),
+    pose(j) {
+      const el = input.orbiters[j];
+      const at = orbiterLocalToRowLocal(
+        { x: Number(gsap.getProperty(el, 'x')), y: Number(gsap.getProperty(el, 'y')) },
+        { gem, bodyScale: input.bodyScale, corner: shown[j] },
+      );
+      return { x: at.x, y: at.y, scale: Number(gsap.getProperty(el, 'scale')) };
+    },
     run(t0, t1, write) {
-      if (ran) throw new Error('addJobDecor: a decoration runs one proxy tween only');
+      if (ran) throw new Error('addJobDecor: a decoration calls run once only');
       ran = true;
       const from = Math.max(0, t0);
       const to = Math.min(duration, t1);
       if (!(to > from)) return;
       tweened = true;
-      const proxy = { t: from };
-      tl.to(proxy, { t: to, duration: to - from, ease: 'none', onUpdate: () => write(proxy.t), onComplete: remove }, from);
+      let inside = false;
+      tl.eventCallback('onUpdate', () => {
+        const t = tl.time();
+        const now = t >= from && t <= to;
+        if (now || inside) write(Math.min(to, Math.max(from, t)));
+        inside = now;
+      });
+      tl.call(remove, undefined, to);
     },
   });
 
@@ -137,7 +174,7 @@ export function addJobDecor(tl: gsap.core.Timeline, run: DecorRun): void {
     remove();
     return;
   }
-  // The tween's onComplete covers a run that plays out. A killed run is every other end: a world
+  // The call at the window's end covers a run that plays out. A killed run is every other end: a world
   // transition (killAllTimelines) and the work loop's silent finish, which runs `progress(1, true)`
   // (callbacks muted) and then kills. GSAP's `onInterrupt` fires only below progress 1, so it would
   // miss that second case; every path ends in `kill()`, so the group goes with it.

@@ -272,6 +272,6 @@ function addWork(
     tl.to(el, { x: 0, y: 0, duration: ATTACH_DURATION, ease: 'sine.inOut' }, duration - ATTACH_DURATION);
   });
 
-  addJobDecor(tl, { input, gem, shown, variation, events, duration, cycle, cycles });
+  addJobDecor(tl, { input, gem, shown, variation, events, restScales: work.restScales, duration, cycle, cycles });
   return events;
 }

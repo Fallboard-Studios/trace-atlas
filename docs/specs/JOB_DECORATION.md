@@ -18,10 +18,16 @@ the run's progress, written to a group of SVG nodes that exists only for that ru
 ## Assumptions (correct these before the plan)
 
 1. **The job timeline is the only driver.** Every decoration is added to the `work-${robotId}` timeline
-   `buildJobTimeline` already builds, as one proxy tween `{ u: 0 → 1 }` over the decoration's window,
-   `ease: 'none'`, whose `onUpdate` writes attributes with `gsap.set`. Seeks land because the update is a
-   function of `u` and of the orbiters' current GSAP `x`/`y` (read with `gsap.getProperty`), never of
-   accumulated state. No second timeline, no `requestAnimationFrame`, no timers.
+   `buildJobTimeline` already builds. *As built (Task 8):* the spec first said "one proxy tween
+   `{ u: 0 → 1 }` whose `onUpdate` writes", but GSAP renders a timeline's children in start order, and a
+   decoration window that opens before the moves (Vent's fade starts half a second ahead of the pulse)
+   renders **first**, so its `onUpdate` read the orbiters' scales and positions from the previous update
+   (Task 8's glow tests failed on a seek). The writes now run from the **timeline's own `onUpdate`**,
+   which fires after every child has rendered, with the playhead time clamped to the window; attributes
+   are written with `setAttribute` (cheaper than `gsap.set`). Seeks land because the update is a
+   function of the playhead time and of the orbiters' current GSAP `x`/`y`/`scale` (read with
+   `gsap.getProperty`), never of accumulated state. No second timeline, no `requestAnimationFrame`, no
+   timers.
 2. **The nodes live in `.robot__row`**, appended after `RobotBody`'s `g.gem` (so they draw over the body
    and the orbiters, as the sketch does), as one `<g class="robot__work">` created with
    `document.createElementNS` at job start and removed when the run ends or is killed. They therefore
@@ -40,8 +46,9 @@ the run's progress, written to a group of SVG nodes that exists only for that ru
    bob (the counter-bob cancels it inside the group).
 5. **A killed run cleans up.** `finishJobSilently` does `progress(1, true)` (events suppressed) then kills
    the key, and `killAllTimelines()` kills it outright on a world transition — neither fires `onComplete`.
-   The group's removal is therefore registered on the proxy tween's `onComplete` (a run that plays out)
-   **and** on the job timeline's `kill()` (every other end). *As built (Task 6):* the spec first named
+   The group's removal is therefore registered on a call at the end of the decoration's window (a run
+   that plays out; Task 6 used the tween's `onComplete`, Task 8 a `tl.call` once the writes moved to the
+   timeline's `onUpdate`) **and** on the job timeline's `kill()` (every other end). *As built (Task 6):* the spec first named
    `onInterrupt` for the second, but GSAP fires it only `if (progress() < 1)` (`_interrupt`,
    gsap-core.js), and the silent finish has just set progress to 1 with callbacks muted — so it would have
    left the group in the document. `addJobDecor` wraps the timeline's `kill` instead (Task 6's
@@ -89,11 +96,15 @@ timeline, when `input.decorTier !== 'none'` and not under reduced motion:
 3. Calls the job's builder (§1.3–§1.8) with a `DecorContext`: the group and its `<defs>`, the plan's
    `events`, `toRow` (the scene → row-local frame, Assumption 4), the robot's `WorkVariation`, the tier,
    and `run(t0, t1, write)`. The builder creates its nodes once (fixed counts, opacity 0) and calls `run`
-   **once**: the one proxy tween, `write(t)` getting the timeline time on every update. `run` clamps the
-   window to `[0, jobDuration]` (a fade must never lengthen the timeline), and a builder that draws
-   nothing, or whose window is empty after clamping, leaves no group. Builders register in
-   `DECOR_BUILDERS` (`decor/jobDecor.ts`).
-4. Removes the group on the tween's `onComplete` and when the timeline is killed (Assumption 5).
+   **once**: `write(t)` gets the timeline time on every update while the playhead is in the window
+   (Assumption 1), plus one last write at the nearest edge when it leaves (a seek back, or the update
+   past the end), where every shape is invisible. `run` clamps the window to `[0, jobDuration]` (a fade
+   must never lengthen the timeline), and a builder that draws nothing, or whose window is empty after
+   clamping, leaves no group. The context also carries `orbiters`, `restScales` and `pose(j)` (orbiter
+   `j`'s live row-local centre and GSAP scale, through `orbiterLocalToRowLocal`) for the builders that
+   anchor to an orbiter. Builders register in `DECOR_BUILDERS` (`decor/jobDecor.ts`).
+4. Removes the group when the playhead passes the window's end and when the timeline is killed
+   (Assumption 5). After that a seek back does not bring it back.
 
 The builders are pure in the same way `haloWaves.ts` is: a `…State(u, events, variation, knobs)` function
 returns plain shape data (points, radii, opacities, `d` strings) that the `add…` function writes. Every
@@ -124,7 +135,12 @@ plans no moves); the types live in `decor/events.ts`.
 Window: the pulse move, from `t0 − VENT_FADE` to `t1 + VENT_FADE` (`VENT_FADE` 0.5 s), alpha ramping over
 `VENT_FADE` at both ends. Nodes per shown orbiter: one base wire `<line>`, one glow wire `<line>` with a
 `<linearGradient gradientUnits="userSpaceOnUse">` (light colour, `stop-opacity` α → 0 at 60 %), and
-`VENT_MOTES` (3) mote `<circle>`s; all in the group.
+`VENT_MOTES` (3) mote `<circle>`s; all in the group. *As built (Task 8):* the window alpha is
+`clamp(min((t − (t0 − F)) / F, (t1 + F − t) / F))`, up over `[t0 − F, t0]` and down over `[t1, t1 + F]`
+(the sketch's `windowAlpha` ends at `t1 + 0.4`; this follows the spec's `t1 + VENT_FADE`); the glow wire
+is drawn (opacity 1) only while its gradient has any brightness; and tier `'cheap'` draws the motes only
+(time-anchored, no live orbiter reads) — §1.9's tier lists name no vent shape, so this is the reading
+that leaves vent something to draw.
 
 - **Wire**: from the mouth (`events.point`, row-local) to the orbiter's live centre; identity colour,
   width `VENT_WIRE_WIDTH` 1.8, opacity `VENT_WIRE_OPACITY` 0.5 × window alpha.
@@ -280,7 +296,7 @@ docs/sketches/job-decorations.html   edit — STATUS header
 ## 3. Implementation Boundaries & Constraints
 
 - **Always:** every shape's alpha 0 at both ends of its window; nodes created once per run, removed on
-  complete *and* on kill; one proxy tween per decoration; identity + light colour only; constants from
+  complete *and* on kill; one write hook (`ctx.run`) per decoration; identity + light colour only; constants from
   the sketch's defaults, each `UPPER_SNAKE` with its sketch row in the comment; new variation draws
   appended, never inserted; `npm run build:types`, `npm run lint`, `npm test` before every commit;
   state functions unit-tested without the DOM.
