@@ -1457,7 +1457,9 @@ app does not use yet.
   [AUDIO_LOAD_BUDGET.md](../specs/archive/AUDIO_LOAD_BUDGET.md) §7;
   [scratchy-audio-phones.md](scratchy-audio-phones.md)): the same `?session=` world, A/B against the
   branch base on the Pixel, the `?debug` HUD's output-underrun count (`src/utils/audioHealth.ts`) at
-  Standard and at Full, plus `npm run perf` on the desktop. A feature that raises underruns ships
+  Standard and at Full, plus `npm run perf` on the desktop, against the series baseline recorded in
+  [scratchy-audio-phones.md](scratchy-audio-phones.md#baseline-for-the-audio-palette-series-roadmap-50--crawfords-run-2026-10-13)
+  (seed `alpha`, Full: 0 underruns in 3:00 on `main` at `ca2b6868`). A feature that raises underruns ships
   behind the Effects Limit — a new `LOAD_*_MIN` threshold beside `LOAD_FILTER_LFOS_MIN`
   (`src/constants/index.ts:44–46`) — or not at all.
 - **Where nodes may be added.** New nodes go on the global chain (one instance) or as a per-robot

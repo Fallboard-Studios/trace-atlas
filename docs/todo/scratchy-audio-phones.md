@@ -506,3 +506,30 @@ up again.
 **Decision made (2026-09-21):** Crawford accepted this data as sufficient — the effect size (6.6×) is well past the noise seen elsewhere in this project, and the ~266 ms latency cost is the same one Light already ships unremarked. **Standard now ships with `playback`** (`LOAD_PLAYBACK_BELOW` 0.4 → 0.61, commit `6e8910c`; spec decision J, [AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) §7). `charlie` remains untested for this pairing.
 
 **Confounder note:** Crawford let the phone cool between takes for this batch (unlike the first phone A/B, run back to back). That doesn't fully control for it — there's no explicit before/after temperature or battery reading recorded — but it removes the sharpest objection to the earlier inconclusive A/B, and is part of why this comparison was trusted enough to resolve decision J.
+
+## Baseline for the Audio Palette series (roadmap 50) — Crawford's run, 2026-10-13
+
+The reference every 50.x sub-phase A/Bs against, measured on `main` at `ca2b6868` (Robot Pan merged,
+chain `EQ3 → LPF → HPF → Delay → Reverb → Compressor → Limiter`, nothing from 50.x yet). Pixel 8,
+Chrome 153, `?debug` on, the local Vite preview build.
+
+**The world:** Crawford's "go to for testing now" — the share link's `?session=` payload, decoded:
+seed `alpha`, camera `x 0, y 50`, every global setting at its default (Natural Decay; reverb decay 1.5
+/ preDelay 0.02 / wet 0.3; delay 0.25 / feedback 0.2 / wet 0.15; compressor −24 dB / 2:1 / 3 ms /
+250 ms / knee 6; EQ3 flat; LPF 20 kHz Q 1; HPF 20 Hz Q 1; limiter −12). Append `?debug&session=` and the
+payload below to the preview URL:
+
+```
+eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOjAsInkiOjUwfSwiZyI6eyJjb21wcmVzc29yQmVmb3JlRGVsYXkiOmZhbHNlLCJyZXZlcmIiOnsiZGVjYXkiOjEuNSwicHJlRGVsYXkiOjAuMDIsIndldCI6MC4zfSwiZGVsYXkiOnsiZGVsYXlUaW1lIjowLjI1LCJmZWVkYmFjayI6MC4yLCJ3ZXQiOjAuMTV9LCJjb21wcmVzc29yIjp7InRocmVzaG9sZCI6LTI0LCJyYXRpbyI6MiwiYXR0YWNrIjowLjAwMywicmVsZWFzZSI6MC4yNSwia25lZSI6Nn0sImVxMyI6eyJsb3ciOjAsIm1pZCI6MCwiaGlnaCI6MH0sImZpbHRlckxQRiI6eyJ0eXBlIjoibG93cGFzcyIsImZyZXF1ZW5jeSI6MjAwMDAsIlEiOjF9LCJmaWx0ZXJIUEYiOnsidHlwZSI6ImhpZ2hwYXNzIiwiZnJlcXVlbmN5IjoyMCwiUSI6MX0sImxpbWl0ZXIiOnsidGhyZXNob2xkIjotMTJ9fX0=
+```
+
+| Run | Length | `underruns` (start → end) | By ear |
+|---|---|---|---|
+| Full | 3:00 | 0 → **0** | clean throughout |
+| Standard | — | *not yet run* | — |
+
+**How a sub-phase uses it:** same link, same length, same phone, Full and Standard, on the sub-phase's
+branch with the new control at its seeded default and again at its loudest setting. The number to beat
+is zero at Full: any underrun the branch adds is the signal the umbrella's gate (roadmap 50, "Without
+distortion") is written for, and the feature ships behind a new `LOAD_*_MIN` threshold or not at all.
+Re-baseline here whenever `main` changes the chain between sub-phases.
