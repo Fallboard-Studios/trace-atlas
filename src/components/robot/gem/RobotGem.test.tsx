@@ -7,6 +7,12 @@ import { render } from '@testing-library/react';
 
 import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './RobotGem';
 import source from './RobotGem.tsx?raw';
+// Every job-decoration source (not its tests): they draw SVG nodes by hand, so the filter ban reaches them too.
+const decorSources = import.meta.glob(['../../../animation/jobMoves/decor/*.ts', '!../../../animation/jobMoves/decor/*.test.ts'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
 import { gemPalette, GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { quadPath } from './gemPaths';
@@ -426,6 +432,14 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
   it('no <filter> anywhere (spec Assumption 5)', () => {
     expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('filter')).toBeNull();
     expect(source).not.toMatch(/<filter|feGaussianBlur/);
+  });
+
+  it('no <filter> in any job decoration either (the .robot__work builders in animation/jobMoves/decor, JOB_DECORATION.md Assumption 6)', () => {
+    const files = Object.entries(decorSources);
+    expect(files.length).toBeGreaterThan(0);
+    for (const [path, text] of files) {
+      expect(text, path).not.toMatch(/<filter|feGaussianBlur|['"]filter['"]/);
+    }
   });
 
   it('a new halo colour re-renders the waves and their trails (nothing freezes the markup: GSAP only writes attributes React leaves constant)', () => {

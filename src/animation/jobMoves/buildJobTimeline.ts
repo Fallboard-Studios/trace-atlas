@@ -13,6 +13,9 @@
 // bob, inverted and divided by the gem scale, so a detached orbiter holds still in the scene.
 // The bob is zero at both ends, so the docked orbiters still ride with the body.
 //
+// A job may also draw a decoration over the orbiters (decor/jobDecor.ts): a group of SVG nodes in
+// `.robot__row` that exists only for the run, driven by this same timeline.
+//
 // Animation only: callbacks are the caller's `onComplete`, never AudioEngine (Strict Separation).
 // The caller locks the orbiters before and unlocks them in `onComplete`.
 
@@ -30,8 +33,10 @@ import { addCarry, carryTargets } from './carry';
 import { addFan, fanTargets } from './fan';
 import { turnRanks, workVariation, type WorkVariation } from './variation';
 import { sceneToOrbiterLocal, type OrbiterCorner } from './sceneToOrbiterLocal';
+import { bob } from './bob';
 import type { DecorTier } from './decor/decorTier';
 import type { JobTimelineData, MoveEvents } from './decor/events';
+import { addJobDecor } from './decor/jobDecor';
 import { setTimeline } from '../timelineMap';
 import { getRobotGem } from '../../components/robot/gem/polygon';
 import { orbiterPlan, ATTACH_DURATION } from '../../components/robot/gem/orbiterMotion';
@@ -55,7 +60,7 @@ export interface JobTimelineInput {
   /** The live transport tempo at job start. */
   bpm: number;
   /** How much decoration this run draws (`decorTier(robotLoad)`, read once by the work loop beside
-   *  `bpm`). Not used by the timeline yet (Task 6). */
+   *  `bpm`). 'none' adds no group (decor/jobDecor.ts). */
   decorTier: DecorTier;
   bodyScale: number;
   layerScale: number;
@@ -184,16 +189,6 @@ function planStep(step: MoveStep, w: WorkContext, t0: number, t1: number): Plann
   }
 }
 
-/** One sine cycle on `y` about `base` (up by `amp`, down by `amp`, back), repeated `cycles` times. */
-function bob(el: Element, base: number, amp: number, cycle: number, cycles: number): gsap.core.Timeline {
-  const q = cycle / 4;
-  return gsap
-    .timeline({ repeat: cycles - 1 })
-    .to(el, { y: base - amp, duration: q, ease: 'sine.out' })
-    .to(el, { y: base + amp, duration: 2 * q, ease: 'sine.inOut' })
-    .to(el, { y: base, duration: q, ease: 'sine.in' });
-}
-
 // ========================================
 // EXPORTS
 // ========================================
@@ -231,11 +226,12 @@ function addReducedPulse(tl: gsap.core.Timeline, robotEl: Element, cycle: number
  *  rest scale and opacity, so the reattach only flies it home. Returns each move's events. */
 function addWork(
   tl: gsap.core.Timeline,
-  { robot, robotEl, site, job, orbiters, bodyScale, layerScale }: JobTimelineInput,
+  input: JobTimelineInput,
   duration: number,
   cycle: number,
   cycles: number,
 ): MoveEvents[] {
+  const { robot, robotEl, site, job, orbiters, bodyScale, layerScale } = input;
   const gem = getRobotGem(robot.gemSeed);
   const shown = orbiterPlan(robot.gemSeed).cornerOrder.slice(0, orbiters.length) as OrbiterCorner[];
   const variation = workVariation(robot.gemSeed);
@@ -275,5 +271,7 @@ function addWork(
   orbiters.forEach((el) => {
     tl.to(el, { x: 0, y: 0, duration: ATTACH_DURATION, ease: 'sine.inOut' }, duration - ATTACH_DURATION);
   });
+
+  addJobDecor(tl, { input, gem, shown, variation, events, duration, cycle, cycles });
   return events;
 }

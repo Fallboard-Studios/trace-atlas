@@ -40,11 +40,12 @@ the run's progress, written to a group of SVG nodes that exists only for that ru
    bob (the counter-bob cancels it inside the group).
 5. **A killed run cleans up.** `finishJobSilently` does `progress(1, true)` (events suppressed) then kills
    the key, and `killAllTimelines()` kills it outright on a world transition — neither fires `onComplete`.
-   The group's removal is therefore registered on **both** the proxy tween's `onComplete` and the job
-   timeline's `onInterrupt` (in GSAP's shared `AnimationVars`, `gsap-core.d.ts`; fires when an animation
-   is killed before completing). Task 1 pins this with a test: build, kill, group gone. If it proves not to
-   fire for a timeline in practice, `buildJobTimeline` returns a `cleanup` the work loop calls beside
-   `killTimeline` instead (Q4).
+   The group's removal is therefore registered on the proxy tween's `onComplete` (a run that plays out)
+   **and** on the job timeline's `kill()` (every other end). *As built (Task 6):* the spec first named
+   `onInterrupt` for the second, but GSAP fires it only `if (progress() < 1)` (`_interrupt`,
+   gsap-core.js), and the silent finish has just set progress to 1 with callbacks muted — so it would have
+   left the group in the document. `addJobDecor` wraps the timeline's `kill` instead (Task 6's
+   silent-finish test fails without it); the work loop needs no change and no `cleanup` is returned (Q4).
 6. **Colours are the robot's `identityColor` and `GEM_LIGHT_COLOR`** (the orbiters' own two), not the
    company colour the halo wears (Q2). Gradients allowed — `<linearGradient>` / `<radialGradient>` in the
    group's own `<defs>`, ids `work-${robotId}-…` (one world instance per robot, so no collision) — and no
@@ -85,10 +86,14 @@ timeline, when `input.decorTier !== 'none'` and not under reduced motion:
    `robotEl.querySelector('.robot__row')` (a missing row — a test fixture — means no decoration, no
    throw).
 2. Adds the counter-bob (Assumption 3) at 0.
-3. Calls the job's builder (§1.3–§1.8) with the group, the plan's `events`, the frames (Assumption 4),
-   the robot's `WorkVariation` and the tier. The builder creates its nodes once (fixed counts, opacity 0)
-   and adds **one** proxy tween over its window.
-4. Registers removal of the group on the tween's `onComplete` and the timeline's `onInterrupt`.
+3. Calls the job's builder (§1.3–§1.8) with a `DecorContext`: the group and its `<defs>`, the plan's
+   `events`, `toRow` (the scene → row-local frame, Assumption 4), the robot's `WorkVariation`, the tier,
+   and `run(t0, t1, write)`. The builder creates its nodes once (fixed counts, opacity 0) and calls `run`
+   **once**: the one proxy tween, `write(t)` getting the timeline time on every update. `run` clamps the
+   window to `[0, jobDuration]` (a fade must never lengthen the timeline), and a builder that draws
+   nothing, or whose window is empty after clamping, leaves no group. Builders register in
+   `DECOR_BUILDERS` (`decor/jobDecor.ts`).
+4. Removes the group on the tween's `onComplete` and when the timeline is killed (Assumption 5).
 
 The builders are pure in the same way `haloWaves.ts` is: a `…State(u, events, variation, knobs)` function
 returns plain shape data (points, radii, opacities, `d` strings) that the `add…` function writes. Every
@@ -240,6 +245,7 @@ src/animation/jobMoves/
   jobMoveTable.ts                    edit — MoveEvents types (or decor/events.ts; plan decides)
   variation.ts / .test.ts            edit — appended draws (Assumption 7), DECOR_JITTER
   carry.ts                           edit — export LOADED/ARRIVED/DROPPED/RETURNED
+  bob.ts                             NEW — `bob`, moved out of buildJobTimeline.ts so jobDecor.ts can share it without an import cycle
   decor/
     jobDecor.ts / .test.tsx          NEW — group lifecycle, counter-bob, builder dispatch, cleanup
     frames.ts / .test.ts             NEW — sceneToRowLocal, orbiterLocalToRowLocal
@@ -360,7 +366,8 @@ banners and file headers as in `ring.ts`.
    decorations the identity colour (intent). Confirm identity.
 3. **Count 1.** Vent/Survey/Inspection/Fluid/Maintenance degrade naturally; Salvage hangs the load on
    one wire; the survey polygon vanishes. Accept as sketched.
-4. **`onInterrupt` on timelines.** Verified by Task 1's test; fallback in Assumption 5.
+4. ~~**`onInterrupt` on timelines.**~~ Resolved in Task 6: it fires on a mid-run kill but not after the
+   silent finish (progress already 1), so `kill()` is wrapped instead (Assumption 5).
 5. **Droplet lag × count exceeds short runs.** At 200 BPM (6 s job, ~2.3 s trace) only ~7 of 10 drops
    start. Keep Crawford's numbers (sketch-binding) or cap `FLUID_DROPS × lag` at the run? Proposal: keep.
 6. ~~**Load fill helper.**~~ Resolved while writing: `src/utils/colorUtils.ts` has `hexToHsl` and
