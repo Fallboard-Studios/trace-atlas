@@ -34,6 +34,7 @@ import { orbiterLocalToRowLocal, sceneToRowLocal } from './frames';
 import { addInspectionDecor } from './inspectionDecor';
 import { addMaintenanceDecor } from './maintenanceDecor';
 import { svgEl } from './svg';
+import { addSurveyDecor } from './surveyDecor';
 import { addVentDecor } from './ventDecor';
 import type { RobotGem } from '../../../components/robot/gem/polygon';
 import { BOB_PX } from '../../../constants';
@@ -109,6 +110,7 @@ export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
   [JobType.VentExtraction]: addVentDecor,
   [JobType.StructuralInspection]: addInspectionDecor,
   [JobType.FluidMonitoring]: addFluidDecor,
+  [JobType.AcousticSurvey]: addSurveyDecor,
 };
 
 // ========================================

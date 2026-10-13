@@ -352,6 +352,21 @@ export const FLUID_SPIN_BASE = 90;
 export const FLUID_SPIN_STEP = 90;
 export const FLUID_VALVE_FADE = 0.3;
 
+/** Acoustic Survey's ping arcs and wired ring (docs/specs/JOB_DECORATION.md §1.4; decor/surveyDecor.ts;
+ *  sketch docs/sketches/job-decorations.html, row "acousticSurvey", Crawford's settings): on each fan
+ *  ping SURVEY_ARCS arcs, SURVEY_ARC_GAP seconds apart, leave the orbiter facing away from the mast,
+ *  widening up to SURVEY_PING_REACH scene units over SURVEY_PING_LIFE seconds across SURVEY_PING_SPAN_DEG
+ *  degrees. During the ring the orbiters are joined by chords SURVEY_CHORD_WIDTH wide at
+ *  SURVEY_CHORD_OPACITY, fading over SURVEY_RING_FADE seconds at both ends of the ring. */
+export const SURVEY_ARCS = 3;
+export const SURVEY_ARC_GAP = 0.15;
+export const SURVEY_PING_LIFE = 1.4;
+export const SURVEY_PING_REACH = 36;
+export const SURVEY_PING_SPAN_DEG = 80;
+export const SURVEY_CHORD_WIDTH = 0.6;
+export const SURVEY_CHORD_OPACITY = 1;
+export const SURVEY_RING_FADE = 0.35;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

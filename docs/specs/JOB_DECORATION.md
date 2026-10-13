@@ -168,6 +168,20 @@ Two windows on one tween spanning fan `t0` to ring `t1`.
   points = consecutive orbiters' live centres in lock order; all × window alpha with `SURVEY_RING_FADE`
   0.35 s edges inside `[ring.t0, ring.t1]`.
 
+*As built (Task 11):* the window runs from the fan `t0` (the earlier of the two moves' starts) to the
+latest of the ring `t1`, the fan `t1` and the last arc's death (`start + 2 × SURVEY_ARC_GAP + life`),
+clamped to the job: an arc born late in a short fan outlives it, and a window that closed first would
+remove the group with that arc still lit (the same fix as §1.5 and §1.8). The pure state is
+`pingArc(t, j, a, fan, v)` (path data, radius, width, alpha), `arcPath`, `chordPairs(n)` (none below
+two orbiters, one for two, `n` consecutive pairs wrapping for three or more), `chordState(t, ring)`
+(window, base opacity, bright-end opacity) and `surveyWindow(fan, ring, v)`; the span constant is
+`SURVEY_PING_SPAN_DEG`. Tier `'cheap'` draws nothing (§1.9's list names no survey shape), so a cheap
+survey leaves no group. A ring of one orbiter has no chord, so it opens no window of its own. An arc
+exists strictly after its start, not at it: the lead orbiter's first ping starts exactly on the fan's
+`t0`, the window's opening edge, and `ctx.run` promises every shape invisible at the nearest edge; the
+arc shows on the next update at the opacity it would have had. Nodes: arcs first (orbiter-major), then
+each chord's base line (`-chord`) and glow line (`-chord-glow`), gradient ids `work-${robotId}-survey-${c}`.
+
 ### 1.5 Structural Inspection — scan trail + vertex ticks (`decor/inspectionDecor.ts`)
 
 Window: trace `t0` to `t1`. *As built (Task 9):* the window runs on to `t1 +` one tick life
