@@ -74,6 +74,7 @@
 }
 
 .header__stack {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: fit-content;
@@ -215,6 +216,19 @@
 /* Open reads as on: the accent fill a checked Toggle gets (Toggle.css). */
 .header__volume-trigger[data-state='open'] .sc-cabinet-box__front {
   background: var(--color-accent-gradient);
+}
+
+/* Pinned, not computed: Radix positions its wrapper with an inline transform: translate(x, y) that
+   swung left and right as the width moved (320 px up to the slider taking the ▾ box's place). The
+   wrapper is portalled into the stack (Header.tsx), so it is absolutely placed against it: flush with
+   the stack's left edge, 8 px under the panel (the stack ends where the panel does). Radix writes
+   position, left, top and transform inline on the wrapper, and an inline style beats any stylesheet rule,
+   hence the !importants; the wrapper's own min-width stays. */
+.header__stack>[data-radix-popper-content-wrapper] {
+  position: absolute !important;
+  transform: none !important;
+  left: 0 !important;
+  top: calc(100% + 8px) !important;
 }
 
 /* Inside the header, so it takes the header's accent and pointer events back from it. */
