@@ -434,6 +434,32 @@ describe('spawnSystem', () => {
       }
     });
 
+    // Robot Pan T1 (docs/specs/ROBOT_PAN.md §1.1): every robot starts on Auto at centre, so an
+    // existing world sounds exactly as it did — no noise draw, no change to any other field.
+    it('spawns every robot with pan 0 and panAuto true, Active or Docked', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
+      for (let i = 0; i < 20; i++) spawnRobot(DEFAULT_LOCALE_ID);
+
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      expect(robots).toHaveLength(22);
+      for (const robot of robots) {
+        expect(robot.pan, `robot ${robot.id}`).toBe(0);
+        expect(robot.panAuto, `robot ${robot.id}`).toBe(true);
+      }
+    });
+
+    it('draws nothing from the noise map for pan (no new getSeededVal key)', () => {
+      vi.mocked(getSeededVal).mockClear();
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      const dataIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1]));
+      // Sanity: the spy sees the draws spawnRobot does make, so an empty match below means something.
+      expect(dataIds).toContain('robot.masterVolume');
+      expect(dataIds.filter((id) => /pan/i.test(id))).toEqual([]);
+    });
+
     it('spawns robots with the new percentage/toggle melody shapes', () => {
       spawnRobot(DEFAULT_LOCALE_ID);
       const robot = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0];

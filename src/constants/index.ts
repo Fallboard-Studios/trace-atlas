@@ -100,6 +100,15 @@ export const PITCH_REPEAT_MIN = 0;
 export const PITCH_REPEAT_MAX = 100;
 
 /**
+ * Robot Pan (docs/specs/ROBOT_PAN.md §1.1): the stored `Robot.pan` runs -1 (hard left) … 1 (hard
+ * right) — wider than the Auto field's ±0.5 (engine/audioEngine/panning.ts). The slider shows it
+ * ×PAN_DISPLAY_SCALE (-100…100), the same stored/displayed split as Volume.
+ */
+export const PAN_MIN = -1;
+export const PAN_MAX = 1;
+export const PAN_DISPLAY_SCALE = 100;
+
+/**
  * Robot Systems Engine (Roadmap Phase 7) — Battery/Docking/Job lifecycle constants.
  * See docs/specs/ROBOT_SYSTEMS_ENGINE.md and src/systems/robotSystems.ts.
  */

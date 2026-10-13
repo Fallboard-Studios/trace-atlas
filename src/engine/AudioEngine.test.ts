@@ -1049,6 +1049,8 @@ describe('AudioEngine - Motif Group Accent', () => {
       rhythmicMotifLength,
       audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine' as const, filterFreq: 100 },
       masterVolume: 0.8,
+      pan: 0,
+      panAuto: true,
       melody: [],
       octaveRange: [3, 4] as [number, number],
       position: { x: 0, y: 0 },
@@ -1228,6 +1230,8 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       clickTrackActive: overrides.clickTrackActive ?? false,
       audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine' as const, filterFreq: 100 },
       masterVolume: 0.8,
+      pan: 0,
+      panAuto: true,
       melody: [],
       octaveRange: overrides.octaveRange ?? ([3, 4] as [number, number]),
       position: { x: 0, y: 0 },
@@ -1527,7 +1531,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
       robots: [{
         id: 'pan-recompute-robot', compositionSeed: 0.5, identityColor: '#428d95', gemSeed: 1, audioMode: 'none',
         audioAttributes: { adsr: TEST_ADSR, waveform: 'sine' as const, filterFreq: 100 },
-        masterVolume: 0.8, melody: [], octaveRange: [3, 4] as [number, number],
+        masterVolume: 0.8, pan: 0, panAuto: true, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the
         // Panner mock's own default pan.value of 0, so an unwanted write is detectable.
         position: { x: 0, y: 0 }, name: '',

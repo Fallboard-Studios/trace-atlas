@@ -63,6 +63,8 @@ const makeRobot = (id: string): Robot => ({
   audioAttributes: { waveform: 'sine', adsr: { attack: 0, decay: 0, sustain: 0, release: 0 }, filterFreq: 0 },
   octaveRange: [3, 4],
   masterVolume: 0.7,
+  pan: 0,
+  panAuto: true,
   docking: DockingState.Active,
   activity: 'exiting',
   batteryLevel: 100,

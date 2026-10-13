@@ -704,6 +704,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       // (globalAudioSeed.ts).
       return quantizeToStep(raw * 100, 0, VOLUME_STEP_PERCENT) / 100;
     })(),
+    // Robot Pan (docs/specs/ROBOT_PAN.md §1.1): every robot starts on Auto at centre — no noise
+    // draw, so a world's existing seeded values and its sound are unchanged.
+    pan: 0,
+    panAuto: true,
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',

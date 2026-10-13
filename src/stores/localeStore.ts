@@ -20,6 +20,8 @@ import {
   OCTAVE_RANGE_MAX,
   PITCH_REPEAT_MIN,
   PITCH_REPEAT_MAX,
+  PAN_MIN,
+  PAN_MAX,
 } from '../constants';
 import { swallow } from '../utils/helpers';
 
@@ -186,6 +188,14 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       }
       if (typeof normalized.batteryLevel === 'number') {
         normalized.batteryLevel = Math.max(0, Math.min(100, Math.trunc(normalized.batteryLevel)));
+      }
+      if (typeof normalized.pan === 'number') {
+        // Fractional, so no trunc. NaN has no sensible clamp: drop the key and keep the stored value.
+        if (Number.isNaN(normalized.pan)) {
+          delete normalized.pan;
+        } else {
+          normalized.pan = Math.max(PAN_MIN, Math.min(PAN_MAX, normalized.pan));
+        }
       }
       if (normalized.rhythmicMotifLength !== undefined) {
         const clamped = clampToggleValue(normalized.rhythmicMotifLength, RHYTHMIC_MOTIF_LENGTH_MIN, RHYTHMIC_MOTIF_LENGTH_MAX);
