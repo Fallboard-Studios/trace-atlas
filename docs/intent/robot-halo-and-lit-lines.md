@@ -1,5 +1,7 @@
 # Intent: Robot Halo and Lit Boundary Lines
 
+> **Superseded in part, 2026-10-12:** the halo is now the triangular waves drawn on a station arc (spec §1.1b, Amendments 3). The volume-sized gradient ellipse, its envelope-shaped stops and the ripple ring this document describes were removed; only the halo colour (company, else identity) and the lit strips and flicker below still apply as written.
+
 Confirmed 2026-10-05 via the interview-me skill (4 questions after a planning conversation; guesses
 confirmed except where noted under "Corrections"). Builds on shipped Phase 39
 ([gem-polygon-robots.md](gem-polygon-robots.md)) and on Phase 40
@@ -45,7 +47,7 @@ before the sketch (see "Cut"). Sketch: [robot-halo-and-lit-lines.html](../sketch
 | Feature | Source (range) | Rule |
 |---|---|---|
 | Halo colour | `companies[].color` of the robot's `companyId`; none → `identityColor` | One hex, same shape as identity; a freelance robot glows in its own card colour |
-| Halo radius | `masterVolume` (0–1; seeded 0.65–0.85) | 20 + 20 × volume → 20–40 units; 0.5 s tween on edit |
+| Halo radius | `masterVolume` (0–1; seeded 0.65–0.85) | 110 + 20 × volume → 110–130 units (2026-10-12: larger than the 200 × 200 station; was 20–40); 0.5 s tween on edit |
 | Halo shape | seeded width factor | Ellipse: rx = radius × k, ry = radius; centred on the canvas centre |
 | Halo slot | — | Above the backing, below the orbiters' rest copies (and the Mids); behind the Mids by DOM order |
 | Halo brightness | `adsr` (attack/decay/release 0–5 s, sustain 0–1) + fixed hold | Radial stops, radius read as time: 0 inside the 10-unit hole; up to the peak at the end of attack; down to peak × sustain over decay; flat over a fixed 1 s-equivalent hold; out to 0 over release. Shares are each phase's seconds over the total (attack + decay + hold + release); an all-zero envelope falls back to four equal shares |

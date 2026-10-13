@@ -1,12 +1,12 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useState, type Ref } from 'react';
+import { memo, type Ref } from 'react';
 
 import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as RobotGemGeometry } from './polygon';
-import type { GemPalette, GemPartPaint } from './gemPalette';
+import { GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { facetPaths, linesPath } from './gemPaths';
-import type { HaloStop } from './haloDials';
+import { WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TRAIL_SIDES, trailGradient } from './haloWaves';
 
 // ========================================
 // TYPES
@@ -36,25 +36,15 @@ export interface RobotGemBodyLines {
   stripOpacity: number;
 }
 
-/** The halo RobotBody computes (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4): one ellipse
- *  behind the Mids filled by a six-stop radial gradient — the envelope laid along the radius in the
- *  company colour. `gradientId` is per rendered instance (`halo-${context}-${robotId}`): the world
- *  and the avatar show one robot at once and a shared id would paint the wrong gradient.
- *  Amendment (2026-10-06, Crawford): the halo is designed to appear only during a spawn/despawn
- *  arc, so `RobotGem` renders its markup (`<defs>` + `ellipse.gem__halo`) only in the motion
- *  contexts (world/avatar, `orbiters.motion`) — cards get neither. React still writes every
- *  attribute once at mount there; the hook that owns them afterwards (Task 8) keeps opacity at 0
- *  until something calls `decorateArc` to raise it. As of this branch nothing does (Amendment 2 —
- *  the Phase 40 orbiter attach/detach hop was tried as that caller and reverted, reserved for a
- *  future job-detach or docking animation instead), so today the halo markup exists in world/avatar
- *  but never becomes visible there either. */
+/** The halo RobotBody computes (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4): the colour of the triangular
+ *  waves drawn on a station arc — the company colour, else the robot's identity colour. `gradientId` is per rendered
+ *  instance (`halo-${context}-${robotId}`) and prefixes the waves' trail gradients: the world and the avatar show one
+ *  robot at once and a shared id would paint the wrong gradient.
+ *  Amendment (2026-10-06, Crawford): the halo appears only during a spawn/despawn arc, so `RobotGem` renders its
+ *  markup only in the motion contexts (world/avatar, `orbiters.motion`) — cards get none. The old gradient ellipse and
+ *  its volume/envelope dial are gone (2026-10-12); nothing here is sized by audio. */
 export interface RobotGemHalo {
   color: string;
-  rx: number;
-  ry: number;
-  stops: HaloStop[];
-  /** Battery dim (daylight is deliberately absent). */
-  opacity: number;
   gradientId: string;
 }
 
@@ -76,17 +66,8 @@ interface RobotGemProps {
   bodyLines: RobotGemBodyLines;
   /** The gradient halo behind the Mids (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
   halo: RobotGemHalo;
-  /** The ripple ellipse (animated contexts only, Task 11's `decorateArc`) — world/avatar pass this;
-   *  cards never do, and `orbiters.motion` already gates the whole halo subtree out for them. */
-  ripple?: RobotGemRipple;
   /** Forwarded to the root `g.gem` — the `useOrbiterMotion` hook's GSAP scope (Task 8). */
   ref?: Ref<SVGGElement>;
-}
-
-/** The ripple's gradient id only — Task 11's `decorateArc` owns every stop/opacity after mount
- *  (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
-export interface RobotGemRipple {
-  gradientId: string;
 }
 
 // ========================================
@@ -99,8 +80,6 @@ const LIGHT_HALO_OPACITY = 0.18;
 const LIGHT_CORE_R = 1.4;
 
 const r2 = (n: number) => Number(n.toFixed(2));
-/** Gradient stop offset as SVG wants it: a percentage, 2 dp (the sketch's `stop()` formatting). */
-const pct = (offset: number) => `${(offset * 100).toFixed(2)}%`;
 const points = (pts: readonly GemPoint[]) => pts.map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ');
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
@@ -202,44 +181,47 @@ function OrbiterCopy({ gem, palette, orbiters, corner, motion }: {
 
 const ALL_CORNERS = [0, 1, 2, 3] as const;
 
-/** Five evenly-spaced placeholder offsets for the ripple gradient's initial stops — all at opacity
- *  0 (never shown) until `decorateArc` (Task 11) starts writing real ones each frame of an arc. */
-const RIPPLE_INITIAL_OFFSETS = [0, 0.25, 0.5, 0.75, 1] as const;
-
 /**
- * The halo subtree (`<defs>` + `ellipse.gem__halo`, plus the ripple in motion contexts) —
- * `RobotGem` only ever mounts this when `orbiters.motion` is true (cards never spawn/despawn, so
- * cards never render a halo at all, Phase 41 amendment). Two owners, never both (spec Assumption
- * 3): React writes every attribute once at mount, then freezes its own copy of `halo`/`ripple` in a
- * lazy `useState` initializer and keeps rendering *that* on every later re-render, so a
- * volume/envelope edit that bumps the `halo` prop never fights `useHaloMotion`'s GSAP tween for
- * the same attributes. (A ref would do the same freezing, but reading `ref.current` during render
- * is a lint error — `react-hooks/refs` — so the frozen copy lives in state instead, set once via
- * `useState`'s initializer function, which React never calls again after mount.)
+ * The halo subtree: the waves' trail gradients (`<defs>`) and `g.gem__waves`, the lines themselves —
+ * `RobotGem` only ever mounts this when `orbiters.motion` is true (cards never spawn/despawn, so cards never render
+ * a halo at all, Phase 41 amendment). Every attribute `playHaloWaves` writes (`d`, `opacity`, `stroke-width`, the trail
+ * strips) is a constant prop here, so a re-render never rewrites what GSAP owns. `data-cx`/`data-cy` carry the canvas
+ * centre the waves grow from.
  */
-function HaloLayer({ cx, cy, halo, ripple }: { cx: number; cy: number; halo: RobotGemHalo; ripple?: RobotGemRipple }) {
-  const [frozen] = useState<{ halo: RobotGemHalo; ripple?: RobotGemRipple }>(() => ({ halo, ripple }));
-
+function HaloLayer({ cx, cy, halo }: { cx: number; cy: number; halo: RobotGemHalo }) {
   return (
     <>
       <defs>
-        <radialGradient id={frozen.halo.gradientId}>
-          {frozen.halo.stops.map((stop, i) => (
-            <stop key={i} offset={pct(stop.offset)} stopColor={frozen.halo.color} stopOpacity={stop.opacity} />
-          ))}
-        </radialGradient>
-        {frozen.ripple && (
-          <radialGradient id={frozen.ripple.gradientId}>
-            {RIPPLE_INITIAL_OFFSETS.map((offset, i) => (
-              <stop key={i} offset={pct(offset)} stopColor={frozen.halo.color} stopOpacity={0} />
-            ))}
-          </radialGradient>
+        {/* The waves' trails: for each of the two colours (the halo's, and the counter wave's), a gradient for each half
+            of the trail behind a line (haloWaves.ts `trailGradient`, in objectBoundingBox units). The trail shapes
+            themselves are made by `playHaloWaves` for the length of a run, not drawn at rest. */}
+        {([['trail', halo.color], ['trail-counter', GEM_LIGHT_COLOR]] as const).flatMap(([name, color]) =>
+          WAVE_TRAIL_SIDES.map((side) => {
+            const v = trailGradient(side);
+            return (
+              <linearGradient key={`${name}-${side}`} id={`${halo.gradientId}-${name}-${side}`} className="gem__wave-trail-gradient" x1={v.x1} y1={v.y1} x2={v.x2} y2={v.y2}>
+                <stop offset="0%" stopColor={color} stopOpacity={1} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            );
+          }),
         )}
       </defs>
-      <ellipse className="gem__halo" cx={cx} cy={cy} rx={frozen.halo.rx} ry={frozen.halo.ry} fill={`url(#${frozen.halo.gradientId})`} opacity={frozen.halo.opacity} />
-      {frozen.ripple && (
-        <ellipse className="gem__ripple" cx={cx} cy={cy} rx={frozen.halo.rx} ry={frozen.halo.ry} fill={`url(#${frozen.ripple.gradientId})`} opacity={0} />
-      )}
+      {/* The triangular waves (haloWaves.ts): empty, invisible paths until `playHaloWaves` writes their `d`,
+          opacity and stroke width each frame of a station arc. */}
+      <g className="gem__waves" data-cx={cx} data-cy={cy} data-trail-id={`${halo.gradientId}-trail`} data-trail-counter-id={`${halo.gradientId}-trail-counter`} fill="none" stroke={halo.color} strokeWidth={WAVE_LINE_WIDTH} strokeLinejoin="miter">
+        {Array.from({ length: WAVE_PATH_COUNT }, (_, i) => (
+          <path
+            key={i}
+            className={i === WAVE_COUNTER_INDEX ? 'gem__wave gem__wave--counter' : 'gem__wave'}
+            data-wave={i}
+            d=""
+            opacity={0}
+            // The counter wave (travelling inward) wears the gem's light colour, not the halo's.
+            stroke={i === WAVE_COUNTER_INDEX ? GEM_LIGHT_COLOR : undefined}
+          />
+        ))}
+      </g>
     </>
   );
 }
@@ -249,13 +231,13 @@ function HaloLayer({ cx, cy, halo, ripple }: { cx: number; cy: number; halo: Rob
 // ========================================
 /**
  * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40/41). Z order is DOM order:
- * backing, halo (its <defs> gradient then the ellipse), mid--left, mid--right, docked orbiters, top
- * — the halo reads as light from behind the body, orbiters sit nestled between Mid and Top (Phase 40
+ * backing, halo (its <defs> trail gradients then the waves), mid--left, mid--right, docked orbiters, top
+ * — the waves read as light from behind the body, orbiters sit nestled between Mid and Top (Phase 40
  * amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout, the Top/Mid
  * line dials and the halo (Phase 41) from RobotBody; nothing here derives any of them. No SVG
- * filter anywhere: the gradient stops alone carry the halo's softness (spec Assumption 5).
+ * filter anywhere: the trails are plain linear gradients (spec Assumption 5).
  */
-export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, bodyLines, halo, ripple, ref }: RobotGemProps) {
+export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, bodyLines, halo, ref }: RobotGemProps) {
   const cx = gemWidth(gem) / 2;
   const cy = GEM_CANVAS_H / 2;
   const { backing } = gem;
@@ -272,7 +254,7 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
           strokeWidth={BACKING_STROKE_WIDTH}
         />
       </g>
-      {orbiters.motion && <HaloLayer cx={cx} cy={cy} halo={halo} ripple={ripple} />}
+      {orbiters.motion && <HaloLayer cx={cx} cy={cy} halo={halo} />}
       <BevelledPart
         part={gem.midLeft}
         paint={palette.midLeft}

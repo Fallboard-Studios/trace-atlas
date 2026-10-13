@@ -1,5 +1,7 @@
 # Phase Spec: World Clock — Deterministic Lifecycle Replay
 
+> **Superseded in part, 2026-10-12:** the "never zero Active" invariant referred to below was removed (docs/ROBOT_LIFECYCLE.md); the replay is now pure per-robot arithmetic. The rest stands as written.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc --noEmit`)

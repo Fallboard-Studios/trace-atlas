@@ -287,6 +287,97 @@ export const FAN_PING_SCALE = 1.5;
 export const FLICKER_OPACITY = 0.25;
 export const FLICKER_SPARKS = 3;
 
+/** Job decorations (docs/specs/JOB_DECORATION.md §1.9): each robot's twelve decoration sizes and
+ *  timings are its own, within ±DECOR_JITTER of the sketched value (jobMoves/variation.ts).
+ *  Counts and opacities never vary. */
+export const DECOR_JITTER = 0.15;
+
+/** The decoration tier a job runs at, by Robot Load (docs/specs/JOB_DECORATION.md Assumption 9;
+ *  jobMoves/decor/decorTier.ts). Below Standard, then from Standard to below Full; Full is always
+ *  'all'. Both are 'all' today, so every preset runs every decoration; if the idle-paint perf gate
+ *  misses, binding the ladder (Light 'none', Standard 'cheap') is these two constants and nothing else. */
+export const DECOR_TIER_BELOW_STANDARD: 'none' | 'cheap' | 'all' = 'all';
+export const DECOR_TIER_BELOW_FULL: 'none' | 'cheap' | 'all' = 'all';
+
+/** Vent Extraction's tethers and motes (docs/specs/JOB_DECORATION.md §1.3; decor/ventDecor.ts; sketch
+ *  docs/sketches/job-decorations.html, row "ventExtraction", Crawford's settings): a wire from each
+ *  orbiter to the vent mouth (VENT_WIRE_WIDTH wide, VENT_WIRE_OPACITY opaque) that brightens on its
+ *  orbiter's pulse, and VENT_MOTES motes per pulse that rise VENT_MOTE_RISE scene units off the mouth
+ *  over VENT_MOTE_LIFE seconds, shrinking from VENT_MOTE_RADIUS. The whole thing fades in and out over
+ *  VENT_FADE seconds either side of the pulse. */
+export const VENT_FADE = 0.5;
+export const VENT_MOTES = 3;
+export const VENT_MOTE_LIFE = 1.8;
+export const VENT_MOTE_RISE = 40;
+export const VENT_MOTE_RADIUS = 3.4;
+export const VENT_WIRE_WIDTH = 1.8;
+export const VENT_WIRE_OPACITY = 0.5;
+
+/** Maintenance's sparks and flash (docs/specs/JOB_DECORATION.md §1.8; decor/maintenanceDecor.ts;
+ *  sketch docs/sketches/job-decorations.html, row "maintenance", Crawford's settings): on each
+ *  flicker chord, MAINT_SPARKS line sparks fly MAINT_SPARK_REACH scene units out over
+ *  MAINT_SPARK_LIFE seconds, MAINT_SPARK_LENGTH long at birth, spread over MAINT_SPREAD_DEG
+ *  degrees about the chord's direction, with a light flash of MAINT_FLASH_RADIUS at the orbiter. */
+export const MAINT_SPARKS = 5;
+export const MAINT_SPARK_REACH = 30;
+export const MAINT_SPARK_LENGTH = 8;
+export const MAINT_SPARK_LIFE = 1.2;
+export const MAINT_SPREAD_DEG = 120;
+export const MAINT_FLASH_RADIUS = 12;
+
+/** Structural Inspection's scan trail and vertex ticks (docs/specs/JOB_DECORATION.md §1.5;
+ *  decor/inspectionDecor.ts; sketch docs/sketches/job-decorations.html, row "structuralInspection",
+ *  Crawford's settings): each orbiter trails INSPECT_TRAIL_SEGMENTS line segments
+ *  INSPECT_TRAIL_LENGTH units back along the route (INSPECT_TRAIL_WIDTH wide at the head,
+ *  INSPECT_TRAIL_OPACITY opaque, both fading toward the tail); the lead leaves a tick
+ *  INSPECT_TICK_LENGTH long at each interior vertex that fades over INSPECT_TICK_LIFE seconds. */
+export const INSPECT_TRAIL_SEGMENTS = 8;
+export const INSPECT_TRAIL_LENGTH = 20;
+export const INSPECT_TRAIL_WIDTH = 4;
+export const INSPECT_TRAIL_OPACITY = 1;
+export const INSPECT_TICK_LENGTH = 6;
+export const INSPECT_TICK_LIFE = 3;
+
+/** Fluid Monitoring's droplets and spinning valve (docs/specs/JOB_DECORATION.md §1.6;
+ *  decor/fluidDecor.ts; sketch docs/sketches/job-decorations.html, row "fluidMonitoring", Crawford's
+ *  settings): FLUID_DROPS droplets follow the lead along the pipe, each FLUID_DROP_LAG seconds behind
+ *  the one before and FLUID_DROP_RADIUS wide at the head. At the valve a square of FLUID_VALVE_SIZE
+ *  turns at FLUID_SPIN_BASE degrees a second, gaining FLUID_SPIN_STEP at each orbiter's pulse, and
+ *  fades over FLUID_VALVE_FADE seconds at both ends of the pulse. */
+export const FLUID_DROPS = 10;
+export const FLUID_DROP_LAG = 0.33;
+export const FLUID_DROP_RADIUS = 3;
+export const FLUID_VALVE_SIZE = 14;
+export const FLUID_SPIN_BASE = 90;
+export const FLUID_SPIN_STEP = 90;
+export const FLUID_VALVE_FADE = 0.3;
+
+/** Acoustic Survey's ping arcs and wired ring (docs/specs/JOB_DECORATION.md §1.4; decor/surveyDecor.ts;
+ *  sketch docs/sketches/job-decorations.html, row "acousticSurvey", Crawford's settings): on each fan
+ *  ping SURVEY_ARCS arcs, SURVEY_ARC_GAP seconds apart, leave the orbiter facing away from the mast,
+ *  widening up to SURVEY_PING_REACH scene units over SURVEY_PING_LIFE seconds across SURVEY_PING_SPAN_DEG
+ *  degrees. During the ring the orbiters are joined by chords SURVEY_CHORD_WIDTH wide at
+ *  SURVEY_CHORD_OPACITY, fading over SURVEY_RING_FADE seconds at both ends of the ring. */
+export const SURVEY_ARCS = 3;
+export const SURVEY_ARC_GAP = 0.15;
+export const SURVEY_PING_LIFE = 1.4;
+export const SURVEY_PING_REACH = 36;
+export const SURVEY_PING_SPAN_DEG = 80;
+export const SURVEY_CHORD_WIDTH = 0.6;
+export const SURVEY_CHORD_OPACITY = 1;
+export const SURVEY_RING_FADE = 0.35;
+
+/** Salvage's wired load (docs/specs/JOB_DECORATION.md §1.7; decor/salvageDecor.ts; sketch
+ *  docs/sketches/job-decorations.html, row "salvage", Crawford's settings): a gem load SALVAGE_LOAD_SIZE
+ *  across hangs SALVAGE_HANG scene units below the carrying orbiters on wires of SALVAGE_WIRE_OPACITY,
+ *  swinging up to SALVAGE_SWING_DEG degrees; on the return the wires go slack, sagging SALVAGE_SAG
+ *  units as they fade. */
+export const SALVAGE_HANG = 24;
+export const SALVAGE_LOAD_SIZE = 12;
+export const SALVAGE_SWING_DEG = 10;
+export const SALVAGE_WIRE_OPACITY = 1;
+export const SALVAGE_SAG = 16;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

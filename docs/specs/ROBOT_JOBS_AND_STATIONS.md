@@ -110,7 +110,8 @@ layers. This spec covers all four.
   the dock: `DockingState = { Docked: 'docked', Undocking: 'undocking', Active: 'active',
   Recalled: 'recalled' }`. Transitions and holds are unchanged: Docked → Undocking at
   `BATTERY_FULL_THRESHOLD`, Undocking → Active when the hold elapses, Active → Recalled at
-  `BATTERY_CRITICAL_THRESHOLD` (subject to the never-zero-Active invariant, unchanged), Recalled →
+  `BATTERY_CRITICAL_THRESHOLD` (the never-zero-Active invariant that once limited this was removed 2026-10-12;
+  see docs/ROBOT_LIFECYCLE.md), Recalled →
   Docked when the hold elapses.
 - **Flat drain:** `BATTERY_DRAIN_ACTIVE` (§Assumption 3) replaces `BATTERY_DRAIN_BASE` +
   `JOB_BATTERY_DRAIN_SURCHARGE`. Recharge, thresholds and clamps unchanged.
@@ -756,7 +757,7 @@ Colocated tests for every new module; existing tests for deleted modules are del
   for any timing here; timelines registered in `timelineMap` and killed on stop/unmount; GSAP
   callbacks never call `AudioEngine`; nothing non-serializable in Zustand; Visual Mapping guardrail
   unchanged; every display string in `src/content/`.
-- **Ask first:** any change to the never-zero-Active invariant, pitch drift, the Audio Load Budget,
+- **Ask first:** any change to pitch drift, the Audio Load Budget,
   or a guardrail; any new dependency; anything that would make a static scene layer repaint more
   than on the lighting tick.
 - **Never:** store module-level loop state on `Actor` (re-renders every factory); add a standing

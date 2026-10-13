@@ -299,13 +299,13 @@ describe('OceanScene', () => {
     });
 
     // Phase 43 J4 (spec §1.10): the back robot row and the midground split out of `back`.
-    it('renders six svg layers in back → robots-back → mid → bubbles → robots → front order, all inside the scene box', () => {
+    it('renders seven svg layers in back → robots-back → mid → bubbles → robots → front → marker order, all inside the scene box', () => {
       const { container } = render(<OceanScene />);
       const scene = container.querySelector('.ocean-scene');
       expect(scene?.tagName.toLowerCase()).toBe('div');
       const layers = Array.from(scene!.querySelectorAll(':scope > svg.ocean-scene__layer'));
       expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(
-        ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front'],
+        ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front', 'marker'],
       );
     });
 
@@ -313,14 +313,14 @@ describe('OceanScene', () => {
       const { container } = render(<OceanScene />);
       for (const layer of container.querySelectorAll('svg.ocean-scene__layer')) {
         expect(layer.getAttribute('viewBox')).toBe('0 0 1920 1080');
-        expect(layer.getAttribute('preserveAspectRatio')).toBe('xMidYMid slice');
+        expect(layer.getAttribute('preserveAspectRatio')).toBe('xMidYMax slice');
       }
     });
 
-    it('marks both robot layers and the bubbles layer as moving, and the back, mid and front layers as not', () => {
+    it('marks both robot layers, the bubbles layer and the marker layer as moving, and the back, mid and front layers as not', () => {
       const { container } = render(<OceanScene />);
       const byName = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
-      for (const name of ['robots-back', 'bubbles', 'robots']) {
+      for (const name of ['robots-back', 'bubbles', 'robots', 'marker']) {
         expect(byName(name).classList.contains('ocean-scene__layer--moving')).toBe(true);
       }
       for (const name of ['back', 'mid', 'front']) {
@@ -684,7 +684,7 @@ describe('OceanScene', () => {
       const layer = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
       const groupsOf = (name: string) => Array.from(layer(name).querySelectorAll(':scope > g')).map((g) => g.id);
       expect(groupsOf('robots-back')).toEqual(['station-l4-layer', 'robot-back-layer']);
-      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer', 'followed-robot-marker']);
+      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
       for (const [name, id, fragment] of [
         ['robots-back', 'station-l4-layer', 'l4'],
         ['robots', 'station-l3-layer', 'l3'],
@@ -722,11 +722,15 @@ describe('OceanScene', () => {
     });
 
     // The Deck camera's followed-robot marker moves every frame, so it lives in a moving layer —
-    // in a static one it would repaint the foreground factories each frame — and last in it, so it
-    // draws over the robots, the dissolve copies and the station's front fragment.
-    it('renders the followed-robot marker last in the front robot layer, handed the locale id', () => {
+    // in a static one it would repaint the foreground factories each frame — and that layer is the
+    // last one, so it draws over the foreground buildings too.
+    it('renders the followed-robot marker alone in the top moving layer, handed the locale id', () => {
       const { container } = render(<OceanScene />);
-      const layer = container.querySelector('svg[data-scene-layer="robots"]')!;
+      const layer = container.querySelector('svg[data-scene-layer="marker"]')!;
+      const scene = container.querySelector('.ocean-scene')!;
+
+      expect(scene.lastElementChild).toBe(layer);
+      expect(layer.children).toHaveLength(1);
 
       expect(layer.lastElementChild?.getAttribute('data-followed-marker-mock')).toBe(DEFAULT_LOCALE_ID);
       expect(container.querySelectorAll('[data-followed-marker-mock]')).toHaveLength(1);

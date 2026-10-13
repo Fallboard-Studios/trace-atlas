@@ -80,10 +80,10 @@ export const activeDrain: DrainRule = () => BATTERY_DRAIN_ACTIVE;
 /**
  * One measure's worth of battery/docking transition for an entire roster, pure -- mirrors
  * tickRobotLifecycle's per-robot logic (the `drain` rule — default activeDrain —
- * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
- * Active" invariant) exactly, reusing the same constants -- never a second copy of the arithmetic. Mutates a local working array as it iterates (matching
- * tickRobotLifecycle's own "re-read fresh, not the stale snapshot" invariant check), in roster
- * array order, so within-measure ordering effects match a real tick bit for bit. Imports neither
+ * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD) exactly, reusing the same constants -- never a second copy of the arithmetic. Mutates a local working array as it iterates, in roster
+ * array order, so within-measure ordering matches a real tick bit for bit. Every robot decides on its own: when
+ * all of them are docked or recharging the fleet falls silent for a while (Crawford, 2026-10-12 — the old
+ * "never zero Active" guard that kept the last robot playing is gone). Imports neither
  * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
  *
  * A Recalled -> Docked landing also drifts `melody` via the same reRollMelodyPitches/
@@ -105,11 +105,8 @@ export function stepRobotLifecycle(
     if (robot.docking === DockingState.Active) {
       robot.batteryLevel = Math.max(0, robot.batteryLevel - drain(robot));
       if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
-        const stillActiveElsewhere = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
-        if (stillActiveElsewhere) {
-          robot.docking = DockingState.Recalled;
-          robot.dockingHoldUntilMeasure = measure + 1;
-        }
+        robot.docking = DockingState.Recalled;
+        robot.dockingHoldUntilMeasure = measure + 1;
       }
     } else if (robot.docking === DockingState.Docked) {
       robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE);

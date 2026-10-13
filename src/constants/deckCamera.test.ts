@@ -7,8 +7,8 @@ describe('deck camera follow constants', () => {
     expect(deckCameraConstants.DECK_CAMERA_FOLLOW_MS).toBe(20000);
   });
 
-  it('rests 8 s between a follow ending and the next pick', () => {
-    expect(deckCameraConstants.DECK_CAMERA_COOLDOWN_MS).toBe(8000);
+  it('rests 3 s between a follow ending and the next pick', () => {
+    expect(deckCameraConstants.DECK_CAMERA_COOLDOWN_MS).toBe(3000);
   });
 
   it('prefers robots with more than 50 % battery', () => {

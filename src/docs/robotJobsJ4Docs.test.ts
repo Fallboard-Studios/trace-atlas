@@ -51,9 +51,9 @@ const oceanScene = read('src/components/panels/screen/worldView/OceanScene.tsx')
 describe('ANIMATION_SYSTEM.md: the scene stack', () => {
   const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene layers — what may move where');
 
-  it('lists the six layers in OceanScene.tsx\'s order', () => {
+  it('lists the seven layers in OceanScene.tsx\'s order', () => {
     const rendered = [...oceanScene.matchAll(/<SceneLayer name="([a-z-]+)"/g)].map((m) => m[1]);
-    expect(rendered).toHaveLength(6);
+    expect(rendered).toHaveLength(7);
     const documented = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l)).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
     expect(documented).toEqual(rendered);
   });

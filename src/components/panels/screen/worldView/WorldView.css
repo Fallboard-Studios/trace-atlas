@@ -14,8 +14,9 @@
      z-index, so neither's own footprint (including what captures clicks)
      changes.
      The SVG scene inside (OceanScene.tsx) covers whatever box this ends up
-     being via its own viewBox + preserveAspectRatio="xMidYMid slice" —
-     scaled up and cropped as needed so its background rect is never
+     being via its own viewBox + preserveAspectRatio="xMidYMax slice" —
+     scaled up and cropped as needed (the top goes first; the bottom of the
+     world stays pinned to the bottom of the screen) so its background rect is never
      smaller than the tablet in either direction — never scaled down with
      letterbox bars outside it. overflow: hidden here (redundant with the
      scroller's own horizontal scrolling, but explicit) is what turns a crop

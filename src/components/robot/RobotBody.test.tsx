@@ -5,12 +5,10 @@ import { Profiler, useLayoutEffect } from 'react';
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
 import * as orbiterDialsModule from './gem/orbiterDials';
-import * as haloDialsModule from './gem/haloDials';
 import * as bodyLineDialsModule from './gem/bodyLineDials';
 import * as gemPaletteModule from './gem/gemPalette';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
-import { HALO_RADIUS_MIN, HALO_RADIUS_MAX } from './gem/haloDials';
 import { BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
@@ -399,7 +397,6 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
   // the company-colour selector, and the static wiring into RobotGem.
   describe('halo and body lines (Phase 41, Task 7)', () => {
     const localeId = getActiveLocaleId();
-    const gem = getRobotGem(20261004);
     const COMPANY = { id: 'c1', name: 'Acme', color: '#ae5378', robotIds: [] as string[] };
 
     afterEach(() => {
@@ -413,125 +410,74 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       ...overrides,
     }) as Robot['lfoLinks'];
 
-    const haloEl = (c: HTMLElement) => c.querySelector('ellipse.gem__halo')!;
-    // The halo's own gradient, resolved via the ellipse's `fill` (not a combined selector through
-    // <radialGradient> — a jsdom gotcha, see project memory: that descendant selector matches
-    // nothing). Scoping this way also keeps these helpers correct now that a ripple gradient's
-    // five stops sit alongside the halo's six (Task 13 wires `ripple`).
-    const haloGradient = (c: HTMLElement) => {
-      const el = c.querySelector('ellipse.gem__halo');
-      const match = el && /url\(#(.+)\)/.exec(el.getAttribute('fill') ?? '');
-      return match ? c.querySelector(`#${match[1]}`) : null;
-    };
-    const haloStopEls = (c: HTMLElement) => [...(haloGradient(c)?.querySelectorAll('stop') ?? [])];
-    const stopColors = (c: HTMLElement) => haloStopEls(c).map((s) => s.getAttribute('stop-color'));
-    const stopOffsets = (c: HTMLElement) => haloStopEls(c).map((s) => s.getAttribute('offset'));
-    const stopOpacities = (c: HTMLElement) => haloStopEls(c).map((s) => Number(s.getAttribute('stop-opacity')));
+    // The halo is the triangular waves (g.gem__waves): their colour is the halo colour, on the group's stroke and in
+    // the halo-coloured trail gradients. Nothing audio sizes it (the volume/envelope ellipse was removed 2026-10-12).
+    const wavesEl = (c: HTMLElement) => c.querySelector('g.gem__waves')!;
+    const trailStopColor = (c: HTMLElement, id: string) => c.querySelector(`linearGradient[id="${id}"]`)!.querySelector('stop')!.getAttribute('stop-color');
     const lineWidth = (c: HTMLElement, sel: string) => c.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width');
 
     describe('halo colour (company, else identity)', () => {
       it('a robot in a company with colour #ae5378 draws its halo in that colour', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
         const { container } = draw(makeRobot({ companyId: 'c1' }), false, 'world');
-        expect(new Set(stopColors(container))).toEqual(new Set(['#ae5378']));
+        expect(wavesEl(container).getAttribute('stroke')).toBe('#ae5378');
+        expect(trailStopColor(container, 'halo-world-r1-trail-right')).toBe('#ae5378');
       });
 
       it('companyId undefined → identityColor (freelance glows in its own card colour)', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
         const { container } = draw(makeRobot({ identityColor: '#428d95' }), false, 'world');
-        expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
+        expect(wavesEl(container).getAttribute('stroke')).toBe('#428d95');
       });
 
       it('a companyId with no matching company → identityColor', () => {
         const { container } = draw(makeRobot({ companyId: 'ghost', identityColor: '#428d95' }), false, 'world');
-        expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
+        expect(wavesEl(container).getAttribute('stroke')).toBe('#428d95');
       });
 
-      it('the halo memo recomputes on a company colour change (HaloLayer freezes its own DOM copy until Task 13 wires useHaloMotion, Phase 41 Task 9 — the memo itself is still live)', () => {
-        useLocaleStore.getState().addCompany(localeId, COMPANY);
-        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
-        draw(makeRobot({ companyId: 'c1' }), false, 'world');
-        const afterMount = haloSpy.mock.calls.length;
-        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
-        expect(haloSpy.mock.calls.length).toBeGreaterThan(afterMount);
-        haloSpy.mockRestore();
-      });
-
-      it('a company colour already set at mount shows in the frozen halo', () => {
+      it('a company colour change reaches an already-mounted halo (nothing freezes its markup any more)', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
         const { container } = draw(makeRobot({ companyId: 'c1' }), false, 'world');
-        expect(new Set(stopColors(container))).toEqual(new Set(['#ae5378']));
+        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
+        expect(wavesEl(container).getAttribute('stroke')).toBe('#123456');
+        expect(trailStopColor(container, 'halo-world-r1-trail-right')).toBe('#123456');
       });
     });
 
-    describe('halo size and shape (world/avatar only — amendment: the halo never renders on cards)', () => {
+    describe('halo markup (world/avatar only — amendment: the halo never renders on cards)', () => {
       it('cards (no motion) render no halo at all', () => {
         const { container } = draw(makeRobot());
-        expect(container.querySelector('ellipse.gem__halo')).toBeNull();
+        expect(container.querySelector('.gem__waves')).toBeNull();
+        expect(container.querySelector('linearGradient')).toBeNull();
+      });
+
+      it('nothing audio sizes or shapes the halo: volume and envelope edits leave its markup identical', () => {
+        const robot = makeRobot({ masterVolume: 0 });
+        const quiet = draw(robot, false, 'world').container;
+        const before = wavesEl(quiet).outerHTML;
+        cleanup();
+        const loud = draw({ ...robot, masterVolume: 1, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }, false, 'world').container;
+        expect(wavesEl(loud).outerHTML).toBe(before);
+      });
+
+      it('there is no gradient ellipse and no radial gradient any more', () => {
+        const { container } = draw(makeRobot(), false, 'world');
+        expect(container.querySelector('.gem__halo')).toBeNull();
         expect(container.querySelector('radialGradient')).toBeNull();
       });
 
-      it('volume 0 → ry 20, volume 1 → ry 40; rx = radius × the gem\'s width factor', () => {
-        const quiet = draw(makeRobot({ masterVolume: 0 }), false, 'world').container;
-        expect(haloEl(quiet).getAttribute('ry')).toBe(String(HALO_RADIUS_MIN));
-        expect(haloEl(quiet).getAttribute('rx')).toBe(String(HALO_RADIUS_MIN * gem.widthFactor));
-        cleanup();
-        const loud = draw(makeRobot({ masterVolume: 1 }), false, 'world').container;
-        expect(haloEl(loud).getAttribute('ry')).toBe(String(HALO_RADIUS_MAX));
-        expect(haloEl(loud).getAttribute('rx')).toBe(String(HALO_RADIUS_MAX * gem.widthFactor));
-      });
-
-      it('six stops, the envelope laid out: a different ADSR at mount moves the stops (HaloLayer freezes its DOM copy after mount until Task 13 wires useHaloMotion — the dial itself, asserted at mount, still differs)', () => {
-        const robot = makeRobot();
-        const before = draw(robot, false, 'world').container;
-        expect(stopOffsets(before)).toHaveLength(6);
-        cleanup();
-        const after = draw({ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }, false, 'world').container;
-        expect(stopOffsets(after)).not.toEqual(stopOffsets(before));
-      });
-
-      it('the halo memo itself recomputes live on an ADSR edit of an already-mounted robot (frozen DOM, live memo — Task 13 wires the hook that closes this gap)', () => {
-        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
-        const robot = makeRobot();
-        const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
-        const afterMount = haloSpy.mock.calls.length;
-        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }} motion="world" /></svg>);
-        expect(haloSpy.mock.calls.length).toBeGreaterThan(afterMount);
-        haloSpy.mockRestore();
-      });
-
-      it('sustain 0 → stops 3 and 4 transparent; sustain 1 → at the peak', () => {
-        const low = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 0 }, filterFreq: 0, waveform: 'sine' } }), false, 'world').container;
-        expect(stopOpacities(low).slice(3, 5)).toEqual([0, 0]);
-        cleanup();
-        const high = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 1 }, filterFreq: 0, waveform: 'sine' } }), false, 'world').container;
-        expect(stopOpacities(high)[2]).toBeGreaterThan(0);
-        expect(stopOpacities(high).slice(2, 5)).toEqual([stopOpacities(high)[2], stopOpacities(high)[2], stopOpacities(high)[2]]);
-      });
-
-      it('the halo ellipse opacity starts at 0 regardless of battery (amendment, 2026-10-06: no idle baseline — battery dim only ever shows during a spawn/despawn arc, useHaloMotion.test.tsx’s decorateArc suite)', () => {
-        useUIStore.getState().setActiveLocaleLocalTime(0);
-        const full = draw(makeRobot({ batteryLevel: 100 }), false, 'world').container;
-        expect(haloEl(full).getAttribute('opacity')).toBe('0');
-        cleanup();
-        const critical = draw(makeRobot({ batteryLevel: 5 }), false, 'world').container;
-        expect(haloEl(critical).getAttribute('opacity')).toBe('0');
-      });
-
-      it('no halo and no radialGradient without motion; halo-world-<id> / halo-avatar-<id> with it', () => {
-        expect(draw(makeRobot({ id: 'r9' })).container.querySelector('radialGradient')).toBeNull();
-        cleanup();
+      it('the waves centre on the canvas and carry halo-world-<id> / halo-avatar-<id> ids', () => {
         const { container: world } = render(<svg><RobotBody robot={makeRobot({ id: 'r9' })} motion="world" /></svg>);
-        expect(world.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-world-r9');
-        expect(haloEl(world).getAttribute('fill')).toBe('url(#halo-world-r9)');
+        expect(wavesEl(world).getAttribute('data-trail-id')).toBe('halo-world-r9-trail');
+        expect(Number(wavesEl(world).getAttribute('data-cx'))).toBeGreaterThan(0);
         cleanup();
         const { container: avatar } = render(<svg><RobotBody robot={makeRobot({ id: 'r9' })} motion="avatar" /></svg>);
-        expect(avatar.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-avatar-r9');
+        expect(wavesEl(avatar).getAttribute('data-trail-id')).toBe('halo-avatar-r9-trail');
       });
 
-      it('motion undefined → no .gem__ripple and no halo timeline key (cards never render the halo)', () => {
+      it('motion undefined → no .gem__waves and no halo timeline key (cards never render the halo)', () => {
         const { container } = draw(makeRobot({ id: 'r-static' }));
-        expect(container.querySelector('.gem__ripple')).toBeNull();
+        expect(container.querySelector('.gem__waves')).toBeNull();
         expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);
       });
     });
@@ -567,12 +513,11 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
     });
 
     describe('motion wiring: useHaloMotion, decorateArc into useOrbiterMotion, useStripFlicker (Phase 41, Task 13)', () => {
-      it('motion="world": a volume edit registers halo-world-<id>', () => {
+      it('motion="world": a volume or envelope edit registers no halo key — only a station arc starts the waves', () => {
         const robot = makeRobot({ id: 'r1', masterVolume: 0.5 });
         const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
-        expect(timelineMap.has('halo-world-r1')).toBe(false); // mount never tweens
-        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9 }} motion="world" /></svg>);
-        expect(timelineMap.has('halo-world-r1')).toBe(true);
+        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 3 } } }} motion="world" /></svg>);
+        expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);
       });
 
       it('motion="world": an lfoLinks depth edit registers flicker-world-<id>-top, not any other line’s key', () => {
@@ -591,13 +536,6 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         expect([...timelineMap.keys()].some((k) => k.startsWith('halo-') || k.startsWith('flicker-'))).toBe(false);
       });
 
-      it('motion="world": RobotGem receives the ripple prop (gradientId ripple-world-<id>)', () => {
-        const { container } = render(<svg><RobotBody robot={makeRobot({ id: 'r1' })} motion="world" /></svg>);
-        const ripple = container.querySelector('.gem__ripple')!;
-        expect(ripple).not.toBeNull();
-        expect(ripple.getAttribute('fill')).toBe('url(#ripple-world-r1)');
-      });
-
       describe('the motion registry (Phase 43 Task 17, spec §1.8)', () => {
         beforeEach(() => clearRobotMotionRegistry());
 
@@ -607,11 +545,13 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
           expect(getOrbiterWork('r-reg')).toBeDefined();
         });
 
-        it('the registered decorateArc is useHaloMotion’s own — it writes the ripple onto the arc timeline it is given', () => {
+        it('the registered decorateArc is useHaloMotion’s own — the triangular waves play on a timeline of their own (haloWaves.ts), leaving the arc timeline alone', () => {
           draw(makeRobot({ id: 'r-reg' }), false, 'world');
           const arcTl = { to: vi.fn() };
+          expect(timelineMap.has('halo-waves-world-r-reg')).toBe(false);
           getArcDecorator('r-reg')!('spawn', 1, arcTl as unknown as Parameters<ArcDecorator>[2]);
-          expect(arcTl.to).toHaveBeenCalledTimes(1);
+          expect(arcTl.to).not.toHaveBeenCalled();
+          expect(timelineMap.has('halo-waves-world-r-reg')).toBe(true);
         });
 
         it('motion="avatar" and cards (no motion) never register', () => {
@@ -666,55 +606,36 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         });
       });
 
-      it('motion="avatar" uses its own context throughout — halo-avatar-<id> / flicker-avatar-<id>-top / orbiters-avatar-<id>', () => {
+      it('motion="avatar" uses its own context throughout — flicker-avatar-<id>-top / orbiters-avatar-<id>', () => {
         const robot = makeRobot({ id: 'r1', masterVolume: 0.5, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
         const { rerender } = render(<svg><RobotBody robot={robot} motion="avatar" /></svg>);
         expect(timelineMap.has('orbiters-avatar-r1')).toBe(true);
         rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} motion="avatar" /></svg>);
-        expect(timelineMap.has('halo-avatar-r1')).toBe(true);
         expect(timelineMap.has('flicker-avatar-r1-top')).toBe(true);
-        expect(timelineMap.has('halo-world-r1')).toBe(false);
+        expect(timelineMap.has('flicker-world-r1-top')).toBe(false);
       });
     });
 
-    describe('the halo and bodyLines memos recompute only for their own inputs', () => {
-      it('an envelope edit recomputes the halo memo but not the composition memo', () => {
-        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+    describe('the composition and bodyLines memos recompute only for their own inputs', () => {
+      it('an envelope edit does not recompute the composition memo', () => {
         const compositionSpy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
         const robot = makeRobot();
         const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
-        const haloAfterMount = haloSpy.mock.calls.length;
         const compositionAfterMount = compositionSpy.mock.calls.length;
-        expect(haloAfterMount).toBeGreaterThan(0);
+        expect(compositionAfterMount).toBeGreaterThan(0);
         rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, release: 2 } } }} /></svg>);
-        expect(haloSpy.mock.calls.length).toBeGreaterThan(haloAfterMount);
         expect(compositionSpy.mock.calls.length).toBe(compositionAfterMount);
-        haloSpy.mockRestore();
         compositionSpy.mockRestore();
       });
 
-      it('a volume edit recomputes the halo memo', () => {
-        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
-        const robot = makeRobot({ masterVolume: 0.2 });
-        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
-        const afterMount = haloSpy.mock.calls.length;
-        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9 }} /></svg>);
-        expect(haloSpy.mock.calls.length).toBeGreaterThan(afterMount);
-        haloSpy.mockRestore();
-      });
-
-      it('a density edit recomputes neither the halo nor the bodyLines memo', () => {
-        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+      it('a density edit does not recompute the bodyLines memo', () => {
         const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
         const robot = makeRobot({ rhythmicDensity: 10 });
         const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
-        const haloAfterMount = haloSpy.mock.calls.length;
         const linesAfterMount = linesSpy.mock.calls.length;
         expect(linesAfterMount).toBeGreaterThan(0);
         rerender(<svg><RobotBody robot={{ ...robot, rhythmicDensity: 80 }} /></svg>);
-        expect(haloSpy.mock.calls.length).toBe(haloAfterMount);
         expect(linesSpy.mock.calls.length).toBe(linesAfterMount);
-        haloSpy.mockRestore();
         linesSpy.mockRestore();
       });
 
@@ -731,16 +652,16 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       });
 
       it('daylight ticks recompute neither memo (item-22 discipline extends to the new memos)', () => {
-        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        const compositionSpy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
         const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
         useUIStore.getState().setActiveLocaleLocalTime(12);
         draw(makeRobot());
-        const haloAfterMount = haloSpy.mock.calls.length;
+        const compositionAfterMount = compositionSpy.mock.calls.length;
         const linesAfterMount = linesSpy.mock.calls.length;
         act(() => { useUIStore.getState().setActiveLocaleLocalTime(0); });
-        expect(haloSpy.mock.calls.length).toBe(haloAfterMount);
+        expect(compositionSpy.mock.calls.length).toBe(compositionAfterMount);
         expect(linesSpy.mock.calls.length).toBe(linesAfterMount);
-        haloSpy.mockRestore();
+        compositionSpy.mockRestore();
         linesSpy.mockRestore();
       });
     });

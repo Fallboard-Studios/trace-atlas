@@ -272,6 +272,25 @@ describe('CabinetBox', () => {
     expect(wrapper.style.getPropertyValue('--cabinet-box-height')).toBe('56px');
   });
 
+  it('sizes the left-face wall to the measured front-face height, so it reaches the face bottom edge when the 44px floor makes the face taller than boxHeight', () => {
+    const { container } = render(
+      <CabinetBox popped={true} timelineKey="test-box" boxHeight={32}>x</CabinetBox>,
+    );
+    const leftFace = container.querySelector('.sc-cabinet-box__left-face') as HTMLElement;
+    expect(leftFace.style.height).toBe('32px'); // the first-frame guess, before any measurement
+    act(() => MockResizeObserver.instances[0].fire(100, 44));
+    expect(leftFace.style.height).toBe('44px');
+  });
+
+  it('keeps the wall at a consumer-forced face height (a VoxelTrack box stays square at its own size, never the floor)', () => {
+    const { container } = render(
+      <CabinetBox popped={true} timelineKey="test-box" boxHeight={32}>x</CabinetBox>,
+    );
+    act(() => MockResizeObserver.instances[0].fire(32, 32));
+    const leftFace = container.querySelector('.sc-cabinet-box__left-face') as HTMLElement;
+    expect(leftFace.style.height).toBe('32px');
+  });
+
   it('floors --cabinet-box-height at 44px, even when a smaller boxHeight override is given', () => {
     const { container } = render(
       <CabinetBox popped={false} timelineKey="test-box" boxHeight={32}>x</CabinetBox>,

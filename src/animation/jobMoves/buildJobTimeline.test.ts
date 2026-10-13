@@ -8,7 +8,8 @@ import { buildJobTimeline, type JobTimelineInput } from './buildJobTimeline';
 import { hoverPulseTargets } from './hoverPulse';
 import { fanTargets } from './fan';
 import { carryTargets } from './carry';
-import { JOB_MOVES, moveWindows } from './jobMoveTable';
+import { JOB_MOVES, moveWindows, type MoveStep } from './jobMoveTable';
+import type { JobTimelineData, MoveEvents } from './decor/events';
 import { jobDuration } from './jobDuration';
 import { traceRoute, traceTimes } from './trace';
 import { RING_SEGMENTS, ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
@@ -23,6 +24,7 @@ import {
   BOB_CYCLE_SECONDS,
   CARRY_SHRINK,
   FAN_PING_SCALE,
+  FAN_RADIUS,
   FLICKER_OPACITY,
   HOVER_PULSE_SCALE,
   RING_REVOLUTIONS,
@@ -48,7 +50,7 @@ function mount(count: number, restScale = 1, gemSeed = GEM_SEED) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   document.body.appendChild(svg);
   const robotEl = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
-  const robot = { id: 'r7', position: { x: 400, y: 300 }, gemSeed };
+  const robot = { id: 'r7', position: { x: 400, y: 300 }, gemSeed, identityColor: '#3fa7c9' };
   gsap.set(robotEl, { x: robot.position.x, y: robot.position.y });
   const orbiters = Array.from({ length: count }, () => {
     const copy = robotEl.appendChild(document.createElementNS(SVG_NS, 'g'));
@@ -68,6 +70,7 @@ function input(count: number, over: Partial<Omit<JobTimelineInput, 'robot' | 'ro
     site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], paths: { outline: SITE_PATH } },
     job: JobType.VentExtraction,
     bpm: 110,
+    decorTier: 'all',
     bodyScale: 1.2,
     layerScale: 1,
     reducedMotion: false,
@@ -557,6 +560,246 @@ describe('buildJobTimeline — the six-job table (Task 29)', () => {
         tl.progress(k / 200);
         for (const local of i.orbiters) expect(num(local, 'opacity'), job).toBe(1);
       }
+    }
+  });
+});
+
+describe('buildJobTimeline — typed plan events (Job decorations Task 4)', () => {
+  const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
+  const PIPE: Vec2[] = [{ x: 400, y: 440 }, { x: 500, y: 440 }];
+  const KIND: Record<MoveStep['move'], MoveEvents['kind']> = { hoverPulse: 'pulse', fan: 'fan', trace: 'trace', ring: 'ring', carry: 'carry' };
+
+  const eventsOf = (tl: gsap.core.Timeline) => (tl.data as JobTimelineData).events;
+
+  /** One run, planned: its events plus everything the events must agree with. */
+  function plan(job: JobType, n: number, bpm = 110, over: Partial<Omit<JobTimelineInput, 'robot' | 'robotEl' | 'orbiters'>> = {}, seed = GEM_SEED) {
+    const i = input(n, { job, bpm, ...over }, 1, seed);
+    const tl = buildJobTimeline(i);
+    const v = workVariation(seed);
+    const shown = shownCorners(seed, n);
+    return {
+      i,
+      tl,
+      v,
+      shown,
+      ranks: turnRanks(v.order, shown),
+      events: eventsOf(tl),
+      windows: moveWindows(JOB_MOVES[job].length, jobDuration(bpm)),
+    };
+  }
+
+  /** The first gem seed from GEM_SEED up whose variation passes `pred`. */
+  function seedWhere(pred: (v: ReturnType<typeof workVariation>) => boolean): number {
+    for (let s = GEM_SEED; s < GEM_SEED + 1000; s++) if (pred(workVariation(s))) return s;
+    throw new Error('no seed found');
+  }
+
+  it('keeps one event per move on the timeline data, in the job table order, of the move kind', () => {
+    for (const job of Object.values(JobType)) {
+      for (const n of [0, 1, 4]) {
+        const { events } = plan(job, n);
+        expect(events.map((e) => e.kind), `${job} ${n}`).toEqual(JOB_MOVES[job].map((s) => KIND[s.move]));
+      }
+    }
+  });
+
+  it('every event spans exactly its move window (t0 = start, t1 = end) at 20 and 200 BPM', () => {
+    for (const job of Object.values(JobType)) {
+      for (const bpm of [20, 200]) {
+        const { events, windows } = plan(job, 3, bpm);
+        events.forEach((e, k) => {
+          expect(e.t0, `${job} ${bpm} move ${k}`).toBe(windows[k].start);
+          expect(e.t1, `${job} ${bpm} move ${k}`).toBe(windows[k].end);
+        });
+      }
+    }
+  });
+
+  it('pulse: the point, the slot, and each orbiter\'s start, target and corner in the robot\'s turn order', () => {
+    for (const n of [1, 3, 4]) {
+      const { i, events, windows, v, shown, ranks } = plan(JobType.VentExtraction, n);
+      const e = events[0];
+      if (e.kind !== 'pulse') throw new Error('expected a pulse');
+      const slot = (windows[0].end - windows[0].start) / n;
+      expect(e.point).toEqual(i.site.points[0]);
+      expect(e.slot).toBeCloseTo(slot, 12);
+      const targets = hoverPulseTargets(i.site.points[0], n, v.phase);
+      expect(e.orbs).toHaveLength(n);
+      e.orbs.forEach((orb, j) => {
+        expect(orb.corner).toBe(shown[j]);
+        expect(orb.start).toBeCloseTo(windows[0].start + ranks[j] * slot, 12);
+        expect(orb.target).toEqual(targets[j]);
+      });
+      // Every slot is taken exactly once, the last ending where the move does.
+      const starts = e.orbs.map((o) => o.start).sort((a, b) => a - b);
+      expect(starts[n - 1] + e.slot).toBeCloseTo(windows[0].end, 12);
+    }
+  });
+
+  it('pulse of fluidMonitoring is round points[1], after its trace', () => {
+    const { i, events } = plan(JobType.FluidMonitoring, 3);
+    const e = events[1];
+    if (e.kind !== 'pulse') throw new Error('expected a pulse');
+    expect(e.point).toEqual(i.site.points[1]);
+    expect(e.t0).toBeGreaterThan(events[0].t1 - 1e-9);
+  });
+
+  it('fan: targets are fanTargets, dir is the unit vector from the point to each target', () => {
+    for (const n of [1, 2, 4]) {
+      const { i, events, windows, shown, ranks } = plan(JobType.AcousticSurvey, n);
+      const e = events[0];
+      if (e.kind !== 'fan') throw new Error('expected a fan');
+      const point = i.site.points[0];
+      const targets = fanTargets(point, n);
+      const slot = (windows[0].end - windows[0].start) / n;
+      expect(e.point).toEqual(point);
+      expect(e.orbs).toHaveLength(n);
+      e.orbs.forEach((orb, j) => {
+        expect(orb.corner).toBe(shown[j]);
+        expect(orb.start).toBeCloseTo(windows[0].start + ranks[j] * slot, 12);
+        expect(orb.target).toEqual(targets[j]);
+        expect(Math.hypot(orb.dir.x, orb.dir.y)).toBeCloseTo(1, 12);
+        expect(dist({ x: point.x + orb.dir.x * FAN_RADIUS, y: point.y + orb.dir.y * FAN_RADIUS }, targets[j])).toBeLessThan(1e-9);
+      });
+    }
+  });
+
+  it('trace: the route in scene units (reversed when the robot traces backwards), starts and run from traceTimes', () => {
+    for (const reversed of [false, true]) {
+      const seed = seedWhere((v) => v.traceReversed === reversed);
+      for (const n of [1, 4]) {
+        const { events, windows, shown, ranks } = plan(JobType.StructuralInspection, n, 110, {}, seed);
+        const e = events[0];
+        if (e.kind !== 'trace') throw new Error('expected a trace');
+        const { starts, run } = traceTimes(ranks, windows[0].start, windows[0].end);
+        expect(e.route).toEqual(traceRoute(SITE_PATH, reversed));
+        expect(e.route[0]).toEqual(reversed ? SITE_PATH[SITE_PATH.length - 1] : SITE_PATH[0]);
+        expect(e.run).toBeCloseTo(run, 12);
+        expect(e.orbs).toHaveLength(n);
+        e.orbs.forEach((orb, j) => {
+          expect(orb.corner).toBe(shown[j]);
+          expect(orb.start).toBeCloseTo(starts[j], 12);
+        });
+        // The last to start ends with the move.
+        expect(Math.max(...e.orbs.map((o) => o.start)) + e.run).toBeCloseTo(windows[0].end, 9);
+      }
+    }
+  });
+
+  it('trace: drops repeated vertices like the move does; fluidMonitoring traces its pipe, or the outline on a site without one', () => {
+    const doubled = [SITE_PATH[0], SITE_PATH[1], SITE_PATH[1], SITE_PATH[2], SITE_PATH[3]];
+    const a = plan(JobType.StructuralInspection, 2, 110, { site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], paths: { outline: doubled } } });
+    const ea = a.events[0];
+    if (ea.kind !== 'trace') throw new Error('expected a trace');
+    expect(ea.route).toHaveLength(SITE_PATH.length);
+    expect(ea.route).toEqual(traceRoute(doubled, a.v.traceReversed));
+
+    const withPipe = plan(JobType.FluidMonitoring, 2, 110, { site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], paths: { outline: SITE_PATH, pipe: PIPE } } });
+    const ep = withPipe.events[0];
+    if (ep.kind !== 'trace') throw new Error('expected a trace');
+    expect(ep.route).toEqual(traceRoute(PIPE, withPipe.v.traceReversed));
+
+    const noPipe = plan(JobType.FluidMonitoring, 2);
+    const en = noPipe.events[0];
+    if (en.kind !== 'trace') throw new Error('expected a trace');
+    expect(en.route).toEqual(traceRoute(SITE_PATH, noPipe.v.traceReversed));
+  });
+
+  it('ring (maintenance): centre, radius, direction, start angles and the spark chords of each orbiter', () => {
+    for (const direction of [1, -1] as const) {
+      const seed = seedWhere((v) => v.ringDirection === direction);
+      const n = 4;
+      const { i, events, v, shown } = plan(JobType.Maintenance, n, 110, {}, seed);
+      const e = events[0];
+      if (e.kind !== 'ring') throw new Error('expected a ring');
+      const angles = ringStartAngles(n, v.phase);
+      expect(e.centre).toEqual(i.site.points[0]);
+      expect(e.radius).toBeCloseTo(ringRadius(v.radiusScale), 12);
+      expect(e.direction).toBe(direction);
+      expect(e.orbs).toHaveLength(n);
+      e.orbs.forEach((orb, j) => {
+        expect(orb.corner).toBe(shown[j]);
+        expect(orb.startAngle).toBeCloseTo(angles[j], 12);
+        expect(orb.sparkChords).toEqual(sparkChords(v.sparks[shown[j]], RING_SEGMENTS));
+        expect(orb.sparkChords.length).toBeGreaterThan(0);
+      });
+    }
+  });
+
+  it('ring: the start angle is where the ring route begins, and acousticSurvey\'s ring carries no spark chords (it does not flicker)', () => {
+    const { i, events, v } = plan(JobType.AcousticSurvey, 3);
+    const e = events[1];
+    if (e.kind !== 'ring') throw new Error('expected a ring');
+    e.orbs.forEach((orb) => {
+      expect(orb.sparkChords).toEqual([]);
+    });
+    e.orbs.forEach((orb, j) => {
+      const first = ringRoute(e.centre, e.radius, orb.startAngle, e.direction)[0];
+      const expected = ringRoute(i.site.points[0], ringRadius(v.radiusScale), ringStartAngles(3, v.phase)[j], v.ringDirection)[0];
+      expect(dist(first, expected)).toBeLessThan(1e-9);
+    });
+  });
+
+  it('carry: a and b are the pick-up and drop, offset is each orbiter\'s x spacing from carryTargets', () => {
+    for (const n of [1, 2, 3, 4]) {
+      const { i, events, shown } = plan(JobType.Salvage, n);
+      const e = events[0];
+      if (e.kind !== 'carry') throw new Error('expected a carry');
+      const pairs = carryTargets(i.site.points[0], i.site.points[1], n);
+      expect(e.a).toEqual(i.site.points[0]);
+      expect(e.b).toEqual(i.site.points[1]);
+      expect(e.orbs).toHaveLength(n);
+      e.orbs.forEach((orb, j) => {
+        expect(orb.corner).toBe(shown[j]);
+        expect(orb.offset).toBeCloseTo(pairs[j].from.x - e.a.x, 12);
+        expect(orb.offset).toBeCloseTo(pairs[j].to.x - e.b.x, 12);
+      });
+    }
+  });
+
+  it('a site with a single point falls back to it, as the moves do', () => {
+    const site = { points: [{ x: 470, y: 420 }], paths: { outline: SITE_PATH } };
+    const pulse = plan(JobType.FluidMonitoring, 2, 110, { site }).events[1];
+    if (pulse.kind !== 'pulse') throw new Error('expected a pulse');
+    expect(pulse.point).toEqual(site.points[0]);
+    const carry = plan(JobType.Salvage, 2, 110, { site }).events[0];
+    if (carry.kind !== 'carry') throw new Error('expected a carry');
+    expect(carry.b).toEqual(site.points[0]);
+  });
+
+  it('with no orbiters every event still exists, with empty orbs and finite numbers', () => {
+    for (const job of Object.values(JobType)) {
+      const { events } = plan(job, 0);
+      expect(events.length).toBe(JOB_MOVES[job].length);
+      for (const e of events) {
+        expect(e.orbs).toEqual([]);
+        expect(Number.isFinite(e.t0) && Number.isFinite(e.t1)).toBe(true);
+        if (e.kind === 'pulse' || e.kind === 'fan') expect(Number.isFinite(e.slot)).toBe(true);
+        if (e.kind === 'trace') expect(Number.isFinite(e.run)).toBe(true);
+      }
+    }
+  });
+
+  it('events are plain JSON: they survive a round trip unchanged (no elements, no NaN or Infinity)', () => {
+    for (const job of Object.values(JobType)) {
+      for (const n of [0, 1, 4]) {
+        const { events } = plan(job, n);
+        expect(JSON.parse(JSON.stringify(events)), `${job} ${n}`).toEqual(events);
+      }
+    }
+  });
+
+  it('events are in scene units: the layer scale and body scale do not change them', () => {
+    for (const job of Object.values(JobType)) {
+      const a = plan(job, 3, 110, { layerScale: 1, bodyScale: 1.2 }).events;
+      const b = plan(job, 3, 110, { layerScale: 0.75, bodyScale: 1.69 }).events;
+      expect(b, job).toEqual(a);
+    }
+  });
+
+  it('reduced motion plans nothing: the data holds an empty events list', () => {
+    for (const job of Object.values(JobType)) {
+      expect(plan(job, 3, 110, { reducedMotion: true }).events, job).toEqual([]);
     }
   });
 });

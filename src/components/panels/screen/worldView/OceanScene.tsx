@@ -43,8 +43,8 @@ interface OceanSceneProps {
 // ========================================
 
 interface SceneLayerProps {
-  /** Which of the six layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
-  name: 'back' | 'robots-back' | 'mid' | 'bubbles' | 'robots' | 'front';
+  /** Which of the seven layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
+  name: 'back' | 'robots-back' | 'mid' | 'bubbles' | 'robots' | 'front' | 'marker';
   width: number;
   height: number;
   /** A layer whose content moves every frame — promoted to its own compositor layer (OceanScene.css). */
@@ -53,7 +53,7 @@ interface SceneLayerProps {
 }
 
 /**
- * One of the scene's stacked `<svg>` layers. All six share the viewBox and the "slice" (cover)
+ * One of the scene's stacked `<svg>` layers. All seven share the viewBox and the "slice" (cover)
  * fit, and OceanScene.css makes each fill the same box, so their coordinate systems map to the
  * same pixels — a robot at scene (x, y) in either robots layer sits exactly over scene (x, y) in
  * the factory layers.
@@ -69,11 +69,12 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
       height={height}
       // "slice" (cover), not the default "meet" (contain) — the back layer's background rect fills
       // the whole viewBox, and it must never be smaller than the tablet screen in either
-      // direction. slice scales the scene UP until both dimensions cover the box, centered,
-      // cropping whichever axis overflows — never scaled down to fit with letterbox bars outside
-      // it. The SVG's own default overflow:hidden (and .world-view's, WorldView.css) clips the
-      // crop; nothing scrolls.
-      preserveAspectRatio="xMidYMid slice"
+      // direction. slice scales the scene UP until both dimensions cover the box, cropping
+      // whichever axis overflows — never scaled down to fit with letterbox bars outside it. It is
+      // centred horizontally but pinned to the BOTTOM (YMax): a box wider than 16:9 loses the top
+      // of the world (ocean, a few building tops), never the ground. The SVG's own default
+      // overflow:hidden (and .world-view's, WorldView.css) clips the crop; nothing scrolls.
+      preserveAspectRatio="xMidYMax slice"
     >
       {children}
     </svg>
@@ -136,11 +137,12 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 // ========================================
 
 /**
- * Root scene component. Renders six stacked SVG layers (roadmap 17.2.5; Phase 43 J4, spec §1.10),
+ * Root scene component. Renders seven stacked SVG layers (roadmap 17.2.5; Phase 43 J4, spec §1.10),
  * back to front: static `back` (water, ridge, background factories, tint A), the moving back robot
  * row `robots-back`, static `mid` (tint B, midground factories, tint C, the ground line), the
  * moving bubble layer (every building's vent bubbles), the moving front robot row `robots`, and
- * static `front` (tint D, foreground factories). Kicks off factory placement, robot spawning and
+ * static `front` (tint D, foreground factories), then the moving `marker` layer (the Deck camera's
+ * followed-robot marker, in front of every building). Kicks off factory placement, robot spawning and
  * factory production scheduling on mount.
  *
  * Why layers: the idle paint localizer (scripts/perf/idle-paint.mjs) found the old single <svg>
@@ -386,9 +388,6 @@ export function OceanScene({
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
           ))}
         </g>
-        {/* The Deck camera's followed-robot marker (square + "name | job"), over everything in the
-            row; renders nothing unless the camera is following. */}
-        <FollowedRobotMarker localeId={localeId} />
       </SceneLayer>
 
       {/* Static front layer: tint D, then the foreground-row factories (closest to the viewer). */}
@@ -403,6 +402,14 @@ export function OceanScene({
         </g>
         <PipeBridges factories={foregroundFactories} />
         <g id="ui-layer" />
+      </SceneLayer>
+
+      {/* Moving: the Deck camera's followed-robot marker (square + "name | job"), in front of every
+          building. Its own layer, not the static front one (it moves every frame, and a write there
+          would repaint the foreground factories) and not the robots layer (the foreground would
+          hide it); renders nothing unless the camera is following. */}
+      <SceneLayer name="marker" width={width} height={height} moving>
+        <FollowedRobotMarker localeId={localeId} />
       </SceneLayer>
     </div>
   );

@@ -59,6 +59,7 @@ import { playStationRipple } from '../animation/stationRipple';
 import { findLayerSwitchPoint, robotBoxAt } from '../animation/layerSwitch';
 import { buildJobTimeline } from '../animation/jobMoves/buildJobTimeline';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
+import { decorTier } from '../animation/jobMoves/decor/decorTier';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { GEM_CANVAS_H, gemWidth, getRobotGem } from '../components/robot/gem/polygon';
 import type { ArcKind } from '../components/robot/gem/useHaloMotion';
@@ -477,7 +478,7 @@ function work(loop: LoopRun, robotId: string, site: WorkSite): void {
   const robot = robotOf(loop, robotId);
   if (!robot) return;
   write(loop, robotId, { activity: 'working' });
-  const bpm = useAudioStore.getState().bpm;
+  const { bpm, robotLoad } = useAudioStore.getState();
   const done = live(loop, () => {
     getOrbiterWork(robotId)?.unlock();
     release(loop, robotId, site.id);
@@ -498,6 +499,7 @@ function work(loop: LoopRun, robotId: string, site: WorkSite): void {
     job: robot.job!,
     orbiters: getOrbiterWork(robotId)?.lock() ?? [],
     bpm,
+    decorTier: decorTier(robotLoad),
     bodyScale: bodyScaleOf(robot),
     layerScale: rowScale(rowOfRobot(robot)),
     reducedMotion: prefersReducedMotion(),

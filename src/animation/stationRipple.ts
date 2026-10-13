@@ -18,8 +18,16 @@ import gsap from 'gsap';
 
 import { getTimeline, killTimeline, setTimeline } from './timelineMap';
 import { RIPPLE_OPACITY, rippleEnvelope, type RippleKind } from '../components/robot/gem/haloRipple';
-import type { HaloStop } from '../components/robot/gem/haloDials';
 import { getRef } from '../utils/refs';
+
+// ========================================
+// TYPES
+// ========================================
+/** One stop of the ripple's radial gradient; `offset` is 0..1 of the radius. */
+export interface RippleStop {
+  offset: number;
+  opacity: number;
+}
 
 // ========================================
 // CONSTANTS
@@ -43,7 +51,7 @@ const pct = (offset: number) => `${(offset * 100).toFixed(2)}%`;
 export const stationRippleKey = (stationId: string) => `station-ripple-${stationId}`;
 
 /** The five gradient stops at arc progress `u` (0..1): one cycle, hole → edge or edge → hole. */
-export function stationRippleStops(kind: RippleKind, u: number): HaloStop[] {
+export function stationRippleStops(kind: RippleKind, u: number): RippleStop[] {
   const f = u % 1;
   const position = kind === 'spawn' ? lerp(STATION_RIPPLE_HOLE, 1, f) : lerp(1, STATION_RIPPLE_HOLE, f);
   return [

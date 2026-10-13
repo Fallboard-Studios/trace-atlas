@@ -13,6 +13,11 @@
      nav tree scrolls). */
   min-height: 0;
   overflow: hidden;
+  /* A live layout tweak (Crawford, 2026-10-12): the screen sits --header-top lower (a relative offset, so
+     the header and nav panel, which also offset by --header-top inside it, start twice that from the
+     tablet's top) and stops 44px short of its container's height. */
+  max-height: calc(100% - 44px);
+  top: var(--header-top);
 }
 
 .screen-viewport::before {

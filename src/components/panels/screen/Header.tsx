@@ -75,7 +75,7 @@ const HEADER_STYLE = {
  * The box pops while open, as a Toggle's does while on. The pop-out wears the header's static popped
  * facade, as every panel does (spec §1.1).
  */
-function VolumePopout({ disabled, children }: { disabled: boolean; children: ReactNode }) {
+function VolumePopout({ disabled, container, children }: { disabled: boolean; container: HTMLElement | null; children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -89,14 +89,20 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
           </CabinetBox>
         </button>
       </Popover.Trigger>
-      {/* End-aligned under the ▾ box, it grows left, away from the power corner beside it, and its
-          width (HEADER_VOLUME_WIDTH) keeps it inside the screen: at 320 px it spans 25–225 px, the
-          screen 16–304 and the corner from 233 (measured in Chrome). */}
-      <Popover.Content className="header__volume-popover" side="bottom" align="end" sideOffset={8} collisionPadding={8}>
-        <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-volume-popover-facade">
-          {children}
-        </CabinetBox>
-      </Popover.Content>
+      {/* Portalled into the header stack (still inside the header and ScreenViewport) and pinned to it by
+          Header.css (flush left, 8 px under the panel): Radix's own placement end-aligned it to the ▾ box
+          with a computed translateX, which swung from too far left to too far right as the width moved
+          between 320 px and the slider taking the box's place. Header.css overrides the wrapper's whole
+          position, so Radix's offset and collision options are left out; `side` and `align` stay for its
+          data attributes. The pop-out's width (HEADER_VOLUME_WIDTH) keeps it left of the power corner at
+          320 px. */}
+      <Popover.Portal container={container}>
+        <Popover.Content className="header__volume-popover" side="bottom" align="start">
+          <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-volume-popover-facade">
+            {children}
+          </CabinetBox>
+        </Popover.Content>
+      </Popover.Portal>
     </Popover.Root>
   );
 }
@@ -118,6 +124,8 @@ function Header() {
   const headerRef = useRef<HTMLElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLSpanElement>(null);
+  // State, not a ref: the pop-out portals into the stack, and reading a ref in render is stale until something re-renders.
+  const [stackEl, setStackEl] = useState<HTMLDivElement | null>(null);
   const shell = useShell();
   // Phone only: the free band left of the power corner has room for the slider (Crawford, 2026-10-11: once
   // three of its boxes fit, the ▾ box goes and the slider shows on screen). False until the ruler reports.
@@ -208,7 +216,7 @@ function Header() {
                above) already carries the accessible name. */}
             <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
           </Toggle>
-          {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
+          {shell === 'desk' || roomForVolume ? volumeSlider : <VolumePopout disabled={!isPoweredOn} container={stackEl}>{volumeSlider}</VolumePopout>}
         </div>
       </div>
     </CabinetBox>
@@ -220,7 +228,7 @@ function Header() {
       {/* Phone: the well and the panel share one stack, so they take one width and one inset from the tablet's
           edge (Crawford, 2026-10-11): the well along the top, outside the panel. */}
       {shell === 'phone' ? (
-        <div className="header__stack">
+        <div ref={setStackEl} className="header__stack">
           <PhoneWell />
           {panel}
         </div>

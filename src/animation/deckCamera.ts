@@ -14,7 +14,6 @@
 // IMPORTS
 // ========================================
 import gsap from 'gsap';
-import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 
 import {
   DECK_CAMERA_COOLDOWN_MS,
@@ -31,8 +30,6 @@ import { DockingState, type Robot } from '@/types/Robot';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
-
-gsap.registerPlugin(ScrollToPlugin);
 
 // ========================================
 // MODULE STATE
@@ -211,22 +208,43 @@ export function pick(candidateIds: string[]): string | null {
   return tied.reduce((best, r) => (distance(r.id) < distance(best.id) ? r : best)).id;
 }
 
-/** Builds, registers and plays the `deck-camera` tween to `x` (spec §1.2, assumptions 4, 8, 9).
- *  `setTimeline` kills any tween already registered under `DECK_CAMERA_TIMELINE_ID`. */
+/** Builds, registers and plays the `deck-camera` tween toward `robotId` (spec §1.2, assumptions 4,
+ *  8, 9). `setTimeline` kills any tween already registered under `DECK_CAMERA_TIMELINE_ID`.
+ *
+ *  The tween eases a progress value, not the scroll position: each update writes
+ *  `start + progress × (live target − start)`, re-reading the robot's position (`targetFor`) as the
+ *  follow does. A fixed `scrollTo` landed where the robot *was* when the float began, so a robot
+ *  that moved meanwhile — worst when it crossed the camera's path — got a hard jump on the first
+ *  follow write (Crawford, 2026-10-12). Chasing the live target lands exactly where the follow's
+ *  first write goes, and because the ease flattens to zero slope at the end, the camera arrives at
+ *  the robot's own velocity: the float blends into the follow. `x` is the target at pick time, kept
+ *  as the fallback when the robot's ref vanishes mid-float. */
 function createCameraTween(x: number, robotId: string): void {
   if (!scroller) return;
+  const el = scroller;
   const duration = prefersReducedMotion() ? 0 : DECK_CAMERA_PAN_S;
   const float = ++floatCount;
   currentFloat = float;
   setFollowed(robotId);
+  const start = el.scrollLeft;
+  let lastTarget = x;
+  const progress = { p: 0 };
+  const write = (): void => {
+    lastTarget = targetFor(robotId) ?? lastTarget;
+    el.scrollLeft = start + progress.p * (lastTarget - start);
+  };
   const tl = gsap.timeline({ paused: true });
-  tl.to(scroller, {
-    scrollTo: { x, autoKill: true },
+  tl.to(progress, {
+    p: 1,
     duration,
-    // Landing starts the follow; being killed (a scroll auto-kills the tween) starts a rest. Either
+    onUpdate: write,
+    // Landing starts the follow; being killed (touch, wheel, an override) starts a rest. Either
     // is ignored if the float was cancelled or replaced meanwhile.
     onComplete: () => {
       if (currentFloat !== float) return;
+      // A zero-duration tween (reduced motion) can complete without an update: land explicitly.
+      progress.p = 1;
+      write();
       currentFloat = null;
       subjectId = robotId;
       followStartedAt = performance.now();

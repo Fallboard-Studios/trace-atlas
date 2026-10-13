@@ -29,7 +29,7 @@ self-directed presence instead of something that only reacts.
   (in transit back to a station) does **not** end the follow early — the camera keeps tracking it, since a
   recalled robot is still swimming and the camera must be able to follow anywhere an undocked robot goes.
 - **Cooldown.** Follow-end — by 20s elapsing, by docking, or by the user touching the scroller — starts an
-  8-second cooldown (replacing the shipped 20s `DECK_CAMERA_CUT_COOLDOWN_MS`; this is the same clock, new
+  8-second cooldown (3 seconds since 2026-10-12; replacing the shipped 20s `DECK_CAMERA_CUT_COOLDOWN_MS`; this is the same clock, new
   value and new meaning — it is no longer "don't cut again too soon," it's "pause between subjects"). At
   boot, the cooldown is pre-elapsed: the very first pick happens immediately, no initial wait (same
   sentinel pattern as the shipped `lastCutAt = -Infinity`).
@@ -49,7 +49,7 @@ self-directed presence instead of something that only reacts.
   once picked, it stays until that follow ends.
 - **User touch always wins.** A touch/pointerdown/wheel on the scroller kills whatever the camera is
   currently doing — mid-follow, mid-cooldown-wait, or mid-float — immediately, the same `autoKill`/kill
-  pattern as today. On release, the 8-second cooldown restarts from zero, leading into a normal pick once
+  pattern as today. On release, the cooldown (8 seconds as interviewed; 3 since 2026-10-12) restarts from zero, leading into a normal pick once
   it elapses. (This replaces the shipped idle-detection model — `noteDeckUserInput`/`isDeckCameraIdle` as a
   general "has the user been active recently" concept goes away; touch-down and touch-up become the only
   two input-driven events the camera cares about.)

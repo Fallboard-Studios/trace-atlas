@@ -1,5 +1,7 @@
 # Implementation Plan: World Clock — Deterministic Lifecycle Replay
 
+> **Superseded in part, 2026-10-12:** the "never zero Active" invariant mentioned in these tasks was removed (docs/ROBOT_LIFECYCLE.md). The rest stands as written.
+
 Source spec: [docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md](../specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md). Source intent: [docs/intent/world-clock-deterministic-lifecycle-replay.md](../intent/world-clock-deterministic-lifecycle-replay.md). Roadmap: [Phase 20.5](../todo/roadmap.md#205-world-clock-deterministic-lifecycle-replay).
 
 ## Overview

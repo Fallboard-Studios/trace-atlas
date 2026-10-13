@@ -70,7 +70,8 @@ wandering of `idleSystem.ts` and the bottom-only exit/entry of `robotSystems.ts`
   the back. Bubbles sit between the two robot layers.
 - **Cards** show more states (lifecycle and activity). The detail avatar keeps its orbiters
   attached. Clicking a robot behaves as today.
-- **Unchanged:** pitch drift on docking; the never-zero-Active invariant; the Audio Load Budget;
+- **Unchanged:** pitch drift on docking; the Audio Load Budget (the never-zero-Active invariant listed here
+  was removed 2026-10-12);
   the battery dim overlay; robot identity and the gem body.
 
 ## Style / constraint

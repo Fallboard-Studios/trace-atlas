@@ -21,11 +21,12 @@ import type { Vec2 } from '../../types/Vec2';
 /** Orbiters carry side by side, this far apart in x (scene units, the sketch's). */
 export const CARRY_SPACING = 8;
 
-/** Fractions of the move: loaded, arrived at the drop, dropped, back on the pick-up. */
-const LOADED = 0.1;
-const ARRIVED = 0.45;
-const DROPPED = 0.55;
-const RETURNED = 0.9;
+/** Fractions of the move: loaded, arrived at the drop, dropped, back on the pick-up. Exported for
+ *  the Salvage decoration, which follows the same phases (decor/salvageDecor.ts). */
+export const LOADED = 0.1;
+export const ARRIVED = 0.45;
+export const DROPPED = 0.55;
+export const RETURNED = 0.9;
 
 // ========================================
 // TARGETS

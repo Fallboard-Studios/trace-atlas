@@ -109,8 +109,8 @@ as `refs.ts`:
 
 - `registerArcDecorator(robotId, fn)` / `getArcDecorator(robotId)` / `deleteArcDecorator(robotId, owner?)`
   — `RobotBody` registers its world-context `decorateArc` (from `useHaloMotion`, memoised so an
-  audio edit doesn't re-register it). The work loop calls it on every station arc, so the halo
-  ripple rides on the arc's own timeline.
+  audio edit doesn't re-register it). The work loop calls it on every station arc; it plays the halo's
+  triangular waves on a timeline of their own (`halo-waves-{context}-{robotId}`), not on the arc's.
 - `registerOrbiterWork(robotId, control)` / `getOrbiterWork(robotId)` / `deleteOrbiterWork(robotId, owner?)`
   — `useOrbiterMotion` (world context only) registers `{ lock(), unlock() }`. `lock()` finishes
   any attach/detach hop in flight (`progress(1)`), makes `reconcile()` return early and returns the
@@ -207,6 +207,84 @@ doesn't turn with the phase: it always opens upward over the site.
 Every move ends each orbiter at its rest scale and opacity, so the reattach only flies them home.
 Reduced motion runs no move at all (see "Job timeline").
 
+### Job decorations
+[src/animation/jobMoves/decor/](../src/animation/jobMoves/decor/) (Phase 52, spec
+[JOB_DECORATION.md](specs/JOB_DECORATION.md)) draws one small flourish over a working robot's orbiters,
+one per job, as SVG nodes made for the run and removed when it ends. They are animation only: no
+`AudioEngine`, `BeatClock` or store is read or written (Strict Separation), the job's moves and timing are
+untouched, and cards and the detail avatar never get them. Every shape wears the robot's `identityColor` or
+the gem light colour, with gradients but no SVG filter (a test pins it in `RobotGem.test.tsx`).
+
+**The run** ([jobDecor.ts](../src/animation/jobMoves/decor/jobDecor.ts)). `addWork` calls `addJobDecor(tl, run)`
+after the moves are on the job timeline. When the tier is not `'none'`, the robot has a `.robot__row` and the
+job has an entry in `DECOR_BUILDERS`, it appends one `<g class="robot__work" data-job>` (with its own `<defs>`)
+as the **last child of `.robot__row`**, after `g.gem`: it draws over the body and the orbiters, scales with
+the back row for free and unmounts with the robot. Idle robots carry none; reduced motion plans no moves, so
+`addWork` is never reached and it gets none.
+
+- **One write hook.** `addWork` hands the builder a `DecorRun` (the plan's events, the variation, the orbiters' rest
+  scales); the builder gets a `DecorContext` (`ctx`: the group, its `<defs>`, the tier, the frame helpers). It makes
+  its nodes once and calls `ctx.run(t0, t1, write)` once. `write(t)` runs
+  from the job timeline's own `onUpdate`, so it fires after every child tween has rendered: a decoration that
+  reads an orbiter (`ctx.pose(j)`, the GSAP `x`/`y`/`scale` through `orbiterLocalToRowLocal`) never sees the
+  previous update's value, and a seek or the silent finish lands exactly. A playhead leaving the window gets one
+  last `write` at the nearest edge, where every shape is invisible. There is no tween of its own per
+  decoration, and no store read inside the callback.
+- **Frames** ([frames.ts](../src/animation/jobMoves/decor/frames.ts)). Everything is drawn in the group's
+  row-local frame: `sceneToRowLocal` maps a scene point (a site point, a route, a vent mouth) into it, and
+  `orbiterLocalToRowLocal` maps an orbiter's live position. Sizes scale with the row, so a back-row robot's
+  decorations shrink with it. [polyline.ts](../src/animation/jobMoves/decor/polyline.ts) (`polyLen`, `polyAt`,
+  `polyVertices`) walks a route for the trail, the ticks and the droplets.
+- **The counter-bob.** The group sits outside `g.gem`, so the body's bob would carry it. `addJobDecor` adds
+  the bob inverted over the layer scale (`BOB_PX` (6) ÷ `layerScale`), so a wire anchored to a site point stays
+  on it.
+- **Cleanup.** The group is removed by a `tl.call` at the window's end and by a wrap of `tl.kill`. GSAP's
+  `onInterrupt` fires only below progress 1, so it would miss the work loop's silent finish
+  (`progress(1, true)`, then kill); every path ends in `kill()`, so the wrap covers a world transition
+  (`killAllTimelines`), `stopWorkLoop` and the complete. [workLoop.integration.test.ts](../src/systems/workLoop.integration.test.ts)
+  pins each against the real loop.
+- **Plan events** ([events.ts](../src/animation/jobMoves/decor/events.ts)). `planStep` in `buildJobTimeline.ts`
+  fills a typed `MoveEvents` per step (times, routes, ring angles, per-orbiter starts), so a decoration reads
+  the plan instead of re-deriving a tweened position.
+
+| Job | Builder | Draws | Tier `'cheap'` | Counts |
+|---|---|---|---|---|
+| `ventExtraction` | [ventDecor.ts](../src/animation/jobMoves/decor/ventDecor.ts) `addVentDecor` | A wire from each orbiter to the vent mouth that brightens from the mouth on its pulse (`wireGlowAlpha`), and motes that rise off the mouth (`moteAt`). The orbiter's pulse is `pulseAmount` against `HOVER_PULSE_SCALE` (1.3). | motes only | `VENT_MOTES` (3) per orbiter |
+| `acousticSurvey` | [surveyDecor.ts](../src/animation/jobMoves/decor/surveyDecor.ts) `addSurveyDecor` | Small arcs leave each orbiter on every fan ping (`pingArc`), widening and thinning; during the ring the orbiters are wired into a faint polygon, bright at the corners (`chordState`). | nothing | `SURVEY_ARCS` (3) per orbiter |
+| `structuralInspection` | [inspectionDecor.ts](../src/animation/jobMoves/decor/inspectionDecor.ts) `addInspectionDecor` | A short trail behind each orbiter along the outline (`trailSegments`) and a tick at every interior vertex as the lead passes (`tickAt`). | ticks only | `INSPECT_TRAIL_SEGMENTS` (8) per orbiter |
+| `fluidMonitoring` | [fluidDecor.ts](../src/animation/jobMoves/decor/fluidDecor.ts) `addFluidDecor` | Droplets flowing along the pipe behind the lead (`dropAt`), and at the valve a square that spins faster with each pulse (`valveAngle`). | valve only | `FLUID_DROPS` (10) |
+| `salvage` | [salvageDecor.ts](../src/animation/jobMoves/decor/salvageDecor.ts) `addSalvageDecor` | A gem load hung on wires between the orbiters: it grows at pick-up (`loadScale`), swings on the carry, shrinks at the drop; the wires go slack on the return (`slackWire`). | nothing | one load, two wires per orbiter |
+| `maintenance` | [maintenanceDecor.ts](../src/animation/jobMoves/decor/maintenanceDecor.ts) `addMaintenanceDecor` | On every flicker chord the orbiter throws line sparks outward (`sparkAt`) and a brief flash (`flashAt`). | same as `'all'` | `MAINT_SPARKS` (5) per orbiter and chord |
+
+The table's job keys are `JOB_MOVES`' and `DECOR_BUILDERS`'; a docs test pins that, and pins every number
+written here as `NAME` (value) against `src/constants/index.ts`. Each job's other knobs (`VENT_FADE` (0.5),
+`SURVEY_PING_LIFE` (1.4), `INSPECT_TICK_LIFE` (3), `FLUID_DROP_LAG` (0.33), `FLUID_VALVE_SIZE` (14),
+`SALVAGE_HANG` (24), `SALVAGE_SWING_DEG` (10), `MAINT_SPARK_LIFE` (1.2)) are one constant each, with the
+sketch's defaults ([job-decorations.html](sketches/job-decorations.html)).
+
+Each builder is the pure-state pattern of `haloWaves.ts`: the named functions are maths on `(t, events,
+variation, frames)` and return plain shape data, and the `add…` builder only creates nodes and writes
+attributes. A window ends after the last shape it draws (a spark, tick or arc life), clamped to the job, so
+nothing is cut; every shape is invisible at both ends of its window, so nothing pops at a move boundary or the
+reattach.
+
+**Variation.** Twelve factors per robot (`ventRise`, `ventLife`, `surveyReach`, `surveyLife`, `trailLength`,
+`tickLife`, `dropLag`, `valveSize`, `hang`, `loadSize`, `sparkReach`, `sparkLife`), each within ±`DECOR_JITTER`
+(0.15) of the sketched value, plus the seeded `sparkDirs`, `moteDrift`, `swingPhase` and `loadSeed`. They are
+appended to the end of the `${gemSeed}:work` stream in `variation.ts`, so no existing draw moved; counts and
+opacities never vary. A robot works the same way every job.
+
+**Tier.** `decorTier(robotLoad)` ([decorTier.ts](../src/animation/jobMoves/decor/decorTier.ts)) is read once per
+job start in `work()`, beside `bpm`, and handed to `buildJobTimeline`. The ladder is **unbound**:
+`DECOR_TIER_BELOW_STANDARD` and `DECOR_TIER_BELOW_FULL` are both `'all'`, so every Audio Load preset draws
+everything. **Full is always `'all'`**, so binding the ladder (Light `'none'`, Standard `'cheap'`) can never
+lower the Full-tier cost. The idle-paint gate measured that cost at +11 % busy and +18.5 % paint against the
+parent ([PERFORMANCE.md](PERFORMANCE.md), "Job Decorations — the Task 14 perf gate"); it was accepted, and the
+Pixel run that is meant to judge it has not been done.
+
+**Keys.** Decorations add no `timelineMap` key: they live on the existing `work-${robotId}` timeline and die
+with it.
+
 ### Station arcs
 A robot enters and leaves a charging station through one arc timeline, keyed
 `` `station-${robotId}` `` (`workLoop.ts`'s `stationArc`), over `STATION_ARC_SECONDS` (1 s):
@@ -223,8 +301,9 @@ the re-mounted body with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows
 0.75 overall. Its next leg to a front-row site or a station is then an ordinary back → front
 switch. The entry plays in the front row, between L3 and L2.
 
-Opacity is linear both ways, and the robot's halo ripple is added to the same timeline by its
-registered `decorateArc(kind, duration, tl)` (outward on exit, inward on entry). Beside it,
+Opacity is linear both ways, and the robot's halo waves are started by its registered
+`decorateArc(kind, duration, tl)` (outward on exit, inward on entry) on a timeline of their own, since a spawn run
+outlasts the arc. Beside it,
 `playStationRipple(stationId, kind, color, duration)` plays the station's own ring in the moving
 robot's identity colour, keyed `stationRippleKey(stationId)` = `` `station-ripple-${stationId}` ``.
 It animates the circle and gradient that `ChargingStation`'s front fragment draws (all clear at
@@ -306,7 +385,7 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `dissolve-${robotId}` `` | the work loop's `dissolve` | one layer-switch fade | its own end, the robot's next dissolve, a recall or turn-back (`dropLeg`), an adoption (`killLegs`), `stopWorkLoop` — each removes the `<use>` copy too |
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
-| `` `halo-${context}-${robotId}` `` | `useHaloMotion` | one halo-dial tween, started only when the dial's values change (`rx`, `ry` or a stop's offset or opacity), never by a re-render alone | the next dial change, unmount |
+| `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
 
 `stopWorkLoop` kills every `work-`, `swim-`, `bob-wait-`, `station-` and `dissolve-` key
 (`LOOP_KEY_PREFIXES`; power-off, and before every `startWorkLoop` in `initializeLocale`), removes
@@ -316,7 +395,7 @@ gets a target-less timeline of the same length under the same key, because `crea
 no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
 
 ### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is six stacked `<svg>` layers that share one viewBox and `xMidYMid slice` fit, each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
+The ocean scene (`OceanScene.tsx`) is seven stacked `<svg>` layers that share one viewBox and `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
 
 | Layer | Moves? | Contents |
 |---|---|---|
@@ -326,6 +405,7 @@ The ocean scene (`OceanScene.tsx`) is six stacked `<svg>` layers that share one 
 | `bubbles` | moving | every building's and vent's bubbles |
 | `robots` | moving | `#station-l3-layer`, `#robot-layer` (every other robot), `#robot-dissolve-layer` (layer-switch copies), `#station-front-layer` |
 | `front` | static | tint D, foreground factories/scenery and pipe bridges |
+| `marker` | moving | the Deck camera's followed-robot marker (`FollowedRobotMarker`), in front of every building; its own layer because it moves every frame and a write in `front` would repaint the foreground factories |
 
 The four **depth tints** (`DEPTH_TINTS`, full-screen `rect[data-depth-tint]`, each a gradient `#depth-tint-{slot}` defined in the layer that draws it) replaced the old two gradients. A is 0.06 and B 0.25 (`#0c1c4f` → `vent.shadow`), C 0.20 and D 0.10 (`vent.shadow`). Coverage, 1 − Π(1 − α): background buildings 49 %, back-row robots 46 %, midground 28 %, front-row robots, stations and bubbles 10 %, foreground 0. Only B and C sit between the robot rows, so a row switch gains or loses 40 % haze, which the dissolve blends. The haze is the scene's, not a robot overlay. No layer takes clicks (`pointer-events: none`); `.robot` takes them, in either row.
 
@@ -371,7 +451,7 @@ The module is runtime-only, in the pattern of `timelineMap` and the ref registry
 **The loop.** One `gsap.ticker` handler, added in `registerDeckScroller` and removed when the scroller goes, does all per-frame work. Every clock is a `performance.now()` comparison inside it; there are no timers.
 
 1. **Pick** (`pick(candidateIds)`): among the candidates, the lowest battery above `DECK_CAMERA_MIN_BATTERY_PCT`, else the lowest overall; a tie goes to the robot whose target is nearest the scroller's current position. An empty pool returns `null` and restarts the cooldown. The ticker picks from `undockedRobotIds()` (robots that are `Active` or `Recalled`; docked ones are never chosen, and a robot's position on screen never matters).
-2. **Float** (`moveCameraTo(robotId)`): a `gsap` timeline of length `DECK_CAMERA_PAN_S` scrolls to the robot's target (its live scene x scaled to the stage's pixel width, centred, clamped to the scroll range; `deckCameraTargetFor` exposes it for tests). It is registered in `timelineMap` under `DECK_CAMERA_TIMELINE_ID`, so a new float kills the old one. Under `prefers-reduced-motion` the duration is 0.
+2. **Float** (`moveCameraTo(robotId)`): a `gsap` timeline of length `DECK_CAMERA_PAN_S` eases a progress value from 0 to 1, and on each update writes `scrollLeft = start + progress × (live target − start)`, re-reading the robot's target every frame (its live scene x scaled to the stage's pixel width, centred, clamped to the scroll range; `deckCameraTargetFor` exposes it for tests). It chases the robot rather than scrolling to a snapshot: a fixed target landed where the robot *was* at pick time, and a robot that moved meanwhile got a hard jump on the first follow write (worst when it crossed the camera's path; Crawford, 2026-10-12). Landing on the live target means the follow's first write is no jump, and since the ease flattens to zero slope at the end the camera arrives at the robot's own velocity. If the robot's ref vanishes mid-float the last known target holds. It is registered in `timelineMap` under `DECK_CAMERA_TIMELINE_ID`, so a new float kills the old one. Under `prefers-reduced-motion` the duration is 0 and `onComplete` writes the landing position itself.
 3. **Follow**: once the float lands, each tick writes the subject's live target to `scrollLeft` until `DECK_CAMERA_FOLLOW_MS` is up, the robot docks, or it leaves the locale.
 4. **Cooldown**: `DECK_CAMERA_COOLDOWN_MS` of rest, then the ticker picks again. The first pick after boot has no wait.
 

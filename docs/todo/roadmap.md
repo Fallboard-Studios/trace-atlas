@@ -1095,7 +1095,7 @@ stage.**
 Also on the table for the letterbox band, if the 16:9 fit is chosen anyway: the small phone avatar
 band the Robot screen already approved (tap to select, the camera pans to the robot), the meta box
 grown into a telemetry strip, a 24-hour clock, or nothing (a monitor letterbox is on-brand for the
-sleeve). The neighbourhood map is [47](#47-neighbourhood-map-coherent-districts-and-the-visited-log).
+sleeve). The neighbourhood map is backlog [25](backlog.md#25-neighbourhood-map-coherent-districts-and-the-visited-log).
 
 The recommendation above is the 2026-10-09 brainstorm, kept as the record of why the fit is a
 scroller. Only its first step shipped as written.
@@ -1133,61 +1133,6 @@ scroller. Only its first step shipped as written.
 - **Pixel underruns (Task 11): not measured, signed off.** No `?debug` A/B counts were captured;
   Crawford reported the phone running great and signed off the walk (docs/PERFORMANCE.md, "Deck
   Camera Follow — the Task 11 Pixel check").
-
-## 47. Neighbourhood Map, Coherent Districts and the Visited Log
-
-Raised by Crawford, 2026-10-09, in the same brainstorm: "a map of the nearby world, color coded by
-district", and, some day, a server tracking where people went with a map of "discovered" areas. Not
-yet interviewed or specced. Depends on [42](#42-world-view-districts) (the districts) and, for where
-it is shown, on [46](#46-mobile-deck-camera-the-world-crop-on-phones) and the layout rework.
-
-### About
-
-**The map has a hidden prerequisite.** A locale's noise map is seeded by hashing its coordinate pair
-as text — ``createNoise2D(alea(`${x}:${y}`))`` in `src/utils/noiseMaps.ts` — so two neighbouring plots
-share nothing, and `pickDistrict` (`src/systems/districts.ts`) draws on that map. Coloured by district,
-a map of the neighbourhood is noise, not regions. For it to mean anything, the district pick needs a
-**second, world-level field over coordinates**: seeded cells (Voronoi-style, each carrying a district
-label) or low-frequency noise, so there is a wreck field to the east and a habitat belt to the north.
-Constraints on that field:
-
-- **Even spread stays.** Phase 42 pinned every district at ≥ 8 of the 121-coordinate grid
-  (`districts.test.ts`, `lifecycleSim.ts`'s `SIM_SEED_COORDS`); simplex output is bell-curved, which is
-  why `getUniformSeededVal` exists (docs/PROCEDURAL_GENERATION.md). Cellular labelling gives an even
-  spread by construction; quantised low-frequency simplex fights it.
-- **It is a generation change.** Every coordinate's district changes, so saved sessions and share
-  links (which regenerate the locale from its coordinates) show a different place. Phase 42 accepted
-  the same break; it is a conscious call again, not a side effect.
-- **Everything else per locale stays as it is** — the recipe rows, derelict rolls, terrain, roster
-  and stations still come from the locale's own map. Only *which* recipe is chosen moves to the
-  world field.
-
-Upside beyond the map: coherent regions make navigation a concept ("go east into the vent fields")
-and give the Settings → Seeds coordinates a reason to be stepped rather than typed.
-
-**What a map can show today, honestly, with no generation change:**
-
-- **The visited log.** A local store of coordinates, first-seen time and district — JSON in Zustand,
-  persisted beside the sessions in `localStorage` (`sessionStorageEngine.ts`'s pattern). Fog of war
-  for one person; the current plot highlighted; tapping a plot retransmits to it (navigation lives
-  inside `ScreenViewport`, per the UI-shell rule).
-- **The day/night stripe.** A plot's hour is set by its x alone (`buildLocale`'s
-  `dayStartTimestamp`, `abs(x % 24)`), so the map has vertical day/night bands that move with the
-  wall clock, free and spatially coherent already.
-- **District per plot** is cheap to compute on demand (one `alea` + `createNoise2D` + three samples;
-  the test suite does 121 of them), but it needs its own cache keyed by coordinates — the live
-  `localeMaps` cache is keyed by locale id.
-
-### Not Doing (and why)
-
-- **A server, user accounts, and a shared "discovered" map** — Crawford, 2026-10-09: "a bit much to
-  add now." The visited log gives one person the same screen; a server later only merges everyone's
-  sets, and the map component would not change. Nothing in the local design should assume a
-  server, and nothing should block one.
-- **Per-plot roster, derelict counts or station counts on the map** — those need `spawnSystem` or
-  `placeDistrict` per plot; too heavy for a map that paints many plots at once. District and hour
-  only, until measured otherwise.
-- **Colouring the map by district before the field is coherent** — it would look like a bug.
 
 ## 48. One Day Clock: Remove the Measure-Based Day
 
@@ -1550,3 +1495,125 @@ wall-clock — the LFO Bank's accepted class — and its `frequency` could take 
 ([33](#33-free--sync-toggle)). Either lands as one more slot in `wireGlobalFxChain` with `wet`, seeded
 default dry or a low seeded band, the same call as 50.3. Whichever is not chosen moves to backlog 22.
 Phone gate: a follower is a few nodes; Phaser's `stages` multiplies allpass filters, so the gate caps it.
+
+## 51. Guide: A Read-Only Branch That Teaches the Whole App
+
+Raised by Crawford, 2026-10-12: "I need a way to educate users on the overall usage of the app, not
+just what an LFO is etc." Not yet interviewed or specced — run `/interview-me` → spec → plan before
+building. Picked over the alternatives discussed the same day (see Not Doing). Build after
+[45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen) is merged, since it is laid out with
+that phase's shell, nav panel and `SectionTabs`.
+
+### About
+
+**The gap (verified 2026-10-12).** Every explanation in the app today sits at or below the screen
+level: a `?` help popover on every value control (`ContentEntry.help`, `HelpPopover`), and one
+collapsed More / Less `IntroPanel` per screen and per section (`fleet.root`, `fleet.pacing`,
+`probe.root`, `probe.all`, `settings.*`, `company.*` in `src/content/copy/`). The only copy that said
+what the app *is* — the Deck's welcome intro, `home.root` — was deleted with the Welcome accordion in
+the layout rework's follow-up on `various-small-fixes` (uncommitted as of 2026-10-12; the text is
+still at `HEAD:src/content/copy/home.ts` under `home.root`); `home.ts` then carries only the off
+screen's label, power hint and Transmission row. The Deck shows the world and the meta box's
+world line, nothing else. So a new user powers on, hears music, watches the robots swim, and nothing
+tells them the probes are the voices, that batteries drive the silences, that Fleet Params is global
+and Probes per-voice, that Companies are broadcast groups, or that Sessions and the share link are how
+a world is kept. The per-control and per-section copy is reachable only once they already know to open
+the nav and pick a branch.
+
+**What ships.** A fifth top-level entry in the nav panel beside Fleet Params, Probes, Companies and
+Settings — working name Guide; the lore name comes out of the interview — opening a read-only screen
+built from `SectionTabs`, one tab per concept, the same shell as every other branch so it reads
+identically on the desk and in the phone sheet. Candidate tabs, to be settled in the interview:
+
+- **What you're hearing** — probes are voices; each plays its own seeded melody; battery drains,
+  the probe docks and goes quiet, sometimes changes its tune, then returns. The day clock. Why the
+  music never repeats exactly yet is replayable.
+- **Where things are** — one paragraph per branch: Fleet Params (everything at once), Probes (one
+  voice, or All Probes to shift them together), Companies (groups that broadcast edits), Settings
+  (sessions, sharing, audio load). What the Deck and the meta box show.
+- **A first path through** — a short numbered sequence against the live app: pick a probe on the
+  roster, open a section, move a slider, hear it change, save, share.
+- **Sound words** — the synth vocabulary the help popovers assume, in the copy-tone guide's human
+  voice, in one place: oscillator, envelope, filter, LFO, swell, sync.
+
+Copy is content-layer entries under a new `guide.*` area (`src/content/copy/guide.ts`, the existing
+`intro` shape with limited HTML, DOMPurify-sanitised as `IntroPanel` already does), written to
+[docs/reference/copy-tone-guide.md](../reference/copy-tone-guide.md): lore headlines, human bodies.
+The deleted `home.root` copy is the seed for the first tab, not the finished text. No new primitives:
+`SectionTabs` + `IntroPanel` (non-collapsible) per tab. Nothing interactive on the screen, so no state,
+no store fields beyond the nav id the panel already keeps for a branch, and nothing in the
+JSON-serialisable session.
+
+### Not Doing (and why)
+
+- **A first-run spotlight walk over the live UI** — needs a persisted "seen" flag, a step engine, real
+  component coordinates, desk and phone variants, and it fights the shell's own rules (nothing pops
+  that is not interactive; the off screen stays quiet). Revisit only if people demonstrably do not read
+  the Guide.
+- **The manual on the off screen** — read once, before anything has been heard, in the one place
+  deliberately kept quiet. The off screen keeps its one-line power hint.
+- **Restoring the Deck welcome intro alone** — considered as the cheap first step; it covers the
+  mental model only if the user presses More, and the Deck is the world view. Whether the Guide's first
+  tab's headline also surfaces on the Deck is an interview question, not a decision here.
+- **External docs or a help site** — the app is the tablet; the Guide is in it, in its voice.
+
+### Open
+
+- Lore name and position in the nav (last, or first for a new user?).
+- Which tabs, and whether "A first path through" reads as prose or as a numbered checklist.
+- Whether the Guide tab the user last read is remembered (a `uiStore` field, serialisable) or always
+  opens on the first tab.
+- Whether any Guide passage is linked from the help popovers or section intros (a "more in the
+  Guide" line), which would need a cross-branch nav action in `navActions.ts`.
+
+## 52. Job Decorations (six small animations on the orbiters' work)
+
+Intent [docs/intent/job-decorations.md](../intent/job-decorations.md), spec
+[docs/specs/JOB_DECORATION.md](../specs/JOB_DECORATION.md), plan
+[docs/tasks/JOB_DECORATION.md](../tasks/JOB_DECORATION.md), sketch
+[docs/sketches/job-decorations.html](../sketches/job-decorations.html) (Verdict 1, 2026-10-12: all six rows kept at
+Crawford's settings). **Built on `feature/job-decorations`, 2026-10-12 to 2026-10-13 (Tasks 1–14 and 16); not yet
+merged.** The idle-paint perf gate (Task 14) **missed** — busy +11 %, paint +18.5 % against the branch's merge
+base, every run outside the parent's spread — and Crawford accepted it (docs/PERFORMANCE.md, "Job Decorations — the
+Task 14 perf gate"). **Still owed: Task 15** — the Pixel listen at Full with a working fleet, which was **not run**
+(Crawford could not test on 2026-10-13 and asked to continue) — then the PR. Crawford said "everything looks good
+so far" of the live build while it was made; Checkpoint C's formal verdicts were not written into the sketch.
+
+### About
+
+While a robot works, its job gains one decoration drawn over the orbiters: tethers and motes (Vent Extraction),
+ping arcs and a wired ring (Acoustic Survey), a scan trail and vertex ticks (Structural Inspection), droplets and
+a spinning valve (Fluid Monitoring), a wired load (Salvage), sparks and a flash (Maintenance). Each is a pure
+state module plus a builder that makes its SVG nodes once, in a `<g class="robot__work">` appended to the robot's
+`.robot__row`, and removes them when the job ends or is killed. As built, in
+[ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-decorations).
+
+**Decisions.**
+
+- **Six rows kept, at Crawford's numbers** — he went bigger than the brief's "small", and the sketch's defaults are
+  the constants.
+- **Variation is fixed per robot**, ±15 % on twelve size and timing factors, drawn from the end of the
+  `${gemSeed}:work` stream so no existing draw moved. Counts and opacities never vary.
+- **Decorations live in the robot's row frame**, so they scale with the back row and unmount with the robot.
+- **Writes run from the job timeline's `onUpdate`**, not one tween per decoration, so an orbiter's live position
+  is current when a wire reads it; cleanup wraps `tl.kill` because `onInterrupt` misses the silent finish.
+- **The tier ladder ships unbound.** `decorTier(robotLoad)` is plumbed through the work loop and every preset
+  draws everything; Full is always `'all'`, so binding the ladder could never lower the Full-tier cost.
+
+### Not Doing (and why)
+
+- **Cards and the detail avatar** — decorations are world animation; the cards keep their still body.
+- **Per-run or audio-driven variation** — a robot should work the same way each job, and the Visual Mapping
+  guardrail keeps audio out of the body.
+- **Changing move timing** — the moves, `moveWindows` and `jobDuration` are untouched.
+- **Binding the tier ladder now** — the perf miss was at Full, which the ladder cannot reach; revisit only if the
+  Pixel run shows a problem at Standard or Light.
+- **A battery dim** — decorations play only while Active, never critical.
+- **New dependencies** — GSAP and `createElementNS` only.
+
+### Open
+
+- The Pixel listen (Task 15), at Full with a working fleet.
+- Spec questions 1, 2, 3 and 5 (battery dim, identity colour, count 1, droplet numbers) shipped as the spec
+  proposed them and were not separately confirmed by Crawford.
+- If the Pixel shows trouble: cut the Full-tier cost (skip unchanged attribute writes, or fewer nodes at `'all'`).

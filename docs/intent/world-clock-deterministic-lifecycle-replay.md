@@ -1,5 +1,7 @@
 # Intent: World Clock — Deterministic Lifecycle Replay
 
+> **Superseded in part, 2026-10-12:** the "never zero Active robots" invariant this document and its spec and task list describe was removed (docs/ROBOT_LIFECYCLE.md). Every transition is now per-robot arithmetic, so the replay no longer has a cross-robot rule to reproduce. The rest stands as written.
+
 Confirmed via `interview-me` on 2026-09-28, ahead of a `spec-driven-development` pass. Grounded in an earlier `/idea-refine` session (see [docs/ideas/world-clock-deterministic-lifecycle-replay.md](../ideas/world-clock-deterministic-lifecycle-replay.md), if saved) and roadmap [Phase 20.5](../todo/roadmap.md#205-world-clock-deterministic-lifecycle-replay). **Revised 2026-09-28, same day** — the first version of this doc scoped melody drift out ("melody itself... untouched by this phase"); a second interview pass expanded that after discovering the current code entangles dock-triggered melody pitch drift with the battery/docking state machine. See "What changed from the first pass" below.
 
 ## Outcome

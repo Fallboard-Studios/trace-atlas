@@ -63,8 +63,8 @@ the same place as before.
 ## Out of scope
 
 - **Idle drift** (roadmap 46 step 2): decoration, revisited only after the camera ships.
-- **Schematic minimap / overview** (roadmap 46 step 4): overlaps the neighbourhood map, roadmap
-  [47](../todo/roadmap.md#47-neighbourhood-map-coherent-districts-and-the-visited-log).
+- **Schematic minimap / overview** (roadmap 46 step 4): overlaps the neighbourhood map, backlog
+  [25](../todo/backlog.md#25-neighbourhood-map-coherent-districts-and-the-visited-log).
 - **16:9 letterbox on portrait phones**, and anything to fill a letterbox band (telemetry strip, clock).
 - **A portrait world** (re-placed recipes for a tall `WORLD_BOUNDS`): breaks "coordinates are the place".
 - **Rendering the scene twice** (overview + zoom): doubles the static DOM.

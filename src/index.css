@@ -173,6 +173,7 @@ body {
   flex-direction: row;
   min-width: 320px;
   height: 100vh;
+  height: 100dvh; /* dynamic viewport: follows Chrome's address bar (see App.css .real-world) */
 }
 
 /* The old h1 rule (a 3.2em display size) was removed here (docs/specs/

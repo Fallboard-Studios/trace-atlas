@@ -98,7 +98,7 @@ function renderMarker() {
 }
 
 const marker = (c: HTMLElement) => c.querySelector<SVGGElement>('g[data-followed-robot]');
-const frameRect = (c: HTMLElement) => marker(c)!.querySelector('rect')!;
+const frameRect = (c: HTMLElement) => marker(c)!.querySelector('rect:not(clipPath rect)')!;
 const caption = (c: HTMLElement) => marker(c)!.querySelector('text')!;
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
 
@@ -134,14 +134,33 @@ describe('FollowedRobotMarker', () => {
       expect(tickers.size).toBe(0);
     });
 
-    it('draws the border of a 60 x 60 square, unfilled, centred on its origin', () => {
+    it('draws the border of a 90 x 90 square, unfilled, centred on its origin', () => {
       follow('a');
       const { container } = renderMarker();
       const rect = frameRect(container);
+      const line = num(rect, 'stroke-width');
 
-      expect([num(rect, 'width'), num(rect, 'height')]).toEqual([60, 60]);
-      expect([num(rect, 'x'), num(rect, 'y')]).toEqual([-30, -30]);
+      // the outer line's OUTER edge is the square's edge
+      expect(num(rect, 'width') + line).toBeCloseTo(90);
+      expect(num(rect, 'x') - line / 2).toBeCloseTo(-45);
+      expect(num(rect, 'y') - line / 2).toBeCloseTo(-45);
       expect(rect.getAttribute('fill')).toBe('none');
+    });
+
+    it('wears IntroPanel\'s border: a double line (two rects, a line-width gap apart) and an inset glow clipped inside', () => {
+      follow('a');
+      const { container } = renderMarker();
+      const [outer, inner] = Array.from(marker(container)!.querySelectorAll('rect')).filter((r) => r.parentElement?.tagName !== 'clipPath');
+      const line = num(outer, 'stroke-width');
+
+      // a 4 px band in thirds: line, gap, line. The inner line's outer face is 2 lines in from the edge.
+      expect(line * 3).toBeCloseTo(4);
+      expect(num(outer, 'width') - num(inner, 'width')).toBeCloseTo(4 * line, 5);
+      expect(inner.getAttribute('stroke')).toBe('#ff8800');
+      const glow = marker(container)!.querySelector('path')!;
+      expect(glow.getAttribute('fill')).toBe('#ff8800');
+      expect(glow.getAttribute('filter')).toMatch(/^url\(#.+\)$/);
+      expect(glow.parentElement!.getAttribute('clip-path')).toMatch(/^url\(#.+\)$/);
     });
 
     it('wears the followed robot\'s identity colour', () => {
@@ -160,8 +179,9 @@ describe('FollowedRobotMarker', () => {
       expect(text.textContent).toContain(' | ');
       expect(text.getAttribute('text-anchor')).toBe('middle');
       expect(num(text, 'x')).toBe(0);
-      expect(num(text, 'y')).toBeLessThan(-30); // above the top line, with a gap
-      expect(num(text, 'y')).toBeGreaterThan(-50); // but hugging it
+      expect(num(text, 'y')).toBeLessThan(-45); // above the top line, with a gap
+      expect(num(text, 'y')).toBeGreaterThan(-65); // but hugging it
+      expect(num(text, 'font-size')).toBeCloseTo(14 * 1.33, 0);
     });
 
     it('names a robot with no name by its id, and one with no job as unassigned', () => {
@@ -175,10 +195,11 @@ describe('FollowedRobotMarker', () => {
       follow('c');
       const { container } = renderMarker();
       const rect = frameRect(container);
-      const side = 60 * BACK_LAYER_SCALE;
+      const side = 90 * BACK_LAYER_SCALE;
+      const line = num(rect, 'stroke-width');
 
-      expect([num(rect, 'width'), num(rect, 'height')]).toEqual([side, side]);
-      expect(num(rect, 'x')).toBe(-side / 2);
+      expect(num(rect, 'width') + line).toBeCloseTo(side);
+      expect(num(rect, 'x') - line / 2).toBeCloseTo(-side / 2);
       expect(num(caption(container), 'y')).toBeLessThan(-side / 2);
     });
 

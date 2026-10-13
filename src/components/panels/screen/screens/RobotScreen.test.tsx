@@ -553,12 +553,11 @@ describe('RobotScreen — the avatar column (desk shell)', () => {
     expect(quads).toHaveLength(getRobotGem(seed).top.pts.length);
   });
 
-  it('the avatar is the avatar render context: halo and ripple under avatar ids, a docked orbiter, both Mids', () => {
+  it('the avatar is the avatar render context: halo and waves under avatar ids, a docked orbiter, both Mids', () => {
     selectRobot(makeRobot());
     const { container } = render(<RobotScreen />);
     const avatar = column(container)!;
-    expect(avatar.querySelector('ellipse.gem__halo')!.getAttribute('fill')).toBe('url(#halo-avatar-r1)');
-    expect(avatar.querySelector('.gem__ripple')!.getAttribute('fill')).toBe('url(#ripple-avatar-r1)');
+    expect(avatar.querySelector('g.gem__waves')!.getAttribute('data-trail-id')).toBe('halo-avatar-r1-trail');
     expect(avatar.querySelector('.gem__orbiter')).not.toBeNull();
     expect(avatar.querySelector('.gem__mid--left')).not.toBeNull();
     expect(avatar.querySelector('.gem__mid--right')).not.toBeNull();

@@ -218,6 +218,9 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   // VoxelTrack's constant straddle-boundary remounts (skipMountAnimation)
   // while dragging a slider. Found live, reported directly by Crawford.
   const [width, setWidth] = useState(frontWidth ?? boxHeight);
+  // The front face's real rendered height, once measured (below): null until the observer's first
+  // callback, which lands before the first paint. See leftFaceHeight.
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
   const resolvedPopDistance = popDistance ?? CABINET_POP_DISTANCE;
   // Normalized once on entry — everything downstream (the geometry calls,
   // the isTransition comparison, the dependency array) uses this 0-1 number
@@ -254,6 +257,8 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
       // React's own `Object.is` bail-out on an unchanged state value stops the loop at its source.
       // Found live: a CabinetBox-heavy panel's own scrollbar continuously flickering, even idle.
       setWidth(Math.round(borderBoxWidth ?? entry.contentRect.width));
+      // Same border-box read and rounding, for the left wall's height (see leftFaceHeight).
+      setMeasuredHeight(Math.round(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height));
     });
     observer.observe(el, { box: 'border-box' });
     return () => observer.disconnect();
@@ -441,7 +446,14 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   // anchored-and-shrinking instead of sliding. Omitted (Button/Toggle/every
   // non-straddle voxel-track box), this is identical to the old hardcoded
   // value — no behavior change for any existing horizontal-shrink consumer.
-  const leftFaceHeight = frontHeight ?? boxHeight;
+  //
+  // Bugfix, 2026-10-12 (phone): with no frontHeight, the wall now follows the front face's MEASURED
+  // height instead of assuming `boxHeight`. The front's real height is not always boxHeight: it is
+  // `--cabinet-box-height`, which carries the 44 px touch floor (Button, RadioButton, SectionTabs:
+  // 44 px on the phone's 32 px tier, so the wall stopped 12 px short of the face's bottom edge), or
+  // a consumer's own CSS (every VoxelTrack box and Toggle forces its own square). Measuring covers
+  // all of them; `boxHeight` stays as the guess for the first frame, before the observer reports.
+  const leftFaceHeight = frontHeight ?? measuredHeight ?? boxHeight;
 
   return (
     <div ref={wrapperRef} className="sc-cabinet-box" style={cabinetTokens}>
