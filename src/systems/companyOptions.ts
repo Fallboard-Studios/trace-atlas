@@ -34,6 +34,8 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
   const fromRobot: Required<CompanyOptionsSnapshot> = {
     audioMode: firstMember.audioMode ?? 'none',
     masterVolume: firstMember.masterVolume,
+    pan: firstMember.pan ?? 0,
+    panAuto: firstMember.panAuto ?? true,
     rhythmicDensity: firstMember.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
     rhythmicMotifLength: firstMember.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
     noteVariance: firstMember.noteVariance ?? DEFAULT_NOTE_VARIANCE,

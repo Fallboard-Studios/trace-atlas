@@ -6,13 +6,14 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
-  applyAudioMode, applyVolume,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
+import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
 import type { SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -190,12 +191,13 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   // referenced inside any of these callbacks.
   const resolvedAudioMode = resolved?.audioMode;
   const resolvedMasterVolume = resolved?.masterVolume;
+  const resolvedPan = resolved?.pan;
+  const resolvedPanAuto = resolved?.panAuto;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
-      // Robot Pan Task 8 bridge: pan/panAuto are resolved from the snapshot and first member in Task 10.
-      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: 0, panAuto: true }
+      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto! }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume]);
+  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -269,9 +271,22 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     patchSnapshot({ masterVolume: pct / 100 });
   }, [localeId, patchSnapshot]);
 
-  // Robot Pan Task 8 bridge: both are placeholders until Task 10 broadcasts them to the members.
-  const onPanChange = useCallback((_display: number) => {}, []);
-  const onPanAutoChange = useCallback((_auto: boolean) => {}, []);
+  // Pan (docs/specs/ROBOT_PAN.md §1.5). One slider value reaches every member; the snapshot records the
+  // same clamped fraction applyPan stores. The slider is read-only while Auto is on, so this only fires
+  // with Auto off.
+  const onPanChange = useCallback((display: number) => {
+    latest.current.members.forEach((m) => applyPan(m, localeId, display));
+    patchSnapshot({ pan: Math.max(PAN_MIN, Math.min(PAN_MAX, display / PAN_DISPLAY_SCALE)) });
+  }, [localeId, patchSnapshot]);
+
+  // Broadcast, not link: turning Auto OFF holds every member's sound at ITS OWN live position (applyPanAuto
+  // per member), so the members sit at different pans until the slider is next touched, which then puts
+  // them all at one value. The snapshot records Auto off at the resolved pan, which is what the company
+  // slider shows. Turning Auto ON records the flag alone; the snapshot's pan is ignored while Auto is on.
+  const onPanAutoChange = useCallback((auto: boolean) => {
+    latest.current.members.forEach((m) => applyPanAuto(m, localeId, auto));
+    patchSnapshot({ panAuto: auto, ...(auto ? {} : { pan: latest.current.resolved?.pan ?? 0 }) });
+  }, [localeId, patchSnapshot]);
 
   const onDensityChange = useCallback((v: number) => {
     latest.current.members.forEach((m) => applyDensity(m, localeId, v));
