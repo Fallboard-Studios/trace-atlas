@@ -33,7 +33,7 @@ if (DEV_TUNING) console.log('[AudioEngine] voice reserved', robotId);
 
 All app state lives in Zustand stores under `src/stores/`:
 
-- `localeStore` — per-locale simulation state (robots, actors, `currentMeasure`, settings), keyed by locale ID.
+- `localeStore` — per-locale simulation state (robots, actors, companies, settings), keyed by locale ID.
 - `attenuationStyleStore` — Attenuation-Style-level state (`currentLocaleId`, Attenuation Style list). Use `getActiveLocaleId()` from `utils/localeHelpers` in non-component modules; use a reactive `useAttenuationStyleStore` selector in components.
 - `audioStore` — global audio settings (FX, BPM, etc.).
 - `uiStore` — UI-only state (active view, `isPoweredOn`, `selectedRobotId`, etc.).

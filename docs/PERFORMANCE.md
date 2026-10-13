@@ -1634,6 +1634,39 @@ were fine. That is a decision to proceed, not a measurement: there is no underru
 to compare against the 17.2.6 spread. Re-measure with the `?debug` overlay on the Pixel, at Full with a working
 fleet, if audio trouble or stutter on a job appears.
 
+## One Day Clock — the idle-paint A/B and the fixed-hour parity check (2026-10-13, roadmap 48)
+
+Gate ([todo/roadmap.md](todo/roadmap.md) item 48): removing the measure-based day deletes a Zustand write on
+every measure (the locale's per-measure mirror) and changes no pixel, so idle busy should be neutral or better and the
+lit world should be byte-identical. **Passed: no miss.**
+
+**Method:** production builds served side by side from scratch `--outDir`s on fresh ports. Branch
+`fix/unused-clock-code` `1b9744f5` on :4181 (`index-5juWcBro.js`). Base: main `11ce8a1b`, built in a throwaway
+`git worktree` and served on :4182 (`index-CyC6MIHB.js`). Each port's served bundle filename was checked against its
+build before measuring. Pinned world as the J1 gate (style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no
+overrides, `encodeSessionPayload` version 2). Both builds rendered the same scene: 12 robots, 2 factories, 36
+circles, identical per-layer element counts. `npm run perf:idle --throttle 1 --only none`; three rounds, order
+rotated, foreground; 0 orphaned Chrome after every call.
+
+| Round (order) | Branch busy / paint (ms) | Base busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 1924 / 189 | 1957 / 183 |
+| 2 (base first) | 1833 / 181 | 1949 / 176 |
+| 3 (branch first) | 1948 / 173 | 1773 / 174 |
+| **Median** | **1924 / 181** | **1949 / 176** |
+
+Busy **−1.3 %**, paint **+2.8 %**. Both are inside one build's own round-to-round spread (base busy 1773–1957,
+branch 1833–1948), so the gate reads no change. One long task appeared on the branch in round 3 and none in the
+other five runs.
+
+**Fixed-hour parity (the "no visual change" check).** A screenshot cannot be exact (the robots and bubbles move),
+so the static scene layers (`svg[data-scene-layer]` back, mid, front: factories with their lit windows, scenery,
+terrain, water column, light shafts) were serialised as markup at ten in-world hours (0, 3, 6, 9, 10.5, 12, 15,
+18, 21, 23.5) with `Date.now` frozen and stepped, locale UUIDs normalised, and hashed. The same build twice agreed
+at every hour (the control), and **base and branch were byte-identical at all ten**. The markup length moves from
+50,660 to 58,477 characters across the day, so the check does see lighting and window changes. The script was a
+throwaway (CDP, Node's built-in `WebSocket`, never committed).
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

@@ -173,7 +173,7 @@ How (`src/utils/accentLean.ts`, applied in `factoryPlacementSystem.ts`):
      hue lands in a capped band (`SAT_CAP_BANDS`, read via
      `satCapFor(hue)`): then `min(lift, cap − body.s)`, which can go
      negative. Two bands today, both capped at 45%: the warm red→orange
-     band 330→45 (wrapping through 0; `isWarmHue`) and lime 80→115. Both
+     band 330→45 (wrapping through 0) and lime 80→115. Both
      came out of Crawford's visual checkpoints ("like candy", then "a lime
      green sticks out"); yellow, emerald and green sit outside the bands and
      keep the full lift. Add a row to the table, never a third special case.
@@ -309,18 +309,22 @@ lives in `src/components/actors/material/`.
 
 ## Day/Night Cycle (Lightness Curve)
 
-Trace Atlas uses a **96-measure day/night cycle** in the lighting helpers, but the
-current renderer does not pull these values from the audio transport. Instead,
-`Factory.tsx` reads the active locale's local time from the UI store, converts it
-into a 0–95 measure-like value, and passes it to `getLighting()` from
+The in-world day is **wall-clock**: a fixed `DAY_DURATION_MS` (6 real minutes,
+`src/constants/time.ts`) from each locale's own `dayStartTimestamp`, read as a
+0–24 hour by `computeLocaleHour`. Tempo never touches it and nothing musical
+defines it. `AttenuationStyleView` writes that hour to `uiStore`'s
+`activeLocaleLocalTime` once a second, and every lit piece of the world —
+`Factory.tsx`, `Scenery.tsx`, `LightShafts.tsx`, `TerrainLayer.tsx`,
+`WaterColumn.tsx` — passes it straight to `getLighting(hour)` from
 `src/utils/lightingUtils.ts`.
 
 ### Current lighting implementation
 
-- `getLighting(measure)` uses a sine-based 96-step cycle to produce separate
-  east and west lightness multipliers.
-- The renderer derives `lightMeasure` from the locale's local time using:
-  `lightMeasure = (localTime / 24) * DAY_CYCLE_MEASURES`.
+- `getLighting(hour)` uses a sine-based cycle over the 24-hour day, wrapping at
+  24, to produce separate east and west lightness multipliers. Landmarks:
+  midnight 0 (both faces dark), east face at peak 9, noon 12 (equal and
+  bright), west face at peak 15. The curve is gamma-corrected (2.2) into
+  `[0.15, 1.05]`.
 - The per-row atmospheric cap is still applied at render time:
   `effectiveL = facadeL * rowMaxL`.
 - **Illuminated windows** are driven by `nightDepth` and the per-building
@@ -452,7 +456,7 @@ interface SceneryContext {
   actor: Actor;
   params: SceneryParams;          // Alea(actor.id)-derived once per actor (sceneryParams.ts)
   cap: number;                    // ROW_L_CAP[depth] * (derelict ? DERELICT_L_CAP : 1)
-  eastL: number; westL: number;   // getLighting(lightMeasure) — cap-free; the renderer applies cap
+  eastL: number; westL: number;   // getLighting(hour) — cap-free; the renderer applies cap
   nightDepth: number;             // 0 when derelict
   accent: AccentPair;             // the active style's accent pair (deriveAsAccentPair)
   gems: boolean;                  // the SCENERY_GEM_ACCENTS build flag
@@ -1055,9 +1059,12 @@ per-building flicker epoch.
   while rooftop greebles use a blended roof multiplier.
 - Windows and other illuminated details transition toward the variant's
   `illuminated` HSL colour as `nightDepth` rises.
-- `FLICKER_PERIOD` controls how often the renderer re-rolls lighting-related
-  window states per building; this produces sparse, staggered flicker without
-  making every window animate continuously.
+- `FLICKER_PERIOD` (2 in-world hours) controls how often the renderer re-rolls
+  lighting-related window states per building. Each building is offset by
+  `flickerPhase(buildingSeed)` — one of eight quarter-hour slots — and
+  `getFlickerEpoch(hour, phase)` is the epoch the seeded re-roll keys on; this
+  produces sparse, staggered flicker without making every window animate
+  continuously.
 - The antennae and other greeble accents are still the main fast-moving visual
   elements; the rest of the facade lighting remains comparatively stable.
 

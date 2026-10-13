@@ -19,7 +19,7 @@ Melody generation creates procedurally generated musical patterns for each robot
 interface MelodyEvent {
   id: string;
   startStep: number; // 1..16 (1-indexed slot in the 16-step grid)
-  length: NoteDuration; // full union is '32n'|'16n'|'8n'|'4n'|'2n'|'1n'|'2m'|'4m' (types/Robot.ts); gridUnitsToDuration() only ever produces '16n'|'8n'|'4n'|'2n'
+  length: NoteDuration; // full union is '32n'|'16n'|'8n'|'4n'|'2n'|'1n'|'2m'|'4m' (types/Robot.ts); generation only ever produces '16n'|'8n'|'4n'|'2n'
   noteIndex: number; // 0..7, mapped into the active harmony palette
   octave: number; // concrete octave assigned at generation time
   pitchLocked?: boolean; // Pitch Repeat only — see below. undefined everywhere else, including the base cell.
@@ -93,8 +93,6 @@ export function pickDurationForGap(availableUnits: number, rand?: () => number):
 ```
 
 Candidates are every representable duration whose grid-unit length (`16n`=1, `8n`=2, `4n`=4, `2n`=8) is `<= availableUnits`, chosen with probability weighted by that unit length — so `16n` is deliberately the least likely candidate whenever a longer option is available, while remaining possible (a gap of exactly 1 unit has no other choice). When the chosen duration is shorter than the available gap, the remainder is silence — this is intentional: it creates space between notes instead of every onset's note always ringing until the instant the next one starts.
-
-`gridUnitsToDuration(units): NoteDuration` still exists as a general-purpose deterministic quantizer (`<=1→16n`, `2-3→8n`, `4-6→4n`, `7+→2n`) but is no longer used by `generateMelodyForRobot` — it's independently tested and kept as a utility.
 
 ## Note Selection
 
@@ -272,7 +270,6 @@ The playback layer uses the melody events as index-based cues and applies the cu
 The current tests cover:
 - deterministic generation with `seed` or `rand`
 - duration selection through `pickDurationForGap()` (never exceeds the available gap, weighted toward longer durations)
-- duration mapping through `gridUnitsToDuration()`
 - onset construction through `buildMotifOnsets()`
 - the density→onset-count floor of 1 (a `rhythmicDensity` roll of `0` never produces a silent melody), in both the scatter and tiled branches
 - exact rounded onset counts at representative density percentages (100/50/25%) against the full measure

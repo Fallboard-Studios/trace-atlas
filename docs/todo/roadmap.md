@@ -1152,6 +1152,35 @@ Independent of the layout rework (it touches the lighting components, the beat c
 `AudioEngine`, none of which the rework edits); its own short branch off `main`, a task list rather
 than a full spec.
 
+> **Shipped (2026-10-13), `fix/unused-clock-code`, twelve code commits and one docs commit, TDD, one per task.** T1 `getLighting(hour)`
+> (a golden table pinned from the measure form) and the five callers; T2 the flicker epoch in hours
+> (`FLICKER_PERIOD` 2, `flickerPhase`, `getFlickerEpoch`, the same eight quarter-hour slots, so the epochs are
+> unchanged); T3 the beat clock (`getCurrentHour`, `MEASURES_PER_HOUR` and the wrap gone; listeners get the real
+> measure); T4 `Locale.currentMeasure`; T5 `DAY_CYCLE_MEASURES`; T6 the four `uiStore` dials; T7 `Robot.createdAt`
+> and `lastInteractionMeasure`; T8a–e the stubs; then the docs, with the CLAUDE.md and Copilot-instructions
+> guardrail amended as authorised. The World Clock prove-it test was untouched. Verification, in
+> [PERFORMANCE.md](../PERFORMANCE.md#one-day-clock--the-idle-paint-ab-and-the-fixed-hour-parity-check-2026-10-13-roadmap-48):
+> idle busy −1.3 % and paint +2.8 % against the branch base (inside the spread), and the static scene layers
+> byte-identical to the base at ten fixed hours.
+>
+> **Where the inventory below was wrong when it was built (all re-checked against the tree on 2026-10-13):**
+> - **`loadSession` is live and was left alone** (item 9): `OffScreen.tsx` calls it to apply a picked save, and
+>   [SESSION_STORAGE.md](../SESSION_STORAGE.md) lists it correctly.
+> - **`theme` had no reader** (item 7): `realWorldGradient.ts` no longer reads it, so all four dials were plain dead
+>   code.
+> - **`attachFlickerAnimation` had two tests, not four** (item 9).
+> - **`isWarmHue` and `nearestAccentIndex` were exports of the shipped palette pull** (Phase 35), not leftovers of
+>   this phase's own making; their checks moved onto `satCapFor` and a plain band test, and `secondaryFor` keeps its
+>   brute-force oracle (which covers the 0/360 seam through the same helper).
+> - **`loadToLimits` and `withLoadParam` kept their coverage**: the tests now call `withParam(…, 'load', …)` and a
+>   small both-axes helper, and only the tautological "agrees with loadToLimits" checks went.
+> - **Line numbers had drifted** (the `AudioEngine` subscriber was at 559–569, not 541–543); every claim was re-grepped.
+> - **`Factory.tsx`'s `buildingPhase`**: the roadmap's `buildingSeed % FLICKER_PERIOD` would have given two phase
+>   slots, not eight; `flickerPhase` keeps the old spread exactly.
+>
+> **Noticed, not touched:** [BUILDING_DESIGN.md](../BUILDING_DESIGN.md)'s "Offline" passage still describes the
+> offline system Phase 43 removed (`offlineSince`, a 66-measure outage).
+
 ### About
 
 **What is true today.** The visual day is `computeLocaleHour(locale.dayStartTimestamp)`
