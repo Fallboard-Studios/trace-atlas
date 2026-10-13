@@ -4,6 +4,7 @@
 import * as Tone from 'tone';
 import gsap from 'gsap';
 import { useLocaleStore } from '../stores/localeStore';
+import { useRobotPanReadoutStore } from '../stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot } from '../types/Robot';
@@ -82,6 +83,10 @@ const GROUP_ACCENT_MULTIPLIER = 1.25;
 /** Ramp duration for a live updateRobotMasterVolume change — short enough to feel instant, long
  *  enough to avoid an audible click on the underlying AudioParam. */
 const VOLUME_RAMP_SECONDS = 0.05;
+/** Ramp duration for a live updateRobotPan change (a slider edit or Auto switching either way) —
+ *  the same short glide as VOLUME_RAMP_SECONDS, in a constant of its own so the two can be tuned
+ *  apart. docs/specs/ROBOT_PAN.md §1.3. */
+const PAN_RAMP_SECONDS = 0.05;
 
 // Precompute data X positions for seeded noise sampling (module scope — hot path safe)
 const VELOCITY_ROLL_X = precomputeDataX('audio.velocityRoll');
@@ -175,6 +180,13 @@ function resolveBusFilterCutoff(filterFreq: number | undefined): number {
 
 // Last pan value written to each reserved robot's panner — see updateAllPanners.
 const lastPanByRobot = new Map<string, number>();
+/**
+ * Robots whose Auto is off: updateAllPanners skips them, updateRobotPan owns their panner. The
+ * localeStore (`robot.pan` / `robot.panAuto`) is the source of truth, so nothing here survives a
+ * release — releaseVoice clears it and every reservation site re-primes a manual robot from the
+ * store (docs/specs/ROBOT_PAN.md §1.3, assumption 8).
+ */
+const manualPanByRobot = new Map<string, number>();
 /** Pan is in [-0.5, 0.5]; a change under this is inaudible and not worth an automation event. */
 const PAN_WRITE_EPSILON = 0.0005;
 
@@ -329,6 +341,8 @@ function updateAllPanners(_time?: number): void {
   try {
     for (const [robotId, entry] of compositeVoices.entries()) {
       try {
+        // Auto off: updateRobotPan owns this panner. Skipped before the DOM read, so it is also cheaper.
+        if (manualPanByRobot.has(robotId)) continue;
         const visualX = getRobotVisualX(robotId);
         const panValue = calculatePanFromPosition(visualX);
         // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
@@ -338,6 +352,9 @@ function updateAllPanners(_time?: number): void {
         if (previous !== undefined && Math.abs(previous - panValue) < PAN_WRITE_EPSILON) continue;
         entry.panner.pan.value = panValue;
         lastPanByRobot.set(robotId, panValue);
+        // The Pan slider's readout under Auto — only on a write this loop already makes, so Auto's
+        // audio is unchanged and a stationary robot costs nothing.
+        useRobotPanReadoutStore.getState().setPan(robotId, panValue);
       } catch (err) {
         devWarn('[AudioEngine] Failed to update composite panner for', robotId, err);
       }
@@ -732,6 +749,8 @@ export const AudioEngine = {
     compositeVoices.delete(robotId);
     robotNoteIndex.delete(robotId);
     lastPanByRobot.delete(robotId);
+    manualPanByRobot.delete(robotId);
+    useRobotPanReadoutStore.getState().clearPan(robotId);
   },
 
   /** Return the composite voice reserved for a robot, or null if none. */
@@ -900,6 +919,56 @@ export const AudioEngine = {
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);
     }
+  },
+
+  /**
+   * Robot Pan (docs/specs/ROBOT_PAN.md §1.3). With a number (Auto off): pin the robot's panner there
+   * (full −1…1, wider than the Auto field's ±0.5) and stop updateAllPanners touching it. With `null`
+   * (Auto on): ramp to the position-follow pan the robot has right now, seed lastPanByRobot with it so
+   * the tick's epsilon gate resumes without a second jump, publish it to the readout store, and hand the
+   * robot back to the tick. Only the panner is affected — the robot itself keeps moving either way.
+   * Ramps over PAN_RAMP_SECONDS on `rampTo` when the live param supports it, else sets `.value`
+   * (headless). A safe no-op (devWarn, as updateRobotMasterVolume) when no composite is reserved: the
+   * store already holds the value, and every reservation site re-primes a manual robot from it.
+   */
+  updateRobotPan(robotId: string, value: number | null): void {
+    const entry = compositeVoices.get(robotId);
+    if (!entry) {
+      devWarn(`[AudioEngine] updateRobotPan: no composite reserved for ${robotId}`);
+      return;
+    }
+    try {
+      let target: number;
+      if (value === null) {
+        manualPanByRobot.delete(robotId);
+        target = calculatePanFromPosition(getRobotVisualX(robotId));
+        lastPanByRobot.set(robotId, target);
+        useRobotPanReadoutStore.getState().setPan(robotId, target);
+      } else {
+        manualPanByRobot.set(robotId, value);
+        // A stale Auto value must not linger: getLivePan would hand it to applyPanAuto(false) as if it
+        // were this robot's pan, and the tick's epsilon gate must not short-circuit its first write.
+        lastPanByRobot.delete(robotId);
+        target = value;
+      }
+      const pan = entry.panner.pan as unknown as { rampTo?: (value: number, rampTime: number) => void; value: number };
+      if (typeof pan.rampTo === 'function') {
+        pan.rampTo(target, PAN_RAMP_SECONDS);
+      } else {
+        pan.value = target;
+      }
+    } catch (err) {
+      devWarn('[AudioEngine] updateRobotPan failed', err);
+    }
+  },
+
+  /**
+   * The pan the tick last wrote for a robot under Auto (−0.5…0.5): what the Pan slider shows, and what
+   * Auto-off turns into the robot's own `pan`. `undefined` before the first write, while the robot is
+   * manual, and after releaseVoice. A pure map read — never touches the DOM. docs/specs/ROBOT_PAN.md §1.3.
+   */
+  getLivePan(robotId: string): number | undefined {
+    return lastPanByRobot.get(robotId);
   },
 
   /**
