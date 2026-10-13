@@ -73,6 +73,7 @@ import {
 // from the named import above, which existing tests already use directly to
 // compute expected values, unspied.
 import * as voxelTrackMath from '@/utils/voxelTrackMath';
+import { fill } from '@/content';
 import type { SliderCenteredZeroSchema } from '@/types/controls';
 
 const detuneSchema: SliderCenteredZeroSchema = { id: 'detune', type: 'sliderCenteredZero', min: -50, max: 50, humanLabel: 'Detune', unit: 'ct', orientation: 'horizontal' };
@@ -424,6 +425,141 @@ describe('SliderCenteredZero component', () => {
       act(() => observer.fire(500, 0));
 
       expect(spy.mock.calls.length).toBeGreaterThan(callsAfterMount);
+    });
+  });
+
+  // docs/specs/ROBOT_PAN.md assumption 5 / docs/tasks/ROBOT_PAN.md Task 6 — the Auto-on rendering of
+  // the Pan slider, on SliderLinear's roadmap 15.1 readOnly pattern. Every case above this describe
+  // is the parity guard for the interactive path and must keep passing unmodified.
+  describe('readOnly', () => {
+    const helpSchema: SliderCenteredZeroSchema = { ...detuneSchema, help: { human: 'Where the probe sits.' } };
+
+    it('renders a role="status" wrapper with data-readonly and no slider role at all', () => {
+      const { container } = render(<SliderCenteredZero schema={detuneSchema} value={10} onChange={() => {}} readOnly />);
+      const wrapper = container.querySelector('.sc-slider-centered-zero')!;
+      expect(wrapper.getAttribute('role')).toBe('status');
+      expect(wrapper.getAttribute('data-readonly')).toBe('true');
+      expect(screen.queryByRole('slider')).toBeNull();
+      expect(container.querySelector('.sc-slider-centered-zero__thumb')).toBeNull();
+    });
+
+    it('still shows the label, the value with its unit, and the VoxelTrack at the same states as the interactive branch', () => {
+      render(<SliderCenteredZero schema={detuneSchema} value={-25} onChange={() => {}} readOnly />);
+      expect(screen.getByText('Detune')).toBeTruthy();
+      expect(screen.getByText('-25ct')).toBeTruthy();
+      const states = JSON.parse(screen.getByTestId('voxel-track').getAttribute('data-states')!);
+      expect(states).toEqual(computeVoxelBoxStatesCenteredZero(-25, -50, 50, VOXEL_TRACK_MIN_BOX_COUNT_EVEN));
+    });
+
+    it('fills the positive half for a positive value and leaves every box flat at 0', () => {
+      const { unmount } = render(<SliderCenteredZero schema={detuneSchema} value={25} onChange={() => {}} readOnly />);
+      const positive = JSON.parse(screen.getByTestId('voxel-track').getAttribute('data-states')!);
+      expect(positive.slice(2).some((s: { fillPercent: number }) => s.fillPercent > 0)).toBe(true);
+      unmount();
+      render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly />);
+      const centred = JSON.parse(screen.getByTestId('voxel-track').getAttribute('data-states')!);
+      expect(centred.every((s: { fillPercent: number }) => s.fillPercent === 0)).toBe(true);
+    });
+
+    it('never calls onChange on a keyboard step aimed at the wrapper or at what would be the thumb', () => {
+      const onChange = vi.fn();
+      const { container } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={onChange} readOnly />);
+      const wrapper = container.querySelector('.sc-slider-centered-zero')!;
+      fireEvent.keyDown(wrapper, { key: 'ArrowRight' });
+      fireEvent.keyDown(wrapper, { key: 'ArrowLeft' });
+      fireEvent.keyDown(wrapper, { key: 'Home' });
+      fireEvent.keyDown(wrapper, { key: 'End' });
+      fireEvent.pointerDown(wrapper);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('takes no part in the tab order — nothing inside it is focusable', () => {
+      const { container } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly />);
+      expect(container.querySelector('[tabindex]')).toBeNull();
+    });
+
+    it('keeps the help "?" when the schema has help, and renders none when it has not', () => {
+      const { unmount } = render(<SliderCenteredZero schema={helpSchema} value={0} onChange={() => {}} readOnly />);
+      expect(screen.getByRole('button', { name: fill('ui.help', { name: 'Detune' }) })).toBeTruthy();
+      unmount();
+      render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly />);
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('opens the help from the "?" on a readout, the same as on the interactive slider', () => {
+      render(<SliderCenteredZero schema={helpSchema} value={0} onChange={() => {}} readOnly />);
+      fireEvent.click(screen.getByRole('button'));
+      expect(screen.getByText('Where the probe sits.')).toBeTruthy();
+    });
+
+    it('still eases a prop-driven value change through quickTo and settles on the new value', () => {
+      const { rerender } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly />);
+      rerender(<SliderCenteredZero schema={detuneSchema} value={30} onChange={() => {}} readOnly />);
+
+      expect(gsap.quickTo).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('30ct')).toBeTruthy();
+      const states = JSON.parse(screen.getByTestId('voxel-track').getAttribute('data-states')!);
+      expect(states).toEqual(computeVoxelBoxStatesCenteredZero(30, -50, 50, VOXEL_TRACK_MIN_BOX_COUNT_EVEN));
+    });
+
+    it('carries the orientation on the wrapper and the root, like the interactive branch', () => {
+      const { container } = render(
+        <SliderCenteredZero schema={{ ...detuneSchema, orientation: 'vertical' }} value={0} onChange={() => {}} readOnly />,
+      );
+      expect(container.querySelector('.sc-slider-centered-zero')!.getAttribute('data-orientation')).toBe('vertical');
+      expect(container.querySelector('.sc-slider-centered-zero__root')!.getAttribute('data-orientation')).toBe('vertical');
+    });
+
+    it("'vertical': renders the value readout before the track, the same order as the interactive branch", () => {
+      const { container } = render(
+        <SliderCenteredZero schema={{ ...detuneSchema, orientation: 'vertical' }} value={0} onChange={() => {}} readOnly />,
+      );
+      const children = Array.from(container.querySelector('.sc-slider-centered-zero')!.children);
+      const valueIndex = children.findIndex((c) => c.classList.contains('sc-slider-centered-zero__value'));
+      const rootIndex = children.findIndex((c) => c.classList.contains('sc-slider-centered-zero__root'));
+      expect(valueIndex).toBeGreaterThanOrEqual(0);
+      expect(valueIndex).toBeLessThan(rootIndex);
+    });
+
+    it("'horizontal': renders the value readout after the track", () => {
+      const { container } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly />);
+      const children = Array.from(container.querySelector('.sc-slider-centered-zero')!.children);
+      const valueIndex = children.findIndex((c) => c.classList.contains('sc-slider-centered-zero__value'));
+      const rootIndex = children.findIndex((c) => c.classList.contains('sc-slider-centered-zero__root'));
+      expect(rootIndex).toBeLessThan(valueIndex);
+    });
+
+    it('passes the voxel track the same timeline key prefix as the interactive branch', () => {
+      render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly />);
+      expect(screen.getByTestId('voxel-track').getAttribute('data-timeline-key-prefix')).toBe('cabinet-voxel-detune');
+    });
+
+    it('readOnly wins over disabled — still a status readout, still no slider', () => {
+      render(<SliderCenteredZero schema={detuneSchema} value={5} onChange={() => {}} readOnly disabled />);
+      expect(screen.getByRole('status')).toBeTruthy();
+      expect(screen.queryByRole('slider')).toBeNull();
+    });
+
+    it('readOnly={false} and readOnly omitted are both the interactive slider (no status role, one slider)', () => {
+      const { unmount } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} readOnly={false} />);
+      expect(screen.getAllByRole('slider')).toHaveLength(1);
+      expect(screen.queryByRole('status')).toBeNull();
+      unmount();
+      render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} />);
+      expect(screen.getAllByRole('slider')).toHaveLength(1);
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('flipping readOnly on and off across renders swaps branches cleanly, with no hook-order error, and keeps the eased value', () => {
+      const { rerender } = render(<SliderCenteredZero schema={detuneSchema} value={20} onChange={() => {}} readOnly />);
+      expect(screen.queryByRole('slider')).toBeNull();
+
+      rerender(<SliderCenteredZero schema={detuneSchema} value={20} onChange={() => {}} readOnly={false} />);
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('20');
+
+      rerender(<SliderCenteredZero schema={detuneSchema} value={20} onChange={() => {}} readOnly />);
+      expect(screen.getByRole('status')).toBeTruthy();
+      expect(screen.getByText('20ct')).toBeTruthy();
     });
   });
 
