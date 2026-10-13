@@ -170,7 +170,14 @@ Two windows on one tween spanning fan `t0` to ring `t1`.
 
 ### 1.5 Structural Inspection — scan trail + vertex ticks (`decor/inspectionDecor.ts`)
 
-Window: trace `t0` to `t1`.
+Window: trace `t0` to `t1`. *As built (Task 9):* the window runs on to `t1 +` one tick life
+(`INSPECT_TICK_LIFE × tickLife`), clamped to the job, so the last ticks play out instead of being removed
+with the group at `t1` (the same fix as §1.8). The reattach leaves at most `ATTACH_DURATION` (1 s) after
+`t1`, so a tick born near the end of the route can still be lit when the job ends: over 96 runs (8 seeds ×
+20/110/200 BPM × 1–4 orbiters, the four-vertex outline fixture) the brightest tick at the cut was alpha
+0.18, and 8 of the 96 runs were above 0.05. A trail is drawn only while its orbiter's `u` is in (0, 1], as
+the sketch does, so it vanishes when the orbiter arrives (every orbiter but the last arrives before `t1`).
+Tier `'cheap'` draws the ticks only (§1.9).
 
 - **Trail**: per orbiter `INSPECT_TRAIL_SEGMENTS` (8) `<line>`s. At time `t`, `u = (t − start) / run`;
   outside (0, 1] all hidden. Segment `k` runs from `polyAt(route, u − back × (k − 1) / N)` to

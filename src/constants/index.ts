@@ -325,6 +325,19 @@ export const MAINT_SPARK_LIFE = 1.2;
 export const MAINT_SPREAD_DEG = 120;
 export const MAINT_FLASH_RADIUS = 12;
 
+/** Structural Inspection's scan trail and vertex ticks (docs/specs/JOB_DECORATION.md §1.5;
+ *  decor/inspectionDecor.ts; sketch docs/sketches/job-decorations.html, row "structuralInspection",
+ *  Crawford's settings): each orbiter trails INSPECT_TRAIL_SEGMENTS line segments
+ *  INSPECT_TRAIL_LENGTH units back along the route (INSPECT_TRAIL_WIDTH wide at the head,
+ *  INSPECT_TRAIL_OPACITY opaque, both fading toward the tail); the lead leaves a tick
+ *  INSPECT_TICK_LENGTH long at each interior vertex that fades over INSPECT_TICK_LIFE seconds. */
+export const INSPECT_TRAIL_SEGMENTS = 8;
+export const INSPECT_TRAIL_LENGTH = 20;
+export const INSPECT_TRAIL_WIDTH = 4;
+export const INSPECT_TRAIL_OPACITY = 1;
+export const INSPECT_TICK_LENGTH = 6;
+export const INSPECT_TICK_LIFE = 3;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

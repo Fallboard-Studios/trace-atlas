@@ -30,6 +30,7 @@ import type { WorkVariation } from '../variation';
 import type { DecorTier } from './decorTier';
 import type { MoveEvents } from './events';
 import { orbiterLocalToRowLocal, sceneToRowLocal } from './frames';
+import { addInspectionDecor } from './inspectionDecor';
 import { addMaintenanceDecor } from './maintenanceDecor';
 import { svgEl } from './svg';
 import { addVentDecor } from './ventDecor';
@@ -105,6 +106,7 @@ export type DecorBuilder = (ctx: DecorContext) => void;
 export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
   [JobType.Maintenance]: addMaintenanceDecor,
   [JobType.VentExtraction]: addVentDecor,
+  [JobType.StructuralInspection]: addInspectionDecor,
 };
 
 // ========================================
