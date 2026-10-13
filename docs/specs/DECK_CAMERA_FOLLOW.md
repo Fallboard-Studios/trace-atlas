@@ -225,7 +225,7 @@ All three share one `forceFollow(id)` helper: kill anything running (`killTimeli
 - `DECK_CAMERA_PAN_S = 1.4` — unchanged, the float-in rate.
 - `DECK_CAMERA_TIMELINE_ID = 'deck-camera'` — unchanged.
 - `DECK_CAMERA_FOLLOW_MS = 20000` — new; how long a follow lasts before cooling down on its own.
-- `DECK_CAMERA_COOLDOWN_MS = 8000` — replaces `DECK_CAMERA_CUT_COOLDOWN_MS` (was `20000` with a
+- `DECK_CAMERA_COOLDOWN_MS = 8000` (now 3000, Crawford 2026-10-12) — replaces `DECK_CAMERA_CUT_COOLDOWN_MS` (was `20000` with a
   different meaning — "don't cut again this soon"; this is "how long to rest between subjects").
 - `DECK_CAMERA_MIN_BATTERY_PCT = 50` — new; the `pick()` preference threshold.
 

@@ -54,7 +54,7 @@ const ROBOT_GROUPS = '#robot-layer .robot, #robot-back-layer .robot';
 const TINTS = 'rect[data-depth-tint], #gradient-back-mid, #gradient-mid-front';
 
 /** The scene's layers, back to front, as `data-scene-layer` names them (J4 added robots-back and mid; a pre-J4 build has four). */
-const SCENE_LAYERS = ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front'];
+const SCENE_LAYERS = ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front', 'marker'];
 
 /** Each ablation is a CSS snippet injected into the page. `stock` is traced first and last so drift is visible. */
 const ABLATIONS = [

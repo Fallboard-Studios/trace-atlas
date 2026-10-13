@@ -18,10 +18,20 @@ import { getRef } from '@/utils/refs';
 // ========================================
 /** Side of the square drawn around a front-row robot, in scene units; a back-row robot's smaller
  *  drawing (`BACK_LAYER_SCALE`) gets a proportionally smaller square. */
-const MARKER_SIDE = 60;
+const MARKER_SIDE = 90;
+/** The frame wears IntroPanel's border (`4px double` plus `inset 0 0 8px` of the same colour), drawn in
+ *  scene units: a 4-wide band split in thirds (line, gap, line), and the inset glow inside it. */
+const BORDER_WIDTH = 4;
+const BORDER_LINE = BORDER_WIDTH / 3;
+const BORDER_RADIUS = 4;
+const GLOW_BLUR = 4; // stdDeviation of a CSS 8px blur
+const GLOW_REACH = 24; // how far past the inner edge the glow's source ring runs, so the blur stays full to the edge
+/** The ids of the glow's clip and blur. Only one marker ever exists, so they are fixed. */
+const GLOW_CLIP_ID = 'followed-marker-glow-clip';
+const GLOW_BLUR_ID = 'followed-marker-glow-blur';
 /** Gap between the square's top line and the caption's baseline. */
 const CAPTION_GAP = 6;
-const CAPTION_FONT_SIZE = 14;
+const CAPTION_FONT_SIZE = 18.6;
 /** The caption's dark outline, so it reads over any water or building behind it. */
 const CAPTION_OUTLINE = '#0c1c4f';
 
@@ -77,9 +87,46 @@ function Marker({ robotId, localeId }: MarkerProps) {
   const side = robot.back ? MARKER_SIDE * BACK_LAYER_SCALE : MARKER_SIDE;
   const job = (robot.job ? JOB_TYPE_LABELS[robot.job] : UNASSIGNED_JOB_LABEL).humanLabel;
 
+  // The inner (padding) edge, where the border ends and the glow begins; the glow is a ring from there
+  // outwards, blurred and clipped to the inside, which is what an inset box-shadow is.
+  const inner = side / 2 - BORDER_WIDTH;
+  const reach = inner + GLOW_REACH;
+  const glowRing = `M ${-reach} ${-reach} H ${reach} V ${reach} H ${-reach} Z M ${-inner} ${-inner} V ${inner} H ${inner} V ${-inner} Z`;
+
   return (
     <g ref={ref} data-followed-robot={robotId} visibility="hidden" pointerEvents="none" aria-hidden="true">
-      <rect x={-side / 2} y={-side / 2} width={side} height={side} fill="none" stroke={robot.color} strokeWidth={2} />
+      <defs>
+        <clipPath id={GLOW_CLIP_ID}>
+          <rect x={-inner} y={-inner} width={2 * inner} height={2 * inner} />
+        </clipPath>
+        <filter id={GLOW_BLUR_ID} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={GLOW_BLUR} />
+        </filter>
+      </defs>
+      {/* Outer line of the double border: its outer edge is the square's edge. */}
+      <rect
+        x={-side / 2 + BORDER_LINE / 2}
+        y={-side / 2 + BORDER_LINE / 2}
+        width={side - BORDER_LINE}
+        height={side - BORDER_LINE}
+        rx={BORDER_RADIUS}
+        fill="none"
+        stroke={robot.color}
+        strokeWidth={BORDER_LINE}
+      />
+      {/* Inner line: the gap (one line wide) sits between the two. */}
+      <rect
+        x={-inner - BORDER_LINE / 2}
+        y={-inner - BORDER_LINE / 2}
+        width={2 * inner + BORDER_LINE}
+        height={2 * inner + BORDER_LINE}
+        fill="none"
+        stroke={robot.color}
+        strokeWidth={BORDER_LINE}
+      />
+      <g clipPath={`url(#${GLOW_CLIP_ID})`}>
+        <path d={glowRing} fillRule="evenodd" fill={robot.color} filter={`url(#${GLOW_BLUR_ID})`} />
+      </g>
       <text
         x={0}
         y={-side / 2 - CAPTION_GAP}
@@ -100,8 +147,8 @@ function Marker({ robotId, localeId }: MarkerProps) {
 
 /**
  * The square and caption around the robot the Deck camera is floating to or following (the
- * indicator Crawford asked for after Checkpoint A of docs/tasks/DECK_CAMERA_FOLLOW.md): a 60 x 60
- * border in the robot's identity colour, and "name | job" just above its top line. A sibling
+ * indicator Crawford asked for after Checkpoint A of docs/tasks/DECK_CAMERA_FOLLOW.md): a 90 x 90
+ * double border and inset glow (IntroPanel's) in the robot's identity colour, and "name | job" just above its top line. A sibling
  * overlay, not part of the robot, so the gem body is untouched (CLAUDE.md "Visual Mapping"). Lives
  * in a moving scene layer, because it moves every frame; in a static one it would repaint the
  * foreground factories each frame.

@@ -69,11 +69,12 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
       height={height}
       // "slice" (cover), not the default "meet" (contain) — the back layer's background rect fills
       // the whole viewBox, and it must never be smaller than the tablet screen in either
-      // direction. slice scales the scene UP until both dimensions cover the box, centered,
-      // cropping whichever axis overflows — never scaled down to fit with letterbox bars outside
-      // it. The SVG's own default overflow:hidden (and .world-view's, WorldView.css) clips the
-      // crop; nothing scrolls.
-      preserveAspectRatio="xMidYMid slice"
+      // direction. slice scales the scene UP until both dimensions cover the box, cropping
+      // whichever axis overflows — never scaled down to fit with letterbox bars outside it. It is
+      // centred horizontally but pinned to the BOTTOM (YMax): a box wider than 16:9 loses the top
+      // of the world (ocean, a few building tops), never the ground. The SVG's own default
+      // overflow:hidden (and .world-view's, WorldView.css) clips the crop; nothing scrolls.
+      preserveAspectRatio="xMidYMax slice"
     >
       {children}
     </svg>
@@ -386,9 +387,6 @@ export function OceanScene({
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
           ))}
         </g>
-        {/* The Deck camera's followed-robot marker (square + "name | job"), over everything in the
-            row; renders nothing unless the camera is following. */}
-        <FollowedRobotMarker localeId={localeId} />
       </SceneLayer>
 
       {/* Static front layer: tint D, then the foreground-row factories (closest to the viewer). */}
@@ -403,6 +401,14 @@ export function OceanScene({
         </g>
         <PipeBridges factories={foregroundFactories} />
         <g id="ui-layer" />
+      </SceneLayer>
+
+      {/* Moving: the Deck camera's followed-robot marker (square + "name | job"), in front of every
+          building. Its own layer, not the static front one (it moves every frame, and a write there
+          would repaint the foreground factories) and not the robots layer (the foreground would
+          hide it); renders nothing unless the camera is following. */}
+      <SceneLayer name="marker" width={width} height={height} moving>
+        <FollowedRobotMarker localeId={localeId} />
       </SceneLayer>
     </div>
   );

@@ -1,6 +1,9 @@
 .real-world {
   width: 100vw;
   height: 100vh;
+  /* 100vh is the LARGE viewport on mobile Chrome (address bar hidden), so the bottom of the tablet
+     sat under the bar; dvh follows the bar as it shows and hides. vh stays as the fallback. */
+  height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: center;

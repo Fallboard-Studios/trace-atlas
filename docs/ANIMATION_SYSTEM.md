@@ -316,7 +316,7 @@ gets a target-less timeline of the same length under the same key, because `crea
 no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
 
 ### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is six stacked `<svg>` layers that share one viewBox and `xMidYMid slice` fit, each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
+The ocean scene (`OceanScene.tsx`) is seven stacked `<svg>` layers that share one viewBox and `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
 
 | Layer | Moves? | Contents |
 |---|---|---|
@@ -326,6 +326,7 @@ The ocean scene (`OceanScene.tsx`) is six stacked `<svg>` layers that share one 
 | `bubbles` | moving | every building's and vent's bubbles |
 | `robots` | moving | `#station-l3-layer`, `#robot-layer` (every other robot), `#robot-dissolve-layer` (layer-switch copies), `#station-front-layer` |
 | `front` | static | tint D, foreground factories/scenery and pipe bridges |
+| `marker` | moving | the Deck camera's followed-robot marker (`FollowedRobotMarker`), in front of every building; its own layer because it moves every frame and a write in `front` would repaint the foreground factories |
 
 The four **depth tints** (`DEPTH_TINTS`, full-screen `rect[data-depth-tint]`, each a gradient `#depth-tint-{slot}` defined in the layer that draws it) replaced the old two gradients. A is 0.06 and B 0.25 (`#0c1c4f` → `vent.shadow`), C 0.20 and D 0.10 (`vent.shadow`). Coverage, 1 − Π(1 − α): background buildings 49 %, back-row robots 46 %, midground 28 %, front-row robots, stations and bubbles 10 %, foreground 0. Only B and C sit between the robot rows, so a row switch gains or loses 40 % haze, which the dissolve blends. The haze is the scene's, not a robot overlay. No layer takes clicks (`pointer-events: none`); `.robot` takes them, in either row.
 

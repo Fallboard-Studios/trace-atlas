@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 
-// Phase 43 Task 33 (spec §1.10 "Clicks"): six full-screen <svg> layers stack over one another, and
+// Phase 43 Task 33 (spec §1.10 "Clicks"): seven full-screen <svg> layers stack over one another, and
 // the front robots layer and the static front layer sit above the back robot row. jsdom does no hit
 // testing, but it does cascade and inherit `pointer-events`, so this file loads the real
 // OceanScene.css, renders the real <Robot> in both rows, and checks the browser's rule from the
@@ -92,8 +92,8 @@ describe('OceanScene clicks through the stacked layers (Phase 43 Task 33)', () =
     const { container } = render(<OceanScene />);
     const scene = container.querySelector('.ocean-scene')!;
     const outsideRobots = Array.from(scene.querySelectorAll('*')).filter((el) => !el.closest('.robot'));
-    // The six layers, the tints, the row groups and the stations are all in the list.
-    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__layer'))).toHaveLength(6);
+    // The seven layers, the tints, the row groups and the stations are all in the list.
+    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__layer'))).toHaveLength(7);
     expect(outsideRobots.some((el) => el.hasAttribute('data-station-mock'))).toBe(true);
     for (const el of outsideRobots) {
       expect({ el: el.tagName + (el.id ? `#${el.id}` : ''), pe: pointerEvents(el) }).toEqual({
