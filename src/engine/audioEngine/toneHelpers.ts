@@ -7,6 +7,9 @@ export interface MinimalToneNode {
   toDestination?: () => void;
   gain?: { value: number };
   pan?: { value: number };
+  frequency?: { value: number };
+  Q?: { value: number };
+  type?: string;
 }
 
 /** Lightweight synth shape used for safe typed access to set/oscillator fields. */
@@ -48,7 +51,14 @@ export function makeStubGain(initialValue: number): MinimalToneNode {
 }
 
 export function makeStubFilter(): MinimalToneNode {
-  return { connect: () => ({}), disconnect: () => { }, toDestination: () => { } };
+  return {
+    connect: () => ({}),
+    disconnect: () => { },
+    toDestination: () => { },
+    frequency: { value: 1200 },
+    Q: { value: 1 },
+    type: 'lowpass',
+  };
 }
 
 /**
