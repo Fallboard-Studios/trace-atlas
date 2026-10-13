@@ -29,6 +29,8 @@ export const ALL_TARGET = 'all';
 const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   audioMode: 'none',
   masterVolume: 0,
+  pan: 0,
+  panAuto: true,
 };
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
@@ -84,6 +86,8 @@ export interface CompanyOptions {
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
+  onPanChange: (display: number) => void;
+  onPanAutoChange: (auto: boolean) => void;
   onDensityChange: (v: number) => void;
   onMotifLengthChange: (v: number) => void;
   onPitchRepeatChange: (v: number) => void;
@@ -188,7 +192,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedMasterVolume = resolved?.masterVolume;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
-      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume! }
+      // Robot Pan Task 8 bridge: pan/panAuto are resolved from the snapshot and first member in Task 10.
+      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: 0, panAuto: true }
       : DISABLED_AUDIO_SETTING
   ), [active, resolvedAudioMode, resolvedMasterVolume]);
 
@@ -263,6 +268,10 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     });
     patchSnapshot({ masterVolume: pct / 100 });
   }, [localeId, patchSnapshot]);
+
+  // Robot Pan Task 8 bridge: both are placeholders until Task 10 broadcasts them to the members.
+  const onPanChange = useCallback((_display: number) => {}, []);
+  const onPanAutoChange = useCallback((_auto: boolean) => {}, []);
 
   const onDensityChange = useCallback((v: number) => {
     latest.current.members.forEach((m) => applyDensity(m, localeId, v));
@@ -362,6 +371,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
     onAudioModeChange,
     onVolumeChange,
+    onPanChange,
+    onPanAutoChange,
     onDensityChange,
     onMotifLengthChange,
     onPitchRepeatChange,
@@ -375,7 +386,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   }), [
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue,
     volumeSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
-    onAudioModeChange, onVolumeChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
+    onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,
   ]);

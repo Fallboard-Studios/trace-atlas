@@ -166,6 +166,9 @@ export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTra
   return <SectionTabs label={label} items={items} value={activeRobotSection(storedSection)} onValueChange={setSection} />;
 }
 
+// Robot Pan Task 8 bridge: the section's Pan handlers are wired to applyPan/applyPanAuto in Task 9.
+const PAN_HANDLER_PENDING = () => {};
+
 /**
  * Each panel's value and handlers, moved from RobotOptionsTab: `value`s derived from `robot`, each
  * callback wired to its robotOptionsActions function, each memoized on the field it reads so the
@@ -191,7 +194,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const audioSettingValue: AudioSettingValue = useMemo(() => ({
     audioMode: robot.audioMode ?? 'none',
     masterVolume: robot.masterVolume,
-  }), [robot.audioMode, robot.masterVolume]);
+    pan: robot.pan,
+    panAuto: robot.panAuto,
+  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -253,6 +258,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             value={audioSettingValue}
             onAudioModeChange={handleAudioModeChange}
             onVolumeChange={handleVolumeChange}
+            onPanChange={PAN_HANDLER_PENDING}
+            onPanAutoChange={PAN_HANDLER_PENDING}
             volumeSwelling={volumeSwelling}
           />
         );
