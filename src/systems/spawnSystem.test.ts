@@ -374,6 +374,16 @@ describe('spawnSystem', () => {
       expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
     });
 
+    // Roadmap 48: both fields were never read (createdAt was stamped "for removal ordering";
+    // lastInteractionMeasure lost its only writer in Phase 43), so a spawn stamps neither.
+    it('stamps no createdAt or lastInteractionMeasure on a spawned robot', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+      expect(robot).not.toHaveProperty('createdAt');
+      expect(robot).not.toHaveProperty('lastInteractionMeasure');
+    });
+
     // LFO Bank Task 10: seeded robot lane links must reach the bank engine at spawn, not only on
     // a later user edit — same rule as the old primeRobotLfos, now routed through the bank's own
     // roster-priming helper. Only reserveVoice's SUCCESS should prime — a robot with no reserved

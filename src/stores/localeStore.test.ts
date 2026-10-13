@@ -31,7 +31,6 @@ const makeRobot = (id: string): Robot => ({
     filterFreq: 0,
   },
   octaveRange: [3, 4],
-  createdAt: Date.now(),
   masterVolume: 0.7,
   docking: DockingState.Active,
   activity: 'exiting',

@@ -48,7 +48,6 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     rhythmicMotifLength: { active: false, value: 0 },
     noteVariance: { active: false, value: 0 },
     masterVolume: 0.8,
-    createdAt: Date.now(),
     ...overrides,
   } as Robot;
 }

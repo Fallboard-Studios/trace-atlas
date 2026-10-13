@@ -78,7 +78,6 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
       layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }],
     },
     octaveRange: [3, 4],
-    createdAt: Date.now(),
     masterVolume: 0.7,
     docking: DockingState.Active,
     activity: 'exiting',

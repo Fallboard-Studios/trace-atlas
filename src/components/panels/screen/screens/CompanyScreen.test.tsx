@@ -103,7 +103,6 @@ function makeRobot(index: number, companyId?: string): Robot {
       ],
     },
     octaveRange: [3, 4],
-    createdAt: Date.now(),
     masterVolume: 0.7,
     docking: 'active',
     activity: 'working',

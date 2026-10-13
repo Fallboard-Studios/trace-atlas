@@ -27,7 +27,6 @@ function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
       waveform: 'sine',
     },
     octaveRange: [3, 4],
-    createdAt: Date.now(),
     masterVolume: 0.7,
     docking: 'active',
     batteryLevel: 80,

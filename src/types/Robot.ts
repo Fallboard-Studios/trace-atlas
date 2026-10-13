@@ -134,9 +134,6 @@ export interface Robot {
   /** Octave range [min, max] this robot plays within. Melody events store concrete octaves within this range. */
   octaveRange: [number, number];
   layer?: 'background' | 'foreground'; // SVG rendering layer (default: foreground)
-  createdAt: number;            // timestamp used for removal ordering
-  /** Transport measure at which this robot last interacted (for cooldown tracking). */
-  lastInteractionMeasure?: number;
   /**
    * Overall robot loudness (0–1), edited live via Robot Options' Volume slider. Roadmap Phase 9:
    * drives the robot's own live per-robot bus gain (AudioEngine.reserveVoice's masterVolume

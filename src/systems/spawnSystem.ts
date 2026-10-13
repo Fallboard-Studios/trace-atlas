@@ -704,7 +704,6 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       // (globalAudioSeed.ts).
       return quantizeToStep(raw * 100, 0, VOLUME_STEP_PERCENT) / 100;
     })(),
-    createdAt: Date.now(),
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',

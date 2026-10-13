@@ -48,7 +48,6 @@ function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
     melody: [],
     audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' },
     octaveRange: [3, 4],
-    createdAt: Date.now(),
     masterVolume: 0.7,
     docking: 'active',
     batteryLevel: 80,
