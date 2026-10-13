@@ -7,7 +7,7 @@ import { hashActorId } from './factoryBubbleProps';
 import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
 import { bottomAnchorTransform } from './silhouetteUtils';
 import { applyColorShift, shiftHSL, clamp } from '../../utils/colorUtils';
-import { getLighting, getNightDepth, FLICKER_PERIOD, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
+import { getLighting, getNightDepth, flickerPhase, getFlickerEpoch } from '../../utils/lightingUtils';
 import { ROW_L_CAP, DERELICT_L_CAP, DERELICT_SAT } from '../../constants/sceneDepth';
 import { ROOFTOP_RENDERERS, ROOFTOP_LAYOUT_PAINT } from './greebles/rooftopGreebles';
 import { FACADE_RENDERERS, FACADE_LAYOUT_PAINT } from './greebles/facadeGreebles';
@@ -133,11 +133,11 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     const satShift = actor.config?.satShift ?? 0;
     const shift = { hueShift, satShift };
 
-    // Per-building phase offset (0..FLICKER_PERIOD-1) staggers window rerolls
-    // across FLICKER_PERIOD consecutive measures so no two buildings re-render
-    // in the same frame at an epoch boundary.
+    // Per-building phase offset (hours, 0..FLICKER_PERIOD) staggers window rerolls
+    // across one flicker period so no two buildings re-render in the same frame
+    // at an epoch boundary.
     const buildingSeed = hashActorId(actor.id);
-    const buildingPhase = buildingSeed % FLICKER_PERIOD;
+    const buildingPhase = flickerPhase(buildingSeed);
 
     // Pre-shift the palette so all greebles (roof + facade) share the
     // building's per-instance hue/sat variation.
@@ -279,14 +279,13 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   // Resolve east/west lightness multipliers:
   // debug preset overrides the live cycle (useful for visual testing).
   //
-  // Derive lightMeasure from the active locale's local time so building
+  // Light from the active locale's local time so building
   // lighting tracks Attenuation Style day/night, not the audio transport position.
   // activeLocaleLocalTime is a 0..24 float written by AttenuationStyleView every second.
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
-  const lightMeasure = (localTime / 24) * DAY_CYCLE_MEASURES;
   // flickerEpoch: phased per building so window rerolls are spread across
-  // FLICKER_PERIOD consecutive measures rather than all firing at once.
-  const flickerEpoch = Math.floor((lightMeasure + buildingPhase) / FLICKER_PERIOD);
+  // one FLICKER_PERIOD rather than all firing at once.
+  const flickerEpoch = getFlickerEpoch(localTime, buildingPhase);
 
   const preset = DEBUG_LIGHTING_PRESET ? LIGHTING_PRESETS[DEBUG_LIGHTING_PRESET] : null;
 

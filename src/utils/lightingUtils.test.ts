@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { getLighting, getNightDepth, FLICKER_PERIOD } from './lightingUtils';
+import {
+  getLighting,
+  getNightDepth,
+  FLICKER_PERIOD,
+  flickerPhase,
+  getFlickerEpoch,
+} from './lightingUtils';
 
 // ========================================
 // HELPERS
@@ -136,14 +142,62 @@ describe('getNightDepth', () => {
 // ========================================
 
 describe('FLICKER_PERIOD', () => {
-  it('is a positive integer', () => {
-    expect(Number.isInteger(FLICKER_PERIOD)).toBe(true);
-    expect(FLICKER_PERIOD).toBeGreaterThan(0);
+  it('is two in-world hours', () => {
+    expect(FLICKER_PERIOD).toBe(2);
+  });
+});
+
+describe('flickerPhase', () => {
+  it('is zero for a seed on slot 0 and steps a quarter hour per slot', () => {
+    expect(flickerPhase(0)).toBe(0);
+    expect(flickerPhase(1)).toBe(0.25);
+    expect(flickerPhase(4)).toBe(1);
+    expect(flickerPhase(7)).toBe(1.75);
   });
 
-  it('produces a new epoch every FLICKER_PERIOD measures', () => {
-    const epoch0 = Math.floor(0 / FLICKER_PERIOD);
-    const epochN = Math.floor(FLICKER_PERIOD / FLICKER_PERIOD);
-    expect(epochN).toBe(epoch0 + 1);
+  it('wraps by slot — seed 8 lands where seed 0 does', () => {
+    expect(flickerPhase(8)).toBe(flickerPhase(0));
+    expect(flickerPhase(13)).toBe(flickerPhase(5));
+  });
+
+  it('spreads buildings over eight distinct offsets inside one period', () => {
+    const phases = new Set(Array.from({ length: 64 }, (_, seed) => flickerPhase(seed)));
+    expect(phases.size).toBe(8);
+    for (const p of phases) {
+      expect(p).toBeGreaterThanOrEqual(0);
+      expect(p).toBeLessThan(FLICKER_PERIOD);
+    }
+  });
+});
+
+describe('getFlickerEpoch', () => {
+  it('is epoch 0 at midnight for an unshifted building and ticks over at hour 2', () => {
+    expect(getFlickerEpoch(0, 0)).toBe(0);
+    expect(getFlickerEpoch(1.99, 0)).toBe(0);
+    expect(getFlickerEpoch(2, 0)).toBe(1);
+  });
+
+  it('a phase pulls the boundary earlier by that many hours', () => {
+    // phase 1.75 (seed slot 7): boundary at hour 0.25, then every 2 hours
+    expect(getFlickerEpoch(0.24, 1.75)).toBe(0);
+    expect(getFlickerEpoch(0.25, 1.75)).toBe(1);
+    expect(getFlickerEpoch(2.24, 1.75)).toBe(1);
+    expect(getFlickerEpoch(2.25, 1.75)).toBe(2);
+  });
+
+  it('every building rolls exactly once per period, never all on the same tick', () => {
+    // Walk hour 0..24 in quarter-hour steps; count how many of the 8 slots roll at each step.
+    const slots = Array.from({ length: 8 }, (_, seed) => flickerPhase(seed));
+    let maxRollsAtOnce = 0;
+    for (let q = 1; q <= 96; q++) {
+      const rolls = slots.filter((p) => getFlickerEpoch(q / 4, p) !== getFlickerEpoch((q - 1) / 4, p));
+      maxRollsAtOnce = Math.max(maxRollsAtOnce, rolls.length);
+    }
+    expect(maxRollsAtOnce).toBe(1);
+  });
+
+  it('runs a full day to epoch 12 for an unshifted building', () => {
+    expect(getFlickerEpoch(23.99, 0)).toBe(11);
+    expect(getFlickerEpoch(24, 0)).toBe(12);
   });
 });
