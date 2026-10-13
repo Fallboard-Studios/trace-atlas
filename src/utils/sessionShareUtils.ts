@@ -7,6 +7,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { NOTE_VALUES, isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '../data/noteValues';
+import { PAN_MIN, PAN_MAX } from '../constants';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -103,6 +104,8 @@ interface CompactRobotOverrideDiff {
   rm?: CompactToggle;
   nv?: CompactToggle;
   pr?: number;
+  /** A manual pan, −1…1; absent means Auto (RobotAudioOverrideDiff.pan's own contract). */
+  p?: number;
   or?: RobotAudioOverrideDiff['octaveRange'];
   nm?: string;
   /** Only the targets that changed (RobotAudioOverrideDiff.lfoLinks' own contract), abbreviated
@@ -215,6 +218,7 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.rhythmicMotifLength !== undefined) compact.rm = toCompactToggle(diff.rhythmicMotifLength);
   if (diff.noteVariance !== undefined) compact.nv = toCompactToggle(diff.noteVariance);
   if (diff.pitchRepeat !== undefined) compact.pr = diff.pitchRepeat;
+  if (diff.pan !== undefined) compact.p = diff.pan;
   if (diff.octaveRange !== undefined) compact.or = diff.octaveRange;
   if (diff.name !== undefined) compact.nm = diff.name;
   if (diff.lfoLinks !== undefined) {
@@ -231,6 +235,9 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   if (compact.rm !== undefined) diff.rhythmicMotifLength = fromCompactToggle(compact.rm);
   if (compact.nv !== undefined) diff.noteVariance = fromCompactToggle(compact.nv);
   if (compact.pr !== undefined) diff.pitchRepeat = compact.pr;
+  // A non-numeric, non-finite or out-of-range `p` is dropped, so the robot stays Auto -- never
+  // misread as a manual pan (the same rule the `ll` decoder follows for an unknown target).
+  if (typeof compact.p === 'number' && Number.isFinite(compact.p) && compact.p >= PAN_MIN && compact.p <= PAN_MAX) diff.pan = compact.p;
   if (compact.or !== undefined) diff.octaveRange = compact.or;
   if (compact.nm !== undefined) diff.name = compact.nm;
   if (compact.ll !== undefined) {
