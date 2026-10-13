@@ -44,7 +44,10 @@ export const SWELL_GLOBAL_TARGET_IDS: readonly SwellGlobalTargetId[] = [
  * LFO targets (docs/specs/LFO_LOAD_FIX.md assumption 9), but Audio Swells is
  * a separate system and keeps swelling both — a swell is a scheduled ramp of
  * the stored attribute, not an audio-rate LFO connection, so none of the
- * LFO-cost reasoning applies here. Every RobotLfoTargetId is still a member.
+ * LFO-cost reasoning applies here. Every layer-scoped RobotLfoTargetId is
+ * still a member; 'bus.frequency' (the bus filter cutoff) is the one LFO
+ * target that is not, because there is no swell apply path for the bus
+ * (docs/specs/ROBOT_ARTICULATION.md assumption 10).
  */
 export type SwellRobotAttributeId =
   | 'volume'

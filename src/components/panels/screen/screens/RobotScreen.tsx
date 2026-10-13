@@ -248,6 +248,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => {
     const prevAdsr = latestRobot.current.audioAttributes.adsr;
     (Object.keys(adsr) as (keyof ADSREnvelope)[]).forEach((field) => {
+      // The curve names are not swell attributes: only a/d/s/r swell.
+      if (field === 'attackCurve' || field === 'releaseCurve') return;
       if (adsr[field] !== prevAdsr[field]) cancelSwellForRobotAttribute(latestRobot.current.id, `adsr.${field}`);
     });
     applyAdsr(latestRobot.current, localeId, adsr);

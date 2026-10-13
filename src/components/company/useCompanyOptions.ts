@@ -330,7 +330,11 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     const patch = resolved ? diffCompoundField(resolved.adsr, adsr) : adsr;
     const changedFields = Object.keys(patch) as (keyof ADSREnvelope)[];
     members.forEach((m) => {
-      changedFields.forEach((field) => cancelSwellForRobotAttribute(m.id, `adsr.${field}`));
+      changedFields.forEach((field) => {
+        // The curve names are not swell attributes: only a/d/s/r swell.
+        if (field === 'attackCurve' || field === 'releaseCurve') return;
+        cancelSwellForRobotAttribute(m.id, `adsr.${field}`);
+      });
       const memberOwn = resolveCompanyOptions(undefined, m).adsr;
       applyAdsr(m, localeId, { ...memberOwn, ...patch });
     });

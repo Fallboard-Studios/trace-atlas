@@ -20,6 +20,7 @@ function links(overrides: Partial<Record<RobotLfoTargetId, LfoLink>> = {}): NonN
     'layer1.detune': off,
     'layer2.gain': off,
     'layer2.detune': off,
+    'bus.frequency': off,
     ...overrides,
   };
 }

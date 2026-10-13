@@ -53,6 +53,20 @@ export const LOAD_FILTER_LFOS_MIN = 0.4;
  */
 export const LOAD_PLAYBACK_BELOW = 0.61;
 
+// ========================================
+// ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.1)
+// ========================================
+
+/** Portamento slider bounds, seconds. 0 = no glide (today's sound). */
+export const PORTAMENTO_MIN = 0;
+export const PORTAMENTO_MAX = 2;
+/** The robot bus filter's cutoff range, Hz: the slider's range and the bus.frequency LFO's output range (same as the global LPF). */
+export const ROBOT_BUS_FILTER_FREQ_RANGE = { min: 20, max: 20000 } as const;
+/** The robot bus filter's resonance range (the global LPF's pair). Today's fixed Q of 1 sits inside it. */
+export const ROBOT_BUS_FILTER_Q_RANGE = { min: 0.1, max: 20 } as const;
+/** Seconds a live bus-filter frequency or Q edit ramps over, so a slider drag does not zipper. Below MIN_LEAD. */
+export const FILTER_RAMP_SECONDS = 0.05;
+
 /**
  * Fixed size of the harmony palette — every `HARMONY_PALETTES` entry
  * (harmonySystem.ts) is exactly 8 notes, structurally enforced by the `EighthNotes`
