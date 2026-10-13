@@ -187,7 +187,7 @@ describe('help coverage — probe and company controls', () => {
 
   it('the walk reaches every section, the three Source layers included (never passes on an empty list)', () => {
     const ids = schemas.map((s) => s.id);
-    for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
+    for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.pan', 'robotOptions.panAuto', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
       'robotOptions.attack', 'robotOptions.release', 'robotOptions.layer0.type', 'robotOptions.layer1.detune', 'robotOptions.layer2.pulseWidth',
       'company.assign', 'company.name']) {
       expect(ids).toContain(id);

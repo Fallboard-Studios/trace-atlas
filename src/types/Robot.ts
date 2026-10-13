@@ -143,6 +143,14 @@ export interface Robot {
    * independent of this field (see AudioEngine.ts's computeNoteVelocitySeeded).
    */
   masterVolume: number;
+  /** Stereo position, −1 (left) … 1 (right), written by the Pan slider and by switching Auto off (the
+   *  live value at that moment). Ignored by the engine while `panAuto` is true. Spawn default 0.
+   *  docs/specs/ROBOT_PAN.md §1.1. */
+  pan: number;
+  /** True (spawn default): the panner follows the robot's live x (updateAllPanners, ±0.5 field) and
+   *  `pan` is ignored. False: `pan` is written to the panner and the tick leaves this robot alone.
+   *  Only the panner is affected — the robot keeps moving either way. */
+  panAuto: boolean;
   /** Docking state — see DockingState. Every robot has one from creation. */
   docking: DockingState;
   /**

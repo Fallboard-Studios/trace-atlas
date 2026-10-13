@@ -27,6 +27,7 @@ import { quantizeToStep, roundToDecimals } from './math';
 import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
+import { AudioEngine } from '../engine/AudioEngine';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
 import { primeRobotLinks } from '../systems/robotLfoLinks';
 import { isAudioContextRunning } from '../engine/lfoShared';
@@ -221,7 +222,8 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
  * Only the fields that differ from the seed baseline — an untouched robot diffs to `{}`.
  * Deliberately never inspects audioMode, masterVolume, job, docking, or batteryLevel: those
  * aren't part of RobotAudioBaseline at all, so they can't leak into the result (docs/specs/
- * SESSION_STORAGE.md §1.2/§7).
+ * SESSION_STORAGE.md §1.2/§7). `pan` is the one robot-level listening-adjacent field that IS
+ * inspected: a manual pan is a composition choice, and Auto (the baseline) is the absence of the key.
  *
  * When a swell is active at save time, replaces the mid-ramp interpolated value with the
  * captured baseValue, so persisted overrides always contain normalized data regardless of
@@ -263,6 +265,11 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(live.noteVariance, baseline.noteVariance)) diff.noteVariance = live.noteVariance;
   if (!deepEqual(live.pitchRepeat, baseline.pitchRepeat)) diff.pitchRepeat = live.pitchRepeat;
   if (!deepEqual(live.name, baseline.name)) diff.name = live.name;
+
+  // Robot Pan (docs/specs/ROBOT_PAN.md §1.6): Auto is every robot's baseline, so only a manual robot
+  // writes a key, and a stale `pan` under Auto never leaks. `=== false`, not `!panAuto`: a robot with no
+  // flag at all is Auto, not manual-at-NaN. Two decimals matches the slider's 1/100 step.
+  if (live.panAuto === false) diff.pan = roundToDecimals(live.pan, 2);
 
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): only the targets whose link actually changed --
   // an untouched target has no key, same "absent means untouched" contract as every field above.
@@ -381,6 +388,12 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
   if (diff.name !== undefined) updates.name = diff.name;
+  // One key carries both robot fields: present = Auto off at that value. A non-finite value (a
+  // hand-edited payload) is ignored whole, so the robot stays Auto instead of going manual at 0.
+  if (typeof diff.pan === 'number' && Number.isFinite(diff.pan)) {
+    updates.pan = diff.pan;
+    updates.panAuto = false;
+  }
   if (diff.lfoLinks !== undefined) updates.lfoLinks = { ...robot.lfoLinks, ...diff.lfoLinks } as Record<RobotLfoTargetId, LfoLink>;
   return updates;
 }
@@ -541,6 +554,10 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     const updatedRobot = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (updatedRobot) {
       regenerateMelody(updatedRobot, localeId);
+      // Robot Pan: primes from the STORED robot (updateRobot clamps pan), only when this diff made it
+      // manual. Before the audio context starts this is a no-op; loadInstruments' reservation pass
+      // re-primes from the store (docs/specs/ROBOT_PAN.md §1.3).
+      if (updates.panAuto === false) AudioEngine.updateRobotPan(updatedRobot.id, updatedRobot.pan);
       // Re-primes only the targets this diff actually changed (docs/tasks/LFO_BANK.md Task 18) --
       // every untouched target already has its freshly-seeded link primed by AudioEngine.start()
       // (or will, once the context starts), so re-priming the whole roster here would be redundant.

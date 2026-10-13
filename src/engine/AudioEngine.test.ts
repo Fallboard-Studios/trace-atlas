@@ -1049,6 +1049,8 @@ describe('AudioEngine - Motif Group Accent', () => {
       rhythmicMotifLength,
       audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine' as const, filterFreq: 100 },
       masterVolume: 0.8,
+      pan: 0,
+      panAuto: true,
       melody: [],
       octaveRange: [3, 4] as [number, number],
       position: { x: 0, y: 0 },
@@ -1228,6 +1230,8 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       clickTrackActive: overrides.clickTrackActive ?? false,
       audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine' as const, filterFreq: 100 },
       masterVolume: 0.8,
+      pan: 0,
+      panAuto: true,
       melody: [],
       octaveRange: overrides.octaveRange ?? ([3, 4] as [number, number]),
       position: { x: 0, y: 0 },
@@ -1527,7 +1531,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
       robots: [{
         id: 'pan-recompute-robot', compositionSeed: 0.5, identityColor: '#428d95', gemSeed: 1, audioMode: 'none',
         audioAttributes: { adsr: TEST_ADSR, waveform: 'sine' as const, filterFreq: 100 },
-        masterVolume: 0.8, melody: [], octaveRange: [3, 4] as [number, number],
+        masterVolume: 0.8, pan: 0, panAuto: true, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the
         // Panner mock's own default pan.value of 0, so an unwanted write is detectable.
         position: { x: 0, y: 0 }, name: '',
@@ -2458,5 +2462,536 @@ describe('AudioEngine - updateAllPanners write coalescing', () => {
     expect(panSet).toHaveBeenCalledTimes(2);
     expect(panSet).toHaveBeenLastCalledWith(0.5);
     teardown();
+  });
+});
+
+describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sections 1.3 and 4)', () => {
+  // updateRobotPan(id, number) pins a robot's panner and takes it out of the pan tick;
+  // updateRobotPan(id, null) hands it back. Auto's own writes must stay exactly what they were.
+  type AnyMock = ReturnType<typeof vi.fn>;
+  const WORLD_CENTRE = 960; // calculatePanFromPosition(960) === 0
+  const WORLD_RIGHT = 1920; // -> +0.5
+  const WORLD_LEFT = 0; // -> -0.5
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  function spyOnPan(panner: { pan: { value: number } }) {
+    let current = panner.pan.value;
+    const setter = vi.fn((v: number) => { current = v; });
+    Object.defineProperty(panner.pan, 'value', { configurable: true, get: () => current, set: setter });
+    return setter;
+  }
+
+  /** Reserve one voice per `robots` entry (all Auto, at the given x) on a freshly started engine. */
+  async function setup(robots: { id: string; x: number }[], opts: { withRamp?: boolean } = {}) {
+    const withRamp = opts.withRamp ?? true;
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const readoutMod = await import('../stores/robotPanReadoutStore');
+    const refsMod = await import('../utils/refs');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: robots.map((r) => ({ id: r.id, position: { x: r.x, y: 0 }, audioMode: 'none' } as any)),
+    });
+
+    await AudioEngine.start();
+    const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
+    const ticks = transport.scheduleRepeat.mock.calls
+      .filter((c: unknown[]) => c[1] === '16n')
+      .map((c: unknown[]) => c[0] as (time: number) => void);
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    const panners: Record<string, { pan: { value: number; rampTo?: AnyMock } }> = {};
+    const panSet: Record<string, AnyMock> = {};
+    const rampTo: Record<string, AnyMock> = {};
+    const reserve = (id: string) => {
+      AudioEngine.reserveVoice(id, layered, TEST_ADSR);
+      const panner = (Tone.Panner as unknown as AnyMock).mock.results.at(-1)!.value;
+      panners[id] = panner;
+      panSet[id] = spyOnPan(panner);
+      if (withRamp) {
+        rampTo[id] = vi.fn();
+        panner.pan.rampTo = rampTo[id];
+      }
+    };
+    robots.forEach((r) => reserve(r.id));
+
+    const moveTo = (id: string, nx: number) => {
+      const current = storeMod.useLocaleStore.getState().locales[localeId]?.robots ?? [];
+      storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+        robots: current.map((r) => (r.id === id ? { ...r, position: { x: nx, y: 0 } } : r)),
+      });
+    };
+    const teardown = () => {
+      robots.forEach((r) => AudioEngine.releaseVoice(r.id));
+      AudioEngine.killAll();
+    };
+    return {
+      AudioEngine,
+      readout: readoutMod.useRobotPanReadoutStore,
+      getRef: refsMod.getRef as unknown as AnyMock,
+      tick: () => ticks.forEach((t: (time: number) => void) => t(0)),
+      panSet,
+      rampTo,
+      panners,
+      reserve,
+      moveTo,
+      teardown,
+    };
+  }
+
+  describe('updateRobotPan(id, number) - manual', () => {
+    it('ramps the panner to the value over 50 ms', async () => {
+      const { AudioEngine, rampTo, panSet, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }]);
+
+      AudioEngine.updateRobotPan('m1', 0.8);
+
+      expect(rampTo.m1).toHaveBeenCalledTimes(1);
+      expect(rampTo.m1).toHaveBeenCalledWith(0.8, 0.05);
+      expect(panSet.m1).not.toHaveBeenCalled();
+      teardown();
+    });
+
+    it('passes the full -1..1 travel through verbatim - wider than the Auto field ever reaches', async () => {
+      const { AudioEngine, rampTo, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }]);
+
+      AudioEngine.updateRobotPan('m1', -1);
+      AudioEngine.updateRobotPan('m1', 1);
+
+      expect(rampTo.m1.mock.calls).toEqual([[-1, 0.05], [1, 0.05]]);
+      teardown();
+    });
+
+    it('falls back to a direct .value set when the panner has no rampTo (headless)', async () => {
+      const { AudioEngine, panSet, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }], { withRamp: false });
+
+      AudioEngine.updateRobotPan('m1', 0.8);
+
+      expect(panSet.m1).toHaveBeenCalledTimes(1);
+      expect(panSet.m1).toHaveBeenCalledWith(0.8);
+      teardown();
+    });
+
+    it('takes the robot out of the tick: no panner write and no readout entry however far it swims', async () => {
+      const { AudioEngine, tick, moveTo, panSet, rampTo, readout, teardown } = await setup([{ id: 'm1', x: WORLD_LEFT }]);
+      tick(); // one Auto write lands first, so the readout has something to (not) update
+      panSet.m1.mockClear();
+      const readoutBefore = readout.getState().pan.m1;
+
+      AudioEngine.updateRobotPan('m1', 0.8);
+      rampTo.m1.mockClear();
+      moveTo('m1', WORLD_RIGHT);
+      tick();
+      moveTo('m1', WORLD_CENTRE);
+      tick();
+      tick();
+
+      expect(panSet.m1).not.toHaveBeenCalled();
+      expect(rampTo.m1).not.toHaveBeenCalled();
+      expect(readout.getState().pan.m1).toBe(readoutBefore); // frozen at its last Auto value, never updated
+      teardown();
+    });
+
+    it('skips the manual robot before the DOM read: the tick never asks for its ref', async () => {
+      const { AudioEngine, tick, getRef, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }, { id: 'a1', x: WORLD_CENTRE }]);
+      AudioEngine.updateRobotPan('m1', 0.3);
+      getRef.mockClear();
+
+      tick();
+
+      const asked = getRef.mock.calls.map((c: unknown[]) => c[0]);
+      expect(asked).not.toContain('robot-m1');
+      expect(asked).toContain('robot-a1');
+      teardown();
+    });
+
+    it('leaves every other robot following its x', async () => {
+      const { AudioEngine, tick, moveTo, panSet, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }, { id: 'a1', x: WORLD_LEFT }]);
+      AudioEngine.updateRobotPan('m1', 0.8);
+
+      tick();
+      moveTo('a1', WORLD_RIGHT);
+      tick();
+
+      expect(panSet.a1.mock.calls).toEqual([[-0.5], [0.5]]);
+      expect(panSet.m1).not.toHaveBeenCalled();
+      teardown();
+    });
+
+    it('does not throw when the ramp itself throws (an AudioParam in a bad state)', async () => {
+      const { AudioEngine, rampTo, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }]);
+      rampTo.m1.mockImplementation(() => { throw new Error('boom'); });
+
+      expect(() => AudioEngine.updateRobotPan('m1', 0.5)).not.toThrow();
+      teardown();
+    });
+  });
+
+  describe('getLivePan', () => {
+    it('is undefined before any tick has written, and for a robot that was never reserved', async () => {
+      const { AudioEngine, teardown } = await setup([{ id: 'g1', x: WORLD_LEFT }]);
+
+      expect(AudioEngine.getLivePan('g1')).toBeUndefined();
+      expect(AudioEngine.getLivePan('never-reserved')).toBeUndefined();
+      teardown();
+    });
+
+    it('is the last value the tick wrote under Auto', async () => {
+      const { AudioEngine, tick, moveTo, teardown } = await setup([{ id: 'g1', x: WORLD_LEFT }]);
+
+      tick();
+      expect(AudioEngine.getLivePan('g1')).toBe(-0.5);
+      moveTo('g1', WORLD_RIGHT);
+      tick();
+      expect(AudioEngine.getLivePan('g1')).toBe(0.5);
+      teardown();
+    });
+
+    it('is undefined after releaseVoice', async () => {
+      const { AudioEngine, tick, teardown } = await setup([{ id: 'g1', x: WORLD_LEFT }]);
+      tick();
+
+      AudioEngine.releaseVoice('g1');
+
+      expect(AudioEngine.getLivePan('g1')).toBeUndefined();
+      teardown();
+    });
+
+    it('is undefined while the robot is manual - a stale Auto value must not be mistaken for its pan', async () => {
+      // applyPanAuto(false) reads `getLivePan ?? robot.pan`. On a robot that is already manual (a
+      // company member re-broadcast) a leftover Auto value would overwrite its real manual pan.
+      const { AudioEngine, tick, teardown } = await setup([{ id: 'g1', x: WORLD_LEFT }]);
+      tick();
+      expect(AudioEngine.getLivePan('g1')).toBe(-0.5);
+
+      AudioEngine.updateRobotPan('g1', 0.8);
+
+      expect(AudioEngine.getLivePan('g1')).toBeUndefined();
+      teardown();
+    });
+  });
+
+  describe('updateRobotPan(id, null) - back to Auto', () => {
+    it('ramps to the position-follow pan, publishes it, and seeds the tick so nothing is rewritten', async () => {
+      const { AudioEngine, tick, moveTo, panSet, rampTo, readout, teardown } = await setup([{ id: 'b1', x: WORLD_LEFT }]);
+      tick();
+      AudioEngine.updateRobotPan('b1', 0.8);
+      moveTo('b1', WORLD_RIGHT);
+      rampTo.b1.mockClear();
+      panSet.b1.mockClear();
+
+      AudioEngine.updateRobotPan('b1', null);
+
+      expect(rampTo.b1).toHaveBeenCalledTimes(1);
+      expect(rampTo.b1).toHaveBeenCalledWith(0.5, 0.05);
+      expect(AudioEngine.getLivePan('b1')).toBe(0.5);
+      expect(readout.getState().pan.b1).toBe(0.5);
+
+      tick();
+      tick();
+      expect(panSet.b1).not.toHaveBeenCalled(); // seeded: the epsilon gate holds until x moves
+      expect(rampTo.b1).toHaveBeenCalledTimes(1);
+      teardown();
+    });
+
+    it('resumes writing once the robot moves again after handing back', async () => {
+      const { AudioEngine, tick, moveTo, panSet, teardown } = await setup([{ id: 'b1', x: WORLD_LEFT }]);
+      tick();
+      AudioEngine.updateRobotPan('b1', 0.8);
+      AudioEngine.updateRobotPan('b1', null);
+      panSet.b1.mockClear();
+
+      moveTo('b1', WORLD_RIGHT);
+      tick();
+
+      expect(panSet.b1).toHaveBeenCalledTimes(1);
+      expect(panSet.b1).toHaveBeenCalledWith(0.5);
+      teardown();
+    });
+
+    it('is safe on a robot that was never manual (an Auto-on repeat) and falls back to .value without rampTo', async () => {
+      const { AudioEngine, panSet, teardown } = await setup([{ id: 'b1', x: WORLD_RIGHT }], { withRamp: false });
+
+      expect(() => AudioEngine.updateRobotPan('b1', null)).not.toThrow();
+
+      expect(panSet.b1).toHaveBeenCalledWith(0.5);
+      expect(AudioEngine.getLivePan('b1')).toBe(0.5);
+      teardown();
+    });
+  });
+
+  describe('Auto is unchanged', () => {
+    it('writes the panner exactly as before and mirrors each write to the readout once', async () => {
+      const { tick, moveTo, panSet, readout, teardown } = await setup([{ id: 'u1', x: WORLD_LEFT }]);
+      const realSetPan = readout.getState().setPan;
+      const setPanSpy = vi.fn(realSetPan);
+      readout.setState({ setPan: setPanSpy });
+
+      tick();
+      tick(); // stationary: no write, no readout call
+      moveTo('u1', WORLD_CENTRE);
+      tick();
+      moveTo('u1', WORLD_CENTRE + 0.1); // under PAN_WRITE_EPSILON of the last write: still no write
+      tick();
+      moveTo('u1', WORLD_RIGHT);
+      tick();
+
+      expect(panSet.u1.mock.calls).toEqual([[-0.5], [0], [0.5]]);
+      expect(setPanSpy.mock.calls).toEqual([['u1', -0.5], ['u1', 0], ['u1', 0.5]]);
+      expect(readout.getState().pan.u1).toBe(0.5);
+      teardown();
+    });
+
+    it('never touches the rampTo of an Auto robot (Auto stays an instant set, as on main)', async () => {
+      const { tick, moveTo, rampTo, teardown } = await setup([{ id: 'u1', x: WORLD_LEFT }]);
+
+      tick();
+      moveTo('u1', WORLD_RIGHT);
+      tick();
+
+      expect(rampTo.u1).not.toHaveBeenCalled();
+      teardown();
+    });
+  });
+
+  describe('releaseVoice', () => {
+    it('forgets the manual state: a re-reserved robot with no re-prime follows x again', async () => {
+      const { AudioEngine, tick, panSet, reserve, teardown } = await setup([{ id: 'r1', x: WORLD_RIGHT }]);
+      AudioEngine.updateRobotPan('r1', 0.2);
+      tick();
+      expect(panSet.r1).not.toHaveBeenCalled(); // manual
+
+      AudioEngine.releaseVoice('r1');
+      reserve('r1');
+      tick();
+
+      expect(panSet.r1).toHaveBeenCalledTimes(1);
+      expect(panSet.r1).toHaveBeenCalledWith(0.5);
+      teardown();
+    });
+
+    it('clears the robot readout entry so a stale position never shows on a re-opened screen', async () => {
+      const { AudioEngine, tick, readout, teardown } = await setup([{ id: 'r1', x: WORLD_LEFT }]);
+      tick();
+      expect(readout.getState().pan.r1).toBe(-0.5);
+
+      AudioEngine.releaseVoice('r1');
+
+      expect('r1' in readout.getState().pan).toBe(false);
+      teardown();
+    });
+  });
+
+  describe('no composite reserved', () => {
+    it('is a safe no-op for both forms: no throw, readout untouched', async () => {
+      const { AudioEngine, readout, teardown } = await setup([{ id: 'x1', x: WORLD_CENTRE }]);
+      const before = readout.getState();
+
+      expect(() => AudioEngine.updateRobotPan('ghost', 0.5)).not.toThrow();
+      expect(() => AudioEngine.updateRobotPan('ghost', null)).not.toThrow();
+
+      expect(readout.getState()).toBe(before);
+      teardown();
+    });
+
+    it('does not leave a phantom manual entry: the robot reserved later follows x until it is re-primed', async () => {
+      const { AudioEngine, tick, panSet, reserve, teardown } = await setup([{ id: 'x1', x: WORLD_CENTRE }]);
+      AudioEngine.updateRobotPan('x1', 0.5);
+      AudioEngine.releaseVoice('x1');
+
+      AudioEngine.updateRobotPan('x1', 0.9); // nothing reserved: must not be remembered
+      reserve('x1');
+      tick();
+
+      expect(panSet.x1).toHaveBeenCalledTimes(1);
+      expect(panSet.x1).toHaveBeenCalledWith(0);
+      teardown();
+    });
+  });
+});
+
+describe('AudioEngine - reservation re-primes a manual pan from the store (Robot Pan T4, docs/specs/ROBOT_PAN.md section 1.3)', () => {
+  // The engine keeps no pan state across a release, so every place the engine itself reserves a voice
+  // from the store - loadInstruments' post-load pass and reReserveVoice - must hand a manual robot
+  // back to updateRobotPan, or it would silently play from the position-follow pan again.
+  type AnyMock = ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const LAYERS = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+  const storeRobot = (id: string, x: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    position: { x, y: 0 },
+    audioMode: 'none',
+    masterVolume: 0.8,
+    pan: 0,
+    panAuto: true,
+    audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: LAYERS },
+    ...extra,
+  });
+
+  /** A fresh engine over a store holding `robots`; `start()` is NOT called, so a test can spy first. */
+  async function prepare(robots: Record<string, unknown>[]) {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, { robots: robots as any });
+
+    const primeSpy = vi.spyOn(AudioEngine, 'updateRobotPan');
+    const panners = () => (Tone.Panner as unknown as AnyMock).mock.results.map((r: { value: unknown }) => r.value as { pan: { value: number } });
+    const startAndGetTicks = async (): Promise<((time: number) => void)[]> => {
+      await AudioEngine.start();
+      const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
+      return transport.scheduleRepeat.mock.calls
+        .filter((c: unknown[]) => c[1] === '16n')
+        .map((c: unknown[]) => c[0] as (time: number) => void);
+    };
+    const moveTo = (id: string, nx: number) => {
+      const current = storeMod.useLocaleStore.getState().locales[localeId]?.robots ?? [];
+      storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+        robots: current.map((r) => (r.id === id ? { ...r, position: { x: nx, y: 0 } } : r)),
+      });
+    };
+    const teardown = () => {
+      robots.forEach((r) => AudioEngine.releaseVoice(r.id as string));
+      AudioEngine.killAll();
+    };
+    return { AudioEngine, primeSpy, panners, startAndGetTicks, moveTo, teardown };
+  }
+
+  describe('loadInstruments post-load pass (audio started after the world spawned)', () => {
+    it('primes a manual robot from the store and no Auto robot', async () => {
+      const { primeSpy, startAndGetTicks, teardown } = await prepare([
+        storeRobot('m1', 960, { panAuto: false, pan: 0.6 }),
+        storeRobot('a1', 960, { pan: 0.9 }), // a stale pan on an Auto robot must be ignored
+      ]);
+
+      await startAndGetTicks();
+
+      expect(primeSpy.mock.calls).toEqual([['m1', 0.6]]);
+      teardown();
+    });
+
+    it('lands the manual value on the new panner, and the tick then leaves that panner alone', async () => {
+      const { panners, startAndGetTicks, moveTo, teardown } = await prepare([
+        storeRobot('m1', 0, { panAuto: false, pan: -1 }),
+      ]);
+      const ticks = await startAndGetTicks();
+      const panner = panners().at(-1)!;
+      expect(panner.pan.value).toBe(-1); // the post-load prime, full travel (Auto would give -0.5)
+
+      moveTo('m1', 1920);
+      ticks.forEach((t) => t(0));
+
+      expect(panner.pan.value).toBe(-1);
+      teardown();
+    });
+
+    it('primes nothing when no robot is manual', async () => {
+      const { primeSpy, startAndGetTicks, teardown } = await prepare([storeRobot('a1', 0), storeRobot('a2', 1920)]);
+
+      await startAndGetTicks();
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      teardown();
+    });
+
+    it('does not prime a manual robot that has no layers to reserve (nothing was reserved)', async () => {
+      const { primeSpy, startAndGetTicks, teardown } = await prepare([
+        storeRobot('m1', 960, { panAuto: false, pan: 0.6, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: [] } }),
+      ]);
+
+      await startAndGetTicks();
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      teardown();
+    });
+
+    it('one robot failing to prime does not stop the rest of the pass', async () => {
+      const { AudioEngine, primeSpy, startAndGetTicks, teardown } = await prepare([
+        storeRobot('m1', 960, { panAuto: false, pan: 0.6 }),
+        storeRobot('m2', 960, { panAuto: false, pan: -0.2 }),
+      ]);
+      primeSpy.mockImplementationOnce(() => { throw new Error('boom'); });
+
+      await startAndGetTicks();
+
+      expect(primeSpy.mock.calls).toEqual([['m1', 0.6], ['m2', -0.2]]);
+      expect(AudioEngine.getVoiceForRobot('m2')).not.toBeNull();
+      teardown();
+    });
+  });
+
+  describe('reReserveVoice (a structural layer edit rebuilds the voice)', () => {
+    it('keeps a manual robot manual: the rebuilt panner holds the pan and the tick leaves it alone', async () => {
+      const { AudioEngine, panners, startAndGetTicks, moveTo, teardown } = await prepare([
+        storeRobot('m1', 0, { panAuto: false, pan: 0.6 }),
+      ]);
+      const ticks = await startAndGetTicks();
+      const before = panners().length;
+
+      expect(AudioEngine.reReserveVoice('m1')).toBe(true);
+
+      const rebuilt = panners().at(-1)!;
+      expect(panners().length).toBe(before + 1); // a genuinely new panner
+      expect(rebuilt.pan.value).toBe(0.6);
+      moveTo('m1', 1920);
+      ticks.forEach((t) => t(0));
+      expect(rebuilt.pan.value).toBe(0.6);
+      teardown();
+    });
+
+    it('re-primes from the store, so a pan edited after the voice was built is the one that survives', async () => {
+      const { AudioEngine, panners, startAndGetTicks, teardown } = await prepare([
+        storeRobot('m1', 960, { panAuto: false, pan: 0.6 }),
+      ]);
+      await startAndGetTicks();
+      const storeMod = await import('../stores/localeStore');
+      const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+      storeMod.useLocaleStore.getState().updateRobot(attenuationStyleMod.DEFAULT_LOCALE_ID, 'm1', { pan: -0.3 });
+
+      AudioEngine.reReserveVoice('m1');
+
+      expect(panners().at(-1)!.pan.value).toBe(-0.3);
+      teardown();
+    });
+
+    it('leaves an Auto robot on Auto: no prime, and the tick still follows x', async () => {
+      const { AudioEngine, primeSpy, panners, startAndGetTicks, moveTo, teardown } = await prepare([storeRobot('a1', 0)]);
+      const ticks = await startAndGetTicks();
+
+      AudioEngine.reReserveVoice('a1');
+      const rebuilt = panners().at(-1)!;
+      moveTo('a1', 1920);
+      ticks.forEach((t) => t(0));
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      expect(rebuilt.pan.value).toBe(0.5);
+      teardown();
+    });
+
+    it('does not prime when the reservation is refused (no layers) - the early return is untouched', async () => {
+      const { AudioEngine, primeSpy, startAndGetTicks, teardown } = await prepare([
+        storeRobot('m1', 960, { panAuto: false, pan: 0.6, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: [] } }),
+      ]);
+      await startAndGetTicks();
+
+      expect(AudioEngine.reReserveVoice('m1')).toBe(false);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      teardown();
+    });
   });
 });

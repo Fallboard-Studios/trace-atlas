@@ -62,6 +62,8 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             disabled={disabled}
             onAudioModeChange={options.onAudioModeChange}
             onVolumeChange={options.onVolumeChange}
+            onPanChange={options.onPanChange}
+            onPanAutoChange={options.onPanAutoChange}
             volumeSwelling={options.volumeSwelling}
           />
         );

@@ -6,13 +6,14 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
-  applyAudioMode, applyVolume,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
+import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
 import type { SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -29,6 +30,8 @@ export const ALL_TARGET = 'all';
 const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   audioMode: 'none',
   masterVolume: 0,
+  pan: 0,
+  panAuto: true,
 };
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
@@ -84,6 +87,8 @@ export interface CompanyOptions {
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
+  onPanChange: (display: number) => void;
+  onPanAutoChange: (auto: boolean) => void;
   onDensityChange: (v: number) => void;
   onMotifLengthChange: (v: number) => void;
   onPitchRepeatChange: (v: number) => void;
@@ -186,11 +191,13 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   // referenced inside any of these callbacks.
   const resolvedAudioMode = resolved?.audioMode;
   const resolvedMasterVolume = resolved?.masterVolume;
+  const resolvedPan = resolved?.pan;
+  const resolvedPanAuto = resolved?.panAuto;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
-      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume! }
+      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto! }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume]);
+  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -262,6 +269,23 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
       applyVolume(m, localeId, pct);
     });
     patchSnapshot({ masterVolume: pct / 100 });
+  }, [localeId, patchSnapshot]);
+
+  // Pan (docs/specs/ROBOT_PAN.md §1.5). One slider value reaches every member; the snapshot records the
+  // same clamped fraction applyPan stores. The slider is read-only while Auto is on, so this only fires
+  // with Auto off.
+  const onPanChange = useCallback((display: number) => {
+    latest.current.members.forEach((m) => applyPan(m, localeId, display));
+    patchSnapshot({ pan: Math.max(PAN_MIN, Math.min(PAN_MAX, display / PAN_DISPLAY_SCALE)) });
+  }, [localeId, patchSnapshot]);
+
+  // Broadcast, not link: turning Auto OFF holds every member's sound at ITS OWN live position (applyPanAuto
+  // per member), so the members sit at different pans until the slider is next touched, which then puts
+  // them all at one value. The snapshot records Auto off at the resolved pan, which is what the company
+  // slider shows. Turning Auto ON records the flag alone; the snapshot's pan is ignored while Auto is on.
+  const onPanAutoChange = useCallback((auto: boolean) => {
+    latest.current.members.forEach((m) => applyPanAuto(m, localeId, auto));
+    patchSnapshot({ panAuto: auto, ...(auto ? {} : { pan: latest.current.resolved?.pan ?? 0 }) });
   }, [localeId, patchSnapshot]);
 
   const onDensityChange = useCallback((v: number) => {
@@ -362,6 +386,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
     onAudioModeChange,
     onVolumeChange,
+    onPanChange,
+    onPanAutoChange,
     onDensityChange,
     onMotifLengthChange,
     onPitchRepeatChange,
@@ -375,7 +401,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   }), [
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue,
     volumeSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
-    onAudioModeChange, onVolumeChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
+    onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,
   ]);

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCompanyOptions } from './useCompanyOptions';
@@ -124,7 +126,7 @@ describe('useCompanyOptions', () => {
 
       const { options } = result.current;
       expect(options.active).toBe(false);
-      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0 });
+      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true });
       expect(options.signatureArrayValue.layers).toHaveLength(3);
       expect(options.adsrValue).toEqual({ attack: 0, decay: 0, sustain: 0, release: 0 });
     });
@@ -175,7 +177,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6 });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true });
       expect(result.current.options.pingControlsValue.rhythmicDensity).toBe(42);
     });
 
@@ -295,6 +297,162 @@ describe('useCompanyOptions', () => {
       act(() => result.current.options.onVolumeChange(50));
 
       expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Output: pan', () => {
+    it('audioSettingValue carries the first member\'s own non-default pan and panAuto', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', pan: -0.35, panAuto: false }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', pan: 0.9, panAuto: true }));
+      addCompany('c1', ['r1', 'r2']);
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false });
+    });
+
+    it('audioSettingValue shows the recorded snapshot over the first member, so the slider reads the stored pan', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', pan: 0.1, panAuto: true }));
+      addCompany('c1', ['r1'], { lastEditedOptions: { pan: 0.8, panAuto: false } });
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.audioSettingValue.pan).toBe(0.8);
+      expect(result.current.options.audioSettingValue.panAuto).toBe(false);
+    });
+
+    it('onPanChange calls applyPan once per member with the display number, and records pan as a fraction', () => {
+      twoDistinctMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanChange(40));
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls.every((c) => c[1] === localeId && c[2] === 40)).toBe(true);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ pan: 0.4 });
+    });
+
+    it('onPanChange handles the full negative range', () => {
+      twoDistinctMembers();
+      vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanChange(-100));
+
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ pan: -1 });
+    });
+
+    it('onPanChange records the same clamped value applyPan stores, so the snapshot cannot disagree with the members', () => {
+      twoDistinctMembers();
+      vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanChange(150));
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions?.pan).toBe(1);
+
+      act(() => result.current.options.onPanChange(-150));
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions?.pan).toBe(-1);
+    });
+
+    it('onPanAutoChange(false) calls applyPanAuto per member and records Auto off at the resolved pan', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', pan: 0.3, panAuto: true }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', pan: -0.6, panAuto: true }));
+      addCompany('c1', ['r1', 'r2']);
+      const spy = vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanAutoChange(false));
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls.every((c) => c[1] === localeId && c[2] === false)).toBe(true);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ panAuto: false, pan: 0.3 });
+    });
+
+    it('onPanAutoChange(false) after a recorded pan keeps that pan, not the first member\'s', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', pan: 0.3, panAuto: true }));
+      addCompany('c1', ['r1'], { lastEditedOptions: { pan: -0.5 } });
+      vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanAutoChange(false));
+
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ panAuto: false, pan: -0.5 });
+    });
+
+    it('onPanAutoChange(true) calls applyPanAuto per member and records exactly { panAuto: true }', () => {
+      twoDistinctMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanAutoChange(true));
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls.every((c) => c[2] === true)).toBe(true);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ panAuto: true });
+    });
+
+    it('for \'all\' both handlers reach every robot in the locale and record on the all-robots snapshot', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      const pan = vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+      const auto = vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('all'));
+
+      act(() => result.current.options.onPanAutoChange(false));
+      act(() => result.current.options.onPanChange(25));
+
+      expect(auto.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+      expect(pan.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions).toEqual({ panAuto: false, pan: 0.25 });
+    });
+
+    it('with no members there is nothing to broadcast to: neither action is called', () => {
+      addCompany('c1', []);
+      const pan = vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+      const auto = vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onPanChange(50));
+      act(() => result.current.options.onPanAutoChange(false));
+
+      expect(pan).not.toHaveBeenCalled();
+      expect(auto).not.toHaveBeenCalled();
+    });
+
+    it('a handler held from before a membership change still reaches the new member', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      const spy = vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const held = result.current.options.onPanChange;
+
+      act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r2', 'c1'));
+      act(() => held(10));
+
+      expect(spy.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+    });
+
+    it('the two handlers keep their identity across an edit that changes neither', () => {
+      twoDistinctMembers();
+      vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const { onPanChange, onPanAutoChange } = result.current.options;
+
+      act(() => result.current.options.onDensityChange(70));
+
+      expect(result.current.options.onPanChange).toBe(onPanChange);
+      expect(result.current.options.onPanAutoChange).toBe(onPanAutoChange);
+    });
+
+    it('the hook never reads the live readout store (the company screen shows the stored pan only)', () => {
+      const source = readFileSync(resolve(__dirname, 'useCompanyOptions.ts'), 'utf8');
+
+      expect(source).not.toContain('robotPanReadoutStore');
     });
   });
 

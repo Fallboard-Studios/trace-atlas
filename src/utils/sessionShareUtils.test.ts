@@ -154,6 +154,81 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
+  describe('a manual pan on the wire (the `p` code, Robot Pan T12)', () => {
+    /** Re-encodes a hand-edited wire object, the way a corrupted or tampered share link would arrive. */
+    function encodeWire(wire: unknown): string {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
+    }
+
+    /** A real encoded payload whose single robot entry has been replaced with `entry`. */
+    function decodeWithRobotWire(entry: Record<string, unknown>) {
+      const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } }))) as Record<string, unknown>;
+      return decodeSessionPayload(encodeWire({ ...wire, r: { 'robot-1': entry } }));
+    }
+
+    it('encodes pan as `p` and decodes it back to the original payload', () => {
+      const payload = makePayload({ robotOverrides: { 'robot-1': { pan: 0.4 } } });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ p: 0.4 });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('round-trips a pan of exactly 0 (Auto off at the centre must not be dropped as falsy)', () => {
+      const payload = makePayload({ robotOverrides: { 'robot-1': { pan: 0 } } });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ p: 0 });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('round-trips the negative range and both ends', () => {
+      for (const pan of [-1, -0.25, 1]) {
+        const payload = makePayload({ robotOverrides: { 'robot-1': { pan } } });
+        expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+      }
+    });
+
+    it('an entry with no `p` decodes with no pan key (absent means Auto)', () => {
+      const decoded = decodeWithRobotWire({ rd: 42 });
+
+      expect(decoded?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      expect(decoded?.robotOverrides['robot-1']).not.toHaveProperty('pan');
+    });
+
+    it('drops a `p` that is a string, null (what JSON makes of NaN), out of range, or a boolean, keeping the rest of the entry', () => {
+      for (const bad of ['x', null, 3, -1.5, 1.0001, true, {}]) {
+        const decoded = decodeWithRobotWire({ rd: 42, p: bad });
+
+        expect(decoded?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      }
+    });
+
+    it('carries a pan next to the robot\'s other overrides', () => {
+      const payload = makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42, pan: -0.6, name: 'Held' } } });
+
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('a version-2 payload with one manual robot among others survives encode then decode, and stays version 2', () => {
+      const payload = makePayload({
+        version: 2,
+        lfoBank: makeLfoBank(),
+        globalLfoLinks: makeGlobalLfoLinks(),
+        robotOverrides: {
+          'robot-1': { rhythmicDensity: 42 },
+          'robot-2': { pan: 0.4 },
+          'robot-3': { lfoLinks: { 'layer1.gain': { lane: 'a', depth: 30 } } },
+        },
+      });
+
+      const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+
+      expect(decoded).toEqual(payload);
+      expect(decoded?.version).toBe(2);
+    });
+  });
+
   it('a v1 blob carrying legacy lf/gl wire keys (pre-LFO-Bank share links) decodes with them dropped and everything else intact', () => {
     const payload = makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } });
     const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;

@@ -133,7 +133,7 @@ export const probe = {
     intro: {
       lore: 'Levels — this probe’s signal strength.',
       loreDescription: 'Fine-tune how loudly this probe transmits, or silence it from the mesh entirely.',
-      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays.',
+      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself.',
     },
   },
   'probe.monitorMode': {
@@ -152,6 +152,17 @@ export const probe = {
     lore: 'Transducer Pressure',
     unit: '%',
     help: { human: 'How loud this probe’s own melody plays, from silent at 0% to full volume at 100%.' },
+  },
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PAN.md assumption 10).
+  'probe.pan': {
+    human: 'Pan',
+    lore: 'Bearing',
+    help: { human: 'Where this probe sits between the left and right speakers. With Auto on it follows the probe across the field and the bar just shows where it is; turn Auto off to hold it where it is and place it yourself, as far left or right as you like. Phone speakers are mono, so you will only hear the difference on headphones or a stereo.' },
+  },
+  'probe.pan.auto': {
+    human: 'Auto',
+    lore: 'Tracking',
+    help: { human: 'On: the probe’s sound follows it across the field. Off: it stays where the Pan bar puts it.' },
   },
 
   // ---------------------------------------------------------------- Composition

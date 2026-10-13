@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import type { CSSProperties } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Same reasoning as AudioRigDrawer/SignatureArrayDrawer's own test files: the shared
 // vitest.setup.ts GSAP mock's timeline object has no kill() method, and a child's unmount
@@ -19,7 +22,9 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
 
 import { AudioSettingSection } from './AudioSettingSection';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
-import { AUDIO_SETTING_SCHEMA } from '@/data/robotOptionsConfig';
+import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA } from '@/data/robotOptionsConfig';
+import { CONTENT, fill } from '@/content';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import type { Robot } from '@/types/Robot';
 
 /** Stubs window.matchMedia so the mobile/tablet viewport tiers can be controlled — same shape
@@ -38,10 +43,17 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
   });
 }
 
-function makeValue(overrides: Partial<{ audioMode: NonNullable<Robot['audioMode']>; masterVolume: number }> = {}) {
+const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.css'), 'utf8');
+
+// The Pan row's two handlers, for every case that does not exercise Pan (docs/specs/ROBOT_PAN.md §1.5).
+const PAN_NOOPS = { onPanChange: () => {}, onPanAutoChange: () => {} };
+
+function makeValue(overrides: Partial<{ audioMode: NonNullable<Robot['audioMode']>; masterVolume: number; pan: number; panAuto: boolean }> = {}) {
   return {
     audioMode: 'none' as NonNullable<Robot['audioMode']>,
     masterVolume: 0.42,
+    pan: 0,
+    panAuto: true,
     ...overrides,
   };
 }
@@ -53,7 +65,7 @@ describe('AudioSettingSection', () => {
       <AudioSettingSection
         value={makeValue()}
         onAudioModeChange={onAudioModeChange}
-        onVolumeChange={() => {}}
+        onVolumeChange={() => {}} {...PAN_NOOPS}
       />
     );
 
@@ -70,7 +82,7 @@ describe('AudioSettingSection', () => {
       <AudioSettingSection
         value={makeValue({ masterVolume: 0.42 })}
         onAudioModeChange={() => {}}
-        onVolumeChange={() => {}}
+        onVolumeChange={() => {}} {...PAN_NOOPS}
       />
     );
 
@@ -86,7 +98,7 @@ describe('AudioSettingSection', () => {
       <AudioSettingSection
         value={makeValue({ masterVolume: 0.42 })}
         onAudioModeChange={() => {}}
-        onVolumeChange={onVolumeChange}
+        onVolumeChange={onVolumeChange} {...PAN_NOOPS}
       />
     );
 
@@ -101,7 +113,7 @@ describe('AudioSettingSection', () => {
   describe('no Volume LFO (LFO Load Fix Task 2)', () => {
     it('renders Mode and Volume and no LFO frame — no .sc-lfo, no Rate/Depth slider, no accordion', () => {
       const { container } = render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
       expect(screen.getByRole('radio', { name: 'Solo' })).toBeTruthy();
       expect(screen.getByRole('slider', { name: /volume/i })).toBeTruthy();
@@ -113,7 +125,7 @@ describe('AudioSettingSection', () => {
     });
 
     it('never renders the held-off label — there is no LFO left to hold off', () => {
-      render(<AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />);
+      render(<AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
       expect(screen.queryByText('Held off by Audio Load')).toBeNull();
     });
 
@@ -125,11 +137,11 @@ describe('AudioSettingSection', () => {
       const value = makeValue();
       const noop = () => {};
       // @ts-expect-error volumeLfo no longer exists on AudioSettingValue
-      render(<AudioSettingSection value={{ ...value, volumeLfo: { shape: 'sine', rate: 0, depth: 20 } }} onAudioModeChange={noop} onVolumeChange={noop} />);
+      render(<AudioSettingSection value={{ ...value, volumeLfo: { shape: 'sine', rate: 0, depth: 20 } }} onAudioModeChange={noop} onVolumeChange={noop} {...PAN_NOOPS} />);
       // @ts-expect-error onVolumeLfoChange no longer exists
-      render(<AudioSettingSection value={value} onAudioModeChange={noop} onVolumeChange={noop} onVolumeLfoChange={noop} />);
+      render(<AudioSettingSection value={value} onAudioModeChange={noop} onVolumeChange={noop} {...PAN_NOOPS} onVolumeLfoChange={noop} />);
       // @ts-expect-error volumeLfoHeldOff no longer exists
-      render(<AudioSettingSection value={value} onAudioModeChange={noop} onVolumeChange={noop} volumeLfoHeldOff />);
+      render(<AudioSettingSection value={value} onAudioModeChange={noop} onVolumeChange={noop} {...PAN_NOOPS} volumeLfoHeldOff />);
       expect(screen.getAllByRole('radio', { name: 'Solo' })).toHaveLength(3);
     });
   });
@@ -137,7 +149,7 @@ describe('AudioSettingSection', () => {
   describe('Volume layout (was "always above its LFO"; the LFO is gone, the column stays)', () => {
     it('the Audio Setting radio and Volume slider both render inside the settings-column panel', () => {
       render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
       // The settings-column panel (Audio Setting + Volume) is the innermost .sc-directional-panel
       // containing the radio.
@@ -147,7 +159,7 @@ describe('AudioSettingSection', () => {
 
     it("the Volume row is not a flex container — 'audio-setting-section__row' adds display:flex, which shrinks a lone flex item (the slider) to its own content width instead of the row's full width, breaking useVoxelTrackBoxCount's self-observation (same pattern audio-rig-drawer__param-row / sc-lfo-target-group__row already avoid elsewhere by carrying no display rule at all)", () => {
       render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
       const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
       expect(volumeRow).not.toBeNull();
@@ -158,7 +170,7 @@ describe('AudioSettingSection', () => {
       for (const state of [{ mobile: true, tablet: true }, { mobile: false, tablet: false }]) {
         stubMatchMedia(state);
         const { unmount } = render(
-          <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
+          <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />
         );
         const outerContent = screen.getByRole('radio', { name: 'Solo' })
           .closest('.sc-directional-panel')! // settings-column panel
@@ -171,7 +183,7 @@ describe('AudioSettingSection', () => {
     it('the settings-column panel is always column-oriented too, regardless of tier — Audio Setting above Volume', () => {
       stubMatchMedia({ mobile: false, tablet: false });
       render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
       const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
       expect(settingsColumn.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
@@ -179,7 +191,7 @@ describe('AudioSettingSection', () => {
 
     it('the Volume row no longer carries LFO-group targeting (no sc-lfo-target-group__row, no isActive) — there is nothing left to target', () => {
       const { container } = render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
       expect(container.querySelector('.sc-lfo-target-group__row')).toBeNull();
       expect(screen.getByRole('slider', { name: /volume/i }).closest('.isActive')).toBeNull();
@@ -191,7 +203,7 @@ describe('AudioSettingSection', () => {
       <AudioSettingSection
         value={makeValue()}
         onAudioModeChange={() => {}}
-        onVolumeChange={() => {}}
+        onVolumeChange={() => {}} {...PAN_NOOPS}
       />
     );
     expect(screen.getByRole('radio', { name: 'Solo' }).getAttribute('data-disabled')).toBeNull();
@@ -202,7 +214,7 @@ describe('AudioSettingSection', () => {
       <AudioSettingSection
         value={makeValue()}
         onAudioModeChange={() => {}}
-        onVolumeChange={() => {}}
+        onVolumeChange={() => {}} {...PAN_NOOPS}
         disabled
       />
     );
@@ -217,7 +229,7 @@ describe('AudioSettingSection', () => {
       <AudioSettingSection
         value={makeValue()}
         onAudioModeChange={onAudioModeChange}
-        onVolumeChange={onVolumeChange}
+        onVolumeChange={onVolumeChange} {...PAN_NOOPS}
         disabled
       />
     );
@@ -240,7 +252,7 @@ describe('AudioSettingSection', () => {
         <AudioSettingSection
           value={makeValue()}
           onAudioModeChange={() => {}}
-          onVolumeChange={() => {}}
+          onVolumeChange={() => {}} {...PAN_NOOPS}
           style={{ '--color-accent-a': '#cd5e57', '--color-accent-b': '#da7e1b' } as CSSProperties}
         />,
       );
@@ -254,11 +266,227 @@ describe('AudioSettingSection', () => {
         <AudioSettingSection
           value={makeValue()}
           onAudioModeChange={() => {}}
-          onVolumeChange={() => {}}
+          onVolumeChange={() => {}} {...PAN_NOOPS}
         />,
       );
       const root = container.querySelector('.audio-setting-section') as HTMLElement;
       expect(root.getAttribute('style')).toBeNull();
+    });
+  });
+
+  // docs/specs/ROBOT_PAN.md §1.5 — the third row of the settings column: the Pan slider (a live readout
+  // while Auto is on, an interactive slider while it is off) and the Auto toggle beside it.
+  describe('Pan row (docs/tasks/ROBOT_PAN.md Task 8)', () => {
+    const panName = new RegExp(`^${CONTENT['probe.pan'].human}`, 'i');
+    const autoName = new RegExp(`^${CONTENT['probe.pan.auto'].human}`, 'i');
+    const panSlider = () => screen.getByRole('slider', { name: panName });
+
+    it('Auto on: the slider is a role=status readout of livePan x 100, with no interactive pan slider', () => {
+      render(<AudioSettingSection value={makeValue({ pan: 0.9, panAuto: true })} livePan={-0.25} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+
+      const readout = screen.getByRole('status');
+      expect(readout.textContent).toContain('-25');
+      expect(readout.getAttribute('data-readonly')).toBe('true');
+      expect(screen.queryByRole('slider', { name: panName })).toBeNull();
+      expect(screen.getByRole('slider', { name: /volume/i })).toBeTruthy(); // Volume is untouched
+    });
+
+    it('Auto on without a livePan (company screen, or before the first tick): shows the stored pan x 100', () => {
+      render(<AudioSettingSection value={makeValue({ pan: 0.4, panAuto: true })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('status').textContent).toContain('40');
+    });
+
+    it('Auto on with a livePan of exactly 0 shows 0, not the stored pan (nullish, not falsy)', () => {
+      render(<AudioSettingSection value={makeValue({ pan: 0.9, panAuto: true })} livePan={0} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('status').textContent).toContain('0');
+      expect(screen.getByRole('status').textContent).not.toContain('90');
+    });
+
+    it('Auto on shows a fractional live pan without float noise', () => {
+      render(<AudioSettingSection value={makeValue()} livePan={0.29} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('status').textContent).toContain('29');
+      expect(screen.getByRole('status').textContent).not.toContain('28.99');
+    });
+
+    it('Auto on: a readout change from livePan alone updates what is shown (the section re-renders on livePan)', async () => {
+      const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS };
+      const value = makeValue({ pan: 0, panAuto: true });
+      const { rerender } = render(<AudioSettingSection value={value} livePan={0.1} {...props} />);
+      expect(screen.getByRole('status').textContent).toContain('10');
+
+      rerender(<AudioSettingSection value={value} livePan={0.3} {...props} />);
+      // The readout eases (useEasedControlValue); the shared gsap mock settles it in a microtask.
+      await waitFor(() => expect(screen.getByRole('status').textContent).toContain('30'));
+    });
+
+    it('Auto off: an interactive -100..100 slider at the stored pan x 100, ignoring a stale livePan', () => {
+      render(<AudioSettingSection value={makeValue({ pan: 0.4, panAuto: false })} livePan={-0.5} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+
+      const slider = panSlider();
+      expect(slider.getAttribute('aria-valuenow')).toBe('40');
+      expect(slider.getAttribute('aria-valuemin')).toBe('-100');
+      expect(slider.getAttribute('aria-valuemax')).toBe('100');
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('Auto off: reaches the full travel at both ends (-1 and 1 store as -100 and 100)', () => {
+      const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS };
+      const left = render(<AudioSettingSection value={makeValue({ pan: -1, panAuto: false })} {...props} />);
+      expect(panSlider().getAttribute('aria-valuenow')).toBe('-100');
+      left.unmount();
+
+      render(<AudioSettingSection value={makeValue({ pan: 1, panAuto: false })} {...props} />);
+      expect(panSlider().getAttribute('aria-valuenow')).toBe('100');
+    });
+
+    it('Auto off: a keyboard step calls onPanChange with the display number (pan x 100 + 1), not the -1..1 fraction', () => {
+      const onPanChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ pan: 0.4, panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={onPanChange} onPanAutoChange={() => {}} />);
+
+      fireEvent.keyDown(panSlider(), { key: 'ArrowRight' });
+      expect(onPanChange).toHaveBeenCalledTimes(1);
+      expect(onPanChange).toHaveBeenCalledWith(41);
+    });
+
+    it('Auto off: a keyboard step the other way steps down by one display unit', () => {
+      const onPanChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ pan: 0.4, panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={onPanChange} onPanAutoChange={() => {}} />);
+
+      fireEvent.keyDown(panSlider(), { key: 'ArrowLeft' });
+      expect(onPanChange).toHaveBeenCalledWith(39);
+    });
+
+    it('Auto off: End and Home drive the slider to the full left and right of the field', () => {
+      const onPanChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ pan: 0.4, panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={onPanChange} onPanAutoChange={() => {}} />);
+
+      fireEvent.keyDown(panSlider(), { key: 'End' });
+      expect(onPanChange).toHaveBeenLastCalledWith(100);
+      fireEvent.keyDown(panSlider(), { key: 'Home' });
+      expect(onPanChange).toHaveBeenLastCalledWith(-100);
+    });
+
+    it('Auto off: a step on Pan never calls the Volume or Audio Setting handlers', () => {
+      const onVolumeChange = vi.fn();
+      const onAudioModeChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={onAudioModeChange} onVolumeChange={onVolumeChange} {...PAN_NOOPS} />);
+
+      fireEvent.keyDown(panSlider(), { key: 'ArrowRight' });
+      expect(onVolumeChange).not.toHaveBeenCalled();
+      expect(onAudioModeChange).not.toHaveBeenCalled();
+    });
+
+    it('the Auto readout never calls onPanChange, whatever key is pressed', () => {
+      const onPanChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ panAuto: true })} livePan={0.2} onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={onPanChange} onPanAutoChange={() => {}} />);
+
+      fireEvent.keyDown(screen.getByRole('status'), { key: 'ArrowRight' });
+      expect(onPanChange).not.toHaveBeenCalled();
+    });
+
+    it('the Auto toggle reflects panAuto and is named from the content layer', () => {
+      const { rerender } = render(<AudioSettingSection value={makeValue({ panAuto: true })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('switch', { name: autoName }).getAttribute('aria-checked')).toBe('true');
+
+      rerender(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('switch', { name: autoName }).getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('clicking the toggle while Auto is off calls onPanAutoChange(true)', () => {
+      const onPanAutoChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={() => {}} onPanAutoChange={onPanAutoChange} />);
+
+      fireEvent.click(screen.getByRole('switch', { name: autoName }));
+      expect(onPanAutoChange).toHaveBeenCalledTimes(1);
+      expect(onPanAutoChange).toHaveBeenCalledWith(true);
+    });
+
+    it('clicking the toggle while Auto is on calls onPanAutoChange(false)', () => {
+      const onPanAutoChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ panAuto: true })} onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={() => {}} onPanAutoChange={onPanAutoChange} />);
+
+      fireEvent.click(screen.getByRole('switch', { name: autoName }));
+      expect(onPanAutoChange).toHaveBeenCalledWith(false);
+    });
+
+    it('labels and help come from the content layer: both controls carry a "?" and the label text is the content entry', () => {
+      render(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+
+      expect(screen.getByText(CONTENT['probe.pan'].human)).toBeTruthy();
+      expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['probe.pan'].human }) })).toBeTruthy();
+      expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['probe.pan.auto'].human }) })).toBeTruthy();
+    });
+
+    it('the readout keeps its "?" while Auto is on', () => {
+      render(<AudioSettingSection value={makeValue({ panAuto: true })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['probe.pan'].human }) })).toBeTruthy();
+    });
+
+    it('disabled: the toggle and the manual slider are disabled and call nothing', () => {
+      const onPanChange = vi.fn();
+      const onPanAutoChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ panAuto: false })} disabled onAudioModeChange={() => {}} onVolumeChange={() => {}} onPanChange={onPanChange} onPanAutoChange={onPanAutoChange} />);
+
+      expect(panSlider().getAttribute('data-disabled')).toBe('');
+      expect(screen.getByRole('switch', { name: autoName }).getAttribute('data-disabled')).toBe('');
+      fireEvent.keyDown(panSlider(), { key: 'ArrowRight' });
+      fireEvent.click(screen.getByRole('switch', { name: autoName }));
+      expect(onPanChange).not.toHaveBeenCalled();
+      expect(onPanAutoChange).not.toHaveBeenCalled();
+    });
+
+    it('the Pan row sits in the settings column, after Volume, as a row panel holding the slider and the toggle', () => {
+      render(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+
+      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
+      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
+      const panWrapper = panSlider().closest('.audio-setting-section__pan-slider')!;
+      expect(panWrapper).not.toBeNull();
+      expect(settingsColumn.contains(panWrapper)).toBe(true);
+      expect(volumeRow.compareDocumentPosition(panWrapper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      const rowPanel = panWrapper.closest('.sc-directional-panel')!;
+      expect(rowPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
+      expect(rowPanel.contains(screen.getByRole('switch', { name: autoName }))).toBe(true);
+      expect(rowPanel.contains(screen.getByRole('slider', { name: /volume/i }))).toBe(false);
+    });
+
+    it('the readout is wrapped in the same pan-slider wrapper as the manual slider, so the row never changes shape on flip', () => {
+      render(<AudioSettingSection value={makeValue({ panAuto: true })} livePan={0.1} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} />);
+      expect(screen.getByRole('status').closest('.audio-setting-section__pan-slider')).not.toBeNull();
+    });
+
+    it('the pan-slider wrapper grows to fill the row and is not itself a flex container (useVoxelTrackSlider must see a block box)', () => {
+      const body = getCssRuleBody(css, '.audio-setting-section__pan-slider');
+      expect(body).not.toBeNull();
+      expect(body).toMatch(/flex(-grow)?\s*:\s*1/);
+      expect(body).not.toMatch(/display\s*:\s*(inline-)?flex/);
+    });
+
+    it('is still a React.memo section: a livePan change re-renders neither the Audio Setting radio nor the Volume slider', () => {
+      const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS };
+      const value = makeValue({ panAuto: true });
+      const { rerender } = render(<AudioSettingSection value={value} livePan={0.1} {...props} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={value} livePan={0.2} {...props} />);
+
+      const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
+      expect(rerendered).not.toContain(AUDIO_SETTING_SCHEMA.id);
+      expect(rerendered).not.toContain(VOLUME_SCHEMA.id);
+      expect(rerendered).not.toContain(PAN_AUTO_SCHEMA.id);
+    });
+
+    it('editing Volume does not re-render the Auto toggle or the Pan slider', () => {
+      const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS };
+      const { rerender } = render(<AudioSettingSection value={makeValue({ masterVolume: 0.42, panAuto: false })} {...props} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={makeValue({ masterVolume: 0.55, panAuto: false })} {...props} />);
+
+      const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
+      expect(rerendered).not.toContain(PAN_AUTO_SCHEMA.id);
+      expect(rerendered).not.toContain(PAN_SCHEMA.id);
     });
   });
 
@@ -276,12 +504,12 @@ describe('AudioSettingSection', () => {
     it('changing Volume does not re-render the Audio Setting radio', () => {
       const onAudioModeChange = vi.fn();
       const { rerender } = render(
-        <AudioSettingSection value={makeValue({ masterVolume: 0.42 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue({ masterVolume: 0.42 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
       (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
       rerender(
-        <AudioSettingSection value={makeValue({ masterVolume: 0.55 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} />
+        <AudioSettingSection value={makeValue({ masterVolume: 0.55 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} {...PAN_NOOPS} />
       );
 
       const radioCalls = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls

@@ -53,6 +53,35 @@ describe('resolveCompanyOptions', () => {
     expect(resolved.clickTrackActive).toBe(false);
   });
 
+  it('pan and panAuto resolve from the first member\'s own values when the snapshot has neither', () => {
+    const firstMember = makeRobot({ pan: 0.2, panAuto: false });
+
+    const resolved = resolveCompanyOptions(undefined, firstMember);
+
+    expect(resolved.pan).toBe(0.2);
+    expect(resolved.panAuto).toBe(false);
+  });
+
+  it('pan and panAuto fall back to 0 and true for a member that has neither field (an older robot)', () => {
+    const resolved = resolveCompanyOptions(undefined, makeRobot());
+
+    expect(resolved.pan).toBe(0);
+    expect(resolved.panAuto).toBe(true);
+  });
+
+  it('a recorded panAuto: true wins over a manual first member, and a recorded pan wins over its pan', () => {
+    const firstMember = makeRobot({ pan: 0.2, panAuto: false });
+
+    expect(resolveCompanyOptions({ panAuto: true }, firstMember).panAuto).toBe(true);
+    expect(resolveCompanyOptions({ pan: -0.7 }, firstMember).pan).toBe(-0.7);
+  });
+
+  it('a recorded pan of 0 is a real value, not a missing one (it must not fall through to the member)', () => {
+    const resolved = resolveCompanyOptions({ pan: 0 }, makeRobot({ pan: 0.5 }));
+
+    expect(resolved.pan).toBe(0);
+  });
+
   it('lfoLinks resolves from the first member\'s current value, falling back to an empty object when unset', () => {
     const withLinks = makeRobot({ lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
     expect(resolveCompanyOptions(undefined, withLinks).lfoLinks).toEqual({ 'layer0.gain': { lane: 'a', depth: 40 } });

@@ -1304,11 +1304,50 @@ and re-read each hit before deleting, since the tree moves.
 
 Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "we need to give the user panning ability
 on the robots … put it in the section with volume, along with an 'auto' button that connects it to the
-robot as it works today." Not yet interviewed or specced. A small audio-UI phase on top of the Robot
+robot as it works today." Interviewed, specced and built (status below). A small audio-UI phase on top of the Robot
 screen the layout rework delivers (its Levels tab,
 [docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md) Task 16); the component it extends,
 `AudioSettingSection`, is reused unchanged by the rework, so the code can land before or after it —
 build after, so the slider is laid out once, on the screen that ships.
+
+**Status: built 2026-10-13 on `feature/panning-update`** (intent [robot-pan.md](../intent/robot-pan.md), spec
+[ROBOT_PAN.md](../specs/ROBOT_PAN.md), plan [ROBOT_PAN.md](../tasks/ROBOT_PAN.md); tasks T1–T13 committed,
+guard test `src/docs/robotPanDocs.test.ts`). Crawford's listen (plan Task 14) signed off; the docs pass is Task 15.
+The "Shape" bullets below are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the Shape below)
+
+- **One `pan` field, no remembered manual value.** `Robot.pan` (−1…1) and `Robot.panAuto` (spawn default
+  `true`, `pan` 0). Switching Auto **off** copies the live position into `pan` in the same action
+  (`applyPanAuto`), so the slider never jumps and nothing "survives a round trip through Auto"; the Shape's
+  separate manual value was rejected in the interview. Auto **on** is the flag alone: the stored `pan` is
+  ignored while it is on.
+- **The robot keeps moving with Auto off.** Only the panner stops following it; the work loop, swim and job
+  timelines and `Robot.position` are untouched. A source-scan test pins that `workLoop.ts`, `siteChoice.ts`,
+  `lifecycleSim.ts` and `src/animation/` never read `pan` or `panAuto`.
+- **Full ±1 manual range**, against the ±0.5 Auto field, which is unchanged. Displayed and edited as a signed
+  −100…100 (`PAN_DISPLAY_SCALE`), no L/R letters, the same display-versus-storage split as Volume.
+- **A live readout, through its own store.** While Auto is on, the slider is a read-only readout of the
+  engine's position-follow pan. `robotPanReadoutStore` (`useRobotPanReadoutStore`) is written only on the
+  AudioParam writes `updateAllPanners` already makes, so Auto's audio is unchanged and no roster, card or world
+  subscriber is touched. `localeStore` would have churned the `robots` array on every tick.
+- **`SliderCenteredZero.readOnly`.** The primitive gained an optional `readOnly` branch (`role="status"`, no
+  Radix root), mirroring `SliderLinear`'s Phase 15.1 mode but keeping the help "?". The Pan row is a
+  `DirectionalPanel` holding that slider and a bare `Toggle`.
+- **Engine.** `AudioEngine.updateRobotPan(id, number | null)` and `getLivePan(id)`; a module-level
+  `manualPanByRobot` map that `updateAllPanners` skips and `releaseVoice` clears; a `PAN_RAMP_SECONDS` (0.05 s)
+  ramp both ways, so Auto on glides back with no click. A manual pan is re-primed from the store at every
+  reservation path (`loadInstruments`' post-load pass, `reRegisterAllRobotsAudio`, `reReserveVoice`); a fresh
+  spawn is always Auto and needs none.
+- **Companies broadcast both, from `useCompanyOptions`**, not `CompanyOptionsSection` (the layout rework moved
+  the handlers into the hook). Auto off holds each member at **its own** live position until the slider is next
+  touched, which then puts every member at one value; the company screen shows the snapshot and never
+  subscribes to the readout store.
+- **Persisted, unlike `masterVolume`.** A manual pan is a composition choice, so it saves: one optional `pan`
+  key on `RobotAudioOverrideDiff` (present means Auto off), and `p` on the share-link wire format. Payload
+  `version` stays 2. See [SESSION_STORAGE.md](../SESSION_STORAGE.md).
+- **Copy.** *Bearing* / *Tracking* are placeholder lore words awaiting Crawford's copy pass (two strings in
+  `src/content/copy/probe.ts`).
 
 ### About
 

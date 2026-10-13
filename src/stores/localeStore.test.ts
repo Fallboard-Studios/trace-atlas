@@ -32,6 +32,8 @@ const makeRobot = (id: string): Robot => ({
   },
   octaveRange: [3, 4],
   masterVolume: 0.7,
+  pan: 0,
+  panAuto: true,
   docking: DockingState.Active,
   activity: 'exiting',
   batteryLevel: 100,
@@ -279,6 +281,66 @@ describe('localeStore', () => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
         useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pitchRepeat: 42 });
         expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].pitchRepeat).toBe(42);
+      });
+    });
+
+    describe('pan clamping (stored -1..1, fractional — docs/specs/ROBOT_PAN.md §1.2)', () => {
+      const storedPan = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].pan;
+
+      it('clamps a value above 1 down to 1', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: 7 });
+        expect(storedPan()).toBe(1);
+      });
+
+      it('clamps a value below -1 up to -1', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: -3 });
+        expect(storedPan()).toBe(-1);
+      });
+
+      it('keeps a fractional value exactly — pan is not truncated like the integer fields', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: 0.25 });
+        expect(storedPan()).toBe(0.25);
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: -0.999 });
+        expect(storedPan()).toBe(-0.999);
+      });
+
+      it('passes both bounds and zero through untouched', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (const v of [1, -1, 0]) {
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: v });
+          expect(storedPan()).toBe(v);
+        }
+      });
+
+      it('clamps infinities to the bounds', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: Infinity });
+        expect(storedPan()).toBe(1);
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: -Infinity });
+        expect(storedPan()).toBe(-1);
+      });
+
+      it('drops a NaN pan, leaving the stored value as it was', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: 0.5 });
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: NaN });
+        expect(storedPan()).toBe(0.5);
+      });
+
+      it('drops a NaN pan without discarding the rest of the same update', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: NaN, panAuto: false });
+        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].panAuto).toBe(false);
+      });
+
+      it('an update that does not mention pan leaves it alone (panAuto alone never rewrites pan)', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: -0.4 });
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { panAuto: true });
+        expect(storedPan()).toBe(-0.4);
       });
     });
 

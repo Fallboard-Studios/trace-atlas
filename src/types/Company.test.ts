@@ -20,6 +20,14 @@ describe('CompanyOptionsSnapshot', () => {
     expect(empty.octaveRange).toBeUndefined();
     expect(empty.adsr).toBeUndefined();
     expect(empty.layers).toBeUndefined();
+    expect(empty.pan).toBeUndefined();
+    expect(empty.panAuto).toBeUndefined();
+  });
+
+  it('carries the Pan broadcast as a stored −1…1 value and an Auto flag', () => {
+    const snapshot: CompanyOptionsSnapshot = { pan: -0.4, panAuto: false };
+    expect(snapshot.pan).toBe(-0.4);
+    expect(snapshot.panAuto).toBe(false);
   });
 
   it('accepts every field populated', () => {

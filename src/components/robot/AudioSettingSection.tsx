@@ -2,13 +2,19 @@ import type { CSSProperties } from 'react';
 import { memo, useCallback } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
+import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
+import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
   VOLUME_ROW_PANEL_SCHEMA,
   VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
+  PAN_SCHEMA,
+  PAN_AUTO_SCHEMA,
+  PAN_ROW_PANEL_SCHEMA,
 } from '@/data/robotOptionsConfig';
+import { PAN_DISPLAY_SCALE } from '@/constants';
 import type { Robot } from '@/types/Robot';
 
 import './AudioSettingSection.css';
@@ -19,12 +25,26 @@ export interface AudioSettingValue {
    *  0-100% the Volume slider displays; onVolumeChange still emits the 0-100 percent, matching
    *  robotOptionsActions.applyVolume's own (robot, localeId, pct) signature. */
   masterVolume: number;
+  /** -1..1, matching Robot.pan's own domain — this component converts to the -100..100 the Pan slider
+   *  displays; onPanChange emits the -100..100 display number (the same contract as onVolumeChange).
+   *  Under Auto this is the stored value, not the live readout — see `livePan`. */
+  pan: number;
+  /** Robot.panAuto: true follows the robot across the field (the slider is a read-only readout),
+   *  false holds `pan` (the slider is interactive). */
+  panAuto: boolean;
 }
 
 interface AudioSettingSectionProps {
   value: AudioSettingValue;
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
+  /** -100..100, the same display-domain contract as onVolumeChange. Only fires with Auto off. */
+  onPanChange: (display: number) => void;
+  onPanAutoChange: (auto: boolean) => void;
+  /** The engine's live Auto value (-0.5..0.5) for the robot screen; undefined on the company screen and
+   *  whenever Auto is off. Kept out of `value` so the readout's few-times-a-second updates re-render only
+   *  this section (docs/specs/ROBOT_PAN.md §1.4). */
+  livePan?: number;
   disabled?: boolean;
   /** True while an Audio Swell is actively riding this robot's (or company's) volume — forwarded
    *  straight to the Volume slider's own `swelling` prop. See useEasedControlValue.ts and
@@ -55,7 +75,7 @@ interface AudioSettingSectionProps {
  * No accordion wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
-function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, disabled, volumeSwelling, style }: AudioSettingSectionProps) {
+function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, livePan, disabled, volumeSwelling, style }: AudioSettingSectionProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
   // re-executing this component, which then handed the already-memoized RadioButton a new
@@ -89,6 +109,23 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, di
           <div className="audio-setting-section__volume-row">
             <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} swelling={volumeSwelling} />
           </div>
+          {/* Pan: a row panel supplies the flex (slider grows, the toggle holds its own 44px box), so the
+              slider wrapper carries no display rule — same reason as the Volume row above. The slider is a
+              live readout while Auto is on (livePan, else the stored pan) and interactive while it is off.
+              No `swelling`: the readout arrives a few times a second and useEasedControlValue's 250ms
+              ease is the right smoothing for that cadence (docs/specs/ROBOT_PAN.md §1.5). */}
+          <DirectionalPanel schema={PAN_ROW_PANEL_SCHEMA}>
+            <div className="audio-setting-section__pan-slider">
+              <SliderCenteredZero
+                schema={PAN_SCHEMA}
+                value={(value.panAuto ? (livePan ?? value.pan) : value.pan) * PAN_DISPLAY_SCALE}
+                onChange={onPanChange}
+                readOnly={value.panAuto}
+                disabled={disabled}
+              />
+            </div>
+            <Toggle schema={PAN_AUTO_SCHEMA} value={value.panAuto} onChange={onPanAutoChange} disabled={disabled} />
+          </DirectionalPanel>
         </DirectionalPanel>
       </DirectionalPanel>
     </div>

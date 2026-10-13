@@ -56,6 +56,8 @@ function makeRobot(id: string, overrides: Partial<Robot> = {}): Robot {
     },
     octaveRange: [3, 4],
     masterVolume: 0.7,
+    pan: 0,
+    panAuto: true,
     docking: DockingState.Active,
     activity: 'exiting',
     batteryLevel: 100,

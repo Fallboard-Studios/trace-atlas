@@ -10,3 +10,12 @@
   justify-content: space-between;
   gap: 0.5rem;
 }
+
+/* The Pan slider's wrapper inside the Pan row panel: grows to the row's width beside the Auto toggle and
+   may shrink below its content (min-width: 0). Deliberately NOT display:flex — useVoxelTrackSlider
+   measures its own wrapper and needs a plain block box (see the Volume row's comment in
+   AudioSettingSection.tsx). */
+.audio-setting-section__pan-slider {
+  flex: 1 1 0;
+  min-width: 0;
+}

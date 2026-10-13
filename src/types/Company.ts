@@ -16,6 +16,10 @@ import type { RobotLfoTargetId, LfoLink } from './lfo';
 export interface CompanyOptionsSnapshot {
   audioMode?: Robot['audioMode'];
   masterVolume?: number;
+  /** Stored −1…1, as Robot.pan. Shown by the company Pan slider while Auto is on (read-only). */
+  pan?: number;
+  /** As Robot.panAuto. Recording false also records the `pan` it was switched off at. */
+  panAuto?: boolean;
   rhythmicDensity?: number;
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };

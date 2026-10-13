@@ -37,18 +37,51 @@ vi.mock('@/components/panels/screen/useShell', async (importOriginal) => {
 
 // The section components have their own suites; these stubs render probe buttons that call the captured
 // callbacks, so a wiring bug (wrong action, wrong argument) still shows here.
+// What the Levels stub saw, for the re-render and handler-identity cases (Robot Pan Task 9).
+const levelsStub = vi.hoisted(() => {
+  const stub = {
+    renders: 0,
+    last: null as null | { onPanChange: unknown; onPanAutoChange: unknown; onVolumeChange: unknown },
+    // A method, not an assignment in the stub's render body: the React compiler's lint rejects mutating a value in render.
+    record(handlers: { onPanChange: unknown; onPanAutoChange: unknown; onVolumeChange: unknown }) {
+      stub.renders++;
+      stub.last = handlers;
+    },
+    reset() {
+      stub.renders = 0;
+      stub.last = null;
+    },
+  };
+  return stub;
+});
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number };
+    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
+    onPanChange: (display: number) => void;
+    onPanAutoChange: (auto: boolean) => void;
+    livePan?: number;
     volumeSwelling?: boolean;
-  }) => (
-    <div data-testid="audio-setting-section-stub" data-audio-mode={props.value.audioMode} data-master-volume={props.value.masterVolume}>
-      <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
-      <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
-    </div>
-  )),
+  }) => {
+    levelsStub.record({ onPanChange: props.onPanChange, onPanAutoChange: props.onPanAutoChange, onVolumeChange: props.onVolumeChange });
+    return (
+      <div
+        data-testid="audio-setting-section-stub"
+        data-audio-mode={props.value.audioMode}
+        data-master-volume={props.value.masterVolume}
+        data-pan={props.value.pan}
+        data-pan-auto={String(props.value.panAuto)}
+        data-live-pan={props.livePan}
+      >
+        <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
+        <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
+        <button onClick={() => props.onPanChange(40)}>probe-pan</button>
+        <button onClick={() => props.onPanAutoChange(false)}>probe-pan-auto-off</button>
+        <button onClick={() => props.onPanAutoChange(true)}>probe-pan-auto-on</button>
+      </div>
+    );
+  }),
 }));
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
   PingControlsCompositionSection: memo((props: {
@@ -128,6 +161,7 @@ import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
+import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
@@ -207,6 +241,8 @@ beforeEach(() => {
   useUIStore.setState(useUIStore.getInitialState(), true);
   useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
   capturedRadioSchemas.length = 0;
+  levelsStub.reset();
+  useRobotPanReadoutStore.setState({ pan: {} });
 });
 
 afterEach(() => {
@@ -395,6 +431,170 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       fireEvent.click(screen.getByText('probe-volume'));
       expect(apply).toHaveBeenCalledWith(robot, localeId, 55);
       expect(cancel).toHaveBeenCalledWith(robot.id, 'volume');
+    });
+
+    // docs/specs/ROBOT_PAN.md §1.5 — Pan and its Auto toggle (docs/tasks/ROBOT_PAN.md Task 9).
+    describe('Pan', () => {
+      it("derives pan and panAuto from the robot's own fields", () => {
+        selectRobot(makeRobot('r1', { pan: -0.3, panAuto: false }), 'volume');
+        render(<RobotScreen />);
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-pan')).toBe('-0.3');
+        expect(stub.getAttribute('data-pan-auto')).toBe('false');
+      });
+
+      it('a spawned robot (pan 0, Auto on) reaches the section as 0 and true', () => {
+        selectRobot(makeRobot('r1', { pan: 0, panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-pan')).toBe('0');
+        expect(stub.getAttribute('data-pan-auto')).toBe('true');
+      });
+
+      it('wires onPanChange to applyPan with the latest robot and the display number', () => {
+        const robot = makeRobot('r1', { pan: 0.1, panAuto: false });
+        selectRobot(robot, 'volume');
+        const spy = vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-pan'));
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledWith(robot, localeId, 40);
+      });
+
+      it.each([
+        ['probe-pan-auto-off', false],
+        ['probe-pan-auto-on', true],
+      ] as const)('%s wires onPanAutoChange to applyPanAuto with the latest robot', (button, auto) => {
+        const robot = makeRobot('r1', { panAuto: !auto });
+        selectRobot(robot, 'volume');
+        const spy = vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText(button));
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledWith(robot, localeId, auto);
+      });
+
+      it('the handlers read the latest robot, not the one from the first render', () => {
+        const robot = makeRobot('r1', { pan: 0, panAuto: true });
+        selectRobot(robot, 'volume');
+        const spy = vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { panAuto: false, pan: 0.5 }));
+        fireEvent.click(screen.getByText('probe-pan'));
+        expect(spy.mock.calls[0][0]).toMatchObject({ id: 'r1', pan: 0.5, panAuto: false });
+      });
+
+      it('a Pan edit never touches a swell (pan is not a swell attribute)', () => {
+        selectRobot(makeRobot('r1', { panAuto: false }), 'volume');
+        vi.spyOn(robotOptionsActions, 'applyPan').mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applyPanAuto').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-pan'));
+        fireEvent.click(screen.getByText('probe-pan-auto-on'));
+        expect(cancel).not.toHaveBeenCalled();
+      });
+
+      it('livePan stays undefined until the engine writes a first readout', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+      });
+
+      it('an Auto robot shows the engine readout: a setPan for it reaches the section as livePan', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.3));
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.3');
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', -0.45));
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('-0.45');
+      });
+
+      it('a readout that was already there when the screen mounts is shown straight away', () => {
+        useRobotPanReadoutStore.getState().setPan('r1', 0.2);
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.2');
+      });
+
+      it('a readout of exactly 0 (dead centre) is passed through, not dropped as falsy', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.25));
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0));
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0');
+      });
+
+      it('another robot readout never reaches this robot section and does not re-render it', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        const before = levelsStub.renders;
+        act(() => useRobotPanReadoutStore.getState().setPan('r2', 0.4));
+        expect(levelsStub.renders).toBe(before);
+        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+      });
+
+      it('a manual robot never receives livePan, even with a stale readout in the store', () => {
+        useRobotPanReadoutStore.getState().setPan('r1', 0.4);
+        selectRobot(makeRobot('r1', { panAuto: false, pan: 0.9 }), 'volume');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+      });
+
+      it('a manual robot readout write does not re-render the section or the screen at all', () => {
+        selectRobot(makeRobot('r1', { panAuto: false, pan: 0.9 }), 'volume');
+        let renders = 0;
+        render(
+          <Profiler id="robot" onRender={() => renders++}>
+            <RobotScreen />
+          </Profiler>,
+        );
+        const before = renders;
+        const sectionBefore = levelsStub.renders;
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.1));
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.2));
+        expect(renders).toBe(before);
+        expect(levelsStub.renders).toBe(sectionBefore);
+      });
+
+      it('flipping Auto off hides the readout at once, and flipping it back shows the latest write', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.3));
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.3');
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { panAuto: false, pan: 0.3 }));
+        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { panAuto: true }));
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.3');
+      });
+
+      it('an Auto readout write re-renders the Levels section once and nothing else on the screen', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        const sectionBefore = levelsStub.renders;
+        const columnBefore = capturedRadioSchemas.length; // the avatar column's company radio renders with its column
+
+        act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.3));
+
+        expect(levelsStub.renders).toBe(sectionBefore + 1);
+        expect(capturedRadioSchemas.length).toBe(columnBefore);
+      });
+
+      it('the Pan handlers keep their identity across an unrelated robot change (a battery tick), and the section does not re-render', () => {
+        selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
+        render(<RobotScreen />);
+        const first = levelsStub.last!;
+        const sectionBefore = levelsStub.renders;
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+
+        expect(levelsStub.last!.onPanChange).toBe(first.onPanChange);
+        expect(levelsStub.last!.onPanAutoChange).toBe(first.onPanAutoChange);
+        expect(levelsStub.last!.onVolumeChange).toBe(first.onVolumeChange);
+        expect(levelsStub.renders).toBe(sectionBefore);
+      });
     });
   });
 

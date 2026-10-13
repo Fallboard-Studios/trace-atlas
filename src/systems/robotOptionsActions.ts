@@ -14,6 +14,7 @@ import { applyRobotLinkToEngine, primeRobotLinks } from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
+import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope } from '@/types/Robot';
@@ -36,6 +37,31 @@ export function applyVolume(robot: Robot, localeId: string, pct: number): void {
   const value = pct / 100;
   useLocaleStore.getState().updateRobot(localeId, robot.id, { masterVolume: value });
   AudioEngine.updateRobotMasterVolume(robot.id, value);
+}
+
+// Pan displays -100..100 but stores -1..1 (Robot.pan), the same split as Volume. Only meaningful with
+// Auto off — with Auto on the slider is read-only and never calls this. Clamped here as well as in
+// localeStore.updateRobot so the engine never receives a value the store would have refused
+// (docs/specs/ROBOT_PAN.md §1.2).
+export function applyPan(robot: Robot, localeId: string, display: number): void {
+  const value = Math.max(PAN_MIN, Math.min(PAN_MAX, display / PAN_DISPLAY_SCALE));
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { pan: value });
+  AudioEngine.updateRobotPan(robot.id, value);
+}
+
+// Auto off: hold the SOUND where the robot is now — the engine's live auto value becomes `pan` in the same
+// write that flips the flag, so the slider never jumps and one field suffices. The robot itself keeps
+// moving; only the panner stops following it. Auto on: flag only (`pan` is ignored while Auto, and not
+// diffed); the engine ramps back to the live position and hands the robot to the tick again.
+export function applyPanAuto(robot: Robot, localeId: string, auto: boolean): void {
+  if (auto) {
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { panAuto: true });
+    AudioEngine.updateRobotPan(robot.id, null);
+    return;
+  }
+  const live = AudioEngine.getLivePan(robot.id) ?? robot.pan;
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { panAuto: false, pan: live });
+  AudioEngine.updateRobotPan(robot.id, live);
 }
 
 // ========================================

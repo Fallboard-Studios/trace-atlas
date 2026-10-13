@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { useShell } from '../useShell';
 import { useRobotMeta, type RobotMetaField } from './useRobotMeta';
 import { RobotBody } from '@/components/robot/RobotBody';
@@ -15,6 +15,7 @@ import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/Secti
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
@@ -31,7 +32,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -167,6 +168,20 @@ export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTra
 }
 
 /**
+ * The Levels section with the Pan slider's live readout (docs/specs/ROBOT_PAN.md §1.4). The readout
+ * subscription lives in this memoised child, not in useRobotSubsectionRenderer: that hook runs in
+ * RobotScreenPanel, so subscribing there would re-render the whole screen (avatar column, tabs) on every
+ * readout write. Here a write re-renders only this wrapper and, through it, the one section. The selector
+ * returns undefined for a manual robot, so a manual robot's section never re-renders on anyone's tick.
+ */
+const RobotAudioSettingSection = memo(function RobotAudioSettingSection({
+  robotId, ...props
+}: ComponentProps<typeof AudioSettingSection> & { robotId: string }) {
+  const livePan = useRobotPanReadoutStore((s) => (props.value.panAuto ? s.pan[robotId] : undefined));
+  return <AudioSettingSection {...props} livePan={livePan} />;
+});
+
+/**
  * Each panel's value and handlers, moved from RobotOptionsTab: `value`s derived from `robot`, each
  * callback wired to its robotOptionsActions function, each memoized on the field it reads so the
  * React.memo'd section components bail on an unrelated robot change (a battery tick). The company
@@ -191,7 +206,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const audioSettingValue: AudioSettingValue = useMemo(() => ({
     audioMode: robot.audioMode ?? 'none',
     masterVolume: robot.masterVolume,
-  }), [robot.audioMode, robot.masterVolume]);
+    pan: robot.pan,
+    panAuto: robot.panAuto,
+  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -215,6 +232,11 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     cancelSwellForRobotAttribute(latestRobot.current.id, 'volume');
     applyVolume(latestRobot.current, localeId, pct);
   }, [localeId]);
+
+  // Pan is not a swell attribute, so neither handler cancels one. Both read the latest robot, so the
+  // action sees the live pan/panAuto, not the render's (applyPanAuto copies the engine's live value).
+  const handlePanChange = useCallback((display: number) => applyPan(latestRobot.current, localeId, display), [localeId]);
+  const handlePanAutoChange = useCallback((auto: boolean) => applyPanAuto(latestRobot.current, localeId, auto), [localeId]);
 
   const handleDensityChange = useCallback((v: number) => applyDensity(latestRobot.current, localeId, v), [localeId]);
   const handleMotifLengthChange = useCallback((v: number) => applyMotifLength(latestRobot.current, localeId, v), [localeId]);
@@ -249,10 +271,13 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     switch (subsectionId) {
       case 'audioSettings':
         return (
-          <AudioSettingSection
+          <RobotAudioSettingSection
+            robotId={robot.id}
             value={audioSettingValue}
             onAudioModeChange={handleAudioModeChange}
             onVolumeChange={handleVolumeChange}
+            onPanChange={handlePanChange}
+            onPanAutoChange={handlePanAutoChange}
             volumeSwelling={volumeSwelling}
           />
         );
@@ -295,7 +320,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
         return null;
     }
   }, [
-    audioSettingValue, handleAudioModeChange, handleVolumeChange, volumeSwelling,
+    robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
     robot.audioAttributes.adsr, handleAdsrChange, adsrSwelling,

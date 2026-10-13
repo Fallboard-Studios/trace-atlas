@@ -28,6 +28,11 @@ interface SliderCenteredZeroProps {
    *  useEasedControlValue so its visual ease steps aside for a swell's own already-smooth ramp
    *  instead of stacking a second, independent one on top. See useEasedControlValue.ts. */
   swelling?: boolean;
+  /** Render a non-interactive readout — role="status", the same VoxelTrack fill, no Radix root, thumb or
+   *  tab stop; `onChange` is never called. For a value the system drives and the user may only watch
+   *  (the Pan slider while Auto is on, docs/specs/ROBOT_PAN.md). Unlike SliderLinear's readOnly branch it
+   *  keeps the help "?" — a readout still wants its explanation. Wins over `disabled`. */
+  readOnly?: boolean;
 }
 
 /**
@@ -43,7 +48,7 @@ interface SliderCenteredZeroProps {
  * Renders its own `displayValue` (a locally-eased copy of `value`), never `value` directly —
  * see useEasedControlValue.ts for the full derivation (shared by all 3 slider primitives).
  */
-function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHeight, swelling }: SliderCenteredZeroProps) {
+function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHeight, swelling, readOnly }: SliderCenteredZeroProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const orientation = useAutoSliderOrientation(wrapperRef, schema.orientation);
   const isVertical = orientation === 'vertical';
@@ -64,6 +69,29 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
   const valueLabel = (
     <span className="sc-slider-centered-zero__value">{formatDisplayValue(displayValue)}{schema.unit}</span>
   );
+
+  // Every hook above runs in both branches, so toggling readOnly never changes the hook order and the
+  // eased displayValue carries across. Mirrors SliderLinear.tsx's readOnly branch (roadmap 15.1).
+  if (readOnly) {
+    return (
+      <div ref={wrapperRef} className="sc-slider-centered-zero" data-orientation={orientation} data-readonly="true" role="status">
+        <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
+        {isVertical && valueLabel}
+        <div className="sc-slider-centered-zero__root" data-orientation={orientation} style={rootStyle}>
+          <div className="sc-slider-centered-zero__track" data-orientation={orientation}>
+            <VoxelTrack
+              states={states}
+              boxSize={boxSize}
+              gap={gap}
+              axis={orientation}
+              timelineKeyPrefix={`cabinet-voxel-${schema.id}`}
+            />
+          </div>
+        </div>
+        {!isVertical && valueLabel}
+      </div>
+    );
+  }
 
   return (
     <div ref={wrapperRef} className="sc-slider-centered-zero" data-orientation={orientation}>
