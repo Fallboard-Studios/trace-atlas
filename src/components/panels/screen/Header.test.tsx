@@ -738,9 +738,9 @@ describe('Header.css — one row beside the power corner', () => {
   // Crawford, 2026-10-12: the header, the meta box and the nav panel's plate share one top margin, the nav's:
   // its padding-top, --spacing-xl, so the three plates start level.
   it("sits at --header-top, the one offset the top bar is measured from, the nav plate's own top margin", () => {
-    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--header-top: var(--spacing-xl);');
+    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--header-top: var(--spacing-md);');
     const navCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'nav/NavPanel.css'), 'utf-8');
-    expect(getCssRuleBody(navCss, '.nav-panel')).toMatch(/padding:\s*var\(--spacing-xl\)/);
+    expect(getCssRuleBody(navCss, '.nav-panel')).toContain('top: var(--header-top);');
     expect(getCssRuleBody(css, '.header')).toContain('top: var(--header-top);');
   });
 

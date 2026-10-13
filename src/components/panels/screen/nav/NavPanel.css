@@ -23,7 +23,7 @@
    above and below. */
 .nav-panel {
   position: absolute;
-  top: 0;
+  top: var(--header-top);
   left: 0;
   z-index: 2;
   display: flex;
@@ -31,7 +31,7 @@
   width: var(--nav-panel-width);
   max-height: 100%;
   box-sizing: border-box;
-  padding: var(--spacing-xl) 0 40px var(--spacing-md);
+  padding: 0 0 40px var(--spacing-md);
 }
 
 /* Takes its content's height, and shrinks (never stretches) to the panel's cap. A flex column itself (the

@@ -759,21 +759,22 @@ describe('NavPanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md,
   });
 });
 
-// Crawford, 2026-10-10: on the desk the rail's padding is `var(--spacing-xl) 0 40px var(--spacing-md)` and the
-// panel no longer takes the full height: its height comes from its content, capped at the screen so a long list
-// still scrolls inside the plate. The phone's sheet is not the desk rail: it keeps its own padding and fills the
+// Crawford, 2026-10-10: on the desk the panel no longer takes the full height: its height comes from its content,
+// capped at the screen so a long list still scrolls inside the plate. 2026-10-12: it hangs from `--header-top`
+// (now `--spacing-md`, shared with the header) instead of padding itself 24px down, so its padding is
+// `0 0 40px var(--spacing-md)`. The phone's sheet is not the desk rail: it keeps its own padding and fills the
 // sheet.
 describe('NavPanel.css — the desk rail sizes itself from its content', () => {
   const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
   const rail = () => getCssRuleBody(css, '.nav-panel');
   const sheetPanel = () => getCssRuleBody(css, '.nav-sheet > .nav-panel');
 
-  it('pads 24px above, 40px below and 12px on the left, none on the right', () => {
-    expect(rail()).toContain('padding: var(--spacing-xl) 0 40px var(--spacing-md);');
+  it('pads nothing above, 40px below and 12px on the left, none on the right', () => {
+    expect(rail()).toContain('padding: 0 0 40px var(--spacing-md);');
   });
 
-  it('hangs from the top and is no longer pinned to the bottom, so its height is its content', () => {
-    expect(rail()).toContain('top: 0;');
+  it('hangs from --header-top and is no longer pinned to the bottom, so its height is its content', () => {
+    expect(rail()).toContain('top: var(--header-top);');
     expect(rail()).not.toMatch(/(^|\s)bottom:/);
     expect(rail()).not.toMatch(/(^|\s)height:/);
   });
