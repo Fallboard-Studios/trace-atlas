@@ -5,11 +5,9 @@ import {
   ACCENT_SAT_LIFT,
   ACCENT_HUES,
   hueArc,
-  nearestAccentIndex,
   secondaryFor,
   computeAccentLean,
   computeAccentLeanWith,
-  isWarmHue,
   satCapFor,
   SAT_CAP_BANDS,
   ACCENT_WARM_BAND_START,
@@ -74,26 +72,6 @@ describe('accentLean', () => {
           expect(((from + a) % 360 + 360) % 360, `${from}→${to}`).toBeCloseTo(to % 360, 9);
         }
       }
-    });
-  });
-
-  describe('nearestAccentIndex', () => {
-    it('matches a brute-force shortest-arc search for every integer hue', () => {
-      for (let hue = 0; hue < 360; hue++) {
-        expect(nearestAccentIndex(hue), `hue ${hue}`).toBe(bruteNearest(hue));
-      }
-    });
-
-    it('crosses the 0/360 seam: a hue just below 360 can be nearest an accent just above 0', () => {
-      // Real palette values, not synthetic: red (#cd5e57) sits a few degrees above 0°, so a hue
-      // a few degrees below 360° must resolve to it rather than to the nearest accent below it.
-      const redIndex = ROBOT_IDENTITY_COLOR_NAMES.indexOf('red');
-      const redHue = ACCENT_HUES[redIndex];
-      expect(redHue).toBeGreaterThan(0);
-      expect(redHue).toBeLessThan(15); // precondition on the palette itself
-      const probe = ((redHue - 6) % 360 + 360) % 360; // 6° below red, i.e. ≈ 358°
-      expect(probe).toBeGreaterThan(350);
-      expect(nearestAccentIndex(probe)).toBe(redIndex);
     });
   });
 
@@ -166,15 +144,15 @@ describe('accentLean', () => {
   // saturation, so a warm primary plus the lift made a wall of hot red. Cool seeds looked right,
   // so the lift is tempered for warm hues only. Spec §1.1 amendment.
   describe('warm-band saturation cap', () => {
-    it('isWarmHue covers the red→orange band inclusively and wraps across 0', () => {
-      expect(isWarmHue(ACCENT_WARM_BAND_START)).toBe(true);
-      expect(isWarmHue(ACCENT_WARM_BAND_END)).toBe(true);
-      expect(isWarmHue(0)).toBe(true);
-      expect(isWarmHue(359.9)).toBe(true);
-      expect(isWarmHue(ACCENT_WARM_BAND_START - 0.1)).toBe(false);
-      expect(isWarmHue(ACCENT_WARM_BAND_END + 0.1)).toBe(false);
-      expect(isWarmHue(172)).toBe(false); // teal
-      expect(isWarmHue(200)).toBe(false); // the graphite base
+    it('the warm band is capped inclusively at both ends and wraps across 0', () => {
+      expect(satCapFor(ACCENT_WARM_BAND_START)).toBe(ACCENT_WARM_SAT_CAP);
+      expect(satCapFor(ACCENT_WARM_BAND_END)).toBe(ACCENT_WARM_SAT_CAP);
+      expect(satCapFor(0)).toBe(ACCENT_WARM_SAT_CAP);
+      expect(satCapFor(359.9)).toBe(ACCENT_WARM_SAT_CAP);
+      expect(satCapFor(ACCENT_WARM_BAND_START - 0.1)).toBeNull();
+      expect(satCapFor(ACCENT_WARM_BAND_END + 0.1)).toBeNull();
+      expect(satCapFor(172)).toBeNull(); // teal
+      expect(satCapFor(200)).toBeNull(); // the graphite base
     });
 
     it('caps a hot warm body: the saturation delta brings it DOWN to the cap, not up by the lift', () => {
@@ -199,11 +177,11 @@ describe('accentLean', () => {
     it('judges warmth by the POST-pull hue, not the body or the target alone', () => {
       // Graphite body at 200° pulled halfway toward red (4°) lands near 282° — cool — so no cap.
       const half = computeAccentLeanWith({ h: 200, s: 70, l: 19 }, 4, 0.5, 15);
-      expect(isWarmHue(200 + half.hueShift)).toBe(false);
+      expect(satCapFor(200 + half.hueShift)).toBeNull();
       expect(half.satShift).toBe(15);
       // The same body snapped all the way (fraction 1) lands ON red — warm — so the cap applies.
       const snap = computeAccentLeanWith({ h: 200, s: 70, l: 19 }, 4, 1, 15);
-      expect(isWarmHue(((200 + snap.hueShift) % 360 + 360) % 360)).toBe(true);
+      expect(satCapFor(((200 + snap.hueShift) % 360 + 360) % 360)).toBe(ACCENT_WARM_SAT_CAP);
       expect(snap.satShift).toBe(ACCENT_WARM_SAT_CAP - 70);
     });
 
@@ -223,7 +201,7 @@ describe('accentLean', () => {
         ROBOT_IDENTITY_COLOR_NAMES.forEach((name, i) => {
           if (name === 'lime') return;
           const h = ACCENT_HUES[i];
-          if (isWarmHue(h)) return; // warm accents are capped by the first band, by design
+          if (h >= ACCENT_WARM_BAND_START || h <= ACCENT_WARM_BAND_END) return; // warm accents are capped by the first band, by design
           expect(satCapFor(h), name).toBeNull();
         });
       });

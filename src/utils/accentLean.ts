@@ -89,11 +89,6 @@ export function hueArc(from: number, to: number): number {
   return raw === -180 ? 180 : raw;
 }
 
-/** Index into ROBOT_IDENTITY_COLOR_NAMES / ACCENT_HUES of the accent hue nearest `hue` by shortest arc. */
-export function nearestAccentIndex(hue: number): number {
-  return nearestIndexExcluding(hue, -1);
-}
-
 /** Index of the nearest accent hue to the primary at `primaryIndex`, never the primary itself. */
 export function secondaryFor(primaryIndex: number): number {
   return nearestIndexExcluding(ACCENT_HUES[primaryIndex], primaryIndex);
@@ -127,13 +122,6 @@ export function satCapFor(hue: number): number | null {
     if (inside) return band.cap;
   }
   return null;
-}
-
-/** True when `hue` falls inside the warm red→orange band (the first SAT_CAP_BANDS row),
- *  inclusive at both ends, wrapping through 0 (330 → 360 → 45). */
-export function isWarmHue(hue: number): boolean {
-  const h = ((hue % 360) + 360) % 360;
-  return h >= ACCENT_WARM_BAND_START || h <= ACCENT_WARM_BAND_END;
 }
 
 /** computeAccentLeanWith bound to the module constants — the one the placement system calls. */
