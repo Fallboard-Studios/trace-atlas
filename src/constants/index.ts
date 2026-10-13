@@ -367,6 +367,17 @@ export const SURVEY_CHORD_WIDTH = 0.6;
 export const SURVEY_CHORD_OPACITY = 1;
 export const SURVEY_RING_FADE = 0.35;
 
+/** Salvage's wired load (docs/specs/JOB_DECORATION.md §1.7; decor/salvageDecor.ts; sketch
+ *  docs/sketches/job-decorations.html, row "salvage", Crawford's settings): a gem load SALVAGE_LOAD_SIZE
+ *  across hangs SALVAGE_HANG scene units below the carrying orbiters on wires of SALVAGE_WIRE_OPACITY,
+ *  swinging up to SALVAGE_SWING_DEG degrees; on the return the wires go slack, sagging SALVAGE_SAG
+ *  units as they fade. */
+export const SALVAGE_HANG = 24;
+export const SALVAGE_LOAD_SIZE = 12;
+export const SALVAGE_SWING_DEG = 10;
+export const SALVAGE_WIRE_OPACITY = 1;
+export const SALVAGE_SAG = 16;
+
 /** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
  *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
 export const MOVE_APPROACH_MAX_SECONDS = 0.35;

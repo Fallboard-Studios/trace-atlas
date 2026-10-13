@@ -246,6 +246,20 @@ Window: carry `t0` to `t1`, `f = (t − t0) / (t1 − t0)`, the move's own phase
   its live centre to `drop = b + (0, SALVAGE_HANG)`, control point at the mid `x` and
   `max(y) + SALVAGE_SAG (16) × smooth(q)`; opacity `SALVAGE_WIRE_OPACITY × (1 − q)`. Hidden otherwise.
 
+*As built (Task 12):* the window is the carry's own `[t0, t1]`, with no extension: the load is gone by
+`DROPPED` and the slack wires by `RETURNED`, so every shape is already invisible at both window edges
+and nothing outlives it. The pure state is `loadScale(f)`, `swingAngle(f, v)` (degrees; 0 except
+strictly between `LOADED` and `ARRIVED`), `loadPose(f, centres, v)` (centre, swing, rotation, shape,
+outline points about the origin, size, glow radius and the three opacities; null when the load has no
+scale or there is nothing to hang from) and `slackWire(f, from, b, v)` (the drop point `b` is the carry's
+row-local `b`; the hang is added inside, and the wire exists for `f` in `[DROPPED, RETURNED)`); the swing
+constant is `SALVAGE_SWING_DEG`. The builder reads no live orbiter (`ctx.pose`) when nothing is drawn
+(before the pick-up and from `RETURNED` to the end). Tier `'cheap'` draws nothing (§1.9's list names no
+salvage shape), so a cheap salvage leaves no group. Nodes, in draw order: `n` wires (`-wire`, lines), the
+glow (`-load-glow`, a circle on a radial gradient `work-${robotId}-salvage-glow`), the load (`-load`, a
+polygon translated to the load centre and rotated) and `n` slack wires (`-slack`, paths): `2 + 2n` nodes.
+The load's outline is `.8` wide (the sketch's `stroke-width`; the spec's "light colour .8" read as that).
+
 ### 1.8 Maintenance — sparks + flash (`decor/maintenanceDecor.ts`)
 
 Window: ring `t0` to `t1` plus one spark life (`MAINT_SPARK_LIFE × factor`), clamped to the job — *as

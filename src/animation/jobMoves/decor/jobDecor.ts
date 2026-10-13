@@ -33,6 +33,7 @@ import { addFluidDecor } from './fluidDecor';
 import { orbiterLocalToRowLocal, sceneToRowLocal } from './frames';
 import { addInspectionDecor } from './inspectionDecor';
 import { addMaintenanceDecor } from './maintenanceDecor';
+import { addSalvageDecor } from './salvageDecor';
 import { svgEl } from './svg';
 import { addSurveyDecor } from './surveyDecor';
 import { addVentDecor } from './ventDecor';
@@ -111,6 +112,7 @@ export const DECOR_BUILDERS: Partial<Record<JobType, DecorBuilder>> = {
   [JobType.StructuralInspection]: addInspectionDecor,
   [JobType.FluidMonitoring]: addFluidDecor,
   [JobType.AcousticSurvey]: addSurveyDecor,
+  [JobType.Salvage]: addSalvageDecor,
 };
 
 // ========================================
