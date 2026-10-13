@@ -4,10 +4,17 @@
 import { describe, it, expect } from 'vitest';
 
 import { DAY_DURATION_MS, computeLocaleHour } from './time';
+import * as constants from './index';
 
 // ========================================
 // TESTS
 // ========================================
+
+describe('the in-world day is wall-clock only (roadmap 48)', () => {
+  it('has no measure-count day constant — measures count music and the fleet lifecycle, never a day', () => {
+    expect(constants).not.toHaveProperty('DAY_CYCLE_MEASURES');
+  });
+});
 
 describe('DAY_DURATION_MS', () => {
   it('is a flat 6 minutes in milliseconds', () => {
