@@ -14,6 +14,7 @@ import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
 import { startWorkLoop, stopWorkLoop, onRobotMounted } from './workLoop';
+import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
 import { tickRobotLifecycle } from './robotSystems';
 import { placeDistrict } from './districts';
 import { getStations } from './stations';
@@ -117,12 +118,14 @@ function simulate(bpm: number) {
   const t0 = gsap.globalTimeline.time();
   startWorkLoop(LOCALE, { now: () => gsapT, rand: () => 0.5 });
 
-  // r1's body: a `.robot` group with two orbiters, as in workLoop.test.ts.
+  // r1's body: a `.robot` group with a `.robot__row` holding two orbiters, as Robot.tsx draws it.
   const svg = document.body.appendChild(document.createElementNS(SVG_NS, 'svg'));
   const el = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
   gsap.set(el, { x: get('r1').position.x, y: get('r1').position.y, immediateRender: true });
   setRef('robot-r1', el);
-  const locals = [0, 1].map(() => el.appendChild(document.createElementNS(SVG_NS, 'g')).appendChild(document.createElementNS(SVG_NS, 'g')));
+  const row = el.appendChild(document.createElementNS(SVG_NS, 'g'));
+  row.setAttribute('class', 'robot__row');
+  const locals = [0, 1].map(() => row.appendChild(document.createElementNS(SVG_NS, 'g')).appendChild(document.createElementNS(SVG_NS, 'g')));
   registerOrbiterWork('r1', { lock: () => locals, unlock: () => {} });
   const decorate = vi.fn();
   registerArcDecorator('r1', decorate);
@@ -180,7 +183,7 @@ function simulate(bpm: number) {
   };
   const activity = () => get('r1').activity;
 
-  return { el, trace, charging, decorate, runUntil, activity, measureSeconds, unsubscribe };
+  return { el, row, trace, charging, decorate, runUntil, activity, measureSeconds, unsubscribe };
 }
 
 /** `wanted` appears in order (not necessarily adjacent) among the trace's activities. */
@@ -315,5 +318,101 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
     expect(sim.runUntil(() => sim!.activity() === 'working', 60)).toBe(true);
     expect(activitiesAfter(sim.trace, from)).not.toContain('charging');
     expect(sim.charging).toEqual([]);
+  }, 30_000);
+});
+
+// ========================================
+// JOB DECORATIONS (docs/tasks/JOB_DECORATION.md Task 13)
+// ========================================
+describe('the work loop × job decorations (Phase 52 Task 13)', () => {
+  const BPM = 110;
+  const groups = () => [...document.querySelectorAll('.robot__work')];
+  const realMatchMedia = window.matchMedia;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.matchMedia = realMatchMedia;
+  });
+
+  /** Steps to the start of r1's first job; the decoration is built with the timeline. */
+  function startJob() {
+    sim = simulate(BPM);
+    expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
+    return sim;
+  }
+
+  it('one .robot__work sits last in the row while the job runs and none is left after it', () => {
+    const s = startJob();
+    expect(groups()).toHaveLength(1);
+    expect(s.row.lastElementChild).toBe(groups()[0]);
+    expect(groups()[0].parentElement).toBe(s.row);
+
+    expect(s.runUntil(() => s.activity() !== 'working', 20)).toBe(true);
+    expect(groups()).toHaveLength(0);
+  }, 30_000);
+
+  it('a second job leaves one group, not two', () => {
+    const s = startJob();
+    expect(s.runUntil(() => s.activity() === 'returning' || s.activity() === 'waiting' || s.activity() === 'transit', 20)).toBe(true);
+    expect(groups()).toHaveLength(0);
+    expect(s.runUntil(() => s.activity() === 'working', 60)).toBe(true);
+    expect(groups()).toHaveLength(1);
+  }, 30_000);
+
+  it('stopWorkLoop() mid-job leaves no group', () => {
+    const s = startJob();
+    s.runUntil(() => false, jobDuration(BPM) * 0.4);
+    expect(groups()).toHaveLength(1);
+
+    stopWorkLoop();
+    expect(groups()).toHaveLength(0);
+  }, 30_000);
+
+  it('killAllTimelines() (a world transition) mid-job leaves no group in the document', () => {
+    const s = startJob();
+    s.runUntil(() => false, jobDuration(BPM) * 0.4);
+    expect(groups()).toHaveLength(1);
+
+    killAllTimelines();
+    expect(groups()).toHaveLength(0);
+  }, 30_000);
+
+  it('a robotLoad edit mid-job neither retimes nor removes the running decoration', () => {
+    const tierSpy = vi.spyOn(decorTierModule, 'decorTier');
+    const s = startJob();
+    expect(tierSpy).toHaveBeenCalledTimes(1);
+    const group = groups()[0];
+    s.runUntil(() => false, jobDuration(BPM) * 0.3);
+
+    // Anything that would drop the tier, applied while the job runs.
+    tierSpy.mockReturnValue('none');
+    useAudioStore.setState({ robotLoad: 0.2 });
+    s.runUntil(() => false, jobDuration(BPM) * 0.3);
+
+    expect(groups()).toEqual([group]);
+    expect(group.isConnected).toBe(true);
+    // The tier was read once, at job start.
+    expect(tierSpy).toHaveBeenCalledTimes(1);
+    expect(s.runUntil(() => s.activity() !== 'working', 20)).toBe(true);
+    for (const w of workStretches(s.trace)) expect(w.length).toBeGreaterThanOrEqual(jobDuration(BPM) - 2 * DT);
+    expect(groups()).toHaveLength(0);
+  }, 30_000);
+
+  it('a job that starts after the edit reads the new tier: none draws no group', () => {
+    vi.spyOn(decorTierModule, 'decorTier').mockReturnValue('none');
+    startJob();
+    expect(groups()).toHaveLength(0);
+  }, 30_000);
+
+  it('reduced motion draws no group at any point of the job, and the job still completes', () => {
+    window.matchMedia = vi.fn((query: string) => ({ matches: query.includes('reduce'), media: query }) as MediaQueryList);
+    const s = startJob();
+    const seen: number[] = [];
+    expect(s.runUntil(() => {
+      seen.push(groups().length);
+      return s.activity() !== 'working';
+    }, 20)).toBe(true);
+    expect(seen.length).toBeGreaterThan(10);
+    expect(Math.max(...seen)).toBe(0);
   }, 30_000);
 });
