@@ -11,7 +11,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo
 convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status: planned 2026-10-12, not started.** Spec assumptions 1–10 and open questions 1–5 are
+> **Status: T1–T13 done (2026-10-13). T14 perf gate MISSED and stopped for Crawford's decision; see "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
 > Crawford's to confirm before Task 1; the defaults the tasks assume are: no battery dim (Q1), identity
 > colour (Q2), count-1 shapes as sketched (Q3), `onInterrupt` pinned by T6 (Q4), droplet numbers kept (Q5).
 
@@ -390,4 +390,25 @@ depends on it.
 
 ## Perf gate results
 
-(T14 fills this in.)
+**Task 14, 2026-10-13: MISSED on busy and paint. Stopped for Crawford; no rung applied.** Full method,
+buckets and reasoning: [docs/PERFORMANCE.md](../PERFORMANCE.md) "Job Decorations — the Task 14 perf gate".
+
+Branch `37ed92cb` (T13) vs parent `07274cf6` (`various-small-fixes`, the merge base), production builds side by
+side, one pinned world (`alpha`, (0, 50), defaults), `npm run perf:idle --throttle 1 --only none`, foreground,
+0 orphaned Chrome, four alternated rounds:
+
+| Round (order) | Branch busy / paint (ms) | Parent busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 1962 / 179 | 1741 / 153 |
+| 2 (parent first) | 1987 / 184 | 1704 / 158 |
+| 3 (branch first) | 1919 / 181 | 1773 / 153 |
+| 4 (parent first) | 1832 / 184 | 1753 / 155 |
+| **Median** | **1941 / 183** | **1747 / 154** |
+
+Busy +11 %, paint +18.5 %. The parent's spread (busy 1704–1773, paint 153–158) excludes every branch run on both
+metrics. About 172 of the 194 ms busy increase is `Animation frame` (the decorations' per-frame writes);
+`TimerFire` is level, so it is not drift. Paint is the moving layers and the root (+27 of +28.5 ms).
+
+**Rung note for Crawford's decision.** `decorTier` is `'all'` at Full whatever the ladder, so rung 1 (bind the
+ladder) and rung 2 (halve trail segments and drops on `'cheap'`) cannot lower the cost measured here: the harness
+and the Pixel run at Full. The options are in the T14 report.

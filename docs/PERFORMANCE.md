@@ -1563,6 +1563,67 @@ the branch. That is an observation, not a measurement; it does not show underrun
 was re-tuned. The Task 10 idle-busy miss (+23 % in the 6 s window, no gap over 30 s) therefore stands as accepted,
 not explained. Re-measure with the `?debug` overlay if audio trouble appears on this feature.
 
+## Job Decorations — the Task 14 perf gate (2026-10-13, Phase 52)
+
+Gate ([docs/tasks/JOB_DECORATION.md](tasks/JOB_DECORATION.md) Task 14): the six job decorations (T6–T12, wired
+into the work loop by T13) idle busy and Paint within the parent's own round-to-round spread. **Missed on both
+metrics. Stopped for Crawford**, as the plan requires; no rung of the tier ladder has been applied.
+
+**Method:** as the J2–J4 gates. Branch `feature/job-decorations` `37ed92cb` (T13) on :4191 (`index-CyC6MIHB.js`).
+Parent: `various-small-fixes` `07274cf6`, the branch's merge base, built in a throwaway `git worktree` (its
+`node_modules` a junction to the checkout's, removed with `rmdir` before the worktree) and served on :4192
+(`index-BvvhFeaA.js`). Both from scratch `--outDir`s with `vite preview`; each port's served bundle filename was
+checked against its build before measuring. Same pinned world: style `alpha`, `(0, 50)`,
+`DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, encoded with `encodeSessionPayload` (version 2).
+`npm run perf:idle --throttle 1 --only none --port 9301`, foreground, one run per call; 0 orphaned Chrome before
+and after. Four rounds, order alternated (branch first in rounds 1 and 3, parent first in 2 and 4).
+
+| Round (order) | Branch busy / paint (ms) | Parent busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 1962 / 179 | 1741 / 153 |
+| 2 (parent first) | 1987 / 184 | 1704 / 158 |
+| 3 (branch first) | 1919 / 181 | 1773 / 153 |
+| 4 (parent first) | 1832 / 184 | 1753 / 155 |
+| **Median** | **1941 / 183** | **1747 / 154** |
+
+Busy **+11 %** (+194 ms), paint **+18.5 %** (+28.5 ms). The parent's own spread is narrow (busy 1704–1773, paint
+153–158) and every branch run sits outside it on both metrics: the lowest branch busy (1832) is above the
+parent's highest (1773), and the lowest branch paint (179) is above the parent's highest (158). Branch higher in
+all four pairs (busy +221, +283, +146, +79; paint +26, +26, +28, +29). **A miss by the rule the J1–J4 gates used.**
+
+Same scene on both builds in every window: 12 robots, 3 visible (1 in the back row), 2 stations, L4 4 / L3 16 /
+front 58. `#robot-layer` read 880 elements on the branch against 824 on the parent, and `#robot-back-layer` 122
+against 108: +70 elements, the live `.robot__work` groups.
+
+**Where it goes** (medians of the four stock windows):
+
+| Bucket | Branch | Parent | Difference |
+|---|---|---|---|
+| Animation frame (ms) | 840 | 668 | **+172** |
+| FunctionCall (ms) | 1264 | 1096 | +168 |
+| TimerFire (ms) | 176 | 183 | none |
+| Paint, root `''` (ms) | 101.5 | 87.5 | +14 |
+| Paint, moving robot layer (ms) | 64.5 | 53.5 | +11 |
+| Paint, second moving layer (ms) | 15 | 13 | +2 |
+| `Layout SVG resource invalidated` | 3650–3944 | 931–1131 | ≈ 3.5× |
+
+- **Most of the busy increase is script, in `Animation frame`** (+172 of +194 ms): the decorations' per-frame
+  attribute writes from the job timeline's `onUpdate`. Unlike the J3 gate's lean, `TimerFire` does not move with
+  busy here (176 vs 183), so this is not whole-thread drift.
+- **The paint increase is the two moving layers and the root** (+27 of +28.5 ms), the same shape as the J4 gate's
+  miss: the decorations sit in `.robot__row`, so they repaint with the robots' moving layer every frame.
+- **`Layout SVG resource invalidated` is the new top invalidation** on the branch (`line.robot__work-tick`,
+  `line.robot__work-trail`): gradient and stroke attributes changing on lines that use `<defs>` resources.
+
+**Why neither plan rung can close it.** `decorTier(robotLoad)` returns `'all'` at Full, and the ladder is unbound
+(both `DECOR_TIER_*` constants are `'all'`). Rung 1 (bind the ladder) changes Standard and Light only; rung 2
+(halve `INSPECT_TRAIL_SEGMENTS` and `FLUID_DROPS` on `'cheap'`) changes `'cheap'` only. The Pixel is judged at
+Full, so neither rung lowers the cost measured here. Lowering Full means a different rung: fewer attribute
+writes per frame (skip a write when its value is unchanged), or fewer nodes at `'all'`.
+
+**Not measured:** one pinned world with whichever jobs the three visible robots happened to be running; no
+worst case with every robot working a heavy job (Inspection or Fluid). The Pixel run (Task 15) is the real gate.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
