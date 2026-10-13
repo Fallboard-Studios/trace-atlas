@@ -16,7 +16,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { registerArcDecorator, deleteArcDecorator } from '../../animation/robotMotionRegistry';
 import { getActiveLocaleId } from '../../utils/localeHelpers';
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo, type RobotGemRipple } from './gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { useHaloMotion } from './gem/useHaloMotion';
 import { useStripFlicker, type StripLine, type FlickerTrigger } from './gem/useStripFlicker';
@@ -25,7 +25,6 @@ import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
 import { orbiterDials } from './gem/orbiterDials';
 import { orbiterPlan } from './gem/orbiterMotion';
-import { haloDials } from './gem/haloDials';
 import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 
 // ========================================
@@ -67,16 +66,15 @@ const FALLBACK_IDENTITY = '#78cce2';
  * intensity, each Mid's lit level, and scale — computed in the memo below, which nothing
  * non-audio may enter (backlog item 22: the once/sec daylight tick must not recompute it).
  *
- * Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5) adds two more memos beside it, each with
- * its own inputs: the halo (volume, envelope, identity and the company colour — the one non-audio
- * visual input, read with a narrow selector so a company rename never re-renders the body) and
- * the Top/Mid line widths (the gain-LFO link depths). In world/avatar, `useHaloMotion` owns the
- * halo's attributes after mount; its `decorateArc` is registered (world only) for the work loop's
- * station exit/entry arcs (Phase 43), its only caller (the density-driven orbiter attach/detach
- * hop stopped decorating on 2026-10-06), so the halo shows only as a robot exits or enters a
- * station. `useStripFlicker`
- * plays each line's two-second flicker on its own trigger tuple. On cards (no `motion`) neither
- * hook runs — `enabled: false` returns before touching GSAP — and the halo never renders at all.
+ * Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5) adds the halo and a memo for the Top/Mid
+ * line widths (the gain-LFO link depths). The halo's only input is its colour — the company colour
+ * (the one non-audio visual input, read with a narrow selector so a company rename never re-renders
+ * the body), else the identity colour — and nothing audio sizes it. `useHaloMotion`'s `decorateArc`
+ * is registered (world only) for the work loop's station exit/entry arcs (Phase 43), its only
+ * caller (the density-driven orbiter attach/detach hop stopped decorating on 2026-10-06), so the
+ * halo's waves show only as a robot exits or enters a station. `useStripFlicker` plays each line's
+ * two-second flicker on its own trigger tuple. On cards (no `motion`) the orbiter and flicker hooks
+ * are disabled — `enabled: false` returns before touching GSAP — and the halo never renders at all.
  */
 export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale, motion }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
@@ -123,15 +121,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   const localeId = getActiveLocaleId();
   const companyColor = useLocaleStore((s) => s.locales[localeId]?.companies?.find((c) => c.id === robot.companyId)?.color);
 
-  // Halo only — volume, envelope, identity and company colour (spec §1.1). Its own memo so a
-  // waveform, layer or composition edit never recomputes it.
-  const { masterVolume, identityColor } = robot;
-  const { adsr } = robot.audioAttributes;
-  const haloDial = useMemo(
-    () => haloDials({ masterVolume, identityColor, audioAttributes: { adsr } }, companyColor),
-    [masterVolume, adsr, identityColor, companyColor],
-  );
-
   // Body line widths only — the gain-LFO link depths (spec §1.2). `lfoLinks` is replaced wholesale
   // on edit, so the reference is the dependency.
   const bodyLines = useMemo<RobotGemBodyLines>(
@@ -169,37 +158,26 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     motion: motion !== undefined,
   };
 
-  // The ellipse is stretched with the canvas (rx = radius × widthFactor, spec §1.1 "Shape").
-  // Opacity: cards never render the halo at all (RobotGem gates it on orbiters.motion), so its
-  // value there is moot; in world/avatar it starts at 0 (amendment: no idle baseline — the halo
-  // is invisible except during a spawn/despawn arc) and `useHaloMotion` owns it from mount on.
-  // Gradient id per rendered instance.
+  // The halo's waves wear the company colour, else the robot's identity colour; the gradient id is per
+  // rendered instance (the world and the avatar show one robot at once).
   const halo: RobotGemHalo = {
-    color: haloDial.color,
-    rx: haloDial.radius * gem.widthFactor,
-    ry: haloDial.radius,
-    stops: haloDial.stops,
-    opacity: motion !== undefined ? 0 : dimOpacity,
+    color: companyColor ?? (robot.identityColor || FALLBACK_IDENTITY),
     gradientId: `halo-${motion ?? 'card'}-${robot.id}`,
   };
-  const ripple: RobotGemRipple | undefined = motion !== undefined ? { gradientId: `ripple-${motion}-${robot.id}` } : undefined;
 
   const gemRef = useRef<SVGGElement>(null);
   const motionEnabled = motion !== undefined;
 
   // 2026-10-06 (Crawford): the orbiter attach/detach hop below is density-driven (every hop today
-  // traces to rhythmicDensity via orbiterDials().count), and the halo's ripple is reserved for the
+  // traces to rhythmicDensity via orbiterDials().count), and the halo's waves are reserved for the
   // station exit/entry arcs instead — so its `decorateArc` is not wired into useOrbiterMotion.
   // Phase 43 (spec §1.8): in the world context it is registered in robotMotionRegistry for the
-  // work loop, which calls it on those arcs. This call still owns the halo's mount state and dial
-  // tween.
+  // work loop, which calls it on those arcs.
   const { decorateArc } = useHaloMotion({
     root: gemRef,
     robotId: robot.id,
     context: motion ?? 'world',
-    halo: { rx: halo.rx, ry: halo.ry, stops: halo.stops },
     dimOpacity,
-    enabled: motionEnabled,
   });
   // A layout effect: the parent Robot's mount (useGSAP, also layout) hands the robot to the work
   // loop, which can play an exit arc at once and reads this decorator then (Phase 43 Task 23).
@@ -238,7 +216,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       orbiters={orbiters}
       bodyLines={bodyLines}
       halo={halo}
-      ripple={ripple}
     />
   );
 });

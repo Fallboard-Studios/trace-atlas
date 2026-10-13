@@ -19,10 +19,6 @@ const WORLD_ORBITERS: RobotGemOrbiters = { lineWidth: 0.8, stripOpacity: 0, size
 const BODY_LINES: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
 const HALO: RobotGemHalo = {
   color: '#41ad9f',
-  rx: 30,
-  ry: 30,
-  stops: [0, 0.33, 0.5, 0.66, 0.83, 1].map((offset) => ({ offset, opacity: 0 })),
-  opacity: 1,
   gradientId: 'halo-test-r1',
 };
 const CORNER_CLASSES = ['tl', 'tr', 'bl', 'br'] as const;

@@ -16,7 +16,7 @@
 // to the current count without replaying each change made while locked.
 //
 // 2026-10-06 (Crawford): this hop is density-driven (every call today traces back to
-// `rhythmicDensity` via `orbiterDials().count`), and the halo's ripple is reserved for the future
+// `rhythmicDensity` via `orbiterDials().count`), and the halo's waves are reserved for the future
 // job-detach or docking animation instead — so this file does not decorate its arcs and has no
 // `decorateArc` option. (An earlier pass of this same change wrapped the hop's bare `gsap.to` in a
 // paused `gsap.timeline` so a decorator could be called on it before play; that wrapping was

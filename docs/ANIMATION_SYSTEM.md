@@ -109,8 +109,8 @@ as `refs.ts`:
 
 - `registerArcDecorator(robotId, fn)` / `getArcDecorator(robotId)` / `deleteArcDecorator(robotId, owner?)`
   — `RobotBody` registers its world-context `decorateArc` (from `useHaloMotion`, memoised so an
-  audio edit doesn't re-register it). The work loop calls it on every station arc, so the halo
-  ripple rides on the arc's own timeline.
+  audio edit doesn't re-register it). The work loop calls it on every station arc; it plays the halo's
+  triangular waves on a timeline of their own (`halo-waves-{context}-{robotId}`), not on the arc's.
 - `registerOrbiterWork(robotId, control)` / `getOrbiterWork(robotId)` / `deleteOrbiterWork(robotId, owner?)`
   — `useOrbiterMotion` (world context only) registers `{ lock(), unlock() }`. `lock()` finishes
   any attach/detach hop in flight (`progress(1)`), makes `reconcile()` return early and returns the
@@ -223,8 +223,9 @@ the re-mounted body with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows
 0.75 overall. Its next leg to a front-row site or a station is then an ordinary back → front
 switch. The entry plays in the front row, between L3 and L2.
 
-Opacity is linear both ways, and the robot's halo ripple is added to the same timeline by its
-registered `decorateArc(kind, duration, tl)` (outward on exit, inward on entry). Beside it,
+Opacity is linear both ways, and the robot's halo waves are started by its registered
+`decorateArc(kind, duration, tl)` (outward on exit, inward on entry) on a timeline of their own, since a spawn run
+outlasts the arc. Beside it,
 `playStationRipple(stationId, kind, color, duration)` plays the station's own ring in the moving
 robot's identity colour, keyed `stationRippleKey(stationId)` = `` `station-ripple-${stationId}` ``.
 It animates the circle and gradient that `ChargingStation`'s front fragment draws (all clear at
@@ -306,7 +307,7 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `dissolve-${robotId}` `` | the work loop's `dissolve` | one layer-switch fade | its own end, the robot's next dissolve, a recall or turn-back (`dropLeg`), an adoption (`killLegs`), `stopWorkLoop` — each removes the `<use>` copy too |
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
-| `` `halo-${context}-${robotId}` `` | `useHaloMotion` | one halo-dial tween, started only when the dial's values change (`rx`, `ry` or a stop's offset or opacity), never by a re-render alone | the next dial change, unmount |
+| `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
 
 `stopWorkLoop` kills every `work-`, `swim-`, `bob-wait-`, `station-` and `dissolve-` key
 (`LOOP_KEY_PREFIXES`; power-off, and before every `startWorkLoop` in `initializeLocale`), removes

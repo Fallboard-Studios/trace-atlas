@@ -4,7 +4,6 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  HALO_STYLE,
   WAVE_AMPLITUDES,
   WAVE_BREAK_RADIUS,
   WAVE_COUNT,
@@ -52,18 +51,14 @@ describe('haloWaves — constants', () => {
     expect(WAVE_TRAVEL).toBe(90);
   });
 
-  it('25 % slower than the 75 units a second it was, the waves still 30 units apart', () => {
-    expect(WAVE_SPEED).toBeCloseTo(75 * 0.75, 10);
+  it('travel at 56.25 units a second, the waves 30 units apart', () => {
+    expect(WAVE_SPEED).toBe(56.25);
     expect(WAVE_SPACING).toBe(30);
     expect(WAVE_STAGGER_SECONDS * WAVE_SPEED).toBeCloseTo(30, 10);
   });
 
   it('the whole run is the last wave\'s start plus its travel time', () => {
     expect(WAVE_TOTAL_SECONDS).toBeCloseTo((WAVE_COUNT - 1) * WAVE_STAGGER_SECONDS + WAVE_TRAVEL / WAVE_SPEED, 10);
-  });
-
-  it('waves are the shipped style', () => {
-    expect(HALO_STYLE).toBe('waves');
   });
 });
 

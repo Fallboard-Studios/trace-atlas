@@ -1,5 +1,7 @@
 # Intent: Robot Halo and Lit Boundary Lines
 
+> **Superseded in part, 2026-10-12:** the halo is now the triangular waves drawn on a station arc (spec §1.1b, Amendments 3). The volume-sized gradient ellipse, its envelope-shaped stops and the ripple ring this document describes were removed; only the halo colour (company, else identity) and the lit strips and flicker below still apply as written.
+
 Confirmed 2026-10-05 via the interview-me skill (4 questions after a planning conversation; guesses
 confirmed except where noted under "Corrections"). Builds on shipped Phase 39
 ([gem-polygon-robots.md](gem-polygon-robots.md)) and on Phase 40

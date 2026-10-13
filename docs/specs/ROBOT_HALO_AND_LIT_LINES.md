@@ -88,6 +88,28 @@ React 19, TypeScript 5.9, Zustand 5, GSAP 3 via `@gsap/react`, Vitest + Testing 
 > in the same cleanup — `useOrbiterMotion.ts` has no `decorateArc` option and never will unless a
 > future task adds one back for its real caller.
 
+> **Amendment 3 (2026-10-12, Crawford; read this before §1.3, §1.4 and §5).** The triangular waves (§1.1b)
+> replaced the robot's gradient halo and ripple ring as what a station arc shows, and the old path is deleted:
+> `HALO_STYLE` is gone; so are `ellipse.gem__ripple`, its `radialGradient`, `RobotGem`'s `ripple` prop and
+> `RobotGemRipple`, and `rippleCycles`/`ripplePosition`/`rippleStops` with their `RIPPLE_PERIOD`/`RIPPLE_WIDTH`/
+> `RIPPLE_DESPAWN_FROM`. `haloRipple.ts` keeps only `RippleKind`, `RIPPLE_OPACITY`, `RIPPLE_EDGE` and
+> `rippleEnvelope`, which the charging station's ripple (`animation/stationRipple.ts`) shares.
+> `decorateArc` (§1.4) now calls `playHaloWaves` (`gem/haloWavesMotion.ts`), which builds the waves' own timeline
+> and writes plain attributes (`d`, `opacity`, `stroke-width`, and the trail strips' `transform`) directly, only when
+> a value changed, instead of `gsap.set` per element per frame.
+>
+> **The gradient ellipse and its dial are removed too (2026-10-12, Crawford).** Once the waves were the live halo,
+> `ellipse.gem__halo`, its six-stop `radialGradient`, the dial tween (`halo-${context}-${robotId}` in `timelineMap`),
+> `haloDials.ts` (`haloDials`, `haloStops`, `HALO_RADIUS_MIN/MAX`, `HALO_HOLE`, `HALO_PEAK`, `HALO_HOLD`, `HALO_TWEEN`),
+> `HaloMotionDial` and `useHaloMotion`'s `halo` and `enabled` options are all deleted: nothing showed the ellipse, so
+> volume and envelope no longer reach the halo at all. **§1.1 below (the dials, the stops, the size) and the
+> ellipse/gradient parts of §1.4, §5 and the tests list describe code that no longer exists; read them as history.**
+> What remains of the halo is its colour — the company colour, else the robot's identity colour, computed in
+> `RobotBody` — the battery dim (`dimOpacity`, read live by `decorateArc`), and the canvas centre (`data-cx`,
+> `data-cy` on `g.gem__waves`). `RobotGemHalo` is now `{ color, gradientId }`; `RobotGem` draws only the waves'
+> trail gradients and `g.gem__waves`, and no longer freezes its halo props in state, since every attribute GSAP
+> writes is a constant prop React never rewrites. `HaloStop` moved to `animation/stationRipple.ts` as `RippleStop`.
+
 ### 1.1 Halo dials (`src/components/robot/gem/haloDials.ts`, pure)
 
 ```ts
@@ -127,10 +149,10 @@ The hole offset depends on the radius, so a volume edit moves stop 1 as well as 
 (Originally 20…40; 110…130 since 2026-10-12, so it clears the 200 × 200 station.) At k = 2 the largest halo is now rx 260 — wider than a 160-wide canvas — but cards never render the halo (RobotGem gates it on `orbiters.motion`), so
 nothing clips it and `gemMotionViewBox` needs no extra pad.
 
-#### 1.1b Triangular waves (experiment, Crawford 2026-10-12)
+#### 1.1b Triangular waves (Crawford 2026-10-12)
 
-`gem/haloWaves.ts` (`HALO_STYLE = 'waves'`; set it to `'ellipse'` for the gradient halo and ripple ring above, which are
-still rendered either way) replaces what a station exit/enter arc shows with four triangular waves. Each is a
+`gem/haloWaves.ts` (the maths) and `gem/haloWavesMotion.ts` (the timeline) replace what a station exit/enter arc shows with
+four triangular waves. Each is a
 point-up triangle outline that grows from nothing at the robot's centre until its inscribed circle has a radius of
 `WAVE_BREAK_RADIUS` (40 scene units); there its three edges break apart and keep moving outward, perpendicular to
 themselves, for `WAVE_DRIFT` (50) units, shrinking toward the middle of each bar from its ~139-unit length to
@@ -144,7 +166,7 @@ inside the break radius that shrinks to a point. Entering the station (`despawn`
 reverse.
 
 Timing: a spawn run lasts `WAVE_TOTAL_SECONDS` (about 3.2 s), longer than the 1 s station arc, so `decorateArc` plays
-the waves on a timeline of their own (`halo-waves-{context}-{robotId}` in `timelineMap`, killed with the body) rather
+the waves (`playHaloWaves`) on a timeline of their own (`halo-waves-{context}-{robotId}` in `timelineMap`, killed with the body) rather
 than as a child of the arc, which would hold back the arc's `onComplete` and the robot's next step. A despawn run is
 squeezed into the arc, since the robot, and the halo inside it, is hidden when the arc ends. Distances are scene units:
 each frame the halo group's transform (`getCTM`) gives its scale, and the waves' centre is pinned to the scene point

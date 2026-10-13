@@ -1,17 +1,17 @@
 // ========================================
-// HALO WAVES (experiment, Crawford 2026-10-12)
+// HALO WAVES (Crawford, 2026-10-12)
 // ========================================
-// An alternative to the gradient halo + ripple ring: on a station exit/enter arc, three triangular
-// waves leave the robot's centre. Each is a triangle OUTLINE that grows from nothing until its
-// inscribed circle has a radius of WAVE_BREAK_RADIUS, at which point the three edges break apart and
-// keep travelling outward, perpendicular to themselves, for WAVE_DRIFT more scene units, shrinking
-// toward the middle of each bar until it is gone (they do not fade). The second and third waves follow a beat behind, each fainter.
-// Entering the station plays it in reverse. Pure maths only: `useHaloMotion.decorateWaves` feeds
-// these to a proxy tween and writes the `d` attributes; nothing here touches GSAP, the DOM or
-// AudioEngine. Distances are scene units — the caller divides by the halo group's own scale, since
-// the robot is mid-scale (STATION_PORT_SCALE → 1) while the arc plays. A spawn run outlasts the 1 s arc at
-// the speed below, so the caller also pins the waves' centre in the scene (`mapPoint`/`unmapPoint`) rather
-// than letting them ride the robot as it swims away.
+// The halo on a station exit/enter arc: WAVE_COUNT triangular waves leave the robot's centre, each fainter
+// than the last and a beat behind it, plus one counter wave travelling inward. Each is a triangle OUTLINE that
+// grows from nothing until its inscribed circle has a radius of WAVE_BREAK_RADIUS, at which point the three
+// edges break apart and keep travelling outward, perpendicular to themselves, for WAVE_DRIFT more scene units,
+// shrinking toward the middle of each bar until it is gone: a wave is used up, and only fades in over its first
+// WAVE_FADE_IN units. Entering the station plays it in reverse. Pure maths only: `playHaloWaves`
+// (haloWavesMotion.ts) feeds these to a proxy tween and writes the attributes; nothing here touches GSAP, the DOM
+// or AudioEngine. Distances are scene units — the caller divides by the halo group's own scale, since the robot is
+// mid-scale (STATION_PORT_SCALE → 1) while the arc plays. A spawn run outlasts the 1 s arc at the speed below, so
+// the caller also pins the waves' centre in the scene (`mapPoint`/`unmapPoint`) rather than letting them ride the
+// robot as it swims away.
 
 // ========================================
 // TYPES
@@ -29,27 +29,23 @@ export interface WaveState {
 // ========================================
 // CONSTANTS
 // ========================================
-/** Which halo plays on a station arc: the three triangular waves, or the original gradient ellipse and
- *  ripple ring (still rendered either way; with 'waves' the ellipse simply stays at opacity 0). */
-export const HALO_STYLE: 'waves' | 'ellipse' = 'waves';
-
 export const WAVE_COUNT = 4;
 
 /** Each wave's peak opacity: every one fainter than the last. */
 export const WAVE_AMPLITUDES: readonly number[] = [0.9, 0.5, 0.25, 0.12];
 
-/** The triangle's inscribed radius when its edges break apart (Crawford 2026-10-12: 40; it was the station's
- *  100, then 45). Each edge is then 2 × √3 × 40 ≈ 139 long, and shrinks from there. */
+/** The triangle's inscribed radius when its edges break apart. Each edge is then 2 × √3 × 40 ≈ 139 long,
+ *  and shrinks from there. */
 export const WAVE_BREAK_RADIUS = 40;
 
-/** How far past the break the edges keep travelling as they shrink away (Crawford: 50). */
+/** How far past the break the edges keep travelling as they shrink away. */
 export const WAVE_DRIFT = 50;
 
 /** One wave's whole outward run, scene units. */
 export const WAVE_TRAVEL = WAVE_BREAK_RADIUS + WAVE_DRIFT;
 
-/** How fast the edges move outward, scene units per second (Crawford 2026-10-12: 150, then half of that, then
- *  25 % slower again: 56.25). */
+/** How fast the edges move outward, scene units per second: slow enough to read as a pulse, and a spawn run
+ *  (WAVE_TOTAL_SECONDS) then outlasts the 1 s arc. */
 export const WAVE_SPEED = 56.25;
 
 /** How far apart the waves are, scene units, whatever the speed. */
@@ -64,8 +60,7 @@ export const WAVE_TOTAL_SECONDS = (WAVE_COUNT - 1) * WAVE_STAGGER_SECONDS + WAVE
 
 /** The one extra triangle that travels the other way: inward, from WAVE_TRAVEL out to the centre, starting with
  *  the first wave and crossing it on the way. It is a wave of its own index (WAVE_COUNT, after the outward
- *  ones), drawn in the gem's light colour — the one colour a robot has besides its identity/company one
- *  (Crawford 2026-10-12: "the secondary color"). */
+ *  ones), drawn in the gem's light colour — the one colour a robot has besides its identity/company one. */
 export const WAVE_COUNTER_INDEX = WAVE_COUNT;
 export const WAVE_COUNTER_AMPLITUDE = 0.7;
 
@@ -79,10 +74,8 @@ export const WAVE_FADE_IN = 12;
 export const WAVE_LINE_WIDTH = 2.5;
 
 /** The trail behind every line, scene units: one gradient on the side the line has come from, so a wave reads as a bright
- *  line with a fading tail (Crawford 2026-10-12: after trying kites and notches on both sides, "too much"; the final
- *  numbers are 12 deep at the middle, 1 at the ends, a kite). It is
- *  `ends` deep at the ends of a bar and `middle` deep at its middle, running straight between the two, and fades from
- *  the line's own strength to nothing. Nothing is drawn ahead of the line. */
+ *  line with a fading tail. It is `ends` deep at the ends of a bar and `middle` deep at its middle, running straight
+ *  between the two (a kite), and fades from the line's own strength to nothing. Nothing is drawn ahead of the line. */
 export interface TrailProfile {
   ends: number;
   middle: number;
