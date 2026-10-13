@@ -1495,3 +1495,73 @@ wall-clock — the LFO Bank's accepted class — and its `frequency` could take 
 ([33](#33-free--sync-toggle)). Either lands as one more slot in `wireGlobalFxChain` with `wet`, seeded
 default dry or a low seeded band, the same call as 50.3. Whichever is not chosen moves to backlog 22.
 Phone gate: a follower is a few nodes; Phaser's `stages` multiplies allpass filters, so the gate caps it.
+
+## 51. Guide: A Read-Only Branch That Teaches the Whole App
+
+Raised by Crawford, 2026-10-12: "I need a way to educate users on the overall usage of the app, not
+just what an LFO is etc." Not yet interviewed or specced — run `/interview-me` → spec → plan before
+building. Picked over the alternatives discussed the same day (see Not Doing). Build after
+[45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen) is merged, since it is laid out with
+that phase's shell, nav panel and `SectionTabs`.
+
+### About
+
+**The gap (verified 2026-10-12).** Every explanation in the app today sits at or below the screen
+level: a `?` help popover on every value control (`ContentEntry.help`, `HelpPopover`), and one
+collapsed More / Less `IntroPanel` per screen and per section (`fleet.root`, `fleet.pacing`,
+`probe.root`, `probe.all`, `settings.*`, `company.*` in `src/content/copy/`). The only copy that said
+what the app *is* — the Deck's welcome intro, `home.root` — was deleted with the Welcome accordion in
+the layout rework's follow-up on `various-small-fixes` (uncommitted as of 2026-10-12; the text is
+still at `HEAD:src/content/copy/home.ts` under `home.root`); `home.ts` then carries only the off
+screen's label, power hint and Transmission row. The Deck shows the world and the meta box's
+world line, nothing else. So a new user powers on, hears music, watches the robots swim, and nothing
+tells them the probes are the voices, that batteries drive the silences, that Fleet Params is global
+and Probes per-voice, that Companies are broadcast groups, or that Sessions and the share link are how
+a world is kept. The per-control and per-section copy is reachable only once they already know to open
+the nav and pick a branch.
+
+**What ships.** A fifth top-level entry in the nav panel beside Fleet Params, Probes, Companies and
+Settings — working name Guide; the lore name comes out of the interview — opening a read-only screen
+built from `SectionTabs`, one tab per concept, the same shell as every other branch so it reads
+identically on the desk and in the phone sheet. Candidate tabs, to be settled in the interview:
+
+- **What you're hearing** — probes are voices; each plays its own seeded melody; battery drains,
+  the probe docks and goes quiet, sometimes changes its tune, then returns. The day clock. Why the
+  music never repeats exactly yet is replayable.
+- **Where things are** — one paragraph per branch: Fleet Params (everything at once), Probes (one
+  voice, or All Probes to shift them together), Companies (groups that broadcast edits), Settings
+  (sessions, sharing, audio load). What the Deck and the meta box show.
+- **A first path through** — a short numbered sequence against the live app: pick a probe on the
+  roster, open a section, move a slider, hear it change, save, share.
+- **Sound words** — the synth vocabulary the help popovers assume, in the copy-tone guide's human
+  voice, in one place: oscillator, envelope, filter, LFO, swell, sync.
+
+Copy is content-layer entries under a new `guide.*` area (`src/content/copy/guide.ts`, the existing
+`intro` shape with limited HTML, DOMPurify-sanitised as `IntroPanel` already does), written to
+[docs/reference/copy-tone-guide.md](../reference/copy-tone-guide.md): lore headlines, human bodies.
+The deleted `home.root` copy is the seed for the first tab, not the finished text. No new primitives:
+`SectionTabs` + `IntroPanel` (non-collapsible) per tab. Nothing interactive on the screen, so no state,
+no store fields beyond the nav id the panel already keeps for a branch, and nothing in the
+JSON-serialisable session.
+
+### Not Doing (and why)
+
+- **A first-run spotlight walk over the live UI** — needs a persisted "seen" flag, a step engine, real
+  component coordinates, desk and phone variants, and it fights the shell's own rules (nothing pops
+  that is not interactive; the off screen stays quiet). Revisit only if people demonstrably do not read
+  the Guide.
+- **The manual on the off screen** — read once, before anything has been heard, in the one place
+  deliberately kept quiet. The off screen keeps its one-line power hint.
+- **Restoring the Deck welcome intro alone** — considered as the cheap first step; it covers the
+  mental model only if the user presses More, and the Deck is the world view. Whether the Guide's first
+  tab's headline also surfaces on the Deck is an interview question, not a decision here.
+- **External docs or a help site** — the app is the tablet; the Guide is in it, in its voice.
+
+### Open
+
+- Lore name and position in the nav (last, or first for a new user?).
+- Which tabs, and whether "A first path through" reads as prose or as a numbered checklist.
+- Whether the Guide tab the user last read is remembered (a `uiStore` field, serialisable) or always
+  opens on the first tab.
+- Whether any Guide passage is linked from the help popovers or section intros (a "more in the
+  Guide" line), which would need a cross-branch nav action in `navActions.ts`.
