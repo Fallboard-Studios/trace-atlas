@@ -95,8 +95,8 @@ interface ChargingSeen {
 const get = (id: string) => useLocaleStore.getState().getRobotById(LOCALE, id)!;
 
 /**
- * The world with r1 (mounted, exiting its station) and two body-less companions that keep the
- * never-zero-Active rule from blocking r1's recall. Returns the stepping controls and r1's trace.
+ * The world with r1 (mounted, exiting its station) and two body-less companions on the other station.
+ * Returns the stepping controls and r1's trace.
  */
 function simulate(bpm: number) {
   useAudioStore.setState({ bpm });

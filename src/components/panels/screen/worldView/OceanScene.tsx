@@ -43,8 +43,8 @@ interface OceanSceneProps {
 // ========================================
 
 interface SceneLayerProps {
-  /** Which of the six layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
-  name: 'back' | 'robots-back' | 'mid' | 'bubbles' | 'robots' | 'front';
+  /** Which of the seven layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
+  name: 'back' | 'robots-back' | 'mid' | 'bubbles' | 'robots' | 'front' | 'marker';
   width: number;
   height: number;
   /** A layer whose content moves every frame — promoted to its own compositor layer (OceanScene.css). */
@@ -53,7 +53,7 @@ interface SceneLayerProps {
 }
 
 /**
- * One of the scene's stacked `<svg>` layers. All six share the viewBox and the "slice" (cover)
+ * One of the scene's stacked `<svg>` layers. All seven share the viewBox and the "slice" (cover)
  * fit, and OceanScene.css makes each fill the same box, so their coordinate systems map to the
  * same pixels — a robot at scene (x, y) in either robots layer sits exactly over scene (x, y) in
  * the factory layers.
@@ -137,11 +137,12 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 // ========================================
 
 /**
- * Root scene component. Renders six stacked SVG layers (roadmap 17.2.5; Phase 43 J4, spec §1.10),
+ * Root scene component. Renders seven stacked SVG layers (roadmap 17.2.5; Phase 43 J4, spec §1.10),
  * back to front: static `back` (water, ridge, background factories, tint A), the moving back robot
  * row `robots-back`, static `mid` (tint B, midground factories, tint C, the ground line), the
  * moving bubble layer (every building's vent bubbles), the moving front robot row `robots`, and
- * static `front` (tint D, foreground factories). Kicks off factory placement, robot spawning and
+ * static `front` (tint D, foreground factories), then the moving `marker` layer (the Deck camera's
+ * followed-robot marker, in front of every building). Kicks off factory placement, robot spawning and
  * factory production scheduling on mount.
  *
  * Why layers: the idle paint localizer (scripts/perf/idle-paint.mjs) found the old single <svg>

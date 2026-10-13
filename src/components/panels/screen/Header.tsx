@@ -90,12 +90,14 @@ function VolumePopout({ disabled, container, children }: { disabled: boolean; co
         </button>
       </Popover.Trigger>
       {/* Portalled into the header stack (still inside the header and ScreenViewport) and pinned to it by
-          Header.css (left -4px, just under the panel): Radix's own placement end-aligned it to the ▾ box
+          Header.css (flush left, 8 px under the panel): Radix's own placement end-aligned it to the ▾ box
           with a computed translateX, which swung from too far left to too far right as the width moved
-          between 320 px and the slider taking the box's place. Its width (HEADER_VOLUME_WIDTH) keeps it
-          left of the power corner at 320 px. */}
+          between 320 px and the slider taking the box's place. Header.css overrides the wrapper's whole
+          position, so Radix's offset and collision options are left out; `side` and `align` stay for its
+          data attributes. The pop-out's width (HEADER_VOLUME_WIDTH) keeps it left of the power corner at
+          320 px. */}
       <Popover.Portal container={container}>
-        <Popover.Content className="header__volume-popover" side="bottom" align="start" sideOffset={8} collisionPadding={8}>
+        <Popover.Content className="header__volume-popover" side="bottom" align="start">
           <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-volume-popover-facade">
             {children}
           </CabinetBox>

@@ -179,8 +179,7 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, // will land exactly at critical after drain
         job: undefined,
       });
-      const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
-      setupLocaleWithRobots([robot, companion]);
+      setupLocaleWithRobots([robot]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
@@ -197,8 +196,7 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
-      setupLocaleWithRobots([robot, companion]);
+      setupLocaleWithRobots([robot]);
       let dockingAtSeam: DockingState | undefined;
       seam.mockImplementationOnce((_l: string, id: string) => {
         dockingAtSeam = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, id)?.docking;
@@ -218,8 +216,7 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
-      setupLocaleWithRobots([robot, companion]);
+      setupLocaleWithRobots([robot]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
@@ -632,8 +629,7 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      const companion = makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
-      setupLocaleWithRobots([robot, companion]);
+      setupLocaleWithRobots([robot]);
 
       startRobotLifecycle(DEFAULT_LOCALE_ID);
       const tickCallback = (subscribeToMeasure as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -734,7 +730,7 @@ describe('robotSystems', () => {
       it('a smaller drain reaches the critical threshold later — the rule drives recall timing, not just the number', () => {
         const robot = makeSnapshot({ id: 'r', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
         const companion = makeSnapshot({ id: 'companion', batteryLevel: 100 });
-        const [byDefault] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP);
+        const [byDefault] = stepRobotLifecycle([robot], 10, TEST_NOISE_MAP);
         const [lighter] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP, () => 2);
         expect(byDefault.docking).toBe(DockingState.Recalled);
         expect(lighter.docking).toBe(DockingState.Active);
@@ -755,8 +751,7 @@ describe('robotSystems', () => {
 
     it('an Active robot crossing the critical threshold begins Recalled with a hold, not immediate Docked', () => {
       const robot = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
-      const companion = makeSnapshot({ id: 'robot-companion', batteryLevel: 100 });
-      const [result] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP);
+      const [result] = stepRobotLifecycle([robot], 10, TEST_NOISE_MAP);
       expect(result.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
       expect(result.docking).toBe(DockingState.Recalled);
       expect(result.dockingHoldUntilMeasure).toBe(11);
@@ -1004,7 +999,7 @@ describe('robotSystems', () => {
     it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/melody for all 12 robots, exercising both the recall of the last Active robot and a dock-triggered melody drift', () => {
       // Contrived starting state, not left to chance: robot 0 is the ONLY Active robot, reaching
       // the critical threshold on the last tick -- it is recalled like any other (the fleet may go
-      // silent: no keep-one-playing guard), the one transition that reads the whole roster in no case.
+      // silent: no keep-one-playing guard).
       // Robot 1 is already Recalled, still holding the
       // job it was assigned before it was recalled (the real landOnDocked path never clears
       // job -- see docs/ROBOT_LIFECYCLE.md), with its hold elapsing on the very first tick --

@@ -71,7 +71,7 @@ removal, uncommitted).
    camera's own motion for a touch, and the distinction is no longer needed.
 8. **"Touch" = `pointerdown`/`touchstart`; "release" = `pointerup`/`touchend`, or their `pointercancel`/`touchcancel` (added in review: a cancelled touch sends no up event and would leave `held` stuck); `wheel` has no
    separate release**, so a `wheel` event is treated as an instantaneous touch-then-release: kill
-   whatever the camera is doing, then immediately start the 8 s cooldown (there is no "held" state
+   whatever the camera is doing, then immediately start the cooldown (`DECK_CAMERA_COOLDOWN_MS`, 3 s since 2026-10-12) (there is no "held" state
    to wait out for a wheel tick). A real `pointerdown`/`touchstart` enters a held state — the camera
    stays dead, no clock runs — until the matching `pointerup`/`touchend`, which is what starts the
    cooldown. This is the one rule in this spec with no direct precedent in the interview (which
@@ -225,7 +225,7 @@ All three share one `forceFollow(id)` helper: kill anything running (`killTimeli
 - `DECK_CAMERA_PAN_S = 1.4` — unchanged, the float-in rate.
 - `DECK_CAMERA_TIMELINE_ID = 'deck-camera'` — unchanged.
 - `DECK_CAMERA_FOLLOW_MS = 20000` — new; how long a follow lasts before cooling down on its own.
-- `DECK_CAMERA_COOLDOWN_MS = 8000` (now 3000, Crawford 2026-10-12) — replaces `DECK_CAMERA_CUT_COOLDOWN_MS` (was `20000` with a
+- `DECK_CAMERA_COOLDOWN_MS = 3000` (8000 until Crawford's 2026-10-12 change) — replaces `DECK_CAMERA_CUT_COOLDOWN_MS` (was `20000` with a
   different meaning — "don't cut again this soon"; this is "how long to rest between subjects").
 - `DECK_CAMERA_MIN_BATTERY_PCT = 50` — new; the `pick()` preference threshold.
 
@@ -343,7 +343,7 @@ function tick(): void {
 - `deckCamera.test.ts` (full rewrite of the shipped file's follow/cut tests; the scroll-snap tests
   added in the previous session's work stay, untouched):
   - **Touch/release:** `pointerdown`/`touchstart` kills a running float and freezes continuous
-    tracking; `pointerup`/`touchend` starts an 8 s cooldown; a bare `wheel` event does both at once.
+    tracking; `pointerup`/`touchend` starts the cooldown; a bare `wheel` event does both at once.
   - **Follow duration:** a subject still `Active`/`Recalled` after `DECK_CAMERA_FOLLOW_MS` ends the
     follow and starts cooldown; one millisecond short does not.
   - **Dock ends early:** a subject whose `docking` becomes `Docked` before 20 s ends the follow
