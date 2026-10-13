@@ -370,24 +370,6 @@ export function computePitchLockPlan(
   });
 }
 
-/**
- * Map a duration in 16th-note subdivision grid units to the nearest NoteDuration.
- *   ≤ 1  → '16n'
- *   2–3  → '8n'
- *   4–6  → '4n'
- *   7+   → '2n'
- *
- * Kept as a general-purpose quantization utility; `generateMelodyForRobot` uses
- * `pickDurationForGap` instead so notes can be shorter than the full gap to the
- * next onset (leaving rests) rather than always filling it.
- */
-export function gridUnitsToDuration(units: number): NoteDuration {
-  if (units <= 1) return '16n';
-  if (units <= 3) return '8n';
-  if (units <= 6) return '4n';
-  return '2n';
-}
-
 /** Grid-unit length of each representable note duration, used by pickDurationForGap. */
 const DURATION_UNIT_VALUES: Array<[number, NoteDuration]> = [
   [1, '16n'],

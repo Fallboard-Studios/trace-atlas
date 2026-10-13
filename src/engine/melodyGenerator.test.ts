@@ -4,7 +4,6 @@ import {
   pickRandomIndices,
   buildMotifOnsets,
   computePitchLockPlan,
-  gridUnitsToDuration,
   pickDurationForGap,
   generateMelodyForRobot,
   reRollMelodyPitches,
@@ -350,21 +349,6 @@ describe('computePitchLockPlan', () => {
     expect(locked[3]).toBe(true); // onset 6, position 0's repeat-1 onset
     expect(locked[6]).toBe(true); // onset 12, position 0's tail onset
   });
-});
-
-// ========================================
-// TEST SUITE: gridUnitsToDuration
-// ========================================
-
-describe('gridUnitsToDuration', () => {
-  it('1 unit → 16n', () => expect(gridUnitsToDuration(1)).toBe('16n'));
-  it('0 units → 16n', () => expect(gridUnitsToDuration(0)).toBe('16n'));
-  it('2 units → 8n', () => expect(gridUnitsToDuration(2)).toBe('8n'));
-  it('3 units → 8n', () => expect(gridUnitsToDuration(3)).toBe('8n'));
-  it('4 units → 4n', () => expect(gridUnitsToDuration(4)).toBe('4n'));
-  it('6 units → 4n', () => expect(gridUnitsToDuration(6)).toBe('4n'));
-  it('7 units → 2n', () => expect(gridUnitsToDuration(7)).toBe('2n'));
-  it('16 units → 2n', () => expect(gridUnitsToDuration(16)).toBe('2n'));
 });
 
 // ========================================
