@@ -3321,3 +3321,83 @@ describe('AudioEngine.reReserveVoice - articulation', () => {
     expect(lastSynthCtorConfig()).toMatchObject({ portamento: 0 });
   });
 });
+
+// ========================================
+// Robot Articulation T13 (docs/specs/ROBOT_ARTICULATION.md §3, "Zero new Tone nodes")
+// ========================================
+
+describe('AudioEngine.reserveVoice - the articulation traits add no Tone nodes', () => {
+  const layer = (gain: number): any => ({ type: 'sine', gain, detune: 0, phase: 0 });
+  const FULL_ARTICULATION = { portamento: 0.2, filterQ: 6, filterType: 'bandpass' as const };
+  const CURVED_ADSR = { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.4, attackCurve: 'bounce' as const, releaseCurve: 'sine' as const };
+
+  // Fresh modules each test, as the articulation block above. The Tone mock's call counts survive
+  // vi.resetModules, so `constructions()` reports the delta since load rather than the raw totals.
+  const load = async () => {
+    vi.resetModules();
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const count = (ctor: unknown) => (ctor as ReturnType<typeof vi.fn>).mock.calls.length;
+    const snapshot = () => ({ filter: count(Tone.Filter), panner: count(Tone.Panner), synth: count(Tone.Synth), gain: count(Tone.Gain) });
+    const base = snapshot();
+    const constructions = () => {
+      const now = snapshot();
+      return { filter: now.filter - base.filter, panner: now.panner - base.panner, synth: now.synth - base.synth, gain: now.gain - base.gain };
+    };
+    return { AudioEngine, constructions };
+  };
+
+  // Today's numbers (identical on main): one Filter, one Panner and one Synth per audible layer; Gains are the
+  // composite output, one per audible layer, and the bus gain.
+  const expectedFor = (layers: number) => ({ filter: 1, panner: 1, synth: layers, gain: layers + 2 });
+
+  it('builds today node counts for a plain two-layer reservation (the pinned baseline)', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-plain', [layer(0.8), layer(0.5)], TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    expect(constructions()).toEqual(expectedFor(2));
+  });
+
+  it('builds the same counts with every articulation trait set: glide, Q, type and both curves', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-full', [layer(0.8), layer(0.5)], CURVED_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    expect(constructions()).toEqual(expectedFor(2));
+  });
+
+  it('scales with audible layers only: one layer is one Synth, and a gain-0 layer builds no Synth or Gain', async () => {
+    const one = await load();
+    one.AudioEngine.reserveVoice('count-one', [layer(0.8)], TEST_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    expect(one.constructions()).toEqual(expectedFor(1));
+
+    const muted = await load();
+    muted.AudioEngine.reserveVoice('count-muted', [layer(0.8), layer(0)], TEST_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    expect(muted.constructions()).toEqual(expectedFor(1));
+  });
+
+  it('adds nothing per extra robot beyond the same counts (two reservations are exactly double)', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-a', [layer(0.8), layer(0.5)], CURVED_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    AudioEngine.reserveVoice('count-b', [layer(0.8), layer(0.5)], TEST_ADSR, undefined, undefined, undefined, 1, 6000);
+    const one = expectedFor(2);
+    expect(constructions()).toEqual({ filter: one.filter * 2, panner: one.panner * 2, synth: one.synth * 2, gain: one.gain * 2 });
+  });
+
+  it('constructs nothing on a live glide, bus-filter or curve edit (they set parameters on the nodes already there)', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-live', [layer(0.8), layer(0.5)], TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    const before = constructions();
+
+    AudioEngine.updateVoicePortamento('count-live', 0.15);
+    AudioEngine.updateRobotBusFilter('count-live', { frequency: 900, Q: 4, type: 'highpass' });
+    AudioEngine.updateVoiceEnvelope('count-live', CURVED_ADSR);
+
+    expect(constructions()).toEqual(before);
+  });
+
+  it('constructs nothing when the edit targets a robot that is not reserved (a safe no-op)', async () => {
+    const { AudioEngine, constructions } = await load();
+    const before = constructions();
+    AudioEngine.updateVoicePortamento('count-ghost', 0.15);
+    AudioEngine.updateRobotBusFilter('count-ghost', { frequency: 900, Q: 4, type: 'highpass' });
+    expect(constructions()).toEqual(before);
+  });
+});
