@@ -470,6 +470,31 @@ describe('spawnSystem', () => {
       expect(dataIds.filter((id) => /pan/i.test(id))).toEqual([]);
     });
 
+    // Robot Sends T1 (docs/specs/ROBOT_SENDS.md section 1.1): the fields exist from spawn as a 0 placeholder;
+    // T5 replaces it with the seeded spread. Until then no noise draw and no existing key moves.
+    it('spawns every robot with reverbSend and delaySend present, as numbers', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
+      for (let i = 0; i < 20; i++) spawnRobot(DEFAULT_LOCALE_ID);
+
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      expect(robots).toHaveLength(22);
+      for (const robot of robots) {
+        expect(robot.reverbSend, `robot ${robot.id}`).toBe(0);
+        expect(robot.delaySend, `robot ${robot.id}`).toBe(0);
+      }
+    });
+
+    it('draws nothing from the noise map for the sends yet (no new getSeededVal key before T5)', () => {
+      vi.mocked(getSeededVal).mockClear();
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      const dataIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1]));
+      expect(dataIds).toContain('robot.masterVolume');
+      expect(dataIds.filter((id) => /send/i.test(id))).toEqual([]);
+    });
+
     it('spawns robots with the new percentage/toggle melody shapes', () => {
       spawnRobot(DEFAULT_LOCALE_ID);
       const robot = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0];

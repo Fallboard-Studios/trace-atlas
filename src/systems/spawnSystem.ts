@@ -708,6 +708,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     // draw, so a world's existing seeded values and its sound are unchanged.
     pan: 0,
     panAuto: true,
+    // Robot Sends (docs/specs/ROBOT_SENDS.md §1.1): placeholder until generateRobotSends seeds the spread.
+    reverbSend: 0,
+    delaySend: 0,
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',

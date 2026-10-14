@@ -34,6 +34,8 @@ const makeRobot = (id: string): Robot => ({
   masterVolume: 0.7,
   pan: 0,
   panAuto: true,
+  reverbSend: 0,
+  delaySend: 0,
   docking: DockingState.Active,
   activity: 'exiting',
   batteryLevel: 100,
@@ -341,6 +343,72 @@ describe('localeStore', () => {
         useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { pan: -0.4 });
         useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { panAuto: true });
         expect(storedPan()).toBe(-0.4);
+      });
+    });
+
+    // Robot Sends T1 (docs/specs/ROBOT_SENDS.md section 1.1): both sends are stored 0..1 and fractional.
+    describe.each(['reverbSend', 'delaySend'] as const)('%s clamping (stored 0..1, fractional)', (field) => {
+      const other = field === 'reverbSend' ? 'delaySend' : 'reverbSend';
+      const robot0 = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
+      const stored = () => robot0()[field];
+      const update = (patch: Partial<Robot>) => useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', patch);
+      const addR1 = () => useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+
+      it('clamps a value above 1 down to 1', () => {
+        addR1();
+        update({ [field]: 7 });
+        expect(stored()).toBe(1);
+      });
+
+      it('clamps a value below 0 up to 0', () => {
+        addR1();
+        update({ [field]: -2 });
+        expect(stored()).toBe(0);
+      });
+
+      it('keeps a fractional value exactly - a send is not truncated like the integer fields', () => {
+        addR1();
+        update({ [field]: 0.25 });
+        expect(stored()).toBe(0.25);
+        update({ [field]: 0.999 });
+        expect(stored()).toBe(0.999);
+      });
+
+      it('passes both bounds through untouched', () => {
+        addR1();
+        for (const v of [1, 0, 1]) {
+          update({ [field]: v });
+          expect(stored()).toBe(v);
+        }
+      });
+
+      it('clamps infinities to the bounds', () => {
+        addR1();
+        update({ [field]: Infinity });
+        expect(stored()).toBe(1);
+        update({ [field]: -Infinity });
+        expect(stored()).toBe(0);
+      });
+
+      it('drops a NaN, leaving the stored value as it was', () => {
+        addR1();
+        update({ [field]: 0.5 });
+        update({ [field]: NaN });
+        expect(stored()).toBe(0.5);
+      });
+
+      it('drops a NaN without discarding the rest of the same update', () => {
+        addR1();
+        update({ [field]: NaN, panAuto: false });
+        expect(robot0().panAuto).toBe(false);
+      });
+
+      it('an update that does not mention it leaves it alone, and never touches the other send', () => {
+        addR1();
+        update({ [field]: 0.4 });
+        update({ [other]: 0.9 });
+        expect(stored()).toBe(0.4);
+        expect(robot0()[other]).toBe(0.9);
       });
     });
 

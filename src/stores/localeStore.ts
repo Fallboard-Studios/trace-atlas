@@ -22,6 +22,8 @@ import {
   PITCH_REPEAT_MAX,
   PAN_MIN,
   PAN_MAX,
+  SEND_MIN,
+  SEND_MAX,
 } from '../constants';
 import { swallow } from '../utils/helpers';
 
@@ -195,6 +197,17 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           delete normalized.pan;
         } else {
           normalized.pan = Math.max(PAN_MIN, Math.min(PAN_MAX, normalized.pan));
+        }
+      }
+      for (const sendKey of ['reverbSend', 'delaySend'] as const) {
+        const send = normalized[sendKey];
+        if (typeof send === 'number') {
+          // Fractional like pan, so no trunc; NaN is dropped and the stored value kept.
+          if (Number.isNaN(send)) {
+            delete normalized[sendKey];
+          } else {
+            normalized[sendKey] = Math.max(SEND_MIN, Math.min(SEND_MAX, send));
+          }
         }
       }
       if (normalized.rhythmicMotifLength !== undefined) {

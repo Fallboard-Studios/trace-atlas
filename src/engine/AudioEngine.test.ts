@@ -1051,6 +1051,8 @@ describe('AudioEngine - Motif Group Accent', () => {
       masterVolume: 0.8,
       pan: 0,
       panAuto: true,
+      reverbSend: 0,
+      delaySend: 0,
       melody: [],
       octaveRange: [3, 4] as [number, number],
       position: { x: 0, y: 0 },
@@ -1232,6 +1234,8 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       masterVolume: 0.8,
       pan: 0,
       panAuto: true,
+      reverbSend: 0,
+      delaySend: 0,
       melody: [],
       octaveRange: overrides.octaveRange ?? ([3, 4] as [number, number]),
       position: { x: 0, y: 0 },
@@ -1531,7 +1535,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
       robots: [{
         id: 'pan-recompute-robot', compositionSeed: 0.5, identityColor: '#428d95', gemSeed: 1, audioMode: 'none',
         audioAttributes: { adsr: TEST_ADSR, waveform: 'sine' as const, filterFreq: 100 },
-        masterVolume: 0.8, pan: 0, panAuto: true, melody: [], octaveRange: [3, 4] as [number, number],
+        masterVolume: 0.8, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the
         // Panner mock's own default pan.value of 0, so an unwanted write is detectable.
         position: { x: 0, y: 0 }, name: '',
@@ -2834,6 +2838,8 @@ describe('AudioEngine - reservation re-primes a manual pan from the store (Robot
     masterVolume: 0.8,
     pan: 0,
     panAuto: true,
+    reverbSend: 0,
+    delaySend: 0,
     audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: LAYERS },
     ...extra,
   });
