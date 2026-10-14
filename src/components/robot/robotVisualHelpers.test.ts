@@ -16,6 +16,7 @@ import {
   LAMP_MIN,
 } from './robotVisualHelpers';
 import type { ADSREnvelope } from '../../types/Robot';
+import { ATTACK_RELEASE_MAX_SECONDS } from '../../constants';
 import type { OscillatorLayer } from '../../types/layeredAudio';
 
 describe('robotVisualHelpers', () => {
@@ -65,8 +66,10 @@ describe('robotVisualHelpers', () => {
   });
 
   describe('BODY_NORMALISER', () => {
-    it('matches the seeded attack/release range (5s) and sustain range (1)', () => {
-      expect(BODY_NORMALISER).toEqual({ attack: 5, sustain: 1, release: 5 });
+    it('matches the seeded attack/release range (2s, the sliders\' own maximum) and sustain range (1)', () => {
+      expect(BODY_NORMALISER).toEqual({ attack: 2, sustain: 1, release: 2 });
+      expect(BODY_NORMALISER.attack).toBe(ATTACK_RELEASE_MAX_SECONDS);
+      expect(BODY_NORMALISER.release).toBe(ATTACK_RELEASE_MAX_SECONDS);
     });
   });
 
@@ -77,17 +80,17 @@ describe('robotVisualHelpers', () => {
     });
 
     it('attack at the normaliser clamps scale to its floor (0.25)', () => {
-      const adsr: ADSREnvelope = { attack: 5, decay: 0, sustain: 0, release: 0 };
+      const adsr: ADSREnvelope = { attack: 2, decay: 0, sustain: 0, release: 0 };
       expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25);
     });
 
     it('attack beyond the normaliser still clamps scale to 0.25, not negative', () => {
       const adsr: ADSREnvelope = { attack: 10, decay: 0, sustain: 0, release: 0 };
-      expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25);
+      expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25); // also an old save's 4 s, or the 10 s Decay-style edit of before
     });
 
     it('release at half the normaliser gives exactly 0.5 detail', () => {
-      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 2.5 };
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 1 };
       expect(bodyShapeFromAdsr(adsr).detail).toBe(0.5);
     });
 

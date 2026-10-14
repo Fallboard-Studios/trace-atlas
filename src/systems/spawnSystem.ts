@@ -20,7 +20,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
-  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q,
+  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ATTACK_RELEASE_MAX_SECONDS,
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
@@ -43,14 +43,21 @@ const WORLD_HEIGHT = 1080;
 /** Distance outside the SVG viewBox where robots spawn before swimming on-screen. */
 const OFFSCREEN_OFFSET = 150;
 
-// ADSR ranges. Roadmap Phase 9: unified to one flat 0-5s range for attack/decay/release
-// (previously mismatched per-field maxes of 2/2/5) — kept deliberately narrower than the Ping
-// Contour drawer's 0-10s edit range, the same "generation range narrower than what a user can
-// dial to by hand" relationship every other seeded field in this phase has.
-const ATTACK_RANGE = { min: 0.0, max: 5.0 };
+// ADSR ranges. Roadmap Phase 9 unified attack/decay/release to one flat 0-5s range, kept narrower than the Ping
+// Contour drawer's 0-10s edit range (the same "generation range narrower than what a user can dial to by hand"
+// relationship every other seeded field has). Attack and Release have since been narrowed to their sliders' new
+// 0-2s (ATTACK_RELEASE_MAX_SECONDS), so a seeded value is always one the slider can show; Decay is unchanged.
+const ATTACK_RANGE = { min: 0.0, max: ATTACK_RELEASE_MAX_SECONDS };
 const DECAY_RANGE = { min: 0.0, max: 5.0 };
 const SUSTAIN_RANGE = { min: 0.0, max: 1.0 };
-const RELEASE_RANGE = { min: 0.0, max: 5.0 };
+const RELEASE_RANGE = { min: 0.0, max: ATTACK_RELEASE_MAX_SECONDS };
+/**
+ * A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
+ * shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
+ * just spread over this range instead, so which robot is shaped and which curve it gets are untouched.
+ */
+const SHAPED_ATTACK_RANGE = { min: 0.03, max: 0.25 };
+const SHAPED_RELEASE_RANGE = { min: 0.15, max: 0.8 };
 
 // Signature Array is a fixed 3-slot layer array (Roadmap Phase 9) — Baseline/Coaxial/Harmonic,
 // replacing the old variable 1..MAX_LAYERS count.
@@ -331,14 +338,18 @@ export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number)
  * Controls both sound synthesis and visual appearance
  */
 export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: number): AudioAttributes {
-  // Seeded ADSR envelope
+  // Seeded ADSR envelope. The curves are drawn first: a shaped stage is seeded short (see SHAPED_ATTACK_RANGE).
+  const attackCurve = seedCurve(noiseMap, 'robot.audio.attackCurve', offset, ATTACK_CURVE_SHAPED_THRESHOLD);
+  const releaseCurve = seedCurve(noiseMap, 'robot.audio.releaseCurve', offset, RELEASE_CURVE_SHAPED_THRESHOLD);
+  const attackRange = attackCurve === 'linear' ? ATTACK_RANGE : SHAPED_ATTACK_RANGE;
+  const releaseRange = releaseCurve === 'linear' ? RELEASE_RANGE : SHAPED_RELEASE_RANGE;
   const adsr = {
-    attack: getSeededVal(noiseMap, 'robot.audio.attack', offset, ATTACK_RANGE.min, ATTACK_RANGE.max),
+    attack: getSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
     decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, DECAY_RANGE.min, DECAY_RANGE.max),
     sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, SUSTAIN_RANGE.min, SUSTAIN_RANGE.max),
-    release: getSeededVal(noiseMap, 'robot.audio.release', offset, RELEASE_RANGE.min, RELEASE_RANGE.max),
-    attackCurve: seedCurve(noiseMap, 'robot.audio.attackCurve', offset, ATTACK_CURVE_SHAPED_THRESHOLD),
-    releaseCurve: seedCurve(noiseMap, 'robot.audio.releaseCurve', offset, RELEASE_CURVE_SHAPED_THRESHOLD),
+    release: getSeededVal(noiseMap, 'robot.audio.release', offset, releaseRange.min, releaseRange.max),
+    attackCurve,
+    releaseCurve,
   };
 
   // Seeded portamento — most robots don't glide; a glider slurs each note into the next

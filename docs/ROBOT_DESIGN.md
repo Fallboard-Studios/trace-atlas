@@ -109,6 +109,10 @@ nothing else:
 - **Body scale** — `calculateBodyScale(octaveRange, bodyShapeFromAdsr(adsr).scale)`: register step
   × attack bias, floored at `BODY_SCALE_MIN`; range 0.735–1.69, about the canvas centre.
 
+Attack and Release are normalised over `ATTACK_RELEASE_MAX_SECONDS` (2 s): the same number as their sliders'
+maximum and the top of their seeded range, so a seeded robot's attack and release spread over the whole 0..1 of
+`scale` and `detail`. A value past it (an old save's) clamps.
+
 Waveform, filter frequency, phase and detune have no visual mapping on gem robots (later branches
 in [gem-polygon-robots.md](ideas/gem-polygon-robots.md) may map them to geometry or motion).
 

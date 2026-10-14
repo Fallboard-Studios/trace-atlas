@@ -52,6 +52,35 @@ describe('PingContourDrawer', () => {
     expect(values.slice(0, 3)).toEqual(['0.2s', '0.3s', '1.5s']);
   });
 
+  it('Attack and Release stop at 2 s: End on either slider reports exactly 2', () => {
+    const onChange = vi.fn();
+    render(<PingContourDrawer {...PORTA} value={adsr} onChange={onChange} />);
+    fireEvent.keyDown(screen.getByRole('slider', { name: /attack/i }), { key: 'End' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /release/i }), { key: 'End' });
+    expect((onChange.mock.calls[0][0] as ADSREnvelope).attack).toBeCloseTo(2, 9);
+    expect((onChange.mock.calls[1][0] as ADSREnvelope).release).toBeCloseTo(2, 9);
+  });
+
+  it('Decay still reaches 10 s', () => {
+    const onChange = vi.fn();
+    render(<PingContourDrawer {...PORTA} value={adsr} onChange={onChange} />);
+    fireEvent.keyDown(screen.getByRole('slider', { name: /decay/i }), { key: 'End' });
+    expect((onChange.mock.calls[0][0] as ADSREnvelope).decay).toBeCloseTo(10, 9);
+  });
+
+  it('an old save\'s 4 s Attack and 8 s Release still render (the slider just sits at its end), and the next step comes back inside 2 s', () => {
+    const onChange = vi.fn();
+    const old: ADSREnvelope = { attack: 4, decay: 0.3, sustain: 0.8, release: 8 };
+    const { container } = render(<PingContourDrawer {...PORTA} value={old} onChange={onChange} />);
+    const values = Array.from(container.querySelectorAll('.sc-slider-log__value')).map((el) => el.textContent);
+    expect(values[0]).toBe('4s'); // shown as stored, not silently changed
+    expect(values[2]).toBe('8s');
+    fireEvent.keyDown(screen.getByRole('slider', { name: /attack/i }), { key: 'ArrowLeft' });
+    const next = onChange.mock.calls[0][0] as ADSREnvelope;
+    expect(next.attack).toBeLessThanOrEqual(2);
+    expect(next.release).toBe(8); // the other field is untouched
+  });
+
   it('Sustain displays as 0-100% of the stored 0..1 value', () => {
     render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
     expect(screen.getByRole('slider', { name: /sustain/i }).getAttribute('aria-valuenow')).toBe('80');

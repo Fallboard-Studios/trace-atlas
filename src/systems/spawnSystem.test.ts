@@ -88,19 +88,18 @@ describe('spawnSystem', () => {
       expect(['sine', 'square', 'triangle', 'sawtooth', 'pulse']).toContain(attrs.waveform);
     });
 
-    it('generates ADSR values within the unified 0-5s generation range (Roadmap Phase 9)', () => {
-      // attack/decay/release used to have mismatched per-field maxes (2/2/5) narrower than the
-      // Ping Contour drawer's 0-10s edit range; Phase 9 unifies generation to a flat 0-5s so it's
-      // still narrower than the edit range without three different arbitrary per-field caps.
+    it('generates Attack and Release within 0-2s (the sliders\' range) and Decay within 0-5s', () => {
+      // Phase 9 unified all three at 0-5s; Attack and Release were then narrowed to their sliders' new 0-2s
+      // (docs/specs/ROBOT_ARTICULATION.md "As shipped"), so a seeded value is always one the slider can show.
       const attrs = generateAudioAttributes(mockNoiseMap, 0);
       expect(attrs.adsr.attack).toBeGreaterThanOrEqual(0);
-      expect(attrs.adsr.attack).toBeLessThanOrEqual(5.0);
+      expect(attrs.adsr.attack).toBeLessThanOrEqual(2.0);
       expect(attrs.adsr.decay).toBeGreaterThanOrEqual(0);
       expect(attrs.adsr.decay).toBeLessThanOrEqual(5.0);
       expect(attrs.adsr.sustain).toBeGreaterThanOrEqual(0.0);
       expect(attrs.adsr.sustain).toBeLessThanOrEqual(1.0);
       expect(attrs.adsr.release).toBeGreaterThanOrEqual(0);
-      expect(attrs.adsr.release).toBeLessThanOrEqual(5.0);
+      expect(attrs.adsr.release).toBeLessThanOrEqual(2.0);
     });
 
     it('generates octave range from predefined registers', () => {
@@ -299,6 +298,9 @@ describe('spawnSystem', () => {
         expect(a.filterType).toBe('bandpass');
         expect(a.adsr.attackCurve).toBe('exponential'); // shaped roll 0 < 0.15, index 0 of the six non-linear names
         expect(a.adsr.releaseCurve).toBe('exponential');
+        // A shaped stage is short enough for its shape to be heard: the bottom of the shaped ranges.
+        expect(a.adsr.attack).toBeCloseTo(0.03, 9);
+        expect(a.adsr.release).toBeCloseTo(0.15, 9);
       });
 
       it('noise +1 (every draw at its max) is the plain robot: no glide, linear curves, open lowpass at 8000 Hz, Q 1', () => {
@@ -306,6 +308,9 @@ describe('spawnSystem', () => {
         expect(a.portamento).toBe(0);
         expect(a.adsr.attackCurve).toBe('linear');
         expect(a.adsr.releaseCurve).toBe('linear');
+        // A plain robot keeps the full seeded range: the top of it.
+        expect(a.adsr.attack).toBeCloseTo(2, 9);
+        expect(a.adsr.release).toBeCloseTo(2, 9);
         expect(a.filterFreq).toBe(8000);
         expect(a.filterQ).toBe(1);
         expect(a.filterType).toBe('lowpass');
@@ -324,6 +329,94 @@ describe('spawnSystem', () => {
           expect(a.adsr.attackCurve).toBe(ENVELOPE_CURVE_NAMES[ENVELOPE_CURVE_NAMES.length - 1]);
         } finally {
           mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
+        }
+      });
+    });
+
+    describe('Attack and Release times (shaped stages are short enough to hear)', () => {
+      const shapedAttacks = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear');
+      const plainAttacks = SAMPLE.filter((a) => a.adsr.attackCurve === 'linear');
+      const shapedReleases = SAMPLE.filter((a) => a.adsr.releaseCurve !== 'linear');
+      const plainReleases = SAMPLE.filter((a) => a.adsr.releaseCurve === 'linear');
+
+      it('every robot\'s Attack and Release sit inside 0-2 s, so each is a value its slider can show', () => {
+        for (const a of SAMPLE) {
+          expect(a.adsr.attack).toBeGreaterThanOrEqual(0);
+          expect(a.adsr.attack).toBeLessThanOrEqual(2);
+          expect(a.adsr.release).toBeGreaterThanOrEqual(0);
+          expect(a.adsr.release).toBeLessThanOrEqual(2);
+        }
+      });
+
+      it('a robot with a shaped attack has an attack of 0.03-0.25 s', () => {
+        expect(shapedAttacks.length, 'sample has shaped attacks').toBeGreaterThan(20);
+        for (const a of shapedAttacks) {
+          expect(a.adsr.attack, `attack ${a.adsr.attackCurve}`).toBeGreaterThanOrEqual(0.03 - 1e-9);
+          expect(a.adsr.attack).toBeLessThanOrEqual(0.25 + 1e-9);
+        }
+      });
+
+      it('a robot with a shaped release has a release of 0.15-0.8 s', () => {
+        expect(shapedReleases.length, 'sample has shaped releases').toBeGreaterThan(20);
+        for (const a of shapedReleases) {
+          expect(a.adsr.release, `release ${a.adsr.releaseCurve}`).toBeGreaterThanOrEqual(0.15 - 1e-9);
+          expect(a.adsr.release).toBeLessThanOrEqual(0.8 + 1e-9);
+        }
+      });
+
+      it('the two stages are decided separately: a shaped attack does not shorten that robot\'s release, nor the reverse', () => {
+        const attackOnly = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear' && a.adsr.releaseCurve === 'linear');
+        const releaseOnly = SAMPLE.filter((a) => a.adsr.attackCurve === 'linear' && a.adsr.releaseCurve !== 'linear');
+        expect(attackOnly.length).toBeGreaterThan(0);
+        expect(releaseOnly.length).toBeGreaterThan(0);
+        expect(attackOnly.some((a) => a.adsr.release > 0.8), 'a robot shaping only its attack can have a long release').toBe(true);
+        expect(releaseOnly.some((a) => a.adsr.attack > 0.25), 'a robot shaping only its release can have a long attack').toBe(true);
+      });
+
+      it('plain robots keep the whole 0-2 s range: both short and long values turn up, and most are past the drone line (0.5 s)', () => {
+        for (const group of [plainAttacks.map((a) => a.adsr.attack), plainReleases.map((a) => a.adsr.release)]) {
+          expect(Math.max(...group)).toBeGreaterThan(1.5);
+          expect(Math.min(...group)).toBeLessThan(0.5);
+          expect(group.filter((v) => v > 0.5).length / group.length).toBeGreaterThan(0.5);
+        }
+      });
+
+      it('leaves Decay alone: still 0-5 s with long values common', () => {
+        const decays = SAMPLE.map((a) => a.adsr.decay);
+        expect(Math.max(...decays)).toBeGreaterThan(4);
+        expect(Math.min(...decays)).toBeGreaterThanOrEqual(0);
+      });
+
+      it('a plain robot at a given point in the noise has the same body as before: seeded value / 2 s equals the old value / 5 s', async () => {
+        const { bodyShapeFromAdsr } = await import('../components/robot/robotVisualHelpers');
+        const mocked = vi.mocked(getSeededVal);
+        // Every Attack/Release draw lands 30 % of the way through whichever range it was given; the shaped rolls say "not shaped".
+        mocked.mockImplementation((_noiseMap, dataId, _offset, min = 0, max = 1) => (dataId.endsWith('.shaped') ? 1 : min + 0.3 * (max - min)));
+        try {
+          const a = generateAudioAttributes(createNoise2D(alea('envelope-body-seed')), 0);
+          expect(a.adsr.attack).toBeCloseTo(0.6, 9);
+          expect(a.adsr.release).toBeCloseTo(0.6, 9);
+          const body = bodyShapeFromAdsr(a.adsr);
+          expect(body.scale).toBeCloseTo(0.25 + (1 - 0.3) * 0.75, 9); // 30 % of the way along, as 1.5 s of 5 s was
+          expect(body.detail).toBeCloseTo(0.3, 9);
+        } finally {
+          const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+        }
+      });
+
+      it('a shaped stage lands 50 % of the way through its own short range, not the full one', async () => {
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((_noiseMap, dataId, _offset, min = 0, max = 1) => (dataId.endsWith('.shaped') ? 0 : min + 0.5 * (max - min)));
+        try {
+          const a = generateAudioAttributes(createNoise2D(alea('envelope-shaped-seed')), 0);
+          expect(a.adsr.attackCurve).not.toBe('linear');
+          expect(a.adsr.releaseCurve).not.toBe('linear');
+          expect(a.adsr.attack).toBeCloseTo(0.03 + 0.5 * (0.25 - 0.03), 9);
+          expect(a.adsr.release).toBeCloseTo(0.15 + 0.5 * (0.8 - 0.15), 9);
+        } finally {
+          const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
         }
       });
     });

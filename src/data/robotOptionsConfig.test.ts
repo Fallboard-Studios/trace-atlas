@@ -49,6 +49,7 @@ import {
   PORTAMENTO_MIN, PORTAMENTO_MAX, ROBOT_BUS_FILTER_FREQ_RANGE, ROBOT_BUS_FILTER_Q_RANGE, ROBOT_BUS_FILTER_Q,
 } from '@/constants';
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES } from '@/types/Robot';
+import { ATTACK_RELEASE_MAX_SECONDS } from '@/constants';
 
 const ALL_TOP_LEVEL_SCHEMAS = [
   AUDIO_SETTING_SCHEMA,
@@ -212,12 +213,21 @@ describe('robotOptionsConfig', () => {
     expect('VOLUME_LFO_TARGET' in robotOptionsConfigModule).toBe(false);
   });
 
-  it('Ping Contour\'s Attack/Decay/Release edit range is 0-10s (confirmed, not the seed-generation range)', () => {
-    [ATTACK_SCHEMA, DECAY_SCHEMA, RELEASE_SCHEMA].forEach((schema) => {
+  // Crawford, 2026-10-13: past about half a second a robot's notes (often back-to-back 16ths) never let the envelope
+  // finish, so 0-10 s was mostly one drone. Attack and Release now run 0-2 s; Decay keeps its 0-10 s.
+  it('Attack and Release run 0-2 s, the one shared ATTACK_RELEASE_MAX_SECONDS', () => {
+    expect(ATTACK_RELEASE_MAX_SECONDS).toBe(2);
+    [ATTACK_SCHEMA, RELEASE_SCHEMA].forEach((schema) => {
       expect(schema.min).toBe(0);
-      expect(schema.max).toBe(10);
+      expect(schema.max).toBe(ATTACK_RELEASE_MAX_SECONDS);
       expect(schema.unit).toBe('s');
     });
+  });
+
+  it('Decay keeps its 0-10 s edit range (only Attack and Release were narrowed)', () => {
+    expect(DECAY_SCHEMA.min).toBe(0);
+    expect(DECAY_SCHEMA.max).toBe(10);
+    expect(DECAY_SCHEMA.unit).toBe('s');
   });
 
   it('Sustain is a 0-100% display slider (conversion to the stored 0..1 value happens at the component boundary)', () => {
