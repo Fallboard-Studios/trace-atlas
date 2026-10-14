@@ -32,7 +32,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume, applyPan, applyPanAuto,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -181,10 +181,6 @@ const RobotAudioSettingSection = memo(function RobotAudioSettingSection({
   return <AudioSettingSection {...props} livePan={livePan} />;
 });
 
-// Bridge (docs/tasks/ROBOT_SENDS.md Task 9, replaced by Task 10): the section requires the two send handlers, so
-// this screen shows the stored sends but a drag writes nothing until Task 10 wires the actions.
-const INERT_SEND_HANDLER = (): void => {};
-
 /**
  * Each panel's value and handlers, moved from RobotOptionsTab: `value`s derived from `robot`, each
  * callback wired to its robotOptionsActions function, each memoized on the field it reads so the
@@ -239,6 +235,10 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     applyVolume(latestRobot.current, localeId, pct);
   }, [localeId]);
 
+  // The sends are not swell attributes yet (Task 12), so neither handler cancels one; Task 13 adds the cancel.
+  const handleReverbSendChange = useCallback((pct: number) => applyReverbSend(latestRobot.current, localeId, pct), [localeId]);
+  const handleDelaySendChange = useCallback((pct: number) => applyDelaySend(latestRobot.current, localeId, pct), [localeId]);
+
   // Pan is not a swell attribute, so neither handler cancels one. Both read the latest robot, so the
   // action sees the live pan/panAuto, not the render's (applyPanAuto copies the engine's live value).
   const handlePanChange = useCallback((display: number) => applyPan(latestRobot.current, localeId, display), [localeId]);
@@ -284,8 +284,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onVolumeChange={handleVolumeChange}
             onPanChange={handlePanChange}
             onPanAutoChange={handlePanAutoChange}
-            onReverbSendChange={INERT_SEND_HANDLER}
-            onDelaySendChange={INERT_SEND_HANDLER}
+            onReverbSendChange={handleReverbSendChange}
+            onDelaySendChange={handleDelaySendChange}
             volumeSwelling={volumeSwelling}
           />
         );
@@ -329,6 +329,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     }
   }, [
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
+    handleReverbSendChange, handleDelaySendChange,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
     robot.audioAttributes.adsr, handleAdsrChange, adsrSwelling,
