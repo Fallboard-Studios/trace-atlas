@@ -1479,9 +1479,8 @@ app does not use yet.
   (`src/data/globalAudioLoadingRanges.ts`) mirrored in
   [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md), and a band in the themes idea
   ([themes.md](../ideas/themes.md)). Session: optional on `SessionPayload` / `RobotAudioOverrideDiff`,
-  absent = the seeded value, like every field since v1. **A seeded default changes every existing
-  world; a default of *off* does not** — each sub-phase says which it chooses, and "off" is the safe
-  first cut for a trial.
+  absent = the seeded value, like every field since v1. The app is pre-v1, so a seeded default may
+  change how every world sounds; the phone gate is the only check on a new sound.
 - **UI.** Content keys with lore names in the
   [copy-tone-guide](../reference/copy-tone-guide.md)'s voice, a help popover per control, existing
   primitives only (layout decision 10), inside the Fleet Params / Robot section tabs
@@ -1506,8 +1505,7 @@ the budget cost is nil and the phone gate is a formality.
 
 - **Portamento.** `Tone.Synth` is a `Monophonic`; its `portamento` (seconds) is never set, so every
   note steps. One slider per robot (0 = today) glides each layer's frequency into the next note.
-  Envelope section, beside ADSR. Default: off for every existing robot, or a low seeded chance of a
-  glider — the interview decides; off leaves every world sounding as it does today.
+  Envelope section, beside ADSR. Default: off, or a low seeded chance of a glider — the interview decides.
 - **Envelope curves.** `Tone.Envelope` accepts `attackCurve` / `releaseCurve` of
   `linear | exponential | sine | cosine | bounce | ripple | step` (and `decayCurve` linear /
   exponential); both sit at Tone's defaults today. A single-line "contour shape" radio beside the ADSR
@@ -1536,10 +1534,11 @@ The interview must decide the topology: a true send / return (effect `wet` = 1, 
 sliders become return levels, the `reverb.wet` / `delay.wet` rows of `GLOBAL_AUDIO_LOADING_RANGES`
 re-ranged) versus keeping the inserts and adding sends on top (simpler, but a robot then has two paths
 into the same reverb). `wireGlobalFxChain` (`globalFx.ts:146`) is the one place the chain is wired and
-already rewires on the Decay toggle, so the send bus belongs there. Seeded default: every robot at the
-depth the insert gives today, so no world changes until a user moves one. Swells currently ride
-`reverb.wet` / `delay.wet` (audioSwells.ts's off-equivalent check); they keep riding the global return,
-never a send. Phone gate: twelve `Gain`s is the cheapest node there is, but this is a topology change,
+already rewires on the Decay toggle, so the send bus belongs there. Seeded default: the interview decides
+(a seeded spread of depths is fair game; no world is held to today's sound). Swells currently ride
+`reverb.wet` / `delay.wet` (audioSwells.ts's off-equivalent check); with the returns at full they could only
+dip, so they move to the individual robots (Crawford, 2026-10-14): the sends join the robot swell pool and
+the two `wet` targets leave the global pool. Phone gate: twelve `Gain`s is the cheapest node there is, but this is a topology change,
 so it is measured.
 
 ## 50.3 Global Colour: Saturation and BitCrusher
@@ -1548,7 +1547,7 @@ Two single-instance nodes on the global chain, each with a lore name — a degra
 on-brand. `Tone.Distortion` (soft overdrive: `distortion` 0–1, `oversample`) or `Tone.Chebyshev`
 (harmonic waveshaper: integer `order`) — one of the two, chosen in the interview, since they fill the
 same slot — plus `Tone.BitCrusher` (`bits`). Both have `wet`, so the seeded default can be fully dry
-(no world changes) or a gentle seeded band (every world gains grit — the Phase 42 kind of call).
+or a gentle seeded band (every world gains grit — the Phase 42 kind of call); the interview decides.
 Position: after the filters and before the Decay stage, a new slot in both of `wireGlobalFxChain`'s
 orderings. Fleet Params gets a new section tab ("Colour") or two rows in Output — spec decides against
 the rework's tab row. Both are LFO-able (`distortion`, `wet`) if a Bank target is wanted later, not in
