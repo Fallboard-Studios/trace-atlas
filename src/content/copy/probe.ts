@@ -133,7 +133,7 @@ export const probe = {
     intro: {
       lore: 'Levels — this probe’s signal strength.',
       loreDescription: 'Fine-tune how loudly this probe transmits, or silence it from the mesh entirely.',
-      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself.',
+      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats.',
     },
   },
   'probe.monitorMode': {
@@ -163,6 +163,19 @@ export const probe = {
     human: 'Auto',
     lore: 'Tracking',
     help: { human: 'On: the probe’s sound follows it across the field. Off: it stays where the Pan bar puts it.' },
+  },
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_SENDS.md assumption 11).
+  'probe.reverbSend': {
+    human: 'Reverb',
+    lore: 'Remoteness',
+    unit: '%',
+    help: { human: 'How much of this probe’s sound is sent into the shared Reverb. 0% keeps it completely dry and close; higher settings push it further away into the echo.' },
+  },
+  'probe.delaySend': {
+    human: 'Delay',
+    lore: 'Retrace Depth',
+    unit: '%',
+    help: { human: 'How much of this probe’s sound is sent into the shared Delay. 0% gives it no repeats at all; higher settings give it louder, longer-trailing repeats.' },
   },
 
   // ---------------------------------------------------------------- Composition

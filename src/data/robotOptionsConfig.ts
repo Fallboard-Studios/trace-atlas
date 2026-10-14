@@ -36,6 +36,10 @@ import {
   PAN_DISPLAY_SCALE,
   PAN_MIN,
   PAN_MAX,
+  SEND_MIN,
+  SEND_MAX,
+  SEND_DISPLAY_SCALE,
+  SEND_STEP_PERCENT,
 } from '@/constants';
 
 // ========================================
@@ -116,6 +120,32 @@ export const PAN_AUTO_SCHEMA: ToggleSchema = {
   id: 'robotOptions.panAuto',
   type: 'toggle',
   ...labels('probe.pan.auto'),
+};
+
+/**
+ * Display-only 0-100 % in 1 % steps; the stored value is 0..1 (Robot.reverbSend). Same display-vs-storage
+ * split as Volume - the bounds come from the stored range times SEND_DISPLAY_SCALE so the two cannot drift
+ * (docs/specs/ROBOT_SENDS.md §1.6). The component consuming this one converts pct/100 on write and value*100 on read.
+ */
+export const REVERB_SEND_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.reverbSend',
+  type: 'sliderLinear',
+  ...labels('probe.reverbSend'),
+  min: SEND_MIN * SEND_DISPLAY_SCALE,
+  max: SEND_MAX * SEND_DISPLAY_SCALE,
+  step: SEND_STEP_PERCENT,
+  orientation: 'horizontal',
+};
+
+/** The Delay send (Robot.delaySend), the Reverb send's twin. */
+export const DELAY_SEND_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.delaySend',
+  type: 'sliderLinear',
+  ...labels('probe.delaySend'),
+  min: SEND_MIN * SEND_DISPLAY_SCALE,
+  max: SEND_MAX * SEND_DISPLAY_SCALE,
+  step: SEND_STEP_PERCENT,
+  orientation: 'horizontal',
 };
 
 /** The Pan slider and its Auto toggle side by side, unlabeled — pure layout, the third row of
