@@ -181,6 +181,81 @@ describe('computeRobotAudioOverrideDiff', () => {
     });
   });
 
+  describe('articulation (Robot Articulation T11)', () => {
+    /** A glider with an accent filter and shaped attack: every new field holds a distinguishing value. */
+    function makeArticulatedBaseline() {
+      return makeBaseline({
+        audioAttributes: {
+          ...makeBaseline().audioAttributes,
+          adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5, attackCurve: 'bounce', releaseCurve: 'linear' },
+          portamento: 0.15,
+          filterQ: 5,
+          filterType: 'bandpass',
+        },
+      });
+    }
+
+    it('diffs an edited robot to exactly the adsr (with its curve), portamento, filterQ and filterType', () => {
+      const baseline = makeBaseline();
+      const editedAdsr = { ...baseline.audioAttributes.adsr, attackCurve: 'sine' as const };
+      const live = makeLiveRobot(baseline, {
+        audioAttributes: { ...baseline.audioAttributes, adsr: editedAdsr, portamento: 0.2, filterQ: 4, filterType: 'bandpass' },
+      });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({
+        adsr: editedAdsr,
+        portamento: 0.2,
+        filterQ: 4,
+        filterType: 'bandpass',
+      });
+    });
+
+    it('diffs an untouched glider / accent-filter / shaped-attack robot to nothing', () => {
+      const baseline = makeArticulatedBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline)).toEqual({});
+    });
+
+    it('diffs portamento alone', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { audioAttributes: { ...baseline.audioAttributes, portamento: 0.1 } });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ portamento: 0.1 });
+    });
+
+    it('diffs filterQ alone', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { audioAttributes: { ...baseline.audioAttributes, filterQ: 6 } });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ filterQ: 6 });
+    });
+
+    it('diffs filterType alone', () => {
+      const baseline = makeBaseline();
+      const live = makeLiveRobot(baseline, { audioAttributes: { ...baseline.audioAttributes, filterType: 'highpass' } });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ filterType: 'highpass' });
+    });
+
+    it('diffs a releaseCurve change as the adsr alone', () => {
+      const baseline = makeArticulatedBaseline();
+      const editedAdsr = { ...baseline.audioAttributes.adsr, releaseCurve: 'step' as const };
+      const live = makeLiveRobot(baseline, { audioAttributes: { ...baseline.audioAttributes, adsr: editedAdsr } });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ adsr: editedAdsr });
+    });
+
+    it('keeps a portamento of exactly 0 when the seeded baseline glides: the glide switched off is still a change', () => {
+      const baseline = makeArticulatedBaseline();
+      const live = makeLiveRobot(baseline, { audioAttributes: { ...baseline.audioAttributes, portamento: 0 } });
+      expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ portamento: 0 });
+    });
+
+    it('writes no key (not an undefined-valued one) for a live robot that carries none of the three fields', () => {
+      const baseline = makeArticulatedBaseline();
+      const { portamento: _p, filterQ: _q, filterType: _t, ...bare } = baseline.audioAttributes;
+      const live = makeLiveRobot(baseline, { audioAttributes: bare });
+      const diff = computeRobotAudioOverrideDiff(live, baseline);
+      expect(diff).not.toHaveProperty('portamento');
+      expect(diff).not.toHaveProperty('filterQ');
+      expect(diff).not.toHaveProperty('filterType');
+    });
+  });
+
   it('diffs octaveRange alone when only octaveRange changed', () => {
     const baseline = makeBaseline();
     const live = makeLiveRobot(baseline, { octaveRange: [1, 3] });
@@ -849,6 +924,176 @@ describe('applySessionPayload', () => {
       expect(restored.panAuto).toBe(true);
       expect(primeSpy).not.toHaveBeenCalled();
       primeSpy.mockRestore();
+    });
+  });
+
+  describe('articulation across a session restore (Robot Articulation T11)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const EDIT = {
+      portamento: 0.2,
+      filterQ: 4,
+      filterType: 'bandpass' as const,
+    };
+
+    function articulatedWorld() {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const seeded = robot.audioAttributes;
+      useLocaleStore.getState().updateRobot(localeId, robot.id, {
+        audioAttributes: { ...seeded, ...EDIT, adsr: { ...seeded.adsr, attackCurve: 'sine' } },
+      });
+      return { localeId, robot, seeded, payload: buildSessionPayload() };
+    }
+
+    function spyEngine() {
+      return {
+        bus: vi.spyOn(AudioEngine, 'updateRobotBusFilter').mockImplementation(() => {}),
+        glide: vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {}),
+      };
+    }
+
+    function restoredAttrs(robotId: string) {
+      return currentLocale()!.robots.find((r) => r.id === robotId)!.audioAttributes;
+    }
+
+    function elsewhere(payload: SessionPayload): SessionPayload {
+      return { ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } };
+    }
+
+    it('captures an edited robot as adsr + portamento + filterQ + filterType and nothing else', () => {
+      const { robot, seeded, payload } = articulatedWorld();
+      expect(payload.robotOverrides[robot.id]).toEqual({
+        adsr: { ...seeded.adsr, attackCurve: 'sine' },
+        ...EDIT,
+      });
+    });
+
+    it('restores the fields and primes the engine with the bus filter Q and type and the portamento', () => {
+      const { robot, seeded, payload } = articulatedWorld();
+      const { bus, glide } = spyEngine();
+
+      applySessionPayload(elsewhere(payload));
+      bus.mockClear();
+      glide.mockClear();
+      applySessionPayload(payload);
+
+      const attrs = restoredAttrs(robot.id);
+      expect(attrs.portamento).toBe(0.2);
+      expect(attrs.filterQ).toBe(4);
+      expect(attrs.filterType).toBe('bandpass');
+      expect(attrs.adsr).toEqual({ ...seeded.adsr, attackCurve: 'sine' });
+      expect(bus.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { Q: 4, type: 'bandpass' }]]);
+      expect(glide.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, 0.2]]);
+      bus.mockRestore();
+      glide.mockRestore();
+    });
+
+    it('round-trips: the restored world re-saves to the same single override', () => {
+      const { robot, payload } = articulatedWorld();
+      spyEngine();
+
+      applySessionPayload(elsewhere(payload));
+      applySessionPayload(payload);
+
+      expect(buildSessionPayload().robotOverrides).toEqual({ [robot.id]: payload.robotOverrides[robot.id] });
+    });
+
+    it('a payload without the keys leaves the seeded values alone and primes nothing', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const before = useLocaleStore.getState().getLocaleById(localeId)!.robots.map((r) => r.audioAttributes);
+      const payload = buildSessionPayload();
+      const { bus, glide } = spyEngine();
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      const after = currentLocale()!.robots.map((r) => r.audioAttributes);
+      expect(after.map((a) => [a.portamento, a.filterQ, a.filterType])).toEqual(
+        before.map((a) => [a.portamento, a.filterQ, a.filterType]),
+      );
+      expect(bus).not.toHaveBeenCalled();
+      expect(glide).not.toHaveBeenCalled();
+      bus.mockRestore();
+      glide.mockRestore();
+    });
+
+    it('restores a portamento of exactly 0 and primes it: a falsy recorded value is still a value', () => {
+      const { robot, payload } = articulatedWorld();
+      const wild = { ...payload, robotOverrides: { [robot.id]: { portamento: 0 } } };
+      const { glide } = spyEngine();
+
+      applySessionPayload(wild, { skipLocaleRebuild: true });
+
+      expect(restoredAttrs(robot.id).portamento).toBe(0);
+      expect(glide).toHaveBeenCalledWith(robot.id, 0);
+      glide.mockRestore();
+    });
+
+    it('primes only the bus keys the payload carries', () => {
+      const { robot, payload } = articulatedWorld();
+      const { bus, glide } = spyEngine();
+
+      applySessionPayload({ ...payload, robotOverrides: { [robot.id]: { filterQ: 7 } } }, { skipLocaleRebuild: true });
+      expect(bus.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { Q: 7 }]]);
+      bus.mockClear();
+
+      applySessionPayload({ ...payload, robotOverrides: { [robot.id]: { filterType: 'highpass' } } }, { skipLocaleRebuild: true });
+      expect(bus.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { type: 'highpass' }]]);
+      expect(glide).not.toHaveBeenCalled();
+      bus.mockRestore();
+      glide.mockRestore();
+    });
+
+    it('drops an unlisted filterType and restores the rest of the diff', () => {
+      const { robot, payload } = articulatedWorld();
+      const hostile = { ...payload, robotOverrides: { [robot.id]: { filterType: 'notch', filterQ: 6, portamento: 0.1 } } };
+      const { bus } = spyEngine();
+
+      applySessionPayload(hostile as unknown as SessionPayload, { skipLocaleRebuild: true });
+
+      const attrs = restoredAttrs(robot.id);
+      expect(attrs.filterQ).toBe(6);
+      expect(attrs.portamento).toBe(0.1);
+      expect(attrs.filterType).toBe(EDIT.filterType);
+      expect(bus.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { Q: 6 }]]);
+      bus.mockRestore();
+    });
+
+    it('drops an unlisted attackCurve and restores the rest of the adsr, keeping a valid releaseCurve', () => {
+      const { robot, payload } = articulatedWorld();
+      const adsr = { attack: 0.5, decay: 0.25, sustain: 0.6, release: 0.75, attackCurve: 'zigzag', releaseCurve: 'ripple' };
+      const hostile = { ...payload, robotOverrides: { [robot.id]: { adsr } } };
+      spyEngine();
+
+      applySessionPayload(hostile as unknown as SessionPayload, { skipLocaleRebuild: true });
+
+      const restored = restoredAttrs(robot.id).adsr;
+      expect(restored).toEqual({ attack: 0.5, decay: 0.25, sustain: 0.6, release: 0.75, releaseCurve: 'ripple' });
+      expect(restored).not.toHaveProperty('attackCurve');
+      expect(restoredAttrs(robot.id).filterQ).toBe(EDIT.filterQ);
+    });
+
+    it('drops a non-finite or non-numeric portamento and filterQ, and primes nothing for them', () => {
+      for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, null, 'x']) {
+        const { robot, seeded, payload } = articulatedWorld();
+        const hostile = { ...payload, robotOverrides: { [robot.id]: { portamento: bad, filterQ: bad } } };
+        const { bus, glide } = spyEngine();
+
+        applySessionPayload(hostile as unknown as SessionPayload, { skipLocaleRebuild: true });
+
+        const attrs = restoredAttrs(robot.id);
+        expect(attrs.portamento).toBe(EDIT.portamento);
+        expect(attrs.filterQ).toBe(EDIT.filterQ);
+        expect(seeded.portamento).not.toBe(EDIT.portamento);
+        expect(bus).not.toHaveBeenCalled();
+        expect(glide).not.toHaveBeenCalled();
+        bus.mockRestore();
+        glide.mockRestore();
+      }
     });
   });
 

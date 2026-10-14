@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { Robot } from '../types/Robot';
+import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type Robot, type ADSREnvelope, type RobotFilterType } from '../types/Robot';
 import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
@@ -95,6 +95,32 @@ function backfillGlobalLfoLinks(
     GlobalLfoTargetId,
     LfoLink
   >;
+}
+
+/** Drops an `attackCurve` / `releaseCurve` that is not a real curve name. A payload is untrusted at this
+ *  boundary (a hand-edited save, a corrupt share link, a future format): the envelope resolver strips
+ *  nothing and Tone would throw on a name it does not know. Only the offending key goes -- the stages and
+ *  the other curve restore as they came -- and an envelope with nothing to drop is returned as-is, so the
+ *  payload is never mutated. */
+function sanitizeAdsrCurves(adsr: ADSREnvelope): ADSREnvelope {
+  const badAttack = 'attackCurve' in adsr && !ENVELOPE_CURVE_NAMES.includes(adsr.attackCurve as never);
+  const badRelease = 'releaseCurve' in adsr && !ENVELOPE_CURVE_NAMES.includes(adsr.releaseCurve as never);
+  if (!badAttack && !badRelease) return adsr;
+  const clean = { ...adsr };
+  if (badAttack) delete clean.attackCurve;
+  if (badRelease) delete clean.releaseCurve;
+  return clean;
+}
+
+/** The articulation fields of a diff that survive validation: a finite number for `portamento` / `filterQ`,
+ *  a listed type for `filterType`. A recorded 0 portamento is a real value, so presence is checked by type,
+ *  never by truthiness. Anything else is dropped here, key by key, so one bad field never costs the rest. */
+function validArticulation(diff: RobotAudioOverrideDiff): { portamento?: number; filterQ?: number; filterType?: RobotFilterType } {
+  const valid: { portamento?: number; filterQ?: number; filterType?: RobotFilterType } = {};
+  if (typeof diff.portamento === 'number' && Number.isFinite(diff.portamento)) valid.portamento = diff.portamento;
+  if (typeof diff.filterQ === 'number' && Number.isFinite(diff.filterQ)) valid.filterQ = diff.filterQ;
+  if (ROBOT_FILTER_TYPES.includes(diff.filterType as RobotFilterType)) valid.filterType = diff.filterType;
+  return valid;
 }
 
 /** If a swell is currently active on this (robotId, attribute) pair, return its baseValue for
@@ -259,6 +285,13 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(layersToCapture, baselineLayersNormalized)) diff.layers = layersToCapture;
 
   if (!deepEqual(live.audioAttributes.filterFreq, baseline.audioAttributes.filterFreq)) diff.filterFreq = live.audioAttributes.filterFreq;
+  // Robot Articulation (docs/specs/ROBOT_ARTICULATION.md): the bus filter's resonance and type and the glide
+  // diff like filterFreq. The curves ride inside `adsr` above, which is compared whole. A live robot that
+  // carries no value for one writes no key (never an undefined-valued one).
+  const { portamento, filterQ, filterType } = live.audioAttributes;
+  if (portamento !== undefined && !deepEqual(portamento, baseline.audioAttributes.portamento)) diff.portamento = portamento;
+  if (filterQ !== undefined && !deepEqual(filterQ, baseline.audioAttributes.filterQ)) diff.filterQ = filterQ;
+  if (filterType !== undefined && !deepEqual(filterType, baseline.audioAttributes.filterType)) diff.filterType = filterType;
   if (!deepEqual(live.octaveRange, baseline.octaveRange)) diff.octaveRange = live.octaveRange;
   if (!deepEqual(live.rhythmicDensity, baseline.rhythmicDensity)) diff.rhythmicDensity = live.rhythmicDensity;
   if (!deepEqual(live.rhythmicMotifLength, baseline.rhythmicMotifLength)) diff.rhythmicMotifLength = live.rhythmicMotifLength;
@@ -374,12 +407,19 @@ export function buildSessionPayload(): SessionPayload {
  *  fields that actually changed. */
 function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<Robot> {
   const updates: Partial<Robot> = {};
-  if (diff.adsr !== undefined || diff.layers !== undefined || diff.filterFreq !== undefined) {
+  const articulation = validArticulation(diff);
+  if (
+    diff.adsr !== undefined ||
+    diff.layers !== undefined ||
+    diff.filterFreq !== undefined ||
+    Object.keys(articulation).length > 0
+  ) {
     updates.audioAttributes = {
       ...robot.audioAttributes,
-      ...(diff.adsr !== undefined ? { adsr: diff.adsr } : {}),
+      ...(diff.adsr !== undefined ? { adsr: sanitizeAdsrCurves(diff.adsr) } : {}),
       ...(diff.layers !== undefined ? { layers: diff.layers } : {}),
       ...(diff.filterFreq !== undefined ? { filterFreq: diff.filterFreq } : {}),
+      ...articulation,
     };
   }
   if (diff.octaveRange !== undefined) updates.octaveRange = diff.octaveRange;
@@ -558,6 +598,16 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
       // manual. Before the audio context starts this is a no-op; loadInstruments' reservation pass
       // re-primes from the store (docs/specs/ROBOT_PAN.md §1.3).
       if (updates.panAuto === false) AudioEngine.updateRobotPan(updatedRobot.id, updatedRobot.pan);
+      // Robot Articulation: primes only the keys this diff carried and validated, from the stored robot.
+      // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
+      const { portamento, filterQ, filterType } = validArticulation(diff);
+      if (portamento !== undefined) AudioEngine.updateVoicePortamento(updatedRobot.id, portamento);
+      if (filterQ !== undefined || filterType !== undefined) {
+        AudioEngine.updateRobotBusFilter(updatedRobot.id, {
+          ...(filterQ !== undefined ? { Q: filterQ } : {}),
+          ...(filterType !== undefined ? { type: filterType } : {}),
+        });
+      }
       // Re-primes only the targets this diff actually changed (docs/tasks/LFO_BANK.md Task 18) --
       // every untouched target already has its freshly-seeded link primed by AudioEngine.start()
       // (or will, once the context starts), so re-priming the whole roster here would be redundant.
