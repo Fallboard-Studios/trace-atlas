@@ -184,6 +184,7 @@ const SOURCE = human('probe.source');
 const CORE = human('probe.source.core');
 const COMPANION = human('probe.source.companion');
 const ACCENT = human('probe.source.accent');
+const FILTER = human('probe.source.filter');
 
 function makeRobot(id = 'r1', overrides: Partial<Robot> = {}): Robot {
   return {
@@ -327,10 +328,10 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
     expect(sectionRow('r7')).toBeTruthy();
   });
 
-  it('only Source has a sub-tab row: Core, Companion and Accent Oscillator, in its trait', () => {
+  it('only Source has a sub-tab row: Core, Companion and Accent Oscillator, then Filter, in its trait', () => {
     selectRobot(makeRobot());
     render(<RobotScreen />);
-    expect(tabNames(subRow())).toEqual([CORE, COMPANION, ACCENT]);
+    expect(tabNames(subRow())).toEqual([CORE, COMPANION, ACCENT, FILTER]);
     const spectral = (getTraitColorStyle('spectral') as Record<string, string>)['--color-accent'];
     within(subRow()).getAllByRole('tab').forEach((tab) => expect(tab.style.getPropertyValue('--color-accent')).toBe(spectral));
     for (const name of [LEVELS, COMPOSITION, ENVELOPE]) {

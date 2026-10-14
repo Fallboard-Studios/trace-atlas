@@ -23,6 +23,16 @@ import {
   RHYTHM_PANEL_SCHEMA,
   FREQUENCY_PANEL_SCHEMA,
   PING_CONTOUR_PANEL_SCHEMA,
+  PORTAMENTO_SCHEMA,
+  ATTACK_CURVE_SCHEMA,
+  RELEASE_CURVE_SCHEMA,
+  CURVE_ROW_PANEL_SCHEMA,
+  BUS_FILTER_PANEL_SCHEMA,
+  BUS_FILTER_ROW_PANEL_SCHEMA,
+  BUS_CUTOFF_SCHEMA,
+  BUS_RESONANCE_SCHEMA,
+  BUS_FILTER_TYPE_SCHEMA,
+  BUS_FILTER_LFO_TARGET,
 } from './robotOptionsConfig';
 // Namespace import (not named) so Task 9's cleanup assertions below can check for the 3 old
 // accordion consts' absence at runtime, without a named import that would itself fail to compile
@@ -36,7 +46,9 @@ import {
   PITCH_REPEAT_MIN, PITCH_REPEAT_MAX, RHYTHMIC_MOTIF_LENGTH_MIN, RHYTHMIC_MOTIF_LENGTH_MAX,
   NOTE_VARIANCE_MIN, NOTE_VARIANCE_MAX,
   PAN_MIN, PAN_MAX, PAN_DISPLAY_SCALE,
+  PORTAMENTO_MIN, PORTAMENTO_MAX, ROBOT_BUS_FILTER_FREQ_RANGE, ROBOT_BUS_FILTER_Q_RANGE, ROBOT_BUS_FILTER_Q,
 } from '@/constants';
+import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES } from '@/types/Robot';
 
 const ALL_TOP_LEVEL_SCHEMAS = [
   AUDIO_SETTING_SCHEMA,
@@ -533,5 +545,173 @@ describe('robotOptionsConfig reads its copy from src/content (docs/specs/CONTENT
     expect(RHYTHM_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.composition.rhythm'].heading);
     expect(SIGNATURE_ARRAY_CONFIG[0].humanLabel).toBe(CONTENT['probe.source.core'].human);
     expect(SIGNATURE_ARRAY_CONFIG[1].params[0].schema.humanLabel).toBe(CONTENT['probe.source.companion.type'].human);
+  });
+});
+
+// ========================================
+// ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.6, §1.9 — docs/tasks/ROBOT_ARTICULATION.md Task 7)
+// ========================================
+
+describe('Robot Articulation schemas', () => {
+  const VALUE_SCHEMAS = [
+    PORTAMENTO_SCHEMA, ATTACK_CURVE_SCHEMA, RELEASE_CURVE_SCHEMA,
+    BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA,
+  ];
+  const PANEL_SCHEMAS = [BUS_FILTER_PANEL_SCHEMA, CURVE_ROW_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA];
+
+  it('every schema is one of the closed-set ControlSchema variants', () => {
+    [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(CONTROL_SCHEMA_TYPES).toContain(schema.type));
+    expect(CONTROL_SCHEMA_TYPES).toHaveLength(14); // no primitive was added
+  });
+
+  describe('Portamento', () => {
+    it('is a horizontal sliderLog over the PORTAMENTO_MIN/MAX seconds', () => {
+      expect(PORTAMENTO_SCHEMA).toMatchObject({ type: 'sliderLog', min: PORTAMENTO_MIN, max: PORTAMENTO_MAX, orientation: 'horizontal' });
+      expect(PORTAMENTO_SCHEMA.min).toBe(0); // 0 = no glide, today's sound, must be reachable
+    });
+
+    it('is labeled, united and helped from probe.envelope.portamento', () => {
+      const entry = CONTENT['probe.envelope.portamento'];
+      expect(PORTAMENTO_SCHEMA.humanLabel).toBe(entry.human);
+      expect(PORTAMENTO_SCHEMA.loreLabel).toBe(entry.lore);
+      expect(PORTAMENTO_SCHEMA.unit).toBe('s');
+      expect(PORTAMENTO_SCHEMA.help).toEqual(entry.help);
+    });
+  });
+
+  describe('Attack Shape / Release Shape', () => {
+    it.each([
+      ['ATTACK_CURVE_SCHEMA', ATTACK_CURVE_SCHEMA, 'probe.envelope.attackShape'],
+      ['RELEASE_CURVE_SCHEMA', RELEASE_CURVE_SCHEMA, 'probe.envelope.releaseShape'],
+    ] as const)('%s is a radio of exactly the 7 envelope curves, in ENVELOPE_CURVE_NAMES order', (_name, schema, key) => {
+      expect(schema.type).toBe('radio');
+      expect(schema.options.map((o) => o.value)).toEqual([...ENVELOPE_CURVE_NAMES]);
+      expect(schema.options).toHaveLength(7);
+      expect(schema.humanLabel).toBe(CONTENT[key].human);
+      expect(schema.loreLabel).toBe(CONTENT[key].lore);
+      expect(schema.help?.human.trim()).toBeTruthy();
+    });
+
+    it('both radios offer the same words for the same curve, each with a human and a lore label', () => {
+      expect(RELEASE_CURVE_SCHEMA.options).toEqual(ATTACK_CURVE_SCHEMA.options);
+      ATTACK_CURVE_SCHEMA.options.forEach((o) => {
+        expect(o.humanLabel.trim(), o.value).not.toBe('');
+        expect(o.loreLabel?.trim(), o.value).toBeTruthy();
+      });
+    });
+
+    it('no two curves share a human word (a radio of look-alikes would be unreadable)', () => {
+      const words = ATTACK_CURVE_SCHEMA.options.map((o) => o.humanLabel);
+      expect(new Set(words).size).toBe(words.length);
+    });
+
+    it('the two radios are told apart in the accessible name', () => {
+      expect(ATTACK_CURVE_SCHEMA.humanLabel).not.toBe(RELEASE_CURVE_SCHEMA.humanLabel);
+      expect(ATTACK_CURVE_SCHEMA.help?.human).not.toBe(RELEASE_CURVE_SCHEMA.help?.human);
+    });
+  });
+
+  describe('Bus filter', () => {
+    it('Cutoff is a horizontal sliderLog over the robot bus filter frequency range, in Hz', () => {
+      expect(BUS_CUTOFF_SCHEMA).toMatchObject({ type: 'sliderLog', orientation: 'horizontal', unit: 'Hz' });
+      expect(BUS_CUTOFF_SCHEMA.min).toBe(ROBOT_BUS_FILTER_FREQ_RANGE.min);
+      expect(BUS_CUTOFF_SCHEMA.max).toBe(ROBOT_BUS_FILTER_FREQ_RANGE.max);
+      expect(BUS_CUTOFF_SCHEMA.min).toBeGreaterThan(0); // a log scale cannot start at 0
+    });
+
+    it('Resonance is a horizontal sliderLog over the robot bus filter Q range, with no unit', () => {
+      expect(BUS_RESONANCE_SCHEMA).toMatchObject({ type: 'sliderLog', orientation: 'horizontal' });
+      expect(BUS_RESONANCE_SCHEMA.min).toBe(ROBOT_BUS_FILTER_Q_RANGE.min);
+      expect(BUS_RESONANCE_SCHEMA.max).toBe(ROBOT_BUS_FILTER_Q_RANGE.max);
+      expect(BUS_RESONANCE_SCHEMA.unit).toBeUndefined();
+      // Today's fixed Q must be a reachable value, or an untouched robot would show a position it cannot hold.
+      expect(ROBOT_BUS_FILTER_Q).toBeGreaterThanOrEqual(BUS_RESONANCE_SCHEMA.min);
+      expect(ROBOT_BUS_FILTER_Q).toBeLessThanOrEqual(BUS_RESONANCE_SCHEMA.max);
+    });
+
+    it('Type is a radio of exactly the 3 filter types, in ROBOT_FILTER_TYPES order', () => {
+      expect(BUS_FILTER_TYPE_SCHEMA.type).toBe('radio');
+      expect(BUS_FILTER_TYPE_SCHEMA.options.map((o) => o.value)).toEqual([...ROBOT_FILTER_TYPES]);
+      expect(BUS_FILTER_TYPE_SCHEMA.options).toHaveLength(3);
+      BUS_FILTER_TYPE_SCHEMA.options.forEach((o) => {
+        expect(o.humanLabel.trim(), o.value).not.toBe('');
+        expect(o.loreLabel?.trim(), o.value).toBeTruthy();
+      });
+    });
+
+    it('each control is labeled and helped from its own probe.source.filter.* entry', () => {
+      expect(BUS_CUTOFF_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter.cutoff'].human);
+      expect(BUS_CUTOFF_SCHEMA.loreLabel).toBe(CONTENT['probe.source.filter.cutoff'].lore);
+      expect(BUS_RESONANCE_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter.resonance'].human);
+      expect(BUS_FILTER_TYPE_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter.type'].human);
+      [BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA].forEach((s) => expect(s.help?.human.trim(), s.id).toBeTruthy());
+    });
+
+    it("the panel is headed by the Source filter concept's own heading", () => {
+      expect(BUS_FILTER_PANEL_SCHEMA.type).toBe('directionalPanel');
+      expect(BUS_FILTER_PANEL_SCHEMA.orientation).toBe('column');
+      expect(BUS_FILTER_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter'].human);
+      expect(BUS_FILTER_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.source.filter'].lore);
+    });
+
+    it("the link rides the bus filter's cutoff target, which is a real robot LFO target", () => {
+      expect(BUS_FILTER_LFO_TARGET).toBe('bus.frequency');
+      expect(ROBOT_LFO_TARGET_IDS).toContain(BUS_FILTER_LFO_TARGET);
+    });
+  });
+
+  describe('row panels', () => {
+    it('are unlabeled responsive directionalPanels — pure layout', () => {
+      [CURVE_ROW_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA].forEach((panel) => {
+        expect(panel).toMatchObject({ type: 'directionalPanel', orientation: 'responsive' });
+        expect(panel.humanLabel).toBeUndefined();
+        expect(panel.loreLabel).toBeUndefined();
+      });
+    });
+  });
+
+  it('every schema carries a unique robotOptions.* id, none colliding with the existing Envelope or Source ids', () => {
+    const ids = [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].map((s) => s.id);
+    const existing = [ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, PING_CONTOUR_PANEL_SCHEMA].map((s) => s.id);
+    ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
+    expect(new Set([...ids, ...existing]).size).toBe(ids.length + existing.length);
+  });
+
+  it('is JSON-serializable', () => {
+    [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(JSON.parse(JSON.stringify(schema))).toEqual(schema));
+  });
+
+  describe('content', () => {
+    it('Resonance help mentions the wah, so the link beneath it has context', () => {
+      expect(CONTENT['probe.source.filter.resonance'].help?.human.toLowerCase()).toContain('wah');
+    });
+
+    it("the Envelope intro names Portamento, Attack Shape and Release Shape; the Source intro names the Filter", () => {
+      const envelope = CONTENT['probe.envelope'].intro?.humanDescription ?? '';
+      expect(envelope).toContain(CONTENT['probe.envelope.portamento'].human);
+      expect(envelope).toContain(CONTENT['probe.envelope.attackShape'].human);
+      expect(envelope).toContain(CONTENT['probe.envelope.releaseShape'].human);
+      expect(envelope).toContain(CONTENT['probe.envelope.attack'].human); // the existing sentence survives
+      const source = CONTENT['probe.source'].intro?.humanDescription ?? '';
+      expect(source).toContain(CONTENT['probe.source.filter'].human);
+      expect(source).toContain('Companion'); // the existing sentence survives
+    });
+
+    it('the help copy is plain words: no unexplained synth jargon in the Portamento and Shape descriptions', () => {
+      [CONTENT['probe.envelope.portamento'], CONTENT['probe.envelope.attackShape'], CONTENT['probe.envelope.releaseShape']].forEach((e) => {
+        expect(e.help.human.length).toBeGreaterThan(40);
+        expect(e.help.human).not.toMatch(/[<>]/);
+      });
+    });
+
+    it('the schemas carry no copy literal of their own', async () => {
+      const { readFileSync } = await import('node:fs');
+      const { resolve } = await import('node:path');
+      const src = readFileSync(resolve(__dirname, 'robotOptionsConfig.ts'), 'utf8');
+      const start = src.indexOf('ROBOT ARTICULATION');
+      expect(start, 'the articulation block header').toBeGreaterThan(-1);
+      const articulation = src.slice(start);
+      expect(articulation).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
+    });
   });
 });
