@@ -23,7 +23,8 @@ import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
-import { stopAudioSwells } from '../systems/audioSwells';
+import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
+import * as noiseMaps from './noiseMaps';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
@@ -386,6 +387,29 @@ describe('buildSessionPayload', () => {
     expect(payload.swellFrequency).toBe(9);
     expect(payload.swellDuration).toBe(5);
     expect(payload.pingVarianceAutomation).toBe(0.42);
+  });
+
+  // The global pool lost delay.wet / reverb.wet (docs/specs/ROBOT_SENDS.md assumption 13) and applyGlobalSwellBasesToAudio
+  // lost their two blocks; the blocks that remain must still save the base, not the value caught mid-ramp.
+  it('saves a global swell in flight at its base value, not the interpolated one', () => {
+    const localeId = setupWorld();
+    useAudioStore.setState({ swellFrequency: 16, swellDuration: 15 });
+    // Every draw at its minimum: target index 0, eq3.low. Restored below so no other test in this file sees it.
+    const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(() => -1);
+    try {
+      tickAudioSwells(localeId, 0);
+      const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
+      expect(swell).toBeDefined();
+      tickAudioSwells(localeId, 2); // advance: writes the interpolated value into the store
+      const live = useAudioStore.getState().globalAudio.eq3.low;
+      expect(Math.abs(live - swell.baseValue!)).toBeGreaterThan(0.5); // precondition: it really is mid-ramp
+
+      const payload = buildSessionPayload();
+
+      expect(payload.globalAudio.eq3.low).toBeCloseTo(swell.baseValue!, 1);
+    } finally {
+      noise.mockRestore();
+    }
   });
 
   it('has no robotOverrides entries for an untouched roster', () => {

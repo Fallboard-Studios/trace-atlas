@@ -190,18 +190,6 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
     };
   }
 
-  // Delay
-  const delayWetSwell = extractGlobalSwellBaseValueIfActive('delay.wet');
-  if (delayWetSwell !== undefined) {
-    toCapture.delay = { ...toCapture.delay, wet: delayWetSwell };
-  }
-
-  // Reverb
-  const reverbWetSwell = extractGlobalSwellBaseValueIfActive('reverb.wet');
-  if (reverbWetSwell !== undefined) {
-    toCapture.reverb = { ...toCapture.reverb, wet: reverbWetSwell };
-  }
-
   // Quantize all fields to eliminate floating-point rounding errors and clean up representation artifacts
   toCapture.compressor = {
     threshold: roundToDecimals(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),

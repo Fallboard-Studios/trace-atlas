@@ -125,7 +125,8 @@ ASSUMPTIONS I'm making beyond the intent's seven decisions (correct now or I'll 
 13. **Swells move from the global returns to the individual robots** (Crawford, 2026-10-14). `reverbSend` and
     `delaySend` join `SWELL_ROBOT_ATTRIBUTE_IDS` (17 → 19); `delay.wet` and `reverb.wet` leave
     `SWELL_GLOBAL_TARGET_IDS` (9 → 7). I read "put them on the individual robots" as a move, not a copy; if
-    you meant both, the global rows stay and §1.9's removal steps are skipped. **(Veto point.)** The details
+    you meant both, the global rows stay and §1.9's removal steps are skipped. **Confirmed as a move by Crawford,
+    2026-10-14** (global rows removed in Task 11). The details
     (§1.9): bounds `0…1` like `volume`; no clamp on the swing, so a quiet send can swell nearly to full;
     a send of exactly `0` is ineligible (an off stays off, the global `wet === 0` rule and the layer-gain-0
     rule's analogue); a hand edit cancels the swell exactly as Volume's does; a saved session stores the
@@ -694,8 +695,7 @@ swell is not too heavy a wash (§7 risk 2); Fleet Params no longer shows a swell
    the copy?
 3. **Assumption 6 (own draw on copy-branch robots).** A copy gets its own depth.
 4. **Assumption 13 (swells move, not copy).** The two sends become robot swell attributes and `delay.wet` /
-   `reverb.wet` leave the global swell pool. Confirm "move"; if you wanted the global swells kept too, §1.9's
-   global-pool removal is skipped.
+   `reverb.wet` leave the global swell pool. **Answered 2026-10-14: move.**
 5. **The seed-oracle test says "DO NOT REGENERATE".** `globalAudioSeed.test.ts:812` pins the global seeder's
    output so no existing world's sound changes. This phase must change two values in it on purpose
    (`reverb.wet`, `delay.wet` → 1). §5 specifies the narrow hand-edit. You have said existing sounds need not

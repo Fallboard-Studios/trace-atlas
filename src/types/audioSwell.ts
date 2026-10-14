@@ -13,19 +13,16 @@ import type { GlobalLfoTargetId } from './lfo';
 // ========================================
 
 /**
- * The 9 global-chain swell targets: every GlobalLfoTargetId (7) plus two new
- * ones — delay.wet and reverb.wet never got an lfoTarget (docs/AUDIO_SYSTEM.md's
- * LFO Modulation section, commit 508bd93) and still don't; this type is
- * intentionally NOT GlobalLfoTargetId itself, to keep that union's own
- * meaning ("has a real lfoEngine target") unchanged.
+ * The 7 global-chain swell targets: exactly the GlobalLfoTargetIds. There used to be two more, delay.wet and
+ * reverb.wet; those sliders became fixed full returns (docs/specs/ROBOT_SENDS.md §1.3), the depth of each
+ * robot's echo is its own reverbSend / delaySend now, and the swells move to those sends (assumption 13, §1.9).
  */
-export type SwellGlobalTargetId = GlobalLfoTargetId | 'delay.wet' | 'reverb.wet';
+export type SwellGlobalTargetId = GlobalLfoTargetId;
 
 export const SWELL_GLOBAL_TARGET_IDS: readonly SwellGlobalTargetId[] = [
   'eq3.low', 'eq3.mid', 'eq3.high',
   'lpf.frequency', 'lpf.Q',
   'hpf.frequency', 'hpf.Q',
-  'delay.wet', 'reverb.wet',
 ];
 
 // ========================================

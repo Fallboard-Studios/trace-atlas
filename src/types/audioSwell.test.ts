@@ -21,15 +21,20 @@ import {
 // ========================================
 
 describe('SWELL_GLOBAL_TARGET_IDS', () => {
-  it('is every GLOBAL_LFO_TARGET_IDS entry plus delay.wet and reverb.wet', () => {
-    expect([...SWELL_GLOBAL_TARGET_IDS].sort()).toEqual(
-      [...GLOBAL_LFO_TARGET_IDS, 'delay.wet', 'reverb.wet'].sort()
-    );
+  // The global wet sliders became fixed full returns (docs/specs/ROBOT_SENDS.md assumption 13), so their swells
+  // moved to the robots' own sends: the global pool is exactly the 7 LFO targets again.
+  it('is exactly the GLOBAL_LFO_TARGET_IDS entries', () => {
+    expect([...SWELL_GLOBAL_TARGET_IDS].sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
   });
 
-  it('has exactly 9 members, no duplicates', () => {
-    expect(SWELL_GLOBAL_TARGET_IDS).toHaveLength(9);
-    expect(new Set(SWELL_GLOBAL_TARGET_IDS).size).toBe(9);
+  it('has exactly 7 members, no duplicates', () => {
+    expect(SWELL_GLOBAL_TARGET_IDS).toHaveLength(7);
+    expect(new Set(SWELL_GLOBAL_TARGET_IDS).size).toBe(7);
+  });
+
+  it('no longer lists the global delay or reverb wet', () => {
+    expect(SWELL_GLOBAL_TARGET_IDS).not.toContain('delay.wet');
+    expect(SWELL_GLOBAL_TARGET_IDS).not.toContain('reverb.wet');
   });
 
   it('does not modify GLOBAL_LFO_TARGET_IDS itself — still 7 members', () => {
@@ -118,7 +123,7 @@ describe('ActiveSwell', () => {
   it('type-checks a global-pool swell (single target, no members)', () => {
     const swell: ActiveSwell = {
       pool: 'global',
-      globalTarget: 'delay.wet',
+      globalTarget: 'lpf.Q',
       baseValue: 0.3,
       peakDelta: 0.5,
       phase: 'rising',

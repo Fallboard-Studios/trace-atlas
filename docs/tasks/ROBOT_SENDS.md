@@ -14,6 +14,9 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > parallel rooms (assumption 1), where the returns rejoin (assumption 2, plus the pre-existing Decay Mode copy
 > mismatch), own-draw on copy-branch robots (6), swells *moving* rather than copying (13), and the seed-oracle
 > hand-edit (§5). None blocks T1–T5; T6 needs the oracle answer, T11–T12 need the swell answer.
+>
+> **Progress (2026-10-14):** T1–T11 committed; Checkpoints A and B passed; 50.1 (articulation) merged in. The swell
+> question (13) is answered: **move**. T11 deleted the global wet swell targets, so the global pool is 7.
 
 ## Overview
 
