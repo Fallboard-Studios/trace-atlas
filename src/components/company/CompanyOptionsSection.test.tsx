@@ -154,6 +154,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
 import * as audioSwells from '@/systems/audioSwells';
+import { useAudioStore } from '@/stores/audioStore';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
 import type { RobotSubsection } from '@/stores/uiStore';
@@ -202,6 +203,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
   const localeId = getActiveLocaleId();
 
   beforeEach(() => {
+    useAudioStore.setState({ filterLinksHeldOff: false });
     useLocaleStore.getState().setLocaleData(localeId, {
       robots: [], companies: [], allRobotsLastEditedOptions: undefined,
     } as unknown as Partial<Locale>);
@@ -277,11 +279,10 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(screen.getByTestId('signature-array-layer-stub-2').getAttribute('data-disabled')).toBe('');
     });
 
-    // The Filter panel is the exception: read-only until Robot Articulation Task 10, so it stays disabled (its own describe below).
     it('hands none of them disabled once the company has a member', () => {
       activeCompany();
       render(<Sections target="c1" />);
-      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2']) {
+      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub']) {
         expect(screen.getByTestId(id).getAttribute('data-disabled')).toBeNull();
       }
     });
@@ -375,15 +376,18 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect((spy.mock.calls[0][2] as { attack: number }).attack).toBe(0.9);
     });
 
-    // Placeholder until Robot Articulation Task 10 (docs/tasks/ROBOT_ARTICULATION.md Task 8): the slider shows 0 and does nothing.
-    it('Envelope: Portamento is inert until Task 10 (a fixed 0, and an edit reaches no member)', () => {
-      twoMembers();
+    it('Envelope: Portamento shows the first member and an edit reaches every member', () => {
+      const base = makeRobot({ id: 'r1', companyId: 'c1' });
+      addRobot({ ...base, audioAttributes: { ...base.audioAttributes, portamento: 0.3 } });
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1' }));
+      addCompany('c1', ['r1', 'r2']);
       const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
       const adsr = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
       render(<Sections target="c1" ids={['pingContour']} />);
-      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0');
+      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0.3');
       click('probe-portamento');
-      expect(portamento).not.toHaveBeenCalled();
+      expect(ids(portamento)).toEqual(['r1', 'r2']);
+      expect(portamento.mock.calls.every((c) => c[2] === 0.7)).toBe(true);
       expect(adsr).not.toHaveBeenCalled();
     });
 
@@ -423,8 +427,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(spy.mock.calls[0][2]).toBe('layer1.gain');
     });
 
-    // Placeholder until Robot Articulation Task 10 (docs/tasks/ROBOT_ARTICULATION.md Task 9): shown, never editable.
-    describe('Source: the Filter panel is read-only until Task 10', () => {
+    describe('Source: the Filter panel is live', () => {
       it('shows the first member resolved filter', () => {
         const base = makeRobot({ id: 'r1', companyId: 'c1' });
         addRobot({ ...base, audioAttributes: { ...base.audioAttributes, filterFreq: 900, filterQ: 4, filterType: 'bandpass' } });
@@ -434,30 +437,46 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
         expect(stub.getAttribute('data-freq')).toBe('900');
         expect(stub.getAttribute('data-q')).toBe('4');
         expect(stub.getAttribute('data-type')).toBe('bandpass');
+        expect(stub.getAttribute('data-disabled')).toBeNull();
       });
 
-      it('is always disabled and not held off, even for a company with members', () => {
+      it('a Cutoff edit reaches every member as exactly that patch', () => {
         twoMembers();
+        const bus = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
         render(<Sections target="c1" ids={['busFilter']} />);
-        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-disabled')).toBe('');
-        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('false');
+        click('probe-cutoff');
+        expect(ids(bus)).toEqual(['r1', 'r2']);
+        expect(bus.mock.calls.map((c) => c[2])).toEqual([{ filterFreq: 640 }, { filterFreq: 640 }]);
       });
 
-      it('reaches no member: a cutoff or link edit calls no action', () => {
+      it('a link edit reaches every member under bus.frequency, and not applyBusFilter', () => {
         twoMembers();
         const bus = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
         const link = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
         render(<Sections target="c1" ids={['busFilter']} />);
-        click('probe-cutoff');
         click('probe-filter-link');
+        expect(ids(link)).toEqual(['r1', 'r2']);
+        expect(link.mock.calls.every((c) => c[2] === 'bus.frequency')).toBe(true);
         expect(bus).not.toHaveBeenCalled();
-        expect(link).not.toHaveBeenCalled();
       });
 
-      it('renders a placeholder, also disabled, for a company with no members', () => {
+      it('follows the Audio Load hold on filter links', () => {
+        twoMembers();
+        const { unmount } = render(<Sections target="c1" ids={['busFilter']} />);
+        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('false');
+        unmount();
+        useAudioStore.setState({ filterLinksHeldOff: true });
+        render(<Sections target="c1" ids={['busFilter']} />);
+        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('true');
+      });
+
+      it('is disabled, and edits nothing, for a company with no members', () => {
         addCompany('c1', []);
+        const bus = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
         render(<Sections target="c1" ids={['busFilter']} />);
         expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-disabled')).toBe('');
+        click('probe-cutoff');
+        expect(bus).not.toHaveBeenCalled();
       });
     });
 

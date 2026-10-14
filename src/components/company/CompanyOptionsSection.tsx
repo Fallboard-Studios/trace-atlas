@@ -32,11 +32,6 @@ const DISABLED_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
   spectral: getDisabledTraitColorStyle('spectral'),
 };
 
-// The Envelope's Portamento slider is inert in company mode until Robot Articulation Task 10: one stable no-op.
-const inertPortamento = () => {};
-// The Filter panel is read-only in company mode until Task 10 too: stable no-ops, never held off.
-const inertBusFilterChange = () => {};
-const inertBusLinkChange = () => {};
 
 /**
  * A section panel's trait colours: the trait's full-saturation pair while the panels can be edited, its
@@ -89,14 +84,13 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
           />
         );
       case 'pingContour':
-        // Portamento is inert here until Robot Articulation Task 10 broadcasts it: a fixed 0 and a no-op, stable references.
         return (
           <PingContourDrawer
             value={options.adsrValue}
             disabled={disabled}
             onChange={options.onAdsrChange}
-            portamento={0}
-            onPortamentoChange={inertPortamento}
+            portamento={options.portamentoValue}
+            onPortamentoChange={options.onPortamentoChange}
             swelling={options.adsrSwelling}
           />
         );
@@ -120,14 +114,13 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
         ) : null;
       }
       case 'busFilter':
-        // Shows the first member's filter but edits nothing until Robot Articulation Task 10 broadcasts it: always disabled, so no member is touched.
         return (
           <BusFilterDrawer
             value={options.busFilterValue}
-            onChange={inertBusFilterChange}
-            onLfoLinkChange={inertBusLinkChange}
-            heldOff={false}
-            disabled
+            disabled={disabled}
+            onChange={options.onBusFilterChange}
+            onLfoLinkChange={options.onBusLinkChange}
+            heldOff={options.filterLinksHeldOff}
           />
         );
       default:

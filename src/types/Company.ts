@@ -3,7 +3,7 @@
  * Options field be broadcast across a group of robots at once, without becoming a live source
  * of truth any member robot re-reads from later. See docs/specs/COMPANIES.md.
  */
-import type { Robot, ADSREnvelope } from './Robot';
+import type { Robot, ADSREnvelope, RobotFilterType } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from './lfo';
 
@@ -29,6 +29,12 @@ export interface CompanyOptionsSnapshot {
   layers?: OscillatorLayer[];
   lfoLinks?: Partial<Record<RobotLfoTargetId, LfoLink>>;
   clickTrackActive?: boolean;
+  /** As AudioAttributes.portamento: glide seconds. A recorded 0 is a real value (the glide off). */
+  portamento?: number;
+  /** The bus filter, as AudioAttributes.filterFreq / filterQ / filterType (Robot Articulation). */
+  filterFreq?: number;
+  filterQ?: number;
+  filterType?: RobotFilterType;
 }
 
 export interface Company {

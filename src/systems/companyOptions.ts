@@ -14,6 +14,7 @@
  * this function ever reads; both CompanyOptionsSection call sites share this one resolver.
  */
 import { DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '@/engine/melodyGenerator';
+import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -45,6 +46,12 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     lfoLinks: firstMember.lfoLinks ?? EMPTY_LFO_LINKS,
     clickTrackActive: firstMember.clickTrackActive ?? false,
     pitchRepeat: firstMember.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+    // The panels show what the engine plays, so absence resolves through the engine's own resolvers
+    // (Q 1, lowpass, no glide; a cutoff of 0, "no filter", is the open top of the band).
+    portamento: firstMember.audioAttributes.portamento ?? 0,
+    filterFreq: resolveBusFilterCutoff(firstMember.audioAttributes.filterFreq),
+    filterQ: resolveBusFilterQ(firstMember.audioAttributes.filterQ),
+    filterType: resolveBusFilterType(firstMember.audioAttributes.filterType),
   };
   return { ...fromRobot, ...lastEditedOptions };
 }

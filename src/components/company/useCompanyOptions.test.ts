@@ -7,6 +7,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
 import * as audioSwells from '@/systems/audioSwells';
+import { useAudioStore } from '@/stores/audioStore';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 import type { RobotLfoTargetId } from '@/types/lfo';
@@ -815,8 +816,8 @@ describe('useCompanyOptions', () => {
       expect(result.current.options.layerSwelling).toEqual([undefined, undefined, undefined]);
     });
   });
-
-  // Robot Articulation Task 9: the Filter panel shows the first member's resolved filter, disabled, until Task 10
+  // Robot Articulation Task 9: with no recorded edit the Filter panel shows the first member's resolved filter (Task 10 adds the
+  // recorded fields and the broadcast edits, tested in their own describe below).
   // gives a company its own broadcast edit.
   describe('the filter value (Robot Articulation Task 9)', () => {
     const withFilter = (id: string, extra: Partial<Robot['audioAttributes']>, robot: Partial<Robot> = {}) =>
@@ -911,6 +912,294 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  describe('Portamento and the filter broadcast (Robot Articulation Task 10)', () => {
+    const snapshotOf = (id = 'c1') => useLocaleStore.getState().getCompanyById(localeId, id)?.lastEditedOptions;
+    const memberIds = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((c) => (c[0] as Robot).id).sort();
+    const articulationMembers = () => {
+      const base = makeRobot().audioAttributes;
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', audioAttributes: { ...base, filterFreq: 900, filterQ: 4, filterType: 'bandpass', portamento: 0.3 } }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', audioAttributes: { ...base, filterFreq: 300, filterQ: 9, filterType: 'highpass', portamento: 0 } }));
+      addCompany('c1', ['r1', 'r2']);
+    };
+
+    describe('the values', () => {
+      it('portamentoValue is the first member\'s, then the recorded one', () => {
+        articulationMembers();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.portamentoValue).toBe(0.3);
+
+        act(() => useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { portamento: 0.05 } }));
+        expect(result.current.options.portamentoValue).toBe(0.05);
+      });
+
+      it('portamentoValue is 0 when there is nothing to edit', () => {
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.active).toBe(false);
+        expect(result.current.options.portamentoValue).toBe(0);
+      });
+
+      it('busFilterValue prefers the recorded fields, one by one, over the first member', () => {
+        articulationMembers();
+        useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { filterQ: 6 } });
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.busFilterValue).toMatchObject({ filterFreq: 900, filterQ: 6, filterType: 'bandpass' });
+      });
+
+      it('busFilterValue.lfoLink is the recorded bus link, else the first member\'s, else the default', () => {
+        articulationMembers();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.busFilterValue.lfoLink).toBe(DEFAULT_LFO_LINK['bus.frequency']);
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { lfoLinks: { 'bus.frequency': { lane: 'b', depth: 40 } } as Robot['lfoLinks'] }));
+        expect(result.current.options.busFilterValue.lfoLink).toEqual({ lane: 'b', depth: 40 });
+
+        act(() => useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { lfoLinks: { 'bus.frequency': { lane: 'd', depth: 80 } } } }));
+        expect(result.current.options.busFilterValue.lfoLink).toEqual({ lane: 'd', depth: 80 });
+      });
+
+      it('carries the Audio Load hold on filter links', () => {
+        articulationMembers();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.filterLinksHeldOff).toBe(false);
+
+        act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
+        expect(result.current.options.filterLinksHeldOff).toBe(true);
+        act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
+      });
+    });
+
+    describe('onPortamentoChange', () => {
+      it('calls applyPortamento once per member and records only portamento', () => {
+        articulationMembers();
+        const spy = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onPortamentoChange(0.1));
+
+        expect(spy).toHaveBeenCalledTimes(2);
+        expect(memberIds(spy)).toEqual(['r1', 'r2']);
+        expect(spy.mock.calls.every((c) => c[1] === localeId && c[2] === 0.1)).toBe(true);
+        expect(snapshotOf()).toEqual({ portamento: 0.1 });
+      });
+
+      it('records 0 as a real value (turning the glide off)', () => {
+        articulationMembers();
+        vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onPortamentoChange(0));
+
+        expect(snapshotOf()).toEqual({ portamento: 0 });
+        expect(result.current.options.portamentoValue).toBe(0);
+      });
+
+      it('leaves the rest of the snapshot alone', () => {
+        articulationMembers();
+        vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { masterVolume: 0.9, filterQ: 6 } });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onPortamentoChange(0.2));
+
+        expect(snapshotOf()).toEqual({ masterVolume: 0.9, filterQ: 6, portamento: 0.2 });
+      });
+
+      it('with no members there is nothing to broadcast to', () => {
+        addCompany('c1', []);
+        const spy = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onPortamentoChange(0.2));
+
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      it('for all, reaches every robot in the locale and records on the locale snapshot', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+        addCompany('c1', ['r1']);
+        const spy = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('all'));
+
+        act(() => result.current.options.onPortamentoChange(0.4));
+
+        expect(memberIds(spy)).toEqual(['r1', 'r2']);
+        expect(useLocaleStore.getState().locales[localeId].allRobotsLastEditedOptions).toEqual({ portamento: 0.4 });
+        expect(snapshotOf()).toBeUndefined();
+      });
+    });
+
+    describe('onBusFilterChange', () => {
+      it('calls applyBusFilter once per member with exactly that patch and records exactly it', () => {
+        articulationMembers();
+        const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange({ filterQ: 6 }));
+
+        expect(spy).toHaveBeenCalledTimes(2);
+        expect(memberIds(spy)).toEqual(['r1', 'r2']);
+        expect(spy.mock.calls.every((c) => c[1] === localeId)).toBe(true);
+        expect(spy.mock.calls.map((c) => c[2])).toEqual([{ filterQ: 6 }, { filterQ: 6 }]);
+        expect(Object.keys(snapshotOf()!)).toEqual(['filterQ']);
+        expect(snapshotOf()).toEqual({ filterQ: 6 });
+      });
+
+      it.each([
+        ['cutoff', { filterFreq: 640 }],
+        ['type', { filterType: 'bandpass' as const }],
+      ])('a %s edit reaches every member and records only that field', (_name, patch) => {
+        articulationMembers();
+        const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange(patch));
+
+        expect(spy.mock.calls.map((c) => c[2])).toEqual([patch, patch]);
+        expect(snapshotOf()).toEqual(patch);
+      });
+
+      it('successive edits accumulate in the snapshot and show in busFilterValue', () => {
+        articulationMembers();
+        vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange({ filterQ: 6 }));
+        act(() => result.current.options.onBusFilterChange({ filterFreq: 640 }));
+
+        expect(snapshotOf()).toEqual({ filterQ: 6, filterFreq: 640 });
+        expect(result.current.options.busFilterValue).toMatchObject({ filterFreq: 640, filterQ: 6, filterType: 'bandpass' });
+      });
+
+      it('broadcasts the one value to members that differed (broadcast, not link)', () => {
+        articulationMembers();
+        const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange({ filterType: 'lowpass' }));
+
+        // r1 was bandpass and r2 highpass; both are told the same type, and neither is told anything else.
+        expect(spy.mock.calls.map((c) => [c[0].id, c[2]]).sort()).toEqual([['r1', { filterType: 'lowpass' }], ['r2', { filterType: 'lowpass' }]]);
+      });
+
+      it('leaves the rest of the snapshot alone', () => {
+        articulationMembers();
+        vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { masterVolume: 0.9 } });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange({ filterQ: 6 }));
+
+        expect(snapshotOf()).toEqual({ masterVolume: 0.9, filterQ: 6 });
+      });
+
+      it('an edit interrupts no swell (the filter has no swell attribute)', () => {
+        articulationMembers();
+        vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange({ filterFreq: 640 }));
+
+        expect(cancel).not.toHaveBeenCalled();
+      });
+
+      it('with no members there is nothing to broadcast to', () => {
+        addCompany('c1', []);
+        const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusFilterChange({ filterQ: 6 }));
+
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      it('for all, reaches every robot and records on the locale snapshot', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+        addCompany('c1', ['r1']);
+        const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('all'));
+
+        act(() => result.current.options.onBusFilterChange({ filterQ: 3 }));
+
+        expect(memberIds(spy)).toEqual(['r1', 'r2']);
+        expect(useLocaleStore.getState().locales[localeId].allRobotsLastEditedOptions).toEqual({ filterQ: 3 });
+      });
+
+      it('a handler held from before a membership change still reaches the new member', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+        addCompany('c1', ['r1']);
+        const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const held = result.current.options.onBusFilterChange;
+
+        act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r2', 'c1'));
+        act(() => held({ filterQ: 2 }));
+
+        expect(memberIds(spy)).toEqual(['r1', 'r2']);
+      });
+    });
+
+    describe('onBusLinkChange', () => {
+      it('calls applyLayerLfoLink for bus.frequency once per member, keeping each member\'s own other field', () => {
+        articulationMembers();
+        useLocaleStore.getState().updateRobot(localeId, 'r1', { lfoLinks: { 'bus.frequency': { lane: 'a', depth: 20 } } as Robot['lfoLinks'] });
+        useLocaleStore.getState().updateRobot(localeId, 'r2', { lfoLinks: { 'bus.frequency': { lane: 'a', depth: 70 } } as Robot['lfoLinks'] });
+        const spy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        // The drawer hands back the baseline (r1's link) with one field changed: the lane.
+        act(() => result.current.options.onBusLinkChange({ lane: 'c', depth: 20 }));
+
+        expect(spy).toHaveBeenCalledTimes(2);
+        expect(spy.mock.calls.map((c) => [c[0].id, c[2], c[3]]).sort()).toEqual([
+          ['r1', 'bus.frequency', { lane: 'c', depth: 20 }],
+          ['r2', 'bus.frequency', { lane: 'c', depth: 70 }], // r2 keeps its own depth
+        ]);
+      });
+
+      it('records the link under bus.frequency and keeps the other recorded links', () => {
+        articulationMembers();
+        vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+        useLocaleStore.getState().updateCompany(localeId, 'c1', { lastEditedOptions: { lfoLinks: { 'layer0.gain': { lane: 'b', depth: 10 } } } });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusLinkChange({ lane: 'a', depth: 50 }));
+
+        expect(snapshotOf()).toEqual({ lfoLinks: { 'layer0.gain': { lane: 'b', depth: 10 }, 'bus.frequency': { lane: 'a', depth: 50 } } });
+      });
+
+      it('turning the lane Off broadcasts lane null', () => {
+        articulationMembers();
+        useLocaleStore.getState().updateRobot(localeId, 'r1', { lfoLinks: { 'bus.frequency': { lane: 'a', depth: 20 } } as Robot['lfoLinks'] });
+        const spy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusLinkChange({ lane: null, depth: 20 }));
+
+        // Only the lane changed, so r2 (no link of its own) keeps the default depth rather than taking r1's 20.
+        expect(spy.mock.calls.map((c) => [c[0].id, c[3]]).sort()).toEqual([
+          ['r1', { lane: null, depth: 20 }],
+          ['r2', { lane: null, depth: DEFAULT_LFO_LINK['bus.frequency'].depth }],
+        ]);
+      });
+
+      it('with no members there is nothing to broadcast to', () => {
+        addCompany('c1', []);
+        const spy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onBusLinkChange({ lane: 'a', depth: 50 }));
+
+        expect(spy).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('stability (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md): an edit re-derives only what it touches', () => {
     function memberAndStranger() {
       addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
@@ -967,6 +1256,10 @@ describe('useCompanyOptions', () => {
       expect(after.onVolumeChange).toBe(before.onVolumeChange);
       expect(after.onAdsrChange).toBe(before.onAdsrChange);
       expect(after.onLayerParamChange).toBe(before.onLayerParamChange);
+      expect(after.onPortamentoChange).toBe(before.onPortamentoChange);
+      expect(after.onBusFilterChange).toBe(before.onBusFilterChange);
+      expect(after.onBusLinkChange).toBe(before.onBusLinkChange);
+      expect(after.onPortamentoChange).toBeTypeOf('function'); // not a vacuous undefined === undefined
     });
   });
 });
