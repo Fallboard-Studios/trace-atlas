@@ -1526,9 +1526,10 @@ expected flat.
 
 **Status: built 2026-10-13 on `feature/palette-articulation`** (intent [robot-articulation.md](../intent/robot-articulation.md),
 spec [ROBOT_ARTICULATION.md](../specs/ROBOT_ARTICULATION.md), plan [ROBOT_ARTICULATION.md](../tasks/ROBOT_ARTICULATION.md);
-tasks T1–T14b committed, guard test `src/docs/robotArticulationDocs.test.ts`). Crawford's Pixel run reported no distortion
-at 3:00 ([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-articulation-roadmap-501-on-the-pixel--crawfords-report-2026-10-13));
-the HUD underrun counts, which mode it was and the manual listen list were not reported, so they are not claimed here.
+tasks T1–T14b committed, guard test `src/docs/robotArticulationDocs.test.ts`). Crawford's Pixel run passed: several minutes
+on Full audio quality with no distortion
+([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-articulation-roadmap-501-on-the-pixel--crawfords-report-2026-10-13));
+the HUD underrun counts, a Standard run and the manual listen list were not reported, so they are not claimed here.
 The paragraphs above are the original starting point, not what shipped: read "As built" first.
 
 ### As built (deltas from the paragraphs above)

@@ -15,9 +15,9 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > 15: placeholder lore words) are isolated to T1/T5/T3/T7 respectively so a late veto is a one-task change.
 >
 > **T15 built (docs):** the four doc-text cases T13 left red are green, `robotArticulationDocs.test.ts` passes in full, and
-> the roadmap 50.1 "As built", the intent banner and the nine reference docs are written. T14 is **not closed**: the Pixel
-> report gave "no distortion at 3:00" with no mode, no underrun counts and no Effects Limit check, and the manual list and
-> desktop `npm run perf` were not reported; `scratchy-audio-phones.md` records exactly that and no more. Open for Crawford:
+> the roadmap 50.1 "As built", the intent banner and the nine reference docs are written. T14 is **partly closed**: the
+> Pixel passed on Full ("several minutes ... with no distortion", Crawford, 2026-10-14), but with no underrun counts, no Standard
+> run and no Effects Limit check, and the manual list and desktop `npm run perf` were not reported; `scratchy-audio-phones.md` records exactly that and no more. Open for Crawford:
 > keep or remove the T14b tier (built before any rise), the lore words, and the unreported T14 lines. The intent, spec and
 > this plan were committed with T15 because the guard test reads the spec.
 >
