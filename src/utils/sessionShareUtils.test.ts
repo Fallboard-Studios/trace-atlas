@@ -229,6 +229,140 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     });
   });
 
+  describe('articulation on the wire (po / fq / ft, and ac / rc inside the envelope, Robot Articulation T12)', () => {
+    function encodeWire(wire: unknown): string {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
+    }
+
+    /** A real encoded payload whose single robot entry has been replaced with `entry`. */
+    function decodeWithRobotWire(entry: Record<string, unknown>) {
+      const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } }))) as Record<string, unknown>;
+      return decodeSessionPayload(encodeWire({ ...wire, r: { 'robot-1': entry } }));
+    }
+
+    const STAGES = { at: 0.01, dc: 0.2, su: 0.7, rl: 0.3 };
+
+    it('round-trips all five new values together, toEqual', () => {
+      const payload = makePayload({
+        robotOverrides: {
+          'robot-1': {
+            adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3, attackCurve: 'bounce', releaseCurve: 'step' },
+            portamento: 0.15,
+            filterQ: 4.5,
+            filterType: 'bandpass',
+          },
+        },
+      });
+
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('abbreviates them as po, fq and ft on the robot and ac and rc inside the envelope', () => {
+      const payload = makePayload({
+        robotOverrides: {
+          'robot-1': {
+            adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3, attackCurve: 'sine', releaseCurve: 'ripple' },
+            portamento: 0.15,
+            filterQ: 4,
+            filterType: 'highpass',
+          },
+        },
+      });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ a: { ...STAGES, ac: 'sine', rc: 'ripple' }, po: 0.15, fq: 4, ft: 'highpass' });
+    });
+
+    it('leaves absent keys absent on the wire and after decoding', () => {
+      const payload = makePayload({
+        robotOverrides: { 'robot-1': { adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3 }, rhythmicDensity: 42 } },
+      });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ a: STAGES, rd: 42 });
+      const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+      expect(decoded).toEqual(payload);
+      expect(decoded?.robotOverrides['robot-1'].adsr).not.toHaveProperty('attackCurve');
+      expect(decoded?.robotOverrides['robot-1'].adsr).not.toHaveProperty('releaseCurve');
+      expect(decoded?.robotOverrides['robot-1']).not.toHaveProperty('portamento');
+    });
+
+    it('round-trips a portamento of exactly 0 (the seeded glide switched off must not be dropped as falsy)', () => {
+      const payload = makePayload({ robotOverrides: { 'robot-1': { portamento: 0 } } });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ po: 0 });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('round-trips every curve name and every filter type', () => {
+      for (const curve of ['linear', 'exponential', 'sine', 'cosine', 'bounce', 'ripple', 'step'] as const) {
+        const payload = makePayload({
+          robotOverrides: { 'robot-1': { adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3, attackCurve: curve, releaseCurve: curve } } },
+        });
+        expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+      }
+      for (const filterType of ['lowpass', 'bandpass', 'highpass'] as const) {
+        const payload = makePayload({ robotOverrides: { 'robot-1': { filterType } } });
+        expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+      }
+    });
+
+    it('carries one curve without the other', () => {
+      const payload = makePayload({
+        robotOverrides: { 'robot-1': { adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3, releaseCurve: 'cosine' } } },
+      });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, { a: Record<string, unknown> }> };
+
+      expect(wire.r['robot-1'].a).toEqual({ ...STAGES, rc: 'cosine' });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('drops an unlisted ft, keeping the rest of the entry', () => {
+      for (const bad of ['notch', 'Lowpass', '', 3, null, true, {}]) {
+        expect(decodeWithRobotWire({ rd: 42, ft: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      }
+    });
+
+    it('drops a non-numeric po or fq, keeping the rest of the entry', () => {
+      for (const bad of ['x', null, true, {}, []]) {
+        expect(decodeWithRobotWire({ rd: 42, po: bad, fq: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      }
+    });
+
+    it('drops an unlisted ac or rc and keeps the stages and the other curve', () => {
+      for (const bad of [3, 'zigzag', 'Sine', null, true, {}]) {
+        const decoded = decodeWithRobotWire({ a: { ...STAGES, ac: bad, rc: 'ripple' } });
+
+        expect(decoded?.robotOverrides['robot-1']).toEqual({
+          adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3, releaseCurve: 'ripple' },
+        });
+        expect(decoded?.robotOverrides['robot-1'].adsr).not.toHaveProperty('attackCurve');
+      }
+      const both = decodeWithRobotWire({ a: { ...STAGES, ac: 3, rc: 'x' } });
+      expect(both?.robotOverrides['robot-1'].adsr).toEqual({ attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3 });
+    });
+
+    it('decodes a pre-phase link (none of the new keys) to exactly the diff it always did', () => {
+      const payload = makePayload({
+        robotOverrides: {
+          'robot-1': {
+            adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3 },
+            filterFreq: 800,
+            pan: 0.4,
+            name: 'Held',
+          },
+        },
+      });
+      const prePhaseWire = {
+        v: 1, n: 'Pelagos 7!', c: { x: -5, y: 777 }, g: {},
+        r: { 'robot-1': { a: STAGES, f: 800, p: 0.4, nm: 'Held' } },
+      };
+
+      expect(decodeSessionPayload(encodeWire(prePhaseWire))).toEqual(payload);
+    });
+  });
+
   it('a v1 blob carrying legacy lf/gl wire keys (pre-LFO-Bank share links) decodes with them dropped and everything else intact', () => {
     const payload = makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } });
     const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
