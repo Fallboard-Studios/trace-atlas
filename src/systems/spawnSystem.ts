@@ -20,7 +20,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
-  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ATTACK_RELEASE_MAX_SECONDS,
+  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ENVELOPE_TIME_MAX_SECONDS,
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
@@ -44,13 +44,12 @@ const WORLD_HEIGHT = 1080;
 const OFFSCREEN_OFFSET = 150;
 
 // ADSR ranges. Roadmap Phase 9 unified attack/decay/release to one flat 0-5s range, kept narrower than the Ping
-// Contour drawer's 0-10s edit range (the same "generation range narrower than what a user can dial to by hand"
-// relationship every other seeded field has). Attack and Release have since been narrowed to their sliders' new
-// 0-2s (ATTACK_RELEASE_MAX_SECONDS), so a seeded value is always one the slider can show; Decay is unchanged.
-const ATTACK_RANGE = { min: 0.0, max: ATTACK_RELEASE_MAX_SECONDS };
-const DECAY_RANGE = { min: 0.0, max: 5.0 };
+// Contour drawer's 0-10s edit range. All three have since been narrowed to their sliders' new 0-2s
+// (ENVELOPE_TIME_MAX_SECONDS), so a seeded value is always one the slider can show.
+const ATTACK_RANGE = { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS };
+const DECAY_RANGE = { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS };
 const SUSTAIN_RANGE = { min: 0.0, max: 1.0 };
-const RELEASE_RANGE = { min: 0.0, max: ATTACK_RELEASE_MAX_SECONDS };
+const RELEASE_RANGE = { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS };
 /**
  * A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
  * shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
@@ -98,8 +97,10 @@ const OCTAVE_REGISTERS = [
 
 /** Fraction of robots that glide between notes: ≈ 1.5 in 12 (measured 12.5 %; a nominal 0.12 measured 3 %). */
 const GLIDER_THRESHOLD = 0.23;
-/** A glider's portamento time, seconds. Short enough to read as a slur, not a siren. */
-const PORTAMENTO_SEED_RANGE = { min: 0.05, max: 0.30 };
+/** A glider's portamento time, seconds. Short enough to read as a slur, not a siren: it tops out at 0.2 s, just over a
+ *  16th note (0.15 s at 98 BPM), because a much longer glide never lands (measured: 0.3 s reaches 37 % of the way to the
+ *  next pitch on 16ths). This is the spec's risk-5 fallback. */
+const PORTAMENTO_SEED_RANGE = { min: 0.05, max: 0.20 };
 /** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const PORTAMENTO_STEP = 0.01;
 

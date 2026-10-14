@@ -16,7 +16,7 @@ import {
   LAMP_MIN,
 } from './robotVisualHelpers';
 import type { ADSREnvelope } from '../../types/Robot';
-import { ATTACK_RELEASE_MAX_SECONDS } from '../../constants';
+import { ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
 import type { OscillatorLayer } from '../../types/layeredAudio';
 
 describe('robotVisualHelpers', () => {
@@ -68,8 +68,9 @@ describe('robotVisualHelpers', () => {
   describe('BODY_NORMALISER', () => {
     it('matches the seeded attack/release range (2s, the sliders\' own maximum) and sustain range (1)', () => {
       expect(BODY_NORMALISER).toEqual({ attack: 2, sustain: 1, release: 2 });
-      expect(BODY_NORMALISER.attack).toBe(ATTACK_RELEASE_MAX_SECONDS);
-      expect(BODY_NORMALISER.release).toBe(ATTACK_RELEASE_MAX_SECONDS);
+      expect(BODY_NORMALISER.attack).toBe(ENVELOPE_TIME_MAX_SECONDS);
+      expect(BODY_NORMALISER.release).toBe(ENVELOPE_TIME_MAX_SECONDS);
+      expect('decay' in BODY_NORMALISER, 'Decay does not reach the body').toBe(false);
     });
   });
 

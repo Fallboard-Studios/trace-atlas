@@ -61,12 +61,13 @@ export const LOAD_PLAYBACK_BELOW = 0.61;
 export const PORTAMENTO_MIN = 0;
 export const PORTAMENTO_MAX = 2;
 /**
- * Attack and Release run 0 to this many seconds: the sliders' maximum, the top of the seeded range and the divisor
- * the body normalises them by (robotVisualHelpers' BODY_NORMALISER), kept as one number so the three cannot drift.
- * Past about half a second a robot's notes (often back-to-back 16ths) retrigger the envelope before it can finish,
- * so longer values all sound like the same held drone; 0-10 s spent most of its travel there. Decay is unchanged.
+ * Attack, Decay and Release run 0 to this many seconds: the sliders' maximum and the top of their seeded range, and
+ * (Attack and Release only) the divisor the body normalises them by (robotVisualHelpers' BODY_NORMALISER), kept as one
+ * number so they cannot drift. Past about half a second a robot's notes (often back-to-back 16ths) retrigger the
+ * envelope before a stage can finish, so longer Attack and Release all sound like the same held drone, and a longer
+ * Decay never reaches Sustain, which leaves the Sustain slider doing nothing; 0-10 s spent most of its travel there.
  */
-export const ATTACK_RELEASE_MAX_SECONDS = 2;
+export const ENVELOPE_TIME_MAX_SECONDS = 2;
 /** The robot bus filter's cutoff range, Hz: the slider's range and the bus.frequency LFO's output range (same as the global LPF). */
 export const ROBOT_BUS_FILTER_FREQ_RANGE = { min: 20, max: 20000 } as const;
 /** The robot bus filter's resonance range (the global LPF's pair). Today's fixed Q of 1 sits inside it. */

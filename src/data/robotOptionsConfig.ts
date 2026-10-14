@@ -36,7 +36,7 @@ import {
   PAN_DISPLAY_SCALE,
   PAN_MIN,
   PAN_MAX,
-  ATTACK_RELEASE_MAX_SECONDS,
+  ENVELOPE_TIME_MAX_SECONDS,
   PORTAMENTO_MIN,
   PORTAMENTO_MAX,
   ROBOT_BUS_FILTER_FREQ_RANGE,
@@ -282,7 +282,7 @@ export const ATTACK_SCHEMA: SliderLogSchema = {
   type: 'sliderLog',
   ...labels('probe.envelope.attack'),
   min: 0,
-  max: ATTACK_RELEASE_MAX_SECONDS,
+  max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
 
@@ -291,7 +291,7 @@ export const DECAY_SCHEMA: SliderLogSchema = {
   type: 'sliderLog',
   ...labels('probe.envelope.decay'),
   min: 0,
-  max: 10,
+  max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
 
@@ -314,7 +314,7 @@ export const RELEASE_SCHEMA: SliderLogSchema = {
   type: 'sliderLog',
   ...labels('probe.envelope.release'),
   min: 0,
-  max: ATTACK_RELEASE_MAX_SECONDS,
+  max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
 

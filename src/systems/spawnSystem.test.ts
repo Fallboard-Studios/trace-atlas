@@ -88,14 +88,14 @@ describe('spawnSystem', () => {
       expect(['sine', 'square', 'triangle', 'sawtooth', 'pulse']).toContain(attrs.waveform);
     });
 
-    it('generates Attack and Release within 0-2s (the sliders\' range) and Decay within 0-5s', () => {
-      // Phase 9 unified all three at 0-5s; Attack and Release were then narrowed to their sliders' new 0-2s
-      // (docs/specs/ROBOT_ARTICULATION.md "As shipped"), so a seeded value is always one the slider can show.
+    it('generates Attack, Decay and Release within 0-2s (the sliders\' range)', () => {
+      // Phase 9 unified all three at 0-5s; they were then narrowed to their sliders' new 0-2s
+      // (docs/specs/ROBOT_ARTICULATION.md §1.10), so a seeded value is always one the slider can show.
       const attrs = generateAudioAttributes(mockNoiseMap, 0);
       expect(attrs.adsr.attack).toBeGreaterThanOrEqual(0);
       expect(attrs.adsr.attack).toBeLessThanOrEqual(2.0);
       expect(attrs.adsr.decay).toBeGreaterThanOrEqual(0);
-      expect(attrs.adsr.decay).toBeLessThanOrEqual(5.0);
+      expect(attrs.adsr.decay).toBeLessThanOrEqual(2.0);
       expect(attrs.adsr.sustain).toBeGreaterThanOrEqual(0.0);
       expect(attrs.adsr.sustain).toBeLessThanOrEqual(1.0);
       expect(attrs.adsr.release).toBeGreaterThanOrEqual(0);
@@ -233,16 +233,23 @@ describe('spawnSystem', () => {
       expect(share(accents), `${accents}/400 accent filters`).toBeLessThanOrEqual(0.25);
     });
 
-    it('a glider glides 0.05-0.30 s on a 0.01 grid; every other robot has exactly 0', () => {
+    it('a glider glides 0.05-0.20 s on a 0.01 grid; every other robot has exactly 0', () => {
       for (const a of SAMPLE) {
         const p = a.portamento as number;
         if (p === 0) continue;
         expect(p).toBeGreaterThanOrEqual(0.05 - 1e-9);
-        expect(p).toBeLessThanOrEqual(0.30 + 1e-9);
+        expect(p).toBeLessThanOrEqual(0.20 + 1e-9);
         expect(Math.abs(p / 0.01 - Math.round(p / 0.01))).toBeLessThan(1e-6);
       }
       expect(SAMPLE.some((a) => a.portamento === 0)).toBe(true);
       expect(SAMPLE.some((a) => (a.portamento as number) > 0)).toBe(true);
+    });
+
+    it('the glides use their whole 0.05-0.20 s range: some are short, some reach the 16th-note length (about 0.15 s)', () => {
+      // A glide longer than the note never lands (a 0.3 s glide on a 16th got 37 % of the way to the new pitch).
+      const glides = SAMPLE.map((a) => a.portamento as number).filter((p) => p > 0);
+      expect(Math.min(...glides)).toBeLessThan(0.1);
+      expect(Math.max(...glides)).toBeGreaterThanOrEqual(0.15);
     });
 
     it('a common robot has an open lowpass: cutoff 2000-8000 Hz, Q 1; an accent robot cutoff 400-2500 Hz, Q 3-8 on a 0.1 grid, lowpass or bandpass', () => {
@@ -264,12 +271,12 @@ describe('spawnSystem', () => {
       expect(SAMPLE.some((a) => a.filterType === 'lowpass' && isAccent(a)), 'some accent robot should stay lowpass').toBe(true);
     });
 
-    it('no robot is ever highpass, filterFreq 0 (the "no filter" sentinel) or a portamento outside {0} + [0.05, 0.30]', () => {
+    it('no robot is ever highpass, filterFreq 0 (the "no filter" sentinel) or a portamento outside {0} + [0.05, 0.20]', () => {
       for (const a of SAMPLE) {
         expect(a.filterType).not.toBe('highpass');
         expect(a.filterFreq).toBeGreaterThan(0);
         const p = a.portamento as number;
-        expect(p === 0 || (p >= 0.05 - 1e-9 && p <= 0.30 + 1e-9)).toBe(true);
+        expect(p === 0 || (p >= 0.05 - 1e-9 && p <= 0.20 + 1e-9)).toBe(true);
       }
     });
 
@@ -301,6 +308,7 @@ describe('spawnSystem', () => {
         // A shaped stage is short enough for its shape to be heard: the bottom of the shaped ranges.
         expect(a.adsr.attack).toBeCloseTo(0.03, 9);
         expect(a.adsr.release).toBeCloseTo(0.15, 9);
+        expect(a.adsr.decay).toBeCloseTo(0, 9);
       });
 
       it('noise +1 (every draw at its max) is the plain robot: no glide, linear curves, open lowpass at 8000 Hz, Q 1', () => {
@@ -311,6 +319,7 @@ describe('spawnSystem', () => {
         // A plain robot keeps the full seeded range: the top of it.
         expect(a.adsr.attack).toBeCloseTo(2, 9);
         expect(a.adsr.release).toBeCloseTo(2, 9);
+        expect(a.adsr.decay).toBeCloseTo(2, 9);
         expect(a.filterFreq).toBe(8000);
         expect(a.filterQ).toBe(1);
         expect(a.filterType).toBe('lowpass');
@@ -381,10 +390,20 @@ describe('spawnSystem', () => {
         }
       });
 
-      it('leaves Decay alone: still 0-5 s with long values common', () => {
+      it('Decay is seeded over the same 0-2 s: short and long values both turn up, and none past the slider', () => {
         const decays = SAMPLE.map((a) => a.adsr.decay);
-        expect(Math.max(...decays)).toBeGreaterThan(4);
+        expect(Math.max(...decays)).toBeGreaterThan(1.5);
+        expect(Math.max(...decays)).toBeLessThanOrEqual(2);
         expect(Math.min(...decays)).toBeGreaterThanOrEqual(0);
+        expect(Math.min(...decays)).toBeLessThan(0.5);
+      });
+
+      it('a shaped attack or release does not shorten Decay: it is drawn from its own range whatever the curves say', () => {
+        const shapedBoth = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear' && a.adsr.releaseCurve !== 'linear');
+        const plain = SAMPLE.filter((a) => a.adsr.attackCurve === 'linear' && a.adsr.releaseCurve === 'linear');
+        expect(shapedBoth.length).toBeGreaterThan(0);
+        expect(Math.max(...[...shapedBoth, ...plain].map((a) => a.adsr.decay))).toBeGreaterThan(1.5);
+        expect(plain.some((a) => a.adsr.decay > 1.5)).toBe(true);
       });
 
       it('a plain robot at a given point in the noise has the same body as before: seeded value / 2 s equals the old value / 5 s', async () => {
