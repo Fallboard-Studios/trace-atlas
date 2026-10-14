@@ -229,6 +229,95 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     });
   });
 
+  describe('sends on the wire (the `rs` / `ds` codes, Robot Sends T16)', () => {
+    function encodeWire(wire: unknown): string {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
+    }
+
+    /** A real encoded payload whose single robot entry has been replaced with `entry`. */
+    function decodeWithRobotWire(entry: Record<string, unknown>) {
+      const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } }))) as Record<string, unknown>;
+      return decodeSessionPayload(encodeWire({ ...wire, r: { 'robot-1': entry } }));
+    }
+
+    it('abbreviates the two sends as rs and ds and decodes them back, toEqual', () => {
+      const payload = makePayload({ robotOverrides: { 'robot-1': { reverbSend: 0.35, delaySend: 0.6 } } });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ rs: 0.35, ds: 0.6 });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('round-trips a send of exactly 0 and of exactly 1 (a switched-off send must not be dropped as falsy)', () => {
+      for (const send of [0, 1]) {
+        const payload = makePayload({ robotOverrides: { 'robot-1': { reverbSend: send, delaySend: send } } });
+        const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+        expect(wire.r['robot-1']).toEqual({ rs: send, ds: send });
+        expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+      }
+    });
+
+    it('carries one send alone, leaving the other key absent on the wire and after decoding', () => {
+      const reverbOnly = makePayload({ robotOverrides: { 'robot-1': { reverbSend: 0.2 } } });
+      const delayOnly = makePayload({ robotOverrides: { 'robot-1': { delaySend: 0 } } });
+
+      const reverbWire = decodeRawWire(encodeSessionPayload(reverbOnly)) as { r: Record<string, Record<string, unknown>> };
+      const delayWire = decodeRawWire(encodeSessionPayload(delayOnly)) as { r: Record<string, Record<string, unknown>> };
+      expect(reverbWire.r['robot-1']).toEqual({ rs: 0.2 });
+      expect(delayWire.r['robot-1']).toEqual({ ds: 0 });
+
+      const reverbDecoded = decodeSessionPayload(encodeSessionPayload(reverbOnly));
+      const delayDecoded = decodeSessionPayload(encodeSessionPayload(delayOnly));
+      expect(reverbDecoded).toEqual(reverbOnly);
+      expect(reverbDecoded?.robotOverrides['robot-1']).not.toHaveProperty('delaySend');
+      expect(delayDecoded).toEqual(delayOnly);
+      expect(delayDecoded?.robotOverrides['robot-1']).not.toHaveProperty('reverbSend');
+    });
+
+    it('an entry with neither key decodes with neither send (absent means the seeded send)', () => {
+      const decoded = decodeWithRobotWire({ rd: 42 });
+
+      expect(decoded?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      expect(decoded?.robotOverrides['robot-1']).not.toHaveProperty('reverbSend');
+      expect(decoded?.robotOverrides['robot-1']).not.toHaveProperty('delaySend');
+    });
+
+    it('drops an rs or ds that is a string, null (what JSON makes of NaN), a boolean, an object or out of [0, 1], keeping the rest of the entry', () => {
+      for (const bad of ['x', '0.5', null, true, {}, [], 3, -0.1, 1.0001]) {
+        expect(decodeWithRobotWire({ rd: 42, rs: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+        expect(decodeWithRobotWire({ rd: 42, ds: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      }
+    });
+
+    it('drops each send on its own: a good rs survives a bad ds and the reverse', () => {
+      expect(decodeWithRobotWire({ rs: 0.4, ds: 'x' })?.robotOverrides['robot-1']).toEqual({ reverbSend: 0.4 });
+      expect(decodeWithRobotWire({ rs: -0.1, ds: 0.7 })?.robotOverrides['robot-1']).toEqual({ delaySend: 0.7 });
+    });
+
+    it('carries the sends next to the robot\'s other overrides, a pan and the articulation keys', () => {
+      const payload = makePayload({
+        robotOverrides: { 'robot-1': { rhythmicDensity: 42, pan: -0.6, portamento: 0.15, reverbSend: 0.25, delaySend: 0.5, name: 'Held' } },
+      });
+
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('a link from before the sends (no rs / ds) decodes to exactly the diff it always did, and stays version 2', () => {
+      const payload = makePayload({
+        version: 2,
+        robotOverrides: { 'robot-1': { filterFreq: 800, pan: 0.4, name: 'Held' } },
+      });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+      const olderWire = { ...wire, r: { 'robot-1': { f: 800, p: 0.4, nm: 'Held' } } };
+
+      const decoded = decodeSessionPayload(encodeWire(olderWire));
+
+      expect(decoded).toEqual(payload);
+      expect(decoded?.version).toBe(2);
+    });
+  });
+
   describe('articulation on the wire (po / fq / ft, and ac / rc inside the envelope, Robot Articulation T12)', () => {
     function encodeWire(wire: unknown): string {
       return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
