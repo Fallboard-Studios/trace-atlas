@@ -69,6 +69,8 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onReverbSendChange={options.onReverbSendChange}
             onDelaySendChange={options.onDelaySendChange}
             volumeSwelling={options.volumeSwelling}
+            reverbSendSwelling={options.reverbSendSwelling}
+            delaySendSwelling={options.delaySendSwelling}
           />
         );
       case 'rhythm':

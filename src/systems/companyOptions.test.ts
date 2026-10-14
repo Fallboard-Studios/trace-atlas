@@ -82,6 +82,46 @@ describe('resolveCompanyOptions', () => {
     expect(resolved.pan).toBe(0);
   });
 
+  // docs/tasks/ROBOT_SENDS.md Task 14 - the sends resolve like Pan: the recorded field, else the first member's.
+  describe('reverbSend and delaySend', () => {
+    it('resolve to the first member\'s own sends when the snapshot has neither', () => {
+      const resolved = resolveCompanyOptions(undefined, makeRobot({ reverbSend: 0.35, delaySend: 0.2 }));
+
+      expect(resolved.reverbSend).toBe(0.35);
+      expect(resolved.delaySend).toBe(0.2);
+    });
+
+    it('fall back to 0 for a member that carries neither field (an older robot)', () => {
+      const resolved = resolveCompanyOptions(undefined, makeRobot());
+
+      expect(resolved.reverbSend).toBe(0);
+      expect(resolved.delaySend).toBe(0);
+    });
+
+    it('a recorded value wins over the first member', () => {
+      const firstMember = makeRobot({ reverbSend: 0.35, delaySend: 0.2 });
+
+      expect(resolveCompanyOptions({ reverbSend: 0.9 }, firstMember).reverbSend).toBe(0.9);
+      expect(resolveCompanyOptions({ delaySend: 0.6 }, firstMember).delaySend).toBe(0.6);
+    });
+
+    it('a recorded 0 is a real value, not a missing one (a fully dry company must not fall through to the member)', () => {
+      const firstMember = makeRobot({ reverbSend: 0.35, delaySend: 0.2 });
+
+      const resolved = resolveCompanyOptions({ reverbSend: 0, delaySend: 0 }, firstMember);
+
+      expect(resolved.reverbSend).toBe(0);
+      expect(resolved.delaySend).toBe(0);
+    });
+
+    it('record independently: a recorded reverbSend leaves delaySend on the member, and the reverse', () => {
+      const firstMember = makeRobot({ reverbSend: 0.35, delaySend: 0.2 });
+
+      expect(resolveCompanyOptions({ reverbSend: 0.9 }, firstMember).delaySend).toBe(0.2);
+      expect(resolveCompanyOptions({ delaySend: 0.6 }, firstMember).reverbSend).toBe(0.35);
+    });
+  });
+
   it('lfoLinks resolves from the first member\'s current value, falling back to an empty object when unset', () => {
     const withLinks = makeRobot({ lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
     expect(resolveCompanyOptions(undefined, withLinks).lfoLinks).toEqual({ 'layer0.gain': { lane: 'a', depth: 40 } });
