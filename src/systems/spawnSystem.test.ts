@@ -6,7 +6,7 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { getRobotGem } from '../components/robot/gem/polygon';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -20,6 +20,7 @@ import {
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
+import { GLOBAL_AUDIO_LOADING_RANGES } from '../data/globalAudioLoadingRanges';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { getStations, type Station } from './stations';
@@ -330,6 +331,95 @@ describe('spawnSystem', () => {
     });
   });
 
+  // Robot Sends T5 (docs/specs/ROBOT_SENDS.md section 1.2): one helper serves spawnRobot and
+  // generateRobotAudioBaseline, so the two cannot drift.
+  describe('generateRobotSends (Robot Sends T5)', () => {
+    const realNoise = createNoise2D(alea('robot-sends-test-seed'));
+    const onGrid = (x: number) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
+
+    afterEach(async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+    });
+
+    /** Force each send draw to a chosen raw value; everything else stays real. */
+    async function forceDraws(draws: { reverb: number; delay: number; quiet: number }) {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => {
+        if (dataId === 'robot.send.reverb') return draws.reverb;
+        if (dataId === 'robot.send.delay') return draws.delay;
+        if (dataId === 'robot.send.delay.quiet') return draws.quiet;
+        return real(noiseMap, dataId, offset, min, max);
+      });
+    }
+
+    it('stays inside the bands - reverb 0.1 to 0.4, delay 0 to 0.3 - and on the 0.01 grid, over many offsets', () => {
+      for (let offset = 0; offset < 300; offset++) {
+        const { reverbSend, delaySend } = generateRobotSends(realNoise, offset);
+        expect(reverbSend, `offset ${offset}`).toBeGreaterThanOrEqual(0.1);
+        expect(reverbSend, `offset ${offset}`).toBeLessThanOrEqual(0.4);
+        expect(onGrid(reverbSend), `offset ${offset} reverb ${reverbSend}`).toBe(true);
+        expect(delaySend, `offset ${offset}`).toBeGreaterThanOrEqual(0);
+        expect(delaySend, `offset ${offset}`).toBeLessThanOrEqual(0.3);
+        expect(onGrid(delaySend), `offset ${offset} delay ${delaySend}`).toBe(true);
+      }
+    });
+
+    it('is deterministic for a noise map and offset, and varies between offsets', () => {
+      expect(generateRobotSends(realNoise, 7)).toEqual(generateRobotSends(realNoise, 7));
+      const reverbs = new Set(Array.from({ length: 50 }, (_, i) => generateRobotSends(realNoise, i).reverbSend));
+      expect(reverbs.size).toBeGreaterThan(8);
+    });
+
+    it('hits the band edges exactly: the lowest noise gives reverb 0.1 and a quiet delay, the highest gives reverb 0.4 and delay 0.3', () => {
+      expect(generateRobotSends(() => -1, 0)).toEqual({ reverbSend: 0.1, delaySend: 0 });
+      expect(generateRobotSends(() => 1, 0)).toEqual({ reverbSend: 0.4, delaySend: 0.3 });
+    });
+
+    it('goes quiet on a delay roll just under 0.25 and not on exactly 0.25', async () => {
+      await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.2499 });
+      expect(generateRobotSends(realNoise, 0).delaySend).toBe(0);
+      await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.25 });
+      expect(generateRobotSends(realNoise, 0).delaySend).toBe(0.2);
+    });
+
+    it('a quiet delay never touches the reverb draw', async () => {
+      await forceDraws({ reverb: 0.37, delay: 0.2, quiet: 0 });
+      expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.37, delaySend: 0 });
+    });
+
+    it('quantizes in percent space to the nearest whole percent', async () => {
+      await forceDraws({ reverb: 0.3449, delay: 0.1051, quiet: 1 });
+      expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.34, delaySend: 0.11 });
+      await forceDraws({ reverb: 0.3451, delay: 0.1049, quiet: 1 });
+      expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.35, delaySend: 0.1 });
+    });
+
+    it('reads the existing global rows - the loading ranges for reverb.wet and delay.wet - for its bands', () => {
+      vi.mocked(getSeededVal).mockClear();
+
+      generateRobotSends(realNoise, 3);
+
+      const calls = vi.mocked(getSeededVal).mock.calls.map((c) => [c[1], c[2], c[3], c[4]]);
+      expect(calls).toContainEqual(['robot.send.reverb', 3, GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].min, GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max]);
+      expect(calls).toContainEqual(['robot.send.delay', 3, GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].min, GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max]);
+      expect(calls).toContainEqual(['robot.send.delay.quiet', 3, 0, 1]);
+      expect(calls).toHaveLength(3);
+    });
+
+    it('leaves a sizeable share of a large fleet with no delay at all (a loose statistical bound)', () => {
+      // The threshold is 0.25, but one getSeededVal sample is bell-curved around 0.5, so fewer than a quarter of
+      // the rolls fall under it: measured at about 17-18 % over four seeds x 2000 offsets (2026-10-14).
+      const total = 600;
+      let quiet = 0;
+      for (let offset = 0; offset < total; offset++) {
+        if (generateRobotSends(realNoise, offset).delaySend === 0) quiet++;
+      }
+      expect(quiet / total).toBeGreaterThan(0.1);
+      expect(quiet / total).toBeLessThan(0.3);
+    });
+  });
+
   describe('spawnRobot', () => {
     beforeEach(() => {
       // Reset locale store before each test
@@ -515,29 +605,133 @@ describe('spawnSystem', () => {
       expect(dataIds.filter((id) => /pan/i.test(id))).toEqual([]);
     });
 
-    // Robot Sends T1 (docs/specs/ROBOT_SENDS.md section 1.1): the fields exist from spawn as a 0 placeholder;
-    // T5 replaces it with the seeded spread. Until then no noise draw and no existing key moves.
-    it('spawns every robot with reverbSend and delaySend present, as numbers', () => {
-      spawnRobot(DEFAULT_LOCALE_ID);
-      spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
-      for (let i = 0; i < 20; i++) spawnRobot(DEFAULT_LOCALE_ID);
+    // Robot Sends T5 (docs/specs/ROBOT_SENDS.md section 1.2): every robot is born with a seeded spread of
+    // reverb and delay depth, drawn from the same bands the global rows used to cover.
+    describe('seeds the sends (Robot Sends T5)', () => {
+      const onGrid = (x: number) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
+      const freshLocale = (localeId: string, coordinates?: { x: number; y: number }) =>
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, ...(coordinates ? { coordinates } : {}), robots: [] } },
+        }));
+      const noiseFor = (localeId: string) => {
+        const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+        return getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      };
 
-      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      expect(robots).toHaveLength(22);
-      for (const robot of robots) {
-        expect(robot.reverbSend, `robot ${robot.id}`).toBe(0);
-        expect(robot.delaySend, `robot ${robot.id}`).toBe(0);
-      }
-    });
+      it('puts every spawned robot inside the send bands - reverb 0.1 to 0.4, delay 0 to 0.3 - on the 0.01 grid, Active or Docked', () => {
+        freshLocale('sends-bands-locale');
+        for (let i = 0; i < 40; i++) {
+          spawnRobot('sends-bands-locale', i % 2 ? { docking: DockingState.Docked, batteryLevel: 40 } : undefined);
+        }
 
-    it('draws nothing from the noise map for the sends yet (no new getSeededVal key before T5)', () => {
-      vi.mocked(getSeededVal).mockClear();
+        const robots = useLocaleStore.getState().getLocaleById('sends-bands-locale')!.robots;
+        expect(robots).toHaveLength(40);
+        for (const robot of robots) {
+          expect(robot.reverbSend, `robot ${robot.id} reverb`).toBeGreaterThanOrEqual(0.1);
+          expect(robot.reverbSend, `robot ${robot.id} reverb`).toBeLessThanOrEqual(0.4);
+          expect(onGrid(robot.reverbSend), `robot ${robot.id} reverb ${robot.reverbSend}`).toBe(true);
+          expect(robot.delaySend, `robot ${robot.id} delay`).toBeGreaterThanOrEqual(0);
+          expect(robot.delaySend, `robot ${robot.id} delay`).toBeLessThanOrEqual(0.3);
+          expect(onGrid(robot.delaySend), `robot ${robot.id} delay ${robot.delaySend}`).toBe(true);
+        }
+      });
 
-      spawnRobot(DEFAULT_LOCALE_ID);
+      it('gives robot N exactly what generateRobotSends draws at offset N - the stored value is the helper\'s, not a re-roll', () => {
+        freshLocale('sends-offset-locale');
+        for (let i = 0; i < 6; i++) spawnRobot('sends-offset-locale');
 
-      const dataIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1]));
-      expect(dataIds).toContain('robot.masterVolume');
-      expect(dataIds.filter((id) => /send/i.test(id))).toEqual([]);
+        const noiseMap = noiseFor('sends-offset-locale');
+        const robots = useLocaleStore.getState().getLocaleById('sends-offset-locale')!.robots;
+        robots.forEach((robot, i) => {
+          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(generateRobotSends(noiseMap, i));
+        });
+      });
+
+      it('spreads the fleet: the robots do not all share one reverb or one delay depth', () => {
+        freshLocale('sends-spread-locale');
+        for (let i = 0; i < 30; i++) spawnRobot('sends-spread-locale');
+
+        const robots = useLocaleStore.getState().getLocaleById('sends-spread-locale')!.robots;
+        expect(new Set(robots.map((r) => r.reverbSend)).size).toBeGreaterThan(5);
+        expect(new Set(robots.map((r) => r.delaySend)).size).toBeGreaterThan(5);
+      });
+
+      it('is deterministic: two locales sharing coordinates spawn identical sends', () => {
+        const coords = { x: -7.75, y: 2.5 };
+        freshLocale('sends-det-a', coords);
+        freshLocale('sends-det-b', coords);
+        for (let i = 0; i < 5; i++) {
+          spawnRobot('sends-det-a');
+          spawnRobot('sends-det-b');
+        }
+
+        const pick = (id: string) => useLocaleStore.getState().getLocaleById(id)!.robots.map((r) => [r.reverbSend, r.delaySend]);
+        expect(pick('sends-det-a')).toEqual(pick('sends-det-b'));
+      });
+
+      it('draws its own sends on the copy branch too - a copied robot shares the voice, not the depth', async () => {
+        freshLocale('sends-copy-locale');
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        // Spawn 0 is fresh (nobody to copy); every later spawn takes the copy branch (0 is below 0.30).
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) =>
+          dataId === 'robot.copyChance' ? 0 : realGetSeededVal(noiseMap, dataId, offset, min, max));
+        try {
+          for (let i = 0; i < 4; i++) spawnRobot('sends-copy-locale');
+        } finally {
+          mocked.mockImplementation(realGetSeededVal);
+        }
+
+        const noiseMap = noiseFor('sends-copy-locale');
+        const robots = useLocaleStore.getState().getLocaleById('sends-copy-locale')!.robots;
+        // A copy really happened: every later robot reuses an earlier robot's audioAttributes by reference.
+        expect(robots.slice(1).every((r) => robots.some((o) => o !== r && o.audioAttributes === r.audioAttributes))).toBe(true);
+        robots.forEach((robot, i) => {
+          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(generateRobotSends(noiseMap, i));
+        });
+        // ...and they are not simply the first robot's sends repeated.
+        expect(new Set(robots.map((r) => `${r.reverbSend}/${r.delaySend}`)).size).toBeGreaterThan(1);
+      });
+
+      it('adds only the three new dataIds, one draw each, at the spawn count', () => {
+        freshLocale('sends-keys-locale');
+        vi.mocked(getSeededVal).mockClear();
+
+        spawnRobot('sends-keys-locale');
+
+        const sendCalls = vi.mocked(getSeededVal).mock.calls.filter((c) => /send/i.test(String(c[1])));
+        expect(sendCalls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb']);
+        expect(sendCalls.every((c) => c[2] === 0)).toBe(true);
+      });
+
+      it('with no locale (no noise map) falls back to alea draws inside the same bands, still varied', () => {
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        for (let i = 0; i < 40; i++) spawnRobot(`sends-no-locale-${i}`);
+
+        const sent = sendsSpy.mock.calls.map((c) => c[1] as { reverb: number; delay: number });
+        expect(sent).toHaveLength(40);
+        for (const { reverb, delay } of sent) {
+          expect(reverb).toBeGreaterThanOrEqual(0.1);
+          expect(reverb).toBeLessThanOrEqual(0.4);
+          expect(onGrid(reverb)).toBe(true);
+          expect(delay).toBeGreaterThanOrEqual(0);
+          expect(delay).toBeLessThanOrEqual(0.3);
+          expect(onGrid(delay)).toBe(true);
+        }
+        expect(new Set(sent.map((s) => s.reverb)).size).toBeGreaterThan(5);
+        expect(sent.some((s) => s.delay === 0)).toBe(true);
+      });
+
+      it('primes the engine with the seeded values - the stored sends, not a placeholder', () => {
+        freshLocale('sends-prime-locale');
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        spawnRobot('sends-prime-locale');
+
+        const robot = useLocaleStore.getState().getLocaleById('sends-prime-locale')!.robots[0];
+        expect(robot.reverbSend).toBeGreaterThan(0); // reverb band starts at 0.1: a placeholder 0 cannot pass
+        expect(sendsSpy).toHaveBeenCalledWith(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+      });
     });
 
     it('spawns robots with the new percentage/toggle melody shapes', () => {
@@ -1946,6 +2140,81 @@ describe('spawnSystem', () => {
         expect(baselines[i].noteVariance, `robot ${i} (${robot.id}) noteVariance`).toEqual(robot.noteVariance);
         expect(baselines[i].pitchRepeat, `robot ${i} (${robot.id}) pitchRepeat`).toBe(robot.pitchRepeat);
         expect(baselines[i].lfoLinks, `robot ${i} (${robot.id}) lfoLinks`).toEqual(robot.lfoLinks);
+      });
+    });
+
+    // Robot Sends T5 (docs/specs/ROBOT_SENDS.md section 1.2): the baseline gains the two sends, drawn by the
+    // same helper as spawnRobot and OUTSIDE the copy branch, so "live differs from seed" is exact.
+    describe('sends (Robot Sends T5)', () => {
+      const sendsOf = (x: { reverbSend: number; delaySend: number }) => ({ reverbSend: x.reverbSend, delaySend: x.delaySend });
+      const freshLocale = (localeId: string) =>
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+        }));
+      const noiseFor = (localeId: string) => {
+        const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+        return getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      };
+
+      afterEach(async () => {
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        vi.mocked(getSeededVal).mockImplementation(real);
+      });
+
+      it('equals the spawned robot\'s sends at spawn count 0', () => {
+        freshLocale('baseline-sends-fresh-locale');
+        spawnRobot('baseline-sends-fresh-locale');
+        const robot = useLocaleStore.getState().getLocaleById('baseline-sends-fresh-locale')!.robots[0];
+
+        const baseline = generateRobotAudioBaseline(noiseFor('baseline-sends-fresh-locale'), 0, []);
+
+        expect(sendsOf(baseline)).toEqual(sendsOf(robot));
+        expect(baseline.reverbSend).toBeGreaterThan(0); // the reverb band starts at 0.1, so a missing field cannot pass
+      });
+
+      it('equals every robot of a real 12-robot roster', () => {
+        freshLocale('baseline-sends-roster-locale');
+        spawnInitialRoster('baseline-sends-roster-locale');
+        const robots = useLocaleStore.getState().getLocaleById('baseline-sends-roster-locale')!.robots;
+        expect(robots.length).toBeGreaterThan(0);
+
+        const baselines = generateRobotRosterBaseline(noiseFor('baseline-sends-roster-locale'), robots.length);
+
+        robots.forEach((robot, i) => {
+          expect(sendsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(sendsOf(robot));
+        });
+      });
+
+      it('equals the spawned robots on the copy branch too - the draw sits outside the branch', async () => {
+        freshLocale('baseline-sends-copy-locale');
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        // Every robot after the first copies an earlier one, in spawnRobot and in the baseline alike.
+        vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) =>
+          dataId === 'robot.copyChance' ? 0 : real(noiseMap, dataId, offset, min, max));
+        for (let i = 0; i < 6; i++) spawnRobot('baseline-sends-copy-locale');
+        const robots = useLocaleStore.getState().getLocaleById('baseline-sends-copy-locale')!.robots;
+        const baselines = generateRobotRosterBaseline(noiseFor('baseline-sends-copy-locale'), robots.length);
+
+        // Sanity: the copy branch really ran (a later baseline reuses an earlier one's attributes by reference).
+        expect(baselines.slice(1).every((b) => baselines.some((o) => o !== b && o.audioAttributes === b.audioAttributes))).toBe(true);
+        robots.forEach((robot, i) => {
+          expect(sendsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(sendsOf(robot));
+        });
+      });
+
+      it('a copy baseline carries its own draw, not the source\'s', async () => {
+        freshLocale('baseline-sends-own-locale');
+        const noiseMap = noiseFor('baseline-sends-own-locale');
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
+          dataId === 'robot.copyChance' ? 0 : real(nm, dataId, offset, min, max));
+        const source = generateRobotAudioBaseline(noiseMap, 0, []);
+
+        const copy = generateRobotAudioBaseline(noiseMap, 1, [source]);
+
+        expect(copy.audioAttributes).toBe(source.audioAttributes); // it is a copy
+        expect(sendsOf(copy)).toEqual(generateRobotSends(noiseMap, 1));
+        expect(sendsOf(copy)).not.toEqual(sendsOf(source));
       });
     });
 
