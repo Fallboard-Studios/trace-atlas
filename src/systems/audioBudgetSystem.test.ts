@@ -89,7 +89,7 @@ const enginePoly = vi.spyOn(AudioEngine, 'setPolyphonyCap');
 describe('audioBudgetSystem', () => {
   beforeEach(() => {
     stopAudioBudget();
-    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], filterLinksHeldOff: false, driftHeldOff: false });
+    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false, driftHeldOff: false });
     setRoster([]);
     AudioEngine.setSoundingRobots(null);
     AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
@@ -437,6 +437,7 @@ describe('audioBudgetSystem', () => {
   describe('LFO tiers', () => {
     const setDrift = vi.spyOn(lfoEngine, 'setDriftEnabled');
     const setFilterLinksEnabled = vi.spyOn(lfoEngine, 'setFilterLinksEnabled');
+    const setBusFilterLinksEnabled = vi.spyOn(lfoEngine, 'setBusFilterLinksEnabled');
     const store = () => useAudioStore.getState();
 
     it('at boot on Light: filter LFOs and drift both off, before anything can connect (?fxLoad=light)', () => {
@@ -586,6 +587,166 @@ describe('audioBudgetSystem', () => {
       expect(store().filterLinksHeldOff).toBe(false);
       expect(writes).toBe(2);
       unsubscribe();
+    });
+
+    // Robot Articulation T14b: each robot's own bus-filter cutoff link has its own tier, LOAD_BUS_FILTER_LFOS_MIN
+    // (0.8), on top of the global filter tier. Standard holds it off while the global filter links still run.
+    describe('the robot bus-filter tier (LOAD_BUS_FILTER_LFOS_MIN)', () => {
+      it('at boot on Light: bus links off and marked held off, before anything can connect', () => {
+        useAudioStore.setState({ effectsLoad: 0.2 });
+        startAudioBudget();
+
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(false);
+        expect(store().busFilterLinksHeldOff).toBe(true);
+      });
+
+      it('at boot on Standard: bus links off and held off while the global filter links are on', () => {
+        useAudioStore.setState({ effectsLoad: 0.6 });
+        startAudioBudget();
+
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(false);
+        expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+        expect(store().busFilterLinksHeldOff).toBe(true);
+        expect(store().filterLinksHeldOff).toBe(false);
+      });
+
+      it('at Full: bus links unrestricted and not held off', () => {
+        startAudioBudget();
+
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+        expect(store().busFilterLinksHeldOff).toBe(false);
+      });
+
+      it('Full → Standard holds the bus links off and leaves the global filter links on; Standard → Full lets them back', () => {
+        startAudioBudget();
+        vi.clearAllMocks();
+
+        useAudioStore.getState().setEffectsLoad(0.6);
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(false);
+        expect(store().busFilterLinksHeldOff).toBe(true);
+        expect(store().filterLinksHeldOff).toBe(false);
+
+        useAudioStore.getState().setEffectsLoad(1);
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+        expect(store().busFilterLinksHeldOff).toBe(false);
+      });
+
+      it('flips exactly at the threshold: 0.79 is held off, 0.8 is running', () => {
+        startAudioBudget();
+        const set = (load: number) => useAudioStore.getState().setEffectsLoad(load);
+
+        set(0.79);
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(false);
+        expect(store().busFilterLinksHeldOff).toBe(true);
+
+        set(0.8);
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+        expect(store().busFilterLinksHeldOff).toBe(false);
+      });
+
+      it('is held off for the whole range below the threshold, including below the global filter threshold', () => {
+        startAudioBudget();
+        for (const load of [0, 0.2, 0.39, 0.4, 0.6, 0.79]) {
+          useAudioStore.getState().setEffectsLoad(load);
+          expect(store().busFilterLinksHeldOff, `${load}`).toBe(true);
+        }
+      });
+
+      it('sets drift, then the filter flag, then the bus flag — in that order — on a tier change', () => {
+        startAudioBudget();
+        vi.clearAllMocks();
+
+        useAudioStore.getState().setEffectsLoad(0.2);
+
+        const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
+        expect(setBusFilterLinksEnabled).toHaveBeenCalled();
+        expect(order(setFilterLinksEnabled)).toBeLessThan(order(setBusFilterLinksEnabled));
+      });
+
+      it('does not re-run for a dial change that leaves the bus tier where it was (inside Standard, or inside Full)', () => {
+        useAudioStore.setState({ effectsLoad: 0.5 });
+        startAudioBudget();
+        vi.clearAllMocks();
+
+        useAudioStore.getState().setEffectsLoad(0.55);
+        useAudioStore.getState().setEffectsLoad(0.79);
+        expect(setBusFilterLinksEnabled).not.toHaveBeenCalled();
+
+        useAudioStore.getState().setEffectsLoad(0.9);
+        vi.clearAllMocks();
+        useAudioStore.getState().setEffectsLoad(0.95);
+        expect(setBusFilterLinksEnabled).not.toHaveBeenCalled();
+      });
+
+      it('does not re-run for roster churn or for a robotLoad change', () => {
+        setRoster(roster(4));
+        startAudioBudget();
+        vi.clearAllMocks();
+
+        update('r1', { audioMode: 'mute' });
+        update('r1', { audioMode: 'none' });
+        useAudioStore.getState().setRobotLoad(0.2);
+
+        expect(setBusFilterLinksEnabled).not.toHaveBeenCalled();
+      });
+
+      it('writes the held-off flag only on a real change across a full sweep of the dial', () => {
+        startAudioBudget();
+        let writes = 0;
+        let last = store().busFilterLinksHeldOff;
+        const unsubscribe = useAudioStore.subscribe((state) => {
+          if (state.busFilterLinksHeldOff !== last) {
+            writes++;
+            last = state.busFilterLinksHeldOff;
+          }
+        });
+
+        for (let percent = 100; percent >= 0; percent--) useAudioStore.getState().setEffectsLoad(percent / 100);
+        expect(store().busFilterLinksHeldOff).toBe(true);
+        expect(writes).toBe(1);
+
+        for (let percent = 0; percent <= 100; percent++) useAudioStore.getState().setEffectsLoad(percent / 100);
+        expect(store().busFilterLinksHeldOff).toBe(false);
+        expect(writes).toBe(2);
+        unsubscribe();
+      });
+
+      it('re-runs the tiers when only the bus threshold is crossed (a bus threshold apart from drift and the filter tier)', async () => {
+        vi.resetModules();
+        vi.doMock('../constants', async (importOriginal) => ({ ...(await importOriginal<typeof import('../constants')>()), LOAD_BUS_FILTER_LFOS_MIN: 0.9 }));
+        try {
+          const system = await import('./audioBudgetSystem');
+          const { lfoEngine: freshLfoEngine } = await import('../engine/lfoEngine');
+          const { useAudioStore: freshStore } = await import('../stores/audioStore');
+          const freshSpy = vi.spyOn(freshLfoEngine, 'setBusFilterLinksEnabled');
+          freshStore.setState({ robotLoad: 1, effectsLoad: 0.85 });
+          system.startAudioBudget();
+          expect(freshSpy).toHaveBeenLastCalledWith(false);
+          expect(freshStore.getState().busFilterLinksHeldOff).toBe(true);
+          freshSpy.mockClear();
+
+          freshStore.getState().setEffectsLoad(0.95); // drift and the filter tier stay on; only the bus threshold is crossed
+
+          expect(freshSpy).toHaveBeenLastCalledWith(true);
+          expect(freshStore.getState().busFilterLinksHeldOff).toBe(false);
+          system.stopAudioBudget();
+        } finally {
+          vi.doUnmock('../constants');
+          vi.resetModules();
+        }
+      });
+
+      it('stopAudioBudget lifts the bus tier: links reconnected and the held-off state cleared', () => {
+        useAudioStore.setState({ effectsLoad: 0.6 });
+        startAudioBudget();
+        expect(store().busFilterLinksHeldOff).toBe(true);
+        vi.clearAllMocks();
+
+        stopAudioBudget();
+
+        expect(setBusFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+        expect(store().busFilterLinksHeldOff).toBe(false);
+      });
     });
 
     it('stopAudioBudget lifts every tier: drift back on, every suspended filter link reconnected, held-off state cleared', () => {

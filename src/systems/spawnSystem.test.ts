@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
+import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
 import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { getRobotGem } from '../components/robot/gem/polygon';
@@ -88,19 +89,18 @@ describe('spawnSystem', () => {
       expect(['sine', 'square', 'triangle', 'sawtooth', 'pulse']).toContain(attrs.waveform);
     });
 
-    it('generates ADSR values within the unified 0-5s generation range (Roadmap Phase 9)', () => {
-      // attack/decay/release used to have mismatched per-field maxes (2/2/5) narrower than the
-      // Ping Contour drawer's 0-10s edit range; Phase 9 unifies generation to a flat 0-5s so it's
-      // still narrower than the edit range without three different arbitrary per-field caps.
+    it('generates Attack, Decay and Release within 0-2s (the sliders\' range)', () => {
+      // Phase 9 unified all three at 0-5s; they were then narrowed to their sliders' new 0-2s
+      // (docs/specs/ROBOT_ARTICULATION.md §1.10), so a seeded value is always one the slider can show.
       const attrs = generateAudioAttributes(mockNoiseMap, 0);
       expect(attrs.adsr.attack).toBeGreaterThanOrEqual(0);
-      expect(attrs.adsr.attack).toBeLessThanOrEqual(5.0);
+      expect(attrs.adsr.attack).toBeLessThanOrEqual(2.0);
       expect(attrs.adsr.decay).toBeGreaterThanOrEqual(0);
-      expect(attrs.adsr.decay).toBeLessThanOrEqual(5.0);
+      expect(attrs.adsr.decay).toBeLessThanOrEqual(2.0);
       expect(attrs.adsr.sustain).toBeGreaterThanOrEqual(0.0);
       expect(attrs.adsr.sustain).toBeLessThanOrEqual(1.0);
       expect(attrs.adsr.release).toBeGreaterThanOrEqual(0);
-      expect(attrs.adsr.release).toBeLessThanOrEqual(5.0);
+      expect(attrs.adsr.release).toBeLessThanOrEqual(2.0);
     });
 
     it('generates octave range from predefined registers', () => {
@@ -115,10 +115,10 @@ describe('spawnSystem', () => {
       expect(matchesRegister).toBe(true);
     });
 
-    it('generates filter frequency in valid range', () => {
+    it('generates filter frequency in valid range (the open tier 2000-8000 Hz or the accent tier 400-2500 Hz, Robot Articulation T5)', () => {
       const attrs = generateAudioAttributes(mockNoiseMap, 0);
       expect(attrs.filterFreq).toBeGreaterThanOrEqual(400);
-      expect(attrs.filterFreq).toBeLessThanOrEqual(2500);
+      expect(attrs.filterFreq).toBeLessThanOrEqual(8000);
     });
 
     it('generates varied attributes (not all the same)', () => {
@@ -191,6 +191,390 @@ describe('spawnSystem', () => {
     });
   });
 
+  // Robot Articulation Task 5 (docs/specs/ROBOT_ARTICULATION.md §1.2): portamento, envelope curves
+  // and the bus filter's Q / type / two-tier cutoff are seeded minority traits.
+  describe('generateAudioAttributes — articulation seeding (Robot Articulation T5)', () => {
+    // 10 worlds x 40 offsets = 400 robots. Spread across worlds because one noise map's draws are
+    // strongly correlated per offset (see LFO_QUIET_THRESHOLD's doc comment) and can land on a band edge.
+    const WORLDS = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`articulation-seed-world-${i}`)));
+    const SAMPLE = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateAudioAttributes(noiseMap, offset)));
+    const share = (count: number) => count / SAMPLE.length;
+    const isAccent = (a: (typeof SAMPLE)[number]) => (a.filterQ ?? 1) !== 1;
+
+    it('is deterministic — the same noise map and offset always give the same articulation fields', () => {
+      const noiseMap = createNoise2D(alea('articulation-determinism-seed'));
+      for (let offset = 0; offset < 20; offset++) {
+        expect(generateAudioAttributes(noiseMap, offset)).toEqual(generateAudioAttributes(noiseMap, offset));
+      }
+    });
+
+    it('always writes the articulation fields explicitly (a seeded robot is never "absent")', () => {
+      expect(SAMPLE).toHaveLength(400);
+      for (const a of SAMPLE) {
+        expect(typeof a.portamento).toBe('number');
+        expect(typeof a.filterQ).toBe('number');
+        expect(['lowpass', 'bandpass']).toContain(a.filterType);
+        expect(ENVELOPE_CURVE_NAMES).toContain(a.adsr.attackCurve);
+        expect(ENVELOPE_CURVE_NAMES).toContain(a.adsr.releaseCurve);
+      }
+    });
+
+    it('about 12 % of robots glide, 15 % shape their attack, 15 % shape their release, 20 % carry an accent filter', () => {
+      const gliders = SAMPLE.filter((a) => a.portamento !== 0).length;
+      const shapedAttacks = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear').length;
+      const shapedReleases = SAMPLE.filter((a) => a.adsr.releaseCurve !== 'linear').length;
+      const accents = SAMPLE.filter(isAccent).length;
+      expect(share(gliders), `${gliders}/400 gliders`).toBeGreaterThanOrEqual(0.08);
+      expect(share(gliders), `${gliders}/400 gliders`).toBeLessThanOrEqual(0.16);
+      expect(share(shapedAttacks), `${shapedAttacks}/400 shaped attacks`).toBeGreaterThanOrEqual(0.10);
+      expect(share(shapedAttacks), `${shapedAttacks}/400 shaped attacks`).toBeLessThanOrEqual(0.20);
+      expect(share(shapedReleases), `${shapedReleases}/400 shaped releases`).toBeGreaterThanOrEqual(0.10);
+      expect(share(shapedReleases), `${shapedReleases}/400 shaped releases`).toBeLessThanOrEqual(0.20);
+      expect(share(accents), `${accents}/400 accent filters`).toBeGreaterThanOrEqual(0.15);
+      expect(share(accents), `${accents}/400 accent filters`).toBeLessThanOrEqual(0.25);
+    });
+
+    it('a glider glides 0.05-0.20 s on a 0.01 grid; every other robot has exactly 0', () => {
+      for (const a of SAMPLE) {
+        const p = a.portamento as number;
+        if (p === 0) continue;
+        expect(p).toBeGreaterThanOrEqual(0.05 - 1e-9);
+        expect(p).toBeLessThanOrEqual(0.20 + 1e-9);
+        expect(Math.abs(p / 0.01 - Math.round(p / 0.01))).toBeLessThan(1e-6);
+      }
+      expect(SAMPLE.some((a) => a.portamento === 0)).toBe(true);
+      expect(SAMPLE.some((a) => (a.portamento as number) > 0)).toBe(true);
+    });
+
+    it('the glides use their whole 0.05-0.20 s range: some are short, some reach the 16th-note length (about 0.15 s)', () => {
+      // A glide longer than the note never lands (a 0.3 s glide on a 16th got 37 % of the way to the new pitch).
+      const glides = SAMPLE.map((a) => a.portamento as number).filter((p) => p > 0);
+      expect(Math.min(...glides)).toBeLessThan(0.1);
+      expect(Math.max(...glides)).toBeGreaterThanOrEqual(0.15);
+    });
+
+    it('a common robot has an open lowpass: cutoff 2000-8000 Hz, Q 1; an accent robot cutoff 400-2500 Hz, Q 3-8 on a 0.1 grid, lowpass or bandpass', () => {
+      for (const a of SAMPLE) {
+        if (!isAccent(a)) {
+          expect(a.filterQ).toBe(1);
+          expect(a.filterType).toBe('lowpass');
+          expect(a.filterFreq).toBeGreaterThanOrEqual(2000);
+          expect(a.filterFreq).toBeLessThanOrEqual(8000);
+        } else {
+          expect(a.filterQ as number).toBeGreaterThanOrEqual(3 - 1e-9);
+          expect(a.filterQ as number).toBeLessThanOrEqual(8 + 1e-9);
+          expect(Math.abs((a.filterQ as number) / 0.1 - Math.round((a.filterQ as number) / 0.1))).toBeLessThan(1e-6);
+          expect(a.filterFreq).toBeGreaterThanOrEqual(400);
+          expect(a.filterFreq).toBeLessThanOrEqual(2500);
+        }
+      }
+      expect(SAMPLE.some((a) => a.filterType === 'bandpass'), 'some accent robot should be a bandpass').toBe(true);
+      expect(SAMPLE.some((a) => a.filterType === 'lowpass' && isAccent(a)), 'some accent robot should stay lowpass').toBe(true);
+    });
+
+    it('no robot is ever highpass, filterFreq 0 (the "no filter" sentinel) or a portamento outside {0} + [0.05, 0.20]', () => {
+      for (const a of SAMPLE) {
+        expect(a.filterType).not.toBe('highpass');
+        expect(a.filterFreq).toBeGreaterThan(0);
+        const p = a.portamento as number;
+        expect(p === 0 || (p >= 0.05 - 1e-9 && p <= 0.20 + 1e-9)).toBe(true);
+      }
+    });
+
+    it('every one of the six non-linear curves turns up for attack and for release, and the shaped ones are never "linear"', () => {
+      const nonLinear = ENVELOPE_CURVE_NAMES.filter((c) => c !== 'linear');
+      expect(nonLinear).toHaveLength(6);
+      // 400 robots x 15 % ~ 60 shaped per side over 6 names is thin; sample a larger world set for coverage only.
+      const bigWorlds = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`articulation-coverage-world-${i}`)));
+      const wide = bigWorlds.flatMap((noiseMap) => Array.from({ length: 150 }, (_, offset) => generateAudioAttributes(noiseMap, offset)));
+      for (const curve of nonLinear) {
+        expect(wide.some((a) => a.adsr.attackCurve === curve), `attack ${curve}`).toBe(true);
+        expect(wide.some((a) => a.adsr.releaseCurve === curve), `release ${curve}`).toBe(true);
+      }
+    });
+
+    it('draws attack and release independently — some robot shapes one and not the other', () => {
+      expect(SAMPLE.some((a) => (a.adsr.attackCurve === 'linear') !== (a.adsr.releaseCurve === 'linear'))).toBe(true);
+    });
+
+    describe('at the extremes of the noise range', () => {
+      it('noise -1 (every draw at its min) is a glider with the accent bandpass: 0.05 s, 400 Hz, Q 3, first non-linear curves', () => {
+        const a = generateAudioAttributes(() => -1, 0);
+        expect(a.portamento).toBeCloseTo(0.05, 9);
+        expect(a.filterFreq).toBe(400);
+        expect(a.filterQ).toBeCloseTo(3, 9);
+        expect(a.filterType).toBe('bandpass');
+        expect(a.adsr.attackCurve).toBe('exponential'); // shaped roll 0 < 0.15, index 0 of the six non-linear names
+        expect(a.adsr.releaseCurve).toBe('exponential');
+        // A shaped stage is short enough for its shape to be heard: the bottom of the shaped ranges.
+        expect(a.adsr.attack).toBeCloseTo(0.03, 9);
+        expect(a.adsr.release).toBeCloseTo(0.15, 9);
+        expect(a.adsr.decay).toBeCloseTo(0, 9);
+      });
+
+      it('noise +1 (every draw at its max) is the plain robot: no glide, linear curves, open lowpass at 8000 Hz, Q 1', () => {
+        const a = generateAudioAttributes(() => 1, 0);
+        expect(a.portamento).toBe(0);
+        expect(a.adsr.attackCurve).toBe('linear');
+        expect(a.adsr.releaseCurve).toBe('linear');
+        // A plain robot keeps the full seeded range: the top of it.
+        expect(a.adsr.attack).toBeCloseTo(2, 9);
+        expect(a.adsr.release).toBeCloseTo(2, 9);
+        expect(a.adsr.decay).toBeCloseTo(2, 9);
+        expect(a.filterFreq).toBe(8000);
+        expect(a.filterQ).toBe(1);
+        expect(a.filterType).toBe('lowpass');
+      });
+
+      it('a shaped curve whose index draw lands exactly on its max clamps to the last name (never undefined)', async () => {
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
+          if (dataId === 'robot.audio.attackCurve.shaped') return 0;
+          if (dataId === 'robot.audio.attackCurve.which') return max ?? 0; // the top of the draw's own range
+          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        });
+        try {
+          const a = generateAudioAttributes(createNoise2D(alea('articulation-clamp-seed')), 0);
+          expect(a.adsr.attackCurve).toBe(ENVELOPE_CURVE_NAMES[ENVELOPE_CURVE_NAMES.length - 1]);
+        } finally {
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
+        }
+      });
+    });
+
+    describe('Attack and Release times (shaped stages are short enough to hear)', () => {
+      const shapedAttacks = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear');
+      const plainAttacks = SAMPLE.filter((a) => a.adsr.attackCurve === 'linear');
+      const shapedReleases = SAMPLE.filter((a) => a.adsr.releaseCurve !== 'linear');
+      const plainReleases = SAMPLE.filter((a) => a.adsr.releaseCurve === 'linear');
+
+      it('every robot\'s Attack and Release sit inside 0-2 s, so each is a value its slider can show', () => {
+        for (const a of SAMPLE) {
+          expect(a.adsr.attack).toBeGreaterThanOrEqual(0);
+          expect(a.adsr.attack).toBeLessThanOrEqual(2);
+          expect(a.adsr.release).toBeGreaterThanOrEqual(0);
+          expect(a.adsr.release).toBeLessThanOrEqual(2);
+        }
+      });
+
+      it('a robot with a shaped attack has an attack of 0.03-0.25 s', () => {
+        expect(shapedAttacks.length, 'sample has shaped attacks').toBeGreaterThan(20);
+        for (const a of shapedAttacks) {
+          expect(a.adsr.attack, `attack ${a.adsr.attackCurve}`).toBeGreaterThanOrEqual(0.03 - 1e-9);
+          expect(a.adsr.attack).toBeLessThanOrEqual(0.25 + 1e-9);
+        }
+      });
+
+      it('a robot with a shaped release has a release of 0.15-0.8 s', () => {
+        expect(shapedReleases.length, 'sample has shaped releases').toBeGreaterThan(20);
+        for (const a of shapedReleases) {
+          expect(a.adsr.release, `release ${a.adsr.releaseCurve}`).toBeGreaterThanOrEqual(0.15 - 1e-9);
+          expect(a.adsr.release).toBeLessThanOrEqual(0.8 + 1e-9);
+        }
+      });
+
+      it('the two stages are decided separately: a shaped attack does not shorten that robot\'s release, nor the reverse', () => {
+        const attackOnly = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear' && a.adsr.releaseCurve === 'linear');
+        const releaseOnly = SAMPLE.filter((a) => a.adsr.attackCurve === 'linear' && a.adsr.releaseCurve !== 'linear');
+        expect(attackOnly.length).toBeGreaterThan(0);
+        expect(releaseOnly.length).toBeGreaterThan(0);
+        expect(attackOnly.some((a) => a.adsr.release > 0.8), 'a robot shaping only its attack can have a long release').toBe(true);
+        expect(releaseOnly.some((a) => a.adsr.attack > 0.25), 'a robot shaping only its release can have a long attack').toBe(true);
+      });
+
+      it('plain robots keep the whole 0-2 s range: both short and long values turn up, and most are past the drone line (0.5 s)', () => {
+        for (const group of [plainAttacks.map((a) => a.adsr.attack), plainReleases.map((a) => a.adsr.release)]) {
+          expect(Math.max(...group)).toBeGreaterThan(1.5);
+          expect(Math.min(...group)).toBeLessThan(0.5);
+          expect(group.filter((v) => v > 0.5).length / group.length).toBeGreaterThan(0.5);
+        }
+      });
+
+      it('Decay is seeded over the same 0-2 s: short and long values both turn up, and none past the slider', () => {
+        const decays = SAMPLE.map((a) => a.adsr.decay);
+        expect(Math.max(...decays)).toBeGreaterThan(1.5);
+        expect(Math.max(...decays)).toBeLessThanOrEqual(2);
+        expect(Math.min(...decays)).toBeGreaterThanOrEqual(0);
+        expect(Math.min(...decays)).toBeLessThan(0.5);
+      });
+
+      it('a shaped attack or release does not shorten Decay: it is drawn from its own range whatever the curves say', () => {
+        const shapedBoth = SAMPLE.filter((a) => a.adsr.attackCurve !== 'linear' && a.adsr.releaseCurve !== 'linear');
+        const plain = SAMPLE.filter((a) => a.adsr.attackCurve === 'linear' && a.adsr.releaseCurve === 'linear');
+        expect(shapedBoth.length).toBeGreaterThan(0);
+        expect(Math.max(...[...shapedBoth, ...plain].map((a) => a.adsr.decay))).toBeGreaterThan(1.5);
+        expect(plain.some((a) => a.adsr.decay > 1.5)).toBe(true);
+      });
+
+      it('a plain robot at a given point in the noise has the same body as before: seeded value / 2 s equals the old value / 5 s', async () => {
+        const { bodyShapeFromAdsr } = await import('../components/robot/robotVisualHelpers');
+        const mocked = vi.mocked(getSeededVal);
+        // Every Attack/Release draw lands 30 % of the way through whichever range it was given; the shaped rolls say "not shaped".
+        mocked.mockImplementation((_noiseMap, dataId, _offset, min = 0, max = 1) => (dataId.endsWith('.shaped') ? 1 : min + 0.3 * (max - min)));
+        try {
+          const a = generateAudioAttributes(createNoise2D(alea('envelope-body-seed')), 0);
+          expect(a.adsr.attack).toBeCloseTo(0.6, 9);
+          expect(a.adsr.release).toBeCloseTo(0.6, 9);
+          const body = bodyShapeFromAdsr(a.adsr);
+          expect(body.scale).toBeCloseTo(0.25 + (1 - 0.3) * 0.75, 9); // 30 % of the way along, as 1.5 s of 5 s was
+          expect(body.detail).toBeCloseTo(0.3, 9);
+        } finally {
+          const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+        }
+      });
+
+      it('a shaped stage lands 50 % of the way through its own short range, not the full one', async () => {
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((_noiseMap, dataId, _offset, min = 0, max = 1) => (dataId.endsWith('.shaped') ? 0 : min + 0.5 * (max - min)));
+        try {
+          const a = generateAudioAttributes(createNoise2D(alea('envelope-shaped-seed')), 0);
+          expect(a.adsr.attackCurve).not.toBe('linear');
+          expect(a.adsr.releaseCurve).not.toBe('linear');
+          expect(a.adsr.attack).toBeCloseTo(0.03 + 0.5 * (0.25 - 0.03), 9);
+          expect(a.adsr.release).toBeCloseTo(0.15 + 0.5 * (0.8 - 0.15), 9);
+        } finally {
+          const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+        }
+      });
+    });
+
+    describe('bus.frequency link odds and depth window (generateRobotLfoLinks)', () => {
+      const ZERO_COUNTS: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
+      const linkSample = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS)));
+
+      it('about 15 % of robots seed a lit bus.frequency link, rarer than a lit layer target', () => {
+        const lit = linkSample.filter((l) => l['bus.frequency'].lane !== null).length;
+        expect(lit / linkSample.length, `${lit}/400 lit bus links`).toBeGreaterThanOrEqual(0.10);
+        expect(lit / linkSample.length, `${lit}/400 lit bus links`).toBeLessThanOrEqual(0.20);
+        const layerLit = linkSample.flatMap((l) => (['layer0.gain', 'layer1.gain', 'layer2.gain'] as const).map((t) => l[t])).filter((x) => x.lane !== null).length;
+        expect(lit / linkSample.length).toBeLessThan(layerLit / (linkSample.length * 3));
+      });
+
+      it('a lit bus link has an integer depth in 1-40; a quiet one is exactly { lane: null, depth: 0 }', () => {
+        let maxDepth = 0;
+        for (const links of linkSample) {
+          const link = links['bus.frequency'];
+          if (link.lane === null) {
+            expect(link).toEqual({ lane: null, depth: 0 });
+            continue;
+          }
+          expect(Number.isInteger(link.depth)).toBe(true);
+          expect(link.depth).toBeGreaterThanOrEqual(1);
+          expect(link.depth).toBeLessThanOrEqual(40);
+          maxDepth = Math.max(maxDepth, link.depth);
+        }
+        expect(maxDepth, 'a bus depth should be able to reach well past the detune ceiling of 10').toBeGreaterThan(20);
+      });
+
+      it('leaves the six layer targets on their own thresholds and depth windows (gain <= 60, detune <= 10)', () => {
+        for (const links of linkSample) {
+          for (const target of ROBOT_LFO_TARGET_IDS) {
+            if (links[target].lane === null) continue;
+            if (target.endsWith('.gain')) expect(links[target].depth).toBeLessThanOrEqual(60);
+            if (target.endsWith('.detune')) expect(links[target].depth).toBeLessThanOrEqual(10);
+          }
+        }
+      });
+    });
+
+    describe('spawnRobot, the baseline and the reserve sites for a robot that is a glider AND an accent', () => {
+      const localeId = 'articulation-seeding-locale';
+      /** Forces a glider (+ accent) and a fresh (non-copy) spawn; everything else stays the real seeded draw. */
+      async function forceGliderAccent() {
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
+          if (dataId === 'robot.copyChance') return 1;
+          if (dataId === 'robot.audio.portamento.glider') return 0;
+          if (dataId === 'robot.audio.filter.accent') return 0;
+          if (dataId === 'robot.audio.filter.type') return 0; // < 0.4 -> bandpass
+          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        });
+        return realGetSeededVal;
+      }
+
+      beforeEach(() => {
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+        }));
+      });
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it('generateRobotAudioBaseline equals what spawnRobot stored — the distinguishing glider + accent fixture', async () => {
+        const real = await forceGliderAccent();
+        try {
+          spawnRobot(localeId);
+          const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+          const robot = locale.robots[0];
+          // Fixture sanity: parity must not pass by coincidence on defaults.
+          expect(robot.audioAttributes.portamento).toBeGreaterThan(0);
+          expect(robot.audioAttributes.filterQ).toBeGreaterThanOrEqual(3);
+          expect(robot.audioAttributes.filterType).toBe('bandpass');
+
+          const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+          const baseline = generateRobotAudioBaseline(noiseMap, 0, []);
+          expect(baseline.audioAttributes).toEqual(robot.audioAttributes);
+        } finally {
+          vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+        }
+      });
+
+      it('spawnRobot hands reserveVoice the robot\'s portamento, filterQ and filterType as the 9th argument', async () => {
+        const real = await forceGliderAccent();
+        const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        try {
+          spawnRobot(localeId);
+          const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+          expect(reserveSpy).toHaveBeenCalledTimes(1);
+          expect(reserveSpy.mock.calls[0][8]).toEqual({
+            portamento: robot.audioAttributes.portamento,
+            filterQ: robot.audioAttributes.filterQ,
+            filterType: robot.audioAttributes.filterType,
+          });
+          expect(reserveSpy.mock.calls[0][8]).toEqual({ portamento: expect.any(Number), filterQ: expect.any(Number), filterType: 'bandpass' });
+          expect((reserveSpy.mock.calls[0][8] as { portamento: number }).portamento).toBeGreaterThan(0);
+        } finally {
+          vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+        }
+      });
+
+      it('reRegisterAllRobotsAudio passes the same articulation object, from the stored (possibly edited) robot', async () => {
+        const real = await forceGliderAccent();
+        const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        try {
+          spawnRobot(localeId);
+          const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+          const robot = locale.robots[0];
+          // An edit made since spawn must win over the seeded value: the call reads the store.
+          useLocaleStore.setState((state) => ({
+            locales: {
+              ...state.locales,
+              [localeId]: {
+                ...state.locales[localeId],
+                robots: state.locales[localeId].robots.map((r) => ({ ...r, audioAttributes: { ...r.audioAttributes, portamento: 0.5, filterQ: 12, filterType: 'highpass' as const } })),
+              },
+            },
+          }));
+          reserveSpy.mockClear();
+
+          reRegisterAllRobotsAudio(localeId);
+
+          expect(reserveSpy).toHaveBeenCalledTimes(1);
+          expect(reserveSpy.mock.calls[0][0]).toBe(robot.id);
+          expect(reserveSpy.mock.calls[0][8]).toEqual({ portamento: 0.5, filterQ: 12, filterType: 'highpass' });
+        } finally {
+          vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+        }
+      });
+    });
+  });
+
   describe('generateRobotLfoLinks', () => {
     const ZERO_COUNTS: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
 
@@ -213,6 +597,8 @@ describe('spawnSystem', () => {
           expect(link.depth, `${target}.depth (offset ${i})`).toBeGreaterThan(0); // never silently inaudible when lit
           if (target.endsWith('.gain')) {
             expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(60);
+          } else if (target === 'bus.frequency') {
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(40);
           } else {
             expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(10);
           }
@@ -905,7 +1291,7 @@ describe('spawnSystem', () => {
 
           expect(third.lfoLinks).toEqual(expectedLinks);
         } finally {
-          mocked.mockImplementation(realGetSeededVal);
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
         }
       });
 
@@ -951,7 +1337,7 @@ describe('spawnSystem', () => {
           expect(copy.lfoLinks).toBeDefined();
           expect(Object.keys(copy.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
         } finally {
-          mocked.mockImplementation(realGetSeededVal);
+          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
         }
       });
     });

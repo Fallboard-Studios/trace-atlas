@@ -7,7 +7,7 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat, applyReverbSend, applyDelaySend, clampSend,
+  applyPitchRepeat, applyReverbSend, applyDelaySend, clampSend, applyPortamento, applyBusFilter,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -602,6 +602,162 @@ describe('robotOptionsActions', () => {
       });
       expect(envelopeSpy).toHaveBeenCalledWith(robot.id, nextAdsr);
       expect(reReserveSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('applyAdsr — envelope curves (Robot Articulation T6, regression: no code change)', () => {
+    it('hands updateVoiceEnvelope the attack and release curves the envelope carries, and stores them', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const envelopeSpy = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const nextAdsr: ADSREnvelope = { attack: 0.5, decay: 0.3, sustain: 0.8, release: 1.5, attackCurve: 'sine', releaseCurve: 'bounce' };
+
+      applyAdsr(robot, localeId, nextAdsr);
+
+      expect(envelopeSpy).toHaveBeenCalledTimes(1);
+      expect(envelopeSpy).toHaveBeenCalledWith(robot.id, nextAdsr);
+      expect(envelopeSpy.mock.calls[0][1]).toMatchObject({ attackCurve: 'sine', releaseCurve: 'bounce' });
+      const stored = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      expect(stored.audioAttributes.adsr).toEqual(nextAdsr);
+    });
+  });
+
+  describe('applyPortamento (Robot Articulation T6)', () => {
+    it('stores portamento beside the other attributes and calls updateVoicePortamento once', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const portamentoSpy = vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {});
+      const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+
+      applyPortamento(robot, localeId, 0.2);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, {
+        audioAttributes: { ...robot.audioAttributes, portamento: 0.2 },
+      });
+      expect(portamentoSpy).toHaveBeenCalledTimes(1);
+      expect(portamentoSpy).toHaveBeenCalledWith(robot.id, 0.2);
+      expect(reReserveSpy).not.toHaveBeenCalled();
+      const stored = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      expect(stored.audioAttributes.portamento).toBe(0.2);
+      expect(stored.audioAttributes.adsr).toEqual(robot.audioAttributes.adsr);
+      expect(stored.audioAttributes.layers).toEqual(robot.audioAttributes.layers);
+    });
+
+    it('0 is a real value: it clears a glide in the store and reaches the engine (not skipped as falsy)', () => {
+      const robot = makeRobot({ audioAttributes: { ...makeRobot().audioAttributes, portamento: 0.3 } });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const portamentoSpy = vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {});
+
+      applyPortamento(robot, localeId, 0);
+
+      expect(portamentoSpy).toHaveBeenCalledWith(robot.id, 0);
+      expect(useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes.portamento).toBe(0);
+    });
+
+    it('writes the store before it calls the engine', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const portamentoSpy = vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {});
+
+      applyPortamento(robot, localeId, 0.1);
+
+      expect(updateSpy.mock.invocationCallOrder[0]).toBeLessThan(portamentoSpy.mock.invocationCallOrder[0]);
+    });
+
+    it('still stores the value when no voice is reserved (the engine only warns)', () => {
+      const robot = makeRobot({ id: 'never-reserved' });
+      useLocaleStore.getState().addRobot(localeId, robot);
+
+      expect(() => applyPortamento(robot, localeId, 0.15)).not.toThrow();
+      expect(useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes.portamento).toBe(0.15);
+    });
+  });
+
+  describe('applyBusFilter (Robot Articulation T6)', () => {
+    it('a type-only patch stores only that key and sends the engine { type } with no frequency or Q key', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const busSpy = vi.spyOn(AudioEngine, 'updateRobotBusFilter').mockImplementation(() => {});
+      const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+
+      applyBusFilter(robot, localeId, { filterType: 'highpass' });
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, {
+        audioAttributes: { ...robot.audioAttributes, filterType: 'highpass' },
+      });
+      expect(busSpy).toHaveBeenCalledTimes(1);
+      expect(busSpy).toHaveBeenCalledWith(robot.id, { type: 'highpass' });
+      expect(Object.keys(busSpy.mock.calls[0][1])).toEqual(['type']);
+      expect(reReserveSpy).not.toHaveBeenCalled();
+      const stored = useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes;
+      expect(stored.filterType).toBe('highpass');
+      expect(stored.filterFreq).toBe(robot.audioAttributes.filterFreq);
+      expect(stored.filterQ).toBeUndefined();
+    });
+
+    it('maps filterFreq to frequency and filterQ to Q', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const busSpy = vi.spyOn(AudioEngine, 'updateRobotBusFilter').mockImplementation(() => {});
+
+      applyBusFilter(robot, localeId, { filterFreq: 900, filterQ: 4 });
+
+      expect(busSpy).toHaveBeenCalledWith(robot.id, { frequency: 900, Q: 4 });
+      expect(Object.keys(busSpy.mock.calls[0][1]).sort()).toEqual(['Q', 'frequency']);
+      const stored = useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes;
+      expect(stored.filterFreq).toBe(900);
+      expect(stored.filterQ).toBe(4);
+    });
+
+    it('a full patch maps all three at once', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const busSpy = vi.spyOn(AudioEngine, 'updateRobotBusFilter').mockImplementation(() => {});
+
+      applyBusFilter(robot, localeId, { filterFreq: 1850, filterQ: 5, filterType: 'bandpass' });
+
+      expect(busSpy).toHaveBeenCalledWith(robot.id, { frequency: 1850, Q: 5, type: 'bandpass' });
+    });
+
+    it('filterFreq 0 (the "no filter" sentinel) still reaches the engine as frequency 0, not dropped as falsy', () => {
+      const robot = makeRobot({ audioAttributes: { ...makeRobot().audioAttributes, filterFreq: 1200 } });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const busSpy = vi.spyOn(AudioEngine, 'updateRobotBusFilter').mockImplementation(() => {});
+
+      applyBusFilter(robot, localeId, { filterFreq: 0 });
+
+      expect(busSpy).toHaveBeenCalledWith(robot.id, { frequency: 0 });
+      expect(useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes.filterFreq).toBe(0);
+    });
+
+    it('an explicit undefined in the patch neither erases the stored value nor reaches the engine', () => {
+      const robot = makeRobot({ audioAttributes: { ...makeRobot().audioAttributes, filterFreq: 1200, filterType: 'bandpass' } });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const busSpy = vi.spyOn(AudioEngine, 'updateRobotBusFilter').mockImplementation(() => {});
+
+      applyBusFilter(robot, localeId, { filterFreq: undefined, filterQ: 4, filterType: undefined });
+
+      expect(busSpy).toHaveBeenCalledWith(robot.id, { Q: 4 });
+      expect(Object.keys(busSpy.mock.calls[0][1])).toEqual(['Q']);
+      const stored = useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes;
+      expect(stored.filterFreq).toBe(1200);
+      expect(stored.filterType).toBe('bandpass');
+      expect(stored.filterQ).toBe(4);
+    });
+
+    it('writes the store before it calls the engine, and still stores when no voice is reserved', () => {
+      const robot = makeRobot({ id: 'bus-never-reserved' });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const busSpy = vi.spyOn(AudioEngine, 'updateRobotBusFilter');
+
+      expect(() => applyBusFilter(robot, localeId, { filterQ: 2 })).not.toThrow();
+
+      expect(updateSpy.mock.invocationCallOrder[0]).toBeLessThan(busSpy.mock.invocationCallOrder[0]);
+      expect(useLocaleStore.getState().getLocaleById(localeId)!.robots[0].audioAttributes.filterQ).toBe(2);
     });
   });
 

@@ -124,12 +124,82 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     </div>
   )),
 }));
+// What the Envelope stub saw, for the re-render and handler-identity cases (Robot Articulation Task 8).
+const envelopeStub = vi.hoisted(() => {
+  const stub = {
+    renders: 0,
+    last: null as null | { onChange: unknown; onPortamentoChange: unknown },
+    record(handlers: { onChange: unknown; onPortamentoChange: unknown }) {
+      stub.renders++;
+      stub.last = handlers;
+    },
+    reset() {
+      stub.renders = 0;
+      stub.last = null;
+    },
+  };
+  return stub;
+});
 vi.mock('@/components/robot/PingContourDrawer', () => ({
-  PingContourDrawer: memo((props: { value: { attack: number }; onChange: (next: unknown) => void }) => (
-    <div data-testid="ping-contour-drawer-stub" data-attack={props.value.attack}>
-      <button onClick={() => props.onChange({ attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 })}>probe-adsr</button>
-    </div>
-  )),
+  PingContourDrawer: memo((props: {
+    value: { attack: number; attackCurve?: string; releaseCurve?: string };
+    onChange: (next: unknown) => void;
+    portamento: number;
+    onPortamentoChange: (seconds: number) => void;
+  }) => {
+    envelopeStub.record({ onChange: props.onChange, onPortamentoChange: props.onPortamentoChange });
+    return (
+      <div data-testid="ping-contour-drawer-stub" data-attack={props.value.attack} data-portamento={props.portamento}>
+        <button onClick={() => props.onChange({ attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 })}>probe-adsr</button>
+        <button onClick={() => props.onChange({ ...props.value, attackCurve: 'bounce' })}>probe-attack-curve</button>
+        <button onClick={() => props.onPortamentoChange(0.7)}>probe-portamento</button>
+      </div>
+    );
+  }),
+}));
+// What the Filter stub saw, for the re-render and handler-identity cases (Robot Articulation Task 9).
+const filterStub = vi.hoisted(() => {
+  const stub = {
+    renders: 0,
+    last: null as null | { value: unknown; onChange: unknown; onLfoLinkChange: unknown },
+    record(seen: { value: unknown; onChange: unknown; onLfoLinkChange: unknown }) {
+      stub.renders++;
+      stub.last = seen;
+    },
+    reset() {
+      stub.renders = 0;
+      stub.last = null;
+    },
+  };
+  return stub;
+});
+vi.mock('@/components/robot/BusFilterDrawer', () => ({
+  BusFilterDrawer: memo((props: {
+    value: { filterFreq: number; filterQ: number; filterType: string; lfoLink: { lane: string | null; depth: number } };
+    onChange: (patch: Record<string, unknown>) => void;
+    onLfoLinkChange: (link: { lane: string | null; depth: number }) => void;
+    heldOff: boolean;
+    disabled?: boolean;
+  }) => {
+    filterStub.record({ value: props.value, onChange: props.onChange, onLfoLinkChange: props.onLfoLinkChange });
+    return (
+      <div
+        data-testid="bus-filter-drawer-stub"
+        data-freq={props.value.filterFreq}
+        data-q={props.value.filterQ}
+        data-type={props.value.filterType}
+        data-lane={props.value.lfoLink.lane ?? 'off'}
+        data-depth={props.value.lfoLink.depth}
+        data-held-off={String(props.heldOff)}
+        data-disabled={String(!!props.disabled)}
+      >
+        <button onClick={() => props.onChange({ filterFreq: 640 })}>probe-cutoff</button>
+        <button onClick={() => props.onChange({ filterQ: 6 })}>probe-resonance</button>
+        <button onClick={() => props.onChange({ filterType: 'bandpass' })}>probe-filter-type</button>
+        <button onClick={() => props.onLfoLinkChange({ ...props.value.lfoLink, lane: 'c' })}>probe-filter-link</button>
+      </div>
+    );
+  }),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
   SignatureArrayLayer: memo((props: {
@@ -182,6 +252,7 @@ import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
+import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { ROBOT_SELECTION_ROW_SCHEMAS, ACTIVITY_LABELS } from '@/data/robotSelectionConfig';
 import { buildCompanyAssignmentSchema } from '@/data/companyConfig';
@@ -202,6 +273,7 @@ const SOURCE = human('probe.source');
 const CORE = human('probe.source.core');
 const COMPANION = human('probe.source.companion');
 const ACCENT = human('probe.source.accent');
+const FILTER = human('probe.source.filter');
 
 function makeRobot(id = 'r1', overrides: Partial<Robot> = {}): Robot {
   return {
@@ -247,7 +319,7 @@ const subRow = () => screen.getByRole('tablist', { name: SOURCE });
 const tabNames = (list: HTMLElement) => within(list).getAllByRole('tab').map((t) => t.textContent);
 const selectedTab = (list: HTMLElement) => within(list).getAllByRole('tab').find((t) => t.getAttribute('aria-selected') === 'true')!;
 const pick = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { name }));
-const STUBS = ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2'];
+const STUBS = ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub'];
 /** Every section panel the screen can mount, by its stub's test id. */
 const mounted = () => STUBS.filter((id) => screen.queryByTestId(id));
 const column = (container: HTMLElement) => container.querySelector('.robot-screen__avatar-column');
@@ -260,13 +332,15 @@ beforeEach(() => {
   useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
   capturedRadioSchemas.length = 0;
   levelsStub.reset();
+  envelopeStub.reset();
+  filterStub.reset();
   useRobotPanReadoutStore.setState({ pan: {} });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   useUIStore.getState().setActiveLocaleLocalTime(null);
-  useAudioStore.setState({ soundingRobotIds: [], filterLinksHeldOff: false });
+  useAudioStore.setState({ soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false });
 });
 
 describe('RobotScreen — fallbacks', () => {
@@ -345,10 +419,10 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
     expect(sectionRow('r7')).toBeTruthy();
   });
 
-  it('only Source has a sub-tab row: Core, Companion and Accent Oscillator, in its trait', () => {
+  it('only Source has a sub-tab row: Core, Companion and Accent Oscillator, then Filter, in its trait', () => {
     selectRobot(makeRobot());
     render(<RobotScreen />);
-    expect(tabNames(subRow())).toEqual([CORE, COMPANION, ACCENT]);
+    expect(tabNames(subRow())).toEqual([CORE, COMPANION, ACCENT, FILTER]);
     const spectral = (getTraitColorStyle('spectral') as Record<string, string>)['--color-accent'];
     within(subRow()).getAllByRole('tab').forEach((tab) => expect(tab.style.getPropertyValue('--color-accent')).toBe(spectral));
     for (const name of [LEVELS, COMPOSITION, ENVELOPE]) {
@@ -842,6 +916,78 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       expect(cancel).toHaveBeenCalledWith('r1', 'adsr.release');
       expect(cancel).not.toHaveBeenCalledWith('r1', 'adsr.decay');
     });
+
+    describe('Portamento and the shape radios (Robot Articulation Task 8)', () => {
+      it('passes the stored portamento to the drawer, and 0 for a robot that has none', () => {
+        selectRobot(makeRobot('r1', { audioAttributes: { ...makeRobot().audioAttributes, portamento: 0.3 } }), 'envelope');
+        const first = render(<RobotScreen />);
+        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0.3');
+        first.unmount();
+        useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+        selectRobot(makeRobot('r2'), 'envelope');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0');
+      });
+
+      it('a Portamento edit calls applyPortamento with the robot, the locale and the seconds, and nothing else', () => {
+        const robot = makeRobot();
+        selectRobot(robot, 'envelope');
+        const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        const adsr = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-portamento'));
+        expect(portamento).toHaveBeenCalledTimes(1);
+        expect(portamento).toHaveBeenCalledWith(robot, localeId, 0.7);
+        expect(adsr).not.toHaveBeenCalled();
+        expect(cancel).not.toHaveBeenCalled(); // portamento is not a swell attribute
+      });
+
+      it('a Portamento edit reads the live robot, not the one the render closed over', () => {
+        selectRobot(makeRobot(), 'envelope');
+        const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { name: 'Renamed' }));
+        fireEvent.click(screen.getByText('probe-portamento'));
+        expect((portamento.mock.calls[0][0] as Robot).name).toBe('Renamed');
+      });
+
+      it('a shape edit goes to applyAdsr with the curve and the other ADSR fields, and interrupts no swell', () => {
+        const robot = makeRobot();
+        selectRobot(robot, 'envelope');
+        const spy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-attack-curve'));
+        expect(spy).toHaveBeenCalledWith(robot, localeId, { ...robot.audioAttributes.adsr, attackCurve: 'bounce' });
+        expect(cancel).not.toHaveBeenCalled(); // only a/d/s/r swell; a curve name is not one
+      });
+
+      it('the drawer handlers keep their identity, and the drawer does not re-render, across an unrelated robot change', () => {
+        selectRobot(makeRobot(), 'envelope');
+        render(<RobotScreen />);
+        const first = envelopeStub.last!;
+        expect(first.onPortamentoChange).toBeTypeOf('function'); // not a vacuous undefined === undefined
+        const before = envelopeStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+        expect(envelopeStub.last!.onChange).toBe(first.onChange);
+        expect(envelopeStub.last!.onPortamentoChange).toBe(first.onPortamentoChange);
+        expect(envelopeStub.renders).toBe(before);
+      });
+
+      it('a Portamento change in the store re-renders the drawer with the new value', () => {
+        selectRobot(makeRobot(), 'envelope');
+        render(<RobotScreen />);
+        const before = envelopeStub.renders;
+        // The stored audioAttributes spread, so adsr keeps its identity: only portamento can move the drawer.
+        act(() => {
+          const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+          useLocaleStore.getState().updateRobot(localeId, 'r1', { audioAttributes: { ...stored.audioAttributes, portamento: 1.2 } });
+        });
+        expect(envelopeStub.renders).toBeGreaterThan(before);
+        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('1.2');
+      });
+    });
   });
 
   describe('Source (SignatureArrayLayer)', () => {
@@ -904,6 +1050,190 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       selectRobot(makeRobot(), 'source');
       render(<RobotScreen />);
       expect(screen.queryByText('Held off by Audio Load')).toBeNull();
+    });
+  });
+
+  describe('Source → Filter (Robot Articulation Task 9)', () => {
+    const withAudio = (extra: Partial<Robot['audioAttributes']>, robotOverrides: Partial<Robot> = {}) => {
+      const base = makeRobot();
+      return makeRobot('r1', { ...robotOverrides, audioAttributes: { ...base.audioAttributes, ...extra } });
+    };
+    const drawer = () => screen.getByTestId('bus-filter-drawer-stub');
+
+    it('picking the Filter sub-tab writes busFilter and mounts only the filter drawer', () => {
+      selectRobot(makeRobot());
+      render(<RobotScreen />);
+      pick(FILTER);
+      expect(useUIStore.getState().selectedSubsection).toBe('busFilter');
+      expect(mounted()).toEqual(['bus-filter-drawer-stub']);
+    });
+
+    it('sits in the Spectral trait with the other Source sub-tabs', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      const { container } = render(<RobotScreen />);
+      const wrapper = container.querySelector('.robot-screen__section') as HTMLElement;
+      const expected = getTraitColorStyle('spectral') as Record<string, string>;
+      expect(wrapper.style.getPropertyValue('--color-accent-a')).toBe(expected['--color-accent-a']);
+      expect(wrapper.contains(drawer())).toBe(true);
+    });
+
+    it('shows a robot with none of the new fields as Q 1, lowpass and an unlinked Cutoff', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(drawer().getAttribute('data-q')).toBe('1');
+      expect(drawer().getAttribute('data-type')).toBe('lowpass');
+      expect(drawer().getAttribute('data-lane')).toBe('off');
+      expect(filterStub.last!.value).toMatchObject({ lfoLink: DEFAULT_LFO_LINK['bus.frequency'] });
+    });
+
+    it('shows the stored cutoff, resonance, type and link', () => {
+      const robot = withAudio({ filterFreq: 900, filterQ: 4, filterType: 'bandpass' }, { lfoLinks: { ...makeRobot().lfoLinks, 'bus.frequency': { lane: 'b', depth: 40 } } as Robot['lfoLinks'] });
+      selectRobot(robot, 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(drawer().getAttribute('data-freq')).toBe('900');
+      expect(drawer().getAttribute('data-q')).toBe('4');
+      expect(drawer().getAttribute('data-type')).toBe('bandpass');
+      expect(drawer().getAttribute('data-lane')).toBe('b');
+      expect(drawer().getAttribute('data-depth')).toBe('40');
+    });
+
+    it('resolves the "no filter" sentinel (filterFreq 0) to the open top of the band, not 0 Hz', () => {
+      selectRobot(withAudio({ filterFreq: 0 }), 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(drawer().getAttribute('data-freq')).toBe('20000');
+    });
+
+    it('falls back to the default link for a robot whose lfoLinks lack the bus target', () => {
+      const robot = withAudio({}, { lfoLinks: {} as Robot['lfoLinks'] });
+      selectRobot(robot, 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(filterStub.last!.value).toMatchObject({ lfoLink: DEFAULT_LFO_LINK['bus.frequency'] });
+      expect((filterStub.last!.value as { lfoLink: unknown }).lfoLink).toBe(DEFAULT_LFO_LINK['bus.frequency']);
+    });
+
+    it.each([
+      ['probe-cutoff', { filterFreq: 640 }],
+      ['probe-resonance', { filterQ: 6 }],
+      ['probe-filter-type', { filterType: 'bandpass' }],
+    ])('%s goes to applyBusFilter with the robot, the locale and that one field, and interrupts no swell', (probe, patch) => {
+      const robot = makeRobot();
+      selectRobot(robot, 'source', 'busFilter');
+      const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+      const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<RobotScreen />);
+      fireEvent.click(screen.getByText(probe));
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(robot, localeId, patch);
+      expect(cancel).not.toHaveBeenCalled(); // the filter has no swell attribute
+    });
+
+    it('a link edit goes to applyLayerLfoLink for bus.frequency, and not to applyBusFilter', () => {
+      const robot = makeRobot();
+      selectRobot(robot, 'source', 'busFilter');
+      const link = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      const bus = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+      render(<RobotScreen />);
+      fireEvent.click(screen.getByText('probe-filter-link'));
+      expect(link).toHaveBeenCalledTimes(1);
+      expect(link).toHaveBeenCalledWith(robot, localeId, 'bus.frequency', { ...DEFAULT_LFO_LINK['bus.frequency'], lane: 'c' });
+      expect(bus).not.toHaveBeenCalled();
+    });
+
+    it('an edit reads the live robot, not the one the render closed over', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      const spy = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+      render(<RobotScreen />);
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { name: 'Renamed' }));
+      fireEvent.click(screen.getByText('probe-cutoff'));
+      expect((spy.mock.calls[0][0] as Robot).name).toBe('Renamed');
+    });
+
+    it('passes heldOff from the Audio Load dial, and follows it as it flips', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(drawer().getAttribute('data-held-off')).toBe('false');
+      act(() => useAudioStore.setState({ busFilterLinksHeldOff: true }));
+      expect(drawer().getAttribute('data-held-off')).toBe('true');
+      act(() => useAudioStore.setState({ busFilterLinksHeldOff: false }));
+      expect(drawer().getAttribute('data-held-off')).toBe('false');
+    });
+
+    it('reads the robot bus-filter flag, not the global filter flag (Robot Articulation T14b)', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
+      expect(drawer().getAttribute('data-held-off')).toBe('false'); // the budget system sets the bus flag too whenever it sets this one
+      act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
+    });
+
+    it('the stored link survives a hold: the drawer is handed the real lane and depth while heldOff', () => {
+      const robot = makeRobot('r1', { lfoLinks: { 'bus.frequency': { lane: 'd', depth: 70 } } as Robot['lfoLinks'] });
+      useAudioStore.setState({ busFilterLinksHeldOff: true });
+      selectRobot(robot, 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(drawer().getAttribute('data-held-off')).toBe('true');
+      expect(drawer().getAttribute('data-lane')).toBe('d');
+      expect(drawer().getAttribute('data-depth')).toBe('70');
+    });
+
+    it('does not pass disabled: a robot is always editable', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      expect(drawer().getAttribute('data-disabled')).toBe('false');
+    });
+
+    it('the drawer handlers keep their identity, and the drawer does not re-render, across an unrelated robot change', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      const first = filterStub.last!;
+      expect(first.onChange).toBeTypeOf('function'); // not a vacuous undefined === undefined
+      expect(first.onLfoLinkChange).toBeTypeOf('function');
+      const before = filterStub.renders;
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+      expect(filterStub.last!.onChange).toBe(first.onChange);
+      expect(filterStub.last!.onLfoLinkChange).toBe(first.onLfoLinkChange);
+      expect(filterStub.last!.value).toBe(first.value);
+      expect(filterStub.renders).toBe(before);
+    });
+
+    it('an edit to another Source field leaves the filter drawer alone', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      const before = filterStub.renders;
+      expect(before).toBeGreaterThan(0); // the drawer is mounted, so an unchanged count means something
+      act(() => {
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        useLocaleStore.getState().updateRobot(localeId, 'r1', { audioAttributes: { ...stored.audioAttributes, portamento: 0.5 } });
+      });
+      expect(filterStub.renders).toBe(before);
+    });
+
+    it.each<[string, (stored: Robot) => Partial<Robot>, string, string]>([
+      ['Resonance', (r) => ({ audioAttributes: { ...r.audioAttributes, filterQ: 7 } }), 'data-q', '7'],
+      ['Type', (r) => ({ audioAttributes: { ...r.audioAttributes, filterType: 'highpass' } }), 'data-type', 'highpass'],
+      ['link', () => ({ lfoLinks: { 'bus.frequency': { lane: 'c', depth: 60 } } as Robot['lfoLinks'] }), 'data-lane', 'c'],
+    ])('a stored %s change re-renders the drawer with the new value', (_name, change, attr, expected) => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      const before = filterStub.renders;
+      act(() => {
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        useLocaleStore.getState().updateRobot(localeId, 'r1', change(stored));
+      });
+      expect(filterStub.renders).toBeGreaterThan(before);
+      expect(drawer().getAttribute(attr)).toBe(expected);
+    });
+
+    it('a stored Cutoff change re-renders the drawer with the new value', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      const before = filterStub.renders;
+      act(() => {
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        useLocaleStore.getState().updateRobot(localeId, 'r1', { audioAttributes: { ...stored.audioAttributes, filterFreq: 700 } });
+      });
+      expect(filterStub.renders).toBeGreaterThan(before);
+      expect(drawer().getAttribute('data-freq')).toBe('700');
     });
   });
 });

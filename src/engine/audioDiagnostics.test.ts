@@ -331,14 +331,14 @@ describe('audioDiagnostics runtime', () => {
           ],
         },
       };
-      // global: 2 on / 7 total; each robot contributes its full 6-target slot count to linksTotal
+      // global: 2 on / 7 total; each robot contributes its full 7-target slot count to linksTotal
       // regardless of how many keys its lfoLinks object actually has: r1: 1 on / 6 total; r2: 1 on / 6 total.
-      expect(links()).toMatchObject({ linksOn: 4, linksTotal: 19 });
+      expect(links()).toMatchObject({ linksOn: 4, linksTotal: 21 });
     });
 
-    it('counts a robot with no lfoLinks field toward linksTotal (its 6 target slots exist regardless) but not linksOn (Task 9 has not run for it yet)', () => {
+    it('counts a robot with no lfoLinks field toward linksTotal (its 7 target slots exist regardless) but not linksOn (Task 9 has not run for it yet)', () => {
       fakeLocales = { L1: { robots: [{ id: 'r1' }] } };
-      expect(links()).toMatchObject({ linksOn: 2, linksTotal: 13 });
+      expect(links()).toMatchObject({ linksOn: 2, linksTotal: 14 });
     });
 
     it('only counts the active locale\'s robots, not other locales', () => {
@@ -346,7 +346,7 @@ describe('audioDiagnostics runtime', () => {
         L1: { robots: [{ id: 'r1', lfoLinks: { 'layer0.gain': { lane: 'a', depth: 50 } } }] },
         L2: { robots: [{ id: 'r2', lfoLinks: { 'layer0.gain': { lane: 'b', depth: 50 } } }] },
       };
-      expect(links()).toMatchObject({ linksOn: 3, linksTotal: 13 }); // global 7 + r1's 6 — L2's robot is not counted
+      expect(links()).toMatchObject({ linksOn: 3, linksTotal: 14 }); // global 7 + r1's 7 — L2's robot is not counted
     });
 
     it('reads bankRunning as the count of lanes with rate > 0 (0-4)', () => {

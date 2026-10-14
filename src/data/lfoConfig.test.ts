@@ -14,9 +14,9 @@ import { CONTENT, labels } from '@/content';
 const ALL_TARGET_IDS = [...ROBOT_LFO_TARGET_IDS, ...GLOBAL_LFO_TARGET_IDS];
 
 describe('DEFAULT_LFO_LINK', () => {
-  it('has exactly one entry per target — all 6 robot + 7 global ids (13), no extras', () => {
+  it('has exactly one entry per target — all 7 robot + 7 global ids (14), no extras', () => {
     expect(Object.keys(DEFAULT_LFO_LINK).sort()).toEqual([...ALL_TARGET_IDS].sort());
-    expect(Object.keys(DEFAULT_LFO_LINK)).toHaveLength(13);
+    expect(Object.keys(DEFAULT_LFO_LINK)).toHaveLength(14);
   });
 
   it('every entry is { lane: null, depth: 0 } (docs/specs/LFO_BANK.md §1.1)', () => {

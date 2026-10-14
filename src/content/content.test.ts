@@ -189,11 +189,15 @@ describe('help coverage — probe and company controls', () => {
     const ids = schemas.map((s) => s.id);
     for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.pan', 'robotOptions.panAuto', 'robotOptions.reverbSend', 'robotOptions.delaySend', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
       'robotOptions.attack', 'robotOptions.release', 'robotOptions.layer0.type', 'robotOptions.layer1.detune', 'robotOptions.layer2.pulseWidth',
+      'robotOptions.portamento', 'robotOptions.attackCurve', 'robotOptions.releaseCurve',
+      'robotOptions.busFilter.cutoff', 'robotOptions.busFilter.resonance', 'robotOptions.busFilter.type',
       'company.assign', 'company.name']) {
       expect(ids).toContain(id);
     }
     expect(ids).not.toContain('robotOptions.pingContour'); // a panel
     expect(ids).not.toContain('robotOptions.layer0.panel'); // a layer's panel
+    expect(ids).not.toContain('robotOptions.busFilter'); // the bus filter's panel
+    expect(ids).not.toContain('robotOptions.curveRow'); // a layout row
   });
 
   it('every value control has help.human', () => {

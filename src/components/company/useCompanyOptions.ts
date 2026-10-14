@@ -2,19 +2,21 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import type { PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import type { SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import type { BusFilterPatch, BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
+  applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
-import type { SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { Company, CompanyOptionsSnapshot } from '@/types/Company';
@@ -58,6 +60,14 @@ const DISABLED_SIGNATURE_ARRAY: SignatureArrayValue = {
   lfoLinks: {},
 };
 
+// What a robot with no stored filter shows (the engine's resolver defaults: the open band, Q 1, lowpass), for a selection with nothing to edit.
+const DISABLED_BUS_FILTER: BusFilterValue = {
+  filterFreq: 20000,
+  filterQ: 1,
+  filterType: 'lowpass',
+  lfoLink: DEFAULT_LFO_LINK[BUS_FILTER_LFO_TARGET],
+};
+
 const NO_ROBOTS: Robot[] = [];
 const NO_COMPANIES: Company[] = [];
 
@@ -89,6 +99,12 @@ export interface CompanyOptions {
   pingControlsValue: PingControlsValue;
   adsrValue: ADSREnvelope;
   signatureArrayValue: SignatureArrayValue;
+  /** Envelope's Portamento slider (seconds): the recorded value, else the first member's. 0 when there is nothing to edit. */
+  portamentoValue: number;
+  /** The Source section's Filter panel: the recorded fields, else the first member's, plus its bus link. */
+  busFilterValue: BusFilterValue;
+  /** The Audio Load dial is holding the robot bus-filter links off (the robot screen reads the same flag). */
+  busFilterLinksHeldOff: boolean;
   volumeSwelling: boolean;
   adsrSwelling: AdsrSwelling | undefined;
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
@@ -105,6 +121,9 @@ export interface CompanyOptions {
   onOctaveMaxChange: (v: number) => void;
   onNoteVarianceChange: (v: number) => void;
   onAdsrChange: (adsr: ADSREnvelope) => void;
+  onPortamentoChange: (seconds: number) => void;
+  onBusFilterChange: (patch: BusFilterPatch) => void;
+  onBusLinkChange: (link: LfoLinkValue) => void;
   onLayerTypeChange: (idx: number, type: WaveformType) => void;
   onLayerParamChange: (idx: number, field: SignatureArrayParamSchema['field'], v: number) => void;
   onLayerLfoFieldChange: (idx: number, target: RobotLfoTargetId, value: LfoLinkValue) => void;
@@ -243,6 +262,26 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     [active, resolvedLayers, resolvedLfoLinks],
   );
 
+  // Destructured to locals before the memo, like the sections above: the recorded field if there is one, else the
+  // first member's, already through the engine's resolvers (resolveCompanyOptions).
+  const resolvedPortamento = resolved?.portamento;
+  const resolvedFilterFreq = resolved?.filterFreq;
+  const resolvedFilterQ = resolved?.filterQ;
+  const resolvedFilterType = resolved?.filterType;
+  const resolvedBusLink = resolved?.lfoLinks[BUS_FILTER_LFO_TARGET];
+  const portamentoValue = resolvedPortamento ?? 0;
+  const busFilterValue: BusFilterValue = useMemo(
+    () => (active ? {
+      filterFreq: resolvedFilterFreq!,
+      filterQ: resolvedFilterQ!,
+      filterType: resolvedFilterType!,
+      lfoLink: resolvedBusLink ?? DEFAULT_LFO_LINK[BUS_FILTER_LFO_TARGET],
+    } : DISABLED_BUS_FILTER),
+    [active, resolvedFilterFreq, resolvedFilterQ, resolvedFilterType, resolvedBusLink],
+  );
+  // Only the robot bus-filter links are held off here, and only while the Audio Load dial says so.
+  const busFilterLinksHeldOff = useAudioStore((s) => s.busFilterLinksHeldOff);
+
   // Every handler below reads from this ref instead of closing over `members`/`resolved`/
   // `company`/`all`/`allRobotsLastEditedOptions` directly — those change reference
   // on edits unrelated to any single handler's own concern (see the doc comment above), so
@@ -339,11 +378,28 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     const patch = resolved ? diffCompoundField(resolved.adsr, adsr) : adsr;
     const changedFields = Object.keys(patch) as (keyof ADSREnvelope)[];
     members.forEach((m) => {
-      changedFields.forEach((field) => cancelSwellForRobotAttribute(m.id, `adsr.${field}`));
+      changedFields.forEach((field) => {
+        // The curve names are not swell attributes: only a/d/s/r swell.
+        if (field === 'attackCurve' || field === 'releaseCurve') return;
+        cancelSwellForRobotAttribute(m.id, `adsr.${field}`);
+      });
       const memberOwn = resolveCompanyOptions(undefined, m).adsr;
       applyAdsr(m, localeId, { ...memberOwn, ...patch });
     });
     patchSnapshot({ adsr });
+  }, [localeId, patchSnapshot]);
+
+  // Portamento and the bus filter follow onVolumeChange's shape: every member through the action, then the snapshot.
+  // Neither is a swell attribute, so nothing is cancelled. The filter patch carries only the field the user touched
+  // (the drawer builds it that way), so the snapshot records exactly it and the members' other fields are never rewritten.
+  const onPortamentoChange = useCallback((seconds: number) => {
+    latest.current.members.forEach((m) => applyPortamento(m, localeId, seconds));
+    patchSnapshot({ portamento: seconds });
+  }, [localeId, patchSnapshot]);
+
+  const onBusFilterChange = useCallback((patch: BusFilterPatch) => {
+    latest.current.members.forEach((m) => applyBusFilter(m, localeId, patch));
+    patchSnapshot(patch);
   }, [localeId, patchSnapshot]);
 
   // Layer edits arrive already-narrowed to one idx/field (SignatureArrayLayer's own onParamChange/
@@ -382,6 +438,13 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     patchSnapshot({ lfoLinks: { ...resolved?.lfoLinks, [target]: value } });
   }, [localeId, patchSnapshot]);
 
+  // The Cutoff's link rides the layer links' path (diff the one changed field, merge it onto each member's own link,
+  // record the whole link), under its own target. The layer index is unused there.
+  const onBusLinkChange = useCallback(
+    (link: LfoLinkValue) => onLayerLfoFieldChange(0, BUS_FILTER_LFO_TARGET, link),
+    [onLayerLfoFieldChange],
+  );
+
   // Memoized on exactly the fields it holds, so the object keeps its identity through every edit that
   // changes none of them: the stable bag a consumer's render callback is keyed on.
   const options = useMemo<CompanyOptions>(() => ({
@@ -390,6 +453,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     pingControlsValue,
     adsrValue,
     signatureArrayValue,
+    portamentoValue,
+    busFilterValue,
+    busFilterLinksHeldOff,
     volumeSwelling,
     adsrSwelling,
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
@@ -406,14 +472,18 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onOctaveMaxChange,
     onNoteVarianceChange,
     onAdsrChange,
+    onPortamentoChange,
+    onBusFilterChange,
+    onBusLinkChange,
     onLayerTypeChange,
     onLayerParamChange,
     onLayerLfoFieldChange,
   }), [
-    active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue,
+    active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
     volumeSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
+    onPortamentoChange, onBusFilterChange, onBusLinkChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,
   ]);
 

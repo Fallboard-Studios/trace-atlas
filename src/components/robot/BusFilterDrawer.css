@@ -1,0 +1,11 @@
+.bus-filter-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bus-filter-drawer__link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

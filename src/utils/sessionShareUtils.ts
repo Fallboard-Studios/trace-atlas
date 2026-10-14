@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
-import type { ADSREnvelope } from '../types/Robot';
+import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
@@ -77,6 +77,9 @@ interface CompactADSR {
   dc: number;
   su: number;
   rl: number;
+  /** Attack / release curve names; absent when the envelope carries none (Tone's linear default). */
+  ac?: EnvelopeCurveName;
+  rc?: EnvelopeCurveName;
 }
 
 /** OscillatorLayer, abbreviated. `pw` optional, same as OscillatorLayer.pulseWidth. */
@@ -100,6 +103,11 @@ interface CompactRobotOverrideDiff {
   a?: CompactADSR;
   l?: CompactLayer[];
   f?: number;
+  /** Portamento seconds; a 0 is a real value (the seeded glide switched off). */
+  po?: number;
+  /** Bus filter resonance and type. */
+  fq?: number;
+  ft?: RobotFilterType;
   rd?: number;
   rm?: CompactToggle;
   nv?: CompactToggle;
@@ -137,10 +145,27 @@ function decodeBase64Utf8(encoded: string): string {
 }
 
 function toCompactADSR(a: ADSREnvelope): CompactADSR {
-  return { at: a.attack, dc: a.decay, su: a.sustain, rl: a.release };
+  const compact: CompactADSR = { at: a.attack, dc: a.decay, su: a.sustain, rl: a.release };
+  if (a.attackCurve !== undefined) compact.ac = a.attackCurve;
+  if (a.releaseCurve !== undefined) compact.rc = a.releaseCurve;
+  return compact;
 }
 function fromCompactADSR(a: CompactADSR): ADSREnvelope {
-  return { attack: a.at, decay: a.dc, sustain: a.su, release: a.rl };
+  const adsr: ADSREnvelope = { attack: a.at, decay: a.dc, sustain: a.su, release: a.rl };
+  // `ac` / `rc` come off an untrusted URL: a value that is not a listed curve name is dropped on its own,
+  // so the stages and the other curve still restore.
+  if (isCurveName(a.ac)) adsr.attackCurve = a.ac;
+  if (isCurveName(a.rc)) adsr.releaseCurve = a.rc;
+  return adsr;
+}
+function isCurveName(value: unknown): value is EnvelopeCurveName {
+  return (ENVELOPE_CURVE_NAMES as readonly unknown[]).includes(value);
+}
+function isFilterType(value: unknown): value is RobotFilterType {
+  return (ROBOT_FILTER_TYPES as readonly unknown[]).includes(value);
+}
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function toCompactLayer(l: OscillatorLayer): CompactLayer {
@@ -214,6 +239,9 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.adsr !== undefined) compact.a = toCompactADSR(diff.adsr);
   if (diff.layers !== undefined) compact.l = diff.layers.map(toCompactLayer);
   if (diff.filterFreq !== undefined) compact.f = diff.filterFreq;
+  if (diff.portamento !== undefined) compact.po = diff.portamento;
+  if (diff.filterQ !== undefined) compact.fq = diff.filterQ;
+  if (diff.filterType !== undefined) compact.ft = diff.filterType;
   if (diff.rhythmicDensity !== undefined) compact.rd = diff.rhythmicDensity;
   if (diff.rhythmicMotifLength !== undefined) compact.rm = toCompactToggle(diff.rhythmicMotifLength);
   if (diff.noteVariance !== undefined) compact.nv = toCompactToggle(diff.noteVariance);
@@ -231,6 +259,11 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   if (compact.a !== undefined) diff.adsr = fromCompactADSR(compact.a);
   if (compact.l !== undefined) diff.layers = compact.l.map(fromCompactLayer);
   if (compact.f !== undefined) diff.filterFreq = compact.f;
+  // Robot Articulation: a non-finite or non-numeric `po` / `fq` and an unlisted `ft` are dropped one by one,
+  // never misread as a value (JSON turns a NaN into null, which `typeof` rejects).
+  if (isFiniteNumber(compact.po)) diff.portamento = compact.po;
+  if (isFiniteNumber(compact.fq)) diff.filterQ = compact.fq;
+  if (isFilterType(compact.ft)) diff.filterType = compact.ft;
   if (compact.rd !== undefined) diff.rhythmicDensity = compact.rd;
   if (compact.rm !== undefined) diff.rhythmicMotifLength = fromCompactToggle(compact.rm);
   if (compact.nv !== undefined) diff.noteVariance = fromCompactToggle(compact.nv);

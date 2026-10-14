@@ -48,6 +48,21 @@ export type RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'wa
 export type WaveformType = 'sine' | 'square' | 'triangle' | 'sawtooth' | 'pulse';
 
 /**
+ * The attack / release curve shapes Tone.Envelope accepts (docs/specs/ROBOT_ARTICULATION.md §1.1).
+ * 'linear' first: it is Tone's default and so today's sound.
+ */
+export type EnvelopeCurveName = 'linear' | 'exponential' | 'sine' | 'cosine' | 'bounce' | 'ripple' | 'step';
+
+export const ENVELOPE_CURVE_NAMES: readonly EnvelopeCurveName[] = [
+  'linear', 'exponential', 'sine', 'cosine', 'bounce', 'ripple', 'step',
+];
+
+/** The robot bus filter's type. 'lowpass' first: it is today's fixed type. */
+export type RobotFilterType = 'lowpass' | 'bandpass' | 'highpass';
+
+export const ROBOT_FILTER_TYPES: readonly RobotFilterType[] = ['lowpass', 'bandpass', 'highpass'];
+
+/**
  * ADSR envelope parameters for synth
  */
 export interface ADSREnvelope {
@@ -55,6 +70,10 @@ export interface ADSREnvelope {
   decay: number;       // seconds
   sustain: number;     // 0-1
   release: number;     // seconds
+  /** Absent = 'linear' (Tone's default; today's sound). decayCurve is deliberately not exposed. */
+  attackCurve?: EnvelopeCurveName;
+  /** Absent = 'linear' (Tone's default; today's sound). */
+  releaseCurve?: EnvelopeCurveName;
 }
 
 /**
@@ -65,7 +84,13 @@ export interface AudioAttributes {
   adsr: ADSREnvelope;
   /** Seeded octave register [min, max] — populated at spawn time via generateAudioAttributes */
   octaveRange?: [number, number];
-  filterFreq: number;  // Hz (cutoff frequency, 0 = no filter)
+  filterFreq: number;  // Hz (cutoff frequency, 0 = no filter; the slider now runs 20–20000)
+  /** Bus filter resonance. Absent = 1 (today's fixed value). */
+  filterQ?: number;
+  /** Bus filter type. Absent = 'lowpass' (today's fixed type). */
+  filterType?: RobotFilterType;
+  /** Seconds each layer glides into the next note. Absent or 0 = no glide (today). */
+  portamento?: number;
   /** Canonical ordered list of oscillator layers (index 0 is base) */
   layers?: OscillatorLayer[];
   waveform: WaveformType; // Oscillator shape applied once at voice reservation time

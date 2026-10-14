@@ -53,8 +53,16 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     );
   });
 
-  it('still contains every ROBOT_LFO_TARGET_IDS entry — a strict superset of the LFO targets', () => {
-    for (const id of ROBOT_LFO_TARGET_IDS) expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain(id);
+  // bus.frequency (docs/specs/ROBOT_ARTICULATION.md assumption 10) is an LFO target with no swell apply
+  // path, so the invariant narrows to the six layer ids: every layer id that was a swellable LFO target still is.
+  it('still contains every layer-scoped ROBOT_LFO_TARGET_IDS entry — a strict superset of the six layer LFO targets', () => {
+    const layerTargets = ROBOT_LFO_TARGET_IDS.filter((id) => id.startsWith('layer'));
+    expect(layerTargets).toHaveLength(6);
+    for (const id of layerTargets) expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain(id);
+  });
+
+  it('does not contain bus.frequency — the one LFO target that is not a swell attribute', () => {
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS as readonly string[]).not.toContain('bus.frequency');
   });
 
   it('has exactly 17 members, no duplicates', () => {
@@ -75,8 +83,8 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).not.toContain('octaveRange');
   });
 
-  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 6 members (volume/pulseWidth/phase stay swell attributes even though they are no longer LFO targets)', () => {
-    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(6);
+  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 7 members, bus.frequency being the non-swell target (volume/pulseWidth/phase stay swell attributes even though they are no longer LFO targets)', () => {
+    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(7);
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('volume');
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer0.pulseWidth');
   });

@@ -8,6 +8,7 @@ import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { BusFilterDrawer, type BusFilterPatch, type BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
@@ -15,11 +16,14 @@ import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/Secti
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
-import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { SIGNATURE_ARRAY_CONFIG, BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
+import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import {
   ROBOT_SECTIONS_CONFIG, SOURCE_OSCILLATOR_SUBSECTIONS,
   activeRobotSection, activeRobotSubsection, sectionSubTabs, sectionTabContent,
@@ -31,7 +35,7 @@ import {
 import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
+  applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
@@ -54,7 +58,7 @@ const TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
 };
 
 const NO_COMPANIES: Company[] = [];
-const NO_CHANGE = () => {};
+const NO_CHANGE = () => { };
 
 // Module-level, so each is one stable function (SectionTabs is React.memo'd). A section pick clears the
 // sub-tab, which belonged to the old section: Source / Accent → Envelope → Source opens Core again.
@@ -198,6 +202,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // audioSwells.ts's module-scope Map, which React does not track: each memo's deps are the robot field
   // a swell tick writes, so it recomputes at that moment even though the body never reads them.
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
+  // Absent means no glide, today's sound (docs/specs/ROBOT_ARTICULATION.md assumption 1). A number, so the memo deps compare by value.
+  const portamento = robot.audioAttributes.portamento ?? 0;
   const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
   const layer0Swelling = useLayerSwellingFlags(robot.id, 0, robot.audioAttributes.layers?.[0]);
   const layer1Swelling = useLayerSwellingFlags(robot.id, 1, robot.audioAttributes.layers?.[1]);
@@ -229,6 +235,19 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     lfoLinks: robot.lfoLinks,
   }), [robot.audioAttributes.layers, robot.lfoLinks]);
 
+  // The filter drawer shows what the engine plays: absence resolves through the engine's own resolvers (a robot
+  // with none of the fields reads Q 1, lowpass; filterFreq 0, "no filter", reads as the open top of the band).
+  // The link falls back to the stable default object, so an unlinked Cutoff keeps one reference across edits.
+  const busLink = robot.lfoLinks?.[BUS_FILTER_LFO_TARGET] ?? DEFAULT_LFO_LINK[BUS_FILTER_LFO_TARGET];
+  const busFilterValue: BusFilterValue = useMemo(() => ({
+    filterFreq: resolveBusFilterCutoff(robot.audioAttributes.filterFreq),
+    filterQ: resolveBusFilterQ(robot.audioAttributes.filterQ),
+    filterType: resolveBusFilterType(robot.audioAttributes.filterType),
+    lfoLink: busLink,
+  }), [robot.audioAttributes.filterFreq, robot.audioAttributes.filterQ, robot.audioAttributes.filterType, busLink]);
+  // The Audio Load dial's hold on the robot bus-filter links (the Audio Rig's global filter panels read filterLinksHeldOff instead).
+  const busFilterLinksHeldOff = useAudioStore((s) => s.busFilterLinksHeldOff);
+
   const handleAudioModeChange = useCallback((mode: Robot['audioMode']) => applyAudioMode(latestRobot.current, localeId, mode), [localeId]);
   const handleVolumeChange = useCallback((pct: number) => {
     cancelSwellForRobotAttribute(latestRobot.current.id, 'volume');
@@ -254,10 +273,22 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => {
     const prevAdsr = latestRobot.current.audioAttributes.adsr;
     (Object.keys(adsr) as (keyof ADSREnvelope)[]).forEach((field) => {
+      // The curve names are not swell attributes: only a/d/s/r swell.
+      if (field === 'attackCurve' || field === 'releaseCurve') return;
       if (adsr[field] !== prevAdsr[field]) cancelSwellForRobotAttribute(latestRobot.current.id, `adsr.${field}`);
     });
     applyAdsr(latestRobot.current, localeId, adsr);
   }, [localeId]);
+
+  // Portamento is not a swell attribute, so nothing to cancel; the action reads the live robot like every other handler.
+  const handlePortamentoChange = useCallback((seconds: number) => applyPortamento(latestRobot.current, localeId, seconds), [localeId]);
+
+  // The filter has no swell attribute, so nothing to cancel; both handlers read the live robot like every other one.
+  const handleBusFilterChange = useCallback((patch: BusFilterPatch) => applyBusFilter(latestRobot.current, localeId, patch), [localeId]);
+  const handleBusLinkChange = useCallback(
+    (link: LfoLinkValue) => applyLayerLfoLink(latestRobot.current, localeId, BUS_FILTER_LFO_TARGET, link),
+    [localeId],
+  );
 
   const handleLayerTypeChange = useCallback((idx: number, type: WaveformType) => {
     const layers = latestRobot.current.audioAttributes.layers ?? [];
@@ -304,7 +335,15 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
           />
         );
       case 'pingContour':
-        return <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} swelling={adsrSwelling} />;
+        return (
+          <PingContourDrawer
+            value={robot.audioAttributes.adsr}
+            onChange={handleAdsrChange}
+            portamento={portamento}
+            onPortamentoChange={handlePortamentoChange}
+            swelling={adsrSwelling}
+          />
+        );
       case 'baselineOscillator':
       case 'coaxialOscillator':
       case 'harmonicOscillator': {
@@ -324,6 +363,15 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
           />
         ) : null;
       }
+      case 'busFilter':
+        return (
+          <BusFilterDrawer
+            value={busFilterValue}
+            onChange={handleBusFilterChange}
+            onLfoLinkChange={handleBusLinkChange}
+            heldOff={busFilterLinksHeldOff}
+          />
+        );
       default:
         return null;
     }
@@ -332,9 +380,10 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     handleReverbSendChange, handleDelaySendChange,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
-    robot.audioAttributes.adsr, handleAdsrChange, adsrSwelling,
+    robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,
     signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
+    busFilterValue, handleBusFilterChange, handleBusLinkChange, busFilterLinksHeldOff,
   ]);
 }
 

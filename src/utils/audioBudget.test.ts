@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AUDIO_LOAD_PRESETS,
+  LOAD_BUS_FILTER_LFOS_MIN,
   LOAD_DRIFT_MIN,
   LOAD_FILTER_LFOS_MIN,
   LOAD_PLAYBACK_BELOW,
@@ -53,6 +54,7 @@ describe('the two axes at one shared dial position', () => {
       maxPolyphony: 16,
       driftEnabled: true,
       filterLfosEnabled: true,
+      busFilterLfosEnabled: true,
       latencyHint: 'interactive',
     });
     expect(MAX_ROBOTS).toBe(12);
@@ -65,6 +67,7 @@ describe('the two axes at one shared dial position', () => {
       maxPolyphony: 8,
       driftEnabled: false,
       filterLfosEnabled: false,
+      busFilterLfosEnabled: false,
       latencyHint: 'playback',
     });
   });
@@ -75,6 +78,7 @@ describe('the two axes at one shared dial position', () => {
       maxPolyphony: 12,
       driftEnabled: false,
       filterLfosEnabled: true,
+      busFilterLfosEnabled: false,
       latencyHint: 'playback',
     });
   });
@@ -85,6 +89,7 @@ describe('the two axes at one shared dial position', () => {
       maxPolyphony: 6,
       driftEnabled: false,
       filterLfosEnabled: false,
+      busFilterLfosEnabled: false,
       latencyHint: 'playback',
     });
   });
@@ -131,6 +136,34 @@ describe('the two axes at one shared dial position', () => {
       expect(loadToLimits(LOAD_FILTER_LFOS_MIN - 1e-9).filterLfosEnabled).toBe(false);
       expect(loadToLimits(LOAD_FILTER_LFOS_MIN).filterLfosEnabled).toBe(true);
       expect(loadToLimits(LOAD_FILTER_LFOS_MIN + 1e-9).filterLfosEnabled).toBe(true);
+    });
+
+    it('switches the robot bus-filter LFOs on at exactly LOAD_BUS_FILTER_LFOS_MIN (0.8)', () => {
+      expect(LOAD_BUS_FILTER_LFOS_MIN).toBe(0.8);
+      expect(loadToLimits(LOAD_BUS_FILTER_LFOS_MIN - 1e-9).busFilterLfosEnabled).toBe(false);
+      expect(loadToLimits(LOAD_BUS_FILTER_LFOS_MIN).busFilterLfosEnabled).toBe(true);
+      expect(loadToLimits(LOAD_BUS_FILTER_LFOS_MIN + 1e-9).busFilterLfosEnabled).toBe(true);
+    });
+
+    it('never has the bus tier on while the global filter tier is off (the bus tier is the stricter of the two)', () => {
+      expect(LOAD_BUS_FILTER_LFOS_MIN).toBeGreaterThanOrEqual(LOAD_FILTER_LFOS_MIN);
+      for (const t of dial) {
+        const limits = loadToLimits(t);
+        if (limits.busFilterLfosEnabled) expect(limits.filterLfosEnabled, `${t}`).toBe(true);
+      }
+    });
+
+    it('keeps the bus tier off while the global filter tier is off even if its own threshold were lower (the effective flag)', async () => {
+      vi.resetModules();
+      vi.doMock('../constants', async (importOriginal) => ({ ...(await importOriginal<typeof import('../constants')>()), LOAD_BUS_FILTER_LFOS_MIN: 0.1 }));
+      try {
+        const { effectsLoadToLimits: remocked } = await import('./audioBudget');
+        expect(remocked(0.2)).toMatchObject({ filterLfosEnabled: false, busFilterLfosEnabled: false });
+        expect(remocked(0.4)).toMatchObject({ filterLfosEnabled: true, busFilterLfosEnabled: true });
+      } finally {
+        vi.doUnmock('../constants');
+        vi.resetModules();
+      }
     });
 
     it('switches drift on at exactly LOAD_DRIFT_MIN (0.8)', () => {
@@ -316,9 +349,9 @@ describe('describeLimits', () => {
     );
   });
 
-  it('at Standard drops the filter-LFO clause (only drift is off) but keeps the latency clause (decision J: Standard is playback too)', () => {
+  it('at Standard names drift and the robot filter LFOs as off (the global filter tier is on) and keeps the latency clause (decision J: Standard is playback too)', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.standard))).toBe(
-      'Up to 8 robots · 12 notes · no drift · latency: Playback (applies on next load)',
+      'Up to 8 robots · 12 notes · no drift or robot filter LFOs · latency: Playback (applies on next load)',
     );
   });
 
@@ -335,9 +368,25 @@ describe('describeLimits', () => {
     }
   });
 
+  it('names a bus tier that is off on its own, and a global filter tier that is off on its own', () => {
+    const full = loadToLimits(1);
+    expect(describeLimits({ ...full, busFilterLfosEnabled: false })).toContain('no robot filter LFOs');
+    expect(describeLimits({ ...full, busFilterLfosEnabled: false })).not.toContain('all LFOs');
+    expect(describeLimits({ ...full, filterLfosEnabled: false, busFilterLfosEnabled: false })).toContain('no filter LFOs');
+    expect(describeLimits({ ...full, driftEnabled: false })).toMatch(/no drift$/);
+  });
+
+  it('says all LFOs and drift only when drift, the filter tier and the bus tier are all on', () => {
+    for (const t of dial) {
+      const limits = loadToLimits(t);
+      const allOn = limits.driftEnabled && limits.filterLfosEnabled && limits.busFilterLfosEnabled;
+      expect(describeLimits(limits).includes('all LFOs and drift'), `${t}`).toBe(allOn);
+    }
+  });
+
   it('names each LFO tier correctly on both sides of the thresholds', () => {
     expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN - 0.01))).toContain('no drift or filter LFOs');
-    expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN))).toMatch(/no drift(?! or)/);
+    expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN))).toContain('no drift or robot filter LFOs');
     expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN - 0.01))).toContain('no drift');
     expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN))).toContain('all LFOs and drift');
   });
@@ -710,6 +759,12 @@ describe('the two axes combined', () => {
     expect(merged.latencyHint).toBe('interactive');
     expect(merged.driftEnabled).toBe(false);
     expect(merged.filterLfosEnabled).toBe(false);
+    expect(merged.busFilterLfosEnabled).toBe(false);
+  });
+
+  it('the bus tier follows the Effects axis only, not the Robot axis', () => {
+    expect({ ...robotLoadToLimits(0), ...effectsLoadToLimits(1) }.busFilterLfosEnabled).toBe(true);
+    expect({ ...robotLoadToLimits(1), ...effectsLoadToLimits(0) }.busFilterLfosEnabled).toBe(false);
   });
 });
 

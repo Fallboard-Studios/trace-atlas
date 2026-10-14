@@ -40,6 +40,11 @@ import {
   SEND_MAX,
   SEND_DISPLAY_SCALE,
   SEND_STEP_PERCENT,
+  ENVELOPE_TIME_MAX_SECONDS,
+  PORTAMENTO_MIN,
+  PORTAMENTO_MAX,
+  ROBOT_BUS_FILTER_FREQ_RANGE,
+  ROBOT_BUS_FILTER_Q_RANGE,
 } from '@/constants';
 
 // ========================================
@@ -307,7 +312,7 @@ export const ATTACK_SCHEMA: SliderLogSchema = {
   type: 'sliderLog',
   ...labels('probe.envelope.attack'),
   min: 0,
-  max: 10,
+  max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
 
@@ -316,7 +321,7 @@ export const DECAY_SCHEMA: SliderLogSchema = {
   type: 'sliderLog',
   ...labels('probe.envelope.decay'),
   min: 0,
-  max: 10,
+  max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
 
@@ -339,9 +344,97 @@ export const RELEASE_SCHEMA: SliderLogSchema = {
   type: 'sliderLog',
   ...labels('probe.envelope.release'),
   min: 0,
-  max: 10,
+  max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
+
+// ========================================
+// ROBOT ARTICULATION — portamento, envelope curves, bus filter (docs/specs/ROBOT_ARTICULATION.md §1.6)
+// ========================================
+
+/** Seconds of glide between notes; 0 (the left end) is no glide, today's sound. The stored value is the
+ *  displayed one — no conversion at the component boundary. */
+export const PORTAMENTO_SCHEMA: SliderLogSchema = {
+  id: 'robotOptions.portamento',
+  type: 'sliderLog',
+  ...labels('probe.envelope.portamento'),
+  min: PORTAMENTO_MIN,
+  max: PORTAMENTO_MAX,
+  orientation: 'horizontal',
+};
+
+/** The envelope's rise curve (ADSREnvelope.attackCurve). Radio values are the EnvelopeCurveName strings. */
+export const ATTACK_CURVE_SCHEMA: RadioButtonSchema = {
+  id: 'robotOptions.attackCurve',
+  type: 'radio',
+  ...labels('probe.envelope.attackShape'),
+  options: options('probe.envelope.attackShape'),
+};
+
+/** The envelope's fade curve (ADSREnvelope.releaseCurve). */
+export const RELEASE_CURVE_SCHEMA: RadioButtonSchema = {
+  id: 'robotOptions.releaseCurve',
+  type: 'radio',
+  ...labels('probe.envelope.releaseShape'),
+  options: options('probe.envelope.releaseShape'),
+};
+
+/** Attack Shape beside Release Shape, unlabeled — pure layout, the Envelope drawer's fourth row. */
+export const CURVE_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.curveRow',
+  type: 'directionalPanel',
+  orientation: 'responsive',
+};
+
+/** The Source filter panel: Cutoff, its LFO link, then Resonance beside Type. */
+export const BUS_FILTER_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter',
+  type: 'directionalPanel',
+  ...labels('probe.source.filter'),
+  orientation: 'column',
+};
+
+/** Resonance beside Type, unlabeled — pure layout. */
+export const BUS_FILTER_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilterRow',
+  type: 'directionalPanel',
+  orientation: 'responsive',
+};
+
+/** The bus filter's cutoff, Hz, on a log scale (AudioAttributes.filterFreq). */
+export const BUS_CUTOFF_SCHEMA: SliderLogSchema = {
+  id: 'robotOptions.busFilter.cutoff',
+  type: 'sliderLog',
+  ...labels('probe.source.filter.cutoff'),
+  min: ROBOT_BUS_FILTER_FREQ_RANGE.min,
+  max: ROBOT_BUS_FILTER_FREQ_RANGE.max,
+  orientation: 'horizontal',
+};
+
+/** The bus filter's Q (AudioAttributes.filterQ). */
+export const BUS_RESONANCE_SCHEMA: SliderLogSchema = {
+  id: 'robotOptions.busFilter.resonance',
+  type: 'sliderLog',
+  ...labels('probe.source.filter.resonance'),
+  min: ROBOT_BUS_FILTER_Q_RANGE.min,
+  max: ROBOT_BUS_FILTER_Q_RANGE.max,
+  orientation: 'horizontal',
+};
+
+/** The bus filter's type (AudioAttributes.filterType). Radio values are the RobotFilterType strings. */
+export const BUS_FILTER_TYPE_SCHEMA: RadioButtonSchema = {
+  id: 'robotOptions.busFilter.type',
+  type: 'radio',
+  ...labels('probe.source.filter.type'),
+  options: options('probe.source.filter.type'),
+};
+
+/**
+ * The robot LFO target the Cutoff's link modulates. The link's schema itself is built inside the drawer
+ * from `robotOptions.busFilter.link`, as each Source layer builds its own (an LfoLinkSchema has no target
+ * field, and a link carries no label or help of its own — LfoLink names its lane and depth rows itself).
+ */
+export const BUS_FILTER_LFO_TARGET: RobotLfoTargetId = 'bus.frequency';
 
 // ========================================
 // SIGNATURE ARRAY — 3 fixed layers (Baseline/Coaxial/Harmonic)

@@ -4,6 +4,7 @@ import { AudioSettingSection } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer } from '@/components/robot/SignatureArrayDrawer';
+import { BusFilterDrawer } from '@/components/robot/BusFilterDrawer';
 import type { RobotSubsection } from '@/stores/uiStore';
 import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
 import { SOURCE_OSCILLATOR_SUBSECTIONS, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
@@ -30,6 +31,7 @@ const DISABLED_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
   timeSpace: getDisabledTraitColorStyle('timeSpace'),
   spectral: getDisabledTraitColorStyle('spectral'),
 };
+
 
 /**
  * A section panel's trait colours: the trait's full-saturation pair while the panels can be edited, its
@@ -84,7 +86,16 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
           />
         );
       case 'pingContour':
-        return <PingContourDrawer value={options.adsrValue} disabled={disabled} onChange={options.onAdsrChange} swelling={options.adsrSwelling} />;
+        return (
+          <PingContourDrawer
+            value={options.adsrValue}
+            disabled={disabled}
+            onChange={options.onAdsrChange}
+            portamento={options.portamentoValue}
+            onPortamentoChange={options.onPortamentoChange}
+            swelling={options.adsrSwelling}
+          />
+        );
       case 'baselineOscillator':
       case 'coaxialOscillator':
       case 'harmonicOscillator': {
@@ -104,6 +115,16 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
           />
         ) : null;
       }
+      case 'busFilter':
+        return (
+          <BusFilterDrawer
+            value={options.busFilterValue}
+            disabled={disabled}
+            onChange={options.onBusFilterChange}
+            onLfoLinkChange={options.onBusLinkChange}
+            heldOff={options.busFilterLinksHeldOff}
+          />
+        );
       default:
         return null;
     }

@@ -210,6 +210,9 @@ describe('AudioEngine.reReserveVoice', () => {
                 waveform: 'sine',
                 adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 },
                 filterFreq: 1850,
+                portamento: 0.2,
+                filterQ: 6,
+                filterType: 'bandpass',
                 layers: [{ type: 'sine', pulseWidth: 0.42 }],
                 phase: 37,
                 detune: 5,
@@ -242,6 +245,8 @@ describe('AudioEngine.reReserveVoice', () => {
       // filterFreq (1850, the robot's own seeded cutoff) is the 8th — the per-robot bus
       // low-pass. A non-default value here, so a dropped argument can't pass by coincidence.
       1850,
+      // The 9th: the articulation object, every field non-default for the same reason (Robot Articulation T3).
+      { portamento: 0.2, filterQ: 6, filterType: 'bandpass' },
     );
   });
 });
@@ -3010,6 +3015,408 @@ describe('AudioEngine - reservation re-primes a manual pan from the store (Robot
       expect(primeSpy).not.toHaveBeenCalled();
       teardown();
     });
+  });
+});
+
+// ========================================
+// Robot Articulation T3 (docs/specs/ROBOT_ARTICULATION.md §1.3)
+// ========================================
+
+describe('AudioEngine.reserveVoice - articulation object (filter Q and type, portamento)', () => {
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+  // Fresh modules each test: earlier describes in this file reset the module registry, so a static
+  // AudioEngine and a dynamically imported Tone would otherwise be two different mock instances.
+  const load = async () => {
+    vi.resetModules();
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const lastFilterCtorConfig = () =>
+      (Tone.Filter as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as { frequency: number; Q: number; type: string };
+    const lastSynthCtorConfig = () => (Tone.Synth as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    return { AudioEngine, lastFilterCtorConfig, lastSynthCtorConfig };
+  };
+
+  it('builds the bus filter with the robot own Q and type', async () => {
+    const { AudioEngine, lastFilterCtorConfig } = await load();
+    AudioEngine.reserveVoice('articulation-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850, { filterQ: 5, filterType: 'bandpass' });
+    expect(lastFilterCtorConfig()).toEqual({ frequency: 1850, Q: 5, type: 'bandpass' });
+  });
+
+  it('keeps Q 1 and lowpass when no articulation object is passed', async () => {
+    const { AudioEngine, lastFilterCtorConfig } = await load();
+    AudioEngine.reserveVoice('articulation-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    expect(lastFilterCtorConfig()).toEqual({ frequency: 1850, Q: 1, type: 'lowpass' });
+  });
+
+  it('keeps Q 1 and lowpass for an empty articulation object', async () => {
+    const { AudioEngine, lastFilterCtorConfig } = await load();
+    AudioEngine.reserveVoice('articulation-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850, {});
+    expect(lastFilterCtorConfig()).toMatchObject({ Q: 1, type: 'lowpass' });
+  });
+
+  it('resolves each of Q and type independently', async () => {
+    const { AudioEngine, lastFilterCtorConfig } = await load();
+    AudioEngine.reserveVoice('articulation-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850, { filterQ: 7 });
+    expect(lastFilterCtorConfig()).toMatchObject({ Q: 7, type: 'lowpass' });
+    AudioEngine.reserveVoice('articulation-robot-2', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850, { filterType: 'highpass' });
+    expect(lastFilterCtorConfig()).toMatchObject({ Q: 1, type: 'highpass' });
+  });
+
+  it('falls back to Q 1 for a NaN Q and lowpass for an unknown type (a bad payload never reaches Tone)', async () => {
+    const { AudioEngine, lastFilterCtorConfig } = await load();
+    AudioEngine.reserveVoice('articulation-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850, { filterQ: Number.NaN, filterType: 'notch' as any });
+    expect(lastFilterCtorConfig()).toMatchObject({ Q: 1, type: 'lowpass' });
+  });
+
+  it('passes the portamento to the layer synths at construction, and 0 when omitted', async () => {
+    const { AudioEngine, lastSynthCtorConfig } = await load();
+    AudioEngine.reserveVoice('articulation-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850, { portamento: 0.2 });
+    expect(lastSynthCtorConfig()).toMatchObject({ portamento: 0.2 });
+    AudioEngine.reserveVoice('articulation-robot-2', layered, TEST_ADSR);
+    expect(lastSynthCtorConfig()).toMatchObject({ portamento: 0 });
+  });
+});
+
+describe('AudioEngine.updateVoicePortamento', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('writes the glide time onto every audible layer\'s synth', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const layers: any[] = [
+      { type: 'sine', gain: 1, detune: 0, phase: 0 },
+      { type: 'square', gain: 1, detune: 0, phase: 0 },
+    ];
+    AudioEngine.reserveVoice('portamento-robot', layers as any, TEST_ADSR);
+
+    AudioEngine.updateVoicePortamento('portamento-robot', 0.15);
+
+    const voice = AudioEngine.getVoiceForRobot('portamento-robot');
+    expect(voice?.layers).toHaveLength(2);
+    voice?.layers?.forEach(({ synth }) => {
+      expect((synth as any).portamento).toBe(0.15);
+    });
+  });
+
+  it('accepts 0 (glide off) after a non-zero value', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('portamento-robot', [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] as any, TEST_ADSR, undefined, undefined, undefined, 1, 1200, { portamento: 0.3 });
+
+    AudioEngine.updateVoicePortamento('portamento-robot', 0);
+
+    const voice = AudioEngine.getVoiceForRobot('portamento-robot');
+    expect((voice?.layers?.[0].synth as any).portamento).toBe(0);
+  });
+
+  it('is a safe no-op when no composite voice is reserved for the robot', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(() => AudioEngine.updateVoicePortamento('never-reserved', 0.2)).not.toThrow();
+  });
+});
+
+describe('AudioEngine.updateRobotBusFilter', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** Reserve a robot whose bus filter has rampable frequency and Q params, as the real Tone.Filter does. */
+  const reserveWithRampableFilter = async (id: string) => {
+    const Tone = await import('tone');
+    const filter = {
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+      toDestination: vi.fn(),
+      frequency: { value: 1200, rampTo: vi.fn() },
+      Q: { value: 1, rampTo: vi.fn() },
+      type: 'lowpass',
+    };
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    // start() builds the global FX chain, which constructs filters of its own - queue ours after it.
+    (Tone.Filter as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => filter);
+    AudioEngine.reserveVoice(id, [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] as any, TEST_ADSR);
+    return { AudioEngine, filter };
+  };
+
+  it('ramps only the frequency over FILTER_RAMP_SECONDS', async () => {
+    const { FILTER_RAMP_SECONDS } = await import('../constants');
+    const { AudioEngine, filter } = await reserveWithRampableFilter('bus-robot');
+
+    AudioEngine.updateRobotBusFilter('bus-robot', { frequency: 900 });
+
+    expect(filter.frequency.rampTo).toHaveBeenCalledTimes(1);
+    expect(filter.frequency.rampTo).toHaveBeenCalledWith(900, FILTER_RAMP_SECONDS);
+    expect(filter.Q.rampTo).not.toHaveBeenCalled();
+    expect(filter.type).toBe('lowpass');
+  });
+
+  it('ramps only the Q', async () => {
+    const { FILTER_RAMP_SECONDS } = await import('../constants');
+    const { AudioEngine, filter } = await reserveWithRampableFilter('bus-robot');
+
+    AudioEngine.updateRobotBusFilter('bus-robot', { Q: 4 });
+
+    expect(filter.Q.rampTo).toHaveBeenCalledWith(4, FILTER_RAMP_SECONDS);
+    expect(filter.frequency.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('assigns the type directly and touches neither param', async () => {
+    const { AudioEngine, filter } = await reserveWithRampableFilter('bus-robot');
+
+    AudioEngine.updateRobotBusFilter('bus-robot', { type: 'highpass' });
+
+    expect(filter.type).toBe('highpass');
+    expect(filter.frequency.rampTo).not.toHaveBeenCalled();
+    expect(filter.Q.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('applies a combined patch in one call', async () => {
+    const { AudioEngine, filter } = await reserveWithRampableFilter('bus-robot');
+
+    AudioEngine.updateRobotBusFilter('bus-robot', { frequency: 500, Q: 8, type: 'bandpass' });
+
+    expect(filter.frequency.rampTo).toHaveBeenCalledWith(500, expect.any(Number));
+    expect(filter.Q.rampTo).toHaveBeenCalledWith(8, expect.any(Number));
+    expect(filter.type).toBe('bandpass');
+  });
+
+  it('applies a zero-valued Q rather than skipping it as falsy', async () => {
+    const { AudioEngine, filter } = await reserveWithRampableFilter('bus-robot');
+
+    AudioEngine.updateRobotBusFilter('bus-robot', { Q: 0 });
+
+    expect(filter.Q.rampTo).toHaveBeenCalledWith(0, expect.any(Number));
+  });
+
+  it('leaves everything alone for an empty patch', async () => {
+    const { AudioEngine, filter } = await reserveWithRampableFilter('bus-robot');
+
+    AudioEngine.updateRobotBusFilter('bus-robot', {});
+
+    expect(filter.frequency.rampTo).not.toHaveBeenCalled();
+    expect(filter.Q.rampTo).not.toHaveBeenCalled();
+    expect(filter.type).toBe('lowpass');
+  });
+
+  it('falls back to setting .value when the param has no rampTo (headless)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('bus-robot', [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] as any, TEST_ADSR);
+    const Tone = await import('tone');
+    const results = (Tone.Filter as unknown as { mock: { results: { value: { frequency: { value: number }; Q: { value: number } } }[] } }).mock.results;
+    const filter = results[results.length - 1].value;
+
+    AudioEngine.updateRobotBusFilter('bus-robot', { frequency: 700, Q: 3 });
+
+    expect(filter.frequency.value).toBe(700);
+    expect(filter.Q.value).toBe(3);
+  });
+
+  it('is a safe no-op when no composite voice is reserved for the robot', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(() => AudioEngine.updateRobotBusFilter('never-reserved', { frequency: 900 })).not.toThrow();
+  });
+});
+
+describe('AudioEngine - getRobotModulationTarget for bus.frequency', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('returns the reserved bus filter\'s frequency param', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('bus-target-robot', [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] as any, TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    const results = (Tone.Filter as unknown as { mock: { results: { value: { frequency: unknown } }[] } }).mock.results;
+    const busFilter = results[results.length - 1].value;
+
+    expect(AudioEngine.getRobotModulationTarget('bus-target-robot', 'bus.frequency')).toBe(busFilter.frequency);
+  });
+
+  it('returns null for an unreserved robot, without throwing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(() => AudioEngine.getRobotModulationTarget('never-reserved', 'bus.frequency')).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('never-reserved', 'bus.frequency')).toBeNull();
+  });
+
+  it('still resolves the layer ids as before alongside the bus id', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('bus-target-robot', [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any, TEST_ADSR);
+    expect(AudioEngine.getRobotModulationTarget('bus-target-robot', 'layer0.gain')).toHaveProperty('value');
+    expect(AudioEngine.getRobotModulationTarget('bus-target-robot', 'layer0.detune')).toHaveProperty('value');
+    expect(AudioEngine.getRobotModulationTarget('bus-target-robot', 'layer1.gain')).toBeNull();
+  });
+});
+
+describe('AudioEngine.reReserveVoice - articulation', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Fresh modules: the store spy and the engine must share one module registry (see the note above).
+  const load = async (audioAttributes: Record<string, unknown>) => {
+    vi.resetModules();
+    const Tone = await import('tone');
+    const { useLocaleStore } = await import('../stores/localeStore');
+    const { getActiveLocaleId } = await import('../utils/localeHelpers');
+    const { AudioEngine } = await import('./AudioEngine');
+    // Keyed by whatever id the engine will ask for: earlier groups in this file change what the helper returns.
+    vi.spyOn(useLocaleStore, 'getState').mockReturnValue({
+      locales: {
+        [getActiveLocaleId()]: {
+          robots: [
+            {
+              id: 'r1',
+              name: '',
+              position: { x: 960, y: 0 },
+              melody: [],
+              octaveRange: [3, 4],
+              masterVolume: 0.8,
+              audioMode: 'none',
+              audioAttributes: {
+                waveform: 'sine',
+                adsr: TEST_ADSR,
+                filterFreq: 1850,
+                layers: [{ type: 'sine', gain: 1 }],
+                ...audioAttributes,
+              },
+            },
+          ],
+        },
+      },
+    } as any);
+    const lastFilterCtorConfig = () => (Tone.Filter as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    const lastSynthCtorConfig = () => (Tone.Synth as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    return { AudioEngine, lastFilterCtorConfig, lastSynthCtorConfig };
+  };
+
+  it('hands the robot portamento, filterQ and filterType to reserveVoice as the trailing object', async () => {
+    const { AudioEngine } = await load({ portamento: 0.2, filterQ: 6, filterType: 'bandpass' });
+    const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockImplementation(() => true);
+    vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => { });
+
+    AudioEngine.reReserveVoice('r1');
+
+    expect(reserveSpy.mock.calls[0][8]).toEqual({ portamento: 0.2, filterQ: 6, filterType: 'bandpass' });
+  });
+
+  it('rebuilds the real voice with all three (filter ctor and synth ctor)', async () => {
+    const { AudioEngine, lastFilterCtorConfig, lastSynthCtorConfig } = await load({ portamento: 0.2, filterQ: 6, filterType: 'bandpass' });
+
+    expect(AudioEngine.reReserveVoice('r1')).toBe(true);
+
+    expect(lastFilterCtorConfig()).toEqual({ frequency: 1850, Q: 6, type: 'bandpass' });
+    expect(lastSynthCtorConfig()).toMatchObject({ portamento: 0.2 });
+  });
+
+  it('the post-load reservation pass (audio started after the world spawned) builds the same articulation', async () => {
+    const { AudioEngine, lastFilterCtorConfig, lastSynthCtorConfig } = await load({ portamento: 0.2, filterQ: 6, filterType: 'bandpass' });
+
+    await AudioEngine.start();
+
+    expect(lastFilterCtorConfig()).toEqual({ frequency: 1850, Q: 6, type: 'bandpass' });
+    expect(lastSynthCtorConfig()).toMatchObject({ portamento: 0.2 });
+    AudioEngine.releaseVoice('r1');
+    AudioEngine.killAll();
+  });
+
+  it('resolves a robot with no articulation fields (an old payload) to the sound it always had', async () => {
+    const { AudioEngine, lastFilterCtorConfig, lastSynthCtorConfig } = await load({});
+
+    expect(AudioEngine.reReserveVoice('r1')).toBe(true);
+
+    expect(lastFilterCtorConfig()).toEqual({ frequency: 1850, Q: 1, type: 'lowpass' });
+    expect(lastSynthCtorConfig()).toMatchObject({ portamento: 0 });
+  });
+});
+
+// ========================================
+// Robot Articulation T13 (docs/specs/ROBOT_ARTICULATION.md §3, "Zero new Tone nodes")
+// ========================================
+
+describe('AudioEngine.reserveVoice - the articulation traits add no Tone nodes', () => {
+  const layer = (gain: number): any => ({ type: 'sine', gain, detune: 0, phase: 0 });
+  const FULL_ARTICULATION = { portamento: 0.2, filterQ: 6, filterType: 'bandpass' as const };
+  const CURVED_ADSR = { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.4, attackCurve: 'bounce' as const, releaseCurve: 'sine' as const };
+
+  // Fresh modules each test, as the articulation block above. The Tone mock's call counts survive
+  // vi.resetModules, so `constructions()` reports the delta since load rather than the raw totals.
+  const load = async () => {
+    vi.resetModules();
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const count = (ctor: unknown) => (ctor as ReturnType<typeof vi.fn>).mock.calls.length;
+    const snapshot = () => ({ filter: count(Tone.Filter), panner: count(Tone.Panner), synth: count(Tone.Synth), gain: count(Tone.Gain) });
+    const base = snapshot();
+    const constructions = () => {
+      const now = snapshot();
+      return { filter: now.filter - base.filter, panner: now.panner - base.panner, synth: now.synth - base.synth, gain: now.gain - base.gain };
+    };
+    return { AudioEngine, constructions };
+  };
+
+  // The baseline without the articulation traits: one Filter, one Panner and one Synth per audible layer; Gains are
+  // the composite output, one per audible layer, the bus gain, and the two send gains (Robot Sends T3, always built,
+  // at 0, whether or not the global rooms exist). The articulation traits add none of these.
+  const expectedFor = (layers: number) => ({ filter: 1, panner: 1, synth: layers, gain: layers + 4 });
+
+  it('builds today node counts for a plain two-layer reservation (the pinned baseline)', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-plain', [layer(0.8), layer(0.5)], TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    expect(constructions()).toEqual(expectedFor(2));
+  });
+
+  it('builds the same counts with every articulation trait set: glide, Q, type and both curves', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-full', [layer(0.8), layer(0.5)], CURVED_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    expect(constructions()).toEqual(expectedFor(2));
+  });
+
+  it('scales with audible layers only: one layer is one Synth, and a gain-0 layer builds no Synth or Gain', async () => {
+    const one = await load();
+    one.AudioEngine.reserveVoice('count-one', [layer(0.8)], TEST_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    expect(one.constructions()).toEqual(expectedFor(1));
+
+    const muted = await load();
+    muted.AudioEngine.reserveVoice('count-muted', [layer(0.8), layer(0)], TEST_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    expect(muted.constructions()).toEqual(expectedFor(1));
+  });
+
+  it('adds nothing per extra robot beyond the same counts (two reservations are exactly double)', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-a', [layer(0.8), layer(0.5)], CURVED_ADSR, undefined, undefined, undefined, 1, 1850, FULL_ARTICULATION);
+    AudioEngine.reserveVoice('count-b', [layer(0.8), layer(0.5)], TEST_ADSR, undefined, undefined, undefined, 1, 6000);
+    const one = expectedFor(2);
+    expect(constructions()).toEqual({ filter: one.filter * 2, panner: one.panner * 2, synth: one.synth * 2, gain: one.gain * 2 });
+  });
+
+  it('constructs nothing on a live glide, bus-filter or curve edit (they set parameters on the nodes already there)', async () => {
+    const { AudioEngine, constructions } = await load();
+    AudioEngine.reserveVoice('count-live', [layer(0.8), layer(0.5)], TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    const before = constructions();
+
+    AudioEngine.updateVoicePortamento('count-live', 0.15);
+    AudioEngine.updateRobotBusFilter('count-live', { frequency: 900, Q: 4, type: 'highpass' });
+    AudioEngine.updateVoiceEnvelope('count-live', CURVED_ADSR);
+
+    expect(constructions()).toEqual(before);
+  });
+
+  it('constructs nothing when the edit targets a robot that is not reserved (a safe no-op)', async () => {
+    const { AudioEngine, constructions } = await load();
+    const before = constructions();
+    AudioEngine.updateVoicePortamento('count-ghost', 0.15);
+    AudioEngine.updateRobotBusFilter('count-ghost', { frequency: 900, Q: 4, type: 'highpass' });
+    expect(constructions()).toEqual(before);
   });
 });
 

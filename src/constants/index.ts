@@ -45,6 +45,14 @@ export const LOAD_DRIFT_MIN = 0.8;
 /** Global filter-frequency/Q LFOs are on at/above this dial position (EQ-gain LFOs are nearly free and always on). */
 export const LOAD_FILTER_LFOS_MIN = 0.4;
 /**
+ * A robot's own bus-filter cutoff LFO link ('bus.frequency') is on at/above this dial position (Robot Articulation
+ * T14b, docs/specs/ROBOT_ARTICULATION.md §5's pre-authorised tier). It sits on top of the global filter tier, never
+ * under it: a bus link is held off below LOAD_FILTER_LFOS_MIN too. At 0.8 Standard (0.6) holds the bus links off
+ * and Full (1) runs them, the same split drift has. A link made while it is off exists suspended; its stored lane
+ * and depth are never touched.
+ */
+export const LOAD_BUS_FILTER_LFOS_MIN = 0.8;
+/**
  * Below this dial position the AudioContext latency hint is "playback"; at/above it, "interactive".
  * Above Standard's anchor (0.6) so Light AND Standard both get it (decision J,
  * docs/specs/AUDIO_LOAD_BUDGET.md §7: the Pixel 8 phone run measured playback giving Standard 6.6x
@@ -52,6 +60,30 @@ export const LOAD_FILTER_LFOS_MIN = 0.4;
  * Light already ships unremarked); below Full's (1) so Full is untouched.
  */
 export const LOAD_PLAYBACK_BELOW = 0.61;
+
+// ========================================
+// ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.1)
+// ========================================
+
+/** Portamento slider bounds, seconds. 0 = no glide (today's sound). */
+export const PORTAMENTO_MIN = 0;
+export const PORTAMENTO_MAX = 2;
+/**
+ * Attack, Decay and Release run 0 to this many seconds: the sliders' maximum and the top of their seeded range, and
+ * (Attack and Release only) the divisor the body normalises them by (robotVisualHelpers' BODY_NORMALISER), kept as one
+ * number so they cannot drift. Past about half a second a robot's notes (often back-to-back 16ths) retrigger the
+ * envelope before a stage can finish, so longer Attack and Release all sound like the same held drone, and a longer
+ * Decay never reaches Sustain, which leaves the Sustain slider doing nothing; 0-10 s spent most of its travel there.
+ */
+export const ENVELOPE_TIME_MAX_SECONDS = 2;
+/** The robot bus filter's cutoff range, Hz: the slider's range and the bus.frequency LFO's output range (same as the global LPF). */
+export const ROBOT_BUS_FILTER_FREQ_RANGE = { min: 20, max: 20000 } as const;
+/** The robot bus filter's resonance range (the global LPF's pair). Today's fixed Q of 1 sits inside it. */
+export const ROBOT_BUS_FILTER_Q_RANGE = { min: 0.1, max: 20 } as const;
+/** The robot bus filter's resonance when nothing says otherwise: the fixed Q every bus filter had before Robot Articulation. */
+export const ROBOT_BUS_FILTER_Q = 1;
+/** Seconds a live bus-filter frequency or Q edit ramps over, so a slider drag does not zipper. Below MIN_LEAD. */
+export const FILTER_RAMP_SECONDS = 0.05;
 
 /**
  * Fixed size of the harmony palette — every `HARMONY_PALETTES` entry

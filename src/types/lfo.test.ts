@@ -38,19 +38,31 @@ describe('ROBOT_LFO_TARGET_IDS', () => {
   // (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4). 9 → 6 on 2026-10-01 (docs/specs/LFO_BANK.md
   // Task 1): the three 'layerN.phase' targets were cut — Phase stays a plain slider, just no
   // longer LFO-modulatable (no live Signal ever backed it; it was a control-rate polling fallback).
-  it('matches ROBOT_DATA_GRID.md\'s 6 Has-LFO-flagged targets exactly — gain/detune on each of 3 layers', () => {
+  // 6 → 7 on 2026-10-13 (docs/specs/ROBOT_ARTICULATION.md assumption 9): 'bus.frequency', the robot's
+  // bus filter cutoff, is the first non-layer robot target.
+  it('is the 6 layer targets (gain/detune on each of 3 layers) plus bus.frequency', () => {
     expect([...ROBOT_LFO_TARGET_IDS].sort()).toEqual(
       [
         'layer0.gain', 'layer0.detune',
         'layer1.gain', 'layer1.detune',
         'layer2.gain', 'layer2.detune',
+        'bus.frequency',
       ].sort()
     );
   });
 
   it('has exactly 6 members, no duplicates', () => {
-    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(6);
-    expect(new Set(ROBOT_LFO_TARGET_IDS).size).toBe(6);
+    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(7);
+    expect(new Set(ROBOT_LFO_TARGET_IDS).size).toBe(7);
+  });
+
+  it('keeps the six layer ids in their original order and appends bus.frequency last', () => {
+    expect(ROBOT_LFO_TARGET_IDS.slice(0, 6)).toEqual([
+      'layer0.gain', 'layer0.detune',
+      'layer1.gain', 'layer1.detune',
+      'layer2.gain', 'layer2.detune',
+    ]);
+    expect(ROBOT_LFO_TARGET_IDS[6]).toBe('bus.frequency');
   });
 
   it('never carries the removed volume or pulseWidth targets', () => {

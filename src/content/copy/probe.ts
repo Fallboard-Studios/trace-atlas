@@ -20,6 +20,26 @@ const WAVEFORMS: Record<string, ContentOption> = {
   pulse: { human: 'Pulse', lore: 'Burst' },
 };
 
+/** The 7 envelope curves — shared by the Attack Shape and Release Shape radios, keyed by EnvelopeCurveName
+ *  in ENVELOPE_CURVE_NAMES order. The lore words are placeholders until Crawford's copy pass
+ *  (docs/specs/ROBOT_ARTICULATION.md assumption 15). */
+const CURVES: Record<string, ContentOption> = {
+  linear: { human: 'Linear', lore: 'Even' },
+  exponential: { human: 'Exponential', lore: 'Surge' },
+  sine: { human: 'Sine', lore: 'Ebb' },
+  cosine: { human: 'Cosine', lore: 'Tide' },
+  bounce: { human: 'Bounce', lore: 'Rebound' },
+  ripple: { human: 'Ripple', lore: 'Tremor' },
+  step: { human: 'Step', lore: 'Ratchet' },
+};
+
+/** The 3 bus filter types, keyed by RobotFilterType in ROBOT_FILTER_TYPES order. Placeholder lore, as CURVES. */
+const FILTER_TYPES: Record<string, ContentOption> = {
+  lowpass: { human: 'Low-pass', lore: 'Sink' },
+  bandpass: { human: 'Band-pass', lore: 'Channel' },
+  highpass: { human: 'High-pass', lore: 'Skim' },
+};
+
 export const probe = {
   // ---------------------------------------------------------------- branch
   'probe.root': {
@@ -237,7 +257,7 @@ export const probe = {
     intro: {
       lore: 'Envelope — the shape of a single note.',
       loreDescription: 'Every ping this probe emits rises, holds, and fades in its own signature shape.',
-      humanDescription: 'An ADSR envelope shapes the volume of every note this probe plays, over its lifetime. Attack Time: how quickly a note reaches full volume. Decay Time: how quickly it settles from that peak down to its sustained level. Sustain Level: the volume it holds at while a note continues. Release Time: how quickly it fades out once the note ends.',
+      humanDescription: 'An ADSR envelope shapes the volume of every note this probe plays, over its lifetime. Attack Time: how quickly a note reaches full volume. Decay Time: how quickly it settles from that peak down to its sustained level. Sustain Level: the volume it holds at while a note continues. Release Time: how quickly it fades out once the note ends. Attack Shape and Release Shape: the curve the rise and the fade follow. Portamento: how long a note takes to glide from the previous note’s pitch.',
     },
   },
   'probe.envelope.contour': { human: 'Contour', lore: 'Ping Profile' },
@@ -265,6 +285,25 @@ export const probe = {
     unit: 's',
     help: { human: 'How long each note takes to fade to silence once it ends. Short cuts it off cleanly; long lets it ring on.' },
   },
+  // The lore words of the entries below are placeholders until Crawford's copy pass (docs/specs/ROBOT_ARTICULATION.md assumption 15).
+  'probe.envelope.portamento': {
+    human: 'Portamento',
+    lore: 'Ping Glide',
+    unit: 's',
+    help: { human: 'How long each note takes to slide from the pitch of the note before it. 0 jumps straight to each new note; higher values glide between them, like a voice swooping up or down.' },
+  },
+  'probe.envelope.attackShape': {
+    human: 'Attack Shape',
+    lore: 'Onset Profile',
+    options: CURVES,
+    help: { human: 'The curve each note follows as it rises to full volume. Linear is a straight ramp; Exponential starts slowly and speeds up; Sine and Cosine round it off in two different ways; Bounce, Ripple and Step give the rise a bouncing, rippling or stair-stepped feel. You will only hear it when Attack Time is long enough.' },
+  },
+  'probe.envelope.releaseShape': {
+    human: 'Release Shape',
+    lore: 'Fade Profile',
+    options: CURVES,
+    help: { human: 'The curve each note follows as it fades to silence. Linear is a straight ramp down; Exponential drops quickly then trails off; Sine and Cosine round it off in two different ways; Bounce, Ripple and Step give the fade a bouncing, rippling or stair-stepped feel. You will only hear it when Release Time is long enough.' },
+  },
 
   // ---------------------------------------------------------------- Source
   'probe.source': {
@@ -273,7 +312,7 @@ export const probe = {
     intro: {
       lore: 'Source — the raw signal, layered three ways.',
       loreDescription: 'Three synchronized oscillators, each contributing its own layer to this probe’s core signature.',
-      humanDescription: 'A probe’s sound comes from 3 oscillator layers mixed together — Core, Companion, and Accent — each with identical controls. Type picks the layer’s waveform shape. Gain sets how loud that layer is in the mix — turn it down to 0 to effectively mute it. Detune shifts its pitch slightly, in cents, for a thicker or more dissonant blend. Phase offsets where in its own wave cycle the layer starts. Interval (Pulse-type layers only) narrows or widens the pulse itself.',
+      humanDescription: 'A probe’s sound comes from 3 oscillator layers mixed together — Core, Companion, and Accent — each with identical controls. Type picks the layer’s waveform shape. Gain sets how loud that layer is in the mix — turn it down to 0 to effectively mute it. Detune shifts its pitch slightly, in cents, for a thicker or more dissonant blend. Phase offsets where in its own wave cycle the layer starts. Interval (Pulse-type layers only) narrows or widens the pulse itself. The Filter tab then shapes all three layers together: Cutoff sets where it acts, Resonance how much it rings, and Type which part of the sound it keeps.',
     },
   },
   /** Nav row + accordion read 'Core Oscillator' (the 2026-09-29 copy pass); the layer panel
@@ -362,5 +401,24 @@ export const probe = {
     human: 'Accent Interval',
     lore: 'Matrix Break',
     help: { human: 'Narrows or widens each pulse of the accent layer’s Pulse wave, moving its tone between hollow and thin. It only appears while Accent Type is Pulse.' },
+  },
+  // The probe's filter, after its three layers are mixed. The lore words are placeholders (assumption 15).
+  'probe.source.filter': { human: 'Filter', lore: 'Resonator' },
+  'probe.source.filter.cutoff': {
+    human: 'Cutoff',
+    lore: 'Resonator Band',
+    unit: 'Hz',
+    help: { human: 'The pitch where the filter starts to act on this probe’s whole sound. With Low-pass, everything above it fades away, so lower values sound darker and more muffled; High-pass does the opposite; Band-pass keeps just a narrow band around it.' },
+  },
+  'probe.source.filter.resonance': {
+    human: 'Resonance',
+    lore: 'Resonator Peak',
+    help: { human: 'How much the filter rings around its Cutoff. Low is smooth; high adds a whistling, vowel-like peak, and with a lane linked to the Cutoff it becomes the classic wah.' },
+  },
+  'probe.source.filter.type': {
+    human: 'Type',
+    lore: 'Resonator Mode',
+    options: FILTER_TYPES,
+    help: { human: 'Which part of the sound the filter keeps. Low-pass keeps the lows and cuts the highs, High-pass does the reverse, and Band-pass keeps only a narrow band around the Cutoff.' },
   },
 } as const satisfies Record<string, ContentEntry>;
