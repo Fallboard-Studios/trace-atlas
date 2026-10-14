@@ -335,6 +335,14 @@ comment corrected); `ROBOT_SWELL_FIELD_RANGE` gains `{ min: SEND_MIN, max: SEND_
 **Dependencies:** T7, T11. **Files:** `src/types/audioSwell.ts`, `src/data/audioSwellRanges.ts`,
 `src/systems/audioSwells.ts` (+ tests). **Scope:** M.
 
+**As shipped (deviation):** `writeRobotValue` does not write through `applyReverbSend` / `applyDelaySend` with
+`value * SEND_DISPLAY_SCALE`. `x * 100 / 100 !== x` for about 15 % of doubles (0.007, 0.013, 0.7123456789 …), and a
+seeded send is any double, so "lands exactly on its base" could not hold through the percent actions. `robotOptionsActions`
+gains `applyReverbSendValue` / `applyDelaySendValue` (the stored 0..1 fraction; NaN dropped, clamped); the two percent
+actions now delegate to them, so the slider path is unchanged. The swell tick calls the `*Value` pair, and the spy and
+mutation tests target it. The sends are appended last in `SWELL_ROBOT_ATTRIBUTE_IDS`, so no earlier index-based pick
+moved. (Volume has the same percent round trip in `applyVolume`; left alone, out of scope.)
+
 ### Task 13: Swell flags and hand-edit cancel on the robot screen
 
 **Description:** `AudioSettingSection` gains `reverbSendSwelling?` / `delaySendSwelling?`, forwarded to the

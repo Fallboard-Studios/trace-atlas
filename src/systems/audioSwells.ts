@@ -24,7 +24,7 @@
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
 
-import { applyVolume, applyLayersContinuous, applyAdsr } from './robotOptionsActions';
+import { applyVolume, applyLayersContinuous, applyAdsr, applyReverbSendValue, applyDelaySendValue } from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
 import { getSeededVal } from '@/utils/getSeededVal';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
@@ -174,9 +174,14 @@ const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
 
 /** A robot attribute's own parent-mute check (§1.5, §3): layerN.* requires
  *  that layer's own gain to be nonzero (the removed OscillatorLayer.active
- *  flag's replacement — see its own doc comment); volume and the 4 ADSR
- *  fields have no such parent and are always structurally available. */
+ *  flag's replacement — see its own doc comment); a send requires its own
+ *  stored value to be above 0 (a send at 0 is the "off" the slider already
+ *  shows, and a swell on it would be an unprompted echo on a robot set dry);
+ *  volume and the 4 ADSR fields have no such parent and are always
+ *  structurally available. */
 function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAttributeId): boolean {
+  if (attribute === 'reverbSend') return (robot.reverbSend ?? 0) > 0;
+  if (attribute === 'delaySend') return (robot.delaySend ?? 0) > 0;
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (!layerMatch) return true; // volume, adsr.* — no parent mute
   const layerIndex = Number(layerMatch[1]);
@@ -188,6 +193,8 @@ function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAtt
 
 function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number {
   if (attribute === 'volume') return robot.masterVolume;
+  if (attribute === 'reverbSend') return robot.reverbSend;
+  if (attribute === 'delaySend') return robot.delaySend;
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (layerMatch) {
     const layer = robot.audioAttributes.layers![Number(layerMatch[1])];
@@ -211,6 +218,16 @@ function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAt
     // ROBOT_SWELL_FIELD_RANGE.volume is the store's 0-1 masterVolume fraction;
     // applyVolume's own parameter is the UI's 0-100 display percent.
     applyVolume(robot, localeId, value * 100);
+    return;
+  }
+  // The sends' range is their stored 0..1 fraction; the fraction form of the action avoids the display-percent
+  // round trip, which would miss the base by an ulp for some seeded values.
+  if (attribute === 'reverbSend') {
+    applyReverbSendValue(robot, localeId, value);
+    return;
+  }
+  if (attribute === 'delaySend') {
+    applyDelaySendValue(robot, localeId, value);
     return;
   }
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
@@ -576,7 +593,7 @@ function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measu
 
 function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measure: number, intensity: number, duration: number): void {
   // Robot selection spans the whole roster (docs/specs/AUDIO_SWELLS.md §3) —
-  // the 17x12 pool, never scoped to one robot.
+  // the 19x12 pool, never scoped to one robot.
   const eligiblePairs: { robot: Robot; attribute: SwellRobotAttributeId }[] = [];
   for (const robot of robots) {
     for (const attribute of SWELL_ROBOT_ATTRIBUTE_IDS) {

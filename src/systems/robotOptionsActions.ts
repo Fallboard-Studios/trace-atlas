@@ -62,15 +62,26 @@ export function clampSend(fraction: number): number {
 // (via writeRobotValue), so the cancel cannot live here (it would cancel itself). A NaN display number is
 // dropped whole: neither the store nor the engine sees it.
 export function applyReverbSend(robot: Robot, localeId: string, pct: number): void {
-  if (Number.isNaN(pct)) return;
-  const value = clampSend(pct / SEND_DISPLAY_SCALE);
+  applyReverbSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
+export function applyDelaySend(robot: Robot, localeId: string, pct: number): void {
+  applyDelaySendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
+// The stored-fraction form, for the swell tick (docs/tasks/ROBOT_SENDS.md Task 12). A display percent does not
+// round-trip every double (0.007 * 100 / 100 is not 0.007), and a swell must land on its base exactly, so the
+// tick hands the 0..1 fraction over directly. A NaN is dropped whole, as above.
+export function applyReverbSendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
   useLocaleStore.getState().updateRobot(localeId, robot.id, { reverbSend: value });
   AudioEngine.updateRobotSends(robot.id, { reverb: value });
 }
 
-export function applyDelaySend(robot: Robot, localeId: string, pct: number): void {
-  if (Number.isNaN(pct)) return;
-  const value = clampSend(pct / SEND_DISPLAY_SCALE);
+export function applyDelaySendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
   useLocaleStore.getState().updateRobot(localeId, robot.id, { delaySend: value });
   AudioEngine.updateRobotSends(robot.id, { delay: value });
 }

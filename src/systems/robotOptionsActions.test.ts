@@ -7,7 +7,7 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat, applyReverbSend, applyDelaySend, clampSend, applyPortamento, applyBusFilter,
+  applyPitchRepeat, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, clampSend, applyPortamento, applyBusFilter,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -197,6 +197,54 @@ describe('robotOptionsActions', () => {
       applyPan(robot, localeId, 20);
 
       expect(updateSpy.mock.calls[0][2]).not.toHaveProperty('panAuto');
+    });
+  });
+
+  // docs/tasks/ROBOT_SENDS.md Task 12 - the stored-fraction form of the two send actions. The swell tick writes
+  // through these: a display percent (x * 100 / 100) does not round-trip every double, and a swell must land
+  // on its base exactly.
+  describe.each([
+    { name: 'applyReverbSendValue', apply: applyReverbSendValue, field: 'reverbSend', engineKey: 'reverb' },
+    { name: 'applyDelaySendValue', apply: applyDelaySendValue, field: 'delaySend', engineKey: 'delay' },
+  ] as const)('$name', ({ apply, field, engineKey }) => {
+    function storedRobot(): Robot {
+      const robot = makeRobot({ reverbSend: 0.2, delaySend: 0.1 });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      return robot;
+    }
+    function stored(id: string): Robot | undefined {
+      return useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
+    }
+
+    it.each([0.007, 0.013, 0.29, 0.7123456789, 0.5, 1, 0])('stores and sends the fraction %s exactly, with no percent round trip', (fraction) => {
+      const robot = storedRobot();
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, fraction);
+
+      expect(stored(robot.id)?.[field]).toBe(fraction);
+      expect(sendsSpy).toHaveBeenCalledWith(robot.id, { [engineKey]: fraction });
+    });
+
+    it('clamps a fraction outside 0..1', () => {
+      const robot = storedRobot();
+      vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 1.0000000000000002);
+      expect(stored(robot.id)?.[field]).toBe(1);
+      apply(robot, localeId, -0.1);
+      expect(stored(robot.id)?.[field]).toBe(0);
+    });
+
+    it('drops a NaN whole: no store write, no engine call', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, NaN);
+
+      expect(updateSpy).not.toHaveBeenCalled();
+      expect(sendsSpy).not.toHaveBeenCalled();
     });
   });
 
