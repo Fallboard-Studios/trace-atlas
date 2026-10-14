@@ -109,6 +109,13 @@ describe('TRANSMISSION_PRESETS', () => {
       expect(payload.userCreatedCompanies).toEqual([]);
     });
 
+    // Robot Sends T6: the rooms' return level is full in every preset, so the three worlds' echo is set by the
+    // robots' own sends, not by a wet value the preset carried over from the old wet/dry mix.
+    it('sets both room return levels (reverb.wet, delay.wet) to full, 1', () => {
+      expect(payload.globalAudio?.reverb.wet).toBe(1);
+      expect(payload.globalAudio?.delay.wet).toBe(1);
+    });
+
     it('carries every LFO lane and every global LFO link, never a partial set', () => {
       expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
       expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
@@ -152,6 +159,14 @@ describe('TRANSMISSION_PRESETS', () => {
       expect(audio.pingVarianceAutomation).toBe(payload.pingVarianceAutomation);
       expect(audio.lfoBank).toEqual(payload.lfoBank);
       expect(audio.globalLfoLinks).toEqual(payload.globalLfoLinks);
+    });
+
+    it('lands the full room return levels in the audio store', () => {
+      setupWorld();
+      applySessionPayload(payload);
+      const audio = useAudioStore.getState();
+      expect(audio.globalAudio.reverb.wet).toBe(1);
+      expect(audio.globalAudio.delay.wet).toBe(1);
     });
 
     it('is left untouched by applying it, so the constant can be picked again', () => {

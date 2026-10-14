@@ -126,7 +126,9 @@ describe('generateGlobalAudioSettings', () => {
 
   it('keeps every sampled field within its narrower LOADING range, not just the wider full range', () => {
     const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-    const valueByKey: Record<GlobalAudioSeedFieldKey, number> = {
+    // reverb.wet and delay.wet are absent on purpose: they are the fixed full return now, not sampled, and their
+    // loading rows are the per-robot send bands (Robot Sends T6) - the test below pins them to 1.
+    const valueByKey: Partial<Record<GlobalAudioSeedFieldKey, number>> = {
       'compressor.threshold': settings.compressor.threshold,
       'compressor.ratio': settings.compressor.ratio,
       'compressor.attack': settings.compressor.attack,
@@ -141,13 +143,14 @@ describe('generateGlobalAudioSettings', () => {
       'filterHPF.Q': settings.filterHPF.Q,
       'delay.delayTime': settings.delay.delayTime,
       'delay.feedback': settings.delay.feedback,
-      'delay.wet': settings.delay.wet,
       'reverb.decay': settings.reverb.decay,
       'reverb.preDelay': settings.reverb.preDelay,
-      'reverb.wet': settings.reverb.wet,
       'limiter.threshold': settings.limiter.threshold,
     };
-    for (const key of Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as GlobalAudioSeedFieldKey[]) {
+    const sampledKeys = Object.keys(valueByKey) as GlobalAudioSeedFieldKey[];
+    // Sanity: every loading row except the two wet rows is checked, so a newly added row cannot slip past.
+    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2);
+    for (const key of sampledKeys) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);
       expect(valueByKey[key], `${key} should be <= ${max}`).toBeLessThanOrEqual(max);
@@ -166,25 +169,48 @@ describe('generateGlobalAudioSettings', () => {
     expect('enabled' in settings.delay).toBe(false);
   });
 
-  it('seeds delay.wet quiet (0) for roughly 1-in-4 Attenuation Styles, not roughly all or none (< 0.25 threshold) — replaces the old separate enabled:false roll', () => {
+  // Robot Sends T6 (docs/specs/ROBOT_SENDS.md §1.2): reverb.wet and delay.wet are the global rooms' RETURN level
+  // now - a fixed full return, never sampled. Each robot's own seeded send decides how much echo it throws; the
+  // old ~25 % "quiet Delay" roll moved to the robots (robot.send.delay.quiet). These replace the old quiet tests.
+  describe('the global rooms are a fixed full return (Robot Sends T6)', () => {
     const SAMPLE_ATTENUATION_STYLES = 40;
-    let quietCount = 0;
-    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-      const settings = generateGlobalAudioSettings(`seed-delay-sample-${i}`, `DelaySample${i}`);
-      if (settings.delay.wet === 0) quietCount++;
-      evictAttenuationStyleNoiseMap(`seed-delay-sample-${i}`);
-    }
-    const quietRate = quietCount / SAMPLE_ATTENUATION_STYLES;
-    // ~25% expected; a wide tolerance band avoids flakiness while still
-    // clearly distinguishing this from "always quiet" or "never quiet".
-    expect(quietRate).toBeGreaterThan(0.05);
-    expect(quietRate).toBeLessThan(0.5);
-  });
+    afterEach(() => {
+      for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) evictAttenuationStyleNoiseMap(`seed-return-sample-${i}`);
+    });
 
-  it('is deterministic for delay\'s quiet roll too — same attenuationStyleId + attenuationStyleName always agrees', () => {
-    const first = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-    const second = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-    expect(second.delay.wet === 0).toBe(first.delay.wet === 0);
+    it('seeds reverb.wet and delay.wet at exactly 1 for every Attenuation Style - never a sampled value, never a quiet 0', () => {
+      for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
+        const settings = generateGlobalAudioSettings(`seed-return-sample-${i}`, `ReturnSample${i}`);
+        expect(settings.reverb.wet, `reverb style ${i}`).toBe(1);
+        expect(settings.delay.wet, `delay style ${i}`).toBe(1);
+      }
+    });
+
+    it('is 1 whatever the style name is, for a style the old quiet roll would have silenced as well as one it would not', () => {
+      // The oracle styles: alpha used to seed delay.wet 0.24, theta used to hit the quiet branch (0).
+      expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha').delay.wet).toBe(1);
+      expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta').delay.wet).toBe(1);
+      evictAttenuationStyleNoiseMap('oracle-alpha');
+      evictAttenuationStyleNoiseMap('oracle-theta');
+    });
+
+    it('no longer draws the wet fields or the delay quiet roll from the noise map', () => {
+      vi.mocked(getSeededVal).mockClear();
+
+      generateGlobalAudioSettings('seed-test-planet', 'Nova');
+
+      const dataIds = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+      expect(dataIds).toContain('globalAudio.reverb.decay'); // sanity: the sampled fields are still drawn
+      expect(dataIds).toContain('globalAudio.delay.syncMode'); // and so is Delay's Sync roll
+      expect(dataIds).not.toContain('globalAudio.delay.quiet');
+      expect(dataIds).not.toContain('globalAudio.delay.wet');
+      expect(dataIds).not.toContain('globalAudio.reverb.wet');
+    });
+
+    it('keeps the two wet loading rows at the per-robot send bands, untouched by the seeder', () => {
+      expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']).toEqual({ min: 0.1, max: 0.4 });
+      expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet']).toEqual({ min: 0, max: 0.3 });
+    });
   });
 
   describe('quantization (SEEDED_SLIDER_VALUE_QUANTIZATION Task 5)', () => {
@@ -773,13 +799,16 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
     expect(share, `${synced}/${SHARE_SAMPLES}`).toBeLessThanOrEqual(DELAY_SYNC_TARGET + SHARE_TOLERANCE);
   });
 
-  it('a quiet Delay (wet 0) still rolls its own Sync independently of the quiet roll', () => {
-    let quietSynced = 0;
+  // Replaces the old "a quiet Delay still rolls its own Sync" test: there is no quiet roll to be independent of
+  // any more (Robot Sends T6), so what remains to pin is that Sync lands on a Delay at full return.
+  it('a Sync Delay still lands, at its full return (wet 1) - removing the quiet roll did not take Sync with it', () => {
+    let synced = 0;
     for (let i = 0; i < SHARE_SAMPLES; i++) {
       const { delay } = generateGlobalAudioSettings(`delay-sync-sample-${i}`, `DelaySync${i}`);
-      if (delay.wet === 0 && delay.sync !== undefined) quietSynced++;
+      expect(delay.wet).toBe(1);
+      if (delay.sync !== undefined) synced++;
     }
-    expect(quietSynced).toBeGreaterThan(0);
+    expect(synced).toBeGreaterThan(0);
   });
 
   it('when no band has a note, the Delay stays Free with its seeded delayTime unchanged — and the pick is asked at the seed BPM', () => {
@@ -813,15 +842,23 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // violation, not a fix: a mismatch means the seeder's existing keys or draw order changed. Task 13
 // may only ADD a `sync` key to a lane or to `delay`, and only to these expectations.
 //
-// 'oracle-alpha' seeds an audible Delay (wet 0.24); 'oracle-theta' hits the quiet branch (wet forced
-// to 0), so both sides of the neighbouring DELAY_QUIET_THRESHOLD logic are pinned.
+// 'oracle-alpha' used to seed an audible Delay (wet 0.24); 'oracle-theta' used to hit the quiet branch (wet
+// forced to 0), so both sides of the old quiet-Delay logic were pinned.
+//
+// AMENDED BY HAND, Robot Sends T6 (docs/specs/ROBOT_SENDS.md §1.2, Crawford's pre-v1 decision that existing
+// worlds need not keep their sound): reverb.wet and delay.wet are now the global rooms' fixed full return
+// (1), no longer sampled, and the quiet-Delay roll moved to the robots. Exactly four values changed - the
+// two wet fields in each of the two global-settings oracles below - and nothing else: every other field in
+// every oracle is still the byte-exact pre-Sync value, which is the proof no other draw moved. The edit was
+// made by hand to those four values; the oracle was NOT re-recorded, and the rule above still stands for
+// everything else in it.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
     evictAttenuationStyleNoiseMap('oracle-theta');
   });
 
-  it('generateGlobalAudioSettings("oracle-alpha") — audible Delay', () => {
+  it('generateGlobalAudioSettings("oracle-alpha") — was the audible Delay', () => {
     expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
@@ -834,13 +871,13 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: 3.5, mid: 3.5, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
       filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
-      delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 0.24 },
-      reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 0.24 },
+      delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
+      reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
     });
   });
 
-  it('generateGlobalAudioSettings("oracle-theta") — quiet Delay (wet forced to 0)', () => {
+  it('generateGlobalAudioSettings("oracle-theta") — was the quiet Delay (wet forced to 0)', () => {
     expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
@@ -854,8 +891,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
       filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
-      delay: { delayTime: 0.139, feedback: 0.27, wet: 0, sync: { division: '1/16', modifier: 'straight' } },
-      reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 0.18 },
+      delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
+      reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },
       limiter: { threshold: -2 },
     });
   });

@@ -67,16 +67,6 @@ function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey): n
 }
 
 /**
- * Probability threshold Delay's own "start quiet" seed draw ([0, 1]) must
- * clear to force wet to 0 — spec §5's original ~25% chance, now expressed
- * directly on wet since there's no separate enabled flag left to carry it.
- * The sole global effect a fresh Attenuation Style can load silent; every
- * other effect's wet/level always seeds a real, audible value. Mirrors the
- * shipped LFO_QUIET_THRESHOLD pattern below, just a different field/odds.
- */
-const DELAY_QUIET_THRESHOLD = 0.25;
-
-/**
  * Probability threshold Delay's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
  * rather than Float — 66% target (docs/specs/FREE_SYNC_TOGGLE.md §1.7). A separate pair of
  * keys from the quiet roll above, so the two never correlate and Delay's existing draws are
@@ -91,18 +81,20 @@ const DELAY_SYNC_ODDS = 0.66;
  * used to derive locale maps (see PROCEDURAL_GENERATION.md).
  *
  * `type`/`compressorBeforeDelay` are NOT seeded — carried over from
- * DEFAULT_GLOBAL_AUDIO_SETTINGS unchanged. Every effect's params always seed
- * a real, audible value except Delay's `wet`, which has a real ~25% chance
- * (DELAY_QUIET_THRESHOLD) of forcing to 0 instead of its otherwise-sampled
- * value — the sole global effect a fresh Attenuation Style can load
- * effectively silent. This replaces the old per-effect `enabled` boolean
- * (removed entirely, along with `globalBypass` — off states are expressed
- * purely through the params themselves now).
+ * DEFAULT_GLOBAL_AUDIO_SETTINGS unchanged. Neither are the two rooms' `wet`
+ * fields: they are the Reverb and Delay RETURN levels now, a fixed full 1 taken
+ * from the defaults, because how much echo each robot throws is its own seeded
+ * send (spawnSystem.ts generateRobotSends, docs/specs/ROBOT_SENDS.md §1.2) —
+ * including the ~quarter of robots that start with no delay, which used to be
+ * one global "quiet Delay" roll here. Neither wet field, nor that roll, draws
+ * from the noise map, so no other field's draw moved. Everything else always
+ * seeds a real, audible value. Off states are expressed purely through the
+ * params themselves (the old per-effect `enabled` boolean and `globalBypass`
+ * are gone).
  */
 export function generateGlobalAudioSettings(attenuationStyleId: string, attenuationStyleName: string): GlobalAudioSettings {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const defaults = DEFAULT_GLOBAL_AUDIO_SETTINGS;
-  const delayQuietT = getSeededVal(noiseMap, 'globalAudio.delay.quiet', 0, 0, 1);
   const delaySyncModeT = getSeededVal(noiseMap, 'globalAudio.delay.syncMode', 0, 0, 1);
   const delaySyncNoteT = getSeededVal(noiseMap, 'globalAudio.delay.syncNote', 0, 0, 1);
   const delaySync =
@@ -142,16 +134,15 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     delay: {
       delayTime: sampleField(noiseMap, 'delay.delayTime'),
       feedback: sampleField(noiseMap, 'delay.feedback'),
-      // Quiet ~25% of the time (DELAY_QUIET_THRESHOLD) — wet forces to 0
-      // instead of its own sampled value, replacing the old enabled:false roll.
-      wet: delayQuietT < DELAY_QUIET_THRESHOLD ? 0 : sampleField(noiseMap, 'delay.wet'),
+      // The room's return level: fixed, not sampled (see this function's doc comment).
+      wet: defaults.delay.wet,
       // Free (the other ~third, or an empty band) carries no `sync` key at all — never `sync: undefined`.
       ...(delaySync !== undefined && { sync: delaySync }),
     },
     reverb: {
       decay: sampleField(noiseMap, 'reverb.decay'),
       preDelay: sampleField(noiseMap, 'reverb.preDelay'),
-      wet: sampleField(noiseMap, 'reverb.wet'),
+      wet: defaults.reverb.wet,
     },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
@@ -171,7 +162,7 @@ const LFO_QUIET_THRESHOLD = 0.34;
 /**
  * Ping Variance Automation's own seeded-default range — [10%, 60%] as a
  * fraction — same "bounded/legible default, freely draggable afterward"
- * convention every other seeded Rig field follows (e.g. DELAY_QUIET_THRESHOLD
+ * convention every other seeded Rig field follows (e.g. DELAY_SYNC_ODDS
  * above). Narrowed from [33%, 66%] once Intensity's on/off role moved to the
  * new Frequency field (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2).
  */

@@ -65,12 +65,12 @@ const PRESET_A_PAYLOAD: SessionPayload = {
     delay: {
       delayTime: 0.275,
       feedback: 0.27,
-      wet: 0.15,
+      wet: 1,
     },
     reverb: {
       decay: 1.51,
       preDelay: 0.06,
-      wet: 0.3,
+      wet: 1,
     },
     limiter: {
       threshold: -1,
@@ -179,7 +179,7 @@ const PRESET_B_PAYLOAD: SessionPayload = {
     delay: {
       delayTime: 0.138,
       feedback: 0.11,
-      wet: 0,
+      wet: 1,
       sync: {
         division: '1/32',
         modifier: 'straight',
@@ -188,7 +188,7 @@ const PRESET_B_PAYLOAD: SessionPayload = {
     reverb: {
       decay: 0.76,
       preDelay: 0.03,
-      wet: 0.2,
+      wet: 1,
     },
     limiter: {
       threshold: -3,
@@ -309,7 +309,7 @@ const PRESET_C_PAYLOAD: SessionPayload = {
     delay: {
       delayTime: 0.139,
       feedback: 0.19,
-      wet: 0,
+      wet: 1,
       sync: {
         division: '1/16',
         modifier: 'triplet',
@@ -318,7 +318,7 @@ const PRESET_C_PAYLOAD: SessionPayload = {
     reverb: {
       decay: 0.87,
       preDelay: 0.04,
-      wet: 0.11,
+      wet: 1,
     },
     limiter: {
       threshold: -3,
