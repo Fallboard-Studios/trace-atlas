@@ -818,7 +818,6 @@ describe('useCompanyOptions', () => {
   });
   // Robot Articulation Task 9: with no recorded edit the Filter panel shows the first member's resolved filter (Task 10 adds the
   // recorded fields and the broadcast edits, tested in their own describe below).
-  // gives a company its own broadcast edit.
   describe('the filter value (Robot Articulation Task 9)', () => {
     const withFilter = (id: string, extra: Partial<Robot['audioAttributes']>, robot: Partial<Robot> = {}) =>
       makeRobot({ id, companyId: 'c1', ...robot, audioAttributes: { ...makeRobot().audioAttributes, ...extra } });
