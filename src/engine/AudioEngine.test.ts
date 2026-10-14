@@ -1622,6 +1622,12 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
   });
 });
 
+/** The return Gain a global room (Reverb / FeedbackDelay) feeds - whatever it most recently connected to. The
+ *  global Reverb / Delay `wet` sliders drive this gain, not the room's own wet (docs/specs/ROBOT_SENDS.md §1.3). */
+function returnOf(room: { connect: { mock: { calls: unknown[][] } } }) {
+  return room.connect.mock.calls.at(-1)?.[0] as { gain: { value: number } };
+}
+
 describe('AudioEngine - Global FX Chain', () => {
   // Helper: get the most recently constructed mock instance for a Tone constructor
   type AnyMock = ReturnType<typeof vi.fn>;
@@ -1638,13 +1644,15 @@ describe('AudioEngine - Global FX Chain', () => {
   });
 
   describe('setGlobalReverb', () => {
-    it('updates wet value on the reverb node', async () => {
+    it('sets the reverb return gain from wet, and leaves the room itself alone', async () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      const reverbNode = lastInstance(Tone.Reverb) ?? { wet: { value: 0.3 } };
+      const reverbNode = lastInstance(Tone.Reverb);
+      const roomWetBefore = reverbNode.wet.value;
       AudioEngine.setGlobalReverb({ wet: 0.8 });
-      expect(reverbNode.wet.value).toBe(0.8);
+      expect(returnOf(reverbNode).gain.value).toBe(0.8);
+      expect(reverbNode.wet.value).toBe(roomWetBefore);
     });
 
     it('is a no-op when AudioEngine not started', async () => {
@@ -1655,13 +1663,15 @@ describe('AudioEngine - Global FX Chain', () => {
   });
 
   describe('setGlobalDelay', () => {
-    it('updates wet value on the delay node', async () => {
+    it('sets the delay return gain from wet, and leaves the room itself alone', async () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      const delayNode = lastInstance(Tone.FeedbackDelay) ?? { wet: { value: 0 } };
+      const delayNode = lastInstance(Tone.FeedbackDelay);
+      const roomWetBefore = delayNode.wet.value;
       AudioEngine.setGlobalDelay({ wet: 0.5 });
-      expect(delayNode.wet.value).toBe(0.5);
+      expect(returnOf(delayNode).gain.value).toBe(0.5);
+      expect(delayNode.wet.value).toBe(roomWetBefore);
     });
   });
 
@@ -2223,7 +2233,7 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
 describe('AudioEngine.start — primes the just-built global FX chain from currently-seeded globalAudio state', () => {
   // Deliberately far from globalFx.ts's own hardcoded construction defaults
   // (compressor threshold -18/ratio 6, EQ bands 0, LPF/HPF passthrough,
-  // delay wet 0, reverb wet 0.3, limiter threshold -12) — if start() actually
+  // both return gains 1, limiter threshold -12) — if start() actually
   // applies this fixture, the resulting node values can only have come from
   // the seeded globalAudio state, not buildGlobalFxChain()'s own literals.
   const FIXTURE_GLOBAL_AUDIO = {
@@ -2281,9 +2291,10 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(filterResults.at(-2)?.value.Q.value).toBe(3);
     expect(filterResults.at(-1)?.value.frequency.value).toBe(250);
     expect(filterResults.at(-1)?.value.Q.value).toBe(2);
-    expect(lastInstance(Tone.Reverb).wet.value).toBe(0.35);
+    // The seeded wet values land on the rooms' return gains (Robot Sends T2), not on the rooms.
+    expect(returnOf(lastInstance(Tone.Reverb)).gain.value).toBe(0.35);
     expect(lastInstance(Tone.Limiter).threshold.value).toBe(-2);
-    expect(lastInstance(Tone.FeedbackDelay).wet.value).toBe(0.25);
+    expect(returnOf(lastInstance(Tone.FeedbackDelay)).gain.value).toBe(0.25);
   });
 
   // docs/specs/FREE_SYNC_TOGGLE.md §1.3, Task 11: the node only ever receives seconds. A synced Delay
@@ -2313,7 +2324,7 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     it('still applies the Delay\'s feedback and wet when it is synced', async () => {
       const node = await startWithDelay({ delayTime: 0.4, feedback: 0.3, wet: 0.25, sync: QUARTER }, 60);
       expect(node.feedback.value).toBe(0.3);
-      expect(node.wet.value).toBe(0.25);
+      expect(returnOf(node).gain.value).toBe(0.25);
     });
   });
 });

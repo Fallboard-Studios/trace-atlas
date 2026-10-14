@@ -107,6 +107,10 @@ const lastInstance = (ctor: unknown) => (ctor as unknown as AnyMock).mock.result
 /** Second-to-most-recently constructed instance — Filter is constructed
  * twice per build (LPF then HPF), so LPF is always the second-to-last. */
 const secondLastInstance = (ctor: unknown) => (ctor as unknown as AnyMock).mock.results.at(-2)?.value;
+/** The return Gain a room feeds: whatever the room most recently connected to. Found through the wiring itself,
+ *  so these tests do not depend on the order buildGlobalFxChain constructs its Gains in. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const returnOf = (room: any) => room.connect.mock.calls.at(-1)?.[0];
 
 describe('globalFx', () => {
   beforeEach(() => {
@@ -151,54 +155,150 @@ describe('globalFx', () => {
     });
   });
 
+  // Robot Sends T2 (docs/specs/ROBOT_SENDS.md section 1.3): the two rooms are no longer in the serial chain.
+  // Each robot sends into a room (wet 1); the room's output goes through a return Gain to a join node.
+  describe('buildGlobalFxChain — the rooms and their returns (Robot Sends)', () => {
+    it('constructs the Reverb and the FeedbackDelay fully wet, since the robots decide how much enters', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(Tone.Reverb).toHaveBeenCalledWith(expect.objectContaining({ wet: 1 }));
+      expect(Tone.FeedbackDelay).toHaveBeenCalledWith(expect.objectContaining({ wet: 1 }));
+    });
+
+    it('gives each room its own return Gain at unity, distinct from the other return and from masterGain', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const reverbReturn = returnOf(lastInstance(Tone.Reverb));
+      const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
+      const masterGain = lastInstance(Tone.Gain);
+
+      const gains = (Tone.Gain as unknown as AnyMock).mock.results.map((r) => r.value);
+      expect(gains).toContain(reverbReturn);
+      expect(gains).toContain(delayReturn);
+      expect(reverbReturn.gain.value).toBe(1);
+      expect(delayReturn.gain.value).toBe(1);
+      expect(reverbReturn).not.toBe(delayReturn);
+      expect(reverbReturn).not.toBe(masterGain);
+      expect(delayReturn).not.toBe(masterGain);
+    });
+  });
+
+  describe('getGlobalReverbRoom / getGlobalDelayRoom', () => {
+    it('return null before buildGlobalFxChain() has run', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.getGlobalReverbRoom()).toBeNull();
+      expect(globalFx.getGlobalDelayRoom()).toBeNull();
+    });
+
+    it('return the live Reverb and FeedbackDelay nodes after build', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(globalFx.getGlobalReverbRoom()).toBe(lastInstance(Tone.Reverb));
+      expect(globalFx.getGlobalDelayRoom()).toBe(lastInstance(Tone.FeedbackDelay));
+    });
+  });
+
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
-    it('wires EQ3 -> LPF -> HPF -> Delay -> Reverb -> Compressor -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain EQ3 -> LPF -> HPF -> Compressor -> Limiter -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
       const eqNode = lastInstance(Tone.EQ3);
       const hpfNode = lastInstance(Tone.Filter);
       const lpfNode = secondLastInstance(Tone.Filter);
-      const delayNode = lastInstance(Tone.FeedbackDelay);
-      const reverbNode = lastInstance(Tone.Reverb);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
 
       expect(eqNode.connect).toHaveBeenCalledWith(lpfNode);
       expect(lpfNode.connect).toHaveBeenCalledWith(hpfNode);
-      expect(hpfNode.connect).toHaveBeenCalledWith(delayNode);
-      expect(delayNode.connect).toHaveBeenCalledWith(reverbNode);
-      expect(reverbNode.connect).toHaveBeenCalledWith(compNode);
+      expect(hpfNode.connect).toHaveBeenCalledWith(compNode);
       expect(compNode.connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
     });
+
+    it('sends the dry chain nowhere near a room - no dry node connects to Delay or Reverb', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const delayNode = lastInstance(Tone.FeedbackDelay);
+      const reverbNode = lastInstance(Tone.Reverb);
+
+      for (const ctor of [Tone.EQ3, Tone.Compressor, Tone.Limiter]) {
+        const node = lastInstance(ctor);
+        expect(node.connect).not.toHaveBeenCalledWith(delayNode);
+        expect(node.connect).not.toHaveBeenCalledWith(reverbNode);
+      }
+      for (const filter of [lastInstance(Tone.Filter), secondLastInstance(Tone.Filter)]) {
+        expect(filter.connect).not.toHaveBeenCalledWith(delayNode);
+        expect(filter.connect).not.toHaveBeenCalledWith(reverbNode);
+      }
+    });
+
+    it('runs each room into its own return only, and both returns into the Compressor input', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const delayNode = lastInstance(Tone.FeedbackDelay);
+      const reverbNode = lastInstance(Tone.Reverb);
+      const compNode = lastInstance(Tone.Compressor);
+      const limiterNode = lastInstance(Tone.Limiter);
+
+      expect(reverbNode.connect).toHaveBeenCalledTimes(1);
+      expect(delayNode.connect).toHaveBeenCalledTimes(1);
+      expect(reverbNode.connect).not.toHaveBeenCalledWith(delayNode);
+      expect(delayNode.connect).not.toHaveBeenCalledWith(reverbNode);
+      for (const ret of [returnOf(reverbNode), returnOf(delayNode)]) {
+        expect(ret.connect).toHaveBeenCalledTimes(1);
+        expect(ret.connect).toHaveBeenCalledWith(compNode);
+        expect(ret.connect).not.toHaveBeenCalledWith(limiterNode);
+      }
+    });
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('wires EQ3 -> LPF -> HPF -> Compressor -> Delay -> Reverb -> Limiter -> masterGain -> Destination', async () => {
+    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Compressor -> Limiter -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
       const eqNode = lastInstance(Tone.EQ3);
       const hpfNode = lastInstance(Tone.Filter);
       const lpfNode = secondLastInstance(Tone.Filter);
-      const delayNode = lastInstance(Tone.FeedbackDelay);
-      const reverbNode = lastInstance(Tone.Reverb);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
 
       globalFx.wireGlobalFxChain(true);
 
-      expect(eqNode.connect).toHaveBeenCalledWith(lpfNode);
-      expect(lpfNode.connect).toHaveBeenCalledWith(hpfNode);
-      expect(hpfNode.connect).toHaveBeenCalledWith(compNode);
-      expect(compNode.connect).toHaveBeenCalledWith(delayNode);
-      expect(delayNode.connect).toHaveBeenCalledWith(reverbNode);
-      expect(reverbNode.connect).toHaveBeenCalledWith(limiterNode);
-      expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
+      expect(eqNode.connect).toHaveBeenLastCalledWith(lpfNode);
+      expect(lpfNode.connect).toHaveBeenLastCalledWith(hpfNode);
+      expect(hpfNode.connect).toHaveBeenLastCalledWith(compNode);
+      expect(compNode.connect).toHaveBeenLastCalledWith(limiterNode);
+      expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
+    });
+
+    it('joins both returns at the Limiter input and none at the Compressor', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const delayNode = lastInstance(Tone.FeedbackDelay);
+      const reverbNode = lastInstance(Tone.Reverb);
+      const compNode = lastInstance(Tone.Compressor);
+      const limiterNode = lastInstance(Tone.Limiter);
+      const reverbReturn = returnOf(reverbNode);
+      const delayReturn = returnOf(delayNode);
+      for (const ret of [reverbReturn, delayReturn]) ret.connect.mockClear();
+      for (const room of [reverbNode, delayNode]) room.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(true);
+
+      expect(reverbNode.connect).toHaveBeenCalledTimes(1);
+      expect(delayNode.connect).toHaveBeenCalledTimes(1);
+      expect(reverbNode.connect).toHaveBeenCalledWith(reverbReturn);
+      expect(delayNode.connect).toHaveBeenCalledWith(delayReturn);
+      for (const ret of [reverbReturn, delayReturn]) {
+        expect(ret.connect).toHaveBeenCalledTimes(1);
+        expect(ret.connect).toHaveBeenCalledWith(limiterNode);
+        expect(ret.connect).not.toHaveBeenCalledWith(compNode);
+      }
     });
 
     it('disconnects every real node before reconnecting the new topology (no dual-routing after a toggle flip)', async () => {
@@ -213,26 +313,85 @@ describe('globalFx', () => {
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
 
+      const reverbReturn = returnOf(reverbNode);
+      const delayReturn = returnOf(delayNode);
+      const all = [eqNode, lpfNode, hpfNode, delayNode, reverbNode, compNode, limiterNode, reverbReturn, delayReturn];
+      // Forget the build's own wiring so only the flip is under test.
+      for (const node of all) node.disconnect.mockClear();
+
       globalFx.wireGlobalFxChain(true);
 
-      for (const node of [eqNode, lpfNode, hpfNode, delayNode, reverbNode, compNode, limiterNode]) {
+      for (const node of all) {
         expect(node.disconnect).toHaveBeenCalled();
       }
     });
 
-    it('flipping back to false (Natural) after true (Controlled) re-establishes the Natural sequence', async () => {
+    it('flipping back to false (Natural) after true (Controlled) moves both returns back to the Compressor', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       globalFx.wireGlobalFxChain(true);
 
-      const hpfNode = lastInstance(Tone.Filter);
-      const delayNode = lastInstance(Tone.FeedbackDelay);
+      const compNode = lastInstance(Tone.Compressor);
+      const reverbReturn = returnOf(lastInstance(Tone.Reverb));
+      const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
 
       globalFx.wireGlobalFxChain(false);
 
-      // Natural Decay: HPF's most recent connect goes to Delay directly (not
-      // to Compressor, as it did while Controlled Decay was active).
-      expect(hpfNode.connect).toHaveBeenLastCalledWith(delayNode);
+      // The dry chain is the same either way; only where the returns rejoin moves.
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(compNode);
+      expect(delayReturn.connect).toHaveBeenLastCalledWith(compNode);
+      expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(compNode);
+    });
+
+    it('only ever calls disconnect() with no arguments, so a robot send into a room survives every flip', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      globalFx.wireGlobalFxChain(true);
+
+      // disconnect() with no argument drops a node's OUTPUTS and nothing else. A room's INPUT (where a robot's
+      // send gain is connected) therefore stays wired - the same reason the engine can flip Decay Mode mid-play.
+      const nodes = [Tone.EQ3, Tone.Filter, Tone.Reverb, Tone.FeedbackDelay, Tone.Compressor, Tone.Limiter, Tone.Gain];
+      for (const ctor of nodes) {
+        for (const result of (ctor as unknown as AnyMock).mock.results) {
+          for (const call of (result.value as { disconnect: Mock }).disconnect.mock.calls) {
+            expect(call).toEqual([]);
+          }
+        }
+      }
+    });
+
+    it('wires every connection exactly once per flip - a return never doubles up on its join node', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const reverbReturn = returnOf(lastInstance(Tone.Reverb));
+      reverbReturn.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+
+      expect(reverbReturn.connect).toHaveBeenCalledTimes(2);
+      expect(reverbReturn.disconnect).toHaveBeenCalledTimes(3); // build, flip, flip
+    });
+
+    it('keeps the output taps connected through repeated flips', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.attachOutputTaps();
+      const eqNode = lastInstance(Tone.EQ3);
+      const preTap = createAnalyser.mock.results[0].value;
+      const masterTap = createAnalyser.mock.results[1].value;
+      const masterGain = lastInstance(Tone.Gain);
+      eqNode.connect.mockClear();
+      masterGain.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+
+      expect(eqNode.connect.mock.calls.filter((c: unknown[]) => c[0] === preTap)).toHaveLength(2);
+      expect(masterGain.connect.mock.calls.filter((c: unknown[]) => c[0] === masterTap)).toHaveLength(2);
     });
   });
 
@@ -563,6 +722,69 @@ describe('globalFx', () => {
     });
   });
 
+  // Robot Sends T2 (assumption 3): the global Reverb / Delay `wet` sliders drive the RETURN gain, never
+  // Effect.wet - the rooms stay fully wet so a robot's send is the only thing that sets how much enters.
+  describe.each([
+    { name: 'setGlobalReverb', ctor: () => Tone.Reverb, set: 'setGlobalReverb' as const },
+    { name: 'setGlobalDelay', ctor: () => Tone.FeedbackDelay, set: 'setGlobalDelay' as const },
+  ])('$name - wet drives the return gain', ({ ctor, set }) => {
+    const build = async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const room = lastInstance(ctor());
+      return { globalFx, room, ret: returnOf(room), wetBefore: room.wet.value as number };
+    };
+
+    it('writes wet to the return gain and does not touch the room wet', async () => {
+      const { globalFx, room, ret, wetBefore } = await build();
+      globalFx[set]({ wet: 0.4 });
+      expect(ret.gain.value).toBe(0.4);
+      expect(room.wet.value).toBe(wetBefore);
+    });
+
+    it('lets wet reach exactly 0 and exactly 1 (0 is a real value, not skipped)', async () => {
+      const { globalFx, ret } = await build();
+      globalFx[set]({ wet: 0 });
+      expect(ret.gain.value).toBe(0);
+      globalFx[set]({ wet: 1 });
+      expect(ret.gain.value).toBe(1);
+    });
+
+    it('leaves the return gain alone when wet is not in the update', async () => {
+      const { globalFx, ret } = await build();
+      globalFx[set]({ wet: 0.6 });
+      globalFx[set]({ feedback: 0.3 } as never);
+      expect(ret.gain.value).toBe(0.6);
+    });
+
+    it('moves only its own return, never the other return', async () => {
+      const { globalFx, ret } = await build();
+      const otherCtor = ctor() === Tone.Reverb ? Tone.FeedbackDelay : Tone.Reverb;
+      const otherRet = returnOf(lastInstance(otherCtor));
+      globalFx[set]({ wet: 0.2 });
+      expect(ret.gain.value).toBe(0.2);
+      expect(otherRet.gain.value).toBe(1);
+    });
+
+    it('does not throw before buildGlobalFxChain() has run', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx[set]({ wet: 0.5 })).not.toThrow();
+    });
+  });
+
+  describe('setGlobalDelay - the other fields still go to the room', () => {
+    it('writes delayTime and feedback to the FeedbackDelay itself', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const delayNode = lastInstance(Tone.FeedbackDelay);
+
+      globalFx.setGlobalDelay({ delayTime: 0.5, feedback: 0.4 });
+
+      expect(delayNode.delayTime.value).toBe(0.5);
+      expect(delayNode.feedback.value).toBe(0.4);
+    });
+  });
+
   describe('setGlobalReverb', () => {
     it('never touches a `dampening` property on the live node — Tone.Reverb has no such property', async () => {
       const globalFx = await import('./globalFx');
@@ -605,7 +827,8 @@ describe('globalFx', () => {
         globalFx.setGlobalReverb({ decay: 3 });
         globalFx.setGlobalReverb({ decay: 4, preDelay: 0.2 });
 
-        expect((reverbNode.wet as { value: number }).value).toBe(0.5);
+        // wet is the return gain now (Robot Sends T2), and still immediate, never deferred.
+        expect(returnOf(reverbNode).gain.value).toBe(0.5);
         expect(decaySet).not.toHaveBeenCalled();
         expect(preDelaySet).not.toHaveBeenCalled();
 

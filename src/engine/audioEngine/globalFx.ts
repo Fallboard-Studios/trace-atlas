@@ -15,6 +15,11 @@ let _globalEQ: Tone.EQ3 | null = null;
 let _globalLPF: Tone.Filter | null = null;
 let _globalHPF: Tone.Filter | null = null;
 let _globalLimiter: Tone.Limiter | null = null;
+// Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
+// gains, never Effect.wet: the rooms stay fully wet and each robot's send decides how much enters
+// (docs/specs/ROBOT_SENDS.md §1.3).
+let _globalReverbReturn: Tone.Gain | null = null;
+let _globalDelayReturn: Tone.Gain | null = null;
 // Master output gain controlling overall volume (used by setMasterVolume/getMasterVolume)
 let _masterGain: Tone.Gain | null = null;
 let _masterVolume = 1;
@@ -65,7 +70,8 @@ export function buildGlobalFxChain(): void {
   const LimiterCtor = getToneCtor<Tone.Limiter>('Limiter');
 
   if (ReverbCtor) {
-    _globalReverb = new ReverbCtor({ decay: 1.5, preDelay: 0.02, wet: 0.3 });
+    // wet 1: a room is all room. How much of a robot enters it is that robot's send.
+    _globalReverb = new ReverbCtor({ decay: 1.5, preDelay: 0.02, wet: 1 });
   }
   if (DelayCtor) {
     // maxDelay is explicit on purpose: it must stay >= the max of
@@ -75,7 +81,7 @@ export function buildGlobalFxChain(): void {
     // an unset, implicit reliance on Tone.FeedbackDelay's own default of 1 —
     // correct today only by coincidence, and silently driftable if either
     // side changed independently.
-    _globalDelay = new DelayCtor({ delayTime: 0.25, feedback: 0.2, wet: 0, maxDelay: 10 });
+    _globalDelay = new DelayCtor({ delayTime: 0.25, feedback: 0.2, wet: 1, maxDelay: 10 });
   }
   if (EQ3Ctor) {
     _globalEQ = new EQ3Ctor({ low: 0, mid: 0, high: 0 });
@@ -88,6 +94,15 @@ export function buildGlobalFxChain(): void {
     _globalLimiter = new LimiterCtor({ threshold: -12 });
   }
   if (GainCtorFX) {
+    // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
+    // that room unreturned rather than breaking the build.
+    try {
+      _globalReverbReturn = new GainCtorFX(1);
+      _globalDelayReturn = new GainCtorFX(1);
+    } catch {
+      _globalReverbReturn = null;
+      _globalDelayReturn = null;
+    }
     // Master gain sits after the FX chain (or final destination) to control overall volume.
     try {
       _masterGain = new GainCtorFX(1);
@@ -114,6 +129,8 @@ function disconnectAllFxNodes(): void {
     _globalReverb,
     _globalCompressor,
     _globalLimiter,
+    _globalReverbReturn,
+    _globalDelayReturn,
     _masterGain,
   ].filter(Boolean) as Array<{ disconnect: () => void }>;
   for (const node of nodes) {
@@ -126,29 +143,31 @@ function disconnectAllFxNodes(): void {
 }
 
 /**
- * Wire the global FX chain into one of two fixed topologies, tearing down
- * whatever was previously connected first:
+ * Wire the global FX chain, tearing down whatever was previously connected
+ * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
+ * Compressor → Limiter → masterGain → Destination (or straight to Destination
+ * if masterGain wasn't constructed).
  *
- * - Natural Decay (controlledDecay=false, default): EQ3 → LPF → HPF → Delay →
- *   Reverb → Compressor → Limiter — the two time-based effects' tails ring
- *   out before compression.
- * - Controlled Decay (controlledDecay=true): EQ3 → LPF → HPF → Compressor →
- *   Delay → Reverb → Limiter — compression happens before both Delay and
- *   Reverb, tightening their tails.
+ * Reverb and Delay are two parallel rooms OFF that chain, not stages in it.
+ * Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
+ * the room's output runs through a return gain (what the Fleet Params wet
+ * sliders set) to a join node, and the join node is the only thing the two
+ * modes change (docs/specs/ROBOT_SENDS.md §1.3):
  *
- * Both topologies terminate at masterGain → Destination (or straight to
- * Destination if masterGain wasn't constructed). Called once from
+ * - Natural Decay (controlledDecay=false, default): both returns join at the
+ *   Compressor input, so the echoes are compressed with the dry signal.
+ * - Controlled Decay (controlledDecay=true): both returns join at the Limiter
+ *   input, past the Compressor, so the echoes are not squeezed by it.
+ *
+ * A room's own input is never disconnected here, so the robots' sends stay
+ * connected across every flip. Called once from
  * buildGlobalFxChain() and again whenever the "Natural Decay" / "Controlled
  * Decay" toggle flips (src/stores/audioStore.ts's setCompressorBeforeDelay).
  */
 export function wireGlobalFxChain(controlledDecay: boolean): void {
   disconnectAllFxNodes();
 
-  const orderedNodes = controlledDecay
-    ? [_globalEQ, _globalLPF, _globalHPF, _globalCompressor, _globalDelay, _globalReverb, _globalLimiter]
-    : [_globalEQ, _globalLPF, _globalHPF, _globalDelay, _globalReverb, _globalCompressor, _globalLimiter];
-
-  const chainNodes = orderedNodes.filter(Boolean) as Array<{
+  const chainNodes = [_globalEQ, _globalLPF, _globalHPF, _globalCompressor, _globalLimiter].filter(Boolean) as Array<{
     connect: (t: unknown) => unknown;
     toDestination?: () => void;
   }>;
@@ -177,6 +196,15 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
         devWarn('[AudioEngine] chain.toDestination failed', err);
       }
     }
+
+    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped.
+    const join = (controlledDecay ? _globalLimiter : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
+    if (join) {
+      _globalReverb?.connect(_globalReverbReturn ?? join);
+      _globalReverbReturn?.connect(join);
+      _globalDelay?.connect(_globalDelayReturn ?? join);
+      _globalDelayReturn?.connect(join);
+    }
   } catch (err) {
     devWarn('[AudioEngine] wireGlobalFxChain failed', err);
   }
@@ -195,6 +223,17 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
  *  front of the chain. */
 export function getGlobalChainEntry(): Tone.EQ3 | null {
   return _globalEQ;
+}
+
+/** The Reverb room, read by AudioEngine.ts's reserveVoice() to connect each robot's reverb send into it.
+ *  Null until buildGlobalFxChain() has run (and in a headless env with no Tone.Reverb). */
+export function getGlobalReverbRoom(): Tone.Reverb | null {
+  return _globalReverb;
+}
+
+/** The Delay room — as getGlobalReverbRoom, for each robot's delay send. */
+export function getGlobalDelayRoom(): Tone.FeedbackDelay | null {
+  return _globalDelay;
 }
 
 // ========================================
@@ -372,7 +411,8 @@ export function setGlobalReverb(params: Partial<ReverbSettings>): void {
   const reverb = _globalReverb;
   if (!reverb) return;
   try {
-    if (params.wet !== undefined) reverb.wet.value = params.wet;
+    // wet is the room's return level (the room itself stays fully wet, docs/specs/ROBOT_SENDS.md §1.3).
+    if (params.wet !== undefined && _globalReverbReturn) _globalReverbReturn.gain.value = params.wet;
   } catch (err) {
     devWarn('[AudioEngine] setGlobalReverb failed', err);
   }
@@ -388,7 +428,8 @@ export function setGlobalDelay(params: Partial<DelaySettings>): void {
   const delay = _globalDelay;
   if (!delay) return;
   try {
-    if (params.wet !== undefined) delay.wet.value = params.wet;
+    // wet is the room's return level, as for the Reverb.
+    if (params.wet !== undefined && _globalDelayReturn) _globalDelayReturn.gain.value = params.wet;
     if (params.delayTime !== undefined) delay.delayTime.value = params.delayTime;
     if (params.feedback !== undefined) delay.feedback.value = params.feedback;
   } catch (err) {
