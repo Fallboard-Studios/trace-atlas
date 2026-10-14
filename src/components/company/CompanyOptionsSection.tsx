@@ -31,6 +31,9 @@ const DISABLED_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
   spectral: getDisabledTraitColorStyle('spectral'),
 };
 
+// The Envelope's Portamento slider is inert in company mode until Robot Articulation Task 10: one stable no-op.
+const inertPortamento = () => {};
+
 /**
  * A section panel's trait colours: the trait's full-saturation pair while the panels can be edited, its
  * own two tones desaturated (rather than replaced) while there is nothing to edit — no members, or a
@@ -82,7 +85,17 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
           />
         );
       case 'pingContour':
-        return <PingContourDrawer value={options.adsrValue} disabled={disabled} onChange={options.onAdsrChange} swelling={options.adsrSwelling} />;
+        // Portamento is inert here until Robot Articulation Task 10 broadcasts it: a fixed 0 and a no-op, stable references.
+        return (
+          <PingContourDrawer
+            value={options.adsrValue}
+            disabled={disabled}
+            onChange={options.onAdsrChange}
+            portamento={0}
+            onPortamentoChange={inertPortamento}
+            swelling={options.adsrSwelling}
+          />
+        );
       case 'baselineOscillator':
       case 'coaxialOscillator':
       case 'harmonicOscillator': {

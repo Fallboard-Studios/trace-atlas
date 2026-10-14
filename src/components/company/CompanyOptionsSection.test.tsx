@@ -77,6 +77,8 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
   PingContourDrawer: memo((props: {
     value: { attack: number };
     onChange: (next: unknown) => void;
+    portamento: number;
+    onPortamentoChange: (seconds: number) => void;
     swelling?: { attack: boolean };
     disabled?: boolean;
   }) => {
@@ -85,10 +87,13 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
       <div
         data-testid="ping-contour-drawer-stub"
         data-attack={props.value.attack}
+        data-portamento={props.portamento}
         data-swelling-attack={props.swelling?.attack ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onChange({ ...(props.value as object), attack: 0.9 })}>probe-adsr</button>
+        <button onClick={() => props.onPortamentoChange(0.7)}>probe-portamento</button>
+        <button onClick={() => props.onChange({ ...(props.value as object), attackCurve: 'bounce' })}>probe-attack-curve</button>
       </div>
     );
   }),
@@ -346,6 +351,27 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       click('probe-adsr');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect((spy.mock.calls[0][2] as { attack: number }).attack).toBe(0.9);
+    });
+
+    // Placeholder until Robot Articulation Task 10 (docs/tasks/ROBOT_ARTICULATION.md Task 8): the slider shows 0 and does nothing.
+    it('Envelope: Portamento is inert until Task 10 (a fixed 0, and an edit reaches no member)', () => {
+      twoMembers();
+      const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+      const adsr = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['pingContour']} />);
+      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0');
+      click('probe-portamento');
+      expect(portamento).not.toHaveBeenCalled();
+      expect(adsr).not.toHaveBeenCalled();
+    });
+
+    it('Envelope: a shape edit rides applyAdsr to every member, curve included', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['pingContour']} />);
+      click('probe-attack-curve');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect((spy.mock.calls[0][2] as { attackCurve?: string }).attackCurve).toBe('bounce');
     });
 
     it('Source: a layer\'s gain reaches the right layer index', () => {

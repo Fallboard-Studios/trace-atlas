@@ -31,7 +31,7 @@ import {
 import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
+  applyAdsr, applyPortamento, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
@@ -198,6 +198,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // audioSwells.ts's module-scope Map, which React does not track: each memo's deps are the robot field
   // a swell tick writes, so it recomputes at that moment even though the body never reads them.
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
+  // Absent means no glide, today's sound (docs/specs/ROBOT_ARTICULATION.md assumption 1). A number, so the memo deps compare by value.
+  const portamento = robot.audioAttributes.portamento ?? 0;
   const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
   const layer0Swelling = useLayerSwellingFlags(robot.id, 0, robot.audioAttributes.layers?.[0]);
   const layer1Swelling = useLayerSwellingFlags(robot.id, 1, robot.audioAttributes.layers?.[1]);
@@ -255,6 +257,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     applyAdsr(latestRobot.current, localeId, adsr);
   }, [localeId]);
 
+  // Portamento is not a swell attribute, so nothing to cancel; the action reads the live robot like every other handler.
+  const handlePortamentoChange = useCallback((seconds: number) => applyPortamento(latestRobot.current, localeId, seconds), [localeId]);
+
   const handleLayerTypeChange = useCallback((idx: number, type: WaveformType) => {
     const layers = latestRobot.current.audioAttributes.layers ?? [];
     applyLayersStructural(latestRobot.current, localeId, layers.map((l, i) => (i === idx ? { ...l, type } : l)));
@@ -298,7 +303,15 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
           />
         );
       case 'pingContour':
-        return <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} swelling={adsrSwelling} />;
+        return (
+          <PingContourDrawer
+            value={robot.audioAttributes.adsr}
+            onChange={handleAdsrChange}
+            portamento={portamento}
+            onPortamentoChange={handlePortamentoChange}
+            swelling={adsrSwelling}
+          />
+        );
       case 'baselineOscillator':
       case 'coaxialOscillator':
       case 'harmonicOscillator': {
@@ -325,7 +338,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
-    robot.audioAttributes.adsr, handleAdsrChange, adsrSwelling,
+    robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,
     signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
   ]);

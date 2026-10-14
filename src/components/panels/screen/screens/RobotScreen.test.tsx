@@ -107,12 +107,38 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     </div>
   )),
 }));
+// What the Envelope stub saw, for the re-render and handler-identity cases (Robot Articulation Task 8).
+const envelopeStub = vi.hoisted(() => {
+  const stub = {
+    renders: 0,
+    last: null as null | { onChange: unknown; onPortamentoChange: unknown },
+    record(handlers: { onChange: unknown; onPortamentoChange: unknown }) {
+      stub.renders++;
+      stub.last = handlers;
+    },
+    reset() {
+      stub.renders = 0;
+      stub.last = null;
+    },
+  };
+  return stub;
+});
 vi.mock('@/components/robot/PingContourDrawer', () => ({
-  PingContourDrawer: memo((props: { value: { attack: number }; onChange: (next: unknown) => void }) => (
-    <div data-testid="ping-contour-drawer-stub" data-attack={props.value.attack}>
-      <button onClick={() => props.onChange({ attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 })}>probe-adsr</button>
-    </div>
-  )),
+  PingContourDrawer: memo((props: {
+    value: { attack: number; attackCurve?: string; releaseCurve?: string };
+    onChange: (next: unknown) => void;
+    portamento: number;
+    onPortamentoChange: (seconds: number) => void;
+  }) => {
+    envelopeStub.record({ onChange: props.onChange, onPortamentoChange: props.onPortamentoChange });
+    return (
+      <div data-testid="ping-contour-drawer-stub" data-attack={props.value.attack} data-portamento={props.portamento}>
+        <button onClick={() => props.onChange({ attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 })}>probe-adsr</button>
+        <button onClick={() => props.onChange({ ...props.value, attackCurve: 'bounce' })}>probe-attack-curve</button>
+        <button onClick={() => props.onPortamentoChange(0.7)}>probe-portamento</button>
+      </div>
+    );
+  }),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
   SignatureArrayLayer: memo((props: {
@@ -243,6 +269,7 @@ beforeEach(() => {
   useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
   capturedRadioSchemas.length = 0;
   levelsStub.reset();
+  envelopeStub.reset();
   useRobotPanReadoutStore.setState({ pan: {} });
 });
 
@@ -646,6 +673,78 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       expect(cancel).toHaveBeenCalledWith('r1', 'adsr.sustain');
       expect(cancel).toHaveBeenCalledWith('r1', 'adsr.release');
       expect(cancel).not.toHaveBeenCalledWith('r1', 'adsr.decay');
+    });
+
+    describe('Portamento and the shape radios (Robot Articulation Task 8)', () => {
+      it('passes the stored portamento to the drawer, and 0 for a robot that has none', () => {
+        selectRobot(makeRobot('r1', { audioAttributes: { ...makeRobot().audioAttributes, portamento: 0.3 } }), 'envelope');
+        const first = render(<RobotScreen />);
+        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0.3');
+        first.unmount();
+        useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+        selectRobot(makeRobot('r2'), 'envelope');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0');
+      });
+
+      it('a Portamento edit calls applyPortamento with the robot, the locale and the seconds, and nothing else', () => {
+        const robot = makeRobot();
+        selectRobot(robot, 'envelope');
+        const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        const adsr = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-portamento'));
+        expect(portamento).toHaveBeenCalledTimes(1);
+        expect(portamento).toHaveBeenCalledWith(robot, localeId, 0.7);
+        expect(adsr).not.toHaveBeenCalled();
+        expect(cancel).not.toHaveBeenCalled(); // portamento is not a swell attribute
+      });
+
+      it('a Portamento edit reads the live robot, not the one the render closed over', () => {
+        selectRobot(makeRobot(), 'envelope');
+        const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { name: 'Renamed' }));
+        fireEvent.click(screen.getByText('probe-portamento'));
+        expect((portamento.mock.calls[0][0] as Robot).name).toBe('Renamed');
+      });
+
+      it('a shape edit goes to applyAdsr with the curve and the other ADSR fields, and interrupts no swell', () => {
+        const robot = makeRobot();
+        selectRobot(robot, 'envelope');
+        const spy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-attack-curve'));
+        expect(spy).toHaveBeenCalledWith(robot, localeId, { ...robot.audioAttributes.adsr, attackCurve: 'bounce' });
+        expect(cancel).not.toHaveBeenCalled(); // only a/d/s/r swell; a curve name is not one
+      });
+
+      it('the drawer handlers keep their identity, and the drawer does not re-render, across an unrelated robot change', () => {
+        selectRobot(makeRobot(), 'envelope');
+        render(<RobotScreen />);
+        const first = envelopeStub.last!;
+        expect(first.onPortamentoChange).toBeTypeOf('function'); // not a vacuous undefined === undefined
+        const before = envelopeStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+        expect(envelopeStub.last!.onChange).toBe(first.onChange);
+        expect(envelopeStub.last!.onPortamentoChange).toBe(first.onPortamentoChange);
+        expect(envelopeStub.renders).toBe(before);
+      });
+
+      it('a Portamento change in the store re-renders the drawer with the new value', () => {
+        selectRobot(makeRobot(), 'envelope');
+        render(<RobotScreen />);
+        const before = envelopeStub.renders;
+        // The stored audioAttributes spread, so adsr keeps its identity: only portamento can move the drawer.
+        act(() => {
+          const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+          useLocaleStore.getState().updateRobot(localeId, 'r1', { audioAttributes: { ...stored.audioAttributes, portamento: 1.2 } });
+        });
+        expect(envelopeStub.renders).toBeGreaterThan(before);
+        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('1.2');
+      });
     });
   });
 
