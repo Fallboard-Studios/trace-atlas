@@ -17,7 +17,7 @@ import { regenerateMelody } from '@/engine/regenerateMelody';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
-import type { Robot, ADSREnvelope } from '@/types/Robot';
+import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
 
@@ -132,6 +132,38 @@ export function applyAdsr(robot: Robot, localeId: string, adsr: ADSREnvelope): v
     audioAttributes: { ...robot.audioAttributes, adsr },
   });
   AudioEngine.updateVoiceEnvelope(robot.id, adsr);
+}
+
+/** Portamento (the Envelope drawer's glide row): seconds each layer slides into the next note. 0 is a real
+ *  value (no glide), so it is stored and sent like any other. A live `synth.portamento` write through
+ *  updateVoicePortamento, never a rebuild (docs/specs/ROBOT_ARTICULATION.md §1.5). */
+export function applyPortamento(robot: Robot, localeId: string, seconds: number): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, {
+    audioAttributes: { ...robot.audioAttributes, portamento: seconds },
+  });
+  AudioEngine.updateVoicePortamento(robot.id, seconds);
+}
+
+/** The robot bus filter's edits (the Source drawer's filter subsection): any of cutoff, resonance and type.
+ *  Only the keys the patch actually carries are stored and sent — an explicit `undefined` is dropped, never
+ *  spread over the stored value — and 0 stays a value (`filterFreq: 0` is the "no filter" sentinel). The
+ *  engine's names differ (`filterFreq → frequency`, `filterQ → Q`, `filterType → type`). A live filter
+ *  write, never a rebuild. */
+export function applyBusFilter(
+  robot: Robot,
+  localeId: string,
+  patch: Partial<Pick<AudioAttributes, 'filterFreq' | 'filterQ' | 'filterType'>>,
+): void {
+  const defined: typeof patch = {};
+  const enginePatch: Parameters<typeof AudioEngine.updateRobotBusFilter>[1] = {};
+  if (patch.filterFreq !== undefined) { defined.filterFreq = patch.filterFreq; enginePatch.frequency = patch.filterFreq; }
+  if (patch.filterQ !== undefined) { defined.filterQ = patch.filterQ; enginePatch.Q = patch.filterQ; }
+  if (patch.filterType !== undefined) { defined.filterType = patch.filterType; enginePatch.type = patch.filterType; }
+
+  useLocaleStore.getState().updateRobot(localeId, robot.id, {
+    audioAttributes: { ...robot.audioAttributes, ...defined },
+  });
+  AudioEngine.updateRobotBusFilter(robot.id, enginePatch);
 }
 
 // ========================================

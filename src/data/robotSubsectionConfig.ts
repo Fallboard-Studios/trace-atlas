@@ -82,6 +82,8 @@ export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
       { id: 'baselineOscillator', content: 'probe.source.core', accordion: 'probe.source.core' },
       { id: 'coaxialOscillator', content: 'probe.source.companion', accordion: 'probe.source.companion' },
       { id: 'harmonicOscillator', content: 'probe.source.accent', accordion: 'probe.source.accent' },
+      // Not an oscillator layer: the robot's bus filter, after the three layers mix (docs/specs/ROBOT_ARTICULATION.md §1.6).
+      { id: 'busFilter', content: 'probe.source.filter', accordion: 'probe.source.filter' },
     ],
   },
 ];

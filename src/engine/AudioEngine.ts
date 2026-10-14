@@ -7,13 +7,13 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useRobotPanReadoutStore } from '../stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 
-import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot } from '../types/Robot';
+import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS } from '../constants';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -22,6 +22,7 @@ import { devWarn } from '../utils/helpers';
 import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { calculatePanFromPosition } from './audioEngine/panning';
+import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
@@ -160,22 +161,16 @@ function storeVoice(robotId: string, entry: { composite: CompositeVoice; panner:
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
 const robotNoteIndex = new Map<string, number>();
 
-/**
- * Per-robot bus low-pass cutoff used when a caller passes no `filterFreq` — the value every bus
- * filter was hardcoded to from the composite-voice rewrite until the robot's own seeded
- * `audioAttributes.filterFreq` was wired through (it drove body detail/greeble count the whole
- * time, but never the sound). Sits inside spawnSystem's FILTER_FREQ_RANGE (400–2500 Hz).
- */
-const ROBOT_BUS_FILTER_DEFAULT_HZ = 1200;
-/** `filterFreq: 0` means "no filter" (Robot.ts) — open the low-pass to the top of the audible band. */
-const ROBOT_BUS_FILTER_OPEN_HZ = 20000;
-const ROBOT_BUS_FILTER_Q = 1;
+/** A Tone AudioParam / Signal as far as a live edit needs it: `rampTo` when the real node has it. */
+type RampableParam = { rampTo?: (value: number, rampTime: number) => void; value: number };
 
-/** Resolve a robot's bus-filter cutoff from its `filterFreq`, honouring the two special cases above. */
-function resolveBusFilterCutoff(filterFreq: number | undefined): number {
-  if (filterFreq === undefined || Number.isNaN(filterFreq)) return ROBOT_BUS_FILTER_DEFAULT_HZ;
-  if (filterFreq <= 0) return ROBOT_BUS_FILTER_OPEN_HZ;
-  return filterFreq;
+/** Glide `param` to `target` over `rampSeconds` when it can ramp, else assign it (headless / test stubs). */
+function rampOrSet(param: RampableParam, target: number, rampSeconds: number): void {
+  if (typeof param.rampTo === 'function') {
+    param.rampTo(target, rampSeconds);
+  } else {
+    param.value = target;
+  }
 }
 
 // Last pan value written to each reserved robot's panner — see updateAllPanners.
@@ -199,6 +194,12 @@ const PAN_WRITE_EPSILON = 0.0005;
 function getActiveLocaleRobots(): Robot[] {
   const store = useLocaleStore.getState();
   return store.locales[getActiveLocaleId()]?.robots ?? [];
+}
+
+/** The articulation fields a robot hands to reserveVoice (each absent on a robot that never set it). */
+function articulationOf(robot: Robot): { portamento?: number; filterQ?: number; filterType?: RobotFilterType } {
+  const { portamento, filterQ, filterType } = robot.audioAttributes;
+  return { portamento, filterQ, filterType };
 }
 
 /** Find a robot by id within the currently active locale. */
@@ -287,6 +288,7 @@ async function loadInstruments(): Promise<void> {
               (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers?.[0]?.pulseWidth,
               robot.masterVolume,
               robot.audioAttributes?.filterFreq,
+              articulationOf(robot),
             );
             // The engine keeps no pan state across a reservation; the store does (Robot Pan §1.3).
             if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
@@ -665,6 +667,9 @@ export const AudioEngine = {
    *   The same number once drove the hand-drawn robots' body detail and greeble count; gem
    *   robots (Phase 39) give it no visual mapping. `0` opens the filter fully ("no filter", Robot.ts);
    *   omitted keeps the legacy fixed 1,200 Hz so older callers/fixtures sound as before.
+   * @param articulation - The robot's optional `portamento` (seconds of glide per layer synth), `filterQ`
+   *   and `filterType` (the bus filter's resonance and shape). Every field absent resolves to the sound
+   *   this engine always had: no glide, Q 1, lowpass. docs/specs/ROBOT_ARTICULATION.md §1.3.
    */
   reserveVoice(
     robotId: string,
@@ -675,10 +680,11 @@ export const AudioEngine = {
     pulseWidth?: number,
     masterVolume?: number,
     filterFreq?: number,
+    articulation?: { portamento?: number; filterQ?: number; filterType?: RobotFilterType },
   ): boolean {
     try {
       const audibleDescriptor = filterAudibleLayers(descriptor);
-      const composite = AudioEngine.createCompositeVoice(audibleDescriptor, adsr);
+      const composite = AudioEngine.createCompositeVoice(audibleDescriptor, adsr, articulation?.portamento);
 
       const PannerCtor = getToneCtor<Tone.Panner>('Panner');
       const GainCtorLocal = getToneCtor<Tone.Gain>('Gain');
@@ -688,7 +694,11 @@ export const AudioEngine = {
       const busCutoff = resolveBusFilterCutoff(filterFreq);
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
-      const busFilter = FilterCtor ? new FilterCtor({ frequency: busCutoff, Q: ROBOT_BUS_FILTER_Q }) : makeStubFilter() as unknown as Tone.Filter;
+      const busFilter = FilterCtor ? new FilterCtor({
+        frequency: busCutoff,
+        Q: resolveBusFilterQ(articulation?.filterQ),
+        type: resolveBusFilterType(articulation?.filterType),
+      }) : makeStubFilter() as unknown as Tone.Filter;
 
       // Connect graph: composite.output -> panner -> busGain -> busFilter -> master compressor/destination
       try { composite.output.connect(panner); } catch (e) { devWarn('[AudioEngine] composite.output.connect failed', e); }
@@ -777,6 +787,10 @@ export const AudioEngine = {
       const voice = AudioEngine.getVoiceForRobot(robotId);
       if (!voice) return null;
 
+      if (target === 'bus.frequency') {
+        return (compositeVoices.get(robotId)?.busFilter.frequency as ModulationTarget | undefined) ?? null;
+      }
+
       const match = /^layer(\d+)\.(gain|detune)$/.exec(target);
       if (!match) return null;
       const layerEntry = voice.layers?.[Number(match[1])];
@@ -828,6 +842,7 @@ export const AudioEngine = {
         (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers?.[0]?.pulseWidth,
         robot.masterVolume,
         robot.audioAttributes?.filterFreq,
+        articulationOf(robot),
       );
       // releaseVoice just cleared this robot's manual pan; hand it back from the store (Robot Pan §1.3).
       // Done here, not by the caller, so every reReserveVoice caller is covered.
@@ -896,6 +911,52 @@ export const AudioEngine = {
   },
 
   /**
+   * Set the glide time (seconds) on every audible layer's live synth - updateVoiceEnvelope's shape: the
+   * composite's own layers re-stamped with the new value and handed back through `composite.set`, so no
+   * node is rebuilt and nothing is cut off. 0 turns the glide off. A safe no-op (devWarn) when no composite
+   * is reserved: the store holds the value and every reservation path re-reads it.
+   */
+  updateVoicePortamento(robotId: string, seconds: number): void {
+    try {
+      const entry = compositeVoices.get(robotId);
+      if (!entry?.composite.layers) {
+        devWarn(`[AudioEngine] updateVoicePortamento: no composite reserved for ${robotId}`);
+        return;
+      }
+      try {
+        const patched = entry.composite.layers.map(({ layer }) => ({ ...layer, portamento: seconds }));
+        entry.composite.set({ layers: patched });
+      } catch (err) {
+        devWarn('[AudioEngine] Failed to apply portamento on composite', err);
+      }
+    } catch (err) {
+      devWarn('[AudioEngine] updateVoicePortamento failed', err);
+    }
+  },
+
+  /**
+   * Live-edit a robot's bus filter (docs/specs/ROBOT_ARTICULATION.md §1.3), any subset of cutoff `frequency`
+   * (Hz), resonance `Q` and `type`. Frequency and Q glide over FILTER_RAMP_SECONDS when the live param can
+   * ramp, else are assigned (headless); `type` is assigned outright. A safe no-op (devWarn, as
+   * updateRobotMasterVolume) when no composite is reserved: the store already holds the values.
+   */
+  updateRobotBusFilter(robotId: string, patch: { frequency?: number; Q?: number; type?: RobotFilterType }): void {
+    const entry = compositeVoices.get(robotId);
+    if (!entry) {
+      devWarn(`[AudioEngine] updateRobotBusFilter: no composite reserved for ${robotId}`);
+      return;
+    }
+    try {
+      const filter = entry.busFilter as unknown as { frequency: RampableParam; Q: RampableParam; type: string };
+      if (patch.frequency !== undefined) rampOrSet(filter.frequency, patch.frequency, FILTER_RAMP_SECONDS);
+      if (patch.Q !== undefined) rampOrSet(filter.Q, patch.Q, FILTER_RAMP_SECONDS);
+      if (patch.type !== undefined) filter.type = patch.type;
+    } catch (err) {
+      devWarn('[AudioEngine] updateRobotBusFilter failed', err);
+    }
+  },
+
+  /**
    * Immediately updates a robot's live per-robot bus gain (Robot Options' RobotDisplaySection
    * Volume slider) — a continuously-live AudioParam, not a value baked into each note's own
    * trigger, so this affects anything currently sounding through the bus (an already-ringing
@@ -916,12 +977,7 @@ export const AudioEngine = {
     }
     try {
       const targetGain = volumePositionToGain(masterVolume);
-      const gain = entry.busGain.gain as unknown as { rampTo?: (value: number, rampTime: number) => void; value: number };
-      if (typeof gain.rampTo === 'function') {
-        gain.rampTo(targetGain, VOLUME_RAMP_SECONDS);
-      } else {
-        gain.value = targetGain;
-      }
+      rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);
     }
@@ -957,12 +1013,7 @@ export const AudioEngine = {
         lastPanByRobot.delete(robotId);
         target = value;
       }
-      const pan = entry.panner.pan as unknown as { rampTo?: (value: number, rampTime: number) => void; value: number };
-      if (typeof pan.rampTo === 'function') {
-        pan.rampTo(target, PAN_RAMP_SECONDS);
-      } else {
-        pan.value = target;
-      }
+      rampOrSet(entry.panner.pan as unknown as RampableParam, target, PAN_RAMP_SECONDS);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotPan failed', err);
     }

@@ -36,7 +36,7 @@ import {
   type GlobalLfoTargetId,
 } from '../types/lfo';
 import { devWarn } from '../utils/helpers';
-import { MIN_LEAD } from '../constants';
+import { MIN_LEAD, ROBOT_BUS_FILTER_FREQ_RANGE } from '../constants';
 
 // ========================================
 // STATE (module-scoped, runtime-only — never put these in Zustand)
@@ -79,8 +79,11 @@ const links = new Map<string, LinkRecord>();
 /** Whether the four lanes' drift secondaries are currently wired in — the Audio Load Budget's drift tier (setDriftEnabled). */
 let driftEnabled = true;
 
-/** Whether lpf./hpf. link Gains may be connected right now — the Audio Load Budget's filter tier (setFilterLinksEnabled). */
+/** Whether lpf./hpf./bus. link Gains may be connected right now — the Audio Load Budget's filter tier (setFilterLinksEnabled). */
 let filterLinksEnabled = true;
+
+/** Whether a robot's bus. link Gains may be connected, on top of filterLinksEnabled — the bus-filter tier (setBusFilterLinksEnabled). */
+let busFilterLinksEnabled = true;
 
 /** ~33-second cycle for each lane's drift secondary — the same fixed rate the old per-group drift pools used
  *  (lfoDrift.ts's DRIFT_RATE_HZ), never exposed in the UI (only the drift AMOUNT is user-facing). */
@@ -98,9 +101,16 @@ function isRobotTarget(target: LfoTargetId): boolean {
   return (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(target);
 }
 
-/** Global filter (frequency/Q) targets — the only links setFilterLinksEnabled can suspend. */
+/** Filter-tier targets (global lpf./hpf. frequency/Q and a robot's bus.frequency) — the only links the filter tiers can suspend. */
 function isFilterTarget(target: LfoTargetId): boolean {
-  return /^(lpf|hpf)\./.test(target);
+  return /^(lpf|hpf|bus)\./.test(target);
+}
+
+/** Whether a filter-tier link should be pulled out of the graph right now: a global filter link by the filter tier
+ *  alone, a robot's bus link by the filter tier OR its own bus tier (so Light still holds it, as before T14b). */
+function isHeldOff(target: LfoTargetId): boolean {
+  if (!filterLinksEnabled) return true;
+  return target.startsWith('bus.') && !busFilterLinksEnabled;
 }
 
 /** Real value range per robot field — copied from lfoEngine.ts (see this file's header comment). */
@@ -122,6 +132,7 @@ function globalSeedRangeKey(target: GlobalLfoTargetId): GlobalAudioSeedFieldKey 
 function resolveLfoOutputRange(target: LfoTargetId): { min: number; max: number } | null {
   const robotFieldMatch = /^layer\d+\.(gain|detune)$/.exec(target);
   if (robotFieldMatch) return ROBOT_LFO_FIELD_RANGE[robotFieldMatch[1]];
+  if (target === 'bus.frequency') return ROBOT_BUS_FILTER_FREQ_RANGE;
   if (!isRobotTarget(target)) {
     const range = GLOBAL_AUDIO_SEED_RANGES[globalSeedRangeKey(target as GlobalLfoTargetId)];
     return range ? { min: range.min, max: range.max } : null;
@@ -331,7 +342,7 @@ function linkTarget(target: LfoTargetId, link: LfoLink, robotId?: string): boole
     return false;
   }
   links.set(key, { target, robotId, lane: link.lane, depth: link.depth, linkGain, signal, suspended: false });
-  if (isFilterTarget(target) && !filterLinksEnabled) suspendLink(key); // connected above, then immediately pulled — a filter link made while the dial is off is created suspended
+  if (isFilterTarget(target) && isHeldOff(target)) suspendLink(key); // connected above, then immediately pulled — a filter link made while its tier is off is created suspended
   return true;
 }
 
@@ -384,16 +395,32 @@ function setDriftEnabled(enabled: boolean): void {
   }
 }
 
-/** Suspend/restore every lpf./hpf. link's Gain (the Audio Load Budget's filter tier). EQ-gain
- *  links and every robot link are never affected. Idempotent; link records are always kept. */
+/** Bring every filter-tier link into line with the two tier switches: suspend the held-off ones, restore the rest.
+ *  suspendLink and restoreLink are idempotent, so this is safe to run after either switch moves. */
+function reconcileFilterLinks(): void {
+  for (const [key, record] of links) {
+    if (!isFilterTarget(record.target)) continue;
+    if (isHeldOff(record.target)) suspendLink(key);
+    else restoreLink(key);
+  }
+}
+
+/** Suspend/restore every lpf./hpf./bus. link's Gain (the Audio Load Budget's filter tier). EQ-gain
+ *  links and every other robot link are never affected. A bus link also waits on setBusFilterLinksEnabled, so it
+ *  comes back only when both are on. Idempotent; link records are always kept. */
 function setFilterLinksEnabled(enabled: boolean): void {
   if (enabled === filterLinksEnabled) return;
   filterLinksEnabled = enabled;
-  for (const [key, record] of links) {
-    if (!isFilterTarget(record.target)) continue;
-    if (enabled) restoreLink(key);
-    else suspendLink(key);
-  }
+  reconcileFilterLinks();
+}
+
+/** Suspend/restore every robot's bus.frequency link Gain (the Audio Load Budget's bus-filter tier, Robot
+ *  Articulation T14b). Global filter links, EQ-gain links and every other robot link are never affected, and a
+ *  bus link stays suspended while the global filter tier is off. Idempotent; link records are always kept. */
+function setBusFilterLinksEnabled(enabled: boolean): void {
+  if (enabled === busFilterLinksEnabled) return;
+  busFilterLinksEnabled = enabled;
+  reconcileFilterLinks();
 }
 
 // ========================================
@@ -412,4 +439,5 @@ export const lfoEngine = {
   disposeRobotLinks,
   setDriftEnabled,
   setFilterLinksEnabled,
+  setBusFilterLinksEnabled,
 };

@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
+import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import {
   PING_CONTOUR_PANEL_SCHEMA,
@@ -9,8 +10,12 @@ import {
   DECAY_SCHEMA,
   SUSTAIN_SCHEMA,
   RELEASE_SCHEMA,
+  PORTAMENTO_SCHEMA,
+  ATTACK_CURVE_SCHEMA,
+  RELEASE_CURVE_SCHEMA,
+  CURVE_ROW_PANEL_SCHEMA,
 } from '@/data/robotOptionsConfig';
-import type { ADSREnvelope } from '@/types/Robot';
+import type { ADSREnvelope, EnvelopeCurveName } from '@/types/Robot';
 import type { DirectionalPanelSchema } from '@/types/controls';
 
 import './PingContourDrawer.css';
@@ -24,6 +29,9 @@ const BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.pingContou
 interface PingContourDrawerProps {
   value: ADSREnvelope;
   onChange: (next: ADSREnvelope) => void;
+  /** Glide time between notes, seconds (AudioAttributes.portamento ?? 0). Row 3. */
+  portamento: number;
+  onPortamentoChange: (seconds: number) => void;
   disabled?: boolean;
   /** Optional inline style forwarded to this drawer's own root — trait-color scoping
    *  (getTraitColorStyle('timeSpace'), Roadmap Phase 14), applied identically at both the
@@ -47,7 +55,7 @@ interface PingContourDrawerProps {
  * `value` and wire `onChange` through robotOptionsActions.applyAdsr themselves, which is what
  * calls AudioEngine.updateVoiceEnvelope (never reReserveVoice, so there's no audio dropout).
  */
-function PingContourDrawerInner({ value: adsr, onChange, disabled, style, swelling }: PingContourDrawerProps) {
+function PingContourDrawerInner({ value: adsr, onChange, portamento, onPortamentoChange, disabled, style, swelling }: PingContourDrawerProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): these 4 handlers used to
   // be built fresh, unmemoized, on every render — so editing any ONE field changed `adsr`'s own
   // reference, which re-executed this component (correctly, since its own `value` prop changed),
@@ -68,6 +76,11 @@ function PingContourDrawerInner({ value: adsr, onChange, disabled, style, swelli
   // in this drawer that isn't a 1:1 pass-through between the control and the stored value.
   const handleSustainChange = useCallback((pct: number) => onChange({ ...latestAdsr.current, sustain: pct / 100 }), [onChange]);
 
+  // The two shape radios edit the envelope's curve names through the same ref pattern. The other curve is
+  // spread as it is, so one that was never set stays absent (absent is today's linear), never invented.
+  const handleAttackCurveChange = useCallback((v: string) => onChange({ ...latestAdsr.current, attackCurve: v as EnvelopeCurveName }), [onChange]);
+  const handleReleaseCurveChange = useCallback((v: string) => onChange({ ...latestAdsr.current, releaseCurve: v as EnvelopeCurveName }), [onChange]);
+
   return (
     <div className="ping-contour-drawer" style={style}>
       <DirectionalPanel schema={PING_CONTOUR_PANEL_SCHEMA}>
@@ -78,6 +91,11 @@ function PingContourDrawerInner({ value: adsr, onChange, disabled, style, swelli
         <DirectionalPanel schema={BOTTOM_ROW_SCHEMA}>
           <SliderLinear schema={SUSTAIN_SCHEMA} value={adsr.sustain * 100} onChange={handleSustainChange} disabled={disabled} swelling={swelling?.sustain} />
           <SliderLog schema={RELEASE_SCHEMA} value={adsr.release} onChange={handleReleaseChange} disabled={disabled} swelling={swelling?.release} />
+        </DirectionalPanel>
+        <SliderLog schema={PORTAMENTO_SCHEMA} value={portamento} onChange={onPortamentoChange} disabled={disabled} />
+        <DirectionalPanel schema={CURVE_ROW_PANEL_SCHEMA}>
+          <RadioButton schema={ATTACK_CURVE_SCHEMA} value={adsr.attackCurve ?? 'linear'} onChange={handleAttackCurveChange} disabled={disabled} />
+          <RadioButton schema={RELEASE_CURVE_SCHEMA} value={adsr.releaseCurve ?? 'linear'} onChange={handleReleaseCurveChange} disabled={disabled} />
         </DirectionalPanel>
       </DirectionalPanel>
     </div>

@@ -159,6 +159,59 @@ describe('resolveCompanyOptions', () => {
   });
 });
 
+describe('resolveCompanyOptions: the articulation fields (Robot Articulation Task 10)', () => {
+  const withAudio = (extra: Partial<Robot['audioAttributes']>) =>
+    makeRobot({ audioAttributes: { ...makeRobot().audioAttributes, ...extra } });
+
+  it('falls back to the first member for the cutoff, resonance, type and portamento', () => {
+    const resolved = resolveCompanyOptions(undefined, withAudio({ filterFreq: 900, filterQ: 4, filterType: 'bandpass', portamento: 0.3 }));
+
+    expect(resolved.filterFreq).toBe(900);
+    expect(resolved.filterQ).toBe(4);
+    expect(resolved.filterType).toBe('bandpass');
+    expect(resolved.portamento).toBe(0.3);
+  });
+
+  it('resolves a first member with none of them to Q 1, lowpass, no glide and the open band (filterFreq 0)', () => {
+    const resolved = resolveCompanyOptions(undefined, withAudio({}));
+
+    expect(resolved.filterQ).toBe(1);
+    expect(resolved.filterType).toBe('lowpass');
+    expect(resolved.portamento).toBe(0);
+    expect(resolved.filterFreq).toBe(20000);
+  });
+
+  it('gives a first member with a stored cutoff of 0 the open band, and one with no cutoff at all the 1200 Hz default', () => {
+    expect(resolveCompanyOptions(undefined, withAudio({ filterFreq: 0 })).filterFreq).toBe(20000);
+    expect(resolveCompanyOptions(undefined, withAudio({ filterFreq: undefined as unknown as number })).filterFreq).toBe(1200);
+  });
+
+  it('a recorded value wins over the first member, field by field', () => {
+    const firstMember = withAudio({ filterFreq: 900, filterQ: 4, filterType: 'bandpass', portamento: 0.3 });
+
+    const resolved = resolveCompanyOptions({ filterQ: 9, filterType: 'highpass' }, firstMember);
+
+    expect(resolved.filterQ).toBe(9);
+    expect(resolved.filterType).toBe('highpass');
+    expect(resolved.filterFreq).toBe(900); // untouched: still the first member's
+    expect(resolved.portamento).toBe(0.3);
+  });
+
+  it('a recorded portamento of 0 is a real value, not a missing one', () => {
+    expect(resolveCompanyOptions({ portamento: 0 }, withAudio({ portamento: 0.3 })).portamento).toBe(0);
+  });
+
+  it('a recorded cutoff is passed through as it is', () => {
+    expect(resolveCompanyOptions({ filterFreq: 640 }, withAudio({ filterFreq: 900 })).filterFreq).toBe(640);
+  });
+
+  it('follows the first member live for a field the snapshot does not cover', () => {
+    const snapshot = { filterQ: 9 };
+    expect(resolveCompanyOptions(snapshot, withAudio({ filterFreq: 500 })).filterFreq).toBe(500);
+    expect(resolveCompanyOptions(snapshot, withAudio({ filterFreq: 1500 })).filterFreq).toBe(1500);
+  });
+});
+
 describe('diffCompoundField', () => {
   it('returns a patch with just the one field that changed', () => {
     const prev = { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 };

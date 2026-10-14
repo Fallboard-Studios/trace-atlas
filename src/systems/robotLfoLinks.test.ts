@@ -44,7 +44,7 @@ describe('primeRobotLinks', () => {
 
     primeRobotLinks(robot);
 
-    expect(lfoEngine.linkTarget).toHaveBeenCalledTimes(6);
+    expect(lfoEngine.linkTarget).toHaveBeenCalledTimes(7);
     for (const target of ROBOT_LFO_TARGET_IDS) {
       expect(lfoEngine.linkTarget).toHaveBeenCalledWith(target, links[target], 'r1');
     }

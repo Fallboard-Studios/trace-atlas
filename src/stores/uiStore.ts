@@ -48,7 +48,8 @@ export type RobotSubsection =
   | 'pingContour'
   | 'baselineOscillator'
   | 'coaxialOscillator'
-  | 'harmonicOscillator';
+  | 'harmonicOscillator'
+  | 'busFilter';
 /** Which of the 4 top-level branches is open in the nav panel (its entity list, for Probes and
  *  Companies). The tree's per-branch fields, which tracked which probe or company was peeked
  *  open, retired with the stacked scroll (docs/tasks/LAYOUT_REWORK.md Task 18). Bugfix: this

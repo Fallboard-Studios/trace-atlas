@@ -91,13 +91,22 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(envelope.subsections).toEqual([{ id: 'pingContour', content: 'probe.envelope.contour', accordion: 'probe.envelope' }]);
   });
 
-  it("source's 3 subsections each keep their own accordion (same concept as the row), in oscillator order", () => {
+  it("source's 4 subsections each keep their own accordion (same concept as the row): the 3 oscillators in order, then the bus filter last (docs/specs/ROBOT_ARTICULATION.md §1.6)", () => {
     const source = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'source')!;
     expect(source.subsections).toEqual([
       { id: 'baselineOscillator', content: 'probe.source.core', accordion: 'probe.source.core' },
       { id: 'coaxialOscillator', content: 'probe.source.companion', accordion: 'probe.source.companion' },
       { id: 'harmonicOscillator', content: 'probe.source.accent', accordion: 'probe.source.accent' },
+      { id: 'busFilter', content: 'probe.source.filter', accordion: 'probe.source.filter' },
     ]);
+  });
+
+  it('busFilter is the only new subsection: every other section keeps exactly the subsections it had', () => {
+    const idsOf = (sectionId: RobotSection) => ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId)!.subsections.map((s) => s.id);
+    expect(idsOf('volume')).toEqual(['audioSettings']);
+    expect(idsOf('melody')).toEqual(['rhythm', 'frequency']);
+    expect(idsOf('envelope')).toEqual(['pingContour']);
+    expect(ROBOT_SECTIONS_CONFIG.flatMap((s) => s.subsections).filter((s) => s.id === 'busFilter')).toHaveLength(1);
   });
 
   it('every subsection other than frequency has its own accordion and no mergedInto', () => {
@@ -116,8 +125,9 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
 });
 
 describe('SOURCE_OSCILLATOR_SUBSECTIONS', () => {
-  it('lists exactly the 3 oscillator layer ids, in layer order', () => {
+  it('lists exactly the 3 oscillator layer ids, in layer order — the bus filter is a Source panel but not an oscillator layer', () => {
     expect(SOURCE_OSCILLATOR_SUBSECTIONS).toEqual(['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator']);
+    expect(SOURCE_OSCILLATOR_SUBSECTIONS).not.toContain('busFilter');
   });
 });
 
@@ -135,8 +145,8 @@ describe('the robot screen tabs', () => {
     ]);
   });
 
-  it('gives only Source a sub-tab row (its three oscillators); a section with one panel has none', () => {
-    expect(sectionSubTabs(section('source')).map((sub) => sub.id)).toEqual([...SOURCE_OSCILLATOR_SUBSECTIONS]);
+  it('gives only Source a sub-tab row (its three oscillators, then Filter); a section with one panel has none', () => {
+    expect(sectionSubTabs(section('source')).map((sub) => sub.id)).toEqual([...SOURCE_OSCILLATOR_SUBSECTIONS, 'busFilter']);
     expect(sectionSubTabs(section('volume'))).toEqual([]);
     expect(sectionSubTabs(section('envelope'))).toEqual([]);
   });
@@ -161,6 +171,11 @@ describe('the robot screen tabs', () => {
     ['source', null, 'baselineOscillator'],
     ['source', 'coaxialOscillator', 'coaxialOscillator'],
     ['source', 'harmonicOscillator', 'harmonicOscillator'],
+    ['source', 'busFilter', 'busFilter'],
+    // The filter panel is Source's alone: a stored busFilter on any other section falls back to its first.
+    ['envelope', 'busFilter', 'pingContour'],
+    ['melody', 'busFilter', 'rhythm'],
+    ['volume', 'busFilter', 'audioSettings'],
     // Not this section's: its first, as SectionTabs falls back for a stale value.
     ['source', 'rhythm', 'baselineOscillator'],
     // A section with one panel shows that panel, whatever is stored.

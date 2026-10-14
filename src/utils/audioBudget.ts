@@ -5,6 +5,7 @@
 import {
   AUDIO_LOAD_PRESETS,
   LOAD_AUDIBLE_ROBOTS_MIN,
+  LOAD_BUS_FILTER_LFOS_MIN,
   LOAD_DRIFT_MIN,
   LOAD_FILTER_LFOS_MIN,
   LOAD_PLAYBACK_BELOW,
@@ -40,6 +41,8 @@ export interface EffectsLoadLimits {
   driftEnabled: boolean;
   /** Global lpf/hpf frequency + Q LFOs (EQ-gain LFOs are always allowed). */
   filterLfosEnabled: boolean;
+  /** A robot's own bus-filter cutoff LFO ('bus.frequency'): effective, so false whenever the global filter tier is off too. */
+  busFilterLfosEnabled: boolean;
 }
 
 /** Every cap either Audio Load slider sets, combined — what `describeLimits` and the diagnostics HUD read. */
@@ -77,6 +80,8 @@ export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
   return {
     driftEnabled: load >= LOAD_DRIFT_MIN,
     filterLfosEnabled: load >= LOAD_FILTER_LFOS_MIN,
+    // Effective, not raw: a bus link is also held off whenever the global filter tier is, so consumers read one flag.
+    busFilterLfosEnabled: load >= LOAD_FILTER_LFOS_MIN && load >= LOAD_BUS_FILTER_LFOS_MIN,
   };
 }
 
@@ -94,9 +99,12 @@ const LATENCY_LABELS: Record<LoadLatencyHint, string> = { playback: 'Playback', 
  */
 export function describeLimits(limits: LoadLimits): string {
   const parts = [`Up to ${limits.maxAudibleRobots} robots`, `${limits.maxPolyphony} notes`];
-  if (limits.driftEnabled && limits.filterLfosEnabled) parts.push('all LFOs and drift');
-  else if (!limits.driftEnabled && !limits.filterLfosEnabled) parts.push('no drift or filter LFOs');
-  else parts.push(limits.driftEnabled ? 'no filter LFOs' : 'no drift');
+  // The bus tier is only named when the global filter tier is on: with it off, "filter LFOs" already covers both.
+  const off: string[] = [];
+  if (!limits.driftEnabled) off.push('drift');
+  if (!limits.filterLfosEnabled) off.push('filter LFOs');
+  else if (!limits.busFilterLfosEnabled) off.push('robot filter LFOs');
+  parts.push(off.length === 0 ? 'all LFOs and drift' : `no ${off.join(' or ')}`);
   if (limits.latencyHint !== 'interactive') parts.push(`latency: ${LATENCY_LABELS[limits.latencyHint]} (applies on next load)`);
   return parts.join(' · ');
 }

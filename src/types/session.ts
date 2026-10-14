@@ -3,7 +3,7 @@
  * shapes. A saved session is a diff on top of a freshly regenerated world, never a full snapshot:
  * see docs/specs/SESSION_STORAGE.md §1.2 for exactly which fields are (and are not) persisted.
  */
-import type { ADSREnvelope } from './Robot';
+import type { ADSREnvelope, RobotFilterType } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
 import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
@@ -17,9 +17,15 @@ import type { RobotLfoTargetId, GlobalLfoTargetId, LfoLaneId, LfoLink, BankLfoSe
 export interface RobotAudioOverrideDiff {
   adsr?: ADSREnvelope;
   layers?: OscillatorLayer[];
-  /** AudioAttributes.filterFreq — the robot's seeded bus low-pass cutoff (Hz). Seeded only, no UI
-   *  control today; "Transducer Pressure" is the Volume slider's lore label, not this field's. */
+  /** AudioAttributes.filterFreq — the robot's bus filter cutoff (Hz): seeded, and the Cutoff slider's
+   *  value once edited. "Transducer Pressure" is the Volume slider's lore label, not this field's. */
   filterFreq?: number;
+  /** AudioAttributes.portamento — glide seconds. A recorded 0 is a real value (the seeded glide switched off). */
+  portamento?: number;
+  /** AudioAttributes.filterQ — bus filter resonance. */
+  filterQ?: number;
+  /** AudioAttributes.filterType — bus filter type. */
+  filterType?: RobotFilterType;
   rhythmicDensity?: number;
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };

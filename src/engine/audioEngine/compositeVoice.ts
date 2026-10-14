@@ -72,13 +72,31 @@ function applyOscFieldViaSet(
 }
 
 /**
+ * The envelope object Tone.Synth takes, from the robot's stored ADSR. The four timings always; each
+ * curve only when present, so `synth.set({ envelope })` never receives `attackCurve: undefined`
+ * (Tone would try to apply it). The one place an absent curve becomes today's sound (Tone's linear
+ * default) — docs/specs/ROBOT_ARTICULATION.md §4.
+ */
+export function toToneEnvelope(adsr: ADSREnvelope): Partial<Tone.EnvelopeOptions> {
+  const envelope: Partial<Tone.EnvelopeOptions> = {
+    attack: adsr.attack,
+    decay: adsr.decay,
+    sustain: adsr.sustain,
+    release: adsr.release,
+  };
+  if (adsr.attackCurve !== undefined) envelope.attackCurve = adsr.attackCurve;
+  if (adsr.releaseCurve !== undefined) envelope.releaseCurve = adsr.releaseCurve;
+  return envelope;
+}
+
+/**
  * A live-update patch entry for `set({ layers })`. `adsr` is not part of the persisted
  * `OscillatorLayer` shape (Roadmap Phase 9 moved ADSR to one shared robot-level envelope,
  * see docs/specs/ROBOT_OPTIONS.md) — it's an ephemeral field this live-update RPC accepts so
  * AudioEngine.updateVoiceEnvelope can reuse this exact path for envelope edits, the same way it's
  * reused for gain/detune/phase/pulseWidth. Nothing here is ever written back to `Robot` state.
  */
-export type LayerLivePatch = Partial<OscillatorLayer> & { adsr?: ADSREnvelope };
+export type LayerLivePatch = Partial<OscillatorLayer> & { adsr?: ADSREnvelope; portamento?: number };
 
 // Composite voices (created from LayeredWave descriptors) — the shape reserveVoice stores.
 export interface CompositeVoice {
@@ -111,10 +129,14 @@ export interface CompositeVoice {
  * elsewhere in AudioEngine.reserveVoice. There is no per-layer override
  * anymore; live envelope edits go through the unchanged `set({ layers })`
  * path below via AudioEngine.updateVoiceEnvelope.
+ *
+ * `portamento` (seconds each layer glides into the next note; 0 = none, today's sound) is likewise one
+ * shared robot-level value applied to every layer's synth.
  */
 export function createCompositeVoice(
   descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] },
   adsr: ADSREnvelope,
+  portamento = 0,
 ): CompositeVoice {
   const GainCtor = getToneCtor<Tone.Gain>('Gain');
   const OutGain = GainCtor ? new GainCtor(1) : (() => {
@@ -141,13 +163,9 @@ export function createCompositeVoice(
     if (typeof layer.pulseWidth === 'number') oscConfig.width = layer.pulseWidth;
 
     const synth = new Tone.Synth({
+      portamento,
       oscillator: oscConfig,
-      envelope: {
-        attack: adsr.attack,
-        decay: adsr.decay,
-        sustain: adsr.sustain,
-        release: adsr.release,
-      },
+      envelope: toToneEnvelope(adsr),
     });
     const layerGain = createLayerGain(layer.gain ?? 1, out);
     if (layerGain && typeof synth?.connect === 'function') synth.connect(layerGain);
@@ -214,8 +232,15 @@ export function createCompositeVoice(
         if (p.pulseWidth !== undefined) {
           applyOscFieldViaSet(synth as unknown as SynthWithOscillator, 'width', 'pulseWidth', p.pulseWidth, 'set');
         }
+        if (p.portamento !== undefined && synth) {
+          try {
+            synth.portamento = p.portamento;
+          } catch (err) {
+            devWarn('[AudioEngine] Failed to set portamento on composite layer', err);
+          }
+        }
         if (p.adsr && typeof (synth as unknown as { set?: (props: unknown) => void }).set === 'function') {
-          try { (synth as unknown as { set?: (props: unknown) => void }).set?.({ envelope: p.adsr }); } catch (err) {
+          try { (synth as unknown as { set?: (props: unknown) => void }).set?.({ envelope: toToneEnvelope(p.adsr) }); } catch (err) {
             devWarn('[AudioEngine] Failed to set ADSR on composite layer', err);
           }
         }

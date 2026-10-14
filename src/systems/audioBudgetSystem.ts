@@ -93,20 +93,24 @@ function reconcile(force = false): void {
 }
 
 /**
- * The LFO tiers (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): turn drift and filter (LPF/HPF) LFO links on or off —
- * EQ-gain links and every robot LFO are always allowed, docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap
- * and Task 4 moved the filter rule itself into the engine — and publish the held-off state the UI greys out from.
+ * The LFO tiers (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO links and each robot's
+ * bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
+ * docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap and Task 4 moved the filter rule itself into the engine;
+ * the bus tier is Robot Articulation T14b — and publish the held-off state the UI greys out from.
  * Only when a tier limit has actually changed (or on force) — the roster changing, or a dial nudge inside one
  * tier, changes none of it.
  */
 function applyLfoTiers(limits: LoadLimits, force = false): void {
-  const key = [limits.driftEnabled, limits.filterLfosEnabled].join('|');
+  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled].join('|');
   if (!force && key === appliedTierKey) return;
   appliedTierKey = key;
   lfoEngine.setDriftEnabled(limits.driftEnabled);
   lfoEngine.setFilterLinksEnabled(limits.filterLfosEnabled);
+  lfoEngine.setBusFilterLinksEnabled(limits.busFilterLfosEnabled);
   useAudioStore.getState().setDriftHeldOff(!limits.driftEnabled);
   useAudioStore.getState().setFilterLinksHeldOff(!limits.filterLfosEnabled);
+  // busFilterLfosEnabled is already false whenever the global filter tier is, so the UI greys the link for the same reason it goes quiet.
+  useAudioStore.getState().setBusFilterLinksHeldOff(!limits.busFilterLfosEnabled);
 }
 
 /**
@@ -203,6 +207,8 @@ export function stopAudioBudget(): void {
   // Lift every LFO tier too: drift back on, every suspended filter link reconnected.
   lfoEngine.setDriftEnabled(true);
   lfoEngine.setFilterLinksEnabled(true);
+  lfoEngine.setBusFilterLinksEnabled(true);
   useAudioStore.getState().setDriftHeldOff(false);
   useAudioStore.getState().setFilterLinksHeldOff(false);
+  useAudioStore.getState().setBusFilterLinksHeldOff(false);
 }

@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import { formatUptime, peakToDb, STALL_RATE_THRESHOLD } from '../../utils/audioHealth';
+import { effectsLoadToLimits } from '../../utils/audioBudget';
 import type { DiagInfo, DiagSnapshot } from '../../engine/audioDiagnostics';
 
 // ========================================
@@ -50,6 +51,19 @@ function budgetLine({ robotLoad, effectsLoad, soundingRobots, maxAudibleRobots, 
  *  are linked into the bank out of the total that could be. */
 function bankLine({ bankRunning, linksOn, linksTotal }: DiagInfo): string {
   return `bank ${count(bankRunning)}/4   links ${count(linksOn)}/${count(linksTotal)}`;
+}
+
+/**
+ * Which LFO tiers the Effects dial is holding off, in one line: drift, the global filter (LPF/HPF) links, and each
+ * robot's own bus-filter links (Robot Articulation T14b). Derived from the dial through the same thresholds the budget
+ * system applies, so reading it at a dropout says whether the bus links were running. A dash for an unknown dial,
+ * since `effectsLoadToLimits` would read NaN as Full and the HUD must not guess.
+ */
+function tiersLine({ effectsLoad }: DiagInfo): string {
+  if (!isKnown(effectsLoad)) return 'lfo drift - · filter - · bus -';
+  const { driftEnabled, filterLfosEnabled, busFilterLfosEnabled } = effectsLoadToLimits(effectsLoad);
+  const state = (on: boolean): string => (on ? 'on' : 'off');
+  return `lfo drift ${state(driftEnabled)} · filter ${state(filterLfosEnabled)} · bus ${state(busFilterLfosEnabled)}`;
 }
 
 /** A linear level as dB with one decimal; `-inf` for silence, `-` when there is no reading. */
@@ -105,6 +119,7 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
     `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}`,
     budgetLine(info),
     bankLine(info),
+    tiersLine(info),
     `fps ${fps}   lag ${ms(timing.lagMs)} (max ${ms(timing.maxLagMs)})`,
     outputLine(info),
     underrunLine(info),

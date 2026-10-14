@@ -10,8 +10,8 @@ Load Min/Max columns (what a fresh seed/spawn can actually generate the attribut
 from the Min/Max the slider itself lets you drag to).
 
 Excludes `RobotDisplaySection`'s Battery readout — a read-only `SliderLinear` display, not a
-control the user drags. LFO Link Depth gets one row covering every linkable field (6 robot
-targets + 7 global targets, `docs/tasks/LFO_BANK.md`), rather than one row per `lfoTarget` — Lane
+control the user drags. LFO Link Depth gets one row covering every linkable field (7 robot
+targets + 7 global targets, `docs/tasks/LFO_BANK.md`, `docs/specs/ROBOT_ARTICULATION.md`), rather than one row per `lfoTarget` — Lane
 is a picker with no numeric range, so it has no row here. The LFO Bank's own 4 lanes (Shape, Rate,
 Rate Drift, Depth Drift — one row per lane, since each lane seeds its own rate band) replace what
 used to be one shared Rate/Depth/Shape row plus a separate 4-drift-group section — see the two LFO
@@ -187,13 +187,35 @@ a continuous draw — correctly step-aligned.
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Attack | Log | s | 0 | 10 | — | 0 | 5 |
-| Decay | Log | s | 0 | 10 | — | 0 | 5 |
+| Attack | Log | s | 0 | 2 | — | 0 | 2¹⁸ |
+| Decay | Log | s | 0 | 2 | — | 0 | 2 |
 | Sustain | Linear | % | 0 | 100 | 1⁶ | 0 | 100 |
-| Release | Log | s | 0 | 10 | — | 0 | 5 |
+| Release | Log | s | 0 | 2 | — | 0 | 2¹⁸ |
+| Portamento | Log | s | 0 | 2 | — | 0 | 0.2¹⁹ |
 
 ⁶ No `step` in the schema — defaults to `1`. Stored as a `0..1` fraction, seeded continuously and
 displayed ×100 with no rounding, same class as Density/Pitch Repeat/Volume above.
+¹⁸ All three times share `ENVELOPE_TIME_MAX_SECONDS` (2 s) as the slider max and the top of the seed range, so a
+seeded value is always one the slider can show. A stage with a non-linear shape (Attack Shape / Release Shape, below the
+sliders) is seeded short from the same noise sample: `SHAPED_ATTACK_RANGE` 0.03–0.25 s and `SHAPED_RELEASE_RANGE`
+0.15–0.8 s, so the shape finishes inside a 0.15 s note and can be heard. Decay has no shape.
+¹⁹ Most robots load at exactly `0` (no glide). About 1.5 in 12 are gliders (`GLIDER_THRESHOLD`), seeded in
+`PORTAMENTO_SEED_RANGE` 0.05–0.20 s and quantized to `0.01` (`PORTAMENTO_STEP`). The ceiling is 0.2 s because a longer
+glide never lands on 16th notes; the slider still goes to 2 s, where it is a smear.
+
+### Source — Filter (the robot bus filter)
+
+| Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
+|---|---|---|---|---|---|---|---|
+| Cutoff | Log | Hz | 20 | 20000 | — | 400²⁰ | 8000²⁰ |
+| Resonance | Log | Q | 0.1 | 20 | — | 1²¹ | 8²¹ |
+
+²⁰ Seeded in two tiers (`generateAudioAttributes`): a common robot draws `OPEN_FILTER_FREQ_RANGE` 2000–8000 Hz, an
+accent robot (`FILTER_ACCENT_THRESHOLD`, about 2.4 in 12) draws `ACCENT_FILTER_FREQ_RANGE` 400–2500 Hz, so the seeded
+span is 400–8000 Hz. Not quantized: the slider has no step.
+²¹ A common robot loads at `ROBOT_BUS_FILTER_Q` (1); an accent robot draws `ACCENT_FILTER_Q_RANGE` 3–8 quantized to
+`0.1` (`FILTER_Q_STEP`). The Type radio has no range: lowpass for a common robot, bandpass for 40 % of accent robots
+(`ACCENT_BANDPASS_SHARE`), never highpass.
 
 ### Source — Baseline (Layer 1)
 
@@ -244,7 +266,7 @@ layer's `0` is never passed through this quantization, so it stays the literal `
 
 ## LFO Link Depth — applies to every linkable Gain/Detune/EQ/filter field
 
-Every field marked `Has LFO: Yes` / `LFO?: X` (6 robot targets + 7 global targets,
+Every field marked `Has LFO: Yes` / `LFO?: X` (7 robot targets + 7 global targets,
 `docs/tasks/LFO_BANK.md`) gets an identical `LfoLink` component instance
 (`src/components/ui/controls/LfoLink.tsx`), reused verbatim regardless of which attribute it's
 linked to. Lane is a `RadioButton` (5 options: Off + 4 lanes) with no numeric range — this table
@@ -260,6 +282,7 @@ there is no longer a single flat window shared across fields:
 | Depth (Global chain — LPF/HPF Q) | Linear | % | 0 | 100 | 1⁶ | 5¹³ | 40¹³ |
 | Depth (Robot — Gain) | Linear | % | 0 | 100 | 1⁶ | 1¹² | 60¹² |
 | Depth (Robot — Detune) | Linear | % | 0 | 100 | 1⁶ | 1¹² | 10¹² |
+| Depth (Robot — Bus filter cutoff) | Linear | % | 0 | 100 | 1⁶ | 1¹² | 40¹² |
 
 ⁶ No `step` on Depth's *schema* — defaults to `1`. Like Compressor Threshold/Knee above, though,
 the *generation* side now declares its own step independently of the UI schema: a mirrored
@@ -267,15 +290,15 @@ the *generation* side now declares its own step independently of the UI schema: 
 `LFO_DEPTH_MIN` — Depth is a whole percent in both the global-chain and robot-level cases.
 ¹² **Robot-link Depth splits by field** — `spawnSystem.ts`'s `generateRobotLfoLinks` draws Gain
 from `ROBOT_LFO_GAIN_DEPTH_SEED_RANGE` (`1`–`60`) and Detune from
-`ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE` (`1`–`10`), both sharing the same `ROBOT_LFO_DEPTH_SEED_MIN`
-floor of `1`. The floor of `1`, not `0`, is deliberate on every field (robot and global alike): a
+`ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE` (`1`–`10`) and the bus cutoff from `ROBOT_LFO_BUS_DEPTH_SEED_RANGE` (`1`–`40`),
+all sharing the same `ROBOT_LFO_DEPTH_SEED_MIN` floor of `1`. The floor of `1`, not `0`, is deliberate on every field (robot and global alike): a
 lit target (one that didn't roll quiet) is never seeded silently inaudible — a user may still drag
 Depth to `0` by hand.
 ¹³ **Global-link Depth splits by group**, not one flat window — `globalAudioSeed.ts`'s
 `generateGlobalLfoLinks` draws `eq3.*` targets from `GLOBAL_LFO_EQ_DEPTH_SEED_RANGE` (`5`–`30`),
 `lpf.frequency`/`hpf.frequency` from `GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE` (`5`–`60`),
 and `lpf.Q`/`hpf.Q` from `GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE` (`5`–`40`), all three sharing the
-`GLOBAL_LFO_DEPTH_SEED_MIN` floor of `5`. All five ranges quantize to `LFO_DEPTH_STEP` at
+`GLOBAL_LFO_DEPTH_SEED_MIN` floor of `5`. All six ranges quantize to `LFO_DEPTH_STEP` at
 generation time.
 
 ## LFO Bank — Shape, Rate, Rate Drift, Depth Drift (one row per lane)

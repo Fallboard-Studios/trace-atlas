@@ -11,15 +11,15 @@
 // ========================================
 import type { ADSREnvelope } from '../../types/Robot';
 import type { OscillatorLayer } from '../../types/layeredAudio';
-import { BATTERY_DIM_THRESHOLD_LOW, BATTERY_DIM_THRESHOLD_MID, BATTERY_DIM_THRESHOLD_CRITICAL } from '../../constants';
+import { ENVELOPE_TIME_MAX_SECONDS, BATTERY_DIM_THRESHOLD_LOW, BATTERY_DIM_THRESHOLD_MID, BATTERY_DIM_THRESHOLD_CRITICAL } from '../../constants';
 
 // ========================================
 // BODY SCALE
 // ========================================
 
-/** Normalises the shared envelope into 0..1 body params. Matches the seeded generation range
- *  (spawnSystem's ATTACK_RANGE/RELEASE_RANGE max 5s); edits past it clamp. */
-export const BODY_NORMALISER = { attack: 5, sustain: 1, release: 5 } as const;
+/** Normalises the shared envelope into 0..1 body params. Attack and Release match their sliders' range and the
+ *  seeded generation range (ENVELOPE_TIME_MAX_SECONDS); a value past it (an old save's) clamps. */
+export const BODY_NORMALISER = { attack: ENVELOPE_TIME_MAX_SECONDS, sustain: 1, release: ENVELOPE_TIME_MAX_SECONDS } as const;
 
 export interface BodyShape {
   scale: number; // 0..1 — snappier attack → bigger body
