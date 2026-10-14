@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import type { PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import type { SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import type { BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
@@ -14,7 +15,8 @@ import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/system
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
-import type { SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { Company, CompanyOptionsSnapshot } from '@/types/Company';
@@ -51,6 +53,14 @@ const DISABLED_SIGNATURE_ARRAY: SignatureArrayValue = {
   lfoLinks: {},
 };
 
+// The same values a robot with no stored filter shows: the engine's own resolver defaults (the open band, Q 1, lowpass).
+const DISABLED_BUS_FILTER: BusFilterValue = {
+  filterFreq: resolveBusFilterCutoff(0),
+  filterQ: resolveBusFilterQ(undefined),
+  filterType: resolveBusFilterType(undefined),
+  lfoLink: DEFAULT_LFO_LINK[BUS_FILTER_LFO_TARGET],
+};
+
 const NO_ROBOTS: Robot[] = [];
 const NO_COMPANIES: Company[] = [];
 
@@ -82,6 +92,9 @@ export interface CompanyOptions {
   pingControlsValue: PingControlsValue;
   adsrValue: ADSREnvelope;
   signatureArrayValue: SignatureArrayValue;
+  /** The Source section's Filter panel: the first member's resolved filter, shown read-only until Robot
+   *  Articulation Task 10 gives a company its own snapshot fields and broadcast edit. */
+  busFilterValue: BusFilterValue;
   volumeSwelling: boolean;
   adsrSwelling: AdsrSwelling | undefined;
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
@@ -232,6 +245,22 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const signatureArrayValue: SignatureArrayValue = useMemo(
     () => (active ? { layers: resolvedLayers!, lfoLinks: resolvedLfoLinks! } : DISABLED_SIGNATURE_ARRAY),
     [active, resolvedLayers, resolvedLfoLinks],
+  );
+
+  // Read from the first member directly (it is not in the snapshot yet), through the engine's own resolvers. Keyed on the
+  // four fields, so an edit to anything else about the first member keeps the object's identity.
+  const firstFilterFreq = firstMember?.audioAttributes.filterFreq;
+  const firstFilterQ = firstMember?.audioAttributes.filterQ;
+  const firstFilterType = firstMember?.audioAttributes.filterType;
+  const firstBusLink = firstMember?.lfoLinks?.[BUS_FILTER_LFO_TARGET];
+  const busFilterValue: BusFilterValue = useMemo(
+    () => (active ? {
+      filterFreq: resolveBusFilterCutoff(firstFilterFreq),
+      filterQ: resolveBusFilterQ(firstFilterQ),
+      filterType: resolveBusFilterType(firstFilterType),
+      lfoLink: firstBusLink ?? DEFAULT_LFO_LINK[BUS_FILTER_LFO_TARGET],
+    } : DISABLED_BUS_FILTER),
+    [active, firstFilterFreq, firstFilterQ, firstFilterType, firstBusLink],
   );
 
   // Every handler below reads from this ref instead of closing over `members`/`resolved`/
@@ -385,6 +414,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     pingControlsValue,
     adsrValue,
     signatureArrayValue,
+    busFilterValue,
     volumeSwelling,
     adsrSwelling,
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
@@ -403,7 +433,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onLayerParamChange,
     onLayerLfoFieldChange,
   }), [
-    active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue,
+    active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, busFilterValue,
     volumeSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,

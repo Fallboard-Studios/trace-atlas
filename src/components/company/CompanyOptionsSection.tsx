@@ -4,6 +4,7 @@ import { AudioSettingSection } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer } from '@/components/robot/SignatureArrayDrawer';
+import { BusFilterDrawer } from '@/components/robot/BusFilterDrawer';
 import type { RobotSubsection } from '@/stores/uiStore';
 import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
 import { SOURCE_OSCILLATOR_SUBSECTIONS, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
@@ -33,6 +34,9 @@ const DISABLED_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
 
 // The Envelope's Portamento slider is inert in company mode until Robot Articulation Task 10: one stable no-op.
 const inertPortamento = () => {};
+// The Filter panel is read-only in company mode until Task 10 too: stable no-ops, never held off.
+const inertBusFilterChange = () => {};
+const inertBusLinkChange = () => {};
 
 /**
  * A section panel's trait colours: the trait's full-saturation pair while the panels can be edited, its
@@ -115,6 +119,17 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
           />
         ) : null;
       }
+      case 'busFilter':
+        // Shows the first member's filter but edits nothing until Robot Articulation Task 10 broadcasts it: always disabled, so no member is touched.
+        return (
+          <BusFilterDrawer
+            value={options.busFilterValue}
+            onChange={inertBusFilterChange}
+            onLfoLinkChange={inertBusLinkChange}
+            heldOff={false}
+            disabled
+          />
+        );
       default:
         return null;
     }

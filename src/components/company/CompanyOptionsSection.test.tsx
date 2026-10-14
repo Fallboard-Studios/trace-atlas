@@ -98,6 +98,27 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
     );
   }),
 }));
+vi.mock('@/components/robot/BusFilterDrawer', () => ({
+  BusFilterDrawer: memo((props: {
+    value: { filterFreq: number; filterQ: number; filterType: string };
+    onChange: (patch: Record<string, unknown>) => void;
+    onLfoLinkChange: (link: { lane: string | null; depth: number }) => void;
+    heldOff: boolean;
+    disabled?: boolean;
+  }) => (
+    <div
+      data-testid="bus-filter-drawer-stub"
+      data-freq={props.value.filterFreq}
+      data-q={props.value.filterQ}
+      data-type={props.value.filterType}
+      data-held-off={String(props.heldOff)}
+      data-disabled={props.disabled ? '' : undefined}
+    >
+      <button onClick={() => props.onChange({ filterFreq: 640 })}>probe-cutoff</button>
+      <button onClick={() => props.onLfoLinkChange({ lane: 'a', depth: 50 })}>probe-filter-link</button>
+    </div>
+  )),
+}));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
   SignatureArrayLayer: memo((props: {
     idx: number;
@@ -167,7 +188,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
 }
 
 const ALL_IDS: RobotSubsection[] = [
-  'audioSettings', 'rhythm', 'pingContour', 'baselineOscillator', 'coaxialOscillator', 'harmonicOscillator',
+  'audioSettings', 'rhythm', 'pingContour', 'baselineOscillator', 'coaxialOscillator', 'harmonicOscillator', 'busFilter',
 ];
 
 /** The hook and the renderer, wired the way CompanyScreen wires them, with the listed subsections mounted. */
@@ -244,7 +265,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
   describe('disabled state', () => {
     it('hands every panel disabled when the selection has no member robots (\'all\' on an empty roster)', () => {
       render(<Sections target="all" />);
-      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2']) {
+      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub']) {
         expect(screen.getByTestId(id).getAttribute('data-disabled')).toBe('');
       }
     });
@@ -256,6 +277,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(screen.getByTestId('signature-array-layer-stub-2').getAttribute('data-disabled')).toBe('');
     });
 
+    // The Filter panel is the exception: read-only until Robot Articulation Task 10, so it stays disabled (its own describe below).
     it('hands none of them disabled once the company has a member', () => {
       activeCompany();
       render(<Sections target="c1" />);
@@ -399,6 +421,44 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       click('probe-layer-lfo-lane-1');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(spy.mock.calls[0][2]).toBe('layer1.gain');
+    });
+
+    // Placeholder until Robot Articulation Task 10 (docs/tasks/ROBOT_ARTICULATION.md Task 9): shown, never editable.
+    describe('Source: the Filter panel is read-only until Task 10', () => {
+      it('shows the first member resolved filter', () => {
+        const base = makeRobot({ id: 'r1', companyId: 'c1' });
+        addRobot({ ...base, audioAttributes: { ...base.audioAttributes, filterFreq: 900, filterQ: 4, filterType: 'bandpass' } });
+        addCompany('c1', ['r1']);
+        render(<Sections target="c1" ids={['busFilter']} />);
+        const stub = screen.getByTestId('bus-filter-drawer-stub');
+        expect(stub.getAttribute('data-freq')).toBe('900');
+        expect(stub.getAttribute('data-q')).toBe('4');
+        expect(stub.getAttribute('data-type')).toBe('bandpass');
+      });
+
+      it('is always disabled and not held off, even for a company with members', () => {
+        twoMembers();
+        render(<Sections target="c1" ids={['busFilter']} />);
+        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-disabled')).toBe('');
+        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('false');
+      });
+
+      it('reaches no member: a cutoff or link edit calls no action', () => {
+        twoMembers();
+        const bus = vi.spyOn(robotOptionsActions, 'applyBusFilter').mockImplementation(() => {});
+        const link = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+        render(<Sections target="c1" ids={['busFilter']} />);
+        click('probe-cutoff');
+        click('probe-filter-link');
+        expect(bus).not.toHaveBeenCalled();
+        expect(link).not.toHaveBeenCalled();
+      });
+
+      it('renders a placeholder, also disabled, for a company with no members', () => {
+        addCompany('c1', []);
+        render(<Sections target="c1" ids={['busFilter']} />);
+        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-disabled')).toBe('');
+      });
     });
 
     it('passes no Volume LFO handler to the audio-setting panel (the target was removed, docs/specs/LFO_LOAD_FIX.md)', () => {

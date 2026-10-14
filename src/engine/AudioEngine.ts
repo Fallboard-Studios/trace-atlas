@@ -7,14 +7,13 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useRobotPanReadoutStore } from '../stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 
-import { ROBOT_FILTER_TYPES } from '../types/Robot';
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, ROBOT_BUS_FILTER_Q } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS } from '../constants';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -23,6 +22,7 @@ import { devWarn } from '../utils/helpers';
 import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { calculatePanFromPosition } from './audioEngine/panning';
+import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
@@ -160,34 +160,6 @@ function storeVoice(robotId: string, entry: { composite: CompositeVoice; panner:
 
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
 const robotNoteIndex = new Map<string, number>();
-
-/**
- * Per-robot bus low-pass cutoff used when a caller passes no `filterFreq` — the value every bus
- * filter was hardcoded to from the composite-voice rewrite until the robot's own seeded
- * `audioAttributes.filterFreq` was wired through (it drove body detail/greeble count the whole
- * time, but never the sound). Sits inside spawnSystem's ACCENT_FILTER_FREQ_RANGE (400–2500 Hz).
- */
-const ROBOT_BUS_FILTER_DEFAULT_HZ = 1200;
-/** `filterFreq: 0` means "no filter" (Robot.ts) — open the low-pass to the top of the audible band. */
-const ROBOT_BUS_FILTER_OPEN_HZ = 20000;
-
-/** Resolve a robot's bus-filter cutoff from its `filterFreq`, honouring the two special cases above. */
-function resolveBusFilterCutoff(filterFreq: number | undefined): number {
-  if (filterFreq === undefined || Number.isNaN(filterFreq)) return ROBOT_BUS_FILTER_DEFAULT_HZ;
-  if (filterFreq <= 0) return ROBOT_BUS_FILTER_OPEN_HZ;
-  return filterFreq;
-}
-
-/** Resolve a robot's bus-filter resonance from its `filterQ`; absent or NaN keeps today's fixed Q. */
-function resolveBusFilterQ(filterQ: number | undefined): number {
-  if (filterQ === undefined || Number.isNaN(filterQ)) return ROBOT_BUS_FILTER_Q;
-  return filterQ;
-}
-
-/** Resolve a robot's bus-filter type from its `filterType`; absent or unrecognised (a stale payload) stays lowpass. */
-function resolveBusFilterType(filterType: RobotFilterType | undefined): RobotFilterType {
-  return filterType !== undefined && ROBOT_FILTER_TYPES.includes(filterType) ? filterType : 'lowpass';
-}
 
 /** A Tone AudioParam / Signal as far as a live edit needs it: `rampTo` when the real node has it. */
 type RampableParam = { rampTo?: (value: number, rampTime: number) => void; value: number };

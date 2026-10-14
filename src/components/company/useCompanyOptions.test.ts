@@ -10,6 +10,7 @@ import * as audioSwells from '@/systems/audioSwells';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 import type { RobotLfoTargetId } from '@/types/lfo';
+import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 
 // The hook is CompanyOptionsSection's logic moved out of the component (docs/tasks/LAYOUT_REWORK.md
 // Task 23): the value derivation, the broadcast handlers, the diff-one-field rule and the zero-member
@@ -812,6 +813,101 @@ describe('useCompanyOptions', () => {
       expect(result.current.options.volumeSwelling).toBe(false);
       expect(result.current.options.adsrSwelling).toBeUndefined();
       expect(result.current.options.layerSwelling).toEqual([undefined, undefined, undefined]);
+    });
+  });
+
+  // Robot Articulation Task 9: the Filter panel shows the first member's resolved filter, disabled, until Task 10
+  // gives a company its own broadcast edit.
+  describe('the filter value (Robot Articulation Task 9)', () => {
+    const withFilter = (id: string, extra: Partial<Robot['audioAttributes']>, robot: Partial<Robot> = {}) =>
+      makeRobot({ id, companyId: 'c1', ...robot, audioAttributes: { ...makeRobot().audioAttributes, ...extra } });
+    const OPEN = { filterFreq: 20000, filterQ: 1, filterType: 'lowpass', lfoLink: DEFAULT_LFO_LINK['bus.frequency'] };
+
+    it('is the first member stored cutoff, resonance, type and bus link', () => {
+      addRobot(withFilter('r1', { filterFreq: 900, filterQ: 4, filterType: 'bandpass' }, { lfoLinks: { 'bus.frequency': { lane: 'b', depth: 40 } } as Robot['lfoLinks'] }));
+      addRobot(withFilter('r2', { filterFreq: 300, filterQ: 9, filterType: 'highpass' }));
+      addCompany('c1', ['r1', 'r2']);
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.busFilterValue).toEqual({ filterFreq: 900, filterQ: 4, filterType: 'bandpass', lfoLink: { lane: 'b', depth: 40 } });
+    });
+
+    it('resolves a first member with none of the fields to Q 1, lowpass, the open band and the default link', () => {
+      addRobot(withFilter('r1', {}));
+      addCompany('c1', ['r1']);
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.busFilterValue).toEqual(OPEN);
+      expect(result.current.options.busFilterValue.lfoLink).toBe(DEFAULT_LFO_LINK['bus.frequency']);
+    });
+
+    it('is a placeholder, complete enough to lay out, when there is nothing to edit', () => {
+      const { result } = renderHook(() => useCompanyOptions('all'));
+
+      expect(result.current.options.active).toBe(false);
+      expect(result.current.options.busFilterValue).toEqual(OPEN);
+    });
+
+    it('for all, comes from the first robot in the locale', () => {
+      addRobot(withFilter('r1', { filterFreq: 700 }, { companyId: undefined }));
+      addRobot(withFilter('r2', { filterFreq: 300 }, { companyId: 'c9' }));
+
+      const { result } = renderHook(() => useCompanyOptions('all'));
+
+      expect(result.current.options.busFilterValue.filterFreq).toBe(700);
+    });
+
+    it('follows the first member cutoff, and keeps its reference when an unrelated field changes', () => {
+      addRobot(withFilter('r1', { filterFreq: 900 }));
+      addCompany('c1', ['r1']);
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const before = result.current.options.busFilterValue;
+
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { rhythmicDensity: 91 }));
+      expect(result.current.options.busFilterValue).toBe(before);
+
+      act(() => {
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        useLocaleStore.getState().updateRobot(localeId, 'r1', { audioAttributes: { ...stored.audioAttributes, filterFreq: 500 } });
+      });
+      expect(result.current.options.busFilterValue).not.toBe(before);
+      expect(result.current.options.busFilterValue.filterFreq).toBe(500);
+    });
+
+    it.each<[string, (stored: Robot) => Partial<Robot>, Record<string, unknown>]>([
+      ['resonance', (r) => ({ audioAttributes: { ...r.audioAttributes, filterQ: 7 } }), { filterQ: 7 }],
+      ['type', (r) => ({ audioAttributes: { ...r.audioAttributes, filterType: 'highpass' } }), { filterType: 'highpass' }],
+      ['bus link', () => ({ lfoLinks: { 'bus.frequency': { lane: 'c', depth: 60 } } as Robot['lfoLinks'] }), { lfoLink: { lane: 'c', depth: 60 } }],
+    ])('follows the first member %s too', (_name, change, expected) => {
+      addRobot(withFilter('r1', { filterFreq: 900 }));
+      addCompany('c1', ['r1']);
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const before = result.current.options.busFilterValue;
+
+      act(() => {
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        useLocaleStore.getState().updateRobot(localeId, 'r1', change(stored));
+      });
+
+      expect(result.current.options.busFilterValue).not.toBe(before);
+      expect(result.current.options.busFilterValue).toMatchObject({ filterFreq: 900, ...expected });
+    });
+
+    it('editing a non-first member leaves the whole options object alone', () => {
+      addRobot(withFilter('r1', { filterFreq: 900 }));
+      addRobot(withFilter('r2', { filterFreq: 300 }));
+      addCompany('c1', ['r1', 'r2']);
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const before = result.current.options;
+
+      act(() => {
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r2')!;
+        useLocaleStore.getState().updateRobot(localeId, 'r2', { audioAttributes: { ...stored.audioAttributes, filterFreq: 100 } });
+      });
+
+      expect(result.current.options).toBe(before);
     });
   });
 
