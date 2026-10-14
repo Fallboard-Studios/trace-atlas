@@ -202,6 +202,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // audioSwells.ts's module-scope Map, which React does not track: each memo's deps are the robot field
   // a swell tick writes, so it recomputes at that moment even though the body never reads them.
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
+  const reverbSendSwelling = isRobotAttributeSwelling(robot.id, 'reverbSend');
+  const delaySendSwelling = isRobotAttributeSwelling(robot.id, 'delaySend');
   // Absent means no glide, today's sound (docs/specs/ROBOT_ARTICULATION.md assumption 1). A number, so the memo deps compare by value.
   const portamento = robot.audioAttributes.portamento ?? 0;
   const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
@@ -254,9 +256,16 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     applyVolume(latestRobot.current, localeId, pct);
   }, [localeId]);
 
-  // The sends are not swell attributes yet (Task 12), so neither handler cancels one; Task 13 adds the cancel.
-  const handleReverbSendChange = useCallback((pct: number) => applyReverbSend(latestRobot.current, localeId, pct), [localeId]);
-  const handleDelaySendChange = useCallback((pct: number) => applyDelaySend(latestRobot.current, localeId, pct), [localeId]);
+  // The sends are swell attributes (Task 12): a hand edit interrupts one first, the handleVolumeChange shape, so the
+  // typed value is the last write and the swell does not carry on over it.
+  const handleReverbSendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'reverbSend');
+    applyReverbSend(latestRobot.current, localeId, pct);
+  }, [localeId]);
+  const handleDelaySendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'delaySend');
+    applyDelaySend(latestRobot.current, localeId, pct);
+  }, [localeId]);
 
   // Pan is not a swell attribute, so neither handler cancels one. Both read the latest robot, so the
   // action sees the live pan/panAuto, not the render's (applyPanAuto copies the engine's live value).
@@ -318,6 +327,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onReverbSendChange={handleReverbSendChange}
             onDelaySendChange={handleDelaySendChange}
             volumeSwelling={volumeSwelling}
+            reverbSendSwelling={reverbSendSwelling}
+            delaySendSwelling={delaySendSwelling}
           />
         );
       case 'rhythm':
@@ -377,7 +388,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     }
   }, [
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
-    handleReverbSendChange, handleDelaySendChange,
+    handleReverbSendChange, handleDelaySendChange, reverbSendSwelling, delaySendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,

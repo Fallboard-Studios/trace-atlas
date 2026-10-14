@@ -62,6 +62,11 @@ interface AudioSettingSectionProps {
    *  straight to the Volume slider's own `swelling` prop. See useEasedControlValue.ts and
    *  audioSwells.ts's isRobotAttributeSwelling. */
   volumeSwelling?: boolean;
+  /** The same for the Reverb and Delay sends (isRobotAttributeSwelling(id, 'reverbSend' | 'delaySend')),
+   *  forwarded to each send slider's own `swelling` prop so a swell tick is not eased a second time.
+   *  docs/tasks/ROBOT_SENDS.md Task 13. */
+  reverbSendSwelling?: boolean;
+  delaySendSwelling?: boolean;
   /** Optional inline style forwarded to this section's own root — trait-color scoping
    *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
@@ -91,7 +96,7 @@ const toSendDisplay = (send: number) => roundToDecimals(send * SEND_DISPLAY_SCAL
  * No accordion wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
-function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, livePan, disabled, volumeSwelling, style }: AudioSettingSectionProps) {
+function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, livePan, disabled, volumeSwelling, reverbSendSwelling, delaySendSwelling, style }: AudioSettingSectionProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
   // re-executing this component, which then handed the already-memoized RadioButton a new
@@ -146,10 +151,10 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
               wrapper with no display rule for the Volume row's reason (useVoxelTrackSlider measures its own wrapper
               and needs a plain block box). The wrapper classes have no CSS rule of their own - stable hooks only. */}
           <div className="audio-setting-section__reverb-row">
-            <SliderLinear schema={REVERB_SEND_SCHEMA} value={toSendDisplay(value.reverbSend)} onChange={onReverbSendChange} disabled={disabled} />
+            <SliderLinear schema={REVERB_SEND_SCHEMA} value={toSendDisplay(value.reverbSend)} onChange={onReverbSendChange} disabled={disabled} swelling={reverbSendSwelling} />
           </div>
           <div className="audio-setting-section__delay-row">
-            <SliderLinear schema={DELAY_SEND_SCHEMA} value={toSendDisplay(value.delaySend)} onChange={onDelaySendChange} disabled={disabled} />
+            <SliderLinear schema={DELAY_SEND_SCHEMA} value={toSendDisplay(value.delaySend)} onChange={onDelaySendChange} disabled={disabled} swelling={delaySendSwelling} />
           </div>
         </DirectionalPanel>
       </DirectionalPanel>

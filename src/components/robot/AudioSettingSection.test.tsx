@@ -756,6 +756,98 @@ describe('AudioSettingSection', () => {
       expect(rerendered).not.toContain(REVERB_SEND_SCHEMA.id);
       expect(rerendered).not.toContain(DELAY_SEND_SCHEMA.id);
     });
+
+    // docs/tasks/ROBOT_SENDS.md Task 13 - the swell flags. The flag reaches the slider's `swelling` prop, which makes
+    // an external value change land at once (a swell tick is already smooth) instead of through the 250 ms ease. In
+    // this test environment the ease completes on a microtask, so a synchronous read after a rerender tells the two apart.
+    describe('swelling flags (Robot Sends Task 13)', () => {
+      const shown = (slider: HTMLElement) => slider.getAttribute('aria-valuenow');
+
+      it('reverbSendSwelling makes an external Reverb change land at once, and leaves Delay easing', async () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} reverbSendSwelling />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} reverbSendSwelling />);
+
+        expect(shown(reverbSlider())).toBe('60'); // snapped
+        expect(shown(delaySlider())).toBe('10'); // still easing
+        await waitFor(() => expect(shown(delaySlider())).toBe('50'));
+      });
+
+      it('delaySendSwelling makes an external Delay change land at once, and leaves Reverb easing', async () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} delaySendSwelling />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} delaySendSwelling />);
+
+        expect(shown(delaySlider())).toBe('50');
+        expect(shown(reverbSlider())).toBe('30');
+        await waitFor(() => expect(shown(reverbSlider())).toBe('60'));
+      });
+
+      it('with neither flag (the default) both sends ease, never snap', async () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} />);
+
+        expect(shown(reverbSlider())).toBe('30');
+        expect(shown(delaySlider())).toBe('10');
+        await waitFor(() => expect(shown(reverbSlider())).toBe('60'));
+        await waitFor(() => expect(shown(delaySlider())).toBe('50'));
+      });
+
+      it('an explicit false behaves as absent', () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} reverbSendSwelling={false} delaySendSwelling={false} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6 })} {...baseProps} reverbSendSwelling={false} delaySendSwelling={false} />);
+        expect(shown(reverbSlider())).toBe('30');
+      });
+
+      it('both flags together snap both sends', () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
+        expect(shown(reverbSlider())).toBe('60');
+        expect(shown(delaySlider())).toBe('50');
+      });
+
+      it('a send flag does not touch Volume: a Volume change still eases', () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ masterVolume: 0.2 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
+        rerender(<AudioSettingSection value={makeValue({ masterVolume: 0.9 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
+        expect(shown(screen.getByRole('slider', { name: /volume/i }))).toBe('20');
+      });
+
+      it('flipping a flag by itself moves no slider and fires no change handler', () => {
+        const onReverbSendChange = vi.fn();
+        const onDelaySendChange = vi.fn();
+        const props = { ...baseProps, onReverbSendChange, onDelaySendChange };
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...props} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...props} reverbSendSwelling delaySendSwelling />);
+        expect(shown(reverbSlider())).toBe('30');
+        expect(shown(delaySlider())).toBe('10');
+        expect(onReverbSendChange).not.toHaveBeenCalled();
+        expect(onDelaySendChange).not.toHaveBeenCalled();
+      });
+
+      it('flipping reverbSendSwelling re-renders the Reverb slider only', () => {
+        const value = makeValue({ panAuto: false });
+        const { rerender } = render(<AudioSettingSection value={value} {...baseProps} />);
+        (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+        rerender(<AudioSettingSection value={value} {...baseProps} reverbSendSwelling />);
+
+        const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
+        expect(rerendered).toContain(REVERB_SEND_SCHEMA.id);
+        expect(rerendered).not.toContain(DELAY_SEND_SCHEMA.id);
+        expect(rerendered).not.toContain(VOLUME_SCHEMA.id);
+        expect(rerendered).not.toContain(PAN_SCHEMA.id);
+      });
+
+      it('flipping delaySendSwelling re-renders the Delay slider only', () => {
+        const value = makeValue({ panAuto: false });
+        const { rerender } = render(<AudioSettingSection value={value} {...baseProps} />);
+        (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+        rerender(<AudioSettingSection value={value} {...baseProps} delaySendSwelling />);
+
+        const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
+        expect(rerendered).toContain(DELAY_SEND_SCHEMA.id);
+        expect(rerendered).not.toContain(REVERB_SEND_SCHEMA.id);
+      });
+    });
   });
 
   describe('React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)', () => {
