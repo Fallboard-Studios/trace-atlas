@@ -120,7 +120,7 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             disabled={disabled}
             onChange={options.onBusFilterChange}
             onLfoLinkChange={options.onBusLinkChange}
-            heldOff={options.filterLinksHeldOff}
+            heldOff={options.busFilterLinksHeldOff}
           />
         );
       default:

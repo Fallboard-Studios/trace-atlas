@@ -243,8 +243,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     filterType: resolveBusFilterType(robot.audioAttributes.filterType),
     lfoLink: busLink,
   }), [robot.audioAttributes.filterFreq, robot.audioAttributes.filterQ, robot.audioAttributes.filterType, busLink]);
-  // The Audio Load dial's hold on filter links (the Audio Rig's filter panels read the same flag).
-  const filterLinksHeldOff = useAudioStore((s) => s.filterLinksHeldOff);
+  // The Audio Load dial's hold on the robot bus-filter links (the Audio Rig's global filter panels read filterLinksHeldOff instead).
+  const busFilterLinksHeldOff = useAudioStore((s) => s.busFilterLinksHeldOff);
 
   const handleAudioModeChange = useCallback((mode: Robot['audioMode']) => applyAudioMode(latestRobot.current, localeId, mode), [localeId]);
   const handleVolumeChange = useCallback((pct: number) => {
@@ -361,7 +361,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             value={busFilterValue}
             onChange={handleBusFilterChange}
             onLfoLinkChange={handleBusLinkChange}
-            heldOff={filterLinksHeldOff}
+            heldOff={busFilterLinksHeldOff}
           />
         );
       default:
@@ -374,7 +374,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,
     signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
-    busFilterValue, handleBusFilterChange, handleBusLinkChange, filterLinksHeldOff,
+    busFilterValue, handleBusFilterChange, handleBusLinkChange, busFilterLinksHeldOff,
   ]);
 }
 

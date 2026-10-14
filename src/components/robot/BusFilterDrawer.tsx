@@ -33,7 +33,7 @@ interface BusFilterDrawerProps {
   value: BusFilterValue;
   onChange: (patch: BusFilterPatch) => void;
   onLfoLinkChange: (link: LfoLinkValue) => void;
-  /** The Audio Load dial is holding filter links off (audioStore.filterLinksHeldOff): the link shows Off / 0
+  /** The Audio Load dial is holding the robot bus-filter links off (audioStore.busFilterLinksHeldOff): the link shows Off / 0
    *  and the note says why; the stored link is untouched. Passed in, so the drawer reads no store. */
   heldOff: boolean;
   disabled?: boolean;

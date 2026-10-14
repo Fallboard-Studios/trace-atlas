@@ -231,6 +231,54 @@ describe('buildHudLines', () => {
     });
   });
 
+  // Robot Articulation T14b: the Effects dial gates three LFO tiers, and the Pixel run needs to see which are held off.
+  describe('LFO tiers line (Robot Articulation T14b)', () => {
+    const tiersLine = (info: Partial<DiagInfo>) => buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('lfo '));
+
+    it('at Full says every tier is on', () => {
+      expect(tiersLine({ effectsLoad: 1 })).toBe('lfo drift on · filter on · bus on');
+    });
+
+    it('at Standard says drift and the robot bus links are off while the global filter links are on', () => {
+      expect(tiersLine({ effectsLoad: 0.6 })).toBe('lfo drift off · filter on · bus off');
+    });
+
+    it('at Light says every tier is off', () => {
+      expect(tiersLine({ effectsLoad: 0.2 })).toBe('lfo drift off · filter off · bus off');
+    });
+
+    it('flips each tier at its own threshold: filter at 40 %, drift and bus at 80 %', () => {
+      expect(tiersLine({ effectsLoad: 0.39 })).toBe('lfo drift off · filter off · bus off');
+      expect(tiersLine({ effectsLoad: 0.4 })).toBe('lfo drift off · filter on · bus off');
+      expect(tiersLine({ effectsLoad: 0.79 })).toBe('lfo drift off · filter on · bus off');
+      expect(tiersLine({ effectsLoad: 0.8 })).toBe('lfo drift on · filter on · bus on');
+    });
+
+    it('follows the Effects dial only, not the Robot dial', () => {
+      expect(tiersLine({ robotLoad: 0.2, effectsLoad: 1 })).toBe('lfo drift on · filter on · bus on');
+      expect(tiersLine({ robotLoad: 1, effectsLoad: 0.2 })).toBe('lfo drift off · filter off · bus off');
+    });
+
+    it('sits directly under the LFO Bank line, so the Audio Load caps and bank lines keep their places', () => {
+      const lines = buildHudLines(snap(), world, 0);
+      const load = lines.findIndex((l) => l.startsWith('load'));
+      expect(lines[load + 1]).toMatch(/^bank /);
+      expect(lines[load + 2]).toMatch(/^lfo /);
+    });
+
+    it('fits the HUD width', () => {
+      for (const effectsLoad of [0, 0.2, 0.6, 1]) expect(tiersLine({ effectsLoad })!.length).toBeLessThanOrEqual(52);
+    });
+
+    it('shows a dash for an unknown dial, never guessing a tier or printing NaN, null or undefined', () => {
+      for (const effectsLoad of [NaN, undefined as unknown as number, Infinity]) {
+        const line = tiersLine({ effectsLoad });
+        expect(line).toBe('lfo drift - · filter - · bus -');
+        expect(line).not.toMatch(/NaN|null|undefined|Infinity/);
+      }
+    });
+  });
+
   describe('output level line', () => {
     const outLine = (info: Partial<DiagInfo>) => buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('out'));
     const level = (peak: number, rms: number, nonFinite = 0) => ({ peak, rms, nonFinite });

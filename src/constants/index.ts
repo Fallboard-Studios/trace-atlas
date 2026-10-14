@@ -45,6 +45,14 @@ export const LOAD_DRIFT_MIN = 0.8;
 /** Global filter-frequency/Q LFOs are on at/above this dial position (EQ-gain LFOs are nearly free and always on). */
 export const LOAD_FILTER_LFOS_MIN = 0.4;
 /**
+ * A robot's own bus-filter cutoff LFO link ('bus.frequency') is on at/above this dial position (Robot Articulation
+ * T14b, docs/specs/ROBOT_ARTICULATION.md §5's pre-authorised tier). It sits on top of the global filter tier, never
+ * under it: a bus link is held off below LOAD_FILTER_LFOS_MIN too. At 0.8 Standard (0.6) holds the bus links off
+ * and Full (1) runs them, the same split drift has. A link made while it is off exists suspended; its stored lane
+ * and depth are never touched.
+ */
+export const LOAD_BUS_FILTER_LFOS_MIN = 0.8;
+/**
  * Below this dial position the AudioContext latency hint is "playback"; at/above it, "interactive".
  * Above Standard's anchor (0.6) so Light AND Standard both get it (decision J,
  * docs/specs/AUDIO_LOAD_BUDGET.md §7: the Pixel 8 phone run measured playback giving Standard 6.6x

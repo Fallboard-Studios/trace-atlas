@@ -515,6 +515,151 @@ describe('lfoBank (lfoEngine)', () => {
     });
   });
 
+  // Robot Articulation T14b (docs/specs/ROBOT_ARTICULATION.md section 5, the pre-authorised tier): a robot's
+  // bus.frequency link has its own switch on top of the global filter tier. It is held off when EITHER switch is
+  // off, so Light still holds it (the T4 behaviour) and a higher dial position can hold it off on its own.
+  describe('setBusFilterLinksEnabled (the robot bus-filter tier)', () => {
+    const setup = async () => {
+      const { lfoEngine } = await primeBankRunning();
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeParam(1200));
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
+      return lfoEngine;
+    };
+
+    it('disconnects only bus.frequency link gains and keeps their records', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('lpf.frequency', { lane: 'a', depth: 50 });
+      const lpfGain = await latestGainInstance();
+      lfoEngine.linkTarget('layer0.gain', { lane: 'a', depth: 50 }, 'r1');
+      const layerGain = await latestGainInstance();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const busGain = await latestGainInstance();
+
+      lfoEngine.setBusFilterLinksEnabled(false);
+
+      expect(busGain.disconnect).toHaveBeenCalled();
+      expect(busGain.dispose).not.toHaveBeenCalled();
+      expect(lpfGain.disconnect).not.toHaveBeenCalled();
+      expect(layerGain.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('suspends every robot bus link, not just one, and restores them all', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const g1 = await latestGainInstance();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r2');
+      const g2 = await latestGainInstance();
+      lfoEngine.setBusFilterLinksEnabled(false);
+      expect(g1.disconnect).toHaveBeenCalled();
+      expect(g2.disconnect).toHaveBeenCalled();
+
+      const before = [g1.connect.mock.calls.length, g2.connect.mock.calls.length];
+      lfoEngine.setBusFilterLinksEnabled(true);
+      expect(g1.connect.mock.calls.length).toBeGreaterThan(before[0]);
+      expect(g2.connect.mock.calls.length).toBeGreaterThan(before[1]);
+    });
+
+    it('leaves the global filter links connected while the bus tier is off', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('lpf.frequency', { lane: 'a', depth: 50 });
+      const lpfGain = await latestGainInstance();
+      lfoEngine.linkTarget('hpf.Q', { lane: 'a', depth: 50 });
+      const hpfGain = await latestGainInstance();
+      lfoEngine.setBusFilterLinksEnabled(false);
+      expect(lpfGain.disconnect).not.toHaveBeenCalled();
+      expect(hpfGain.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('a bus link made while the bus tier is off is created suspended, then reconnects when it comes on', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.setBusFilterLinksEnabled(false);
+      const before = await gainConstructCount();
+      expect(lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1')).toBe(true);
+      expect(await gainConstructCount()).toBe(before + 1);
+      const gain = await latestGainInstance();
+      expect(gain.disconnect).toHaveBeenCalled(); // connected, then immediately pulled
+
+      const connectCallsBefore = gain.connect.mock.calls.length;
+      lfoEngine.setBusFilterLinksEnabled(true);
+      expect(gain.connect.mock.calls.length).toBeGreaterThan(connectCallsBefore);
+    });
+
+    it('a global filter link made while only the bus tier is off is NOT suspended', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.setBusFilterLinksEnabled(false);
+      lfoEngine.linkTarget('lpf.frequency', { lane: 'a', depth: 50 });
+      const gain = await latestGainInstance();
+      expect(gain.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('stays suspended when the global filter tier comes back on but the bus tier is still off', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const gain = await latestGainInstance();
+      lfoEngine.setFilterLinksEnabled(false);
+      lfoEngine.setBusFilterLinksEnabled(false);
+      const connectCallsBefore = gain.connect.mock.calls.length;
+
+      lfoEngine.setFilterLinksEnabled(true);
+
+      expect(gain.connect.mock.calls.length).toBe(connectCallsBefore); // the bus tier still holds it
+      lfoEngine.setBusFilterLinksEnabled(true);
+      expect(gain.connect.mock.calls.length).toBeGreaterThan(connectCallsBefore);
+    });
+
+    it('stays suspended when the bus tier comes back on but the global filter tier is still off', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const gain = await latestGainInstance();
+      lfoEngine.setFilterLinksEnabled(false);
+      lfoEngine.setBusFilterLinksEnabled(false);
+      const connectCallsBefore = gain.connect.mock.calls.length;
+
+      lfoEngine.setBusFilterLinksEnabled(true);
+
+      expect(gain.connect.mock.calls.length).toBe(connectCallsBefore); // Light still holds it
+      lfoEngine.setFilterLinksEnabled(true);
+      expect(gain.connect.mock.calls.length).toBeGreaterThan(connectCallsBefore);
+    });
+
+    it('a bus link made while only the global filter tier is off is created suspended, and restores only when it is back on', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.setFilterLinksEnabled(false);
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const gain = await latestGainInstance();
+      expect(gain.disconnect).toHaveBeenCalled();
+      const connectCallsBefore = gain.connect.mock.calls.length;
+      lfoEngine.setBusFilterLinksEnabled(false);
+      lfoEngine.setFilterLinksEnabled(true);
+      expect(gain.connect.mock.calls.length).toBe(connectCallsBefore);
+    });
+
+    it('is idempotent: a repeated value neither disconnects nor reconnects again', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const gain = await latestGainInstance();
+      lfoEngine.setBusFilterLinksEnabled(true); // already on
+      expect(gain.disconnect).not.toHaveBeenCalled();
+      lfoEngine.setBusFilterLinksEnabled(false);
+      const disconnects = gain.disconnect.mock.calls.length;
+      lfoEngine.setBusFilterLinksEnabled(false);
+      expect(gain.disconnect.mock.calls.length).toBe(disconnects);
+    });
+
+    it('a link unlinked while suspended is torn down cleanly and does not come back on restore', async () => {
+      const lfoEngine = await setup();
+      lfoEngine.linkTarget('bus.frequency', { lane: 'a', depth: 50 }, 'r1');
+      const gain = await latestGainInstance();
+      lfoEngine.setBusFilterLinksEnabled(false);
+      lfoEngine.unlinkTarget('bus.frequency', 'r1');
+      expect(gain.dispose).toHaveBeenCalled();
+      const connectCallsBefore = gain.connect.mock.calls.length;
+      lfoEngine.setBusFilterLinksEnabled(true);
+      expect(gain.connect.mock.calls.length).toBe(connectCallsBefore);
+    });
+  });
+
   // Robot Articulation T4 (docs/specs/ROBOT_ARTICULATION.md section 1.4): the bus filter cutoff is a
   // robot target that rides the Audio Load Budget's filter tier alongside lpf./hpf., and swings across
   // the whole audible band.

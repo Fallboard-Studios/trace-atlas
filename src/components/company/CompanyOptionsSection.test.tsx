@@ -203,7 +203,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
   const localeId = getActiveLocaleId();
 
   beforeEach(() => {
-    useAudioStore.setState({ filterLinksHeldOff: false });
+    useAudioStore.setState({ filterLinksHeldOff: false, busFilterLinksHeldOff: false });
     useLocaleStore.getState().setLocaleData(localeId, {
       robots: [], companies: [], allRobotsLastEditedOptions: undefined,
     } as unknown as Partial<Locale>);
@@ -460,12 +460,16 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
         expect(bus).not.toHaveBeenCalled();
       });
 
-      it('follows the Audio Load hold on filter links', () => {
+      it('follows the Audio Load hold on the robot bus-filter links, not the global filter flag', () => {
         twoMembers();
         const { unmount } = render(<Sections target="c1" ids={['busFilter']} />);
         expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('false');
         unmount();
         useAudioStore.setState({ filterLinksHeldOff: true });
+        const global = render(<Sections target="c1" ids={['busFilter']} />);
+        expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('false');
+        global.unmount();
+        useAudioStore.setState({ filterLinksHeldOff: false, busFilterLinksHeldOff: true });
         render(<Sections target="c1" ids={['busFilter']} />);
         expect(screen.getByTestId('bus-filter-drawer-stub').getAttribute('data-held-off')).toBe('true');
       });

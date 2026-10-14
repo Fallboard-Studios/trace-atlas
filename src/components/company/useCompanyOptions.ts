@@ -96,8 +96,8 @@ export interface CompanyOptions {
   portamentoValue: number;
   /** The Source section's Filter panel: the recorded fields, else the first member's, plus its bus link. */
   busFilterValue: BusFilterValue;
-  /** The Audio Load dial is holding filter links off (the robot screen reads the same flag). */
-  filterLinksHeldOff: boolean;
+  /** The Audio Load dial is holding the robot bus-filter links off (the robot screen reads the same flag). */
+  busFilterLinksHeldOff: boolean;
   volumeSwelling: boolean;
   adsrSwelling: AdsrSwelling | undefined;
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
@@ -270,8 +270,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     } : DISABLED_BUS_FILTER),
     [active, resolvedFilterFreq, resolvedFilterQ, resolvedFilterType, resolvedBusLink],
   );
-  // Only the filter links are held off, and only while the Audio Load dial says so.
-  const filterLinksHeldOff = useAudioStore((s) => s.filterLinksHeldOff);
+  // Only the robot bus-filter links are held off here, and only while the Audio Load dial says so.
+  const busFilterLinksHeldOff = useAudioStore((s) => s.busFilterLinksHeldOff);
 
   // Every handler below reads from this ref instead of closing over `members`/`resolved`/
   // `company`/`all`/`allRobotsLastEditedOptions` directly — those change reference
@@ -446,7 +446,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     signatureArrayValue,
     portamentoValue,
     busFilterValue,
-    filterLinksHeldOff,
+    busFilterLinksHeldOff,
     volumeSwelling,
     adsrSwelling,
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
@@ -468,7 +468,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onLayerParamChange,
     onLayerLfoFieldChange,
   }), [
-    active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, filterLinksHeldOff,
+    active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
     volumeSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,

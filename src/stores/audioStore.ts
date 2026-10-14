@@ -233,6 +233,10 @@ export interface AudioStore {
   /** Whether the dial currently holds the filter (LPF/HPF) LFO links off — their pickers grey out while it does; EQ-gain
    *  links are never affected. Derived; written only by audioBudgetSystem. docs/tasks/LFO_BANK.md Task 3. */
   filterLinksHeldOff: boolean;
+  /** Whether the dial currently holds each robot's own bus-filter cutoff LFO link ('bus.frequency') off: true when the
+   *  bus tier is off OR the global filter tier is. The Filter subsection's link greys out while it does. Derived; written
+   *  only by audioBudgetSystem. Robot Articulation T14b. */
+  busFilterLinksHeldOff: boolean;
   /** Whether the dial currently holds drift ("stacked" LFOs) off — the drift sliders grey out while it does. Derived. */
   driftHeldOff: boolean;
   setBPM: (bpm: number) => void;
@@ -286,6 +290,8 @@ export interface AudioStore {
   setSoundingRobotIds: (ids: readonly string[]) => void;
   /** Writes whether filter (LPF/HPF) LFO links are held off; skips the write when unchanged. */
   setFilterLinksHeldOff: (heldOff: boolean) => void;
+  /** Writes whether the robot bus-filter LFO links are held off; skips the write when unchanged. */
+  setBusFilterLinksHeldOff: (heldOff: boolean) => void;
   /** Writes whether drift is held off; skips the write when unchanged. */
   setDriftHeldOff: (heldOff: boolean) => void;
   /**
@@ -357,6 +363,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   effectsLoad: readInitialEffectsLoad(),
   soundingRobotIds: [],
   filterLinksHeldOff: false,
+  busFilterLinksHeldOff: false,
   driftHeldOff: false,
 
   setBPM: (bpm) => {
@@ -435,6 +442,9 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
   setFilterLinksHeldOff: (heldOff) => {
     if (get().filterLinksHeldOff !== heldOff) set({ filterLinksHeldOff: heldOff });
+  },
+  setBusFilterLinksHeldOff: (heldOff) => {
+    if (get().busFilterLinksHeldOff !== heldOff) set({ busFilterLinksHeldOff: heldOff });
   },
   setDriftHeldOff: (heldOff) => {
     if (get().driftHeldOff !== heldOff) set({ driftHeldOff: heldOff });

@@ -322,7 +322,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   useUIStore.getState().setActiveLocaleLocalTime(null);
-  useAudioStore.setState({ soundingRobotIds: [], filterLinksHeldOff: false });
+  useAudioStore.setState({ soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false });
 });
 
 describe('RobotScreen — fallbacks', () => {
@@ -956,15 +956,23 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       selectRobot(makeRobot(), 'source', 'busFilter');
       render(<RobotScreen />);
       expect(drawer().getAttribute('data-held-off')).toBe('false');
-      act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
+      act(() => useAudioStore.setState({ busFilterLinksHeldOff: true }));
       expect(drawer().getAttribute('data-held-off')).toBe('true');
-      act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
+      act(() => useAudioStore.setState({ busFilterLinksHeldOff: false }));
       expect(drawer().getAttribute('data-held-off')).toBe('false');
+    });
+
+    it('reads the robot bus-filter flag, not the global filter flag (Robot Articulation T14b)', () => {
+      selectRobot(makeRobot(), 'source', 'busFilter');
+      render(<RobotScreen />);
+      act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
+      expect(drawer().getAttribute('data-held-off')).toBe('false'); // the budget system sets the bus flag too whenever it sets this one
+      act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
     });
 
     it('the stored link survives a hold: the drawer is handed the real lane and depth while heldOff', () => {
       const robot = makeRobot('r1', { lfoLinks: { 'bus.frequency': { lane: 'd', depth: 70 } } as Robot['lfoLinks'] });
-      useAudioStore.setState({ filterLinksHeldOff: true });
+      useAudioStore.setState({ busFilterLinksHeldOff: true });
       selectRobot(robot, 'source', 'busFilter');
       render(<RobotScreen />);
       expect(drawer().getAttribute('data-held-off')).toBe('true');

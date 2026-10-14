@@ -958,13 +958,22 @@ describe('useCompanyOptions', () => {
         expect(result.current.options.busFilterValue.lfoLink).toEqual({ lane: 'd', depth: 80 });
       });
 
-      it('carries the Audio Load hold on filter links', () => {
+      it('carries the Audio Load hold on the robot bus-filter links', () => {
         articulationMembers();
         const { result } = renderHook(() => useCompanyOptions('c1'));
-        expect(result.current.options.filterLinksHeldOff).toBe(false);
+        expect(result.current.options.busFilterLinksHeldOff).toBe(false);
 
+        act(() => useAudioStore.setState({ busFilterLinksHeldOff: true }));
+        expect(result.current.options.busFilterLinksHeldOff).toBe(true);
+        act(() => useAudioStore.setState({ busFilterLinksHeldOff: false }));
+      });
+
+      it('does not carry the global filter flag: it is not the bus drawer hold', () => {
+        articulationMembers();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
         act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
-        expect(result.current.options.filterLinksHeldOff).toBe(true);
+        expect(result.current.options.busFilterLinksHeldOff).toBe(false);
+        expect('filterLinksHeldOff' in result.current.options).toBe(false);
         act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
       });
     });
