@@ -1,10 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat,
+  applyPitchRepeat, applyReverbSend, applyDelaySend, clampSend,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -195,6 +198,131 @@ describe('robotOptionsActions', () => {
 
       expect(updateSpy.mock.calls[0][2]).not.toHaveProperty('panAuto');
     });
+  });
+
+  // docs/specs/ROBOT_SENDS.md §1.5 - the Reverb and Delay slider actions, on applyVolume's shape. They never
+  // cancel a swell (the callers do): the swell tick itself writes through them.
+  describe('clampSend', () => {
+    it('passes an in-range fraction through unchanged, fractions included', () => {
+      expect(clampSend(0)).toBe(0);
+      expect(clampSend(0.25)).toBe(0.25);
+      expect(clampSend(1)).toBe(1);
+    });
+
+    it('clamps below 0 to 0 and above 1 to 1, infinities included', () => {
+      expect(clampSend(-0.5)).toBe(0);
+      expect(clampSend(7)).toBe(1);
+      expect(clampSend(Infinity)).toBe(1);
+      expect(clampSend(-Infinity)).toBe(0);
+    });
+  });
+
+  describe.each([
+    { name: 'applyReverbSend', apply: applyReverbSend, field: 'reverbSend', engineKey: 'reverb', other: 'delaySend' },
+    { name: 'applyDelaySend', apply: applyDelaySend, field: 'delaySend', engineKey: 'delay', other: 'reverbSend' },
+  ] as const)('$name', ({ apply, field, engineKey, other }) => {
+    function storedRobot(overrides: Partial<Robot> = {}): Robot {
+      const robot = makeRobot({ reverbSend: 0.2, delaySend: 0.1, ...overrides });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      return robot;
+    }
+    function stored(id: string): Robot | undefined {
+      return useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
+    }
+
+    it('converts a 0-100 display number to 0..1, writes the store, and sends it to the engine', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 40);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { [field]: 0.4 });
+      expect(sendsSpy).toHaveBeenCalledTimes(1);
+      expect(sendsSpy).toHaveBeenCalledWith(robot.id, { [engineKey]: 0.4 });
+      expect(stored(robot.id)?.[field]).toBe(0.4);
+    });
+
+    it('clamps a display number past 100 to 1 for both the store and the engine', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 150);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { [field]: 1 });
+      expect(sendsSpy).toHaveBeenCalledWith(robot.id, { [engineKey]: 1 });
+    });
+
+    it('clamps a negative display number to 0 for both the store and the engine', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, -5);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { [field]: 0 });
+      expect(sendsSpy).toHaveBeenCalledWith(robot.id, { [engineKey]: 0 });
+    });
+
+    it('passes the exact travel limits 0 and 100 through, 0 as a real write rather than a skipped one', () => {
+      const robot = storedRobot({ [field]: 0.6 });
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 0);
+      expect(stored(robot.id)?.[field]).toBe(0);
+      apply(robot, localeId, 100);
+      expect(stored(robot.id)?.[field]).toBe(1);
+
+      expect(sendsSpy).toHaveBeenNthCalledWith(1, robot.id, { [engineKey]: 0 });
+      expect(sendsSpy).toHaveBeenNthCalledWith(2, robot.id, { [engineKey]: 1 });
+    });
+
+    it('keeps a fractional display number fractional (a send is not truncated)', () => {
+      const robot = storedRobot();
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 12.5);
+
+      expect(sendsSpy).toHaveBeenCalledWith(robot.id, { [engineKey]: 0.125 });
+      expect(stored(robot.id)?.[field]).toBe(0.125);
+    });
+
+    it('touches only its own send: the other field and the other gain are left alone', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 60);
+
+      expect(updateSpy.mock.calls[0][2]).not.toHaveProperty(other);
+      expect(Object.keys(sendsSpy.mock.calls[0][1])).toEqual([engineKey]);
+      expect(stored(robot.id)?.[other]).toBe(other === 'delaySend' ? 0.1 : 0.2);
+    });
+
+    it('ignores a NaN display number whole: no store write, no engine call, the stored send survives', () => {
+      const robot = storedRobot({ [field]: 0.3 });
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, NaN);
+
+      expect(updateSpy).not.toHaveBeenCalled();
+      expect(sendsSpy).not.toHaveBeenCalled();
+      expect(stored(robot.id)?.[field]).toBe(0.3);
+    });
+
+    it('does not throw for a robot with no composite reserved (the engine no-ops; the store still takes the value)', () => {
+      const robot = storedRobot();
+
+      expect(() => apply(robot, localeId, 50)).not.toThrow();
+      expect(stored(robot.id)?.[field]).toBe(0.5);
+    });
+  });
+
+  it('robotOptionsActions.ts never imports audioSwells (the swell module imports the send actions, so a back-import would be a cycle)', () => {
+    const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'robotOptionsActions.ts'), 'utf-8');
+    expect(source).not.toMatch(/from\s+['"][^'"]*audioSwells['"]/);
   });
 
   describe('applyPanAuto', () => {
