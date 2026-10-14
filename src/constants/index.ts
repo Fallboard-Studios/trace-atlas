@@ -64,6 +64,8 @@ export const PORTAMENTO_MAX = 2;
 export const ROBOT_BUS_FILTER_FREQ_RANGE = { min: 20, max: 20000 } as const;
 /** The robot bus filter's resonance range (the global LPF's pair). Today's fixed Q of 1 sits inside it. */
 export const ROBOT_BUS_FILTER_Q_RANGE = { min: 0.1, max: 20 } as const;
+/** The robot bus filter's resonance when nothing says otherwise: the fixed Q every bus filter had before Robot Articulation. */
+export const ROBOT_BUS_FILTER_Q = 1;
 /** Seconds a live bus-filter frequency or Q edit ramps over, so a slider drag does not zipper. Below MIN_LEAD. */
 export const FILTER_RAMP_SECONDS = 0.05;
 

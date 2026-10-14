@@ -4,8 +4,8 @@
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
-import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
-import { DockingState } from '../types/Robot';
+import type { AudioAttributes, WaveformType, Robot, EnvelopeCurveName, RobotFilterType } from '../types/Robot';
+import { DockingState, ENVELOPE_CURVE_NAMES } from '../types/Robot';
 import {
   generateMelodyForRobot,
   buildSeededComposition,
@@ -20,7 +20,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
-  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q,
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
@@ -78,8 +78,57 @@ const OCTAVE_REGISTERS = [
   [5, 7],  // Treble (small robots)
 ] as const;
 
-// Filter frequency range
-const FILTER_FREQ_RANGE = { min: 400, max: 2500 };
+// ========================================
+// ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.2)
+// ========================================
+// Portamento, envelope curves and the bus filter's resonance and shape are minority traits: most
+// robots keep today's plain sound (open lowpass, no glide, linear curves) and a few stand out.
+// Every threshold below is compared against a [0, 1] draw from a smooth simplex sample, not a
+// uniform coin: those draws bunch in roughly [0.04, 0.96] around 0.5, so a nominal 12 % threshold
+// of 0.12 would land near the 3rd percentile. Each value was therefore picked from the measured
+// draw (6,000 robots across 150 worlds, 2026-10-13), the way LFO_QUIET_THRESHOLD was, and its
+// "≈ n in 12" is the measured rate. spawnSystem.test.ts pins the bands over 400 seeded robots.
+
+/** Fraction of robots that glide between notes: ≈ 1.5 in 12 (measured 12.5 %; a nominal 0.12 measured 3 %). */
+const GLIDER_THRESHOLD = 0.23;
+/** A glider's portamento time, seconds. Short enough to read as a slur, not a siren. */
+const PORTAMENTO_SEED_RANGE = { min: 0.05, max: 0.30 };
+/** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
+const PORTAMENTO_STEP = 0.01;
+
+/** Fraction of robots whose attack takes a non-linear curve: ≈ 1.9 in 12 (measured 15.5 %). */
+const ATTACK_CURVE_SHAPED_THRESHOLD = 0.21;
+/** Fraction of robots whose release takes a non-linear curve: ≈ 1.8 in 12 (measured 15.3 %). Higher than the
+ *  attack's because the two dataIds sample different lines through the noise and bunch differently. */
+const RELEASE_CURVE_SHAPED_THRESHOLD = 0.275;
+
+/** Fraction of robots with a resonant "accent" bus filter instead of the open one: ≈ 2.4 in 12 (measured 19.9 %). */
+const FILTER_ACCENT_THRESHOLD = 0.27;
+/** Share of accent robots that are bandpass rather than lowpass (never highpass: it would thin a robot out of the mix). */
+const ACCENT_BANDPASS_SHARE = 0.4;
+/** Bus filter cutoff for a common robot: an open lowpass that rounds the top off without being heard as a filter. */
+const OPEN_FILTER_FREQ_RANGE = { min: 2000, max: 8000 };
+/** Bus filter cutoff for an accent robot: dark enough that a Q this high rings. */
+const ACCENT_FILTER_FREQ_RANGE = { min: 400, max: 2500 };
+/** Accent resonance: a clear peak at the low end, a whistle at the high end. */
+const ACCENT_FILTER_Q_RANGE = { min: 3, max: 8 };
+/** Mirrors the Resonance slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
+const FILTER_Q_STEP = 0.1;
+
+/**
+ * An envelope-curve draw: 'linear' (today's sound) for most robots, otherwise one of the six
+ * non-linear names. Two draws — whether this robot shapes the stage at all, then which curve —
+ * so the shaped share is set by `shapedThreshold` alone, not by the number of curves.
+ */
+function seedCurve(noiseMap: NoiseFunction2D, dataId: string, offset: number, shapedThreshold: number): EnvelopeCurveName {
+  if (getSeededVal(noiseMap, `${dataId}.shaped`, offset, 0, 1) >= shapedThreshold) return 'linear';
+  const shapes = ENVELOPE_CURVE_NAMES.filter((name) => name !== 'linear');
+  // Sampled at its own row (offset * 10 + 1, the layers' trick): a robot only gets here when the shaped
+  // draw above came out low, and a neighbouring sample of the same smooth noise comes out low too, which
+  // left half the curves unreachable (measured: release never drew bounce, ripple or step).
+  const pick = Math.floor(getSeededVal(noiseMap, `${dataId}.which`, offset * 10 + 1, 0, shapes.length));
+  return shapes[Math.min(shapes.length - 1, pick)];
+}
 
 // Master volume range: keep robots below full saturation
 const MASTER_VOLUME_MIN = 0.65;
@@ -288,13 +337,30 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
     decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, DECAY_RANGE.min, DECAY_RANGE.max),
     sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, SUSTAIN_RANGE.min, SUSTAIN_RANGE.max),
     release: getSeededVal(noiseMap, 'robot.audio.release', offset, RELEASE_RANGE.min, RELEASE_RANGE.max),
+    attackCurve: seedCurve(noiseMap, 'robot.audio.attackCurve', offset, ATTACK_CURVE_SHAPED_THRESHOLD),
+    releaseCurve: seedCurve(noiseMap, 'robot.audio.releaseCurve', offset, RELEASE_CURVE_SHAPED_THRESHOLD),
   };
+
+  // Seeded portamento — most robots don't glide; a glider slurs each note into the next
+  const glider = getSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < GLIDER_THRESHOLD;
+  const portamento = glider
+    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.portamento', offset, PORTAMENTO_SEED_RANGE.min, PORTAMENTO_SEED_RANGE.max), 0, PORTAMENTO_STEP)
+    : 0;
 
   // Seeded octave register — direct [min, max] tuple, no Hz indirection
   const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
 
-  // Seeded filter frequency (determines detail level)
-  const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, FILTER_FREQ_RANGE.min, FILTER_FREQ_RANGE.max);
+  // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
+  // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
+  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < FILTER_ACCENT_THRESHOLD;
+  const filterRange = accent ? ACCENT_FILTER_FREQ_RANGE : OPEN_FILTER_FREQ_RANGE;
+  const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
+  const filterQ = accent
+    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, ACCENT_FILTER_Q_RANGE.min, ACCENT_FILTER_Q_RANGE.max), 0, FILTER_Q_STEP)
+    : ROBOT_BUS_FILTER_Q;
+  const filterType: RobotFilterType = accent && getSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
+    ? 'bandpass'
+    : 'lowpass';
 
   // Seeded waveform — evenly distributed (~20% each)
   const waveform = WAVEFORMS[Math.min(WAVEFORMS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.waveform', offset, 0, WAVEFORMS.length)))];
@@ -328,7 +394,14 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   const pulseWidth = Math.max(0.01, Math.min(0.99, rawPulse));
 
   // Include `layers` as the canonical audio description. Flat fields are left for compatibility.
-  return { adsr, octaveRange, filterFreq, waveform, phase, detune, pulseWidth, layers } as AudioAttributes;
+  return { adsr, octaveRange, filterFreq, filterQ, filterType, portamento, waveform, phase, detune, pulseWidth, layers } as AudioAttributes;
+}
+
+/** The three articulation fields of a robot, as the trailing object `AudioEngine.reserveVoice` takes — read from the
+ *  robot itself (not the seed), so a re-registration after an edit sounds like the edited robot. */
+function robotArticulation(robot: Robot): { portamento?: number; filterQ?: number; filterType?: RobotFilterType } {
+  const { portamento, filterQ, filterType } = robot.audioAttributes;
+  return { portamento, filterQ, filterType };
 }
 
 /**
@@ -369,8 +442,21 @@ export const ROBOT_LFO_DEPTH_SEED_MIN = 1;
 export const ROBOT_LFO_GAIN_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 60 };
 export const ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 10 };
 
+/** The bus filter's seeded sweep depth, percent of the cutoff's centred swing (Robot Articulation, spec §1.2): a
+ *  filter moves the tone far more than a same-sized gain or detune nudge, so it gets a mid-sized window with the
+ *  shared never-zero floor. */
+export const ROBOT_LFO_BUS_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 40 };
+
 function robotLfoDepthSeedRangeForTarget(target: RobotLfoTargetId): { min: number; max: number } {
+  if (target === 'bus.frequency') return ROBOT_LFO_BUS_DEPTH_SEED_RANGE;
   return target.endsWith('.gain') ? ROBOT_LFO_GAIN_DEPTH_SEED_RANGE : ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE;
+}
+
+/** The bus filter's own start-quiet threshold: a lit filter sweep is rarer than a lit layer link, ≈ 1.6 in 12 robots (measured 13.6 %). */
+const LFO_BUS_QUIET_THRESHOLD = 0.8;
+
+function robotLfoQuietThresholdForTarget(target: RobotLfoTargetId): number {
+  return target === 'bus.frequency' ? LFO_BUS_QUIET_THRESHOLD : LFO_QUIET_THRESHOLD;
 }
 
 /**
@@ -390,7 +476,7 @@ export function generateRobotLfoLinks(
   const result = {} as Record<RobotLfoTargetId, LfoLink>;
 
   for (const target of ROBOT_LFO_TARGET_IDS) {
-    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < LFO_QUIET_THRESHOLD;
+    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < robotLfoQuietThresholdForTarget(target);
     if (quiet) {
       result[target] = { lane: null, depth: 0 };
       continue;
@@ -732,7 +818,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     if (Array.isArray(layers) && layers.length > 0) {
       // No manual-pan prime here, unlike the other reservation sites: a spawned robot is always
       // `panAuto: true` (above), so there is nothing to hand the engine (docs/specs/ROBOT_PAN.md §1.3).
-      const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
+      const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq, robotArticulation(robot));
       // Prime this robot's seeded lane links into the bank engine now that it has a live voice to
       // connect against (docs/specs/LFO_BANK.md) — without this, seeded links sit in state, shown
       // in the UI, but never actually run until a user happens to edit one.
@@ -886,7 +972,7 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
     try {
       const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
       if (Array.isArray(layers) && layers.length > 0) {
-        AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
+        AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq, robotArticulation(robot));
         // releaseVoice above cleared this robot's engine-side pan; the store is the source of truth,
         // so a manual robot is handed back (docs/specs/ROBOT_PAN.md §1.3).
         if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);

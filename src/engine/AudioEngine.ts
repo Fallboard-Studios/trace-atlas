@@ -14,7 +14,7 @@ import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, ROBOT_BUS_FILTER_Q } from '../constants';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -165,12 +165,11 @@ const robotNoteIndex = new Map<string, number>();
  * Per-robot bus low-pass cutoff used when a caller passes no `filterFreq` — the value every bus
  * filter was hardcoded to from the composite-voice rewrite until the robot's own seeded
  * `audioAttributes.filterFreq` was wired through (it drove body detail/greeble count the whole
- * time, but never the sound). Sits inside spawnSystem's FILTER_FREQ_RANGE (400–2500 Hz).
+ * time, but never the sound). Sits inside spawnSystem's ACCENT_FILTER_FREQ_RANGE (400–2500 Hz).
  */
 const ROBOT_BUS_FILTER_DEFAULT_HZ = 1200;
 /** `filterFreq: 0` means "no filter" (Robot.ts) — open the low-pass to the top of the audible band. */
 const ROBOT_BUS_FILTER_OPEN_HZ = 20000;
-const ROBOT_BUS_FILTER_Q = 1;
 
 /** Resolve a robot's bus-filter cutoff from its `filterFreq`, honouring the two special cases above. */
 function resolveBusFilterCutoff(filterFreq: number | undefined): number {
