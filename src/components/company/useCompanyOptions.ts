@@ -32,7 +32,14 @@ const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   masterVolume: 0,
   pan: 0,
   panAuto: true,
+  reverbSend: 0,
+  delaySend: 0,
 };
+
+// Bridge (docs/tasks/ROBOT_SENDS.md Task 9, replaced by Task 14): AudioSettingSection requires the two send handlers
+// and values, so the company screen supplies inert ones - the rows show 0 and a drag writes nothing - until Task 14
+// resolves the members' sends and broadcasts them. One shared function, so the handlers keep their identity.
+const INERT_SEND_HANDLER = (): void => {};
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
   rhythmicDensity: 0,
@@ -89,6 +96,8 @@ export interface CompanyOptions {
   onVolumeChange: (pct: number) => void;
   onPanChange: (display: number) => void;
   onPanAutoChange: (auto: boolean) => void;
+  onReverbSendChange: (pct: number) => void;
+  onDelaySendChange: (pct: number) => void;
   onDensityChange: (v: number) => void;
   onMotifLengthChange: (v: number) => void;
   onPitchRepeatChange: (v: number) => void;
@@ -195,7 +204,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedPanAuto = resolved?.panAuto;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
-      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto! }
+      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto!, reverbSend: 0, delaySend: 0 }
       : DISABLED_AUDIO_SETTING
   ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto]);
 
@@ -388,6 +397,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onVolumeChange,
     onPanChange,
     onPanAutoChange,
+    onReverbSendChange: INERT_SEND_HANDLER,
+    onDelaySendChange: INERT_SEND_HANDLER,
     onDensityChange,
     onMotifLengthChange,
     onPitchRepeatChange,

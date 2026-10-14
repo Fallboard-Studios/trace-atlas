@@ -126,7 +126,7 @@ describe('useCompanyOptions', () => {
 
       const { options } = result.current;
       expect(options.active).toBe(false);
-      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true });
+      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0 });
       expect(options.signatureArrayValue.layers).toHaveLength(3);
       expect(options.adsrValue).toEqual({ attack: 0, decay: 0, sustain: 0, release: 0 });
     });
@@ -177,7 +177,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0 });
       expect(result.current.options.pingControlsValue.rhythmicDensity).toBe(42);
     });
 
@@ -300,6 +300,57 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  // docs/tasks/ROBOT_SENDS.md Task 9 - the BRIDGE: AudioSettingSection now requires the two send fields and
+  // handlers, so the company screen supplies inert ones (0 and a no-op) until Task 14 resolves and broadcasts
+  // them. These tests describe the bridge and are replaced by Task 14's.
+  describe('Reverb and Delay sends (inert bridge until Task 14)', () => {
+    it('the value carries reverbSend and delaySend of 0 whatever the members hold', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.35, delaySend: 0.2 }));
+      addCompany('c1', ['r1']);
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.audioSettingValue.reverbSend).toBe(0);
+      expect(result.current.options.audioSettingValue.delaySend).toBe(0);
+    });
+
+    it('exposes both handlers as functions, and calling them writes nothing: no action, no store change, no snapshot', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.35, delaySend: 0.2 }));
+      addCompany('c1', ['r1']);
+      const reverbSpy = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+      const delaySpy = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(typeof result.current.options.onReverbSendChange).toBe('function');
+      expect(typeof result.current.options.onDelaySendChange).toBe('function');
+      act(() => {
+        result.current.options.onReverbSendChange(80);
+        result.current.options.onDelaySendChange(80);
+      });
+
+      expect(reverbSpy).not.toHaveBeenCalled();
+      expect(delaySpy).not.toHaveBeenCalled();
+      const member = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === 'r1');
+      expect(member?.reverbSend).toBe(0.35);
+      expect(member?.delaySend).toBe(0.2);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toBeUndefined();
+    });
+
+    it('the handlers keep their identity when an unrelated edit rebuilds the options (shared module-level no-ops, not fresh closures)', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addCompany('c1', ['r1']);
+      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const first = result.current.options;
+
+      act(() => result.current.options.onVolumeChange(50)); // records a snapshot, so the options object is rebuilt
+
+      expect(result.current.options).not.toBe(first);
+      expect(result.current.options.onReverbSendChange).toBe(first.onReverbSendChange);
+      expect(result.current.options.onDelaySendChange).toBe(first.onDelaySendChange);
+    });
+  });
+
   describe('Output: pan', () => {
     it('audioSettingValue carries the first member\'s own non-default pan and panAuto', () => {
       addRobot(makeRobot({ id: 'r1', companyId: 'c1', pan: -0.35, panAuto: false }));
@@ -308,7 +359,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false, reverbSend: 0, delaySend: 0 });
     });
 
     it('audioSettingValue shows the recorded snapshot over the first member, so the slider reads the stored pan', () => {

@@ -56,11 +56,13 @@ const levelsStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean };
+    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean; reverbSend: number; delaySend: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
     onPanChange: (display: number) => void;
     onPanAutoChange: (auto: boolean) => void;
+    onReverbSendChange: (pct: number) => void;
+    onDelaySendChange: (pct: number) => void;
     livePan?: number;
     volumeSwelling?: boolean;
   }) => {
@@ -72,6 +74,9 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-master-volume={props.value.masterVolume}
         data-pan={props.value.pan}
         data-pan-auto={String(props.value.panAuto)}
+        data-reverb-send={props.value.reverbSend}
+        data-delay-send={props.value.delaySend}
+        data-has-send-handlers={String(typeof props.onReverbSendChange === 'function' && typeof props.onDelaySendChange === 'function')}
         data-live-pan={props.livePan}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
@@ -431,6 +436,41 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       fireEvent.click(screen.getByText('probe-volume'));
       expect(apply).toHaveBeenCalledWith(robot, localeId, 55);
       expect(cancel).toHaveBeenCalledWith(robot.id, 'volume');
+    });
+
+    // docs/tasks/ROBOT_SENDS.md Task 9 - the bridge: the section now requires the two sends, so the screen passes
+    // the robot's stored fields (the handlers are wired to the actions in Task 10).
+    describe('Reverb and Delay sends (Task 9 bridge)', () => {
+      it("derives reverbSend and delaySend from the robot's own fields", () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.35, delaySend: 0.15 }), 'volume');
+        render(<RobotScreen />);
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-reverb-send')).toBe('0.35');
+        expect(stub.getAttribute('data-delay-send')).toBe('0.15');
+      });
+
+      it('a fully dry robot (both sends 0) reaches the section as 0 and 0, not as a missing value', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0, delaySend: 0 }), 'volume');
+        render(<RobotScreen />);
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-reverb-send')).toBe('0');
+        expect(stub.getAttribute('data-delay-send')).toBe('0');
+      });
+
+      it('follows the store: a send edited elsewhere reaches the section on the next render', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.6 }));
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-reverb-send')).toBe('0.6');
+        expect(stub.getAttribute('data-delay-send')).toBe('0.1');
+      });
+
+      it('hands the section both send handlers', () => {
+        selectRobot(makeRobot('r1'), 'volume');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-has-send-handlers')).toBe('true');
+      });
     });
 
     // docs/specs/ROBOT_PAN.md §1.5 — Pan and its Auto toggle (docs/tasks/ROBOT_PAN.md Task 9).

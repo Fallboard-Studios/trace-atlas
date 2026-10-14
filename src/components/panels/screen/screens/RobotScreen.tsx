@@ -181,6 +181,10 @@ const RobotAudioSettingSection = memo(function RobotAudioSettingSection({
   return <AudioSettingSection {...props} livePan={livePan} />;
 });
 
+// Bridge (docs/tasks/ROBOT_SENDS.md Task 9, replaced by Task 10): the section requires the two send handlers, so
+// this screen shows the stored sends but a drag writes nothing until Task 10 wires the actions.
+const INERT_SEND_HANDLER = (): void => {};
+
 /**
  * Each panel's value and handlers, moved from RobotOptionsTab: `value`s derived from `robot`, each
  * callback wired to its robotOptionsActions function, each memoized on the field it reads so the
@@ -208,7 +212,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     masterVolume: robot.masterVolume,
     pan: robot.pan,
     panAuto: robot.panAuto,
-  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto]);
+    reverbSend: robot.reverbSend,
+    delaySend: robot.delaySend,
+  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto, robot.reverbSend, robot.delaySend]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -278,6 +284,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onVolumeChange={handleVolumeChange}
             onPanChange={handlePanChange}
             onPanAutoChange={handlePanAutoChange}
+            onReverbSendChange={INERT_SEND_HANDLER}
+            onDelaySendChange={INERT_SEND_HANDLER}
             volumeSwelling={volumeSwelling}
           />
         );

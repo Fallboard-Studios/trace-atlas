@@ -64,6 +64,8 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onVolumeChange={options.onVolumeChange}
             onPanChange={options.onPanChange}
             onPanAutoChange={options.onPanAutoChange}
+            onReverbSendChange={options.onReverbSendChange}
+            onDelaySendChange={options.onDelaySendChange}
             volumeSwelling={options.volumeSwelling}
           />
         );
