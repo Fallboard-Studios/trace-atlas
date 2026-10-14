@@ -459,6 +459,51 @@ describe('spawnSystem', () => {
       expect(panSpy).not.toHaveBeenCalled();
     });
 
+    // Robot Sends T4 (docs/specs/ROBOT_SENDS.md section 1.4): a new voice starts with both send gains at 0, so the
+    // spawn reservation hands the engine the robot's own sends - unconditionally, unlike a manual pan.
+    describe('primes the sends at the spawn reservation (Robot Sends T4)', () => {
+      it('calls updateRobotSends once with the spawned robot id and the sends it carries in the store', () => {
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        spawnRobot(DEFAULT_LOCALE_ID);
+
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+        expect(sendsSpy).toHaveBeenCalledTimes(1);
+        expect(sendsSpy).toHaveBeenCalledWith(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+      });
+
+      it('primes after the reservation, not before - the gains do not exist until reserveVoice builds them', () => {
+        const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice');
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        spawnRobot(DEFAULT_LOCALE_ID);
+
+        expect(reserveSpy).toHaveBeenCalledTimes(1);
+        expect(reserveSpy.mock.invocationCallOrder[0]).toBeLessThan(sendsSpy.mock.invocationCallOrder[0]);
+      });
+
+      it('primes a docked spawn too, one prime per robot', () => {
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
+
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        expect(robots).toHaveLength(2);
+        expect(sendsSpy.mock.calls.map((c) => c[0])).toEqual(robots.map((r) => r.id));
+      });
+
+      it('a throwing prime does not stop the spawn: the robot is still in the store with its melody registered', () => {
+        vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => { throw new Error('boom'); });
+        const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+        expect(() => spawnRobot(DEFAULT_LOCALE_ID)).not.toThrow();
+
+        expect(useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots).toHaveLength(1);
+        expect(registerSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('draws nothing from the noise map for pan (no new getSeededVal key)', () => {
       vi.mocked(getSeededVal).mockClear();
 
@@ -1203,6 +1248,99 @@ describe('spawnSystem', () => {
         // Melody registration is independent of the prime failing, and the roster pass still ran.
         expect(registerSpy).toHaveBeenCalledTimes(2);
         expect(primeRosterSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // Robot Sends T4 (docs/specs/ROBOT_SENDS.md section 1.4): this pass releases every voice, and a rebuilt voice
+    // starts with both send gains at 0 - so every robot is handed its stored sends back, 0/0 included.
+    describe('re-primes the sends (Robot Sends T4)', () => {
+      const stubEngine = () => {
+        const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+        vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        return reserveSpy;
+      };
+      const setSends = (robotId: string, reverbSend: number, delaySend: number) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robotId, { reverbSend, delaySend });
+
+      it('calls updateRobotSends once per robot, each with its own stored sends - a 0/0 robot included', () => {
+        stubEngine();
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        setSends(robots[0].id, 0.3, 0.1);
+        setSends(robots[1].id, 0, 0);
+        setSends(robots[2].id, 1, 0.45);
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(sendsSpy.mock.calls).toEqual([
+          [robots[0].id, { reverb: 0.3, delay: 0.1 }],
+          [robots[1].id, { reverb: 0, delay: 0 }],
+          [robots[2].id, { reverb: 1, delay: 0.45 }],
+        ]);
+      });
+
+      it('primes each robot after that robot is reserved, not before - the release has already cleared the engine', () => {
+        const reserveSpy = stubEngine();
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+        setSends(robot.id, 0.3, 0.1);
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        reserveSpy.mockClear();
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(reserveSpy.mock.invocationCallOrder[0]).toBeLessThan(sendsSpy.mock.invocationCallOrder[0]);
+      });
+
+      it('does not prime a robot that has no layers to reserve', () => {
+        stubEngine();
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robot.id, {
+          reverbSend: 0.3,
+          delaySend: 0.1,
+          audioAttributes: { ...robot.audioAttributes, layers: [] },
+        });
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(sendsSpy).not.toHaveBeenCalled();
+      });
+
+      it('an empty roster primes nothing', () => {
+        stubEngine();
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+        reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+        expect(sendsSpy).not.toHaveBeenCalled();
+      });
+
+      it('a throwing prime on one robot neither stops the pass nor skips the next robot', () => {
+        stubEngine();
+        spawnRobot(DEFAULT_LOCALE_ID);
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        setSends(robots[0].id, 0.3, 0.1);
+        setSends(robots[1].id, 0.05, 0.6);
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementationOnce(() => { throw new Error('boom'); });
+        sendsSpy.mockImplementation(() => {});
+        const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        registerSpy.mockClear();
+
+        expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
+
+        expect(sendsSpy.mock.calls).toEqual([
+          [robots[0].id, { reverb: 0.3, delay: 0.1 }],
+          [robots[1].id, { reverb: 0.05, delay: 0.6 }],
+        ]);
+        expect(registerSpy).toHaveBeenCalledTimes(2);
       });
     });
 

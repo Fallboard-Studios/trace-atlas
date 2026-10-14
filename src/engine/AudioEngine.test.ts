@@ -3267,3 +3267,216 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
     });
   });
 });
+
+describe('AudioEngine - reservation primes the sends from the store (Robot Sends T4, docs/specs/ROBOT_SENDS.md section 1.4)', () => {
+  // reserveVoice builds both send gains at 0 and the engine keeps no send state across a release, so every
+  // place the engine itself reserves a voice from the store - loadInstruments' post-load pass and
+  // reReserveVoice - must hand the robot's sends back to updateRobotSends. Unlike a manual pan this is
+  // unconditional: a robot at 0 is primed too, so a stale value can never survive a rebuild.
+  type AnyMock = ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const LAYERS = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+  const storeRobot = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    position: { x: 960, y: 0 },
+    audioMode: 'none',
+    masterVolume: 0.8,
+    pan: 0,
+    panAuto: true,
+    reverbSend: 0,
+    delaySend: 0,
+    audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: LAYERS },
+    ...extra,
+  });
+
+  /** A fresh engine over a store holding `robots`; `start()` is NOT called, so a test can spy first. */
+  async function prepare(robots: Record<string, unknown>[]) {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, { robots: robots as any });
+
+    const primeSpy = vi.spyOn(AudioEngine, 'updateRobotSends');
+    /** Every send gain built so far, in reservation order: the Gains constructed at 0 (the mock ignores its
+     *  constructor argument, so the argument is the only honest marker), reverb then delay for each robot. */
+    const sendGains = () => {
+      const gainMock = (Tone.Gain as unknown as AnyMock).mock;
+      return gainMock.results
+        .filter((_: unknown, i: number) => gainMock.calls[i][0] === 0)
+        .map((r: { value: unknown }) => r.value as { gain: { value: number } });
+    };
+    const edit = (id: string, patch: Record<string, unknown>) =>
+      storeMod.useLocaleStore.getState().updateRobot(localeId, id, patch as any);
+    const teardown = () => {
+      robots.forEach((r) => AudioEngine.releaseVoice(r.id as string));
+      AudioEngine.killAll();
+    };
+    return { AudioEngine, primeSpy, sendGains, edit, teardown };
+  }
+
+  describe('loadInstruments post-load pass (audio started after the world spawned)', () => {
+    it('primes each store robot with its own stored sends, and the gains land on them', async () => {
+      const { AudioEngine, primeSpy, sendGains, teardown } = await prepare([
+        storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 }),
+        storeRobot('m2', { reverbSend: 0.05, delaySend: 0.6 }),
+      ]);
+
+      await AudioEngine.start();
+
+      expect(primeSpy.mock.calls).toEqual([
+        ['m1', { reverb: 0.3, delay: 0.1 }],
+        ['m2', { reverb: 0.05, delay: 0.6 }],
+      ]);
+      expect(sendGains().map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.3, 0.1, 0.05, 0.6]);
+      teardown();
+    });
+
+    it('primes a robot whose sends are both 0 as well - the call is unconditional, unlike manual pan', async () => {
+      const { AudioEngine, primeSpy, teardown } = await prepare([storeRobot('a1')]);
+
+      await AudioEngine.start();
+
+      expect(primeSpy.mock.calls).toEqual([['a1', { reverb: 0, delay: 0 }]]);
+      teardown();
+    });
+
+    it('does not prime a robot that has no layers to reserve (nothing was reserved)', async () => {
+      const { AudioEngine, primeSpy, teardown } = await prepare([
+        storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: [] } }),
+      ]);
+
+      await AudioEngine.start();
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      teardown();
+    });
+
+    it('primes nothing when the world holds no robots, and does not throw', async () => {
+      const { AudioEngine, primeSpy } = await prepare([]);
+
+      await expect(AudioEngine.start()).resolves.not.toThrow();
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      AudioEngine.killAll();
+    });
+
+    it('one robot failing to prime does not stop the rest of the pass', async () => {
+      const { AudioEngine, primeSpy, sendGains, teardown } = await prepare([
+        storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 }),
+        storeRobot('m2', { reverbSend: 0.05, delaySend: 0.6 }),
+      ]);
+      primeSpy.mockImplementationOnce(() => { throw new Error('boom'); });
+
+      await AudioEngine.start();
+
+      expect(primeSpy.mock.calls).toEqual([
+        ['m1', { reverb: 0.3, delay: 0.1 }],
+        ['m2', { reverb: 0.05, delay: 0.6 }],
+      ]);
+      expect(AudioEngine.getVoiceForRobot('m2')).not.toBeNull();
+      expect(sendGains().slice(2).map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.05, 0.6]);
+      teardown();
+    });
+  });
+
+  describe('reReserveVoice (a structural layer edit rebuilds the voice)', () => {
+    it('hands the stored sends to the rebuilt voice: a genuinely new pair of gains holds them', async () => {
+      const { AudioEngine, sendGains, teardown } = await prepare([storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 })]);
+      await AudioEngine.start();
+      const before = sendGains();
+      expect(before).toHaveLength(2);
+
+      expect(AudioEngine.reReserveVoice('m1')).toBe(true);
+
+      const after = sendGains();
+      expect(after).toHaveLength(4); // two new gains, not the old pair reused
+      expect(after.slice(2).map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.3, 0.1]);
+      teardown();
+    });
+
+    it('re-primes from the store, so a send edited after the voice was built is the one that survives', async () => {
+      const { AudioEngine, sendGains, edit, teardown } = await prepare([storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 })]);
+      await AudioEngine.start();
+      edit('m1', { reverbSend: 0.7, delaySend: 0 });
+
+      AudioEngine.reReserveVoice('m1');
+
+      expect(sendGains().slice(2).map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.7, 0]);
+      teardown();
+    });
+
+    it('primes a robot that has been brought back to 0 as well, so no stale value is left to hear', async () => {
+      const { AudioEngine, primeSpy, edit, teardown } = await prepare([storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 })]);
+      await AudioEngine.start();
+      edit('m1', { reverbSend: 0, delaySend: 0 });
+      primeSpy.mockClear();
+
+      AudioEngine.reReserveVoice('m1');
+
+      expect(primeSpy.mock.calls).toEqual([['m1', { reverb: 0, delay: 0 }]]);
+      teardown();
+    });
+
+    it('primes after the reservation, not before - the release has already cleared the old gains', async () => {
+      const { AudioEngine, primeSpy, teardown } = await prepare([storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 })]);
+      await AudioEngine.start();
+      const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice');
+      primeSpy.mockClear();
+
+      AudioEngine.reReserveVoice('m1');
+
+      expect(reserveSpy).toHaveBeenCalledTimes(1);
+      expect(primeSpy).toHaveBeenCalledTimes(1);
+      expect(reserveSpy.mock.invocationCallOrder[0]).toBeLessThan(primeSpy.mock.invocationCallOrder[0]);
+      teardown();
+    });
+
+    it('leaves the other robots sends alone - only the rebuilt robot is primed', async () => {
+      const { AudioEngine, primeSpy, teardown } = await prepare([
+        storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 }),
+        storeRobot('m2', { reverbSend: 0.05, delaySend: 0.6 }),
+      ]);
+      await AudioEngine.start();
+      primeSpy.mockClear();
+
+      AudioEngine.reReserveVoice('m2');
+
+      expect(primeSpy.mock.calls).toEqual([['m2', { reverb: 0.05, delay: 0.6 }]]);
+      teardown();
+    });
+
+    it('does not prime when the reservation is refused (no layers) - the early return is untouched', async () => {
+      const { AudioEngine, primeSpy, teardown } = await prepare([
+        storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: [] } }),
+      ]);
+      await AudioEngine.start();
+
+      expect(AudioEngine.reReserveVoice('m1')).toBe(false);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      teardown();
+    });
+
+    it('does not prime a robot the store does not hold', async () => {
+      const { AudioEngine, primeSpy, teardown } = await prepare([storeRobot('m1')]);
+      await AudioEngine.start();
+      primeSpy.mockClear();
+
+      expect(AudioEngine.reReserveVoice('ghost')).toBe(false);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      teardown();
+    });
+  });
+});
