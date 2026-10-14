@@ -121,6 +121,13 @@ unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` r
 `src/docs/robotPanDocs.test.ts`). Switching Auto off stops only the audio panner following the robot; the
 robot keeps swimming.
 
+Robot Articulation (portamento, the attack and release shapes, and the bus filter's cutoff, resonance and type, plus
+the cutoff's `bus.frequency` LFO link; roadmap 50.1) reaches the body through no dial either: the list above is
+unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads `portamento`, `filterQ`,
+`filterType`, `attackCurve`, `releaseCurve` or `bus.frequency`, and `bodyLineDials` still reads only the three layer
+gain links (pinned by `src/docs/robotArticulationDocs.test.ts`). Attack and Release still feed the Lights and Body
+scale as before, through `bodyShapeFromAdsr`.
+
 ## Orbiters
 
 The four orbiter polygons are the one part of the body composition settings drive directly (Roadmap

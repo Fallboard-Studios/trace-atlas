@@ -20,10 +20,13 @@
 | Octave Range Max | PING FREQUENCY RANGES (MAX) | Slider - linear Component | 1 | 7 | No | Maximum octave bound. Was a Stepper before docs/specs/STEPPER_TO_SLIDER.md |
 | Reset Melody | CALIBRATE PING | Button Component | N/A | N/A | No | Resets melody pattern generation |
 | **DRAWER** | PING CONTOUR | Accordion Container | N/A | N/A | No | Parent container for ADSR envelope |
-| Attack | COMPRESSION RATE | Slider - log Component | 0s | 10s | No | Logarithmic scaling for fast transient control |
-| Decay | STABILIZATION DELAY | Slider - log Component | 0s | 10s | No | Logarithmic scaling for initial drop |
+| Attack | COMPRESSION RATE | Slider - log Component | 0s | 2s | No | Logarithmic scaling for fast transient control. The max is `ENVELOPE_TIME_MAX_SECONDS` (2 s, was 10 s): at several seconds a robot's back-to-back 16ths never let the gate close and it becomes a drone |
+| Decay | STABILIZATION DELAY | Slider - log Component | 0s | 2s | No | Logarithmic scaling for initial drop. Same 2 s max as Attack |
 | Sustain | PROPAGATION AMPLITUDE | Slider - linear Component | 0% | 100% | No | Linear scaling for held level ratio. Display-only 0–100% — stored as `audioAttributes.adsr.sustain`, a 0–1 fraction (`SUSTAIN_SCHEMA`, `robotOptionsConfig.ts`), same display-vs-storage split as Volume above |
-| Release | RAREFACTION RATE | Slider - log Component | 0s | 10s | No | Logarithmic scaling for tail fade-out |
+| Release | RAREFACTION RATE | Slider - log Component | 0s | 2s | No | Logarithmic scaling for tail fade-out. Same 2 s max as Attack |
+| Portamento | PING GLIDE *(placeholder lore word)* | Slider - log Component | 0s | 2s | No | Seconds each layer glides into the next note; stored as `audioAttributes.portamento` (`PORTAMENTO_SCHEMA`, `robotOptionsConfig.ts`), absent or `0` = no glide. Applied live through `AudioEngine.updateVoicePortamento`. Past the note length it is still audible, as a smear |
+| Attack Shape | ONSET PROFILE *(placeholder lore word)* | Radio Button Component | N/A | N/A | No | The curve the attack rises along: Linear, Exponential, Sine, Cosine, Bounce, Ripple, Step (lore: Even, Surge, Ebb, Tide, Rebound, Tremor, Ratchet). Stored as `adsr.attackCurve` (`ATTACK_CURVE_SCHEMA`); absent = Linear. Only audible when the attack finishes inside the note |
+| Release Shape | FADE PROFILE *(placeholder lore word)* | Radio Button Component | N/A | N/A | No | The same seven curves for the release; stored as `adsr.releaseCurve` (`RELEASE_CURVE_SCHEMA`); absent = Linear |
 | **DRAWER** | SIGNATURE ARRAY | Accordion Container | N/A | N/A | No | Parent container for oscillator layers |
 | Layer 1: Type | BASELINE GEOMETRY | Radio Button Component | N/A | N/A | No | Options: SWEEP (sine), GRADIENT (triangle), KINETIC (saw), BINARY (square), BURST (pulse) |
 | Layer 1: Gain | BASELINE SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. Carries an inline Lane + Depth `LfoLink` (see LFO LINK rows below) — no per-field shape/rate; those live on the linked lane itself (Fleet Params → LFO Bank) |
@@ -40,8 +43,12 @@
 | Layer 3: Detune | HARMONIC DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio. Carries an inline Lane + Depth `LfoLink` — see Layer 1: Gain's own note |
 | Layer 3: Phase | HARMONIC ALIGNMENT | Slider - linear Component | 0 | 360 | No | Phase offset in degrees. No live Signal to modulate — see Layer 1: Phase's own note |
 | Layer 3: Interval | HARMONIC PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
-| **LFO LINK** | SIGNATURE LANE | `LfoLink` (Radio Button, inline per Gain/Detune row) | N/A | N/A | N/A | Picks one of 4 world lanes or Off (`ui.lfoLane`: Off, Core LFO/Apex Signature, Companion LFO/Lateral Signature, Accent LFO/Impulse Signature, Overtone LFO/Canopy Signature). Rendered directly beneath each linkable field — no separate "Modulation" accordion. Shape/Rate/Rate Drift/Depth Drift live on the lane itself, not per field — see `docs/AUDIO_SYSTEM.md`'s LFO Modulation section and Fleet Params → LFO Bank |
-| LFO Link Depth | — | `LfoLink` (Slider - linear, inline per Gain/Detune row) | 0% | 100% | N/A | This field's own modulation intensity from its linked lane |
+| **DRAWER** | RESONATOR *(placeholder lore word)* | Accordion Container | N/A | N/A | No | Source's fourth subsection (`busFilter`): the robot's bus filter, exposed by Robot Articulation (roadmap 50.1) |
+| Cutoff | RESONATOR BAND *(placeholder lore word)* | Slider - log Component | 20 Hz | 20000 Hz | Yes | `audioAttributes.filterFreq` (`BUS_CUTOFF_SCHEMA`); live through `AudioEngine.updateRobotBusFilter`. Carries an inline Lane + Depth `LfoLink` for the `bus.frequency` target, held off by the Audio Load dial (`busFilterLinksHeldOff`) |
+| Resonance | RESONATOR PEAK *(placeholder lore word)* | Slider - log Component | 0.1 | 20 | No | The filter's Q: `audioAttributes.filterQ` (`BUS_RESONANCE_SCHEMA`), absent = 1 |
+| Type | RESONATOR MODE *(placeholder lore word)* | Radio Button Component | N/A | N/A | No | Low-pass, Band-pass, High-pass (lore: Sink, Channel, Skim). `audioAttributes.filterType` (`BUS_FILTER_TYPE_SCHEMA`), absent = Low-pass |
+| **LFO LINK** | SIGNATURE LANE | `LfoLink` (Radio Button, inline per Gain/Detune row, and under Cutoff) | N/A | N/A | N/A | Picks one of 4 world lanes or Off (`ui.lfoLane`: Off, Core LFO/Apex Signature, Companion LFO/Lateral Signature, Accent LFO/Impulse Signature, Overtone LFO/Canopy Signature). Rendered directly beneath each linkable field — no separate "Modulation" accordion. Shape/Rate/Rate Drift/Depth Drift live on the lane itself, not per field — see `docs/AUDIO_SYSTEM.md`'s LFO Modulation section and Fleet Params → LFO Bank |
+| LFO Link Depth | — | `LfoLink` (Slider - linear, inline per Gain/Detune row, and under Cutoff) | 0% | 100% | N/A | This field's own modulation intensity from its linked lane |
 
 There is no separate shape/rate per field, and no OSCILLATION STATE / "LFO Active" toggle at the field level — a field's own "off" state is `lane: null` on its `LfoLink` (`src/types/lfo.ts`'s `LfoLink`), driven through `robotOptionsActions.ts`'s `applyLayerLfoLink` for a user edit.
 

@@ -1524,6 +1524,51 @@ Verification: the composite-voice tests extended; a headless test that a glide /
 reaches the Tone node through the voice's `set` path (`compositeVoice.ts:240`); the phone A/B above,
 expected flat.
 
+**Status: built 2026-10-13 on `feature/palette-articulation`** (intent [robot-articulation.md](../intent/robot-articulation.md),
+spec [ROBOT_ARTICULATION.md](../specs/ROBOT_ARTICULATION.md), plan [ROBOT_ARTICULATION.md](../tasks/ROBOT_ARTICULATION.md);
+tasks T1–T14b committed, guard test `src/docs/robotArticulationDocs.test.ts`). Crawford's Pixel run reported no distortion
+at 3:00 ([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-articulation-roadmap-501-on-the-pixel--crawfords-report-2026-10-13));
+the HUD underrun counts, which mode it was and the manual listen list were not reported, so they are not claimed here.
+The paragraphs above are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraphs above)
+
+- **Two shape radios, not one.** Attack Shape and Release Shape, each the full seven curves (`EnvelopeCurveName`), sit in the
+  Envelope drawer's third and fourth rows with a Portamento slider (`PingContourDrawer`). `decayCurve` is not exposed.
+  Curves live on `ADSREnvelope.attackCurve` / `releaseCurve`, absent = linear; `toToneEnvelope` hands Tone a curve only when present.
+- **Seeded as minority traits, so a fresh world is not silent on all three.** Every threshold was picked from the measured
+  draw, not its nominal fraction (the draws bunch around 0.5): gliders ≈ 1.5 robots in 12 (0.05–0.20 s), shaped attack
+  ≈ 1.9 and shaped release ≈ 1.8, accent (resonant) filters ≈ 2.4, a lit bus LFO link ≈ 1.6. The cutoff is re-seeded in two
+  tiers: 2000–8000 Hz open lowpass for most, 400–2500 Hz with Q 3–8 for accents (bandpass 40 % of them, never highpass).
+  Pre-v1, so this changes every world's sound by design.
+- **Attack, Decay and Release now run 0–2 s** (`ENVELOPE_TIME_MAX_SECONDS`, was 0–10), and a shaped stage is seeded short
+  (attack 0.03–0.25 s, release 0.15–0.8 s). Found by listening: at several seconds a robot's back-to-back 16ths never let the
+  gate close, so it settles into a drone and neither times nor shapes can be heard. The seeded glide tops out at 0.2 s for the
+  same reason. This reverses the earlier "0–10 s edit range" for those three sliders; spec §1.10.
+- **The articulation object on `reserveVoice`.** One optional trailing `articulation?: { portamento?, filterQ?, filterType? }`
+  rather than three more parameters, so existing call sites and tests compile unchanged; all four reservation paths pass it from the store.
+- **The filter is a fourth Source subsection, `busFilter`** (`BusFilterDrawer`): Cutoff, its LFO link, then Resonance beside
+  Type. One entry in `ROBOT_SECTIONS_CONFIG` feeds the nav tree, breadcrumb and both renderers. Edits are live through
+  `AudioEngine.updateRobotBusFilter`; portamento through `updateVoicePortamento`. The lore words (Ping Glide, Onset Profile, Fade
+  Profile, Resonator, Resonator Band, Resonator Peak, Resonator Mode, and the option words) are **placeholders**.
+- **`bus.frequency` shipped as a seventh robot LFO target** (it was an option). It is a filter-tier target: the existing
+  filter switch holds it off at Light, and the robot Filter subsection greys its link on its own flag. `audioSwell.test`'s
+  superset assertion narrowed to the six layer ids and a new case pins that the bus cutoff is not a swell attribute.
+- **T14b happened, and probably did not need to.** It was built on Crawford's instruction before any rise was reported:
+  `LOAD_BUS_FILTER_LFOS_MIN = 0.8`, an effective `busFilterLfosEnabled` in `effectsLoadToLimits`,
+  `lfoEngine.setBusFilterLinksEnabled` as a second suspend tier (a bus link is held off when either switch is off),
+  `audioStore.busFilterLinksHeldOff`, and a `lfo drift · filter · bus` line on the `?debug` HUD. With the Pixel run clean, the
+  tier holds the robots' own cutoff links off at Standard for no measured reason: **open question for Crawford, keep it or
+  remove it**, and the 0.8 is a placeholder either way.
+- **Persistence and companies.** Session diff and share link carry `portamento`, `filterQ`, `filterType` (`po`, `fq`, `ft`)
+  and the curves inside `adsr` (`ac`, `rc`), each decoded and validated on its own. Company snapshots gain `portamento`,
+  `filterFreq`, `filterQ`, `filterType`, broadcast per field (`useCompanyOptions`).
+- **Zero new nodes**, pinned by a construction-count test in `AudioEngine.test.ts`; nothing on the gem reads any of it, pinned by
+  the guard test's source scan. The HUD's `links` line counts 7 robot slots, so twelve robots read `n/91`.
+- **Still open:** the lore-word verdicts, the manual listen list (glider, shaped contours, resonant robot, wah, type switch
+  without dropout, held-off link at Light, save/reload/share, company broadcast, keyboard, every "?"), and the desktop
+  `npm run perf` before and after.
+
 ## 50.2 Robot Sends: Per-Robot Reverb and Delay Depth
 
 One `Gain` per robot. Today Reverb and Delay are inserts on the global chain with one `wet` each, so

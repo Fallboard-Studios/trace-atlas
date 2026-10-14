@@ -155,8 +155,8 @@ const isInSource = (symbol: string) => sourceIdentifiers.has(symbol);
 const NOT_REPO_SYMBOLS = new Set([
   // Tone members the engine reaches through, spelled in the spec's prose
   'decayCurve',
-  // Deliberately absent: the spec's "Ask first" and "Never" lists (a new LOAD_* threshold only if the Pixel A/B fails)
-  'LOAD_BUS_FILTER_LFOS_MIN',
+  // Deliberately absent: names the Audio Load section records as removed (the robot-LFO cap went with the LFO Bank)
+  'lfoAllowed', 'maxRobotLfos',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotArticulationDocs', 'SLIDER_VALUES', 'ROBOT_ARTICULATION',
 ]);
@@ -188,7 +188,7 @@ describe('every symbol the spec and the updated docs cite exists in source', () 
   });
 
   it('extracts code-shaped names and drops plain words and listed non-symbols (the extractor itself)', () => {
-    const extracted = citedSymbols('`applyBusFilter` and `robot` and `LOAD_*` and `LOAD_BUS_FILTER_LFOS_MIN` and `PORTAMENTO_MAX`');
+    const extracted = citedSymbols('`applyBusFilter` and `robot` and `LOAD_*` and `maxRobotLfos` and `PORTAMENTO_MAX`');
     expect(extracted).toEqual(['PORTAMENTO_MAX', 'applyBusFilter']);
   });
 

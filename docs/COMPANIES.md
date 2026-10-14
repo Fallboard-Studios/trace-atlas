@@ -63,7 +63,7 @@ Every field the company has never been edited for falls back live to `firstMembe
 
 ## Editing Semantics: Broadcast, Not Link
 
-A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applyVolumeLfo`, `applyDensity`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfo` — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
+A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
 
 Only the one field that was changed propagates into `lastEditedOptions` — never the company's entire resolved snapshot. A user editing a single member robot's value afterward (even from that robot's own screen) changes only that robot; the company's `lastEditedOptions` and every other member robot are untouched. There is no ongoing link between a robot and its company's settings after the broadcast — reassigning a robot to a different company, or leaving it in the same one, doesn't retroactively apply anything.
 
@@ -77,6 +77,16 @@ The same "only the one changed thing" rule applies one level deeper for compound
 - **Switching Auto off** calls `applyPanAuto(member, localeId, false)` per member, and each member's sound holds at its own live position, not at one shared value. The snapshot records `{ panAuto: false, pan: <resolved pan> }`. The members therefore sit at different pans until the slider is next touched, which puts them all at one value. This is the broadcast-not-link rule, not a bug, and the company screen shows the snapshot rather than any member.
 - **Switching Auto on** calls `applyPanAuto(..., true)` per member and records exactly `{ panAuto: true }`; the stored `pan` is ignored while Auto is on.
 - **While Auto is on, the company slider is read-only at the stored `pan`.** It shows no animated average of the members' live positions: the company screen never subscribes to `robotPanReadoutStore`.
+
+### Portamento and the bus filter (Robot Articulation 50.1, docs/specs/ROBOT_ARTICULATION.md §1.8)
+
+`CompanyOptionsSnapshot` carries four more optional fields, `portamento` (glide seconds), `filterFreq`, `filterQ` and `filterType` (the bus filter). `resolveCompanyOptions` falls back to the first member's own values through the engine's resolvers, so what the panels show is what the engine plays: `0` for no glide, Q 1, lowpass, and a cutoff of `0` ("no filter") read as the open top of the band. The envelope's `attackCurve` / `releaseCurve` need no field of their own: they live inside the existing whole-object `adsr`, which already broadcasts one changed thing at a time.
+
+- **Portamento:** `onPortamentoChange` calls `applyPortamento` once per member and records `{ portamento }`.
+- **Filter:** `onBusFilterChange(patch)` calls `applyBusFilter` once per member with just the field the user touched and records exactly that patch, so dragging Resonance never rewrites any member's own Cutoff or Type.
+- **The Cutoff's LFO link** (`bus.frequency`) goes through the same `onLayerLfoFieldChange` path as a layer link (`onBusLinkChange` delegates to it under the `bus.frequency` target; the diff is applied member by member with `applyLayerLfoLink`), and its greyed-out state reads `busFilterLinksHeldOff`.
+
+Broadcast-not-link applies as everywhere else: a member edited afterwards on its own screen keeps its own value, and the snapshot is not rewritten.
 
 ## Company Membership
 

@@ -533,3 +533,19 @@ branch with the new control at its seeded default and again at its loudest setti
 is zero at Full: any underrun the branch adds is the signal the umbrella's gate (roadmap 50, "Without
 distortion") is written for, and the feature ships behind a new `LOAD_*_MIN` threshold or not at all.
 Re-baseline here whenever `main` changes the chain between sub-phases.
+
+## Robot Articulation (roadmap 50.1) on the Pixel — Crawford's report, 2026-10-13
+
+Branch `feature/palette-articulation`, the same seed-`alpha` world as the baseline above. What Crawford reported, in his
+words: at 90 seconds "no distortion or underruns"; then, at three minutes, "pixel is good, no distortion after 3
+minutes." Nothing more was given, so this records what was and was not said:
+
+| Run | Length | `underruns` | By ear |
+|---|---|---|---|
+| Standard or Full — **not stated** | 1:30, then 3:00 | no count given (90 s: none reported) | no distortion |
+| The other mode | — | *not reported* | — |
+
+**Not recorded, so not claimed:** which mode the 3:00 run was, the HUD underrun numbers, the Effects Limit check below
+0.4, and the desktop `npm run perf` before and after. The series gate is zero underruns at Full, and a "good" run is
+consistent with it without proving it. T14b's `LOAD_BUS_FILTER_LFOS_MIN` (0.8) was built before any rise was reported;
+on this evidence the bus links did not need it, and the value is a placeholder (roadmap 50.1, "As built").
