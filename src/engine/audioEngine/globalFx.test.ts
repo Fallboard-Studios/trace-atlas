@@ -379,6 +379,53 @@ describe('globalFx', () => {
       expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 0.5 })).not.toThrow();
     });
 
+    // Mix is tapered (docs/specs/GLOBAL_COLOUR.md, as built after the Pixel listen, 2026-10-15): the three
+    // saturators were far too strong across most of the slider, so the stored 0-1 Mix reaches the node squared.
+    // The stored value, the seed bands and the share codes all keep meaning "slider position".
+    describe('Mix taper (colourWetGain)', () => {
+      it('is exported and maps the slider ends to the node ends: 0 stays dry, 1 stays fully wet', async () => {
+        const { colourWetGain } = await import('./globalFx');
+        expect(colourWetGain(0)).toBe(0);
+        expect(colourWetGain(1)).toBe(1);
+      });
+
+      it('is squared: half the slider is a quarter of the wet, and a low Mix is much lower', async () => {
+        const { colourWetGain } = await import('./globalFx');
+        expect(colourWetGain(0.5)).toBeCloseTo(0.25, 9);
+        expect(colourWetGain(0.2)).toBeCloseTo(0.04, 9);
+      });
+
+      it('never exceeds the slider position and rises strictly with it (a taper, not a cap)', async () => {
+        const { colourWetGain } = await import('./globalFx');
+        let previous = -1;
+        for (let i = 0; i <= 100; i++) {
+          const v = i / 100;
+          const gain = colourWetGain(v);
+          expect(gain).toBeLessThanOrEqual(v + 1e-12);
+          expect(gain).toBeGreaterThan(previous);
+          previous = gain;
+        }
+      });
+
+      it('all three effects use the same curve at the same slider position', async () => {
+        const { globalFx, dist, cheb, crush } = await built();
+        globalFx.setGlobalDistortion({ wet: 0.6 });
+        globalFx.setGlobalChebyshev({ wet: 0.6 });
+        globalFx.setGlobalBitCrusher({ wet: 0.6 });
+        const written = [dist.wet, cheb.wet, crush.wet].map((p) => (p.rampTo as ReturnType<typeof vi.fn>).mock.calls[0][0] as number);
+        for (const value of written) expect(value).toBeCloseTo(globalFx.colourWetGain(0.6), 9);
+        expect(written[0]).toBeCloseTo(0.36, 6);
+      });
+
+      it('tapers the clamped value, so an out-of-range Mix still lands on 0 or 1 (never above)', async () => {
+        const { globalFx, crush } = await built();
+        globalFx.setGlobalBitCrusher({ wet: 3 });
+        expect(crush.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+        globalFx.setGlobalBitCrusher({ wet: -2 });
+        expect(crush.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      });
+    });
+
     describe('setGlobalDistortion', () => {
       it('writes amount to the distortion property and leaves wet alone', async () => {
         const { globalFx, dist } = await built();
@@ -387,14 +434,14 @@ describe('globalFx', () => {
         expect(dist.wet.rampTo).not.toHaveBeenCalled();
       });
 
-      it('ramps wet over 50 ms and leaves the amount alone', async () => {
+      it('ramps the tapered wet over 50 ms and leaves the amount alone', async () => {
         const { globalFx, dist } = await built();
         globalFx.setGlobalDistortion({ wet: 0.4 });
-        expect(dist.wet.rampTo).toHaveBeenCalledWith(0.4, 0.05);
+        expect(dist.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.16, 6), 0.05);
         expect(dist.distortion).toBe(0.3);
       });
 
-      it('writes both fields when both are given', async () => {
+      it('writes both fields when both are given (full Mix is still full wet)', async () => {
         const { globalFx, dist } = await built();
         globalFx.setGlobalDistortion({ amount: 0.2, wet: 1 });
         expect(dist.distortion).toBe(0.2);
@@ -412,7 +459,7 @@ describe('globalFx', () => {
         const { globalFx, dist } = await built();
         dist.wet = { value: 0 };
         globalFx.setGlobalDistortion({ wet: 0.3 });
-        expect(dist.wet.value).toBe(0.3);
+        expect(dist.wet.value).toBeCloseTo(0.09, 6);
       });
 
       it('clamps amount and wet into 0-1 so a malformed payload cannot reach the node out of range', async () => {
@@ -465,10 +512,10 @@ describe('globalFx', () => {
         expect(cheb.order).toBe(2);
       });
 
-      it('ramps wet over 50 ms and leaves the order alone', async () => {
+      it('ramps the tapered wet over 50 ms and leaves the order alone', async () => {
         const { globalFx, cheb } = await built();
         globalFx.setGlobalChebyshev({ wet: 0.25 });
-        expect(cheb.wet.rampTo).toHaveBeenCalledWith(0.25, 0.05);
+        expect(cheb.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.0625, 6), 0.05);
         expect(cheb.order).toBe(2);
       });
 
@@ -490,11 +537,11 @@ describe('globalFx', () => {
     });
 
     describe('setGlobalBitCrusher', () => {
-      it('ramps bits and wet over 50 ms', async () => {
+      it('ramps bits and the tapered wet over 50 ms (bits is not tapered)', async () => {
         const { globalFx, crush } = await built();
         globalFx.setGlobalBitCrusher({ bits: 4, wet: 0.5 });
         expect(crush.bits.rampTo).toHaveBeenCalledWith(4, 0.05);
-        expect(crush.wet.rampTo).toHaveBeenCalledWith(0.5, 0.05);
+        expect(crush.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
       });
 
       it('writes only the field given', async () => {
@@ -521,7 +568,7 @@ describe('globalFx', () => {
         crush.wet = { value: 0 };
         globalFx.setGlobalBitCrusher({ bits: 5, wet: 0.7 });
         expect(crush.bits.value).toBe(5);
-        expect(crush.wet.value).toBe(0.7);
+        expect(crush.wet.value).toBeCloseTo(0.49, 6);
       });
 
       it('warns and does not throw when the node throws', async () => {

@@ -56,6 +56,16 @@ const FILTER_FREQUENCY_RAMP_SECONDS = 0.05;
  *  `amount` and `order` are plain setters that rebuild a 1024-point shaper map and are written directly. */
 const COLOUR_RAMP_SECONDS = 0.05;
 
+/** The stored colour Mix (0-1, the slider position and what the seed draws) as the `wet` the node gets: squared.
+ *  On the Pixel the three saturators were far too strong across most of a linear Mix slider (Crawford, 2026-10-15:
+ *  "all three need to be super low mixes"), so the curve spends most of the slider on the subtle end, as the
+ *  Sends' return levels do. 0 stays fully dry and 1 stays fully wet; only the middle moves. Applied where the
+ *  setters write the node, so a seed, a restore and a slider drag all take the same path and the stored value,
+ *  the seed bands and the share codes keep meaning "slider position". */
+export function colourWetGain(mix: number): number {
+  return mix * mix;
+}
+
 /** `value` clamped into the field's full range, or undefined when it is not a finite number. A saved session or a
  *  share link is untrusted input: an out-of-range colour value must not reach a node (an order of 1e9 would stall
  *  the shaper-map build) and NaN must not be written at all. */
@@ -531,7 +541,7 @@ export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
     const amount = params.amount === undefined ? undefined : clampColour('distortion.amount', params.amount);
     const wet = params.wet === undefined ? undefined : clampColour('distortion.wet', params.wet);
     if (amount !== undefined) distortion.distortion = amount;
-    if (wet !== undefined) rampOrSet(distortion.wet, wet, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(distortion.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalDistortion failed', err);
   }
@@ -544,7 +554,7 @@ export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
     const order = params.order === undefined ? undefined : clampColour('chebyshev.order', Math.round(params.order));
     const wet = params.wet === undefined ? undefined : clampColour('chebyshev.wet', params.wet);
     if (order !== undefined) chebyshev.order = order;
-    if (wet !== undefined) rampOrSet(chebyshev.wet, wet, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(chebyshev.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChebyshev failed', err);
   }
@@ -557,7 +567,7 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
     const bits = params.bits === undefined ? undefined : clampColour('bitCrusher.bits', params.bits);
     const wet = params.wet === undefined ? undefined : clampColour('bitCrusher.wet', params.wet);
     if (bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(crusher.wet, wet, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(crusher.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
   }
