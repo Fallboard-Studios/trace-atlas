@@ -679,10 +679,24 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     }
   });
 
+  // Blocks a plan adds ahead of the group that shows them, each exempt only while no group lists it
+  // (the content guard's AWAITING_CONSUMER shape). Global Colour T8 adds the three blocks; T9 adds the
+  // group, and the self-cleaning test below then fails until this list is emptied.
+  const AWAITING_GROUP: readonly string[] = ['distortion', 'chebyshev', 'bitCrusher'];
+
   it('covers every effect block once, in exactly one group', () => {
     const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
     expect(new Set(all).size).toBe(all.length);
-    for (const block of AUDIO_RIG_CONFIG) expect(all, block.key).toContain(block.key);
+    for (const block of AUDIO_RIG_CONFIG) {
+      if (AWAITING_GROUP.includes(block.key)) continue;
+      expect(all, block.key).toContain(block.key);
+    }
+  });
+
+  it('every block awaiting a group exists and is still in none (remove it once a group lists it)', () => {
+    const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
+    expect(AWAITING_GROUP.filter((key) => !AUDIO_RIG_CONFIG.some((b) => b.key === key)), 'missing from AUDIO_RIG_CONFIG').toEqual([]);
+    expect(AWAITING_GROUP.filter((key) => (all as string[]).includes(key)), 'now in a group, remove from AWAITING_GROUP').toEqual([]);
   });
 
   it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], BreadcrumbState['fleetParamsSubsection']]>([

@@ -50,17 +50,8 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
 const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  // docs/tasks/GLOBAL_COLOUR.md Task 7 adds the Colour copy ahead of its readers: Task 8 (the rig blocks)
-  // reads the effect headings and the six parameters, Task 9 (the tab) reads the group.
-  'fleet.distortion': 'GLOBAL_COLOUR T8',
-  'fleet.distortion.drive': 'GLOBAL_COLOUR T8',
-  'fleet.distortion.mix': 'GLOBAL_COLOUR T8',
-  'fleet.chebyshev': 'GLOBAL_COLOUR T8',
-  'fleet.chebyshev.harmonics': 'GLOBAL_COLOUR T8',
-  'fleet.chebyshev.mix': 'GLOBAL_COLOUR T8',
-  'fleet.bitCrusher': 'GLOBAL_COLOUR T8',
-  'fleet.bitCrusher.bits': 'GLOBAL_COLOUR T8',
-  'fleet.bitCrusher.mix': 'GLOBAL_COLOUR T8',
+  // docs/tasks/GLOBAL_COLOUR.md Task 7 added the Colour copy ahead of its readers; Task 8 (the rig
+  // blocks) now reads the effect headings and the six parameters, so only the group waits on Task 9.
   'fleet.colour': 'GLOBAL_COLOUR T9',
 };
 

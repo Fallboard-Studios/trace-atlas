@@ -740,6 +740,94 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
+  // Global Colour (docs/specs/GLOBAL_COLOUR.md §1.4, docs/tasks/GLOBAL_COLOUR.md Task 8): Distortion,
+  // Chebyshev and Bit Crusher render through the same panel as every other effect — two sliders each,
+  // the colour trait's accent, and no LFO link (colour is not LFO-able).
+  describe('Colour panels (Distortion, Chebyshev, Bit Crusher)', () => {
+    const PANELS = [
+      { key: 'distortion', heading: 'fleet.distortion', sliders: ['fleet.distortion.drive', 'fleet.distortion.mix'] },
+      { key: 'chebyshev', heading: 'fleet.chebyshev', sliders: ['fleet.chebyshev.harmonics', 'fleet.chebyshev.mix'] },
+      { key: 'bitCrusher', heading: 'fleet.bitCrusher', sliders: ['fleet.bitCrusher.bits', 'fleet.bitCrusher.mix'] },
+    ] as const;
+
+    it.each(PANELS)('$key shows its heading and exactly two sliders named from content', ({ key, heading, sliders }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const block = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(within(block).getByText(CONTENT[heading].heading)).toBeTruthy();
+      const names = within(block).getAllByRole('slider').map((s) => s.getAttribute('aria-label') ?? s.getAttribute('aria-labelledby'));
+      expect(within(block).getAllByRole('slider')).toHaveLength(2);
+      for (const slider of sliders) {
+        expect(within(block).getByRole('slider', { name: CONTENT[slider].human }), `${slider} (${names.join(', ')})`).toBeTruthy();
+      }
+    });
+
+    it.each(PANELS)('$key is scoped to the colour trait (red/tangerine), as literals', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const el = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(el.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.red);
+      expect(el.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.tangerine);
+      expect(el.style.getPropertyValue('--color-accent')).not.toContain('var(');
+    });
+
+    it.each(PANELS)('$key has no LFO link rows and no Depth slider', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelector('.sc-lfo-link')).toBeNull();
+      expect(screen.queryByRole('slider', { name: 'Depth' })).toBeNull();
+    });
+
+    it('moving Bit Crusher Mix writes only wet — Bit Depth keeps its value', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, bitCrusher: { bits: 5, wet: 0.2 } } }));
+      render(<AudioRigEffectPanel effectKey="bitCrusher" />);
+      const mix = screen.getByRole('slider', { name: CONTENT['fleet.bitCrusher.mix'].human });
+      mix.focus();
+      fireEvent.keyDown(mix, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.bitCrusher).toEqual({ bits: 5, wet: 0.21 });
+    });
+
+    it('moving Distortion Drive writes amount, not wet', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, distortion: { amount: 0.3, wet: 0.4 } } }));
+      render(<AudioRigEffectPanel effectKey="distortion" />);
+      const drive = screen.getByRole('slider', { name: CONTENT['fleet.distortion.drive'].human });
+      drive.focus();
+      fireEvent.keyDown(drive, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.distortion).toEqual({ amount: 0.31, wet: 0.4 });
+    });
+
+    it('Harmonics steps one whole order per key press', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, chebyshev: { order: 2, wet: 0.3 } } }));
+      render(<AudioRigEffectPanel effectKey="chebyshev" />);
+      const harmonics = screen.getByRole('slider', { name: CONTENT['fleet.chebyshev.harmonics'].human });
+      harmonics.focus();
+      fireEvent.keyDown(harmonics, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.chebyshev).toEqual({ order: 3, wet: 0.3 });
+    });
+
+    it('the ends hold: Harmonics stays at 8 past the top, Bit Depth stays at 1 past the bottom', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, chebyshev: { order: 8, wet: 0.3 }, bitCrusher: { bits: 1, wet: 0.3 } } }));
+      const { unmount } = render(<AudioRigEffectPanel effectKey="chebyshev" />);
+      const harmonics = screen.getByRole('slider', { name: CONTENT['fleet.chebyshev.harmonics'].human });
+      harmonics.focus();
+      fireEvent.keyDown(harmonics, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.chebyshev.order).toBe(8);
+      unmount();
+      render(<AudioRigEffectPanel effectKey="bitCrusher" />);
+      const bits = screen.getByRole('slider', { name: CONTENT['fleet.bitCrusher.bits'].human });
+      bits.focus();
+      fireEvent.keyDown(bits, { key: 'ArrowLeft' });
+      expect(useAudioStore.getState().globalAudio.bitCrusher.bits).toBe(1);
+    });
+
+    it('a real user edit asks the swell system to cancel its own (effect, field) pair, like every other effect panel', () => {
+      const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
+      render(<AudioRigEffectPanel effectKey="bitCrusher" />);
+      const mix = screen.getByRole('slider', { name: CONTENT['fleet.bitCrusher.mix'].human });
+      mix.focus();
+      fireEvent.keyDown(mix, { key: 'ArrowRight' });
+      expect(spy).toHaveBeenCalledWith('bitCrusher', 'wet');
+    });
+
+  });
+
   describe('re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
     it("a setGlobalAudio update to ONE field (Delay's delayTime, simulating an audio-swell tick) does not re-execute a SIBLING field's own control (Delay's Mix/wet) — only the changed field's own control re-renders", () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
