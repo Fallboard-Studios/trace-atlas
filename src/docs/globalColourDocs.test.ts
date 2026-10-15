@@ -10,8 +10,8 @@ import { describe, expect, it } from 'vitest';
 //       and colour is one global chain, never per robot);
 //   (2) every symbol the spec names is declared where it says, so a rename cannot leave a stale doc;
 //   (3) the living docs name the six colour fields.
-// Groups (1) and (2) are green from the moment they land. Group (3)'s AUDIO_SYSTEM.md and SESSION_STORAGE.md cases
-// are written against the text Task 15 produces, so those TWO cases are RED until Task 15 lands. That is intended.
+// Groups (1) and (2) were green from the moment they landed. Group (3)'s AUDIO_SYSTEM.md and SESSION_STORAGE.md cases
+// were written against the text Task 15 produces and were RED until it landed; they are green now.
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8').replace(/\r\n/g, '\n');
@@ -130,7 +130,7 @@ describe('the named Global Colour symbols are declared where the spec says they 
 });
 
 // ========================================
-// (3) THE LIVING DOCS NAME THE SIX FIELDS   (the first row is green from Task 2; the other two are RED until Task 15)
+// (3) THE LIVING DOCS NAME THE SIX FIELDS   (the grid's rows landed at Task 2; the other two docs at Task 15)
 // ========================================
 
 describe('the living docs name the six colour fields', () => {
@@ -163,7 +163,7 @@ describe('the living docs name the six colour fields', () => {
     expect(positions[5]).toBeLessThan(firstDelay);
   });
 
-  it.each(['docs/AUDIO_SYSTEM.md', 'docs/SESSION_STORAGE.md'])('%s names all six (RED until Task 15)', (doc) => {
+  it.each(['docs/AUDIO_SYSTEM.md', 'docs/SESSION_STORAGE.md'])('%s names all six', (doc) => {
     expect(missingFields(read(doc)), `${doc} does not name`).toEqual([]);
   });
 });

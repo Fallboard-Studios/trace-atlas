@@ -1645,6 +1645,59 @@ the rework's tab row. Both are LFO-able (`distortion`, `wet`) if a Bank target i
 this sub-phase. Phone gate: waveshapers are cheap, `oversample: '4x'` is not — the gate sets the
 allowed values and the Effects Limit drops oversampling first.
 
+**Status: built 2026-10-15 on `feature/palette-colour`, PR pending** (intent [global-colour.md](../intent/global-colour.md),
+spec [GLOBAL_COLOUR.md](../specs/GLOBAL_COLOUR.md), plan [GLOBAL_COLOUR.md](../tasks/GLOBAL_COLOUR.md); tasks T1–T11, T14 and T15
+committed, T12 partial, T0 and T13b not done; guard test `src/docs/globalColourDocs.test.ts`). Crawford passed Checkpoints A, B
+and C. Pixel: one Full 3:00 run, "no clipping" and "no underruns" by his word
+([scratchy-audio-phones.md](scratchy-audio-phones.md#global-colour-roadmap-503-on-the-pixel--crawfords-report-2026-10-15)); the
+world, the HUD numbers, a Standard run, the T0 re-baseline on current `main` and the desktop `npm run perf` comparison were not
+recorded, so none is claimed here. The paragraphs above are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraph above)
+
+- **All three nodes ship, not one of two.** The interview overturned "Distortion or Chebyshev": `Tone.Distortion`,
+  `Tone.Chebyshev` and `Tone.BitCrusher` are all single instances on the **dry** chain, in that order, between the High-Pass
+  Filter and the Compressor, in both Decay Modes. The Reverb and Delay returns rejoin after them, so the rooms' tails are
+  never coloured. Nothing is per robot and none is an LFO or swell target.
+- **No oversampling and no control for it.** `oversample` is `'none'` on both shapers, always, so the gate's "drop
+  oversampling first" never applies. The Chebyshev cap stays at order 8; whether high orders are harsh at `none` was not
+  reported from the listen, so it is not claimed either way.
+- **A new Colour section tab and an eighth trait.** Fleet Params gains Colour between Time & Space and Output, with three
+  sub-tabs (Distortion, Chebyshev, Bit Crusher), each two sliders. The `colour` trait is red + tangerine, kept at Checkpoint B.
+  The copy is placeholder wording for the copy pass ("Bit Depth", not the spec's "Bit Crush", since a higher number is
+  cleaner).
+- **The Mix is tapered.** The stored Mix is the slider position and the node gets it squared (`colourWetGain`): after the
+  Pixel listen the three were far too strong across a linear slider. Only the Mix is tapered. Stored values, seed bands and
+  share codes keep meaning "slider position".
+- **One character per world, at most one effect on.** A fresh world draws `clean`, `drive`, `fold` or `crush`, about 25 %
+  each. The spec first drew three pair characters too (about 15 % of worlds); Crawford dropped them at T14. The lit effect's
+  Mix seeds in its band, **Distortion 0.10–0.25 and Chebyshev and Bit Crusher 0.05–0.15**, and **no seeded Mix is above 0.25**
+  (`COLOUR_LOAD_MIX_MAX`, a fresh world only). With the taper the seeded wet is about 0.01–0.06 for Distortion and 0.0025–0.02
+  for the other two: quiet, and the bands are the knob if lit worlds read faint. The other effects seed Mix 0 but still draw
+  their shape value.
+- **The character edges are measured, not nominal.** The single draw is bell-curved and discrete (about 190 distinct values), so
+  the nominal edges realised 10 / 34 / 18 / 30 / 4 / 4 / 0 %. The edges (0.3065 / 0.5 / 0.6935 / 1) are midpoints of the
+  gaps nearest the cumulative 25 / 50 / 75 targets, fitted over 20 000 styles and held out over 3 000 (24.8 / 25.5 / 25.6 /
+  24.0 %). The same method refits them if the shares move.
+- **Old payloads load dry.** `withGlobalAudioDefaults` is called in `applySessionPayload` and the share decoder: no encoding
+  change, `version` stays 2. A real crash was found on the way: an empty `globalAudio` used to throw. The recorded 50.2
+  baseline link decodes with all three effects off.
+- **Presets stay clean.** `DEFAULT_GLOBAL_AUDIO_SETTINGS` and the three transmission presets carry every Mix at 0.
+- **The seed oracles were hand-amended, never re-recorded:** at T1 and T5 (the colour keys, then their values) and three times
+  at T14 (the 0.25 ceiling, the lower Chebyshev and Bit Crusher bands, the one-character edges). Each value was derived from the
+  raw draws by hand and checked by running the same formula on the old band, which reproduced the old numbers.
+- **Beyond the spec:** every colour setter clamps into the field's full seed range and ignores a non-finite value (a share
+  link is untrusted, and an `order` of 1e9 stalls the shaper-map build); a BitCrusher constructor failure `devWarn`s.
+- **The phone gate was not fully run, and no threshold was built.** T13b (`LOAD_COLOUR_MIN`) exists only as a conditional
+  plan task; nothing reported a rise.
+- **Nothing on the gem reads a colour effect**, pinned by the guard test's source scan.
+- **Still open:** the lore words are placeholders for the copy pass; the T0 re-baseline and a Standard run on the Pixel, and
+  the desktop `npm run perf` comparison; which world the one clean run used (only a run with Bit Crusher alone at full Mix and
+  4 bits, or all three at full Mix, proves the worklet question); and **per-robot colour**, raised by Crawford after hearing
+  it (a send into each shared effect, the Robot Sends shape: one shared node plus twelve send gains). It reverses a stated
+  non-goal and touches `Robot`, company options, the session codes, the Levels sliders, the swell pool and per-robot
+  seeding, so it needs its own interview and spec; it is not scheduled.
+
 ## 50.4 Global Modulation Pedal: AutoWah or Phaser
 
 One single-instance node, chosen in the interview. `Tone.AutoWah` is an envelope follower driving a
@@ -1655,6 +1708,10 @@ wall-clock — the LFO Bank's accepted class — and its `frequency` could take 
 ([33](#33-free--sync-toggle)). Either lands as one more slot in `wireGlobalFxChain` with `wet`, seeded
 default dry or a low seeded band, the same call as 50.3. Whichever is not chosen moves to backlog 22.
 Phone gate: a follower is a few nodes; Phaser's `stages` multiplies allpass filters, so the gate caps it.
+
+**Decided with 50.3 (Crawford, 2026-10-14, "both of the other two"):** 50.4 ships **both** AutoWah and Phaser, as 50.3 shipped
+all three of its nodes, so "chosen in the interview" and "whichever is not chosen moves to backlog 22" above no longer apply.
+The cost notes stand for each, and the phone gate covers both.
 
 ## 51. Guide: A Read-Only Branch That Teaches the Whole App
 
