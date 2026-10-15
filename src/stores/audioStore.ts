@@ -90,6 +90,9 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   distortion: AudioEngine.setGlobalDistortion,
   chebyshev: AudioEngine.setGlobalChebyshev,
   bitCrusher: AudioEngine.setGlobalBitCrusher,
+  // T6 replaces both no-ops with the engine setters (docs/tasks/GLOBAL_MODULATION_COLOUR.md).
+  autoWah: () => {},
+  phaser: () => {},
 };
 
 /**

@@ -210,6 +210,10 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       bits: sampleField(noiseMap, 'bitCrusher.bits'),
       wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
     },
+    // Modulation T1 placeholder: both pedals stay at their dry defaults until T7 draws them
+    // (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.2).
+    autoWah: { ...defaults.autoWah },
+    phaser: { ...defaults.phaser },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },

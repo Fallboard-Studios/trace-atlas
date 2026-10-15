@@ -90,6 +90,48 @@ export interface BitCrusherSettings {
   wet: number;
 }
 
+/** The Phaser Rate control's full range (Hz), which is also the Free | Sync clamp. Zero is excluded: a
+ *  stopped phaser is a fixed notch, not "off" - Mix 0 is off. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
+export const PHASER_RATE_RANGE_HZ = { min: 0.05, max: 10 } as const;
+
+/** Auto Wah: Tone.AutoWah, an envelope follower sweeping a bandpass. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
+export interface AutoWahSettings {
+  /** Hz (50 - 1000) - the filter at the bottom of the sweep */
+  baseFrequency: number;
+  /** 1 - 8 - how far above baseFrequency a loud note opens the filter */
+  octaves: number;
+  /** dB (-40 - 0) - lower = more sensitive (Tone boosts the follower's input) */
+  sensitivity: number;
+  /** 0.5 - 10 */
+  Q: number;
+  /** dB (0 - 20) - the peaking filter's boost */
+  gain: number;
+  /** seconds (0.01 - 1) - the envelope follower's smoothing */
+  follower: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet), not wet itself. */
+  wet: number;
+}
+
+/** Phaser: Tone.Phaser, a stack of allpass notches swept by its own wall-clock LFO. */
+export interface PhaserSettings {
+  /** Hz, PHASER_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
+   *  resolvePhaserRateHz() (utils/tempoSync.ts), never directly. */
+  rate: number;
+  /** 0.5 - 6 */
+  octaves: number;
+  /** Hz (50 - 2000) */
+  baseFrequency: number;
+  /** integer 1 - 12. Constructor-only in Tone: a change rebuilds the node (spec §1.3). */
+  stages: number;
+  /** 0.5 - 20 */
+  Q: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet), not wet itself. */
+  wet: number;
+  /** Present = Sync: `rate` is ignored and the LFO runs at this note value's Hz at the current tempo.
+   *  Absent = Free. Never `sync: undefined`. Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
+  sync?: NoteValue;
+}
+
 export interface LimiterSettings {
   /** dB (-20 - 0) — Tone.Limiter's only controllable param; wraps a fixed ratio=20/attack=0.003/release=0.01 Compressor internally. */
   threshold: number;
@@ -115,6 +157,9 @@ export interface GlobalAudioSettings {
   distortion: DistortionSettings;
   chebyshev: ChebyshevSettings;
   bitCrusher: BitCrusherSettings;
+  /** Modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). */
+  autoWah: AutoWahSettings;
+  phaser: PhaserSettings;
   limiter: LimiterSettings;
 }
 
@@ -131,6 +176,9 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   distortion: { amount: 0.3, wet: 0 },
   chebyshev: { order: 2, wet: 0 },
   bitCrusher: { bits: 8, wet: 0 },
+  // Modulation is dry by default too, at Tone's own parameter defaults (spec assumption 10). No `sync` key: Free.
+  autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+  phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
   limiter: { threshold: -12 },
 };
 

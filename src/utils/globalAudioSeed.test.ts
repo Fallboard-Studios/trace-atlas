@@ -1147,6 +1147,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.13 },
+      // Global Modulation T1: the two pedal blocks ADDED by hand at the defaults; T7 replaces them with derived values.
+      autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+      phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -1170,6 +1173,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0.08 },
       bitCrusher: { bits: 8, wet: 0 },
+      // Global Modulation T1: the two pedal blocks ADDED by hand at the defaults; T7 replaces them with derived values.
+      autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+      phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

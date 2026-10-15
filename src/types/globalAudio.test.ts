@@ -3,8 +3,8 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS, withGlobalAudioDefaults } from './globalAudio';
-import type { GlobalAudioSettings } from './globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PHASER_RATE_RANGE_HZ, withGlobalAudioDefaults } from './globalAudio';
+import type { GlobalAudioSettings, PhaserSettings } from './globalAudio';
 
 // ========================================
 // TESTS
@@ -108,6 +108,64 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS colour blocks', () => {
   });
 });
 
+// Global Modulation T1 (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1, assumption 10): two pedal blocks at
+// Tone's own defaults, both dry (wet 0), the Phaser Free (no sync key).
+describe('DEFAULT_GLOBAL_AUDIO_SETTINGS modulation blocks', () => {
+  it('carries autoWah and phaser at Tone\'s defaults', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah).toStrictEqual({
+      baseFrequency: 100,
+      octaves: 6,
+      sensitivity: 0,
+      Q: 2,
+      gain: 2,
+      follower: 0.2,
+      wet: 0,
+    });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser).toStrictEqual({
+      rate: 0.5,
+      octaves: 3,
+      baseFrequency: 350,
+      stages: 10,
+      Q: 10,
+      wet: 0,
+    });
+  });
+
+  it('keeps both pedals dry so a default world is clean', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.wet).toBe(0);
+  });
+
+  it('defaults the Phaser to Free: there is no sync key at all, not even undefined', () => {
+    expect('sync' in DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser).toBe(false);
+  });
+
+  it('keeps stages an integer inside 1 - 12', () => {
+    const { stages } = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser;
+    expect(Number.isInteger(stages)).toBe(true);
+    expect(stages).toBeGreaterThanOrEqual(1);
+    expect(stages).toBeLessThanOrEqual(12);
+  });
+
+  it('puts the two pedals between bitCrusher and limiter in key order', () => {
+    const keys = Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS);
+    expect(keys.indexOf('autoWah')).toBe(keys.indexOf('bitCrusher') + 1);
+    expect(keys.indexOf('phaser')).toBe(keys.indexOf('autoWah') + 1);
+    expect(keys.indexOf('limiter')).toBe(keys.indexOf('phaser') + 1);
+  });
+});
+
+describe('PHASER_RATE_RANGE_HZ', () => {
+  it('spans 0.05 - 10 Hz: zero is excluded because a stopped phaser is a fixed notch, not off', () => {
+    expect(PHASER_RATE_RANGE_HZ).toStrictEqual({ min: 0.05, max: 10 });
+  });
+
+  it('contains the default rate', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeGreaterThanOrEqual(PHASER_RATE_RANGE_HZ.min);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeLessThanOrEqual(PHASER_RATE_RANGE_HZ.max);
+  });
+});
+
 describe('withGlobalAudioDefaults', () => {
   it('returns a full settings object equal to the defaults for an empty payload', () => {
     expect(withGlobalAudioDefaults({})).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS);
@@ -164,6 +222,44 @@ describe('withGlobalAudioDefaults', () => {
     const a = withGlobalAudioDefaults({});
     const b = withGlobalAudioDefaults({});
     expect(a.bitCrusher).not.toBe(b.bitCrusher);
+    expect(a.autoWah).not.toBe(b.autoWah);
+    expect(a.phaser).not.toBe(b.phaser);
+  });
+
+  it('fills both pedal blocks for an empty payload', () => {
+    const result = withGlobalAudioDefaults({});
+    expect(result.autoWah).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+    expect(result.phaser).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+  });
+
+  it('keeps a present phaser byte-for-byte, sync key included, and fills the absent autoWah', () => {
+    const phaser: PhaserSettings = {
+      rate: 2,
+      octaves: 4,
+      baseFrequency: 500,
+      stages: 6,
+      Q: 5,
+      wet: 0.2,
+      sync: { division: '1/4', modifier: 'dotted' },
+    };
+    const result = withGlobalAudioDefaults({ phaser: structuredClone(phaser) });
+    expect(result.phaser).toStrictEqual(phaser);
+    expect(result.autoWah).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+  });
+
+  it('keeps a present autoWah byte-for-byte and fills the absent phaser with no sync key', () => {
+    const autoWah = { baseFrequency: 200, octaves: 3, sensitivity: -12, Q: 4, gain: 6, follower: 0.1, wet: 0.15 };
+    const result = withGlobalAudioDefaults({ autoWah: { ...autoWah } });
+    expect(result.autoWah).toStrictEqual(autoWah);
+    expect(result.phaser).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect('sync' in result.phaser).toBe(false);
+  });
+
+  it('treats an explicit undefined pedal block as absent', () => {
+    const given = { phaser: undefined, autoWah: undefined } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(given);
+    expect(result.phaser).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(result.autoWah).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
   });
 
   it('stays JSON-serialisable', () => {
