@@ -2,7 +2,18 @@ import * as Tone from 'tone';
 
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
 import { devWarn } from '@/utils/helpers';
-import type { ReverbSettings, DelaySettings, FilterSettings, EQ3Settings, CompressorSettings, LimiterSettings } from '@/types/globalAudio';
+import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
+import type {
+  ReverbSettings,
+  DelaySettings,
+  FilterSettings,
+  EQ3Settings,
+  CompressorSettings,
+  LimiterSettings,
+  DistortionSettings,
+  ChebyshevSettings,
+  BitCrusherSettings,
+} from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
 // ========================================
@@ -15,6 +26,10 @@ let _globalEQ: Tone.EQ3 | null = null;
 let _globalLPF: Tone.Filter | null = null;
 let _globalHPF: Tone.Filter | null = null;
 let _globalLimiter: Tone.Limiter | null = null;
+// The colour slot, in chain order between the High-Pass Filter and the Compressor (docs/specs/GLOBAL_COLOUR.md §1.3).
+let _globalDistortion: Tone.Distortion | null = null;
+let _globalChebyshev: Tone.Chebyshev | null = null;
+let _globalBitCrusher: Tone.BitCrusher | null = null;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
 // gains, never Effect.wet: the rooms stay fully wet and each robot's send decides how much enters
 // (docs/specs/ROBOT_SENDS.md §1.3).
@@ -36,6 +51,19 @@ let _masterTap: OutputTap | null = null;
  *  global-chain param are left as direct writes — not confirmed audible, and out of scope for
  *  this fix. */
 const FILTER_FREQUENCY_RAMP_SECONDS = 0.05;
+
+/** Ramp for a live colour `wet` or BitCrusher `bits` change - the same declick rationale as the filter ramp.
+ *  `amount` and `order` are plain setters that rebuild a 1024-point shaper map and are written directly. */
+const COLOUR_RAMP_SECONDS = 0.05;
+
+/** `value` clamped into the field's full range, or undefined when it is not a finite number. A saved session or a
+ *  share link is untrusted input: an out-of-range colour value must not reach a node (an order of 1e9 would stall
+ *  the shaper-map build) and NaN must not be written at all. */
+function clampColour(key: GlobalAudioSeedFieldKey, value: number): number | undefined {
+  if (!Number.isFinite(value)) return undefined;
+  const { min, max } = GLOBAL_AUDIO_SEED_RANGES[key];
+  return Math.min(max, Math.max(min, value));
+}
 
 /** Ramp a Signal-backed AudioParam-like value to `target` when it supports .rampTo(), falling
  *  back to a direct .value assignment when it doesn't (headless/test environments). */
@@ -68,6 +96,9 @@ export function buildGlobalFxChain(): void {
   const FilterCtor = getToneCtor<Tone.Filter>('Filter');
   const GainCtorFX = getToneCtor<Tone.Gain>('Gain');
   const LimiterCtor = getToneCtor<Tone.Limiter>('Limiter');
+  const DistortionCtor = getToneCtor<Tone.Distortion>('Distortion');
+  const ChebyshevCtor = getToneCtor<Tone.Chebyshev>('Chebyshev');
+  const BitCrusherCtor = getToneCtor<Tone.BitCrusher>('BitCrusher');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -92,6 +123,26 @@ export function buildGlobalFxChain(): void {
   }
   if (LimiterCtor) {
     _globalLimiter = new LimiterCtor({ threshold: -12 });
+  }
+  // Built dry (wet 0); the store pushes the seeded values once the chain exists. `oversample` is 'none' on both
+  // shapers and is never read from state (docs/specs/GLOBAL_COLOUR.md §1.3).
+  if (DistortionCtor) {
+    _globalDistortion = new DistortionCtor({ distortion: 0.3, oversample: 'none', wet: 0 });
+  }
+  if (ChebyshevCtor) {
+    _globalChebyshev = new ChebyshevCtor({ order: 2, oversample: 'none', wet: 0 });
+  }
+  // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
+  // promise, so at wet 0 nothing changes and at wet > 0 the crushed share is briefly absent at boot. If the browser
+  // refuses worklets the constructor throws, and the slot is simply skipped.
+  _globalBitCrusher = null;
+  if (BitCrusherCtor) {
+    try {
+      _globalBitCrusher = new BitCrusherCtor({ bits: 8, wet: 0 });
+    } catch (err) {
+      devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
+      _globalBitCrusher = null;
+    }
   }
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
@@ -125,6 +176,9 @@ function disconnectAllFxNodes(): void {
     _globalEQ,
     _globalLPF,
     _globalHPF,
+    _globalDistortion,
+    _globalChebyshev,
+    _globalBitCrusher,
     _globalDelay,
     _globalReverb,
     _globalCompressor,
@@ -145,8 +199,10 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Compressor → Limiter → masterGain → Destination (or straight to Destination
- * if masterGain wasn't constructed).
+ * Distortion → Chebyshev → BitCrusher → Compressor → Limiter → masterGain →
+ * Destination (or straight to Destination if masterGain wasn't constructed).
+ * An absent colour node (headless, or a worklet that failed to construct) is
+ * skipped by the filter below, so the chain never breaks.
  *
  * Reverb and Delay are two parallel rooms OFF that chain, not stages in it.
  * Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
@@ -167,7 +223,16 @@ function disconnectAllFxNodes(): void {
 export function wireGlobalFxChain(controlledDecay: boolean): void {
   disconnectAllFxNodes();
 
-  const chainNodes = [_globalEQ, _globalLPF, _globalHPF, _globalCompressor, _globalLimiter].filter(Boolean) as Array<{
+  const chainNodes = [
+    _globalEQ,
+    _globalLPF,
+    _globalHPF,
+    _globalDistortion,
+    _globalChebyshev,
+    _globalBitCrusher,
+    _globalCompressor,
+    _globalLimiter,
+  ].filter(Boolean) as Array<{
     connect: (t: unknown) => unknown;
     toDestination?: () => void;
   }>;
@@ -456,6 +521,45 @@ export function setGlobalFilterHPF(params: Partial<FilterSettings>): void {
     if (params.Q !== undefined) hpf.Q.value = params.Q;
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFilterHPF failed', err);
+  }
+}
+
+export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
+  const distortion = _globalDistortion;
+  if (!distortion) return;
+  try {
+    const amount = params.amount === undefined ? undefined : clampColour('distortion.amount', params.amount);
+    const wet = params.wet === undefined ? undefined : clampColour('distortion.wet', params.wet);
+    if (amount !== undefined) distortion.distortion = amount;
+    if (wet !== undefined) rampOrSet(distortion.wet, wet, COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalDistortion failed', err);
+  }
+}
+
+export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
+  const chebyshev = _globalChebyshev;
+  if (!chebyshev) return;
+  try {
+    const order = params.order === undefined ? undefined : clampColour('chebyshev.order', Math.round(params.order));
+    const wet = params.wet === undefined ? undefined : clampColour('chebyshev.wet', params.wet);
+    if (order !== undefined) chebyshev.order = order;
+    if (wet !== undefined) rampOrSet(chebyshev.wet, wet, COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalChebyshev failed', err);
+  }
+}
+
+export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
+  const crusher = _globalBitCrusher;
+  if (!crusher) return;
+  try {
+    const bits = params.bits === undefined ? undefined : clampColour('bitCrusher.bits', params.bits);
+    const wet = params.wet === undefined ? undefined : clampColour('bitCrusher.wet', params.wet);
+    if (bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(crusher.wet, wet, COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
   }
 }
 

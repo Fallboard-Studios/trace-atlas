@@ -120,6 +120,28 @@ vi.mock('tone', () => ({
     toDestination: vi.fn(),
     gain: { value: 1 },
   })),
+  // Global Colour T3: the colour slot between the High-Pass Filter and the Compressor.
+  Distortion: vi.fn((opts: { distortion?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    distortion: opts.distortion ?? 0.4,
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  Chebyshev: vi.fn((opts: { order?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    order: opts.order ?? 1,
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  BitCrusher: vi.fn((opts: { bits?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    bits: { value: opts.bits ?? 4, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2338,6 +2360,47 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
       expect(node.feedback.value).toBe(0.3);
       expect(returnOf(node).gain.value).toBe(0.25);
     });
+  });
+});
+
+// Global Colour T3 (docs/specs/GLOBAL_COLOUR.md section 1.3): start() builds the colour slot, and the three setters
+// are on the public AudioEngine surface like every other global setter.
+describe('AudioEngine.start — the colour slot (Global Colour T3)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('constructs exactly one Distortion, one Chebyshev and one BitCrusher', async () => {
+    const Tone = await import('tone');
+    // The mocked module outlives vi.resetModules(), so earlier tests' constructions are still in the call history.
+    for (const ctor of [Tone.Distortion, Tone.Chebyshev, Tone.BitCrusher]) vi.mocked(ctor).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.Distortion).toHaveBeenCalledTimes(1);
+    expect(Tone.Chebyshev).toHaveBeenCalledTimes(1);
+    expect(Tone.BitCrusher).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes setGlobalDistortion, setGlobalChebyshev and setGlobalBitCrusher', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalDistortion).toBe('function');
+    expect(typeof AudioEngine.setGlobalChebyshev).toBe('function');
+    expect(typeof AudioEngine.setGlobalBitCrusher).toBe('function');
+  });
+
+  it('routes the public setters to the live nodes', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+    AudioEngine.setGlobalDistortion({ amount: 0.7 });
+    AudioEngine.setGlobalChebyshev({ order: 5 });
+    AudioEngine.setGlobalBitCrusher({ bits: 3 });
+
+    expect(last(Tone.Distortion).distortion).toBe(0.7);
+    expect(last(Tone.Chebyshev).order).toBe(5);
+    expect(last(Tone.BitCrusher).bits.rampTo).toHaveBeenCalledWith(3, 0.05);
   });
 });
 
