@@ -16,7 +16,7 @@ import {
   type LfoLink,
   type BankLfoSettings,
 } from '../types/lfo';
-import { withGlobalAudioDefaults, type DelaySettings } from '../types/globalAudio';
+import { withGlobalAudioDefaults, type DelaySettings, type PhaserSettings } from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
@@ -84,6 +84,13 @@ function sanitizeLaneSync(lane: BankLfoSettings): BankLfoSettings {
 function sanitizeDelaySync(delay: DelaySettings): DelaySettings {
   if (!('sync' in delay) || isNoteValue(delay.sync)) return delay;
   const { sync: _sync, ...free } = delay;
+  return free;
+}
+
+/** sanitizeLaneSync for the Phaser's Rate -- same rule, same shape (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5). */
+function sanitizePhaserSync(phaser: PhaserSettings): PhaserSettings {
+  if (!('sync' in phaser) || isNoteValue(phaser.sync)) return phaser;
+  const { sync: _sync, ...free } = phaser;
   return free;
 }
 
@@ -528,7 +535,7 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // A payload saved before a block existed (the colour blocks, docs/specs/GLOBAL_COLOUR.md assumption 11)
   // lacks it: fill from the defaults first, so nothing below dereferences a missing block.
   const filled = withGlobalAudioDefaults(payload.globalAudio);
-  const globalAudio = { ...filled, delay: sanitizeDelaySync(filled.delay) };
+  const globalAudio = { ...filled, delay: sanitizeDelaySync(filled.delay), phaser: sanitizePhaserSync(filled.phaser) };
   useAudioStore.setState({ globalAudio });
   // A synced Delay resolves at the tempo this payload is about to install (setBPM below re-pushes it
   // too, but the engine should never hear it at the live world's old tempo in between).
