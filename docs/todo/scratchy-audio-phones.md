@@ -587,3 +587,25 @@ a Standard run, the T0 re-baseline on current `main` (the Baseline section above
 desktop `npm run perf` before and after. The gate is zero underruns at Full and no more than the Standard baseline. One
 clean Full run is consistent with it; it only proves the worklet-cost question if it was run (b) or (c), and that is not
 known. No `LOAD_COLOUR_MIN` threshold (T13b) was built: nothing reported a rise.
+
+## Global Modulation (roadmap 50.4) on the Pixel — Crawford's report, 2026-10-15
+
+Branch `feature/palette-modulation` after T13 (HEAD `9dc21331`). What Crawford reported, in his words: "three minutes on
+full settings and while there were some underruns there wasn't any distortion", and, asked which run it was, "both pedals
+on, 12 stages, full, it was fine". Nothing more was given, so this records what was and was not said:
+
+| Run | Length | `underruns` | By ear |
+|---|---|---|---|
+| (c) Both pedals at full Mix, 12 stages, Full | 3:00 | *some*, count not given (no start → end HUD numbers) | no distortion, "fine" |
+| Standard | — | *not reported* | — |
+
+**Not recorded, so not claimed:** which world the run used, the HUD underrun count, a Standard run, the T0 re-baseline on
+current `main` (T0 was not run; the Baseline section above still predates Robot Sends and Colour), the plan's runs (a)
+the seeded pedals and (b) Phaser alone, and the desktop `npm run perf` before and after
+(docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 14).
+
+**Reading against the gate.** The gate is zero underruns at Full and no more than the baseline's count at Standard. "Some
+underruns" at Full does not meet the first half as written, and with no baseline it cannot be said whether the pedals
+raised the count: run (c) is the worst case the plan names, so a clean ear on it is encouraging, not a pass. Nothing is
+changed on this evidence: the Stages ceiling stays at 12 and `LOAD_PEDAL_MIN` (T15b) is not built. What would settle it
+is the same world run on `main` (T0) and the HUD's count from this branch's run, both at Full 3:00.
