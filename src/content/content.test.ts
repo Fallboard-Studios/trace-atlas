@@ -49,7 +49,26 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  Exempt from the unreferenced check only while they are still unreferenced: the moment a consumer
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
-const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {};
+const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
+  // docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 8 adds the Modulation copy ahead of its readers: Task 9
+  // (the rig blocks) reads the two headings and the thirteen parameters, Task 10 (the tab) reads the group.
+  'fleet.autoWah': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.baseFrequency': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.octaves': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.sensitivity': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.q': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.gain': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.follower': 'GLOBAL_MODULATION T9',
+  'fleet.autoWah.mix': 'GLOBAL_MODULATION T9',
+  'fleet.phaser': 'GLOBAL_MODULATION T9',
+  'fleet.phaser.rate': 'GLOBAL_MODULATION T9',
+  'fleet.phaser.octaves': 'GLOBAL_MODULATION T9',
+  'fleet.phaser.baseFrequency': 'GLOBAL_MODULATION T9',
+  'fleet.phaser.stages': 'GLOBAL_MODULATION T9',
+  'fleet.phaser.q': 'GLOBAL_MODULATION T9',
+  'fleet.phaser.mix': 'GLOBAL_MODULATION T9',
+  'fleet.modulation': 'GLOBAL_MODULATION T10',
+};
 
 describe('content guard', () => {
   it('every key is referenced from src/ outside src/content', () => {
@@ -436,5 +455,113 @@ describe('global colour copy', () => {
 
   it('the group name is the one the tab and the breadcrumb show', () => {
     expect(labels('fleet.colour').humanLabel).toBe('Colour');
+  });
+});
+
+// ----------------------------------------
+// GLOBAL MODULATION COPY (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.7; docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 8)
+// ----------------------------------------
+// The Modulation tab's words: the group, its two pedals and their thirteen parameters. The sentences are
+// placeholders for Crawford's copy pass (spec assumption 16), so these pin the structure — every name, a lore
+// word, help of its own, the unit, an intro that covers both pedals — never the wording.
+
+const MODULATION_PEDALS = ['fleet.autoWah', 'fleet.phaser'] as const;
+const AUTOWAH_PARAMS = [
+  'fleet.autoWah.baseFrequency', 'fleet.autoWah.octaves', 'fleet.autoWah.sensitivity', 'fleet.autoWah.q',
+  'fleet.autoWah.gain', 'fleet.autoWah.follower', 'fleet.autoWah.mix',
+] as const;
+const PHASER_PARAMS = [
+  'fleet.phaser.rate', 'fleet.phaser.octaves', 'fleet.phaser.baseFrequency', 'fleet.phaser.stages',
+  'fleet.phaser.q', 'fleet.phaser.mix',
+] as const;
+const MODULATION_PARAMS = [...AUTOWAH_PARAMS, ...PHASER_PARAMS] as const;
+
+describe('global modulation copy', () => {
+  it('the group, the two pedals and the thirteen parameters all exist', () => {
+    expect(MODULATION_PARAMS).toHaveLength(13);
+    for (const k of ['fleet.modulation', ...MODULATION_PEDALS, ...MODULATION_PARAMS] as const) {
+      expect(CONTENT[k], k).toBeDefined();
+    }
+  });
+
+  it.each(['fleet.modulation', ...MODULATION_PEDALS] as const)('%s has a name, a lore word and a panel heading or intro', (key) => {
+    const entry = CONTENT[key] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    if (key === 'fleet.modulation') expect(entry.intro).toBeDefined();
+    else expect(entry.heading?.trim()).toBeTruthy();
+  });
+
+  it.each(MODULATION_PARAMS)('%s has a name, a lore word and help, so its slider can carry a "?"', (key) => {
+    const entry = CONTENT[key] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    expect(entry.help?.human.trim()).toBeTruthy();
+    expect(labels(key).help?.human.trim()).toBeTruthy();
+  });
+
+  it('the two pedals carry distinct names, lore words and headings', () => {
+    const entries = MODULATION_PEDALS.map((k) => CONTENT[k] as ContentEntry);
+    expect(new Set(entries.map((e) => e.human)).size).toBe(2);
+    expect(new Set(entries.map((e) => e.lore)).size).toBe(2);
+    expect(new Set(entries.map((e) => e.heading)).size).toBe(2);
+  });
+
+  it('the two Mix sliders share a name but carry their own lore and their own help (never one shared description)', () => {
+    const mixes = ['fleet.autoWah.mix', 'fleet.phaser.mix'] as const;
+    expect(new Set(mixes.map((k) => CONTENT[k].human)).size).toBe(1);
+    expect(new Set(mixes.map((k) => CONTENT[k].lore)).size).toBe(2);
+    expect(new Set(mixes.map((k) => CONTENT[k].help?.human)).size).toBe(2);
+  });
+
+  it('the two Q sliders and the two shared-name sliders each keep their own lore and help', () => {
+    for (const [a, b] of [
+      ['fleet.autoWah.q', 'fleet.phaser.q'],
+      ['fleet.autoWah.octaves', 'fleet.phaser.octaves'],
+      ['fleet.autoWah.baseFrequency', 'fleet.phaser.baseFrequency'],
+    ] as const) {
+      expect(CONTENT[a].lore, `${a} / ${b} lore`).not.toBe(CONTENT[b].lore);
+      expect(CONTENT[a].help?.human, `${a} / ${b} help`).not.toBe(CONTENT[b].help?.human);
+    }
+  });
+
+  it('the unit-bearing sliders read in their unit, and the unitless ones carry none', () => {
+    const units: Record<(typeof MODULATION_PARAMS)[number], string | undefined> = {
+      'fleet.autoWah.baseFrequency': 'Hz', 'fleet.autoWah.octaves': 'oct', 'fleet.autoWah.sensitivity': 'dB',
+      'fleet.autoWah.q': undefined, 'fleet.autoWah.gain': 'dB', 'fleet.autoWah.follower': 's', 'fleet.autoWah.mix': undefined,
+      'fleet.phaser.rate': 'Hz', 'fleet.phaser.octaves': 'oct', 'fleet.phaser.baseFrequency': 'Hz',
+      'fleet.phaser.stages': undefined, 'fleet.phaser.q': undefined, 'fleet.phaser.mix': undefined,
+    };
+    for (const k of MODULATION_PARAMS) {
+      expect((CONTENT[k] as ContentEntry).unit?.trim(), k).toBe(units[k]);
+    }
+  });
+
+  it('a word unit has room before it, like " measures" and " bits"', () => {
+    expect(labels('fleet.autoWah.octaves').unit?.startsWith(' ')).toBe(true);
+    expect(labels('fleet.phaser.octaves').unit?.startsWith(' ')).toBe(true);
+  });
+
+  it('the Phaser Rate help explains both Free and Sync, like the Delay Time help', () => {
+    const help = (CONTENT['fleet.phaser.rate'] as ContentEntry).help?.human ?? '';
+    expect(help).toMatch(/\bFree\b/);
+    expect(help).toMatch(/\bSync\b/);
+    expect(help).toMatch(/Tempo/);
+  });
+
+  it('the group intro has both voices and its human description names both pedals (in the eqFilters list shape)', () => {
+    const props = introProps('fleet.modulation');
+    expect(props.loreLabel.trim()).toBeTruthy();
+    expect(props.loreDescription.trim()).toBeTruthy();
+    for (const k of MODULATION_PEDALS) {
+      expect(props.humanDescription, k).toContain(`<strong>${CONTENT[k].human}</strong>`);
+    }
+    expect(props.humanDescription).toContain('<ul>');
+    expect(props.humanDescription).toContain('<strong>Mix</strong>');
+    expect(props.humanDescription).toContain('<strong>Rate</strong>');
+  });
+
+  it('the group name is the one the tab and the breadcrumb show', () => {
+    expect(labels('fleet.modulation').humanLabel).toBe('Modulation');
   });
 });
