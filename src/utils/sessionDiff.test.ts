@@ -15,6 +15,7 @@ import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload,
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { SessionPayload } from '../types/session';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { generateAttenuationStyleBpm } from './bpmSeed';
@@ -1914,5 +1915,141 @@ describe('computeCompanyDiff', () => {
   it('diffs robotIds alone when only membership changed', () => {
     const company = makeCompany({ robotIds: ['r1', 'r3'] });
     expect(computeCompanyDiff(company, { name: company.name, robotIds: ['r1', 'r2'] })).toEqual({ robotIds: ['r1', 'r3'] });
+  });
+});
+
+// ----------------------------------------
+// GLOBAL COLOUR DEFAULTS ON RESTORE (docs/specs/GLOBAL_COLOUR.md assumption 11; docs/tasks/GLOBAL_COLOUR.md Task 10)
+// ----------------------------------------
+// A session saved before the colour blocks existed has no distortion / chebyshev / bitCrusher in its
+// globalAudio. Restoring it must fill them from the defaults (dry) before anything reads them, so the
+// engine push never dereferences a missing block. A payload that carries them restores them as given.
+
+describe('applySessionPayload — globalAudio defaults (Global Colour T10)', () => {
+  let colourLocaleCounter = 0;
+  function setupColourWorld() {
+    const localeId = `apply-session-colour-locale-${colourLocaleCounter++}`;
+    useAttenuationStyleStore.setState({
+      attenuationStyles: [{ ...DEFAULT_PELAGOS, currentLocaleId: localeId }],
+      currentAttenuationStyleId: DEFAULT_PELAGOS.id,
+    });
+    useLocaleStore.setState({ locales: { [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } } });
+    spawnInitialRoster(localeId);
+    return localeId;
+  }
+
+  const LOUD = {
+    distortion: { amount: 0.77, wet: 0.41 },
+    chebyshev: { order: 5, wet: 0.22 },
+    bitCrusher: { bits: 3, wet: 0.6 },
+  };
+
+  /** A payload as an older build wrote it: no colour block at all. */
+  function preColourPayload(): SessionPayload {
+    const payload = buildSessionPayload();
+    const { distortion: _d, chebyshev: _c, bitCrusher: _b, ...old } = payload.globalAudio;
+    return { ...payload, globalAudio: old as unknown as SessionPayload['globalAudio'] };
+  }
+
+  function spyColourSetters() {
+    return {
+      distortion: vi.spyOn(AudioEngine, 'setGlobalDistortion').mockImplementation(() => {}),
+      chebyshev: vi.spyOn(AudioEngine, 'setGlobalChebyshev').mockImplementation(() => {}),
+      bitCrusher: vi.spyOn(AudioEngine, 'setGlobalBitCrusher').mockImplementation(() => {}),
+    };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a payload without the three colour blocks restores them at the defaults, dry, and leaves every other block as saved', () => {
+    setupColourWorld();
+    const payload = preColourPayload();
+    applySessionPayload(payload);
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.distortion).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+    expect(restored.chebyshev).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+    expect(restored.bitCrusher).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher);
+    expect([restored.distortion.wet, restored.chebyshev.wet, restored.bitCrusher.wet]).toEqual([0, 0, 0]);
+    expect(restored.reverb).toEqual(payload.globalAudio.reverb);
+    expect(restored.compressor).toEqual(payload.globalAudio.compressor);
+    expect(restored.limiter).toEqual(payload.globalAudio.limiter);
+  });
+
+  it('the engine is pushed the full default colour blocks, never undefined', () => {
+    setupColourWorld();
+    const spies = spyColourSetters();
+    applySessionPayload(preColourPayload());
+    expect(spies.distortion).toHaveBeenCalledWith(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+    expect(spies.chebyshev).toHaveBeenCalledWith(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+    expect(spies.bitCrusher).toHaveBeenCalledWith(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher);
+  });
+
+  it('a payload that carries non-default colour blocks restores them as given, in the store and at the engine', () => {
+    setupColourWorld();
+    const spies = spyColourSetters();
+    const payload = { ...buildSessionPayload(), globalAudio: { ...buildSessionPayload().globalAudio, ...LOUD } };
+    applySessionPayload(payload);
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.distortion).toEqual(LOUD.distortion);
+    expect(restored.chebyshev).toEqual(LOUD.chebyshev);
+    expect(restored.bitCrusher).toEqual(LOUD.bitCrusher);
+    expect(spies.distortion).toHaveBeenCalledWith(LOUD.distortion);
+    expect(spies.chebyshev).toHaveBeenCalledWith(LOUD.chebyshev);
+    expect(spies.bitCrusher).toHaveBeenCalledWith(LOUD.bitCrusher);
+  });
+
+  it('save then restore is exact for a loud colour: the next save carries the same three blocks', () => {
+    setupColourWorld();
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, ...LOUD } }));
+    const saved = buildSessionPayload();
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, ...DEFAULT_GLOBAL_AUDIO_SETTINGS } }));
+    applySessionPayload(saved);
+    const again = buildSessionPayload();
+    expect(again.globalAudio.distortion).toEqual(LOUD.distortion);
+    expect(again.globalAudio.chebyshev).toEqual(LOUD.chebyshev);
+    expect(again.globalAudio.bitCrusher).toEqual(LOUD.bitCrusher);
+  });
+
+  it('a payload with only some colour blocks keeps those byte for byte and defaults the rest', () => {
+    setupColourWorld();
+    const { distortion: _d, chebyshev: _c, ...rest } = buildSessionPayload().globalAudio;
+    applySessionPayload({ ...buildSessionPayload(), globalAudio: { ...rest, bitCrusher: LOUD.bitCrusher } as unknown as SessionPayload['globalAudio'] });
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.bitCrusher).toEqual(LOUD.bitCrusher);
+    expect(restored.distortion).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+    expect(restored.chebyshev).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+  });
+
+  it('a null colour block is a missing one: it takes the default and nothing throws', () => {
+    setupColourWorld();
+    const nulled = { ...buildSessionPayload().globalAudio, distortion: null } as unknown as SessionPayload['globalAudio'];
+    expect(() => applySessionPayload({ ...buildSessionPayload(), globalAudio: nulled })).not.toThrow();
+    expect(useAudioStore.getState().globalAudio.distortion).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+  });
+
+  it('an empty globalAudio restores every block at its default instead of crashing on the first missing one', () => {
+    setupColourWorld();
+    const empty = { ...buildSessionPayload(), globalAudio: {} as SessionPayload['globalAudio'] };
+    expect(() => applySessionPayload(empty)).not.toThrow();
+    expect(useAudioStore.getState().globalAudio).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS);
+  });
+
+  it('restoring never mutates the payload it was given, and the stored defaults are copies, not the shared constants', () => {
+    setupColourWorld();
+    const payload = preColourPayload();
+    const before = JSON.stringify(payload);
+    applySessionPayload(payload);
+    expect(JSON.stringify(payload)).toBe(before);
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.distortion).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+    expect(restored.bitCrusher).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher);
+  });
+
+  it('skipLocaleRebuild: true (the share-link boot path) fills the defaults too', () => {
+    setupColourWorld();
+    applySessionPayload(preColourPayload(), { skipLocaleRebuild: true });
+    expect(useAudioStore.getState().globalAudio.bitCrusher).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher);
   });
 });

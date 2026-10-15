@@ -7,6 +7,7 @@ import type { LfoLaneId, GlobalLfoTargetId, LfoLink, BankLfoSettings } from '../
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { NOTE_VALUES, type NoteValue } from '../data/noteValues';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 import { encodeSessionPayload, decodeSessionPayload, buildShareUrl, copySessionLink } from './sessionShareUtils';
 
 // ========================================
@@ -26,7 +27,9 @@ function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
     version: 1,
     attenuationStyleName: 'Pelagos 7!',
     coordinates: { x: -5, y: 777 },
-    globalAudio: {} as SessionPayload['globalAudio'],
+    // A full set of blocks, as every real payload carries: decoding fills any missing block from the
+    // defaults (Global Colour T10), so an empty stand-in would no longer round-trip as itself.
+    globalAudio: structuredClone(DEFAULT_GLOBAL_AUDIO_SETTINGS),
     robotOverrides: {},
     companyDiffs: {},
     userCreatedCompanies: [],
@@ -478,6 +481,9 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     }
     const payload = makePayload({
       version: 2,
+      // An empty g on purpose: this measures what the LFO links cost on the wire, which is the number
+      // the bound below was recorded against. Encoding applies no defaults, so it stays comparable.
+      globalAudio: {} as SessionPayload['globalAudio'],
       lfoBank: makeLfoBank(),
       globalLfoLinks: makeGlobalLfoLinks({ 'eq3.low': { lane: 'c', depth: 40 } }),
       robotOverrides,
@@ -848,7 +854,7 @@ describe('Delay `sync` travels inside `g` whole', () => {
 
   it('round-trips a synced Delay with its note, needing no codec of its own', () => {
     const sync: NoteValue = { division: '1/8', modifier: 'dotted' };
-    const payload = makePayload({ version: 2, globalAudio: { delay: { ...delay, sync } } as unknown as SessionPayload['globalAudio'] });
+    const payload = makePayload({ version: 2, globalAudio: { ...structuredClone(DEFAULT_GLOBAL_AUDIO_SETTINGS), delay: { ...delay, sync } } });
     const decoded = decodeSessionPayload(encodeSessionPayload(payload));
     expect(decoded).toEqual(payload);
     expect((decoded!.globalAudio as unknown as { delay: { sync: NoteValue } }).delay.sync).toEqual(sync);
@@ -979,5 +985,88 @@ describe('copySessionLink', () => {
     const result = await copySessionLink(makePayload());
 
     expect(result).toBe(false);
+  });
+});
+
+// ----------------------------------------
+// GLOBAL COLOUR DEFAULTS ON DECODE (docs/specs/GLOBAL_COLOUR.md assumption 11; docs/tasks/GLOBAL_COLOUR.md Task 10)
+// ----------------------------------------
+// Nothing new is encoded: globalAudio already travels whole in `g`. The only change is on the way in -- a
+// link written before the colour blocks existed decodes with them at the defaults (dry). The fixture is
+// the Audio Palette series' recorded 50.2 baseline link (docs/todo/scratchy-audio-phones.md), whose `g`
+// carries exactly the eight pre-colour keys.
+
+const PRE_COLOUR_BASELINE_LINK = 'eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOjAsInkiOjUwfSwiZyI6eyJjb21wcmVzc29yQmVmb3JlRGVsYXkiOmZhbHNlLCJyZXZlcmIiOnsiZGVjYXkiOjEuNSwicHJlRGVsYXkiOjAuMDIsIndldCI6MC4zfSwiZGVsYXkiOnsiZGVsYXlUaW1lIjowLjI1LCJmZWVkYmFjayI6MC4yLCJ3ZXQiOjAuMTV9LCJjb21wcmVzc29yIjp7InRocmVzaG9sZCI6LTI0LCJyYXRpbyI6MiwiYXR0YWNrIjowLjAwMywicmVsZWFzZSI6MC4yNSwia25lZSI6Nn0sImVxMyI6eyJsb3ciOjAsIm1pZCI6MCwiaGlnaCI6MH0sImZpbHRlckxQRiI6eyJ0eXBlIjoibG93cGFzcyIsImZyZXF1ZW5jeSI6MjAwMDAsIlEiOjF9LCJmaWx0ZXJIUEYiOnsidHlwZSI6ImhpZ2hwYXNzIiwiZnJlcXVlbmN5IjoyMCwiUSI6MX0sImxpbWl0ZXIiOnsidGhyZXNob2xkIjotMTJ9fX0=';
+const COLOUR_KEYS = ['distortion', 'chebyshev', 'bitCrusher'] as const;
+const LOUD_COLOUR = {
+  distortion: { amount: 0.77, wet: 0.41 },
+  chebyshev: { order: 5, wet: 0.22 },
+  bitCrusher: { bits: 3, wet: 0.6 },
+};
+
+/** Encodes an arbitrary raw wire object the way encodeSessionPayload does, to build hand-edited links. */
+function encodeRaw(wire: unknown): string {
+  return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(wire))));
+}
+
+describe('colour defaults on decode (Global Colour T10)', () => {
+  it('the recorded 50.2 baseline link really lacks the three colour keys (the fixture proves what it claims)', () => {
+    const wire = decodeRawWire(PRE_COLOUR_BASELINE_LINK) as { g: Record<string, unknown> };
+    for (const key of COLOUR_KEYS) expect(key in wire.g, key).toBe(false);
+  });
+
+  it('decodes the old baseline link with the three blocks at the defaults, dry, and its eight saved keys untouched', () => {
+    const decoded = decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!;
+    expect(decoded).not.toBeNull();
+    const wire = decodeRawWire(PRE_COLOUR_BASELINE_LINK) as { g: Record<string, unknown> };
+    for (const key of COLOUR_KEYS) expect(decoded.globalAudio[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    expect([decoded.globalAudio.distortion.wet, decoded.globalAudio.chebyshev.wet, decoded.globalAudio.bitCrusher.wet]).toEqual([0, 0, 0]);
+    for (const [key, value] of Object.entries(wire.g)) {
+      expect(decoded.globalAudio[key as keyof typeof decoded.globalAudio], key).toEqual(value);
+    }
+  });
+
+  it('a payload that carries non-default colour blocks round-trips through encode and decode exactly', () => {
+    const payload = makePayload({ version: 2, globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, ...LOUD_COLOUR } });
+    const encoded = encodeSessionPayload(payload);
+    expect(decodeSessionPayload(encoded)).toEqual(payload);
+    const wire = decodeRawWire(encoded) as { g: Record<string, unknown> };
+    for (const key of COLOUR_KEYS) expect(wire.g[key], key).toEqual(LOUD_COLOUR[key]);
+  });
+
+  it('a link with only some colour blocks keeps those byte for byte and defaults the rest', () => {
+    const { distortion: _d, chebyshev: _c, ...rest } = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...rest, bitCrusher: LOUD_COLOUR.bitCrusher } });
+    const decoded = decodeSessionPayload(link)!;
+    expect(decoded.globalAudio.bitCrusher).toEqual(LOUD_COLOUR.bitCrusher);
+    expect(decoded.globalAudio.distortion).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+    expect(decoded.globalAudio.chebyshev).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+  });
+
+  it('a present block is kept whole, never deep-merged: a bitCrusher with only a wet stays without bits (the existing whole-block convention)', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, bitCrusher: { wet: 0.5 } } });
+    expect(decodeSessionPayload(link)!.globalAudio.bitCrusher).toEqual({ wet: 0.5 });
+  });
+
+  it('a null colour block is a missing one and takes the default', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, chebyshev: null } });
+    expect(decodeSessionPayload(link)!.globalAudio.chebyshev).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+  });
+
+  it('an empty g decodes to a full set of defaults rather than an empty object (the payload is never left partial)', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: {} });
+    expect(decodeSessionPayload(link)!.globalAudio).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS);
+  });
+
+  it('an unknown key in g is dropped, not carried into the store', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, ringMod: { wet: 1 } } });
+    expect('ringMod' in decodeSessionPayload(link)!.globalAudio).toBe(false);
+  });
+
+  it('the decoded defaults are copies: editing one decode never changes the shared defaults or the next decode', () => {
+    const first = decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!;
+    first.globalAudio.bitCrusher.wet = 0.9;
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher.wet).toBe(0);
+    expect(decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!.globalAudio.bitCrusher.wet).toBe(0);
   });
 });

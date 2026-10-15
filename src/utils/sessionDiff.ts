@@ -16,7 +16,7 @@ import {
   type LfoLink,
   type BankLfoSettings,
 } from '../types/lfo';
-import type { DelaySettings } from '../types/globalAudio';
+import { withGlobalAudioDefaults, type DelaySettings } from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
@@ -525,7 +525,10 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     );
   }
 
-  const globalAudio = { ...payload.globalAudio, delay: sanitizeDelaySync(payload.globalAudio.delay) };
+  // A payload saved before a block existed (the colour blocks, docs/specs/GLOBAL_COLOUR.md assumption 11)
+  // lacks it: fill from the defaults first, so nothing below dereferences a missing block.
+  const filled = withGlobalAudioDefaults(payload.globalAudio);
+  const globalAudio = { ...filled, delay: sanitizeDelaySync(filled.delay) };
   useAudioStore.setState({ globalAudio });
   // A synced Delay resolves at the tempo this payload is about to install (setBPM below re-pushes it
   // too, but the engine should never hear it at the live world's old tempo in between).
