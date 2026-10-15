@@ -17,6 +17,9 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalLimiter: vi.fn(),
     setGlobalDelay: vi.fn(),
     setGlobalReverb: vi.fn(),
+    setGlobalDistortion: vi.fn(),
+    setGlobalChebyshev: vi.fn(),
+    setGlobalBitCrusher: vi.fn(),
     setMasterVolume: vi.fn(),
   },
 }));
@@ -123,6 +126,10 @@ describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
       delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm),
     });
     expect(AudioEngine.setGlobalReverb).toHaveBeenCalledWith(globalAudio.reverb);
+    // Global Colour T4: the three colour blocks reach their nodes whole.
+    expect(AudioEngine.setGlobalDistortion).toHaveBeenCalledWith(globalAudio.distortion);
+    expect(AudioEngine.setGlobalChebyshev).toHaveBeenCalledWith(globalAudio.chebyshev);
+    expect(AudioEngine.setGlobalBitCrusher).toHaveBeenCalledWith(globalAudio.bitCrusher);
   });
 
   it('is deterministic — calling it twice with the same Attenuation Style produces the same globalAudio', async () => {
@@ -223,6 +230,79 @@ describe('useAudioStore - setGlobalAudio pushes to AudioEngine', () => {
 
     useAudioStore.getState().setGlobalAudio('reverb', { wet: 0.6 });
     expect(AudioEngine.setGlobalReverb).toHaveBeenCalledWith({ wet: 0.6 });
+  });
+
+  // Global Colour T4 (docs/specs/GLOBAL_COLOUR.md section 1.4).
+  describe('the colour blocks', () => {
+    it('routes setGlobalAudio(bitCrusher, { wet }) to the BitCrusher setter with exactly that partial, and updates state', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setGlobalAudio('bitCrusher', { wet: 0.4 });
+
+      expect(AudioEngine.setGlobalBitCrusher).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.setGlobalBitCrusher).toHaveBeenCalledWith({ wet: 0.4 });
+      expect(useAudioStore.getState().globalAudio.bitCrusher.wet).toBe(0.4);
+    });
+
+    it('routes distortion and chebyshev the same way, each to its own setter only', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setGlobalAudio('distortion', { amount: 0.8 });
+      expect(AudioEngine.setGlobalDistortion).toHaveBeenCalledWith({ amount: 0.8 });
+      expect(AudioEngine.setGlobalChebyshev).not.toHaveBeenCalled();
+      expect(AudioEngine.setGlobalBitCrusher).not.toHaveBeenCalled();
+
+      useAudioStore.getState().setGlobalAudio('chebyshev', { order: 5 });
+      expect(AudioEngine.setGlobalChebyshev).toHaveBeenCalledWith({ order: 5 });
+      expect(AudioEngine.setGlobalDistortion).toHaveBeenCalledTimes(1);
+    });
+
+    it('merges a partial into its block, so editing one field keeps the other', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      useAudioStore.getState().setGlobalAudio('chebyshev', { order: 3, wet: 0.5 });
+      useAudioStore.getState().setGlobalAudio('chebyshev', { order: 6 });
+      expect(useAudioStore.getState().globalAudio.chebyshev).toStrictEqual({ order: 6, wet: 0.5 });
+    });
+
+    it('treats an undefined-valued colour key as no edit: no state write and no engine push', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      const before = useAudioStore.getState().globalAudio.distortion;
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setGlobalAudio('distortion', { amount: undefined });
+
+      expect(AudioEngine.setGlobalDistortion).not.toHaveBeenCalled();
+      expect(useAudioStore.getState().globalAudio.distortion).toStrictEqual(before);
+    });
+
+    it('applyGlobalAudioToEngine pushes all three colour blocks whole, after the filters', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      // Values that differ from the defaults and from each other, so a swapped pair cannot pass by coincidence.
+      const globalAudio = {
+        ...useAudioStore.getState().globalAudio,
+        distortion: { amount: 0.61, wet: 0.37 },
+        chebyshev: { order: 5, wet: 0.23 },
+        bitCrusher: { bits: 11, wet: 0.19 },
+      };
+      vi.clearAllMocks();
+
+      applyGlobalAudioToEngine(globalAudio, 120);
+
+      expect(AudioEngine.setGlobalDistortion).toHaveBeenCalledWith({ amount: 0.61, wet: 0.37 });
+      expect(AudioEngine.setGlobalChebyshev).toHaveBeenCalledWith({ order: 5, wet: 0.23 });
+      expect(AudioEngine.setGlobalBitCrusher).toHaveBeenCalledWith({ bits: 11, wet: 0.19 });
+
+      const order = (fn: unknown) => (fn as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+      expect(order(AudioEngine.setGlobalFilterHPF)).toBeLessThan(order(AudioEngine.setGlobalDistortion));
+      expect(order(AudioEngine.setGlobalDistortion)).toBeLessThan(order(AudioEngine.setGlobalChebyshev));
+      expect(order(AudioEngine.setGlobalChebyshev)).toBeLessThan(order(AudioEngine.setGlobalBitCrusher));
+    });
   });
 });
 
