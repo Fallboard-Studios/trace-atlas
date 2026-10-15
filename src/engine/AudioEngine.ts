@@ -46,6 +46,7 @@ import {
   setGlobalDistortion,
   setGlobalChebyshev,
   setGlobalBitCrusher,
+  setGlobalAutoWah,
   getGlobalModulationTarget,
 } from './audioEngine/globalFx';
 
@@ -1335,4 +1336,5 @@ export const AudioEngine = {
   setGlobalDistortion,
   setGlobalChebyshev,
   setGlobalBitCrusher,
+  setGlobalAutoWah,
 };

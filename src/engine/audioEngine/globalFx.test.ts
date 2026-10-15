@@ -10,6 +10,24 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vite
 // Global Colour T3 (docs/specs/GLOBAL_COLOUR.md section 1.3). BitCrusher is hoisted so every access sees one
 // constructor with one call history, and so a test can hide it (a headless env, or a browser without worklets).
 const toneFlags = vi.hoisted(() => ({
+  // Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): AutoWah is hoisted for the same two
+  // reasons - one constructor with one call history, and a switch to hide it. Q, gain and wet are Signals; the
+  // sweep range, sensitivity and follower smoothing are plain properties, as in Tone 15.
+  wahAbsent: false,
+  wahCtor: vi.fn(
+    (opts: { baseFrequency?: number; octaves?: number; sensitivity?: number; follower?: number; Q?: number; gain?: number; wet?: number } = {}) => ({
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+      toDestination: vi.fn(),
+      baseFrequency: opts.baseFrequency ?? 100,
+      octaves: opts.octaves ?? 2.6,
+      sensitivity: opts.sensitivity ?? 0,
+      follower: opts.follower ?? 0.1,
+      Q: { value: opts.Q ?? 2, rampTo: vi.fn() },
+      gain: { value: opts.gain ?? 2, rampTo: vi.fn() },
+      wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+    }),
+  ),
   crusherAbsent: false,
   crusherCtor: vi.fn((opts: { bits?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
@@ -41,6 +59,9 @@ vi.mock('tone', () => ({
   })),
   get BitCrusher() {
     return toneFlags.crusherAbsent ? undefined : toneFlags.crusherCtor;
+  },
+  get AutoWah() {
+    return toneFlags.wahAbsent ? undefined : toneFlags.wahCtor;
   },
   Compressor: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -151,6 +172,7 @@ describe('globalFx', () => {
     vi.resetModules();
     vi.clearAllMocks();
     toneFlags.crusherAbsent = false;
+    toneFlags.wahAbsent = false;
   });
 
   describe('getGlobalChainEntry', () => {
@@ -253,14 +275,14 @@ describe('globalFx', () => {
       expect(toneFlags.crusherCtor).toHaveBeenCalledWith({ bits: 8, wet: 0 });
     });
 
-    it('wires HPF -> Distortion -> Chebyshev -> BitCrusher -> Compressor in Natural Decay', async () => {
+    it('wires HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah in Natural Decay', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const hpf = lastInstance(Tone.Filter);
       const dist = lastInstance(Tone.Distortion);
       const cheb = lastInstance(Tone.Chebyshev);
       const crush = lastInstance(toneFlags.crusherCtor);
-      const comp = lastInstance(Tone.Compressor);
+      const wah = lastInstance(toneFlags.wahCtor);
 
       expect(hpf.connect).toHaveBeenCalledTimes(1);
       expect(hpf.connect).toHaveBeenCalledWith(dist);
@@ -269,7 +291,8 @@ describe('globalFx', () => {
       expect(cheb.connect).toHaveBeenCalledTimes(1);
       expect(cheb.connect).toHaveBeenCalledWith(crush);
       expect(crush.connect).toHaveBeenCalledTimes(1);
-      expect(crush.connect).toHaveBeenCalledWith(comp);
+      // Global Modulation T4: the colour slot now hands on to the modulation slot, not the Compressor.
+      expect(crush.connect).toHaveBeenCalledWith(wah);
     });
 
     it('keeps the same slot in Controlled Decay, with the returns joining after it at the Limiter', async () => {
@@ -278,7 +301,6 @@ describe('globalFx', () => {
       const dist = lastInstance(Tone.Distortion);
       const cheb = lastInstance(Tone.Chebyshev);
       const crush = lastInstance(toneFlags.crusherCtor);
-      const comp = lastInstance(Tone.Compressor);
       const limiter = lastInstance(Tone.Limiter);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
 
@@ -287,7 +309,7 @@ describe('globalFx', () => {
       expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(dist);
       expect(dist.connect).toHaveBeenLastCalledWith(cheb);
       expect(cheb.connect).toHaveBeenLastCalledWith(crush);
-      expect(crush.connect).toHaveBeenLastCalledWith(comp);
+      expect(crush.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.wahCtor));
       expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
     });
 
@@ -306,7 +328,7 @@ describe('globalFx', () => {
       }
     });
 
-    it('wires HPF -> Distortion -> Chebyshev -> Compressor and does not throw when the BitCrusher constructor throws', async () => {
+    it('wires HPF -> Distortion -> Chebyshev -> AutoWah and does not throw when the BitCrusher constructor throws', async () => {
       toneFlags.crusherCtor.mockImplementationOnce(() => {
         throw new Error('AudioWorklet is not supported');
       });
@@ -317,7 +339,7 @@ describe('globalFx', () => {
       const cheb = lastInstance(Tone.Chebyshev);
       expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(dist);
       expect(dist.connect).toHaveBeenCalledWith(cheb);
-      expect(cheb.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(cheb.connect).toHaveBeenCalledWith(lastInstance(toneFlags.wahCtor));
       expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 1 })).not.toThrow();
     });
 
@@ -328,7 +350,7 @@ describe('globalFx', () => {
 
       const cheb = lastInstance(Tone.Chebyshev);
       expect(toneFlags.crusherCtor).not.toHaveBeenCalled();
-      expect(cheb.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(cheb.connect).toHaveBeenCalledWith(lastInstance(toneFlags.wahCtor));
     });
 
     it('disconnects and reconnects the three exactly once per Decay Mode flip', async () => {
@@ -582,8 +604,214 @@ describe('globalFx', () => {
     });
   });
 
+  // Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): the AutoWah sits between the
+  // BitCrusher and the Compressor, in both Decay Modes, with the returns joining after it.
+  describe('buildGlobalFxChain - the modulation slot (Global Modulation)', () => {
+    it('constructs exactly one AutoWah', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.wahCtor).toHaveBeenCalledTimes(1);
+    });
+
+    it('builds it dry (wet 0) at Tone defaults, matching DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.wahCtor).toHaveBeenCalledWith({
+        baseFrequency: 100,
+        octaves: 6,
+        sensitivity: 0,
+        Q: 2,
+        gain: 2,
+        follower: 0.2,
+        wet: 0,
+      });
+    });
+
+    it('wires BitCrusher -> AutoWah -> Compressor in Natural Decay, and the AutoWah is not wired to anything else', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const crush = lastInstance(toneFlags.crusherCtor);
+      const wah = lastInstance(toneFlags.wahCtor);
+      const comp = lastInstance(Tone.Compressor);
+
+      expect(crush.connect).toHaveBeenCalledWith(wah);
+      expect(wah.connect).toHaveBeenCalledTimes(1);
+      expect(wah.connect).toHaveBeenCalledWith(comp);
+    });
+
+    it('keeps the same slot in Controlled Decay, with the returns joining after it at the Limiter', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const wah = lastInstance(toneFlags.wahCtor);
+      const comp = lastInstance(Tone.Compressor);
+      const limiter = lastInstance(Tone.Limiter);
+      const reverbReturn = returnOf(lastInstance(Tone.Reverb));
+
+      globalFx.wireGlobalFxChain(true);
+
+      expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenLastCalledWith(wah);
+      expect(wah.connect).toHaveBeenLastCalledWith(comp);
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
+    });
+
+    it('connects the AutoWah to no room or return, and no room or return to the AutoWah', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const wah = lastInstance(toneFlags.wahCtor);
+      const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
+      const returns = rooms.map(returnOf);
+
+      for (const other of [...rooms, ...returns]) {
+        expect(wah.connect).not.toHaveBeenCalledWith(other);
+        expect(other.connect).not.toHaveBeenCalledWith(wah);
+      }
+    });
+
+    it('wires BitCrusher -> Compressor and does not throw when the AutoWah constructor is absent', async () => {
+      toneFlags.wahAbsent = true;
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+
+      expect(toneFlags.wahCtor).not.toHaveBeenCalled();
+      expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(() => globalFx.setGlobalAutoWah({ baseFrequency: 200, wet: 1 })).not.toThrow();
+    });
+
+    it('disconnects and reconnects the AutoWah exactly once per Decay Mode flip', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const wah = lastInstance(toneFlags.wahCtor);
+      wah.connect.mockClear();
+      wah.disconnect.mockClear();
+
+      globalFx.wireGlobalFxChain(true);
+      expect(wah.disconnect).toHaveBeenCalledTimes(1);
+      expect(wah.connect).toHaveBeenCalledTimes(1);
+      globalFx.wireGlobalFxChain(false);
+      expect(wah.disconnect).toHaveBeenCalledTimes(2);
+      expect(wah.connect).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('setGlobalAutoWah (Global Modulation)', () => {
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      return { globalFx, wah: lastInstance(toneFlags.wahCtor) };
+    }
+
+    it('is exported', async () => {
+      const globalFx = await import('./globalFx');
+      expect(typeof globalFx.setGlobalAutoWah).toBe('function');
+    });
+
+    it('no-ops silently before the chain is built: no throw and no warning (a missing node is not a failure)', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.setGlobalAutoWah({ baseFrequency: 200, wet: 1 })).not.toThrow();
+      expect(devWarn).not.toHaveBeenCalled();
+    });
+
+    it('writes the four plain fields straight to the node (no ramp exists for them)', async () => {
+      const { globalFx, wah } = await built();
+      globalFx.setGlobalAutoWah({ baseFrequency: 250, octaves: 4.5, sensitivity: -18, follower: 0.35 });
+      expect(wah.baseFrequency).toBe(250);
+      expect(wah.octaves).toBe(4.5);
+      expect(wah.sensitivity).toBe(-18);
+      expect(wah.follower).toBe(0.35);
+    });
+
+    it('ramps Q and gain over 50 ms, untouched by the taper', async () => {
+      const { globalFx, wah } = await built();
+      globalFx.setGlobalAutoWah({ Q: 6, gain: 12 });
+      expect(wah.Q.rampTo).toHaveBeenCalledWith(6, 0.05);
+      expect(wah.gain.rampTo).toHaveBeenCalledWith(12, 0.05);
+    });
+
+    it('ramps the tapered (squared) wet over 50 ms, as Colour does', async () => {
+      const { globalFx, wah } = await built();
+      globalFx.setGlobalAutoWah({ wet: 0.5 });
+      expect(wah.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      globalFx.setGlobalAutoWah({ wet: 1 });
+      expect(wah.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      globalFx.setGlobalAutoWah({ wet: 0 });
+      expect(wah.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+    });
+
+    it('writes only the fields given, and nothing for an empty object', async () => {
+      const { globalFx, wah } = await built();
+      globalFx.setGlobalAutoWah({});
+      globalFx.setGlobalAutoWah({ wet: 0.5 });
+      expect(wah.baseFrequency).toBe(100);
+      expect(wah.octaves).toBe(6);
+      expect(wah.Q.rampTo).not.toHaveBeenCalled();
+      expect(wah.gain.rampTo).not.toHaveBeenCalled();
+      expect(wah.wet.rampTo).toHaveBeenCalledTimes(1);
+    });
+
+    it('clamps every field into its full range so a malformed payload cannot reach the node out of range', async () => {
+      const { globalFx, wah } = await built();
+      globalFx.setGlobalAutoWah({ baseFrequency: 5, octaves: 0, sensitivity: -100, Q: 0, gain: -3, follower: 0, wet: -1 });
+      expect(wah.baseFrequency).toBe(50);
+      expect(wah.octaves).toBe(1);
+      expect(wah.sensitivity).toBe(-40);
+      expect(wah.Q.rampTo).toHaveBeenLastCalledWith(0.5, 0.05);
+      expect(wah.gain.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      expect(wah.follower).toBe(0.01);
+      expect(wah.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+
+      globalFx.setGlobalAutoWah({ baseFrequency: 1e9, octaves: 99, sensitivity: 12, Q: 99, gain: 99, follower: 99, wet: 3 });
+      expect(wah.baseFrequency).toBe(1000);
+      expect(wah.octaves).toBe(8);
+      expect(wah.sensitivity).toBe(0);
+      expect(wah.Q.rampTo).toHaveBeenLastCalledWith(10, 0.05);
+      expect(wah.gain.rampTo).toHaveBeenLastCalledWith(20, 0.05);
+      expect(wah.follower).toBe(1);
+      expect(wah.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('ignores a non-finite value rather than writing NaN to the node, and still writes the finite fields beside it', async () => {
+      const { globalFx, wah } = await built();
+      globalFx.setGlobalAutoWah({
+        baseFrequency: Number.NaN,
+        octaves: Number.POSITIVE_INFINITY,
+        sensitivity: Number.NEGATIVE_INFINITY,
+        Q: Number.NaN,
+        gain: Number.NaN,
+        follower: 0.3,
+        wet: Number.NaN,
+      });
+      expect(wah.baseFrequency).toBe(100);
+      expect(wah.octaves).toBe(6);
+      expect(wah.sensitivity).toBe(0);
+      expect(wah.Q.rampTo).not.toHaveBeenCalled();
+      expect(wah.gain.rampTo).not.toHaveBeenCalled();
+      expect(wah.wet.rampTo).not.toHaveBeenCalled();
+      expect(wah.follower).toBe(0.3);
+    });
+
+    it('falls back to a direct value write for Q, gain and wet when the signals have no rampTo', async () => {
+      const { globalFx, wah } = await built();
+      wah.Q = { value: 2 };
+      wah.gain = { value: 2 };
+      wah.wet = { value: 0 };
+      globalFx.setGlobalAutoWah({ Q: 5, gain: 9, wet: 0.7 });
+      expect(wah.Q.value).toBe(5);
+      expect(wah.gain.value).toBe(9);
+      expect(wah.wet.value).toBeCloseTo(0.49, 6);
+    });
+
+    it('warns and does not throw when the node throws', async () => {
+      const { globalFx, wah } = await built();
+      wah.Q.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => globalFx.setGlobalAutoWah({ Q: 4 })).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalAutoWah failed', expect.any(Error));
+    });
+  });
+
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
-    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> Compressor -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Compressor -> Limiter -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
@@ -593,6 +821,7 @@ describe('globalFx', () => {
       const distNode = lastInstance(Tone.Distortion);
       const chebNode = lastInstance(Tone.Chebyshev);
       const crushNode = lastInstance(toneFlags.crusherCtor);
+      const wahNode = lastInstance(toneFlags.wahCtor);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -603,7 +832,9 @@ describe('globalFx', () => {
       expect(hpfNode.connect).not.toHaveBeenCalledWith(compNode);
       expect(distNode.connect).toHaveBeenCalledWith(chebNode);
       expect(chebNode.connect).toHaveBeenCalledWith(crushNode);
-      expect(crushNode.connect).toHaveBeenCalledWith(compNode);
+      expect(crushNode.connect).toHaveBeenCalledWith(wahNode);
+      expect(crushNode.connect).not.toHaveBeenCalledWith(compNode);
+      expect(wahNode.connect).toHaveBeenCalledWith(compNode);
       expect(compNode.connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
@@ -647,7 +878,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> Compressor -> Limiter -> masterGain', async () => {
+    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Compressor -> Limiter -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
@@ -657,6 +888,7 @@ describe('globalFx', () => {
       const distNode = lastInstance(Tone.Distortion);
       const chebNode = lastInstance(Tone.Chebyshev);
       const crushNode = lastInstance(toneFlags.crusherCtor);
+      const wahNode = lastInstance(toneFlags.wahCtor);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -668,7 +900,8 @@ describe('globalFx', () => {
       expect(hpfNode.connect).toHaveBeenLastCalledWith(distNode);
       expect(distNode.connect).toHaveBeenLastCalledWith(chebNode);
       expect(chebNode.connect).toHaveBeenLastCalledWith(crushNode);
-      expect(crushNode.connect).toHaveBeenLastCalledWith(compNode);
+      expect(crushNode.connect).toHaveBeenLastCalledWith(wahNode);
+      expect(wahNode.connect).toHaveBeenLastCalledWith(compNode);
       expect(compNode.connect).toHaveBeenLastCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
     });
@@ -713,7 +946,8 @@ describe('globalFx', () => {
       const reverbReturn = returnOf(reverbNode);
       const delayReturn = returnOf(delayNode);
       const colourNodes = [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)];
-      const all = [eqNode, lpfNode, hpfNode, ...colourNodes, delayNode, reverbNode, compNode, limiterNode, reverbReturn, delayReturn];
+      const modulationNodes = [lastInstance(toneFlags.wahCtor)];
+      const all = [eqNode, lpfNode, hpfNode, ...colourNodes, ...modulationNodes, delayNode, reverbNode, compNode, limiterNode, reverbReturn, delayReturn];
       // Forget the build's own wiring so only the flip is under test.
       for (const node of all) node.disconnect.mockClear();
 
@@ -739,7 +973,7 @@ describe('globalFx', () => {
       // The dry chain is the same either way; only where the returns rejoin moves.
       expect(reverbReturn.connect).toHaveBeenLastCalledWith(compNode);
       expect(delayReturn.connect).toHaveBeenLastCalledWith(compNode);
-      expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenLastCalledWith(compNode);
+      expect(lastInstance(toneFlags.wahCtor).connect).toHaveBeenLastCalledWith(compNode);
     });
 
     it('only ever calls disconnect() with no arguments, so a robot send into a room survives every flip', async () => {
@@ -751,7 +985,7 @@ describe('globalFx', () => {
 
       // disconnect() with no argument drops a node's OUTPUTS and nothing else. A room's INPUT (where a robot's
       // send gain is connected) therefore stays wired - the same reason the engine can flip Decay Mode mid-play.
-      const nodes = [Tone.EQ3, Tone.Filter, Tone.Distortion, Tone.Chebyshev, toneFlags.crusherCtor, Tone.Reverb, Tone.FeedbackDelay, Tone.Compressor, Tone.Limiter, Tone.Gain];
+      const nodes = [Tone.EQ3, Tone.Filter, Tone.Distortion, Tone.Chebyshev, toneFlags.crusherCtor, toneFlags.wahCtor, Tone.Reverb, Tone.FeedbackDelay, Tone.Compressor, Tone.Limiter, Tone.Gain];
       for (const ctor of nodes) {
         for (const result of (ctor as unknown as AnyMock).mock.results) {
           for (const call of (result.value as { disconnect: Mock }).disconnect.mock.calls) {

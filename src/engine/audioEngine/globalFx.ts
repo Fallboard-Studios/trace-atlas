@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
 import { devWarn } from '@/utils/helpers';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import type {
   ReverbSettings,
   DelaySettings,
@@ -13,6 +14,7 @@ import type {
   DistortionSettings,
   ChebyshevSettings,
   BitCrusherSettings,
+  AutoWahSettings,
 } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
@@ -30,6 +32,8 @@ let _globalLimiter: Tone.Limiter | null = null;
 let _globalDistortion: Tone.Distortion | null = null;
 let _globalChebyshev: Tone.Chebyshev | null = null;
 let _globalBitCrusher: Tone.BitCrusher | null = null;
+// The modulation slot, in chain order between the colour slot and the Compressor (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3).
+let _globalAutoWah: Tone.AutoWah | null = null;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
 // gains, never Effect.wet: the rooms stay fully wet and each robot's send decides how much enters
 // (docs/specs/ROBOT_SENDS.md §1.3).
@@ -75,6 +79,11 @@ function clampColour(key: GlobalAudioSeedFieldKey, value: number): number | unde
   return Math.min(max, Math.max(min, value));
 }
 
+/** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
+function clampIfGiven(key: GlobalAudioSeedFieldKey, value: number | undefined): number | undefined {
+  return value === undefined ? undefined : clampColour(key, value);
+}
+
 /** Ramp a Signal-backed AudioParam-like value to `target` when it supports .rampTo(), falling
  *  back to a direct .value assignment when it doesn't (headless/test environments). */
 function rampOrSet(param: { rampTo?: (value: number, rampTime: number) => void; value: number }, target: number, rampSeconds: number): void {
@@ -109,6 +118,7 @@ export function buildGlobalFxChain(): void {
   const DistortionCtor = getToneCtor<Tone.Distortion>('Distortion');
   const ChebyshevCtor = getToneCtor<Tone.Chebyshev>('Chebyshev');
   const BitCrusherCtor = getToneCtor<Tone.BitCrusher>('BitCrusher');
+  const AutoWahCtor = getToneCtor<Tone.AutoWah>('AutoWah');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -154,6 +164,11 @@ export function buildGlobalFxChain(): void {
       _globalBitCrusher = null;
     }
   }
+  // Built dry (wet 0) at the stored defaults, like the colour nodes; the store pushes the seeded values once the
+  // chain exists. A missing constructor (headless) leaves the slot empty and the chain whole.
+  if (AutoWahCtor) {
+    _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 0 });
+  }
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -189,6 +204,7 @@ function disconnectAllFxNodes(): void {
     _globalDistortion,
     _globalChebyshev,
     _globalBitCrusher,
+    _globalAutoWah,
     _globalDelay,
     _globalReverb,
     _globalCompressor,
@@ -209,10 +225,11 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Distortion → Chebyshev → BitCrusher → Compressor → Limiter → masterGain →
- * Destination (or straight to Destination if masterGain wasn't constructed).
- * An absent colour node (headless, or a worklet that failed to construct) is
- * skipped by the filter below, so the chain never breaks.
+ * Distortion → Chebyshev → BitCrusher → AutoWah → Compressor → Limiter →
+ * masterGain → Destination (or straight to Destination if masterGain wasn't
+ * constructed). An absent colour or modulation node (headless, or a worklet
+ * that failed to construct) is skipped by the filter below, so the chain
+ * never breaks.
  *
  * Reverb and Delay are two parallel rooms OFF that chain, not stages in it.
  * Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
@@ -240,6 +257,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     _globalDistortion,
     _globalChebyshev,
     _globalBitCrusher,
+    _globalAutoWah,
     _globalCompressor,
     _globalLimiter,
   ].filter(Boolean) as Array<{
@@ -570,6 +588,31 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
     if (wet !== undefined) rampOrSet(crusher.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
+  }
+}
+
+/** Auto Wah (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The sweep range, sensitivity and follower smoothing are
+ *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's (colourWetGain). */
+export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
+  const wah = _globalAutoWah;
+  if (!wah) return;
+  try {
+    const baseFrequency = clampIfGiven('autoWah.baseFrequency', params.baseFrequency);
+    const octaves = clampIfGiven('autoWah.octaves', params.octaves);
+    const sensitivity = clampIfGiven('autoWah.sensitivity', params.sensitivity);
+    const follower = clampIfGiven('autoWah.follower', params.follower);
+    const Q = clampIfGiven('autoWah.Q', params.Q);
+    const gain = clampIfGiven('autoWah.gain', params.gain);
+    const wet = clampIfGiven('autoWah.wet', params.wet);
+    if (baseFrequency !== undefined) wah.baseFrequency = baseFrequency;
+    if (octaves !== undefined) wah.octaves = octaves;
+    if (sensitivity !== undefined) wah.sensitivity = sensitivity;
+    if (follower !== undefined) wah.follower = follower;
+    if (Q !== undefined) rampOrSet(wah.Q, Q, COLOUR_RAMP_SECONDS);
+    if (gain !== undefined) rampOrSet(wah.gain, gain, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(wah.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalAutoWah failed', err);
   }
 }
 

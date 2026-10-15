@@ -142,6 +142,19 @@ vi.mock('tone', () => ({
     bits: { value: opts.bits ?? 4, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Modulation T4: the AutoWah in the modulation slot between the BitCrusher and the Compressor.
+  AutoWah: vi.fn((opts: { baseFrequency?: number; octaves?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    baseFrequency: opts.baseFrequency ?? 100,
+    octaves: opts.octaves ?? 2.6,
+    sensitivity: 0,
+    follower: 0.1,
+    Q: { value: 2, rampTo: vi.fn() },
+    gain: { value: 2, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2403,6 +2416,39 @@ describe('AudioEngine.start — the colour slot (Global Colour T3)', () => {
     expect(last(Tone.Distortion).distortion).toBe(0.7);
     expect(last(Tone.Chebyshev).order).toBe(5);
     expect(last(Tone.BitCrusher).bits.rampTo).toHaveBeenCalledWith(3, 0.05);
+  });
+});
+
+// Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): start() builds the AutoWah, and its
+// setter is on the public AudioEngine surface like every other global setter.
+describe('AudioEngine.start — the modulation slot (Global Modulation T4)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('constructs exactly one AutoWah', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.AutoWah).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.AutoWah).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes setGlobalAutoWah', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalAutoWah).toBe('function');
+  });
+
+  it('routes the public setter to the live node', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+    AudioEngine.setGlobalAutoWah({ baseFrequency: 321, wet: 1 });
+
+    expect(last(Tone.AutoWah).baseFrequency).toBe(321);
+    expect(last(Tone.AutoWah).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
   });
 });
 
