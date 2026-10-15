@@ -852,6 +852,10 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // every oracle is still the byte-exact pre-Sync value, which is the proof no other draw moved. The edit was
 // made by hand to those four values; the oracle was NOT re-recorded, and the rule above still stands for
 // everything else in it.
+//
+// AMENDED BY HAND, Global Colour T1 (docs/specs/GLOBAL_COLOUR.md §1.2): `distortion`, `chebyshev` and
+// `bitCrusher` were ADDED to each global-settings oracle (keys only; no existing value touched). At T1 the
+// seeder returns the defaults for them as a placeholder; T5 replaces those values with the character draw.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -871,6 +875,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: 3.5, mid: 3.5, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
       filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
+      distortion: { amount: 0.3, wet: 0 },
+      chebyshev: { order: 2, wet: 0 },
+      bitCrusher: { bits: 8, wet: 0 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -890,6 +897,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: -3.5, mid: -3.5, high: -3.5 },
       filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
       filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
+      distortion: { amount: 0.3, wet: 0 },
+      chebyshev: { order: 2, wet: 0 },
+      bitCrusher: { bits: 8, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

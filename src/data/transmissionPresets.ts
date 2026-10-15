@@ -62,6 +62,9 @@ const PRESET_A_PAYLOAD: SessionPayload = {
       frequency: 268,
       Q: 1.12,
     },
+    distortion: { amount: 0.3, wet: 0 },
+    chebyshev: { order: 2, wet: 0 },
+    bitCrusher: { bits: 8, wet: 0 },
     delay: {
       delayTime: 0.275,
       feedback: 0.27,
@@ -176,6 +179,9 @@ const PRESET_B_PAYLOAD: SessionPayload = {
       frequency: 38,
       Q: 0.28,
     },
+    distortion: { amount: 0.3, wet: 0 },
+    chebyshev: { order: 2, wet: 0 },
+    bitCrusher: { bits: 8, wet: 0 },
     delay: {
       delayTime: 0.138,
       feedback: 0.11,
@@ -306,6 +312,9 @@ const PRESET_C_PAYLOAD: SessionPayload = {
       frequency: 56,
       Q: 0.55,
     },
+    distortion: { amount: 0.3, wet: 0 },
+    chebyshev: { order: 2, wet: 0 },
+    bitCrusher: { bits: 8, wet: 0 },
     delay: {
       delayTime: 0.139,
       feedback: 0.19,

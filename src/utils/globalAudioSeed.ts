@@ -144,6 +144,10 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       preDelay: sampleField(noiseMap, 'reverb.preDelay'),
       wet: defaults.reverb.wet,
     },
+    // Placeholder until Global Colour T5 draws the character (docs/specs/GLOBAL_COLOUR.md §1.2).
+    distortion: { ...defaults.distortion },
+    chebyshev: { ...defaults.chebyshev },
+    bitCrusher: { ...defaults.bitCrusher },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },
