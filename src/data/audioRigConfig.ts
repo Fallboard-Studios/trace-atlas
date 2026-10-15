@@ -18,7 +18,7 @@ import { LFO_BANK_LANE_CONTENT } from './lfoConfig';
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
-import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS } from '@/types/globalAudio';
+import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 
@@ -27,7 +27,7 @@ import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 // ========================================
 
 export type AudioRigEffectKey =
-  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'delay' | 'reverb' | 'compressor' | 'limiter';
+  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'autoWah' | 'phaser' | 'delay' | 'reverb' | 'compressor' | 'limiter';
 
 export interface AudioRigParamSchema {
   /** Matches the field path on GlobalAudioSettings[block.key], e.g. 'threshold', 'low', 'frequency'. */
@@ -145,6 +145,35 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       { field: 'bits', schema: { id: 'bitCrusher.bits', type: 'sliderLinear', ...labels('fleet.bitCrusher.bits'), min: 1, max: 16, step: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'bitCrusher.wet', type: 'sliderLinear', ...labels('fleet.bitCrusher.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6): two dry-chain pedals after Colour, every
+  // parameter of the Tone node a slider. Ranges are the full seed ranges (globalAudioSeedRanges.ts; a test pins
+  // the match). No lfoTarget on any of them — the pedals are neither LFO-able nor swellable. The Phaser's Rate
+  // is a sliderLinear because TempoSyncSlider takes a linear schema; the drawer swaps in the Free | Sync row.
+  {
+    key: 'autoWah',
+    panel: panelSchema('autoWah', 'fleet.autoWah', 'column'),
+    params: [
+      { field: 'baseFrequency', schema: { id: 'autoWah.baseFrequency', type: 'sliderLog', ...labels('fleet.autoWah.baseFrequency'), min: 50, max: 1000, orientation: 'horizontal' } },
+      { field: 'octaves', schema: { id: 'autoWah.octaves', type: 'sliderLinear', ...labels('fleet.autoWah.octaves'), min: 1, max: 8, step: 0.5, orientation: 'horizontal' } },
+      { field: 'sensitivity', schema: { id: 'autoWah.sensitivity', type: 'sliderLinear', ...labels('fleet.autoWah.sensitivity'), min: -40, max: 0, step: 1, orientation: 'horizontal' } },
+      { field: 'Q', schema: { id: 'autoWah.Q', type: 'sliderLog', ...labels('fleet.autoWah.q'), min: 0.5, max: 10, orientation: 'horizontal' } },
+      { field: 'gain', schema: { id: 'autoWah.gain', type: 'sliderLinear', ...labels('fleet.autoWah.gain'), min: 0, max: 20, step: 0.5, orientation: 'horizontal' } },
+      { field: 'follower', schema: { id: 'autoWah.follower', type: 'sliderLog', ...labels('fleet.autoWah.follower'), min: 0.01, max: 1, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'autoWah.wet', type: 'sliderLinear', ...labels('fleet.autoWah.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  {
+    key: 'phaser',
+    panel: panelSchema('phaser', 'fleet.phaser', 'column'),
+    params: [
+      { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PHASER_RATE_RANGE_HZ.min, max: PHASER_RATE_RANGE_HZ.max, step: PHASER_RATE_STEP_HZ, orientation: 'horizontal' } },
+      { field: 'octaves', schema: { id: 'phaser.octaves', type: 'sliderLinear', ...labels('fleet.phaser.octaves'), min: 0.5, max: 6, step: 0.5, orientation: 'horizontal' } },
+      { field: 'baseFrequency', schema: { id: 'phaser.baseFrequency', type: 'sliderLog', ...labels('fleet.phaser.baseFrequency'), min: 50, max: 2000, orientation: 'horizontal' } },
+      { field: 'stages', schema: { id: 'phaser.stages', type: 'sliderLinear', ...labels('fleet.phaser.stages'), min: 1, max: 12, step: 1, orientation: 'horizontal' } },
+      { field: 'Q', schema: { id: 'phaser.Q', type: 'sliderLog', ...labels('fleet.phaser.q'), min: 0.5, max: 20, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'phaser.wet', type: 'sliderLinear', ...labels('fleet.phaser.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   {

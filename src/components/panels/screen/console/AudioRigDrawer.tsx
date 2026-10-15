@@ -60,6 +60,8 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   distortion: 'colour',
   chebyshev: 'colour',
   bitCrusher: 'colour',
+  autoWah: 'spectral',
+  phaser: 'spectral',
   delay: 'timeSpace',
   reverb: 'timeSpace',
   compressor: 'output',

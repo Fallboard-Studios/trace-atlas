@@ -50,23 +50,8 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
 const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  // docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 8 adds the Modulation copy ahead of its readers: Task 9
-  // (the rig blocks) reads the two headings and the thirteen parameters, Task 10 (the tab) reads the group.
-  'fleet.autoWah': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.baseFrequency': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.octaves': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.sensitivity': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.q': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.gain': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.follower': 'GLOBAL_MODULATION T9',
-  'fleet.autoWah.mix': 'GLOBAL_MODULATION T9',
-  'fleet.phaser': 'GLOBAL_MODULATION T9',
-  'fleet.phaser.rate': 'GLOBAL_MODULATION T9',
-  'fleet.phaser.octaves': 'GLOBAL_MODULATION T9',
-  'fleet.phaser.baseFrequency': 'GLOBAL_MODULATION T9',
-  'fleet.phaser.stages': 'GLOBAL_MODULATION T9',
-  'fleet.phaser.q': 'GLOBAL_MODULATION T9',
-  'fleet.phaser.mix': 'GLOBAL_MODULATION T9',
+  // docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 8 added the Modulation copy ahead of its readers; Task 9
+  // (the rig blocks) now reads the two headings and the thirteen parameters, so only the group waits on Task 10.
   'fleet.modulation': 'GLOBAL_MODULATION T10',
 };
 

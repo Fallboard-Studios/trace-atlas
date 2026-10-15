@@ -828,6 +828,100 @@ describe('AudioRigEffectPanel', () => {
 
   });
 
+  // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6, docs/tasks/GLOBAL_MODULATION_COLOUR.md
+  // Task 9): AutoWah and Phaser render through the same panel as every other effect — one slider per Tone
+  // parameter, the spectral trait's accent, and no LFO link (neither pedal is LFO-able). Task 11 swaps the
+  // Phaser's Rate row for the Free | Sync slider; the slider count below holds either way.
+  describe('Modulation panels (AutoWah, Phaser)', () => {
+    const PANELS = [
+      { key: 'autoWah', heading: 'fleet.autoWah', sliders: ['baseFrequency', 'octaves', 'sensitivity', 'q', 'gain', 'follower', 'mix'] },
+      { key: 'phaser', heading: 'fleet.phaser', sliders: ['rate', 'octaves', 'baseFrequency', 'stages', 'q', 'mix'] },
+    ] as const;
+
+    it.each(PANELS)('$key shows its heading and one slider per parameter, named from content', ({ key, heading, sliders }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const block = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(within(block).getByText(CONTENT[heading].heading)).toBeTruthy();
+      expect(within(block).getAllByRole('slider')).toHaveLength(sliders.length);
+      for (const slider of sliders) {
+        const entry = CONTENT[`${heading}.${slider}` as keyof typeof CONTENT];
+        expect(within(block).getByRole('slider', { name: entry.human }), `${heading}.${slider}`).toBeTruthy();
+      }
+    });
+
+    it.each(PANELS)('$key is scoped to the spectral trait (cyan/indigo), as literals', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const el = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(el.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.cyan);
+      expect(el.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.indigo);
+      expect(el.style.getPropertyValue('--color-accent')).not.toContain('var(');
+    });
+
+    it.each(PANELS)('$key has no LFO link rows and no Depth slider', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelector('.sc-lfo-link')).toBeNull();
+      expect(screen.queryByRole('slider', { name: 'Depth' })).toBeNull();
+    });
+
+    it('the AutoWah panel has no Free | Sync toggle', () => {
+      const { container } = render(<AudioRigEffectPanel effectKey="autoWah" />);
+      expect(container.querySelector('[role="switch"], [aria-pressed]')).toBeNull();
+    });
+
+    it('moving AutoWah Mix writes only wet — the other six fields keep their values', () => {
+      const before = { baseFrequency: 120, octaves: 4, sensitivity: -12, Q: 3, gain: 5, follower: 0.3, wet: 0.2 };
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, autoWah: before } }));
+      render(<AudioRigEffectPanel effectKey="autoWah" />);
+      const mix = screen.getByRole('slider', { name: CONTENT['fleet.autoWah.mix'].human });
+      mix.focus();
+      fireEvent.keyDown(mix, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.autoWah).toEqual({ ...before, wet: 0.21 });
+    });
+
+    it('moving the Phaser Q writes the capital-Q field, not wet', () => {
+      const before = { rate: 0.4, octaves: 3, baseFrequency: 300, stages: 6, Q: 4, wet: 0.2 };
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, phaser: before } }));
+      render(<AudioRigEffectPanel effectKey="phaser" />);
+      const q = screen.getByRole('slider', { name: CONTENT['fleet.phaser.q'].human });
+      q.focus();
+      fireEvent.keyDown(q, { key: 'ArrowRight' });
+      const after = useAudioStore.getState().globalAudio.phaser;
+      expect(after.Q).toBeGreaterThan(4);
+      expect({ ...after, Q: 4 }).toEqual(before);
+    });
+
+    it.each([
+      { from: 6, key: 'ArrowRight', to: 7 },
+      { from: 12, key: 'ArrowRight', to: 12 },
+      { from: 1, key: 'ArrowLeft', to: 1 },
+    ])('Stages at $from after $key reads $to — one whole stage a press, holding at both ends', ({ from, key, to }) => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, phaser: { ...s.globalAudio.phaser, stages: from } } }));
+      render(<AudioRigEffectPanel effectKey="phaser" />);
+      const stages = screen.getByRole('slider', { name: CONTENT['fleet.phaser.stages'].human });
+      stages.focus();
+      fireEvent.keyDown(stages, { key });
+      expect(useAudioStore.getState().globalAudio.phaser.stages).toBe(to);
+    });
+
+    it('AutoWah Sensitivity reads a negative value in dB and steps by whole decibels', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, autoWah: { ...s.globalAudio.autoWah, sensitivity: -20 } } }));
+      render(<AudioRigEffectPanel effectKey="autoWah" />);
+      const sens = screen.getByRole('slider', { name: CONTENT['fleet.autoWah.sensitivity'].human });
+      sens.focus();
+      fireEvent.keyDown(sens, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.autoWah.sensitivity).toBe(-19);
+    });
+
+    it('a real user edit asks the swell system to cancel its own (effect, field) pair, like every other effect panel', () => {
+      const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
+      render(<AudioRigEffectPanel effectKey="phaser" />);
+      const mix = screen.getByRole('slider', { name: CONTENT['fleet.phaser.mix'].human });
+      mix.focus();
+      fireEvent.keyDown(mix, { key: 'ArrowRight' });
+      expect(spy).toHaveBeenCalledWith('phaser', 'wet');
+    });
+  });
+
   describe('re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
     it("a setGlobalAudio update to ONE field (Delay's delayTime, simulating an audio-swell tick) does not re-execute a SIBLING field's own control (Delay's Mix/wet) — only the changed field's own control re-renders", () => {
       render(<AudioRigEffectPanel effectKey="delay" />);

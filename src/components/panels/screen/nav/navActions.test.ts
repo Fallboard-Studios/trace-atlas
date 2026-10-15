@@ -696,9 +696,9 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
   });
 
   // Blocks a plan adds ahead of the group that shows them, each exempt only while no group lists it
-  // (the content guard's AWAITING_CONSUMER shape). Empty between plans: Global Colour T8 added three
-  // blocks here and T9's Colour group took them in.
-  const AWAITING_GROUP: readonly string[] = [];
+  // (the content guard's AWAITING_CONSUMER shape). Global Modulation T9 adds the AutoWah and Phaser blocks;
+  // T10 adds the group, and the self-cleaning test below then fails until this list is emptied.
+  const AWAITING_GROUP: readonly string[] = ['autoWah', 'phaser'];
 
   it('covers every effect block once, in exactly one group', () => {
     const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
