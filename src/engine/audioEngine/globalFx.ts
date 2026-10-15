@@ -15,6 +15,7 @@ import type {
   ChebyshevSettings,
   BitCrusherSettings,
   AutoWahSettings,
+  PhaserSettings,
 } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
@@ -34,6 +35,15 @@ let _globalChebyshev: Tone.Chebyshev | null = null;
 let _globalBitCrusher: Tone.BitCrusher | null = null;
 // The modulation slot, in chain order between the colour slot and the Compressor (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3).
 let _globalAutoWah: Tone.AutoWah | null = null;
+let _globalPhaser: Tone.Phaser | null = null;
+// Tone's Phaser takes `stages` only in its constructor, so changing it rebuilds the node (spec §1.3). The live stage
+// count, and the last-written values of every other field (`wet` as the slider position, not the tapered gain), are
+// kept here so a rebuild needs no store read. Reset by buildGlobalFxChain.
+type PhaserLive = Omit<PhaserSettings, 'sync' | 'stages'>;
+let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
+let _phaserLive: PhaserLive = defaultPhaserLive();
+// The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
+let _lastControlledDecay = false;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
 // gains, never Effect.wet: the rooms stay fully wet and each robot's send decides how much enters
 // (docs/specs/ROBOT_SENDS.md §1.3).
@@ -79,6 +89,24 @@ function clampColour(key: GlobalAudioSeedFieldKey, value: number): number | unde
   return Math.min(max, Math.max(min, value));
 }
 
+function defaultPhaserLive(): PhaserLive {
+  const { rate, octaves, baseFrequency, Q, wet } = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser;
+  return { rate, octaves, baseFrequency, Q, wet };
+}
+
+/** Constructs a Phaser at `stages` with the given non-stage values, its Mix already tapered, so a rebuilt node
+ *  comes up at exactly the sound the old one had. */
+function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages: number, live: PhaserLive): Tone.Phaser {
+  return new PhaserCtor({
+    frequency: live.rate,
+    octaves: live.octaves,
+    stages,
+    Q: live.Q,
+    baseFrequency: live.baseFrequency,
+    wet: colourWetGain(live.wet),
+  });
+}
+
 /** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
 function clampIfGiven(key: GlobalAudioSeedFieldKey, value: number | undefined): number | undefined {
   return value === undefined ? undefined : clampColour(key, value);
@@ -86,7 +114,7 @@ function clampIfGiven(key: GlobalAudioSeedFieldKey, value: number | undefined): 
 
 /** Ramp a Signal-backed AudioParam-like value to `target` when it supports .rampTo(), falling
  *  back to a direct .value assignment when it doesn't (headless/test environments). */
-function rampOrSet(param: { rampTo?: (value: number, rampTime: number) => void; value: number }, target: number, rampSeconds: number): void {
+function rampOrSet(param: { rampTo?: (value: number, rampTime: number) => void; value: unknown }, target: number, rampSeconds: number): void {
   if (typeof param.rampTo === 'function') {
     param.rampTo(target, rampSeconds);
   } else {
@@ -119,6 +147,7 @@ export function buildGlobalFxChain(): void {
   const ChebyshevCtor = getToneCtor<Tone.Chebyshev>('Chebyshev');
   const BitCrusherCtor = getToneCtor<Tone.BitCrusher>('BitCrusher');
   const AutoWahCtor = getToneCtor<Tone.AutoWah>('AutoWah');
+  const PhaserCtor = getToneCtor<Tone.Phaser>('Phaser');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -169,6 +198,19 @@ export function buildGlobalFxChain(): void {
   if (AutoWahCtor) {
     _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 0 });
   }
+  // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
+  // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
+  _globalPhaser = null;
+  _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
+  _phaserLive = defaultPhaserLive();
+  if (PhaserCtor) {
+    try {
+      _globalPhaser = buildPhaser(PhaserCtor, _phaserStages, _phaserLive);
+    } catch (err) {
+      devWarn('[AudioEngine] Phaser could not be constructed; the modulation slot runs without it', err);
+      _globalPhaser = null;
+    }
+  }
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -205,6 +247,7 @@ function disconnectAllFxNodes(): void {
     _globalChebyshev,
     _globalBitCrusher,
     _globalAutoWah,
+    _globalPhaser,
     _globalDelay,
     _globalReverb,
     _globalCompressor,
@@ -225,9 +268,9 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Distortion → Chebyshev → BitCrusher → AutoWah → Compressor → Limiter →
- * masterGain → Destination (or straight to Destination if masterGain wasn't
- * constructed). An absent colour or modulation node (headless, or a worklet
+ * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Compressor →
+ * Limiter → masterGain → Destination (or straight to Destination if masterGain
+ * wasn't constructed). An absent colour or modulation node (headless, or a worklet
  * that failed to construct) is skipped by the filter below, so the chain
  * never breaks.
  *
@@ -248,6 +291,7 @@ function disconnectAllFxNodes(): void {
  * Decay" toggle flips (src/stores/audioStore.ts's setCompressorBeforeDelay).
  */
 export function wireGlobalFxChain(controlledDecay: boolean): void {
+  _lastControlledDecay = controlledDecay;
   disconnectAllFxNodes();
 
   const chainNodes = [
@@ -258,6 +302,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     _globalChebyshev,
     _globalBitCrusher,
     _globalAutoWah,
+    _globalPhaser,
     _globalCompressor,
     _globalLimiter,
   ].filter(Boolean) as Array<{
@@ -613,6 +658,67 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
     if (wet !== undefined) rampOrSet(wah.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalAutoWah failed', err);
+  }
+}
+
+/**
+ * Replaces the Phaser with one built at `stages` from the last-written values (spec §1.3), then re-wires the chain in
+ * the Decay Mode it was last wired in. The new node is built FIRST: if the constructor fails the old node is kept,
+ * undisposed and still wired, and the caller carries on with it; the next Stages edit tries again. True on success.
+ */
+function rebuildPhaser(stages: number): boolean {
+  const PhaserCtor = getToneCtor<Tone.Phaser>('Phaser');
+  if (!PhaserCtor) return false;
+  let fresh: Tone.Phaser;
+  try {
+    fresh = buildPhaser(PhaserCtor, stages, _phaserLive);
+  } catch (err) {
+    devWarn('[AudioEngine] Phaser could not be rebuilt at ' + stages + ' stages; keeping the current one', err);
+    return false;
+  }
+  const old = _globalPhaser;
+  _globalPhaser = fresh;
+  _phaserStages = stages;
+  try {
+    old?.dispose();
+  } catch (err) {
+    devWarn('[AudioEngine] disposing the replaced Phaser failed', err);
+  }
+  wireGlobalFxChain(_lastControlledDecay);
+  return true;
+}
+
+/** Phaser (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here
+ *  is always Hz and `sync` never arrives. Rate and Q are Signals, octaves and baseFrequency plain setters, and the Mix is
+ *  tapered like Colour's; `stages` is constructor-only, so a changed count rebuilds the node. */
+export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): void {
+  const phaser = _globalPhaser;
+  if (!phaser) return;
+  try {
+    const rate = clampIfGiven('phaser.rate', params.rate);
+    const octaves = clampIfGiven('phaser.octaves', params.octaves);
+    const baseFrequency = clampIfGiven('phaser.baseFrequency', params.baseFrequency);
+    const Q = clampIfGiven('phaser.Q', params.Q);
+    const wet = clampIfGiven('phaser.wet', params.wet);
+    const stages = clampIfGiven('phaser.stages', params.stages === undefined ? undefined : Math.round(params.stages));
+
+    // The mirror takes only what passed the clamp, and is updated before any rebuild so a rebuilt node is built from it.
+    if (rate !== undefined) _phaserLive.rate = rate;
+    if (octaves !== undefined) _phaserLive.octaves = octaves;
+    if (baseFrequency !== undefined) _phaserLive.baseFrequency = baseFrequency;
+    if (Q !== undefined) _phaserLive.Q = Q;
+    if (wet !== undefined) _phaserLive.wet = wet;
+
+    // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
+    if (stages !== undefined && stages !== _phaserStages && rebuildPhaser(stages)) return;
+
+    if (rate !== undefined) rampOrSet(phaser.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (octaves !== undefined) phaser.octaves = octaves;
+    if (baseFrequency !== undefined) phaser.baseFrequency = baseFrequency;
+    if (Q !== undefined) rampOrSet(phaser.Q, Q, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(phaser.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalPhaser failed', err);
   }
 }
 

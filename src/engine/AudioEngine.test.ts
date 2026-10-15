@@ -155,6 +155,18 @@ vi.mock('tone', () => ({
     gain: { value: 2, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Modulation T5: the Phaser after the AutoWah. `stages` is constructor-only, so a test reads it from the call.
+  Phaser: vi.fn((opts: { frequency?: number; octaves?: number; baseFrequency?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    dispose: vi.fn(),
+    octaves: opts.octaves ?? 3,
+    baseFrequency: opts.baseFrequency ?? 350,
+    frequency: { value: opts.frequency ?? 0.5, rampTo: vi.fn() },
+    Q: { value: 10, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2419,9 +2431,9 @@ describe('AudioEngine.start — the colour slot (Global Colour T3)', () => {
   });
 });
 
-// Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): start() builds the AutoWah, and its
-// setter is on the public AudioEngine surface like every other global setter.
-describe('AudioEngine.start — the modulation slot (Global Modulation T4)', () => {
+// Global Modulation T4/T5 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): start() builds the AutoWah and the
+// Phaser, and their setters are on the public AudioEngine surface like every other global setter.
+describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -2449,6 +2461,35 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4)', () 
 
     expect(last(Tone.AutoWah).baseFrequency).toBe(321);
     expect(last(Tone.AutoWah).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
+  });
+
+  it('constructs exactly one Phaser', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Phaser).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.Phaser).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes setGlobalPhaser', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalPhaser).toBe('function');
+  });
+
+  it('routes the public Phaser setter to the live node, and a stages change builds a second one', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Phaser).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+    AudioEngine.setGlobalPhaser({ octaves: 4, rate: 2 });
+    expect(last(Tone.Phaser).octaves).toBe(4);
+    expect(last(Tone.Phaser).frequency.rampTo).toHaveBeenCalledWith(2, 0.05);
+
+    AudioEngine.setGlobalPhaser({ stages: 5 });
+    expect(Tone.Phaser).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: 5, octaves: 4, frequency: 2 });
   });
 });
 
