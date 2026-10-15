@@ -3,7 +3,8 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from './globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, withGlobalAudioDefaults } from './globalAudio';
+import type { GlobalAudioSettings } from './globalAudio';
 
 // ========================================
 // TESTS
@@ -84,5 +85,89 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
 
   it('no longer has a lfoDrift field — moved to the LFO Bank\'s per-lane drift (docs/tasks/LFO_BANK.md Task 17)', () => {
     expect('lfoDrift' in DEFAULT_GLOBAL_AUDIO_SETTINGS).toBe(false);
+  });
+});
+
+// Global Colour T1 (docs/specs/GLOBAL_COLOUR.md §1.1): three colour blocks, all dry by default.
+describe('DEFAULT_GLOBAL_AUDIO_SETTINGS colour blocks', () => {
+  it('carries distortion, chebyshev and bitCrusher at their spec defaults', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion).toEqual({ amount: 0.3, wet: 0 });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev).toEqual({ order: 2, wet: 0 });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher).toEqual({ bits: 8, wet: 0 });
+  });
+
+  it('keeps every colour wet at 0 so a default world is clean', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher.wet).toBe(0);
+  });
+
+  it('keeps order and bits integers inside their full ranges', () => {
+    expect(Number.isInteger(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev.order)).toBe(true);
+    expect(Number.isInteger(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher.bits)).toBe(true);
+  });
+});
+
+describe('withGlobalAudioDefaults', () => {
+  it('returns a full settings object equal to the defaults for an empty payload', () => {
+    expect(withGlobalAudioDefaults({})).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS);
+  });
+
+  it('returns a copy, never the defaults object itself, so a caller cannot mutate the defaults', () => {
+    const result = withGlobalAudioDefaults({});
+    expect(result).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS);
+    expect(result.distortion).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+  });
+
+  it('fills a missing block from the defaults and keeps a present block byte-for-byte', () => {
+    const given = { bitCrusher: { bits: 4, wet: 0.7 } };
+    const result = withGlobalAudioDefaults(given);
+    expect(result.bitCrusher).toStrictEqual({ bits: 4, wet: 0.7 });
+    expect(result.distortion).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
+    expect(result.chebyshev).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+  });
+
+  it('keeps a nested partial block as given: blocks are whole, never deep-merged', () => {
+    // The existing whole-block convention: a block that is present is trusted as a block. A delay carrying only
+    // `wet` stays that way (it is a malformed payload, not a legacy one); only absent keys are filled.
+    const given = { delay: { wet: 0.5 } } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(given);
+    expect(result.delay).toStrictEqual({ wet: 0.5 });
+  });
+
+  it('keeps every present non-colour block untouched', () => {
+    const given: Partial<GlobalAudioSettings> = {
+      compressorBeforeDelay: true,
+      eq3: { low: 1, mid: 2, high: 3 },
+      limiter: { threshold: -3 },
+    };
+    const result = withGlobalAudioDefaults(given);
+    expect(result.compressorBeforeDelay).toBe(true);
+    expect(result.eq3).toStrictEqual({ low: 1, mid: 2, high: 3 });
+    expect(result.limiter).toStrictEqual({ threshold: -3 });
+    expect(result.reverb).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.reverb);
+  });
+
+  it('drops an unknown key rather than carrying it into the engine', () => {
+    const given = { distortion: { amount: 0.5, wet: 0.2 }, mystery: { x: 1 } } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(given);
+    expect('mystery' in result).toBe(false);
+    expect(result.distortion).toStrictEqual({ amount: 0.5, wet: 0.2 });
+  });
+
+  it('treats an explicit undefined block as absent', () => {
+    const given = { chebyshev: undefined } as unknown as Partial<GlobalAudioSettings>;
+    expect(withGlobalAudioDefaults(given).chebyshev).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+  });
+
+  it('does not share nested state between two calls', () => {
+    const a = withGlobalAudioDefaults({});
+    const b = withGlobalAudioDefaults({});
+    expect(a.bitCrusher).not.toBe(b.bitCrusher);
+  });
+
+  it('stays JSON-serialisable', () => {
+    const result = withGlobalAudioDefaults({});
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual(result);
   });
 });

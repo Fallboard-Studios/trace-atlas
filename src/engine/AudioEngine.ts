@@ -43,6 +43,9 @@ import {
   setGlobalEQ,
   setGlobalCompressor,
   setGlobalLimiter,
+  setGlobalDistortion,
+  setGlobalChebyshev,
+  setGlobalBitCrusher,
   getGlobalModulationTarget,
 } from './audioEngine/globalFx';
 
@@ -1329,4 +1332,7 @@ export const AudioEngine = {
   setGlobalEQ,
   setGlobalCompressor,
   setGlobalLimiter,
+  setGlobalDistortion,
+  setGlobalChebyshev,
+  setGlobalBitCrusher,
 };

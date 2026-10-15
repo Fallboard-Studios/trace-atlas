@@ -17,6 +17,10 @@ vi.mock('tone', () => ({
   Filter: undefined,
   Gain: undefined,
   Limiter: undefined,
+  // Global Colour T3: the colour slot is skipped the same way when none of its constructors exist.
+  Distortion: undefined,
+  Chebyshev: undefined,
+  BitCrusher: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({
@@ -41,6 +45,14 @@ describe('globalFx without the room constructors', () => {
     globalFx.buildGlobalFxChain();
     expect(() => globalFx.setGlobalReverb({ wet: 0.5, decay: 2 })).not.toThrow();
     expect(() => globalFx.setGlobalDelay({ wet: 0.5, feedback: 0.1 })).not.toThrow();
+  });
+
+  it('sets every colour field without throwing when no colour node exists', async () => {
+    const globalFx = await import('./globalFx');
+    globalFx.buildGlobalFxChain();
+    expect(() => globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalChebyshev({ order: 4, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 0.5 })).not.toThrow();
   });
 
   it('reports no rooms, so reserveVoice connects no send to anything', async () => {

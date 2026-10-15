@@ -23,6 +23,9 @@ const EXPECTED_KEYS = [
   'filterHPF.frequency', 'filterHPF.Q',
   'delay.delayTime', 'delay.feedback', 'delay.wet',
   'reverb.decay', 'reverb.preDelay', 'reverb.wet',
+  'distortion.amount', 'distortion.wet',
+  'chebyshev.order', 'chebyshev.wet',
+  'bitCrusher.bits', 'bitCrusher.wet',
   'limiter.threshold',
 ] as const;
 
@@ -96,6 +99,29 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].step).toBe(1);
   });
 
+  // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 6): the full / UI ranges of the colour fields.
+  it('declares the colour fields at their spec ranges, all linear', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['distortion.amount']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['distortion.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order']).toStrictEqual({ min: 1, max: 8, scale: 'linear', step: 1 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits']).toStrictEqual({ min: 1, max: 16, scale: 'linear', step: 1 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+  });
+
+  it('steps order and bits by whole integers, since a harmonic order and a bit depth are integers by concept', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].step).toBe(1);
+    expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits'].step).toBe(1);
+    expect(Number.isInteger(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].min)).toBe(true);
+    expect(Number.isInteger(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].max)).toBe(true);
+    expect(Number.isInteger(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits'].min)).toBe(true);
+    expect(Number.isInteger(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits'].max)).toBe(true);
+  });
+
+  it('caps Chebyshev order at 8 although Tone allows 100 (higher orders are noise, not colour)', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].max).toBe(8);
+  });
+
   it('never has min >= max for any field', () => {
     for (const key of EXPECTED_KEYS) {
       const { min, max } = GLOBAL_AUDIO_SEED_RANGES[key];
@@ -127,6 +153,12 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
       'reverb.decay': defaults.reverb.decay,
       'reverb.preDelay': defaults.reverb.preDelay,
       'reverb.wet': defaults.reverb.wet,
+      'distortion.amount': defaults.distortion.amount,
+      'distortion.wet': defaults.distortion.wet,
+      'chebyshev.order': defaults.chebyshev.order,
+      'chebyshev.wet': defaults.chebyshev.wet,
+      'bitCrusher.bits': defaults.bitCrusher.bits,
+      'bitCrusher.wet': defaults.bitCrusher.wet,
       'limiter.threshold': defaults.limiter.threshold,
     };
     for (const key of EXPECTED_KEYS) {

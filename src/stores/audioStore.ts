@@ -87,6 +87,9 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   limiter: AudioEngine.setGlobalLimiter,
   delay: setGlobalDelayResolved,
   reverb: AudioEngine.setGlobalReverb,
+  distortion: AudioEngine.setGlobalDistortion,
+  chebyshev: AudioEngine.setGlobalChebyshev,
+  bitCrusher: AudioEngine.setGlobalBitCrusher,
 };
 
 /**
@@ -109,6 +112,10 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: 
   AudioEngine.setGlobalEQ(globalAudio.eq3);
   AudioEngine.setGlobalFilterLPF(globalAudio.filterLPF);
   AudioEngine.setGlobalFilterHPF(globalAudio.filterHPF);
+  // The colour slot, in chain order (docs/specs/GLOBAL_COLOUR.md §1.4).
+  AudioEngine.setGlobalDistortion(globalAudio.distortion);
+  AudioEngine.setGlobalChebyshev(globalAudio.chebyshev);
+  AudioEngine.setGlobalBitCrusher(globalAudio.bitCrusher);
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
   AudioEngine.setGlobalDelay({ ...delay, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
   AudioEngine.setGlobalReverb(globalAudio.reverb);

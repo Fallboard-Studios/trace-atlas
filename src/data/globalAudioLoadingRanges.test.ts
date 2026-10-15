@@ -33,6 +33,13 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'compressor.release': { min: 0.05, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
   'limiter.threshold': { min: -3, max: -1 },
+  // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14.
+  'distortion.amount': { min: 0.1, max: 0.35 },
+  'distortion.wet': { min: 0.1, max: 0.25 },
+  'chebyshev.order': { min: 2, max: 5 },
+  'chebyshev.wet': { min: 0.05, max: 0.15 },
+  'bitCrusher.bits': { min: 6, max: 10 },
+  'bitCrusher.wet': { min: 0.05, max: 0.15 },
 };
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
@@ -55,6 +62,45 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
       expect(loading.min, `${key}: loading min should be >= full min`).toBeGreaterThanOrEqual(full.min);
       expect(loading.max, `${key}: loading max should be <= full max`).toBeLessThanOrEqual(full.max);
     }
+  });
+
+  it('keeps the loading band of each integer field on whole numbers, so a lit draw can land on both edges', () => {
+    for (const key of ['chebyshev.order', 'bitCrusher.bits'] as const) {
+      expect(Number.isInteger(GLOBAL_AUDIO_LOADING_RANGES[key].min), key + ' min').toBe(true);
+      expect(Number.isInteger(GLOBAL_AUDIO_LOADING_RANGES[key].max), key + ' max').toBe(true);
+    }
+  });
+
+  it('keeps every lit colour wet band above zero, so a lit node is always audible', () => {
+    for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].min, key).toBeGreaterThan(0);
+    }
+  });
+
+  // Crawford, T14 (2026-10-15): "don't allow any of the new color mixes to exceed .25 on load". A fresh world
+  // seeds the Mix as a slider position, so the ceiling is on the band the seed draws from. Saved sessions and
+  // share links carry whatever was hand-set and are not clamped to it.
+  it('never lets a seeded colour Mix exceed 0.25: every colour wet band tops out at or below it', () => {
+    for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].max, key).toBeLessThanOrEqual(0.25);
+    }
+  });
+
+  // Crawford, T14 (2026-10-15): "keep those ones lower". Chebyshev and Bit Crusher were always seeded gentler than
+  // Distortion, and stay that way under the ceiling: both sit wholly below Distortion's top, and neither starts above
+  // Distortion's bottom.
+  it('keeps Chebyshev and Bit Crusher seeded gentler than Distortion: lower top, and no higher bottom', () => {
+    const distortion = GLOBAL_AUDIO_LOADING_RANGES['distortion.wet'];
+    for (const key of ['chebyshev.wet', 'bitCrusher.wet'] as const) {
+      const band = GLOBAL_AUDIO_LOADING_RANGES[key];
+      expect(band.max, `${key} top`).toBeLessThan(distortion.max);
+      expect(band.min, `${key} bottom`).toBeLessThanOrEqual(distortion.min);
+    }
+  });
+
+  it('keeps the colour wet bands off the ceiling check only for the three Mix fields (the ceiling does not leak onto other wet bands)', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max).toBeGreaterThan(0.25);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max).toBeGreaterThan(0);
   });
 
   it('never has min >= max for any field', () => {

@@ -27,7 +27,7 @@ import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 // ========================================
 
 export type AudioRigEffectKey =
-  | 'eq3' | 'filterLPF' | 'filterHPF' | 'delay' | 'reverb' | 'compressor' | 'limiter';
+  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'delay' | 'reverb' | 'compressor' | 'limiter';
 
 export interface AudioRigParamSchema {
   /** Matches the field path on GlobalAudioSettings[block.key], e.g. 'threshold', 'low', 'frequency'. */
@@ -118,6 +118,33 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
         schema: { id: 'filterHPF.Q', type: 'sliderLog', ...labels('fleet.hpf.resonance'), min: 0.1, max: 20, orientation: 'horizontal' },
         lfoTarget: 'hpf.Q',
       },
+    ],
+  },
+  // Global Colour (docs/specs/GLOBAL_COLOUR.md §1.4): three dry-chain effects between the filters and the
+  // rooms, two sliders each. Ranges are the full seed ranges (globalAudioSeedRanges.ts; a test pins the
+  // match). No lfoTarget on any of them — colour is neither LFO-able nor swellable.
+  {
+    key: 'distortion',
+    panel: panelSchema('distortion', 'fleet.distortion', 'column'),
+    params: [
+      { field: 'amount', schema: { id: 'distortion.amount', type: 'sliderLinear', ...labels('fleet.distortion.drive'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'distortion.wet', type: 'sliderLinear', ...labels('fleet.distortion.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  {
+    key: 'chebyshev',
+    panel: panelSchema('chebyshev', 'fleet.chebyshev', 'column'),
+    params: [
+      { field: 'order', schema: { id: 'chebyshev.order', type: 'sliderLinear', ...labels('fleet.chebyshev.harmonics'), min: 1, max: 8, step: 1, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'chebyshev.wet', type: 'sliderLinear', ...labels('fleet.chebyshev.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  {
+    key: 'bitCrusher',
+    panel: panelSchema('bitCrusher', 'fleet.bitCrusher', 'column'),
+    params: [
+      { field: 'bits', schema: { id: 'bitCrusher.bits', type: 'sliderLinear', ...labels('fleet.bitCrusher.bits'), min: 1, max: 16, step: 1, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'bitCrusher.wet', type: 'sliderLinear', ...labels('fleet.bitCrusher.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   {

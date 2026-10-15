@@ -23,6 +23,7 @@ import {
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '../types/lfo';
+import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
 import { CONTENT, labels, options } from '@/content';
 import type { ControlSchema } from '@/types/controls';
 
@@ -31,7 +32,7 @@ import type { ControlSchema } from '@/types/controls';
 // ========================================
 
 // Effect key order matches the new V2 chain order (docs/reference/GLOBAL_CHAIN_GRID.md).
-const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'delay', 'reverb', 'compressor', 'limiter'] as const;
+const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'delay', 'reverb', 'compressor', 'limiter'] as const;
 
 function findBlock(key: (typeof EFFECT_KEYS)[number]) {
   const block = AUDIO_RIG_CONFIG.find((b) => b.key === key);
@@ -222,6 +223,71 @@ describe('AUDIO_RIG_CONFIG', () => {
         const schema = findParam('reverb', field).schema as { step?: number; min: number; max: number };
         expect(schema.step, `reverb.${field}.step`).toBeDefined();
         expect(schema.step!, `reverb.${field}.step should be well under its own range`).toBeLessThan(schema.max - schema.min);
+      }
+    });
+  });
+
+  // Global Colour (docs/specs/GLOBAL_COLOUR.md §1.4, docs/tasks/GLOBAL_COLOUR.md Task 8): three effect
+  // blocks on the dry chain, two sliders each. None is LFO-able or swellable (spec Non-goals).
+  describe('Colour blocks (Distortion, Chebyshev, Bit Crusher)', () => {
+    const COLOUR_BLOCKS = [
+      { key: 'distortion', fields: ['amount', 'wet'], heading: 'fleet.distortion' },
+      { key: 'chebyshev', fields: ['order', 'wet'], heading: 'fleet.chebyshev' },
+      { key: 'bitCrusher', fields: ['bits', 'wet'], heading: 'fleet.bitCrusher' },
+    ] as const;
+
+    it.each(COLOUR_BLOCKS)('$key has exactly two params, in order: $fields', ({ key, fields }) => {
+      expect(findBlock(key).params.map((p) => p.field)).toEqual([...fields]);
+    });
+
+    it.each(COLOUR_BLOCKS)('$key panel reads its heading from $heading', ({ key, heading }) => {
+      expect(findBlock(key).panel.loreLabel).toBe(CONTENT[heading].heading);
+      expect(findBlock(key).panel.humanLabel).toBe(CONTENT[heading].human);
+    });
+
+    it('Drive is a linear slider, 0 to 1, step 0.01, with no unit', () => {
+      const schema = findParam('distortion', 'amount').schema;
+      expect(schema).toMatchObject({ type: 'sliderLinear', min: 0, max: 1, step: 0.01, loreLabel: CONTENT['fleet.distortion.drive'].lore });
+      expect(schema.humanLabel).toBe(CONTENT['fleet.distortion.drive'].human);
+      expect((schema as { unit?: string }).unit).toBeUndefined();
+    });
+
+    it('Harmonics is a whole-number linear slider, 1 to 8, step 1', () => {
+      expect(findParam('chebyshev', 'order').schema).toMatchObject({ type: 'sliderLinear', min: 1, max: 8, step: 1, loreLabel: CONTENT['fleet.chebyshev.harmonics'].lore });
+    });
+
+    it('Bit Depth is a whole-number linear slider, 1 to 16, step 1, in bits', () => {
+      expect(findParam('bitCrusher', 'bits').schema).toMatchObject({ type: 'sliderLinear', min: 1, max: 16, step: 1, unit: CONTENT['fleet.bitCrusher.bits'].unit, loreLabel: CONTENT['fleet.bitCrusher.bits'].lore });
+    });
+
+    it.each(['distortion', 'chebyshev', 'bitCrusher'] as const)('%s Mix is a linear slider, 0 to 1, step 0.01, read from its own content entry', (key) => {
+      expect(findParam(key, 'wet').schema).toMatchObject({ type: 'sliderLinear', min: 0, max: 1, step: 0.01, loreLabel: CONTENT[`fleet.${key}.mix`].lore });
+    });
+
+    it('every colour slider is horizontal and carries an explicit step well under its range (the toggle-collapse regression the Delay params guard)', () => {
+      for (const { key } of COLOUR_BLOCKS) {
+        for (const param of findBlock(key).params) {
+          const schema = param.schema as { step?: number; min: number; max: number; orientation?: string };
+          expect(schema.orientation, `${key}.${param.field}`).toBe('horizontal');
+          expect(schema.step, `${key}.${param.field}.step`).toBeDefined();
+          expect(schema.step!, `${key}.${param.field}.step`).toBeLessThan(schema.max - schema.min);
+        }
+      }
+    });
+
+    it('no colour param is LFO-flagged — colour is not a GlobalLfoTargetId', () => {
+      for (const { key } of COLOUR_BLOCKS) {
+        for (const param of findBlock(key).params) expect(param.lfoTarget, `${key}.${param.field}`).toBeUndefined();
+      }
+    });
+
+    it('every colour slider spans exactly its field\'s full seed range, so the UI can never reach a value the engine clamps away', () => {
+      for (const { key } of COLOUR_BLOCKS) {
+        for (const param of findBlock(key).params) {
+          const range = GLOBAL_AUDIO_SEED_RANGES[`${key}.${param.field}` as GlobalAudioSeedFieldKey];
+          const schema = param.schema as { min: number; max: number; step?: number };
+          expect(schema, `${key}.${param.field}`).toMatchObject({ min: range.min, max: range.max, step: range.step });
+        }
       }
     });
   });
@@ -605,6 +671,9 @@ const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: 
   eq3: labels('fleet.eq', { surface: 'heading' }),
   filterLPF: labels('fleet.lpf', { surface: 'heading' }),
   filterHPF: labels('fleet.hpf', { surface: 'heading' }),
+  distortion: labels('fleet.distortion', { surface: 'heading' }),
+  chebyshev: labels('fleet.chebyshev', { surface: 'heading' }),
+  bitCrusher: labels('fleet.bitCrusher', { surface: 'heading' }),
   delay: labels('fleet.delay', { surface: 'heading' }),
   reverb: labels('fleet.reverb', { surface: 'heading' }),
   compressor: labels('fleet.compressor', { surface: 'heading' }),

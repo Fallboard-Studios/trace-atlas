@@ -310,6 +310,16 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
     expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
+  it('setFleetParamsSection accepts the Colour section and resets the sub-tab like every other (Global Colour T9)', () => {
+    useUIStore.getState().setFleetParamsSubsection('limiter');
+    useUIStore.getState().setFleetParamsSection('colour');
+    expect(useUIStore.getState().fleetParamsSection).toBe('colour');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+    useUIStore.getState().setFleetParamsSubsection('bitCrusher');
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('bitCrusher');
+    expect(JSON.parse(JSON.stringify(useUIStore.getState().fleetParamsSection))).toBe('colour');
+  });
+
   it('re-picking the same section also resets its sub-tab (the breadcrumb\'s group segment goes to the group)', () => {
     useUIStore.getState().setFleetParamsSection('eqFilters');
     useUIStore.getState().setFleetParamsSubsection('filterLPF');

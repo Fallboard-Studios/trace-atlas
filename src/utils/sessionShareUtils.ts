@@ -4,6 +4,7 @@
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
+import { withGlobalAudioDefaults } from '../types/globalAudio';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { NOTE_VALUES, isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '../data/noteValues';
@@ -375,7 +376,9 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     version: compact.v,
     attenuationStyleName: compact.n,
     coordinates: compact.c,
-    globalAudio: compact.g,
+    // A link written before a block existed (the colour blocks, docs/specs/GLOBAL_COLOUR.md assumption 11)
+    // lacks it: defaulted here so the payload is never partial. Nothing is encoded for it.
+    globalAudio: withGlobalAudioDefaults(compact.g),
     bpm: compact.b,
     swellFrequency: compact.sf,
     swellDuration: compact.sd,

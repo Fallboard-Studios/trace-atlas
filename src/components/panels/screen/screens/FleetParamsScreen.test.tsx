@@ -64,6 +64,7 @@ const GROUPS: readonly [FleetParamsGroup, keyof typeof CONTENT, Trait][] = [
   ['lfoBank', 'fleet.lfoBank', 'timeSpace'],
   ['eqFilters', 'fleet.eqFilters', 'spectral'],
   ['timeSpace', 'fleet.timeSpace', 'timeSpace'],
+  ['colour', 'fleet.colour', 'colour'],
   ['output', 'fleet.output', 'output'],
 ];
 const LANES: readonly LfoLaneId[] = ['a', 'b', 'c', 'd'];
@@ -96,9 +97,11 @@ describe('FleetParamsScreen — the default view', () => {
     expect(screen.queryByRole('slider')).toBeNull();
   });
 
-  it('the section row is the five groups in order, each trigger in its trait colour', () => {
+  it('the section row is the six groups in order, Colour between Time & Space and Output, each trigger in its trait colour', () => {
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toEqual(GROUPS.map(([, key]) => human(key)));
+    expect(tabNames(sectionRow())).toHaveLength(6);
+    expect(tabNames(sectionRow()).indexOf(human('fleet.colour'))).toBe(4);
     const tabs = within(sectionRow()).getAllByRole('tab');
     GROUPS.forEach(([, , trait], i) => {
       const expected = getTraitColorStyle(trait) as Record<string, string>;
@@ -203,6 +206,8 @@ describe('FleetParamsScreen — switching tabs', () => {
   it.each<[FleetParamsGroup, SelectedFleetParamsEffect, string]>([
     ['output', 'laneC', 'compressor'],
     ['timeSpace', 'filterLPF', 'reverb'],
+    ['colour', 'limiter', 'distortion'],
+    ['eqFilters', 'bitCrusher', 'eq3'],
   ])('a sub-tab left from another group (%s with %s) shows the group\'s first, without a store write', (group, stale, shown) => {
     useUIStore.setState({ fleetParamsSection: group, fleetParamsSubsection: stale });
     render(<FleetParamsScreen />);
@@ -384,6 +389,57 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
     expect(crumb()).toBe(path(human('fleet.timeSpace'), human('fleet.delay')));
     pick(human('fleet.pacing'));
     expect(crumb()).toBe(path(human('fleet.pacing')));
+  });
+
+  it('reads Colour and its effect: picking the tab, then Bit Crusher', () => {
+    render(
+      <>
+        <FleetParamsScreen />
+        <NavBreadcrumb />
+      </>,
+    );
+    pick(human('fleet.colour'));
+    expect(crumb()).toBe(path(human('fleet.colour'), human('fleet.distortion')));
+    pick(human('fleet.bitCrusher'));
+    expect(crumb()).toBe(path(human('fleet.colour'), human('fleet.bitCrusher')));
+  });
+});
+
+describe('FleetParamsScreen — the Colour section (Global Colour T9)', () => {
+  it('shows the three effects as its sub-tabs, in chain order, opening on Distortion', () => {
+    useUIStore.setState({ fleetParamsSection: 'colour', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    expect(tabNames(subRow('fleet.colour'))).toEqual([human('fleet.distortion'), human('fleet.chebyshev'), human('fleet.bitCrusher')]);
+    expect(selectedTab(subRow('fleet.colour')).textContent).toBe(human('fleet.distortion'));
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['distortion']);
+  });
+
+  it('each sub-tab mounts exactly its own effect panel, and nothing else', () => {
+    render(<FleetParamsScreen />);
+    pick(human('fleet.colour'));
+    for (const [name, key] of [['fleet.chebyshev', 'chebyshev'], ['fleet.bitCrusher', 'bitCrusher'], ['fleet.distortion', 'distortion']] as const) {
+      pick(human(name));
+      expect(useUIStore.getState().fleetParamsSubsection).toBe(key);
+      expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual([key]);
+      expect(mountedPanels()).toHaveLength(1);
+    }
+  });
+
+  it('the Colour sub-tab triggers wear the colour trait', () => {
+    useUIStore.setState({ fleetParamsSection: 'colour', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    const expected = getTraitColorStyle('colour') as Record<string, string>;
+    for (const tab of within(subRow('fleet.colour')).getAllByRole('tab')) {
+      expect(tab.style.getPropertyValue('--color-accent')).toBe(expected['--color-accent']);
+    }
+  });
+
+  it('on the phone shell the sixth tab is there too, with the same three sub-tabs', () => {
+    shell.set('phone');
+    useUIStore.setState({ fleetParamsSection: 'colour', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    expect(tabNames(sectionRow())).toContain(human('fleet.colour'));
+    expect(tabNames(subRow('fleet.colour'))).toHaveLength(3);
   });
 });
 

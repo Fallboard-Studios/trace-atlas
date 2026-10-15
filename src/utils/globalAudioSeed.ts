@@ -76,6 +76,48 @@ function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey): n
 const DELAY_SYNC_ODDS = 0.66;
 
 /**
+ * The colour character a fresh world draws (docs/specs/GLOBAL_COLOUR.md §1.2): which of Distortion, Chebyshev and
+ * BitCrusher it lights. One draw decides it, not three independent rolls, because independent rolls light two or three
+ * nodes in a share of worlds. AT MOST ONE node is on in any world (Crawford, Global Colour T14, 2026-10-15): the spec
+ * first drew three pair characters too (about 15 % of worlds), and they were dropped, their share going to the singles.
+ * By hand any node goes to full.
+ */
+export const COLOUR_CHARACTERS = ['clean', 'drive', 'fold', 'crush'] as const;
+export type ColourCharacter = (typeof COLOUR_CHARACTERS)[number];
+export type ColourNode = 'distortion' | 'chebyshev' | 'bitCrusher';
+
+/** The nodes each character lights; every node outside the list seeds `wet` 0. */
+export const COLOUR_CHARACTER_NODES: Record<ColourCharacter, readonly ColourNode[]> = {
+  clean: [],
+  drive: ['distortion'],
+  fold: ['chebyshev'],
+  crush: ['bitCrusher'],
+};
+
+/**
+ * Cumulative upper edges on the character draw, one per COLOUR_CHARACTERS entry in order; a draw `t` belongs to the
+ * first band whose edge is above it. SET BY MEASUREMENT, not by fraction. Two properties of the draw rule out
+ * nominal edges: it is bell-curved (the nominal 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 realised 10 / 34 / 18 / 30 /
+ * 4 / 4 / 0 % over 20 000 styles), and it is DISCRETE - one simplex sample at a fixed (x, 0) takes only ~190
+ * distinct values, the largest holding ~1 % of styles - so an edge parked on a quantile can land either side of an
+ * atom and move a share by half a point. Each edge is therefore the midpoint of the gap between two atoms whose
+ * cumulative share is nearest the target (gaps are at least 0.0004 wide, so four decimals stay inside them).
+ * Realised over those 20 000 styles ('ColourCalibration<n>'): clean 25.2, drive 24.9, fold 25.2, crush 24.7 %
+ * (targets 25 / 25 / 25 / 25; the cumulative targets 25 / 50 / 75 fall in gaps 0.00056, 0.00673 and 0.00056 wide). The test in
+ * globalAudioSeed.test.ts holds them to within 3 points on a different set ('ColourShare<n>', 3 000 styles); that set
+ * measured 24.8 / 25.5 / 25.6 / 24.0 % with no world lighting two nodes. If the targets move (Crawford's listen, roadmap 50.3 T14),
+ * refit the same way.
+ */
+export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.3065, 0.5, 0.6935, 1];
+
+/** The character a seeded draw `t` in [0, 1] picks. Out-of-range draws clamp to the ends and a non-finite one is clean. */
+export function pickColourCharacter(t: number): ColourCharacter {
+  if (!Number.isFinite(t)) return 'clean';
+  const band = COLOUR_CHARACTER_BANDS.findIndex((edge) => t < edge);
+  return COLOUR_CHARACTERS[band === -1 ? COLOUR_CHARACTERS.length - 1 : band];
+}
+
+/**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
  * Attenuation Style noise map — a new direct sample; previously that map was only
  * used to derive locale maps (see PROCEDURAL_GENERATION.md).
@@ -91,6 +133,10 @@ const DELAY_SYNC_ODDS = 0.66;
  * seeds a real, audible value. Off states are expressed purely through the
  * params themselves (the old per-effect `enabled` boolean and `globalBypass`
  * are gone).
+ *
+ * The three colour blocks are the exception to "a real, audible value": one
+ * character draw (COLOUR_CHARACTERS) lights none or exactly one of the nodes and
+ * the rest seed `wet` 0, so a fresh world is clean or a little coloured in one way.
  */
 export function generateGlobalAudioSettings(attenuationStyleId: string, attenuationStyleName: string): GlobalAudioSettings {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
@@ -106,6 +152,14 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
           'seconds',
         )
       : undefined;
+
+  // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
+  // so the draw set never depends on the character; an unlit node still seeds its shape value (a hand nudge of Mix
+  // then hears something at once) and just has its `wet` forced to 0.
+  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getSeededVal(noiseMap, 'globalAudio.colour.character', 0, 0, 1))];
+  const distortionWet = sampleField(noiseMap, 'distortion.wet');
+  const chebyshevWet = sampleField(noiseMap, 'chebyshev.wet');
+  const bitCrusherWet = sampleField(noiseMap, 'bitCrusher.wet');
 
   return {
     compressorBeforeDelay: defaults.compressorBeforeDelay,
@@ -143,6 +197,18 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       decay: sampleField(noiseMap, 'reverb.decay'),
       preDelay: sampleField(noiseMap, 'reverb.preDelay'),
       wet: defaults.reverb.wet,
+    },
+    distortion: {
+      amount: sampleField(noiseMap, 'distortion.amount'),
+      wet: lit.includes('distortion') ? distortionWet : 0,
+    },
+    chebyshev: {
+      order: sampleField(noiseMap, 'chebyshev.order'),
+      wet: lit.includes('chebyshev') ? chebyshevWet : 0,
+    },
+    bitCrusher: {
+      bits: sampleField(noiseMap, 'bitCrusher.bits'),
+      wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
     },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),

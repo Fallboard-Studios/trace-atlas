@@ -569,3 +569,21 @@ Crawford chose to skip the perf comparison (2026-10-14), so the "no long-task re
 The gate is zero underruns at Full and no more than the Standard baseline; two clean-sounding runs are consistent with it
 without proving it by number. No `LOAD_*_MIN` threshold was added for the sends (intent: a rise would be a wiring bug or a
 reason to back out), and on this evidence none was needed.
+
+## Global Colour (roadmap 50.3) on the Pixel — Crawford's report, 2026-10-15
+
+Branch `feature/palette-colour` at Checkpoint C (T1–T11 committed, HEAD `e07074ce`). What Crawford reported, in his words:
+"phone 3 minuts on full settings - no clipping, we're good", and, asked for the HUD underrun count, "no underruns". Nothing
+more was given, so this records what was and was not said:
+
+| Run | Length | `underruns` | By ear |
+|---|---|---|---|
+| Full | 3:00 | none reported (a verbal "no underruns"; no start → end HUD numbers given) | no clipping |
+| Standard | — | *not reported* | — |
+
+**Not recorded, so not claimed:** which world the run used (the seeded character, Bit Crusher alone at full Mix and 4 bits,
+or all three effects at full Mix: the plan's runs a, b and c, docs/tasks/GLOBAL_COLOUR.md Task 12), the HUD underrun numbers,
+a Standard run, the T0 re-baseline on current `main` (the Baseline section above still predates Robot Sends), and the
+desktop `npm run perf` before and after. The gate is zero underruns at Full and no more than the Standard baseline. One
+clean Full run is consistent with it; it only proves the worklet-cost question if it was run (b) or (c), and that is not
+known. No `LOAD_COLOUR_MIN` threshold (T13b) was built: nothing reported a rise.

@@ -1,6 +1,6 @@
 # Audio Effects Label Mapping
 
-**Global chain order — the dry chain, identical in both Decay Modes:** EQ (3-band) → Low-Pass Filter → High-Pass Filter → Compressor → Limiter → Destination. **Delay and Reverb are not stages in it** (Robot Sends, roadmap 50.2): they are two shared rooms beside it, each fed by every robot's own send gain and followed by a return gain, and the Delay and Reverb `wet` rows below set those return gains (see `docs/AUDIO_SYSTEM.md`'s Signal Graph).
+**Global chain order — the dry chain, identical in both Decay Modes:** EQ (3-band) → Low-Pass Filter → High-Pass Filter → Distortion → Chebyshev → BitCrusher → Compressor → Limiter → Destination. **Delay and Reverb are not stages in it** (Robot Sends, roadmap 50.2): they are two shared rooms beside it, each fed by every robot's own send gain and followed by a return gain, and the Delay and Reverb `wet` rows below set those return gains (see `docs/AUDIO_SYSTEM.md`'s Signal Graph).
 
 **"Natural Decay" (default):** both returns rejoin the dry chain at the Compressor's input.
 
@@ -21,6 +21,12 @@
 | Low-Pass Filter | `setGlobalFilterLPF()` | Q | 0.1–20 | 0.1–5 | HIGH-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
 | High-Pass Filter | `setGlobalFilterHPF()` | frequency | Hz, 20–20000 | 20–500 | LOW-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | X |
 | High-Pass Filter | `setGlobalFilterHPF()` | Q | 0.1–20 | 0.1–5 | LOW-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
+| Distortion | `setGlobalDistortion()` | amount (Tone `distortion`) | 0–1 | 0.1–0.35 | CARRIER BLEED | DRIVE | SLIDER | – | – |
+| Distortion | `setGlobalDistortion()` | wet ³ | 0–1 | 0.1–0.25 | CARRIER BLEED | MIX | SLIDER | – | – |
+| Chebyshev | `setGlobalChebyshev()` | order | integer, 1–8 | 2–5 | OVERTONE FOLD | HARMONICS | SLIDER (step 1) | – | – |
+| Chebyshev | `setGlobalChebyshev()` | wet ³ | 0–1 | 0.05–0.15 | OVERTONE FOLD | MIX | SLIDER | – | – |
+| BitCrusher | `setGlobalBitCrusher()` | bits | integer, 1–16 | 6–10 | QUANTISE LOSS | BIT CRUSH | SLIDER (step 1) | – | – |
+| BitCrusher | `setGlobalBitCrusher()` | wet ³ | 0–1 | 0.05–0.15 | QUANTISE LOSS | MIX | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | delayTime | seconds, 0–10 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER (Free \| Sync¹) | – | – |
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | wet | 0–1 (return level²) | – (fixed `1`) | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | – |
@@ -37,6 +43,8 @@
 ¹ **Delay Time has a Free \| Sync mode** (`docs/specs/FREE_SYNC_TOGGLE.md`): Free is the plain seconds slider above; Sync (shown to the user as "Anchored") steps through note values of the tempo instead, and the stored note resolves to seconds at the current tempo (`resolveDelayTimeSeconds`, `src/utils/tempoSync.ts`), clamped into `DELAY_TIME_RANGE_SECONDS` (`src/types/globalAudio.ts`, `0–10` s). `DelaySettings.sync?` is optional — absent means Free. Roughly two in three fresh Attenuation Styles seed Delay Anchored (`DELAY_SYNC_ODDS`, `globalAudioSeed.ts`), with the note drawn from the `0.05–0.5` s loading range at the style's tempo; the Free `delayTime` is still seeded as before and kept underneath. See `docs/AUDIO_SYSTEM.md`'s "Free | Sync" section.
 
 ² **Delay and Reverb `wet` are return levels, not mixes** (Robot Sends, `docs/specs/ROBOT_SENDS.md` §1.3). The Tone nodes themselves are permanently `wet: 1`; the setting drives the room's return gain, so it is how loud the whole room is as heard from every robot, and `0` silences the room. It is no longer seeded (`generateGlobalAudioSettings` sets both to `DEFAULT_GLOBAL_AUDIO_SETTINGS.*.wet`, `1`; the `globalAudio.delay.quiet` draw is gone) and no longer a swell target. The two old Loading Range bands (Delay `0–0.3`, Reverb `0.1–0.4`) survive in `src/data/globalAudioLoadingRanges.ts` with a comment saying so: they are the **per-robot send bands** now (`generateRobotSends` seeds each robot's `reverbSend` and `delaySend` from them, Delay with a roll that puts exactly `0` on a share of the fleet). The sampled values this column once described no longer exist; a `?session=` payload that carries a smaller `wet` simply loads that return level.
+
+³ **Colour (`distortion`, `chebyshev`, `bitCrusher`) sits on the dry chain between the High-Pass Filter and the Compressor: one node each, nothing per robot, and none is an LFO or swell target** (Global Colour, roadmap 50.3; `docs/specs/GLOBAL_COLOUR.md`). The Mix (`wet`) is stored as the slider position and reaches the node **squared** (`colourWetGain`), so the Unit / Range and Loading Range columns for these rows are slider positions, not node `wet` values. A fresh world draws one character (`COLOUR_CHARACTER_BANDS`): clean, or exactly one of the three effects, about 25 % each. The lit effect's Mix lands in its Loading Range, and the other two seed Mix 0 while still drawing their shape value (`amount`, `order`, `bits`) from their own band. No seeded Mix is above 0.25 (`COLOUR_LOAD_MIX_MAX`); a saved session or share link restores what was hand-set. The Effect Label and Param Label columns for these rows are placeholders for the copy pass; the shipped copy is in `src/content/copy/fleet.ts`.
 
 ## Master / Chain-Level Controls (not per-effect-param)
 

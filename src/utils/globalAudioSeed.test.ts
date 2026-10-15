@@ -30,6 +30,10 @@ import {
   generateSwellFrequency,
   generateSwellDuration,
   scaleUnitValue,
+  pickColourCharacter,
+  COLOUR_CHARACTERS,
+  COLOUR_CHARACTER_NODES,
+  COLOUR_CHARACTER_BANDS,
   LFO_BANK_RATE_BANDS,
   LFO_BANK_DRIFT_SEED_RANGE,
   LFO_BANK_SYNC_BAND_ORDER,
@@ -146,10 +150,17 @@ describe('generateGlobalAudioSettings', () => {
       'reverb.decay': settings.reverb.decay,
       'reverb.preDelay': settings.reverb.preDelay,
       'limiter.threshold': settings.limiter.threshold,
+      // Global Colour T5: the three shape values are always drawn from their lit band, lit or not.
+      'distortion.amount': settings.distortion.amount,
+      'chebyshev.order': settings.chebyshev.order,
+      'bitCrusher.bits': settings.bitCrusher.bits,
     };
     const sampledKeys = Object.keys(valueByKey) as GlobalAudioSeedFieldKey[];
-    // Sanity: every loading row except the two wet rows is checked, so a newly added row cannot slip past.
-    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2);
+    // Sanity: every loading row except the five wet rows is checked, so a newly added row cannot slip past.
+    // The three colour wets are absent on purpose too: an unlit node seeds wet 0, which is outside its lit band
+    // (they are pinned by the colour tests below).
+    const COLOUR_WET_ROWS = 3;
+    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_WET_ROWS);
     for (const key of sampledKeys) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);
@@ -258,6 +269,239 @@ describe('generateGlobalAudioSettings', () => {
 
   });
 
+});
+
+// Global Colour T5 (docs/specs/GLOBAL_COLOUR.md section 1.2): one seeded character picks which of the three colour
+// nodes a fresh world lights; the six value draws supply the numbers.
+describe('the colour character (Global Colour)', () => {
+  type ColourNode = 'distortion' | 'chebyshev' | 'bitCrusher';
+  const NODE_KEYS: readonly ColourNode[] = ['distortion', 'chebyshev', 'bitCrusher'];
+  const litNodes = (s: ReturnType<typeof generateGlobalAudioSettings>): ColourNode[] => NODE_KEYS.filter((k) => s[k].wet > 0);
+  const characterOf = (s: ReturnType<typeof generateGlobalAudioSettings>) => {
+    const lit = litNodes(s);
+    return COLOUR_CHARACTERS.find((c) => {
+      const nodes = COLOUR_CHARACTER_NODES[c];
+      return nodes.length === lit.length && nodes.every((n) => lit.includes(n));
+    });
+  };
+
+  afterEach(() => {
+    for (let i = 0; i < 300; i++) evictAttenuationStyleNoiseMap(`colour-sample-${i}`);
+  });
+
+  describe('COLOUR_CHARACTERS and COLOUR_CHARACTER_NODES', () => {
+    // Crawford, T14 (2026-10-15): at most one colour effect is on per world at load. The three pair characters the
+    // spec first drew (about 15 % of worlds) are gone; their share went to the singles.
+    it('names four characters: clean and one per effect, with no pair', () => {
+      expect([...COLOUR_CHARACTERS]).toStrictEqual(['clean', 'drive', 'fold', 'crush']);
+    });
+
+    it('lights the node each name says, and never more than one', () => {
+      expect(COLOUR_CHARACTER_NODES.clean).toStrictEqual([]);
+      expect(COLOUR_CHARACTER_NODES.drive).toStrictEqual(['distortion']);
+      expect(COLOUR_CHARACTER_NODES.fold).toStrictEqual(['chebyshev']);
+      expect(COLOUR_CHARACTER_NODES.crush).toStrictEqual(['bitCrusher']);
+      for (const c of COLOUR_CHARACTERS) expect(COLOUR_CHARACTER_NODES[c].length, c).toBeLessThanOrEqual(1);
+    });
+
+    it('has no entry for a pair character (a stale key would let a pair come back unnoticed)', () => {
+      expect(Object.keys(COLOUR_CHARACTER_NODES)).toStrictEqual(['clean', 'drive', 'fold', 'crush']);
+    });
+  });
+
+  describe('COLOUR_CHARACTER_BANDS', () => {
+    it('has one cumulative upper edge per character, strictly increasing, ending at exactly 1', () => {
+      expect(COLOUR_CHARACTER_BANDS).toHaveLength(COLOUR_CHARACTERS.length);
+      for (let i = 1; i < COLOUR_CHARACTER_BANDS.length; i++) {
+        expect(COLOUR_CHARACTER_BANDS[i], `edge ${i}`).toBeGreaterThan(COLOUR_CHARACTER_BANDS[i - 1]);
+      }
+      expect(COLOUR_CHARACTER_BANDS[0]).toBeGreaterThan(0);
+      expect(COLOUR_CHARACTER_BANDS.at(-1)).toBe(1);
+    });
+  });
+
+  describe('pickColourCharacter', () => {
+    it('maps a draw in the middle of each band to that bands character', () => {
+      COLOUR_CHARACTERS.forEach((character, i) => {
+        const lo = i === 0 ? 0 : COLOUR_CHARACTER_BANDS[i - 1];
+        const hi = COLOUR_CHARACTER_BANDS[i];
+        expect(pickColourCharacter((lo + hi) / 2), character).toBe(character);
+      });
+    });
+
+    it('puts a draw exactly on an edge in the band above it (edges are exclusive upper bounds)', () => {
+      for (let i = 0; i < COLOUR_CHARACTERS.length - 1; i++) {
+        expect(pickColourCharacter(COLOUR_CHARACTER_BANDS[i]), `edge ${i}`).toBe(COLOUR_CHARACTERS[i + 1]);
+        expect(pickColourCharacter(COLOUR_CHARACTER_BANDS[i] - 1e-9), `just under edge ${i}`).toBe(COLOUR_CHARACTERS[i]);
+      }
+    });
+
+    it('clamps the extremes: 0 and below is clean, 1 and above is the last character', () => {
+      expect(pickColourCharacter(0)).toBe('clean');
+      expect(pickColourCharacter(-5)).toBe('clean');
+      expect(pickColourCharacter(1)).toBe('crush');
+      expect(pickColourCharacter(7)).toBe('crush');
+    });
+
+    it('treats a non-finite draw as clean rather than lighting a node by accident', () => {
+      expect(pickColourCharacter(Number.NaN)).toBe('clean');
+    });
+  });
+
+  describe('generateGlobalAudioSettings colour blocks', () => {
+    it('is deterministic - the same style gives the same character and values, fresh noise map or cached', () => {
+      const first = generateGlobalAudioSettings('colour-sample-1', 'ColourSample1');
+      evictAttenuationStyleNoiseMap('colour-sample-1');
+      const second = generateGlobalAudioSettings('colour-sample-1', 'ColourSample1');
+      expect(second.distortion).toStrictEqual(first.distortion);
+      expect(second.chebyshev).toStrictEqual(first.chebyshev);
+      expect(second.bitCrusher).toStrictEqual(first.bitCrusher);
+    });
+
+    it('draws more than one character across styles, so worlds differ from each other', () => {
+      const seen = new Set<string | undefined>();
+      for (let i = 0; i < 100; i++) seen.add(characterOf(generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`)));
+      expect(seen.size).toBeGreaterThan(3);
+    });
+
+    it('seeds order and bits as integers inside their full ranges, on every style', () => {
+      for (let i = 0; i < 300; i++) {
+        const s = generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
+        expect(Number.isInteger(s.chebyshev.order), `order style ${i}`).toBe(true);
+        expect(Number.isInteger(s.bitCrusher.bits), `bits style ${i}`).toBe(true);
+        expect(s.chebyshev.order).toBeGreaterThanOrEqual(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].min);
+        expect(s.chebyshev.order).toBeLessThanOrEqual(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].max);
+        expect(s.bitCrusher.bits).toBeGreaterThanOrEqual(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits'].min);
+        expect(s.bitCrusher.bits).toBeLessThanOrEqual(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits'].max);
+      }
+    });
+
+    it('keeps every shape value inside its loading band whether the node is lit or not', () => {
+      const bands = GLOBAL_AUDIO_LOADING_RANGES;
+      for (let i = 0; i < 300; i++) {
+        const s = generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
+        expect(s.distortion.amount, `amount style ${i}`).toBeGreaterThanOrEqual(bands['distortion.amount'].min);
+        expect(s.distortion.amount, `amount style ${i}`).toBeLessThanOrEqual(bands['distortion.amount'].max);
+        expect(s.chebyshev.order, `order style ${i}`).toBeGreaterThanOrEqual(bands['chebyshev.order'].min);
+        expect(s.chebyshev.order, `order style ${i}`).toBeLessThanOrEqual(bands['chebyshev.order'].max);
+        expect(s.bitCrusher.bits, `bits style ${i}`).toBeGreaterThanOrEqual(bands['bitCrusher.bits'].min);
+        expect(s.bitCrusher.bits, `bits style ${i}`).toBeLessThanOrEqual(bands['bitCrusher.bits'].max);
+      }
+    });
+
+    it('puts a lit nodes wet inside its loading band and an unlit nodes wet at exactly 0', () => {
+      const wetBand = {
+        distortion: GLOBAL_AUDIO_LOADING_RANGES['distortion.wet'],
+        chebyshev: GLOBAL_AUDIO_LOADING_RANGES['chebyshev.wet'],
+        bitCrusher: GLOBAL_AUDIO_LOADING_RANGES['bitCrusher.wet'],
+      };
+      for (let i = 0; i < 300; i++) {
+        const s = generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
+        const character = characterOf(s);
+        expect(character, `style ${i} has a recognisable character`).toBeDefined();
+        for (const node of NODE_KEYS) {
+          const lit = COLOUR_CHARACTER_NODES[character!].includes(node);
+          if (lit) {
+            expect(s[node].wet, `${node} style ${i}`).toBeGreaterThanOrEqual(wetBand[node].min);
+            expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(wetBand[node].max);
+          } else {
+            expect(s[node].wet, `${node} style ${i}`).toBe(0);
+          }
+        }
+      }
+    });
+
+    // Crawford, T14 (2026-10-15): no colour Mix above 0.25 on load. The property is on the real seeder, not just the
+    // table, so a future change to the draw or the quantiser cannot slip a loud Mix past a correct band.
+    it('never seeds a colour Mix above 0.25, lit or not, over 3000 styles', () => {
+      let litSeen = 0;
+      let highest = 0;
+      for (let i = 0; i < 3000; i++) {
+        const s = generateGlobalAudioSettings(`colour-ceiling-${i}`, `ColourCeiling${i}`);
+        for (const node of NODE_KEYS) {
+          highest = Math.max(highest, s[node].wet);
+          expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(0.25);
+          if (s[node].wet > 0) litSeen += 1;
+        }
+      }
+      expect(litSeen, 'the sample really contained lit nodes').toBeGreaterThan(1000);
+      expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.2);
+    });
+
+    it('lights at most one node in any world, over 3000 styles (never two, never three)', () => {
+      let one = 0;
+      let none = 0;
+      for (let i = 0; i < 3000; i++) {
+        const id = `colour-one-${i}`;
+        const lit = litNodes(generateGlobalAudioSettings(id, `ColourOne${i}`)).length;
+        evictAttenuationStyleNoiseMap(id);
+        expect(lit, `style ${i}`).toBeLessThanOrEqual(1);
+        if (lit === 1) one++;
+        else none++;
+      }
+      expect(one, 'the sample really contained lit worlds').toBeGreaterThan(1500);
+      expect(none, 'and clean ones').toBeGreaterThan(300);
+    });
+
+    // The raw draw is bell-curved and discrete (see COLOUR_CHARACTER_BANDS), so the nominal edges
+    // 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 gave 10 / 34 / 18 / 30 / 4 / 4 / 0 %. The edges were fitted on styles
+    // named 'ColourCalibration<n>'; this test samples a different set, so it is a hold-out check and not a
+    // restatement of the fit.
+    it('realises the target shares over 3000 hold-out styles, within 3 points: clean 25 and each single 25', () => {
+      const TARGET: Record<(typeof COLOUR_CHARACTERS)[number], number> = {
+        clean: 25,
+        drive: 25,
+        fold: 25,
+        crush: 25,
+      };
+      const N = 3000;
+      const counts = new Map<string, number>();
+      let threeNode = 0;
+      for (let i = 0; i < N; i++) {
+        const id = `colour-share-${i}`;
+        const s = generateGlobalAudioSettings(id, `ColourShare${i}`);
+        evictAttenuationStyleNoiseMap(id);
+        if (litNodes(s).length === 3) threeNode++;
+        const character = characterOf(s) ?? 'unrecognised';
+        counts.set(character, (counts.get(character) ?? 0) + 1);
+      }
+      expect(counts.get('unrecognised') ?? 0).toBe(0);
+      expect(threeNode).toBe(0);
+      for (const character of COLOUR_CHARACTERS) {
+        const share = ((counts.get(character) ?? 0) / N) * 100;
+        expect(Math.abs(share - TARGET[character]), `${character}: realised ${share.toFixed(1)} %`).toBeLessThanOrEqual(3);
+      }
+    });
+
+    it('reads exactly the seven new seed keys on every style, whatever its character, and renames no existing key', () => {
+      const EXISTING = [
+        'compressor.threshold', 'compressor.ratio', 'compressor.attack', 'compressor.release', 'compressor.knee',
+        'eq3.low', 'eq3.mid', 'eq3.high',
+        'filterLPF.frequency', 'filterLPF.Q', 'filterHPF.frequency', 'filterHPF.Q',
+        'delay.syncMode', 'delay.syncNote', 'delay.delayTime', 'delay.feedback',
+        'reverb.decay', 'reverb.preDelay',
+        'limiter.threshold',
+      ];
+      const NEW = [
+        'colour.character',
+        'distortion.amount', 'distortion.wet',
+        'chebyshev.order', 'chebyshev.wet',
+        'bitCrusher.bits', 'bitCrusher.wet',
+      ];
+      const expected = [...EXISTING, ...NEW].map((k) => `globalAudio.${k}`).sort();
+      for (let i = 0; i < 40; i++) {
+        vi.mocked(getSeededVal).mockClear();
+        generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
+        const keys = vi
+          .mocked(getSeededVal)
+          .mock.calls.map((call) => call[1])
+          // 'globalAudio.bpm' is bpmSeed's own draw, made only when the Delay seeds Anchored - not this seeder's.
+          .filter((key) => key.startsWith('globalAudio.') && key !== 'globalAudio.bpm')
+          .sort();
+        expect(keys, `style ${i}`).toStrictEqual(expected);
+      }
+    });
+  });
 });
 
 describe('generateLfoBankSettings', () => {
@@ -852,6 +1096,34 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // every oracle is still the byte-exact pre-Sync value, which is the proof no other draw moved. The edit was
 // made by hand to those four values; the oracle was NOT re-recorded, and the rule above still stands for
 // everything else in it.
+//
+// AMENDED BY HAND, Global Colour T1 (docs/specs/GLOBAL_COLOUR.md §1.2): `distortion`, `chebyshev` and
+// `bitCrusher` were ADDED to each global-settings oracle (keys only; no existing value touched). At T1 the
+// seeder returns the defaults for them as a placeholder; T5 replaces those values with the character draw.
+// T5 values were derived by hand, not copied from the seeder: the raw noise draws for 'globalAudio.colour.character'
+// and the six colour keys were read for each style (alpha t = 0.906 -> foldCrush; theta t = 0.688 -> crush), each
+// shape value was mapped into its loading band and quantised onto the full range's grid (min + n * step), and a
+// node outside the character's lit set got wet 0. No pre-existing value in either oracle was touched.
+//
+// AMENDED BY HAND, Global Colour T14 (2026-10-15, Crawford: no colour Mix above 0.25 on load): the three lit colour
+// wets moved because their loading bands moved (all three are now 0.10 to 0.25). Derived by hand from the same raw
+// draws, band formula 0.10 + 0.15 * t quantised onto the 0.01 grid: alpha chebyshev t = 0.4810 -> 0.1722 -> 0.17
+// (was 0.27); alpha bitCrusher t = 0.8067 -> 0.2210 -> 0.22 (was 0.35); theta bitCrusher t = 0.4971 -> 0.1746 -> 0.17
+// (was 0.27). The same formula on the old 0.15 to 0.40 band reproduces the old values, which is the check that the
+// draws were read correctly. Every other value, including each shape value and each unlit wet, is untouched.
+//
+// AMENDED AGAIN, same task (Crawford: "keep those ones lower"): Chebyshev and Bit Crusher return to a band below
+// Distortion's, 0.05 to 0.15 (Distortion stays 0.10 to 0.25), so formula 0.05 + 0.10 * t on the same draws: alpha
+// chebyshev 0.0981 -> 0.10; alpha bitCrusher 0.1307 -> 0.13; theta bitCrusher 0.0997 -> 0.10. These two lines replace
+// the 0.17 / 0.22 / 0.17 above; no distortion value is lit in either oracle.
+//
+// AMENDED A THIRD TIME, same task (Crawford: at most one effect on per world at load): the three pair characters were
+// dropped and the edges refitted to 0.3065 / 0.5 / 0.6935 / 1 (clean, drive, fold, crush at about 25 % each), so the
+// two draws that fell in the old pair bands moved band. Derived by hand from the same raw draws: alpha t = 0.9060 is at
+// or above 0.6935 -> crush (it was foldCrush), so only BitCrusher is lit: bitCrusher.wet 0.05 + 0.10 * 0.8067 = 0.1307
+// -> 0.13, and chebyshev.wet is now 0 (was 0.10). theta t = 0.6879 lies in [0.5, 0.6935) -> fold (it was crush), so only
+// Chebyshev is lit: chebyshev.wet 0.05 + 0.10 * 0.2596 = 0.0760 -> 0.08, and bitCrusher.wet is now 0 (was 0.10). Every
+// shape value is unchanged: a node outside the lit set still draws its shape.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -871,6 +1143,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: 3.5, mid: 3.5, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
       filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
+      // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
+      distortion: { amount: 0.32, wet: 0 },
+      chebyshev: { order: 4, wet: 0 },
+      bitCrusher: { bits: 9, wet: 0.13 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -890,6 +1166,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: -3.5, mid: -3.5, high: -3.5 },
       filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
       filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
+      // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
+      distortion: { amount: 0.26, wet: 0 },
+      chebyshev: { order: 3, wet: 0.08 },
+      bitCrusher: { bits: 8, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

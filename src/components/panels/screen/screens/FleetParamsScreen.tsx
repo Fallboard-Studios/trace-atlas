@@ -18,12 +18,14 @@ import type { LfoLaneId } from '@/types/lfo';
 import type { Trait } from '@/types/traits';
 import './FleetParamsScreen.css';
 
-/** The five sections in the sketch's order, each in the trait its group accordion wore. */
+/** The six sections in the sketch's order (Colour, Global Colour T9, sits on the chain side of Output),
+ *  each in the trait its group accordion wore. */
 const SECTIONS: readonly (readonly [FleetParamsGroup, Trait])[] = [
   ['pacing', 'composition'],
   ['lfoBank', 'timeSpace'],
   ['eqFilters', 'spectral'],
   ['timeSpace', 'timeSpace'],
+  ['colour', 'colour'],
   ['output', 'output'],
 ];
 const SECTION_TRAIT = Object.fromEntries(SECTIONS) as Record<FleetParamsGroup, Trait>;
@@ -93,7 +95,7 @@ function subTabItems(section: SubTabbedSection, shell: Shell): readonly SectionT
   });
 }
 
-const SUB_TABBED: readonly SubTabbedSection[] = ['lfoBank', 'eqFilters', 'timeSpace', 'output'];
+const SUB_TABBED: readonly SubTabbedSection[] = ['lfoBank', 'eqFilters', 'timeSpace', 'colour', 'output'];
 const SUB_TAB_ITEMS = Object.fromEntries(
   (['desk', 'phone'] as const).map((shell) => [shell, Object.fromEntries(SUB_TABBED.map((section) => [section, subTabItems(section, shell)]))]),
 ) as Record<Shell, Record<SubTabbedSection, readonly SectionTabItem<SelectedFleetParamsEffect>[]>>;
@@ -134,8 +136,8 @@ const SECTIONS_LABEL = labels('fleet.root').humanLabel;
 
 /**
  * Fleet Params (docs/specs/LAYOUT_REWORK.md §1.3–§1.4; docs/tasks/LAYOUT_REWORK.md Task 15): the
- * screen's intro, then the five sections as tabs — Pacing, LFO Bank, EQ & Filters, Time & Space,
- * Output — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
+ * screen's intro, then the six sections as tabs — Pacing, LFO Bank, EQ & Filters, Time & Space,
+ * Colour, Output — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
  * sub-tab are in the DOM at a time (SectionTabs, no forceMount), which carries roadmap 17.2.2's
  * lazy-mount forward. The open tab is `fleetParamsSection` / `fleetParamsSubsection` in uiStore, read
  * by the breadcrumb through navActions' same table. The panels are the existing ones, unchanged. Each

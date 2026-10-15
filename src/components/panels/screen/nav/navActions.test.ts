@@ -9,6 +9,7 @@ import {
   expandsInPlace,
   branchContent,
   FLEET_PARAMS_SUBSECTIONS,
+  FLEET_PARAMS_GROUP_CONTENT,
   activeFleetParamsSubsection,
   SETTINGS_LEAVES,
   SETTINGS_LEAF_CONTENT,
@@ -468,7 +469,12 @@ describe('breadcrumbPath', () => {
     ['eqFilters', null, [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
     ['eqFilters', 'filterHPF', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.hpf'].human]],
     ['timeSpace', 'delay', [CONTENT['fleet.timeSpace'].human, CONTENT['fleet.delay'].human]],
+    ['colour', null, [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
+    ['colour', 'bitCrusher', [CONTENT['fleet.colour'].human, CONTENT['fleet.bitCrusher'].human]],
     ['output', 'limiter', [CONTENT['fleet.output'].human, CONTENT['fleet.limiter'].human]],
+    // A colour sub-tab left over on another group reads as that group's first, and vice versa.
+    ['eqFilters', 'chebyshev', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
+    ['colour', 'delay', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
     // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
     ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
   ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
@@ -662,14 +668,24 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(ids('lfoBank')).toEqual(['laneA', 'laneB', 'laneC', 'laneD']);
     expect(ids('eqFilters')).toEqual(['eq3', 'filterHPF', 'filterLPF']);
     expect(ids('timeSpace')).toEqual(['reverb', 'delay']);
+    expect(ids('colour')).toEqual(['distortion', 'chebyshev', 'bitCrusher']);
     expect(ids('output')).toEqual(['compressor', 'limiter']);
+  });
+
+  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Output', () => {
+    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'output']);
+    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'output']);
+  });
+
+  it('names the Colour group from fleet.colour', () => {
+    expect(FLEET_PARAMS_GROUP_CONTENT.colour).toBe('fleet.colour');
   });
 
   it('names each sub-tab with the concept its panel is built from', () => {
     const lanes = FLEET_PARAMS_SUBSECTIONS.lfoBank.map((sub) => sub.content);
     expect(lanes).toEqual([LFO_BANK_LANE_CONTENT.a, LFO_BANK_LANE_CONTENT.b, LFO_BANK_LANE_CONTENT.c, LFO_BANK_LANE_CONTENT.d]);
     // The effect panels' headings come from the same entries (audioRigConfig's panelSchema).
-    for (const group of ['eqFilters', 'timeSpace', 'output'] as const) {
+    for (const group of ['eqFilters', 'timeSpace', 'colour', 'output'] as const) {
       for (const sub of FLEET_PARAMS_SUBSECTIONS[group]) {
         const block = AUDIO_RIG_CONFIG.find((b) => b.key === (sub.id as AudioRigEffectKey));
         expect(block, sub.id).toBeDefined();
@@ -679,10 +695,24 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     }
   });
 
+  // Blocks a plan adds ahead of the group that shows them, each exempt only while no group lists it
+  // (the content guard's AWAITING_CONSUMER shape). Empty between plans: Global Colour T8 added three
+  // blocks here and T9's Colour group took them in.
+  const AWAITING_GROUP: readonly string[] = [];
+
   it('covers every effect block once, in exactly one group', () => {
     const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
     expect(new Set(all).size).toBe(all.length);
-    for (const block of AUDIO_RIG_CONFIG) expect(all, block.key).toContain(block.key);
+    for (const block of AUDIO_RIG_CONFIG) {
+      if (AWAITING_GROUP.includes(block.key)) continue;
+      expect(all, block.key).toContain(block.key);
+    }
+  });
+
+  it('every block awaiting a group exists and is still in none (remove it once a group lists it)', () => {
+    const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
+    expect(AWAITING_GROUP.filter((key) => !AUDIO_RIG_CONFIG.some((b) => b.key === key)), 'missing from AUDIO_RIG_CONFIG').toEqual([]);
+    expect(AWAITING_GROUP.filter((key) => (all as string[]).includes(key)), 'now in a group, remove from AWAITING_GROUP').toEqual([]);
   });
 
   it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], BreadcrumbState['fleetParamsSubsection']]>([
@@ -691,6 +721,9 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['eqFilters', null, 'eq3'],
     ['eqFilters', 'filterLPF', 'filterLPF'],
     ['timeSpace', 'delay', 'delay'],
+    ['colour', null, 'distortion'],
+    ['colour', 'bitCrusher', 'bitCrusher'],
+    ['colour', 'laneC', 'distortion'],
     ['output', 'limiter', 'limiter'],
     // Not this group's: its first, as SectionTabs falls back for a stale value.
     ['output', 'laneC', 'compressor'],

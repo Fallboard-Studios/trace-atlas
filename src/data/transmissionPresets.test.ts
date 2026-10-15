@@ -116,6 +116,14 @@ describe('TRANSMISSION_PRESETS', () => {
       expect(payload.globalAudio?.delay.wet).toBe(1);
     });
 
+    // Global Colour T1 (docs/specs/GLOBAL_COLOUR.md assumption 8): a preset is a hand-written world, so it
+    // carries the three colour blocks explicitly, dry, at the shape defaults.
+    it('carries the three colour blocks dry at the defaults', () => {
+      expect(payload.globalAudio?.distortion).toStrictEqual({ amount: 0.3, wet: 0 });
+      expect(payload.globalAudio?.chebyshev).toStrictEqual({ order: 2, wet: 0 });
+      expect(payload.globalAudio?.bitCrusher).toStrictEqual({ bits: 8, wet: 0 });
+    });
+
     it('carries every LFO lane and every global LFO link, never a partial set', () => {
       expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
       expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());

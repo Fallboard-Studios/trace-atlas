@@ -66,6 +66,30 @@ export interface FilterSettings {
   Q: number;
 }
 
+/** Drive: Tone.Distortion's waveshaper. Docs/specs/GLOBAL_COLOUR.md §1.1. */
+export interface DistortionSettings {
+  /** 0 - 1 (Tone's `distortion`) */
+  amount: number;
+  /** 0 - 1. A true wet/dry mix of this node (it sits in the dry chain, not on a send). */
+  wet: number;
+}
+
+/** Harmonics: Tone.Chebyshev's polynomial waveshaper. */
+export interface ChebyshevSettings {
+  /** integer 1 - 8; 1 passes the signal unchanged */
+  order: number;
+  /** 0 - 1 */
+  wet: number;
+}
+
+/** Bit Crush: Tone.BitCrusher (an AudioWorklet). */
+export interface BitCrusherSettings {
+  /** integer 1 - 16 */
+  bits: number;
+  /** 0 - 1 */
+  wet: number;
+}
+
 export interface LimiterSettings {
   /** dB (-20 - 0) — Tone.Limiter's only controllable param; wraps a fixed ratio=20/attack=0.003/release=0.01 Compressor internally. */
   threshold: number;
@@ -87,6 +111,10 @@ export interface GlobalAudioSettings {
   filterLPF: FilterSettings;
   /** High-pass filter — AudioEngine builds this as its own Tone.Filter node (`_globalHPF`), independent of filterLPF. */
   filterHPF: FilterSettings;
+  /** Colour slot, in chain order between the High-Pass Filter and the Compressor (docs/specs/GLOBAL_COLOUR.md §1.3). */
+  distortion: DistortionSettings;
+  chebyshev: ChebyshevSettings;
+  bitCrusher: BitCrusherSettings;
   limiter: LimiterSettings;
 }
 
@@ -99,5 +127,23 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   eq3: { low: 0, mid: 0, high: 0 },
   filterLPF: { type: 'lowpass', frequency: 20000, Q: 1 },
   filterHPF: { type: 'highpass', frequency: 20, Q: 1 },
+  // Colour is dry by default (every `wet` 0); a fresh world's seed lights at most a couple of nodes.
+  distortion: { amount: 0.3, wet: 0 },
+  chebyshev: { order: 2, wet: 0 },
+  bitCrusher: { bits: 8, wet: 0 },
   limiter: { threshold: -12 },
 };
+
+/**
+ * Fills any effect block a payload lacks from DEFAULT_GLOBAL_AUDIO_SETTINGS and drops keys it does not
+ * know. A session or share link saved before a block existed therefore loads with that block at its
+ * default (dry, for colour) instead of crashing `applyGlobalAudioToEngine`. Blocks are whole: a block that
+ * is present is kept as given and never deep-merged (docs/specs/GLOBAL_COLOUR.md §1.1, assumption 11).
+ */
+export function withGlobalAudioDefaults(partial: Partial<GlobalAudioSettings>): GlobalAudioSettings {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS) as (keyof GlobalAudioSettings)[]) {
+    result[key] = partial[key] ?? structuredClone(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+  }
+  return result as unknown as GlobalAudioSettings;
+}

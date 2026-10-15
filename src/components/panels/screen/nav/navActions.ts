@@ -88,6 +88,12 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'reverb', content: 'fleet.reverb' },
     { id: 'delay', content: 'fleet.delay' },
   ],
+  // Chain order (docs/specs/GLOBAL_COLOUR.md assumption 10): the three dry-chain colour effects.
+  colour: [
+    { id: 'distortion', content: 'fleet.distortion' },
+    { id: 'chebyshev', content: 'fleet.chebyshev' },
+    { id: 'bitCrusher', content: 'fleet.bitCrusher' },
+  ],
   output: [
     { id: 'compressor', content: 'fleet.compressor' },
     { id: 'limiter', content: 'fleet.limiter' },
@@ -109,6 +115,7 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   lfoBank: 'fleet.lfoBank',
   eqFilters: 'fleet.eqFilters',
   timeSpace: 'fleet.timeSpace',
+  colour: 'fleet.colour',
   output: 'fleet.output',
 };
 

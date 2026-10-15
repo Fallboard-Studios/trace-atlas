@@ -40,6 +40,11 @@ import type { Trait } from '@/types/traits';
  *    as 4 distinct families (orange, green, blue, purple/magenta) instead of 3 of 4 clustering.
  *
  * Composition, Spectral, and Header are untouched by this pass.
+ *
+ * Colour (Roadmap 50.3, docs/specs/GLOBAL_COLOUR.md assumption 9) takes red and tangerine, the two
+ * of the three hues the passes above freed that no trait has claimed since (yellow is still free).
+ * Tangerine was dropped from Seed as too intense once seen in the app, so this pair is the one to
+ * look at first at Checkpoint B; swapping it is this line and the pinned pair in traitColors.test.ts.
  */
 export const TRAIT_COLORS: Record<Trait, [string, string]> = {
   spectral: [ACCENT_COLORS.cyan, ACCENT_COLORS.indigo],
@@ -49,6 +54,7 @@ export const TRAIT_COLORS: Record<Trait, [string, string]> = {
   company: [ACCENT_COLORS.blue, ACCENT_COLORS.plum],
   seed: [ACCENT_COLORS.rosewood, ACCENT_COLORS.dustyRose],
   header: [ACCENT_COLORS.teal, ACCENT_COLORS.green],
+  colour: [ACCENT_COLORS.red, ACCENT_COLORS.tangerine],
 };
 
 /** The 4 custom properties buildAccentStyle below always sets, typed explicitly (rather than a

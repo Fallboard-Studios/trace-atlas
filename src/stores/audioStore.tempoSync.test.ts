@@ -22,6 +22,9 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalLimiter: vi.fn(),
     setGlobalDelay: vi.fn(),
     setGlobalReverb: vi.fn(),
+    setGlobalDistortion: vi.fn(),
+    setGlobalChebyshev: vi.fn(),
+    setGlobalBitCrusher: vi.fn(),
     setMasterVolume: vi.fn(),
   },
 }));
