@@ -294,14 +294,10 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (live.panAuto === false) diff.pan = roundToDecimals(live.pan, 2);
 
   // Robot Sends (docs/specs/ROBOT_SENDS.md §1.8): compared at the slider's two decimals on both sides, so float noise
-  // and a seed off the grid never read as a change. A swell in flight saves its base (never the mid-ramp value). A
-  // live robot with no send (an older save) writes no key; a baseline with none (a bare fixture) cannot match one.
+  // and a seed off the grid never read as a change. A swell in flight saves its base (never the mid-ramp value).
   for (const field of ['reverbSend', 'delaySend'] as const) {
-    const liveSend = live[field];
-    if (typeof liveSend !== 'number') continue;
-    const saved = roundToDecimals(extractSwellBaseValueIfActive(live.id, field) ?? liveSend, 2);
-    const seeded = baseline[field];
-    if (typeof seeded !== 'number' || saved !== roundToDecimals(seeded, 2)) diff[field] = saved;
+    const saved = roundToDecimals(extractSwellBaseValueIfActive(live.id, field) ?? live[field], 2);
+    if (saved !== roundToDecimals(baseline[field], 2)) diff[field] = saved;
   }
 
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): only the targets whose link actually changed --
@@ -604,13 +600,12 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
       // manual. Before the audio context starts this is a no-op; loadInstruments' reservation pass
       // re-primes from the store (docs/specs/ROBOT_PAN.md §1.3).
       if (updates.panAuto === false) AudioEngine.updateRobotPan(updatedRobot.id, updatedRobot.pan);
-      // Robot Sends: primes from the STORED, clamped values, and only the sends this diff carried (validated above).
+      // Robot Sends: primes from the STORED values, and only the sends this diff carried (validated above).
       // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
       if (updates.reverbSend !== undefined || updates.delaySend !== undefined) {
-        const clamp = (n: number) => Math.max(SEND_MIN, Math.min(SEND_MAX, n));
         AudioEngine.updateRobotSends(updatedRobot.id, {
-          ...(updates.reverbSend !== undefined ? { reverb: clamp(updatedRobot.reverbSend) } : {}),
-          ...(updates.delaySend !== undefined ? { delay: clamp(updatedRobot.delaySend) } : {}),
+          ...(updates.reverbSend !== undefined ? { reverb: updatedRobot.reverbSend } : {}),
+          ...(updates.delaySend !== undefined ? { delay: updatedRobot.delaySend } : {}),
         });
       }
       // Robot Articulation: primes only the keys this diff carried and validated, from the stored robot.

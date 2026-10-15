@@ -180,8 +180,8 @@ const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
  *  volume and the 4 ADSR fields have no such parent and are always
  *  structurally available. */
 function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAttributeId): boolean {
-  if (attribute === 'reverbSend') return (robot.reverbSend ?? 0) > 0;
-  if (attribute === 'delaySend') return (robot.delaySend ?? 0) > 0;
+  if (attribute === 'reverbSend') return robot.reverbSend > 0;
+  if (attribute === 'delaySend') return robot.delaySend > 0;
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (!layerMatch) return true; // volume, adsr.* — no parent mute
   const layerIndex = Number(layerMatch[1]);

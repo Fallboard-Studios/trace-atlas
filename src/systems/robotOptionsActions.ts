@@ -14,7 +14,8 @@ import { applyRobotLinkToEngine, primeRobotLinks } from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
-import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE, SEND_MAX, SEND_MIN } from '@/constants';
+import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
+import { clampSend } from '@/utils/clampSend';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
@@ -47,13 +48,6 @@ export function applyPan(robot: Robot, localeId: string, display: number): void 
   const value = Math.max(PAN_MIN, Math.min(PAN_MAX, display / PAN_DISPLAY_SCALE));
   useLocaleStore.getState().updateRobot(localeId, robot.id, { pan: value });
   AudioEngine.updateRobotPan(robot.id, value);
-}
-
-/** Clamp a 0..1 send fraction into [SEND_MIN, SEND_MAX]. A NaN has no sensible clamp and comes back as
- *  SEND_MIN, so callers that must not zero a send on a bad payload (the two actions below) check first. */
-export function clampSend(fraction: number): number {
-  if (Number.isNaN(fraction)) return SEND_MIN;
-  return Math.max(SEND_MIN, Math.min(SEND_MAX, fraction));
 }
 
 // Reverb and Delay sends display 0-100 % but store 0..1 (Robot.reverbSend / delaySend), the Volume split

@@ -63,6 +63,8 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     noteVariance: { active: true, value: 2 },
     pitchRepeat: 65,
     lfoLinks: makeDefaultLfoLinks(),
+    reverbSend: 0.3,
+    delaySend: 0.1,
     ...overrides,
   } as RobotAudioBaseline;
 }
@@ -85,6 +87,8 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     rhythmicMotifLength: baseline.rhythmicMotifLength,
     noteVariance: baseline.noteVariance,
     pitchRepeat: baseline.pitchRepeat,
+    reverbSend: baseline.reverbSend,
+    delaySend: baseline.delaySend,
     audioMode: 'none',
     ...overrides,
   } as Robot;
@@ -185,7 +189,7 @@ describe('computeRobotAudioOverrideDiff', () => {
   });
 
   // docs/tasks/ROBOT_SENDS.md Task 15: a send diffs against the seeded baseline at two decimals (the slider's step),
-  // and a swell in flight saves its base, not the interpolated value. Older fixtures carry no send at all.
+  // and a swell in flight saves its base, not the interpolated value.
   describe('reverbSend and delaySend (Robot Sends T15)', () => {
     const SEEDED = { reverbSend: 0.3, delaySend: 0.1 };
     const withSends = (baselineOverrides: Partial<RobotAudioBaseline> = {}) => makeBaseline({ ...SEEDED, ...baselineOverrides });
@@ -252,13 +256,6 @@ describe('computeRobotAudioOverrideDiff', () => {
     it('the full-scale send 1 is kept', () => {
       const baseline = withSends();
       expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 1 }), baseline)).toEqual({ reverbSend: 1 });
-    });
-
-    it('an older robot with neither field diffs to nothing, never an undefined-valued key', () => {
-      const baseline = withSends();
-      const diff = computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline);
-      expect(diff).toEqual({});
-      expect(Object.keys(diff)).toEqual([]);
     });
 
     it('the send keys touch no other field of the diff', () => {
@@ -1250,29 +1247,6 @@ describe('applySessionPayload', () => {
       expect(stored(robot.id)).toMatchObject({ reverbSend: 0.25, delaySend: robot.delaySend, rhythmicDensity: 21 });
       expect(prime).toHaveBeenCalledTimes(1);
       expect(prime).toHaveBeenCalledWith(robot.id, { reverb: 0.25 });
-    });
-
-    it.each([['reverbSend', 'reverb'], ['delaySend', 'delay']] as const)('primes the STORED %s, clamped, never the payload value: a stored 7 primes 1', (field, engineKey) => {
-      const { localeId, robot } = seededWorld();
-      const prime = spyPrime();
-      // A store that kept the raw number (updateRobot normally clamps): the prime must still be in range.
-      const real = useLocaleStore.getState().updateRobot;
-      vi.spyOn(useLocaleStore.getState(), 'updateRobot').mockImplementation((id, robotId, updates) => {
-        real(id, robotId, updates);
-        if (updates[field] !== undefined) {
-          useLocaleStore.setState((s) => ({
-            locales: {
-              ...s.locales,
-              [localeId]: { ...s.locales[localeId], robots: s.locales[localeId].robots.map((r) => (r.id === robotId ? { ...r, [field]: 7 } : r)) },
-            },
-          }));
-        }
-      });
-
-      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: 0.4 } } }, { skipLocaleRebuild: true });
-
-      expect(stored(robot.id)[field]).toBe(7); // precondition: the sabotage took
-      expect(prime).toHaveBeenCalledWith(robot.id, { [engineKey]: 1 });
     });
 
     it('a robot id in the payload that is not in the roster is skipped without a prime', () => {

@@ -7,7 +7,7 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, clampSend, applyPortamento, applyBusFilter,
+  applyPitchRepeat, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento, applyBusFilter,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -250,21 +250,6 @@ describe('robotOptionsActions', () => {
 
   // docs/specs/ROBOT_SENDS.md §1.5 - the Reverb and Delay slider actions, on applyVolume's shape. They never
   // cancel a swell (the callers do): the swell tick itself writes through them.
-  describe('clampSend', () => {
-    it('passes an in-range fraction through unchanged, fractions included', () => {
-      expect(clampSend(0)).toBe(0);
-      expect(clampSend(0.25)).toBe(0.25);
-      expect(clampSend(1)).toBe(1);
-    });
-
-    it('clamps below 0 to 0 and above 1 to 1, infinities included', () => {
-      expect(clampSend(-0.5)).toBe(0);
-      expect(clampSend(7)).toBe(1);
-      expect(clampSend(Infinity)).toBe(1);
-      expect(clampSend(-Infinity)).toBe(0);
-    });
-  });
-
   describe.each([
     { name: 'applyReverbSend', apply: applyReverbSend, field: 'reverbSend', engineKey: 'reverb', other: 'delaySend' },
     { name: 'applyDelaySend', apply: applyDelaySend, field: 'delaySend', engineKey: 'delay', other: 'reverbSend' },

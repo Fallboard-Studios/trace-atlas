@@ -58,7 +58,7 @@ const TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
 };
 
 const NO_COMPANIES: Company[] = [];
-const NO_CHANGE = () => { };
+const NO_CHANGE = () => {};
 
 // Module-level, so each is one stable function (SectionTabs is React.memo'd). A section pick clears the
 // sub-tab, which belonged to the old section: Source / Accent → Envelope → Source opens Core again.

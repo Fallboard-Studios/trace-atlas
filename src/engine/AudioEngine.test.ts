@@ -1338,6 +1338,10 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
   });
 });
 
+// reserveVoice builds its Gains in a fixed order: the layers' own, the bus gain, then the reverb and delay send
+// gains. The mocked Tone.Gain has no names, so these tests find the bus gain by its place from the end of that list.
+const BUS_GAIN_FROM_END = 3;
+
 describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per-note velocity', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -1359,7 +1363,7 @@ describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per
     // pass-through is exactly the bug this taper fixes (see volumeTaper.test.ts for the curve's
     // own dedicated tests; this just confirms AudioEngine actually applies it).
     const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    const busGainCallArgs = gainCalls[gainCalls.length - 1];
+    const busGainCallArgs = gainCalls[gainCalls.length - BUS_GAIN_FROM_END];
     expect(busGainCallArgs[0]).toBe(volumePositionToGain(0.3));
   });
 
@@ -1373,7 +1377,7 @@ describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per
     AudioEngine.reserveVoice('bus-gain-default-robot', layered as any, TEST_ADSR);
 
     const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    const busGainCallArgs = gainCalls[gainCalls.length - 1];
+    const busGainCallArgs = gainCalls[gainCalls.length - BUS_GAIN_FROM_END];
     expect(busGainCallArgs[0]).toBe(1);
   });
 
@@ -1420,7 +1424,7 @@ describe('AudioEngine.updateRobotMasterVolume', () => {
     AudioEngine.reserveVoice('volume-live-edit-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.55);
 
     const gainResults = (Tone.Gain as unknown as { mock: { results: { value: { gain: { value: number } } }[] } }).mock.results;
-    const busGainInstance = gainResults[gainResults.length - 1].value;
+    const busGainInstance = gainResults[gainResults.length - BUS_GAIN_FROM_END].value;
     expect(busGainInstance.gain.value).toBe(1); // the mock's own hardcoded starting value
 
     AudioEngine.updateRobotMasterVolume('volume-live-edit-robot', 0.2);
@@ -3670,6 +3674,18 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       sends.delay.dispose = vi.fn();
 
       expect(() => AudioEngine.releaseVoice('r1')).not.toThrow();
+      expect(sends.delay.dispose).toHaveBeenCalled();
+    });
+
+    it('a disconnect that throws on one send does not leave the other send connected or undisposed', async () => {
+      const { AudioEngine, reserve } = await setup();
+      const sends = reserve('r1');
+      sends.reverb.disconnect = vi.fn(() => { throw new Error('disconnect failed'); });
+      sends.delay.disconnect = vi.fn();
+      sends.delay.dispose = vi.fn();
+
+      expect(() => AudioEngine.releaseVoice('r1')).not.toThrow();
+      expect(sends.delay.disconnect).toHaveBeenCalled();
       expect(sends.delay.dispose).toHaveBeenCalled();
     });
   });

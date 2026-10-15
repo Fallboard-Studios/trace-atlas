@@ -22,9 +22,8 @@ import {
   PITCH_REPEAT_MAX,
   PAN_MIN,
   PAN_MAX,
-  SEND_MIN,
-  SEND_MAX,
 } from '../constants';
+import { clampSend } from '../utils/clampSend';
 import { swallow } from '../utils/helpers';
 
 /**
@@ -206,7 +205,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           if (Number.isNaN(send)) {
             delete normalized[sendKey];
           } else {
-            normalized[sendKey] = Math.max(SEND_MIN, Math.min(SEND_MAX, send));
+            normalized[sendKey] = clampSend(send);
           }
         }
       }
