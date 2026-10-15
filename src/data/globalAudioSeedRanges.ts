@@ -44,6 +44,12 @@ export type GlobalAudioSeedFieldKey =
   | 'reverb.decay'
   | 'reverb.preDelay'
   | 'reverb.wet'
+  | 'distortion.amount'
+  | 'distortion.wet'
+  | 'chebyshev.order'
+  | 'chebyshev.wet'
+  | 'bitCrusher.bits'
+  | 'bitCrusher.wet'
   | 'limiter.threshold';
 
 // V2: Chorus (rate/depth/delayTime/feedback/wet) removed entirely — the
@@ -75,6 +81,16 @@ export const GLOBAL_AUDIO_SEED_RANGES: Record<GlobalAudioSeedFieldKey, SeedRange
   'reverb.decay': { min: 0.1, max: 10, scale: 'log' },
   'reverb.preDelay': { min: 0, max: 1, scale: 'linear', step: 0.01 },
   'reverb.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+
+  // Global Colour (docs/specs/GLOBAL_COLOUR.md assumption 6). `order` is capped at 8 although Tone allows 100:
+  // above that it is noise, not colour. `order` and `bits` step by whole integers (a harmonic order and a bit
+  // depth are integers by concept). None of these is LFO-able, so no LfoTarget reads them.
+  'distortion.amount': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'distortion.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'chebyshev.order': { min: 1, max: 8, scale: 'linear', step: 1 },
+  'chebyshev.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'bitCrusher.bits': { min: 1, max: 16, scale: 'linear', step: 1 },
+  'bitCrusher.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   'limiter.threshold': { min: -20, max: 0, scale: 'linear', step: 1 },
 };

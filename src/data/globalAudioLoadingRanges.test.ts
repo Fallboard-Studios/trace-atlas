@@ -33,6 +33,13 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'compressor.release': { min: 0.05, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
   'limiter.threshold': { min: -3, max: -1 },
+  // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14.
+  'distortion.amount': { min: 0.1, max: 0.35 },
+  'distortion.wet': { min: 0.25, max: 0.5 },
+  'chebyshev.order': { min: 2, max: 5 },
+  'chebyshev.wet': { min: 0.15, max: 0.4 },
+  'bitCrusher.bits': { min: 6, max: 10 },
+  'bitCrusher.wet': { min: 0.15, max: 0.4 },
 };
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
@@ -54,6 +61,19 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
       const loading = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(loading.min, `${key}: loading min should be >= full min`).toBeGreaterThanOrEqual(full.min);
       expect(loading.max, `${key}: loading max should be <= full max`).toBeLessThanOrEqual(full.max);
+    }
+  });
+
+  it('keeps the loading band of each integer field on whole numbers, so a lit draw can land on both edges', () => {
+    for (const key of ['chebyshev.order', 'bitCrusher.bits'] as const) {
+      expect(Number.isInteger(GLOBAL_AUDIO_LOADING_RANGES[key].min), key + ' min').toBe(true);
+      expect(Number.isInteger(GLOBAL_AUDIO_LOADING_RANGES[key].max), key + ' max').toBe(true);
+    }
+  });
+
+  it('keeps every lit colour wet band above zero, so a lit node is always audible', () => {
+    for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].min, key).toBeGreaterThan(0);
     }
   });
 

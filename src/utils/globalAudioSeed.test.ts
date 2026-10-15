@@ -149,7 +149,10 @@ describe('generateGlobalAudioSettings', () => {
     };
     const sampledKeys = Object.keys(valueByKey) as GlobalAudioSeedFieldKey[];
     // Sanity: every loading row except the two wet rows is checked, so a newly added row cannot slip past.
-    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2);
+    // The six colour rows (Global Colour T2) are excluded until T5 draws them; T5 moves them into
+    // valueByKey above and restores the count to `- 2`.
+    const COLOUR_ROWS_UNTIL_T5 = 6;
+    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_ROWS_UNTIL_T5);
     for (const key of sampledKeys) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);
