@@ -15,13 +15,14 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > mismatch), own-draw on copy-branch robots (6), swells *moving* rather than copying (13), and the seed-oracle
 > hand-edit (§5). None blocks T1–T5; T6 needs the oracle answer, T11–T12 need the swell answer.
 >
-> **Progress (2026-10-14):** T1–T18 committed; Checkpoints A, B and C passed; 50.1 (articulation) merged in. The swell
+> **Progress (2026-10-14):** T1–T19 committed; Checkpoints A, B and C passed; 50.1 (articulation) merged in. The swell
 > question (13) is answered: **move**. T11 deleted the global wet swell targets, so the global pool is 7.
 > **Known red until T20:** `src/docs/robotSendsDocs.test.ts` part (c), the two "names `reverbSend` / `delaySend` as a
 > persisted field" cases against `docs/SESSION_STORAGE.md` (the Pan and Articulation guards were red the same way).
 > T18 (phone gate) recorded in `docs/todo/scratchy-audio-phones.md`: Full and Standard, 3:00 each, no distortion by ear; HUD
 > underrun counts were not reported and the desktop `npm run perf` comparison was skipped at Crawford's call (2026-10-14).
-> Next is T19.
+> T19 (Crawford's listen): "i think all is fine" (2026-10-14), recorded as signed off as a whole, not line by line.
+> Next is T20 (docs).
 
 ## Overview
 
@@ -481,7 +482,7 @@ swell on the Fleet Params Reverb / Delay Amount); keyboard; popovers. If the swe
 is a `SEND_SWELL_UPWARD_CEILING` via `clampSwellCeiling`, **only if Crawford asks**.
 
 **Acceptance criteria:**
-- [ ] Crawford signs off the list (any line he does not report is recorded as "signed off as a whole", not individually confirmed, as the Pan record did).
+- [x] Crawford signs off the list (any line he does not report is recorded as "signed off as a whole", not individually confirmed, as the Pan record did).
 
 **Dependencies:** T18. **Files:** none. **Scope:** XS.
 
@@ -511,7 +512,7 @@ status line.
 
 ### Checkpoint: Complete
 - [ ] All spec §5 tests green; full suite green; lint, types and build clean.
-- [ ] Phone gate recorded (T18) and Crawford's listen signed off (T19).
+- [x] Phone gate recorded (T18) and Crawford's listen signed off (T19).
 - [ ] Remaining: Crawford's PR from `feature/palette-sends`; the untracked intent, spec and this plan need committing with it.
 
 ---
