@@ -24,9 +24,9 @@
 | Distortion | `setGlobalDistortion()` | amount (Tone `distortion`) | 0–1 | 0.1–0.35 | CARRIER BLEED | DRIVE | SLIDER | – | – |
 | Distortion | `setGlobalDistortion()` | wet | 0–1 | 0.1–0.25 | CARRIER BLEED | MIX | SLIDER | – | – |
 | Chebyshev | `setGlobalChebyshev()` | order | integer, 1–8 | 2–5 | OVERTONE FOLD | HARMONICS | SLIDER (step 1) | – | – |
-| Chebyshev | `setGlobalChebyshev()` | wet | 0–1 | 0.1–0.25 | OVERTONE FOLD | MIX | SLIDER | – | – |
+| Chebyshev | `setGlobalChebyshev()` | wet | 0–1 | 0.05–0.15 | OVERTONE FOLD | MIX | SLIDER | – | – |
 | BitCrusher | `setGlobalBitCrusher()` | bits | integer, 1–16 | 6–10 | QUANTISE LOSS | BIT CRUSH | SLIDER (step 1) | – | – |
-| BitCrusher | `setGlobalBitCrusher()` | wet | 0–1 | 0.1–0.25 | QUANTISE LOSS | MIX | SLIDER | – | – |
+| BitCrusher | `setGlobalBitCrusher()` | wet | 0–1 | 0.05–0.15 | QUANTISE LOSS | MIX | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | delayTime | seconds, 0–10 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER (Free \| Sync¹) | – | – |
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | wet | 0–1 (return level²) | – (fixed `1`) | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | – |

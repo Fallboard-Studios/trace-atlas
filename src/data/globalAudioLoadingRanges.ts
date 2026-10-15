@@ -55,12 +55,13 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   'limiter.threshold': { min: -3, max: -1 },
 
   // Global Colour (docs/specs/GLOBAL_COLOUR.md assumption 7): the bands a LIT node draws from; an unlit node
-  // keeps its shape value from the same band and a `wet` of 0. The three `wet` bands were set at T14: all 0.10 to
-  // COLOUR_LOAD_MIX_MAX (0.25).
+  // keeps its shape value from the same band and a `wet` of 0. The three `wet` bands were set at T14: Distortion 0.10
+  // to COLOUR_LOAD_MIX_MAX (0.25), and Chebyshev and Bit Crusher gentler, 0.05 to 0.15 (they always seeded below
+  // Distortion; Crawford, "keep those ones lower").
   'distortion.amount': { min: 0.1, max: 0.35 },
   'distortion.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
   'chebyshev.order': { min: 2, max: 5 },
-  'chebyshev.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
+  'chebyshev.wet': { min: 0.05, max: 0.15 },
   'bitCrusher.bits': { min: 6, max: 10 },
-  'bitCrusher.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
+  'bitCrusher.wet': { min: 0.05, max: 0.15 },
 };

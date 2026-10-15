@@ -1102,6 +1102,11 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // (was 0.27); alpha bitCrusher t = 0.8067 -> 0.2210 -> 0.22 (was 0.35); theta bitCrusher t = 0.4971 -> 0.1746 -> 0.17
 // (was 0.27). The same formula on the old 0.15 to 0.40 band reproduces the old values, which is the check that the
 // draws were read correctly. Every other value, including each shape value and each unlit wet, is untouched.
+//
+// AMENDED AGAIN, same task (Crawford: "keep those ones lower"): Chebyshev and Bit Crusher return to a band below
+// Distortion's, 0.05 to 0.15 (Distortion stays 0.10 to 0.25), so formula 0.05 + 0.10 * t on the same draws: alpha
+// chebyshev 0.0981 -> 0.10; alpha bitCrusher 0.1307 -> 0.13; theta bitCrusher 0.0997 -> 0.10. These two lines replace
+// the 0.17 / 0.22 / 0.17 above; no distortion value is lit in either oracle.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1123,8 +1128,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
       // Global Colour T5: this style draws the foldCrush character (Chebyshev + BitCrusher lit, Distortion dry).
       distortion: { amount: 0.32, wet: 0 },
-      chebyshev: { order: 4, wet: 0.17 },
-      bitCrusher: { bits: 9, wet: 0.22 },
+      chebyshev: { order: 4, wet: 0.1 },
+      bitCrusher: { bits: 9, wet: 0.13 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -1147,7 +1152,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Colour T5: this style draws the crush character (BitCrusher lit; the others dry, their shape still drawn).
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0 },
-      bitCrusher: { bits: 8, wet: 0.17 },
+      bitCrusher: { bits: 8, wet: 0.1 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },
