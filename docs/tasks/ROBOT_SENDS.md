@@ -15,11 +15,13 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > mismatch), own-draw on copy-branch robots (6), swells *moving* rather than copying (13), and the seed-oracle
 > hand-edit (§5). None blocks T1–T5; T6 needs the oracle answer, T11–T12 need the swell answer.
 >
-> **Progress (2026-10-14):** T1–T17 committed; Checkpoints A, B and C passed; 50.1 (articulation) merged in. The swell
+> **Progress (2026-10-14):** T1–T18 committed; Checkpoints A, B and C passed; 50.1 (articulation) merged in. The swell
 > question (13) is answered: **move**. T11 deleted the global wet swell targets, so the global pool is 7.
 > **Known red until T20:** `src/docs/robotSendsDocs.test.ts` part (c), the two "names `reverbSend` / `delaySend` as a
 > persisted field" cases against `docs/SESSION_STORAGE.md` (the Pan and Articulation guards were red the same way).
-> Next is T18, the phone gate, which needs Crawford and the Pixel.
+> T18 (phone gate) recorded in `docs/todo/scratchy-audio-phones.md`: Full and Standard, 3:00 each, no distortion by ear; HUD
+> underrun counts were not reported and the desktop `npm run perf` comparison was skipped at Crawford's call (2026-10-14).
+> Next is T19.
 
 ## Overview
 

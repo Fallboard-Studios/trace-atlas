@@ -551,3 +551,21 @@ what was and was not said:
 check below 0.4, and the desktop `npm run perf` before and after. The series gate is zero underruns at Full, and a run with
 no distortion on Full is consistent with it without proving it by number. T14b's `LOAD_BUS_FILTER_LFOS_MIN` (0.8) was built before any rise was reported;
 on this evidence the bus links did not need it, and the value is a placeholder (roadmap 50.1, "As built").
+
+## Robot Sends (roadmap 50.2) on the Pixel — Crawford's report, 2026-10-14
+
+Branch `feature/palette-sends` at Checkpoint C (T1–T17 committed), the same seed-`alpha` world as the baseline above. What
+Crawford reported, in his words: "phone checks both passed, no distortion at all for three minutes on both runs on the
+phone". Read against the plan's two runs (docs/tasks/ROBOT_SENDS.md Task 18), that is Full for 3:00 and Standard for 3:00.
+Nothing more was given, so this records what was and was not said:
+
+| Run | Length | `underruns` | By ear |
+|---|---|---|---|
+| Full | 3:00 | no count given | no distortion |
+| Standard | 3:00 | no count given | no distortion |
+
+**Not recorded, so not claimed:** the HUD underrun numbers for either run, and the desktop `npm run perf` before and after.
+Crawford chose to skip the perf comparison (2026-10-14), so the "no long-task regression" criterion of T18 was not checked.
+The gate is zero underruns at Full and no more than the Standard baseline; two clean-sounding runs are consistent with it
+without proving it by number. No `LOAD_*_MIN` threshold was added for the sends (intent: a rise would be a wiring bug or a
+reason to back out), and on this evidence none was needed.
