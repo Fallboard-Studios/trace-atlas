@@ -1587,6 +1587,51 @@ dip, so they move to the individual robots (Crawford, 2026-10-14): the sends joi
 the two `wet` targets leave the global pool. Phone gate: twelve `Gain`s is the cheapest node there is, but this is a topology change,
 so it is measured.
 
+**Status: built 2026-10-14 on `feature/palette-sends`, PR pending** (intent [robot-sends.md](../intent/robot-sends.md),
+spec [ROBOT_SENDS.md](../specs/ROBOT_SENDS.md), plan [ROBOT_SENDS.md](../tasks/ROBOT_SENDS.md); tasks T1–T20 committed, guard test
+`src/docs/robotSendsDocs.test.ts`). Crawford's Pixel run passed: Full and Standard for 3:00 each with no distortion by ear
+([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-sends-roadmap-502-on-the-pixel--crawfords-report-2026-10-14)); the
+HUD underrun counts were not reported and the desktop `npm run perf` comparison was skipped at his call, so neither is claimed
+here. He signed the manual listen list off as a whole ("i think all is fine"), not line by line. The paragraphs above are the
+original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraphs above)
+
+- **True send / return, two parallel rooms.** The interview's topology question was answered as a true send / return, and the
+  rooms are **beside** the dry chain, not stages in it: `Tone.Reverb` and `Tone.FeedbackDelay` are permanently `wet: 1`, fed only
+  by each robot's send gain and followed by a return gain. A robot at 0 is truly dry. A side effect worth knowing: Delay's echoes
+  are no longer reverberated (the old serial order fed Delay into Reverb), which is the spec's assumption 1.
+- **The global `wet` sliders became return levels** and are no longer seeded (every world loads `1`; the global quiet-Delay roll
+  was deleted). They are relabelled "Reverb Amount" / "Delay Amount" with help text saying so. Their two Loading Range bands
+  (`0.1–0.4`, `0–0.3`) were kept and now seed each robot's send.
+- **Both Decay Modes keep their wiring-level behaviour** by changing only where the returns rejoin the dry chain: the Compressor's
+  input for Natural, the Limiter's for Controlled. The in-app Decay Mode copy describes the *opposite* of that wiring and always
+  did; it was not touched. **Open question for Crawford:** fix the copy, or flip the wiring to match it (spec §7, point 2).
+- **A seeded spread, with a quiet-Delay trait.** Reverb seeds in `0.1–0.4`; Delay in `0–0.3` with a roll under
+  `SEND_DELAY_QUIET_THRESHOLD` (0.25) giving exactly `0`. The spec and plan say "about a quarter"; the roll's noise sample is
+  bell-curved, so in practice it is **about 17–18 %** of robots (measured over four seeds × 2000 offsets). The threshold was left
+  alone: ask before tuning.
+- **An explicit prime at every reservation.** A send is never "default", so `AudioEngine.updateRobotSends` is called after the
+  post-load pass, inside `reReserveVoice`, at both spawn reservations and on a session restore that carries a send;
+  `reserveVoice`'s signature is not widened. A source-scan test pins the sites.
+- **Swells moved to the robots, as answered.** The global swell pool is 7 (the two `wet` targets and
+  `isGlobalTargetAtOffEquivalent` are gone); the robot pool is 19, the sends appended last and live only while above `0`. **The
+  swell tick writes the stored fraction** through new `applyReverbSendValue` / `applyDelaySendValue`, not through the percent
+  actions: `x * 100 / 100 !== x` for about 15 % of doubles, so a swell could not land exactly on its base through the percent
+  path (`applyVolume` has the same round trip and was left alone). A hand edit cancels its own swell in the caller.
+- **Persistence and companies.** Session diff and share link carry `reverbSend` / `delaySend` (`rs`, `ds`), compared at two
+  decimals, a mid-swell save storing the swell's base, each decoded and validated on its own; the payload `version` stays 2.
+  Company snapshots gain both, broadcast per field, with the swell flags read from the first member.
+- **The seed oracle.** `globalAudioSeed.test.ts`'s "DO NOT REGENERATE" oracle was hand-edited in exactly four values
+  (`reverb.wet` and `delay.wet` in `oracle-alpha` and `oracle-theta`, both to `1`); every other field in every oracle is
+  byte-identical, which proves no other draw moved. Nothing was regenerated.
+- **Nothing on the gem reads a send**, pinned by the guard test's source scan.
+- **Corrected here:** the spec said the diagnostic's pre-chain tap "no longer includes echoes". It never did (EQ3's output fed
+  only the LPF in the old serial chain too), so the diagnostic docs now say the chain changed and the taps did not.
+- **Still open:** the lore words (Remoteness, Retrace Depth) are placeholders; the Decay Mode copy question above; whether the
+  swell is too heavy a wash (the follow-up, only if asked, is a `SEND_SWELL_UPWARD_CEILING` through `clampSwellCeiling`); the HUD
+  underrun counts and the desktop `npm run perf` comparison.
+
 ## 50.3 Global Colour: Saturation and BitCrusher
 
 Two single-instance nodes on the global chain, each with a lore name — a degraded transmission is

@@ -267,7 +267,9 @@ connected to the room's input across every Decay flip (a test pins this). The pr
 no longer exists as a serial order; `wireGlobalFxChain`'s doc comment, `AUDIO_SYSTEM.md`'s topology block
 and `GLOBAL_CHAIN_GRID.md` are rewritten (§2). The `?debug` taps are unchanged in code: the pre-tap still
 reads EQ3's output (the dry signal plus nothing from the rooms, which now join later), the master tap reads
-`masterGain`; the diagnostic doc gains one line saying the pre-tap no longer includes echoes.
+`masterGain`; the diagnostic doc gains a note that the chain changed. *(Corrected at T20: the draft said the pre-tap "no
+longer includes echoes", but it never did, since the Delay and Reverb followed EQ3 in the old serial chain too; only the
+chain named in the diagnostic's reading table changed.)*
 
 ### 1.4 Engine — `AudioEngine.ts` (per-robot sends)
 

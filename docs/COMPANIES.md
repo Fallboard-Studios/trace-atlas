@@ -63,7 +63,7 @@ Every field the company has never been edited for falls back live to `firstMembe
 
 ## Editing Semantics: Broadcast, Not Link
 
-A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
+A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applyReverbSend`, `applyDelaySend`, `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
 
 Only the one field that was changed propagates into `lastEditedOptions` — never the company's entire resolved snapshot. A user editing a single member robot's value afterward (even from that robot's own screen) changes only that robot; the company's `lastEditedOptions` and every other member robot are untouched. There is no ongoing link between a robot and its company's settings after the broadcast — reassigning a robot to a different company, or leaving it in the same one, doesn't retroactively apply anything.
 
@@ -87,6 +87,16 @@ The same "only the one changed thing" rule applies one level deeper for compound
 - **The Cutoff's LFO link** (`bus.frequency`) goes through the same `onLayerLfoFieldChange` path as a layer link (`onBusLinkChange` delegates to it under the `bus.frequency` target; the diff is applied member by member with `applyLayerLfoLink`), and its greyed-out state reads `busFilterLinksHeldOff`.
 
 Broadcast-not-link applies as everywhere else: a member edited afterwards on its own screen keeps its own value, and the snapshot is not rewritten.
+
+### Reverb and Delay sends (Robot Sends 50.2, docs/specs/ROBOT_SENDS.md §1.6 and §1.9)
+
+`CompanyOptionsSnapshot` carries two more optional fields, `reverbSend` and `delaySend` (stored 0…1, as on `Robot`). `resolveCompanyOptions` falls back to the first member's own values (`0` for a robot with neither), and the company screen's Reverb and Delay sliders sit under Pan in the Levels block, in `AudioSettingSection`. Their handlers, `onReverbSendChange` and `onDelaySendChange`, live in `useCompanyOptions`, beside `onVolumeChange`.
+
+- **Moving a slider** cancels any swell on that attribute for every member (`cancelSwellForRobotAttribute`), calls `applyReverbSend` / `applyDelaySend` once per member with the display percent, and records the clamped fraction (`clampSend`) in the snapshot, so every member lands at one value. With no members nothing is recorded.
+- **The swell flag** on each slider (`reverbSendSwelling` / `delaySendSwelling`) comes from the **first member**, as `volumeSwelling` does. A company-wide swell moves every eligible member's send in lock-step in time, not in magnitude; a member whose send is `0` is not eligible and stays put.
+- A value that is not a number (a `NaN` display figure) is dropped whole, and records nothing.
+
+Broadcast-not-link applies as everywhere else, so members disagree until a slider is touched, after which every member sits at one value; the snapshot is not rewritten by a later single-robot edit. A company is not saved as a snapshot (only its name and membership are, see [SESSION_STORAGE.md](SESSION_STORAGE.md)), so a company move is saved as the per-robot sends it left behind.
 
 ## Company Membership
 

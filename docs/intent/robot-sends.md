@@ -1,5 +1,11 @@
 # Intent: Robot Sends — Per-Robot Reverb and Delay Depth
 
+> **Status: built 2026-10-14** on `feature/palette-sends`, PR pending (spec [ROBOT_SENDS.md](../specs/ROBOT_SENDS.md), plan
+> [ROBOT_SENDS.md](../tasks/ROBOT_SENDS.md)). Every outcome below was built as confirmed; the "as built" deltas are in
+> [roadmap item 50.2](../todo/roadmap.md#502-robot-sends-per-robot-reverb-and-delay-depth). Two to know first: the quiet-Delay
+> roll that the spec calls "about a quarter" lands on about 17–18 % of robots, and the in-app Decay Mode copy describes the
+> opposite of the wiring (an old mismatch, still open for Crawford).
+
 Confirmed via `interview-me` on 2026-10-14 (7 questions, every guess confirmed), ahead of a
 `spec-driven-development` pass. Roadmap item 50.2
 ([docs/todo/roadmap.md](../todo/roadmap.md#502-robot-sends-per-robot-reverb-and-delay-depth)), part of the

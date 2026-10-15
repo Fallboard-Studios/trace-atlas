@@ -17,12 +17,20 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 >
 > **Progress (2026-10-14):** T1–T19 committed; Checkpoints A, B and C passed; 50.1 (articulation) merged in. The swell
 > question (13) is answered: **move**. T11 deleted the global wet swell targets, so the global pool is 7.
-> **Known red until T20:** `src/docs/robotSendsDocs.test.ts` part (c), the two "names `reverbSend` / `delaySend` as a
-> persisted field" cases against `docs/SESSION_STORAGE.md` (the Pan and Articulation guards were red the same way).
 > T18 (phone gate) recorded in `docs/todo/scratchy-audio-phones.md`: Full and Standard, 3:00 each, no distortion by ear; HUD
 > underrun counts were not reported and the desktop `npm run perf` comparison was skipped at Crawford's call (2026-10-14).
 > T19 (Crawford's listen): "i think all is fine" (2026-10-14), recorded as signed off as a whole, not line by line.
-> Next is T20 (docs).
+> T20 (docs) done: the guard's part (c), red since T17, is green; suite 351 files / 10991 tests, types, lint (0 errors) and build clean.
+> Left: Crawford's PR from `feature/palette-sends` (the untracked-file note under the final checkpoint is out of date: the intent,
+> spec and plan are committed on the branch).
+>
+> **As shipped at T20 (deviations from this task's list):** (1) `docs/PERFORMANCE.md`'s diagnostics reading table also named the
+> old serial chain, so it was corrected beside `AUDIO_OUTPUT_DIAGNOSTIC.md`. (2) The spec's claim that the pre-chain tap "no longer
+> includes echoes" was wrong (EQ3's output never carried them, in the old chain or the new), so the diagnostic docs say the
+> chain changed and the taps did not, and the spec §1.3 carries a correction note. (3) `themes.md`'s "the only reader of the
+> loading table" sentence became "the main reader" because `generateRobotSends` reads the two `wet` rows. (4) The Decay Mode
+> copy mismatch is recorded in `AUDIO_SYSTEM.md`, `GLOBAL_CHAIN_GRID.md`, the roadmap and the intent banner as an open question
+> for Crawford; the copy and the wiring were not touched.
 
 ## Overview
 
@@ -501,19 +509,19 @@ pre-tap no longer includes echoes), `ideas/themes.md` (the wet bands now seed pe
 status line.
 
 **Acceptance criteria:**
-- [ ] `robotSendsDocs.test.ts` (including part c) is fully green; `npm test` passes in full.
-- [ ] Every doc that named the old serial Delay → Reverb order or the 9-target global swell pool is corrected.
-- [ ] The roadmap's 50.2 entry records: the seeded default, return gains, parallel rooms, explicit prime, swells on the robots, relabelled global amounts.
+- [x] `robotSendsDocs.test.ts` (including part c) is fully green; `npm test` passes in full.
+- [x] Every doc that named the old serial Delay → Reverb order or the 9-target global swell pool is corrected.
+- [x] The roadmap's 50.2 entry records: the seeded default, return gains, parallel rooms, explicit prime, swells on the robots, relabelled global amounts.
 
 **Verification:**
-- [ ] `npm test`, `npm run build:types`, `npm run lint`, `npm run build`
+- [x] `npm test`, `npm run build:types`, `npm run lint`, `npm run build`
 
 **Dependencies:** T19. **Files:** the docs above (several, text only), no `src/`. **Scope:** M (many docs, no code).
 
 ### Checkpoint: Complete
-- [ ] All spec §5 tests green; full suite green; lint, types and build clean.
+- [x] All spec §5 tests green; full suite green (351 files / 10991 tests); lint (0 errors), types and build clean.
 - [x] Phone gate recorded (T18) and Crawford's listen signed off (T19).
-- [ ] Remaining: Crawford's PR from `feature/palette-sends`; the untracked intent, spec and this plan need committing with it.
+- [ ] Remaining: Crawford's PR from `feature/palette-sends` (the intent, spec and this plan are already committed on the branch, 66dfc2c0).
 
 ---
 

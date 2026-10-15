@@ -71,11 +71,13 @@ pass, for unrelated reasons noted at each row.
 |---|---|---|---|---|---|---|---|
 | Time¹⁶ | Linear | s | 0 | 10 | 0.001 | 0.05 | 0.5 |
 | Feedback | Linear | — | 0 | 0.95 | 0.01 | 0 | 0.4 |
-| Mix | Linear | — | 0 | 1 | 0.01 | 0¹ | 0.3 |
+| Amount¹ | Linear | — | 0 | 1 | 0.01 | — | — |
 
-¹ Mix (`delay.wet`) has a ~25% seeded chance of loading at exactly `0` instead of a sampled value
-in `[0, 0.3]` (`DELAY_QUIET_THRESHOLD`, `globalAudioSeed.ts`) — the one global effect a fresh
-Attenuation Style can load silent.
+¹ Amount (`delay.wet`, labelled "Delay Amount") is the Delay room's **return level** since Robot Sends (roadmap
+50.2), not a mix: how loud the whole room is, as heard from every robot; `0` silences it. It is not seeded any
+more (every world loads `1`, and the old ~25 % quiet roll, `DELAY_QUIET_THRESHOLD`, was deleted from
+`globalAudioSeed.ts`), so it has no load range. The old `[0, 0.3]` band and its quiet roll moved to each robot's own
+Delay send, see Robot Detail View → Audio Setting.
 ¹⁶ Time has a **Free | Sync** mode (`docs/specs/FREE_SYNC_TOGGLE.md`). The row above is Free. In Sync
 the same slider steps through note values instead (`allowedDelayNoteValues(bpm)`, `tempoSync.ts` —
 the `NOTE_VALUES` entries, `src/data/noteValues.ts`, whose duration at the current tempo falls inside
@@ -90,7 +92,10 @@ row, and kept underneath.
 |---|---|---|---|---|---|---|---|
 | Decay | Log | s | 0.1 | 10 | — | 0.5 | 4 |
 | Pre-Delay | Linear | s | 0 | 1 | 0.01 | 0 | 0.1 |
-| Mix | Linear | — | 0 | 1 | 0.01 | 0.1 | 0.4 |
+| Amount²² | Linear | — | 0 | 1 | 0.01 | — | — |
+
+²² Amount (`reverb.wet`, labelled "Reverb Amount") is the Reverb room's **return level**, as Delay's above: not
+seeded (every world loads `1`), no load range. The old `[0.1, 0.4]` band now seeds each robot's own Reverb send.
 
 ### Compressor
 
@@ -147,6 +152,16 @@ slider's own `step: 1`.
 |---|---|---|---|---|---|---|---|
 | Volume | Linear | % | 0 | 100 | 1 | 65⁵ | 85⁵ |
 | Pan | Centered-zero | — | -100 | 100 | 1 | — | — |
+| Reverb | Linear | % | 0 | 100 | 1 | 10²³ | 40²³ |
+| Delay | Linear | % | 0 | 100 | 1 | 0²³ | 30²³ |
+
+²³ Reverb and Delay are the robot's **sends** into the shared rooms (Robot Sends, roadmap 50.2), stored as `0..1`
+fractions (`Robot.reverbSend` / `delaySend`) and displayed ×`SEND_DISPLAY_SCALE`. Seeded by `generateRobotSends`
+(`spawnSystem.ts`) from the bands the global wet values used to be seeded from, `GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']`
+(`0.1`–`0.4`) and `['delay.wet']` (`0`–`0.3`), quantized in percent-space like Volume. Delay also rolls under
+`SEND_DELAY_QUIET_THRESHOLD` (`0.25`), landing exactly `0` — a robot with no repeats at all — for about 17–18 % of
+robots, not a quarter, because the roll's noise sample is bell-curved. Both are robot swell attributes (live only while the
+send is above `0`).
 
 Pan has no seed range, so no load range: a spawned robot is Auto at `0`. It is stored as a `-1..1` fraction
 (`Robot.pan`, `PAN_MIN`/`PAN_MAX`) and displayed ×`PAN_DISPLAY_SCALE`, with no rounding step beyond the slider's

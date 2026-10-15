@@ -128,6 +128,11 @@ unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` r
 gain links (pinned by `src/docs/robotArticulationDocs.test.ts`). Attack and Release still feed the Lights and Body
 scale as before, through `bodyShapeFromAdsr`.
 
+The two sends (`Robot.reverbSend` / `Robot.delaySend`, the Reverb and Delay sliders; roadmap 50.2) reach the body
+through no dial either, and a send swell moves a slider, never the gem: nothing under `src/components/robot/gem/` or in
+`RobotBody.tsx` reads either field (pinned by `src/docs/robotSendsDocs.test.ts`). A robot's depth in the echo is a
+property of the audio graph only; its body is still identity and seed.
+
 ## Orbiters
 
 The four orbiter polygons are the one part of the body composition settings drive directly (Roadmap
