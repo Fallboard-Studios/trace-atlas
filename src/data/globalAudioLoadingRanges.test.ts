@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { GLOBAL_AUDIO_LOADING_RANGES } from './globalAudioLoadingRanges';
+import { COLOUR_LOAD_MIX_MAX, GLOBAL_AUDIO_LOADING_RANGES } from './globalAudioLoadingRanges';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
 
 // ========================================
@@ -40,6 +40,20 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'chebyshev.wet': { min: 0.05, max: 0.15 },
   'bitCrusher.bits': { min: 6, max: 10 },
   'bitCrusher.wet': { min: 0.05, max: 0.15 },
+  // Global Modulation T2 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the lit bands, placeholders tuned by ear at T16.
+  'autoWah.baseFrequency': { min: 80, max: 400 },
+  'autoWah.octaves': { min: 3, max: 6 },
+  'autoWah.sensitivity': { min: -24, max: -6 },
+  'autoWah.Q': { min: 1, max: 4 },
+  'autoWah.gain': { min: 0, max: 6 },
+  'autoWah.follower': { min: 0.1, max: 0.4 },
+  'autoWah.wet': { min: 0.1, max: 0.25 },
+  'phaser.rate': { min: 0.1, max: 1 },
+  'phaser.octaves': { min: 2, max: 4 },
+  'phaser.baseFrequency': { min: 200, max: 800 },
+  'phaser.stages': { min: 4, max: 8 },
+  'phaser.Q': { min: 2, max: 10 },
+  'phaser.wet': { min: 0.1, max: 0.25 },
 };
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
@@ -101,6 +115,45 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   it('keeps the colour wet bands off the ceiling check only for the three Mix fields (the ceiling does not leak onto other wet bands)', () => {
     expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max).toBeGreaterThan(0.25);
     expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max).toBeGreaterThan(0);
+  });
+
+  // Global Modulation T2: the pedals share Colour's Mix ceiling (spec assumption 9), by the same constant.
+  it('caps both pedal Mix bands at COLOUR_LOAD_MIX_MAX, the ceiling Colour already honours', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet'].max).toBe(COLOUR_LOAD_MIX_MAX);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet'].max).toBe(COLOUR_LOAD_MIX_MAX);
+  });
+
+  it('keeps both pedal Mix bands above zero, so a lit pedal is always audible', () => {
+    for (const key of ['autoWah.wet', 'phaser.wet'] as const) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].min, key).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps phaser.stages seeded at 4 - 8, well inside its 1 - 12 slider', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.stages']).toStrictEqual({ min: 4, max: 8 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.stages']).toMatchObject({ min: 1, max: 12 });
+  });
+
+  it('puts both loading edges of every stepped pedal field on its full range grid, so a draw can land on either edge', () => {
+    const pedalKeys = (Object.keys(GLOBAL_AUDIO_SEED_RANGES) as GlobalAudioSeedFieldKey[]).filter(
+      (key) => key.startsWith('autoWah.') || key.startsWith('phaser.'),
+    );
+    expect(pedalKeys).toHaveLength(13);
+    for (const key of pedalKeys) {
+      const { min: fullMin, step } = GLOBAL_AUDIO_SEED_RANGES[key];
+      if (step === undefined) continue;
+      for (const edge of ['min', 'max'] as const) {
+        const stepsFromMin = (GLOBAL_AUDIO_LOADING_RANGES[key][edge] - fullMin) / step;
+        expect(Math.abs(stepsFromMin - Math.round(stepsFromMin)), key + ' ' + edge).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it('keeps every lit pedal field a real band: the wide fields are never a single point', () => {
+    for (const key of ['autoWah.baseFrequency', 'autoWah.Q', 'autoWah.follower', 'phaser.rate', 'phaser.baseFrequency', 'phaser.Q'] as const) {
+      const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+      expect(max / min, key).toBeGreaterThan(1.5);
+    }
   });
 
   it('never has min >= max for any field', () => {

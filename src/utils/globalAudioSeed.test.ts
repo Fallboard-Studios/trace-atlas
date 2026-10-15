@@ -160,7 +160,11 @@ describe('generateGlobalAudioSettings', () => {
     // The three colour wets are absent on purpose too: an unlit node seeds wet 0, which is outside its lit band
     // (they are pinned by the colour tests below).
     const COLOUR_WET_ROWS = 3;
-    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_WET_ROWS);
+    // Global Modulation T2: the thirteen pedal rows are absent too. A dark pedal seeds wet 0 (outside its lit band),
+    // and until T7 draws the other eleven the seeder returns the dry defaults for them, which are outside the lit
+    // bands as well. T7 moves the eleven shape rows into valueByKey and leaves only the two Mix rows here.
+    const MODULATION_ROWS = 13;
+    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_WET_ROWS - MODULATION_ROWS);
     for (const key of sampledKeys) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);
