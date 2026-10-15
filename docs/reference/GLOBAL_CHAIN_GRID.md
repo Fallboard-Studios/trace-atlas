@@ -1,14 +1,16 @@
 # Audio Effects Label Mapping
 
-**Global chain order — "Natural Decay" (default):** EQ (3-band) → Low-Pass Filter → High-Pass Filter → Delay → Reverb → Compressor → Limiter → Destination.
+**Global chain order — the dry chain, identical in both Decay Modes:** EQ (3-band) → Low-Pass Filter → High-Pass Filter → Compressor → Limiter → Destination. **Delay and Reverb are not stages in it** (Robot Sends, roadmap 50.2): they are two shared rooms beside it, each fed by every robot's own send gain and followed by a return gain, and the Delay and Reverb `wet` rows below set those return gains (see `docs/AUDIO_SYSTEM.md`'s Signal Graph).
 
-**"Controlled Decay"** (user toggle, `compressorBeforeDelay: true`): EQ (3-band) → Low-Pass Filter → High-Pass Filter → Compressor → Delay → Reverb → Limiter → Destination — swaps Compressor to before both Delay and Reverb, so their tails are compressed rather than ringing out untouched. Robot voice busses always connect in at EQ (3-band) — it's first in both topologies.
+**"Natural Decay" (default):** both returns rejoin the dry chain at the Compressor's input.
+
+**"Controlled Decay"** (user toggle, `compressorBeforeDelay: true`): the same dry chain, but both returns rejoin it at the Limiter's input, so the echoes skip the Compressor. (The in-app Decay Mode copy says the same; it was corrected to this wiring after Robot Sends — see `docs/AUDIO_SYSTEM.md`.) Robot voice busses always connect in at EQ (3-band) — it's first in both topologies — and tap their sends off the bus filter, ahead of it.
 
 **This table is the source of truth for both ranges every field carries:**
 - **Unit / Range** — the full range: what the UI slider exposes and what the app itself supports. Verified directly against Tone.js v15.1.22's own source (`@min`/`@max` doc comments where Tone documents them; its own reference-range prose where it doesn't) — see the notes at the bottom.
-- **Loading Range** — a narrower sub-range of the above, the only window a *fresh seed* is allowed to land a value in. Never presented in the UI, never a cap on what the app can do — purely bounds what `generateGlobalAudioSettings` rolls at planet-load time. Confirmed with the user per-effect; `src/data/globalAudioLoadingRanges.ts` is a direct, mechanical transcription of this column, not an independent source.
+- **Loading Range** — a narrower sub-range of the above, the only window a *fresh seed* is allowed to land a value in. Never presented in the UI, never a cap on what the app can do — purely bounds what `generateGlobalAudioSettings` rolls at planet-load time. Confirmed with the user per-effect; `src/data/globalAudioLoadingRanges.ts` is a direct, mechanical transcription of this column, not an independent source (except the two `wet` rows, which now describe the per-robot send bands — footnote ² below).
 - **LFO?** — whether this field is one of the 7 `GlobalLfoTargetId`s (`src/types/lfo.ts`) that can carry an inline `LfoLink` (Lane + Depth, `src/components/ui/controls/LfoLink.tsx`), rendered directly beneath the field's own slider. There is no per-field shape/rate any more — a linked field's oscillator is whichever of the 4 shared LFO Bank lanes its own `LfoLink` picks (`docs/specs/LFO_BANK.md`, `docs/AUDIO_SYSTEM.md`'s LFO Modulation section); Rate/Shape/Rate Drift/Depth Drift bounds live on the lane, in the **Master / Chain-Level Controls** section below, not per row here. A field's own `LfoLink` can pick any of the 4 lanes, same as every robot field — there is no fixed per-effect-block assignment the way the old 4-group Drift design had (see that section's own note on what replaced it).
-- **Swell?** — whether this field is one of the 9 `SwellGlobalTargetId`s (`src/types/audioSwell.ts`) the Audio Swells system can pick as a global-pool target for a rare, self-reversing ramp. Per-swell magnitude/duration are drawn dynamically, not fixed per field — see `docs/specs/AUDIO_SWELLS.md`. Both pools (this one, and the separate 17-attribute robot pool) are governed session-wide by one master control — see **Ping Variance Automation** in the Master Controls section below.
+- **Swell?** — whether this field is one of the 7 `SwellGlobalTargetId`s (the same 7 as the LFO column; `delay.wet` and `reverb.wet` left the pool with Robot Sends, and the swells moved to each robot's sends) (`src/types/audioSwell.ts`) the Audio Swells system can pick as a global-pool target for a rare, self-reversing ramp. Per-swell magnitude/duration are drawn dynamically, not fixed per field — see `docs/specs/AUDIO_SWELLS.md`. Both pools (this one, and the separate 19-attribute robot pool) are governed session-wide by one master control — see **Ping Variance Automation** in the Master Controls section below.
 
 | Effect | Setter | Param | Unit / Range | Loading Range | Effect Label | Param Label | UI | LFO? | Swell? |
 |---|---|---|---|---|---|---|---|---|---|
@@ -21,10 +23,10 @@
 | High-Pass Filter | `setGlobalFilterHPF()` | Q | 0.1–20 | 0.1–5 | LOW-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
 | Delay | `setGlobalDelay()` | delayTime | seconds, 0–10 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER (Free \| Sync¹) | – | – |
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
-| Delay | `setGlobalDelay()` | wet | 0–1 | 0–0.3 | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | X |
+| Delay | `setGlobalDelay()` | wet | 0–1 (return level²) | – (fixed `1`) | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | – |
 | Reverb | `setGlobalReverb()` | decay | seconds, 0.1–10 | 0.5–4 | SPATIAL DIFFUSION MATRIX | DISSIPATION DURATION | SLIDER (Logarithmic) | – | – |
 | Reverb | `setGlobalReverb()` | preDelay | seconds, 0–0.5 | 0–0.1 | SPATIAL DIFFUSION MATRIX | INITIAL LAG | SLIDER | – | – |
-| Reverb | `setGlobalReverb()` | wet | 0–1 | 0.1–0.4 | SPATIAL DIFFUSION MATRIX | DIFFUSED SIGNAL BALANCE | SLIDER | – | X |
+| Reverb | `setGlobalReverb()` | wet | 0–1 (return level²) | – (fixed `1`) | SPATIAL DIFFUSION MATRIX | DIFFUSED SIGNAL BALANCE | SLIDER | – | – |
 | Compressor | `setGlobalCompressor()` | threshold | dB, −60 to 0 | −55 to −45 | DYNAMIC RANGE CONDENSER | ATTENUATION THRESHOLD | SLIDER | – | – |
 | Compressor | `setGlobalCompressor()` | ratio | 1–20 | 10–20 | DYNAMIC RANGE CONDENSER | COMPRESSION RATIO | SLIDER (step 1) | – | – |
 | Compressor | `setGlobalCompressor()` | attack | seconds, 0.001–0.2 | 0.003–0.05 | DYNAMIC RANGE CONDENSER | COMPRESSION RATE | SLIDER (Logarithmic) | – | – |
@@ -33,6 +35,8 @@
 | Limiter | `setGlobalLimiter()` | threshold | dB, −20 to 0 | −3 to −1 | TERMINAL CEILING GATE | OUTPUT CEILING | SLIDER | – | – |
 
 ¹ **Delay Time has a Free \| Sync mode** (`docs/specs/FREE_SYNC_TOGGLE.md`): Free is the plain seconds slider above; Sync (shown to the user as "Anchored") steps through note values of the tempo instead, and the stored note resolves to seconds at the current tempo (`resolveDelayTimeSeconds`, `src/utils/tempoSync.ts`), clamped into `DELAY_TIME_RANGE_SECONDS` (`src/types/globalAudio.ts`, `0–10` s). `DelaySettings.sync?` is optional — absent means Free. Roughly two in three fresh Attenuation Styles seed Delay Anchored (`DELAY_SYNC_ODDS`, `globalAudioSeed.ts`), with the note drawn from the `0.05–0.5` s loading range at the style's tempo; the Free `delayTime` is still seeded as before and kept underneath. See `docs/AUDIO_SYSTEM.md`'s "Free | Sync" section.
+
+² **Delay and Reverb `wet` are return levels, not mixes** (Robot Sends, `docs/specs/ROBOT_SENDS.md` §1.3). The Tone nodes themselves are permanently `wet: 1`; the setting drives the room's return gain, so it is how loud the whole room is as heard from every robot, and `0` silences the room. It is no longer seeded (`generateGlobalAudioSettings` sets both to `DEFAULT_GLOBAL_AUDIO_SETTINGS.*.wet`, `1`; the `globalAudio.delay.quiet` draw is gone) and no longer a swell target. The two old Loading Range bands (Delay `0–0.3`, Reverb `0.1–0.4`) survive in `src/data/globalAudioLoadingRanges.ts` with a comment saying so: they are the **per-robot send bands** now (`generateRobotSends` seeds each robot's `reverbSend` and `delaySend` from them, Delay with a roll that puts exactly `0` on a share of the fleet). The sampled values this column once described no longer exist; a `?session=` payload that carries a smaller `wet` simply loads that return level.
 
 ## Master / Chain-Level Controls (not per-effect-param)
 

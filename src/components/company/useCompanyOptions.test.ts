@@ -8,6 +8,7 @@ import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
 import * as audioSwells from '@/systems/audioSwells';
 import { useAudioStore } from '@/stores/audioStore';
+import { AudioEngine } from '@/engine/AudioEngine';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 import type { RobotLfoTargetId } from '@/types/lfo';
@@ -128,7 +129,7 @@ describe('useCompanyOptions', () => {
 
       const { options } = result.current;
       expect(options.active).toBe(false);
-      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true });
+      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0 });
       expect(options.signatureArrayValue.layers).toHaveLength(3);
       expect(options.adsrValue).toEqual({ attack: 0, decay: 0, sustain: 0, release: 0 });
     });
@@ -179,7 +180,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0 });
       expect(result.current.options.pingControlsValue.rhythmicDensity).toBe(42);
     });
 
@@ -302,6 +303,344 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  // docs/tasks/ROBOT_SENDS.md Task 14 - the company Reverb and Delay rows: the first member's sends (or the
+  // recorded ones), a broadcast that interrupts each member's own send swell, and a snapshot of the stored fraction.
+  describe('Reverb and Delay sends (Robot Sends Task 14)', () => {
+    const lastEdited = (id = 'c1') => useLocaleStore.getState().getCompanyById(localeId, id)?.lastEditedOptions;
+    const stored = (id: string) => useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
+
+    function twoMembersWithSends() {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.35, delaySend: 0.2 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', reverbSend: 0.8, delaySend: 0.6 }));
+      addCompany('c1', ['r1', 'r2']);
+    }
+
+    describe('the value', () => {
+      it('is the first member\'s own sends, not the second\'s', () => {
+        twoMembersWithSends();
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.audioSettingValue.reverbSend).toBe(0.35);
+        expect(result.current.options.audioSettingValue.delaySend).toBe(0.2);
+      });
+
+      it('shows the recorded snapshot over the first member, 0 included', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.35, delaySend: 0.2 }));
+        addCompany('c1', ['r1'], { lastEditedOptions: { reverbSend: 0.9, delaySend: 0 } });
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.audioSettingValue.reverbSend).toBe(0.9);
+        expect(result.current.options.audioSettingValue.delaySend).toBe(0);
+      });
+
+      it('is 0 and 0 for a first member that carries neither field', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addCompany('c1', ['r1']);
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.audioSettingValue).toMatchObject({ reverbSend: 0, delaySend: 0 });
+      });
+
+      it('is 0 and 0 while the selection is disabled (no members)', () => {
+        addCompany('c1', []);
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.active).toBe(false);
+        expect(result.current.options.audioSettingValue).toMatchObject({ reverbSend: 0, delaySend: 0 });
+      });
+
+      it('follows the first member when its send changes elsewhere', () => {
+        twoMembersWithSends();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.5 }));
+
+        expect(result.current.options.audioSettingValue.reverbSend).toBe(0.5);
+      });
+
+      it('ignores a send change on a member that is not first (the value, and its identity, stay)', () => {
+        twoMembersWithSends();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const before = result.current.options.audioSettingValue;
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { reverbSend: 0.1, delaySend: 0.1 }));
+
+        expect(result.current.options.audioSettingValue).toBe(before);
+      });
+
+      it('"all" reads its sends from the all-robots snapshot, else the first robot', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: undefined, reverbSend: 0.35, delaySend: 0.2 }));
+        expect(renderHook(() => useCompanyOptions('all')).result.current.options.audioSettingValue).toMatchObject({ reverbSend: 0.35, delaySend: 0.2 });
+
+        useLocaleStore.getState().setLocaleData(localeId, { allRobotsLastEditedOptions: { reverbSend: 0.7 } } as unknown as Partial<Locale>);
+        expect(renderHook(() => useCompanyOptions('all')).result.current.options.audioSettingValue).toMatchObject({ reverbSend: 0.7, delaySend: 0.2 });
+      });
+    });
+
+    describe('onReverbSendChange / onDelaySendChange', () => {
+      it('onReverbSendChange(40) interrupts and applies once per member with 40, and records only { reverbSend: 0.4 }', () => {
+        twoMembersWithSends();
+        const apply = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onReverbSendChange(40));
+
+        expect(apply).toHaveBeenCalledTimes(2);
+        expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+        expect(apply.mock.calls.every((c) => c[1] === localeId && c[2] === 40)).toBe(true);
+        expect(cancel.mock.calls.map((c) => [c[0], c[1]]).sort()).toEqual([['r1', 'reverbSend'], ['r2', 'reverbSend']]);
+        expect(lastEdited()).toEqual({ reverbSend: 0.4 });
+      });
+
+      it('onDelaySendChange(40) mirrors it for delaySend', () => {
+        twoMembersWithSends();
+        const apply = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onDelaySendChange(40));
+
+        expect(apply).toHaveBeenCalledTimes(2);
+        expect(apply.mock.calls.every((c) => c[2] === 40)).toBe(true);
+        expect(cancel.mock.calls.map((c) => [c[0], c[1]]).sort()).toEqual([['r1', 'delaySend'], ['r2', 'delaySend']]);
+        expect(lastEdited()).toEqual({ delaySend: 0.4 });
+      });
+
+      it('each handler leaves the other send alone: no other action, no other cancel, no other snapshot key', () => {
+        twoMembersWithSends();
+        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onReverbSendChange(40));
+
+        expect(delay).not.toHaveBeenCalled();
+        expect(cancel.mock.calls.some((c) => c[1] === 'delaySend')).toBe(false);
+        expect(lastEdited()).not.toHaveProperty('delaySend');
+        expect(reverb).toHaveBeenCalledTimes(2);
+      });
+
+      it('interrupts each member before applying to it, so the typed value is the last write', () => {
+        twoMembersWithSends();
+        const order: string[] = [];
+        vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((id, attr) => { order.push(`cancel:${id}:${attr}`); });
+        vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation((robot) => { order.push(`apply:${robot.id}`); });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onReverbSendChange(40));
+
+        expect(order).toEqual(['cancel:r1:reverbSend', 'apply:r1', 'cancel:r2:reverbSend', 'apply:r2']);
+      });
+
+      it.each([
+        ['over the top', 150, 1],
+        ['below zero', -5, 0],
+        ['exactly zero (fully dry), a real write', 0, 0],
+        ['exactly full', 100, 1],
+        ['a fraction of a percent', 12.5, 0.125],
+      ] as const)('a Reverb value %s records the clamped fraction the members store', (_name, display, expected) => {
+        twoMembersWithSends();
+        vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onReverbSendChange(display));
+
+        expect(lastEdited()).toEqual({ reverbSend: expected });
+      });
+
+      it('a Delay value past either end records the clamped fraction too', () => {
+        twoMembersWithSends();
+        vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onDelaySendChange(250));
+        expect(lastEdited()).toEqual({ delaySend: 1 });
+        act(() => result.current.options.onDelaySendChange(-3));
+        expect(lastEdited()).toEqual({ delaySend: 0 });
+      });
+
+      it('a NaN is dropped whole: no cancel, no action, no snapshot', () => {
+        twoMembersWithSends();
+        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => {
+          result.current.options.onReverbSendChange(NaN);
+          result.current.options.onDelaySendChange(NaN);
+        });
+
+        expect(reverb).not.toHaveBeenCalled();
+        expect(delay).not.toHaveBeenCalled();
+        expect(cancel).not.toHaveBeenCalled();
+        expect(lastEdited()).toBeUndefined();
+      });
+
+      it('with no members there is nothing to broadcast to and nothing to record', () => {
+        addCompany('c1', []);
+        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => {
+          result.current.options.onReverbSendChange(50);
+          result.current.options.onDelaySendChange(50);
+        });
+
+        expect(reverb).not.toHaveBeenCalled();
+        expect(delay).not.toHaveBeenCalled();
+        expect(lastEdited()).toBeUndefined();
+      });
+
+      it('a handler held from before a membership change still reaches the new member', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+        addCompany('c1', ['r1']);
+        const apply = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const held = result.current.options.onReverbSendChange;
+
+        act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r2', 'c1'));
+        act(() => held(50));
+
+        expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+      });
+
+      it('"all" broadcasts to every robot, Freelance included, and records into the all-robots snapshot', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+        addCompany('c1', ['r1']);
+        const apply = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('all'));
+
+        act(() => result.current.options.onDelaySendChange(30));
+
+        expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+        expect(useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions).toEqual({ delaySend: 0.3 });
+        expect(lastEdited()).toBeUndefined();
+      });
+
+      // The real actions, nothing mocked but the engine: every member stores the send, each keeps its other one.
+      it('end to end: every member stores the fraction and primes the engine; the other send is untouched', () => {
+        twoMembersWithSends();
+        const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onReverbSendChange(40));
+
+        expect(stored('r1')).toMatchObject({ reverbSend: 0.4, delaySend: 0.2 });
+        expect(stored('r2')).toMatchObject({ reverbSend: 0.4, delaySend: 0.6 });
+        expect(engine).toHaveBeenCalledTimes(2);
+        expect(engine).toHaveBeenCalledWith('r1', { reverb: 0.4 });
+        expect(engine).toHaveBeenCalledWith('r2', { reverb: 0.4 });
+        expect(result.current.options.audioSettingValue.reverbSend).toBe(0.4);
+      });
+
+      it('a member outside the company is untouched', () => {
+        twoMembersWithSends();
+        addRobot(makeRobot({ id: 'r9', companyId: 'c2', reverbSend: 0.9, delaySend: 0.9 }));
+        vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onReverbSendChange(10));
+
+        expect(stored('r9')).toMatchObject({ reverbSend: 0.9, delaySend: 0.9 });
+      });
+    });
+
+    describe('identity', () => {
+      it('the handlers keep their identity when an unrelated edit rebuilds the options', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addCompany('c1', ['r1']);
+        vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options;
+
+        act(() => result.current.options.onVolumeChange(50)); // records a snapshot, so the options object is rebuilt
+
+        expect(result.current.options).not.toBe(first);
+        expect(result.current.options.onReverbSendChange).toBe(first.onReverbSendChange);
+        expect(result.current.options.onDelaySendChange).toBe(first.onDelaySendChange);
+      });
+
+      it('the handlers keep their identity across a send edit of their own', () => {
+        twoMembersWithSends();
+        vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options;
+
+        act(() => result.current.options.onReverbSendChange(40));
+
+        expect(result.current.options.onReverbSendChange).toBe(first.onReverbSendChange);
+        expect(result.current.options.onDelaySendChange).toBe(first.onDelaySendChange);
+      });
+
+      it('the options object keeps its identity through an edit that changes nothing in it (a non-first member\'s battery)', () => {
+        twoMembersWithSends();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options;
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { batteryLevel: 5 }));
+
+        expect(result.current.options).toBe(first);
+      });
+    });
+
+    describe('the swelling flags', () => {
+      it('are read from the first member only, per send', () => {
+        twoMembersWithSends();
+        vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation(
+          (id, attr) => (id === 'r1' && attr === 'reverbSend') || (id === 'r2' && attr === 'delaySend'),
+        );
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.reverbSendSwelling).toBe(true);
+        expect(result.current.options.delaySendSwelling).toBe(false); // r2 is not the first member
+        expect(result.current.options.volumeSwelling).toBe(false);
+      });
+
+      it('a company-wide swell on reverbSend (every member swelling together) shows true, and delay stays false', () => {
+        twoMembersWithSends();
+        vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === 'reverbSend');
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.reverbSendSwelling).toBe(true);
+        expect(result.current.options.delaySendSwelling).toBe(false);
+      });
+
+      it.each(['reverbSend', 'delaySend'] as const)('%s\'s flag is recomputed when a swell tick writes that send (the module-scope Map is not tracked by React)', (field) => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.3, delaySend: 0.3 }));
+        addCompany('c1', ['r1']);
+        let swelling = false;
+        vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => swelling && attr === field);
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const flag = () => (field === 'reverbSend' ? result.current.options.reverbSendSwelling : result.current.options.delaySendSwelling);
+        expect(flag()).toBe(false);
+
+        swelling = true;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.4 }));
+
+        expect(flag()).toBe(true);
+      });
+
+      it('are false when there is no first member', () => {
+        const { result } = renderHook(() => useCompanyOptions('all'));
+
+        expect(result.current.options.reverbSendSwelling).toBe(false);
+        expect(result.current.options.delaySendSwelling).toBe(false);
+      });
+    });
+  });
+
   describe('Output: pan', () => {
     it('audioSettingValue carries the first member\'s own non-default pan and panAuto', () => {
       addRobot(makeRobot({ id: 'r1', companyId: 'c1', pan: -0.35, panAuto: false }));
@@ -310,7 +649,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false, reverbSend: 0, delaySend: 0 });
     });
 
     it('audioSettingValue shows the recorded snapshot over the first member, so the slider reads the stored pan', () => {

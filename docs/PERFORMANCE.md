@@ -341,7 +341,7 @@ Added because three `bravo` dropouts on the Pixel left **every** reading above n
 
 | `out` | `pre` | `underruns` | Reading |
 |---|---|---|---|
-| silent, notes sounding | normal | — | The fault is **inside** LPF → HPF → Delay → Reverb → Compressor → Limiter → master. |
+| silent, notes sounding | normal | — | The fault is **inside** LPF → HPF → Compressor → Limiter → master, or in the Reverb and Delay rooms and their returns (which rejoin at the Compressor or Limiter input, `docs/AUDIO_SYSTEM.md`). |
 | silent | silent | — | **Upstream**: the voices or EQ3 produce nothing although notes are scheduled. |
 | normal | normal | count rising | The graph is fine and the **output underran**: load or scheduling, not a silent node. Clicks are underruns. |
 | normal | normal | flat | The graph is fine and the browser reports no underrun: the loss is **downstream** (OS/device) and invisible to the app. |

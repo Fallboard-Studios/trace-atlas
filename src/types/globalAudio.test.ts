@@ -10,6 +10,18 @@ import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from './globalAudio';
 // ========================================
 
 describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
+  // Robot Sends T6 (docs/specs/ROBOT_SENDS.md §1.1): the rooms are fed by each robot's own send, so the
+  // global wet is their RETURN level - full by default, not a wet/dry mix.
+  it('defaults the Reverb and Delay return levels to full (1)', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.reverb.wet).toBe(1);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay.wet).toBe(1);
+  });
+
+  it('leaves the rest of the Reverb and Delay defaults as they were', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.reverb).toEqual({ decay: 1.5, preDelay: 0.02, wet: 1 });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay).toEqual({ delayTime: 0.25, feedback: 0.2, wet: 1 });
+  });
+
   it('has an independent filterLPF matching AudioEngine\'s lowpass node defaults', () => {
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.filterLPF).toEqual({
       type: 'lowpass',

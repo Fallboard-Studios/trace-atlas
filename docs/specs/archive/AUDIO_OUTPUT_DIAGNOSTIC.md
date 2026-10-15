@@ -41,7 +41,7 @@
 
 | Master tap | Pre-chain tap | Playback stats | Reading |
 |---|---|---|---|
-| ≈ silent, `voices > 0` | normal | — | The fault is **inside** LPF → HPF → Delay → Reverb → Compressor → Limiter → master. Look there first. |
+| ≈ silent, `voices > 0` | normal | — | The fault is **inside** LPF → HPF → Compressor → Limiter → master, or in the Reverb and Delay rooms and their returns (which rejoin at the Compressor or Limiter input; see the note in §8). Look there first. |
 | ≈ silent | ≈ silent | — | **Upstream:** the voices or EQ3 produce nothing although notes are scheduled. |
 | normal | normal | `underrunEvents` rising | The graph is fine and the output **underran**: load or scheduling, not a silent node. Clicks are underruns. |
 | normal | normal | flat | The graph is fine and the browser reports no underrun: loss is **downstream** (OS/device), not visible to the app. |
@@ -222,3 +222,5 @@ Implemented as specified, task by task, one commit each on `bugs/scratchy-audio-
 - **The Light latency figure** (266 ms average) is unexplained; a longer Light run would show whether it settles.
 - **Whether `bravo` still drops out completely** under some condition (heat, a longer session) is untested by this run — it was three single sessions, no full dropout occurred, and the log only keeps the last 8 events.
 - **Not done, deliberately:** no fix for the underruns/dropouts themselves; no change to the Audio Load presets — that decision (and whether the ~200× underrun difference settles it) is Crawford's.
+
+**Update 2026-10-14 (Robot Sends, roadmap 50.2).** The chain named in the reading table above is out of date: Reverb and Delay are no longer stages between the HPF and the Compressor. They are two shared rooms beside the dry chain (`EQ3 → LPF → HPF → Compressor → Limiter → masterGain`), each fed by every robot's send gain and followed by a return gain that rejoins at the Compressor's input (Natural Decay) or the Limiter's input (Controlled Decay); see [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md)'s Signal Graph. The two taps did not move: the pre-chain tap still reads EQ3's output and the master tap still reads `masterGain`'s. The pre-chain tap never carried echoes, in the old serial chain or the new one (the Delay and Reverb came after EQ3 in both), so nothing about its meaning changed; the rooms' returns rejoin after it, so only the master tap hears the echoes. A silent master with a normal pre-chain tap now also covers the rooms and their returns, not just the stages named above.

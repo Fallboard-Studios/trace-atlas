@@ -21,7 +21,9 @@ import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ENVELOPE_TIME_MAX_SECONDS,
+  SEND_STEP_PERCENT, SEND_DELAY_QUIET_THRESHOLD,
 } from '../constants';
+import { GLOBAL_AUDIO_LOADING_RANGES } from '../data/globalAudioLoadingRanges';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -509,6 +511,50 @@ export function generateRobotLfoLinks(
   return result;
 }
 
+/** A send fraction quantized in percent space (the Volume shape), so the stored value sits on the slider's
+ *  1 % grid and never on a sub-percent one. */
+function quantizeSend(raw: number): number {
+  return quantizeToStep(raw * 100, 0, SEND_STEP_PERCENT) / 100;
+}
+
+/** Turn the three raw draws into the two stored sends: a delay roll under SEND_DELAY_QUIET_THRESHOLD leaves
+ *  the robot with no delay at all. Shared by the noise-map draw and spawnRobot's alea fallback. */
+function composeSends(reverbRaw: number, delayRaw: number, quietRoll: number): { reverbSend: number; delaySend: number } {
+  return {
+    reverbSend: quantizeSend(reverbRaw),
+    delaySend: quietRoll < SEND_DELAY_QUIET_THRESHOLD ? 0 : quantizeSend(delayRaw),
+  };
+}
+
+/**
+ * A robot's seeded reverb and delay depth (docs/specs/ROBOT_SENDS.md §1.2). Draws from the same bands the
+ * global Reverb / Delay `wet` rows carry in GLOBAL_AUDIO_LOADING_RANGES (those rows are now the per-robot send
+ * bands), under three dataIds of their own at `offset` = spawn count. About a quarter of the fleet draws no delay.
+ * One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in both, so a
+ * copied robot shares its sibling's voice but not its depth, and the two cannot drift.
+ */
+export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): { reverbSend: number; delaySend: number } {
+  const reverb = GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'];
+  const delay = GLOBAL_AUDIO_LOADING_RANGES['delay.wet'];
+  return composeSends(
+    getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
+    getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
+    getSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
+  );
+}
+
+/** spawnRobot's no-noise-map path (a locale that does not exist yet): the same bands, drawn from alea as
+ *  Volume's fallback is. Three draws, since the quiet roll needs its own. */
+function generateRobotSendsFallback(localeId: string, spawnCount: number): { reverbSend: number; delaySend: number } {
+  const reverb = GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'];
+  const delay = GLOBAL_AUDIO_LOADING_RANGES['delay.wet'];
+  return composeSends(
+    reverb.min + alea(`${localeId}:${spawnCount}:sendReverb`)() * (reverb.max - reverb.min),
+    delay.min + alea(`${localeId}:${spawnCount}:sendDelay`)() * (delay.max - delay.min),
+    alea(`${localeId}:${spawnCount}:sendQuiet`)(),
+  );
+}
+
 /**
  * A robot's audio-relevant seeded fields — exactly the shape spawnRobot's own "copy an earlier
  * sibling" branch reads from a live Robot object, extracted so it can be replayed for baseline
@@ -528,6 +574,9 @@ export interface RobotAudioBaseline {
   /** Mirrors spawnRobot's own lfoLinks branch (Session Storage/LFO Bank Task 18): copied on the
    *  copy branch, freshly drawn (with the roster's running lane tally) on the fresh branch. */
   lfoLinks: Record<RobotLfoTargetId, LfoLink>;
+  /** Unconditional, like `name` — NOT inherited on the copy branch (a copied robot draws its own depth). */
+  reverbSend: number;
+  delaySend: number;
 }
 
 /**
@@ -552,6 +601,8 @@ export function generateRobotAudioBaseline(
   const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
 
   const name = generateRobotName(noiseMap, spawnCount);
+  // Outside the copy branch, like name: spawnRobot draws its sends unconditionally too.
+  const sends = generateRobotSends(noiseMap, spawnCount);
 
   if (shouldCopy) {
     const srcIdx = Math.min(
@@ -560,7 +611,7 @@ export function generateRobotAudioBaseline(
     );
     // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
     // outside the shouldCopy branch (see this function's own doc comment).
-    return { ...priorBaselines[srcIdx], name };
+    return { ...priorBaselines[srcIdx], name, ...sends };
   }
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
@@ -574,7 +625,7 @@ export function generateRobotAudioBaseline(
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoLinks };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoLinks, ...sends };
 }
 
 /**
@@ -806,6 +857,8 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     // draw, so a world's existing seeded values and its sound are unchanged.
     pan: 0,
     panAuto: true,
+    // Robot Sends (docs/specs/ROBOT_SENDS.md §1.2): always its own draw, even on the copy branch.
+    ...(noiseMap ? generateRobotSends(noiseMap, spawnCount) : generateRobotSendsFallback(localeId, spawnCount)),
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',
@@ -831,6 +884,8 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       // No manual-pan prime here, unlike the other reservation sites: a spawned robot is always
       // `panAuto: true` (above), so there is nothing to hand the engine (docs/specs/ROBOT_PAN.md §1.3).
       const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq, robotArticulation(robot));
+      // The new voice's send gains start at 0; hand them the robot's own sends (docs/specs/ROBOT_SENDS.md §1.4).
+      AudioEngine.updateRobotSends(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
       // Prime this robot's seeded lane links into the bank engine now that it has a live voice to
       // connect against (docs/specs/LFO_BANK.md) — without this, seeded links sit in state, shown
       // in the UI, but never actually run until a user happens to edit one.
@@ -988,6 +1043,8 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
         // releaseVoice above cleared this robot's engine-side pan; the store is the source of truth,
         // so a manual robot is handed back (docs/specs/ROBOT_PAN.md §1.3).
         if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
+        // Same for the sends: the rebuilt voice starts dry, every robot is handed its own back (docs/specs/ROBOT_SENDS.md §1.4).
+        AudioEngine.updateRobotSends(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
       }
     } catch (err) {
       if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: reserveVoice failed for', robot.id, err);

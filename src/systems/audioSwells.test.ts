@@ -342,7 +342,7 @@ describe('pingVarianceAutomation magnitude scaling (Task 3)', () => {
     useAudioStore.setState({ pingVarianceAutomation: 0.5 });
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.global': -1,
-      'audioSwell.target.global': 0.2, // index 5 of 9 -> 'hpf.frequency'
+      'audioSwell.target.global': 0.5, // index 5 of 7 -> 'hpf.frequency'
       'audioSwell.peak.hpf.frequency': 1, // force the largest unclamped draw
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
@@ -554,23 +554,94 @@ describe('trigger gating (frequencyToPerTickChance, swellFrequency: 4 -> 0.25 ch
 });
 
 describe('eligibility', () => {
-  it('never picks delay.wet while its own wet sits at 0 (off-equivalent) — the very same draw picks it once wet is nonzero again', () => {
-    // raw 0.6 -> rawIndex (0.6+1)/2*9 = 7.2 -> floor 7 -> the 9-item list's
-    // index 7 is delay.wet. Once delay.wet is excluded (wet: 0), the eligible
-    // list shrinks to 8 and the identical raw draw recomputes to a different
-    // index entirely — proving delay.wet itself was skipped, not coincidence.
-    const pickDelayNoiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': 0.6 });
+  // The global delay and reverb wet are fixed full returns now (docs/specs/ROBOT_SENDS.md assumption 13): their
+  // swells moved to the robots' own sends, so the global pool is the 7 LFO targets and nothing else.
+  const SEVEN_GLOBAL_TARGETS = ['eq3.low', 'eq3.mid', 'eq3.high', 'lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q'];
 
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(pickDelayNoiseMap);
+  /** One forced start per raw target draw, across the whole [-1, 1] range (both ends included). */
+  function targetsPickedAcrossEveryDraw(): string[] {
+    const picked: string[] = [];
+    for (let step = 0; step <= 20; step++) {
+      const raw = -1 + step * 0.1;
+      stopAudioSwells();
+      vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+        noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': raw }),
+      );
+      tickAudioSwells(LOCALE_ID, 0);
+      picked.push(...getActiveSwellSnapshot('global').map((s) => s.globalTarget!));
+    }
+    return picked;
+  }
+
+  it('never picks the global delay or reverb wet, whatever the draw', () => {
+    const picked = targetsPickedAcrossEveryDraw();
+    expect(picked.length).toBeGreaterThan(0);
+    expect(picked).not.toContain('delay.wet');
+    expect(picked).not.toContain('reverb.wet');
+  });
+
+  it('can still pick each of the 7 remaining targets, and nothing else', () => {
+    expect([...new Set(targetsPickedAcrossEveryDraw())].sort()).toEqual([...SEVEN_GLOBAL_TARGETS].sort());
+  });
+
+  it.each(SEVEN_GLOBAL_TARGETS.map((target, index) => [target, index] as const))(
+    'a swell on %s starts, moves the value, and returns exactly to base',
+    (target, index) => {
+      // The middle of this target's bucket in the 7-item list: raw = ((index + 0.5) / 7) * 2 - 1.
+      const raw = ((index + 0.5) / SEVEN_GLOBAL_TARGETS.length) * 2 - 1;
+      vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+        noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': raw }),
+      );
+      tickAudioSwells(LOCALE_ID, 0);
+      const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === target);
+      expect(swell, `${target} started`).toBeDefined();
+
+      const [effect, field] = target.split('.');
+      const key = effect === 'lpf' ? 'filterLPF' : effect === 'hpf' ? 'filterHPF' : 'eq3';
+      const read = () => (useAudioStore.getState().globalAudio as unknown as Record<string, Record<string, number>>)[key][field];
+      const base = swell!.baseValue!;
+      expect(read()).toBe(base);
+
+      // ALWAYS_MID fails the trigger roll, so these ticks only advance the running swell and start nothing new.
+      vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+      tickAudioSwells(LOCALE_ID, swell!.risingMeasures);
+      expect(read(), `${target} at the peak`).not.toBe(base);
+
+      vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+      tickAudioSwells(LOCALE_ID, swell!.risingMeasures + swell!.fallingMeasures + 1);
+      expect(read(), `${target} after the swell`).toBe(base);
+      expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === target)).toBe(false);
+    },
+  );
+
+  it('does not report the global wet sliders as swelling, even while another global swell runs', () => {
+    // raw 0.6 used to land on delay.wet (index 7 of 9); in the 7-item list it is hpf.frequency.
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+      noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': 0.6 }),
+    );
     tickAudioSwells(LOCALE_ID, 0);
-    expect(getActiveSwellSnapshot('global').map((s) => s.globalTarget)).toContain('delay.wet');
+    expect(getActiveSwellSnapshot('global')).toHaveLength(1);
 
-    stopAudioSwells();
-    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, delay: { ...s.globalAudio.delay, wet: 0 } } }));
+    expect(isGlobalTargetSwelling('delay', 'wet')).toBe(false);
+    expect(isGlobalTargetSwelling('reverb', 'wet')).toBe(false);
+    expect(isGlobalTargetSwelling('filterHPF', 'frequency')).toBe(true); // the one that is running, as a control
+  });
 
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(pickDelayNoiseMap);
+  it('a hand edit of a global wet slider cancels nothing', () => {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+      noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': 0.6 }),
+    );
     tickAudioSwells(LOCALE_ID, 0);
-    expect(getActiveSwellSnapshot('global').map((s) => s.globalTarget)).not.toContain('delay.wet');
+    cancelSwellForGlobalField('delay', 'wet');
+    cancelSwellForGlobalField('reverb', 'wet');
+    expect(getActiveSwellSnapshot('global')).toHaveLength(1);
+  });
+
+  it('a global wet of exactly 0 does not stop any of the 7 from being picked (there is no off-equivalent rule left)', () => {
+    useAudioStore.setState((s) => ({
+      globalAudio: { ...s.globalAudio, delay: { ...s.globalAudio.delay, wet: 0 }, reverb: { ...s.globalAudio.reverb, wet: 0 } },
+    }));
+    expect([...new Set(targetsPickedAcrossEveryDraw())].sort()).toEqual([...SEVEN_GLOBAL_TARGETS].sort());
   });
 
   it('excludes a target already mid-swell from being picked again — a second forced trigger picks the next eligible target', () => {
@@ -631,22 +702,6 @@ describe('ramp lifecycle', () => {
     expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(false);
   });
 
-  it('cancels a swell immediately and snaps back to base when its own wet drops to 0 mid-swell', () => {
-    const pickReverbNoiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': 1 }); // clamped to the last eligible index -> reverb.wet
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(pickReverbNoiseMap);
-    tickAudioSwells(LOCALE_ID, 0); // starts reverb.wet
-    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'reverb.wet')).toBe(true);
-
-    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, reverb: { ...s.globalAudio.reverb, wet: 0 } } }));
-
-    tickAudioSwells(LOCALE_ID, 1); // mid-swell, now off
-    // Cancellation snaps back to the swell's own CAPTURED base value (0.3,
-    // the default reverb.wet at creation time) — not the manually-forced 0
-    // that triggered the cancellation in the first place.
-    expect(useAudioStore.getState().globalAudio.reverb.wet).toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS.reverb.wet);
-    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'reverb.wet')).toBe(false);
-  });
-
   it('writes every value via useAudioStore.getState().setGlobalAudio, never a bare AudioEngine call', () => {
     const spy = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
@@ -658,7 +713,7 @@ describe('ramp lifecycle', () => {
 });
 
 describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4, full pipeline, real seeded noise)', () => {
-  it('risingMeasures + fallingMeasures always equals swellDuration (within the 1-measure-per-phase rounding floor), for every swell type including delay.wet/reverb.wet', () => {
+  it('risingMeasures + fallingMeasures always equals swellDuration (within the 1-measure-per-phase rounding floor), for every swell type', () => {
     useAudioStore.setState({ swellDuration: 10 });
     const samples: { target: string; rising: number; falling: number }[] = [];
     for (let measure = 0; measure < 300 && samples.length < MAX_CONCURRENT_SWELLS_PER_POOL; measure++) {
@@ -697,16 +752,6 @@ describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_
     }
   });
 
-  it('applies the exact same total to delay.wet/reverb.wet as every other target — no more 2x mix-target treatment', () => {
-    const pickReverbNoiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': 1 }); // clamped to the last eligible index -> reverb.wet
-    useAudioStore.setState({ swellDuration: 9 });
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(pickReverbNoiseMap);
-    tickAudioSwells(LOCALE_ID, 0);
-
-    const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'reverb.wet')!;
-    expect(swell.risingMeasures + swell.fallingMeasures).toBe(9);
-  });
-
   it('pickPhaseMeasures, DEFAULT_SWELL_DURATION_RANGE, MIX_SWELL_DURATION_RANGE, MIX_SWELL_TARGETS no longer exist anywhere in this module (source-scan regression guard)', () => {
     const thisFile = fileURLToPath(import.meta.url);
     const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
@@ -714,6 +759,18 @@ describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_
     expect(source).not.toMatch(/DEFAULT_SWELL_DURATION_RANGE/);
     expect(source).not.toMatch(/MIX_SWELL_DURATION_RANGE/);
     expect(source).not.toMatch(/MIX_SWELL_TARGETS/);
+  });
+
+  it('has no global delay or reverb wet swell path left in code (source-scan regression guard, docs/specs/ROBOT_SENDS.md assumption 13)', () => {
+    const thisFile = fileURLToPath(import.meta.url);
+    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
+    const code = source
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)) // drop comment-only lines
+      .join('\n');
+    expect(code).not.toMatch(/isGlobalTargetAtOffEquivalent/);
+    expect(code).not.toMatch(/['"](delay|reverb)(\.wet)?['"]/);
+    expect(code).not.toMatch(/globalAudio\.(delay|reverb)\b/);
   });
 });
 
@@ -986,6 +1043,237 @@ describe('robot pool — ramp lifecycle and write path', () => {
 });
 
 // ========================================
+// ROBOT POOL — REVERB AND DELAY SENDS (docs/tasks/ROBOT_SENDS.md Task 12)
+// ========================================
+
+describe('robot pool — reverbSend and delaySend', () => {
+  const sendOf = (robotId: string, field: 'reverbSend' | 'delaySend') =>
+    useLocaleStore.getState().getRobotById(LOCALE_ID, robotId)![field];
+
+  /** Forces a single-robot start whose target draw is the last (or a chosen) item of the eligible list. */
+  function forceSingleStart(targetRaw: number) {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+      noiseMapForDataIds({ 'audioSwell.trigger.robot': -1, 'audioSwell.company.chance': 1, 'audioSwell.target.robot': targetRaw }),
+    );
+  }
+
+  /** A tick whose trigger roll fails, so it only advances running swells and starts nothing new. */
+  function advanceOnlyTo(measure: number) {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tickAudioSwells(LOCALE_ID, measure);
+  }
+
+  /** Every attribute a single-robot start can pick, sweeping the target draw across its whole range. */
+  function attributesPickedAcrossEveryDraw(): string[] {
+    const picked: string[] = [];
+    for (let step = 0; step <= 20; step++) {
+      stopAudioSwells();
+      forceSingleStart(-1 + step * 0.1);
+      tickAudioSwells(LOCALE_ID, 0);
+      picked.push(...getActiveSwellSnapshot('robot').map((s) => s.robotAttribute!));
+    }
+    return picked;
+  }
+
+  beforeEach(() => {
+    vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+  });
+
+  describe('eligibility (structurally live only while the stored send is above 0)', () => {
+    it('never picks either send for a robot whose sends are both 0, whatever the draw', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0, delaySend: 0 }));
+      const picked = attributesPickedAcrossEveryDraw();
+      expect(picked.length).toBeGreaterThan(0);
+      expect(picked).not.toContain('reverbSend');
+      expect(picked).not.toContain('delaySend');
+    });
+
+    it('never picks a send for a robot that carries no send fields at all (an older save), and does not throw', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot()); // the fixture has no reverbSend / delaySend
+      expect(() => attributesPickedAcrossEveryDraw()).not.toThrow();
+      const picked = attributesPickedAcrossEveryDraw();
+      expect(picked).not.toContain('reverbSend');
+      expect(picked).not.toContain('delaySend');
+    });
+
+    it('picks reverbSend at 0.25 but not delaySend at 0', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0 }));
+      const picked = new Set(attributesPickedAcrossEveryDraw());
+      expect(picked.has('reverbSend')).toBe(true);
+      expect(picked.has('delaySend')).toBe(false);
+    });
+
+    it('picks delaySend at 0.25 but not reverbSend at 0', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0, delaySend: 0.25 }));
+      const picked = new Set(attributesPickedAcrossEveryDraw());
+      expect(picked.has('delaySend')).toBe(true);
+      expect(picked.has('reverbSend')).toBe(false);
+    });
+
+    it('treats a send just above 0 as live', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: Number.MIN_VALUE, delaySend: 0 }));
+      expect(new Set(attributesPickedAcrossEveryDraw()).has('reverbSend')).toBe(true);
+    });
+
+    it('does not pick a send already mid-swell a second time', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0 }));
+      forceSingleStart(1);
+      tickAudioSwells(LOCALE_ID, 0);
+      expect(isRobotAttributeSwelling('r1', 'reverbSend')).toBe(true);
+
+      forceSingleStart(1); // the last eligible item is now adsr.release, not the busy send
+      tickAudioSwells(LOCALE_ID, 1);
+      expect(getActiveSwellSnapshot('robot').filter((s) => s.robotAttribute === 'reverbSend')).toHaveLength(1);
+    });
+  });
+
+  describe('single-robot swell', () => {
+    it('reports the send as swelling while active, the other send as not, and cancels on a hand edit', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0.5 }));
+      forceSingleStart(0.999); // last of 11 eligible = delaySend
+      tickAudioSwells(LOCALE_ID, 0);
+      expect(isRobotAttributeSwelling('r1', 'delaySend')).toBe(true);
+      expect(isRobotAttributeSwelling('r1', 'reverbSend')).toBe(false);
+
+      cancelSwellForRobotAttribute('r1', 'delaySend');
+      expect(isRobotAttributeSwelling('r1', 'delaySend')).toBe(false);
+    });
+
+    it('writes each reverbSend tick through the reverb send action, and delaySend through the delay one', () => {
+      const reverbSpy = vi.spyOn(robotOptionsActions, 'applyReverbSendValue');
+      const delaySpy = vi.spyOn(robotOptionsActions, 'applyDelaySendValue');
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0 }));
+      forceSingleStart(1);
+      tickAudioSwells(LOCALE_ID, 0);
+      advanceOnlyTo(1);
+
+      expect(reverbSpy).toHaveBeenCalled();
+      expect(reverbSpy.mock.calls[0][0].id).toBe('r1');
+      expect(delaySpy).not.toHaveBeenCalled();
+    });
+
+    it('ramps the stored send away from its base at the peak and keeps every tick inside 0..1', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.9, delaySend: 0 }));
+      forceSingleStart(1);
+      tickAudioSwells(LOCALE_ID, 0);
+      const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'reverbSend')!;
+      const total = swell.risingMeasures + swell.fallingMeasures;
+
+      advanceOnlyTo(swell.risingMeasures);
+      expect(sendOf('r1', 'reverbSend')).not.toBe(0.9);
+      expect(sendOf('r1', 'reverbSend')).toBeLessThan(0.9); // 0.9 is above the midpoint, so the swell goes down
+
+      for (let m = 1; m < total; m += 0.5) {
+        advanceOnlyTo(m);
+        expect(sendOf('r1', 'reverbSend')).toBeGreaterThanOrEqual(0);
+        expect(sendOf('r1', 'reverbSend')).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it('leaves the other send untouched for the whole swell', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0.6 }));
+      forceSingleStart(1); // 11 eligible attributes, the last is delaySend
+      tickAudioSwells(LOCALE_ID, 0);
+      const swell = getActiveSwellSnapshot('robot')[0];
+      expect(swell.robotAttribute).toBe('delaySend');
+
+      advanceOnlyTo(swell.risingMeasures);
+      expect(sendOf('r1', 'delaySend')).not.toBe(0.6);
+      expect(sendOf('r1', 'reverbSend')).toBe(0.25);
+    });
+
+    // x * 100 / 100 is not always x in floating point (0.007 and 0.7123456789 are two that miss), and a
+    // seeded send is any double, so the return to base cannot go through the display-percent action.
+    it.each([
+      ['reverbSend', 0.007], ['reverbSend', 0.013], ['reverbSend', 0.29], ['reverbSend', 0.7123456789],
+      ['reverbSend', 1], ['reverbSend', 0.5], ['delaySend', 0.0123], ['delaySend', 0.83], ['delaySend', 0.25],
+    ] as const)('lands exactly on its base after a %s swell from %s', (field, base) => {
+      useLocaleStore.getState().addRobot(
+        LOCALE_ID,
+        makeRobot({ reverbSend: field === 'reverbSend' ? base : 0, delaySend: field === 'delaySend' ? base : 0 }),
+      );
+      // The only live send is the last eligible item.
+      forceSingleStart(1);
+      tickAudioSwells(LOCALE_ID, 0);
+      const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === field)!;
+      expect(swell, `${field} swell started`).toBeDefined();
+
+      advanceOnlyTo(swell.risingMeasures);
+      expect(sendOf('r1', field)).not.toBe(base);
+
+      advanceOnlyTo(swell.risingMeasures + swell.fallingMeasures + 1);
+      expect(sendOf('r1', field)).toBe(base);
+      expect(isRobotAttributeSwelling('r1', field)).toBe(false);
+    });
+
+    it('primes the engine with the send on every tick, so the sound follows the slider', () => {
+      const engineSpy = vi.spyOn(AudioEngine, 'updateRobotSends');
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0 }));
+      forceSingleStart(1);
+      tickAudioSwells(LOCALE_ID, 0);
+      advanceOnlyTo(1);
+      expect(engineSpy).toHaveBeenCalledWith('r1', { reverb: sendOf('r1', 'reverbSend') });
+    });
+  });
+
+  describe('company-wide swell', () => {
+    function startCompanySwell(attributeRaw: number) {
+      vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+        noiseMapForDataIds({ 'audioSwell.trigger.robot': -1, 'audioSwell.company.chance': -1, 'audioSwell.company.attribute': attributeRaw }),
+      );
+      tickAudioSwells(LOCALE_ID, 0);
+    }
+
+    it('can pick reverbSend (index 17 of 19) and gives each live member its own base, skipping a member at 0', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', reverbSend: 0.2 }));
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', reverbSend: 0.7123456789 }));
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r3', reverbSend: 0 }));
+      useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2', 'r3'] }));
+
+      startCompanySwell((17.5 / 19) * 2 - 1);
+
+      const swell = getActiveSwellSnapshot('robot')[0];
+      expect(swell.robotAttribute).toBe('reverbSend');
+      expect(swell.members!.map((m) => m.robotId).sort()).toEqual(['r1', 'r2']);
+      expect(swell.members!.map((m) => m.baseValue).sort()).toEqual([0.2, 0.7123456789]);
+
+      advanceOnlyTo(swell.risingMeasures + swell.fallingMeasures + 1);
+      expect(sendOf('r1', 'reverbSend')).toBe(0.2);
+      expect(sendOf('r2', 'reverbSend')).toBe(0.7123456789);
+      expect(sendOf('r3', 'reverbSend')).toBe(0);
+      expect(getActiveSwellSnapshot('robot')).toEqual([]);
+    });
+
+    it('can pick delaySend (the last id), each member landing exactly on its own base', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', delaySend: 0.007 }));
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', delaySend: 0.83 }));
+      useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
+
+      startCompanySwell(1);
+
+      const swell = getActiveSwellSnapshot('robot')[0];
+      expect(swell.robotAttribute).toBe('delaySend');
+      expect(swell.members).toHaveLength(2);
+
+      advanceOnlyTo(swell.risingMeasures);
+      expect(sendOf('r1', 'delaySend')).not.toBe(0.007);
+      expect(sendOf('r2', 'delaySend')).not.toBe(0.83);
+
+      advanceOnlyTo(swell.risingMeasures + swell.fallingMeasures + 1);
+      expect(sendOf('r1', 'delaySend')).toBe(0.007);
+      expect(sendOf('r2', 'delaySend')).toBe(0.83);
+    });
+
+    it('starts nothing when every robot in the picked company has the picked send at 0', () => {
+      useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', reverbSend: 0, delaySend: 0 }));
+      useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1'] }));
+      startCompanySwell(1);
+      expect(getActiveSwellSnapshot('robot')).toEqual([]);
+    });
+  });
+});
+
+// ========================================
 // ROBOT POOL — COMPANY-WIDE SWELLS (Task 5)
 // ========================================
 
@@ -1066,7 +1354,7 @@ describe('robot pool — company-wide swells', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
       'audioSwell.company.chance': -1,
-      'audioSwell.company.attribute': -0.8, // index 1 of 17 -> 'layer0.gain'
+      'audioSwell.company.attribute': -0.8, // index 1 of 19 -> 'layer0.gain'
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
 
@@ -1089,7 +1377,7 @@ describe('robot pool — company-wide swells', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
       'audioSwell.company.chance': -1,
-      'audioSwell.company.attribute': -0.8, // index 1 of 17 -> 'layer0.gain', ineligible for r1
+      'audioSwell.company.attribute': -0.8, // index 1 of 19 -> 'layer0.gain', ineligible for r1
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
 
@@ -1226,7 +1514,7 @@ describe('global pool — HPF/LPF frequency clamps', () => {
     // default; the default rule alone would allow it all the way to 20000.
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.global': -1,
-      'audioSwell.target.global': 0.2, // index 5 of 9 -> 'hpf.frequency'
+      'audioSwell.target.global': 0.5, // index 5 of 7 -> 'hpf.frequency'
       'audioSwell.peak.hpf.frequency': 1, // force the largest unclamped draw
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
@@ -1243,7 +1531,7 @@ describe('global pool — HPF/LPF frequency clamps', () => {
     // by default; the default rule alone would allow it all the way to 20.
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.global': -1,
-      'audioSwell.target.global': -0.2, // index 3 of 9 -> 'lpf.frequency'
+      'audioSwell.target.global': 0, // index 3 of 7 -> 'lpf.frequency'
       'audioSwell.peak.lpf.frequency': -1, // force the largest unclamped draw
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
@@ -1255,10 +1543,10 @@ describe('global pool — HPF/LPF frequency clamps', () => {
     expect(peak).toBeCloseTo(LPF_SWELL_DOWNWARD_FLOOR_HZ);
   });
 
-  it('leaves eq3/delay/reverb swells unaffected by the HPF/LPF clamps', () => {
+  it('leaves eq3 swells unaffected by the HPF/LPF clamps', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.global': -1,
-      'audioSwell.target.global': -1, // index 0 of 9 -> 'eq3.low'
+      'audioSwell.target.global': -1, // index 0 of 7 -> 'eq3.low'
       'audioSwell.peak.eq3.low': 1, // force the largest unclamped draw (up to the true edge, 12)
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
@@ -1310,7 +1598,7 @@ describe('cancelSwellForGlobalField (a real UI edit interrupts a global-chain sw
   });
 
   it('does not cancel a different field on the same effect', () => {
-    const noiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': -0.6 }); // index 1 of 9 -> eq3.mid
+    const noiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': -0.6 }); // index 1 of 7 -> eq3.mid
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
     tickAudioSwells(LOCALE_ID, 0); // starts eq3.mid
     expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.mid')).toBe(true);

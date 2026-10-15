@@ -5,6 +5,8 @@ import {
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
   PAN_ROW_PANEL_SCHEMA,
+  REVERB_SEND_SCHEMA,
+  DELAY_SEND_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -46,6 +48,7 @@ import {
   PITCH_REPEAT_MIN, PITCH_REPEAT_MAX, RHYTHMIC_MOTIF_LENGTH_MIN, RHYTHMIC_MOTIF_LENGTH_MAX,
   NOTE_VARIANCE_MIN, NOTE_VARIANCE_MAX,
   PAN_MIN, PAN_MAX, PAN_DISPLAY_SCALE,
+  SEND_MIN, SEND_MAX, SEND_DISPLAY_SCALE, SEND_STEP_PERCENT,
   PORTAMENTO_MIN, PORTAMENTO_MAX, ROBOT_BUS_FILTER_FREQ_RANGE, ROBOT_BUS_FILTER_Q_RANGE, ROBOT_BUS_FILTER_Q,
 } from '@/constants';
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES } from '@/types/Robot';
@@ -56,6 +59,8 @@ const ALL_TOP_LEVEL_SCHEMAS = [
   VOLUME_SCHEMA,
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
+  REVERB_SEND_SCHEMA,
+  DELAY_SEND_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -206,6 +211,78 @@ describe('robotOptionsConfig', () => {
 
     it('the help copy says phone speakers are mono, so nobody hunts for a difference they cannot hear', () => {
       expect(CONTENT['probe.pan'].help?.human.toLowerCase()).toContain('mono');
+    });
+  });
+
+  // docs/specs/ROBOT_SENDS.md §1.6 - the Reverb and Delay send sliders, on Volume's display-vs-storage split.
+  describe.each([
+    { name: 'REVERB_SEND_SCHEMA', schema: REVERB_SEND_SCHEMA, id: 'robotOptions.reverbSend', key: 'probe.reverbSend', other: 'Delay' },
+    { name: 'DELAY_SEND_SCHEMA', schema: DELAY_SEND_SCHEMA, id: 'robotOptions.delaySend', key: 'probe.delaySend', other: 'Reverb' },
+  ] as const)('$name', ({ schema, id, key, other }) => {
+    it('is a horizontal sliderLinear displaying 0-100 % in steps of 1', () => {
+      expect(schema.type).toBe('sliderLinear');
+      expect(schema.id).toBe(id);
+      expect(schema.min).toBe(0);
+      expect(schema.max).toBe(100);
+      expect(schema.step).toBe(1);
+      expect(schema.orientation).toBe('horizontal');
+      expect(schema.unit).toBe('%');
+    });
+
+    it('bounds and step are the stored range and scale from the constants, so the display and the store cannot drift apart', () => {
+      expect(schema.min).toBe(SEND_MIN * SEND_DISPLAY_SCALE);
+      expect(schema.max).toBe(SEND_MAX * SEND_DISPLAY_SCALE);
+      expect(schema.step).toBe(SEND_STEP_PERCENT);
+    });
+
+    it('is labeled, unit-ed and helped from its own content key', () => {
+      const entry = CONTENT[key];
+      expect(schema.humanLabel).toBe(entry.human);
+      expect(schema.loreLabel).toBe(entry.lore);
+      expect(schema.unit).toBe(entry.unit);
+      expect(schema.help?.human.trim()).toBeTruthy();
+      expect(schema.help).toEqual(entry.help);
+    });
+
+    it('is told apart from Volume, Pan and the other send by its accessible name', () => {
+      const names = [VOLUME_SCHEMA, PAN_SCHEMA, REVERB_SEND_SCHEMA, DELAY_SEND_SCHEMA].map((s) => s.humanLabel);
+      expect(new Set(names).size).toBe(names.length);
+      expect(schema.humanLabel).not.toBe(other);
+    });
+
+    it('is JSON-serializable', () => {
+      expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
+    });
+  });
+
+  describe('Reverb and Delay sends - shared', () => {
+    it('the two send ids are unique robotOptions.* ids, none colliding with Volume or Pan', () => {
+      const ids = [REVERB_SEND_SCHEMA.id, DELAY_SEND_SCHEMA.id, VOLUME_SCHEMA.id, PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id];
+      ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('the Levels section intro names Reverb and Delay, so the sentence the user reads covers the new rows', () => {
+      const description = CONTENT['probe.levels'].intro?.humanDescription ?? '';
+      expect(description).toContain(CONTENT['probe.reverbSend'].human);
+      expect(description).toContain(CONTENT['probe.delaySend'].human);
+    });
+
+    it('the Levels intro still names the earlier rows (Volume, Pan, Auto) - the new sentence is added, not swapped in', () => {
+      const description = CONTENT['probe.levels'].intro?.humanDescription ?? '';
+      expect(description).toContain(CONTENT['probe.volume'].human);
+      expect(description).toContain(CONTENT['probe.pan'].human);
+      expect(description).toContain(CONTENT['probe.pan.auto'].human);
+    });
+
+    it('the help copy says 0 % is completely dry / no repeats, so nobody hunts for an effect at zero', () => {
+      expect(CONTENT['probe.reverbSend'].help?.human).toMatch(/0\s?%/);
+      expect(CONTENT['probe.delaySend'].help?.human).toMatch(/0\s?%/);
+    });
+
+    it('the help copy names the shared room each send feeds', () => {
+      expect(CONTENT['probe.reverbSend'].help?.human.toLowerCase()).toContain('reverb');
+      expect(CONTENT['probe.delaySend'].help?.human.toLowerCase()).toContain('delay');
     });
   });
 

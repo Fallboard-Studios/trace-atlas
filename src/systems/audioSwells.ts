@@ -24,7 +24,7 @@
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
 
-import { applyVolume, applyLayersContinuous, applyAdsr } from './robotOptionsActions';
+import { applyVolume, applyLayersContinuous, applyAdsr, applyReverbSendValue, applyDelaySendValue } from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
 import { getSeededVal } from '@/utils/getSeededVal';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
@@ -128,7 +128,7 @@ export const LPF_SWELL_DOWNWARD_FLOOR_HZ = 100;
 // GLOBAL TARGET -> EFFECT/FIELD MAPPING
 // ========================================
 
-type GlobalSwellEffectKey = 'eq3' | 'filterLPF' | 'filterHPF' | 'delay' | 'reverb';
+type GlobalSwellEffectKey = 'eq3' | 'filterLPF' | 'filterHPF';
 
 interface GlobalTargetMeta {
   effect: GlobalSwellEffectKey;
@@ -148,8 +148,6 @@ const GLOBAL_TARGET_META: Record<SwellGlobalTargetId, GlobalTargetMeta> = {
   'lpf.Q': { effect: 'filterLPF', field: 'Q', rangeKey: 'filterLPF.Q' },
   'hpf.frequency': { effect: 'filterHPF', field: 'frequency', rangeKey: 'filterHPF.frequency' },
   'hpf.Q': { effect: 'filterHPF', field: 'Q', rangeKey: 'filterHPF.Q' },
-  'delay.wet': { effect: 'delay', field: 'wet', rangeKey: 'delay.wet' },
-  'reverb.wet': { effect: 'reverb', field: 'wet', rangeKey: 'reverb.wet' },
 };
 
 function readGlobalValue(target: SwellGlobalTargetId): number {
@@ -176,9 +174,14 @@ const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
 
 /** A robot attribute's own parent-mute check (§1.5, §3): layerN.* requires
  *  that layer's own gain to be nonzero (the removed OscillatorLayer.active
- *  flag's replacement — see its own doc comment); volume and the 4 ADSR
- *  fields have no such parent and are always structurally available. */
+ *  flag's replacement — see its own doc comment); a send requires its own
+ *  stored value to be above 0 (a send at 0 is the "off" the slider already
+ *  shows, and a swell on it would be an unprompted echo on a robot set dry);
+ *  volume and the 4 ADSR fields have no such parent and are always
+ *  structurally available. */
 function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAttributeId): boolean {
+  if (attribute === 'reverbSend') return robot.reverbSend > 0;
+  if (attribute === 'delaySend') return robot.delaySend > 0;
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (!layerMatch) return true; // volume, adsr.* — no parent mute
   const layerIndex = Number(layerMatch[1]);
@@ -190,6 +193,8 @@ function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAtt
 
 function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number {
   if (attribute === 'volume') return robot.masterVolume;
+  if (attribute === 'reverbSend') return robot.reverbSend;
+  if (attribute === 'delaySend') return robot.delaySend;
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (layerMatch) {
     const layer = robot.audioAttributes.layers![Number(layerMatch[1])];
@@ -213,6 +218,16 @@ function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAt
     // ROBOT_SWELL_FIELD_RANGE.volume is the store's 0-1 masterVolume fraction;
     // applyVolume's own parameter is the UI's 0-100 display percent.
     applyVolume(robot, localeId, value * 100);
+    return;
+  }
+  // The sends' range is their stored 0..1 fraction; the fraction form of the action avoids the display-percent
+  // round trip, which would miss the base by an ulp for some seeded values.
+  if (attribute === 'reverbSend') {
+    applyReverbSendValue(robot, localeId, value);
+    return;
+  }
+  if (attribute === 'delaySend') {
+    applyDelaySendValue(robot, localeId, value);
     return;
   }
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
@@ -487,32 +502,11 @@ export function tickAudioSwells(localeId: string, measure: number): void {
 // GLOBAL POOL — TRIGGER & SELECTION
 // ========================================
 
-/**
- * Whether a global target's own current value sits at its "off" position.
- * Only delay.wet/reverb.wet get a real answer here: wet=0 unambiguously
- * means "no audible contribution" for a mix parameter, matching the removed
- * per-effect enabled/bypass toggle's own old wet=0 bypass behavior. Every
- * other target (eq3 bands, filter frequency/Q) has no such unambiguous off
- * value — 0dB EQ and a wide-open filter passthrough frequency are common,
- * legitimate resting positions a user reaches by simply not touching the
- * slider, not signals of "this effect is off" (unlike wet, which nothing
- * else ever sets to exactly 0 by coincidence) — so they're always eligible,
- * same as the robot pool's attributes. Governs both new-swell eligibility
- * (isGlobalTargetEligible) and mid-swell cancellation (advanceGlobalSwell)
- * for the global pool.
- */
-function isGlobalTargetAtOffEquivalent(target: SwellGlobalTargetId): boolean {
-  const globalAudio = useAudioStore.getState().globalAudio;
-  switch (target) {
-    case 'delay.wet': return globalAudio.delay.wet === 0;
-    case 'reverb.wet': return globalAudio.reverb.wet === 0;
-    default: return false;
-  }
-}
-
+/** A global target is eligible unless it is already mid-swell. None of the 7 has an "off" position to respect
+ *  (0 dB EQ and a wide-open filter are ordinary resting places), which is why the delay / reverb wet rule that
+ *  once lived here (wet === 0 means off) went with those targets (docs/specs/ROBOT_SENDS.md §1.9). */
 function isGlobalTargetEligible(target: SwellGlobalTargetId): boolean {
-  if (activeSwells.has(target)) return false;
-  return !isGlobalTargetAtOffEquivalent(target);
+  return !activeSwells.has(target);
 }
 
 /** HPF/LPF each get one clamp on their own frequency swell — same shape as
@@ -599,7 +593,7 @@ function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measu
 
 function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measure: number, intensity: number, duration: number): void {
   // Robot selection spans the whole roster (docs/specs/AUDIO_SWELLS.md §3) —
-  // the 17x12 pool, never scoped to one robot.
+  // the 19x12 pool, never scoped to one robot.
   const eligiblePairs: { robot: Robot; attribute: SwellRobotAttributeId }[] = [];
   for (const robot of robots) {
     for (const attribute of SWELL_ROBOT_ATTRIBUTE_IDS) {
@@ -765,10 +759,9 @@ function findGlobalTargetFor(effect: string, field: string): SwellGlobalTargetId
  * user hand-edits a global-chain field — never from writeGlobalValue/
  * advanceGlobalSwell's own swell-tick writes, which would otherwise
  * self-cancel every swell on its very first tick. If that field currently has
- * a swell riding it, the swell is simply dropped: no snap-back to baseValue
- * (unlike advanceGlobalSwell's own off-equivalent cancellation above), since
- * the user's own new value — already written by the caller's setGlobalAudio
- * call — is the value to respect, not something to overwrite.
+ * a swell riding it, the swell is simply dropped: no snap-back to baseValue,
+ * since the user's own new value — already written by the caller's
+ * setGlobalAudio call — is the value to respect, not something to overwrite.
  */
 export function cancelSwellForGlobalField(effect: string, field: string): void {
   const target = findGlobalTargetFor(effect, field);
@@ -885,17 +878,6 @@ function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, fr
 
   const baseValue = swell.baseValue!;
   const peakDelta = swell.peakDelta!;
-
-  if (isGlobalTargetAtOffEquivalent(target)) {
-    // The target got manually driven to its own off-equivalent value
-    // mid-swell (e.g. wet dragged to 0) — cancel immediately, snapping back
-    // to its captured base value in the same tick, rather than silently
-    // continuing to write into a now-irrelevant param (docs/specs/
-    // AUDIO_SWELLS.md §3).
-    writeGlobalValue(target, baseValue);
-    activeSwells.delete(key);
-    return;
-  }
 
   const elapsed = measure - swell.startMeasure;
   const total = swell.risingMeasures + swell.fallingMeasures;

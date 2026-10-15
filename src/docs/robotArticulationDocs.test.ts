@@ -110,7 +110,7 @@ describe('the named Robot Articulation symbols are declared where the spec says 
     ['AudioEngine.updateVoicePortamento', 'src/engine/AudioEngine.ts', /\bupdateVoicePortamento\(robotId: string, seconds: number\): void/],
     ['AudioEngine.updateRobotBusFilter', 'src/engine/AudioEngine.ts', /\bupdateRobotBusFilter\(robotId: string, patch: \{ frequency\?: number; Q\?: number; type\?: RobotFilterType \}\): void/],
     ['AudioEngine.reserveVoice articulation', 'src/engine/AudioEngine.ts', /\barticulation\?: \{ portamento\?: number; filterQ\?: number; filterType\?: RobotFilterType \}/],
-    ['AudioEngine rampOrSet', 'src/engine/AudioEngine.ts', /function rampOrSet\(/],
+    ['AudioEngine rampOrSet', 'src/engine/audioEngine/voiceEntry.ts', /export function rampOrSet\(/],
     ['the bus.frequency modulation target', 'src/engine/AudioEngine.ts', /target === 'bus\.frequency'/],
     ['lfoEngine isFilterTarget covers the bus', 'src/engine/lfoEngine.ts', /function isFilterTarget\([^)]*\): boolean \{[^}]*bus/],
     ['lfoEngine bus output range', 'src/engine/lfoEngine.ts', /target === 'bus\.frequency'\) return ROBOT_BUS_FILTER_FREQ_RANGE/],

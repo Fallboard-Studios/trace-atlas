@@ -23,7 +23,10 @@ import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
-import { stopAudioSwells } from '../systems/audioSwells';
+import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
+import * as audioSwells from '../systems/audioSwells';
+import { precomputeDataX } from './getSeededVal';
+import * as noiseMaps from './noiseMaps';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
@@ -60,6 +63,8 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     noteVariance: { active: true, value: 2 },
     pitchRepeat: 65,
     lfoLinks: makeDefaultLfoLinks(),
+    reverbSend: 0.3,
+    delaySend: 0.1,
     ...overrides,
   } as RobotAudioBaseline;
 }
@@ -82,6 +87,8 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     rhythmicMotifLength: baseline.rhythmicMotifLength,
     noteVariance: baseline.noteVariance,
     pitchRepeat: baseline.pitchRepeat,
+    reverbSend: baseline.reverbSend,
+    delaySend: baseline.delaySend,
     audioMode: 'none',
     ...overrides,
   } as Robot;
@@ -178,6 +185,120 @@ describe('computeRobotAudioOverrideDiff', () => {
     it('diffs an older robot with neither field to nothing', () => {
       const baseline = makeBaseline();
       expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline)).toEqual({});
+    });
+  });
+
+  // docs/tasks/ROBOT_SENDS.md Task 15: a send diffs against the seeded baseline at two decimals (the slider's step),
+  // and a swell in flight saves its base, not the interpolated value.
+  describe('reverbSend and delaySend (Robot Sends T15)', () => {
+    const SEEDED = { reverbSend: 0.3, delaySend: 0.1 };
+    const withSends = (baselineOverrides: Partial<RobotAudioBaseline> = {}) => makeBaseline({ ...SEEDED, ...baselineOverrides });
+    const live = (baseline: RobotAudioBaseline, overrides: Partial<Robot> = {}) =>
+      makeLiveRobot(baseline, { reverbSend: baseline.reverbSend, delaySend: baseline.delaySend, ...overrides });
+    const swellOn = (attribute: string, robotId: string, baseValue: number) =>
+      vi.spyOn(audioSwells, 'getActiveSwellSnapshot').mockImplementation((pool) =>
+        pool === 'robot'
+          ? [{ pool: 'robot', robotAttribute: attribute, members: [{ robotId, baseValue, peakDelta: 0.4 }], phase: 'rising', startMeasure: 0, risingMeasures: 4, fallingMeasures: 4 } as never]
+          : [],
+      );
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('an untouched robot diffs to {}', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline), baseline)).toEqual({});
+    });
+
+    it('a robot moved one step diffs to that send alone, at two decimals', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.35 }), baseline)).toEqual({ reverbSend: 0.35 });
+      expect(computeRobotAudioOverrideDiff(live(baseline, { delaySend: 0.15 }), baseline)).toEqual({ delaySend: 0.15 });
+    });
+
+    it('both sends moved write both keys', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.9, delaySend: 0 }), baseline)).toEqual({ reverbSend: 0.9, delaySend: 0 });
+    });
+
+    it('rounds the saved value to two decimals', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.123456 }), baseline)).toEqual({ reverbSend: 0.12 });
+    });
+
+    it('a send equal to its seed after float noise diffs to nothing', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.1 + 0.2, delaySend: 0.1 + 1e-17 }), baseline)).toEqual({});
+    });
+
+    it('a seed that is not itself on the two-decimal grid still compares equal to its rounded live value', () => {
+      const baseline = withSends({ reverbSend: 0.3049999 });
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.3 }), baseline)).toEqual({});
+    });
+
+    it('a live value within half a step of the seed diffs to nothing', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.304 }), baseline)).toEqual({});
+    });
+
+    it('dry (0) against a seeded send is a real change, and 0 against a seeded 0 is not', () => {
+      const dry = withSends({ reverbSend: 0.3, delaySend: 0 });
+      expect(computeRobotAudioOverrideDiff(live(dry, { reverbSend: 0 }), dry)).toEqual({ reverbSend: 0 });
+      expect(computeRobotAudioOverrideDiff(live(dry, { delaySend: 0 }), dry)).toEqual({});
+    });
+
+    it('a send raised from a seeded 0 is a change', () => {
+      const dry = withSends({ delaySend: 0 });
+      expect(computeRobotAudioOverrideDiff(live(dry, { delaySend: 0.5 }), dry)).toEqual({ delaySend: 0.5 });
+    });
+
+    it('the full-scale send 1 is kept', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 1 }), baseline)).toEqual({ reverbSend: 1 });
+    });
+
+    it('the send keys touch no other field of the diff', () => {
+      const baseline = withSends();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.5, rhythmicDensity: 90 }), baseline)).toEqual({ reverbSend: 0.5, rhythmicDensity: 90 });
+    });
+
+    describe('with a swell in flight', () => {
+      it('an untouched robot with a swell on reverbSend still diffs to {} (the base is the seed, the live value is mid-ramp)', () => {
+        const baseline = withSends();
+        swellOn('reverbSend', 'r1', 0.3);
+        expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.55 }), baseline)).toEqual({});
+      });
+
+      it('the same for delaySend', () => {
+        const baseline = withSends();
+        swellOn('delaySend', 'r1', 0.1);
+        expect(computeRobotAudioOverrideDiff(live(baseline, { delaySend: 0.6 }), baseline)).toEqual({});
+      });
+
+      it('a swell that began from a hand-edited value saves that base, not the seed and not the interpolated value', () => {
+        const baseline = withSends();
+        swellOn('reverbSend', 'r1', 0.5);
+        expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.8 }), baseline)).toEqual({ reverbSend: 0.5 });
+      });
+
+      it('a swell on the other send leaves this one reading its live value', () => {
+        const baseline = withSends();
+        swellOn('delaySend', 'r1', 0.1);
+        expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.55 }), baseline)).toEqual({ reverbSend: 0.55 });
+      });
+
+      it('a swell on another robot leaves this robot reading its live value', () => {
+        const baseline = withSends();
+        swellOn('reverbSend', 'r2', 0.3);
+        expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.55 }), baseline)).toEqual({ reverbSend: 0.55 });
+      });
+
+      it('a swell\'s base is rounded to two decimals like the live value', () => {
+        const baseline = withSends();
+        swellOn('reverbSend', 'r1', 0.123456);
+        expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.8 }), baseline)).toEqual({ reverbSend: 0.12 });
+      });
     });
   });
 
@@ -386,6 +507,29 @@ describe('buildSessionPayload', () => {
     expect(payload.swellFrequency).toBe(9);
     expect(payload.swellDuration).toBe(5);
     expect(payload.pingVarianceAutomation).toBe(0.42);
+  });
+
+  // The global pool lost delay.wet / reverb.wet (docs/specs/ROBOT_SENDS.md assumption 13) and applyGlobalSwellBasesToAudio
+  // lost their two blocks; the blocks that remain must still save the base, not the value caught mid-ramp.
+  it('saves a global swell in flight at its base value, not the interpolated one', () => {
+    const localeId = setupWorld();
+    useAudioStore.setState({ swellFrequency: 16, swellDuration: 15 });
+    // Every draw at its minimum: target index 0, eq3.low. Restored below so no other test in this file sees it.
+    const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(() => -1);
+    try {
+      tickAudioSwells(localeId, 0);
+      const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
+      expect(swell).toBeDefined();
+      tickAudioSwells(localeId, 2); // advance: writes the interpolated value into the store
+      const live = useAudioStore.getState().globalAudio.eq3.low;
+      expect(Math.abs(live - swell.baseValue!)).toBeGreaterThan(0.5); // precondition: it really is mid-ramp
+
+      const payload = buildSessionPayload();
+
+      expect(payload.globalAudio.eq3.low).toBeCloseTo(swell.baseValue!, 1);
+    } finally {
+      noise.mockRestore();
+    }
   });
 
   it('has no robotOverrides entries for an untouched roster', () => {
@@ -924,6 +1068,193 @@ describe('applySessionPayload', () => {
       expect(restored.panAuto).toBe(true);
       expect(primeSpy).not.toHaveBeenCalled();
       primeSpy.mockRestore();
+    });
+  });
+
+  describe('sends across a session restore (Robot Sends T15)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function seededWorld() {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      return { localeId, robot: robots[0], robots };
+    }
+    const stored = (id: string) => currentLocale()!.robots.find((r) => r.id === id)!;
+    const spyPrime = () => vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+    const shifted = (payload: SessionPayload): SessionPayload => ({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+
+    it('an untouched world captures no send key at all', () => {
+      seededWorld();
+      const overrides = buildSessionPayload().robotOverrides;
+      expect(Object.keys(overrides)).toEqual([]);
+    });
+
+    it('captures one moved robot as its send alone, at two decimals', () => {
+      const { localeId, robot } = seededWorld();
+      const target = robot.reverbSend === 0.35 ? 0.36 : 0.35;
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { reverbSend: target });
+      expect(buildSessionPayload().robotOverrides).toEqual({ [robot.id]: { reverbSend: target } });
+    });
+
+    it('a session saved mid-swell stores the base send, not the interpolated one', () => {
+      const { localeId, robots } = seededWorld();
+      useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
+      const byX = new Map<number, number>([
+        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
+        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
+        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair
+        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
+      ]);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      try {
+        tickAudioSwells(localeId, 0);
+        const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'reverbSend' || s.robotAttribute === 'delaySend')!;
+        expect(swell, 'the forced start landed on a send').toBeDefined();
+        const member = swell.members![0];
+        const field = swell.robotAttribute as 'reverbSend' | 'delaySend';
+        tickAudioSwells(localeId, 2);
+        const liveValue = stored(member.robotId)[field];
+        expect(Math.abs(liveValue - member.baseValue)).toBeGreaterThan(0.01); // precondition: it really is mid-ramp
+        expect(robots.some((r) => r.id === member.robotId)).toBe(true);
+
+        const payload = buildSessionPayload();
+
+        expect(payload.robotOverrides[member.robotId]?.[field]).toBeUndefined(); // base = seed, so nothing is saved
+      } finally {
+        noise.mockRestore();
+      }
+    });
+
+    // The world rebuild first hands every freshly reserved voice its SEEDED sends (both keys), then the restore primes
+    // the one send the diff carried: that is the last word for the robot, and the only call with just one key.
+    it('restores a moved send after a full save/wipe/load round trip, priming the carried key last and only once', () => {
+      const { localeId, robot } = seededWorld();
+      const target = robot.reverbSend === 0.35 ? 0.36 : 0.35;
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { reverbSend: target });
+      const payload = buildSessionPayload();
+      const prime = spyPrime();
+
+      applySessionPayload(shifted(payload));
+      prime.mockClear();
+      applySessionPayload(payload);
+
+      expect(stored(robot.id).reverbSend).toBe(target);
+      expect(stored(robot.id).delaySend).toBe(robot.delaySend);
+      const mine = prime.mock.calls.filter((c) => c[0] === robot.id);
+      expect(mine[mine.length - 1]).toEqual([robot.id, { reverb: target }]);
+      expect(mine.filter((c) => Object.keys(c[1]).length === 1)).toHaveLength(1);
+    });
+
+    it('round-trips one moved robot among eleven untouched ones, every other robot back at its seed', () => {
+      const { localeId, robot, robots } = seededWorld();
+      expect(robots).toHaveLength(12);
+      const seeds = Object.fromEntries(robots.map((r) => [r.id, [r.reverbSend, r.delaySend]]));
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { delaySend: robot.delaySend === 0.8 ? 0.7 : 0.8 });
+      const payload = buildSessionPayload();
+      spyPrime();
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+
+      for (const r of currentLocale()!.robots) {
+        if (r.id === robot.id) expect(r.delaySend).toBe(robot.delaySend === 0.8 ? 0.7 : 0.8);
+        else expect([r.reverbSend, r.delaySend]).toEqual(seeds[r.id]);
+      }
+      expect(Object.keys(buildSessionPayload().robotOverrides)).toEqual([robot.id]);
+    });
+
+    it('restoring { delaySend: 0 } sets the field and primes { delay: 0 }', () => {
+      const { localeId, robot } = seededWorld();
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { delaySend: 0.4 });
+      const prime = spyPrime();
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { delaySend: 0 } } }, { skipLocaleRebuild: true });
+
+      expect(stored(robot.id).delaySend).toBe(0);
+      expect(prime).toHaveBeenCalledWith(robot.id, { delay: 0 });
+    });
+
+    it('restoring { reverbSend: 1 } (the top of the range) is accepted', () => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { reverbSend: 1 } } }, { skipLocaleRebuild: true });
+
+      expect(stored(robot.id).reverbSend).toBe(1);
+      expect(prime).toHaveBeenCalledWith(robot.id, { reverb: 1 });
+    });
+
+    it('both keys prime together in one call', () => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { reverbSend: 0.2, delaySend: 0.6 } } }, { skipLocaleRebuild: true });
+
+      expect(prime.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { reverb: 0.2, delay: 0.6 }]]);
+    });
+
+    it('a payload with no send key leaves the seeded values and makes no prime call', () => {
+      const { robots } = seededWorld();
+      const seeds = robots.map((r) => [r.id, r.reverbSend, r.delaySend]);
+      const prime = spyPrime();
+
+      applySessionPayload(buildSessionPayload(), { skipLocaleRebuild: true });
+
+      expect(currentLocale()!.robots.map((r) => [r.id, r.reverbSend, r.delaySend])).toEqual(seeds);
+      expect(prime).not.toHaveBeenCalled();
+    });
+
+    it('a diff carrying other keys but no send does not prime the sends', () => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { rhythmicDensity: 33 } } }, { skipLocaleRebuild: true });
+
+      expect(stored(robot.id).rhythmicDensity).toBe(33);
+      expect(prime).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['NaN', Number.NaN],
+      ['Infinity', Number.POSITIVE_INFINITY],
+      ['a string', 'loud'],
+      ['null', null],
+      ['below the range', -0.1],
+      ['above the range', 1.5],
+      ['far above the range', 7],
+    ])('a hand-edited reverbSend that is %s is ignored whole: the seeded value stays and nothing is primed', (_name, wild) => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { reverbSend: wild as number } } }, { skipLocaleRebuild: true });
+
+      expect(stored(robot.id).reverbSend).toBe(robot.reverbSend);
+      expect(prime).not.toHaveBeenCalled();
+    });
+
+    it('a bad delaySend does not cost the valid reverbSend or another field beside it', () => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+
+      applySessionPayload(
+        { ...buildSessionPayload(), robotOverrides: { [robot.id]: { reverbSend: 0.25, delaySend: 9, rhythmicDensity: 21 } } },
+        { skipLocaleRebuild: true },
+      );
+
+      expect(stored(robot.id)).toMatchObject({ reverbSend: 0.25, delaySend: robot.delaySend, rhythmicDensity: 21 });
+      expect(prime).toHaveBeenCalledTimes(1);
+      expect(prime).toHaveBeenCalledWith(robot.id, { reverb: 0.25 });
+    });
+
+    it('a robot id in the payload that is not in the roster is skipped without a prime', () => {
+      seededWorld();
+      const prime = spyPrime();
+
+      expect(() => applySessionPayload({ ...buildSessionPayload(), robotOverrides: { 'no-such-robot': { reverbSend: 0.5 } } }, { skipLocaleRebuild: true })).not.toThrow();
+      expect(prime).not.toHaveBeenCalled();
     });
   });
 

@@ -8,14 +8,15 @@ import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
-  applyAudioMode, applyVolume, applyPan, applyPanAuto,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
-import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
+import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
+import { clampSend } from '@/utils/clampSend';
 import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -34,6 +35,8 @@ const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   masterVolume: 0,
   pan: 0,
   panAuto: true,
+  reverbSend: 0,
+  delaySend: 0,
 };
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
@@ -99,12 +102,17 @@ export interface CompanyOptions {
   /** The Audio Load dial is holding the robot bus-filter links off (the robot screen reads the same flag). */
   busFilterLinksHeldOff: boolean;
   volumeSwelling: boolean;
+  /** The first member's reverbSend / delaySend are being swelled (a company-wide swell shares the flag across members). */
+  reverbSendSwelling: boolean;
+  delaySendSwelling: boolean;
   adsrSwelling: AdsrSwelling | undefined;
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
   onPanChange: (display: number) => void;
   onPanAutoChange: (auto: boolean) => void;
+  onReverbSendChange: (pct: number) => void;
+  onDelaySendChange: (pct: number) => void;
   onDensityChange: (v: number) => void;
   onMotifLengthChange: (v: number) => void;
   onPitchRepeatChange: (v: number) => void;
@@ -190,6 +198,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   // that happens to target some OTHER member never shows here, same as its value wouldn't either.
   const firstMemberId = firstMember?.id;
   const volumeSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'volume');
+  const reverbSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'reverbSend');
+  const delaySendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'delaySend');
   // The flags recompute when the field a swell tick writes changes (useSwellingFlags).
   const adsrSwelling = useAdsrSwellingFlags(firstMemberId, resolved?.adsr);
   const layer0Swelling = useLayerSwellingFlags(firstMemberId, 0, resolved?.layers[0]);
@@ -212,11 +222,16 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedMasterVolume = resolved?.masterVolume;
   const resolvedPan = resolved?.pan;
   const resolvedPanAuto = resolved?.panAuto;
+  const resolvedReverbSend = resolved?.reverbSend;
+  const resolvedDelaySend = resolved?.delaySend;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
-      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto! }
+      ? {
+        audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto!,
+        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!,
+      }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto]);
+  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -325,6 +340,27 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const onPanAutoChange = useCallback((auto: boolean) => {
     latest.current.members.forEach((m) => applyPanAuto(m, localeId, auto));
     patchSnapshot({ panAuto: auto, ...(auto ? {} : { pan: latest.current.resolved?.pan ?? 0 }) });
+  }, [localeId, patchSnapshot]);
+
+  // Reverb and Delay sends (docs/specs/ROBOT_SENDS.md): onVolumeChange's shape. Each member's own send swell is
+  // interrupted before the apply, and the snapshot records the clamped fraction the members store. A NaN is dropped
+  // whole (the actions would drop it per member, but the snapshot must not record it).
+  const onReverbSendChange = useCallback((pct: number) => {
+    if (Number.isNaN(pct)) return;
+    latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, 'reverbSend');
+      applyReverbSend(m, localeId, pct);
+    });
+    if (latest.current.members.length > 0) patchSnapshot({ reverbSend: clampSend(pct / SEND_DISPLAY_SCALE) });
+  }, [localeId, patchSnapshot]);
+
+  const onDelaySendChange = useCallback((pct: number) => {
+    if (Number.isNaN(pct)) return;
+    latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, 'delaySend');
+      applyDelaySend(m, localeId, pct);
+    });
+    if (latest.current.members.length > 0) patchSnapshot({ delaySend: clampSend(pct / SEND_DISPLAY_SCALE) });
   }, [localeId, patchSnapshot]);
 
   const onDensityChange = useCallback((v: number) => {
@@ -448,12 +484,16 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     busFilterValue,
     busFilterLinksHeldOff,
     volumeSwelling,
+    reverbSendSwelling,
+    delaySendSwelling,
     adsrSwelling,
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
     onAudioModeChange,
     onVolumeChange,
     onPanChange,
     onPanAutoChange,
+    onReverbSendChange,
+    onDelaySendChange,
     onDensityChange,
     onMotifLengthChange,
     onPitchRepeatChange,
@@ -469,8 +509,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onLayerLfoFieldChange,
   }), [
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
-    volumeSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
-    onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
+    volumeSwelling, reverbSendSwelling, delaySendSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
+    onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,

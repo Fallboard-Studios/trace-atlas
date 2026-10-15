@@ -141,6 +141,18 @@ export const PAN_MAX = 1;
 export const PAN_DISPLAY_SCALE = 100;
 
 /**
+ * Robot Sends (docs/specs/ROBOT_SENDS.md §1.1): the stored `Robot.reverbSend` / `delaySend` run 0 (dry)
+ * … 1 (full send into the global room). The slider shows them ×SEND_DISPLAY_SCALE (0…100 %) in
+ * SEND_STEP_PERCENT steps, the same stored/displayed split as Volume.
+ */
+export const SEND_MIN = 0;
+export const SEND_MAX = 1;
+export const SEND_DISPLAY_SCALE = 100;
+export const SEND_STEP_PERCENT = 1;
+/** Chance a robot's own Delay send seeds to exactly 0 (the global Delay's old quiet roll, same 0.25). */
+export const SEND_DELAY_QUIET_THRESHOLD = 0.25;
+
+/**
  * Robot Systems Engine (Roadmap Phase 7) — Battery/Docking/Job lifecycle constants.
  * See docs/specs/ROBOT_SYSTEMS_ENGINE.md and src/systems/robotSystems.ts.
  */

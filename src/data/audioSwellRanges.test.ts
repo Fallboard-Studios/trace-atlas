@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { ROBOT_SWELL_FIELD_RANGE } from './audioSwellRanges';
 import { GLOBAL_AUDIO_SEED_RANGES } from './globalAudioSeedRanges';
 import { SWELL_ROBOT_ATTRIBUTE_IDS } from '@/types/audioSwell';
+import { SEND_MIN, SEND_MAX } from '@/constants';
 
 // ========================================
 // TESTS
@@ -16,8 +17,14 @@ describe('ROBOT_SWELL_FIELD_RANGE', () => {
     expect(Object.keys(ROBOT_SWELL_FIELD_RANGE).sort()).toEqual([...SWELL_ROBOT_ATTRIBUTE_IDS].sort());
   });
 
-  it('has exactly 17 keys', () => {
-    expect(Object.keys(ROBOT_SWELL_FIELD_RANGE)).toHaveLength(17);
+  it('has exactly 19 keys', () => {
+    expect(Object.keys(ROBOT_SWELL_FIELD_RANGE)).toHaveLength(19);
+  });
+
+  it('gives each send the stored 0..1 range (SEND_MIN..SEND_MAX), not the 0-100 display range', () => {
+    expect(ROBOT_SWELL_FIELD_RANGE.reverbSend).toEqual({ min: SEND_MIN, max: SEND_MAX });
+    expect(ROBOT_SWELL_FIELD_RANGE.delaySend).toEqual({ min: SEND_MIN, max: SEND_MAX });
+    expect(ROBOT_SWELL_FIELD_RANGE.reverbSend.max).toBe(1);
   });
 
   it('never has min >= max for any field', () => {

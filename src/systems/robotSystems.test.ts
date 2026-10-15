@@ -81,6 +81,8 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     masterVolume: 0.7,
     pan: 0,
     panAuto: true,
+    reverbSend: 0,
+    delaySend: 0,
     docking: DockingState.Active,
     activity: 'exiting',
     batteryLevel: 100,

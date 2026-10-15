@@ -21,15 +21,20 @@ import {
 // ========================================
 
 describe('SWELL_GLOBAL_TARGET_IDS', () => {
-  it('is every GLOBAL_LFO_TARGET_IDS entry plus delay.wet and reverb.wet', () => {
-    expect([...SWELL_GLOBAL_TARGET_IDS].sort()).toEqual(
-      [...GLOBAL_LFO_TARGET_IDS, 'delay.wet', 'reverb.wet'].sort()
-    );
+  // The global wet sliders became fixed full returns (docs/specs/ROBOT_SENDS.md assumption 13), so their swells
+  // moved to the robots' own sends: the global pool is exactly the 7 LFO targets again.
+  it('is exactly the GLOBAL_LFO_TARGET_IDS entries', () => {
+    expect([...SWELL_GLOBAL_TARGET_IDS].sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
   });
 
-  it('has exactly 9 members, no duplicates', () => {
-    expect(SWELL_GLOBAL_TARGET_IDS).toHaveLength(9);
-    expect(new Set(SWELL_GLOBAL_TARGET_IDS).size).toBe(9);
+  it('has exactly 7 members, no duplicates', () => {
+    expect(SWELL_GLOBAL_TARGET_IDS).toHaveLength(7);
+    expect(new Set(SWELL_GLOBAL_TARGET_IDS).size).toBe(7);
+  });
+
+  it('no longer lists the global delay or reverb wet', () => {
+    expect(SWELL_GLOBAL_TARGET_IDS).not.toContain('delay.wet');
+    expect(SWELL_GLOBAL_TARGET_IDS).not.toContain('reverb.wet');
   });
 
   it('does not modify GLOBAL_LFO_TARGET_IDS itself — still 7 members', () => {
@@ -41,7 +46,7 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
   // Its own explicit list since 2026-09-30 (docs/specs/LFO_LOAD_FIX.md assumption 9): the LFO
   // target set dropped volume/pulseWidth, but swells keep ramping both. Every remaining LFO
   // target is still a swell attribute; the swell set is a strict superset.
-  it('is volume + every layer field (gain/detune/phase/pulseWidth × 3) + the 4 adsr.* fields', () => {
+  it('is volume + every layer field (gain/detune/phase/pulseWidth × 3) + the 4 adsr.* fields + the two sends', () => {
     expect([...SWELL_ROBOT_ATTRIBUTE_IDS].sort()).toEqual(
       [
         'volume',
@@ -49,8 +54,15 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
         'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
         'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
         'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
+        'reverbSend', 'delaySend',
       ].sort()
     );
+  });
+
+  it('lists the two sends after every pre-existing attribute, so no earlier index-based pick shifts', () => {
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS.slice(-2)).toEqual(['reverbSend', 'delaySend']);
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS[0]).toBe('volume');
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS[16]).toBe('adsr.release');
   });
 
   // bus.frequency (docs/specs/ROBOT_ARTICULATION.md assumption 10) is an LFO target with no swell apply
@@ -65,9 +77,9 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS as readonly string[]).not.toContain('bus.frequency');
   });
 
-  it('has exactly 17 members, no duplicates', () => {
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toHaveLength(17);
-    expect(new Set(SWELL_ROBOT_ATTRIBUTE_IDS).size).toBe(17);
+  it('has exactly 19 members, no duplicates', () => {
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toHaveLength(19);
+    expect(new Set(SWELL_ROBOT_ATTRIBUTE_IDS).size).toBe(19);
   });
 
   it('includes layer0/1/2.phase — a real divergence from LFO/Drift, not an oversight (spec §1.3)', () => {
@@ -118,7 +130,7 @@ describe('ActiveSwell', () => {
   it('type-checks a global-pool swell (single target, no members)', () => {
     const swell: ActiveSwell = {
       pool: 'global',
-      globalTarget: 'delay.wet',
+      globalTarget: 'lpf.Q',
       baseValue: 0.3,
       peakDelta: 0.5,
       phase: 'rising',

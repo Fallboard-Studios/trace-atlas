@@ -10,7 +10,8 @@ export interface ReverbSettings {
   decay: number;
   /** seconds (0 - 1) */
   preDelay: number;
-  /** 0 - 1 */
+  /** 0 - 1. The room's RETURN level, not a wet/dry mix: the room itself is always fully wet and each
+   *  robot's own send decides how much of that robot goes into it (docs/specs/ROBOT_SENDS.md §1.3). */
   wet: number;
 }
 
@@ -26,7 +27,7 @@ export interface DelaySettings {
   delayTime: number;
   /** 0 - 0.95 */
   feedback: number;
-  /** 0 - 1 */
+  /** 0 - 1. The echo's RETURN level, not a wet/dry mix - see ReverbSettings.wet. */
   wet: number;
   /** Present = Sync (Anchored): `delayTime` is ignored and the delay runs at this note value's
    *  duration at the current tempo. Absent = Free (Float). Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
@@ -74,8 +75,8 @@ export interface LimiterSettings {
  * Top-level global audio settings: single source of truth for FX state.
  */
 export interface GlobalAudioSettings {
-  /** false = Natural Decay (Compressor after Delay+Reverb, tails ring out uncompressed).
-   *  true = Controlled Decay (Compressor moved before both Delay and Reverb). Not seeded —
+  /** false = Natural Decay (the Reverb and Delay returns rejoin at the Compressor's input, so their echoes are compressed).
+   *  true = Controlled Decay (the returns rejoin at the Limiter's input, so their echoes skip the Compressor). Not seeded —
    *  always starts false; only a direct user toggle changes it. */
   compressorBeforeDelay: boolean;
   reverb: ReverbSettings;
@@ -91,8 +92,9 @@ export interface GlobalAudioSettings {
 
 export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   compressorBeforeDelay: false,
-  reverb: { decay: 1.5, preDelay: 0.02, wet: 0.3 },
-  delay: { delayTime: 0.25, feedback: 0.2, wet: 0.15 },
+  // `wet` is each room's return level and defaults to full (1): a robot's own send sets how much goes in.
+  reverb: { decay: 1.5, preDelay: 0.02, wet: 1 },
+  delay: { delayTime: 0.25, feedback: 0.2, wet: 1 },
   compressor: { threshold: -24, ratio: 2, attack: 0.003, release: 0.25, knee: 6 },
   eq3: { low: 0, mid: 0, high: 0 },
   filterLPF: { type: 'lowpass', frequency: 20000, Q: 1 },

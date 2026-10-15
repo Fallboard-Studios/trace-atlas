@@ -19,11 +19,15 @@ const renderCounts = {
 
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number };
+    value: { audioMode: string; masterVolume: number; reverbSend: number; delaySend: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
+    onReverbSendChange: (pct: number) => void;
+    onDelaySendChange: (pct: number) => void;
     onVolumeLfoChange?: unknown;
     volumeSwelling?: boolean;
+    reverbSendSwelling?: boolean;
+    delaySendSwelling?: boolean;
     disabled?: boolean;
   }) => {
     renderCounts.audioSettingSection();
@@ -32,11 +36,17 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-testid="audio-setting-section-stub"
         data-audio-mode={props.value.audioMode}
         data-volume={props.value.masterVolume}
+        data-reverb-send={props.value.reverbSend}
+        data-delay-send={props.value.delaySend}
         data-swelling={props.volumeSwelling ? '' : undefined}
+        data-reverb-swelling={props.reverbSendSwelling ? '' : undefined}
+        data-delay-swelling={props.delaySendSwelling ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
+        <button onClick={() => props.onReverbSendChange(40)}>probe-reverb-send</button>
+        <button onClick={() => props.onDelaySendChange(40)}>probe-delay-send</button>
         {props.onVolumeLfoChange ? <button>probe-volume-lfo</button> : null}
       </div>
     );
@@ -324,6 +334,38 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(screen.getByTestId('signature-array-layer-stub-1').getAttribute('data-swelling-gain')).toBe('');
       expect(screen.getByTestId('signature-array-layer-stub-0').getAttribute('data-swelling-gain')).toBeNull();
     });
+
+    // docs/tasks/ROBOT_SENDS.md Task 14: the Levels panel gets the first member's sends and their swell flags.
+    it('Levels: the first member\'s sends reach the panel', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.35, delaySend: 0.2 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', reverbSend: 0.9, delaySend: 0.9 }));
+      addCompany('c1', ['r1', 'r2']);
+      render(<Sections target="c1" ids={['audioSettings']} />);
+
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-reverb-send')).toBe('0.35');
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-delay-send')).toBe('0.2');
+    });
+
+    it('Levels: a company-wide swell on reverbSend shows swelling on the Reverb slider only', () => {
+      activeCompany();
+      vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === 'reverbSend');
+      render(<Sections target="c1" ids={['audioSettings']} />);
+
+      const stub = screen.getByTestId('audio-setting-section-stub');
+      expect(stub.getAttribute('data-reverb-swelling')).toBe('');
+      expect(stub.getAttribute('data-delay-swelling')).toBeNull();
+      expect(stub.getAttribute('data-swelling')).toBeNull();
+    });
+
+    it('Levels: a swell on delaySend shows swelling on the Delay slider only', () => {
+      activeCompany();
+      vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === 'delaySend');
+      render(<Sections target="c1" ids={['audioSettings']} />);
+
+      const stub = screen.getByTestId('audio-setting-section-stub');
+      expect(stub.getAttribute('data-delay-swelling')).toBe('');
+      expect(stub.getAttribute('data-reverb-swelling')).toBeNull();
+    });
   });
 
   describe('each panel\'s change reaches the members once (the broadcast itself is useCompanyOptions\' suite)', () => {
@@ -350,6 +392,26 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       click('probe-volume');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ masterVolume: 0.77 });
+    });
+
+    it('Levels: Reverb — applyReverbSend once per member, and only reverbSend recorded in the snapshot', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      click('probe-reverb-send');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls[0][2]).toBe(40);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ reverbSend: 0.4 });
+    });
+
+    it('Levels: Delay — applyDelaySend once per member, and only delaySend recorded in the snapshot', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      click('probe-delay-send');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls[0][2]).toBe(40);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ delaySend: 0.4 });
     });
 
     it.each([

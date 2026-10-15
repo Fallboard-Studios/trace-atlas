@@ -187,7 +187,7 @@ describe('help coverage — probe and company controls', () => {
 
   it('the walk reaches every section, the three Source layers included (never passes on an empty list)', () => {
     const ids = schemas.map((s) => s.id);
-    for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.pan', 'robotOptions.panAuto', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
+    for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.pan', 'robotOptions.panAuto', 'robotOptions.reverbSend', 'robotOptions.delaySend', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
       'robotOptions.attack', 'robotOptions.release', 'robotOptions.layer0.type', 'robotOptions.layer1.detune', 'robotOptions.layer2.pulseWidth',
       'robotOptions.portamento', 'robotOptions.attackCurve', 'robotOptions.releaseCurve',
       'robotOptions.busFilter.cutoff', 'robotOptions.busFilter.resonance', 'robotOptions.busFilter.type',
@@ -216,6 +216,59 @@ describe('help coverage — probe and company controls', () => {
       const helps = (['core', 'companion', 'accent'] as const).map((layer) => labels(`probe.source.${layer}.${field}`).help?.human);
       expect(new Set(helps).size, `probe.source.*.${field}`).toBe(3);
     }
+  });
+});
+
+// ----------------------------------------
+// ROBOT SENDS COPY (docs/specs/ROBOT_SENDS.md §1.8; docs/tasks/ROBOT_SENDS.md Task 8)
+// ----------------------------------------
+// Each probe now sends its own share of its sound into the shared Reverb and Delay, so the Fleet Params
+// Amount sliders are the master returns: they must no longer promise a "blend with the original sound",
+// which is the old serial-effect meaning. The wording is a copy-pass item, so these pin the claims
+// (what a slider is, that 0 silences the room, that probes decide how much they send), never the words.
+
+const OLD_BLEND_PHRASE = /blended in with the original sound/i;
+
+describe('robot sends copy', () => {
+  it.each(['probe.reverbSend', 'probe.delaySend'] as const)('%s exists with a name, a lore word, a percent unit and help, and is read by a schema', (key) => {
+    const entry = CONTENT[key] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    expect(entry.unit).toBe('%');
+    expect(entry.help?.human.trim()).toBeTruthy();
+    expect(isReferenced(key)).toBe(true);
+  });
+
+  it('the two sends carry distinct names and distinct help (never one shared description)', () => {
+    expect(CONTENT['probe.reverbSend'].human).not.toBe(CONTENT['probe.delaySend'].human);
+    expect(CONTENT['probe.reverbSend'].help?.human).not.toBe(CONTENT['probe.delaySend'].help?.human);
+  });
+
+  it.each(['fleet.reverb.amount', 'fleet.delay.amount'] as const)('%s keeps its key and reads as the master return, not a blend', (key) => {
+    const entry = CONTENT[key] as ContentEntry;
+    const help = entry.help?.human ?? '';
+    expect(help).not.toMatch(OLD_BLEND_PHRASE);
+    expect(help.toLowerCase()).toContain('every probe');
+    expect(help).toMatch(/\b0\b/);
+    expect(help.toLowerCase()).toMatch(/silence/);
+  });
+
+  it('the Time & Space intro no longer describes the Amount sliders as a blend with the original sound', () => {
+    const intro = CONTENT['fleet.timeSpace'].intro;
+    expect(intro?.humanDescription ?? '').not.toMatch(OLD_BLEND_PHRASE);
+    expect(intro?.humanDescription ?? '').toContain(CONTENT['fleet.reverb.amount'].human);
+    expect(intro?.humanDescription ?? '').toContain(CONTENT['fleet.delay.amount'].human);
+  });
+
+  it('the Time & Space intro says, for both Amount sliders, that they are heard from every probe and that 0 silences them', () => {
+    const description = (CONTENT['fleet.timeSpace'].intro?.humanDescription ?? '').toLowerCase();
+    expect(description.match(/every probe/g)?.length).toBe(2);
+    expect(description.match(/silences/g)?.length).toBe(2);
+  });
+
+  it('no content entry anywhere still promises the old blend (the old meaning is gone, not just moved)', () => {
+    const stale = keys.filter((k) => OLD_BLEND_PHRASE.test(JSON.stringify(CONTENT[k])));
+    expect(stale).toEqual([]);
   });
 });
 

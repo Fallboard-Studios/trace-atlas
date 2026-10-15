@@ -19,6 +19,7 @@ import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
 import { tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { devWarn } from '../utils/helpers';
+import { clampSend } from '../utils/clampSend';
 import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { calculatePanFromPosition } from './audioEngine/panning';
@@ -26,9 +27,12 @@ import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from 
 import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
+import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import {
   buildGlobalFxChain,
   getGlobalChainEntry,
+  getGlobalReverbRoom,
+  getGlobalDelayRoom,
   waitForGlobalReverbReady,
   setMasterVolume,
   getMasterVolume,
@@ -88,6 +92,9 @@ const VOLUME_RAMP_SECONDS = 0.05;
  *  the same short glide as VOLUME_RAMP_SECONDS, in a constant of its own so the two can be tuned
  *  apart. docs/specs/ROBOT_PAN.md §1.3. */
 const PAN_RAMP_SECONDS = 0.05;
+/** Ramp duration for a live updateRobotSends change - the same short glide as VOLUME_RAMP_SECONDS and
+ *  PAN_RAMP_SECONDS, in a constant of its own. docs/specs/ROBOT_SENDS.md §1.4. */
+const SEND_RAMP_SECONDS = 0.05;
 
 // Precompute data X positions for seeded noise sampling (module scope — hot path safe)
 const VELOCITY_ROLL_X = precomputeDataX('audio.velocityRoll');
@@ -128,31 +135,10 @@ let scheduledTickId: number | null = null;
 // return the same mock instance in tests and the same runtime transport in-app.
 let _transport: ReturnType<typeof Tone.getTransport> | null = null;
 // Composite voices (created from LayeredWave descriptors, src/engine/audioEngine/compositeVoice.ts) stored separately
-const compositeVoices: Map<string, {
-  composite: CompositeVoice;
-  panner: Tone.Panner;
-  busGain: Tone.Gain;
-  busFilter: Tone.Filter;
-}> = new Map();
-
-/** Tear down one robot's voice graph: the composite, then its panner, bus gain and bus filter. */
-function disposeVoiceNodes(comp: { composite: CompositeVoice; panner: Tone.Panner; busGain: Tone.Gain; busFilter: Tone.Filter }): void {
-  try {
-    try { comp.composite.dispose?.(); } catch (err) { devWarn('[AudioEngine] composite.dispose failed', err); }
-    comp.panner.disconnect();
-    comp.busGain.disconnect();
-    comp.busFilter.disconnect();
-    // Tone nodes may implement dispose; call when available
-    try { comp.panner.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing panner'); }
-    try { comp.busGain.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing busGain'); }
-    try { comp.busFilter.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing busFilter'); }
-  } catch (err) {
-    devWarn('[AudioEngine] Failed to cleanup composite nodes', err);
-  }
-}
+const compositeVoices: Map<string, VoiceEntry> = new Map();
 
 /** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
-function storeVoice(robotId: string, entry: { composite: CompositeVoice; panner: Tone.Panner; busGain: Tone.Gain; busFilter: Tone.Filter }): void {
+function storeVoice(robotId: string, entry: VoiceEntry): void {
   const previous = compositeVoices.get(robotId);
   if (previous) disposeVoiceNodes(previous);
   compositeVoices.set(robotId, entry);
@@ -160,18 +146,6 @@ function storeVoice(robotId: string, entry: { composite: CompositeVoice; panner:
 
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
 const robotNoteIndex = new Map<string, number>();
-
-/** A Tone AudioParam / Signal as far as a live edit needs it: `rampTo` when the real node has it. */
-type RampableParam = { rampTo?: (value: number, rampTime: number) => void; value: number };
-
-/** Glide `param` to `target` over `rampSeconds` when it can ramp, else assign it (headless / test stubs). */
-function rampOrSet(param: RampableParam, target: number, rampSeconds: number): void {
-  if (typeof param.rampTo === 'function') {
-    param.rampTo(target, rampSeconds);
-  } else {
-    param.value = target;
-  }
-}
 
 // Last pan value written to each reserved robot's panner — see updateAllPanners.
 const lastPanByRobot = new Map<string, number>();
@@ -292,6 +266,8 @@ async function loadInstruments(): Promise<void> {
             );
             // The engine keeps no pan state across a reservation; the store does (Robot Pan §1.3).
             if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
+            // Likewise the sends: a new voice starts dry, and unlike a manual pan every robot is primed (Robot Sends §1.4).
+            AudioEngine.updateRobotSends(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
           }
         } catch (err) {
           devWarn('[AudioEngine] Failed post-load reservation for robot', robot.id, err);
@@ -694,6 +670,9 @@ export const AudioEngine = {
       const busCutoff = resolveBusFilterCutoff(filterFreq);
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
+      // The sends start at 0 (dry); every reservation site primes them from the store afterwards.
+      const reverbSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
+      const delaySend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
       const busFilter = FilterCtor ? new FilterCtor({
         frequency: busCutoff,
         Q: resolveBusFilterQ(articulation?.filterQ),
@@ -714,8 +693,22 @@ export const AudioEngine = {
       } catch (e) {
         devWarn('[AudioEngine] busFilter connection failed', e);
       }
+      // Wet path: busFilter (post-Volume, post-bus-filter) -> send -> room. The dry link above is untouched, so at
+      // send 0 the only way into a room is through these two gains. A room that does not exist (headless, or
+      // before the FX chain is built) simply gets no connection.
+      try {
+        const busFilterOut = busFilter as unknown as { connect?: (target?: unknown) => unknown };
+        busFilterOut.connect?.(reverbSend);
+        busFilterOut.connect?.(delaySend);
+        const reverbRoom = getGlobalReverbRoom();
+        if (reverbRoom) reverbSend.connect(reverbRoom);
+        const delayRoom = getGlobalDelayRoom();
+        if (delayRoom) delaySend.connect(delayRoom);
+      } catch (e) {
+        devWarn('[AudioEngine] send connection failed', e);
+      }
 
-      storeVoice(robotId, { composite, panner, busGain, busFilter });
+      storeVoice(robotId, { composite, panner, busGain, busFilter, reverbSend, delaySend });
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -748,7 +741,9 @@ export const AudioEngine = {
       const panner = makeStubPanner() as unknown as Tone.Panner;
       const busGain = makeStubGain(volumePositionToGain(masterVolume ?? 1)) as unknown as Tone.Gain;
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
-      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter });
+      const reverbSend = makeStubGain(0) as unknown as Tone.Gain;
+      const delaySend = makeStubGain(0) as unknown as Tone.Gain;
+      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, reverbSend, delaySend });
       return false;
     }
   },
@@ -847,6 +842,8 @@ export const AudioEngine = {
       // releaseVoice just cleared this robot's manual pan; hand it back from the store (Robot Pan §1.3).
       // Done here, not by the caller, so every reReserveVoice caller is covered.
       if (robot.panAuto === false) AudioEngine.updateRobotPan(robotId, robot.pan);
+      // And the rebuilt voice's send gains start at 0, so hand them back too (Robot Sends §1.4).
+      AudioEngine.updateRobotSends(robotId, { reverb: robot.reverbSend, delay: robot.delaySend });
       return reserved;
     } catch (err) {
       devWarn('[AudioEngine] reReserveVoice failed', err);
@@ -980,6 +977,31 @@ export const AudioEngine = {
       rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);
+    }
+  },
+
+  /**
+   * Robot Sends (docs/specs/ROBOT_SENDS.md §1.4): ramp a robot's send gains into the global Reverb and Delay
+   * rooms. Either key may be omitted; a value is clamped to [SEND_MIN, SEND_MAX] and a NaN is ignored (it has
+   * no sensible clamp), so one bad key never blocks the other. Ramps over SEND_RAMP_SECONDS on `rampTo` when the
+   * live param supports it, else sets `.value` (headless). A safe no-op (devWarn, as updateRobotMasterVolume)
+   * when no composite is reserved: the store already holds the value and every reservation site re-primes it.
+   */
+  updateRobotSends(robotId: string, sends: { reverb?: number; delay?: number }): void {
+    const entry = compositeVoices.get(robotId);
+    if (!entry) {
+      devWarn(`[AudioEngine] updateRobotSends: no composite reserved for ${robotId}`);
+      return;
+    }
+    const write = (send: Tone.Gain, requested: number | undefined): void => {
+      if (requested === undefined || Number.isNaN(requested)) return;
+      rampOrSet(send.gain as unknown as RampableParam, clampSend(requested), SEND_RAMP_SECONDS);
+    };
+    try {
+      write(entry.reverbSend, sends.reverb);
+      write(entry.delaySend, sends.delay);
+    } catch (err) {
+      devWarn('[AudioEngine] updateRobotSends failed', err);
     }
   },
 

@@ -20,6 +20,10 @@ export interface CompanyOptionsSnapshot {
   pan?: number;
   /** As Robot.panAuto. Recording false also records the `pan` it was switched off at. */
   panAuto?: boolean;
+  /** Stored 0…1, as Robot.reverbSend (docs/specs/ROBOT_SENDS.md). The company Reverb slider's recorded value. */
+  reverbSend?: number;
+  /** Stored 0…1, as Robot.delaySend. */
+  delaySend?: number;
   rhythmicDensity?: number;
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };

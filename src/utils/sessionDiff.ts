@@ -24,6 +24,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { quantizeToStep, roundToDecimals } from './math';
+import { SEND_MIN, SEND_MAX } from '../constants';
 import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
@@ -190,18 +191,6 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
     };
   }
 
-  // Delay
-  const delayWetSwell = extractGlobalSwellBaseValueIfActive('delay.wet');
-  if (delayWetSwell !== undefined) {
-    toCapture.delay = { ...toCapture.delay, wet: delayWetSwell };
-  }
-
-  // Reverb
-  const reverbWetSwell = extractGlobalSwellBaseValueIfActive('reverb.wet');
-  if (reverbWetSwell !== undefined) {
-    toCapture.reverb = { ...toCapture.reverb, wet: reverbWetSwell };
-  }
-
   // Quantize all fields to eliminate floating-point rounding errors and clean up representation artifacts
   toCapture.compressor = {
     threshold: roundToDecimals(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),
@@ -303,6 +292,13 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   // writes a key, and a stale `pan` under Auto never leaks. `=== false`, not `!panAuto`: a robot with no
   // flag at all is Auto, not manual-at-NaN. Two decimals matches the slider's 1/100 step.
   if (live.panAuto === false) diff.pan = roundToDecimals(live.pan, 2);
+
+  // Robot Sends (docs/specs/ROBOT_SENDS.md §1.8): compared at the slider's two decimals on both sides, so float noise
+  // and a seed off the grid never read as a change. A swell in flight saves its base (never the mid-ramp value).
+  for (const field of ['reverbSend', 'delaySend'] as const) {
+    const saved = roundToDecimals(extractSwellBaseValueIfActive(live.id, field) ?? live[field], 2);
+    if (saved !== roundToDecimals(baseline[field], 2)) diff[field] = saved;
+  }
 
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): only the targets whose link actually changed --
   // an untouched target has no key, same "absent means untouched" contract as every field above.
@@ -433,6 +429,12 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (typeof diff.pan === 'number' && Number.isFinite(diff.pan)) {
     updates.pan = diff.pan;
     updates.panAuto = false;
+  }
+  // A send is a number inside [SEND_MIN, SEND_MAX] or it is ignored whole, key by key (a payload is untrusted here):
+  // one bad send never costs the other, or any field beside it. The range test alone rejects NaN and the infinities.
+  for (const field of ['reverbSend', 'delaySend'] as const) {
+    const send = diff[field];
+    if (typeof send === 'number' && send >= SEND_MIN && send <= SEND_MAX) updates[field] = send;
   }
   if (diff.lfoLinks !== undefined) updates.lfoLinks = { ...robot.lfoLinks, ...diff.lfoLinks } as Record<RobotLfoTargetId, LfoLink>;
   return updates;
@@ -598,6 +600,14 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
       // manual. Before the audio context starts this is a no-op; loadInstruments' reservation pass
       // re-primes from the store (docs/specs/ROBOT_PAN.md §1.3).
       if (updates.panAuto === false) AudioEngine.updateRobotPan(updatedRobot.id, updatedRobot.pan);
+      // Robot Sends: primes from the STORED values, and only the sends this diff carried (validated above).
+      // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
+      if (updates.reverbSend !== undefined || updates.delaySend !== undefined) {
+        AudioEngine.updateRobotSends(updatedRobot.id, {
+          ...(updates.reverbSend !== undefined ? { reverb: updatedRobot.reverbSend } : {}),
+          ...(updates.delaySend !== undefined ? { delay: updatedRobot.delaySend } : {}),
+        });
+      }
       // Robot Articulation: primes only the keys this diff carried and validated, from the stored robot.
       // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
       const { portamento, filterQ, filterType } = validArticulation(diff);

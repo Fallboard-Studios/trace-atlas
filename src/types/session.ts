@@ -35,6 +35,11 @@ export interface RobotAudioOverrideDiff {
    *  "Auto on" is the baseline for every robot, so it is the absence of this field
    *  (docs/specs/ROBOT_PAN.md assumption 3). Unlike masterVolume, a manual pan is a composition choice. */
   pan?: number;
+  /** Stored 0…1, as Robot.reverbSend / delaySend, at two decimals (the slider's step). Present only when it differs from
+   *  the seeded send; a session saved mid-swell stores the swell's base, not the interpolated value
+   *  (docs/specs/ROBOT_SENDS.md §1.8). */
+  reverbSend?: number;
+  delaySend?: number;
   name?: string;
   /** Only the targets whose link differs from the spawn seed baseline (LFO Bank, docs/tasks/
    *  LFO_BANK.md Task 18) — an untouched target has no key here, same "absent means untouched"

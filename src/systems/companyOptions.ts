@@ -37,6 +37,8 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     masterVolume: firstMember.masterVolume,
     pan: firstMember.pan ?? 0,
     panAuto: firstMember.panAuto ?? true,
+    reverbSend: firstMember.reverbSend ?? 0,
+    delaySend: firstMember.delaySend ?? 0,
     rhythmicDensity: firstMember.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
     rhythmicMotifLength: firstMember.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
     noteVariance: firstMember.noteVariance ?? DEFAULT_NOTE_VARIANCE,

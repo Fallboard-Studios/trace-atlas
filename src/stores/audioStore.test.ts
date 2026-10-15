@@ -83,22 +83,18 @@ describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
     expect(AudioEngine.setGlobalCompressor).toHaveBeenCalled();
   });
 
-  it('seeds delay.wet quiet (0) for roughly 1-in-4 Attenuation Styles, not roughly all or none', async () => {
-    // Same statistical-spot-check style as globalAudioSeed.test.ts's own
-    // delay.wet test — a wide tolerance band instead of an exact count, to
-    // avoid flakiness while still clearly distinguishing this from "always
-    // quiet" or "never quiet". Replaces the old force-enabled-true override
-    // regression guard now that there's no separate enabled field.
+  it('lands the Reverb and Delay return levels at full (1) for every Attenuation Style - never a quiet 0', async () => {
+    // Robot Sends T6 (docs/specs/ROBOT_SENDS.md §1.2): the old ~1-in-4 quiet Delay roll moved to the robots
+    // (each robot's own delaySend), so the store's global wet is the rooms' fixed full return. Replaces the
+    // old statistical quiet-rate spot check, which can no longer be true.
     const { useAudioStore } = await import('./audioStore');
     const SAMPLE_ATTENUATION_STYLES = 40;
-    let quietCount = 0;
     for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
       useAudioStore.getState().regenerateGlobalAudioFromSeed(`store-delay-sample-${i}`, `StoreDelaySample${i}`);
-      if (useAudioStore.getState().globalAudio.delay.wet === 0) quietCount++;
+      const { delay, reverb } = useAudioStore.getState().globalAudio;
+      expect(delay.wet, `delay style ${i}`).toBe(1);
+      expect(reverb.wet, `reverb style ${i}`).toBe(1);
     }
-    const quietRate = quietCount / SAMPLE_ATTENUATION_STYLES;
-    expect(quietRate).toBeGreaterThan(0.05);
-    expect(quietRate).toBeLessThan(0.5);
   });
 
   it('fixes filterLPF/filterHPF type to their identity', async () => {

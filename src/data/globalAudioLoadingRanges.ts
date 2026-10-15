@@ -19,6 +19,9 @@ export interface LoadingRange {
   max: number;
 }
 
+// The two `wet` rows ('delay.wet', 'reverb.wet') are no longer sampled for the global rooms - those are a
+// fixed full return now (docs/specs/ROBOT_SENDS.md §1.2). The rows keep their keys and values because they are
+// the per-robot SEND bands: spawnSystem.ts generateRobotSends draws each robot's reverbSend / delaySend from them.
 export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, LoadingRange> = {
   'eq3.low': { min: -6, max: 6 },
   'eq3.mid': { min: -6, max: 6 },

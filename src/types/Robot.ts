@@ -176,6 +176,12 @@ export interface Robot {
    *  `pan` is ignored. False: `pan` is written to the panner and the tick leaves this robot alone.
    *  Only the panner is affected — the robot keeps moving either way. */
   panAuto: boolean;
+  /** Reverb send, 0…1 — how much of this robot's post-Volume signal enters the global Reverb room.
+   *  Seeded at spawn; the Reverb slider edits it. 0 = no reverb for this probe.
+   *  docs/specs/ROBOT_SENDS.md §1.1. */
+  reverbSend: number;
+  /** Delay send, 0…1 — as reverbSend, into the Delay room. */
+  delaySend: number;
   /** Docking state — see DockingState. Every robot has one from creation. */
   docking: DockingState;
   /**

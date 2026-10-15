@@ -36,7 +36,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume, applyPan, applyPanAuto,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -202,6 +202,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // audioSwells.ts's module-scope Map, which React does not track: each memo's deps are the robot field
   // a swell tick writes, so it recomputes at that moment even though the body never reads them.
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
+  const reverbSendSwelling = isRobotAttributeSwelling(robot.id, 'reverbSend');
+  const delaySendSwelling = isRobotAttributeSwelling(robot.id, 'delaySend');
   // Absent means no glide, today's sound (docs/specs/ROBOT_ARTICULATION.md assumption 1). A number, so the memo deps compare by value.
   const portamento = robot.audioAttributes.portamento ?? 0;
   const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
@@ -214,7 +216,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     masterVolume: robot.masterVolume,
     pan: robot.pan,
     panAuto: robot.panAuto,
-  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto]);
+    reverbSend: robot.reverbSend,
+    delaySend: robot.delaySend,
+  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto, robot.reverbSend, robot.delaySend]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -250,6 +254,17 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const handleVolumeChange = useCallback((pct: number) => {
     cancelSwellForRobotAttribute(latestRobot.current.id, 'volume');
     applyVolume(latestRobot.current, localeId, pct);
+  }, [localeId]);
+
+  // The sends are swell attributes (Task 12): a hand edit interrupts one first, the handleVolumeChange shape, so the
+  // typed value is the last write and the swell does not carry on over it.
+  const handleReverbSendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'reverbSend');
+    applyReverbSend(latestRobot.current, localeId, pct);
+  }, [localeId]);
+  const handleDelaySendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'delaySend');
+    applyDelaySend(latestRobot.current, localeId, pct);
   }, [localeId]);
 
   // Pan is not a swell attribute, so neither handler cancels one. Both read the latest robot, so the
@@ -309,7 +324,11 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onVolumeChange={handleVolumeChange}
             onPanChange={handlePanChange}
             onPanAutoChange={handlePanAutoChange}
+            onReverbSendChange={handleReverbSendChange}
+            onDelaySendChange={handleDelaySendChange}
             volumeSwelling={volumeSwelling}
+            reverbSendSwelling={reverbSendSwelling}
+            delaySendSwelling={delaySendSwelling}
           />
         );
       case 'rhythm':
@@ -369,6 +388,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     }
   }, [
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
+    handleReverbSendChange, handleDelaySendChange, reverbSendSwelling, delaySendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,

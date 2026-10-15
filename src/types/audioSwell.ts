@@ -13,19 +13,16 @@ import type { GlobalLfoTargetId } from './lfo';
 // ========================================
 
 /**
- * The 9 global-chain swell targets: every GlobalLfoTargetId (7) plus two new
- * ones — delay.wet and reverb.wet never got an lfoTarget (docs/AUDIO_SYSTEM.md's
- * LFO Modulation section, commit 508bd93) and still don't; this type is
- * intentionally NOT GlobalLfoTargetId itself, to keep that union's own
- * meaning ("has a real lfoEngine target") unchanged.
+ * The 7 global-chain swell targets: exactly the GlobalLfoTargetIds. There used to be two more, delay.wet and
+ * reverb.wet; those sliders became fixed full returns (docs/specs/ROBOT_SENDS.md §1.3), the depth of each
+ * robot's echo is its own reverbSend / delaySend now, and the swells move to those sends (assumption 13, §1.9).
  */
-export type SwellGlobalTargetId = GlobalLfoTargetId | 'delay.wet' | 'reverb.wet';
+export type SwellGlobalTargetId = GlobalLfoTargetId;
 
 export const SWELL_GLOBAL_TARGET_IDS: readonly SwellGlobalTargetId[] = [
   'eq3.low', 'eq3.mid', 'eq3.high',
   'lpf.frequency', 'lpf.Q',
   'hpf.frequency', 'hpf.Q',
-  'delay.wet', 'reverb.wet',
 ];
 
 // ========================================
@@ -33,11 +30,14 @@ export const SWELL_GLOBAL_TARGET_IDS: readonly SwellGlobalTargetId[] = [
 // ========================================
 
 /**
- * The 17 robot-scoped swell attributes: volume, every oscillator layer's
+ * The 19 robot-scoped swell attributes: volume, every oscillator layer's
  * gain/detune/phase/pulseWidth (layerN.phase included — see
  * docs/specs/AUDIO_SWELLS.md §1.3 for why phase is fine here even though it's
- * excluded from LFO/Drift) plus the 4 ADSR sub-fields, independently
- * eligible (confirmed via /interview-me — never one atomic "envelope" move).
+ * excluded from LFO/Drift), the 4 ADSR sub-fields, independently
+ * eligible (confirmed via /interview-me — never one atomic "envelope" move),
+ * and the robot's own reverbSend / delaySend (the swells that used to ramp the
+ * global delay.wet / reverb.wet; docs/specs/ROBOT_SENDS.md assumption 13).
+ * The sends are listed last so no earlier index-based pick shifts.
  *
  * Spelled out as its own union since 2026-09-30, no longer derived from
  * RobotLfoTargetId: that union dropped 'volume' and 'layerN.pulseWidth' as
@@ -54,7 +54,8 @@ export type SwellRobotAttributeId =
   | 'layer0.gain' | 'layer0.detune' | 'layer0.phase' | 'layer0.pulseWidth'
   | 'layer1.gain' | 'layer1.detune' | 'layer1.phase' | 'layer1.pulseWidth'
   | 'layer2.gain' | 'layer2.detune' | 'layer2.phase' | 'layer2.pulseWidth'
-  | 'adsr.attack' | 'adsr.decay' | 'adsr.sustain' | 'adsr.release';
+  | 'adsr.attack' | 'adsr.decay' | 'adsr.sustain' | 'adsr.release'
+  | 'reverbSend' | 'delaySend';
 
 export const SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId[] = [
   'volume',
@@ -62,6 +63,7 @@ export const SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId[] = [
   'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
   'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
   'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
+  'reverbSend', 'delaySend',
 ];
 
 // ========================================

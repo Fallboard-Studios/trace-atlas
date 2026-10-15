@@ -14,7 +14,8 @@ import { applyRobotLinkToEngine, primeRobotLinks } from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
-import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN } from '@/constants';
+import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
+import { clampSend } from '@/utils/clampSend';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
@@ -47,6 +48,36 @@ export function applyPan(robot: Robot, localeId: string, display: number): void 
   const value = Math.max(PAN_MIN, Math.min(PAN_MAX, display / PAN_DISPLAY_SCALE));
   useLocaleStore.getState().updateRobot(localeId, robot.id, { pan: value });
   AudioEngine.updateRobotPan(robot.id, value);
+}
+
+// Reverb and Delay sends display 0-100 % but store 0..1 (Robot.reverbSend / delaySend), the Volume split
+// (docs/specs/ROBOT_SENDS.md §1.5). A hand edit cancels a swell on the same robot at the CALLER (RobotScreen /
+// useCompanyOptions), exactly where handleVolumeChange does; the swell tick itself writes through these two
+// (via writeRobotValue), so the cancel cannot live here (it would cancel itself). A NaN display number is
+// dropped whole: neither the store nor the engine sees it.
+export function applyReverbSend(robot: Robot, localeId: string, pct: number): void {
+  applyReverbSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
+export function applyDelaySend(robot: Robot, localeId: string, pct: number): void {
+  applyDelaySendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
+// The stored-fraction form, for the swell tick (docs/tasks/ROBOT_SENDS.md Task 12). A display percent does not
+// round-trip every double (0.007 * 100 / 100 is not 0.007), and a swell must land on its base exactly, so the
+// tick hands the 0..1 fraction over directly. A NaN is dropped whole, as above.
+export function applyReverbSendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { reverbSend: value });
+  AudioEngine.updateRobotSends(robot.id, { reverb: value });
+}
+
+export function applyDelaySendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { delaySend: value });
+  AudioEngine.updateRobotSends(robot.id, { delay: value });
 }
 
 // Auto off: hold the SOUND where the robot is now — the engine's live auto value becomes `pan` in the same

@@ -39,11 +39,18 @@ vi.mock('@/components/panels/screen/useShell', async (importOriginal) => {
 // callbacks, so a wiring bug (wrong action, wrong argument) still shows here.
 // What the Levels stub saw, for the re-render and handler-identity cases (Robot Pan Task 9).
 const levelsStub = vi.hoisted(() => {
+  interface LevelsHandlers {
+    onPanChange: unknown;
+    onPanAutoChange: unknown;
+    onVolumeChange: unknown;
+    onReverbSendChange: (pct: number) => void;
+    onDelaySendChange: (pct: number) => void;
+  }
   const stub = {
     renders: 0,
-    last: null as null | { onPanChange: unknown; onPanAutoChange: unknown; onVolumeChange: unknown },
+    last: null as null | LevelsHandlers,
     // A method, not an assignment in the stub's render body: the React compiler's lint rejects mutating a value in render.
-    record(handlers: { onPanChange: unknown; onPanAutoChange: unknown; onVolumeChange: unknown }) {
+    record(handlers: LevelsHandlers) {
       stub.renders++;
       stub.last = handlers;
     },
@@ -56,15 +63,22 @@ const levelsStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean };
+    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean; reverbSend: number; delaySend: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
     onPanChange: (display: number) => void;
     onPanAutoChange: (auto: boolean) => void;
+    onReverbSendChange: (pct: number) => void;
+    onDelaySendChange: (pct: number) => void;
     livePan?: number;
     volumeSwelling?: boolean;
+    reverbSendSwelling?: boolean;
+    delaySendSwelling?: boolean;
   }) => {
-    levelsStub.record({ onPanChange: props.onPanChange, onPanAutoChange: props.onPanAutoChange, onVolumeChange: props.onVolumeChange });
+    levelsStub.record({
+      onPanChange: props.onPanChange, onPanAutoChange: props.onPanAutoChange, onVolumeChange: props.onVolumeChange,
+      onReverbSendChange: props.onReverbSendChange, onDelaySendChange: props.onDelaySendChange,
+    });
     return (
       <div
         data-testid="audio-setting-section-stub"
@@ -72,13 +86,21 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-master-volume={props.value.masterVolume}
         data-pan={props.value.pan}
         data-pan-auto={String(props.value.panAuto)}
+        data-reverb-send={props.value.reverbSend}
+        data-delay-send={props.value.delaySend}
+        data-has-send-handlers={String(typeof props.onReverbSendChange === 'function' && typeof props.onDelaySendChange === 'function')}
         data-live-pan={props.livePan}
+        data-volume-swelling={String(props.volumeSwelling)}
+        data-reverb-swelling={String(props.reverbSendSwelling)}
+        data-delay-swelling={String(props.delaySendSwelling)}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
         <button onClick={() => props.onPanChange(40)}>probe-pan</button>
         <button onClick={() => props.onPanAutoChange(false)}>probe-pan-auto-off</button>
         <button onClick={() => props.onPanAutoChange(true)}>probe-pan-auto-on</button>
+        <button onClick={() => props.onReverbSendChange(40)}>probe-reverb-send</button>
+        <button onClick={() => props.onDelaySendChange(40)}>probe-delay-send</button>
       </div>
     );
   }),
@@ -232,6 +254,7 @@ import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/ui
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
+import { AudioEngine } from '@/engine/AudioEngine';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
@@ -505,6 +528,330 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       fireEvent.click(screen.getByText('probe-volume'));
       expect(apply).toHaveBeenCalledWith(robot, localeId, 55);
       expect(cancel).toHaveBeenCalledWith(robot.id, 'volume');
+    });
+
+    // docs/tasks/ROBOT_SENDS.md Tasks 9-10: the screen passes the robot's stored sends and wires both handlers.
+    describe('Reverb and Delay sends', () => {
+      it("derives reverbSend and delaySend from the robot's own fields", () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.35, delaySend: 0.15 }), 'volume');
+        render(<RobotScreen />);
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-reverb-send')).toBe('0.35');
+        expect(stub.getAttribute('data-delay-send')).toBe('0.15');
+      });
+
+      it('a fully dry robot (both sends 0) reaches the section as 0 and 0, not as a missing value', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0, delaySend: 0 }), 'volume');
+        render(<RobotScreen />);
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-reverb-send')).toBe('0');
+        expect(stub.getAttribute('data-delay-send')).toBe('0');
+      });
+
+      it('follows the store: a send edited elsewhere reaches the section on the next render', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.6 }));
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-reverb-send')).toBe('0.6');
+        expect(stub.getAttribute('data-delay-send')).toBe('0.1');
+      });
+
+      it('hands the section both send handlers', () => {
+        selectRobot(makeRobot('r1'), 'volume');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-has-send-handlers')).toBe('true');
+      });
+
+      it('wires onReverbSendChange to applyReverbSend with the robot and the display number, once', () => {
+        const robot = makeRobot('r1', { reverbSend: 0.2 });
+        selectRobot(robot, 'volume');
+        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-reverb-send'));
+        expect(reverb).toHaveBeenCalledTimes(1);
+        expect(reverb).toHaveBeenCalledWith(robot, localeId, 40);
+        expect(delay).not.toHaveBeenCalled();
+      });
+
+      it('wires onDelaySendChange to applyDelaySend with the robot and the display number, once', () => {
+        const robot = makeRobot('r1', { delaySend: 0.1 });
+        selectRobot(robot, 'volume');
+        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-delay-send'));
+        expect(delay).toHaveBeenCalledTimes(1);
+        expect(delay).toHaveBeenCalledWith(robot, localeId, 40);
+        expect(reverb).not.toHaveBeenCalled();
+      });
+
+      it('the send handlers read the latest robot, not the one from the first render', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.1, delaySend: 0.1 }), 'volume');
+        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.7, delaySend: 0.3 }));
+        fireEvent.click(screen.getByText('probe-reverb-send'));
+        fireEvent.click(screen.getByText('probe-delay-send'));
+        expect(reverb.mock.calls[0][0]).toMatchObject({ id: 'r1', reverbSend: 0.7 });
+        expect(delay.mock.calls[0][0]).toMatchObject({ id: 'r1', delaySend: 0.3 });
+      });
+
+      // The real actions, nothing mocked but the engine: the store and the engine both receive the send.
+      it('a Reverb drag reaches the store as a 0..1 fraction and the engine as a reverb-only send', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
+        const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-reverb-send'));
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        expect(stored.reverbSend).toBe(0.4);
+        expect(stored.delaySend).toBe(0.1);
+        expect(engine).toHaveBeenCalledTimes(1);
+        expect(engine).toHaveBeenCalledWith('r1', { reverb: 0.4 });
+      });
+
+      it('a Delay drag reaches the store as a 0..1 fraction and the engine as a delay-only send', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
+        const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-delay-send'));
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        expect(stored.delaySend).toBe(0.4);
+        expect(stored.reverbSend).toBe(0.2);
+        expect(engine).toHaveBeenCalledWith('r1', { delay: 0.4 });
+      });
+
+      it('the screen shows the dragged value back: the store write re-derives the section value', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
+        vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-reverb-send'));
+        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-reverb-send')).toBe('0.4');
+      });
+
+      it.each([
+        ['over the top', 150, 1],
+        ['below zero', -5, 0],
+        ['exactly zero (fully dry)', 0, 0],
+        ['exactly full', 100, 1],
+      ] as const)('a Reverb drag %s stores and primes the clamped fraction', (_name, display, expected) => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.5 }), 'volume');
+        const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => levelsStub.last!.onReverbSendChange(display));
+        expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.reverbSend).toBe(expected);
+        expect(engine).toHaveBeenLastCalledWith('r1', { reverb: expected });
+      });
+
+      it('a Delay drag below zero stores 0, not a negative send', () => {
+        selectRobot(makeRobot('r1', { delaySend: 0.3 }), 'volume');
+        vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => levelsStub.last!.onDelaySendChange(-20));
+        expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.delaySend).toBe(0);
+      });
+
+      it('a NaN display number changes neither the store nor the engine', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.3, delaySend: 0.2 }), 'volume');
+        const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => {
+          levelsStub.last!.onReverbSendChange(NaN);
+          levelsStub.last!.onDelaySendChange(NaN);
+        });
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        expect(stored.reverbSend).toBe(0.3);
+        expect(stored.delaySend).toBe(0.2);
+        expect(engine).not.toHaveBeenCalled();
+      });
+
+      it('a fractional display number is kept, not truncated', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
+        vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => levelsStub.last!.onReverbSendChange(12.5));
+        expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.reverbSend).toBe(0.125);
+      });
+
+      it('a send drag on one robot leaves another robot untouched', () => {
+        useLocaleStore.getState().addRobot(localeId, makeRobot('r2', { reverbSend: 0.9, delaySend: 0.8 }));
+        selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
+        vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-reverb-send'));
+        const other = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r2')!;
+        expect(other.reverbSend).toBe(0.9);
+        expect(other.delaySend).toBe(0.8);
+      });
+
+      it('the send handlers keep their identity across an unrelated robot change, and the section does not re-render', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
+        render(<RobotScreen />);
+        const first = levelsStub.last!;
+        const sectionBefore = levelsStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+        expect(levelsStub.last!.onReverbSendChange).toBe(first.onReverbSendChange);
+        expect(levelsStub.last!.onDelaySendChange).toBe(first.onDelaySendChange);
+        expect(levelsStub.renders).toBe(sectionBefore);
+      });
+
+      // docs/tasks/ROBOT_SENDS.md Task 13 - the swell flags and the hand-edit cancel (the Volume shape).
+      describe('swell flags and the hand-edit cancel (Task 13)', () => {
+        const swellingOnly = (...attributes: string[]) =>
+          vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r1' && attributes.includes(attribute));
+        const flags = () => {
+          const stub = screen.getByTestId('audio-setting-section-stub');
+          return {
+            volume: stub.getAttribute('data-volume-swelling'),
+            reverb: stub.getAttribute('data-reverb-swelling'),
+            delay: stub.getAttribute('data-delay-swelling'),
+          };
+        };
+
+        it('with a swell on reverbSend the section gets reverb true, delay false and volume false', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          swellingOnly('reverbSend');
+          render(<RobotScreen />);
+          expect(flags()).toEqual({ volume: 'false', reverb: 'true', delay: 'false' });
+        });
+
+        it('with a swell on delaySend the section gets delay true, reverb false and volume false', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          swellingOnly('delaySend');
+          render(<RobotScreen />);
+          expect(flags()).toEqual({ volume: 'false', reverb: 'false', delay: 'true' });
+        });
+
+        it('with no swell all three flags are false, and with all three swelling all are true', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          const spy = swellingOnly();
+          const first = render(<RobotScreen />);
+          expect(flags()).toEqual({ volume: 'false', reverb: 'false', delay: 'false' });
+          first.unmount();
+
+          spy.mockImplementation((id, attribute) => id === 'r1' && ['volume', 'reverbSend', 'delaySend'].includes(attribute));
+          render(<RobotScreen />);
+          expect(flags()).toEqual({ volume: 'true', reverb: 'true', delay: 'true' });
+        });
+
+        it('asks about this robot only: a swell on another robot reads as no swell here', () => {
+          useLocaleStore.getState().addRobot(localeId, makeRobot('r2'));
+          selectRobot(makeRobot('r1'), 'volume');
+          vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r2' && attribute === 'reverbSend');
+          render(<RobotScreen />);
+          expect(flags().reverb).toBe('false');
+        });
+
+        it('the flag follows the swell as the tick writes the send: false, then true, then false', () => {
+          selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
+          const spy = swellingOnly();
+          render(<RobotScreen />);
+          expect(flags().reverb).toBe('false');
+
+          spy.mockImplementation((id, attribute) => id === 'r1' && attribute === 'reverbSend');
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.3 })); // a swell tick's write
+          expect(flags().reverb).toBe('true');
+
+          spy.mockImplementation(() => false);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.2 })); // the exact return to base
+          expect(flags().reverb).toBe('false');
+        });
+
+        it('a flag that flips while the screen re-renders for an unrelated field still reaches the section', () => {
+          selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
+          const spy = swellingOnly();
+          render(<RobotScreen />);
+          expect(flags().delay).toBe('false');
+
+          spy.mockImplementation((id, attribute) => id === 'r1' && attribute === 'delaySend');
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 5 })); // no send field changes
+          expect(flags()).toEqual({ volume: 'false', reverb: 'false', delay: 'true' });
+        });
+
+        it('a Reverb drag cancels the reverbSend swell on this robot, and only that one', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+          const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText('probe-reverb-send'));
+          expect(cancel).toHaveBeenCalledTimes(1);
+          expect(cancel).toHaveBeenCalledWith('r1', 'reverbSend');
+        });
+
+        it('a Delay drag cancels the delaySend swell on this robot, and only that one', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+          const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText('probe-delay-send'));
+          expect(cancel).toHaveBeenCalledTimes(1);
+          expect(cancel).toHaveBeenCalledWith('r1', 'delaySend');
+        });
+
+        it('the cancel runs before the apply, so the typed value is the last write', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          const order: string[] = [];
+          vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((_id, attribute) => { order.push(`cancel:${attribute}`); });
+          vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => { order.push('apply:reverb'); });
+          vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => { order.push('apply:delay'); });
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText('probe-reverb-send'));
+          fireEvent.click(screen.getByText('probe-delay-send'));
+          expect(order).toEqual(['cancel:reverbSend', 'apply:reverb', 'cancel:delaySend', 'apply:delay']);
+        });
+
+        it('mid-swell, a Reverb drag leaves the typed value in the store and the engine, not the swell value', () => {
+          selectRobot(makeRobot('r1', { reverbSend: 0.55 }), 'volume'); // 0.55 stands in for a value a swell tick just wrote
+          const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText('probe-reverb-send'));
+          expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.reverbSend).toBe(0.4);
+          expect(engine).toHaveBeenLastCalledWith('r1', { reverb: 0.4 });
+        });
+
+        it('the Volume handler still cancels only volume (unchanged)', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+          const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText('probe-volume'));
+          expect(cancel).toHaveBeenCalledTimes(1);
+          expect(cancel).toHaveBeenCalledWith('r1', 'volume');
+        });
+
+        it('the cancel reads the latest robot id, not the first render', () => {
+          selectRobot(makeRobot('r1'), 'volume');
+          vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+          const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+          render(<RobotScreen />);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.7 }));
+          fireEvent.click(screen.getByText('probe-reverb-send'));
+          expect(cancel).toHaveBeenCalledWith('r1', 'reverbSend');
+        });
+
+        it('the send handlers keep their identity when only a swell flag changes', () => {
+          selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
+          const spy = swellingOnly();
+          render(<RobotScreen />);
+          const first = levelsStub.last!;
+          spy.mockImplementation((id, attribute) => id === 'r1' && attribute === 'reverbSend');
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.3 }));
+          expect(levelsStub.last!.onReverbSendChange).toBe(first.onReverbSendChange);
+          expect(levelsStub.last!.onDelaySendChange).toBe(first.onDelaySendChange);
+        });
+      });
+
+      it('the value memo recomputes for a send change, once, and not for an unrelated one', () => {
+        selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
+        render(<RobotScreen />);
+        const before = levelsStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { delaySend: 0.5 }));
+        expect(levelsStub.renders).toBe(before + 1);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 5 }));
+        expect(levelsStub.renders).toBe(before + 1);
+      });
     });
 
     // docs/specs/ROBOT_PAN.md §1.5 — Pan and its Auto toggle (docs/tasks/ROBOT_PAN.md Task 9).

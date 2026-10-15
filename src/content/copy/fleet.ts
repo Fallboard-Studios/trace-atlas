@@ -171,10 +171,10 @@ export const fleet = {
       humanDescription: '<ul>'
         + '<li><strong>Reverb Length</strong>: how long the echo rings out after a sound plays.</li>'
         + '<li><strong>Pre-Delay</strong>: how long the echo waits before it starts, after the original sound.</li>'
-        + '<li><strong>Reverb Amount</strong>: how much of that echo you hear blended in with the original sound.</li>'
+        + '<li><strong>Reverb Amount</strong>: how loud the whole Reverb is, as heard from every probe. Each probe’s own Reverb slider decides how much of it that probe sends in; 0 silences the room.</li>'
         + '<li><strong>Delay Time</strong>: how long between the original sound and its first repeat.</li>'
         + '<li><strong>Repeats</strong>: how many times that repeat echoes back before fading out.</li>'
-        + '<li><strong>Delay Amount</strong>: how loud those repeats are, blended in with the original sound.</li>'
+        + '<li><strong>Delay Amount</strong>: how loud the whole Delay is, as heard from every probe. Each probe’s own Delay slider decides how much of it that probe sends in; 0 silences the repeats.</li>'
         + '</ul>',
     },
   },
@@ -194,7 +194,7 @@ export const fleet = {
   'fleet.reverb.amount': {
     human: 'Reverb Amount',
     lore: 'Diffusion Ratio',
-    help: { human: 'How much of the echo you hear blended in with the original sound. 0 turns the reverb off.' },
+    help: { human: 'How loud the whole Reverb is, as heard from every probe. Each probe’s own Reverb slider decides how much of it that probe sends in. 0 silences the room.' },
   },
   'fleet.delay': { human: 'Delay', lore: 'Retracing', heading: 'TEMPORAL REFLECTION MATRIX' },
   'fleet.delay.time': {
@@ -211,7 +211,7 @@ export const fleet = {
   'fleet.delay.amount': {
     human: 'Delay Amount',
     lore: 'Reflection Ratio',
-    help: { human: 'How loud the repeats are, blended in with the original sound. 0 turns the delay off.' },
+    help: { human: 'How loud the whole Delay is, as heard from every probe. Each probe’s own Delay slider decides how much of it that probe sends in. 0 silences the repeats.' },
   },
 
   // ---------------------------------------------------------------- Output
@@ -228,7 +228,7 @@ export const fleet = {
         + '<li><strong>Attack Time</strong>: how quickly the compressor reacts once a sound crosses the threshold.</li>'
         + '<li><strong>Release Time</strong>: how quickly the compressor lets go once the sound drops back below the threshold.</li>'
         + '<li><strong>Knee</strong>: how gradually the compressor eases into effect, rather than snapping on abruptly.</li>'
-        + '<li><strong>Decay Mode</strong>: Natural Decay lets Reverb’s and Delay’s echoes ring out uncompressed, after the Compressor. Controlled Decay compresses them too, keeping everything — echoes included — evened out.</li>'
+        + '<li><strong>Decay Mode</strong>: Natural Decay runs Reverb’s and Delay’s echoes through the Compressor along with the original sound, evening everything out together. Controlled Decay sends the echoes around it, so they ring out uncompressed with only the Limiter above them.</li>'
         + '</ul>'
         + '<p><strong>Limiter</strong>: a hard ceiling that keeps the loudest sounds from ever going too loud. <strong>Ceiling</strong> sets the maximum volume nothing is allowed to pass.</p>',
     },
@@ -270,7 +270,7 @@ export const fleet = {
       natural: { human: 'Natural Decay', lore: 'Dissipation' },
       controlled: { human: 'Controlled Decay', lore: 'Clamped' },
     },
-    help: { human: 'Whether the compressor also evens out the echoes. Natural Decay lets Reverb’s and Delay’s echoes ring out uncompressed; Controlled Decay compresses them too.' },
+    help: { human: 'Whether the compressor also evens out the echoes. Natural Decay runs Reverb’s and Delay’s echoes through the compressor; Controlled Decay sends them around it, so they ring out uncompressed.' },
   },
   'fleet.limiter': { human: 'Limiter', lore: 'Reduction', heading: 'TERMINAL CEILING GATE' },
   'fleet.limiter.ceiling': {
