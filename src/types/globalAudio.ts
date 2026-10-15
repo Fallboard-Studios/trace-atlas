@@ -93,6 +93,8 @@ export interface BitCrusherSettings {
 /** The Phaser Rate control's full range (Hz), which is also the Free | Sync clamp. Zero is excluded: a
  *  stopped phaser is a fixed notch, not "off" - Mix 0 is off. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
 export const PHASER_RATE_RANGE_HZ = { min: 0.05, max: 10 } as const;
+/** The Phaser Rate slider's draggable step; also the grid a Sync -> Free conversion quantises onto. */
+export const PHASER_RATE_STEP_HZ = 0.05;
 
 /** Auto Wah: Tone.AutoWah, an envelope follower sweeping a bandpass. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
 export interface AutoWahSettings {
