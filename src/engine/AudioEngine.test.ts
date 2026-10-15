@@ -2463,12 +2463,23 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     expect(last(Tone.AutoWah).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
   });
 
-  it('constructs exactly one Phaser', async () => {
+  // start() builds the chain (one Phaser, at the default ten stages) and then pushes the seeded settings. A seeded Phaser
+  // always has 4-8 stages, never ten, so that push rebuilds the node once before anything is playing: two
+  // constructions at most, the first at ten stages, the second at the seeded count. (buildGlobalFxChain alone builds
+  // exactly one; globalFx.test.ts pins that.)
+  it('builds the Phaser at ten stages, then at most once more at the seeded stage count', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.Phaser).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
-    expect(Tone.Phaser).toHaveBeenCalledTimes(1);
+    const calls = vi.mocked(Tone.Phaser).mock.calls as unknown as Array<[{ stages: number }]>;
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    expect(calls.length).toBeLessThanOrEqual(2);
+    expect(calls[0][0].stages).toBe(10);
+    if (calls.length === 2) {
+      expect(calls[1][0].stages).toBeGreaterThanOrEqual(4);
+      expect(calls[1][0].stages).toBeLessThanOrEqual(8);
+    }
   });
 
   it('exposes setGlobalPhaser', async () => {
@@ -2487,9 +2498,13 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     expect(last(Tone.Phaser).octaves).toBe(4);
     expect(last(Tone.Phaser).frequency.rampTo).toHaveBeenCalledWith(2, 0.05);
 
-    AudioEngine.setGlobalPhaser({ stages: 5 });
-    expect(Tone.Phaser).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: 5, octaves: 4, frequency: 2 });
+    // A count the live node does not have (the seeded one is whatever start() pushed), so this must rebuild.
+    const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
+    const target = liveStages === 5 ? 6 : 5;
+    const before = vi.mocked(Tone.Phaser).mock.calls.length;
+    AudioEngine.setGlobalPhaser({ stages: target });
+    expect(Tone.Phaser).toHaveBeenCalledTimes(before + 1);
+    expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: target, octaves: 4, frequency: 2 });
   });
 });
 

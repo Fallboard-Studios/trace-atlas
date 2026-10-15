@@ -4,7 +4,7 @@
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
-import { getSeededVal } from './getSeededVal';
+import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { pickLane } from './lfoLaneDraw';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
@@ -48,7 +48,13 @@ export function scaleUnitValue(t: number, range: SeedRange): number {
   return range.min + (range.max - range.min) * clamped;
 }
 
-function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey): number {
+/**
+ * `uniform` draws the position with getUniformSeededVal instead of one getSeededVal sample. One sample at offset 0 is
+ * bell-curved and takes only a few dozen to a few hundred distinct values across all worlds (three, for some keys), so a
+ * field that must FILL its band uses the uniform draw (Global Modulation T7: autoWah.gain and autoWah.wet took 3 distinct
+ * values over 3 000 styles, phaser.wet 24). Every pre-existing field keeps the plain draw, so no existing value moves.
+ */
+function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey, uniform = false): number {
   // Sample within the narrower LOADING range (initial-seed sub-window), but
   // honor the full range's log/linear scale — GLOBAL_AUDIO_LOADING_RANGES
   // doesn't carry its own `scale`, it's purely a narrower min/max over the
@@ -56,7 +62,7 @@ function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey): n
   const range: SeedRange = { ...GLOBAL_AUDIO_LOADING_RANGES[key], scale: GLOBAL_AUDIO_SEED_RANGES[key].scale };
   // getSeededVal handles the seeded noise → [0, 1] draw; scaleUnitValue owns
   // range + log/linear mapping, so the two concerns stay separately testable.
-  const t = getSeededVal(noiseMap, `globalAudio.${key}`, 0, 0, 1);
+  const t = uniform ? getUniformSeededVal(noiseMap, `globalAudio.${key}`) : getSeededVal(noiseMap, `globalAudio.${key}`, 0, 0, 1);
   const value = scaleUnitValue(t, range);
   const { step } = GLOBAL_AUDIO_SEED_RANGES[key];
   // Quantized against the FULL range's own min, never the narrower loading
@@ -118,6 +124,27 @@ export function pickColourCharacter(t: number): ColourCharacter {
 }
 
 /**
+ * The edges of the two pedals' lit rolls (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.2): a pedal is lit when its roll falls
+ * under its edge, so each lights in about a third of fresh worlds. The rolls are UNIFORM draws (getUniformSeededVal), so a
+ * nominal edge is the realised share and nothing here needed fitting. They are separate keys, so the two pedals are
+ * independent of each other and of the Colour character draw.
+ *
+ * Measured over 20 000 styles ('PedalCalibration<n>'): AutoWah lit 33.07 %, Phaser lit 33.30 %, both lit 11.22 % (product
+ * 11.01 %); each pedal lit alongside a lit Colour 24.95 % / 25.09 % against products of 24.95 % / 25.12 %. The tests
+ * hold the shares to within 3 points on a different set ('PedalShare<n>', 3 000 styles). The plain single draw
+ * (getSeededVal at offset 0) was measured first and rejected: autoWah.lit took 24 distinct values across 20 000 styles,
+ * and a lit wah landed in 55.9 % of worlds with a clean Colour against 26.8 % of coloured ones. If the targets move
+ * (Crawford's listen, roadmap 50.4 T16), change the edge and re-measure the same way.
+ */
+export const PEDAL_LIT_EDGE: Record<'autoWah' | 'phaser', number> = { autoWah: 1 / 3, phaser: 1 / 3 };
+
+/**
+ * The share of LIT Phasers that seed Sync rather than Free: the sync roll falls under this (spec assumption 8). A dark
+ * Phaser never seeds Sync. Measured 50.20 % of 6 660 lit Phasers over the same 20 000 styles; the roll is uniform.
+ */
+export const PHASER_SYNC_ODDS = 0.5;
+
+/**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
  * Attenuation Style noise map — a new direct sample; previously that map was only
  * used to derive locale maps (see PROCEDURAL_GENERATION.md).
@@ -137,20 +164,23 @@ export function pickColourCharacter(t: number): ColourCharacter {
  * The three colour blocks are the exception to "a real, audible value": one
  * character draw (COLOUR_CHARACTERS) lights none or exactly one of the nodes and
  * the rest seed `wet` 0, so a fresh world is clean or a little coloured in one way.
+ *
+ * The two modulation pedals are the same kind of exception, each on its own roll (PEDAL_LIT_EDGE): about a third of
+ * worlds light each, independently. A dark pedal seeds `wet` 0 and still draws every other field from its band; a lit
+ * Phaser seeds Sync in about half of worlds (PHASER_SYNC_ODDS), with the note drawn from the lit rate band.
  */
 export function generateGlobalAudioSettings(attenuationStyleId: string, attenuationStyleName: string): GlobalAudioSettings {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const defaults = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+  // The tempo the Delay and the Phaser snap their Sync notes to. Drawn lazily and once: a style with neither anchored
+  // never draws it, exactly as before.
+  let styleBpm: number | undefined;
+  const bpm = (): number => (styleBpm ??= generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName));
   const delaySyncModeT = getSeededVal(noiseMap, 'globalAudio.delay.syncMode', 0, 0, 1);
   const delaySyncNoteT = getSeededVal(noiseMap, 'globalAudio.delay.syncNote', 0, 0, 1);
   const delaySync =
     delaySyncModeT < DELAY_SYNC_ODDS
-      ? pickSeedNoteValue(
-          delaySyncNoteT,
-          generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName),
-          [GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime']],
-          'seconds',
-        )
+      ? pickSeedNoteValue(delaySyncNoteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime']], 'seconds')
       : undefined;
 
   // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
@@ -160,6 +190,20 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   const distortionWet = sampleField(noiseMap, 'distortion.wet');
   const chebyshevWet = sampleField(noiseMap, 'chebyshev.wet');
   const bitCrusherWet = sampleField(noiseMap, 'bitCrusher.wet');
+
+  // Modulation: four roll draws, then the thirteen value draws, ALL read on every style, lit or dark, so the draw set
+  // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why).
+  const autoWahLit = getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah;
+  const phaserLit = getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser;
+  const phaserSyncModeT = getUniformSeededVal(noiseMap, 'globalAudio.phaser.syncMode');
+  const phaserSyncNoteT = getUniformSeededVal(noiseMap, 'globalAudio.phaser.syncNote');
+  const autoWahWet = sampleField(noiseMap, 'autoWah.wet', true);
+  const phaserWet = sampleField(noiseMap, 'phaser.wet', true);
+  // A dark Phaser is Free (no `sync` key), like a Free lane; an empty band leaves a lit one Free too.
+  const phaserSync =
+    phaserLit && phaserSyncModeT < PHASER_SYNC_ODDS
+      ? pickSeedNoteValue(phaserSyncNoteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES['phaser.rate']], 'hz')
+      : undefined;
 
   return {
     compressorBeforeDelay: defaults.compressorBeforeDelay,
@@ -210,10 +254,24 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       bits: sampleField(noiseMap, 'bitCrusher.bits'),
       wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
     },
-    // Modulation T1 placeholder: both pedals stay at their dry defaults until T7 draws them
-    // (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.2).
-    autoWah: { ...defaults.autoWah },
-    phaser: { ...defaults.phaser },
+    autoWah: {
+      baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency', true),
+      octaves: sampleField(noiseMap, 'autoWah.octaves', true),
+      sensitivity: sampleField(noiseMap, 'autoWah.sensitivity', true),
+      Q: sampleField(noiseMap, 'autoWah.Q', true),
+      gain: sampleField(noiseMap, 'autoWah.gain', true),
+      follower: sampleField(noiseMap, 'autoWah.follower', true),
+      wet: autoWahLit ? autoWahWet : 0,
+    },
+    phaser: {
+      rate: sampleField(noiseMap, 'phaser.rate', true),
+      octaves: sampleField(noiseMap, 'phaser.octaves', true),
+      baseFrequency: sampleField(noiseMap, 'phaser.baseFrequency', true),
+      stages: sampleField(noiseMap, 'phaser.stages', true),
+      Q: sampleField(noiseMap, 'phaser.Q', true),
+      wet: phaserLit ? phaserWet : 0,
+      ...(phaserSync !== undefined && { sync: phaserSync }),
+    },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },
