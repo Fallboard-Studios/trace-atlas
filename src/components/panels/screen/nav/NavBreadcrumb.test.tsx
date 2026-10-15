@@ -91,6 +91,15 @@ describe('NavBreadcrumb — the path, from navActions', () => {
     expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.timeSpace'].human} / ${CONTENT['fleet.delay'].human}`);
   });
 
+  it('reads Colour and its effects: Colour opens on Distortion, then follows the sub-tab', () => {
+    setNav({ activeHubTile: 'audioRig' });
+    render(<NavBreadcrumb />);
+    act(() => useUIStore.getState().setFleetParamsSection('colour'));
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.colour'].human} / ${CONTENT['fleet.distortion'].human}`);
+    act(() => useUIStore.getState().setFleetParamsSubsection('bitCrusher'));
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.colour'].human} / ${CONTENT['fleet.bitCrusher'].human}`);
+  });
+
   it('reads a robot by its name, with its section', () => {
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     render(<NavBreadcrumb />);

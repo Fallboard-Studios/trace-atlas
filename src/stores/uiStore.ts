@@ -10,13 +10,15 @@ import type { AudioRigEffectKey } from '@/data/audioRigConfig';
  *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
 export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
-/** Fleet Params' 5 mid-level groups (`lfoBank` added by docs/tasks/LFO_BANK.md Task 15,
+/** Fleet Params' 6 mid-level groups (`lfoBank` added by docs/tasks/LFO_BANK.md Task 15,
  *  positioned right after `pacing`, replacing the former `fleetDrift` group entirely — not a
- *  rename, a different control) — used to type-narrow a tree node id segment (useNavTree.ts's
- *  `asFleetParamsGroup`), not to back any expand-tracking store field: all 5 are always expanded
- *  once Fleet Params itself is expanded (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) —
- *  there is no independent per-group toggle state anymore. */
-export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'output';
+ *  rename, a different control; `colour` added by docs/tasks/GLOBAL_COLOUR.md Task 9, between
+ *  `timeSpace` and `output`, the chain order) — used to type-narrow a tree node id segment
+ *  (useNavTree.ts's `asFleetParamsGroup`), not to back any expand-tracking store field: all 6 are
+ *  always expanded once Fleet Params itself is expanded
+ *  (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) — there is no independent per-group
+ *  toggle state anymore. */
+export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'colour' | 'output';
 /** Settings' three tabs — Audio Quality, Seeds, Save & Share (docs/specs/LAYOUT_REWORK.md §1.8).
  *  Settings isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc
  *  comment), so it needs its own field rather than reusing selectedSection; SettingsScreen reads it
