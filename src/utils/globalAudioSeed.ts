@@ -77,11 +77,12 @@ const DELAY_SYNC_ODDS = 0.66;
 
 /**
  * The colour character a fresh world draws (docs/specs/GLOBAL_COLOUR.md §1.2): which of Distortion, Chebyshev and
- * BitCrusher it lights. One draw decides it, not three independent rolls, because three rolls cannot give the shape
- * asked for (most worlds light one node, a few two, a share stay clean): at any per-node odds the one-node share
- * peaks at 44 % with 30 % clean and 22 % two-node. Three-node worlds never occur; by hand any node goes to full.
+ * BitCrusher it lights. One draw decides it, not three independent rolls, because independent rolls light two or three
+ * nodes in a share of worlds. AT MOST ONE node is on in any world (Crawford, Global Colour T14, 2026-10-15): the spec
+ * first drew three pair characters too (about 15 % of worlds), and they were dropped, their share going to the singles.
+ * By hand any node goes to full.
  */
-export const COLOUR_CHARACTERS = ['clean', 'drive', 'fold', 'crush', 'driveFold', 'driveCrush', 'foldCrush'] as const;
+export const COLOUR_CHARACTERS = ['clean', 'drive', 'fold', 'crush'] as const;
 export type ColourCharacter = (typeof COLOUR_CHARACTERS)[number];
 export type ColourNode = 'distortion' | 'chebyshev' | 'bitCrusher';
 
@@ -91,9 +92,6 @@ export const COLOUR_CHARACTER_NODES: Record<ColourCharacter, readonly ColourNode
   drive: ['distortion'],
   fold: ['chebyshev'],
   crush: ['bitCrusher'],
-  driveFold: ['distortion', 'chebyshev'],
-  driveCrush: ['distortion', 'bitCrusher'],
-  foldCrush: ['chebyshev', 'bitCrusher'],
 };
 
 /**
@@ -104,13 +102,13 @@ export const COLOUR_CHARACTER_NODES: Record<ColourCharacter, readonly ColourNode
  * distinct values, the largest holding ~1 % of styles - so an edge parked on a quantile can land either side of an
  * atom and move a share by half a point. Each edge is therefore the midpoint of the gap between two atoms whose
  * cumulative share is nearest the target (gaps are at least 0.0004 wide, so four decimals stay inside them).
- * Realised over those 20 000 styles ('ColourCalibration<n>'): clean 25.2, drive 20.0, fold 20.0, crush 20.0,
- * driveFold 4.6, driveCrush 5.1, foldCrush 5.1 % (targets 25 / 20 / 20 / 20 / 5 / 5 / 5). The test in
+ * Realised over those 20 000 styles ('ColourCalibration<n>'): clean 25.2, drive 24.9, fold 25.2, crush 24.7 %
+ * (targets 25 / 25 / 25 / 25; the cumulative targets 25 / 50 / 75 fall in gaps 0.00056, 0.00673 and 0.00056 wide). The test in
  * globalAudioSeed.test.ts holds them to within 3 points on a different set ('ColourShare<n>', 3 000 styles); that set
- * measured 24.8 / 20.4 / 21.0 / 19.3 / 4.8 / 4.5 / 5.1 %. If the targets move (Crawford's listen, roadmap 50.3 T14),
+ * measured 24.8 / 25.5 / 25.6 / 24.0 % with no world lighting two nodes. If the targets move (Crawford's listen, roadmap 50.3 T14),
  * refit the same way.
  */
-export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.3065, 0.4546, 0.6589, 0.7281, 0.7515, 0.8714, 1];
+export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.3065, 0.5, 0.6935, 1];
 
 /** The character a seeded draw `t` in [0, 1] picks. Out-of-range draws clamp to the ends and a non-finite one is clean. */
 export function pickColourCharacter(t: number): ColourCharacter {
@@ -137,8 +135,8 @@ export function pickColourCharacter(t: number): ColourCharacter {
  * are gone).
  *
  * The three colour blocks are the exception to "a real, audible value": one
- * character draw (COLOUR_CHARACTERS) lights none, one or two of the nodes and
- * the rest seed `wet` 0, so a fresh world is clean or a little coloured.
+ * character draw (COLOUR_CHARACTERS) lights none or exactly one of the nodes and
+ * the rest seed `wet` 0, so a fresh world is clean or a little coloured in one way.
  */
 export function generateGlobalAudioSettings(attenuationStyleId: string, attenuationStyleName: string): GlobalAudioSettings {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);

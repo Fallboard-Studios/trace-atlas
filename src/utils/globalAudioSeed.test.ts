@@ -290,19 +290,22 @@ describe('the colour character (Global Colour)', () => {
   });
 
   describe('COLOUR_CHARACTERS and COLOUR_CHARACTER_NODES', () => {
-    it('names seven characters: clean, three singles and three pairs', () => {
-      expect([...COLOUR_CHARACTERS]).toStrictEqual(['clean', 'drive', 'fold', 'crush', 'driveFold', 'driveCrush', 'foldCrush']);
+    // Crawford, T14 (2026-10-15): at most one colour effect is on per world at load. The three pair characters the
+    // spec first drew (about 15 % of worlds) are gone; their share went to the singles.
+    it('names four characters: clean and one per effect, with no pair', () => {
+      expect([...COLOUR_CHARACTERS]).toStrictEqual(['clean', 'drive', 'fold', 'crush']);
     });
 
-    it('lights the nodes each name says, and never all three', () => {
+    it('lights the node each name says, and never more than one', () => {
       expect(COLOUR_CHARACTER_NODES.clean).toStrictEqual([]);
       expect(COLOUR_CHARACTER_NODES.drive).toStrictEqual(['distortion']);
       expect(COLOUR_CHARACTER_NODES.fold).toStrictEqual(['chebyshev']);
       expect(COLOUR_CHARACTER_NODES.crush).toStrictEqual(['bitCrusher']);
-      expect(COLOUR_CHARACTER_NODES.driveFold).toStrictEqual(['distortion', 'chebyshev']);
-      expect(COLOUR_CHARACTER_NODES.driveCrush).toStrictEqual(['distortion', 'bitCrusher']);
-      expect(COLOUR_CHARACTER_NODES.foldCrush).toStrictEqual(['chebyshev', 'bitCrusher']);
-      for (const c of COLOUR_CHARACTERS) expect(COLOUR_CHARACTER_NODES[c].length, c).toBeLessThan(3);
+      for (const c of COLOUR_CHARACTERS) expect(COLOUR_CHARACTER_NODES[c].length, c).toBeLessThanOrEqual(1);
+    });
+
+    it('has no entry for a pair character (a stale key would let a pair come back unnoticed)', () => {
+      expect(Object.keys(COLOUR_CHARACTER_NODES)).toStrictEqual(['clean', 'drive', 'fold', 'crush']);
     });
   });
 
@@ -336,8 +339,8 @@ describe('the colour character (Global Colour)', () => {
     it('clamps the extremes: 0 and below is clean, 1 and above is the last character', () => {
       expect(pickColourCharacter(0)).toBe('clean');
       expect(pickColourCharacter(-5)).toBe('clean');
-      expect(pickColourCharacter(1)).toBe('foldCrush');
-      expect(pickColourCharacter(7)).toBe('foldCrush');
+      expect(pickColourCharacter(1)).toBe('crush');
+      expect(pickColourCharacter(7)).toBe('crush');
     });
 
     it('treats a non-finite draw as clean rather than lighting a node by accident', () => {
@@ -425,25 +428,31 @@ describe('the colour character (Global Colour)', () => {
       expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.2);
     });
 
-    it('never lights all three nodes', () => {
-      for (let i = 0; i < 300; i++) {
-        expect(litNodes(generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`)).length, `style ${i}`).toBeLessThan(3);
+    it('lights at most one node in any world, over 3000 styles (never two, never three)', () => {
+      let one = 0;
+      let none = 0;
+      for (let i = 0; i < 3000; i++) {
+        const id = `colour-one-${i}`;
+        const lit = litNodes(generateGlobalAudioSettings(id, `ColourOne${i}`)).length;
+        evictAttenuationStyleNoiseMap(id);
+        expect(lit, `style ${i}`).toBeLessThanOrEqual(1);
+        if (lit === 1) one++;
+        else none++;
       }
+      expect(one, 'the sample really contained lit worlds').toBeGreaterThan(1500);
+      expect(none, 'and clean ones').toBeGreaterThan(300);
     });
 
     // The raw draw is bell-curved and discrete (see COLOUR_CHARACTER_BANDS), so the nominal edges
     // 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 gave 10 / 34 / 18 / 30 / 4 / 4 / 0 %. The edges were fitted on styles
     // named 'ColourCalibration<n>'; this test samples a different set, so it is a hold-out check and not a
     // restatement of the fit.
-    it('realises the target shares over 3000 hold-out styles, within 3 points: clean 25, each single 20, each pair 5', () => {
+    it('realises the target shares over 3000 hold-out styles, within 3 points: clean 25 and each single 25', () => {
       const TARGET: Record<(typeof COLOUR_CHARACTERS)[number], number> = {
         clean: 25,
-        drive: 20,
-        fold: 20,
-        crush: 20,
-        driveFold: 5,
-        driveCrush: 5,
-        foldCrush: 5,
+        drive: 25,
+        fold: 25,
+        crush: 25,
       };
       const N = 3000;
       const counts = new Map<string, number>();
@@ -1107,6 +1116,14 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // Distortion's, 0.05 to 0.15 (Distortion stays 0.10 to 0.25), so formula 0.05 + 0.10 * t on the same draws: alpha
 // chebyshev 0.0981 -> 0.10; alpha bitCrusher 0.1307 -> 0.13; theta bitCrusher 0.0997 -> 0.10. These two lines replace
 // the 0.17 / 0.22 / 0.17 above; no distortion value is lit in either oracle.
+//
+// AMENDED A THIRD TIME, same task (Crawford: at most one effect on per world at load): the three pair characters were
+// dropped and the edges refitted to 0.3065 / 0.5 / 0.6935 / 1 (clean, drive, fold, crush at about 25 % each), so the
+// two draws that fell in the old pair bands moved band. Derived by hand from the same raw draws: alpha t = 0.9060 is at
+// or above 0.6935 -> crush (it was foldCrush), so only BitCrusher is lit: bitCrusher.wet 0.05 + 0.10 * 0.8067 = 0.1307
+// -> 0.13, and chebyshev.wet is now 0 (was 0.10). theta t = 0.6879 lies in [0.5, 0.6935) -> fold (it was crush), so only
+// Chebyshev is lit: chebyshev.wet 0.05 + 0.10 * 0.2596 = 0.0760 -> 0.08, and bitCrusher.wet is now 0 (was 0.10). Every
+// shape value is unchanged: a node outside the lit set still draws its shape.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1126,9 +1143,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: 3.5, mid: 3.5, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
       filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
-      // Global Colour T5: this style draws the foldCrush character (Chebyshev + BitCrusher lit, Distortion dry).
+      // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
       distortion: { amount: 0.32, wet: 0 },
-      chebyshev: { order: 4, wet: 0.1 },
+      chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.13 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
@@ -1149,10 +1166,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: -3.5, mid: -3.5, high: -3.5 },
       filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
       filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
-      // Global Colour T5: this style draws the crush character (BitCrusher lit; the others dry, their shape still drawn).
+      // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
       distortion: { amount: 0.26, wet: 0 },
-      chebyshev: { order: 3, wet: 0 },
-      bitCrusher: { bits: 8, wet: 0.1 },
+      chebyshev: { order: 3, wet: 0.08 },
+      bitCrusher: { bits: 8, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },
