@@ -408,6 +408,23 @@ describe('the colour character (Global Colour)', () => {
       }
     });
 
+    // Crawford, T14 (2026-10-15): no colour Mix above 0.25 on load. The property is on the real seeder, not just the
+    // table, so a future change to the draw or the quantiser cannot slip a loud Mix past a correct band.
+    it('never seeds a colour Mix above 0.25, lit or not, over 3000 styles', () => {
+      let litSeen = 0;
+      let highest = 0;
+      for (let i = 0; i < 3000; i++) {
+        const s = generateGlobalAudioSettings(`colour-ceiling-${i}`, `ColourCeiling${i}`);
+        for (const node of NODE_KEYS) {
+          highest = Math.max(highest, s[node].wet);
+          expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(0.25);
+          if (s[node].wet > 0) litSeen += 1;
+        }
+      }
+      expect(litSeen, 'the sample really contained lit nodes').toBeGreaterThan(1000);
+      expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.2);
+    });
+
     it('never lights all three nodes', () => {
       for (let i = 0; i < 300; i++) {
         expect(litNodes(generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`)).length, `style ${i}`).toBeLessThan(3);
@@ -1078,6 +1095,13 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // and the six colour keys were read for each style (alpha t = 0.906 -> foldCrush; theta t = 0.688 -> crush), each
 // shape value was mapped into its loading band and quantised onto the full range's grid (min + n * step), and a
 // node outside the character's lit set got wet 0. No pre-existing value in either oracle was touched.
+//
+// AMENDED BY HAND, Global Colour T14 (2026-10-15, Crawford: no colour Mix above 0.25 on load): the three lit colour
+// wets moved because their loading bands moved (all three are now 0.10 to 0.25). Derived by hand from the same raw
+// draws, band formula 0.10 + 0.15 * t quantised onto the 0.01 grid: alpha chebyshev t = 0.4810 -> 0.1722 -> 0.17
+// (was 0.27); alpha bitCrusher t = 0.8067 -> 0.2210 -> 0.22 (was 0.35); theta bitCrusher t = 0.4971 -> 0.1746 -> 0.17
+// (was 0.27). The same formula on the old 0.15 to 0.40 band reproduces the old values, which is the check that the
+// draws were read correctly. Every other value, including each shape value and each unlit wet, is untouched.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1099,8 +1123,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
       // Global Colour T5: this style draws the foldCrush character (Chebyshev + BitCrusher lit, Distortion dry).
       distortion: { amount: 0.32, wet: 0 },
-      chebyshev: { order: 4, wet: 0.27 },
-      bitCrusher: { bits: 9, wet: 0.35000000000000003 },
+      chebyshev: { order: 4, wet: 0.17 },
+      bitCrusher: { bits: 9, wet: 0.22 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -1123,7 +1147,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Colour T5: this style draws the crush character (BitCrusher lit; the others dry, their shape still drawn).
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0 },
-      bitCrusher: { bits: 8, wet: 0.27 },
+      bitCrusher: { bits: 8, wet: 0.17 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

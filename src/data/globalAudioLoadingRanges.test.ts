@@ -35,11 +35,11 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'limiter.threshold': { min: -3, max: -1 },
   // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14.
   'distortion.amount': { min: 0.1, max: 0.35 },
-  'distortion.wet': { min: 0.25, max: 0.5 },
+  'distortion.wet': { min: 0.1, max: 0.25 },
   'chebyshev.order': { min: 2, max: 5 },
-  'chebyshev.wet': { min: 0.15, max: 0.4 },
+  'chebyshev.wet': { min: 0.1, max: 0.25 },
   'bitCrusher.bits': { min: 6, max: 10 },
-  'bitCrusher.wet': { min: 0.15, max: 0.4 },
+  'bitCrusher.wet': { min: 0.1, max: 0.25 },
 };
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
@@ -75,6 +75,20 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
       expect(GLOBAL_AUDIO_LOADING_RANGES[key].min, key).toBeGreaterThan(0);
     }
+  });
+
+  // Crawford, T14 (2026-10-15): "don't allow any of the new color mixes to exceed .25 on load". A fresh world
+  // seeds the Mix as a slider position, so the ceiling is on the band the seed draws from. Saved sessions and
+  // share links carry whatever was hand-set and are not clamped to it.
+  it('never lets a seeded colour Mix exceed 0.25: every colour wet band tops out at or below it', () => {
+    for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].max, key).toBeLessThanOrEqual(0.25);
+    }
+  });
+
+  it('keeps the colour wet bands off the ceiling check only for the three Mix fields (the ceiling does not leak onto other wet bands)', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max).toBeGreaterThan(0.25);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max).toBeGreaterThan(0);
   });
 
   it('never has min >= max for any field', () => {

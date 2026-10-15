@@ -19,6 +19,12 @@ export interface LoadingRange {
   max: number;
 }
 
+/** The most a fresh world may seed any colour Mix to, as a slider position (Crawford, Global Colour T14, 2026-10-15:
+ *  "don't allow any of the new color mixes to exceed .25 on load"). The Mix is tapered at the node (squared), so a seeded
+ *  Mix of this size is a wet of at most 0.0625. Saved sessions and share links carry whatever was hand-set and are not
+ *  clamped to it. */
+export const COLOUR_LOAD_MIX_MAX = 0.25;
+
 // The two `wet` rows ('delay.wet', 'reverb.wet') are no longer sampled for the global rooms - those are a
 // fixed full return now (docs/specs/ROBOT_SENDS.md §1.2). The rows keep their keys and values because they are
 // the per-robot SEND bands: spawnSystem.ts generateRobotSends draws each robot's reverbSend / delaySend from them.
@@ -49,11 +55,12 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   'limiter.threshold': { min: -3, max: -1 },
 
   // Global Colour (docs/specs/GLOBAL_COLOUR.md assumption 7): the bands a LIT node draws from; an unlit node
-  // keeps its shape value from the same band and a `wet` of 0. Placeholders, tuned by ear in T14.
+  // keeps its shape value from the same band and a `wet` of 0. The three `wet` bands were set at T14: all 0.10 to
+  // COLOUR_LOAD_MIX_MAX (0.25).
   'distortion.amount': { min: 0.1, max: 0.35 },
-  'distortion.wet': { min: 0.25, max: 0.5 },
+  'distortion.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
   'chebyshev.order': { min: 2, max: 5 },
-  'chebyshev.wet': { min: 0.15, max: 0.4 },
+  'chebyshev.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
   'bitCrusher.bits': { min: 6, max: 10 },
-  'bitCrusher.wet': { min: 0.15, max: 0.4 },
+  'bitCrusher.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
 };
