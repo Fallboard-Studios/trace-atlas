@@ -94,6 +94,11 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'chebyshev', content: 'fleet.chebyshev' },
     { id: 'bitCrusher', content: 'fleet.bitCrusher' },
   ],
+  // Chain order (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 3, wah first): the two modulation pedals.
+  modulation: [
+    { id: 'autoWah', content: 'fleet.autoWah' },
+    { id: 'phaser', content: 'fleet.phaser' },
+  ],
   output: [
     { id: 'compressor', content: 'fleet.compressor' },
     { id: 'limiter', content: 'fleet.limiter' },
@@ -116,6 +121,7 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   eqFilters: 'fleet.eqFilters',
   timeSpace: 'fleet.timeSpace',
   colour: 'fleet.colour',
+  modulation: 'fleet.modulation',
   output: 'fleet.output',
 };
 

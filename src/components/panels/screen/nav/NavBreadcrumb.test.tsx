@@ -100,6 +100,15 @@ describe('NavBreadcrumb — the path, from navActions', () => {
     expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.colour'].human} / ${CONTENT['fleet.bitCrusher'].human}`);
   });
 
+  it('reads Modulation and its pedals: Modulation opens on Auto Wah, then follows the sub-tab', () => {
+    setNav({ activeHubTile: 'audioRig' });
+    render(<NavBreadcrumb />);
+    act(() => useUIStore.getState().setFleetParamsSection('modulation'));
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.modulation'].human} / ${CONTENT['fleet.autoWah'].human}`);
+    act(() => useUIStore.getState().setFleetParamsSubsection('phaser'));
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.modulation'].human} / ${CONTENT['fleet.phaser'].human}`);
+  });
+
   it('reads a robot by its name, with its section', () => {
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     render(<NavBreadcrumb />);

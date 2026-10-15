@@ -471,10 +471,14 @@ describe('breadcrumbPath', () => {
     ['timeSpace', 'delay', [CONTENT['fleet.timeSpace'].human, CONTENT['fleet.delay'].human]],
     ['colour', null, [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
     ['colour', 'bitCrusher', [CONTENT['fleet.colour'].human, CONTENT['fleet.bitCrusher'].human]],
+    ['modulation', null, [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
+    ['modulation', 'phaser', [CONTENT['fleet.modulation'].human, CONTENT['fleet.phaser'].human]],
     ['output', 'limiter', [CONTENT['fleet.output'].human, CONTENT['fleet.limiter'].human]],
     // A colour sub-tab left over on another group reads as that group's first, and vice versa.
     ['eqFilters', 'chebyshev', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
     ['colour', 'delay', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
+    ['modulation', 'bitCrusher', [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
+    ['colour', 'phaser', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
     // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
     ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
   ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
@@ -669,23 +673,28 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(ids('eqFilters')).toEqual(['eq3', 'filterHPF', 'filterLPF']);
     expect(ids('timeSpace')).toEqual(['reverb', 'delay']);
     expect(ids('colour')).toEqual(['distortion', 'chebyshev', 'bitCrusher']);
+    expect(ids('modulation')).toEqual(['autoWah', 'phaser']);
     expect(ids('output')).toEqual(['compressor', 'limiter']);
   });
 
-  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Output', () => {
-    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'output']);
-    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'output']);
+  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output', () => {
+    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output']);
+    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output']);
   });
 
   it('names the Colour group from fleet.colour', () => {
     expect(FLEET_PARAMS_GROUP_CONTENT.colour).toBe('fleet.colour');
   });
 
+  it('names the Modulation group from fleet.modulation', () => {
+    expect(FLEET_PARAMS_GROUP_CONTENT.modulation).toBe('fleet.modulation');
+  });
+
   it('names each sub-tab with the concept its panel is built from', () => {
     const lanes = FLEET_PARAMS_SUBSECTIONS.lfoBank.map((sub) => sub.content);
     expect(lanes).toEqual([LFO_BANK_LANE_CONTENT.a, LFO_BANK_LANE_CONTENT.b, LFO_BANK_LANE_CONTENT.c, LFO_BANK_LANE_CONTENT.d]);
     // The effect panels' headings come from the same entries (audioRigConfig's panelSchema).
-    for (const group of ['eqFilters', 'timeSpace', 'colour', 'output'] as const) {
+    for (const group of ['eqFilters', 'timeSpace', 'colour', 'modulation', 'output'] as const) {
       for (const sub of FLEET_PARAMS_SUBSECTIONS[group]) {
         const block = AUDIO_RIG_CONFIG.find((b) => b.key === (sub.id as AudioRigEffectKey));
         expect(block, sub.id).toBeDefined();
@@ -696,9 +705,9 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
   });
 
   // Blocks a plan adds ahead of the group that shows them, each exempt only while no group lists it
-  // (the content guard's AWAITING_CONSUMER shape). Global Modulation T9 adds the AutoWah and Phaser blocks;
-  // T10 adds the group, and the self-cleaning test below then fails until this list is emptied.
-  const AWAITING_GROUP: readonly string[] = ['autoWah', 'phaser'];
+  // (the content guard's AWAITING_CONSUMER shape). Empty between plans: Global Modulation T9 added the
+  // AutoWah and Phaser blocks here and T10's Modulation group took them in.
+  const AWAITING_GROUP: readonly string[] = [];
 
   it('covers every effect block once, in exactly one group', () => {
     const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
@@ -724,6 +733,9 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['colour', null, 'distortion'],
     ['colour', 'bitCrusher', 'bitCrusher'],
     ['colour', 'laneC', 'distortion'],
+    ['modulation', null, 'autoWah'],
+    ['modulation', 'phaser', 'phaser'],
+    ['modulation', 'distortion', 'autoWah'],
     ['output', 'limiter', 'limiter'],
     // Not this group's: its first, as SectionTabs falls back for a stale value.
     ['output', 'laneC', 'compressor'],

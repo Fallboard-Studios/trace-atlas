@@ -65,6 +65,7 @@ const GROUPS: readonly [FleetParamsGroup, keyof typeof CONTENT, Trait][] = [
   ['eqFilters', 'fleet.eqFilters', 'spectral'],
   ['timeSpace', 'fleet.timeSpace', 'timeSpace'],
   ['colour', 'fleet.colour', 'colour'],
+  ['modulation', 'fleet.modulation', 'spectral'],
   ['output', 'fleet.output', 'output'],
 ];
 const LANES: readonly LfoLaneId[] = ['a', 'b', 'c', 'd'];
@@ -97,11 +98,12 @@ describe('FleetParamsScreen — the default view', () => {
     expect(screen.queryByRole('slider')).toBeNull();
   });
 
-  it('the section row is the six groups in order, Colour between Time & Space and Output, each trigger in its trait colour', () => {
+  it('the section row is the seven groups in order, Colour then Modulation between Time & Space and Output, each trigger in its trait colour', () => {
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toEqual(GROUPS.map(([, key]) => human(key)));
-    expect(tabNames(sectionRow())).toHaveLength(6);
+    expect(tabNames(sectionRow())).toHaveLength(7);
     expect(tabNames(sectionRow()).indexOf(human('fleet.colour'))).toBe(4);
+    expect(tabNames(sectionRow()).indexOf(human('fleet.modulation'))).toBe(5);
     const tabs = within(sectionRow()).getAllByRole('tab');
     GROUPS.forEach(([, , trait], i) => {
       const expected = getTraitColorStyle(trait) as Record<string, string>;
@@ -208,6 +210,8 @@ describe('FleetParamsScreen — switching tabs', () => {
     ['timeSpace', 'filterLPF', 'reverb'],
     ['colour', 'limiter', 'distortion'],
     ['eqFilters', 'bitCrusher', 'eq3'],
+    ['modulation', 'distortion', 'autoWah'],
+    ['colour', 'phaser', 'distortion'],
   ])('a sub-tab left from another group (%s with %s) shows the group\'s first, without a store write', (group, stale, shown) => {
     useUIStore.setState({ fleetParamsSection: group, fleetParamsSubsection: stale });
     render(<FleetParamsScreen />);
@@ -391,6 +395,19 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
     expect(crumb()).toBe(path(human('fleet.pacing')));
   });
 
+  it('reads Modulation and its pedals: picking the tab, then Phaser', () => {
+    render(
+      <>
+        <FleetParamsScreen />
+        <NavBreadcrumb />
+      </>,
+    );
+    pick(human('fleet.modulation'));
+    expect(crumb()).toBe(path(human('fleet.modulation'), human('fleet.autoWah')));
+    pick(human('fleet.phaser'));
+    expect(crumb()).toBe(path(human('fleet.modulation'), human('fleet.phaser')));
+  });
+
   it('reads Colour and its effect: picking the tab, then Bit Crusher', () => {
     render(
       <>
@@ -440,6 +457,57 @@ describe('FleetParamsScreen — the Colour section (Global Colour T9)', () => {
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toContain(human('fleet.colour'));
     expect(tabNames(subRow('fleet.colour'))).toHaveLength(3);
+  });
+});
+
+describe('FleetParamsScreen — the Modulation section (Global Modulation T10)', () => {
+  it('shows the two pedals as its sub-tabs, in chain order, opening on Auto Wah', () => {
+    useUIStore.setState({ fleetParamsSection: 'modulation', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    expect(tabNames(subRow('fleet.modulation'))).toEqual([human('fleet.autoWah'), human('fleet.phaser')]);
+    expect(selectedTab(subRow('fleet.modulation')).textContent).toBe(human('fleet.autoWah'));
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['autoWah']);
+  });
+
+  it('each sub-tab mounts exactly its own effect panel, and nothing else', () => {
+    render(<FleetParamsScreen />);
+    pick(human('fleet.modulation'));
+    for (const [name, key] of [['fleet.phaser', 'phaser'], ['fleet.autoWah', 'autoWah']] as const) {
+      pick(human(name));
+      expect(useUIStore.getState().fleetParamsSubsection).toBe(key);
+      expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual([key]);
+      expect(mountedPanels()).toHaveLength(1);
+    }
+  });
+
+  it('the Modulation tab and its sub-tab triggers wear the spectral trait, not the Colour trait', () => {
+    useUIStore.setState({ fleetParamsSection: 'modulation', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    const spectral = getTraitColorStyle('spectral') as Record<string, string>;
+    const colour = getTraitColorStyle('colour') as Record<string, string>;
+    expect(spectral['--color-accent']).not.toBe(colour['--color-accent']);
+    for (const tab of within(subRow('fleet.modulation')).getAllByRole('tab')) {
+      expect(tab.style.getPropertyValue('--color-accent')).toBe(spectral['--color-accent']);
+    }
+  });
+
+  it('opening Modulation after a Colour sub-tab choice still lands on Auto Wah', () => {
+    useUIStore.setState({ fleetParamsSection: 'colour', fleetParamsSubsection: 'bitCrusher' });
+    render(<FleetParamsScreen />);
+    pick(human('fleet.modulation'));
+    expect(selectedTab(subRow('fleet.modulation')).textContent).toBe(human('fleet.autoWah'));
+  });
+
+  it('on the phone shell the Modulation tab is there too, with the same two sub-tabs', () => {
+    shell.set('phone');
+    useUIStore.setState({ fleetParamsSection: 'modulation', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    expect(tabNames(sectionRow())).toContain(human('fleet.modulation'));
+    expect(tabNames(subRow('fleet.modulation'))).toHaveLength(2);
+  });
+
+  it('the default section is still the LFO Bank, so Modulation is a tab you open, not the landing view', () => {
+    expect(useUIStore.getState().fleetParamsSection).not.toBe('modulation');
   });
 });
 
