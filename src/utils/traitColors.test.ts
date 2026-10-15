@@ -16,6 +16,25 @@ describe('TRAIT_COLORS', () => {
     expect(TRAIT_COLORS.company).toEqual([ACCENT_COLORS.blue, ACCENT_COLORS.plum]);
     expect(TRAIT_COLORS.seed).toEqual([ACCENT_COLORS.rosewood, ACCENT_COLORS.dustyRose]);
     expect(TRAIT_COLORS.header).toEqual([ACCENT_COLORS.teal, ACCENT_COLORS.green]);
+    expect(TRAIT_COLORS.colour).toEqual([ACCENT_COLORS.red, ACCENT_COLORS.tangerine]);
+  });
+
+  it('gives the colour trait a pair no other trait shares, in either order (it sits beside Output, so it must be told apart)', () => {
+    const key = (pair: [string, string]) => [...pair].sort().join('|');
+    const colourKey = key(TRAIT_COLORS.colour);
+    for (const trait of TRAIT_IDS) {
+      if (trait === 'colour') continue;
+      expect(key(TRAIT_COLORS[trait]), trait).not.toBe(colourKey);
+    }
+  });
+
+  it('draws the colour pair only from swatches no other trait uses, so no tab shares a hue with it', () => {
+    for (const trait of TRAIT_IDS) {
+      if (trait === 'colour') continue;
+      for (const swatch of TRAIT_COLORS.colour) {
+        expect(TRAIT_COLORS[trait], trait).not.toContain(swatch);
+      }
+    }
   });
 
   it('every pair is 2 distinct colors, never a trait paired with itself', () => {
@@ -50,6 +69,15 @@ describe('getTraitColorStyle', () => {
       '--color-accent-b': ACCENT_COLORS.orange,
       '--color-accent': `color-mix(in srgb, ${ACCENT_COLORS.burntOrange} 50%, ${ACCENT_COLORS.orange} 50%)`,
       '--color-accent-gradient': `linear-gradient(135deg, ${ACCENT_COLORS.burntOrange}, ${ACCENT_COLORS.orange})`,
+    });
+  });
+
+  it('sets all 4 accent properties for the colour trait from red and tangerine', () => {
+    expect(getTraitColorStyle('colour')).toEqual({
+      '--color-accent-a': ACCENT_COLORS.red,
+      '--color-accent-b': ACCENT_COLORS.tangerine,
+      '--color-accent': `color-mix(in srgb, ${ACCENT_COLORS.red} 50%, ${ACCENT_COLORS.tangerine} 50%)`,
+      '--color-accent-gradient': `linear-gradient(135deg, ${ACCENT_COLORS.red}, ${ACCENT_COLORS.tangerine})`,
     });
   });
 
