@@ -4,7 +4,7 @@
 
 **"Natural Decay" (default):** both returns rejoin the dry chain at the Compressor's input.
 
-**"Controlled Decay"** (user toggle, `compressorBeforeDelay: true`): the same dry chain, but both returns rejoin it at the Limiter's input, so the echoes skip the Compressor. (The in-app Decay Mode copy describes the opposite of this wiring — a pre-existing mismatch Robot Sends left alone; see `docs/AUDIO_SYSTEM.md`.) Robot voice busses always connect in at EQ (3-band) — it's first in both topologies — and tap their sends off the bus filter, ahead of it.
+**"Controlled Decay"** (user toggle, `compressorBeforeDelay: true`): the same dry chain, but both returns rejoin it at the Limiter's input, so the echoes skip the Compressor. (The in-app Decay Mode copy says the same; it was corrected to this wiring after Robot Sends — see `docs/AUDIO_SYSTEM.md`.) Robot voice busses always connect in at EQ (3-band) — it's first in both topologies — and tap their sends off the bus filter, ahead of it.
 
 **This table is the source of truth for both ranges every field carries:**
 - **Unit / Range** — the full range: what the UI slider exposes and what the app itself supports. Verified directly against Tone.js v15.1.22's own source (`@min`/`@max` doc comments where Tone documents them; its own reference-range prose where it doesn't) — see the notes at the bottom.

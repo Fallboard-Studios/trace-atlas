@@ -170,9 +170,10 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
 // ========================================
 
 /**
- * A two-option radio, not a toggle — 'natural' leaves Compressor after
- * Delay+Reverb (their tails ring out uncompressed, the default); 'controlled'
- * moves Compressor before both, tightening them. The drawer converts to/from
+ * A two-option radio, not a toggle — 'natural' rejoins the Reverb and Delay
+ * returns at the Compressor's input (their echoes are compressed with the dry
+ * sound, the default); 'controlled' rejoins them at the Limiter's input (their
+ * echoes skip the Compressor). The drawer converts to/from
  * globalAudio.compressorBeforeDelay's boolean at the wiring point; the radio
  * schema itself only ever deals in these two string values.
  */

@@ -75,8 +75,8 @@ export interface LimiterSettings {
  * Top-level global audio settings: single source of truth for FX state.
  */
 export interface GlobalAudioSettings {
-  /** false = Natural Decay (Compressor after Delay+Reverb, tails ring out uncompressed).
-   *  true = Controlled Decay (Compressor moved before both Delay and Reverb). Not seeded —
+  /** false = Natural Decay (the Reverb and Delay returns rejoin at the Compressor's input, so their echoes are compressed).
+   *  true = Controlled Decay (the returns rejoin at the Limiter's input, so their echoes skip the Compressor). Not seeded —
    *  always starts false; only a direct user toggle changes it. */
   compressorBeforeDelay: boolean;
   reverb: ReverbSettings;

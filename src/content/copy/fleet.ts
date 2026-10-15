@@ -228,7 +228,7 @@ export const fleet = {
         + '<li><strong>Attack Time</strong>: how quickly the compressor reacts once a sound crosses the threshold.</li>'
         + '<li><strong>Release Time</strong>: how quickly the compressor lets go once the sound drops back below the threshold.</li>'
         + '<li><strong>Knee</strong>: how gradually the compressor eases into effect, rather than snapping on abruptly.</li>'
-        + '<li><strong>Decay Mode</strong>: Natural Decay lets Reverb’s and Delay’s echoes ring out uncompressed, after the Compressor. Controlled Decay compresses them too, keeping everything — echoes included — evened out.</li>'
+        + '<li><strong>Decay Mode</strong>: Natural Decay runs Reverb’s and Delay’s echoes through the Compressor along with the original sound, evening everything out together. Controlled Decay sends the echoes around it, so they ring out uncompressed with only the Limiter above them.</li>'
         + '</ul>'
         + '<p><strong>Limiter</strong>: a hard ceiling that keeps the loudest sounds from ever going too loud. <strong>Ceiling</strong> sets the maximum volume nothing is allowed to pass.</p>',
     },
@@ -270,7 +270,7 @@ export const fleet = {
       natural: { human: 'Natural Decay', lore: 'Dissipation' },
       controlled: { human: 'Controlled Decay', lore: 'Clamped' },
     },
-    help: { human: 'Whether the compressor also evens out the echoes. Natural Decay lets Reverb’s and Delay’s echoes ring out uncompressed; Controlled Decay compresses them too.' },
+    help: { human: 'Whether the compressor also evens out the echoes. Natural Decay runs Reverb’s and Delay’s echoes through the compressor; Controlled Decay sends them around it, so they ring out uncompressed.' },
   },
   'fleet.limiter': { human: 'Limiter', lore: 'Reduction', heading: 'TERMINAL CEILING GATE' },
   'fleet.limiter.ceiling': {

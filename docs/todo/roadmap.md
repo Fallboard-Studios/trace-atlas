@@ -1605,8 +1605,8 @@ original starting point, not what shipped: read "As built" first.
   was deleted). They are relabelled "Reverb Amount" / "Delay Amount" with help text saying so. Their two Loading Range bands
   (`0.1–0.4`, `0–0.3`) were kept and now seed each robot's send.
 - **Both Decay Modes keep their wiring-level behaviour** by changing only where the returns rejoin the dry chain: the Compressor's
-  input for Natural, the Limiter's for Controlled. The in-app Decay Mode copy describes the *opposite* of that wiring and always
-  did; it was not touched. **Open question for Crawford:** fix the copy, or flip the wiring to match it (spec §7, point 2).
+  input for Natural, the Limiter's for Controlled. The in-app Decay Mode copy described the *opposite* of that wiring and always
+  did; **resolved afterwards by correcting the copy to the wiring** (Crawford's call: the sound is unchanged; spec §7, point 2).
 - **A seeded spread, with a quiet-Delay trait.** Reverb seeds in `0.1–0.4`; Delay in `0–0.3` with a roll under
   `SEND_DELAY_QUIET_THRESHOLD` (0.25) giving exactly `0`. The spec and plan say "about a quarter"; the roll's noise sample is
   bell-curved, so in practice it is **about 17–18 %** of robots (measured over four seeds × 2000 offsets). The threshold was left
@@ -1628,7 +1628,7 @@ original starting point, not what shipped: read "As built" first.
 - **Nothing on the gem reads a send**, pinned by the guard test's source scan.
 - **Corrected here:** the spec said the diagnostic's pre-chain tap "no longer includes echoes". It never did (EQ3's output fed
   only the LPF in the old serial chain too), so the diagnostic docs now say the chain changed and the taps did not.
-- **Still open:** the lore words (Remoteness, Retrace Depth) are placeholders; the Decay Mode copy question above; whether the
+- **Still open:** the lore words (Remoteness, Retrace Depth) are placeholders; whether the
   swell is too heavy a wash (the follow-up, only if asked, is a `SEND_SWELL_UPWARD_CEILING` through `clampSwellCeiling`); the HUD
   underrun counts and the desktop `npm run perf` comparison.
 
