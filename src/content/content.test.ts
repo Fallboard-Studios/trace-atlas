@@ -12,7 +12,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { CONTENT, CONTENT_AREAS, fill, labels, optionsRecord, type ContentKey } from './index';
+import { CONTENT, CONTENT_AREAS, fill, introProps, labels, optionsRecord, type ContentKey } from './index';
 import type { ContentEntry } from './types';
 import * as audioRigConfig from '@/data/audioRigConfig';
 import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
@@ -49,7 +49,20 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  Exempt from the unreferenced check only while they are still unreferenced: the moment a consumer
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
-const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {};
+const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
+  // docs/tasks/GLOBAL_COLOUR.md Task 7 adds the Colour copy ahead of its readers: Task 8 (the rig blocks)
+  // reads the effect headings and the six parameters, Task 9 (the tab) reads the group.
+  'fleet.distortion': 'GLOBAL_COLOUR T8',
+  'fleet.distortion.drive': 'GLOBAL_COLOUR T8',
+  'fleet.distortion.mix': 'GLOBAL_COLOUR T8',
+  'fleet.chebyshev': 'GLOBAL_COLOUR T8',
+  'fleet.chebyshev.harmonics': 'GLOBAL_COLOUR T8',
+  'fleet.chebyshev.mix': 'GLOBAL_COLOUR T8',
+  'fleet.bitCrusher': 'GLOBAL_COLOUR T8',
+  'fleet.bitCrusher.bits': 'GLOBAL_COLOUR T8',
+  'fleet.bitCrusher.mix': 'GLOBAL_COLOUR T8',
+  'fleet.colour': 'GLOBAL_COLOUR T9',
+};
 
 describe('content guard', () => {
   it('every key is referenced from src/ outside src/content', () => {
@@ -358,5 +371,83 @@ describe('roster and company detail copy', () => {
     expect(CONTENT['probe.all'].short).toBe('All');
     expect(CONTENT['nav.entity.newCompany'].short).toBe('+');
     expect(labels('probe.all')).not.toHaveProperty('short');
+  });
+});
+
+// ----------------------------------------
+// GLOBAL COLOUR COPY (docs/specs/GLOBAL_COLOUR.md §1.6; docs/tasks/GLOBAL_COLOUR.md Task 7)
+// ----------------------------------------
+// The Colour tab's words: the group, its three effects and their six parameters. The sentences are
+// placeholders for Crawford's copy pass (spec assumption 14), so these pin the structure — every name,
+// a lore word, help of its own, the unit, an intro that covers all three effects — never the wording.
+
+const COLOUR_EFFECTS = ['fleet.distortion', 'fleet.chebyshev', 'fleet.bitCrusher'] as const;
+const COLOUR_PARAMS = [
+  'fleet.distortion.drive', 'fleet.distortion.mix',
+  'fleet.chebyshev.harmonics', 'fleet.chebyshev.mix',
+  'fleet.bitCrusher.bits', 'fleet.bitCrusher.mix',
+] as const;
+
+describe('global colour copy', () => {
+  it('the group, the three effects and the six parameters all exist', () => {
+    for (const k of ['fleet.colour', ...COLOUR_EFFECTS, ...COLOUR_PARAMS] as const) {
+      expect(CONTENT[k], k).toBeDefined();
+    }
+  });
+
+  it.each(['fleet.colour', ...COLOUR_EFFECTS] as const)('%s has a name, a lore word and a panel heading or intro', (key) => {
+    const entry = CONTENT[key] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    if (key === 'fleet.colour') expect(entry.intro).toBeDefined();
+    else expect(entry.heading?.trim()).toBeTruthy();
+  });
+
+  it.each(COLOUR_PARAMS)('%s has a name, a lore word and help, so its slider can carry a "?"', (key) => {
+    const entry = CONTENT[key] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    expect(entry.help?.human.trim()).toBeTruthy();
+    expect(labels(key).help?.human.trim()).toBeTruthy();
+  });
+
+  it('the three Mix sliders share a name but carry their own lore and their own help (never one shared description)', () => {
+    const mixes = ['fleet.distortion.mix', 'fleet.chebyshev.mix', 'fleet.bitCrusher.mix'] as const;
+    expect(new Set(mixes.map((k) => CONTENT[k].human)).size).toBe(1);
+    expect(new Set(mixes.map((k) => CONTENT[k].lore)).size).toBe(3);
+    expect(new Set(mixes.map((k) => CONTENT[k].help?.human)).size).toBe(3);
+  });
+
+  it('the three effects carry distinct names, lore words and headings', () => {
+    const entries = COLOUR_EFFECTS.map((k) => CONTENT[k] as ContentEntry);
+    expect(new Set(entries.map((e) => e.human)).size).toBe(3);
+    expect(new Set(entries.map((e) => e.lore)).size).toBe(3);
+    expect(new Set(entries.map((e) => e.heading)).size).toBe(3);
+  });
+
+  it('the bit depth slider reads in bits, with room before the unit like " measures"', () => {
+    const { unit } = labels('fleet.bitCrusher.bits');
+    expect(unit?.trim()).toBe('bits');
+    expect(unit?.startsWith(' ')).toBe(true);
+  });
+
+  it('only the bit depth slider carries a unit — drive, harmonics and the Mix sliders are unitless', () => {
+    for (const k of COLOUR_PARAMS.filter((p) => p !== 'fleet.bitCrusher.bits')) {
+      expect((CONTENT[k] as ContentEntry).unit, k).toBeUndefined();
+    }
+  });
+
+  it('the group intro has both voices and its human description names every effect (in the eqFilters list shape)', () => {
+    const props = introProps('fleet.colour');
+    expect(props.loreLabel.trim()).toBeTruthy();
+    expect(props.loreDescription.trim()).toBeTruthy();
+    for (const k of COLOUR_EFFECTS) {
+      expect(props.humanDescription, k).toContain(`<strong>${CONTENT[k].human}</strong>`);
+    }
+    expect(props.humanDescription).toContain('<ul>');
+  });
+
+  it('the group name is the one the tab and the breadcrumb show', () => {
+    expect(labels('fleet.colour').humanLabel).toBe('Colour');
   });
 });

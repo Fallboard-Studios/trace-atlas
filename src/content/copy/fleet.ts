@@ -214,6 +214,58 @@ export const fleet = {
     help: { human: 'How loud the whole Delay is, as heard from every probe. Each probe’s own Delay slider decides how much of it that probe sends in. 0 silences the repeats.' },
   },
 
+  // ---------------------------------------------------------------- Colour (docs/specs/GLOBAL_COLOUR.md §1.6)
+  // Placeholders for Crawford's copy pass (spec assumption 14): the "degraded transmission" frame carries
+  // the lore, and the lore words are the ones the grid (docs/reference/GLOBAL_CHAIN_GRID.md) already lists.
+  'fleet.colour': {
+    human: 'Colour',
+    lore: 'Signal Wear',
+    intro: {
+      lore: 'Colour — what the long way home does to a signal.',
+      loreDescription: 'A signal that crosses Meridia Comms Group’s Undersea Mesh Network arrives a little worn. Every fleet carries some wear of its own, and the network lets you turn it up or wipe it clean.',
+      humanDescription: '<ul>'
+        + '<li><strong>Distortion</strong>: pushes the sound until it overdrives, adding warmth, fuzz and grit.</li>'
+        + '<li><strong>Chebyshev</strong>: adds extra overtones on top of the sound, from a faint shimmer to a bright, buzzy edge.</li>'
+        + '<li><strong>Bit Crusher</strong>: throws away detail from the sound, making it grainy and lo-fi, like an old digital recording.</li>'
+        + '</ul>'
+        + '<p>Each effect has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. They act on the fleet’s direct sound; Reverb and Delay echoes stay clean. Every new world starts with a little of one effect, or none.</p>',
+    },
+  },
+  'fleet.distortion': { human: 'Distortion', lore: 'Carrier Bleed', heading: 'CARRIER BLEED STAGE' },
+  'fleet.distortion.drive': {
+    human: 'Drive',
+    lore: 'Bleed Gain',
+    help: { human: 'How hard the sound is pushed into the overdrive. Low values add a gentle warmth and fuzz; high values give a thick, gritty distortion. You only hear it as far as Mix lets it in.' },
+  },
+  'fleet.distortion.mix': {
+    human: 'Mix',
+    lore: 'Bleed Ratio',
+    help: { human: 'How much of the distorted sound is blended in with the clean sound. At 0 the sound stays clean; raise it to hear more of the distortion.' },
+  },
+  'fleet.chebyshev': { human: 'Chebyshev', lore: 'Overtone Fold', heading: 'OVERTONE FOLD STAGE' },
+  'fleet.chebyshev.harmonics': {
+    human: 'Harmonics',
+    lore: 'Fold Order',
+    help: { human: 'How many layers of extra overtones are folded into the sound. 1 changes nothing; higher numbers add more shimmering, bell-like or buzzy pitches, and odd and even numbers have different characters.' },
+  },
+  'fleet.chebyshev.mix': {
+    human: 'Mix',
+    lore: 'Fold Ratio',
+    help: { human: 'How much of the overtone-folded sound is blended in with the original. At 0 the sound is unchanged; raise it to hear the extra overtones.' },
+  },
+  'fleet.bitCrusher': { human: 'Bit Crusher', lore: 'Quantise Loss', heading: 'QUANTISE LOSS STAGE' },
+  'fleet.bitCrusher.bits': {
+    human: 'Bit Depth',
+    lore: 'Quantise Depth',
+    unit: ' bits',
+    help: { human: 'How much detail the sound keeps, in bits. 16 is close to the original; lower numbers get grainier and rougher, and 1 is extremely harsh. You only hear it as far as Mix lets it in.' },
+  },
+  'fleet.bitCrusher.mix': {
+    human: 'Mix',
+    lore: 'Loss Ratio',
+    help: { human: 'How much of the crushed sound is blended in with the clean sound. At 0 the sound stays clean; raise it to hear the grain.' },
+  },
+
   // ---------------------------------------------------------------- Output
   'fleet.output': {
     human: 'Output',
