@@ -1713,6 +1713,67 @@ Phone gate: a follower is a few nodes; Phaser's `stages` multiplies allpass filt
 all three of its nodes, so "chosen in the interview" and "whichever is not chosen moves to backlog 22" above no longer apply.
 The cost notes stand for each, and the phone gate covers both.
 
+**Interviewed 2026-10-15**, intent at [global-modulation-pedal.md](../intent/global-modulation-pedal.md): both pedals after Colour on the dry
+chain, every parameter exposed, Phaser Rate with Free | Sync, a tab of their own between Colour and Output on the `spectral` trait,
+each lit in about a third of fresh worlds independently of Colour, Mix tapered like Colour's.
+
+**Status: built 2026-10-15 on `feature/palette-modulation`, PR pending** (intent [global-modulation-pedal.md](../intent/global-modulation-pedal.md),
+spec [GLOBAL_MODULATION_COLOUR.md](../specs/GLOBAL_MODULATION_COLOUR.md), plan [GLOBAL_MODULATION_COLOUR.md](../tasks/GLOBAL_MODULATION_COLOUR.md);
+tasks T1–T13, T14 (partial), T16 and T17 committed; T0 and T15b not done; guard test `src/docs/globalModulationDocs.test.ts`).
+Crawford passed Checkpoints A and B (B partly: he heard the AutoWah; the phone shell, a Stages drag and Free/Sync/tempo were not
+explicitly confirmed). Checkpoint C's by-hand save → reload → share-link check was not reported. Pixel: one Full 3:00 run with both
+pedals at full Mix and 12 stages, "some underruns" and no distortion by his word
+([scratchy-audio-phones.md](scratchy-audio-phones.md#global-modulation-roadmap-504-on-the-pixel--crawfords-report-2026-10-15)); the
+underrun count, the world, a Standard run, runs (a) and (b), the T0 re-baseline and the desktop `npm run perf` comparison were not
+recorded, so none is claimed here. The paragraphs above are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraph above)
+
+- **Both pedals ship.** `Tone.AutoWah` then `Tone.Phaser`, single instances on the **dry** chain between BitCrusher and the
+  Compressor, wah first, in both Decay Modes. The Reverb and Delay returns rejoin after them, so the rooms' tails are never swept.
+  Nothing is per robot and neither is an LFO or swell target. From the Phaser onward the dry chain is stereo (`StereoEffect`);
+  everything downstream is stereo-safe, and the mono wah before it is the reason to keep wah first.
+- **Every Tone parameter is a slider**, thirteen in all: the AutoWah's seven (`baseFrequency`, `octaves`, `sensitivity`, `Q`,
+  `gain`, `follower`, `wet`) and the Phaser's six (`rate`, `octaves`, `baseFrequency`, `stages`, `Q`, `wet`).
+- **A Modulation section tab on the existing `spectral` trait.** Fleet Params gains Modulation between Colour and Output, with two
+  sub-tabs (AutoWah, Phaser); no new trait. The lore words (Pressure Sweep, Phase Lag and the tab's name) are placeholders for the
+  copy pass.
+- **The Phaser's Rate is the third Free | Sync field** (`PhaserSettings.sync?`, `resolvePhaserRateHz`, `phaserToSync`,
+  `phaserToFree`, `setPhaserSyncMode`; a tempo change re-pushes a synced Rate), on a `TempoSyncSlider` row. Its LFO is wall-clock,
+  not on the transport.
+- **`stages` rebuilds the node.** It is constructor-only in Tone, so a changed count builds a new Phaser with every other field's
+  last-written value, re-wires the chain in the last Decay Mode, then disposes the old one. Verified headless with real Tone 15
+  (a 1 → 12 drag, Decay flips, Sync with a tempo change): no exceptions or engine warnings and the master level steady. Whether a
+  Stages drag ticks audibly was Task 16's ear test; Crawford closed that task and **Stages stayed a slider**, with no seeded-only
+  change asked for.
+- **The Mix is tapered like Colour's** (`colourWetGain`, squared at the node).
+- **Seeding is uniform draws.** All four roll draws and all thirteen value draws use `getUniformSeededVal`, not the plain draw:
+  measured over 20 000 styles, the plain draw gave `autoWah.lit` 24 distinct values and put a lit wah in 55.9 % of clean-Colour
+  worlds against 26.8 % of coloured ones (not independent of Colour, which the intent required), and `autoWah.gain` and
+  `autoWah.wet` took 3 distinct values over 3 000 styles. With uniform draws: AutoWah lit 33.07 %, Phaser lit 33.30 %, both 11.22 %
+  (product 11.01 %), 50.2 % of lit Phasers Sync, all independent of Colour. So `PEDAL_LIT_EDGE` is the nominal 1/3 with no fitting
+  and `PHASER_SYNC_ODDS` is 0.5. A dark pedal seeds Mix 0 but still draws its shape values.
+- **The bands were retuned at T16 to Crawford's recommended ranges.** AutoWah: baseFrequency 50–250, octaves 2.5–5, sensitivity
+  −40 to −10, Q 2–6, gain 2–6, Mix 0.3–0.7 (follower unchanged, 0.1–0.4). Phaser: rate 0.1–2.5, octaves 2–5, baseFrequency
+  200–800, stages 4–12, Q 1–10, Mix 0.25–0.6. **The pedal Mix no longer shares Colour's 0.25 load ceiling** (`COLOUR_LOAD_MIX_MAX`
+  stays 0.25 for the three colour effects); with the taper a seeded pedal Mix is a node gain of about 0.09–0.49, much louder than
+  Colour's, so listen before trusting it. Stages now seed up to 12, the count the Pixel run used.
+- **Old payloads load dry and a bad `phaser.sync` is dropped** (`withGlobalAudioDefaults` at both call sites;
+  `sanitizePhaserSync` in `applySessionPayload`). No encoding change, `version` stays 2.
+- **Presets stay clean.** `DEFAULT_GLOBAL_AUDIO_SETTINGS` and the three transmission presets carry both pedals at Mix 0.
+- **The seed oracles were hand-amended, never re-recorded:** at T1 and T7 (the pedal keys, then their values: alpha has AutoWah dark
+  and the Phaser lit and synced, theta the reverse) and again at T16 for the retuned bands, each value re-derived from the old raw
+  draw and checked against it.
+- **Deviations from the plan:** a failed Phaser rebuild keeps the old node (the plan left the slot empty); boot builds the Phaser
+  twice (the default 10 stages, then the seeded count); the T3 "drop the floor" mutant is equivalent because the resolver already
+  clamps, so the resolver clamp was mutated instead; `rampOrSet`'s value type widened to `unknown`.
+- **The phone gate was not fully run, and no threshold was built.** Task 14 had "some underruns" at Full and no baseline to compare;
+  Crawford closed the gate on that evidence, so the gate's "zero underruns at Full" was not met as worded. T15b (`LOAD_PEDAL_MIN`)
+  exists only as a conditional plan task. The Stages ceiling stayed at 12.
+- **Nothing on the gem reads a pedal**, pinned by the guard test's source scan.
+- **Still open:** the lore words; the T0 re-baseline and a Standard run on the Pixel, and the desktop `npm run perf` comparison;
+  the underrun count at Full; the Checkpoint C by-hand check; and the pedals' loudness at their new Mix bands.
+
 ## 51. Guide: A Read-Only Branch That Teaches the Whole App
 
 Raised by Crawford, 2026-10-12: "I need a way to educate users on the overall usage of the app, not

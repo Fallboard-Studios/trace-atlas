@@ -513,13 +513,13 @@ what does not earn its slider.
 
 ### 22. Audio Palette Trials: More Global Pedals to Audition
 
-The single-instance Tone 15 effects not picked for roadmap 50.3 / 50.4 — each one slot in
+The single-instance Tone 15 effects not shipped in roadmap 50.3 / 50.4 (AutoWah and Phaser both shipped, so neither moves here) — each one slot in
 `wireGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:144`) with a `wet`, each behind the phone
 gate, auditioned one at a time on the Pixel:
 
 - `Chorus` (own LFO: `frequency`, `delayTime`, `depth`, `spread`), `Tremolo` (`frequency`, `depth`,
   `spread`), `Vibrato` (`frequency`, `depth`), `FrequencyShifter` (`frequency` — strange, and
-  on-brand), and whichever of AutoWah / Phaser 50.4 did not choose. The ones with an internal
+  on-brand). The ones with an internal
   oscillator are wall-clock (backlog 17's accepted class); Free | Sync (roadmap 33) could apply to
   their `frequency`.
 - `StereoWidener` (`width`, no clock, cheap) — and a mono fold for phone speakers is the same control

@@ -15,8 +15,8 @@ import { SWELL_GLOBAL_TARGET_IDS, SWELL_ROBOT_ATTRIBUTE_IDS } from '@/types/audi
 //   (3) every symbol the spec names is declared where it says, so a rename cannot leave a stale doc;
 //   (4) the thirteen range-table fields and the thirteen grid rows are all there;
 //   (5) the living docs name the pedals.
-// Groups (1) to (4) are green from the moment they land. Group (5)'s AUDIO_SYSTEM.md, SESSION_STORAGE.md and
-// FREE_SYNC_TOGGLE.md cases are written against the text Task 17 produces and are RED until it lands.
+// Groups (1) to (4) were green from the moment they landed. Group (5)'s AUDIO_SYSTEM.md, SESSION_STORAGE.md and
+// FREE_SYNC_TOGGLE.md cases were written against the text Task 17 produces and were RED until it landed; they are green now.
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8').replace(/\r\n/g, '\n');
@@ -205,10 +205,10 @@ describe('both range tables and the grid cover all thirteen pedal fields', () =>
 });
 
 // ========================================
-// (5) THE LIVING DOCS NAME THE PEDALS   (the grid's rows landed at Task 2; the other three docs land at Task 17)
+// (5) THE LIVING DOCS NAME THE PEDALS   (the grid's rows landed at Task 2; the other three docs at Task 17)
 // ========================================
 
-describe('the living docs name the pedals (RED until Task 17 writes them)', () => {
+describe('the living docs name the pedals', () => {
   const missing = (text: string, names: readonly string[]) => names.filter((name) => !text.includes(`\`${name}\``));
 
   it('finds a missing name (the check itself)', () => {
@@ -223,7 +223,7 @@ describe('the living docs name the pedals (RED until Task 17 writes them)', () =
     ['docs/specs/FREE_SYNC_TOGGLE.md', ['resolvePhaserRateHz', 'phaserToSync', 'phaserToFree']],
   ];
 
-  it.each(docs)('%s names what Task 17 adds', (doc, names) => {
-    expect(missing(read(doc), names), `${doc} does not name (Task 17 has not landed)`).toEqual([]);
+  it.each(docs)('%s names what Task 17 added', (doc, names) => {
+    expect(missing(read(doc), names), `${doc} does not name`).toEqual([]);
   });
 });
