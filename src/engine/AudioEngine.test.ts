@@ -2464,8 +2464,8 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
   });
 
   // start() builds the chain (one Phaser, at the default ten stages) and then pushes the seeded settings. A seeded Phaser
-  // always has 4-8 stages, never ten, so that push rebuilds the node once before anything is playing: two
-  // constructions at most, the first at ten stages, the second at the seeded count. (buildGlobalFxChain alone builds
+  // always has 4-12 stages (retuned from 4-8 at Global Modulation T16), so that push rebuilds the node once before anything is
+  // playing unless it seeds ten exactly: one or two constructions, the first at ten stages, the second at the seeded count. (buildGlobalFxChain alone builds
   // exactly one; globalFx.test.ts pins that.)
   it('builds the Phaser at ten stages, then at most once more at the seeded stage count', async () => {
     const Tone = await import('tone');
@@ -2478,7 +2478,7 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     expect(calls[0][0].stages).toBe(10);
     if (calls.length === 2) {
       expect(calls[1][0].stages).toBeGreaterThanOrEqual(4);
-      expect(calls[1][0].stages).toBeLessThanOrEqual(8);
+      expect(calls[1][0].stages).toBeLessThanOrEqual(12);
     }
   });
 
