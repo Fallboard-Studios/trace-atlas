@@ -44,3 +44,17 @@
 }
 
 /* Vite default demo styles removed — layout tokens live in src/index.css */
+
+/* ?debug: the audio HUD is fixed over the bottom-left of the viewport and covers the tablet's lowest controls, so the
+   root becomes a scroller with clearance below the tablet. Scroll down to bring those controls above the HUD.
+   (The backdrop pseudo-elements above are absolutely positioned against the viewport, so they stay put.) */
+.app-root--debug {
+  height: 100vh;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.app-root__debug-clearance {
+  height: min(60dvh, 24rem);
+}
