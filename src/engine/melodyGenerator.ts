@@ -145,6 +145,14 @@ export const DEFAULT_NOTE_VARIANCE: ToggleValue = { active: false, value: 0 };
  * default statistically indistinguishable from having no Pitch Repeat at all.
  */
 export const DEFAULT_PITCH_REPEAT = 0;
+/**
+ * Robot Performance defaults (docs/specs/ROBOT_PERFORMANCE.md §1.1). Absence on the Robot means
+ * these, so every fixture, saved session and share link decodes to today's sound: Dynamics 50 is
+ * today's fixed velocity variance exactly, Rests 0 and Accents 0 stamp nothing.
+ */
+export const DEFAULT_DYNAMICS = 50;
+export const DEFAULT_RESTS = 0;
+export const DEFAULT_ACCENTS = 0;
 /** Default subdivision grid per measure (16 sixteenth notes in 4/4). */
 export const DEFAULT_SUBDIVISIONS = 16;
 

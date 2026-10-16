@@ -132,6 +132,19 @@ export const PITCH_REPEAT_MIN = 0;
 export const PITCH_REPEAT_MAX = 100;
 
 /**
+ * Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.1): the three per-robot sliders (Dynamics,
+ * Rests, Accents) run 0-100, stored as displayed. Humanize is a fleet-wide Pacing slider in
+ * milliseconds; 20 ms is the most it may move a note, leaving MIN_LEAD - 20 ms = 80 ms of lead.
+ * MIN_SOUNDING_SECONDS is the shortest a rested or clipped note may sound, so a staccatissimo
+ * sixteenth at speed never collapses to a click.
+ */
+export const PERFORMANCE_MIN = 0;
+export const PERFORMANCE_MAX = 100;
+export const HUMANIZE_MIN_MS = 0;
+export const HUMANIZE_MAX_MS = 20;
+export const MIN_SOUNDING_SECONDS = 0.03;
+
+/**
  * Robot Pan (docs/specs/ROBOT_PAN.md §1.1): the stored `Robot.pan` runs -1 (hard left) … 1 (hard
  * right) — wider than the Auto field's ±0.5 (engine/audioEngine/panning.ts). The slider shows it
  * ×PAN_DISPLAY_SCALE (-100…100), the same stored/displayed split as Volume.

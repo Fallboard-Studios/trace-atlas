@@ -102,6 +102,22 @@ export interface AudioAttributes {
 }
 
 /**
+ * The five classical articulation marks the Accents slider stamps onto melody events
+ * (docs/specs/ROBOT_PERFORMANCE.md §1.1). What each one means in velocity and length lives in one
+ * table, engine/articulation.ts's ARTICULATION_MARKS.
+ */
+export type ArticulationMark = 'accent' | 'marcato' | 'staccato' | 'staccatissimo' | 'tenuto';
+
+/** Every mark, in the order Accents unlocks them from (see engine/articulation.ts's unlockedMarks). */
+export const ARTICULATION_MARK_NAMES: readonly ArticulationMark[] = [
+  'accent',
+  'marcato',
+  'staccato',
+  'staccatissimo',
+  'tenuto',
+];
+
+/**
  * Single melody event within a robot's one-measure, 16-sixteenth-note loop
  */
 export interface MelodyEvent {
@@ -117,6 +133,13 @@ export interface MelodyEvent {
    * stay `undefined`, not `false`.
    */
   pitchLocked?: boolean;
+  /**
+   * Rests (docs/specs/ROBOT_PERFORMANCE.md §1.2): the fraction of `length` that is silent,
+   * 0.25–0.75. Present only on a rested event; absent otherwise, never 0.
+   */
+  rest?: number;
+  /** Accents: the articulation mark. Present only on a marked event; absent otherwise, never 'none'. */
+  mark?: ArticulationMark;
 }
 
 /**
@@ -243,6 +266,22 @@ export interface Robot {
    * unlocked). See docs/specs/PITCH_REPEAT.md.
    */
   pitchRepeat?: number;
+  /**
+   * 0-100. Scales the per-note velocity variance; 50 = today's fixed variance exactly, 0 = every note
+   * at the baseline, 100 = twice the rate and width. Read at trigger time, so it never regenerates the
+   * melody. Absent = 50 (DEFAULT_DYNAMICS). docs/specs/ROBOT_PERFORMANCE.md.
+   */
+  dynamics?: number;
+  /**
+   * 0-100. Chance per event of a rest (the note ends early and leaves a gap), and how deep it cuts.
+   * Stamped onto the melody as `MelodyEvent.rest`. Absent = 0 (DEFAULT_RESTS, no rests).
+   */
+  rests?: number;
+  /**
+   * 0-100. Chance per event of an articulation mark, and how many kinds are in play. Stamped onto the
+   * melody as `MelodyEvent.mark`. Absent = 0 (DEFAULT_ACCENTS, no marks).
+   */
+  accents?: number;
   /**
    * Seeded lane links for all 6 RobotLfoTargetId modulation targets (docs/specs/LFO_BANK.md),
    * generated once at spawn time (src/systems/spawnSystem.ts's generateRobotLfoLinks). `lane: null`

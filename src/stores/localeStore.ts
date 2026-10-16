@@ -20,6 +20,8 @@ import {
   OCTAVE_RANGE_MAX,
   PITCH_REPEAT_MIN,
   PITCH_REPEAT_MAX,
+  PERFORMANCE_MIN,
+  PERFORMANCE_MAX,
   PAN_MIN,
   PAN_MAX,
 } from '../constants';
@@ -186,6 +188,17 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       }
       if (typeof normalized.pitchRepeat === 'number') {
         normalized.pitchRepeat = Math.max(PITCH_REPEAT_MIN, Math.min(PITCH_REPEAT_MAX, Math.trunc(normalized.pitchRepeat)));
+      }
+      for (const performanceKey of ['dynamics', 'rests', 'accents'] as const) {
+        const value = normalized[performanceKey];
+        if (typeof value === 'number') {
+          // Integer 0-100 like pitchRepeat; NaN has no sensible clamp, so drop the key and keep the stored value.
+          if (Number.isNaN(value)) {
+            delete normalized[performanceKey];
+          } else {
+            normalized[performanceKey] = Math.max(PERFORMANCE_MIN, Math.min(PERFORMANCE_MAX, Math.trunc(value)));
+          }
+        }
       }
       if (typeof normalized.batteryLevel === 'number') {
         normalized.batteryLevel = Math.max(0, Math.min(100, Math.trunc(normalized.batteryLevel)));
