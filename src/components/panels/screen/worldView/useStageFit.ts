@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useLayoutEffect, type RefObject } from 'react';
 
 import { sceneFit } from './sceneFit';
 
@@ -15,9 +15,12 @@ const roundTo = (value: number, places: number) => Number(value.toFixed(places))
  * resize, never per frame. A box with a zero side (jsdom, a `display: none` ancestor) is not laid
  * out, so it writes nothing and the CSS defaults stand. Values are rounded so the DOM carries no
  * float noise (scale to six places, offsets to a thousandth of a pixel).
+ *
+ * A layout effect, not a passive one: it observes in the commit, so the observer's first delivery lands
+ * before the first paint and no frame shows the unscaled stage.
  */
 export function useStageFit(ref: RefObject<HTMLElement | null>): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scene = ref.current;
     if (!scene) return;
 

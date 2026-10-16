@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useStageFit } from './useStageFit';
 
@@ -165,6 +165,30 @@ describe('useStageFit', () => {
     mountHook();
     MockResizeObserver.instances[0].fire([1920, 1080], [2560, 1080]);
     expect(prop('--stage-y')).toBe('-360px');
+  });
+
+  // The first painted frame must already be fitted: a passive effect runs after paint, so a hook
+  // that observes there lets one frame show the unscaled world (and a camera that measures the
+  // scroller at registration see an unfitted stage). A layout effect observes in the commit, so the
+  // observer's first delivery lands in the same frame, before paint. The component's own passive
+  // effect is declared first, so only a layout-time observe can come ahead of it.
+  it('observes in the commit, ahead of every passive effect, so the first paint is already fitted', () => {
+    const order: string[] = [];
+    class RecordingObserver extends MockResizeObserver {
+      observe(target: Element) {
+        order.push('observe');
+        super.observe(target);
+      }
+    }
+    (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = RecordingObserver;
+    renderHook(() => {
+      useEffect(() => {
+        order.push('passive effect');
+      }, []);
+      const ref = useRef<HTMLElement>(scene);
+      useStageFit(ref);
+    });
+    expect(order).toEqual(['observe', 'passive effect']);
   });
 
   it('keeps the one observer across re-renders', () => {
