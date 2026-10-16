@@ -321,6 +321,76 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     });
   });
 
+  // docs/tasks/ROBOT_PERFORMANCE.md Task 16: the three robot fields ride as dy / rt / ax, Humanize as the top-level hm.
+  describe('performance on the wire (dy / rt / ax per robot, hm at the top level, Robot Performance T16)', () => {
+    function encodeWire(wire: unknown): string {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
+    }
+
+    /** A real encoded payload whose single robot entry has been replaced with `entry`. */
+    function decodeWithRobotWire(entry: Record<string, unknown>) {
+      const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } }))) as Record<string, unknown>;
+      return decodeSessionPayload(encodeWire({ ...wire, r: { 'robot-1': entry } }));
+    }
+
+    it('a payload with all four fields round-trips toEqual, abbreviated as dy / rt / ax and hm on the wire', () => {
+      const payload = makePayload({ humanize: 12, robotOverrides: { 'robot-1': { dynamics: 70, rests: 30, accents: 60 } } });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { hm: unknown; r: Record<string, Record<string, unknown>> };
+
+      expect(wire.hm).toBe(12);
+      expect(wire.r['robot-1']).toEqual({ dy: 70, rt: 30, ax: 60 });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    it('round-trips a 0 and a 100 (a flattened robot must not be dropped as falsy)', () => {
+      for (const value of [0, 100]) {
+        const payload = makePayload({ humanize: 0, robotOverrides: { 'robot-1': { dynamics: value, rests: value, accents: value } } });
+
+        expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+      }
+    });
+
+    it('absent keys stay absent: no hm on the wire or after decoding, and a robot entry carries only the field it has', () => {
+      const restsOnly = makePayload({ robotOverrides: { 'robot-1': { rests: 30 } } });
+      const wire = decodeRawWire(encodeSessionPayload(restsOnly)) as Record<string, unknown> & { r: Record<string, Record<string, unknown>> };
+
+      expect(wire).not.toHaveProperty('hm');
+      expect(wire.r['robot-1']).toEqual({ rt: 30 });
+      const decoded = decodeSessionPayload(encodeSessionPayload(restsOnly));
+      expect(decoded).toEqual(restsOnly);
+      // The top-level pacing fields decode as present-but-undefined keys (the sd / sf / b / pv convention), which
+      // applySessionPayload reads as absent; the per-robot keys are genuinely omitted.
+      expect(decoded?.humanize).toBeUndefined();
+      expect(decoded?.robotOverrides['robot-1']).not.toHaveProperty('dynamics');
+      expect(decoded?.robotOverrides['robot-1']).not.toHaveProperty('accents');
+    });
+
+    it('hm: "x" fails validation the way sd: "x" does (decodeSessionPayload returns null)', () => {
+      const wire = decodeRawWire(encodeSessionPayload(makePayload())) as Record<string, unknown>;
+
+      expect(decodeSessionPayload(encodeWire({ ...wire, hm: 'x' }))).toBeNull();
+      expect(decodeSessionPayload(encodeWire({ ...wire, hm: 12 }))?.humanize).toBe(12);
+    });
+
+    it('dy: NaN decodes to absent (JSON writes a NaN as null), and a dropped key costs nothing beside it', () => {
+      const encoded = encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { dynamics: NaN, rests: 30 } } }));
+
+      expect(decodeSessionPayload(encoded)?.robotOverrides['robot-1']).toEqual({ rests: 30 });
+    });
+
+    it('drops a dy, rt or ax that is a string, null, a boolean, an object or non-finite, keeping the rest of the entry', () => {
+      for (const bad of ['x', '30', null, true, {}, []]) {
+        expect(decodeWithRobotWire({ rd: 42, dy: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+        expect(decodeWithRobotWire({ rd: 42, rt: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+        expect(decodeWithRobotWire({ rd: 42, ax: bad })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      }
+    });
+
+    it('drops each field on its own: a good dy survives a bad rt and ax', () => {
+      expect(decodeWithRobotWire({ dy: 70, rt: 'x', ax: null })?.robotOverrides['robot-1']).toEqual({ dynamics: 70 });
+    });
+  });
+
   describe('articulation on the wire (po / fq / ft, and ac / rc inside the envelope, Robot Articulation T12)', () => {
     function encodeWire(wire: unknown): string {
       return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));

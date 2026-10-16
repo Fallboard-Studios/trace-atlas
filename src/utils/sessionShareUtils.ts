@@ -44,6 +44,8 @@ interface CompactSessionPayload {
   b?: SessionPayload['bpm'];
   sf?: SessionPayload['swellFrequency'];
   sd?: SessionPayload['swellDuration'];
+  /** Humanize, ms (SessionPayload.humanize; docs/specs/ROBOT_PERFORMANCE.md §1.7) -- omitted when absent, like sd. */
+  hm?: SessionPayload['humanize'];
   pv?: SessionPayload['pingVarianceAutomation'];
   /** LFO Bank (docs/tasks/LFO_BANK.md Task 18) -- `lb`/`gll` mirror `lfoBank`/`globalLfoLinks`'s
    *  own "always whole, never diffed" treatment (undefined only for a pre-Task-18, version-1 blob). */
@@ -118,6 +120,10 @@ interface CompactRobotOverrideDiff {
   /** Reverb and Delay sends, 0…1 (RobotAudioOverrideDiff.reverbSend / delaySend); a 0 is a real value, the send switched off. */
   rs?: number;
   ds?: number;
+  /** Dynamics, Rests and Accents, 0…100 (RobotAudioOverrideDiff.dynamics / rests / accents); a 0 is a real value. */
+  dy?: number;
+  rt?: number;
+  ax?: number;
   or?: RobotAudioOverrideDiff['octaveRange'];
   nm?: string;
   /** Only the targets that changed (RobotAudioOverrideDiff.lfoLinks' own contract), abbreviated
@@ -257,6 +263,9 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.pan !== undefined) compact.p = diff.pan;
   if (diff.reverbSend !== undefined) compact.rs = diff.reverbSend;
   if (diff.delaySend !== undefined) compact.ds = diff.delaySend;
+  if (diff.dynamics !== undefined) compact.dy = diff.dynamics;
+  if (diff.rests !== undefined) compact.rt = diff.rests;
+  if (diff.accents !== undefined) compact.ax = diff.accents;
   if (diff.octaveRange !== undefined) compact.or = diff.octaveRange;
   if (diff.name !== undefined) compact.nm = diff.name;
   if (diff.lfoLinks !== undefined) {
@@ -285,6 +294,11 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   // its seeded send -- never misread as a send of 0 or 1.
   if (isSendFraction(compact.rs)) diff.reverbSend = compact.rs;
   if (isSendFraction(compact.ds)) diff.delaySend = compact.ds;
+  // Robot Performance: a non-numeric or non-finite `dy` / `rt` / `ax` is dropped one by one (JSON writes a NaN as null),
+  // so the robot keeps its seeded value; the store clamps the range on restore.
+  if (isFiniteNumber(compact.dy)) diff.dynamics = compact.dy;
+  if (isFiniteNumber(compact.rt)) diff.rests = compact.rt;
+  if (isFiniteNumber(compact.ax)) diff.accents = compact.ax;
   if (compact.or !== undefined) diff.octaveRange = compact.or;
   if (compact.nm !== undefined) diff.name = compact.nm;
   if (compact.ll !== undefined) {
@@ -323,6 +337,7 @@ function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload
   if (payload.bpm !== undefined) compact.b = payload.bpm;
   if (payload.swellFrequency !== undefined) compact.sf = payload.swellFrequency;
   if (payload.swellDuration !== undefined) compact.sd = payload.swellDuration;
+  if (payload.humanize !== undefined) compact.hm = payload.humanize;
   if (payload.pingVarianceAutomation !== undefined) compact.pv = payload.pingVarianceAutomation;
   if (payload.lfoBank !== undefined) {
     compact.lb = Object.fromEntries(Object.entries(payload.lfoBank).map(([lane, b]) => [lane, toCompactBankLfoSettings(b)])) as Record<LfoLaneId, CompactBankLfoSettings>;
@@ -355,13 +370,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  degrades to a harmless no-op override rather than a crash. */
 function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSessionPayload {
   if (!isPlainObject(parsed)) return false;
-  const { n, c, g, b, sf, sd, pv, lb, gll, r, d, u } = parsed;
+  const { n, c, g, b, sf, sd, hm, pv, lb, gll, r, d, u } = parsed;
   if (typeof n !== 'string') return false;
   if (!isPlainObject(c) || typeof c.x !== 'number' || typeof c.y !== 'number') return false;
   if (!isPlainObject(g)) return false;
   if (b !== undefined && typeof b !== 'number') return false;
   if (sf !== undefined && typeof sf !== 'number') return false;
   if (sd !== undefined && typeof sd !== 'number') return false;
+  if (hm !== undefined && typeof hm !== 'number') return false;
   if (pv !== undefined && typeof pv !== 'number') return false;
   if (lb !== undefined && !isPlainObject(lb)) return false;
   if (gll !== undefined && !isPlainObject(gll)) return false;
@@ -382,6 +398,7 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     bpm: compact.b,
     swellFrequency: compact.sf,
     swellDuration: compact.sd,
+    humanize: compact.hm,
     pingVarianceAutomation: compact.pv,
     // Iterate the canonical id lists, not Object.keys(compact.lb/gll) -- this both drops any
     // unknown/stale key (same treatment ll already gets below) AND backfills any lane/target a
