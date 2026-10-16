@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MAX_POLYPHONY } from '../constants';
+import { MAX_POLYPHONY, MIN_LEAD } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -4352,6 +4352,331 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
       expect(triggeredVelocity(Tone, 'F4')).toBe(0.8);
       expect(triggeredVelocity(Tone, 'G4')).toBe(1);
       expect(triggeredVelocity(Tone, 'A4')).toBe(1);
+    });
+  });
+});
+
+// ========================================
+// Robot Performance T6 (docs/specs/ROBOT_PERFORMANCE.md assumptions 5 and 9, section 1.3): the
+// playback loop turns an event's rest and mark into a sounding length and a velocity multiplier,
+// keys every roll off the tick position, and shifts each note by a seeded few milliseconds of Humanize.
+// ========================================
+
+describe('AudioEngine — articulation, Humanize and the click-track exemption in processMelodyStep (Robot Performance T6)', () => {
+
+  /** Seconds each note value lasts at the pretend tempo (200 BPM: a 16th is 0.075 s). The 32n is pretend-faster
+   *  (0.02 s, about 375 BPM) so it is shorter than MIN_SOUNDING_SECONDS and the floor can be tested against the written length. */
+  const SECONDS: Record<string, number> = { '32n': 0.02, '16n': 0.075, '8n': 0.15, '4n': 0.3 };
+
+  /** Humanize draws the variance branch (every x that is not the roll): a sawtooth, -1 at row 0, -2/3 at row 1. */
+  const testNoise = (_x: number, y: number): number => ((Math.floor(y) % 7) - 3) / 3;
+
+  const robotFixture = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    compositionSeed: 0,
+    audioMode: 'none',
+    audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8,
+    melody: [],
+    octaveRange: [3, 4],
+    position: { x: 960, y: 0 },
+    ...extra,
+  });
+
+  const eventFixture = (extra: Record<string, unknown> = {}) => ({
+    id: 'e1',
+    startStep: 1,
+    length: '8n' as const,
+    noteIndex: 0,
+    octave: 4,
+    ...extra,
+  });
+
+  /** Fresh module graph; the locale roster and noise map pinned; Tone.Time answers in seconds; scheduleNote recorded. */
+  async function setup(robots: Array<ReturnType<typeof robotFixture>>, noise: ((x: number, y: number) => number) | null = testNoise) {
+    vi.resetModules();
+    vi.doMock('../utils/noiseMaps', async () => {
+      const actual = await vi.importActual<typeof import('../utils/noiseMaps')>('../utils/noiseMaps');
+      return { ...actual, tryGetLocaleNoiseMap: () => noise };
+    });
+    const Tone = await import('tone');
+    (Tone.Time as unknown as ReturnType<typeof vi.fn>).mockImplementation((d: string | number) => ({
+      toSeconds: () => (typeof d === 'number' ? d : SECONDS[d] ?? 1),
+    }));
+    const { AudioEngine, ...rest } = await import('./AudioEngine');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const stateSpy = vi.spyOn(store, 'getState').mockReturnValue({ locales: { testLocale: { robots } } } as never);
+    const scheduled = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
+    const params = () => scheduled.mock.calls.map((c) => c[0]);
+    return { AudioEngine, Tone, stateSpy, scheduled, params, ...rest };
+  }
+
+  afterEach(() => {
+    vi.doUnmock('../utils/noiseMaps');
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  describe('sounding length from rest and mark', () => {
+    it('a staccato 8n event schedules half its length in seconds, as a number', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.15 * 0.5);
+      expect(typeof params()[0].duration).toBe('number');
+    });
+
+    it('a plain event schedules its NoteDuration string unchanged', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe('8n');
+    });
+
+    it('a rest alone leaves the remainder of the length (0.5 of an 8n is 0.075 s)', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.5 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBeCloseTo(0.075, 10);
+    });
+
+    it('a rest and a staccato: the shorter wins (0.4 of an 8n beats half)', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.6, mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBeCloseTo(0.06, 10);
+    });
+
+    it('a staccatissimo 16n at 200 BPM is floored at MIN_SOUNDING_SECONDS, not 0.019 s', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', mark: 'staccatissimo' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.03);
+    });
+
+    it('a rested 16n is floored too', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', rest: 0.75 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.03);
+    });
+
+    it('the floor never lengthens a note past its written length (a 0.02 s note stays 0.02 s, not 0.03 s)', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ length: '32n', mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.02);
+    });
+
+    it('a rest with a tenuto keeps the full length as the NoteDuration string, and tenuto leans 1.1 louder', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.6, mark: 'tenuto' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe('8n');
+      expect(params()[0].accentMultiplier).toBe(1.1);
+    });
+
+    it('accent and tenuto marks keep the full length string', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 1, mark: 'accent' }), eventFixture({ id: 'b', startStep: 2, mark: 'tenuto' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(2, 0);
+      expect(params().map((p) => p.duration)).toEqual(['8n', '8n']);
+    });
+  });
+
+  describe('accentMultiplier', () => {
+    it('a plain non-accent event passes undefined, as today', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBeUndefined();
+    });
+
+    it('a mark alone passes its velocity multiplier', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'accent' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBe(1.25);
+    });
+
+    it('a staccato (velocity 1) passes undefined, not 1', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBeUndefined();
+    });
+
+    it('a marcato that is also the motif-group accent passes 1.25 x 1.4', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r', { rhythmicMotifLength: { active: true, value: 4 } })]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'marcato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBe(1.25 * 1.4);
+    });
+
+    it('a motif-group accent with no mark still passes exactly 1.25', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r', { rhythmicMotifLength: { active: true, value: 4 } })]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBe(1.25);
+    });
+  });
+
+  describe('position and time', () => {
+    it('every note carries the tick position, which keeps counting past the 16-step measure', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.killAll();
+      await AudioEngine.start();
+      const transport = (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+      const tick = transport.scheduleRepeat.mock.calls.filter((c: unknown[]) => c[1] === '16n').map((c: unknown[]) => c[0] as (time: number) => void)[0];
+      AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 1 }), eventFixture({ id: 'b', startStep: 3 })] as never);
+
+      for (let i = 0; i < 20; i++) tick(0);
+
+      const positions = params().map((p) => p.position);
+      // Step 1 sounds at ticks 0 and 16, step 3 at ticks 2 and 18.
+      expect(positions).toEqual([0, 2, 16, 18]);
+      AudioEngine.killAll();
+    });
+
+    it('with Humanize at 0 the time is exactly time + MIN_LEAD', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(0);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 1.5);
+      expect(params()[0].time).toBe(1.5 + MIN_LEAD);
+    });
+  });
+
+  describe('Humanize', () => {
+    it('at 20 ms the offset stays within +-0.020 s of time + MIN_LEAD, and moves the note', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 1.5);
+      const offset = (params()[0].time as number) - (1.5 + MIN_LEAD);
+      expect(Math.abs(offset)).toBeLessThanOrEqual(0.02 + 1e-12);
+      expect(offset).not.toBe(0);
+    });
+
+    it('scales with the setting: noise -1 at position 0 gives -0.020 s at 20 ms and -0.005 s at 5 ms', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.setHumanize(20);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(5);
+      AudioEngine.processMelodyStep(1, 0);
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
+      expect((params()[1].time as number) - MIN_LEAD).toBeCloseTo(-0.005, 10);
+    });
+
+    it('is identical on a repeated position, different for two robots with different seeds', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('a', { compositionSeed: 0 }), robotFixture('b', { compositionSeed: 1 })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('a', [eventFixture()] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(1, 0);
+      const times = params().map((p) => [p.robotId, p.time]);
+      expect(times[0]).toEqual(times[2]);
+      expect(times[1]).toEqual(times[3]);
+      expect(times[0][1]).not.toBe(times[1][1]);
+    });
+
+    it('a click-track entry gets no offset even at 20 ms', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r', { clickTrackActive: true })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 1.5);
+      expect(params()).toHaveLength(1);
+      expect(params()[0].time).toBe(1.5 + MIN_LEAD);
+    });
+
+    it('a robot whose click track is off is humanized, and re-registering after turning it off restores the offset', async () => {
+      const robots = [robotFixture('r', { clickTrackActive: true })];
+      const { AudioEngine, params } = await setup(robots);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      (robots[0] as Record<string, unknown>).clickTrackActive = false;
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].time).toBe(MIN_LEAD);
+      expect(params()[1].time).not.toBe(MIN_LEAD);
+    });
+
+    it('clamps to 0-20 ms, and reads NaN as 0', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.setHumanize(99);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(-5);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(NaN);
+      AudioEngine.processMelodyStep(1, 0);
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
+      expect(params()[1].time).toBe(MIN_LEAD);
+      expect(params()[2].time).toBe(MIN_LEAD);
+    });
+
+    it('survives a power cycle (killAll), like the polyphony cap', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.killAll();
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
+    });
+
+    it('with no noise map there is no offset and nothing throws', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')], null);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].time).toBe(MIN_LEAD);
+    });
+
+    it('a robot the store does not hold is humanized as seed 0 without throwing', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('known')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('ghost', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
+    });
+
+    it('reads the roster once per step with three robots sounding, and not at all at 0 ms', async () => {
+      const { AudioEngine, stateSpy } = await setup([robotFixture('a'), robotFixture('b'), robotFixture('c')]);
+      for (const id of ['a', 'b', 'c']) AudioEngine.registerRobotMelody(id, [eventFixture()] as never);
+
+      AudioEngine.setHumanize(0);
+      stateSpy.mockClear();
+      AudioEngine.processMelodyStep(1, 0);
+      expect(stateSpy).toHaveBeenCalledTimes(0);
+
+      AudioEngine.setHumanize(20);
+      stateSpy.mockClear();
+      AudioEngine.processMelodyStep(1, 0);
+      expect(stateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('a seconds duration reaches the synth', () => {
+    it('scheduleNote hands the composite voice the number as a string and still schedules the voice release', async () => {
+      const { AudioEngine, Tone } = await setup([robotFixture('r')]);
+      vi.mocked(AudioEngine.scheduleNote).mockRestore();
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as never, TEST_ADSR);
+      const getContext = Tone.getContext as unknown as ReturnType<typeof vi.fn>;
+      getContext.mockClear();
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: 0.075, time: 0, velocity: 0.5 });
+
+      const durations: unknown[] = [];
+      (Tone.Synth as unknown as { mock: { results: Array<{ value?: { triggerAttackRelease?: { mock?: { calls?: unknown[][] } } } }> } }).mock.results.forEach((r) =>
+        r.value?.triggerAttackRelease?.mock?.calls?.forEach((c) => { if (c[0] === 'C4') durations.push(c[1]); }));
+      expect(durations).toEqual(['0.075']);
+      expect(getContext).toHaveBeenCalled();
     });
   });
 });

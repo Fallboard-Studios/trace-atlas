@@ -13,8 +13,9 @@ import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS } from '../constants';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
+import { resolveArticulation } from './articulation';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -58,7 +59,9 @@ import {
 export interface NoteParams {
   robotId: string;
   note: string;
-  duration: NoteDuration;
+  /** A written note value, or a sounding length in seconds (a rested or clipped note, from processMelodyStep).
+   * A number reaches the synth as its string, which Tone.Time reads as seconds. */
+  duration: NoteDuration | number;
   time?: number;
   velocity?: number;
   /** Multiplies the resolved velocity (before clamping to 1). Used for the
@@ -76,6 +79,9 @@ interface MelodyEventEntry {
   /** True when this event is the earliest `startStep` within its motif-tiling
    * repeat window (computed once at registration — see registerRobotMelody). */
   isGroupAccent?: boolean;
+  /** True when this entry belongs to the substituted click-track melody (registerRobotMelody): a tempo reference
+   * is never humanized. */
+  clickTrack?: boolean;
 }
 
 // ========================================
@@ -115,6 +121,7 @@ const SEND_RAMP_SECONDS = 0.05;
 // Precompute data X positions for seeded noise sampling (module scope — hot path safe)
 const VELOCITY_ROLL_X = precomputeDataX('audio.velocityRoll');
 const VELOCITY_VARIANCE_X = precomputeDataX('audio.velocityVariance');
+const HUMANIZE_X = precomputeDataX('audio.humanize');
 
 // Validates a resolved pitch string before triggering (e.g. "C4", "F#3", "Bb2") — hoisted to
 // module scope, same "precompute once, not per-note" discipline as VELOCITY_ROLL_X/
@@ -138,6 +145,10 @@ let activeVoices = 0;
 let soundingRobots: ReadonlySet<string> | null = null;
 // Simultaneous-note ceiling; MAX_POLYPHONY = Full.
 let polyphonyCap = MAX_POLYPHONY;
+// Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): how far, in ms, a note may land off the grid. Pushed in
+// by audioStore like the two values above, never read from a store on the tick (audioStore imports this module).
+// 0 = machine-exact, which is also the state until something pushes a value.
+let humanizeMs = 0;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
 
@@ -311,7 +322,7 @@ async function loadInstruments(): Promise<void> {
  * genuinely tempo-independent: it fires `delayFromNow` real seconds later
  * regardless of anything `Transport.bpm` does in between.
  */
-function scheduleVoiceRelease(duration: NoteDuration, time: number): void {
+function scheduleVoiceRelease(duration: NoteDuration | number, time: number): void {
   const durSec = Tone.Time(duration).toSeconds();
   // `time` is an absolute AudioContext timestamp; `Tone.now()` is the current
   // AudioContext time, so their difference is the lookahead until the note fires.
@@ -432,7 +443,9 @@ export function triggerWithCap(params: NoteParams): boolean {
     // 16th-note tick from startMelodyPlayback) already keeps every reserved robot's panner
     // current at a strictly higher resolution than any single robot's own note-trigger rate,
     // so this was pure duplicate work on the hot path (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 6).
-    synth.triggerAttackRelease(note, duration, scheduleTime, params.velocity ?? 0.8);
+    // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
+    // voice stringifies its duration anyway (it accepts NoteDuration | string).
+    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8);
     scheduleVoiceRelease(duration, scheduleTime);
     return true;
   } catch (err) {
@@ -526,6 +539,26 @@ export function computeNoteVelocitySeeded(robotId?: string, position?: number, r
   const roll = (noiseMap(VELOCITY_ROLL_X, offset) + 1) / 2; // map [-1,1] -> [0,1]
   if (roll >= rate) return clampVelocity(NOTE_VELOCITY_BASELINE);
   return clampVelocity(NOTE_VELOCITY_BASELINE + noiseMap(VELOCITY_VARIANCE_X, offset) * width);
+}
+
+/**
+ * Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): a function from a robot id to how many seconds early or
+ * late its note lands this tick, within ± humanizeMs. The locale noise map and the roster are fetched ONCE here, per
+ * processMelodyStep call, not once per note; the per-robot work is a find over the roster and one noise sample at
+ * the same (compositionSeed + position) offset the velocity roll uses, so a replay repeats and two robots differ.
+ * Returns a constant 0 (and fetches nothing) when Humanize is off or there is no noise map. MIN_LEAD less the
+ * largest offset still leaves 80 ms of lead, inside CLAUDE.md's 50-100 ms rule.
+ */
+function humanizeOffsetFor(position: number): (robotId: string) => number {
+  if (humanizeMs <= 0) return () => 0;
+  const noiseMap = tryGetLocaleNoiseMap(getActiveLocaleId());
+  if (!noiseMap) return () => 0;
+  const roster = getActiveLocaleRobots();
+  const range = humanizeMs / 1000;
+  return (robotId) => {
+    const seed = roster.find((r) => r.id === robotId)?.compositionSeed ?? 0;
+    return noiseMap(HUMANIZE_X, (seed + position) % VELOCITY_PERIOD) * range;
+  };
 }
 
 export const AudioEngine = {
@@ -1167,9 +1200,10 @@ export const AudioEngine = {
       earliestInWindow.forEach((step) => accentedStartSteps.add(step));
     }
 
+    const clickTrack = robot?.clickTrackActive === true;
     effectiveMelody.forEach((event) => {
       const entries = stepRegistry.get(event.startStep) || [];
-      entries.push({ robotId, event, isGroupAccent: accentedStartSteps.has(event.startStep) });
+      entries.push({ robotId, event, isGroupAccent: accentedStartSteps.has(event.startStep), ...(clickTrack ? { clickTrack: true } : {}) });
       stepRegistry.set(event.startStep, entries);
     });
   },
@@ -1217,8 +1251,12 @@ export const AudioEngine = {
   processMelodyStep(currentStep: number, time: number): void {
     const events = stepRegistry.get(currentStep) || [];
     const notes = getAvailableNotes();
+    // Robot Performance: the tick position every roll keys off (velocity, Humanize). The live tick calls this
+    // before advancing stepCounter, so it is the number of ticks since playback started.
+    const position = stepCounter;
+    const humanizeOffset = humanizeOffsetFor(position);
 
-    events.forEach(({ robotId, event, isGroupAccent }) => {
+    events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
       // Each event is isolated in its own try/catch — an uncaught exception from one robot's
       // scheduleNote call must not abort the forEach and silently drop every remaining event
       // in this same step.
@@ -1231,12 +1269,25 @@ export const AudioEngine = {
         const octave = event.octave ?? 4;
         const note = `${noteName}${octave}`;
 
+        // What the event's rest and mark mean (docs/specs/ROBOT_PERFORMANCE.md §1.3): a sounding-length factor
+        // and a velocity multiplier. An unstamped event keeps its NoteDuration string exactly as before; a
+        // shortened one becomes seconds at the live tempo, floored so it never collapses to a click and
+        // never longer than the note as written.
+        const art = resolveArticulation(event);
+        let duration: NoteDuration | number = event.length;
+        if (art.length < 1) {
+          const writtenSeconds = Tone.Time(event.length).toSeconds();
+          duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
+        }
+        const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
+
         AudioEngine.scheduleNote({
           robotId,
           note,
-          duration: event.length,
-          time: time + MIN_LEAD,
-          accentMultiplier: isGroupAccent ? GROUP_ACCENT_MULTIPLIER : undefined,
+          duration,
+          time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
+          accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
+          position,
         });
       } catch (err) {
         devWarn(`[AudioEngine] Failed to schedule note for robot ${robotId}`, err);
@@ -1270,6 +1321,15 @@ export const AudioEngine = {
    */
   setPolyphonyCap(cap: number): void {
     polyphonyCap = Number.isNaN(cap) ? MAX_POLYPHONY : Math.min(MAX_POLYPHONY, Math.max(0, Math.floor(cap)));
+  },
+
+  /**
+   * Humanize: how far off the grid, in milliseconds, a note may land (docs/specs/ROBOT_PERFORMANCE.md assumption 9).
+   * Clamped to [HUMANIZE_MIN_MS, HUMANIZE_MAX_MS]; NaN reads as 0 (machine-exact). Applies from the next tick.
+   * Survives killAll() (a power cycle): the store is the source of truth and pushes it, like the polyphony cap.
+   */
+  setHumanize(ms: number): void {
+    humanizeMs = Number.isNaN(ms) ? HUMANIZE_MIN_MS : Math.min(HUMANIZE_MAX_MS, Math.max(HUMANIZE_MIN_MS, ms));
   },
 
   /** Returns the current AudioContext time (seconds). Use for note scheduling offsets. */
