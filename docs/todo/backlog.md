@@ -590,3 +590,40 @@ and give the Settings → Seeds coordinates a reason to be stepped rather than t
   `placeDistrict` per plot; too heavy for a map that paints many plots at once. District and hour
   only, until measured otherwise.
 - **Colouring the map by district before the field is coherent** — it would look like a bug.
+
+### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
+
+Diagnosed 2026-10-16 while finishing roadmap 50.5, after Crawford reported the sound breaking up about 25–30 s into every
+world on his laptop at full screen. **Not an audio feature.** `main` at `2ec52f2f` reproduces it (411 underruns by 0:47,
+25 fps) and a window at a quarter of the area halves the cost (66 underruns by 1:00, 54 fps), so the cost scales with pixels.
+The full record, numbers and how to re-measure are in
+[PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16).
+
+**Mechanism.** The scene is seven stacked `<svg>` roots sharing one viewBox (`OceanScene.tsx`'s `SceneLayer`); the four
+*moving* ones — `robots-back`, `bubbles`, `robots`, `marker` — carry `will-change: transform` and are each the whole stage.
+Chrome composites an SVG root, never a `<g>` inside it, so a GSAP write to one robot group's transform dirties its entire
+stage-sized layer and the GPU re-rasters up to four 2560 × 1440 layers per frame for about fifty small movers (orbiters, work
+sparks, robot bodies, bubbles). On Crawford's laptop Chrome runs on the integrated Radeon (the RTX sits idle) and the GPU
+process is 94 % busy; the renderer main thread is 62 % busy, over half of it GSAP's frame render plus 3.3 s of layerization
+in 31 s. The audio thread averages 0.55 of its quantum but spikes to 0.99, so any CPU contention tips it into underruns.
+
+**Fix candidates, ranked:**
+
+1. **Small compositor layers per mover** (needs `interview-me` → spec → plan; the idle-paint gate `npm run perf:idle` and the
+   PERFORMANCE.md baseline are the numbers to beat). Each robot in its own positioned wrapper moved by a compositor-only
+   transform, with the gem's own small SVG inside, so a swim costs a composite and only an orbiter or spark costs a small
+   raster. Everything that reads a robot's group or ref must keep working: the swim and job timelines (`createSwimTimeline`,
+   `buildJobTimeline`), the row switch and its dissolve, the deck camera's target (`deckCamera.ts`, `getRef('robot-…')` and
+   `gsap.getProperty(el, 'x')`), `FollowedRobotMarker`, and click handling. Bubbles the same way.
+2. **The deck camera's idle tick** (small; its own bug-fix branch, no spec). `registerDeckScroller` adds the per-frame handler
+   whenever a scroller exists, scroll range 0 or not; at full screen the range is 0, yet every frame `targetFor` reads
+   `scrollWidth` / `clientWidth` (a forced layout right after GSAP's writes) and writes `scrollLeft`. It was 4.2 % of
+   main-thread samples. No-op when the range is 0; cache the two dimensions on resize.
+3. **Audio headroom as mitigation**, not cause: the Standard Audio Load preset or `?latency=playback` widen the margin;
+   whether the desktop default should change is Crawford's call.
+
+**Machine-side**, not a fix for anyone else: forcing `chrome.exe` onto the RTX in Windows graphics settings would show how
+much of the 25 fps is the Radeon specifically; the Windows setting did not take (the AMD stayed `*ACTIVE*`), and the NVIDIA
+Control Panel / Lenovo Vantage discrete-mode routes were not tried.
+
+**How to start:** `interview-me` from this item for candidate 1; candidate 2 can go straight to a RED test.

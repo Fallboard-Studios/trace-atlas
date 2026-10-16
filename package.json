@@ -16,7 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "perf": "node scripts/perf/profile.mjs",
     "perf:audio": "node scripts/perf/audio-load.mjs",
-    "perf:idle": "node scripts/perf/idle-paint.mjs"
+    "perf:idle": "node scripts/perf/idle-paint.mjs",
+    "perf:trace": "node --max-old-space-size=6000 scripts/perf/trace-summary.mjs"
   },
   "dependencies": {
     "@fontsource/fugaz-one": "^5.3.0",

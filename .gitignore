@@ -24,3 +24,7 @@ assets
 *.njsproj
 *.sln
 *.sw?
+
+# DevTools Performance recordings (100+ MB each) — keep them beside the repo, summarise with `npm run perf:trace`
+docs/reference/Trace-*.json
+perf-traces/
