@@ -20,7 +20,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
-import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_DYNAMICS } from '@/engine/melodyGenerator';
+import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '@/engine/melodyGenerator';
 import { SIGNATURE_ARRAY_CONFIG, BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
@@ -36,7 +36,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyDynamics,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyDynamics, applyRests, applyAccents,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -226,10 +226,12 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     rhythmicMotifLength: robot.rhythmicMotifLength?.value ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH.value,
     noteVariance: robot.noteVariance?.value ?? DEFAULT_NOTE_VARIANCE.value,
     pitchRepeat: robot.pitchRepeat ?? 0,
+    rests: robot.rests ?? DEFAULT_RESTS,
+    accents: robot.accents ?? DEFAULT_ACCENTS,
     octaveRange: robot.octaveRange,
     clickTrackActive: robot.clickTrackActive ?? false,
   }), [
-    robot.rhythmicDensity, robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat,
+    robot.rhythmicDensity, robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat, robot.rests, robot.accents,
     robot.octaveRange, robot.clickTrackActive,
   ]);
 
@@ -282,6 +284,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const handleOctaveMinChange = useCallback((v: number) => applyOctaveMin(latestRobot.current, localeId, v), [localeId]);
   const handleOctaveMaxChange = useCallback((v: number) => applyOctaveMax(latestRobot.current, localeId, v), [localeId]);
   const handleNoteVarianceChange = useCallback((v: number) => applyNoteVariance(latestRobot.current, localeId, v), [localeId]);
+  // Rests and Accents re-stamp the melody (not its notes) and are not swell attributes (docs/specs/ROBOT_PERFORMANCE.md §1.5).
+  const handleRestsChange = useCallback((v: number) => applyRests(latestRobot.current, localeId, v), [localeId]);
+  const handleAccentsChange = useCallback((v: number) => applyAccents(latestRobot.current, localeId, v), [localeId]);
 
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => {
     const prevAdsr = latestRobot.current.audioAttributes.adsr;
@@ -348,6 +353,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onOctaveMinChange={handleOctaveMinChange}
             onOctaveMaxChange={handleOctaveMaxChange}
             onNoteVarianceChange={handleNoteVarianceChange}
+            onRestsChange={handleRestsChange}
+            onAccentsChange={handleAccentsChange}
           />
         );
       case 'pingContour':
@@ -395,7 +402,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
     handleReverbSendChange, handleDelaySendChange, handleDynamicsChange, reverbSendSwelling, delaySendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
-    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
+    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleRestsChange, handleAccentsChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,
     signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,

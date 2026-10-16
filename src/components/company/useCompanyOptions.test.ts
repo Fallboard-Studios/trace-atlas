@@ -354,6 +354,62 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  // Task 10's twin of the block above, for the Composition section's Rests and Accents (also replaced by Task 14).
+  describe('Rests and Accents pass-through (Robot Performance Task 10, replaced by Task 14)', () => {
+    it("are the first member's rests and accents, not the second's", () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 35, accents: 80 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', rests: 90, accents: 5 }));
+      addCompany('c1', ['r1', 'r2']);
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.pingControlsValue).toMatchObject({ rests: 35, accents: 80 });
+    });
+
+    it('are 0 and 0 for a first member that carries neither field, and while the selection is disabled', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addCompany('c1', ['r1']);
+      expect(renderHook(() => useCompanyOptions('c1')).result.current.options.pingControlsValue).toMatchObject({ rests: 0, accents: 0 });
+
+      addCompany('c2', []);
+      const disabled = renderHook(() => useCompanyOptions('c2')).result.current.options;
+      expect(disabled.active).toBe(false);
+      expect(disabled.pingControlsValue).toMatchObject({ rests: 0, accents: 0 });
+    });
+
+    it('show 100 for a first member at 100, and follow the first member but not a later one', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 100, accents: 100 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', rests: 10, accents: 10 }));
+      addCompany('c1', ['r1', 'r2']);
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      expect(result.current.options.pingControlsValue).toMatchObject({ rests: 100, accents: 100 });
+
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { rests: 20 }));
+      expect(result.current.options.pingControlsValue.rests).toBe(20);
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { accents: 45 }));
+      expect(result.current.options.pingControlsValue).toMatchObject({ rests: 20, accents: 45 });
+
+      const before = result.current.options.pingControlsValue;
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { rests: 77, accents: 77 }));
+      expect(result.current.options.pingControlsValue).toBe(before);
+    });
+
+    it('offer onRestsChange and onAccentsChange as stable functions that do not throw', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 30 }));
+      addCompany('c1', ['r1']);
+      const { result, rerender } = renderHook(() => useCompanyOptions('c1'));
+      const { onRestsChange, onAccentsChange } = result.current.options;
+
+      rerender();
+
+      expect(typeof onRestsChange).toBe('function');
+      expect(typeof onAccentsChange).toBe('function');
+      expect(result.current.options.onRestsChange).toBe(onRestsChange);
+      expect(result.current.options.onAccentsChange).toBe(onAccentsChange);
+      expect(() => { onRestsChange(60); onAccentsChange(60); }).not.toThrow();
+    });
+  });
+
   // docs/tasks/ROBOT_SENDS.md Task 14 - the company Reverb and Delay rows: the first member's sends (or the
   // recorded ones), a broadcast that interrupts each member's own send swell, and a snapshot of the stored fraction.
   describe('Reverb and Delay sends (Robot Sends Task 14)', () => {

@@ -86,6 +86,8 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onOctaveMinChange={options.onOctaveMinChange}
             onOctaveMaxChange={options.onOctaveMaxChange}
             onNoteVarianceChange={options.onNoteVarianceChange}
+            onRestsChange={options.onRestsChange}
+            onAccentsChange={options.onAccentsChange}
           />
         );
       case 'pingContour':

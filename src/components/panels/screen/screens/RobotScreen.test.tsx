@@ -110,20 +110,42 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     );
   }),
 }));
+// What the Composition stub saw, for the re-render and handler-identity cases (Robot Performance Task 10).
+const compositionStub = vi.hoisted(() => {
+  const stub = {
+    renders: 0,
+    last: null as null | { onRestsChange: unknown; onAccentsChange: unknown; onDensityChange: unknown },
+    record(handlers: { onRestsChange: unknown; onAccentsChange: unknown; onDensityChange: unknown }) {
+      stub.renders++;
+      stub.last = handlers;
+    },
+    reset() {
+      stub.renders = 0;
+      stub.last = null;
+    },
+  };
+  return stub;
+});
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
   PingControlsCompositionSection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number };
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; rests: number; accents: number };
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
     onOctaveMinChange: (v: number) => void;
     onOctaveMaxChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
-  }) => (
+    onRestsChange: (v: number) => void;
+    onAccentsChange: (v: number) => void;
+  }) => {
+    compositionStub.record({ onRestsChange: props.onRestsChange, onAccentsChange: props.onAccentsChange, onDensityChange: props.onDensityChange });
+    return (
     <div
       data-testid="ping-controls-composition-stub"
       data-density={props.value.rhythmicDensity}
       data-pitch-repeat={props.value.pitchRepeat}
+      data-rests={props.value.rests}
+      data-accents={props.value.accents}
     >
       <button onClick={() => props.onDensityChange(77)}>probe-density</button>
       <button onClick={() => props.onMotifLengthChange(6)}>probe-motif-length</button>
@@ -131,8 +153,11 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
       <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
       <button onClick={() => props.onOctaveMaxChange(6)}>probe-octave-max</button>
       <button onClick={() => props.onNoteVarianceChange(0)}>probe-note-variance</button>
+      <button onClick={() => props.onRestsChange(100)}>probe-rests</button>
+      <button onClick={() => props.onAccentsChange(100)}>probe-accents</button>
     </div>
-  )),
+    );
+  }),
 }));
 // What the Envelope stub saw, for the re-render and handler-identity cases (Robot Articulation Task 8).
 const envelopeStub = vi.hoisted(() => {
@@ -342,6 +367,7 @@ beforeEach(() => {
   useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
   capturedRadioSchemas.length = 0;
   levelsStub.reset();
+  compositionStub.reset();
   envelopeStub.reset();
   filterStub.reset();
   useRobotPanReadoutStore.setState({ pan: {} });
@@ -1148,6 +1174,139 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       render(<RobotScreen />);
       fireEvent.click(screen.getByText(button));
       expect(spy).toHaveBeenCalledWith(robot, localeId, value);
+    });
+
+    // docs/tasks/ROBOT_PERFORMANCE.md Task 10: the screen passes the robot's Rests and Accents (0 when absent) and wires two handlers.
+    describe('Rests and Accents (Robot Performance Task 10)', () => {
+      const stub = () => screen.getByTestId('ping-controls-composition-stub');
+
+      it("derives rests and accents from the robot's own fields", () => {
+        selectRobot(makeRobot('r1', { rests: 35, accents: 80 }), 'melody');
+        render(<RobotScreen />);
+        expect(stub().getAttribute('data-rests')).toBe('35');
+        expect(stub().getAttribute('data-accents')).toBe('80');
+      });
+
+      it('a robot with the fields absent reaches the section as 0 and 0, the neutral Rests and Accents', () => {
+        selectRobot(makeRobot(), 'melody');
+        render(<RobotScreen />);
+        expect(stub().getAttribute('data-rests')).toBe('0');
+        expect(stub().getAttribute('data-accents')).toBe('0');
+      });
+
+      it('a robot at 100 reaches the section as 100 (the far end is a value too)', () => {
+        selectRobot(makeRobot('r1', { rests: 100, accents: 100 }), 'melody');
+        render(<RobotScreen />);
+        expect(stub().getAttribute('data-rests')).toBe('100');
+        expect(stub().getAttribute('data-accents')).toBe('100');
+      });
+
+      it('follows the store: a Rests edited elsewhere reaches the section, and Accents stays', () => {
+        selectRobot(makeRobot('r1', { rests: 10, accents: 20 }), 'melody');
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { rests: 60 }));
+        expect(stub().getAttribute('data-rests')).toBe('60');
+        expect(stub().getAttribute('data-accents')).toBe('20');
+      });
+
+      it('wires onRestsChange to applyRests with the robot and the number, once, and calls neither applyAccents nor applyDensity', () => {
+        const robot = makeRobot('r1', { rests: 10 });
+        selectRobot(robot, 'melody');
+        const rests = vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const accents = vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        const density = vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-rests'));
+        expect(rests).toHaveBeenCalledTimes(1);
+        expect(rests).toHaveBeenCalledWith(robot, localeId, 100);
+        expect(accents).not.toHaveBeenCalled();
+        expect(density).not.toHaveBeenCalled();
+      });
+
+      it('wires onAccentsChange to applyAccents with the robot and the number, once, and calls neither applyRests nor applyDensity', () => {
+        const robot = makeRobot('r1', { accents: 10 });
+        selectRobot(robot, 'melody');
+        const rests = vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const accents = vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        const density = vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-accents'));
+        expect(accents).toHaveBeenCalledTimes(1);
+        expect(accents).toHaveBeenCalledWith(robot, localeId, 100);
+        expect(rests).not.toHaveBeenCalled();
+        expect(density).not.toHaveBeenCalled();
+      });
+
+      it('the handlers read the latest robot, not the one from the first render', () => {
+        selectRobot(makeRobot('r1', { rests: 10, accents: 10 }), 'melody');
+        const rests = vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const accents = vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { rests: 55, accents: 66 }));
+        fireEvent.click(screen.getByText('probe-rests'));
+        fireEvent.click(screen.getByText('probe-accents'));
+        expect(rests.mock.calls[0][0]).toMatchObject({ id: 'r1', rests: 55, accents: 66 });
+        expect(accents.mock.calls[0][0]).toMatchObject({ id: 'r1', rests: 55, accents: 66 });
+      });
+
+      it('the handlers keep their identity across an unrelated robot change, and the section does not re-render', () => {
+        selectRobot(makeRobot('r1', { rests: 10, accents: 20 }), 'melody');
+        render(<RobotScreen />);
+        const first = compositionStub.last!;
+        const before = compositionStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+        expect(compositionStub.last!.onRestsChange).toBe(first.onRestsChange);
+        expect(compositionStub.last!.onAccentsChange).toBe(first.onAccentsChange);
+        expect(compositionStub.renders).toBe(before);
+      });
+
+      // The real actions, nothing mocked but the engine: Rests / Accents change the registered melody's stamps and
+      // never its notes (docs/specs/ROBOT_PERFORMANCE.md §1.2).
+      describe('with the real actions', () => {
+        type RegisteredEvent = { startStep: number; length: string; noteIndex: number; octave: number; rest?: number; mark?: string };
+        const seeded = () => makeRobot('r1', { compositionSeed: 20261015, rhythmicDensity: 80, octaveRange: [3, 4] });
+        // Event ids are fresh UUIDs on every generation, so the notes are compared by what they sound, not by id.
+        const notes = (melody: RegisteredEvent[]) =>
+          melody.map((e) => [e.startStep, e.length, e.noteIndex, e.octave]);
+
+        it('a Rests drag registers a rested melody with the very same notes', () => {
+          const robot = seeded();
+          selectRobot(robot, 'melody');
+          const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+          render(<RobotScreen />);
+          robotOptionsActions.applyRests(robot, localeId, 0); // the plain melody to compare against
+          fireEvent.click(screen.getByText('probe-rests')); // rests 100
+          const [plain, rested] = register.mock.calls.map((call) => call[1] as RegisteredEvent[]);
+          expect(plain.length).toBeGreaterThan(0);
+          expect(plain.every((e) => e.rest === undefined)).toBe(true);
+          expect(rested.every((e) => e.rest !== undefined && e.rest >= 0.25 && e.rest <= 0.75)).toBe(true);
+          expect(notes(rested)).toEqual(notes(plain));
+        });
+
+        it('an Accents drag registers a marked melody with the very same notes, and leaves rests alone', () => {
+          const robot = seeded();
+          selectRobot(robot, 'melody');
+          const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+          render(<RobotScreen />);
+          robotOptionsActions.applyAccents(robot, localeId, 0);
+          fireEvent.click(screen.getByText('probe-accents')); // accents 100
+          const [plain, marked] = register.mock.calls.map((call) => call[1] as RegisteredEvent[]);
+          expect(plain.every((e) => e.mark === undefined)).toBe(true);
+          expect(marked.every((e) => e.mark !== undefined)).toBe(true);
+          expect(marked.every((e) => e.rest === undefined)).toBe(true);
+          expect(notes(marked)).toEqual(notes(plain));
+        });
+
+        it('the store keeps the new value after a drag', () => {
+          selectRobot(seeded(), 'melody');
+          vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText('probe-rests'));
+          fireEvent.click(screen.getByText('probe-accents'));
+          const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+          expect([stored.rests, stored.accents]).toEqual([100, 100]);
+        });
+      });
     });
   });
 
