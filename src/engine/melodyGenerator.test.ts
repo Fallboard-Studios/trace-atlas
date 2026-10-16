@@ -8,6 +8,10 @@ import {
   generateMelodyForRobot,
   reRollMelodyPitches,
   buildSeededComposition,
+  buildSeededPerformance,
+  applyPerformanceMarks,
+  REST_MIN_FRACTION,
+  REST_SPAN,
   DEFAULT_SUBDIVISIONS,
   DEFAULT_RHYTHMIC_DENSITY,
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
@@ -964,5 +968,285 @@ describe('reRollMelodyPitches', () => {
       const changedCount = result.filter((e, i) => e.noteIndex !== melody[i].noteIndex).length;
       expect(changedCount).toBe(2); // same seed/ratio as the very first test in this file — same result
     });
+  });
+});
+
+// ========================================
+// TEST SUITE: applyPerformanceMarks (Robot Performance, roadmap 50.5 Task 3)
+// docs/specs/ROBOT_PERFORMANCE.md assumptions 2-5, section 1.2
+// ========================================
+
+describe('applyPerformanceMarks', () => {
+  /** A synthetic melody of n events with every structural field distinct and some pitch-locked. */
+  function makeMelody(n: number): MelodyEvent[] {
+    return Array.from({ length: n }, (_, i) =>
+      createMelodyEvent({
+        id: `e${i}`,
+        startStep: (i % 16) + 1,
+        length: i % 2 === 0 ? '8n' : '16n',
+        noteIndex: i % NOTE_PALETTE_SIZE,
+        octave: 3 + (i % 3),
+        ...(i % 5 === 0 ? { pitchLocked: true } : {}),
+      }),
+    );
+  }
+
+  const SEED = 0.4242;
+  const stamp = (melody: MelodyEvent[], rests: number, accents: number) =>
+    applyPerformanceMarks(melody, { rests, accents }, buildSeededPerformance(SEED));
+  const markedIds = (melody: MelodyEvent[], field: 'rest' | 'mark') =>
+    melody.filter((e) => e[field] !== undefined).map((e) => e.id);
+
+  it('exports the rest depth constants the spec names', () => {
+    expect(REST_MIN_FRACTION).toBe(0.25);
+    expect(REST_SPAN).toBe(0.5);
+  });
+
+  describe('off', () => {
+    it('returns every input event by reference at rests 0 and accents 0', () => {
+      const melody = makeMelody(40);
+      const result = stamp(melody, 0, 0);
+      expect(result).toHaveLength(melody.length);
+      result.forEach((event, i) => expect(event).toBe(melody[i]));
+    });
+
+    it('never calls Math.random, stamped or not', () => {
+      const spy = vi.spyOn(Math, 'random');
+      stamp(makeMelody(40), 0, 0);
+      stamp(makeMelody(40), 70, 70);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('returns an empty melody for an empty melody', () => {
+      expect(stamp([], 80, 80)).toEqual([]);
+    });
+
+    it('stamps nothing for NaN values and does not throw', () => {
+      const melody = makeMelody(40);
+      const result = stamp(melody, NaN, NaN);
+      result.forEach((event, i) => expect(event).toBe(melody[i]));
+    });
+
+    it('treats negative values as 0', () => {
+      const melody = makeMelody(40);
+      const result = stamp(melody, -20, -1);
+      result.forEach((event, i) => expect(event).toBe(melody[i]));
+    });
+
+    it('treats values above 100 as 100', () => {
+      expect(stamp(makeMelody(60), 400, 400)).toEqual(stamp(makeMelody(60), 100, 100));
+    });
+  });
+
+  describe('determinism', () => {
+    it('same seed and values produce identical stamps', () => {
+      const melody = makeMelody(100);
+      expect(stamp(melody, 55, 65)).toEqual(stamp(melody, 55, 65));
+    });
+
+    it('a different seed produces different stamps', () => {
+      const melody = makeMelody(100);
+      const a = applyPerformanceMarks(melody, { rests: 55, accents: 65 }, buildSeededPerformance(0.1));
+      const b = applyPerformanceMarks(melody, { rests: 55, accents: 65 }, buildSeededPerformance(0.9));
+      expect(a).not.toEqual(b);
+    });
+
+    it('does not mutate the input melody', () => {
+      const melody = makeMelody(60);
+      const snapshot = JSON.parse(JSON.stringify(melody));
+      stamp(melody, 100, 100);
+      expect(melody).toEqual(snapshot);
+    });
+  });
+
+  describe('Rests', () => {
+    it('at rests 100 every event has a rest in [0.25, 0.75]', () => {
+      const result = stamp(makeMelody(400), 100, 0);
+      for (const event of result) {
+        expect(event.rest).toBeGreaterThanOrEqual(0.25);
+        expect(event.rest).toBeLessThanOrEqual(0.75);
+      }
+    });
+
+    it('at rests 100 the rest depths actually spread across the band, not one value', () => {
+      const depths = stamp(makeMelody(400), 100, 0).map((e) => e.rest as number);
+      expect(Math.min(...depths)).toBeLessThan(0.35);
+      expect(Math.max(...depths)).toBeGreaterThan(0.65);
+    });
+
+    it('at rests 50 over 400 events a rest sits on 35-65 % of events and never cuts deeper than 0.5', () => {
+      const result = stamp(makeMelody(400), 50, 0);
+      const rested = result.filter((e) => e.rest !== undefined);
+      expect(rested.length).toBeGreaterThanOrEqual(140);
+      expect(rested.length).toBeLessThanOrEqual(260);
+      for (const event of rested) {
+        expect(event.rest).toBeGreaterThanOrEqual(0.25);
+        expect(event.rest).toBeLessThanOrEqual(0.5);
+      }
+    });
+
+    it('at rests 1 the rest is rare and shallow', () => {
+      const rested = stamp(makeMelody(400), 1, 0).filter((e) => e.rest !== undefined);
+      expect(rested.length).toBeLessThan(30);
+      for (const event of rested) expect(event.rest).toBeLessThanOrEqual(0.255);
+    });
+
+    it('with rests set and accents 0 no event carries a mark', () => {
+      expect(markedIds(stamp(makeMelody(200), 100, 0), 'mark')).toEqual([]);
+    });
+
+    it('never stamps a rest of 0: a rest is absent or inside the band', () => {
+      for (const event of stamp(makeMelody(400), 30, 0)) {
+        if ('rest' in event) expect(event.rest).toBeGreaterThanOrEqual(0.25);
+      }
+    });
+  });
+
+  describe('Accents', () => {
+    const marksSeen = (accents: number, n = 400) =>
+      new Set(stamp(makeMelody(n), 0, accents).map((e) => e.mark).filter((m) => m !== undefined));
+
+    it('at accents 100 every event is marked and all five marks occur', () => {
+      const result = stamp(makeMelody(400), 0, 100);
+      expect(result.every((e) => e.mark !== undefined)).toBe(true);
+      expect(marksSeen(100)).toEqual(new Set(['accent', 'marcato', 'staccato', 'staccatissimo', 'tenuto']));
+    });
+
+    it('at accents 20 only accent and tenuto occur, on roughly a fifth of events', () => {
+      expect(marksSeen(20)).toEqual(new Set(['accent', 'tenuto']));
+      const marked = markedIds(stamp(makeMelody(400), 0, 20), 'mark').length;
+      expect(marked).toBeGreaterThanOrEqual(50);
+      expect(marked).toBeLessThanOrEqual(110);
+    });
+
+    it('at accents 50 staccatissimo never occurs but the other four do', () => {
+      expect(marksSeen(50)).toEqual(new Set(['accent', 'marcato', 'staccato', 'tenuto']));
+    });
+
+    it('at accents 34 and 33 the tier boundary holds', () => {
+      expect(marksSeen(33).has('staccato')).toBe(false);
+      expect(marksSeen(34).has('staccato')).toBe(true);
+      expect(marksSeen(66).has('staccatissimo')).toBe(false);
+      expect(marksSeen(67).has('staccatissimo')).toBe(true);
+    });
+
+    it('with accents set and rests 0 no event carries a rest', () => {
+      expect(markedIds(stamp(makeMelody(200), 0, 100), 'rest')).toEqual([]);
+    });
+  });
+
+  describe('structure is never touched', () => {
+    const settings: Array<[number, number]> = [[0, 0], [100, 0], [0, 100], [50, 50], [100, 100], [1, 1]];
+
+    it.each(settings)('rests %i, accents %i leave id, startStep, length, noteIndex, octave and pitchLocked identical', (rests, accents) => {
+      const melody = makeMelody(120);
+      const result = stamp(melody, rests, accents);
+      expect(result).toHaveLength(melody.length);
+      result.forEach((event, i) => {
+        const { rest: _rest, mark: _mark, ...structure } = event;
+        expect(structure).toEqual(melody[i]);
+      });
+    });
+
+    it('only stamps rest and mark keys: a stamped event differs from its input by exactly those', () => {
+      const melody = makeMelody(120);
+      for (const event of stamp(melody, 100, 100)) {
+        expect(Object.keys(event).filter((k) => !['rest', 'mark'].includes(k)).sort()).toEqual(
+          Object.keys(melody.find((m) => m.id === event.id)!).sort(),
+        );
+      }
+    });
+  });
+
+  describe('the four-draw stream contract', () => {
+    it('moving Rests from 30 to 80 leaves the set of marked events unchanged', () => {
+      const melody = makeMelody(200);
+      const before = markedIds(stamp(melody, 30, 60), 'mark');
+      const after = markedIds(stamp(melody, 80, 60), 'mark');
+      expect(before.length).toBeGreaterThan(0);
+      expect(after).toEqual(before);
+    });
+
+    it('moving Rests within one tier leaves each mark kind unchanged too', () => {
+      const melody = makeMelody(200);
+      const before = stamp(melody, 30, 60).map((e) => e.mark);
+      const after = stamp(melody, 80, 60).map((e) => e.mark);
+      expect(after).toEqual(before);
+    });
+
+    it('moving Accents from 20 to 90 leaves the rests unchanged', () => {
+      const melody = makeMelody(200);
+      const before = stamp(melody, 55, 20).map((e) => e.rest);
+      const after = stamp(melody, 55, 90).map((e) => e.rest);
+      expect(before.some((r) => r !== undefined)).toBe(true);
+      expect(after).toEqual(before);
+    });
+
+    it('raising Rests only adds rested events: every event rested at 30 is still rested at 80', () => {
+      const melody = makeMelody(200);
+      const at30 = new Set(markedIds(stamp(melody, 30, 0), 'rest'));
+      const at80 = new Set(markedIds(stamp(melody, 80, 0), 'rest'));
+      expect(at30.size).toBeGreaterThan(0);
+      expect(at80.size).toBeGreaterThan(at30.size);
+      for (const id of at30) expect(at80.has(id)).toBe(true);
+    });
+
+    it('raising Accents only adds marked events: every event marked at 20 is still marked at 70', () => {
+      const melody = makeMelody(200);
+      const at20 = new Set(markedIds(stamp(melody, 0, 20), 'mark'));
+      const at70 = new Set(markedIds(stamp(melody, 0, 70), 'mark'));
+      expect(at20.size).toBeGreaterThan(0);
+      for (const id of at20) expect(at70.has(id)).toBe(true);
+    });
+
+    it('consumes exactly four draws per event whether or not the event is stamped', () => {
+      const probe = alea('contract-probe');
+      const reference = alea('contract-probe');
+      const melody = makeMelody(25);
+      applyPerformanceMarks(melody, { rests: 10, accents: 10 }, probe);
+      for (let i = 0; i < melody.length * 4; i++) reference();
+      expect(probe()).toBe(reference());
+    });
+
+    it('consumes the same number of draws when nothing is stamped (off still advances the stream)', () => {
+      const probe = alea('contract-probe-off');
+      const reference = alea('contract-probe-off');
+      const melody = makeMelody(25);
+      applyPerformanceMarks(melody, { rests: 0, accents: 0 }, probe);
+      for (let i = 0; i < melody.length * 4; i++) reference();
+      expect(probe()).toBe(reference());
+    });
+  });
+});
+
+describe('buildSeededPerformance', () => {
+  const draws = (rand: () => number, n = 6) => Array.from({ length: n }, () => rand());
+
+  it('is a pure function of the seed: same seed, same sequence', () => {
+    expect(draws(buildSeededPerformance(0.42))).toEqual(draws(buildSeededPerformance(0.42)));
+  });
+
+  it('different seeds give different sequences', () => {
+    expect(draws(buildSeededPerformance(0.42))).not.toEqual(draws(buildSeededPerformance(0.43)));
+  });
+
+  it('is its own stream: it differs from buildSeededComposition for the same seed', () => {
+    const composition = buildSeededComposition(0.42, {
+      rhythmicDensity: 50,
+      rhythmicMotifLength: { active: true, value: 8 },
+      noteVariance: { active: false, value: 0 },
+      pitchRepeat: 0,
+      octaveRange: [3, 5],
+    });
+    expect(buildSeededPerformance(0.42)()).not.toBe(composition());
+    expect(draws(buildSeededPerformance(0.42))).not.toEqual(draws(composition));
+  });
+
+  it('returns draws in [0, 1)', () => {
+    for (const value of draws(buildSeededPerformance(0.42), 200)) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(1);
+    }
   });
 });

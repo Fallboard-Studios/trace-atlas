@@ -244,3 +244,134 @@ describe('regenerateMelody — deterministic via compositionSeed', () => {
     spy.mockRestore();
   });
 });
+
+// ========================================
+// TEST SUITE: regenerateMelody — Rests and Accents post-pass (Robot Performance, Task 3)
+// docs/specs/ROBOT_PERFORMANCE.md section 1.2
+// ========================================
+
+describe('regenerateMelody — Rests and Accents post-pass', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  type StoredEvent = {
+    id: string;
+    startStep: number;
+    length: string;
+    noteIndex: number;
+    octave: number;
+    pitchLocked?: boolean;
+    rest?: number;
+    mark?: string;
+  };
+
+  // A 16-event, tiling-off robot so every setting has plenty of events to stamp.
+  const dense = (overrides: Partial<Robot> = {}) =>
+    makeRobot({ compositionSeed: 0.31, rhythmicDensity: 100, rhythmicMotifLength: { active: false, value: 0 }, ...overrides });
+
+  function melodyFor(robot: Robot): StoredEvent[] {
+    updateRobotMock.mockClear();
+    regenerateMelody(robot, 'locale-1');
+    return updateRobotMock.mock.calls[0][2].melody;
+  }
+  const withoutIdsOrStamps = (melody: StoredEvent[]) =>
+    melody.map((e) => {
+      const { id: _id, rest: _rest, mark: _mark, ...structure } = e;
+      return structure;
+    });
+  const withoutIds = (melody: StoredEvent[]) => melody.map(({ id: _id, ...rest }) => rest);
+
+  it('stamps a melody with rests and marks when the robot has both set', () => {
+    const melody = melodyFor(dense({ rests: 60, accents: 60 }));
+    expect(melody.some((e) => e.rest !== undefined)).toBe(true);
+    expect(melody.some((e) => e.mark !== undefined)).toBe(true);
+  });
+
+  it('registers the stamped melody, the same object it wrote to the store', () => {
+    const melody = melodyFor(dense({ rests: 60, accents: 60 }));
+    const registered = vi.mocked(AudioEngine.registerRobotMelody).mock.calls[0][1];
+    expect(registered).toBe(melody);
+  });
+
+  it('with rests and accents absent the melody is today melody: no stamps, same events as the seeded generator', async () => {
+    const { generateMelodyForRobot, buildSeededComposition } = await import('./melodyGenerator');
+    const robot = dense();
+    const expected = generateMelodyForRobot({
+      octaveMin: 3,
+      octaveMax: 5,
+      rhythmicDensity: 100,
+      rhythmicMotifLength: { active: false, value: 0 },
+      noteVariance: { active: false, value: 0 },
+      pitchRepeat: 0,
+      rand: buildSeededComposition(robot.compositionSeed, {
+        rhythmicDensity: 100,
+        rhythmicMotifLength: { active: false, value: 0 },
+        noteVariance: { active: false, value: 0 },
+        pitchRepeat: 0,
+        octaveRange: robot.octaveRange,
+      }),
+    });
+    const melody = melodyFor(robot);
+    expect(withoutIds(melody)).toEqual(withoutIds(expected as StoredEvent[]));
+    expect(melody.every((e) => !('rest' in e) && !('mark' in e))).toBe(true);
+  });
+
+  it('explicit rests 0 and accents 0 equal the absent case', () => {
+    expect(withoutIds(melodyFor(dense({ rests: 0, accents: 0 })))).toEqual(withoutIds(melodyFor(dense())));
+  });
+
+  it('editing rests regenerates the stamps but never the notes: onsets, lengths, pitches and octaves are unchanged', () => {
+    const low = melodyFor(dense({ rests: 10, accents: 40 }));
+    const high = melodyFor(dense({ rests: 90, accents: 40 }));
+    expect(withoutIdsOrStamps(high)).toEqual(withoutIdsOrStamps(low));
+    expect(high.map((e) => e.rest)).not.toEqual(low.map((e) => e.rest));
+  });
+
+  it('editing accents regenerates the marks but never the notes', () => {
+    const low = melodyFor(dense({ rests: 40, accents: 10 }));
+    const high = melodyFor(dense({ rests: 40, accents: 90 }));
+    expect(withoutIdsOrStamps(high)).toEqual(withoutIdsOrStamps(low));
+    expect(high.map((e) => e.mark)).not.toEqual(low.map((e) => e.mark));
+  });
+
+  it('moving rests from 30 to 80 leaves the marked events unchanged, through the real call path', () => {
+    const marked = (melody: StoredEvent[]) => melody.filter((e) => e.mark !== undefined).map((e) => e.startStep);
+    const before = marked(melodyFor(dense({ rests: 30, accents: 60 })));
+    const after = marked(melodyFor(dense({ rests: 80, accents: 60 })));
+    expect(before.length).toBeGreaterThan(0);
+    expect(after).toEqual(before);
+  });
+
+  it('changing a stamp slider and reverting it reproduces the original melody exactly', () => {
+    const original = withoutIds(melodyFor(dense({ rests: 60, accents: 60 })));
+    melodyFor(dense({ rests: 20, accents: 60 }));
+    expect(withoutIds(melodyFor(dense({ rests: 60, accents: 60 })))).toEqual(original);
+  });
+
+  it('two robots with different compositionSeeds are stamped differently', () => {
+    const a = melodyFor(dense({ compositionSeed: 0.11, rests: 60, accents: 60 }));
+    const b = melodyFor(dense({ compositionSeed: 0.89, rests: 60, accents: 60 }));
+    expect(withoutIds(a)).not.toEqual(withoutIds(b));
+  });
+
+  it('never calls Math.random with rests and accents set', () => {
+    const spy = vi.spyOn(Math, 'random');
+    melodyFor(dense({ rests: 100, accents: 100 }));
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('does not mutate the robot it was given', () => {
+    const robot = dense({ rests: 60, accents: 60 });
+    const snapshot = JSON.parse(JSON.stringify(robot));
+    melodyFor(robot);
+    expect(robot).toEqual(snapshot);
+  });
+
+  it('uses a robot value passed in a spread, as the apply actions do: rests from the argument, not a stale store copy', () => {
+    const base = dense({ rests: 0, accents: 0 });
+    const melody = melodyFor({ ...base, rests: 100 });
+    expect(melody.every((e) => e.rest !== undefined)).toBe(true);
+  });
+});

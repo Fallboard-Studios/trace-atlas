@@ -13,8 +13,11 @@ import {
   NOTE_VARIANCE_MAX,
   PITCH_REPEAT_MIN,
   PITCH_REPEAT_MAX,
+  PERFORMANCE_MIN,
+  PERFORMANCE_MAX,
   NOTE_PALETTE_SIZE,
 } from '../constants';
+import { unlockedMarks } from './articulation';
 
 // ========================================
 // TYPES
@@ -113,9 +116,68 @@ export function buildSeededComposition(
   return alea(key);
 }
 
+/**
+ * Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.2) — the stream the Rests and Accents
+ * post-pass draws from. Its own stream, separate from buildSeededComposition, so notes and rhythm
+ * never move when either slider does: only the stamps are redrawn.
+ *
+ * Keyed on the seed alone, NOT on the slider values (the spec text keyed it on both). Every event
+ * consumes exactly four draws whatever the values (see applyPerformanceMarks), which only keeps the
+ * stream stable under a slider change if the stream starts from the same place every time: with the
+ * values in the key, each slider tick would re-seed it and reshuffle which events are marked.
+ * Keyed on the seed, dragging Rests only adds or removes rests, and Accents only adds or removes
+ * marks. Fully deterministic, no Math.random.
+ */
+export function buildSeededPerformance(compositionSeed: number): () => number {
+  return alea(`${compositionSeed}:performance`);
+}
+
+/**
+ * Stamp rests and articulation marks onto a generated melody (docs/specs/ROBOT_PERFORMANCE.md
+ * §1.2). Pure; returns a new event object only where something was stamped, and the very same
+ * event reference otherwise. Never changes an event's id, startStep, length, noteIndex, octave or
+ * pitchLocked, so Rests never changes density.
+ *
+ * Every event consumes exactly four `rand()` draws, stamped or not, so changing one slider
+ * re-decides that concern without shifting the other, or any later event's rolls. If a future mark
+ * needs a fifth draw it must be taken for every event or the contract breaks (a test pins it).
+ *
+ * - Rests `v`: each event is rested with chance `v / 100`, the silent fraction uniform in
+ *   [REST_MIN_FRACTION, REST_MIN_FRACTION + REST_SPAN * v / 100].
+ * - Accents `v`: each event is marked with chance `v / 100`, the mark drawn uniformly from
+ *   `unlockedMarks(v)`.
+ */
+export function applyPerformanceMarks(
+  melody: MelodyEvent[],
+  perf: { rests: number; accents: number },
+  rand: () => number,
+): MelodyEvent[] {
+  const restChance = Math.max(PERFORMANCE_MIN, Math.min(PERFORMANCE_MAX, perf.rests)) / PERFORMANCE_MAX;
+  const restDepth = REST_MIN_FRACTION + REST_SPAN * restChance;
+  const markChance = perf.accents / PERFORMANCE_MAX;
+  const kinds = unlockedMarks(perf.accents);
+  return melody.map((event) => {
+    const restRoll = rand();
+    const restDepthRoll = rand();
+    const markRoll = rand();
+    const markPickRoll = rand();
+    const rest = restRoll < restChance ? REST_MIN_FRACTION + restDepthRoll * (restDepth - REST_MIN_FRACTION) : undefined;
+    const mark = kinds.length > 0 && markRoll < markChance ? kinds[Math.floor(markPickRoll * kinds.length)] : undefined;
+    if (rest === undefined && mark === undefined) return event;
+    return { ...event, ...(rest !== undefined ? { rest } : {}), ...(mark !== undefined ? { mark } : {}) };
+  });
+}
+
 // ========================================
 // CONSTANTS
 // ========================================
+/**
+ * Shallowest a rest cuts: a rested note always loses at least a quarter of its length. Deepest is
+ * REST_MIN_FRACTION + REST_SPAN = three quarters, reached only at Rests 100.
+ */
+export const REST_MIN_FRACTION = 0.25;
+export const REST_SPAN = 0.5;
+
 /** Probability that a successive note jumps more than one octave (when range allows). */
 const OCTAVE_JUMP_CHANCE = 0.15;
 
