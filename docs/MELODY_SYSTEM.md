@@ -23,8 +23,14 @@ interface MelodyEvent {
   noteIndex: number; // 0..7, mapped into the active harmony palette
   octave: number; // concrete octave assigned at generation time
   pitchLocked?: boolean; // Pitch Repeat only — see below. undefined everywhere else, including the base cell.
+  rest?: number; // Robot Performance — the fraction of this event's length that falls silent (0.25..0.75), stamped by the post-pass; absent = sounds its full length
+  mark?: ArticulationMark; // Robot Performance — 'accent' | 'marcato' | 'staccato' | 'staccatissimo' | 'tenuto', stamped by the post-pass; absent = unmarked
 }
 ```
+
+`rest` and `mark` are **performance stamps**, not note data: they never move an event, and the trigger path turns them into a
+sounding length and a velocity multiplier (`resolveArticulation`, see [Performance Marks](#performance-marks-rests-and-accents) and
+[AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline)).
 
 `noteIndex` is resolved later by the harmony system and playback layer. `octave` stays fixed once the melody is generated.
 
@@ -222,7 +228,45 @@ The standalone Reset Melody control (`RESET_MELODY_SCHEMA`, `robotOptionsConfig.
 full determinism there's nothing left for a manual reroll to do that changing an attribute doesn't
 already do.
 
+## Performance Marks: Rests and Accents
+
+Robot Performance (roadmap 50.5, [docs/specs/ROBOT_PERFORMANCE.md](specs/ROBOT_PERFORMANCE.md) §1.2) adds a **post-pass** over
+the finished melody: `applyPerformanceMarks(melody, { rests, accents }, rand)` (`melodyGenerator.ts`) stamps each event with an
+optional `rest` and an optional `mark`, and nothing else. The notes, their steps and their lengths are exactly what
+`generateMelodyForRobot` produced, so moving the Rests or Accents slider never changes *which* notes play or *when* — only how
+long they sound and how hard they are struck.
+
+**Two streams.** The notes come from the composition stream, `buildSeededComposition(compositionSeed, { … })`; the stamps come from
+their own stream, `buildSeededPerformance(compositionSeed)` — an `alea` over `` `${compositionSeed}:performance` ``, keyed on the
+seed alone. Because the key carries neither slider value, dragging either slider re-stamps the same melody from the same stream.
+
+**Four draws per event, always.** For every event the post-pass draws `restRoll`, `restDepthRoll`, `markRoll` and `markPickRoll`
+in that order, whether or not it uses them. That is what keeps the two concerns apart: raising Rests changes which events are rested
+without re-rolling anyone's mark, and raising Accents only *adds* stamps — an event marked at 30 is still marked, with the same kind,
+at 60.
+
+- **Rest.** With `restChance = rests / PERFORMANCE_MAX` and `restDepth = REST_MIN_FRACTION + REST_SPAN · restChance`, an event
+  whose `restRoll` is under `restChance` gets `rest = REST_MIN_FRACTION + restDepthRoll · (restDepth − REST_MIN_FRACTION)`: at a
+  low setting a rested note loses about a quarter of its length; at 100 it may lose up to three quarters. A rest is a shortened
+  note, never a skipped one (skipping would be anti-Density).
+- **Mark.** `unlockedMarks(accents)` (`src/engine/articulation.ts`) opens the five classical marks in tiers — below `ACCENT_TIER_2`
+  (34) `accent` and `tenuto`; below `ACCENT_TIER_3` (67) also `staccato` and `marcato`; from 67 `staccatissimo` too — and an event
+  whose `markRoll` is under `accents / PERFORMANCE_MAX` takes `kinds[floor(markPickRoll · kinds.length)]`. `ARTICULATION_MARKS`
+  holds each mark's velocity and length factors (accent 1.25 × 1, marcato 1.4 × 0.75, staccato 1 × 0.5, staccatissimo 1 × 0.25,
+  tenuto 1.1 × 1).
+- **Both on one event.** `resolveArticulation(event)` lets the shorter of the rest remainder and the mark's length win, and a
+  `tenuto` cancels the rest.
+
+`regenerateMelody` applies the post-pass after every generation, and spawn applies it to the initial melody, so the stored
+`Robot.melody` always carries the stamps the robot's own `rests` / `accents` (0–100, `DEFAULT_RESTS` / `DEFAULT_ACCENTS` = 0)
+imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.md).
+
 ## Constants of Interest
+
+- `PERFORMANCE_MIN = 0`, `PERFORMANCE_MAX = 100` (`src/constants/index.ts`) — the shared range of Dynamics, Rests and Accents.
+- `DEFAULT_DYNAMICS = 50`, `DEFAULT_RESTS = 0`, `DEFAULT_ACCENTS = 0` (`melodyGenerator.ts`) — absence reproduces the pre-50.5 sound exactly.
+- `REST_MIN_FRACTION = 0.25`, `REST_SPAN = 0.5` — a rest removes between a quarter and three quarters of the note.
+- `ACCENT_TIER_2 = 34`, `ACCENT_TIER_3 = 67` (`src/engine/articulation.ts`) — where the third and fifth marks unlock.
 
 - `RHYTHMIC_DENSITY_MIN = 0`, `RHYTHMIC_DENSITY_MAX = 100` (`src/constants/index.ts`) — the shared 0-100% fill-rate range. Was `4`/`12` (an onset count) before this phase.
 - `RHYTHMIC_MOTIF_LENGTH_MIN = 0`, `RHYTHMIC_MOTIF_LENGTH_MAX = 8` (`src/constants/index.ts`) — the shared `ToggleValue.value` range for Motif Length. `RHYTHMIC_MOTIF_LENGTH_MAX` was `16` before the Pitch Repeat phase; `RHYTHMIC_MOTIF_LENGTH_MIN` was `1` before docs/specs/STEPPER_TO_SLIDER.md, which extended it down to `0` — `value === 0` is now the off state (`active` derives from `value > 0`), reversing an earlier `0`→`1` migration (see the `NOTE_VARIANCE_MIN` line below, which made the same reverse move).
@@ -250,14 +294,17 @@ const melody = generateMelodyForRobot({
   noteVariance: { active: true, value: 2 },         // weighted slice of 2 notes
 });
 
-AudioEngine.registerRobotMelody(robot.id, melody);
+// Robot Performance: stamp rests and marks from the seed's own performance stream (the notes do not move).
+const stamped = applyPerformanceMarks(melody, { rests: 20, accents: 40 }, buildSeededPerformance(robot.compositionSeed));
+
+AudioEngine.registerRobotMelody(robot.id, stamped);
 ```
 
 The generated melody is later consumed by AudioEngine via a step registry keyed by `startStep`.
 
 ## Playback Integration
 
-The playback layer uses the melody events as index-based cues and applies the current harmony palette at scheduling time. The generator itself only produces the event structure; the actual pitch is resolved by the engine when the note is scheduled.
+The playback layer uses the melody events as index-based cues and applies the current harmony palette at scheduling time. The generator itself only produces the event structure; the actual pitch is resolved by the engine when the note is scheduled. An event's `rest` and `mark` are resolved there too (`resolveArticulation` in `processMelodyStep`): a shortened note is scheduled as seconds at the live tempo, floored at `MIN_SOUNDING_SECONDS`, and a mark's velocity factor rides the `accentMultiplier` beside the motif-group accent — see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-resolution-pipeline).
 
 `AudioEngine`'s playback scheduler ticks on `'16n'` — 16 ticks per measure — so the 16 `startStep` slots this generator produces map 1:1 onto a single measure, exactly matching the "one measure, 16 subdivisions" model above. (This alignment was previously broken — the scheduler ticked on `'8n'`, stretching every melody's loop to 2 measures at half the tuned density — and was fixed to match this generator's model rather than the other way around.)
 

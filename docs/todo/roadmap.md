@@ -1431,8 +1431,8 @@ Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "what other audio at
 changing up the oscillators, could we use without adding more libs … global effects, plugins, wah
 pedals, portamento", then "if we can organize it and make it happen without distortion, then i want to
 at least try it … let's get your suggested ones into the roadmap, and add the rest as backlogs for us
-to try and see what works." Four sub-phases below, in build order (50.1 → 50.4); the rest of the menu
-is backlog items 21–24 ([backlog.md](backlog.md#21-audio-palette-trials-robot-dynamics-gate-length-humanize-and-rests)).
+to try and see what works." Five sub-phases below, in build order (50.1 → 50.5; 50.5 is the former backlog item 21,
+built 2026-10-16); the rest of the menu is backlog items 22–24 ([backlog.md](backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)).
 Not yet interviewed or specced — each sub-phase gets its own `/interview-me` → spec → plan, each small
 enough to land in a sitting. Build after the layout rework's Phase 2 (section tabs), so every new
 control is laid out once on the screens that ship.
@@ -1774,6 +1774,60 @@ recorded, so none is claimed here. The paragraphs above are the original startin
 - **Nothing on the gem reads a pedal**, pinned by the guard test's source scan.
 - **Still open:** the lore words; the T0 re-baseline and a Standard run on the Pixel, and the desktop `npm run perf` comparison;
   the underrun count at Full; and the Checkpoint C by-hand check.
+
+## 50.5 Robot Performance: Dynamics, Rests, Accents, Humanize
+
+The per-robot "musicality" half of the Audio Palette, promoted from backlog item 21 (now in
+[the archive](archive/backlog-archive.md#21-audio-palette-trials-robot-dynamics-gate-length-humanize-and-rests)). Four controls
+that make a robot's playing sound played rather than mechanical, every one **trigger-time arithmetic or melody data**: the phase
+adds zero audio nodes and no Audio Load cost. **Dynamics** (per robot, Levels) scales the existing velocity variance — neutral 50 is
+today's sound exactly, 0 is flat, 100 is twice the rate and twice the width. **Rests** (per robot, Composition) is a seeded per-event
+chance that a note ends early and leaves silence — a shortened note, never a skipped one, which would be anti-Density. **Accents**
+(per robot, Composition) is a seeded per-event chance of one of the five classical marks (accent, marcato, staccato, staccatissimo,
+tenuto), each a velocity × length pair, unlocked in three tiers. **Humanize** (global, Pacing) lands every note a few milliseconds
+off the grid inside `MIN_LEAD`. Seeded fleet-wide, not as minority traits.
+
+**Interviewed 2026-10-15**, intent at [robot-performance.md](../intent/robot-performance.md): three corrections to the backlog's
+framing — these are wanted features, not trials; rests shorten rather than skip; accents mean articulation marks, not beat patterns.
+Gate length folded into Rests; accent placement patterns, per-robot humanize and the "trial branch" framing dropped.
+
+**Status: built 2026-10-16 on `feature/palette-performance`, PR pending** (intent [robot-performance.md](../intent/robot-performance.md),
+spec [ROBOT_PERFORMANCE.md](../specs/ROBOT_PERFORMANCE.md), plan [ROBOT_PERFORMANCE.md](../tasks/ROBOT_PERFORMANCE.md); tasks
+T1–T17, T19 and the follow-up T20 committed; guard test `src/docs/robotPerformanceDocs.test.ts`). Crawford listened through
+Checkpoints B–E and gave one verdict, "it all sounds good", which accepts every open veto point as built (assumptions 2, 5, 6, 10,
+13, 14: the mark tiers and multipliers, the 0.8 baseline, Humanize in the Pacing top row, the seed ranges, the lore words).
+**T18's Pixel A/B was not run**, so the phone gate is open, not passed; a desktop `npm run perf` comparison was not run either.
+The desktop underruns that interrupted Phase 3 turned out to be a pre-existing rendering load on Crawford's laptop (main reproduced
+them; see `docs/PERFORMANCE.md` once that work is written up), not this phase.
+
+### As built (deltas from the paragraphs above)
+
+- **Rests and Accents live on a labelled Articulation panel in the Composition section** (`PingControlsCompositionSection`), not the
+  plan's PHRASING panel, which was no longer rendered on any screen. Gated by `disabled` alone.
+- **The post-pass is keyed on the seed alone.** `buildSeededPerformance(compositionSeed)` is an `alea` over
+  `` `${compositionSeed}:performance` ``; the spec's key carried both slider values, which re-seeded the stream on every tick of a
+  slider and broke its own four-draw contract. Four draws per event, always, so each slider re-stamps one concern.
+- **The per-note rolls hash the seed (T20).** `compositionSeed` is a 0–1 fraction, so the spec's `(compositionSeed + position) % 97`
+  noise-map offset put all twelve robots within one unit of each other on a smooth field: Humanize moved a unison together by ~7 ms
+  (Crawford: "I don't hear a change when I max out the slider") and the Dynamics roll was all-or-none across the roster on 51 of 64
+  ticks. `performanceRoll(compositionSeed, purpose, position)` — `alea` over `seed:purpose:position` — now feeds the velocity roll,
+  its variance and Humanize; the legacy no-position counter keeps the noise map. Measured: cross-robot Humanize spread 13–16 ms
+  before, ~34 ms after, at the 20 ms setting.
+- **Humanize is pushed, not read.** `AudioEngine.setHumanize(ms)` (the `setPolyphonyCap` precedent); `audioStore.setHumanize` and
+  the seed-once branch push it, and a session restore reaches the engine through the same setter. Seeded 2–6 ms by a **uniform**
+  draw (`getUniformSeededVal`): the plain draw gave three distinct values over 300 styles. Click-track entries are never humanized.
+- **`NOTE_VELOCITY_BASELINE` 1 → 0.8**, so the louder multipliers have headroom (about 2 dB fleet-wide; Volume untouched).
+- **Shortened notes are scheduled as seconds** (`NoteParams.duration: NoteDuration | number`), floored at `MIN_SOUNDING_SECONDS`
+  (0.03 s) and never longer than the note as written; the composite voice takes the number as a string.
+- **Companies broadcast the three robot fields** on `onDensityChange`'s shape; `CompanyOptionsSection` needed no change because T9/T10
+  had already wired the handlers through. Humanize is global, so no company field.
+- **Persistence:** `RobotAudioOverrideDiff.dynamics / rests / accents` (restored only when finite, key by key) and
+  `SessionPayload.humanize`; share-link codes `dy` / `rt` / `ax` and `hm`. The restore's existing `regenerateMelody` re-stamps the
+  marks. Payload `version` stays 2. A decoded absent `hm` is a present-but-undefined key, like `sd`.
+- **Nothing on the gem reads any of it**, pinned by the guard test's source scan.
+- **Still open:** the Pixel A/B at Standard and Full (T18); whether 20 ms is the right Humanize ceiling (`MIN_LEAD` allows up to
+  50 before the 50 ms rule breaks — listen again now that the unison smears); the "Dynamics" word's clash with the Audio Load
+  panel's use of the word (accepted for now).
 
 ## 51. Guide: A Read-Only Branch That Teaches the Whole App
 

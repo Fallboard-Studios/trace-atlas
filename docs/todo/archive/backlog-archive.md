@@ -82,3 +82,31 @@ complexity. `ControlSchema` (`src/types/controls.ts`) has no helper/hint-text fi
 today. Concept: a small "i"/"?" icon per control that reveals a short blurb about what it
 does on tap/hover. Deliberately scoped small (Crawford's own call) rather than a
 schema-wide addition touching all 14 primitives.
+
+## 21. Audio Palette Trials: Robot Dynamics, Gate Length, Humanize and Rests
+
+**Closed** 2026-10-16 — built as roadmap [50.5 Robot Performance](../roadmap.md#505-robot-performance-dynamics-rests-accents-humanize) on `feature/palette-performance` (intent [robot-performance.md](../../intent/robot-performance.md), spec [ROBOT_PERFORMANCE.md](../../specs/ROBOT_PERFORMANCE.md), plan [ROBOT_PERFORMANCE.md](../../tasks/ROBOT_PERFORMANCE.md)). Three of the four picks shipped as described below with corrections from the interview: Dynamics as a per-robot scale on the velocity variance; Humanize as a global Pacing slider; Rests as a seeded *shortening* of notes, not a skip. Gate length folded into Rests, and "accents" became the five classical articulation marks rather than a beat pattern. Nothing was dropped for failing to earn its slider. The original request follows.
+
+From the 2026-10-09 audio-palette conversation. Roadmap
+[50](../roadmap.md#50-audio-palette-new-attributes-without-new-libraries) carries the four picks and the
+shared constraints (the phone gate, where nodes may go, replayability, seeding and saving); these are
+the per-robot ideas Crawford kept back "to try and see what works". All four are trigger-time
+arithmetic in `AudioEngine.scheduleNote` and the playback loop — no nodes, no budget cost — and all
+replay exactly when seeded off the note index, the way velocity does (`computeNoteVelocitySeeded`,
+`src/engine/AudioEngine.ts:452`).
+
+- **Dynamics range and accents.** Velocity variance is a fixed seeded rate and width today
+  (`VELOCITY_VARIANCE_RATE`, `NOTE_VELOCITY_BASELINE`). A per-robot "dynamics" slider widens or
+  flattens it; an accent pattern on the 16-step grid (`MelodyEvent.startStep`) would be a second step.
+- **Gate length.** A per-robot multiplier on each event's duration before `triggerAttackRelease` —
+  staccato (0.3) to legato (1.0 and beyond, overlapping the next onset). Each layer's Synth is
+  monophonic, so an overlap retriggers; with roadmap 50.1's portamento set, that overlap is the glide.
+- **Humanize.** A seeded timing offset per note (± a few ms, scaled by a per-robot or global slider)
+  added to the schedule time, inside `MIN_LEAD`. Seeded by note index, so it replays. Pacing section if
+  global, Envelope if per robot.
+- **Rests.** A seeded per-robot skip chance per event ("sparseness"): the melody keeps its stored
+  steps, playback drops some. Composition section. Touches Pitch Repeat and the harmony palette only
+  through what is heard.
+
+Try order: dynamics first (cheapest to hear), then rests, gate, humanize. Each a short branch; drop
+what does not earn its slider.

@@ -130,7 +130,13 @@ seeded load value is a whole dB now.
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
 | Tempo | Linear | BPM | 20 | 200 | 1 | 40 | 100³ |
+| Humanize | Linear | ms | 0 | 20 | 1 | 2²⁴ | 6²⁴ |
 | Automatic Effects | Linear | % | 0 | 100 | 1 | 33 | 66⁴ |
+
+²⁴ Robot Performance (roadmap 50.5): `audioStore.humanize`, whole milliseconds (`HUMANIZE_MIN_MS`–`HUMANIZE_MAX_MS`,
+`HUMANIZE_SCHEMA`). Seeded once per session by `generateHumanize` over `HUMANIZE_SEED_RANGE` (2–6) with a **uniform** draw
+(`getUniformSeededVal`) quantised to 1 ms, so it is step-aligned, then carried forward across Attenuation Style switches like
+the swell fields. `setHumanize` truncates to whole ms and pushes `AudioEngine.setHumanize`.
 
 ³ Sourced from the *Attenuation Style's* own seed (`BPM_SEED_RANGE`, `generateAttenuationStyleBpm`,
 `bpmSeed.ts`), not the locale — it moved off the locale with the Free | Sync toggle
@@ -154,6 +160,13 @@ slider's own `step: 1`.
 | Pan | Centered-zero | — | -100 | 100 | 1 | — | — |
 | Reverb | Linear | % | 0 | 100 | 1 | 10²³ | 40²³ |
 | Delay | Linear | % | 0 | 100 | 1 | 0²³ | 30²³ |
+| Dynamics | Linear | — | 0 | 100 | 1 | 25²⁵ | 75²⁵ |
+
+²⁵ Robot Performance (roadmap 50.5): Dynamics, Rests and Accents are stored as the integer the slider shows
+(`Robot.dynamics` / `rests` / `accents`, `PERFORMANCE_MIN`–`PERFORMANCE_MAX`, no conversion), seeded at spawn by plain draws
+over `DYNAMICS_SEED_RANGE` (25–75), `RESTS_SEED_RANGE` (10–60) and `ACCENTS_SEED_RANGE` (20–80) and `Math.round`-ed, so all
+three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the seeds
+never land on the defaults, so every fresh robot has some of each. None is a swell attribute.
 
 ²³ Reverb and Delay are the robot's **sends** into the shared rooms (Robot Sends, roadmap 50.2), stored as `0..1`
 fractions (`Robot.reverbSend` / `delaySend`) and displayed ×`SEND_DISPLAY_SCALE`. Seeded by `generateRobotSends`
@@ -180,6 +193,8 @@ fraction — same fix as Automatic Effects above, always lands on a whole percen
 | Density | Linear | % | 0 | 100 | 1⁶ | 0 | 100 |
 | Motif Length | Linear | — | 0 | 8 | 1 | 0 | 8⁷ |
 | Pitch Repeat | Linear | % | 0 | 100 | 1⁶ | 0 | 100 |
+| Rests | Linear | — | 0 | 100 | 1 | 10²⁵ | 60²⁵ |
+| Accents | Linear | — | 0 | 100 | 1 | 20²⁵ | 80²⁵ |
 
 ⁶ No `step` in the schema — defaults to `1`; both Density and Pitch Repeat seed a continuous float
 across their full displayed range with no rounding.

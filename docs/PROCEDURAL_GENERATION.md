@@ -99,6 +99,15 @@ Added to `generateAudioAttributes` and `generateRobotLfoLinks` in `spawnSystem.t
 | `robot.audio.filterFreq` | The cutoff, in `OPEN_FILTER_FREQ_RANGE` or `ACCENT_FILTER_FREQ_RANGE` (same dataId in both tiers) |
 | `robot.audio.filterQ`, `robot.audio.filter.type` | An accent robot's resonance (`ACCENT_FILTER_Q_RANGE`) and whether it is bandpass (`ACCENT_BANDPASS_SHARE`) |
 | `robot.lfo.bus.frequency.quiet`, `.lane`, `.depth` | The bus cutoff's LFO link, with its own quiet threshold (`LFO_BUS_QUIET_THRESHOLD`) and depth window (`ROBOT_LFO_BUS_DEPTH_SEED_RANGE`) via the existing `robot.lfo.<target>.*` pattern |
+| `robot.dynamics`, `robot.rests`, `robot.accents` | Robot Performance (roadmap 50.5): the three 0–100 performance fields, plain draws at the spawn `offset`, rounded to whole numbers, over `DYNAMICS_SEED_RANGE` (25–75), `RESTS_SEED_RANGE` (10–60) and `ACCENTS_SEED_RANGE` (20–80). Fleet-wide traits, not minority ones — every robot gets some of each |
+| `globalAudio.humanize` | The Pacing "Humanize" value, ms, seeded once per session in `HUMANIZE_SEED_RANGE` (2–6, whole ms) by `generateHumanize` and carried forward across style switches like the swell fields. A **uniform** draw (`getUniformSeededVal`): the plain draw gave three distinct values over 300 styles |
+
+**Not noise-map draws any more:** the per-note rolls the playback loop makes — the velocity roll and its variance, and the Humanize
+offset — are `performanceRoll(compositionSeed, purpose, position)` in `AudioEngine.ts`, an `alea` hash of the robot's seed, the
+purpose and the tick (Robot Performance T20). They used to sample the noise map at `compositionSeed + position`, but
+`robot.compositionSeed` is a 0–1 fraction, so every robot sat within one unit of the others on a smooth field and the whole roster
+rolled together. `audio.velocityRoll` / `audio.velocityVariance` remain only for the legacy no-position path. The lesson generalises:
+`compositionSeed` is a fraction, so anything "per robot" must hash it, never add it to an offset.
 
 Every threshold was picked from the measured draw rather than set to its nominal fraction: these draws bunch around 0.5, so a nominal 12 % threshold of 0.12 landed near the 3rd percentile. `spawnSystem.test.ts` pins the measured bands over 400 seeded robots. Adding these changed what every world sounds like, which pre-v1 is by design.
 

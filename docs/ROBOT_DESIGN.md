@@ -133,6 +133,12 @@ through no dial either, and a send swell moves a slider, never the gem: nothing 
 `RobotBody.tsx` reads either field (pinned by `src/docs/robotSendsDocs.test.ts`). A robot's depth in the echo is a
 property of the audio graph only; its body is still identity and seed.
 
+Robot Performance (`Robot.dynamics` / `rests` / `accents`, the melody's `rest` / `mark` stamps and the global Humanize; roadmap
+50.5) reaches the body through no dial either: nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads `dynamics`,
+`rests`, `accents`, `.rest`, `.mark` or `humanize` (pinned by `src/docs/robotPerformanceDocs.test.ts`). A note struck harder, cut
+short or landing a few milliseconds late is a property of the performance only; the gem keeps its seeded geometry and the three
+audio dials above.
+
 ## Orbiters
 
 The four orbiter polygons are the one part of the body composition settings drive directly (Roadmap
