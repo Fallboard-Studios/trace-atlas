@@ -28,7 +28,7 @@ import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../sys
 import * as audioSwells from '../systems/audioSwells';
 import { precomputeDataX } from './getSeededVal';
 import * as noiseMaps from './noiseMaps';
-import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
@@ -762,15 +762,21 @@ describe('applySessionPayload', () => {
       pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
       octaveRange: restoredRobot.octaveRange,
     });
-    const expectedMelody = generateMelodyForRobot({
-      octaveMin: restoredRobot.octaveRange[0],
-      octaveMax: restoredRobot.octaveRange[1],
-      rhythmicDensity: RHYTHMIC_DENSITY_MAX,
-      rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-      noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
-      pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
-      rand: expectedRand,
-    });
+    // Robot Performance T4: a seeded robot carries rests and accents, so its melody is the generated
+    // one with the same post-pass regenerateMelody applies (docs/specs/ROBOT_PERFORMANCE.md section 1.2).
+    const expectedMelody = applyPerformanceMarks(
+      generateMelodyForRobot({
+        octaveMin: restoredRobot.octaveRange[0],
+        octaveMax: restoredRobot.octaveRange[1],
+        rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+        rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+        noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+        pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+        rand: expectedRand,
+      }),
+      { rests: restoredRobot.rests ?? DEFAULT_RESTS, accents: restoredRobot.accents ?? DEFAULT_ACCENTS },
+      buildSeededPerformance(restoredRobot.compositionSeed),
+    );
     const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
   });

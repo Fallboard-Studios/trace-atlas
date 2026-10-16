@@ -13,6 +13,11 @@ import {
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
   DEFAULT_NOTE_VARIANCE,
   DEFAULT_PITCH_REPEAT,
+  DEFAULT_DYNAMICS,
+  DEFAULT_RESTS,
+  DEFAULT_ACCENTS,
+  buildSeededPerformance,
+  applyPerformanceMarks,
 } from '../engine/melodyGenerator';
 import type { ToggleValue } from '../engine/melodyGenerator';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -85,6 +90,21 @@ const OCTAVE_REGISTERS = [
   [4, 6],
   [5, 7],  // Treble (small robots)
 ] as const;
+
+// ========================================
+// ROBOT PERFORMANCE (docs/specs/ROBOT_PERFORMANCE.md assumption 13)
+// ========================================
+// Unlike the articulation traits below, these are not minority traits: every robot is seeded, most land
+// moderate (the bell-curved getSeededVal draw is wanted here) and a few sit near the edges. Each band is
+// drawn as a rounded integer 0-100, the sliders' own scale.
+
+/** Seeded Dynamics. 25 plays almost flat (a quarter of today's velocity variance), 75 breathes (one and a half times it). */
+const DYNAMICS_SEED_RANGE = { min: 25, max: 75 };
+/** Seeded Rests. 10 leaves a rare short gap, 60 cuts more than half the notes short, and deeper. */
+const RESTS_SEED_RANGE = { min: 10, max: 60 };
+/** Seeded Accents. 20 marks about one note in five with only the two mildest marks (accent, tenuto); 80 marks four in
+ *  five with all five, staccatissimo included. */
+const ACCENTS_SEED_RANGE = { min: 20, max: 80 };
 
 // ========================================
 // ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.2)
@@ -571,6 +591,10 @@ export interface RobotAudioBaseline {
   rhythmicMotifLength: ToggleValue;
   noteVariance: ToggleValue;
   pitchRepeat: number;
+  /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): seeded, 0-100 integers, inherited on the copy branch like pitchRepeat. */
+  dynamics: number;
+  rests: number;
+  accents: number;
   /** Mirrors spawnRobot's own lfoLinks branch (Session Storage/LFO Bank Task 18): copied on the
    *  copy branch, freshly drawn (with the roster's running lane tally) on the fresh branch. */
   lfoLinks: Record<RobotLfoTargetId, LfoLink>;
@@ -622,10 +646,13 @@ export function generateRobotAudioBaseline(
   const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
   const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
   const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
+  const dynamics = Math.round(getSeededVal(noiseMap, 'robot.dynamics', spawnCount, DYNAMICS_SEED_RANGE.min, DYNAMICS_SEED_RANGE.max));
+  const rests = Math.round(getSeededVal(noiseMap, 'robot.rests', spawnCount, RESTS_SEED_RANGE.min, RESTS_SEED_RANGE.max));
+  const accents = Math.round(getSeededVal(noiseMap, 'robot.accents', spawnCount, ACCENTS_SEED_RANGE.min, ACCENTS_SEED_RANGE.max));
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoLinks, ...sends };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, dynamics, rests, accents, lfoLinks, ...sends };
 }
 
 /**
@@ -730,6 +757,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   let spawnRhythmicMotifLength: ToggleValue;
   let spawnNoteVariance: ToggleValue;
   let spawnPitchRepeat: number;
+  let spawnDynamics: number;
+  let spawnRests: number;
+  let spawnAccents: number;
   let spawnLfoLinks: ReturnType<typeof generateRobotLfoLinks>;
 
   // Roster-aware lane tally (docs/specs/LFO_BANK.md §1.3): every already-spawned robot's own
@@ -754,6 +784,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     spawnRhythmicMotifLength = source.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
     spawnNoteVariance = source.noteVariance ?? DEFAULT_NOTE_VARIANCE;
     spawnPitchRepeat = source.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
+    spawnDynamics = source.dynamics ?? DEFAULT_DYNAMICS;
+    spawnRests = source.rests ?? DEFAULT_RESTS;
+    spawnAccents = source.accents ?? DEFAULT_ACCENTS;
     spawnLfoLinks = source.lfoLinks ?? generateRobotLfoLinks(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount, priorLaneCounts);
   } else {
     // Generate audio attributes — octaveRange is seeded directly inside generateAudioAttributes
@@ -791,6 +824,24 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
         ? getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100)
         : alea(`${localeId}:${spawnCount}:pitchRepeat`)() * 100
     );
+
+    // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): the three performance sliders, each its own dataId
+    // at the spawn count, with the same alea no-noise-map fallback the composition fields have.
+    spawnDynamics = Math.round(
+      noiseMap
+        ? getSeededVal(noiseMap, 'robot.dynamics', spawnCount, DYNAMICS_SEED_RANGE.min, DYNAMICS_SEED_RANGE.max)
+        : DYNAMICS_SEED_RANGE.min + alea(`${localeId}:${spawnCount}:dynamics`)() * (DYNAMICS_SEED_RANGE.max - DYNAMICS_SEED_RANGE.min)
+    );
+    spawnRests = Math.round(
+      noiseMap
+        ? getSeededVal(noiseMap, 'robot.rests', spawnCount, RESTS_SEED_RANGE.min, RESTS_SEED_RANGE.max)
+        : RESTS_SEED_RANGE.min + alea(`${localeId}:${spawnCount}:rests`)() * (RESTS_SEED_RANGE.max - RESTS_SEED_RANGE.min)
+    );
+    spawnAccents = Math.round(
+      noiseMap
+        ? getSeededVal(noiseMap, 'robot.accents', spawnCount, ACCENTS_SEED_RANGE.min, ACCENTS_SEED_RANGE.max)
+        : ACCENTS_SEED_RANGE.min + alea(`${localeId}:${spawnCount}:accents`)() * (ACCENTS_SEED_RANGE.max - ACCENTS_SEED_RANGE.min)
+    );
   }
 
   // Seeded melody (Roadmap Phase 31) -- the same buildSeededComposition formula
@@ -805,15 +856,21 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     octaveRange,
   });
 
-  const spawnMelody = generateMelodyForRobot({
-    octaveMin: octaveRange[0],
-    octaveMax: octaveRange[1],
-    rhythmicDensity: spawnRhythmicDensity,
-    rhythmicMotifLength: spawnRhythmicMotifLength,
-    noteVariance: spawnNoteVariance,
-    pitchRepeat: spawnPitchRepeat,
-    rand: compositionRand,
-  });
+  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.2): the Rests / Accents post-pass, the same one
+  // regenerateMelody.ts applies, so an edit reverted to its spawn value reproduces this melody, stamps included.
+  const spawnMelody = applyPerformanceMarks(
+    generateMelodyForRobot({
+      octaveMin: octaveRange[0],
+      octaveMax: octaveRange[1],
+      rhythmicDensity: spawnRhythmicDensity,
+      rhythmicMotifLength: spawnRhythmicMotifLength,
+      noteVariance: spawnNoteVariance,
+      pitchRepeat: spawnPitchRepeat,
+      rand: compositionRand,
+    }),
+    { rests: spawnRests, accents: spawnAccents },
+    buildSeededPerformance(compositionSeed),
+  );
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
 
@@ -839,6 +896,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
+    dynamics: spawnDynamics,
+    rests: spawnRests,
+    accents: spawnAccents,
     lfoLinks: spawnLfoLinks,
     masterVolume: (() => {
       const seeded = noiseMap

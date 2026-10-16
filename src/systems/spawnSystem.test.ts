@@ -22,7 +22,7 @@ import {
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '../data/globalAudioLoadingRanges';
-import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { getStations, type Station } from './stations';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
@@ -1538,15 +1538,21 @@ describe('spawnSystem', () => {
         pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
         octaveRange: robot.octaveRange,
       });
-      const expectedMelody = generateMelodyForRobot({
-        octaveMin: robot.octaveRange[0],
-        octaveMax: robot.octaveRange[1],
-        rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
-        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-        noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
-        pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
-        rand,
-      });
+      // Robot Performance T4 (docs/specs/ROBOT_PERFORMANCE.md section 1.2): the spawn melody is that
+      // melody with the Rests / Accents post-pass applied from the robot's own two fields.
+      const expectedMelody = applyPerformanceMarks(
+        generateMelodyForRobot({
+          octaveMin: robot.octaveRange[0],
+          octaveMax: robot.octaveRange[1],
+          rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
+          rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+          noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+          pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+          rand,
+        }),
+        { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
+        buildSeededPerformance(robot.compositionSeed),
+      );
       expect(stripEventIds(robot.melody)).toEqual(stripEventIds(expectedMelody));
     });
 
@@ -2459,6 +2465,292 @@ describe('spawnSystem', () => {
   // original plan, made after discovering spawnRobot's ~30% "copy an earlier sibling" branch,
   // which depends on the live store's accumulated robots — replaying it purely requires this
   // function to take that pool as an explicit array argument instead).
+  // Robot Performance T4 (docs/specs/ROBOT_PERFORMANCE.md assumption 13, sections 1.2 and 1.4): every
+  // robot is seeded with Dynamics, Rests and Accents, fleet-wide, and its melody carries the stamps.
+  describe('spawnRobot and the baseline — performance seeding (Robot Performance T4)', () => {
+    // 10 worlds x 40 offsets = 400 robots; generateRobotAudioBaseline with no priors is always a fresh draw.
+    const WORLDS = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`performance-seed-world-${i}`)));
+    const SAMPLE = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateRobotAudioBaseline(noiseMap, offset, [])));
+    const BANDS = { dynamics: [25, 75], rests: [10, 60], accents: [20, 80] } as const;
+    const FIELDS = ['dynamics', 'rests', 'accents'] as const;
+    type PerformanceFields = { dynamics?: number; rests?: number; accents?: number };
+    const fieldsOf = (x: PerformanceFields) => ({ dynamics: x.dynamics, rests: x.rests, accents: x.accents });
+
+    const freshLocale = (localeId: string, coordinates?: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, ...(coordinates ? { coordinates } : {}), robots: [] } },
+      }));
+    const noiseFor = (localeId: string) => {
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      return getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+    };
+    const stripEventIds = (melody: Robot['melody']) => melody.map(({ id: _id, ...rest }) => rest);
+    /** Force every spawn after the first onto the copy branch, copying the first robot. */
+    const forceCopyOfFirst = async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.copyChance') return 0;
+        if (dataId === 'robot.copySource') return min ?? 0;
+        return real(nm, dataId, offset, min, max);
+      });
+    };
+
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    });
+
+    afterEach(async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+    });
+
+    describe('the seeded distribution over 400 robots', () => {
+      it('gives every robot all three fields, as integers', () => {
+        expect(SAMPLE).toHaveLength(400);
+        for (const baseline of SAMPLE) {
+          for (const field of FIELDS) {
+            expect(Number.isInteger(baseline[field]), `${field} ${baseline[field]}`).toBe(true);
+          }
+        }
+      });
+
+      it.each(FIELDS)('keeps %s inside its seed band', (field) => {
+        const [min, max] = BANDS[field];
+        for (const baseline of SAMPLE) {
+          expect(baseline[field]).toBeGreaterThanOrEqual(min);
+          expect(baseline[field]).toBeLessThanOrEqual(max);
+        }
+      });
+
+      it.each(FIELDS)('spreads %s across the band: at least 20 distinct values, both halves used', (field) => {
+        const values = SAMPLE.map((b) => b[field]);
+        const [min, max] = BANDS[field];
+        const middle = (min + max) / 2;
+        expect(new Set(values).size, `${field} distinct values`).toBeGreaterThanOrEqual(20);
+        expect(values.some((v) => v < middle)).toBe(true);
+        expect(values.some((v) => v > middle)).toBe(true);
+      });
+
+      it('is deterministic: the same noise map and offset always give the same three values', () => {
+        const noiseMap = createNoise2D(alea('performance-determinism-seed'));
+        for (let offset = 0; offset < 20; offset++) {
+          expect(fieldsOf(generateRobotAudioBaseline(noiseMap, offset, []))).toEqual(fieldsOf(generateRobotAudioBaseline(noiseMap, offset, [])));
+        }
+      });
+
+      it('the three fields are drawn independently: few robots share one value across all three', () => {
+        const sameEverywhere = SAMPLE.filter((b) => b.dynamics === b.rests && b.rests === b.accents);
+        expect(sameEverywhere.length).toBeLessThan(SAMPLE.length / 10);
+      });
+    });
+
+    describe('spawnRobot', () => {
+      it('writes all three fields on every spawned robot, Active or Docked, inside the bands', () => {
+        freshLocale('performance-spawn-locale');
+        for (let i = 0; i < 30; i++) {
+          spawnRobot('performance-spawn-locale', i % 2 ? { docking: DockingState.Docked, batteryLevel: 40 } : undefined);
+        }
+        const robots = useLocaleStore.getState().getLocaleById('performance-spawn-locale')!.robots;
+        expect(robots).toHaveLength(30);
+        for (const robot of robots) {
+          for (const field of FIELDS) {
+            const [min, max] = BANDS[field];
+            expect(robot[field], `${field} of ${robot.id}`).toBeGreaterThanOrEqual(min);
+            expect(robot[field], `${field} of ${robot.id}`).toBeLessThanOrEqual(max);
+            expect(Number.isInteger(robot[field])).toBe(true);
+          }
+        }
+      });
+
+      it('draws each field once, at the spawn count, from its own dataId and band', () => {
+        freshLocale('performance-keys-locale');
+        vi.mocked(getSeededVal).mockClear();
+
+        spawnRobot('performance-keys-locale');
+
+        const calls = vi.mocked(getSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
+        expect(calls.map((c) => [c[1], c[2], c[3], c[4]]).sort()).toEqual([
+          ['robot.accents', 0, 20, 80],
+          ['robot.dynamics', 0, 25, 75],
+          ['robot.rests', 0, 10, 60],
+        ]);
+      });
+
+      it('with no locale (no noise map) falls back to alea draws inside the same bands, still varied', () => {
+        const added: Robot[] = [];
+        const realAddRobot = useLocaleStore.getState().addRobot;
+        useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+        try {
+          for (let i = 0; i < 40; i++) spawnRobot(`performance-no-locale-${i}`);
+        } finally {
+          useLocaleStore.setState({ addRobot: realAddRobot });
+        }
+        expect(added).toHaveLength(40);
+        for (const field of FIELDS) {
+          const [min, max] = BANDS[field];
+          const values = added.map((r) => r[field] as number);
+          for (const v of values) {
+            expect(Number.isInteger(v)).toBe(true);
+            expect(v).toBeGreaterThanOrEqual(min);
+            expect(v).toBeLessThanOrEqual(max);
+          }
+          expect(new Set(values).size, `${field} distinct values`).toBeGreaterThan(8);
+        }
+      });
+
+      it('on the copy branch inherits all three fields from the source and draws none', async () => {
+        freshLocale('performance-copy-locale');
+        await forceCopyOfFirst();
+        for (let i = 0; i < 4; i++) {
+          if (i === 1) vi.mocked(getSeededVal).mockClear();
+          spawnRobot('performance-copy-locale');
+        }
+        // Captured before the fresh-draw comparison below, which calls getSeededVal itself.
+        const draws = vi.mocked(getSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
+        const robots = useLocaleStore.getState().getLocaleById('performance-copy-locale')!.robots;
+        // The copy branch ran: every later robot reuses the first robot's audioAttributes by reference.
+        expect(robots.slice(1).every((r) => r.audioAttributes === robots[0].audioAttributes)).toBe(true);
+        for (const robot of robots.slice(1)) expect(fieldsOf(robot)).toEqual(fieldsOf(robots[0]));
+        // ...and not by coincidence: a fresh draw at those offsets would have given different values.
+        const noiseMap = noiseFor('performance-copy-locale');
+        const freshDraws = [1, 2, 3].map((i) => fieldsOf(generateRobotAudioBaseline(noiseMap, i, [])));
+        expect(freshDraws.some((fresh) => JSON.stringify(fresh) !== JSON.stringify(fieldsOf(robots[0])))).toBe(true);
+        expect(draws).toEqual([]);
+      });
+
+      it('on the copy branch from a source with the fields absent falls back to 50, 0 and 0', async () => {
+        freshLocale('performance-copy-absent-locale');
+        const bare = { ...(await (async () => {
+          spawnRobot('performance-copy-absent-locale');
+          return useLocaleStore.getState().getLocaleById('performance-copy-absent-locale')!.robots[0];
+        })()) } as Robot;
+        delete bare.dynamics;
+        delete bare.rests;
+        delete bare.accents;
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, 'performance-copy-absent-locale': { ...state.locales['performance-copy-absent-locale'], robots: [bare] } },
+        }));
+        await forceCopyOfFirst();
+
+        spawnRobot('performance-copy-absent-locale');
+
+        const copy = useLocaleStore.getState().getLocaleById('performance-copy-absent-locale')!.robots[1];
+        expect(fieldsOf(copy)).toEqual({ dynamics: DEFAULT_DYNAMICS, rests: DEFAULT_RESTS, accents: DEFAULT_ACCENTS });
+      });
+    });
+
+    describe('the melody carries the stamps', () => {
+      const rosterLocale = 'performance-melody-roster-locale';
+      const rebuiltMelody = (robot: Robot) =>
+        applyPerformanceMarks(
+          generateMelodyForRobot({
+            octaveMin: robot.octaveRange[0],
+            octaveMax: robot.octaveRange[1],
+            rhythmicDensity: robot.rhythmicDensity!,
+            rhythmicMotifLength: robot.rhythmicMotifLength!,
+            noteVariance: robot.noteVariance!,
+            pitchRepeat: robot.pitchRepeat!,
+            rand: buildSeededComposition(robot.compositionSeed, {
+              rhythmicDensity: robot.rhythmicDensity!,
+              rhythmicMotifLength: robot.rhythmicMotifLength!,
+              noteVariance: robot.noteVariance!,
+              pitchRepeat: robot.pitchRepeat!,
+              octaveRange: robot.octaveRange,
+            }),
+          }),
+          { rests: robot.rests!, accents: robot.accents! },
+          buildSeededPerformance(robot.compositionSeed),
+        );
+
+      it('every robot of a real roster has exactly the melody the post-pass makes from its own fields, and some are stamped', () => {
+        freshLocale(rosterLocale);
+        spawnInitialRoster(rosterLocale);
+        const robots = useLocaleStore.getState().getLocaleById(rosterLocale)!.robots;
+        expect(robots.length).toBeGreaterThan(0);
+        for (const robot of robots) {
+          expect(stripEventIds(robot.melody), `robot ${robot.id}`).toEqual(stripEventIds(rebuiltMelody(robot)));
+        }
+        // Not vacuous: the seeded rests and accents really did stamp events.
+        expect(robots.some((r) => r.melody.some((e) => e.rest !== undefined))).toBe(true);
+        expect(robots.some((r) => r.melody.some((e) => e.mark !== undefined))).toBe(true);
+      });
+
+      it('regenerateMelody on every freshly spawned, unedited robot reproduces its spawn melody, stamps included', async () => {
+        const { regenerateMelody } = await import('../engine/regenerateMelody');
+        freshLocale(rosterLocale + '-regen');
+        spawnInitialRoster(rosterLocale + '-regen');
+        const robots = useLocaleStore.getState().getLocaleById(rosterLocale + '-regen')!.robots;
+        expect(robots.some((r) => r.melody.some((e) => e.rest !== undefined || e.mark !== undefined))).toBe(true);
+        for (const robot of robots) {
+          const spawned = robot.melody;
+          regenerateMelody(robot, rosterLocale + '-regen');
+          const after = useLocaleStore.getState().getLocaleById(rosterLocale + '-regen')!.robots.find((r) => r.id === robot.id)!;
+          expect(stripEventIds(after.melody), `robot ${robot.id}`).toEqual(stripEventIds(spawned));
+        }
+      });
+
+      it('rests and accents at their seeded values never change which notes a robot plays', () => {
+        freshLocale(rosterLocale + '-notes');
+        spawnInitialRoster(rosterLocale + '-notes');
+        for (const robot of useLocaleStore.getState().getLocaleById(rosterLocale + '-notes')!.robots) {
+          const plain = applyPerformanceMarks(rebuiltMelody({ ...robot, rests: 0, accents: 0 }), { rests: 0, accents: 0 }, buildSeededPerformance(robot.compositionSeed));
+          expect(robot.melody.map(({ rest: _r, mark: _m, id: _id, ...rest }) => rest)).toEqual(plain.map(({ id: _id, ...rest }) => rest));
+        }
+      });
+    });
+
+    describe('generateRobotAudioBaseline mirrors spawnRobot', () => {
+      it('equals the spawned robot at spawn count 0, with each value off its default', () => {
+        freshLocale('performance-baseline-fresh-locale');
+        spawnRobot('performance-baseline-fresh-locale');
+        const robot = useLocaleStore.getState().getLocaleById('performance-baseline-fresh-locale')!.robots[0];
+
+        const baseline = generateRobotAudioBaseline(noiseFor('performance-baseline-fresh-locale'), 0, []);
+
+        expect(fieldsOf(baseline)).toEqual(fieldsOf(robot));
+        // A baseline missing a field, or one equal to its default, cannot pass: rests and accents bands start above 0.
+        expect(baseline.rests).toBeGreaterThanOrEqual(10);
+        expect(baseline.accents).toBeGreaterThanOrEqual(20);
+        expect(typeof baseline.dynamics).toBe('number');
+      });
+
+      it('equals every robot of a real 12-robot roster, copied siblings included', () => {
+        freshLocale('performance-baseline-roster-locale');
+        spawnInitialRoster('performance-baseline-roster-locale');
+        const robots = useLocaleStore.getState().getLocaleById('performance-baseline-roster-locale')!.robots;
+        const baselines = generateRobotRosterBaseline(noiseFor('performance-baseline-roster-locale'), robots.length);
+        expect(robots.length).toBeGreaterThan(0);
+        robots.forEach((robot, i) => {
+          expect(fieldsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(fieldsOf(robot));
+        });
+      });
+
+      it('equals the spawned robots on the copy branch too', async () => {
+        freshLocale('performance-baseline-copy-locale');
+        await forceCopyOfFirst();
+        for (let i = 0; i < 5; i++) spawnRobot('performance-baseline-copy-locale');
+        const robots = useLocaleStore.getState().getLocaleById('performance-baseline-copy-locale')!.robots;
+        const baselines = generateRobotRosterBaseline(noiseFor('performance-baseline-copy-locale'), robots.length);
+        expect(baselines.slice(1).every((b) => b.audioAttributes === baselines[0].audioAttributes)).toBe(true);
+        robots.forEach((robot, i) => {
+          expect(fieldsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(fieldsOf(robot));
+        });
+      });
+
+      it('a copy baseline inherits the source three values, not a fresh draw', async () => {
+        freshLocale('performance-baseline-inherit-locale');
+        const noiseMap = noiseFor('performance-baseline-inherit-locale');
+        await forceCopyOfFirst();
+        const source = { ...generateRobotAudioBaseline(noiseMap, 0, []), dynamics: 11, rests: 22, accents: 33 };
+
+        const copy = generateRobotAudioBaseline(noiseMap, 1, [source]);
+
+        expect(copy.audioAttributes).toBe(source.audioAttributes);
+        expect(fieldsOf(copy)).toEqual({ dynamics: 11, rests: 22, accents: 33 });
+      });
+    });
+  });
+
   describe('generateRobotAudioBaseline / generateRobotRosterBaseline', () => {
     beforeEach(() => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
