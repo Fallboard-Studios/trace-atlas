@@ -230,6 +230,7 @@ vi.mock('../systems/robotLfoLinks', () => ({
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
+import { precomputeDataX } from '../utils/getSeededVal';
 
 /** Shared placeholder ADSR for tests that don't care about specific envelope values —
  * reserveVoice's adsr parameter is required (Roadmap Phase 9), so every call needs one. */
@@ -1449,7 +1450,9 @@ describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per
     synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mock?.calls?.forEach((c: any) => {
       if (c[0] === 'D6') velocity = c[3];
     }));
-    expect(velocity).toBe(1);
+    // 0.8, not 1: NOTE_VELOCITY_BASELINE dropped from 1 to 0.8 so the accent multipliers have headroom
+    // (Robot Performance T5, docs/specs/ROBOT_PERFORMANCE.md assumption 6).
+    expect(velocity).toBe(0.8);
   });
 });
 
@@ -4070,6 +4073,285 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
 
       expect(primeSpy).not.toHaveBeenCalled();
       teardown();
+    });
+  });
+});
+
+// ========================================
+// Robot Performance T5 (docs/specs/ROBOT_PERFORMANCE.md assumptions 6-8, sections 1.3 and 4):
+// per-note velocity is keyed on the playback position, scaled by the robot Dynamics, and
+// jitters around a 0.8 baseline so the accent multipliers have headroom to lift a note.
+// ========================================
+
+describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot Performance T5)', () => {
+  const ROLL_X = precomputeDataX('audio.velocityRoll');
+
+  /**
+   * A hand-checkable noise map. The roll is ((k + 0.5) / 20) with k = y mod 20, so a note varies when
+   * k is below 20 * rate (at the default rate 0.15 that is k = 0, 1, 2), and the variance draw is
+   * (y mod 7 - 3) / 3, a sawtooth from -1 to 1. Both read y, the position-derived offset.
+   */
+  const testNoise = (x: number, y: number): number => {
+    const row = Math.floor(y);
+    return x === ROLL_X ? -1 + (2 * ((row % 20) + 0.5)) / 20 : ((row % 7) - 3) / 3;
+  };
+
+  const robotFixture = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    compositionSeed: 0,
+    audioMode: 'none',
+    audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8,
+    melody: [],
+    octaveRange: [3, 4],
+    position: { x: 960, y: 0 },
+    ...extra,
+  });
+
+  /** Fresh module graph with the noise map and the active locale robots pinned. */
+  async function setup(robots: Array<ReturnType<typeof robotFixture>>, noise: ((x: number, y: number) => number) | null = testNoise) {
+    vi.resetModules();
+    vi.doMock('../utils/noiseMaps', async () => {
+      const actual = await vi.importActual<typeof import('../utils/noiseMaps')>('../utils/noiseMaps');
+      return { ...actual, tryGetLocaleNoiseMap: () => noise };
+    });
+    const engine = await import('./AudioEngine');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const stateSpy = vi.spyOn(store, 'getState').mockReturnValue({ locales: { testLocale: { robots } } } as never);
+    return { ...engine, stateSpy };
+  }
+
+  const sweep = (velocity: (position: number) => number, count = 200) => Array.from({ length: count }, (_, position) => velocity(position));
+
+  afterEach(() => {
+    vi.doUnmock('../utils/noiseMaps');
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  describe('the baseline and the Dynamics-50 oracle', () => {
+    it('with no noise map every note is exactly the 0.8 baseline', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')], null);
+      expect(computeNoteVelocitySeeded('r', 0)).toBe(0.8);
+      expect(computeNoteVelocitySeeded('r')).toBe(0.8);
+    });
+
+    it('at Dynamics 50 the old roll decisions repeat, scaled to the 0.8 baseline (oracle re-recorded: baseline 1 to 0.8 and position-keyed rolls, assumptions 6 and 8)', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 50 })]);
+      // Positions 0-2 vary (roll 0.025, 0.075, 0.125 are under 0.15); 3 does not (0.175).
+      expect(computeNoteVelocitySeeded('r', 0)).toBeCloseTo(0.8 - 0.25, 10);
+      expect(computeNoteVelocitySeeded('r', 1)).toBeCloseTo(0.8 - 0.25 * (2 / 3), 10);
+      expect(computeNoteVelocitySeeded('r', 2)).toBeCloseTo(0.8 - 0.25 * (1 / 3), 10);
+      expect(computeNoteVelocitySeeded('r', 3)).toBe(0.8);
+      // Position 20 varies upward (+0.25 on 0.8 is 1.05) and clamps to 1; 21 is back to -1.
+      expect(computeNoteVelocitySeeded('r', 20)).toBe(1);
+      expect(computeNoteVelocitySeeded('r', 21)).toBeCloseTo(0.55, 10);
+    });
+
+    it('an absent Dynamics behaves exactly as 50', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('absent'), robotFixture('fifty', { dynamics: 50 })]);
+      expect(sweep((p) => computeNoteVelocitySeeded('absent', p))).toEqual(sweep((p) => computeNoteVelocitySeeded('fifty', p)));
+    });
+  });
+
+  describe('Dynamics scales the rate and the width', () => {
+    it('at Dynamics 0 every note is exactly 0.8 across 200 positions', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 0 })]);
+      for (const velocity of sweep((p) => computeNoteVelocitySeeded('r', p))) expect(velocity).toBe(0.8);
+    });
+
+    it('at Dynamics 100 a quarter to a third of notes vary and the swing exceeds 0.3', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
+      const varied = velocities.filter((v) => v !== 0.8).length / velocities.length;
+      expect(varied).toBeGreaterThanOrEqual(0.25);
+      expect(varied).toBeLessThanOrEqual(0.35);
+      expect(Math.max(...velocities.map((v) => Math.abs(v - 0.8)))).toBeGreaterThan(0.3);
+    });
+
+    it('at Dynamics 25 the swing narrows to half the default width (0.125) and fewer notes vary', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 25 })]);
+      const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
+      expect(velocities[0]).toBeCloseTo(0.8 - 0.125, 10);
+      expect(Math.max(...velocities.map((v) => Math.abs(v - 0.8)))).toBeLessThanOrEqual(0.125 + 1e-9);
+      const varied = velocities.filter((v) => v !== 0.8).length / velocities.length;
+      expect(varied).toBeGreaterThan(0);
+      expect(varied).toBeLessThan(0.15);
+    });
+
+    it('a Dynamics above 100 is treated as 100, below 0 as 0, and NaN as 50', async () => {
+      const { computeNoteVelocitySeeded } = await setup([
+        robotFixture('wild', { dynamics: 400 }),
+        robotFixture('hundred', { dynamics: 100 }),
+        robotFixture('negative', { dynamics: -50 }),
+        robotFixture('zero', { dynamics: 0 }),
+        robotFixture('nan', { dynamics: NaN }),
+        robotFixture('fifty', { dynamics: 50 }),
+      ]);
+      const series = (id: string) => sweep((p) => computeNoteVelocitySeeded(id, p));
+      expect(series('wild')).toEqual(series('hundred'));
+      expect(series('negative')).toEqual(series('zero'));
+      expect(series('nan')).toEqual(series('fifty'));
+    });
+
+    it('never returns NaN or leaves [0.05, 1] at any Dynamics, and the 1 ceiling is reached', async () => {
+      const { computeNoteVelocitySeeded } = await setup([0, 25, 50, 100, 400, -5, NaN].map((d, i) => robotFixture(`d${i}`, { dynamics: d })));
+      for (let i = 0; i < 7; i++) {
+        for (const velocity of sweep((p) => computeNoteVelocitySeeded(`d${i}`, p))) {
+          expect(Number.isNaN(velocity)).toBe(false);
+          expect(velocity).toBeGreaterThanOrEqual(0.05);
+          expect(velocity).toBeLessThanOrEqual(1);
+        }
+      }
+      expect(sweep((p) => computeNoteVelocitySeeded('d3', p)).some((v) => v === 1)).toBe(true);
+    });
+  });
+
+  describe('rolls key off the playback position and the composition seed, not a counter', () => {
+    it('two robots with different compositionSeeds get different velocities at the same position', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('a', { compositionSeed: 0 }), robotFixture('b', { compositionSeed: 1 })]);
+      expect(computeNoteVelocitySeeded('a', 0)).not.toBe(computeNoteVelocitySeeded('b', 0));
+    });
+
+    it('the offset is the composition seed plus the position: seed 5 at position 0 is seed 0 at position 5', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('seed0', { compositionSeed: 0 }), robotFixture('seed5', { compositionSeed: 5 })]);
+      for (let position = 0; position < 40; position++) {
+        expect(computeNoteVelocitySeeded('seed5', position)).toBe(computeNoteVelocitySeeded('seed0', position + 5));
+      }
+    });
+
+    it('the pattern wraps at the 97 period: position 97 repeats position 0', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      for (let position = 0; position < 10; position++) {
+        expect(computeNoteVelocitySeeded('r', position + 97)).toBe(computeNoteVelocitySeeded('r', position));
+      }
+    });
+
+    it('the same robot at the same position gets the same velocity however many other notes came between', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 80 }), robotFixture('other', { compositionSeed: 3 })]);
+      const first = computeNoteVelocitySeeded('r', 7);
+      for (let i = 0; i < 25; i++) computeNoteVelocitySeeded(i % 2 ? 'r' : 'other', i);
+      expect(computeNoteVelocitySeeded('r', 7)).toBe(first);
+    });
+
+    it('the same position gives the same velocity after the engine is stopped and started again (replay from power-on)', async () => {
+      const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      await AudioEngine.start();
+      const before = sweep((p) => computeNoteVelocitySeeded('r', p), 30);
+      AudioEngine.stop();
+      await AudioEngine.start();
+      expect(sweep((p) => computeNoteVelocitySeeded('r', p), 30)).toEqual(before);
+    });
+
+    it('a robot the store does not hold is treated as seed 0 at Dynamics 50, without throwing', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('known', { dynamics: 50 })]);
+      expect(sweep((p) => computeNoteVelocitySeeded('ghost', p), 30)).toEqual(sweep((p) => computeNoteVelocitySeeded('known', p), 30));
+    });
+  });
+
+  describe('the legacy counter path (no position given)', () => {
+    it('advances one step per call, as before: 0.55, then 0.6333, 0.7167, 0.8', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.55, 10);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.8 - 0.25 * (2 / 3), 10);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.8 - 0.25 * (1 / 3), 10);
+      expect(computeNoteVelocitySeeded('r')).toBe(0.8);
+    });
+
+    it('a positioned call never advances the counter', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      computeNoteVelocitySeeded('r');
+      computeNoteVelocitySeeded('r');
+      computeNoteVelocitySeeded('r', 40);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.8 - 0.25 * (1 / 3), 10);
+    });
+
+    it('is per robot: each starts at its own step 0', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('a'), robotFixture('b')]);
+      computeNoteVelocitySeeded('a');
+      computeNoteVelocitySeeded('a');
+      expect(computeNoteVelocitySeeded('b')).toBeCloseTo(0.55, 10);
+    });
+
+    it('unregisterRobotMelody resets the counter', async () => {
+      const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      computeNoteVelocitySeeded('r');
+      computeNoteVelocitySeeded('r');
+      AudioEngine.unregisterRobotMelody('r');
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.55, 10);
+    });
+
+    it('with no robot id at all it samples step 0 every time', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      expect(computeNoteVelocitySeeded()).toBeCloseTo(0.55, 10);
+      expect(computeNoteVelocitySeeded()).toBeCloseTo(0.55, 10);
+    });
+  });
+
+  describe('scheduleNote threads the position and the accent headroom', () => {
+    const triggeredVelocity = (Tone: typeof import('tone'), note: string): number | undefined => {
+      let velocity: number | undefined;
+      (Tone.Synth as unknown as { mock: { results: Array<{ value?: { triggerAttackRelease?: { mock?: { calls?: unknown[][] } } } }> } }).mock.results.forEach((r) =>
+        r.value?.triggerAttackRelease?.mock?.calls?.forEach((c) => { if (c[0] === note) velocity = c[3] as number; }));
+      return velocity;
+    };
+    const layers = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+    it('passes params.position to the velocity roll', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: '4n', time: 0, position: 0 });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'D4', duration: '4n', time: 0, position: 4 });
+
+      expect(triggeredVelocity(Tone, 'C4')).toBe(computeNoteVelocitySeeded('r', 0));
+      expect(triggeredVelocity(Tone, 'D4')).toBe(computeNoteVelocitySeeded('r', 4));
+      expect(triggeredVelocity(Tone, 'C4')).not.toBe(triggeredVelocity(Tone, 'D4'));
+    });
+
+    it('looks the locale roster up once per note, shared by the velocity roll and the audioMode policy', async () => {
+      const { AudioEngine, stateSpy } = await setup([robotFixture('r', { dynamics: 100 })]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      stateSpy.mockClear();
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'B4', duration: '4n', time: 0, position: 0 });
+      const withVelocityRoll = stateSpy.mock.calls.length;
+
+      stateSpy.mockClear();
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'B4', duration: '4n', time: 0, position: 0, velocity: 0.5 });
+      const withExplicitVelocity = stateSpy.mock.calls.length;
+
+      // The roll adds no lookup of its own: an explicit velocity skips the roll and costs the same.
+      expect(withVelocityRoll).toBe(withExplicitVelocity);
+    });
+
+    it('an explicit velocity still bypasses the roll', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine } = await setup([robotFixture('r')]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'E4', duration: '4n', time: 0, position: 0, velocity: 0.3 });
+
+      expect(triggeredVelocity(Tone, 'E4')).toBe(0.3);
+    });
+
+    it('the 1.25 group accent now lifts a baseline note from 0.8 to 1 instead of clamping away', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine } = await setup([robotFixture('r', { dynamics: 0 })]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'F4', duration: '4n', time: 0, position: 0 });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'G4', duration: '4n', time: 0, position: 0, accentMultiplier: 1.25 });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'A4', duration: '4n', time: 0, position: 0, accentMultiplier: 1.4 });
+
+      expect(triggeredVelocity(Tone, 'F4')).toBe(0.8);
+      expect(triggeredVelocity(Tone, 'G4')).toBe(1);
+      expect(triggeredVelocity(Tone, 'A4')).toBe(1);
     });
   });
 });

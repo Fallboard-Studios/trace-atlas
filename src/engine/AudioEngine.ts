@@ -13,7 +13,8 @@ import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX } from '../constants';
+import { DEFAULT_DYNAMICS } from './melodyGenerator';
 
 import { getRef } from '../utils/refs';
 import { precomputeDataX } from '../utils/getSeededVal';
@@ -63,6 +64,10 @@ export interface NoteParams {
   /** Multiplies the resolved velocity (before clamping to 1). Used for the
    * motif-group accent — see GROUP_ACCENT_MULTIPLIER. */
   accentMultiplier?: number;
+  /** The playback position (processMelodyStep's stepCounter) the velocity roll keys off, together with the
+   * robot's compositionSeed, so a replay from power-on repeats the pattern and two robots at the same tick
+   * differ. Absent: the legacy per-robot counter. Robot Performance, docs/specs/ROBOT_PERFORMANCE.md §1.3. */
+  position?: number;
 }
 
 interface MelodyEventEntry {
@@ -77,10 +82,16 @@ interface MelodyEventEntry {
 // CONSTANTS
 // ========================================
 // NOTE: MAX_POLYPHONY and MIN_LEAD are provided from src/constants for consistency across modules
-/** Fraction of notes that receive a random velocity offset for organic expressiveness. */
+/** Fraction of notes that receive a random velocity offset for organic expressiveness, at the neutral Dynamics (50). */
 const VELOCITY_VARIANCE_RATE = 0.15;
-/** Maximum ± deviation applied to a note's velocity when variance is triggered. */
+/** Maximum ± deviation applied to a note's velocity when variance is triggered, at the neutral Dynamics (50). */
 const VELOCITY_VARIANCE_AMOUNT = 0.25;  // ±25% offset
+/** The Dynamics value that leaves the variance rate and width exactly as the two constants above. Dynamics / this
+ *  scales both: 0 is flat, 100 is twice the rate and twice the width. docs/specs/ROBOT_PERFORMANCE.md assumption 7. */
+const DYNAMICS_NEUTRAL = 50;
+/** Length of the velocity-roll pattern: the noise offset is (compositionSeed + position) mod this. Prime, so the
+ *  pattern does not line up with the 16-step measure and repeats only every 97 steps. */
+const VELOCITY_PERIOD = 97;
 /** Minimum effective note velocity after clamping (prevents silent notes). */
 const VELOCITY_MIN = 0.05;
 /**
@@ -463,33 +474,58 @@ function startMelodyPlayback(): void {
  * double-applying the same scaling twice. This baseline is just where the small performance-level
  * variance below jitters around; it isn't itself a volume control.
  */
-const NOTE_VELOCITY_BASELINE = 1;
+const NOTE_VELOCITY_BASELINE = 0.8;
+// Robot Performance (docs/specs/ROBOT_PERFORMANCE.md assumption 6): 0.8, down from 1. At 1 the baseline sat at
+// the velocity ceiling, so every "louder" multiplier (the 1.25 motif-group accent, the accent marks) could only
+// lift a note the variance had first pushed down. 0.8 leaves a 25 % lift before the clamp, at a cost of about
+// 2 dB fleet-wide. Volume is a separate bus gain and untouched.
+
+function clampVelocity(velocity: number): number {
+  return Math.min(1, Math.max(VELOCITY_MIN, velocity));
+}
+
+/**
+ * A robot's Dynamics for the velocity roll: its 0-100 value, clamped, with an absent or non-finite one reading as
+ * the neutral default. The store already clamps what it writes; this keeps a hand-built robot, or a NaN, from ever
+ * reaching the synth as a NaN velocity.
+ */
+function resolveDynamics(robot?: Robot): number {
+  const dynamics = robot?.dynamics;
+  if (typeof dynamics !== 'number' || !Number.isFinite(dynamics)) return DEFAULT_DYNAMICS;
+  return Math.max(PERFORMANCE_MIN, Math.min(PERFORMANCE_MAX, dynamics));
+}
 
 /**
  * Deterministic, locale-seeded velocity computation.
- * Samples the active locale's noise map at precomputed X positions and the
- * per-robot note index (mod 97) to decide whether to apply variance.
- * Falls back to no variance when the noise map is unavailable.
+ * Samples the active locale's noise map at precomputed X positions to decide whether to vary this note and by how
+ * much, around NOTE_VELOCITY_BASELINE. The noise offset is the robot's compositionSeed plus the playback `position`
+ * (mod 97), so a replay from power-on repeats the pattern and two robots at the same tick differ. With no
+ * `position` (tests, callers outside the playback loop) it falls back to the legacy per-robot counter. The robot's
+ * Dynamics scales the variance rate and width (50 = today's exactly, 0 = flat). Falls back to no variance when the
+ * noise map is unavailable. `robot` is the store robot when the caller already has it; otherwise it is looked up.
  */
-function computeNoteVelocitySeeded(robotId?: string): number {
+export function computeNoteVelocitySeeded(robotId?: string, position?: number, robot?: Robot): number {
   const localeId = getActiveLocaleId();
   const noiseMap = tryGetLocaleNoiseMap(localeId);
-  if (!noiseMap) return Math.min(1, Math.max(VELOCITY_MIN, NOTE_VELOCITY_BASELINE));
+  if (!noiseMap) return clampVelocity(NOTE_VELOCITY_BASELINE);
 
-  const idx = robotId ? (robotNoteIndex.get(robotId) ?? 0) : 0;
-  const noteIndex = idx % 97; // prime period for long non-repeating patterns
-
-  const roll = (noiseMap(VELOCITY_ROLL_X, noteIndex) + 1) / 2; // map [-1,1] -> [0,1]
-  if (roll < VELOCITY_VARIANCE_RATE) {
-    const raw = noiseMap(VELOCITY_VARIANCE_X, noteIndex); // [-1,1]
-    const variance = raw * VELOCITY_VARIANCE_AMOUNT; // signed
-    const out = Math.min(1, Math.max(VELOCITY_MIN, NOTE_VELOCITY_BASELINE + variance));
-    if (robotId) robotNoteIndex.set(robotId, (idx + 1) % 97);
-    return out;
+  const storeRobot = robot ?? (robotId ? findActiveRobot(robotId) : undefined);
+  let offset: number;
+  if (position !== undefined) {
+    offset = ((storeRobot?.compositionSeed ?? 0) + position) % VELOCITY_PERIOD;
+  } else {
+    const idx = robotId ? (robotNoteIndex.get(robotId) ?? 0) : 0;
+    offset = idx % VELOCITY_PERIOD;
+    if (robotId) robotNoteIndex.set(robotId, (idx + 1) % VELOCITY_PERIOD);
   }
 
-  if (robotId) robotNoteIndex.set(robotId, (idx + 1) % 97);
-  return Math.min(1, Math.max(VELOCITY_MIN, NOTE_VELOCITY_BASELINE));
+  const scale = resolveDynamics(storeRobot) / DYNAMICS_NEUTRAL;
+  const rate = VELOCITY_VARIANCE_RATE * scale; // at most 0.3: resolveDynamics caps the scale at 2
+  const width = VELOCITY_VARIANCE_AMOUNT * scale;
+
+  const roll = (noiseMap(VELOCITY_ROLL_X, offset) + 1) / 2; // map [-1,1] -> [0,1]
+  if (roll >= rate) return clampVelocity(NOTE_VELOCITY_BASELINE);
+  return clampVelocity(NOTE_VELOCITY_BASELINE + noiseMap(VELOCITY_VARIANCE_X, offset) * width);
 }
 
 export const AudioEngine = {
@@ -592,10 +628,20 @@ export const AudioEngine = {
     const { robotId, note, duration, time } = params;
     let effectiveVelocity = params.velocity;
 
+    // The active locale's robots, looked up once per note: the velocity roll reads this robot's
+    // compositionSeed and Dynamics, and the audioMode policy below reads the whole roster.
+    let localeRobots: Robot[] = [];
+    try {
+      localeRobots = getActiveLocaleRobots();
+    } catch (err) {
+      devWarn('[AudioEngine] scheduleNote.getActiveLocaleRobots failed', err);
+    }
+    const robotFromStore = localeRobots.find((r) => r.id === robotId);
+
     if (robotId && effectiveVelocity === undefined) {
       // No masterVolume lookup needed here anymore — overall robot loudness is the live bus gain's
       // job (reserveVoice's masterVolume parameter, updateRobotMasterVolume), not per-note velocity.
-      effectiveVelocity = computeNoteVelocitySeeded(robotId);
+      effectiveVelocity = computeNoteVelocitySeeded(robotId, params.position, robotFromStore);
     }
 
     if (params.accentMultiplier !== undefined && effectiveVelocity !== undefined) {
@@ -604,8 +650,6 @@ export const AudioEngine = {
 
     // Enforce audioMode policies (mute/solo/highlight) at schedule time.
     try {
-      const localeRobots = getActiveLocaleRobots();
-      const robotFromStore = localeRobots.find((r) => r.id === robotId);
       const anyHighlight = localeRobots.some((r) => r.audioMode === 'highlight');
       if (anyHighlight && robotFromStore?.audioMode !== 'highlight') {
         // Apply ~50% attenuation (~-6dB) to non-highlighted robots
