@@ -1667,6 +1667,72 @@ at every hour (the control), and **base and branch were byte-identical at all te
 50,660 to 58,477 characters across the day, so the check does see lighting and window changes. The script was a
 throwaway (CDP, Node's built-in `WebSocket`, never committed).
 
+## Desktop full-screen underruns are raster-bound (2026-10-16)
+
+**Symptom (Crawford's laptop, Chrome 155, external 2560 × 1440 monitor at 150 % scale, 60 Hz, full screen).** About 25–30 s
+after power-on the sound distorts and drops out in bursts; the `?debug` HUD shows playback underruns climbing while the audio
+clock stays near ×1, fps around 25 and main-thread stalls of 450–1,600 ms. First seen on `feature/palette-performance` and
+suspected of the new Robot Performance features; it is not them. The case is recorded here as the baseline for backlog item 26.
+
+### The runs that settled it (production preview build, one `?session=` world, HUD read at the time shown)
+
+| Build | Window | fps | underruns | burst onset |
+|---|---|---|---|---|
+| `feature/palette-performance` | full screen | 27 | 721 by 0:44 | 0:25–0:28 |
+| **`main` 2ec52f2f** | full screen | 25 | 411 by 0:47 | 0:30 |
+| `main` 2ec52f2f | ~25 % of the area, 16:9 | 54 | 66 by 1:00 | 0:50 |
+
+`main` reproduces it, so the branch is cleared; a quarter of the pixels doubles fps and cuts underruns six-fold, so the cost
+scales with pixel area. A headless Chrome on another machine, same page and viewport (2000 × 1284 at 1.63×, emulated), ran
+60 fps with zero underruns for 60 s, so this is measured on Crawford's machine or not at all. (Earlier headless A/Bs that
+showed bursts on both builds were taken while the full test suite ran concurrently; treat them as noise.)
+
+### `chrome://gpu`
+
+Canvas, compositing and rasterization all hardware accelerated, GPU rasterization on (raster workers ~0). The active adapter is
+**GPU0, the integrated AMD Radeon 0x1638**; the RTX 3060 (GPU1) is idle. Lenovo subsystem; a 165 Hz internal panel exists but the
+external 60 Hz monitor was in use for every run.
+
+### The trace (DevTools Performance, 31 s on `main`, full screen; summarised with `npm run perf:trace`)
+
+| Thread | Busy | Where the time is |
+|---|---|---|
+| GPU process `CrGpuMain` | 94 % | `GPUTask` 16.1 s, `RunTask` 13.0 s |
+| Renderer `CrRendererMain` | 62 % | `FunctionCall` 7.6 s, `Layerize` 3.3 s, `UpdateLayoutTree` 1.75 s, `Paint` 1.6 s, `PrePaint` 0.8 s, layout ~1.1 s |
+| Realtime AudioWorklet thread | 97 %* | *includes the wait for the next quantum — not CPU; see render capacity below |
+| Raster workers | ~0 | raster is on the GPU |
+
+JS self-samples on the main thread: the requestAnimationFrame frame 31 %, GSAP's `Timeline.render` 26 %, `(program)` 18 %,
+`deckCamera.targetFor` 4.2 %, `setAttribute` 3.1 %. Long tasks: one 312 ms at load, then 50–91 ms every few seconds.
+
+**Render capacity on the same machine** (`npm run perf:audio`, headless, 60 s): mean 0.55, max 0.99, r(audible, capacity) 0.85.
+The graph takes about half of each 10 ms quantum on average but individual quanta reach the deadline even without a full-screen
+paint competing; the GPU and main-thread load steal the time those spikes need.
+
+### What the page does per frame (`main`, read headlessly at the full-screen viewport, ~26 s after power-on)
+
+3,110 elements, 2,913 of them SVG, 66 gradients, 1 filter; **four `will-change` layers — the four stage-sized moving `<svg>`
+roots (`robots-back`, `bubbles`, `robots`, `marker`)**; about 50 elements change per frame (orbiters, work sparks, robot
+bodies, bubbles); 287 GSAP-cached elements. Chrome composites an SVG root, never a `<g>` inside it, so one robot's transform
+write re-rasters its whole 2560 × 1440 layer: that is the 94 %.
+
+**The deck camera runs at full screen.** The world view has scroll range 0 there, but `registerDeckScroller` adds the per-frame
+tick whenever a scroller element exists; `targetFor` reads `scrollWidth` / `clientWidth` (a forced layout after GSAP's writes)
+and writes `scrollLeft` every frame for a result that is always 0. The camera is a cost here, not the cause.
+
+### Fix candidates
+
+Ranked in backlog item 26: (1) small compositor layers per mover, a spec'd change; (2) the deck camera's idle no-op and cached
+dimensions, a small test-first fix; (3) Audio Load / `?latency=playback` as headroom. Forcing Chrome onto the RTX in Windows
+graphics settings did not take (the AMD stayed active); the NVIDIA Control Panel and Lenovo discrete-mode routes were not tried.
+
+### Re-measuring (before and after, all on Crawford's machine, full screen, same `?session=` link)
+
+1. Production build, `npx vite preview`, `?debug`, 60 s: note fps, the underrun count and the max lag.
+2. DevTools Performance, record 0:20–0:40, save JSON beside the repo (not in it: `.gitignore` covers `docs/reference/Trace-*.json`
+   and `perf-traces/`), then `npm run perf:trace -- <file>` and compare the thread table and the per-frame movers.
+3. `npm run perf:idle` for the paint-per-node attribution, the gate this document already uses.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
