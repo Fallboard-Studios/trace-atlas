@@ -33,6 +33,8 @@ import {
   OCTAVE_RANGE_MAX,
   PITCH_REPEAT_MIN,
   PITCH_REPEAT_MAX,
+  PERFORMANCE_MIN,
+  PERFORMANCE_MAX,
   PAN_DISPLAY_SCALE,
   PAN_MIN,
   PAN_MAX,
@@ -153,6 +155,21 @@ export const DELAY_SEND_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
+/**
+ * Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.6): how much this robot's note velocities swing.
+ * Stored and displayed alike, 0-100 (Robot.dynamics, no conversion at the component boundary); the bounds
+ * come from the same constants the store clamps with. The sixth row of the Levels section, after Delay.
+ */
+export const DYNAMICS_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.dynamics',
+  type: 'sliderLinear',
+  ...labels('probe.levels.dynamics'),
+  min: PERFORMANCE_MIN,
+  max: PERFORMANCE_MAX,
+  step: 1,
+  orientation: 'horizontal',
+};
+
 /** The Pan slider and its Auto toggle side by side, unlabeled — pure layout, the third row of
  *  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA. */
 export const PAN_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
@@ -183,6 +200,15 @@ export const RHYTHM_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.rhythm',
   type: 'directionalPanel',
   ...labels('probe.composition.rhythm', { surface: 'heading' }),
+  orientation: 'responsive',
+};
+
+/** Rests and Accents (docs/specs/ROBOT_PERFORMANCE.md §1.6) — a row inside PHRASING_PANEL_SCHEMA, after
+ *  the Rhythm row. 'responsive' like the Rhythm and Pitches panels: one row each on mobile, side by side on desktop. */
+export const ARTICULATION_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.articulation',
+  type: 'directionalPanel',
+  ...labels('probe.composition.articulation', { surface: 'heading' }),
   orientation: 'responsive',
 };
 
@@ -255,6 +281,31 @@ export const PITCH_REPEAT_SCHEMA: SliderLinearSchema = {
   ...labels('probe.composition.pitchRepeat'),
   min: PITCH_REPEAT_MIN,
   max: PITCH_REPEAT_MAX,
+  orientation: 'horizontal',
+};
+
+/**
+ * Chance per event of a rest, and how deep it cuts (Robot.rests, 0-100). Baked into the melody by the
+ * post-pass, so it regenerates like Density does; it never moves a note (docs/specs/ROBOT_PERFORMANCE.md §1.2).
+ */
+export const RESTS_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.rests',
+  type: 'sliderLinear',
+  ...labels('probe.composition.rests'),
+  min: PERFORMANCE_MIN,
+  max: PERFORMANCE_MAX,
+  step: 1,
+  orientation: 'horizontal',
+};
+
+/** Chance per event of an articulation mark, and how many kinds are in play (Robot.accents, 0-100). Rests' twin. */
+export const ACCENTS_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.accents',
+  type: 'sliderLinear',
+  ...labels('probe.composition.accents'),
+  min: PERFORMANCE_MIN,
+  max: PERFORMANCE_MAX,
+  step: 1,
   orientation: 'horizontal',
 };
 

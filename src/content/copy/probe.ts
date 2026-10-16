@@ -153,7 +153,7 @@ export const probe = {
     intro: {
       lore: 'Levels — this probe’s signal strength.',
       loreDescription: 'Fine-tune how loudly this probe transmits, or silence it from the mesh entirely.',
-      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats.',
+      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats. Dynamics sets how much louder and softer this probe’s notes swing from one to the next — 0% plays every note at the same level.',
     },
   },
   'probe.monitorMode': {
@@ -197,6 +197,14 @@ export const probe = {
     unit: '%',
     help: { human: 'How much of this probe’s sound is sent into the shared Delay. 0% gives it no repeats at all; higher settings give it louder, longer-trailing repeats.' },
   },
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14). The human
+  // word clashes with the nav row above ('probe.dynamics', "Dynamics / Output") — one key to rename (spec §7).
+  'probe.levels.dynamics': {
+    human: 'Dynamics',
+    lore: 'Pressure Swing',
+    unit: '%',
+    help: { human: 'How much louder and softer this probe’s notes vary from one to the next. 0% plays every note at the same level; higher settings let more of them swell and fade, so the probe sounds played rather than sequenced.' },
+  },
 
   // ---------------------------------------------------------------- Composition
   'probe.composition': {
@@ -206,6 +214,7 @@ export const probe = {
       lore: 'Composition — how this probe builds its melody.',
       loreDescription: 'Each probe draws its own melody from a curated set of notes, shaped by the settings below.',
       humanDescription: '<p><strong>Rhythm</strong>: Note Density controls how many notes play versus rest. Phrase Length sets how many notes repeat together as one phrase before moving on. Pitch Repeat Chance controls how likely a repeated phrase is to reuse the same pitches instead of picking new ones.</p>'
+        + '<p><strong>Articulation</strong>: Rests sets how often a note stops early and leaves a gap before the next. Accents sets how often a note is struck differently — pushed, clipped short, or leaned on. Neither changes which notes play or when.</p>'
         + '<p><strong>Pitches</strong>: Note Variance controls how far notes can wander from the probe’s core pitch set. Lowest/Highest Octave set the pitch range notes are drawn from.</p>',
     },
   },
@@ -232,6 +241,20 @@ export const probe = {
     lore: 'Payload Duplication',
     unit: '%',
     help: { human: 'How often a repeat of the rhythm pattern also repeats its notes. 0 picks fresh notes for every repeat; 100% plays the same notes every time. It does nothing while Phrase Length is 0.' },
+  },
+  'probe.composition.articulation': { human: 'Articulation', heading: 'ARTICULATION MATRIX' },
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14).
+  'probe.composition.rests': {
+    human: 'Rests',
+    lore: 'Payload Gaps',
+    unit: '%',
+    help: { human: 'How often a note stops early and leaves a gap before the next. 0% lets every note ring its full length; higher settings cut more of them short, and cut them deeper. The notes themselves stay where they are.' },
+  },
+  'probe.composition.accents': {
+    human: 'Accents',
+    lore: 'Payload Stress',
+    unit: '%',
+    help: { human: 'How often a note is struck differently — pushed harder, clipped short, or leaned on — and how many of those ways are used. 0% plays every note plainly; higher settings mark more notes and bring in more kinds of mark.' },
   },
   'probe.composition.pitches': { human: 'Pitches', lore: 'Payload Allocation', heading: 'PITCH FREQUENCY MATRIX' },
   'probe.composition.lowestOctave': {
