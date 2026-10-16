@@ -47,13 +47,13 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'autoWah.Q': { min: 2, max: 6 },
   'autoWah.gain': { min: 2, max: 6 },
   'autoWah.follower': { min: 0.1, max: 0.4 },
-  'autoWah.wet': { min: 0.3, max: 0.7 },
+  'autoWah.wet': { min: 0.2, max: 0.5 },
   'phaser.rate': { min: 0.1, max: 2.5 },
   'phaser.octaves': { min: 2, max: 5 },
   'phaser.baseFrequency': { min: 200, max: 800 },
   'phaser.stages': { min: 4, max: 12 },
   'phaser.Q': { min: 1, max: 10 },
-  'phaser.wet': { min: 0.25, max: 0.6 },
+  'phaser.wet': { min: 0.15, max: 0.4 },
 };
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
@@ -117,10 +117,10 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max).toBeGreaterThan(0);
   });
 
-  // Global Modulation T16 (Crawford, 2026-10-15): the pedals no longer share Colour's 0.25 Mix ceiling (spec assumption 9 said the bands and the ceiling may rise after the listen). Their own recommended Mix bands stand; Colour's ceiling is untouched.
-  it('seeds the pedal Mix from its own bands, above the colour ceiling, which stays at 0.25 for the colour effects', () => {
-    expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet']).toStrictEqual({ min: 0.3, max: 0.7 });
-    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet']).toStrictEqual({ min: 0.25, max: 0.6 });
+  // Global Modulation T16 (Crawford, 2026-10-15): the pedals no longer share Colour's 0.25 Mix ceiling (spec assumption 9 said the bands and the ceiling may rise after the listen). Their recommended Mix bands (0.3-0.7, 0.25-0.6) were brought down a third (0.2-0.5, 0.15-0.4) after he heard them; Colour's ceiling is untouched.
+  it('seeds the pedal Mix from its own bands, topping out above the colour ceiling, which stays at 0.25 for the colour effects', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet']).toStrictEqual({ min: 0.2, max: 0.5 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet']).toStrictEqual({ min: 0.15, max: 0.4 });
     expect(COLOUR_LOAD_MIX_MAX).toBe(0.25);
   });
 

@@ -15,7 +15,7 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > full Mix and 12 stages ("some underruns", no distortion, no count, no baseline); Crawford closed it and Task 16 on that
 > evidence, with Stages left a slider. Checkpoints A and B passed (B partly); Checkpoint C's by-hand check was not reported. The
 > guard test `src/docs/globalModulationDocs.test.ts` is fully green. What shipped differs from the tasks below in three ways: the
-> bands are Crawford's recommended ranges (Mix 0.3–0.7 and 0.25–0.6, no longer under the 0.25 ceiling; Stages seed 4–12), every
+> bands are Crawford's recommended ranges (Mix 0.2–0.5 and 0.15–0.4, no longer under the 0.25 ceiling; Stages seed 4–12), every
 > seeded draw is uniform, and a failed Phaser rebuild keeps the old node. The roadmap's 50.4 "As built" and the spec's §7 answers
 > and §8 are the record; the task text below is the plan as written. Earlier status, for the record:
 > **NOT STARTED (2026-10-15).** The spec was written but not yet approved; its veto points (spec §7) were the Stages rebuild vs a

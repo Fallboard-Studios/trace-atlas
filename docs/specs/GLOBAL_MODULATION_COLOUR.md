@@ -546,7 +546,7 @@ round trips including a synced Phaser; an old `?session=` link loads with both d
 
 1. **Stages rebuild:** the slider stays; Crawford closed Task 16 without asking for seeded-only. No audible-tick finding is recorded.
 2. **Phaser seeded Sync:** about half of lit Phasers (`PHASER_SYNC_ODDS` 0.5, measured 50.2 %), a dark Phaser always Free.
-3. **Lit bands and ceiling:** retuned to Crawford's recommended ranges at T16 (see §8); the pedal Mix no longer shares 0.25.
+3. **Lit bands and ceiling:** retuned to Crawford's recommended ranges at T16 and the Mix then lowered (see §8); the pedal Mix no longer shares 0.25.
 4. **Rate range:** 0.05–10 Hz linear, kept (the seeded band is 0.1–2.5).
 5. **Slot order:** wah before phaser, kept.
 6. **Unswept rooms:** kept, tails stay clean.
@@ -587,9 +587,10 @@ The roadmap's 50.4 "As built" ([roadmap.md](../todo/roadmap.md)) is the full rec
   takes a third `uniform` parameter, and every pre-existing field keeps the plain draw. `PEDAL_LIT_EDGE` is the nominal 1/3 on both
   pedals (no fitting), measured 33.07 % and 33.30 % lit, 11.22 % both (product 11.01 %), independent of Colour.
 - **Bands (assumption 6) retuned at T16:** AutoWah baseFrequency 50–250, octaves 2.5–5, sensitivity −40 to −10, Q 2–6, gain 2–6,
-  follower 0.1–0.4 (unchanged), Mix 0.3–0.7; Phaser rate 0.1–2.5, octaves 2–5, baseFrequency 200–800, stages 4–12, Q 1–10, Mix
-  0.25–0.6. **Assumption 9 is overturned for the Mix ceiling:** the pedals no longer share `COLOUR_LOAD_MIX_MAX`; they keep the
-  taper (`colourWetGain`).
+  follower 0.1–0.4 (unchanged), Mix 0.2–0.5; Phaser rate 0.1–2.5, octaves 2–5, baseFrequency 200–800, stages 4–12, Q 1–10, Mix
+  0.15–0.4. **Assumption 9 is overturned for the Mix ceiling:** the pedals no longer share `COLOUR_LOAD_MIX_MAX`; they keep the
+  taper (`colourWetGain`). The Mix bands were first set to Crawford's recommended 0.3–0.7 and 0.25–0.6, then brought down by
+  about a third after he heard them.
 - **A failed Phaser rebuild keeps the old node** (§1.3 said the slot would be left empty); a boot-time constructor failure still
   leaves it empty. Boot builds the Phaser twice.
 - **T0 and T15b were not done.** Task 14 ran once, partially (see the answers in §7), and Crawford closed it.

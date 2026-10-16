@@ -125,7 +125,7 @@ A `SessionPayload` also carries `bpm` and `lfoBank` (all four lanes, whole — n
 
 - **A payload without the blocks loads them dry.** A session saved, or a link written, before the pedals existed has no `autoWah` or `phaser` key. `withGlobalAudioDefaults` fills each missing block from `DEFAULT_GLOBAL_AUDIO_SETTINGS` (Mix 0) at both call sites (`applySessionPayload`, `fromCompactSessionPayload`), so the recorded 50.2 baseline link decodes with both pedals off and `applyGlobalAudioToEngine` receives full blocks.
 - **An invalid `phaser.sync` is dropped.** `applySessionPayload` passes the Phaser through the same sanitiser as the Delay's `sync` (`sanitizePhaserSync`): a value that is not a note value is **deleted**, never written as `undefined`, so a corrupt save or link restores the Phaser as Free with its `rate` kept. A valid `phaser.sync` (for example `{ division: '1/2', modifier: 'straight' }`) round-trips through save and link unchanged.
-- **A fresh world's seed bands do not apply to a restore.** The pedals' own Mix bands (0.3–0.7 and 0.25–0.6) govern a fresh world only; a saved or shared value restores exactly as it was hand-set.
+- **A fresh world's seed bands do not apply to a restore.** The pedals' own Mix bands (0.2–0.5 and 0.15–0.4) govern a fresh world only; a saved or shared value restores exactly as it was hand-set.
 - **Presets.** The three transmission presets carry both blocks at the defaults (dry).
 
 ## Boot Behavior

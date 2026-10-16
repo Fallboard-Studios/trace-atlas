@@ -730,8 +730,8 @@ describe('the modulation pedals (Global Modulation)', () => {
 
     it('reaches both the bottom and the top of the Mix band, so the band is not accidentally collapsed', () => {
       const wets = samples.filter(({ s }) => wahLit(s)).map(({ s }) => s.autoWah.wet);
-      expect(Math.min(...wets)).toBeLessThan(0.34);
-      expect(Math.max(...wets)).toBeGreaterThan(0.66);
+      expect(Math.min(...wets)).toBeLessThan(0.24);
+      expect(Math.max(...wets)).toBeGreaterThan(0.46);
     });
   });
 
@@ -1522,6 +1522,10 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // t 0.5553 -> 122.21; Q t 0.7885 -> 4.752; wet t 0.9720 -> 0.3 + 0.4 * 0.9720 = 0.6888 -> 0.69; phaser stages 8, Q t 0.3762
 // -> 2.378, still dark (wet 0, no sync). The new values were read from the seeder once and then checked against these
 // derivations; the log-scale ones agree to three significant figures, the stepped ones to their grid.
+//
+// AMENDED BY HAND ONCE MORE, Global Modulation T16 (Crawford, 2026-10-15: "bring those down a bit"): the pedal Mix bands went from
+// 0.3-0.7 and 0.25-0.6 to 0.2-0.5 and 0.15-0.4, so exactly two values moved, each from the raw draw above: alpha phaser.wet t 0.3222
+// -> 0.15 + 0.25 * 0.3222 = 0.2306 -> 0.23 (was 0.36); theta autoWah.wet t 0.9720 -> 0.2 + 0.3 * 0.9720 = 0.4916 -> 0.49 (was 0.69).
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1553,7 +1557,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         baseFrequency: 692.0599193838607,
         stages: 10,
         Q: 3.291005415199408,
-        wet: 0.36,
+        wet: 0.23,
         sync: { division: '1/8', modifier: 'dotted' },
       },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
@@ -1580,7 +1584,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       chebyshev: { order: 3, wet: 0.08 },
       bitCrusher: { bits: 8, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
-      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.6900000000000001 },
+      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.49 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },

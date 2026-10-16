@@ -1753,17 +1753,18 @@ recorded, so none is claimed here. The paragraphs above are the original startin
   `autoWah.wet` took 3 distinct values over 3 000 styles. With uniform draws: AutoWah lit 33.07 %, Phaser lit 33.30 %, both 11.22 %
   (product 11.01 %), 50.2 % of lit Phasers Sync, all independent of Colour. So `PEDAL_LIT_EDGE` is the nominal 1/3 with no fitting
   and `PHASER_SYNC_ODDS` is 0.5. A dark pedal seeds Mix 0 but still draws its shape values.
-- **The bands were retuned at T16 to Crawford's recommended ranges.** AutoWah: baseFrequency 50–250, octaves 2.5–5, sensitivity
-  −40 to −10, Q 2–6, gain 2–6, Mix 0.3–0.7 (follower unchanged, 0.1–0.4). Phaser: rate 0.1–2.5, octaves 2–5, baseFrequency
-  200–800, stages 4–12, Q 1–10, Mix 0.25–0.6. **The pedal Mix no longer shares Colour's 0.25 load ceiling** (`COLOUR_LOAD_MIX_MAX`
-  stays 0.25 for the three colour effects); with the taper a seeded pedal Mix is a node gain of about 0.09–0.49, much louder than
-  Colour's, so listen before trusting it. Stages now seed up to 12, the count the Pixel run used.
+- **The bands were retuned at T16 to Crawford's recommended ranges, then the Mix was brought down.** AutoWah: baseFrequency 50–250, octaves 2.5–5, sensitivity
+  −40 to −10, Q 2–6, gain 2–6, Mix 0.2–0.5 (follower unchanged, 0.1–0.4). Phaser: rate 0.1–2.5, octaves 2–5, baseFrequency
+  200–800, stages 4–12, Q 1–10, Mix 0.15–0.4. **The pedal Mix no longer shares Colour's 0.25 load ceiling** (`COLOUR_LOAD_MIX_MAX`
+  stays 0.25 for the three colour effects); with the taper a seeded pedal Mix is a node gain of about 0.04–0.25 (wah) or 0.02–0.16
+  (phaser). The Mix was first set to his recommended 0.3–0.7 and 0.25–0.6, which he found too loud, and brought down by about a
+  third. Stages now seed up to 12, the count the Pixel run used.
 - **Old payloads load dry and a bad `phaser.sync` is dropped** (`withGlobalAudioDefaults` at both call sites;
   `sanitizePhaserSync` in `applySessionPayload`). No encoding change, `version` stays 2.
 - **Presets stay clean.** `DEFAULT_GLOBAL_AUDIO_SETTINGS` and the three transmission presets carry both pedals at Mix 0.
 - **The seed oracles were hand-amended, never re-recorded:** at T1 and T7 (the pedal keys, then their values: alpha has AutoWah dark
-  and the Phaser lit and synced, theta the reverse) and again at T16 for the retuned bands, each value re-derived from the old raw
-  draw and checked against it.
+  and the Phaser lit and synced, theta the reverse) and again at T16 for the retuned bands and for the lower Mix, each value re-derived from the
+  old raw draw and checked against it.
 - **Deviations from the plan:** a failed Phaser rebuild keeps the old node (the plan left the slot empty); boot builds the Phaser
   twice (the default 10 stages, then the seeded count); the T3 "drop the floor" mutant is equivalent because the resolver already
   clamps, so the resolver clamp was mutated instead; `rampOrSet`'s value type widened to `unknown`.
@@ -1772,7 +1773,7 @@ recorded, so none is claimed here. The paragraphs above are the original startin
   exists only as a conditional plan task. The Stages ceiling stayed at 12.
 - **Nothing on the gem reads a pedal**, pinned by the guard test's source scan.
 - **Still open:** the lore words; the T0 re-baseline and a Standard run on the Pixel, and the desktop `npm run perf` comparison;
-  the underrun count at Full; the Checkpoint C by-hand check; and the pedals' loudness at their new Mix bands.
+  the underrun count at Full; and the Checkpoint C by-hand check.
 
 ## 51. Guide: A Read-Only Branch That Teaches the Whole App
 
