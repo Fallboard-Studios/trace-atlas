@@ -11,7 +11,7 @@ import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { pickSeedNoteValue } from './tempoSync';
 import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
-import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA } from '@/data/audioRigConfig';
+import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
 
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -364,6 +364,27 @@ export function generateSwellDuration(attenuationStyleId: string, attenuationSty
     SWELL_DURATION_SEED_RANGE.min, SWELL_DURATION_SEED_RANGE.max
   );
   return quantizeToStep(raw, SWELL_DURATION_SCHEMA.min, SWELL_DURATION_SCHEMA.step ?? 1);
+}
+
+/**
+ * Humanize's own seeded-default range — [2, 6] ms (docs/specs/ROBOT_PERFORMANCE.md assumption 9): audible as looseness on a
+ * fresh world, a third of the slider's 20 ms top, so the first thing a listener hears is a fleet that is a touch off the grid.
+ */
+export const HUMANIZE_SEED_RANGE = { min: 2, max: 6 };
+
+/**
+ * Seeded starting value for audioStore's humanize, whole ms in [2, 6]. Same seed-once/carry-forward treatment as
+ * generateSwellDuration above (audioStore.ts's regenerateGlobalAudioFromSeed calls it only on the first seed), snapped onto
+ * HUMANIZE_SCHEMA's own 1 ms grid so a fresh world starts on a value the slider can actually produce.
+ *
+ * A uniform draw, not getSeededVal: one plain draw at offset 0 takes only about three values across all worlds (measured
+ * here: 3 over 300 styles, and a single value across 40 names), which would seed nearly every world to the same few ms
+ * (docs/specs/ROBOT_PERFORMANCE.md assumption 9 asked for a plain draw; the plan's rename fallback would have kept the flat patch).
+ */
+export function generateHumanize(attenuationStyleId: string, attenuationStyleName: string): number {
+  const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
+  const raw = HUMANIZE_SEED_RANGE.min + getUniformSeededVal(noiseMap, 'globalAudio.humanize') * (HUMANIZE_SEED_RANGE.max - HUMANIZE_SEED_RANGE.min);
+  return quantizeToStep(raw, HUMANIZE_SCHEMA.min, HUMANIZE_SCHEMA.step ?? 1);
 }
 
 /**
