@@ -1,41 +1,110 @@
-/* The scene is six stacked <svg> layers, not one (roadmap 17.2.5; Phase 43 J4): static back
-   (background factories, tint A), moving back robot row, static mid (midground factories, tints B
-   and C, the ground line), moving bubbles, moving front robot row, static front (tint D,
-   foreground factories). Each layer fills this box and shares the same viewBox and slice fit, so
-   the six coordinate systems map to the same pixels; the moving layers are promoted to compositor
-   layers of their own, so a robot's or bubble's per-frame transform write repaints only its own
-   layer instead of the sixty static factories behind it. The world-view's scroller
-   (WorldView.css's .world-view__scroller) is the positioned ancestor, and this box is the stage
-   it scrolls: 16:9 or wider (every desktop frame, landscape phones, tablets), min-width: 100%
-   wins and the box is exactly the viewport, pixel-identical to the old fixed box; narrower than
-   16:9 (portrait phones), the box is taller than wide and overflows horizontally, which is what
-   the scroller pans (Mobile Deck Camera, spec assumption 2). */
+/* The scene is one scaled stage of stacked sheets (roadmap 17.2.5; Phase 43 J4; Phase 53 Task 9,
+   docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1-1.3). The stage is the world at 1920 x 1080 CSS
+   pixels, scaled from its top-left corner by one scale and offset that useStageFit writes from this
+   box's size: the fit every sheet used to carry as its own `xMidYMax slice` attribute, applied
+   once. Seven sheets stack inside it, each filling the stage so their viewBoxes map to the same
+   pixels: static back (background factories, tint A), moving back robot row, static mid (midground
+   factories, tints B and C, the ground line), moving bubbles, moving front robot row, static front
+   (tint D, foreground factories) and the moving marker. A moving sheet is promoted to a compositor
+   layer of its own, so a robot's or bubble's per-frame transform write repaints only its own sheet
+   instead of the sixty static factories behind it. The world-view's scroller (WorldView.css's
+   .world-view__scroller) is the positioned ancestor, and this box is what it scrolls: 16:9 or wider
+   (every desktop frame, landscape phones, tablets), min-width: 100% wins and the box is exactly the
+   viewport; narrower than 16:9 (portrait phones), the box is taller than wide and overflows
+   horizontally, which is what the scroller pans (Mobile Deck Camera, spec assumption 2). */
 .ocean-scene {
   position: relative;
   height: 100%;
   min-width: 100%;
   aspect-ratio: 16 / 9;
+  /* Clip the stage at this box, as each sheet's own svg root used to: an unfitted stage is 1920 px
+     wide whatever the box is, and the scroller is measured (deckCamera.ts, WorldView.tsx's centring)
+     in the commit that mounts the scene, a frame before the first fit lands. With the clip the
+     scroll extent is this box's width, fitted or not. `clip`, not `hidden`: not a scroll container,
+     so a focus or a find cannot scroll the world inside its own box. */
+  overflow: clip;
 }
 
-.ocean-scene__layer {
+/* The stage's size is its sheets' viewBox, 1920 x 1080, set inline by OceanScene.tsx. Translate
+   first, so the offset is in this box's pixels and the scale applies to the stage alone. Before the
+   first measurement (and in jsdom) the properties are unset and the stage is unscaled. */
+.ocean-scene__stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transform: translate(var(--stage-x, 0px), var(--stage-y, 0px)) scale(var(--stage-scale, 1));
+  /* Nothing in the stack takes clicks: the stage and every sheet are full-screen, so one that did
+     would swallow every click meant for a robot under it. The robots themselves take them
+     (.robot, below). */
+  pointer-events: none;
+}
+
+.ocean-scene__sheet {
   position: absolute;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  /* No layer takes clicks: each is full-screen, so one that did would swallow every click meant
-     for a layer under it — the front robot row would block the back one (spec §1.10). The robots
-     themselves take them (.robot, below). */
   pointer-events: none;
 }
 
-.ocean-scene__layer--moving {
+.ocean-scene__sheet--moving {
   will-change: transform;
+}
+
+/* A mover: the small, positioned wrapper one moving thing draws in (spec §1.3). GSAP writes its
+   transform in scene units; the stage's scale turns them into pixels. An invisible box, with no
+   border, background or shadow of its own, on a compositor layer of its own. */
+.mover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* The stack, back to front (sceneStack.ts's SCENE_SLOTS): one z-index per slot, so a row switch is a
+   write to data-scene-slot. Sheets and movers wear the same attribute. */
+[data-scene-slot='back'] {
+  z-index: 1;
+}
+
+[data-scene-slot='robots-back'] {
+  z-index: 2;
+}
+
+[data-scene-slot='mid'] {
+  z-index: 3;
+}
+
+[data-scene-slot='bubbles'] {
+  z-index: 4;
+}
+
+[data-scene-slot='stations'] {
+  z-index: 5;
+}
+
+[data-scene-slot='robots'] {
+  z-index: 6;
+}
+
+[data-scene-slot='dissolve'] {
+  z-index: 7;
+}
+
+[data-scene-slot='front'] {
+  z-index: 8;
+}
+
+[data-scene-slot='marker'] {
+  z-index: 9;
 }
 
 /* Robot styling */
 .robot {
-  /* Re-enables clicks inside the click-blind layers, in either robot row. SVG's `auto` hits only
+  /* Re-enables clicks inside the click-blind stack, in either robot row. SVG's `auto` hits only
      painted, visible shapes, so a charging robot (visibility: hidden) takes none. */
   pointer-events: auto;
   transition: filter 0.2s ease;

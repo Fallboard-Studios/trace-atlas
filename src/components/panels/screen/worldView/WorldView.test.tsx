@@ -245,17 +245,30 @@ describe('WorldView — hands the scroller to the camera module', () => {
 describe('WorldView.css — the dim', () => {
   const css = readFileSync(resolve(__dirname, 'WorldView.css'), 'utf8');
 
-  it('dims and blurs the static layers by the sketch’s values', () => {
-    const body = getCssRuleBody(css, '.world-view[data-dimmed] .ocean-scene__layer');
+  it('dims and blurs the static sheets by the sketch’s values', () => {
+    const body = getCssRuleBody(css, '.world-view[data-dimmed] .ocean-scene__sheet');
     expect(body).not.toBeNull();
     expect(body).toContain('filter: brightness(0.42) blur(2px);');
   });
 
-  it('dims the moving layers to match, without a per-frame blur', () => {
-    const body = getCssRuleBody(css, '.world-view[data-dimmed] .ocean-scene__layer--moving');
+  it('dims the moving sheets to match, without a per-frame blur', () => {
+    const body = getCssRuleBody(css, '.world-view[data-dimmed] .ocean-scene__sheet--moving');
     expect(body).not.toBeNull();
     expect(body).toContain('filter: brightness(0.42);');
     expect(body).not.toContain('blur');
+  });
+
+  // Phase 53 (spec §1.3): a mover repaints in its own patch every frame, so it dims by the same
+  // brightness the moving sheets do, and never takes the blur.
+  it('dims every mover by the same brightness, without a per-frame blur', () => {
+    const body = getCssRuleBody(css, '.world-view[data-dimmed] .mover');
+    expect(body).not.toBeNull();
+    expect(body).toContain('filter: brightness(0.42);');
+    expect(body).not.toContain('blur');
+  });
+
+  it('keeps no trace of the old layer class', () => {
+    expect(css).not.toContain('ocean-scene__layer');
   });
 
   it('leaves the world unfiltered when not dimmed', () => {

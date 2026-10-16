@@ -1,7 +1,7 @@
 // ========================================
 // MOCKS
 // ========================================
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, act } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
@@ -72,6 +72,7 @@ vi.mock('@/utils/sessionDiff', () => ({
 // IMPORTS
 // ========================================
 import { OceanScene } from './OceanScene';
+import { SCENE_SLOTS, type SceneSlot } from './sceneStack';
 import { Robot } from '@/components/robot/Robot';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
@@ -298,46 +299,141 @@ describe('OceanScene', () => {
     });
 
     // Phase 43 J4 (spec §1.10): the back robot row and the midground split out of `back`.
-    it('renders seven svg layers in back → robots-back → mid → bubbles → robots → front → marker order, all inside the scene box', () => {
+    // Roadmap Phase 53 Task 9 (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1, §1.2): every sheet is
+    // a child of one scaled stage, so the viewBox fit is one CSS scale and offset on that stage.
+    it('renders one stage as the scene box\'s only child, a div', () => {
       const { container } = render(<OceanScene />);
       const scene = container.querySelector('.ocean-scene');
       expect(scene?.tagName.toLowerCase()).toBe('div');
-      const layers = Array.from(scene!.querySelectorAll(':scope > svg.ocean-scene__layer'));
-      expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(
+      expect(scene!.children).toHaveLength(1);
+      expect(scene!.firstElementChild!.tagName.toLowerCase()).toBe('div');
+      expect(scene!.firstElementChild!.classList.contains('ocean-scene__stage')).toBe(true);
+      expect(container.querySelectorAll('.ocean-scene__stage')).toHaveLength(1);
+    });
+
+    it('renders seven sheets as the stage\'s children in back → robots-back → mid → bubbles → robots → front → marker order', () => {
+      const { container } = render(<OceanScene />);
+      const stage = container.querySelector('.ocean-scene__stage')!;
+      expect(stage.children).toHaveLength(7);
+      const sheets = Array.from(stage.querySelectorAll(':scope > svg.ocean-scene__sheet'));
+      expect(sheets).toHaveLength(7);
+      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
         ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front', 'marker'],
       );
     });
 
-    it('every layer shares the viewBox and the cover (slice) fit of the old single svg', () => {
-      const { container } = render(<OceanScene />);
-      for (const layer of container.querySelectorAll('svg.ocean-scene__layer')) {
-        expect(layer.getAttribute('viewBox')).toBe('0 0 1920 1080');
-        expect(layer.getAttribute('preserveAspectRatio')).toBe('xMidYMax slice');
+    // The stage is exactly as large as its sheets' viewBox, so a sheet that fills it needs no
+    // preserveAspectRatio. The size is inline, not in the stylesheet (OceanScene.css.test.ts).
+    it('sizes the stage to the sheets viewBox: 1920 x 1080 by default, and the width and height props otherwise', () => {
+      const { container, rerender } = render(<OceanScene />);
+      const stage = container.querySelector<HTMLElement>('.ocean-scene__stage')!;
+      expect(stage.style.width).toBe('1920px');
+      expect(stage.style.height).toBe('1080px');
+      rerender(<OceanScene width={1000} height={500} />);
+      expect(stage.style.width).toBe('1000px');
+      expect(stage.style.height).toBe('500px');
+      for (const sheet of container.querySelectorAll('svg.ocean-scene__sheet')) {
+        expect(sheet.getAttribute('viewBox')).toBe('0 0 1000 500');
       }
+    });
+
+    it('names every sheet by a SCENE_SLOTS slot, in SCENE_SLOTS order', () => {
+      const { container } = render(<OceanScene />);
+      const slots = Array.from(container.querySelectorAll('.ocean-scene__stage > svg')).map(
+        (el) => el.getAttribute('data-scene-slot') as SceneSlot,
+      );
+      for (const slot of slots) expect(SCENE_SLOTS).toContain(slot);
+      const indexes = slots.map((slot) => SCENE_SLOTS.indexOf(slot));
+      expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+    });
+
+    it('every sheet is the stage\'s own size: the world viewBox and no preserveAspectRatio (the stage does the fit)', () => {
+      const { container } = render(<OceanScene />);
+      const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
+      expect(sheets).toHaveLength(7);
+      for (const sheet of sheets) {
+        expect(sheet.getAttribute('viewBox')).toBe('0 0 1920 1080');
+        expect(sheet.hasAttribute('preserveAspectRatio')).toBe(false);
+      }
+    });
+
+    it('leaves nothing of the old layer markup in the rendered scene', () => {
+      const { container } = render(<OceanScene />);
+      expect(container.querySelector('[class*="ocean-scene__layer"]')).toBeNull();
+      expect(container.querySelector('[data-scene-layer]')).toBeNull();
+    });
+
+    // useStageFit is wired to the scene box, not to the stage it scales: observing the stage would
+    // read back its own fixed 1920 x 1080 and never refit.
+    describe('stage fit wiring', () => {
+      class MockResizeObserver {
+        static instances: MockResizeObserver[] = [];
+        callback: ResizeObserverCallback;
+        observedTargets: Element[] = [];
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+          MockResizeObserver.instances.push(this);
+        }
+        observe(target: Element) {
+          this.observedTargets.push(target);
+        }
+        unobserve() {}
+        disconnect() {}
+        fire(width: number, height: number) {
+          this.callback([{ contentRect: { width, height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+        }
+      }
+      let original: typeof ResizeObserver;
+      beforeEach(() => {
+        MockResizeObserver.instances = [];
+        original = globalThis.ResizeObserver;
+        (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = MockResizeObserver;
+      });
+      afterEach(() => {
+        (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = original;
+      });
+
+      it('observes the scene box and writes the stage fit onto it', () => {
+        const { container } = render(<OceanScene />);
+        const scene = container.querySelector<HTMLElement>('.ocean-scene')!;
+        const observer = MockResizeObserver.instances.find((o) => o.observedTargets.includes(scene));
+        expect(observer).toBeDefined();
+        act(() => observer!.fire(2560, 1080));
+        expect(scene.style.getPropertyValue('--stage-y')).toBe('-360px');
+        expect(parseFloat(scene.style.getPropertyValue('--stage-scale'))).toBeCloseTo(4 / 3, 5);
+      });
+
+      it('never observes the stage itself', () => {
+        const { container } = render(<OceanScene />);
+        const stage = container.querySelector('.ocean-scene__stage')!;
+        expect(MockResizeObserver.instances.some((o) => o.observedTargets.includes(stage))).toBe(false);
+      });
     });
 
     it('marks both robot layers, the bubbles layer and the marker layer as moving, and the back, mid and front layers as not', () => {
       const { container } = render(<OceanScene />);
-      const byName = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
+      const byName = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
       for (const name of ['robots-back', 'bubbles', 'robots', 'marker']) {
-        expect(byName(name).classList.contains('ocean-scene__layer--moving')).toBe(true);
+        expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(true);
       }
       for (const name of ['back', 'mid', 'front']) {
-        expect(byName(name).classList.contains('ocean-scene__layer--moving')).toBe(false);
+        expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(false);
       }
     });
 
     it('gives no layer a click-taking modifier — clicks are .robot\'s alone (spec §1.10)', () => {
       const { container } = render(<OceanScene />);
-      for (const layer of container.querySelectorAll('svg.ocean-scene__layer')) {
-        expect(layer.classList.contains('ocean-scene__layer--robots')).toBe(false);
+      const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
+      expect(sheets).toHaveLength(7);
+      for (const layer of sheets) {
+        expect(layer.classList.contains('ocean-scene__sheet--robots')).toBe(false);
       }
     });
 
     it('keeps each row in its layer: background in back, midground in mid, the robot rows in robots-back and robots, foreground in front', () => {
       const { container } = render(<OceanScene />);
       const layerOf = (selector: string) =>
-        container.querySelector(selector)?.closest('svg.ocean-scene__layer')?.getAttribute('data-scene-layer');
+        container.querySelector(selector)?.closest('svg.ocean-scene__sheet')?.getAttribute('data-scene-slot');
       expect(layerOf('#factory-background-layer')).toBe('back');
       expect(layerOf('#robot-back-layer')).toBe('robots-back');
       expect(layerOf('#factory-midground-layer')).toBe('mid');
@@ -377,10 +473,10 @@ describe('OceanScene', () => {
         return { rect: rect!, gradient: gradient!, stops };
       }
 
-      const layerOf = (el: Element) => el.closest('svg.ocean-scene__layer')!.getAttribute('data-scene-layer');
+      const layerOf = (el: Element) => el.closest('svg.ocean-scene__sheet')!.getAttribute('data-scene-slot');
       /** The layer's drawn children (its <defs> aside), in document order. */
       const drawn = (container: HTMLElement, layer: string) =>
-        Array.from(container.querySelector(`svg[data-scene-layer="${layer}"]`)!.children)
+        Array.from(container.querySelector(`svg[data-scene-slot="${layer}"]`)!.children)
           .filter((el) => el.tagName.toLowerCase() !== 'defs');
 
       it('each tint covers the whole scene and takes no clicks', () => {
@@ -514,7 +610,7 @@ describe('OceanScene', () => {
 
       it('an empty back row still renders its group (the perf harness and Task 34 key on it)', () => {
         const { container } = render(<OceanScene />);
-        expect(container.querySelector('svg[data-scene-layer="robots-back"] > #robot-back-layer')).not.toBeNull();
+        expect(container.querySelector('svg[data-scene-slot="robots-back"] > #robot-back-layer')).not.toBeNull();
         expect(idsIn(container, 'robot-back-layer')).toEqual([]);
         expect(idsIn(container, 'robot-layer')).toEqual(['r1']);
       });
@@ -596,7 +692,7 @@ describe('OceanScene', () => {
     it('keeps the bubble layer inside the bubbles svg', () => {
       bubbleLayerMock.mockImplementation(() => <g data-testid="bubble-layer-stub" />);
       const { container } = render(<OceanScene />);
-      expect(container.querySelector('svg[data-scene-layer="bubbles"] [data-testid="bubble-layer-stub"]')).not.toBeNull();
+      expect(container.querySelector('svg[data-scene-slot="bubbles"] [data-testid="bubble-layer-stub"]')).not.toBeNull();
       bubbleLayerMock.mockImplementation(() => null);
     });
 
@@ -608,8 +704,8 @@ describe('OceanScene', () => {
     // still after the over-midground tint (C, today's gradient-1-2's slot) so bases bury under it.
     it('renders the ridge before the background factory group in back, and the ground after the midground and tint C in mid', () => {
       const { container } = render(<OceanScene />);
-      const back = Array.from(container.querySelector('svg[data-scene-layer="back"]')!.children);
-      const mid = Array.from(container.querySelector('svg[data-scene-layer="mid"]')!.children);
+      const back = Array.from(container.querySelector('svg[data-scene-slot="back"]')!.children);
+      const mid = Array.from(container.querySelector('svg[data-scene-slot="mid"]')!.children);
 
       const ridgeIndex = back.findIndex((el) => el.getAttribute('data-terrain') === 'ridge');
       const backgroundIndex = back.findIndex((el) => el.id === 'factory-background-layer');
@@ -631,7 +727,7 @@ describe('OceanScene', () => {
     // in the back layer, and OceanScene must no longer accept the removed prop.
     it('renders the water column before the ridge in the back layer', () => {
       const { container } = render(<OceanScene />);
-      const back = container.querySelector('svg[data-scene-layer="back"]')!;
+      const back = container.querySelector('svg[data-scene-slot="back"]')!;
       const children = Array.from(back.children);
 
       const waterIndex = children.findIndex((el) => el.hasAttribute('data-water'));
@@ -646,7 +742,7 @@ describe('OceanScene', () => {
     // column and before the ridge in document order.
     it('renders light shafts after the water column and before the ridge in the back layer', () => {
       const { container } = render(<OceanScene />);
-      const back = container.querySelector('svg[data-scene-layer="back"]')!;
+      const back = container.querySelector('svg[data-scene-slot="back"]')!;
       const children = Array.from(back.children);
 
       const waterIndex = children.findIndex((el) => el.hasAttribute('data-water'));
@@ -680,7 +776,7 @@ describe('OceanScene', () => {
       const stations = getStations(DEFAULT_LOCALE_ID);
       expect(stations.length).toBeGreaterThanOrEqual(2);
       const { container } = render(<OceanScene />);
-      const layer = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
+      const layer = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
       const groupsOf = (name: string) => Array.from(layer(name).querySelectorAll(':scope > g')).map((g) => g.id);
       expect(groupsOf('robots-back')).toEqual(['station-l4-layer', 'robot-back-layer']);
       expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
@@ -712,7 +808,7 @@ describe('OceanScene', () => {
     // fills it imperatively, so React renders it empty and registers it for getRef.
     it('renders an empty #robot-dissolve-layer after the robots and registers it as robot-dissolve-layer', () => {
       const { container, unmount } = render(<OceanScene />);
-      const layer = container.querySelector('svg[data-scene-layer="robots"] > #robot-dissolve-layer');
+      const layer = container.querySelector('svg[data-scene-slot="robots"] > #robot-dissolve-layer');
       expect(layer).not.toBeNull();
       expect(layer!.children).toHaveLength(0);
       expect(getRef('robot-dissolve-layer')).toBe(layer);
@@ -725,10 +821,10 @@ describe('OceanScene', () => {
     // last one, so it draws over the foreground buildings too.
     it('renders the followed-robot marker alone in the top moving layer, handed the locale id', () => {
       const { container } = render(<OceanScene />);
-      const layer = container.querySelector('svg[data-scene-layer="marker"]')!;
-      const scene = container.querySelector('.ocean-scene')!;
+      const layer = container.querySelector('svg[data-scene-slot="marker"]')!;
+      const stage = container.querySelector('.ocean-scene__stage')!;
 
-      expect(scene.lastElementChild).toBe(layer);
+      expect(stage.lastElementChild).toBe(layer);
       expect(layer.children).toHaveLength(1);
 
       expect(layer.lastElementChild?.getAttribute('data-followed-marker-mock')).toBe(DEFAULT_LOCALE_ID);
@@ -748,12 +844,12 @@ describe('OceanScene', () => {
     it('draws no station in any other layer, and only L4 in the back row', () => {
       const { container } = render(<OceanScene />);
       for (const name of ['back', 'mid', 'bubbles', 'front']) {
-        expect(container.querySelector(`svg[data-scene-layer="${name}"] g[data-station-mock]`)).toBeNull();
+        expect(container.querySelector(`svg[data-scene-slot="${name}"] g[data-station-mock]`)).toBeNull();
       }
-      const back = Array.from(container.querySelectorAll('svg[data-scene-layer="robots-back"] g[data-station-mock]'));
+      const back = Array.from(container.querySelectorAll('svg[data-scene-slot="robots-back"] g[data-station-mock]'));
       expect(back.length).toBeGreaterThan(0);
       for (const m of back) expect(m.getAttribute('data-fragment')).toBe('l4');
-      expect(container.querySelector('svg[data-scene-layer="robots"] g[data-fragment="l4"]')).toBeNull();
+      expect(container.querySelector('svg[data-scene-slot="robots"] g[data-fragment="l4"]')).toBeNull();
     });
   });
 
@@ -782,7 +878,7 @@ describe('OceanScene', () => {
       });
 
       const { container } = render(<OceanScene />);
-      const front = container.querySelector('svg[data-scene-layer="front"] #factory-foreground-layer')!;
+      const front = container.querySelector('svg[data-scene-slot="front"] #factory-foreground-layer')!;
       const children = Array.from(front.children);
       const wallIdx = children.findIndex((el) => el.getAttribute('data-scenery-mock') === 'wall-1');
       const factoryIdx = children.findIndex((el) => el.getAttribute('data-factory-mock') === 'fg-factory-1');

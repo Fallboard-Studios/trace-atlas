@@ -13,8 +13,9 @@
      grid rows/sizing (ScreenViewport.css) and simply render on top via
      z-index, so neither's own footprint (including what captures clicks)
      changes.
-     The SVG scene inside (OceanScene.tsx) covers whatever box this ends up
-     being via its own viewBox + preserveAspectRatio="xMidYMax slice" —
+     The scene inside (OceanScene.tsx) covers whatever box this ends up
+     being via its stage's one CSS scale and offset (useStageFit and sceneFit.ts:
+     the old viewBox fit, xMidYMax slice, as arithmetic) —
      scaled up and cropped as needed (the top goes first; the bottom of the
      world stays pinned to the bottom of the screen) so its background rect is never
      smaller than the tablet in either direction — never scaled down with
@@ -54,15 +55,19 @@
 
 /* Under the opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md
    Task 7) the world dims: WorldView.tsx sets data-dimmed while a branch is open. The sketch's values,
-   on OceanScene's static layers, which paint once and keep the filtered result. The moving layers
-   (the robot rows and the bubbles, compositor layers that repaint every frame) dim by the same
-   brightness without the blur: most of them sits under the surface, and where the world shows around
-   it (under the nav panel's glass, the gutters, the top band) a moving robot is no brighter than the
-   world behind it. */
-.world-view[data-dimmed] .ocean-scene__layer {
+   on OceanScene's static sheets, which paint once and keep the filtered result. The moving sheets
+   (the robot rows and the bubbles) and the movers (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.3),
+   compositor layers that repaint every frame, dim by the same brightness without the blur: most of
+   them sits under the surface, and where the world shows around it (under the nav panel's glass, the
+   gutters, the top band) a moving robot is no brighter than the world behind it. */
+.world-view[data-dimmed] .ocean-scene__sheet {
   filter: brightness(0.42) blur(2px);
 }
 
-.world-view[data-dimmed] .ocean-scene__layer--moving {
+.world-view[data-dimmed] .ocean-scene__sheet--moving {
+  filter: brightness(0.42);
+}
+
+.world-view[data-dimmed] .mover {
   filter: brightness(0.42);
 }

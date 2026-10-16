@@ -52,14 +52,14 @@ describe('ANIMATION_SYSTEM.md: the scene stack', () => {
   const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene layers — what may move where');
 
   it('lists the seven layers in OceanScene.tsx\'s order', () => {
-    const rendered = [...oceanScene.matchAll(/<SceneLayer name="([a-z-]+)"/g)].map((m) => m[1]);
+    const rendered = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"/g)].map((m) => m[1]);
     expect(rendered).toHaveLength(7);
     const documented = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l)).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
     expect(documented).toEqual(rendered);
   });
 
   it('marks exactly the moving layers as moving', () => {
-    const moving = [...oceanScene.matchAll(/<SceneLayer name="([a-z-]+)"[^>]*\bmoving\b/g)].map((m) => m[1]);
+    const moving = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"[^>]*\bmoving\b/g)].map((m) => m[1]);
     for (const line of layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l))) {
       const name = line.match(/^\| `([a-z-]+)`/)![1];
       expect(line.includes('| moving |'), name).toBe(moving.includes(name));
