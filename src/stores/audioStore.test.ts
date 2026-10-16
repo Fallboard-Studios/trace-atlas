@@ -23,6 +23,7 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalAutoWah: vi.fn(),
     setGlobalPhaser: vi.fn(),
     setMasterVolume: vi.fn(),
+    setHumanize: vi.fn(),
   },
 }));
 
@@ -781,6 +782,115 @@ describe('useAudioStore - swellDuration / setSwellDuration (docs/specs/AUTOMATIO
     useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
 
     expect(useAudioStore.getState().swellDuration).toBe(20);
+  });
+});
+
+// docs/specs/ROBOT_PERFORMANCE.md assumption 9 / docs/tasks/ROBOT_PERFORMANCE.md Task 11 — Humanize, a Pacing scalar in whole ms,
+// seeded once and PUSHED to the engine (AudioEngine.setHumanize): the playback loop never reads this store.
+describe('useAudioStore - humanize / setHumanize (Robot Performance Task 11)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  // The mock outlives vi.resetModules, so it is cleared BEFORE the store is imported: the seeding push happens at import.
+  async function loadStore() {
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const push = vi.mocked(AudioEngine.setHumanize);
+    push.mockClear();
+    const { useAudioStore } = await import('./audioStore');
+    return { useAudioStore, push };
+  }
+
+  it('seeds a whole number in [2, 6] on module load (the first regenerateGlobalAudioFromSeed call)', async () => {
+    const { useAudioStore } = await loadStore();
+    const { humanize } = useAudioStore.getState();
+    expect(Number.isInteger(humanize)).toBe(true);
+    expect(humanize).toBeGreaterThanOrEqual(2);
+    expect(humanize).toBeLessThanOrEqual(6);
+  });
+
+  it('pushes the seeded value to the engine once, on module load, and never pushes the unseeded sentinel', async () => {
+    const { useAudioStore, push } = await loadStore();
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(useAudioStore.getState().humanize);
+    push.mock.calls.forEach(([ms]) => expect(ms).toBeGreaterThanOrEqual(0));
+  });
+
+  it.each([
+    [7.9, 7],
+    [12, 12],
+    [0, 0],
+    [20, 20],
+    [40, 20],
+    [-1, 0],
+    [-0.5, 0],
+    [0.9, 0],
+    [Infinity, 20],
+    [-Infinity, 0],
+  ])('setHumanize(%s) stores %s and pushes the same stored value to the engine', async (given, stored) => {
+    const { useAudioStore, push } = await loadStore();
+    push.mockClear();
+
+    useAudioStore.getState().setHumanize(given);
+
+    expect(useAudioStore.getState().humanize).toBe(stored);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(stored);
+  });
+
+  it('setHumanize(NaN) is read as 0, in the store and at the engine (the engine reads a NaN as 0 too)', async () => {
+    const { useAudioStore, push } = await loadStore();
+    push.mockClear();
+
+    useAudioStore.getState().setHumanize(NaN);
+
+    expect(useAudioStore.getState().humanize).toBe(0);
+    expect(push).toHaveBeenCalledWith(0);
+  });
+
+  it('setHumanize touches no global effect (the push to the engine is its only side effect)', async () => {
+    const { useAudioStore } = await loadStore();
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const reverbCallsBefore = vi.mocked(AudioEngine.setGlobalReverb).mock.calls.length;
+    const bpmCallsBefore = vi.mocked(AudioEngine.setBPM).mock.calls.length;
+
+    useAudioStore.getState().setHumanize(15);
+
+    expect(vi.mocked(AudioEngine.setGlobalReverb).mock.calls.length).toBe(reverbCallsBefore);
+    expect(vi.mocked(AudioEngine.setBPM).mock.calls.length).toBe(bpmCallsBefore);
+  });
+
+  it('carries the seeded value forward across a later Attenuation Style switch — does not reseed, does not push again', async () => {
+    const { useAudioStore, push } = await loadStore();
+    const seeded = useAudioStore.getState().humanize;
+    push.mockClear();
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().humanize).toBe(seeded);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('carries a hand-set value forward too — in the store and at the engine', async () => {
+    const { useAudioStore, push } = await loadStore();
+    useAudioStore.getState().setHumanize(18); // outside the [2, 6] seed range, so it is unambiguous
+    push.mockClear();
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().humanize).toBe(18);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('a hand-set 0 is a value, not an unseeded store: a later switch leaves it at 0 and pushes nothing', async () => {
+    const { useAudioStore, push } = await loadStore();
+    useAudioStore.getState().setHumanize(0);
+    push.mockClear();
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().humanize).toBe(0);
+    expect(push).not.toHaveBeenCalled();
   });
 });
 

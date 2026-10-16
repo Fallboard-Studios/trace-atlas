@@ -14,8 +14,9 @@ import {
   generatePingVarianceAutomation,
   generateSwellFrequency,
   generateSwellDuration,
+  generateHumanize,
 } from '../utils/globalAudioSeed';
-import { AUDIO_LOAD_PRESETS } from '../constants';
+import { AUDIO_LOAD_PRESETS, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '../constants';
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import {
@@ -199,6 +200,9 @@ const PING_VARIANCE_AUTOMATION_UNSEEDED = -1;
 const SWELL_FREQUENCY_UNSEEDED = -1;
 const SWELL_DURATION_UNSEEDED = -1;
 
+/** Same shape for Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9) — outside its real [0, 20] ms domain. */
+const HUMANIZE_UNSEEDED = -1;
+
 /**
  * The Robot Load slider's position at page load (docs/specs/AUDIO_LOAD_BUDGET.md §4.2): a valid `?load=`
  * wins, otherwise Light on a coarse-pointer (phone-like) device and Full elsewhere. Browser-only, read
@@ -253,6 +257,11 @@ export interface AudioStore {
    *  falling split within that total still varies per swell. Seeded once
    *  per session, carried forward like swellFrequency/pingVarianceAutomation. */
   swellDuration: number;
+  /** How far, in whole ms, every robot's notes may land off the grid ([0, 20]) — the Pacing "Humanize" slider
+   *  (docs/specs/ROBOT_PERFORMANCE.md assumption 9). Seeded once per session in [2, 6], then carried forward across
+   *  Attenuation Style switches like swellDuration. The playback loop never reads this: setHumanize and the seeding
+   *  branch PUSH it to AudioEngine.setHumanize. */
+  humanize: number;
   /** The Robot Load slider, [0, 1] — 1 (Full) is today's behavior exactly; lower values cap audible
    *  robots, polyphony and (at load time) latency. Initialised at boot from `?load=` / device detection,
    *  changed only through `setRobotLoad`. docs/specs/AUDIO_LOAD_BUDGET.md. */
@@ -320,6 +329,9 @@ export interface AudioStore {
   setSwellFrequency: (value: number) => void;
   /** Sets the Audio Rig "Duration" slider — a plain state write, no AudioEngine call. */
   setSwellDuration: (value: number) => void;
+  /** Sets the Pacing "Humanize" slider: truncated to whole ms, clamped to [0, 20] (NaN reads as 0), written, and pushed to
+   *  AudioEngine.setHumanize — the only way the value reaches the playback loop. */
+  setHumanize: (ms: number) => void;
   /** Sets the Robot Load slider, clamped to [0, 1] (NaN → Full). A plain state write — the budget
    *  system reacts to it; nothing here touches the engine. Leaves effectsLoad untouched. */
   setRobotLoad: (robotLoad: number) => void;
@@ -400,6 +412,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   pingVarianceAutomation: PING_VARIANCE_AUTOMATION_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
   swellFrequency: SWELL_FREQUENCY_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
   swellDuration: SWELL_DURATION_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
+  humanize: HUMANIZE_UNSEEDED, // real value assigned (and pushed to the engine) by the first regenerateGlobalAudioFromSeed call below
   robotLoad: readInitialRobotLoad(),
   effectsLoad: readInitialEffectsLoad(),
   soundingRobotIds: [],
@@ -477,6 +490,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   setSwellDuration: (value) => {
     set({ swellDuration: value });
   },
+  setHumanize: (ms) => {
+    const humanize = Number.isNaN(ms) ? HUMANIZE_MIN_MS : Math.min(HUMANIZE_MAX_MS, Math.max(HUMANIZE_MIN_MS, Math.trunc(ms)));
+    set({ humanize });
+    AudioEngine.setHumanize(humanize);
+  },
   setRobotLoad: (robotLoad) => {
     set({ robotLoad: clampAudioLoad(robotLoad) });
   },
@@ -537,12 +555,19 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     const swellDuration = get().swellDuration === SWELL_DURATION_UNSEEDED
       ? generateSwellDuration(attenuationStyleId, attenuationStyleName)
       : undefined;
+    // humanize joins the same group (docs/specs/ROBOT_PERFORMANCE.md assumption 9), and is pushed to the engine the one time
+    // it is seeded; a later switch leaves both the store and the engine at whatever the user set.
+    const humanize = get().humanize === HUMANIZE_UNSEEDED
+      ? generateHumanize(attenuationStyleId, attenuationStyleName)
+      : undefined;
     set({
       globalAudio,
       ...(pingVarianceAutomation !== undefined ? { pingVarianceAutomation } : {}),
       ...(swellFrequency !== undefined ? { swellFrequency } : {}),
       ...(swellDuration !== undefined ? { swellDuration } : {}),
+      ...(humanize !== undefined ? { humanize } : {}),
     });
+    if (humanize !== undefined) AudioEngine.setHumanize(humanize);
     // bpm is already the new Attenuation Style's tempo: the AS-sync reseeds it before globalAudio.
     applyGlobalAudioToEngine(globalAudio, get().bpm);
   },

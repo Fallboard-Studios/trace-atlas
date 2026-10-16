@@ -28,6 +28,7 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalAutoWah: vi.fn(),
     setGlobalPhaser: vi.fn(),
     setMasterVolume: vi.fn(),
+    setHumanize: vi.fn(),
   },
 }));
 
