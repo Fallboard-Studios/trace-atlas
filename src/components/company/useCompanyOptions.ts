@@ -11,13 +11,13 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
+  applyDynamics, applyRests, applyAccents,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
-import { DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '@/engine/melodyGenerator';
 import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -40,11 +40,6 @@ const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   delaySend: 0,
   dynamics: 0,
 };
-
-// TODO T14 (docs/tasks/ROBOT_PERFORMANCE.md): Tasks 9 and 10 only keep the shared Levels and Composition sections
-// type-checking on the company screen. Task 14 replaces this inert handler with the three broadcasts, and the first-member
-// values below with the resolved snapshot.
-const NO_PERFORMANCE_BROADCAST = (): void => {};
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
   rhythmicDensity: 0,
@@ -236,16 +231,15 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedPanAuto = resolved?.panAuto;
   const resolvedReverbSend = resolved?.reverbSend;
   const resolvedDelaySend = resolved?.delaySend;
-  // TODO T14: the first member's own field until the snapshot carries dynamics.
-  const firstMemberDynamics = firstMember?.dynamics ?? DEFAULT_DYNAMICS;
+  const resolvedDynamics = resolved?.dynamics;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
       ? {
         audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto!,
-        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!, dynamics: firstMemberDynamics,
+        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!, dynamics: resolvedDynamics!,
       }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend, firstMemberDynamics]);
+  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend, resolvedDynamics]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -256,9 +250,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedPitchRepeat = resolved?.pitchRepeat;
   const resolvedOctaveRange = resolved?.octaveRange;
   const resolvedClickTrackActive = resolved?.clickTrackActive;
-  // TODO T14: the first member's own fields until the snapshot carries rests and accents.
-  const firstMemberRests = firstMember?.rests ?? DEFAULT_RESTS;
-  const firstMemberAccents = firstMember?.accents ?? DEFAULT_ACCENTS;
+  const resolvedRests = resolved?.rests;
+  const resolvedAccents = resolved?.accents;
   const pingControlsValue: PingControlsValue = useMemo(() => (
     active
       ? {
@@ -266,15 +259,15 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
         rhythmicMotifLength: resolvedRhythmicMotifLength!.value,
         noteVariance: resolvedNoteVariance!.value,
         pitchRepeat: resolvedPitchRepeat!,
-        rests: firstMemberRests,
-        accents: firstMemberAccents,
+        rests: resolvedRests!,
+        accents: resolvedAccents!,
         octaveRange: resolvedOctaveRange!,
         clickTrackActive: resolvedClickTrackActive!,
       }
       : DISABLED_PING_CONTROLS
   ), [
     active, resolvedRhythmicDensity, resolvedRhythmicMotifLength, resolvedNoteVariance, resolvedPitchRepeat,
-    resolvedOctaveRange, resolvedClickTrackActive, firstMemberRests, firstMemberAccents,
+    resolvedOctaveRange, resolvedClickTrackActive, resolvedRests, resolvedAccents,
   ]);
 
   const resolvedAdsr = resolved?.adsr;
@@ -419,6 +412,24 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     patchSnapshot({ pitchRepeat: v });
   }, [localeId, patchSnapshot]);
 
+  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md): onDensityChange's shape. Dynamics writes each member's field;
+  // Rests and Accents regenerate each member's melody from its own seed (the actions do that), so the members keep their
+  // own notes and only the marks move together. None is a swell attribute, so nothing is cancelled.
+  const onDynamicsChange = useCallback((v: number) => {
+    latest.current.members.forEach((m) => applyDynamics(m, localeId, v));
+    patchSnapshot({ dynamics: v });
+  }, [localeId, patchSnapshot]);
+
+  const onRestsChange = useCallback((v: number) => {
+    latest.current.members.forEach((m) => applyRests(m, localeId, v));
+    patchSnapshot({ rests: v });
+  }, [localeId, patchSnapshot]);
+
+  const onAccentsChange = useCallback((v: number) => {
+    latest.current.members.forEach((m) => applyAccents(m, localeId, v));
+    patchSnapshot({ accents: v });
+  }, [localeId, patchSnapshot]);
+
   const onAdsrChange = useCallback((adsr: ADSREnvelope) => {
     const { members, resolved } = latest.current;
     const patch = resolved ? diffCompoundField(resolved.adsr, adsr) : adsr;
@@ -513,9 +524,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onPanAutoChange,
     onReverbSendChange,
     onDelaySendChange,
-    onDynamicsChange: NO_PERFORMANCE_BROADCAST,
-    onRestsChange: NO_PERFORMANCE_BROADCAST,
-    onAccentsChange: NO_PERFORMANCE_BROADCAST,
+    onDynamicsChange,
+    onRestsChange,
+    onAccentsChange,
     onDensityChange,
     onMotifLengthChange,
     onPitchRepeatChange,
@@ -533,6 +544,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
     volumeSwelling, reverbSendSwelling, delaySendSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
+    onDynamicsChange, onRestsChange, onAccentsChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,

@@ -252,6 +252,56 @@ describe('resolveCompanyOptions: the articulation fields (Robot Articulation Tas
   });
 });
 
+// docs/tasks/ROBOT_PERFORMANCE.md Task 14 - Dynamics, Rests and Accents resolve like the sends: the recorded field,
+// else the first member's own, else the documented default (50 / 0 / 0).
+describe('resolveCompanyOptions: the performance fields (Robot Performance Task 14)', () => {
+  it('resolve to the first member\'s own dynamics, rests and accents when the snapshot has none', () => {
+    const resolved = resolveCompanyOptions(undefined, makeRobot({ dynamics: 72, rests: 35, accents: 80 }));
+
+    expect(resolved.dynamics).toBe(72);
+    expect(resolved.rests).toBe(35);
+    expect(resolved.accents).toBe(80);
+  });
+
+  it('fall back to 50, 0 and 0 for a member that carries none of the fields (an older robot)', () => {
+    const resolved = resolveCompanyOptions(undefined, makeRobot());
+
+    expect(resolved.dynamics).toBe(50);
+    expect(resolved.rests).toBe(0);
+    expect(resolved.accents).toBe(0);
+  });
+
+  it('a recorded value wins over the first member, field by field', () => {
+    const firstMember = makeRobot({ dynamics: 72, rests: 35, accents: 80 });
+
+    expect(resolveCompanyOptions({ dynamics: 20 }, firstMember).dynamics).toBe(20);
+    expect(resolveCompanyOptions({ rests: 60 }, firstMember).rests).toBe(60);
+    expect(resolveCompanyOptions({ accents: 5 }, firstMember).accents).toBe(5);
+  });
+
+  it('a recorded 0 is a real value, not a missing one (a company with Dynamics flattened to 0 must not fall through)', () => {
+    const resolved = resolveCompanyOptions({ dynamics: 0, rests: 0, accents: 0 }, makeRobot({ dynamics: 72, rests: 35, accents: 80 }));
+
+    expect(resolved.dynamics).toBe(0);
+    expect(resolved.rests).toBe(0);
+    expect(resolved.accents).toBe(0);
+  });
+
+  it('record independently: a recorded rests leaves dynamics and accents on the member', () => {
+    const resolved = resolveCompanyOptions({ rests: 60 }, makeRobot({ dynamics: 72, rests: 35, accents: 80 }));
+
+    expect(resolved.dynamics).toBe(72);
+    expect(resolved.accents).toBe(80);
+  });
+
+  it('follow the first member live for a field the snapshot does not cover', () => {
+    const snapshot = { accents: 5 };
+
+    expect(resolveCompanyOptions(snapshot, makeRobot({ rests: 10 })).rests).toBe(10);
+    expect(resolveCompanyOptions(snapshot, makeRobot({ rests: 90 })).rests).toBe(90);
+  });
+});
+
 describe('diffCompoundField', () => {
   it('returns a patch with just the one field that changed', () => {
     const prev = { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 };

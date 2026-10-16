@@ -63,7 +63,7 @@ Every field the company has never been edited for falls back live to `firstMembe
 
 ## Editing Semantics: Broadcast, Not Link
 
-A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applyReverbSend`, `applyDelaySend`, `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
+A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applyReverbSend`, `applyDelaySend`, `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyDynamics`, `applyRests`, `applyAccents`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
 
 Only the one field that was changed propagates into `lastEditedOptions` — never the company's entire resolved snapshot. A user editing a single member robot's value afterward (even from that robot's own screen) changes only that robot; the company's `lastEditedOptions` and every other member robot are untouched. There is no ongoing link between a robot and its company's settings after the broadcast — reassigning a robot to a different company, or leaving it in the same one, doesn't retroactively apply anything.
 
@@ -97,6 +97,16 @@ Broadcast-not-link applies as everywhere else: a member edited afterwards on its
 - A value that is not a number (a `NaN` display figure) is dropped whole, and records nothing.
 
 Broadcast-not-link applies as everywhere else, so members disagree until a slider is touched, after which every member sits at one value; the snapshot is not rewritten by a later single-robot edit. A company is not saved as a snapshot (only its name and membership are, see [SESSION_STORAGE.md](SESSION_STORAGE.md)), so a company move is saved as the per-robot sends it left behind.
+
+### Dynamics, Rests and Accents (Robot Performance 50.5, docs/specs/ROBOT_PERFORMANCE.md §1.8)
+
+`CompanyOptionsSnapshot` carries three more optional fields, `dynamics`, `rests` and `accents` (0…100 each, as on `Robot`). `resolveCompanyOptions` falls back to the first member's own value, then to the default (`50` / `0` / `0`, today's sound). Humanize is global, so it has no company field. The company screen shows Dynamics on the Levels panel and Rests and Accents on the Composition panel's Articulation row, through the same `AudioSettingSection` and `PingControlsCompositionSection` the robot screen renders. Their handlers, `onDynamicsChange`, `onRestsChange` and `onAccentsChange`, live in `useCompanyOptions` on `onDensityChange`'s plain-number shape.
+
+- **Moving a slider** calls `applyDynamics` / `applyRests` / `applyAccents` once per member with the value and records exactly that one key in the snapshot. None is a swell attribute, so nothing is cancelled.
+- **Rests and Accents regenerate each member's melody** (the actions do that, as `applyPitchRepeat` does): every member keeps its own seeded notes and only the marks move together. Dynamics writes the field alone; the engine reads it on every note.
+- A member with none of the fields reads as `50` / `0` / `0`, and a recorded `0` is a real value, not a missing one.
+
+Broadcast-not-link applies as everywhere else: a member edited afterwards on its own screen keeps its own value, and the snapshot is not rewritten.
 
 ## Company Membership
 

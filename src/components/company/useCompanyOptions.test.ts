@@ -303,110 +303,206 @@ describe('useCompanyOptions', () => {
     });
   });
 
-  // docs/tasks/ROBOT_PERFORMANCE.md Task 9 - the company Levels screen needs a Dynamics value and handler so the shared
-  // section type-checks. TEMPORARY: the first member's value and an inert handler; Task 14 replaces both with the
-  // resolved snapshot value and the broadcast (and this block with the real tests).
-  describe('Dynamics pass-through (Robot Performance Task 9, replaced by Task 14)', () => {
-    it("is the first member's dynamics, not the second's", () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 72 }));
-      addRobot(makeRobot({ id: 'r2', companyId: 'c1', dynamics: 10 }));
+  // docs/tasks/ROBOT_PERFORMANCE.md Task 14 - the company Dynamics, Rests and Accents controls: the recorded snapshot
+  // field, else the first member's own, else the default; a broadcast through the robot screen's own action once per
+  // member; a snapshot of the plain number (onDensityChange's shape). Replaces Tasks 9 and 10's pass-throughs.
+  describe('Dynamics, Rests and Accents (Robot Performance Task 14)', () => {
+    const lastEdited = (id = 'c1') => useLocaleStore.getState().getCompanyById(localeId, id)?.lastEditedOptions;
+    const allLastEdited = () => useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions;
+
+    function twoMembersWithPerformance() {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 72, rests: 35, accents: 80 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', dynamics: 10, rests: 90, accents: 5 }));
       addCompany('c1', ['r1', 'r2']);
+    }
 
-      const { result } = renderHook(() => useCompanyOptions('c1'));
+    describe('the value', () => {
+      it("is the first member's own dynamics, rests and accents, not the second's", () => {
+        twoMembersWithPerformance();
 
-      expect(result.current.options.audioSettingValue.dynamics).toBe(72);
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.audioSettingValue.dynamics).toBe(72);
+        expect(result.current.options.pingControlsValue).toMatchObject({ rests: 35, accents: 80 });
+      });
+
+      it('shows the recorded snapshot over the first member, 0 included', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 72, rests: 35, accents: 80 }));
+        addCompany('c1', ['r1'], { lastEditedOptions: { dynamics: 0, rests: 60, accents: 0 } });
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.audioSettingValue.dynamics).toBe(0);
+        expect(result.current.options.pingControlsValue).toMatchObject({ rests: 60, accents: 0 });
+      });
+
+      it('is 50, 0 and 0 for a first member that carries none of the fields', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addCompany('c1', ['r1']);
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.audioSettingValue.dynamics).toBe(50);
+        expect(result.current.options.pingControlsValue).toMatchObject({ rests: 0, accents: 0 });
+      });
+
+      it('is 0, 0 and 0 while the selection is disabled (no members)', () => {
+        addCompany('c1', []);
+
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        expect(result.current.options.active).toBe(false);
+        expect(result.current.options.audioSettingValue.dynamics).toBe(0);
+        expect(result.current.options.pingControlsValue).toMatchObject({ rests: 0, accents: 0 });
+      });
+
+      it('follows the first member when its fields change elsewhere, and ignores a member that is not first', () => {
+        twoMembersWithPerformance();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 80, rests: 20, accents: 45 }));
+        expect(result.current.options.audioSettingValue.dynamics).toBe(80);
+        expect(result.current.options.pingControlsValue).toMatchObject({ rests: 20, accents: 45 });
+
+        const audioBefore = result.current.options.audioSettingValue;
+        const pingBefore = result.current.options.pingControlsValue;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { dynamics: 5, rests: 77, accents: 77 }));
+        expect(result.current.options.audioSettingValue).toBe(audioBefore);
+        expect(result.current.options.pingControlsValue).toBe(pingBefore);
+      });
+
+      it('"all" reads the three from the all-robots snapshot, else the first robot', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: undefined, dynamics: 72, rests: 35, accents: 80 }));
+        const first = renderHook(() => useCompanyOptions('all')).result.current.options;
+        expect(first.audioSettingValue.dynamics).toBe(72);
+        expect(first.pingControlsValue).toMatchObject({ rests: 35, accents: 80 });
+
+        useLocaleStore.getState().setLocaleData(localeId, { allRobotsLastEditedOptions: { rests: 60 } } as unknown as Partial<Locale>);
+        const recorded = renderHook(() => useCompanyOptions('all')).result.current.options;
+        expect(recorded.audioSettingValue.dynamics).toBe(72);
+        expect(recorded.pingControlsValue).toMatchObject({ rests: 60, accents: 80 });
+      });
     });
 
-    it('is 50 for a first member that carries no field, and 0 for a first member at 0', () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
-      addCompany('c1', ['r1']);
-      expect(renderHook(() => useCompanyOptions('c1')).result.current.options.audioSettingValue.dynamics).toBe(50);
+    describe('onDynamicsChange / onRestsChange / onAccentsChange', () => {
+      it('onDynamicsChange(40) applies once per member with 40 and records only { dynamics: 40 }', () => {
+        twoMembersWithPerformance();
+        const apply = vi.spyOn(robotOptionsActions, 'applyDynamics').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 0 }));
-      expect(renderHook(() => useCompanyOptions('c1')).result.current.options.audioSettingValue.dynamics).toBe(0);
+        act(() => result.current.options.onDynamicsChange(40));
+
+        expect(apply).toHaveBeenCalledTimes(2);
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), localeId, 40);
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r2' }), localeId, 40);
+        expect(lastEdited()).toEqual({ dynamics: 40 });
+      });
+
+      it('onRestsChange(40) applies once per member with 40 and records only { rests: 40 }', () => {
+        twoMembersWithPerformance();
+        const apply = vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onRestsChange(40));
+
+        expect(apply).toHaveBeenCalledTimes(2);
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), localeId, 40);
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r2' }), localeId, 40);
+        expect(lastEdited()).toEqual({ rests: 40 });
+      });
+
+      it('onAccentsChange(40) applies once per member with 40 and records only { accents: 40 }', () => {
+        twoMembersWithPerformance();
+        const apply = vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onAccentsChange(40));
+
+        expect(apply).toHaveBeenCalledTimes(2);
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), localeId, 40);
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r2' }), localeId, 40);
+        expect(lastEdited()).toEqual({ accents: 40 });
+      });
+
+      it('each records its own key beside the others, never overwriting them', () => {
+        twoMembersWithPerformance();
+        vi.spyOn(robotOptionsActions, 'applyDynamics').mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onDynamicsChange(40));
+        act(() => result.current.options.onRestsChange(0));
+        act(() => result.current.options.onAccentsChange(100));
+
+        expect(lastEdited()).toEqual({ dynamics: 40, rests: 0, accents: 100 });
+      });
+
+      it('with the real actions, every member stores the value and the panel shows it', () => {
+        twoMembersWithPerformance();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+
+        act(() => result.current.options.onDynamicsChange(40));
+
+        const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        expect(robots.find((r) => r.id === 'r1')?.dynamics).toBe(40);
+        expect(robots.find((r) => r.id === 'r2')?.dynamics).toBe(40);
+        expect(result.current.options.audioSettingValue.dynamics).toBe(40);
+      });
+
+      it('for "all", applies to every robot (Freelance included) and records into the all-robots snapshot', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 35 }));
+        addRobot(makeRobot({ id: 'r2', companyId: undefined, rests: 90 }));
+        addCompany('c1', ['r1']);
+        const apply = vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('all'));
+
+        act(() => result.current.options.onRestsChange(55));
+
+        expect(apply).toHaveBeenCalledTimes(2);
+        expect(allLastEdited()).toEqual({ rests: 55 });
+        expect(lastEdited()).toBeUndefined();
+      });
+
+      it('does nothing for a company that does not exist', () => {
+        const apply = vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('ghost'));
+
+        act(() => result.current.options.onAccentsChange(40));
+
+        expect(apply).not.toHaveBeenCalled();
+        expect(lastEdited('ghost')).toBeUndefined();
+      });
     });
 
-    it('follows the first member when its dynamics changes elsewhere, and ignores a member that is not first', () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 30 }));
-      addRobot(makeRobot({ id: 'r2', companyId: 'c1', dynamics: 30 }));
-      addCompany('c1', ['r1', 'r2']);
-      const { result } = renderHook(() => useCompanyOptions('c1'));
+    describe('identity', () => {
+      it('the three handlers keep their identity when an unrelated edit rebuilds the options', () => {
+        addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+        addCompany('c1', ['r1']);
+        vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options;
 
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 80 }));
-      expect(result.current.options.audioSettingValue.dynamics).toBe(80);
+        act(() => result.current.options.onVolumeChange(50));
 
-      const before = result.current.options.audioSettingValue;
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { dynamics: 5 }));
-      expect(result.current.options.audioSettingValue).toBe(before);
-    });
+        expect(result.current.options).not.toBe(first);
+        expect(result.current.options.onDynamicsChange).toBe(first.onDynamicsChange);
+        expect(result.current.options.onRestsChange).toBe(first.onRestsChange);
+        expect(result.current.options.onAccentsChange).toBe(first.onAccentsChange);
+      });
 
-    it('offers an onDynamicsChange that is a stable function and does not throw', () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 30 }));
-      addCompany('c1', ['r1']);
-      const { result, rerender } = renderHook(() => useCompanyOptions('c1'));
-      const first = result.current.options.onDynamicsChange;
+      it('the three handlers keep their identity across an edit of their own', () => {
+        twoMembersWithPerformance();
+        vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options;
 
-      rerender();
+        act(() => result.current.options.onRestsChange(40));
 
-      expect(typeof first).toBe('function');
-      expect(result.current.options.onDynamicsChange).toBe(first);
-      expect(() => first(60)).not.toThrow();
-    });
-  });
-
-  // Task 10's twin of the block above, for the Composition section's Rests and Accents (also replaced by Task 14).
-  describe('Rests and Accents pass-through (Robot Performance Task 10, replaced by Task 14)', () => {
-    it("are the first member's rests and accents, not the second's", () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 35, accents: 80 }));
-      addRobot(makeRobot({ id: 'r2', companyId: 'c1', rests: 90, accents: 5 }));
-      addCompany('c1', ['r1', 'r2']);
-
-      const { result } = renderHook(() => useCompanyOptions('c1'));
-
-      expect(result.current.options.pingControlsValue).toMatchObject({ rests: 35, accents: 80 });
-    });
-
-    it('are 0 and 0 for a first member that carries neither field, and while the selection is disabled', () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
-      addCompany('c1', ['r1']);
-      expect(renderHook(() => useCompanyOptions('c1')).result.current.options.pingControlsValue).toMatchObject({ rests: 0, accents: 0 });
-
-      addCompany('c2', []);
-      const disabled = renderHook(() => useCompanyOptions('c2')).result.current.options;
-      expect(disabled.active).toBe(false);
-      expect(disabled.pingControlsValue).toMatchObject({ rests: 0, accents: 0 });
-    });
-
-    it('show 100 for a first member at 100, and follow the first member but not a later one', () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 100, accents: 100 }));
-      addRobot(makeRobot({ id: 'r2', companyId: 'c1', rests: 10, accents: 10 }));
-      addCompany('c1', ['r1', 'r2']);
-      const { result } = renderHook(() => useCompanyOptions('c1'));
-      expect(result.current.options.pingControlsValue).toMatchObject({ rests: 100, accents: 100 });
-
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { rests: 20 }));
-      expect(result.current.options.pingControlsValue.rests).toBe(20);
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { accents: 45 }));
-      expect(result.current.options.pingControlsValue).toMatchObject({ rests: 20, accents: 45 });
-
-      const before = result.current.options.pingControlsValue;
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { rests: 77, accents: 77 }));
-      expect(result.current.options.pingControlsValue).toBe(before);
-    });
-
-    it('offer onRestsChange and onAccentsChange as stable functions that do not throw', () => {
-      addRobot(makeRobot({ id: 'r1', companyId: 'c1', rests: 30 }));
-      addCompany('c1', ['r1']);
-      const { result, rerender } = renderHook(() => useCompanyOptions('c1'));
-      const { onRestsChange, onAccentsChange } = result.current.options;
-
-      rerender();
-
-      expect(typeof onRestsChange).toBe('function');
-      expect(typeof onAccentsChange).toBe('function');
-      expect(result.current.options.onRestsChange).toBe(onRestsChange);
-      expect(result.current.options.onAccentsChange).toBe(onAccentsChange);
-      expect(() => { onRestsChange(60); onAccentsChange(60); }).not.toThrow();
+        expect(result.current.options.onDynamicsChange).toBe(first.onDynamicsChange);
+        expect(result.current.options.onRestsChange).toBe(first.onRestsChange);
+        expect(result.current.options.onAccentsChange).toBe(first.onAccentsChange);
+      });
     });
   });
 
