@@ -30,6 +30,10 @@ export interface RobotAudioOverrideDiff {
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };
   pitchRepeat?: number;
+  /** As Robot.dynamics / rests / accents (docs/specs/ROBOT_PERFORMANCE.md §1.7), 0-100 integers. */
+  dynamics?: number;
+  rests?: number;
+  accents?: number;
   octaveRange?: [number, number];
   /** Present ⇒ Auto off at this value (−1…1). Absent ⇒ Auto, the default. There is no panAuto key:
    *  "Auto on" is the baseline for every robot, so it is the absence of this field
@@ -88,6 +92,8 @@ export interface SessionPayload {
   bpm?: number;
   swellFrequency?: number;
   swellDuration?: number;
+  /** audioStore.humanize, ms (docs/specs/ROBOT_PERFORMANCE.md §1.7). Absent = the seeded value. */
+  humanize?: number;
   pingVarianceAutomation?: number;
   /** Keyed by robot id. An untouched robot has no entry (not an entry equal to {}). */
   robotOverrides: Record<string, RobotAudioOverrideDiff>;

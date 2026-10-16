@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MAX_POLYPHONY } from '../constants';
+import { MAX_POLYPHONY, MIN_LEAD } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -230,6 +230,7 @@ vi.mock('../systems/robotLfoLinks', () => ({
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
+import { precomputeDataX } from '../utils/getSeededVal';
 
 /** Shared placeholder ADSR for tests that don't care about specific envelope values —
  * reserveVoice's adsr parameter is required (Roadmap Phase 9), so every call needs one. */
@@ -1449,7 +1450,9 @@ describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per
     synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mock?.calls?.forEach((c: any) => {
       if (c[0] === 'D6') velocity = c[3];
     }));
-    expect(velocity).toBe(1);
+    // 0.8, not 1: NOTE_VELOCITY_BASELINE dropped from 1 to 0.8 so the accent multipliers have headroom
+    // (Robot Performance T5, docs/specs/ROBOT_PERFORMANCE.md assumption 6).
+    expect(velocity).toBe(0.8);
   });
 });
 
@@ -4070,6 +4073,705 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
 
       expect(primeSpy).not.toHaveBeenCalled();
       teardown();
+    });
+  });
+});
+
+// ========================================
+// Robot Performance T5 (docs/specs/ROBOT_PERFORMANCE.md assumptions 6-8, sections 1.3 and 4):
+// per-note velocity is keyed on the playback position, scaled by the robot Dynamics, and
+// jitters around a 0.8 baseline so the accent multipliers have headroom to lift a note.
+// ========================================
+
+describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot Performance T5)', () => {
+  const ROLL_X = precomputeDataX('audio.velocityRoll');
+
+  /**
+   * A hand-checkable noise map. The roll is ((k + 0.5) / 20) with k = y mod 20, so a note varies when
+   * k is below 20 * rate (at the default rate 0.15 that is k = 0, 1, 2), and the variance draw is
+   * (y mod 7 - 3) / 3, a sawtooth from -1 to 1. Both read y, the position-derived offset.
+   */
+  const testNoise = (x: number, y: number): number => {
+    const row = Math.floor(y);
+    return x === ROLL_X ? -1 + (2 * ((row % 20) + 0.5)) / 20 : ((row % 7) - 3) / 3;
+  };
+
+  const robotFixture = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    compositionSeed: 0,
+    audioMode: 'none',
+    audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8,
+    melody: [],
+    octaveRange: [3, 4],
+    position: { x: 960, y: 0 },
+    ...extra,
+  });
+
+  /** Fresh module graph with the noise map and the active locale robots pinned. */
+  async function setup(robots: Array<ReturnType<typeof robotFixture>>, noise: ((x: number, y: number) => number) | null = testNoise) {
+    vi.resetModules();
+    vi.doMock('../utils/noiseMaps', async () => {
+      const actual = await vi.importActual<typeof import('../utils/noiseMaps')>('../utils/noiseMaps');
+      return { ...actual, tryGetLocaleNoiseMap: () => noise };
+    });
+    const engine = await import('./AudioEngine');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const stateSpy = vi.spyOn(store, 'getState').mockReturnValue({ locales: { testLocale: { robots } } } as never);
+    return { ...engine, stateSpy };
+  }
+
+  const sweep = (velocity: (position: number) => number, count = 200) => Array.from({ length: count }, (_, position) => velocity(position));
+
+  afterEach(() => {
+    vi.doUnmock('../utils/noiseMaps');
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  describe('the baseline and the Dynamics-50 oracle', () => {
+    it('with no noise map every note is exactly the 0.8 baseline', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')], null);
+      expect(computeNoteVelocitySeeded('r', 0)).toBe(0.8);
+      expect(computeNoteVelocitySeeded('r')).toBe(0.8);
+    });
+
+    // Robot Performance T20: the positioned roll is a uniform draw from (compositionSeed, purpose, position) through
+    // alea, not a noise-map sample at seed + position (compositionSeed is a 0-1 fraction, so that put every robot
+    // within one unit of each other on a smooth field and they rolled together). The oracle is the same arithmetic.
+    it('at Dynamics 50 each position rolls alea(`seed:velocityRoll:position`) against 0.15 and swings by alea(`seed:velocityVariance:position`) around the 0.8 baseline', async () => {
+      const { default: alea } = await import('alea');
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 50, compositionSeed: 0.42 })]);
+      const expected = (position: number) => {
+        if (alea(`0.42:velocityRoll:${position}`)() >= 0.15) return 0.8;
+        return Math.min(1, Math.max(0.05, 0.8 + (alea(`0.42:velocityVariance:${position}`)() * 2 - 1) * 0.25));
+      };
+      const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
+      velocities.forEach((v, p) => expect(v, `position ${p}`).toBeCloseTo(expected(p), 12));
+      const varied = velocities.filter((v) => v !== 0.8).length;
+      expect(varied, 'some notes vary at the 15 % rate over 200 positions').toBeGreaterThan(15);
+      expect(varied).toBeLessThan(45);
+    });
+
+    it('an absent Dynamics behaves exactly as 50', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('absent'), robotFixture('fifty', { dynamics: 50 })]);
+      expect(sweep((p) => computeNoteVelocitySeeded('absent', p))).toEqual(sweep((p) => computeNoteVelocitySeeded('fifty', p)));
+    });
+  });
+
+  describe('Dynamics scales the rate and the width', () => {
+    it('at Dynamics 0 every note is exactly 0.8 across 200 positions', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 0 })]);
+      for (const velocity of sweep((p) => computeNoteVelocitySeeded('r', p))) expect(velocity).toBe(0.8);
+    });
+
+    it('at Dynamics 100 a quarter to a third of notes vary and the swing exceeds 0.3', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
+      const varied = velocities.filter((v) => v !== 0.8).length / velocities.length;
+      expect(varied).toBeGreaterThanOrEqual(0.25);
+      expect(varied).toBeLessThanOrEqual(0.35);
+      expect(Math.max(...velocities.map((v) => Math.abs(v - 0.8)))).toBeGreaterThan(0.3);
+    });
+
+    it('at Dynamics 25 the swing narrows to half the default width (0.125) and fewer notes vary', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 25 })]);
+      const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
+      const swings = velocities.map((v) => Math.abs(v - 0.8)).filter((s) => s > 0);
+      expect(swings.length).toBeGreaterThan(0);
+      expect(Math.max(...swings)).toBeLessThanOrEqual(0.125 + 1e-9);
+      expect(Math.max(...swings)).toBeGreaterThan(0.06); // the half-width is reached, not just undershot
+      const varied = velocities.filter((v) => v !== 0.8).length / velocities.length;
+      expect(varied).toBeGreaterThan(0);
+      expect(varied).toBeLessThan(0.15);
+    });
+
+    it('a Dynamics above 100 is treated as 100, below 0 as 0, and NaN as 50', async () => {
+      const { computeNoteVelocitySeeded } = await setup([
+        robotFixture('wild', { dynamics: 400 }),
+        robotFixture('hundred', { dynamics: 100 }),
+        robotFixture('negative', { dynamics: -50 }),
+        robotFixture('zero', { dynamics: 0 }),
+        robotFixture('nan', { dynamics: NaN }),
+        robotFixture('fifty', { dynamics: 50 }),
+      ]);
+      const series = (id: string) => sweep((p) => computeNoteVelocitySeeded(id, p));
+      expect(series('wild')).toEqual(series('hundred'));
+      expect(series('negative')).toEqual(series('zero'));
+      expect(series('nan')).toEqual(series('fifty'));
+    });
+
+    it('never returns NaN or leaves [0.05, 1] at any Dynamics, and the 1 ceiling is reached', async () => {
+      const { computeNoteVelocitySeeded } = await setup([0, 25, 50, 100, 400, -5, NaN].map((d, i) => robotFixture(`d${i}`, { dynamics: d })));
+      for (let i = 0; i < 7; i++) {
+        for (const velocity of sweep((p) => computeNoteVelocitySeeded(`d${i}`, p))) {
+          expect(Number.isNaN(velocity)).toBe(false);
+          expect(velocity).toBeGreaterThanOrEqual(0.05);
+          expect(velocity).toBeLessThanOrEqual(1);
+        }
+      }
+      expect(sweep((p) => computeNoteVelocitySeeded('d3', p)).some((v) => v === 1)).toBe(true);
+    });
+  });
+
+  describe('rolls key off the playback position and the composition seed, not a counter', () => {
+    it('two robots with different compositionSeeds get different velocity series over the same positions', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('a', { compositionSeed: 0, dynamics: 100 }), robotFixture('b', { compositionSeed: 1, dynamics: 100 })]);
+      expect(sweep((p) => computeNoteVelocitySeeded('a', p))).not.toEqual(sweep((p) => computeNoteVelocitySeeded('b', p)));
+    });
+
+    it('two robots with seeds 0.30 and 0.31 (a real roster\'s spacing) roll independently: on many positions exactly one of them varies', async () => {
+      const { computeNoteVelocitySeeded } = await setup([
+        robotFixture('a', { compositionSeed: 0.3, dynamics: 100 }),
+        robotFixture('b', { compositionSeed: 0.31, dynamics: 100 }),
+      ]);
+      const a = sweep((p) => computeNoteVelocitySeeded('a', p));
+      const b = sweep((p) => computeNoteVelocitySeeded('b', p));
+      const exactlyOne = a.filter((v, p) => (v !== 0.8) !== (b[p] !== 0.8)).length;
+      // Independent 30 % rolls disagree on 2 x 0.3 x 0.7 = 42 % of positions; the old seed + position offset gave ~0.
+      expect(exactlyOne).toBeGreaterThan(50);
+    });
+
+    it('has no 97-step period: the pattern does not repeat at position + 97', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      const first = sweep((p) => computeNoteVelocitySeeded('r', p), 60);
+      const shifted = sweep((p) => computeNoteVelocitySeeded('r', p + 97), 60);
+      expect(shifted).not.toEqual(first);
+    });
+
+    it('the same robot at the same position gets the same velocity however many other notes came between', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 80 }), robotFixture('other', { compositionSeed: 3 })]);
+      const first = computeNoteVelocitySeeded('r', 7);
+      for (let i = 0; i < 25; i++) computeNoteVelocitySeeded(i % 2 ? 'r' : 'other', i);
+      expect(computeNoteVelocitySeeded('r', 7)).toBe(first);
+    });
+
+    it('the same position gives the same velocity after the engine is stopped and started again (replay from power-on)', async () => {
+      const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      await AudioEngine.start();
+      const before = sweep((p) => computeNoteVelocitySeeded('r', p), 30);
+      AudioEngine.stop();
+      await AudioEngine.start();
+      expect(sweep((p) => computeNoteVelocitySeeded('r', p), 30)).toEqual(before);
+    });
+
+    it('a robot the store does not hold is treated as seed 0 at Dynamics 50, without throwing', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('known', { dynamics: 50 })]);
+      expect(sweep((p) => computeNoteVelocitySeeded('ghost', p), 30)).toEqual(sweep((p) => computeNoteVelocitySeeded('known', p), 30));
+    });
+  });
+
+  // Robot Performance T20: the one draw both positioned rolls and Humanize are built on.
+  describe('performanceRoll: a uniform draw per robot, purpose and tick', () => {
+    const SEEDS: [number, number] = [0.3, 0.31];
+
+    it('is deterministic and equals alea(`seed:purpose:position`)()', async () => {
+      const { default: alea } = await import('alea');
+      const { performanceRoll } = await setup([]);
+      expect(performanceRoll(0.42, 'humanize', 7)).toBe(alea('0.42:humanize:7')());
+      expect(performanceRoll(0.42, 'humanize', 7)).toBe(performanceRoll(0.42, 'humanize', 7));
+    });
+
+    it('fills [0, 1) roughly uniformly over 400 ticks for one robot', async () => {
+      const { performanceRoll } = await setup([]);
+      const draws = Array.from({ length: 400 }, (_, p) => performanceRoll(0.3, 'velocityRoll', p));
+      const mean = draws.reduce((a, b) => a + b, 0) / draws.length;
+      expect(mean).toBeGreaterThan(0.42);
+      expect(mean).toBeLessThan(0.58);
+      expect(Math.min(...draws)).toBeLessThan(0.05);
+      expect(Math.max(...draws)).toBeGreaterThan(0.95);
+      expect(draws.every((d) => d >= 0 && d < 1)).toBe(true);
+    });
+
+    it('two seeds a real roster\'s distance apart (0.30, 0.31) draw independently: mean |difference| near 1/3, not near 0', async () => {
+      const { performanceRoll } = await setup([]);
+      const diffs = Array.from({ length: 400 }, (_, p) => Math.abs(performanceRoll(SEEDS[0], 'humanize', p) - performanceRoll(SEEDS[1], 'humanize', p)));
+      const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+      expect(mean).toBeGreaterThan(0.25);
+    });
+
+    it('consecutive ticks are unrelated for one robot (|lag-1 correlation| below 0.2)', async () => {
+      const { performanceRoll } = await setup([]);
+      const draws = Array.from({ length: 400 }, (_, p) => performanceRoll(0.3, 'humanize', p));
+      const mean = draws.reduce((a, b) => a + b, 0) / draws.length;
+      let num = 0; let den = 0;
+      for (let i = 0; i < draws.length - 1; i++) { num += (draws[i] - mean) * (draws[i + 1] - mean); den += (draws[i] - mean) ** 2; }
+      expect(Math.abs(num / den)).toBeLessThan(0.2);
+    });
+
+    it('the three purposes draw differently at the same seed and tick', async () => {
+      const { performanceRoll } = await setup([]);
+      const values = ['velocityRoll', 'velocityVariance', 'humanize'].map((purpose) => performanceRoll(0.3, purpose as never, 5));
+      expect(new Set(values).size).toBe(3);
+    });
+  });
+
+  describe('the legacy counter path (no position given)', () => {
+    it('advances one step per call, as before: 0.55, then 0.6333, 0.7167, 0.8', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.55, 10);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.8 - 0.25 * (2 / 3), 10);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.8 - 0.25 * (1 / 3), 10);
+      expect(computeNoteVelocitySeeded('r')).toBe(0.8);
+    });
+
+    it('a positioned call never advances the counter', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      computeNoteVelocitySeeded('r');
+      computeNoteVelocitySeeded('r');
+      computeNoteVelocitySeeded('r', 40);
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.8 - 0.25 * (1 / 3), 10);
+    });
+
+    it('is per robot: each starts at its own step 0', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('a'), robotFixture('b')]);
+      computeNoteVelocitySeeded('a');
+      computeNoteVelocitySeeded('a');
+      expect(computeNoteVelocitySeeded('b')).toBeCloseTo(0.55, 10);
+    });
+
+    it('unregisterRobotMelody resets the counter', async () => {
+      const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      computeNoteVelocitySeeded('r');
+      computeNoteVelocitySeeded('r');
+      AudioEngine.unregisterRobotMelody('r');
+      expect(computeNoteVelocitySeeded('r')).toBeCloseTo(0.55, 10);
+    });
+
+    it('with no robot id at all it samples step 0 every time', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r')]);
+      expect(computeNoteVelocitySeeded()).toBeCloseTo(0.55, 10);
+      expect(computeNoteVelocitySeeded()).toBeCloseTo(0.55, 10);
+    });
+  });
+
+  describe('scheduleNote threads the position and the accent headroom', () => {
+    const triggeredVelocity = (Tone: typeof import('tone'), note: string): number | undefined => {
+      let velocity: number | undefined;
+      (Tone.Synth as unknown as { mock: { results: Array<{ value?: { triggerAttackRelease?: { mock?: { calls?: unknown[][] } } } }> } }).mock.results.forEach((r) =>
+        r.value?.triggerAttackRelease?.mock?.calls?.forEach((c) => { if (c[0] === note) velocity = c[3] as number; }));
+      return velocity;
+    };
+    const layers = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+    it('passes params.position to the velocity roll', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      // One position whose roll varies and one whose roll does not, found from the roll itself (T20: the draws
+      // are independent per position, so no fixed pair is guaranteed to differ).
+      const varying = Array.from({ length: 200 }, (_, p) => p).find((p) => computeNoteVelocitySeeded('r', p) !== 0.8)!;
+      const flat = Array.from({ length: 200 }, (_, p) => p).find((p) => computeNoteVelocitySeeded('r', p) === 0.8)!;
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: '4n', time: 0, position: varying });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'D4', duration: '4n', time: 0, position: flat });
+
+      expect(triggeredVelocity(Tone, 'C4')).toBe(computeNoteVelocitySeeded('r', varying));
+      expect(triggeredVelocity(Tone, 'D4')).toBe(0.8);
+      expect(triggeredVelocity(Tone, 'C4')).not.toBe(triggeredVelocity(Tone, 'D4'));
+    });
+
+    it('looks the locale roster up once per note, shared by the velocity roll and the audioMode policy', async () => {
+      const { AudioEngine, stateSpy } = await setup([robotFixture('r', { dynamics: 100 })]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      stateSpy.mockClear();
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'B4', duration: '4n', time: 0, position: 0 });
+      const withVelocityRoll = stateSpy.mock.calls.length;
+
+      stateSpy.mockClear();
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'B4', duration: '4n', time: 0, position: 0, velocity: 0.5 });
+      const withExplicitVelocity = stateSpy.mock.calls.length;
+
+      // The roll adds no lookup of its own: an explicit velocity skips the roll and costs the same.
+      expect(withVelocityRoll).toBe(withExplicitVelocity);
+    });
+
+    it('an explicit velocity still bypasses the roll', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine } = await setup([robotFixture('r')]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'E4', duration: '4n', time: 0, position: 0, velocity: 0.3 });
+
+      expect(triggeredVelocity(Tone, 'E4')).toBe(0.3);
+    });
+
+    it('the 1.25 group accent now lifts a baseline note from 0.8 to 1 instead of clamping away', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine } = await setup([robotFixture('r', { dynamics: 0 })]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'F4', duration: '4n', time: 0, position: 0 });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'G4', duration: '4n', time: 0, position: 0, accentMultiplier: 1.25 });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'A4', duration: '4n', time: 0, position: 0, accentMultiplier: 1.4 });
+
+      expect(triggeredVelocity(Tone, 'F4')).toBe(0.8);
+      expect(triggeredVelocity(Tone, 'G4')).toBe(1);
+      expect(triggeredVelocity(Tone, 'A4')).toBe(1);
+    });
+  });
+});
+
+// ========================================
+// Robot Performance T6 (docs/specs/ROBOT_PERFORMANCE.md assumptions 5 and 9, section 1.3): the
+// playback loop turns an event's rest and mark into a sounding length and a velocity multiplier,
+// keys every roll off the tick position, and shifts each note by a seeded few milliseconds of Humanize.
+// ========================================
+
+describe('AudioEngine — articulation, Humanize and the click-track exemption in processMelodyStep (Robot Performance T6)', () => {
+
+  /** Seconds each note value lasts at the pretend tempo (200 BPM: a 16th is 0.075 s). The 32n is pretend-faster
+   *  (0.02 s, about 375 BPM) so it is shorter than MIN_SOUNDING_SECONDS and the floor can be tested against the written length. */
+  const SECONDS: Record<string, number> = { '32n': 0.02, '16n': 0.075, '8n': 0.15, '4n': 0.3 };
+
+  /** Humanize draws the variance branch (every x that is not the roll): a sawtooth, -1 at row 0, -2/3 at row 1. */
+  const testNoise = (_x: number, y: number): number => ((Math.floor(y) % 7) - 3) / 3;
+
+  const robotFixture = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    compositionSeed: 0,
+    audioMode: 'none',
+    audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8,
+    melody: [],
+    octaveRange: [3, 4],
+    position: { x: 960, y: 0 },
+    ...extra,
+  });
+
+  const eventFixture = (extra: Record<string, unknown> = {}) => ({
+    id: 'e1',
+    startStep: 1,
+    length: '8n' as const,
+    noteIndex: 0,
+    octave: 4,
+    ...extra,
+  });
+
+  /** Fresh module graph; the locale roster and noise map pinned; Tone.Time answers in seconds; scheduleNote recorded. */
+  async function setup(robots: Array<ReturnType<typeof robotFixture>>, noise: ((x: number, y: number) => number) | null = testNoise) {
+    vi.resetModules();
+    vi.doMock('../utils/noiseMaps', async () => {
+      const actual = await vi.importActual<typeof import('../utils/noiseMaps')>('../utils/noiseMaps');
+      return { ...actual, tryGetLocaleNoiseMap: () => noise };
+    });
+    const Tone = await import('tone');
+    (Tone.Time as unknown as ReturnType<typeof vi.fn>).mockImplementation((d: string | number) => ({
+      toSeconds: () => (typeof d === 'number' ? d : SECONDS[d] ?? 1),
+    }));
+    const { AudioEngine, ...rest } = await import('./AudioEngine');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const stateSpy = vi.spyOn(store, 'getState').mockReturnValue({ locales: { testLocale: { robots } } } as never);
+    const scheduled = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
+    const params = () => scheduled.mock.calls.map((c) => c[0]);
+    return { AudioEngine, Tone, stateSpy, scheduled, params, ...rest };
+  }
+
+  afterEach(() => {
+    vi.doUnmock('../utils/noiseMaps');
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  describe('sounding length from rest and mark', () => {
+    it('a staccato 8n event schedules half its length in seconds, as a number', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.15 * 0.5);
+      expect(typeof params()[0].duration).toBe('number');
+    });
+
+    it('a plain event schedules its NoteDuration string unchanged', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe('8n');
+    });
+
+    it('a rest alone leaves the remainder of the length (0.5 of an 8n is 0.075 s)', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.5 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBeCloseTo(0.075, 10);
+    });
+
+    it('a rest and a staccato: the shorter wins (0.4 of an 8n beats half)', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.6, mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBeCloseTo(0.06, 10);
+    });
+
+    it('a staccatissimo 16n at 200 BPM is floored at MIN_SOUNDING_SECONDS, not 0.019 s', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', mark: 'staccatissimo' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.03);
+    });
+
+    it('a rested 16n is floored too', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', rest: 0.75 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.03);
+    });
+
+    it('the floor never lengthens a note past its written length (a 0.02 s note stays 0.02 s, not 0.03 s)', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ length: '32n', mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe(0.02);
+    });
+
+    it('a rest with a tenuto keeps the full length as the NoteDuration string, and tenuto leans 1.1 louder', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.6, mark: 'tenuto' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].duration).toBe('8n');
+      expect(params()[0].accentMultiplier).toBe(1.1);
+    });
+
+    it('accent and tenuto marks keep the full length string', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 1, mark: 'accent' }), eventFixture({ id: 'b', startStep: 2, mark: 'tenuto' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(2, 0);
+      expect(params().map((p) => p.duration)).toEqual(['8n', '8n']);
+    });
+  });
+
+  describe('accentMultiplier', () => {
+    it('a plain non-accent event passes undefined, as today', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBeUndefined();
+    });
+
+    it('a mark alone passes its velocity multiplier', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'accent' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBe(1.25);
+    });
+
+    it('a staccato (velocity 1) passes undefined, not 1', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'staccato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBeUndefined();
+    });
+
+    it('a marcato that is also the motif-group accent passes 1.25 x 1.4', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r', { rhythmicMotifLength: { active: true, value: 4 } })]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'marcato' })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBe(1.25 * 1.4);
+    });
+
+    it('a motif-group accent with no mark still passes exactly 1.25', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r', { rhythmicMotifLength: { active: true, value: 4 } })]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].accentMultiplier).toBe(1.25);
+    });
+  });
+
+  describe('position and time', () => {
+    it('every note carries the tick position, which keeps counting past the 16-step measure', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.killAll();
+      await AudioEngine.start();
+      const transport = (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+      const tick = transport.scheduleRepeat.mock.calls.filter((c: unknown[]) => c[1] === '16n').map((c: unknown[]) => c[0] as (time: number) => void)[0];
+      AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 1 }), eventFixture({ id: 'b', startStep: 3 })] as never);
+
+      for (let i = 0; i < 20; i++) tick(0);
+
+      const positions = params().map((p) => p.position);
+      // Step 1 sounds at ticks 0 and 16, step 3 at ticks 2 and 18.
+      expect(positions).toEqual([0, 2, 16, 18]);
+      AudioEngine.killAll();
+    });
+
+    it('with Humanize at 0 the time is exactly time + MIN_LEAD', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(0);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 1.5);
+      expect(params()[0].time).toBe(1.5 + MIN_LEAD);
+    });
+  });
+
+  describe('Humanize', () => {
+    it('at 20 ms the offset stays within +-0.020 s of time + MIN_LEAD, and moves the note', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 1.5);
+      const offset = (params()[0].time as number) - (1.5 + MIN_LEAD);
+      expect(Math.abs(offset)).toBeLessThanOrEqual(0.02 + 1e-12);
+      expect(offset).not.toBe(0);
+    });
+
+    // Robot Performance T20: the offset is (alea(`seed:humanize:position`)() x 2 - 1) x the setting, a uniform draw
+    // independent across robots and ticks (the noise-map sample at seed + position made a unison shift together).
+    it('scales with the setting: seed 0 at position 0 draws alea(`0:humanize:0`), times 0.020 s at 20 ms and 0.005 s at 5 ms', async () => {
+      const { default: alea } = await import('alea');
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.setHumanize(20);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(5);
+      AudioEngine.processMelodyStep(1, 0);
+      const unit = alea('0:humanize:0')() * 2 - 1;
+      expect(Math.abs(unit)).toBeGreaterThan(0.05); // the oracle is a real offset, not a near-zero draw
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(unit * 0.02, 10);
+      expect((params()[1].time as number) - MIN_LEAD).toBeCloseTo(unit * 0.005, 10);
+    });
+
+    it('twelve robots with seeds spread over 0-1 land more than 20 ms apart at one tick (a unison smears instead of shifting together)', async () => {
+      const robots = Array.from({ length: 12 }, (_, i) => robotFixture(`r${i}`, { compositionSeed: 0.04 + i / 12 }));
+      const { AudioEngine, params } = await setup(robots);
+      AudioEngine.setHumanize(20);
+      for (const r of robots) AudioEngine.registerRobotMelody(r.id, [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      const offsets = params().map((p) => (p.time as number) - MIN_LEAD);
+      expect(offsets).toHaveLength(12);
+      expect(Math.max(...offsets) - Math.min(...offsets)).toBeGreaterThan(0.02);
+      expect(new Set(offsets.map((o) => o.toFixed(4))).size).toBeGreaterThanOrEqual(10);
+    });
+
+    it('two robots with seeds 0.30 and 0.31 get unrelated offsets, not neighbours on a smooth field', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('a', { compositionSeed: 0.3 }), robotFixture('b', { compositionSeed: 0.31 })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('a', [eventFixture()] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      const [a, b] = params().map((p) => (p.time as number) - MIN_LEAD);
+      expect(Math.abs(a - b)).toBeGreaterThan(0.005);
+    });
+
+    it('is identical on a repeated position, different for two robots with different seeds', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('a', { compositionSeed: 0 }), robotFixture('b', { compositionSeed: 1 })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('a', [eventFixture()] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(1, 0);
+      const times = params().map((p) => [p.robotId, p.time]);
+      expect(times[0]).toEqual(times[2]);
+      expect(times[1]).toEqual(times[3]);
+      expect(times[0][1]).not.toBe(times[1][1]);
+    });
+
+    it('a click-track entry gets no offset even at 20 ms', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r', { clickTrackActive: true })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 1.5);
+      expect(params()).toHaveLength(1);
+      expect(params()[0].time).toBe(1.5 + MIN_LEAD);
+    });
+
+    it('a robot whose click track is off is humanized, and re-registering after turning it off restores the offset', async () => {
+      const robots = [robotFixture('r', { clickTrackActive: true })];
+      const { AudioEngine, params } = await setup(robots);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      (robots[0] as Record<string, unknown>).clickTrackActive = false;
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1 })] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].time).toBe(MIN_LEAD);
+      expect(params()[1].time).not.toBe(MIN_LEAD);
+    });
+
+    it('clamps to 0-20 ms, and reads NaN as 0', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.setHumanize(20);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(99);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(-5);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.setHumanize(NaN);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].time).not.toBe(MIN_LEAD);
+      expect(params()[1].time).toBe(params()[0].time); // 99 clamps to 20: the same draw, the same range
+      expect(params()[2].time).toBe(MIN_LEAD);
+      expect(params()[3].time).toBe(MIN_LEAD);
+    });
+
+    it('survives a power cycle (killAll), like the polyphony cap', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.killAll();
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].time).not.toBe(MIN_LEAD);
+      expect(params()[1].time).toBe(params()[0].time); // the setting survived the power cycle
+    });
+
+    it('with no noise map there is no offset and nothing throws', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('r')], null);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect(params()[0].time).toBe(MIN_LEAD);
+    });
+
+    it('a robot the store does not hold is humanized as seed 0 without throwing', async () => {
+      const { default: alea } = await import('alea');
+      const { AudioEngine, params } = await setup([robotFixture('known')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('ghost', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo((alea('0:humanize:0')() * 2 - 1) * 0.02, 10);
+    });
+
+    it('reads the roster once per step with three robots sounding, and not at all at 0 ms', async () => {
+      const { AudioEngine, stateSpy } = await setup([robotFixture('a'), robotFixture('b'), robotFixture('c')]);
+      for (const id of ['a', 'b', 'c']) AudioEngine.registerRobotMelody(id, [eventFixture()] as never);
+
+      AudioEngine.setHumanize(0);
+      stateSpy.mockClear();
+      AudioEngine.processMelodyStep(1, 0);
+      expect(stateSpy).toHaveBeenCalledTimes(0);
+
+      AudioEngine.setHumanize(20);
+      stateSpy.mockClear();
+      AudioEngine.processMelodyStep(1, 0);
+      expect(stateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('a seconds duration reaches the synth', () => {
+    it('scheduleNote hands the composite voice the number as a string and still schedules the voice release', async () => {
+      const { AudioEngine, Tone } = await setup([robotFixture('r')]);
+      vi.mocked(AudioEngine.scheduleNote).mockRestore();
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as never, TEST_ADSR);
+      const getContext = Tone.getContext as unknown as ReturnType<typeof vi.fn>;
+      getContext.mockClear();
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: 0.075, time: 0, velocity: 0.5 });
+
+      const durations: unknown[] = [];
+      (Tone.Synth as unknown as { mock: { results: Array<{ value?: { triggerAttackRelease?: { mock?: { calls?: unknown[][] } } } }> } }).mock.results.forEach((r) =>
+        r.value?.triggerAttackRelease?.mock?.calls?.forEach((c) => { if (c[0] === 'C4') durations.push(c[1]); }));
+      expect(durations).toEqual(['0.075']);
+      expect(getContext).toHaveBeenCalled();
     });
   });
 });

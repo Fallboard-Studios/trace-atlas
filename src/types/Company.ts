@@ -39,6 +39,10 @@ export interface CompanyOptionsSnapshot {
   filterFreq?: number;
   filterQ?: number;
   filterType?: RobotFilterType;
+  /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md): as Robot.dynamics / rests / accents, 0–100 each. */
+  dynamics?: number;
+  rests?: number;
+  accents?: number;
 }
 
 export interface Company {

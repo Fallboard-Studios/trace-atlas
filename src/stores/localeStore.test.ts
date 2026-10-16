@@ -286,6 +286,75 @@ describe('localeStore', () => {
       });
     });
 
+    describe('performance clamping (dynamics, rests, accents: 0-100 integers, docs/specs/ROBOT_PERFORMANCE.md §1.1)', () => {
+      const PERFORMANCE_KEYS = ['dynamics', 'rests', 'accents'] as const;
+      const stored = (key: (typeof PERFORMANCE_KEYS)[number]) =>
+        useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0][key];
+
+      it('clamps rests above 100 down to 100', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { rests: 140.7 });
+        expect(stored('rests')).toBe(100);
+      });
+
+      it('clamps dynamics below 0 up to 0', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { dynamics: -3 });
+        expect(stored('dynamics')).toBe(0);
+      });
+
+      it('truncates a fractional accents value toward zero', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { accents: 42.9 });
+        expect(stored('accents')).toBe(42);
+      });
+
+      it('passes both bounds and an in-range value through for every field', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (const key of PERFORMANCE_KEYS) {
+          for (const v of [0, 50, 100]) {
+            useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { [key]: v });
+            expect(stored(key)).toBe(v);
+          }
+        }
+      });
+
+      it('clamps infinities to the bounds', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { accents: Infinity });
+        expect(stored('accents')).toBe(100);
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { accents: -Infinity });
+        expect(stored('accents')).toBe(0);
+      });
+
+      it('drops a NaN value, leaving the stored value as it was', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (const key of PERFORMANCE_KEYS) {
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { [key]: 35 });
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { [key]: NaN });
+          expect(stored(key)).toBe(35);
+        }
+      });
+
+      it('keeps the fields absent on a robot updated without them', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { masterVolume: 0.4 });
+        const robot = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
+        for (const key of PERFORMANCE_KEYS) {
+          expect(key in robot).toBe(false);
+        }
+      });
+
+      it('updating one field leaves the other two untouched', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { dynamics: 10, rests: 20, accents: 30 });
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { rests: 80 });
+        expect(stored('dynamics')).toBe(10);
+        expect(stored('rests')).toBe(80);
+        expect(stored('accents')).toBe(30);
+      });
+    });
+
     describe('pan clamping (stored -1..1, fractional — docs/specs/ROBOT_PAN.md §1.2)', () => {
       const storedPan = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].pan;
 

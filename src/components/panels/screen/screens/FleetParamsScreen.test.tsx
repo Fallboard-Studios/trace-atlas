@@ -220,7 +220,7 @@ describe('FleetParamsScreen — switching tabs', () => {
   });
 });
 
-describe('FleetParamsScreen — Pacing, one panel of four controls with no sub-tabs', () => {
+describe('FleetParamsScreen — Pacing, one panel of five controls with no sub-tabs', () => {
   beforeEach(() => {
     useUIStore.setState({ fleetParamsSection: 'pacing' });
   });
@@ -279,7 +279,7 @@ describe('FleetParamsScreen — Pacing, one panel of four controls with no sub-t
   // not the check; the re-render is. Paired with the re-render test below, it places the subscription
   // in Pacing's own panel.
   // Each value moves off the seeded one, which a fixed number could equal (and so change nothing).
-  it.each(['bpm', 'swellFrequency', 'swellDuration'] as const)('re-renders on a %s change while Pacing is open', (field) => {
+  it.each(['bpm', 'swellFrequency', 'swellDuration', 'humanize'] as const)('re-renders on a %s change while Pacing is open', (field) => {
     let renders = 0;
     render(
       <Profiler id="fleet" onRender={() => renders++}>
@@ -289,6 +289,106 @@ describe('FleetParamsScreen — Pacing, one panel of four controls with no sub-t
     const before = renders;
     act(() => useAudioStore.setState({ [field]: AUDIO_INITIAL[field] + 1 }));
     expect(renders).toBeGreaterThan(before);
+  });
+});
+
+// docs/specs/ROBOT_PERFORMANCE.md §1.6 (docs/tasks/ROBOT_PERFORMANCE.md Task 13) — Humanize, the third control of the top row.
+describe('FleetParamsScreen — Pacing: Humanize (Robot Performance Task 13)', () => {
+  beforeEach(() => {
+    useUIStore.setState({ fleetParamsSection: 'pacing' });
+  });
+
+  const humanizeSlider = () => screen.getByRole('slider', { name: new RegExp('^' + CONTENT['fleet.pacing.humanize'].human, 'i') });
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it('sits in the top row between Tempo and Automation Rate, in that order', () => {
+    render(<FleetParamsScreen />);
+    const tempo = screen.getByRole('slider', { name: /tempo/i });
+    const rate = screen.getByRole('slider', { name: /automation rate/i });
+    const top = tempo.closest('.sc-directional-panel')!;
+
+    expect(top.contains(humanizeSlider())).toBe(true);
+    expect(top.contains(rate)).toBe(true);
+    expect(before(tempo, humanizeSlider())).toBe(true);
+    expect(before(humanizeSlider(), rate)).toBe(true);
+  });
+
+  it('is not in the bottom row, beside Automation Length', () => {
+    render(<FleetParamsScreen />);
+    const bottom = screen.getByRole('slider', { name: /automation length/i }).closest('.sc-directional-panel')!;
+    expect(bottom.contains(humanizeSlider())).toBe(false);
+  });
+
+  it('reads its value from audioStore, with a 0..20 range', () => {
+    useAudioStore.setState({ humanize: 12 });
+    render(<FleetParamsScreen />);
+
+    expect(humanizeSlider().getAttribute('aria-valuenow')).toBe('12');
+    expect(humanizeSlider().getAttribute('aria-valuemin')).toBe('0');
+    expect(humanizeSlider().getAttribute('aria-valuemax')).toBe('20');
+  });
+
+  it.each([0, 20])('shows %s ms at either end of the travel', (ms) => {
+    useAudioStore.setState({ humanize: ms });
+    render(<FleetParamsScreen />);
+    expect(humanizeSlider().getAttribute('aria-valuenow')).toBe(String(ms));
+  });
+
+  it('an edit calls audioStore.setHumanize with the next whole ms, once, and no other Pacing setter', () => {
+    useAudioStore.setState({ humanize: 12 });
+    render(<FleetParamsScreen />);
+    const humanize = vi.spyOn(useAudioStore.getState(), 'setHumanize');
+    const bpm = vi.spyOn(useAudioStore.getState(), 'setBPM');
+    const frequency = vi.spyOn(useAudioStore.getState(), 'setSwellFrequency');
+    const duration = vi.spyOn(useAudioStore.getState(), 'setSwellDuration');
+
+    fireEvent.keyDown(humanizeSlider(), { key: 'ArrowRight' });
+
+    expect(humanize).toHaveBeenCalledTimes(1);
+    expect(humanize).toHaveBeenCalledWith(13);
+    [bpm, frequency, duration].forEach((spy) => expect(spy).not.toHaveBeenCalled());
+  });
+
+  it('Home and End drive it to 0 and 20 ms', () => {
+    useAudioStore.setState({ humanize: 12 });
+    render(<FleetParamsScreen />);
+    const humanize = vi.spyOn(useAudioStore.getState(), 'setHumanize');
+
+    fireEvent.keyDown(humanizeSlider(), { key: 'End' });
+    fireEvent.keyDown(humanizeSlider(), { key: 'Home' });
+
+    expect(humanize.mock.calls.map(([ms]) => ms)).toEqual([20, 0]);
+  });
+
+  it('a drag reaches the engine through the store: the screen itself never calls AudioEngine', async () => {
+    const { AudioEngine } = await import('@/engine/AudioEngine');
+    const push = vi.spyOn(AudioEngine, 'setHumanize');
+    useAudioStore.setState({ humanize: 12 });
+    render(<FleetParamsScreen />);
+
+    fireEvent.keyDown(humanizeSlider(), { key: 'ArrowRight' });
+
+    expect(useAudioStore.getState().humanize).toBe(13);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(13);
+    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'FleetParamsScreen.tsx'), 'utf8');
+    expect(source).not.toMatch(/from\s+['"][^'"]*AudioEngine['"]/); // no import of the engine...
+    expect(source).not.toMatch(/AudioEngine\./); // ...and no call on it
+  });
+
+  it('carries a help button named for it, and the component writes no display string for it', () => {
+    render(<FleetParamsScreen />);
+    expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['fleet.pacing.humanize'].human }) })).toBeTruthy();
+    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'FleetParamsScreen.tsx'), 'utf8');
+    expect(source).not.toContain('>' + CONTENT['fleet.pacing.humanize'].human + '<');
+  });
+
+  it('the sliders in the row keep their own values when Humanize moves', () => {
+    useAudioStore.setState({ bpm: 88, humanize: 5 });
+    render(<FleetParamsScreen />);
+    act(() => useAudioStore.setState({ humanize: 9 }));
+
+    expect(screen.getByRole('slider', { name: /tempo/i }).getAttribute('aria-valuenow')).toBe('88');
   });
 });
 
@@ -368,7 +468,10 @@ describe('FleetParamsScreen — re-render discipline', () => {
       </Profiler>,
     );
     const before = renders;
-    act(() => useAudioStore.setState({ bpm: AUDIO_INITIAL.bpm + 1, swellFrequency: AUDIO_INITIAL.swellFrequency + 1, swellDuration: AUDIO_INITIAL.swellDuration + 1 }));
+    act(() => useAudioStore.setState({
+      bpm: AUDIO_INITIAL.bpm + 1, swellFrequency: AUDIO_INITIAL.swellFrequency + 1, swellDuration: AUDIO_INITIAL.swellDuration + 1,
+      humanize: AUDIO_INITIAL.humanize + 1,
+    }));
     expect(renders).toBe(before);
   });
 });

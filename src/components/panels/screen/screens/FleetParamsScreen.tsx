@@ -7,7 +7,7 @@ import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
-import { BPM_SCHEMA, SWELL_FREQUENCY_SCHEMA, SWELL_DURATION_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
+import { BPM_SCHEMA, HUMANIZE_SCHEMA, SWELL_FREQUENCY_SCHEMA, SWELL_DURATION_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { laneTitle } from '@/data/lfoConfig';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -40,24 +40,28 @@ const LANE_OF: Partial<Record<SelectedFleetParamsEffect, LfoLaneId>> = { laneA: 
 const INTRO = introProps('fleet.root');
 const INTRO_NAME = labels('fleet.root').humanLabel;
 
-/** Pacing's four leaves as two rows of two (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo
- *  beside Automation Rate, Automation Length beside the intensity drawer. 'responsive' rows, side by
- *  side on desktop and stacked below it, as the Compressor rows. */
+/** Pacing's five leaves as two rows (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo, Humanize
+ *  (docs/specs/ROBOT_PERFORMANCE.md §1.6) and Automation Rate across the top, Automation Length beside the
+ *  intensity drawer below. 'responsive' rows, side by side on desktop and stacked below it, as the
+ *  Compressor rows. */
 const PACING_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.topRow', type: 'directionalPanel', orientation: 'responsive' };
 const PACING_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
 
 // Module-level, so each is one stable function (the sliders are React.memo'd), and each reads the
 // store's action at call time.
 const setBPM = (v: number) => useAudioStore.getState().setBPM(v);
+// The store's setHumanize also pushes the value to the playback engine; this screen never touches the engine itself.
+const setHumanize = (v: number) => useAudioStore.getState().setHumanize(v);
 const setSwellFrequency = (v: number) => useAudioStore.getState().setSwellFrequency(v);
 const setSwellDuration = (v: number) => useAudioStore.getState().setSwellDuration(v);
 const setSection = (section: FleetParamsGroup) => useUIStore.getState().setFleetParamsSection(section);
 const setSubsection = (sub: SelectedFleetParamsEffect) => useUIStore.getState().setFleetParamsSubsection(sub);
 
-/** Subscribes to its own three values, so a tempo change re-renders Pacing only, and nothing at all
+/** Subscribes to its own four values, so a tempo change re-renders Pacing only, and nothing at all
  *  while another section is open. */
 function PacingPanel() {
   const bpm = useAudioStore((s) => s.bpm);
+  const humanize = useAudioStore((s) => s.humanize);
   const swellFrequency = useAudioStore((s) => s.swellFrequency);
   const swellDuration = useAudioStore((s) => s.swellDuration);
   return (
@@ -65,6 +69,9 @@ function PacingPanel() {
       <DirectionalPanel schema={PACING_TOP_ROW_SCHEMA}>
         <div className="audio-rig-drawer__param-row">
           <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={setBPM} />
+        </div>
+        <div className="audio-rig-drawer__param-row">
+          <SliderLinear schema={HUMANIZE_SCHEMA} value={humanize} onChange={setHumanize} />
         </div>
         <div className="audio-rig-drawer__param-row">
           <SliderLog schema={SWELL_FREQUENCY_SCHEMA} value={swellFrequency} onChange={setSwellFrequency} />

@@ -68,6 +68,7 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onPanAutoChange={options.onPanAutoChange}
             onReverbSendChange={options.onReverbSendChange}
             onDelaySendChange={options.onDelaySendChange}
+            onDynamicsChange={options.onDynamicsChange}
             volumeSwelling={options.volumeSwelling}
             reverbSendSwelling={options.reverbSendSwelling}
             delaySendSwelling={options.delaySendSwelling}
@@ -85,6 +86,8 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onOctaveMinChange={options.onOctaveMinChange}
             onOctaveMaxChange={options.onOctaveMaxChange}
             onNoteVarianceChange={options.onNoteVarianceChange}
+            onRestsChange={options.onRestsChange}
+            onAccentsChange={options.onAccentsChange}
           />
         );
       case 'pingContour':

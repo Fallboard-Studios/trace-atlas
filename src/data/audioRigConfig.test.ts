@@ -15,12 +15,13 @@ import {
   SWELL_FREQUENCY_STEPS,
   SWELL_DURATION_SCHEMA,
   BPM_SCHEMA,
+  HUMANIZE_SCHEMA,
   AUDIO_LOAD_PRESET_SCHEMA,
   AUDIO_ROBOT_LOAD_SCHEMA,
   AUDIO_EFFECTS_LOAD_SCHEMA,
   AUDIO_LOAD_PANEL_SCHEMA,
 } from './audioRigConfig';
-import { AUDIO_LOAD_PRESETS } from '../constants';
+import { AUDIO_LOAD_PRESETS, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '../constants';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '../types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
@@ -959,5 +960,45 @@ describe('audioRigConfig reads its copy from src/content (docs/specs/CONTENT_LAY
     expect(lpf.panel.loreLabel).toBe(CONTENT['fleet.lpf'].heading);
     expect(lpf.params[0].schema.loreLabel).toBe(CONTENT['fleet.lpf.cutoff'].lore);
     expect((lpf.params[0].schema as { unit?: string }).unit).toBe(CONTENT['fleet.lpf.cutoff'].unit);
+  });
+});
+
+// docs/specs/ROBOT_PERFORMANCE.md §1.6 / docs/tasks/ROBOT_PERFORMANCE.md Task 8 — Humanize, the Pacing scalar.
+describe('HUMANIZE_SCHEMA (Robot Performance)', () => {
+  it('is a horizontal linear slider, 0-20 ms in whole steps, id audioRig.humanize', () => {
+    expect(HUMANIZE_SCHEMA).toMatchObject({
+      id: 'audioRig.humanize',
+      type: 'sliderLinear',
+      min: 0,
+      max: 20,
+      step: 1,
+      unit: ' ms',
+      orientation: 'horizontal',
+    });
+  });
+
+  it('takes its bounds from HUMANIZE_MIN_MS / HUMANIZE_MAX_MS', () => {
+    expect(HUMANIZE_SCHEMA.min).toBe(HUMANIZE_MIN_MS);
+    expect(HUMANIZE_SCHEMA.max).toBe(HUMANIZE_MAX_MS);
+  });
+
+  it('is labeled and helped from fleet.pacing.humanize', () => {
+    expect(HUMANIZE_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.humanize'].human);
+    expect(HUMANIZE_SCHEMA.loreLabel).toBe(CONTENT['fleet.pacing.humanize'].lore);
+    expect(HUMANIZE_SCHEMA.unit).toBe(CONTENT['fleet.pacing.humanize'].unit);
+    expect(HUMANIZE_SCHEMA.help?.human.trim()).toBeTruthy();
+  });
+
+  it('is a bare Pacing meta-setting: it never joins AUDIO_RIG_CONFIG\'s per-effect array', () => {
+    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+    expect(allConfigSchemaIds).not.toContain(HUMANIZE_SCHEMA.id);
+  });
+
+  it('the Pacing intro lists Humanize beside Tempo', () => {
+    expect(CONTENT['fleet.pacing'].intro?.humanDescription ?? '').toContain(CONTENT['fleet.pacing.humanize'].human);
+  });
+
+  it('remains JSON-serializable', () => {
+    expect(JSON.parse(JSON.stringify(HUMANIZE_SCHEMA))).toEqual(HUMANIZE_SCHEMA);
   });
 });

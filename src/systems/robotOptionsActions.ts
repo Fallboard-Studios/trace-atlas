@@ -109,6 +109,23 @@ export function applyPitchRepeat(robot: Robot, localeId: string, value: number):
   regenerateMelody({ ...robot, pitchRepeat: value }, localeId);
 }
 
+// Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.5). Dynamics is a playback scale read on every note, so it
+// writes the field only: no melody regeneration and no engine call. Rests and Accents are baked into the melody's
+// events, so they regenerate on applyPitchRepeat's shape (the new value spread in, since `robot` is the stale prop).
+export function applyDynamics(robot: Robot, localeId: string, value: number): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { dynamics: value });
+}
+
+export function applyRests(robot: Robot, localeId: string, value: number): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { rests: value });
+  regenerateMelody({ ...robot, rests: value }, localeId);
+}
+
+export function applyAccents(robot: Robot, localeId: string, value: number): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { accents: value });
+  regenerateMelody({ ...robot, accents: value }, localeId);
+}
+
 // Number-in: active is a derived, enforced consequence of value > 0, never
 // independently settable (docs/specs/STEPPER_TO_SLIDER.md) — the caller (a bare
 // SliderLinear, post-toggle-removal) only ever has the raw number.

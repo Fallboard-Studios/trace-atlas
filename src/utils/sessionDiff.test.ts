@@ -28,7 +28,7 @@ import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../sys
 import * as audioSwells from '../systems/audioSwells';
 import { precomputeDataX } from './getSeededVal';
 import * as noiseMaps from './noiseMaps';
-import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
@@ -300,6 +300,49 @@ describe('computeRobotAudioOverrideDiff', () => {
         swellOn('reverbSend', 'r1', 0.123456);
         expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.8 }), baseline)).toEqual({ reverbSend: 0.12 });
       });
+    });
+  });
+
+  // docs/tasks/ROBOT_PERFORMANCE.md Task 15: the three performance fields diff like rhythmicDensity, key by key.
+  describe('dynamics, rests and accents (Robot Performance T15)', () => {
+    const SEEDED = { dynamics: 50, rests: 10, accents: 20 };
+    const withPerformance = (baselineOverrides: Partial<RobotAudioBaseline> = {}) => makeBaseline({ ...SEEDED, ...baselineOverrides });
+    const live = (baseline: RobotAudioBaseline, overrides: Partial<Robot> = {}) =>
+      makeLiveRobot(baseline, { dynamics: baseline.dynamics, rests: baseline.rests, accents: baseline.accents, ...overrides });
+
+    it('an untouched robot diffs to {}', () => {
+      const baseline = withPerformance();
+      expect(computeRobotAudioOverrideDiff(live(baseline), baseline)).toEqual({});
+    });
+
+    it('a robot edited to dynamics 70 / rests 30 / accents 60 diffs to exactly those three keys', () => {
+      const baseline = withPerformance();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { dynamics: 70, rests: 30, accents: 60 }), baseline)).toEqual({ dynamics: 70, rests: 30, accents: 60 });
+    });
+
+    it('one moved field diffs to that key alone', () => {
+      const baseline = withPerformance();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { dynamics: 70 }), baseline)).toEqual({ dynamics: 70 });
+      expect(computeRobotAudioOverrideDiff(live(baseline, { rests: 30 }), baseline)).toEqual({ rests: 30 });
+      expect(computeRobotAudioOverrideDiff(live(baseline, { accents: 60 }), baseline)).toEqual({ accents: 60 });
+    });
+
+    it('a robot flattened to 0 against a non-zero seed diffs to 0 (a real value)', () => {
+      const baseline = withPerformance();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { dynamics: 0, rests: 0, accents: 0 }), baseline)).toEqual({ dynamics: 0, rests: 0, accents: 0 });
+    });
+
+    it('a live robot carrying none of the fields writes no key (never an undefined-valued one)', () => {
+      const baseline = withPerformance();
+      const diff = computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline);
+      expect('dynamics' in diff).toBe(false);
+      expect('rests' in diff).toBe(false);
+      expect('accents' in diff).toBe(false);
+    });
+
+    it('sits beside the other keys without disturbing them', () => {
+      const baseline = withPerformance();
+      expect(computeRobotAudioOverrideDiff(live(baseline, { rests: 30, rhythmicDensity: 90 }), baseline)).toEqual({ rests: 30, rhythmicDensity: 90 });
     });
   });
 
@@ -762,15 +805,21 @@ describe('applySessionPayload', () => {
       pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
       octaveRange: restoredRobot.octaveRange,
     });
-    const expectedMelody = generateMelodyForRobot({
-      octaveMin: restoredRobot.octaveRange[0],
-      octaveMax: restoredRobot.octaveRange[1],
-      rhythmicDensity: RHYTHMIC_DENSITY_MAX,
-      rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-      noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
-      pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
-      rand: expectedRand,
-    });
+    // Robot Performance T4: a seeded robot carries rests and accents, so its melody is the generated
+    // one with the same post-pass regenerateMelody applies (docs/specs/ROBOT_PERFORMANCE.md section 1.2).
+    const expectedMelody = applyPerformanceMarks(
+      generateMelodyForRobot({
+        octaveMin: restoredRobot.octaveRange[0],
+        octaveMax: restoredRobot.octaveRange[1],
+        rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+        rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+        noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+        pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+        rand: expectedRand,
+      }),
+      { rests: restoredRobot.rests ?? DEFAULT_RESTS, accents: restoredRobot.accents ?? DEFAULT_ACCENTS },
+      buildSeededPerformance(restoredRobot.compositionSeed),
+    );
     const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
   });
@@ -1069,6 +1118,167 @@ describe('applySessionPayload', () => {
       expect(restored.panAuto).toBe(true);
       expect(primeSpy).not.toHaveBeenCalled();
       primeSpy.mockRestore();
+    });
+  });
+
+  // docs/tasks/ROBOT_PERFORMANCE.md Task 15: dynamics / rests / accents are restored only when finite, key by key,
+  // and the restore's existing regenerateMelody call re-stamps the restored rests / accents into the melody.
+  describe('dynamics, rests and accents across a session restore (Robot Performance T15)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // Outside every seed range (dynamics 25–75, rests 10–60, accents 20–80), so no seeded robot can coincide.
+    const TARGET = { dynamics: 90, rests: 70, accents: 90 };
+
+    function seededWorld() {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      return { localeId, robot: robots[0], robots };
+    }
+    const stored = (id: string) => currentLocale()!.robots.find((r) => r.id === id)!;
+    const shifted = (payload: SessionPayload): SessionPayload => ({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    const stripIds = (melody: Robot['melody']) => melody.map(({ id: _id, ...rest }) => rest);
+    /** What regenerateMelody produces for this stored robot: its seeded notes with its own rests / accents stamped on. */
+    function expectedMelody(robot: Robot) {
+      const rand = buildSeededComposition(robot.compositionSeed, {
+        rhythmicDensity: robot.rhythmicDensity!,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+        noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+        pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+        octaveRange: robot.octaveRange,
+      });
+      return applyPerformanceMarks(
+        generateMelodyForRobot({
+          octaveMin: robot.octaveRange[0],
+          octaveMax: robot.octaveRange[1],
+          rhythmicDensity: robot.rhythmicDensity!,
+          rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+          noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+          pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+          rand,
+        }),
+        { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
+        buildSeededPerformance(robot.compositionSeed),
+      );
+    }
+
+    it('an untouched world captures none of the three keys', () => {
+      seededWorld();
+      expect(Object.keys(buildSessionPayload().robotOverrides)).toEqual([]);
+    });
+
+    it('captures one edited robot as exactly its three keys', () => {
+      const { localeId, robot } = seededWorld();
+      useLocaleStore.getState().updateRobot(localeId, robot.id, TARGET);
+      expect(buildSessionPayload().robotOverrides).toEqual({ [robot.id]: TARGET });
+    });
+
+    it('restores the three fields after a full save/wipe/load round trip, and the registered melody carries the restored marks', () => {
+      const { localeId, robot } = seededWorld();
+      useLocaleStore.getState().updateRobot(localeId, robot.id, TARGET);
+      const payload = buildSessionPayload();
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applySessionPayload(shifted(payload));
+      register.mockClear();
+      applySessionPayload(payload);
+
+      const restored = stored(robot.id);
+      expect(restored).toMatchObject(TARGET);
+      expect(stripIds(restored.melody)).toEqual(stripIds(expectedMelody(restored)));
+      const mine = register.mock.calls.filter((c) => c[0] === robot.id);
+      expect(mine.length).toBeGreaterThan(0);
+      expect(stripIds(mine[mine.length - 1][1])).toEqual(stripIds(expectedMelody(restored)));
+      expect(restored.melody.some((e) => e.rest || e.mark), 'the restored marks are visible in the melody').toBe(true);
+    });
+
+    it('a payload without the keys leaves every robot at its seeded values', () => {
+      const { robots } = seededWorld();
+      const seeds = Object.fromEntries(robots.map((r) => [r.id, [r.dynamics, r.rests, r.accents]]));
+      const payload = buildSessionPayload();
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(payload);
+
+      for (const r of currentLocale()!.robots) expect([r.dynamics, r.rests, r.accents]).toEqual(seeds[r.id]);
+    });
+
+    it('drops rests: NaN and accents: "x" whole, key by key, while a finite dynamics beside them still lands', () => {
+      const { robot } = seededWorld();
+      const payload = buildSessionPayload();
+      const bad = {
+        ...payload,
+        robotOverrides: { [robot.id]: { dynamics: 90, rests: NaN, accents: 'x' } },
+      } as unknown as SessionPayload;
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(bad);
+
+      const restored = stored(robot.id);
+      expect(restored.dynamics).toBe(90);
+      expect(restored.rests).toBe(robot.rests);
+      expect(restored.accents).toBe(robot.accents);
+    });
+
+    it('drops a non-finite dynamics (Infinity) and a non-number rests whole', () => {
+      const { robot } = seededWorld();
+      const payload = buildSessionPayload();
+      const bad = {
+        ...payload,
+        robotOverrides: { [robot.id]: { dynamics: Infinity, rests: '30' } },
+      } as unknown as SessionPayload;
+
+      applySessionPayload(shifted(payload));
+      applySessionPayload(bad);
+
+      const restored = stored(robot.id);
+      expect(restored.dynamics).toBe(robot.dynamics);
+      expect(restored.rests).toBe(robot.rests);
+    });
+  });
+
+  // docs/tasks/ROBOT_PERFORMANCE.md Task 15: humanize is captured beside swellDuration and restored through
+  // audioStore.setHumanize, which is the one path that pushes it to the engine.
+  describe('humanize across a session restore (Robot Performance T15)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('captures audioStore.humanize', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      useAudioStore.getState().setHumanize(12);
+
+      expect(buildSessionPayload().humanize).toBe(12);
+    });
+
+    it('restores humanize: 12 through setHumanize, so AudioEngine.setHumanize(12) is pushed too', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      useAudioStore.getState().setHumanize(12);
+      const payload = buildSessionPayload();
+      useAudioStore.getState().setHumanize(3);
+      const push = vi.spyOn(AudioEngine, 'setHumanize');
+
+      applySessionPayload(payload);
+
+      expect(useAudioStore.getState().humanize).toBe(12);
+      expect(push).toHaveBeenCalledWith(12);
+    });
+
+    it('leaves the current humanize untouched when an older payload lacks the field', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const { humanize: _hm, ...oldShapePayload } = buildSessionPayload();
+      useAudioStore.getState().setHumanize(7);
+      const push = vi.spyOn(AudioEngine, 'setHumanize');
+
+      applySessionPayload(oldShapePayload as SessionPayload);
+
+      expect(useAudioStore.getState().humanize).toBe(7);
+      expect(push).not.toHaveBeenCalled();
     });
   });
 

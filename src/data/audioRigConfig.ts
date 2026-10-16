@@ -21,6 +21,7 @@ import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types
 import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
+import { HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '@/constants';
 
 // ========================================
 // TYPES
@@ -402,6 +403,22 @@ export const BPM_SCHEMA: SliderLinearSchema = {
   ...labels('fleet.pacing.tempo'),
   min: 20,
   max: 200,
+  step: 1,
+  orientation: 'horizontal',
+};
+
+/**
+ * "Humanize" — how far, in milliseconds, the fleet's notes may land off the grid
+ * (docs/specs/ROBOT_PERFORMANCE.md §1.6). A bare Pacing meta-setting like BPM_SCHEMA above, never in
+ * AUDIO_RIG_CONFIG's array. Stored in the display unit (audioStore.humanize is ms, no conversion); the bounds
+ * come from the constants the store clamps with, and HUMANIZE_MAX_MS keeps MIN_LEAD − max offset at 80 ms.
+ */
+export const HUMANIZE_SCHEMA: SliderLinearSchema = {
+  id: 'audioRig.humanize',
+  type: 'sliderLinear',
+  ...labels('fleet.pacing.humanize'),
+  min: HUMANIZE_MIN_MS,
+  max: HUMANIZE_MAX_MS,
   step: 1,
   orientation: 'horizontal',
 };

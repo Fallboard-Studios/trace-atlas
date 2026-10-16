@@ -35,6 +35,10 @@ import {
   BUS_RESONANCE_SCHEMA,
   BUS_FILTER_TYPE_SCHEMA,
   BUS_FILTER_LFO_TARGET,
+  DYNAMICS_SCHEMA,
+  RESTS_SCHEMA,
+  ACCENTS_SCHEMA,
+  ARTICULATION_PANEL_SCHEMA,
 } from './robotOptionsConfig';
 // Namespace import (not named) so Task 9's cleanup assertions below can check for the 3 old
 // accordion consts' absence at runtime, without a named import that would itself fail to compile
@@ -50,6 +54,7 @@ import {
   PAN_MIN, PAN_MAX, PAN_DISPLAY_SCALE,
   SEND_MIN, SEND_MAX, SEND_DISPLAY_SCALE, SEND_STEP_PERCENT,
   PORTAMENTO_MIN, PORTAMENTO_MAX, ROBOT_BUS_FILTER_FREQ_RANGE, ROBOT_BUS_FILTER_Q_RANGE, ROBOT_BUS_FILTER_Q,
+  PERFORMANCE_MIN, PERFORMANCE_MAX,
 } from '@/constants';
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES } from '@/types/Robot';
 import { ENVELOPE_TIME_MAX_SECONDS } from '@/constants';
@@ -796,5 +801,80 @@ describe('Robot Articulation schemas', () => {
       const articulation = src.slice(start);
       expect(articulation).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
     });
+  });
+});
+
+// docs/specs/ROBOT_PERFORMANCE.md §1.6 / docs/tasks/ROBOT_PERFORMANCE.md Task 8 — the three robot performance
+// sliders and the panel that groups the two composition ones.
+describe.each([
+  { name: 'DYNAMICS_SCHEMA', schema: DYNAMICS_SCHEMA, id: 'robotOptions.dynamics', key: 'probe.levels.dynamics' },
+  { name: 'RESTS_SCHEMA', schema: RESTS_SCHEMA, id: 'robotOptions.rests', key: 'probe.composition.rests' },
+  { name: 'ACCENTS_SCHEMA', schema: ACCENTS_SCHEMA, id: 'robotOptions.accents', key: 'probe.composition.accents' },
+] as const)('$name (Robot Performance)', ({ schema, id, key }) => {
+  it('is a horizontal sliderLinear in whole steps', () => {
+    expect(schema.type).toBe('sliderLinear');
+    expect(schema.id).toBe(id);
+    expect(schema.step).toBe(1);
+    expect(schema.orientation).toBe('horizontal');
+  });
+
+  it('takes its bounds from PERFORMANCE_MIN / PERFORMANCE_MAX, so the store clamp and the slider cannot drift apart', () => {
+    expect(schema.min).toBe(PERFORMANCE_MIN);
+    expect(schema.max).toBe(PERFORMANCE_MAX);
+    expect([schema.min, schema.max]).toEqual([0, 100]);
+  });
+
+  it('is labeled, unit-ed and helped from its own content key', () => {
+    const entry = CONTENT[key];
+    expect(schema.humanLabel).toBe(entry.human);
+    expect(schema.loreLabel).toBe(entry.lore);
+    expect(schema.unit).toBe('%');
+    expect(schema.unit).toBe(entry.unit);
+    expect(schema.help?.human.trim()).toBeTruthy();
+    expect(schema.help).toEqual(entry.help);
+  });
+
+  it('is JSON-serializable', () => {
+    expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
+  });
+});
+
+describe('Robot Performance schemas — shared', () => {
+  it('the three ids are unique robotOptions.* ids that collide with no other top-level schema', () => {
+    const ids = [DYNAMICS_SCHEMA.id, RESTS_SCHEMA.id, ACCENTS_SCHEMA.id, ARTICULATION_PANEL_SCHEMA.id];
+    ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
+    const others = ALL_TOP_LEVEL_SCHEMAS.map((s) => s.id);
+    expect(new Set([...ids, ...others]).size).toBe(ids.length + others.length);
+  });
+
+  it('the three sliders carry distinct names and distinct help (never one shared description)', () => {
+    const sliders = [DYNAMICS_SCHEMA, RESTS_SCHEMA, ACCENTS_SCHEMA];
+    expect(new Set(sliders.map((s) => s.humanLabel)).size).toBe(3);
+    expect(new Set(sliders.map((s) => s.help?.human)).size).toBe(3);
+  });
+
+  it('Dynamics shares its human word with the Levels nav row yet differs in lore, so the duplicate-concept guard holds', () => {
+    // The naming clash is flagged in docs/specs/ROBOT_PERFORMANCE.md §7 — one content key to rename.
+    expect(CONTENT['probe.levels.dynamics'].lore).not.toBe(CONTENT['probe.dynamics'].lore);
+  });
+
+  it('ARTICULATION_PANEL_SCHEMA is a responsive directionalPanel headed from probe.composition.articulation', () => {
+    expect(ARTICULATION_PANEL_SCHEMA.type).toBe('directionalPanel');
+    expect(ARTICULATION_PANEL_SCHEMA.orientation).toBe('responsive');
+    expect(ARTICULATION_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.composition.articulation'].human);
+    expect(JSON.parse(JSON.stringify(ARTICULATION_PANEL_SCHEMA))).toEqual(ARTICULATION_PANEL_SCHEMA);
+  });
+
+  it('the Levels intro names Dynamics and the Composition intro names Rests and Accents, so the sentences the user reads cover the new rows', () => {
+    expect(CONTENT['probe.levels'].intro?.humanDescription ?? '').toContain(CONTENT['probe.levels.dynamics'].human);
+    const composition = CONTENT['probe.composition'].intro?.humanDescription ?? '';
+    expect(composition).toContain(CONTENT['probe.composition.rests'].human);
+    expect(composition).toContain(CONTENT['probe.composition.accents'].human);
+  });
+
+  it('the Rests help says it leaves a gap rather than skipping a note, and Accents help says it does not move notes', () => {
+    // The intent's distinction: a rest shortens a note (it is not Density's skip). Pins the claim, never the words.
+    expect(CONTENT['probe.composition.rests'].help?.human.toLowerCase()).toMatch(/gap|stops early|shorter/);
+    expect(CONTENT['probe.composition.accents'].help?.human.length).toBeGreaterThan(20);
   });
 });

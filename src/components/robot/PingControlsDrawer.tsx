@@ -7,6 +7,7 @@ import {
   PHRASING_PANEL_SCHEMA,
   RHYTHM_PANEL_SCHEMA,
   FREQUENCY_PANEL_SCHEMA,
+  ARTICULATION_PANEL_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -14,6 +15,8 @@ import {
   OCTAVE_RANGE_MIN_SCHEMA,
   OCTAVE_RANGE_MAX_SCHEMA,
   NOTE_VARIANCE_SCHEMA,
+  RESTS_SCHEMA,
+  ACCENTS_SCHEMA,
 } from '@/data/robotOptionsConfig';
 import { DEV_TUNING } from '@/constants';
 import type { DirectionalPanelSchema } from '@/types/controls';
@@ -39,6 +42,10 @@ export interface PingControlsValue {
    * in addition to the usual `generationDisabled` gate.
    */
   pitchRepeat: number;
+  /** 0-100. Chance per event of a rest, and how deep it cuts (docs/specs/ROBOT_PERFORMANCE.md). Baked into the melody. */
+  rests: number;
+  /** 0-100. Chance per event of an articulation mark, and how many kinds are in play. Baked into the melody. */
+  accents: number;
   octaveRange: [number, number];
   /**
    * Testing-only: whether the robot's (or, in company mode, every broadcast member's) real
@@ -251,13 +258,15 @@ const COMPOSITION_ROW2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.comp
 const COMPOSITION_ROW3_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row3', type: 'directionalPanel', orientation: 'responsive' };
 
 export interface PingControlsCompositionSectionProps {
-  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange'>;
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents'>;
   onDensityChange: (value: number) => void;
   onMotifLengthChange: (value: number) => void;
   onPitchRepeatChange: (value: number) => void;
   onOctaveMinChange: (value: number) => void;
   onOctaveMaxChange: (value: number) => void;
   onNoteVarianceChange: (value: number) => void;
+  onRestsChange: (value: number) => void;
+  onAccentsChange: (value: number) => void;
   disabled?: boolean;
   style?: CSSProperties;
 }
@@ -265,7 +274,8 @@ export interface PingControlsCompositionSectionProps {
 /**
  * Replaces the old Rhythm/Pitches split (2 separate accordions) with one "Composition" accordion's
  * worth of plain content, laid out as 3 rows of 2 fields each: Density+Motif Length, Pitch
- * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md). The dev-only
+ * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md), then a labelled Articulation
+ * panel (Rests, Accents) of Robot Performance. The dev-only
  * Click Track toggle is dropped entirely, per that same instruction — `clickTrackActive` itself
  * (the underlying store field/engine wiring, `src/engine/clickTrack.ts`) is untouched, just no
  * longer reachable from this UI.
@@ -278,6 +288,8 @@ function PingControlsCompositionSectionInner({
   onOctaveMinChange,
   onOctaveMaxChange,
   onNoteVarianceChange,
+  onRestsChange,
+  onAccentsChange,
   disabled,
   style,
 }: PingControlsCompositionSectionProps) {
@@ -303,6 +315,12 @@ function PingControlsCompositionSectionInner({
       <DirectionalPanel schema={COMPOSITION_ROW3_SCHEMA}>
         <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={disabled} />
         <SliderLinear schema={OCTAVE_RANGE_MAX_SCHEMA} value={octMax} onChange={onOctaveMaxChange} disabled={disabled} />
+      </DirectionalPanel>
+      {/* Articulation (docs/specs/ROBOT_PERFORMANCE.md §1.6): Rests and Accents, a labelled panel of their own. Neither needs a
+          tiled motif, so unlike Pitch Repeat they are gated by `disabled` alone. */}
+      <DirectionalPanel schema={ARTICULATION_PANEL_SCHEMA}>
+        <SliderLinear schema={RESTS_SCHEMA} value={value.rests} onChange={onRestsChange} disabled={disabled} />
+        <SliderLinear schema={ACCENTS_SCHEMA} value={value.accents} onChange={onAccentsChange} disabled={disabled} />
       </DirectionalPanel>
     </div>
   );

@@ -485,32 +485,6 @@ bypass the content-layer guard the same way robot and company names do; built-in
 picker only); whether built-ins are forkable; whether a library is shareable on its own; the voicing
 templates themselves (the bulk of the musical work).
 
-### 21. Audio Palette Trials: Robot Dynamics, Gate Length, Humanize and Rests
-
-From the 2026-10-09 audio-palette conversation. Roadmap
-[50](roadmap.md#50-audio-palette-new-attributes-without-new-libraries) carries the four picks and the
-shared constraints (the phone gate, where nodes may go, replayability, seeding and saving); these are
-the per-robot ideas Crawford kept back "to try and see what works". All four are trigger-time
-arithmetic in `AudioEngine.scheduleNote` and the playback loop — no nodes, no budget cost — and all
-replay exactly when seeded off the note index, the way velocity does (`computeNoteVelocitySeeded`,
-`src/engine/AudioEngine.ts:452`).
-
-- **Dynamics range and accents.** Velocity variance is a fixed seeded rate and width today
-  (`VELOCITY_VARIANCE_RATE`, `NOTE_VELOCITY_BASELINE`). A per-robot "dynamics" slider widens or
-  flattens it; an accent pattern on the 16-step grid (`MelodyEvent.startStep`) would be a second step.
-- **Gate length.** A per-robot multiplier on each event's duration before `triggerAttackRelease` —
-  staccato (0.3) to legato (1.0 and beyond, overlapping the next onset). Each layer's Synth is
-  monophonic, so an overlap retriggers; with roadmap 50.1's portamento set, that overlap is the glide.
-- **Humanize.** A seeded timing offset per note (± a few ms, scaled by a per-robot or global slider)
-  added to the schedule time, inside `MIN_LEAD`. Seeded by note index, so it replays. Pacing section if
-  global, Envelope if per robot.
-- **Rests.** A seeded per-robot skip chance per event ("sparseness"): the melody keeps its stored
-  steps, playback drops some. Composition section. Touches Pitch Repeat and the harmony palette only
-  through what is heard.
-
-Try order: dynamics first (cheapest to hear), then rests, gate, humanize. Each a short branch; drop
-what does not earn its slider.
-
 ### 22. Audio Palette Trials: More Global Pedals to Audition
 
 The single-instance Tone 15 effects not shipped in roadmap 50.3 / 50.4 (AutoWah and Phaser both shipped, so neither moves here) — each one slot in

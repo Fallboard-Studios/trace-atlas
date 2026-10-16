@@ -30,6 +30,7 @@ export const fleet = {
       loreDescription: 'Every probe keeps time together, and the network periodically intensifies its own signal processing to surface new data.',
       humanDescription: '<ul>'
         + '<li><strong>Tempo</strong>: how fast the music plays, in beats per minute.</li>'
+        + '<li><strong>Humanize</strong>: how far off the grid, in milliseconds, every probe’s notes may land. 0 keeps them machine-exact.</li>'
         + '<li><strong>Automation Rate</strong>: how often the fleet automatically nudges its own effects settings — swells of extra motion that come and go on their own. Set it to 0 to turn automatic swells off entirely.</li>'
         + '<li><strong>Automation Length</strong>: how many measures one of those swells lasts, start to finish.</li>'
         + '<li><strong>Automation Range</strong>: how far a swell can push the affected settings once one is happening — bigger numbers mean more dramatic swells.</li>'
@@ -41,6 +42,13 @@ export const fleet = {
     lore: 'Ping Rate',
     unit: 'BPM',
     help: { human: 'How fast the music plays, in beats per minute. Every probe keeps time to it, and so does anything set to Sync — the LFO lanes and Delay Time.' },
+  },
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14).
+  'fleet.pacing.humanize': {
+    human: 'Humanize',
+    lore: 'Ping Jitter',
+    unit: ' ms',
+    help: { human: 'How far off the grid, in milliseconds, every probe’s notes may land. 0 is machine-exact; higher settings loosen the fleet so no two notes land quite together. It does not change the tempo.' },
   },
   'fleet.pacing.automationRate': {
     human: 'Automation Rate',

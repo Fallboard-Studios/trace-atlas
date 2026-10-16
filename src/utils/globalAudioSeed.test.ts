@@ -34,6 +34,8 @@ import {
   generatePingVarianceAutomation,
   generateSwellFrequency,
   generateSwellDuration,
+  generateHumanize,
+  HUMANIZE_SEED_RANGE,
   scaleUnitValue,
   pickColourCharacter,
   COLOUR_CHARACTERS,
@@ -54,7 +56,7 @@ import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
-import { SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
+import { SWELL_FREQUENCY_STEPS, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
 
 // ========================================
 // TESTS
@@ -1216,6 +1218,75 @@ describe('generateSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.
       const value = generateSwellDuration(`seed-dur-sample-${i}`, `DurSample${i}`);
       expect(Number.isInteger(value), `attenuationStyle ${i}: ${value}`).toBe(true);
     }
+  });
+});
+
+// docs/specs/ROBOT_PERFORMANCE.md assumption 9 / docs/tasks/ROBOT_PERFORMANCE.md Task 12 — Humanize, a Pacing scalar in whole ms.
+describe('generateHumanize (Robot Performance Task 12)', () => {
+  const STYLES = 300;
+  const sample = () => Array.from({ length: STYLES }, (_, i) => generateHumanize(`seed-hum-sample-${i}`, `HumSample${i}`));
+
+  afterEach(() => {
+    evictAttenuationStyleNoiseMap('seed-test-planet');
+    for (let i = 0; i < 40; i++) evictAttenuationStyleNoiseMap(`seed-test-planet-${i}`);
+    for (let i = 0; i < STYLES; i++) evictAttenuationStyleNoiseMap(`seed-hum-sample-${i}`);
+  });
+
+  it('seeds in [2, 6] ms: the constant is the spec range, and sits inside the slider range', () => {
+    expect(HUMANIZE_SEED_RANGE).toEqual({ min: 2, max: 6 });
+    expect(HUMANIZE_SEED_RANGE.min).toBeGreaterThanOrEqual(HUMANIZE_SCHEMA.min);
+    expect(HUMANIZE_SEED_RANGE.max).toBeLessThanOrEqual(HUMANIZE_SCHEMA.max);
+  });
+
+  it('always returns a whole number of ms in [2, 6], across many Attenuation Styles', () => {
+    sample().forEach((value, i) => {
+      expect(Number.isInteger(value), `attenuationStyle ${i}: ${value}`).toBe(true);
+      expect(value, `attenuationStyle ${i}`).toBeGreaterThanOrEqual(2);
+      expect(value, `attenuationStyle ${i}`).toBeLessThanOrEqual(6);
+    });
+  });
+
+  it('is not degenerate: at least four distinct values over 300 Attenuation Styles (the bpmSeed guard, cloned)', () => {
+    expect(new Set(sample()).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('fills its band: every whole ms from 2 to 6 occurs, and no one value takes more than half the styles', () => {
+    const values = sample();
+    for (const ms of [2, 3, 4, 5, 6]) expect(values, `${ms} ms`).toContain(ms);
+    for (const ms of [2, 3, 4, 5, 6]) expect(values.filter((v) => v === ms).length / STYLES, `${ms} ms share`).toBeLessThan(0.5);
+  });
+
+  it('is deterministic, for a cached noise map and for a fresh one', () => {
+    const first = generateHumanize('seed-test-planet', 'Nova');
+    expect(generateHumanize('seed-test-planet', 'Nova')).toBe(first);
+    evictAttenuationStyleNoiseMap('seed-test-planet');
+    expect(generateHumanize('seed-test-planet', 'Nova')).toBe(first);
+  });
+
+  it('depends on the name: different names reach more than one value', () => {
+    // The noise map is cached by id and seeded from the name when first built, so each name needs a fresh map.
+    const named = new Set(Array.from({ length: 40 }, (_, i) => {
+      evictAttenuationStyleNoiseMap('seed-test-planet');
+      return generateHumanize('seed-test-planet', `Name${i}`);
+    }));
+    expect(named.size).toBeGreaterThan(1);
+  });
+
+  it('is seeded by the name alone: the id only keys the cache, so one name under many ids gives one value', () => {
+    const ided = new Set(Array.from({ length: 40 }, (_, i) => generateHumanize(`seed-test-planet-${i}`, 'Nova')));
+    expect(ided.size).toBe(1);
+  });
+
+  it('draws on its own dataId: it does not simply echo the swell duration seed', () => {
+    const humanize = sample();
+    const duration = Array.from({ length: STYLES }, (_, i) => generateSwellDuration(`seed-hum-sample-${i}`, `HumSample${i}`));
+    expect(humanize.filter((h, i) => h === duration[i]).length).toBeLessThan(STYLES);
+  });
+
+  it('keeps room above and stays audible: no seeded style reaches the slider top, none falls below 2 ms', () => {
+    const values = sample();
+    expect(Math.max(...values)).toBeLessThan(HUMANIZE_SCHEMA.max);
+    expect(Math.min(...values)).toBeGreaterThanOrEqual(2);
   });
 });
 

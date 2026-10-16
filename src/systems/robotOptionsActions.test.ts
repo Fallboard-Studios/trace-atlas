@@ -7,7 +7,7 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento, applyBusFilter,
+  applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento, applyBusFilter,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -465,6 +465,126 @@ describe('robotOptionsActions', () => {
 
       expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { pitchRepeat: 60 });
       expect(genSpy).toHaveBeenCalled();
+    });
+  });
+
+  // Robot Performance T7 (docs/specs/ROBOT_PERFORMANCE.md §1.5)
+  describe('applyDynamics', () => {
+    it('writes dynamics to the store and touches neither the melody nor any engine method', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const genSpy = vi.spyOn(melodyGen, 'generateMelodyForRobot');
+      const engineSpies = (Object.keys(AudioEngine) as (keyof typeof AudioEngine)[])
+        .filter((key) => typeof AudioEngine[key] === 'function' && key !== 'registerRobotMelody' && key !== 'unregisterRobotMelody')
+        .map((key) => vi.spyOn(AudioEngine, key as never));
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applyDynamics(robot, localeId, 70);
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { dynamics: 70 });
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].dynamics).toBe(70);
+      expect(genSpy).not.toHaveBeenCalled();
+      expect(registerSpy).not.toHaveBeenCalled();
+      for (const spy of engineSpies) expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('stores the store-clamped value for an out-of-range slider number (the store owns the clamp)', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+
+      applyDynamics(robot, localeId, 140);
+
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].dynamics).toBe(100);
+    });
+  });
+
+  describe('applyRests', () => {
+    it('writes rests, then regenerates with the new value spread in', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applyRests(robot, localeId, 100);
+
+      expect(updateSpy).toHaveBeenNthCalledWith(1, localeId, robot.id, { rests: 100 });
+      // The stubbed generator returns one plain event; rests 100 must stamp it, proving the NEW value
+      // (not the robot's stale absent field) reached regenerateMelody.
+      const registered = registerSpy.mock.calls[0][1] as MelodyEvent[];
+      expect(registered).toHaveLength(1);
+      expect(registered[0].rest).toBeGreaterThanOrEqual(0.25);
+      expect(registered[0].rest).toBeLessThanOrEqual(0.75);
+    });
+
+    it('leaves the notes alone: rests 0 registers the generated events by reference', () => {
+      const robot = makeRobot({ rests: 80 });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applyRests(robot, localeId, 0);
+
+      const registered = registerSpy.mock.calls[0][1] as MelodyEvent[];
+      expect(registered[0].rest).toBeUndefined();
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].rests).toBe(0);
+    });
+
+    it('keeps the robot accents when only rests moves', () => {
+      const robot = makeRobot({ accents: 100 });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const genSpy = vi.spyOn(melodyGen, 'generateMelodyForRobot');
+      const applySpy = vi.spyOn(melodyGen, 'applyPerformanceMarks');
+
+      applyRests(robot, localeId, 30);
+
+      expect(genSpy).toHaveBeenCalledTimes(1);
+      expect(applySpy).toHaveBeenCalledWith(expect.anything(), { rests: 30, accents: 100 }, expect.any(Function));
+    });
+  });
+
+  describe('applyAccents', () => {
+    it('writes accents, then regenerates with the new value spread in', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const applySpy = vi.spyOn(melodyGen, 'applyPerformanceMarks');
+
+      applyAccents(robot, localeId, 40);
+
+      expect(updateSpy).toHaveBeenNthCalledWith(1, localeId, robot.id, { accents: 40 });
+      expect(applySpy).toHaveBeenCalledWith(expect.anything(), { rests: 0, accents: 40 }, expect.any(Function));
+    });
+
+    it('keeps the robot rests when only accents moves', () => {
+      const robot = makeRobot({ rests: 55 });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const applySpy = vi.spyOn(melodyGen, 'applyPerformanceMarks');
+
+      applyAccents(robot, localeId, 90);
+
+      expect(applySpy).toHaveBeenCalledWith(expect.anything(), { rests: 55, accents: 90 }, expect.any(Function));
+    });
+
+    it('registers a melody with the same notes at every setting (Accents never moves a note)', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applyAccents(robot, localeId, 0);
+      applyAccents(robot, localeId, 100);
+
+      const [low, high] = registerSpy.mock.calls.map((call) => call[1] as MelodyEvent[]);
+      expect(high.map((e) => [e.id, e.startStep, e.length, e.noteIndex, e.octave])).toEqual(
+        low.map((e) => [e.id, e.startStep, e.length, e.noteIndex, e.octave]),
+      );
     });
   });
 

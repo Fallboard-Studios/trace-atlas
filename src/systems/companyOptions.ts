@@ -13,7 +13,10 @@
  * `Locale.allRobotsLastEditedOptions`) rather than a whole `Company`, since that's genuinely all
  * this function ever reads; both CompanyOptionsSection call sites share this one resolver.
  */
-import { DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '@/engine/melodyGenerator';
+import {
+  DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT,
+  DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS,
+} from '@/engine/melodyGenerator';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
@@ -54,6 +57,10 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     filterFreq: resolveBusFilterCutoff(firstMember.audioAttributes.filterFreq),
     filterQ: resolveBusFilterQ(firstMember.audioAttributes.filterQ),
     filterType: resolveBusFilterType(firstMember.audioAttributes.filterType),
+    // Robot Performance: the first member's own field, else the documented default (50 / 0 / 0, today's sound).
+    dynamics: firstMember.dynamics ?? DEFAULT_DYNAMICS,
+    rests: firstMember.rests ?? DEFAULT_RESTS,
+    accents: firstMember.accents ?? DEFAULT_ACCENTS,
   };
   return { ...fromRobot, ...lastEditedOptions };
 }

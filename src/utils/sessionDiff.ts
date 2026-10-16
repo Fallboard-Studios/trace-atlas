@@ -293,6 +293,11 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(live.rhythmicMotifLength, baseline.rhythmicMotifLength)) diff.rhythmicMotifLength = live.rhythmicMotifLength;
   if (!deepEqual(live.noteVariance, baseline.noteVariance)) diff.noteVariance = live.noteVariance;
   if (!deepEqual(live.pitchRepeat, baseline.pitchRepeat)) diff.pitchRepeat = live.pitchRepeat;
+  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.7): the three fields diff like pitchRepeat, key by key. A live
+  // robot that carries no value for one writes no key (never an undefined-valued one), as the articulation fields do.
+  if (live.dynamics !== undefined && !deepEqual(live.dynamics, baseline.dynamics)) diff.dynamics = live.dynamics;
+  if (live.rests !== undefined && !deepEqual(live.rests, baseline.rests)) diff.rests = live.rests;
+  if (live.accents !== undefined && !deepEqual(live.accents, baseline.accents)) diff.accents = live.accents;
   if (!deepEqual(live.name, baseline.name)) diff.name = live.name;
 
   // Robot Pan (docs/specs/ROBOT_PAN.md §1.6): Auto is every robot's baseline, so only a manual robot
@@ -396,6 +401,7 @@ export function buildSessionPayload(): SessionPayload {
     bpm: audioState.bpm,
     swellFrequency: audioState.swellFrequency,
     swellDuration: audioState.swellDuration,
+    humanize: audioState.humanize,
     pingVarianceAutomation: audioState.pingVarianceAutomation,
     lfoBank,
     globalLfoLinks,
@@ -430,6 +436,12 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.rhythmicMotifLength !== undefined) updates.rhythmicMotifLength = diff.rhythmicMotifLength;
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
+  // Robot Performance: a finite number or the key is ignored whole, key by key (a payload is untrusted here). updateRobot
+  // clamps the value; regenerateMelody below re-stamps rests / accents from the stored robot.
+  for (const field of ['dynamics', 'rests', 'accents'] as const) {
+    const value = diff[field];
+    if (typeof value === 'number' && Number.isFinite(value)) updates[field] = value;
+  }
   if (diff.name !== undefined) updates.name = diff.name;
   // One key carries both robot fields: present = Auto off at that value. A non-finite value (a
   // hand-edited payload) is ignored whole, so the robot stays Auto instead of going manual at 0.
@@ -549,6 +561,8 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   if (payload.bpm !== undefined) useAudioStore.getState().setBPM(payload.bpm);
   if (payload.swellFrequency !== undefined) useAudioStore.getState().setSwellFrequency(payload.swellFrequency);
   if (payload.swellDuration !== undefined) useAudioStore.getState().setSwellDuration(payload.swellDuration);
+  // Robot Performance: setHumanize clamps and pushes to AudioEngine.setHumanize, the one path to the playback loop.
+  if (payload.humanize !== undefined) useAudioStore.getState().setHumanize(payload.humanize);
   if (payload.pingVarianceAutomation !== undefined) useAudioStore.getState().setPingVarianceAutomation(payload.pingVarianceAutomation);
 
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): independently optional, same convention as the

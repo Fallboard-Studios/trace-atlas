@@ -11,6 +11,7 @@ vi.mock('@/constants', async (importOriginal) => {
 });
 
 import { PingControlsDrawer, PingControlsRhythmSection, PingControlsFrequencySection, PingControlsCompositionSection, type PingControlsValue } from './PingControlsDrawer';
+import { CONTENT, fill } from '@/content';
 
 
 function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValue {
@@ -19,6 +20,8 @@ function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValu
     rhythmicMotifLength: 8,
     noteVariance: 0,
     pitchRepeat: 0,
+    rests: 0,
+    accents: 0,
     octaveRange: [3, 5],
     clickTrackActive: false,
     ...overrides,
@@ -667,6 +670,8 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
         onOctaveMinChange={() => {}}
         onOctaveMaxChange={() => {}}
         onNoteVarianceChange={() => {}}
+        onRestsChange={() => {}}
+        onAccentsChange={() => {}}
         {...extra}
       />,
     );
@@ -705,6 +710,8 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
         onOctaveMinChange={onOctaveMinChange}
         onOctaveMaxChange={onOctaveMaxChange}
         onNoteVarianceChange={onNoteVarianceChange}
+        onRestsChange={() => {}}
+        onAccentsChange={() => {}}
       />,
     );
 
@@ -745,9 +752,127 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
         onOctaveMinChange={() => {}}
         onOctaveMaxChange={() => {}}
         onNoteVarianceChange={() => {}}
+        onRestsChange={() => {}}
+        onAccentsChange={() => {}}
         style={{ '--color-accent-a': '#68cb97' } as CSSProperties}
       />,
     );
     expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--color-accent-a')).toBe('#68cb97');
+  });
+});
+
+// docs/specs/ROBOT_PERFORMANCE.md §1.6 (docs/tasks/ROBOT_PERFORMANCE.md Task 10) - the Articulation row: Rests and Accents,
+// a labelled responsive panel after the three composition rows. The plan placed it in the retired PHRASING panel of the
+// old combined drawer; the screens render this section, so that is where it lives (a deviation recorded in the plan).
+describe('PingControlsCompositionSection — Articulation row (Robot Performance Task 10)', () => {
+  const restsSlider = () => screen.getByRole('slider', { name: /^rests/i });
+  const accentsSlider = () => screen.getByRole('slider', { name: /^accents/i });
+  const handlers = () => ({
+    onDensityChange: vi.fn(), onMotifLengthChange: vi.fn(), onPitchRepeatChange: vi.fn(), onOctaveMinChange: vi.fn(),
+    onOctaveMaxChange: vi.fn(), onNoteVarianceChange: vi.fn(), onRestsChange: vi.fn(), onAccentsChange: vi.fn(),
+  });
+  function renderRow(overrides: Partial<PingControlsValue> = {}, extra: { disabled?: boolean } & Partial<ReturnType<typeof handlers>> = {}) {
+    const h = { ...handlers(), ...extra };
+    render(<PingControlsCompositionSection value={makeValue(overrides)} {...h} />);
+    return h;
+  }
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it('renders Rests then Accents under an Articulation heading, after the Octave sliders', () => {
+    renderRow();
+
+    expect(screen.getByText(CONTENT['probe.composition.articulation'].human)).toBeTruthy();
+    expect(before(screen.getByRole('slider', { name: /highest octave/i }), restsSlider())).toBe(true);
+    expect(before(restsSlider(), accentsSlider())).toBe(true);
+  });
+
+  it('puts both sliders in one panel of their own, apart from Density and Pitch Repeat', () => {
+    renderRow();
+
+    const panel = restsSlider().closest('[data-panel-id="robotOptions.articulation"]')!;
+    expect(panel).not.toBeNull();
+    expect(panel.contains(accentsSlider())).toBe(true);
+    expect(panel.contains(screen.getByRole('slider', { name: /density/i }))).toBe(false);
+    expect(panel.contains(screen.getByRole('slider', { name: /pitch repeat/i }))).toBe(false);
+  });
+
+  it('shows each stored 0-100 number as is, with a 0..100 range', () => {
+    renderRow({ rests: 35, accents: 80 });
+
+    expect(restsSlider().getAttribute('aria-valuenow')).toBe('35');
+    expect(accentsSlider().getAttribute('aria-valuenow')).toBe('80');
+    [restsSlider(), accentsSlider()].forEach((s) => {
+      expect(s.getAttribute('aria-valuemin')).toBe('0');
+      expect(s.getAttribute('aria-valuemax')).toBe('100');
+    });
+  });
+
+  it('reaches both ends of the travel: 0 shows 0 and 100 shows 100', () => {
+    const zero = render(<PingControlsCompositionSection value={makeValue({ rests: 0, accents: 0 })} {...handlers()} />);
+    expect(restsSlider().getAttribute('aria-valuenow')).toBe('0');
+    expect(accentsSlider().getAttribute('aria-valuenow')).toBe('0');
+    zero.unmount();
+
+    render(<PingControlsCompositionSection value={makeValue({ rests: 100, accents: 100 })} {...handlers()} />);
+    expect(restsSlider().getAttribute('aria-valuenow')).toBe('100');
+    expect(accentsSlider().getAttribute('aria-valuenow')).toBe('100');
+  });
+
+  it('a Rests step calls onRestsChange with the next whole number, and nothing else', () => {
+    const h = renderRow({ rests: 40 });
+
+    fireEvent.keyDown(restsSlider(), { key: 'ArrowRight' });
+
+    expect(h.onRestsChange).toHaveBeenCalledTimes(1);
+    expect(h.onRestsChange).toHaveBeenCalledWith(41);
+    Object.entries(h).filter(([name]) => name !== 'onRestsChange').forEach(([name, fn]) => expect(fn, name).not.toHaveBeenCalled());
+  });
+
+  it('an Accents step calls onAccentsChange with the next whole number, and nothing else', () => {
+    const h = renderRow({ accents: 60 });
+
+    fireEvent.keyDown(accentsSlider(), { key: 'ArrowRight' });
+
+    expect(h.onAccentsChange).toHaveBeenCalledTimes(1);
+    expect(h.onAccentsChange).toHaveBeenCalledWith(61);
+    Object.entries(h).filter(([name]) => name !== 'onAccentsChange').forEach(([name, fn]) => expect(fn, name).not.toHaveBeenCalled());
+  });
+
+  it('Home and End drive each slider to 0 and 100, every call a whole number in range', () => {
+    const h = renderRow({ rests: 40, accents: 60 });
+
+    fireEvent.keyDown(restsSlider(), { key: 'End' });
+    fireEvent.keyDown(restsSlider(), { key: 'Home' });
+    fireEvent.keyDown(accentsSlider(), { key: 'End' });
+    fireEvent.keyDown(accentsSlider(), { key: 'Home' });
+
+    expect(h.onRestsChange.mock.calls.map(([n]) => n)).toEqual([100, 0]);
+    expect(h.onAccentsChange.mock.calls.map(([n]) => n)).toEqual([100, 0]);
+  });
+
+  it('disabled greys and silences both sliders', () => {
+    const h = renderRow({}, { disabled: true });
+
+    expect(restsSlider().getAttribute('data-disabled')).toBe('');
+    expect(accentsSlider().getAttribute('data-disabled')).toBe('');
+    fireEvent.keyDown(restsSlider(), { key: 'ArrowRight' });
+    fireEvent.keyDown(accentsSlider(), { key: 'ArrowRight' });
+    expect(h.onRestsChange).not.toHaveBeenCalled();
+    expect(h.onAccentsChange).not.toHaveBeenCalled();
+  });
+
+  it('is enabled by default, and with Phrase Length at 0 (unlike Pitch Repeat they need no tiled motif)', () => {
+    renderRow({ rhythmicMotifLength: 0 });
+
+    expect(restsSlider().getAttribute('data-disabled')).toBeNull();
+    expect(accentsSlider().getAttribute('data-disabled')).toBeNull();
+    expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
+  });
+
+  it('carries a help button named for each slider', () => {
+    renderRow();
+
+    expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['probe.composition.rests'].human }) })).toBeTruthy();
+    expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['probe.composition.accents'].human }) })).toBeTruthy();
   });
 });

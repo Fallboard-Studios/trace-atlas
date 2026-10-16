@@ -1,7 +1,18 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { generateMelodyForRobot, buildSeededComposition, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from './melodyGenerator';
+import {
+  generateMelodyForRobot,
+  buildSeededComposition,
+  buildSeededPerformance,
+  applyPerformanceMarks,
+  DEFAULT_RHYTHMIC_DENSITY,
+  DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+  DEFAULT_NOTE_VARIANCE,
+  DEFAULT_PITCH_REPEAT,
+  DEFAULT_RESTS,
+  DEFAULT_ACCENTS,
+} from './melodyGenerator';
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
 import type { Robot } from '../types/Robot';
@@ -31,6 +42,8 @@ export function regenerateMelody(robot: Robot, localeId: string): void {
   const rhythmicMotifLength = robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
   const noteVariance = robot.noteVariance ?? DEFAULT_NOTE_VARIANCE;
   const pitchRepeat = robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
+  const rests = robot.rests ?? DEFAULT_RESTS;
+  const accents = robot.accents ?? DEFAULT_ACCENTS;
 
   // Deterministic Robot Melody Generation (Roadmap Phase 31) -- the same formula
   // spawnSystem.ts uses for a robot's initial melody, so an edit reverted to its original
@@ -43,15 +56,21 @@ export function regenerateMelody(robot: Robot, localeId: string): void {
     octaveRange: robot.octaveRange,
   });
 
-  const newMelody = generateMelodyForRobot({
-    octaveMin: octMin,
-    octaveMax: octMax,
-    rhythmicDensity,
-    rhythmicMotifLength,
-    noteVariance,
-    pitchRepeat,
-    rand,
-  });
+  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.2): Rests and Accents stamp the finished
+  // melody from their own stream, so the notes above never move when either slider does.
+  const newMelody = applyPerformanceMarks(
+    generateMelodyForRobot({
+      octaveMin: octMin,
+      octaveMax: octMax,
+      rhythmicDensity,
+      rhythmicMotifLength,
+      noteVariance,
+      pitchRepeat,
+      rand,
+    }),
+    { rests, accents },
+    buildSeededPerformance(robot.compositionSeed),
+  );
 
   useLocaleStore.getState().updateRobot(localeId, robot.id, { melody: newMelody });
   AudioEngine.registerRobotMelody(robot.id, newMelody);
