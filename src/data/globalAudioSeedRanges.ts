@@ -50,6 +50,19 @@ export type GlobalAudioSeedFieldKey =
   | 'chebyshev.wet'
   | 'bitCrusher.bits'
   | 'bitCrusher.wet'
+  | 'autoWah.baseFrequency'
+  | 'autoWah.octaves'
+  | 'autoWah.sensitivity'
+  | 'autoWah.Q'
+  | 'autoWah.gain'
+  | 'autoWah.follower'
+  | 'autoWah.wet'
+  | 'phaser.rate'
+  | 'phaser.octaves'
+  | 'phaser.baseFrequency'
+  | 'phaser.stages'
+  | 'phaser.Q'
+  | 'phaser.wet'
   | 'limiter.threshold';
 
 // V2: Chorus (rate/depth/delayTime/feedback/wet) removed entirely — the
@@ -91,6 +104,24 @@ export const GLOBAL_AUDIO_SEED_RANGES: Record<GlobalAudioSeedFieldKey, SeedRange
   'chebyshev.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
   'bitCrusher.bits': { min: 1, max: 16, scale: 'linear', step: 1 },
   'bitCrusher.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+
+  // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 5). `phaser.rate` mirrors
+  // PHASER_RATE_RANGE_HZ (src/types/globalAudio.ts) and is linear because TempoSyncSlider takes a linear schema.
+  // `phaser.stages` is the node's real stage count and the gate's ceiling (spec §5): it is constructor-only in
+  // Tone, so a change rebuilds the node. None of these is LFO-able, so no LfoTarget reads them.
+  'autoWah.baseFrequency': { min: 50, max: 1000, scale: 'log' },
+  'autoWah.octaves': { min: 1, max: 8, scale: 'linear', step: 0.5 },
+  'autoWah.sensitivity': { min: -40, max: 0, scale: 'linear', step: 1 },
+  'autoWah.Q': { min: 0.5, max: 10, scale: 'log' },
+  'autoWah.gain': { min: 0, max: 20, scale: 'linear', step: 0.5 },
+  'autoWah.follower': { min: 0.01, max: 1, scale: 'log' },
+  'autoWah.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'phaser.rate': { min: 0.05, max: 10, scale: 'linear', step: 0.05 },
+  'phaser.octaves': { min: 0.5, max: 6, scale: 'linear', step: 0.5 },
+  'phaser.baseFrequency': { min: 50, max: 2000, scale: 'log' },
+  'phaser.stages': { min: 1, max: 12, scale: 'linear', step: 1 },
+  'phaser.Q': { min: 0.5, max: 20, scale: 'log' },
+  'phaser.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   'limiter.threshold': { min: -20, max: 0, scale: 'linear', step: 1 },
 };

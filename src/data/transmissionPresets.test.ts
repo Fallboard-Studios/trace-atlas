@@ -124,6 +124,18 @@ describe('TRANSMISSION_PRESETS', () => {
       expect(payload.globalAudio?.bitCrusher).toStrictEqual({ bits: 8, wet: 0 });
     });
 
+    // Global Modulation T1 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 10): presets stay clean, so both
+    // pedals are carried explicitly at Tone's defaults with wet 0 and no sync key (Free).
+    it('carries both modulation pedals dry at the defaults, the Phaser Free', () => {
+      expect(payload.globalAudio?.autoWah).toStrictEqual({
+        baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0,
+      });
+      expect(payload.globalAudio?.phaser).toStrictEqual({
+        rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0,
+      });
+      expect(payload.globalAudio?.phaser && 'sync' in payload.globalAudio.phaser).toBe(false);
+    });
+
     it('carries every LFO lane and every global LFO link, never a partial set', () => {
       expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
       expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());

@@ -13,7 +13,7 @@ The **Save & Share** tab — third and last of Settings' three tabs, after Audio
 Robot attributes are already fully derived from the active Attenuation Style and locale coordinates — [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) guarantees the same seed always regenerates the same world. So a `SessionPayload` (`src/types/session.ts`) does **not** store full robot/company state. It's a diff reapplied on top of a freshly regenerated roster:
 
 1. `attenuationStyleName` and `coordinates: { x, y }` — the active Attenuation Style and locale
-2. `globalAudio: GlobalAudioSettings` — Audio Rig FX (Compressor, EQ3, LPF, HPF, the three Colour effects Distortion, Chebyshev and BitCrusher, Delay, Reverb, Limiter)
+2. `globalAudio: GlobalAudioSettings` — Audio Rig FX (Compressor, EQ3, LPF, HPF, the three Colour effects Distortion, Chebyshev and BitCrusher, the two Modulation pedals AutoWah and Phaser, Delay, Reverb, Limiter)
 3. `robotOverrides: Record<robotId, RobotAudioOverrideDiff>` — only robots whose live values differ from what the seed alone would produce, and only the fields that differ: `adsr` (the whole envelope, so its optional `attackCurve` / `releaseCurve` ride along), `layers`, `filterFreq` (`AudioAttributes.filterFreq` — the bus filter cutoff, now editable in Source → Filter), `filterQ` and `filterType` (the bus filter's resonance and type), `portamento` (glide seconds), `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance`, `pitchRepeat`, `octaveRange`, `lfoSettings`, `name`, `pan` (only for a robot whose Auto is off — see "Robot Pan across a save and a share link" below), and `reverbSend` / `delaySend` (only when a send differs from its seeded value — see "Robot Sends across a save and a share link" below). An untouched robot has **no key** in this map, not a key mapping to `{}`.
 4. `companyDiffs: Record<companyId, CompanyDiff>` — spawn-generated companies only, same "no key if untouched" rule, covering just `name`/`robotIds` (membership)
 5. `userCreatedCompanies: Company[]` — companies made via `CompanyCrudControls` (`crypto.randomUUID()` ids) have no seed to regenerate from, so they persist as **complete objects**, never diffed
@@ -118,6 +118,15 @@ A `SessionPayload` also carries `bpm` and `lfoBank` (all four lanes, whole — n
 - **Present blocks are kept whole.** A block that is present is never deep-merged (a `bitCrusher` of `{ wet: 0.5 }` stays without `bits`, the same whole-block convention as every other global block); `null` counts as missing; the defaults are copies, never the shared constants.
 - **A fresh world's 0.25 ceiling does not apply to a restore.** No seeded Mix exceeds 0.25 on load (`COLOUR_LOAD_MIX_MAX`), but a saved or shared value restores exactly as it was hand-set, so a loud colour round-trips through save, reload and share link.
 - **Presets.** The three transmission presets carry the blocks at the defaults (dry).
+
+## Global Modulation across a save and a share link (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.8)
+
+`globalAudio` gains two more blocks, `autoWah` and `phaser`, which carry thirteen fields (seven and six; the Phaser's optional `phaser.sync` is a fourteenth key, present only while its Rate is synced). They travel **whole inside `globalAudio`**, so **nothing new is encoded**: the payload `version` stays 2, no share-link key is added, and `isValidCompactSessionPayload` stays shallow. The stored Mix (`wet`) is the slider position; the squaring happens at the node.
+
+- **A payload without the blocks loads them dry.** A session saved, or a link written, before the pedals existed has no `autoWah` or `phaser` key. `withGlobalAudioDefaults` fills each missing block from `DEFAULT_GLOBAL_AUDIO_SETTINGS` (Mix 0) at both call sites (`applySessionPayload`, `fromCompactSessionPayload`), so the recorded 50.2 baseline link decodes with both pedals off and `applyGlobalAudioToEngine` receives full blocks.
+- **An invalid `phaser.sync` is dropped.** `applySessionPayload` passes the Phaser through the same sanitiser as the Delay's `sync` (`sanitizePhaserSync`): a value that is not a note value is **deleted**, never written as `undefined`, so a corrupt save or link restores the Phaser as Free with its `rate` kept. A valid `phaser.sync` (for example `{ division: '1/2', modifier: 'straight' }`) round-trips through save and link unchanged.
+- **A fresh world's seed bands do not apply to a restore.** The pedals' own Mix bands (0.2–0.5 and 0.15–0.4) govern a fresh world only; a saved or shared value restores exactly as it was hand-set.
+- **Presets.** The three transmission presets carry both blocks at the defaults (dry).
 
 ## Boot Behavior
 

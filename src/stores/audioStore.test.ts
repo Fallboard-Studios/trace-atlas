@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
-import { resolveDelayTimeSeconds } from '../utils/tempoSync';
+import { resolveDelayTimeSeconds, resolvePhaserRateHz } from '../utils/tempoSync';
 
 // Ensure AudioEngine is mocked before importing the store so the module's
 // import of AudioEngine receives the mock. The store now calls the full
@@ -20,6 +20,8 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalDistortion: vi.fn(),
     setGlobalChebyshev: vi.fn(),
     setGlobalBitCrusher: vi.fn(),
+    setGlobalAutoWah: vi.fn(),
+    setGlobalPhaser: vi.fn(),
     setMasterVolume: vi.fn(),
   },
 }));
@@ -130,6 +132,13 @@ describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
     expect(AudioEngine.setGlobalDistortion).toHaveBeenCalledWith(globalAudio.distortion);
     expect(AudioEngine.setGlobalChebyshev).toHaveBeenCalledWith(globalAudio.chebyshev);
     expect(AudioEngine.setGlobalBitCrusher).toHaveBeenCalledWith(globalAudio.bitCrusher);
+    // Global Modulation T6: the AutoWah whole, and the Phaser resolved (`sync` stripped, `rate` in Hz at the tempo).
+    expect(AudioEngine.setGlobalAutoWah).toHaveBeenCalledWith(globalAudio.autoWah);
+    const { sync: _phaserSync, ...enginePhaser } = globalAudio.phaser;
+    expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledWith({
+      ...enginePhaser,
+      rate: resolvePhaserRateHz(globalAudio.phaser, bpm),
+    });
   });
 
   it('is deterministic — calling it twice with the same Attenuation Style produces the same globalAudio', async () => {
@@ -303,6 +312,96 @@ describe('useAudioStore - setGlobalAudio pushes to AudioEngine', () => {
       expect(order(AudioEngine.setGlobalDistortion)).toBeLessThan(order(AudioEngine.setGlobalChebyshev));
       expect(order(AudioEngine.setGlobalChebyshev)).toBeLessThan(order(AudioEngine.setGlobalBitCrusher));
     });
+  });
+});
+
+// Global Modulation T6 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.4).
+describe('useAudioStore - the modulation blocks', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('routes setGlobalAudio(autoWah, { wet }) to the AutoWah setter with exactly that partial, and updates state', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setGlobalAudio('autoWah', { wet: 0.5 });
+
+    expect(AudioEngine.setGlobalAutoWah).toHaveBeenCalledTimes(1);
+    expect(AudioEngine.setGlobalAutoWah).toHaveBeenCalledWith({ wet: 0.5 });
+    expect(useAudioStore.getState().globalAudio.autoWah.wet).toBe(0.5);
+    expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+  });
+
+  it('routes a Phaser edit that is not a Rate or Sync edit to the Phaser setter exactly as given: no rate is added', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setGlobalAudio('phaser', { Q: 4 });
+    useAudioStore.getState().setGlobalAudio('phaser', { stages: 6 });
+
+    expect(vi.mocked(AudioEngine.setGlobalPhaser).mock.calls).toStrictEqual([[{ Q: 4 }], [{ stages: 6 }]]);
+    expect(AudioEngine.setGlobalAutoWah).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().globalAudio.phaser.stages).toBe(6);
+  });
+
+  it('merges a partial into its block, so editing one AutoWah field keeps the others', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setGlobalAudio('autoWah', { baseFrequency: 220, octaves: 4 });
+    useAudioStore.getState().setGlobalAudio('autoWah', { octaves: 5 });
+    const wah = useAudioStore.getState().globalAudio.autoWah;
+    expect([wah.baseFrequency, wah.octaves]).toStrictEqual([220, 5]);
+    expect(Object.keys(wah).sort()).toStrictEqual(['Q', 'baseFrequency', 'follower', 'gain', 'octaves', 'sensitivity', 'wet']);
+  });
+
+  it('treats an undefined-valued pedal key as no edit: no state write and no engine push', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const before = useAudioStore.getState().globalAudio;
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setGlobalAudio('autoWah', { wet: undefined });
+    useAudioStore.getState().setGlobalAudio('phaser', { rate: undefined });
+
+    expect(AudioEngine.setGlobalAutoWah).not.toHaveBeenCalled();
+    expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().globalAudio.autoWah).toStrictEqual(before.autoWah);
+    expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual(before.phaser);
+  });
+
+  it('applyGlobalAudioToEngine pushes both pedal blocks whole (the Phaser with Hz and no sync), after the colour slot and before the limiter', async () => {
+    const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    // Values that differ from the defaults and from each other, so a swapped pair cannot pass by coincidence.
+    const globalAudio = {
+      ...useAudioStore.getState().globalAudio,
+      autoWah: { baseFrequency: 210, octaves: 4.5, sensitivity: -17, Q: 3.5, gain: 7, follower: 0.31, wet: 0.19 },
+      phaser: { rate: 2.2, octaves: 4, baseFrequency: 640, stages: 7, Q: 6, wet: 0.23 },
+    };
+    vi.clearAllMocks();
+
+    applyGlobalAudioToEngine(globalAudio, 120);
+
+    expect(AudioEngine.setGlobalAutoWah).toHaveBeenCalledWith(globalAudio.autoWah);
+    expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledWith({ rate: 2.2, octaves: 4, baseFrequency: 640, stages: 7, Q: 6, wet: 0.23 });
+
+    const order = (fn: unknown) => (fn as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    expect(order(AudioEngine.setGlobalBitCrusher)).toBeLessThan(order(AudioEngine.setGlobalAutoWah));
+    expect(order(AudioEngine.setGlobalAutoWah)).toBeLessThan(order(AudioEngine.setGlobalPhaser));
+    expect(order(AudioEngine.setGlobalPhaser)).toBeLessThan(order(AudioEngine.setGlobalLimiter));
+  });
+
+  it('applyGlobalAudioToEngine pushes each pedal exactly once, so a restore rebuilds the Phaser at most once', async () => {
+    const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    vi.clearAllMocks();
+
+    applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 120);
+
+    expect(AudioEngine.setGlobalAutoWah).toHaveBeenCalledTimes(1);
+    expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledTimes(1);
   });
 });
 

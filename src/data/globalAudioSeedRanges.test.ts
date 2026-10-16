@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { GLOBAL_AUDIO_SEED_RANGES } from './globalAudioSeedRanges';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PHASER_RATE_RANGE_HZ } from '@/types/globalAudio';
 
 // ========================================
 // TESTS
@@ -26,6 +26,8 @@ const EXPECTED_KEYS = [
   'distortion.amount', 'distortion.wet',
   'chebyshev.order', 'chebyshev.wet',
   'bitCrusher.bits', 'bitCrusher.wet',
+  'autoWah.baseFrequency', 'autoWah.octaves', 'autoWah.sensitivity', 'autoWah.Q', 'autoWah.gain', 'autoWah.follower', 'autoWah.wet',
+  'phaser.rate', 'phaser.octaves', 'phaser.baseFrequency', 'phaser.stages', 'phaser.Q', 'phaser.wet',
   'limiter.threshold',
 ] as const;
 
@@ -37,6 +39,9 @@ const EXPECTED_LOG_KEYS = new Set([
   'filterLPF.frequency', 'filterLPF.Q',
   'filterHPF.frequency', 'filterHPF.Q',
   'reverb.decay',
+  // Global Modulation T2: the wide frequency, Q and time-constant fields.
+  'autoWah.baseFrequency', 'autoWah.Q', 'autoWah.follower',
+  'phaser.baseFrequency', 'phaser.Q',
 ]);
 
 describe('GLOBAL_AUDIO_SEED_RANGES', () => {
@@ -118,6 +123,44 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(Number.isInteger(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits'].max)).toBe(true);
   });
 
+  // Global Modulation T2 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 5): the full / UI ranges of the pedals.
+  it('declares the AutoWah fields at their spec ranges', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.baseFrequency']).toStrictEqual({ min: 50, max: 1000, scale: 'log' });
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.octaves']).toStrictEqual({ min: 1, max: 8, scale: 'linear', step: 0.5 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.sensitivity']).toStrictEqual({ min: -40, max: 0, scale: 'linear', step: 1 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.Q']).toStrictEqual({ min: 0.5, max: 10, scale: 'log' });
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.gain']).toStrictEqual({ min: 0, max: 20, scale: 'linear', step: 0.5 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.follower']).toStrictEqual({ min: 0.01, max: 1, scale: 'log' });
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+  });
+
+  it('declares the Phaser fields at their spec ranges', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate']).toStrictEqual({ min: 0.05, max: 10, scale: 'linear', step: 0.05 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.octaves']).toStrictEqual({ min: 0.5, max: 6, scale: 'linear', step: 0.5 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.baseFrequency']).toStrictEqual({ min: 50, max: 2000, scale: 'log' });
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.stages']).toStrictEqual({ min: 1, max: 12, scale: 'linear', step: 1 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.Q']).toStrictEqual({ min: 0.5, max: 20, scale: 'log' });
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+  });
+
+  it('keeps the Phaser rate range equal to PHASER_RATE_RANGE_HZ, so the Free slider and the Sync clamp agree', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].min).toBe(PHASER_RATE_RANGE_HZ.min);
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].max).toBe(PHASER_RATE_RANGE_HZ.max);
+  });
+
+  it('keeps phaser.stages a whole-number field: Tone builds that many allpass stages', () => {
+    const { min, max, step } = GLOBAL_AUDIO_SEED_RANGES['phaser.stages'];
+    expect([Number.isInteger(min), Number.isInteger(max), step]).toStrictEqual([true, true, 1]);
+  });
+
+  it('caps the Phaser at 12 stages (the phone gate may lower the ceiling later)', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.stages'].max).toBe(12);
+  });
+
+  it('caps AutoWah sensitivity at 0 dB, the least sensitive end and the default', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['autoWah.sensitivity'].max).toBe(0);
+  });
+
   it('caps Chebyshev order at 8 although Tone allows 100 (higher orders are noise, not colour)', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.order'].max).toBe(8);
   });
@@ -159,6 +202,19 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
       'chebyshev.wet': defaults.chebyshev.wet,
       'bitCrusher.bits': defaults.bitCrusher.bits,
       'bitCrusher.wet': defaults.bitCrusher.wet,
+      'autoWah.baseFrequency': defaults.autoWah.baseFrequency,
+      'autoWah.octaves': defaults.autoWah.octaves,
+      'autoWah.sensitivity': defaults.autoWah.sensitivity,
+      'autoWah.Q': defaults.autoWah.Q,
+      'autoWah.gain': defaults.autoWah.gain,
+      'autoWah.follower': defaults.autoWah.follower,
+      'autoWah.wet': defaults.autoWah.wet,
+      'phaser.rate': defaults.phaser.rate,
+      'phaser.octaves': defaults.phaser.octaves,
+      'phaser.baseFrequency': defaults.phaser.baseFrequency,
+      'phaser.stages': defaults.phaser.stages,
+      'phaser.Q': defaults.phaser.Q,
+      'phaser.wet': defaults.phaser.wet,
       'limiter.threshold': defaults.limiter.threshold,
     };
     for (const key of EXPECTED_KEYS) {

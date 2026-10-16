@@ -142,6 +142,31 @@ vi.mock('tone', () => ({
     bits: { value: opts.bits ?? 4, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Modulation T4: the AutoWah in the modulation slot between the BitCrusher and the Compressor.
+  AutoWah: vi.fn((opts: { baseFrequency?: number; octaves?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    baseFrequency: opts.baseFrequency ?? 100,
+    octaves: opts.octaves ?? 2.6,
+    sensitivity: 0,
+    follower: 0.1,
+    Q: { value: 2, rampTo: vi.fn() },
+    gain: { value: 2, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  // Global Modulation T5: the Phaser after the AutoWah. `stages` is constructor-only, so a test reads it from the call.
+  Phaser: vi.fn((opts: { frequency?: number; octaves?: number; baseFrequency?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    dispose: vi.fn(),
+    octaves: opts.octaves ?? 3,
+    baseFrequency: opts.baseFrequency ?? 350,
+    frequency: { value: opts.frequency ?? 0.5, rampTo: vi.fn() },
+    Q: { value: 10, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2282,6 +2307,8 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     distortion: { amount: 0.3, wet: 0 },
     chebyshev: { order: 2, wet: 0 },
     bitCrusher: { bits: 8, wet: 0 },
+    autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+    phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
     delay: { delayTime: 0.4, feedback: 0.3, wet: 0.25 },
     reverb: { decay: 3, preDelay: 0.05, wet: 0.35 },
     limiter: { threshold: -2 },
@@ -2401,6 +2428,83 @@ describe('AudioEngine.start — the colour slot (Global Colour T3)', () => {
     expect(last(Tone.Distortion).distortion).toBe(0.7);
     expect(last(Tone.Chebyshev).order).toBe(5);
     expect(last(Tone.BitCrusher).bits.rampTo).toHaveBeenCalledWith(3, 0.05);
+  });
+});
+
+// Global Modulation T4/T5 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): start() builds the AutoWah and the
+// Phaser, and their setters are on the public AudioEngine surface like every other global setter.
+describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('constructs exactly one AutoWah', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.AutoWah).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.AutoWah).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes setGlobalAutoWah', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalAutoWah).toBe('function');
+  });
+
+  it('routes the public setter to the live node', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+    AudioEngine.setGlobalAutoWah({ baseFrequency: 321, wet: 1 });
+
+    expect(last(Tone.AutoWah).baseFrequency).toBe(321);
+    expect(last(Tone.AutoWah).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
+  });
+
+  // start() builds the chain (one Phaser, at the default ten stages) and then pushes the seeded settings. A seeded Phaser
+  // always has 4-12 stages (retuned from 4-8 at Global Modulation T16), so that push rebuilds the node once before anything is
+  // playing unless it seeds ten exactly: one or two constructions, the first at ten stages, the second at the seeded count. (buildGlobalFxChain alone builds
+  // exactly one; globalFx.test.ts pins that.)
+  it('builds the Phaser at ten stages, then at most once more at the seeded stage count', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Phaser).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const calls = vi.mocked(Tone.Phaser).mock.calls as unknown as Array<[{ stages: number }]>;
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    expect(calls.length).toBeLessThanOrEqual(2);
+    expect(calls[0][0].stages).toBe(10);
+    if (calls.length === 2) {
+      expect(calls[1][0].stages).toBeGreaterThanOrEqual(4);
+      expect(calls[1][0].stages).toBeLessThanOrEqual(12);
+    }
+  });
+
+  it('exposes setGlobalPhaser', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalPhaser).toBe('function');
+  });
+
+  it('routes the public Phaser setter to the live node, and a stages change builds a second one', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Phaser).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+    AudioEngine.setGlobalPhaser({ octaves: 4, rate: 2 });
+    expect(last(Tone.Phaser).octaves).toBe(4);
+    expect(last(Tone.Phaser).frequency.rampTo).toHaveBeenCalledWith(2, 0.05);
+
+    // A count the live node does not have (the seeded one is whatever start() pushed), so this must rebuild.
+    const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
+    const target = liveStages === 5 ? 6 : 5;
+    const before = vi.mocked(Tone.Phaser).mock.calls.length;
+    AudioEngine.setGlobalPhaser({ stages: target });
+    expect(Tone.Phaser).toHaveBeenCalledTimes(before + 1);
+    expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: target, octaves: 4, frequency: 2 });
   });
 });
 

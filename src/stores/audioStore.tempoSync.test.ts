@@ -25,6 +25,8 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalDistortion: vi.fn(),
     setGlobalChebyshev: vi.fn(),
     setGlobalBitCrusher: vi.fn(),
+    setGlobalAutoWah: vi.fn(),
+    setGlobalPhaser: vi.fn(),
     setMasterVolume: vi.fn(),
   },
 }));
@@ -1022,5 +1024,413 @@ describe('useAudioStore - BPM Attenuation Style sync (docs/specs/FREE_SYNC_TOGGL
     expect(bpmCall).toBeDefined();
     expect(globalAudioCall).toBeDefined();
     expect(bpmCall).toBeLessThan(globalAudioCall);
+  });
+});
+
+// Global Modulation T6 (docs/specs/GLOBAL_MODULATION_COLOUR.md sections 1.4, 1.5): the Phaser's Rate is the third
+// Free | Sync field. The engine only ever hears Hz and never learns about sync.
+describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
+  const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+  const QUARTER_DOTTED = { division: '1/4', modifier: 'dotted' } as const;
+  const EIGHTH_DOTTED = { division: '1/8', modifier: 'dotted' } as const;
+  const HALF = { division: '1/2', modifier: 'straight' } as const;
+  const FOUR_BARS = { division: '4', modifier: 'straight' } as const;
+  const THIRTY_SECOND_TRIPLET = { division: '1/32', modifier: 'triplet' } as const;
+  const FREE_PHASER = { rate: 0.9, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0.2 } as const;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** A fresh store with the given phaser and bpm installed, every mock cleared. */
+  async function setup(phaser: Record<string, unknown>, bpm = 60) {
+    const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    useAudioStore.setState({
+      bpm,
+      globalAudio: { ...useAudioStore.getState().globalAudio, phaser: phaser as never },
+    });
+    vi.clearAllMocks();
+    return { useAudioStore, applyGlobalAudioToEngine, AudioEngine, lfoEngine };
+  }
+
+  /** The single argument of the last AudioEngine.setGlobalPhaser call. */
+  function lastPhaserPush(AudioEngine: { setGlobalPhaser: unknown }): Record<string, unknown> {
+    return vi.mocked(AudioEngine.setGlobalPhaser as (p: unknown) => void).mock.calls.at(-1)![0] as Record<string, unknown>;
+  }
+
+  describe('setGlobalAudio(phaser, ...)', () => {
+    it('a sync partial pushes the resolved Hz - 1/4 is 1 Hz at 60 BPM - and no sync key', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: QUARTER });
+
+      expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledTimes(1);
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 1 });
+    });
+
+    it('resolves against the store current bpm - the same note is 2 Hz at 120 BPM', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 120);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: QUARTER });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 2 });
+    });
+
+    it('stores the note itself in state, not the Hz it resolves to, and keeps the Free rate underneath', async () => {
+      const { useAudioStore } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: QUARTER });
+
+      expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
+    });
+
+    it('a Free rate partial on a Free Phaser is forwarded as that number', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { rate: 3.35 });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 3.35 });
+    });
+
+    it('a Free rate edit on a synced Phaser re-sends the synced Hz, not the number just typed', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { rate: 7 });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 1 });
+      expect(useAudioStore.getState().globalAudio.phaser.rate).toBe(7);
+    });
+
+    it('a wet, Q, octaves, baseFrequency or stages edit is forwarded exactly, on a synced Phaser as well: the rate is not re-pushed', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { wet: 0.5 });
+      useAudioStore.getState().setGlobalAudio('phaser', { Q: 3 });
+      useAudioStore.getState().setGlobalAudio('phaser', { octaves: 5 });
+      useAudioStore.getState().setGlobalAudio('phaser', { baseFrequency: 800 });
+      useAudioStore.getState().setGlobalAudio('phaser', { stages: 4 });
+
+      expect(vi.mocked(AudioEngine.setGlobalPhaser).mock.calls).toStrictEqual([
+        [{ wet: 0.5 }],
+        [{ Q: 3 }],
+        [{ octaves: 5 }],
+        [{ baseFrequency: 800 }],
+        [{ stages: 4 }],
+      ]);
+    });
+
+    it('a partial carrying sync plus other keys pushes those keys alongside the resolved Hz, still with no sync', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: HALF, wet: 0.4 });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ wet: 0.4, rate: 0.5 });
+    });
+
+    it('clamps a note slower than the range up to 0.05 Hz - 4 bars at 40 BPM is 0.0417 Hz', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 40);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: FOUR_BARS });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.05 });
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(FOUR_BARS); // the clamp is never stored
+    });
+
+    it('clamps a note faster than the range down to 10 Hz - 1/32 triplet at 60 BPM is 12 Hz', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: THIRTY_SECOND_TRIPLET });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 10 });
+    });
+
+    it('an explicit sync: undefined is a no-op: the Phaser stays synced, no undefined lands in state, nothing is pushed', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: undefined });
+
+      expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+      expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
+    });
+
+    it('an invalid sync resolves as Free: the stored rate is pushed, not NaN from a bogus note', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: 'off' as never });
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.9 });
+    });
+
+    it('leaves every other effect setter untouched', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setGlobalAudio('phaser', { sync: QUARTER });
+
+      expect(AudioEngine.setGlobalAutoWah).not.toHaveBeenCalled();
+      expect(AudioEngine.setGlobalDelay).not.toHaveBeenCalled();
+      expect(AudioEngine.setGlobalBitCrusher).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('applyGlobalAudioToEngine(globalAudio, bpm)', () => {
+    it('pushes a Free Phaser as it is stored', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 60);
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual(FREE_PHASER);
+    });
+
+    it('pushes a synced Phaser with rate resolved at the given bpm, every other field kept, and no sync key', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 60);
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ ...FREE_PHASER, rate: 1 });
+    });
+
+    it('uses the bpm it is GIVEN, not whatever the store holds - a session restore passes its own tempo', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 120);
+
+      expect(lastPhaserPush(AudioEngine).rate).toBe(2);
+    });
+
+    it('does not mutate the object it is given - the stored Phaser keeps its sync and its Free rate', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+      const globalAudio = useAudioStore.getState().globalAudio;
+
+      applyGlobalAudioToEngine(globalAudio, 60);
+
+      expect(globalAudio.phaser.sync).toEqual(QUARTER);
+      expect(globalAudio.phaser.rate).toBe(0.9);
+    });
+  });
+
+  describe('regenerateGlobalAudioFromSeed', () => {
+    afterEach(() => {
+      vi.doUnmock('../utils/globalAudioSeed');
+    });
+
+    it('resolves a seeded synced Phaser at the store current bpm (T7 will seed one; the wiring must already be there)', async () => {
+      vi.doMock('../utils/globalAudioSeed', async (importOriginal) => {
+        const real = await importOriginal<typeof import('../utils/globalAudioSeed')>();
+        return {
+          ...real,
+          generateGlobalAudioSettings: (...args: Parameters<typeof real.generateGlobalAudioSettings>) => {
+            const generated = real.generateGlobalAudioSettings(...args);
+            return { ...generated, phaser: { ...generated.phaser, sync: QUARTER } };
+          },
+        };
+      });
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      useAudioStore.setState({ bpm: 120 });
+      vi.clearAllMocks();
+
+      useAudioStore.getState().regenerateGlobalAudioFromSeed('phaser-sync-regen', 'Phaser Sync Regen');
+
+      expect(lastPhaserPush(AudioEngine).rate).toBe(2);
+      expect('sync' in lastPhaserPush(AudioEngine)).toBe(false);
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(QUARTER); // state keeps the note
+    });
+  });
+
+  describe('setBPM re-applies a synced Phaser (spec section 1.4)', () => {
+    it('re-pushes only the resolved Hz at the new tempo - 1/4 is 1 Hz at 60 and 2 Hz at 120', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledTimes(1);
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 2 });
+    });
+
+    it('pushes the resolved Hz, not the Free rate stored underneath the sync', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 7, sync: EIGHTH_DOTTED }, 60);
+
+      useAudioStore.getState().setBPM(90);
+
+      // 1/8 dotted = 0.75 beats; at 90 BPM that is 0.5 s => 2 Hz
+      expect(lastPhaserPush(AudioEngine).rate as number).toBeCloseTo(2, 10);
+    });
+
+    it('never touches a Free Phaser', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+    });
+
+    it('clamps into the range as the tempo drops - 4 bars at 40 BPM is 0.0417 Hz, so the push is 0.05', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: FOUR_BARS }, 120);
+
+      useAudioStore.getState().setBPM(40);
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.05 });
+    });
+
+    it('moving the tempo back restores the note own Hz - the clamp is never written into state', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: FOUR_BARS }, 120);
+
+      useAudioStore.getState().setBPM(40);
+      useAudioStore.getState().setBPM(120);
+
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(FOUR_BARS);
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.125 }); // 16 beats at 120 BPM is 8 s
+    });
+
+    it('re-pushes the Phaser, a synced Delay and a synced lane together, each at its own note', async () => {
+      const { useAudioStore, AudioEngine, lfoEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+      const lfoBank = { ...useAudioStore.getState().lfoBank };
+      lfoBank.a = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0, sync: EIGHTH_DOTTED };
+      useAudioStore.setState({
+        lfoBank,
+        globalAudio: {
+          ...useAudioStore.getState().globalAudio,
+          delay: { delayTime: 0.9, feedback: 0.3, wet: 0.25, sync: QUARTER },
+        },
+      });
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 2 });
+      expect(AudioEngine.setGlobalDelay).toHaveBeenCalledWith({ delayTime: 0.5 });
+      expect(lfoEngine.setBankRate).toHaveBeenCalledWith('a', 1 / 0.375);
+    });
+
+    it('runs after the transport has the new tempo', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setBPM(120);
+
+      const bpmOrder = vi.mocked(AudioEngine.setBPM).mock.invocationCallOrder[0];
+      const phaserOrder = vi.mocked(AudioEngine.setGlobalPhaser).mock.invocationCallOrder[0];
+      expect(bpmOrder).toBeLessThan(phaserOrder);
+    });
+  });
+
+  describe('setPhaserSyncMode', () => {
+    it('Free -> Sync snaps to the nearest allowed note, keeps rate underneath, and pushes that note Hz', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      // 0.9 Hz: 1/4 (1 Hz) is 0.1 away, 1/4 dotted (0.667 Hz) is 0.233 away
+      expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
+      expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledTimes(1);
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 1 });
+    });
+
+    it('Sync -> Free keeps what the user hears: rate becomes the resolved Hz on the 0.05 grid and sync is DELETED', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 7, sync: QUARTER_DOTTED }, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(false);
+
+      // 1/4 dotted at 60 BPM is 0.6667 Hz => 0.65 on the grid
+      const phaser = useAudioStore.getState().globalAudio.phaser;
+      expect(phaser).toStrictEqual({ ...FREE_PHASER, rate: 0.65 });
+      expect('sync' in phaser).toBe(false);
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.65 });
+    });
+
+    it('Sync -> Free pushes the same number it stored (no audible jump)', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: EIGHTH_DOTTED }, 70);
+
+      useAudioStore.getState().setPhaserSyncMode(false);
+
+      expect(lastPhaserPush(AudioEngine).rate).toBe(useAudioStore.getState().globalAudio.phaser.rate);
+    });
+
+    it('Sync -> Free from a clamped note stores the clamped Hz - what was audible - not the raw 0.0417', async () => {
+      const { useAudioStore } = await setup({ ...FREE_PHASER, sync: FOUR_BARS }, 40);
+
+      useAudioStore.getState().setPhaserSyncMode(false);
+
+      expect(useAudioStore.getState().globalAudio.phaser.rate).toBe(0.05);
+    });
+
+    it('a Free -> Sync -> Free round trip leaves no sync key anywhere in the serialised phaser', async () => {
+      const { useAudioStore } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPhaserSyncMode(false);
+
+      expect(JSON.stringify(useAudioStore.getState().globalAudio.phaser)).not.toContain('sync');
+    });
+
+    it('keeps the stored state JSON-serialisable while synced (no functions, no undefined keys)', async () => {
+      const { useAudioStore } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      const phaser = useAudioStore.getState().globalAudio.phaser;
+      expect(JSON.parse(JSON.stringify(phaser))).toStrictEqual(phaser);
+    });
+
+    it('setting Sync on an already-synced Phaser keeps its note - a stale Free rate is not a request to re-snap', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 7, sync: EIGHTH_DOTTED }, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(EIGHTH_DOTTED);
+      expect(lastPhaserPush(AudioEngine).rate as number).toBeCloseTo(1 / 0.75, 10);
+    });
+
+    it('setting Free on an already-Free Phaser changes nothing and pushes its own rate', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(false);
+
+      expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual(FREE_PHASER);
+      expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.9 });
+    });
+
+    it('a Phaser at the 0.05 Hz minimum snaps to the slowest allowed note, not to NaN or a crash', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 0.05 }, 60);
+      const { allowedPhaserNoteValues } = await import('../utils/tempoSync');
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(allowedPhaserNoteValues(60)[0]);
+      expect(lastPhaserPush(AudioEngine).rate as number).toBeGreaterThan(0);
+    });
+
+    it('a Phaser at the 10 Hz ceiling snaps to the fastest allowed note and never pushes past 10', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 10 }, 60);
+      const { allowedPhaserNoteValues } = await import('../utils/tempoSync');
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(allowedPhaserNoteValues(60).at(-1));
+      expect(lastPhaserPush(AudioEngine).rate as number).toBeLessThanOrEqual(10);
+    });
+
+    it('leaves octaves, baseFrequency, stages, Q, wet and every other effect alone, and pushes nothing but rate', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
+      const before = useAudioStore.getState().globalAudio;
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      const after = useAudioStore.getState().globalAudio;
+      expect([after.phaser.octaves, after.phaser.baseFrequency, after.phaser.stages, after.phaser.Q, after.phaser.wet]).toStrictEqual([3, 350, 10, 10, 0.2]);
+      expect(after.autoWah).toBe(before.autoWah);
+      expect(after.delay).toBe(before.delay);
+      expect(Object.keys(lastPhaserPush(AudioEngine))).toEqual(['rate']);
+      expect(AudioEngine.setGlobalDelay).not.toHaveBeenCalled();
+    });
+
+    it('does not touch the LFO Bank engine', async () => {
+      const { useAudioStore, lfoEngine } = await setup(FREE_PHASER, 60);
+
+      useAudioStore.getState().setPhaserSyncMode(true);
+
+      expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    });
   });
 });

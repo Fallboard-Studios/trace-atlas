@@ -1070,3 +1070,83 @@ describe('colour defaults on decode (Global Colour T10)', () => {
     expect(decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!.globalAudio.bitCrusher.wet).toBe(0);
   });
 });
+
+// ----------------------------------------
+// GLOBAL MODULATION PEDALS ON THE WIRE (docs/specs/GLOBAL_MODULATION_COLOUR.md; docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 12)
+// ----------------------------------------
+// Nothing new is encoded: the AutoWah and Phaser travel inside `g` whole, the Phaser's `sync` with them (the
+// Delay's convention, above). The only change is on the way in: a link written before the pedals existed
+// decodes with both at the defaults (dry). The fixture is the same recorded 50.2 baseline link, which
+// predates the colour blocks and so the pedals too.
+
+const PEDAL_KEYS = ['autoWah', 'phaser'] as const;
+const LIT_PEDALS = {
+  autoWah: { baseFrequency: 220, octaves: 3, sensitivity: -20, Q: 5, gain: 9, follower: 0.4, wet: 0.5 },
+  phaser: { rate: 0.8, octaves: 4, baseFrequency: 420, stages: 7, Q: 6, wet: 0.3 },
+};
+
+describe('pedal defaults and Phaser sync on the wire (Global Modulation T12)', () => {
+  it('the recorded 50.2 baseline link really lacks both pedal keys (the fixture proves what it claims)', () => {
+    const wire = decodeRawWire(PRE_COLOUR_BASELINE_LINK) as { g: Record<string, unknown> };
+    for (const key of PEDAL_KEYS) expect(key in wire.g, key).toBe(false);
+  });
+
+  it('decodes the old baseline link with both pedals at the defaults, dry, with no sync, and its saved keys untouched', () => {
+    const decoded = decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!;
+    expect(decoded).not.toBeNull();
+    const wire = decodeRawWire(PRE_COLOUR_BASELINE_LINK) as { g: Record<string, unknown> };
+    for (const key of PEDAL_KEYS) expect(decoded.globalAudio[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    expect([decoded.globalAudio.autoWah.wet, decoded.globalAudio.phaser.wet]).toEqual([0, 0]);
+    expect('sync' in decoded.globalAudio.phaser).toBe(false);
+    for (const [key, value] of Object.entries(wire.g)) {
+      expect(decoded.globalAudio[key as keyof typeof decoded.globalAudio], key).toEqual(value);
+    }
+  });
+
+  it('a link written with a synced Phaser decodes with the same sync, whole, and the pedals ride in g with no codec of their own', () => {
+    const sync: NoteValue = { division: '1/4', modifier: 'dotted' };
+    const payload = makePayload({ version: 2, globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, autoWah: LIT_PEDALS.autoWah, phaser: { ...LIT_PEDALS.phaser, sync } } });
+    const encoded = encodeSessionPayload(payload);
+    expect(decodeSessionPayload(encoded)).toEqual(payload);
+    const wire = decodeRawWire(encoded) as { g: Record<string, unknown> };
+    expect(wire.g.phaser).toEqual({ ...LIT_PEDALS.phaser, sync });
+    expect(wire.g.autoWah).toEqual(LIT_PEDALS.autoWah);
+    expect(Object.keys(wire.g).sort()).toEqual(Object.keys(payload.globalAudio).sort());
+  });
+
+  it('a Free Phaser stays Free on the wire and after the round trip: no `sync` key appears', () => {
+    const payload = makePayload({ version: 2, globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, phaser: LIT_PEDALS.phaser } });
+    const encoded = encodeSessionPayload(payload);
+    expect('sync' in (decodeRawWire(encoded) as { g: { phaser: object } }).g.phaser).toBe(false);
+    expect('sync' in decodeSessionPayload(encoded)!.globalAudio.phaser).toBe(false);
+  });
+
+  it('a link with only the Phaser keeps it byte for byte and defaults the AutoWah (and the reverse)', () => {
+    const { autoWah: _w, ...withoutWah } = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+    const onlyPhaser = decodeSessionPayload(encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...withoutWah, phaser: LIT_PEDALS.phaser } }))!;
+    expect(onlyPhaser.globalAudio.phaser).toEqual(LIT_PEDALS.phaser);
+    expect(onlyPhaser.globalAudio.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+
+    const { phaser: _p, ...withoutPhaser } = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+    const onlyWah = decodeSessionPayload(encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...withoutPhaser, autoWah: LIT_PEDALS.autoWah } }))!;
+    expect(onlyWah.globalAudio.autoWah).toEqual(LIT_PEDALS.autoWah);
+    expect(onlyWah.globalAudio.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+  });
+
+  it('a null pedal block is a missing one and takes the default', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, phaser: null, autoWah: null } });
+    const decoded = decodeSessionPayload(link)!;
+    expect(decoded.globalAudio.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(decoded.globalAudio.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+  });
+
+  it('the decoded pedal defaults are copies: editing one decode never changes the shared defaults or the next decode', () => {
+    const first = decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!;
+    first.globalAudio.phaser.wet = 0.9;
+    first.globalAudio.autoWah.wet = 0.9;
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah.wet).toBe(0);
+    const second = decodeSessionPayload(PRE_COLOUR_BASELINE_LINK)!;
+    expect([second.globalAudio.phaser.wet, second.globalAudio.autoWah.wet]).toEqual([0, 0]);
+  });
+});

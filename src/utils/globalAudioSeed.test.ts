@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from 'vitest';
 
 // Spy on getSeededVal while keeping its real behavior (the worldTransition.test.ts
 // importOriginal pattern) — Task 6's acceptance criterion needs to see exactly which
@@ -12,7 +12,12 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 // this file that depends on getSeededVal's real seeded output.
 vi.mock('./getSeededVal', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./getSeededVal')>();
-  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal) };
+  return {
+    ...actual,
+    getSeededVal: vi.fn(actual.getSeededVal),
+    // Global Modulation T7: the pedals' four roll draws are uniform world-level choices, so they go through this.
+    getUniformSeededVal: vi.fn(actual.getUniformSeededVal),
+  };
 });
 
 // Same wrapper for pickSeedNoteValue: real behavior by default, so the Sync tests exercise the true
@@ -34,13 +39,15 @@ import {
   COLOUR_CHARACTERS,
   COLOUR_CHARACTER_NODES,
   COLOUR_CHARACTER_BANDS,
+  PEDAL_LIT_EDGE,
+  PHASER_SYNC_ODDS,
   LFO_BANK_RATE_BANDS,
   LFO_BANK_DRIFT_SEED_RANGE,
   LFO_BANK_SYNC_BAND_ORDER,
 } from './globalAudioSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
-import { getSeededVal } from './getSeededVal';
-import { pickSeedNoteValue } from './tempoSync';
+import { getSeededVal, getUniformSeededVal } from './getSeededVal';
+import { allowedPhaserNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
@@ -154,13 +161,28 @@ describe('generateGlobalAudioSettings', () => {
       'distortion.amount': settings.distortion.amount,
       'chebyshev.order': settings.chebyshev.order,
       'bitCrusher.bits': settings.bitCrusher.bits,
+      // Global Modulation T7: the eleven pedal shape values are always drawn from their lit band, lit or not.
+      'autoWah.baseFrequency': settings.autoWah.baseFrequency,
+      'autoWah.octaves': settings.autoWah.octaves,
+      'autoWah.sensitivity': settings.autoWah.sensitivity,
+      'autoWah.Q': settings.autoWah.Q,
+      'autoWah.gain': settings.autoWah.gain,
+      'autoWah.follower': settings.autoWah.follower,
+      'phaser.rate': settings.phaser.rate,
+      'phaser.octaves': settings.phaser.octaves,
+      'phaser.baseFrequency': settings.phaser.baseFrequency,
+      'phaser.stages': settings.phaser.stages,
+      'phaser.Q': settings.phaser.Q,
     };
     const sampledKeys = Object.keys(valueByKey) as GlobalAudioSeedFieldKey[];
     // Sanity: every loading row except the five wet rows is checked, so a newly added row cannot slip past.
     // The three colour wets are absent on purpose too: an unlit node seeds wet 0, which is outside its lit band
     // (they are pinned by the colour tests below).
     const COLOUR_WET_ROWS = 3;
-    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_WET_ROWS);
+    // Global Modulation: the two pedal Mix rows are absent for the same reason - a dark pedal seeds wet 0 (they are
+    // pinned by the pedal tests below). The eleven pedal shape rows are in valueByKey above.
+    const PEDAL_WET_ROWS = 2;
+    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_WET_ROWS - PEDAL_WET_ROWS);
     for (const key of sampledKeys) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);
@@ -473,7 +495,7 @@ describe('the colour character (Global Colour)', () => {
       }
     });
 
-    it('reads exactly the seven new seed keys on every style, whatever its character, and renames no existing key', () => {
+    it('reads exactly the new colour and pedal seed keys on every style, whatever its character, and renames no existing key', () => {
       const EXISTING = [
         'compressor.threshold', 'compressor.ratio', 'compressor.attack', 'compressor.release', 'compressor.knee',
         'eq3.low', 'eq3.mid', 'eq3.high',
@@ -487,6 +509,8 @@ describe('the colour character (Global Colour)', () => {
         'distortion.amount', 'distortion.wet',
         'chebyshev.order', 'chebyshev.wet',
         'bitCrusher.bits', 'bitCrusher.wet',
+        // The pedals' seventeen draws (four rolls and thirteen values) are uniform draws: they go through
+        // getUniformSeededVal, not this spy, and are pinned by the pedal tests below.
       ];
       const expected = [...EXISTING, ...NEW].map((k) => `globalAudio.${k}`).sort();
       for (let i = 0; i < 40; i++) {
@@ -499,6 +523,357 @@ describe('the colour character (Global Colour)', () => {
           .filter((key) => key.startsWith('globalAudio.') && key !== 'globalAudio.bpm')
           .sort();
         expect(keys, `style ${i}`).toStrictEqual(expected);
+      }
+    });
+  });
+});
+
+// Global Modulation T7 (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.2): two independent lit rolls at one third each, a
+// sync pair for the Phaser, and thirteen value draws read on every style.
+describe('the modulation pedals (Global Modulation)', () => {
+  type Seeded = ReturnType<typeof generateGlobalAudioSettings>;
+  const PEDAL_SAMPLES = 3000;
+  const sampleId = (i: number) => `PedalShare${i}`;
+  let samples: Array<{ i: number; s: Seeded }> = [];
+  const wahLit = (s: Seeded) => s.autoWah.wet > 0;
+  const phaserLit = (s: Seeded) => s.phaser.wet > 0;
+  const colourLit = (s: Seeded) => s.distortion.wet > 0 || s.chebyshev.wet > 0 || s.bitCrusher.wet > 0;
+  const share = (pick: (s: Seeded) => boolean) => samples.filter(({ s }) => pick(s)).length / samples.length;
+  const onGrid = (value: number, key: GlobalAudioSeedFieldKey): boolean => {
+    const { min, step } = GLOBAL_AUDIO_SEED_RANGES[key];
+    const n = (value - min) / (step as number);
+    return Math.abs(n - Math.round(n)) < 1e-9;
+  };
+
+  beforeAll(() => {
+    // Held out from the sets the shares were measured on ('PedalCalibration<n>', 20 000 styles). Generated once and
+    // shared by the tests below: three thousand noise maps per test would be minutes.
+    samples = [];
+    for (let i = 0; i < PEDAL_SAMPLES; i++) {
+      samples.push({ i, s: generateGlobalAudioSettings(sampleId(i), sampleId(i)) });
+      evictAttenuationStyleNoiseMap(sampleId(i));
+    }
+  }, 120000);
+
+  describe('PEDAL_LIT_EDGE and PHASER_SYNC_ODDS', () => {
+    // Measured, not fitted: the lit rolls and the sync roll are uniform draws (getUniformSeededVal), so the nominal edge
+    // is the realised share. Over 20 000 styles ('PedalCalibration<n>'): AutoWah lit 33.07 %, Phaser lit 33.30 %, both lit
+    // 11.22 % (product 11.01 %), a lit Phaser Sync 50.20 %, and each pedal lit alongside a lit Colour 24.95 % / 25.09 %
+    // against products of 24.95 % / 25.12 % - independent of each other and of Colour's character draw. The plain
+    // getSeededVal draw was tried first and rejected: it takes 24 distinct values for autoWah.lit across 20 000 styles
+    // and put a lit wah in 55.9 % of clean-Colour worlds against 26.8 % of coloured ones.
+    it('puts both lit edges at one third and the sync odds at one half', () => {
+      expect(PEDAL_LIT_EDGE).toStrictEqual({ autoWah: 1 / 3, phaser: 1 / 3 });
+      expect(PHASER_SYNC_ODDS).toBe(0.5);
+    });
+  });
+
+  describe('lit shares and independence (3 000 held-out styles)', () => {
+    it('lights the AutoWah in 33 % of worlds, within 3 points', () => {
+      expect(Math.abs(share(({ autoWah }) => autoWah.wet > 0) - 0.33) * 100).toBeLessThanOrEqual(3);
+    });
+
+    it('lights the Phaser in 33 % of worlds, within 3 points', () => {
+      expect(Math.abs(share(({ phaser }) => phaser.wet > 0) - 0.33) * 100).toBeLessThanOrEqual(3);
+    });
+
+    it('lights both in the product of the two shares, within 3 points: the rolls are independent', () => {
+      const both = share((s) => wahLit(s) && phaserLit(s));
+      const product = share(wahLit) * share(phaserLit);
+      expect(Math.abs(both - product) * 100, `both ${both}, product ${product}`).toBeLessThanOrEqual(3);
+    });
+
+    it('lights neither in the product of the two dark shares, within 3 points', () => {
+      const neither = share((s) => !wahLit(s) && !phaserLit(s));
+      const product = (1 - share(wahLit)) * (1 - share(phaserLit));
+      expect(Math.abs(neither - product) * 100, `neither ${neither}, product ${product}`).toBeLessThanOrEqual(3);
+    });
+
+    it('is independent of the Colour character: each pedal lit alongside a lit Colour in the product of the shares, within 3 points', () => {
+      for (const [name, lit] of [['autoWah', wahLit], ['phaser', phaserLit]] as const) {
+        const joint = share((s) => lit(s) && colourLit(s));
+        const product = share(lit) * share(colourLit);
+        expect(Math.abs(joint - product) * 100, `${name}: joint ${joint}, product ${product}`).toBeLessThanOrEqual(3);
+      }
+    });
+
+    it('draws all four combinations of lit and dark, so none of the checks above is vacuous', () => {
+      expect(samples.some(({ s }) => wahLit(s) && phaserLit(s))).toBe(true);
+      expect(samples.some(({ s }) => wahLit(s) && !phaserLit(s))).toBe(true);
+      expect(samples.some(({ s }) => !wahLit(s) && phaserLit(s))).toBe(true);
+      expect(samples.some(({ s }) => !wahLit(s) && !phaserLit(s))).toBe(true);
+    });
+  });
+
+  describe('a dark pedal', () => {
+    it('seeds Mix exactly 0 and every other field inside its loading band', () => {
+      let darkWah = 0;
+      let darkPhaser = 0;
+      for (const { i, s } of samples) {
+        if (!wahLit(s)) {
+          darkWah++;
+          expect(s.autoWah.wet, `wah ${i}`).toBe(0);
+        }
+        if (!phaserLit(s)) {
+          darkPhaser++;
+          expect(s.phaser.wet, `phaser ${i}`).toBe(0);
+        }
+      }
+      expect(darkWah).toBeGreaterThan(1000);
+      expect(darkPhaser).toBeGreaterThan(1000);
+    });
+
+    it('never carries a sync key on a dark Phaser', () => {
+      for (const { i, s } of samples) {
+        if (!phaserLit(s)) expect('sync' in s.phaser, `style ${i}`).toBe(false);
+      }
+    });
+  });
+
+  describe('every pedal field, lit or dark', () => {
+    it('stays inside its loading band on every style', () => {
+      const fields: Array<[GlobalAudioSeedFieldKey, (s: Seeded) => number]> = [
+        ['autoWah.baseFrequency', (s) => s.autoWah.baseFrequency],
+        ['autoWah.octaves', (s) => s.autoWah.octaves],
+        ['autoWah.sensitivity', (s) => s.autoWah.sensitivity],
+        ['autoWah.Q', (s) => s.autoWah.Q],
+        ['autoWah.gain', (s) => s.autoWah.gain],
+        ['autoWah.follower', (s) => s.autoWah.follower],
+        ['phaser.rate', (s) => s.phaser.rate],
+        ['phaser.octaves', (s) => s.phaser.octaves],
+        ['phaser.baseFrequency', (s) => s.phaser.baseFrequency],
+        ['phaser.stages', (s) => s.phaser.stages],
+        ['phaser.Q', (s) => s.phaser.Q],
+      ];
+      for (const { i, s } of samples) {
+        for (const [key, read] of fields) {
+          const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+          expect(read(s), `${key} style ${i}`).toBeGreaterThanOrEqual(min);
+          expect(read(s), `${key} style ${i}`).toBeLessThanOrEqual(max);
+        }
+      }
+    });
+
+    it('lands every stepped field on its own slider grid', () => {
+      const stepped: Array<[GlobalAudioSeedFieldKey, (s: Seeded) => number]> = [
+        ['autoWah.octaves', (s) => s.autoWah.octaves],
+        ['autoWah.sensitivity', (s) => s.autoWah.sensitivity],
+        ['autoWah.gain', (s) => s.autoWah.gain],
+        ['autoWah.wet', (s) => s.autoWah.wet],
+        ['phaser.rate', (s) => s.phaser.rate],
+        ['phaser.octaves', (s) => s.phaser.octaves],
+        ['phaser.stages', (s) => s.phaser.stages],
+        ['phaser.wet', (s) => s.phaser.wet],
+      ];
+      for (const { i, s } of samples) {
+        for (const [key, read] of stepped) expect(onGrid(read(s), key), `${key} = ${read(s)} (style ${i})`).toBe(true);
+      }
+    });
+
+    it('seeds Stages as a whole number on every style', () => {
+      for (const { i, s } of samples) expect(Number.isInteger(s.phaser.stages), `style ${i}`).toBe(true);
+    });
+
+    // A single plain draw takes only a few dozen to a few hundred values across all worlds (three, for autoWah.gain and
+    // autoWah.wet), which would make every lit wah sound alike. These fields are uniform draws; this holds them to it.
+    it('fills every band: each field takes many distinct values and reaches near both ends, so none is stuck at a few points', () => {
+      const lit = (pick: (s: Seeded) => boolean) => samples.filter(({ s }) => pick(s));
+      const rows: Array<[GlobalAudioSeedFieldKey, number[]]> = [
+        ['autoWah.baseFrequency', samples.map(({ s }) => s.autoWah.baseFrequency)],
+        ['autoWah.octaves', samples.map(({ s }) => s.autoWah.octaves)],
+        ['autoWah.sensitivity', samples.map(({ s }) => s.autoWah.sensitivity)],
+        ['autoWah.Q', samples.map(({ s }) => s.autoWah.Q)],
+        ['autoWah.gain', samples.map(({ s }) => s.autoWah.gain)],
+        ['autoWah.follower', samples.map(({ s }) => s.autoWah.follower)],
+        ['autoWah.wet', lit(wahLit).map(({ s }) => s.autoWah.wet)],
+        ['phaser.rate', samples.map(({ s }) => s.phaser.rate)],
+        ['phaser.octaves', samples.map(({ s }) => s.phaser.octaves)],
+        ['phaser.baseFrequency', samples.map(({ s }) => s.phaser.baseFrequency)],
+        ['phaser.stages', samples.map(({ s }) => s.phaser.stages)],
+        ['phaser.Q', samples.map(({ s }) => s.phaser.Q)],
+        ['phaser.wet', lit(phaserLit).map(({ s }) => s.phaser.wet)],
+      ];
+      for (const [key, values] of rows) {
+        const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+        const { step } = GLOBAL_AUDIO_SEED_RANGES[key];
+        const gridPoints = step === undefined ? Number.POSITIVE_INFINITY : Math.round((max - min) / step) + 1;
+        const distinct = new Set(values).size;
+        expect(distinct, `${key}: ${distinct} distinct values`).toBeGreaterThanOrEqual(Math.min(gridPoints, 200) * 0.8);
+        const width = max - min;
+        expect(Math.min(...values) - min, `${key} bottom`).toBeLessThanOrEqual(width * 0.15);
+        expect(max - Math.max(...values), `${key} top`).toBeLessThanOrEqual(width * 0.15);
+      }
+    });
+  });
+
+  describe('a lit pedal', () => {
+    it('seeds a Mix inside its own loading band (to within float noise at the top edge)', () => {
+      let litWah = 0;
+      let litPhaser = 0;
+      for (const { i, s } of samples) {
+        if (wahLit(s)) {
+          litWah++;
+          const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet'];
+          expect(s.autoWah.wet, `wah ${i}`).toBeGreaterThanOrEqual(min);
+          expect(s.autoWah.wet, `wah ${i}`).toBeLessThanOrEqual(max + 1e-9);
+        }
+        if (phaserLit(s)) {
+          litPhaser++;
+          const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['phaser.wet'];
+          expect(s.phaser.wet, `phaser ${i}`).toBeGreaterThanOrEqual(min);
+          expect(s.phaser.wet, `phaser ${i}`).toBeLessThanOrEqual(max + 1e-9);
+        }
+      }
+      expect(litWah).toBeGreaterThan(500);
+      expect(litPhaser).toBeGreaterThan(500);
+    });
+
+    it('reaches both the bottom and the top of the Mix band, so the band is not accidentally collapsed', () => {
+      const wets = samples.filter(({ s }) => wahLit(s)).map(({ s }) => s.autoWah.wet);
+      expect(Math.min(...wets)).toBeLessThan(0.24);
+      expect(Math.max(...wets)).toBeGreaterThan(0.46);
+    });
+  });
+
+  describe('the Phaser Sync roll', () => {
+    it('syncs about PHASER_SYNC_ODDS of lit Phasers, within 5 points', () => {
+      const lit = samples.filter(({ s }) => phaserLit(s));
+      const synced = lit.filter(({ s }) => 'sync' in s.phaser).length;
+      expect(lit.length).toBeGreaterThan(500);
+      expect(Math.abs(synced / lit.length - PHASER_SYNC_ODDS) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
+    });
+
+    it('seeds only real notes that sit inside the lit rate band at the style tempo, drawn from the allowed list', () => {
+      let synced = 0;
+      for (const { i, s } of samples) {
+        const { sync } = s.phaser;
+        if (sync === undefined) continue;
+        synced++;
+        const bpm = generateAttenuationStyleBpm(sampleId(i), sampleId(i));
+        evictAttenuationStyleNoiseMap(sampleId(i));
+        expect(isNoteValue(sync), `style ${i}`).toBe(true);
+        const hz = noteValueHz(sync, bpm);
+        const band = GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'];
+        expect(hz, `style ${i} at ${bpm} BPM`).toBeGreaterThanOrEqual(band.min);
+        expect(hz, `style ${i} at ${bpm} BPM`).toBeLessThanOrEqual(band.max);
+        expect(allowedPhaserNoteValues(bpm).some((v) => v.division === sync.division && v.modifier === sync.modifier), `style ${i}`).toBe(true);
+      }
+      expect(synced).toBeGreaterThan(200);
+    });
+
+    it('keeps the Free rate underneath a synced Phaser, inside the same band', () => {
+      for (const { i, s } of samples) {
+        if (s.phaser.sync === undefined) continue;
+        const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'];
+        expect(s.phaser.rate, `style ${i}`).toBeGreaterThanOrEqual(min);
+        expect(s.phaser.rate, `style ${i}`).toBeLessThanOrEqual(max);
+      }
+    });
+
+    it('carries no sync key on a lit Phaser that rolled Free (never sync: undefined)', () => {
+      const freeLit = samples.filter(({ s }) => phaserLit(s) && !('sync' in s.phaser));
+      expect(freeLit.length).toBeGreaterThan(200);
+      for (const { s } of freeLit) expect(Object.keys(s.phaser)).not.toContain('sync');
+    });
+  });
+
+  describe('determinism and draw sets', () => {
+    afterEach(() => {
+      vi.mocked(getSeededVal).mockClear();
+      vi.mocked(getUniformSeededVal).mockClear();
+      vi.mocked(pickSeedNoteValue).mockImplementation(actualTempoSync.pickSeedNoteValue);
+      vi.mocked(pickSeedNoteValue).mockClear();
+      for (const id of ['pedal-det-0', 'pedal-det-1', 'pedal-det-2', 'pedal-keys', 'oracle-alpha', 'oracle-theta']) evictAttenuationStyleNoiseMap(id);
+    });
+
+    it('gives the same pedal blocks for the same style, including across a fresh noise map', () => {
+      for (let i = 0; i < 20; i++) {
+        const id = `pedal-det-${i}`;
+        const first = generateGlobalAudioSettings(id, `PedalDet${i}`);
+        evictAttenuationStyleNoiseMap(id);
+        const second = generateGlobalAudioSettings(id, `PedalDet${i}`);
+        expect(second.autoWah, `wah ${i}`).toStrictEqual(first.autoWah);
+        expect(second.phaser, `phaser ${i}`).toStrictEqual(first.phaser);
+        evictAttenuationStyleNoiseMap(id);
+      }
+    });
+
+    it('reads its seventeen keys, each once, as uniform draws on every style, lit or dark: four rolls and thirteen values', () => {
+      const expected = [
+        'autoWah.lit', 'phaser.lit', 'phaser.syncMode', 'phaser.syncNote',
+        'autoWah.baseFrequency', 'autoWah.octaves', 'autoWah.sensitivity', 'autoWah.Q', 'autoWah.gain', 'autoWah.follower', 'autoWah.wet',
+        'phaser.rate', 'phaser.octaves', 'phaser.baseFrequency', 'phaser.stages', 'phaser.Q', 'phaser.wet',
+      ].map((k) => `globalAudio.${k}`).sort();
+      // oracle-alpha: AutoWah dark, Phaser lit and synced. oracle-theta: AutoWah lit, Phaser dark. A third style
+      // for good measure. The draw set must be the same whatever the outcome.
+      for (const id of ['oracle-alpha', 'oracle-theta', 'pedal-keys']) {
+        vi.mocked(getUniformSeededVal).mockClear();
+        generateGlobalAudioSettings(id, id);
+        const keys = vi.mocked(getUniformSeededVal).mock.calls.map((call) => call[1]).filter((k) => k.startsWith('globalAudio.')).sort();
+        expect(keys, id).toStrictEqual(expected);
+      }
+    });
+
+    it('draws the style tempo once when the Delay or the Phaser syncs (or both), and not at all when neither does', () => {
+      let neither = 0;
+      let one = 0;
+      let bothSynced = 0;
+      for (let i = 0; i < 300; i++) {
+        const id = `pedal-bpm-${i}`;
+        vi.mocked(getSeededVal).mockClear();
+        const s = generateGlobalAudioSettings(id, id);
+        evictAttenuationStyleNoiseMap(id);
+        const tempoDraws = vi.mocked(getSeededVal).mock.calls.filter((call) => call[1] === 'globalAudio.bpm').length;
+        const synced = Number(s.delay.sync !== undefined) + Number(s.phaser.sync !== undefined);
+        expect(tempoDraws, `style ${i}`).toBe(synced === 0 ? 0 : 1);
+        if (synced === 0) neither++;
+        else if (synced === 1) one++;
+        else bothSynced++;
+      }
+      // All three cases occur, or the check above proves nothing about the shared draw.
+      expect(neither).toBeGreaterThan(0);
+      expect(one).toBeGreaterThan(0);
+      expect(bothSynced).toBeGreaterThan(0);
+    });
+
+    it('never reads a pedal key with the plain single draw, so no pedal value is bell-curved or coarse', () => {
+      vi.mocked(getSeededVal).mockClear();
+      generateGlobalAudioSettings('pedal-keys', 'pedal-keys');
+      const plain = vi.mocked(getSeededVal).mock.calls.map((call) => call[1]);
+      expect(plain.filter((k) => k.startsWith('globalAudio.autoWah.') || k.startsWith('globalAudio.phaser.'))).toStrictEqual([]);
+    });
+
+    it('asks for a Phaser note at the style tempo, over the lit rate band in Hz, only for a lit Phaser that rolled Sync', () => {
+      // oracle-alpha: Phaser lit and synced. oracle-theta: Phaser dark.
+      vi.mocked(pickSeedNoteValue).mockClear();
+      generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha');
+      const hzCalls = vi.mocked(pickSeedNoteValue).mock.calls.filter((call) => call[3] === 'hz');
+      expect(hzCalls).toHaveLength(1);
+      expect(hzCalls[0][1]).toBe(generateAttenuationStyleBpm('oracle-alpha', 'oracle-alpha'));
+      expect(hzCalls[0][2]).toStrictEqual([GLOBAL_AUDIO_LOADING_RANGES['phaser.rate']]);
+
+      vi.mocked(pickSeedNoteValue).mockClear();
+      generateGlobalAudioSettings('oracle-theta', 'oracle-theta');
+      expect(vi.mocked(pickSeedNoteValue).mock.calls.filter((call) => call[3] === 'hz')).toHaveLength(0);
+    });
+
+    it('leaves the lit Phaser Free, with its seeded rate unchanged, when no note sits in the band', () => {
+      const real = generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha').phaser;
+      expect(real.sync, 'precondition: this style seeds a synced Phaser').toBeDefined();
+      evictAttenuationStyleNoiseMap('oracle-alpha');
+
+      vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
+      const forcedFree = generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha').phaser;
+      const { sync: _sync, ...rest } = real;
+      expect('sync' in forcedFree).toBe(false);
+      expect(forcedFree).toStrictEqual(rest);
+    });
+  });
+
+  describe('the Phaser band covers the seed BPM range', () => {
+    it('holds at least one note in 0.1 to 1 Hz at every integer BPM the seeder can draw, so the Free fallback is never reached today', () => {
+      for (let bpm = BPM_SEED_RANGE.min; bpm <= BPM_SEED_RANGE.max; bpm++) {
+        expect(allowedNoteValues(bpm, GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'], 'hz').length, `${bpm} BPM`).toBeGreaterThan(0);
       }
     });
   });
@@ -1124,6 +1499,33 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // -> 0.13, and chebyshev.wet is now 0 (was 0.10). theta t = 0.6879 lies in [0.5, 0.6935) -> fold (it was crush), so only
 // Chebyshev is lit: chebyshev.wet 0.05 + 0.10 * 0.2596 = 0.0760 -> 0.08, and bitCrusher.wet is now 0 (was 0.10). Every
 // shape value is unchanged: a node outside the lit set still draws its shape.
+//
+// AMENDED BY HAND, Global Modulation T1 then T7 (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.2): `autoWah` and `phaser`
+// were ADDED to each global-settings oracle (keys only; no existing value touched). T1 put the dry defaults in as a
+// placeholder; T7 replaced them with values derived by hand from the RAW uniform draws, with arithmetic of the derivation's
+// own (no call into the seeder): each of the seventeen keys read with getUniformSeededVal, the thirteen value keys
+// mapped through their loading band (log fields min * (max / min)^t, linear fields min + (max - min) * t) and
+// quantised onto the full range's grid (min + n * step). Raw draws, alpha: autoWah.lit 0.8995 (not under 1/3: dark),
+// phaser.lit 0.0182 (lit), phaser.syncMode 0.3793 (under 0.5: synced), phaser.syncNote 0.2138 picks index
+// floor(0.2138 * 8) = 1 of the 8 notes in 0.1 to 1 Hz at the style's 74 BPM = 1/4 dotted; phaser.wet t 0.3222 ->
+// 0.10 + 0.15 * 0.3222 = 0.1483 -> 0.15; autoWah.wet t 0.8553 -> 0.2283 -> 0.23 but forced to 0 (dark). Theta:
+// autoWah.lit 0.2357 (lit), phaser.lit 0.6222 (dark); autoWah.wet t 0.9720 -> 0.2458 -> 0.25 (the ceiling), and
+// phaser.wet t 0.9875 -> 0.2481 -> 0.25 but forced to 0, with no sync key. Every other value in both oracles is
+// untouched. Never re-recorded.
+//
+// AMENDED BY HAND AGAIN, Global Modulation T16 (Crawford, 2026-10-15: his recommended ranges, GLOBAL_CHAIN_GRID.md): the
+// pedal loading bands moved, so only the two pedal blocks in each oracle moved, and no other key. Every raw draw is the
+// one above; each value is the old one re-read through the new band. Alpha: baseFrequency t 0.6557 -> 50 * 5^t = 143.59;
+// Q t 0.2546 -> 2 * 3^t = 2.647; octaves 4.5, sensitivity -19, gain 6 on the new grids; phaser octaves 3.5, stages 10,
+// Q t 0.5172 -> 10^t = 3.291, wet t 0.3222 -> 0.25 + 0.35 * 0.3222 = 0.3628 -> 0.36; the synced note index is the same
+// but the 0.1 to 2.5 Hz band at 74 BPM holds more notes, and the pick is now 1/8 dotted (1.64 Hz). Theta: baseFrequency
+// t 0.5553 -> 122.21; Q t 0.7885 -> 4.752; wet t 0.9720 -> 0.3 + 0.4 * 0.9720 = 0.6888 -> 0.69; phaser stages 8, Q t 0.3762
+// -> 2.378, still dark (wet 0, no sync). The new values were read from the seeder once and then checked against these
+// derivations; the log-scale ones agree to three significant figures, the stepped ones to their grid.
+//
+// AMENDED BY HAND ONCE MORE, Global Modulation T16 (Crawford, 2026-10-15: "bring those down a bit"): the pedal Mix bands went from
+// 0.3-0.7 and 0.25-0.6 to 0.2-0.5 and 0.15-0.4, so exactly two values moved, each from the raw draw above: alpha phaser.wet t 0.3222
+// -> 0.15 + 0.25 * 0.3222 = 0.2306 -> 0.23 (was 0.36); theta autoWah.wet t 0.9720 -> 0.2 + 0.3 * 0.9720 = 0.4916 -> 0.49 (was 0.69).
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1147,6 +1549,17 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.13 },
+      // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
+      autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -19, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
+      phaser: {
+        rate: 2.05,
+        octaves: 3.5,
+        baseFrequency: 692.0599193838607,
+        stages: 10,
+        Q: 3.291005415199408,
+        wet: 0.23,
+        sync: { division: '1/8', modifier: 'dotted' },
+      },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -1170,6 +1583,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0.08 },
       bitCrusher: { bits: 8, wet: 0 },
+      // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
+      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.49 },
+      phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

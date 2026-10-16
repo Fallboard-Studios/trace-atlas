@@ -65,6 +65,8 @@ const PRESET_A_PAYLOAD: SessionPayload = {
     distortion: { amount: 0.3, wet: 0 },
     chebyshev: { order: 2, wet: 0 },
     bitCrusher: { bits: 8, wet: 0 },
+    autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+    phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
     delay: {
       delayTime: 0.275,
       feedback: 0.27,
@@ -182,6 +184,8 @@ const PRESET_B_PAYLOAD: SessionPayload = {
     distortion: { amount: 0.3, wet: 0 },
     chebyshev: { order: 2, wet: 0 },
     bitCrusher: { bits: 8, wet: 0 },
+    autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+    phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
     delay: {
       delayTime: 0.138,
       feedback: 0.11,
@@ -315,6 +319,8 @@ const PRESET_C_PAYLOAD: SessionPayload = {
     distortion: { amount: 0.3, wet: 0 },
     chebyshev: { order: 2, wet: 0 },
     bitCrusher: { bits: 8, wet: 0 },
+    autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
+    phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
     delay: {
       delayTime: 0.139,
       feedback: 0.19,

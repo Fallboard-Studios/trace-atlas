@@ -19,12 +19,15 @@ function App() {
     '--real-world-gradient-after': realWorldGradients.after,
   } as CSSProperties;
 
+  const debug = isDebugEnabled();
+
   return (
-    <div className="app-root">
+    <div className={debug ? 'app-root app-root--debug' : 'app-root'}>
       <div className="real-world" style={realWorldStyle}>
         <Tablet />
       </div>
-      {isDebugEnabled() && <AudioDebugHud />}
+      {debug && <div className="app-root__debug-clearance" aria-hidden="true" />}
+      {debug && <AudioDebugHud />}
     </div>
   );
 }

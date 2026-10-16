@@ -24,6 +24,7 @@ import { AUDIO_LOAD_PRESETS } from '../constants';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '../types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
+import { PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '../types/globalAudio';
 import { CONTENT, labels, options } from '@/content';
 import type { ControlSchema } from '@/types/controls';
 
@@ -32,7 +33,7 @@ import type { ControlSchema } from '@/types/controls';
 // ========================================
 
 // Effect key order matches the new V2 chain order (docs/reference/GLOBAL_CHAIN_GRID.md).
-const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'delay', 'reverb', 'compressor', 'limiter'] as const;
+const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'autoWah', 'phaser', 'delay', 'reverb', 'compressor', 'limiter'] as const;
 
 function findBlock(key: (typeof EFFECT_KEYS)[number]) {
   const block = AUDIO_RIG_CONFIG.find((b) => b.key === key);
@@ -289,6 +290,108 @@ describe('AUDIO_RIG_CONFIG', () => {
           expect(schema, `${key}.${param.field}`).toMatchObject({ min: range.min, max: range.max, step: range.step });
         }
       }
+    });
+  });
+
+  // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6, assumption 5; docs/tasks/GLOBAL_MODULATION_COLOUR.md
+  // Task 9): two dry-chain pedals between Bit Crusher and the rooms. Every parameter of each Tone node is a
+  // slider; none is LFO-able or swellable.
+  describe('Modulation blocks (AutoWah, Phaser)', () => {
+    const MODULATION_BLOCKS = [
+      { key: 'autoWah', fields: ['baseFrequency', 'octaves', 'sensitivity', 'Q', 'gain', 'follower', 'wet'], heading: 'fleet.autoWah' },
+      { key: 'phaser', fields: ['rate', 'octaves', 'baseFrequency', 'stages', 'Q', 'wet'], heading: 'fleet.phaser' },
+    ] as const;
+
+    /** The content key a field reads: the field name with `Q` lower-cased and `wet` called Mix. */
+    const contentKeyOf = (block: 'autoWah' | 'phaser', field: string): `fleet.${string}` =>
+      `fleet.${block}.${field === 'wet' ? 'mix' : field === 'Q' ? 'q' : field}`;
+
+    it('there are twelve blocks, and AutoWah then Phaser sit straight after Bit Crusher and before Delay', () => {
+      const keys = AUDIO_RIG_CONFIG.map((b) => b.key as string);
+      expect(keys).toHaveLength(12);
+      expect(keys.slice(keys.indexOf('bitCrusher'), keys.indexOf('delay'))).toEqual(['bitCrusher', 'autoWah', 'phaser']);
+    });
+
+    it.each(MODULATION_BLOCKS)('$key has its params in order: $fields', ({ key, fields }) => {
+      expect(findBlock(key).params.map((p) => p.field)).toEqual([...fields]);
+    });
+
+    it('the two pedals carry thirteen params between them', () => {
+      expect(findBlock('autoWah').params.length + findBlock('phaser').params.length).toBe(13);
+    });
+
+    it.each(MODULATION_BLOCKS)('$key panel reads its heading from $heading', ({ key, heading }) => {
+      expect(findBlock(key).panel.loreLabel).toBe(CONTENT[heading].heading);
+      expect(findBlock(key).panel.humanLabel).toBe(CONTENT[heading].human);
+    });
+
+    it('every pedal slider spans exactly its field\'s full seed range, as the kind the range says (log fields log, the rest linear with the seed step)', () => {
+      for (const { key } of MODULATION_BLOCKS) {
+        for (const param of findBlock(key).params) {
+          const range = GLOBAL_AUDIO_SEED_RANGES[`${key}.${param.field}` as GlobalAudioSeedFieldKey];
+          const schema = param.schema as { type: string; min: number; max: number; step?: number };
+          const where = `${key}.${param.field}`;
+          expect(schema.type, where).toBe(range.scale === 'log' ? 'sliderLog' : 'sliderLinear');
+          expect(schema.min, where).toBe(range.min);
+          expect(schema.max, where).toBe(range.max);
+          if (range.scale === 'linear') expect(schema.step, where).toBe(range.step);
+        }
+      }
+    });
+
+    it('every pedal param reads its label, lore and unit from its own content entry', () => {
+      for (const { key, fields } of MODULATION_BLOCKS) {
+        for (const field of fields) {
+          const contentKey = contentKeyOf(key, field) as Parameters<typeof labels>[0];
+          const schema = findParam(key, field).schema as { humanLabel: string; loreLabel?: string; unit?: string };
+          const expected = labels(contentKey);
+          expect(schema.humanLabel, `${key}.${field}`).toBe(expected.humanLabel);
+          expect(schema.loreLabel, `${key}.${field}`).toBe(expected.loreLabel);
+          expect(schema.unit, `${key}.${field}`).toBe(expected.unit);
+        }
+      }
+    });
+
+    it('the Phaser Rate is a linear slider over PHASER_RATE_RANGE_HZ at PHASER_RATE_STEP_HZ, the shape TempoSyncSlider takes', () => {
+      expect(findParam('phaser', 'rate').schema).toMatchObject({
+        type: 'sliderLinear', min: PHASER_RATE_RANGE_HZ.min, max: PHASER_RATE_RANGE_HZ.max, step: PHASER_RATE_STEP_HZ,
+      });
+    });
+
+    it('Stages is a whole-number slider from 1 to 12', () => {
+      expect(findParam('phaser', 'stages').schema).toMatchObject({ type: 'sliderLinear', min: 1, max: 12, step: 1 });
+    });
+
+    it('the logarithmic sliders are Base Frequency, Q and Follow, and nothing else', () => {
+      const logs = MODULATION_BLOCKS.flatMap(({ key }) =>
+        findBlock(key).params.filter((p) => p.schema.type === 'sliderLog').map((p) => `${key}.${p.field}`));
+      expect(logs.sort()).toEqual(['autoWah.Q', 'autoWah.baseFrequency', 'autoWah.follower', 'phaser.Q', 'phaser.baseFrequency']);
+    });
+
+    it('every pedal slider is horizontal, and every linear one carries a step well under its range (the toggle-collapse regression the Delay params guard)', () => {
+      for (const { key } of MODULATION_BLOCKS) {
+        for (const param of findBlock(key).params) {
+          const schema = param.schema as { type: string; step?: number; min: number; max: number; orientation?: string };
+          expect(schema.orientation, `${key}.${param.field}`).toBe('horizontal');
+          if (schema.type === 'sliderLinear') {
+            expect(schema.step, `${key}.${param.field}.step`).toBeDefined();
+            expect(schema.step!, `${key}.${param.field}.step`).toBeLessThan(schema.max - schema.min);
+          }
+        }
+      }
+    });
+
+    it('no pedal param is LFO-flagged — neither pedal is a GlobalLfoTargetId', () => {
+      for (const { key } of MODULATION_BLOCKS) {
+        for (const param of findBlock(key).params) expect(param.lfoTarget, `${key}.${param.field}`).toBeUndefined();
+      }
+    });
+
+    it('every schema id in the rig config is unique, the thirteen new ones included', () => {
+      const ids = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids).toContain('autoWah.baseFrequency');
+      expect(ids).toContain('phaser.stages');
     });
   });
 
@@ -674,6 +777,8 @@ const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: 
   distortion: labels('fleet.distortion', { surface: 'heading' }),
   chebyshev: labels('fleet.chebyshev', { surface: 'heading' }),
   bitCrusher: labels('fleet.bitCrusher', { surface: 'heading' }),
+  autoWah: labels('fleet.autoWah', { surface: 'heading' }),
+  phaser: labels('fleet.phaser', { surface: 'heading' }),
   delay: labels('fleet.delay', { surface: 'heading' }),
   reverb: labels('fleet.reverb', { surface: 'heading' }),
   compressor: labels('fleet.compressor', { surface: 'heading' }),

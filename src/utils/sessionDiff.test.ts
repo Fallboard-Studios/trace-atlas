@@ -33,7 +33,7 @@ import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { noteValueHz } from '../data/noteValues';
-import { resolveLaneRateHz, resolveDelayTimeSeconds } from './tempoSync';
+import { resolveLaneRateHz, resolveDelayTimeSeconds, resolvePhaserRateHz } from './tempoSync';
 import { lfoEngine } from '../engine/lfoEngine';
 import { AudioEngine } from '../engine/AudioEngine';
 
@@ -1742,6 +1742,89 @@ describe('applySessionPayload', () => {
       });
     });
 
+    // docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 12: the Phaser's Rate is the third synced field and takes the
+    // same rule at the same boundary.
+    describe('the Phaser', () => {
+      const FREE_PHASER = { rate: 0.8, octaves: 4, baseFrequency: 420, stages: 7, Q: 6, wet: 0.3 } as const;
+
+      /** A payload whose Phaser is exactly what the caller says; the Delay is free unless given. */
+      function buildPhaserPayload(phaser: Record<string, unknown>, bpm?: number, delay: Record<string, unknown> = FREE_DELAY): SessionPayload {
+        const payload = buildPayload(freeLanes(), delay, bpm);
+        return { ...payload, globalAudio: { ...payload.globalAudio, phaser: phaser as never } };
+      }
+
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine hears the stored rate', async (_label, bad) => {
+        const payload = buildPhaserPayload({ ...FREE_PHASER, sync: bad }, 120);
+        const pushSpy = vi.spyOn(AudioEngine, 'setGlobalPhaser');
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual(FREE_PHASER);
+        expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual(FREE_PHASER);
+        pushSpy.mockRestore();
+      });
+
+      it('keeps a valid `sync` exactly as it came, and the engine hears that note\'s Hz at the payload tempo, never a sync key', async () => {
+        const payload = buildPhaserPayload({ ...FREE_PHASER, sync: QUARTER }, 120);
+        const pushSpy = vi.spyOn(AudioEngine, 'setGlobalPhaser');
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
+        const pushed = pushSpy.mock.calls.at(-1)![0];
+        expect(pushed).not.toHaveProperty('sync');
+        expect(pushed.rate).toBe(noteValueHz(QUARTER, 120));
+        expect(pushed.rate).not.toBe(FREE_PHASER.rate);
+        pushSpy.mockRestore();
+      });
+
+      it('keeps the rest of an invalid-synced Phaser intact: rate, stages, Q and Mix all survive', async () => {
+        const payload = buildPhaserPayload({ ...FREE_PHASER, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { phaser } = useAudioStore.getState().globalAudio;
+        expect([phaser.rate, phaser.octaves, phaser.baseFrequency, phaser.stages, phaser.Q, phaser.wet]).toEqual([0.8, 4, 420, 7, 6, 0.3]);
+      });
+
+      it('leaves every other effect untouched while it drops the bad Phaser `sync`', async () => {
+        const payload = buildPhaserPayload({ ...FREE_PHASER, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { phaser: _a, ...restApplied } = useAudioStore.getState().globalAudio;
+        const { phaser: _p, ...restPayload } = payload.globalAudio;
+        expect(restApplied).toStrictEqual(restPayload);
+      });
+
+      it('sanitises the Phaser and the Delay independently: a bad one never costs the other a valid `sync`', async () => {
+        applySessionPayload(buildPhaserPayload({ ...FREE_PHASER, sync: 'off' }, 120, { ...FREE_DELAY, sync: QUARTER }), { skipLocaleRebuild: true });
+        expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual(FREE_PHASER);
+        expect(useAudioStore.getState().globalAudio.delay).toStrictEqual({ ...FREE_DELAY, sync: QUARTER });
+
+        applySessionPayload(buildPhaserPayload({ ...FREE_PHASER, sync: QUARTER }, 120, { ...FREE_DELAY, sync: 'off' }), { skipLocaleRebuild: true });
+        expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
+        expect(useAudioStore.getState().globalAudio.delay).toStrictEqual(FREE_DELAY);
+      });
+
+      it('does not mutate the payload it was given', async () => {
+        const payload = buildPhaserPayload({ ...FREE_PHASER, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(payload.globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: 'off' });
+      });
+
+      it('a Phaser with no `sync` key is returned untouched, and resolves to its stored rate at any tempo', async () => {
+        for (const bpm of [20, 60, 200]) {
+          applySessionPayload(buildPhaserPayload(FREE_PHASER, bpm), { skipLocaleRebuild: true });
+          const { phaser } = useAudioStore.getState().globalAudio;
+          expect('sync' in phaser, `${bpm} BPM`).toBe(false);
+          expect(resolvePhaserRateHz(phaser, bpm), `${bpm} BPM`).toBe(FREE_PHASER.rate);
+        }
+      });
+    });
+
     describe('a version-2 payload with no `sync` anywhere', () => {
       it.each([20, 40, 100, 200])('resolves to its stored numbers at %i BPM — lanes in state and engine, Delay in state and engine', async (bpm) => {
         const payload = buildPayload(freeLanes(), FREE_DELAY, bpm);
@@ -2051,5 +2134,140 @@ describe('applySessionPayload — globalAudio defaults (Global Colour T10)', () 
     setupColourWorld();
     applySessionPayload(preColourPayload(), { skipLocaleRebuild: true });
     expect(useAudioStore.getState().globalAudio.bitCrusher).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher);
+  });
+});
+
+// ----------------------------------------
+// GLOBAL MODULATION DEFAULTS ON RESTORE (docs/specs/GLOBAL_MODULATION_COLOUR.md; docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 12)
+// ----------------------------------------
+// A session saved before the AutoWah and Phaser existed has neither block in its globalAudio. Restoring it
+// fills both from the defaults (dry) and pushes them to the engine; a payload that carries them restores
+// them as given, `phaser.sync` included. withGlobalAudioDefaults already does the filling (T1): this is the proof.
+
+describe('applySessionPayload — pedal defaults (Global Modulation T12)', () => {
+  let pedalLocaleCounter = 0;
+  function setupPedalWorld() {
+    const localeId = `apply-session-pedal-locale-${pedalLocaleCounter++}`;
+    useAttenuationStyleStore.setState({
+      attenuationStyles: [{ ...DEFAULT_PELAGOS, currentLocaleId: localeId }],
+      currentAttenuationStyleId: DEFAULT_PELAGOS.id,
+    });
+    useLocaleStore.setState({ locales: { [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } } });
+    spawnInitialRoster(localeId);
+    return localeId;
+  }
+
+  const LOUD_PEDALS = {
+    autoWah: { baseFrequency: 220, octaves: 3, sensitivity: -20, Q: 5, gain: 9, follower: 0.4, wet: 0.5 },
+    phaser: { rate: 0.8, octaves: 4, baseFrequency: 420, stages: 7, Q: 6, wet: 0.3, sync: { division: '1/2', modifier: 'dotted' } },
+  } as const;
+
+  /** A payload as the build before the pedals wrote it: neither block at all. */
+  function prePedalPayload(): SessionPayload {
+    const payload = buildSessionPayload();
+    const { autoWah: _w, phaser: _p, ...old } = payload.globalAudio;
+    return { ...payload, globalAudio: old as unknown as SessionPayload['globalAudio'] };
+  }
+
+  function spyPedalSetters() {
+    return {
+      autoWah: vi.spyOn(AudioEngine, 'setGlobalAutoWah').mockImplementation(() => {}),
+      phaser: vi.spyOn(AudioEngine, 'setGlobalPhaser').mockImplementation(() => {}),
+    };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a payload without the pedals restores both at the defaults, dry, with no sync, and leaves every other block as saved', () => {
+    setupPedalWorld();
+    const payload = prePedalPayload();
+    applySessionPayload(payload);
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+    expect(restored.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect([restored.autoWah.wet, restored.phaser.wet]).toEqual([0, 0]);
+    expect('sync' in restored.phaser).toBe(false);
+    expect(restored.bitCrusher).toEqual(payload.globalAudio.bitCrusher);
+    expect(restored.delay).toEqual(payload.globalAudio.delay);
+    expect(restored.limiter).toEqual(payload.globalAudio.limiter);
+  });
+
+  it('the engine is pushed both full default blocks, the Phaser resolved to its Hz and carrying no sync', () => {
+    setupPedalWorld();
+    const spies = spyPedalSetters();
+    applySessionPayload(prePedalPayload());
+    expect(spies.autoWah).toHaveBeenCalledWith(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+    expect(spies.phaser).toHaveBeenCalledWith(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(spies.phaser.mock.calls.every((c) => !('sync' in c[0]))).toBe(true);
+  });
+
+  it('a payload that carries both pedals restores them as given, a synced Phaser included, in the store and at the engine', () => {
+    setupPedalWorld();
+    const spies = spyPedalSetters();
+    const payload = { ...buildSessionPayload(), bpm: 120, globalAudio: { ...buildSessionPayload().globalAudio, ...LOUD_PEDALS } };
+    applySessionPayload(payload);
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.autoWah).toEqual(LOUD_PEDALS.autoWah);
+    expect(restored.phaser).toEqual(LOUD_PEDALS.phaser);
+    expect(spies.autoWah).toHaveBeenCalledWith(LOUD_PEDALS.autoWah);
+    const { sync, ...phaserNoSync } = LOUD_PEDALS.phaser;
+    expect(spies.phaser).toHaveBeenCalledWith({ ...phaserNoSync, rate: noteValueHz(sync, 120) });
+  });
+
+  it('save then restore is exact for lit pedals: the next save carries the same two blocks', () => {
+    setupPedalWorld();
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, ...LOUD_PEDALS } }));
+    const saved = buildSessionPayload();
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, ...DEFAULT_GLOBAL_AUDIO_SETTINGS } }));
+    applySessionPayload(saved);
+    const again = buildSessionPayload();
+    expect(again.globalAudio.autoWah).toEqual(LOUD_PEDALS.autoWah);
+    expect(again.globalAudio.phaser).toEqual(LOUD_PEDALS.phaser);
+  });
+
+  it('a payload with only the Phaser keeps it byte for byte (sync included) and defaults the AutoWah', () => {
+    setupPedalWorld();
+    const { autoWah: _w, ...rest } = buildSessionPayload().globalAudio;
+    applySessionPayload({ ...buildSessionPayload(), globalAudio: { ...rest, phaser: LOUD_PEDALS.phaser } as unknown as SessionPayload['globalAudio'] });
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.phaser).toEqual(LOUD_PEDALS.phaser);
+    expect(restored.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+  });
+
+  it('a payload with only the AutoWah defaults the Phaser', () => {
+    setupPedalWorld();
+    const { phaser: _p, ...rest } = buildSessionPayload().globalAudio;
+    applySessionPayload({ ...buildSessionPayload(), globalAudio: { ...rest, autoWah: LOUD_PEDALS.autoWah } as unknown as SessionPayload['globalAudio'] });
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.autoWah).toEqual(LOUD_PEDALS.autoWah);
+    expect(restored.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+  });
+
+  it('a null pedal block is a missing one: it takes the default and nothing throws', () => {
+    setupPedalWorld();
+    const nulled = { ...buildSessionPayload().globalAudio, phaser: null, autoWah: null } as unknown as SessionPayload['globalAudio'];
+    expect(() => applySessionPayload({ ...buildSessionPayload(), globalAudio: nulled })).not.toThrow();
+    expect(useAudioStore.getState().globalAudio.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(useAudioStore.getState().globalAudio.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+  });
+
+  it('restoring never mutates the payload, and the stored defaults are copies, not the shared constants', () => {
+    setupPedalWorld();
+    const payload = prePedalPayload();
+    const before = JSON.stringify(payload);
+    applySessionPayload(payload);
+    expect(JSON.stringify(payload)).toBe(before);
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.autoWah).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+    expect(restored.phaser).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+  });
+
+  it('skipLocaleRebuild: true (the share-link boot path) fills the pedal defaults too', () => {
+    setupPedalWorld();
+    applySessionPayload(prePedalPayload(), { skipLocaleRebuild: true });
+    expect(useAudioStore.getState().globalAudio.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+    expect(useAudioStore.getState().globalAudio.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
   });
 });

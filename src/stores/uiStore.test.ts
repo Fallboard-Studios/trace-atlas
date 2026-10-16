@@ -320,6 +320,16 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
     expect(JSON.parse(JSON.stringify(useUIStore.getState().fleetParamsSection))).toBe('colour');
   });
 
+  it('setFleetParamsSection accepts the Modulation section and resets the sub-tab like every other (Global Modulation T10)', () => {
+    useUIStore.getState().setFleetParamsSubsection('bitCrusher');
+    useUIStore.getState().setFleetParamsSection('modulation');
+    expect(useUIStore.getState().fleetParamsSection).toBe('modulation');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+    useUIStore.getState().setFleetParamsSubsection('phaser');
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('phaser');
+    expect(JSON.parse(JSON.stringify(useUIStore.getState().fleetParamsSection))).toBe('modulation');
+  });
+
   it('re-picking the same section also resets its sub-tab (the breadcrumb\'s group segment goes to the group)', () => {
     useUIStore.getState().setFleetParamsSection('eqFilters');
     useUIStore.getState().setFleetParamsSubsection('filterLPF');

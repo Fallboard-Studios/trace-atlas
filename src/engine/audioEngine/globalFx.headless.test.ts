@@ -21,6 +21,9 @@ vi.mock('tone', () => ({
   Distortion: undefined,
   Chebyshev: undefined,
   BitCrusher: undefined,
+  // Global Modulation T4: the modulation slot is skipped the same way.
+  AutoWah: undefined,
+  Phaser: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({
@@ -53,6 +56,22 @@ describe('globalFx without the room constructors', () => {
     expect(() => globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 })).not.toThrow();
     expect(() => globalFx.setGlobalChebyshev({ order: 4, wet: 0.5 })).not.toThrow();
     expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 0.5 })).not.toThrow();
+  });
+
+  it('sets every Phaser field, including a stages change, without throwing when no Phaser exists', async () => {
+    const globalFx = await import('./globalFx');
+    globalFx.buildGlobalFxChain();
+    expect(() =>
+      globalFx.setGlobalPhaser({ rate: 2, octaves: 4, baseFrequency: 500, stages: 4, Q: 5, wet: 0.5 }),
+    ).not.toThrow();
+  });
+
+  it('sets every AutoWah field without throwing when no AutoWah exists', async () => {
+    const globalFx = await import('./globalFx');
+    globalFx.buildGlobalFxChain();
+    expect(() =>
+      globalFx.setGlobalAutoWah({ baseFrequency: 200, octaves: 4, sensitivity: -12, Q: 3, gain: 6, follower: 0.2, wet: 0.5 }),
+    ).not.toThrow();
   });
 
   it('reports no rooms, so reserveVoice connects no send to anything', async () => {

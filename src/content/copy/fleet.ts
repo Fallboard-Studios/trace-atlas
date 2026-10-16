@@ -266,6 +266,98 @@ export const fleet = {
     help: { human: 'How much of the crushed sound is blended in with the clean sound. At 0 the sound stays clean; raise it to hear the grain.' },
   },
 
+  // ---------------------------------------------------------------- Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.7)
+  // Placeholders for Crawford's copy pass (spec assumption 16): the lore words follow the same "degraded
+  // transmission" frame as Colour, and the names are the ones the grid (docs/reference/GLOBAL_CHAIN_GRID.md) lists.
+  'fleet.modulation': {
+    human: 'Modulation',
+    lore: 'Mesh Drift',
+    intro: {
+      lore: 'Modulation — the drift the Undersea Mesh Network adds on its own.',
+      loreDescription: 'Even a clean carrier wanders a little as it crosses the Undersea Mesh Network. Meridia Comms Group lets you tune that wander, or let it go quiet.',
+      humanDescription: '<ul>'
+        + '<li><strong>Auto Wah</strong>: a filter that opens and closes with the loudness of the fleet, so louder moments sound brighter and quieter ones duller.</li>'
+        + '<li><strong>Phaser</strong>: a slow, swirling sweep that moves through the sound, like a soft whoosh or a jet passing by.</li>'
+        + '</ul>'
+        + '<p>Each pedal has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. The Phaser’s <strong>Rate</strong> can run Free, in hertz, or in Sync, as a note length that follows the Tempo. They act on the fleet’s direct sound; Reverb and Delay echoes stay clean. Every new world starts with a little of one pedal, both, or neither.</p>',
+    },
+  },
+  'fleet.autoWah': { human: 'Auto Wah', lore: 'Pressure Sweep', heading: 'PRESSURE SWEEP STAGE' },
+  'fleet.autoWah.baseFrequency': {
+    human: 'Base Frequency',
+    lore: 'Sweep Floor',
+    unit: 'Hz',
+    help: { human: 'The lowest pitch the wah filter rests on when the sound is quiet. Low values give a deep, throaty wah; high values keep it thin and bright.' },
+  },
+  'fleet.autoWah.octaves': {
+    human: 'Octaves',
+    lore: 'Sweep Span',
+    unit: ' oct',
+    help: { human: 'How far above the Base Frequency the filter opens when the sound is loud, in octaves. Small values nudge the tone; large values sweep it across most of the sound.' },
+  },
+  'fleet.autoWah.sensitivity': {
+    human: 'Sensitivity',
+    lore: 'Pressure Threshold',
+    unit: 'dB',
+    help: { human: 'How easily the filter reacts to the sound. Values closer to −40 dB make it open even for quiet notes; values near 0 dB need a loud sound to move it.' },
+  },
+  'fleet.autoWah.q': {
+    human: 'Resonance',
+    lore: 'Pressure Focus',
+    help: { human: 'How narrow and sharp the wah filter is. Low values give a broad, gentle wah; high values give a pointed, vowel-like quack.' },
+  },
+  'fleet.autoWah.gain': {
+    human: 'Peak',
+    lore: 'Surge Gain',
+    unit: 'dB',
+    help: { human: 'How much the sound is boosted right where the filter sits. 0 adds no boost; higher values make the wah ring out more.' },
+  },
+  'fleet.autoWah.follower': {
+    human: 'Follow',
+    lore: 'Pressure Lag',
+    unit: 's',
+    help: { human: 'How quickly the filter follows the loudness of the sound, in seconds. Short values snap open and shut on every note; long values glide and smooth out.' },
+  },
+  'fleet.autoWah.mix': {
+    human: 'Mix',
+    lore: 'Sweep Ratio',
+    help: { human: 'How much of the wah sound is blended in with the original. At 0 the sound is unchanged; raise it to hear the wah.' },
+  },
+  'fleet.phaser': { human: 'Phaser', lore: 'Phase Lag', heading: 'PHASE LAG STAGE' },
+  'fleet.phaser.rate': {
+    human: 'Rate',
+    lore: 'Phase Cycle',
+    unit: 'Hz',
+    help: { human: 'How fast the phaser sweeps back and forth. In Free it is set in hertz, cycles per second; in Sync it is a note length that follows the Tempo.' },
+  },
+  'fleet.phaser.octaves': {
+    human: 'Octaves',
+    lore: 'Lag Span',
+    unit: ' oct',
+    help: { human: 'How wide the sweep is, in octaves, above the Base Frequency. Small values give a gentle shimmer; large values give a big, dramatic swoosh.' },
+  },
+  'fleet.phaser.baseFrequency': {
+    human: 'Base Frequency',
+    lore: 'Lag Floor',
+    unit: 'Hz',
+    help: { human: 'The lowest pitch the sweep reaches. Low values put the swirl in the body of the sound; high values keep it in the airy top.' },
+  },
+  'fleet.phaser.stages': {
+    human: 'Stages',
+    lore: 'Lag Depth',
+    help: { human: 'How many layers of phase shift are stacked, from 1 to 12. Few stages give a light, subtle swirl; many stages give a deep, rich one. Changing it rebuilds the effect for a moment.' },
+  },
+  'fleet.phaser.q': {
+    human: 'Resonance',
+    lore: 'Lag Focus',
+    help: { human: 'How sharply the sweep stands out. Low values blend in softly; high values give a pronounced, whistling swirl.' },
+  },
+  'fleet.phaser.mix': {
+    human: 'Mix',
+    lore: 'Lag Ratio',
+    help: { human: 'How much of the swirling sound is blended in with the original. At 0 the sound is unchanged; raise it to hear the sweep.' },
+  },
+
   // ---------------------------------------------------------------- Output
   'fleet.output': {
     human: 'Output',

@@ -31,7 +31,10 @@ import {
 import {
   DELAY_TIME_RANGE_SECONDS,
   DELAY_TIME_STEP_SECONDS,
+  PHASER_RATE_RANGE_HZ,
+  PHASER_RATE_STEP_HZ,
   type DelaySettings,
+  type PhaserSettings,
 } from '@/types/globalAudio';
 import { quantizeToStep, roundToDecimals } from '@/utils/math';
 
@@ -109,6 +112,13 @@ export function resolveDelayTimeSeconds(delay: DelaySettings, bpm: number): numb
   );
 }
 
+/** Hz the Phaser's LFO should use (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5). Free (or an invalid
+ *  sync): `rate`. Sync: the note's rate at `bpm`, clamped into the Phaser's range. */
+export function resolvePhaserRateHz(phaser: PhaserSettings, bpm: number): number {
+  if (!isNoteValue(phaser.sync)) return phaser.rate;
+  return clamp(noteValueHz(phaser.sync, bpm), PHASER_RATE_RANGE_HZ.min, PHASER_RATE_RANGE_HZ.max);
+}
+
 // ========================================
 // ALLOWED LISTS
 // ========================================
@@ -122,6 +132,12 @@ export function allowedLaneNoteValues(bpm: number): NoteValue[] {
 /** Notes the Delay may sync to at `bpm`, shortest -> longest in seconds. */
 export function allowedDelayNoteValues(bpm: number): NoteValue[] {
   return allowedNoteValues(bpm, DELAY_TIME_RANGE_SECONDS, 'seconds');
+}
+
+/** Notes the Phaser may sync to at `bpm`, slowest -> fastest in Hz (the Free slider's direction, as for
+ *  the lanes). NOTE_VALUES is ascending by duration, i.e. fastest first in Hz, hence the reverse. */
+export function allowedPhaserNoteValues(bpm: number): NoteValue[] {
+  return allowedNoteValues(bpm, PHASER_RATE_RANGE_HZ, 'hz').reverse();
 }
 
 // ========================================
@@ -177,6 +193,28 @@ export function delayToFree(delay: DelaySettings, bpm: number): DelaySettings {
       DELAY_TIME_RANGE_SECONDS.min,
       DELAY_TIME_STEP_SECONDS
     ),
+  };
+}
+
+/** Free -> Sync for the Phaser's Rate; same shape and fallbacks as laneToSync, in Hz over the Phaser range. */
+export function phaserToSync(phaser: PhaserSettings, bpm: number): PhaserSettings {
+  if (isNoteValue(phaser.sync)) return { ...phaser };
+  const allowed = allowedPhaserNoteValues(bpm);
+  return {
+    ...phaser,
+    sync: nearestNoteValue(phaser.rate, bpm, allowed.length > 0 ? allowed : NOTE_VALUES, 'hz'),
+  };
+}
+
+/** Sync -> Free for the Phaser's Rate: the resolved Hz, quantised to the slider step. The resolver has
+ *  already clamped into the range, so the result is never below the minimum (never 0, which would stop
+ *  the sweep) and never above the maximum. */
+export function phaserToFree(phaser: PhaserSettings, bpm: number): PhaserSettings {
+  const { sync, ...rest } = phaser;
+  if (!isNoteValue(sync)) return rest;
+  return {
+    ...rest,
+    rate: quantizeClean(resolvePhaserRateHz(phaser, bpm), PHASER_RATE_RANGE_HZ.min, PHASER_RATE_STEP_HZ),
   };
 }
 

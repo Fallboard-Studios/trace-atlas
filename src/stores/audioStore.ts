@@ -23,15 +23,18 @@ import {
   delayToSync,
   laneToFree,
   laneToSync,
+  phaserToFree,
+  phaserToSync,
   resolveDelayTimeSeconds,
   resolveLaneForEngine,
   resolveLaneRateHz,
+  resolvePhaserRateHz,
 } from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 
-import type { DelaySettings, GlobalAudioSettings } from '../types/globalAudio';
+import type { DelaySettings, GlobalAudioSettings, PhaserSettings } from '../types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -68,6 +71,22 @@ function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
 }
 
 /**
+ * The Phaser's counterpart of setGlobalDelayResolved (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.4): the engine hears
+ * Hz only, so a partial that carries `rate` or `sync` is pushed with its rate RESOLVED from the stored Phaser at
+ * `bpm` and `sync` never reaches the engine. Any other edit (Mix, Q, Octaves, Base Freq, Stages) is forwarded exactly
+ * as given, so a synced Phaser's rate is not re-pushed on every unrelated edit. Reads the store lazily, as the Delay's does.
+ */
+function setGlobalPhaserResolved(params: Partial<PhaserSettings>): void {
+  if (!('rate' in params) && !('sync' in params)) {
+    AudioEngine.setGlobalPhaser(params);
+    return;
+  }
+  const { sync: _sync, ...rest } = params;
+  const { globalAudio, bpm } = useAudioStore.getState();
+  AudioEngine.setGlobalPhaser({ ...rest, rate: resolvePhaserRateHz(globalAudio.phaser, bpm) });
+}
+
+/**
  * `partial` minus every undefined-valued key. A merge spreads `undefined` over a stored value as
  * readily as a real one, so without this `{ sync: undefined }` would land an `undefined`-valued
  * key in state (docs/specs/FREE_SYNC_TOGGLE.md §3: a Free result carries NO `sync` key, never
@@ -90,6 +109,8 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   distortion: AudioEngine.setGlobalDistortion,
   chebyshev: AudioEngine.setGlobalChebyshev,
   bitCrusher: AudioEngine.setGlobalBitCrusher,
+  autoWah: AudioEngine.setGlobalAutoWah,
+  phaser: setGlobalPhaserResolved,
 };
 
 /**
@@ -108,6 +129,7 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
  */
 export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: number): void {
   const { sync: _sync, ...delay } = globalAudio.delay;
+  const { sync: _phaserSync, ...phaser } = globalAudio.phaser;
   AudioEngine.setGlobalCompressor(globalAudio.compressor);
   AudioEngine.setGlobalEQ(globalAudio.eq3);
   AudioEngine.setGlobalFilterLPF(globalAudio.filterLPF);
@@ -116,6 +138,10 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: 
   AudioEngine.setGlobalDistortion(globalAudio.distortion);
   AudioEngine.setGlobalChebyshev(globalAudio.chebyshev);
   AudioEngine.setGlobalBitCrusher(globalAudio.bitCrusher);
+  // The modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.4). The Phaser goes in
+  // as Hz with `stages` included, so a restore into a different count rebuilds the node once.
+  AudioEngine.setGlobalAutoWah(globalAudio.autoWah);
+  AudioEngine.setGlobalPhaser({ ...phaser, rate: resolvePhaserRateHz(globalAudio.phaser, bpm) });
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
   AudioEngine.setGlobalDelay({ ...delay, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
   AudioEngine.setGlobalReverb(globalAudio.reverb);
@@ -132,8 +158,9 @@ function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank' | 'g
     const settings = state.lfoBank[lane];
     if (isNoteValue(settings.sync)) lfoEngine.setBankRate(lane, resolveLaneRateHz(settings, state.bpm));
   }
-  const { delay } = state.globalAudio;
+  const { delay, phaser } = state.globalAudio;
   if (isNoteValue(delay.sync)) AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, state.bpm) });
+  if (isNoteValue(phaser.sync)) AudioEngine.setGlobalPhaser({ rate: resolvePhaserRateHz(phaser, state.bpm) });
 }
 
 /** Initial lfoBank — DEFAULT_BANK_LFO per lane (inert: rate 0, no drift) until the AS-sync below seeds real values. */
@@ -267,6 +294,13 @@ export interface AudioStore {
    * result carries no `sync` key; pushes the resolved delayTime to the engine.
    */
   setDelaySyncMode: (synced: boolean) => void;
+  /**
+   * Flips the Phaser's Rate between Free and Sync (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5), the Delay's
+   * shape in Hz: Free -> Sync snaps `rate` to the nearest allowed note at the current tempo, Sync -> Free keeps the
+   * Hz the user was hearing, on the 0.05 Hz grid. A whole-object replacement of `globalAudio.phaser`, so the Free
+   * result carries no `sync` key; pushes the resolved rate to the engine.
+   */
+  setPhaserSyncMode: (synced: boolean) => void;
   /** Sets isMuted and pushes the resulting gain to AudioEngine — 0 when muted,
    *  volumePositionToGain(volume) (the live slider position) when not. Owns its own
    *  AudioEngine call, matching every other audioStore setter's shape (setBPM, etc.) —
@@ -412,6 +446,13 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     const delay = synced ? delayToSync(globalAudio.delay, bpm) : delayToFree(globalAudio.delay, bpm);
     set({ globalAudio: { ...globalAudio, delay } });
     AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, bpm) });
+  },
+
+  setPhaserSyncMode: (synced) => {
+    const { globalAudio, bpm } = get();
+    const phaser = synced ? phaserToSync(globalAudio.phaser, bpm) : phaserToFree(globalAudio.phaser, bpm);
+    set({ globalAudio: { ...globalAudio, phaser } });
+    AudioEngine.setGlobalPhaser({ rate: resolvePhaserRateHz(phaser, bpm) });
   },
 
   setCompressorBeforeDelay: (value) => {
