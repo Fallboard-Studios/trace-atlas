@@ -615,7 +615,9 @@ in 31 s. The audio thread averages 0.55 of its quantum but spikes to 0.99, so an
    raster. Everything that reads a robot's group or ref must keep working: the swim and job timelines (`createSwimTimeline`,
    `buildJobTimeline`), the row switch and its dissolve, the deck camera's target (`deckCamera.ts`, `getRef('robot-…')` and
    `gsap.getProperty(el, 'x')`), `FollowedRobotMarker`, and click handling. Bubbles the same way.
-2. **The deck camera's idle tick** (small; its own bug-fix branch, no spec). `registerDeckScroller` adds the per-frame handler
+2. **The deck camera's idle tick** — **done 2026-10-16** on `fix/deck-camera-idle-range`: the two dimensions are measured at
+   registration and on resize, and with scroll range 0 the camera stands down (no tick work, no pick, no marker). The
+   diagnosis, kept: `registerDeckScroller` added the per-frame handler
    whenever a scroller exists, scroll range 0 or not; at full screen the range is 0, yet every frame `targetFor` reads
    `scrollWidth` / `clientWidth` (a forced layout right after GSAP's writes) and writes `scrollLeft`. It was 4.2 % of
    main-thread samples. No-op when the range is 0; cache the two dimensions on resize.

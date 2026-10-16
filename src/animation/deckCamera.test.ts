@@ -1537,6 +1537,226 @@ describe('deckCamera', () => {
     });
   });
 
+  // Backlog item 26, candidate 2 (docs/PERFORMANCE.md "Desktop full-screen underruns are raster-bound"):
+  // the ticker ran on every viewport with a scroller, scroll range 0 or not, and `targetFor` read
+  // `scrollWidth`/`clientWidth` every frame — a forced layout right after GSAP's writes — to write a
+  // `scrollLeft` that was always 0. The two dimensions are measured at registration and on a resize,
+  // and with nothing to scroll the camera stands down.
+  describe('no scroll range (backlog 26, candidate 2)', () => {
+    /** A ResizeObserver stub that records what it observes and lets a test fire a resize. */
+    class RecordingResizeObserver {
+      static instances: RecordingResizeObserver[] = [];
+      callback: ResizeObserverCallback;
+      observed: unknown[] = [];
+      disconnected = false;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+        RecordingResizeObserver.instances.push(this);
+      }
+
+      observe(target: Element) {
+        this.observed.push(target);
+      }
+
+      unobserve() {}
+
+      disconnect() {
+        this.disconnected = true;
+      }
+
+      fire() {
+        this.callback([], this as unknown as ResizeObserver);
+      }
+    }
+
+    /** A scroller whose two dimensions count every read, so a per-frame layout read shows up as a
+     *  number; `dims` is what the next read reports (a resize the module has not been told about). */
+    function makeCountingScroller(scrollWidth: number, clientWidth: number) {
+      const fake = makeFakeScroller(scrollWidth, clientWidth, 0);
+      const reads = { scrollWidth: 0, clientWidth: 0 };
+      const dims = { scrollWidth, clientWidth };
+      Object.defineProperty(fake, 'scrollWidth', { get: () => { reads.scrollWidth++; return dims.scrollWidth; }, configurable: true });
+      Object.defineProperty(fake, 'clientWidth', { get: () => { reads.clientWidth++; return dims.clientWidth; }, configurable: true });
+      return { fake, reads, dims };
+    }
+
+    const observerOf = (fake: FakeScroller): RecordingResizeObserver => {
+      const found = RecordingResizeObserver.instances.find((o) => o.observed.includes(fake));
+      if (!found) throw new Error('no ResizeObserver observed the scroller');
+      return found;
+    };
+
+    const register = (fake: FakeScroller) => registerDeckScroller(fake as unknown as HTMLElement);
+
+    let now: ReturnType<typeof vi.spyOn>;
+
+    /** `alpha` (x 960, battery 40) and `beta` (x 300, battery 70): beta is the first pick. */
+    beforeEach(() => {
+      RecordingResizeObserver.instances = [];
+      vi.stubGlobal('ResizeObserver', RecordingResizeObserver);
+      now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+      seedLocale([['alpha', DockingState.Active, 40], ['beta', DockingState.Recalled, 70]]);
+      makeRobotRef('alpha', 960);
+      makeRobotRef('beta', 300);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      useLocaleStore.setState({ locales: {} });
+    });
+
+    describe('the dimensions are measured, never read per frame', () => {
+      it('reads scrollWidth and clientWidth at registration, and not again on any tick, float update or follow', () => {
+        const { fake, reads } = makeCountingScroller(3840, 375);
+        register(fake);
+        expect(reads.scrollWidth).toBeGreaterThan(0);
+        expect(reads.clientWidth).toBeGreaterThan(0);
+        const atRegistration = { ...reads };
+
+        tick(); // picks beta and starts its float
+        const vars = lastToVars(lastCreatedTimeline());
+        (vars.onUpdate as () => void)(); // one float frame
+        (vars.onComplete as () => void)(); // lands: the follow begins
+        for (let i = 0; i < 5; i++) tick(); // five follow frames, each writing scrollLeft
+
+        expect(getFollowedRobotId()).toBe('beta');
+        expect(reads).toEqual(atRegistration);
+      });
+
+      it('a resize re-measures: the target follows the new scroll width', () => {
+        const { fake, dims } = makeCountingScroller(3840, 375);
+        register(fake);
+        expect(deckCameraTargetFor('alpha')).toBeCloseTo(1732.5, 3);
+
+        dims.scrollWidth = 1920; // the box narrowed; no resize reported yet
+        expect(deckCameraTargetFor('alpha')).toBeCloseTo(1732.5, 3);
+
+        observerOf(fake).fire();
+        expect(deckCameraTargetFor('alpha')).toBeCloseTo(960 - 187.5, 3);
+      });
+
+      it('observes the scroller on registration and disconnects it on unregistration', () => {
+        const { fake } = makeCountingScroller(3840, 375);
+        register(fake);
+        const observer = observerOf(fake);
+        expect(observer.disconnected).toBe(false);
+
+        registerDeckScroller(null);
+
+        expect(observer.disconnected).toBe(true);
+      });
+
+      it('swapping scrollers disconnects the old observer and observes the new scroller', () => {
+        const { fake: first } = makeCountingScroller(3840, 375);
+        const { fake: second } = makeCountingScroller(2560, 375);
+        register(first);
+        register(second);
+
+        expect(observerOf(first).disconnected).toBe(true);
+        expect(observerOf(second).disconnected).toBe(false);
+      });
+
+      it('measures once and still works where there is no ResizeObserver', () => {
+        vi.stubGlobal('ResizeObserver', undefined);
+        const { fake } = makeCountingScroller(3840, 375);
+
+        expect(() => register(fake)).not.toThrow();
+        expect(deckCameraTargetFor('alpha')).toBeCloseTo(1732.5, 3);
+      });
+    });
+
+    describe('with nothing to scroll (scrollWidth equals clientWidth)', () => {
+      it('deckCameraTargetFor is null', () => {
+        const { fake } = makeCountingScroller(1920, 1920);
+        register(fake);
+
+        expect(deckCameraTargetFor('alpha')).toBeNull();
+      });
+
+      it('the ticker neither picks nor floats, however long it waits — it does no work at all', () => {
+        const { fake } = makeCountingScroller(1920, 1920);
+        register(fake);
+
+        tick();
+        now.mockReturnValue(1000 + 100 * DECK_CAMERA_COOLDOWN_MS);
+        tick();
+
+        expect(gsap.timeline).not.toHaveBeenCalled();
+        expect(getFollowedRobotId()).toBeNull();
+        // A tick that reached pick() would find a winner it cannot float to and restamp the
+        // cooldown; the boot sentinel surviving shows the tick returned before any of that.
+        expect(__deckCameraStateForTest().cooldownStartedAt).toBe(-Infinity);
+      });
+
+      it('moveCameraTo starts nothing and reports false', () => {
+        const { fake } = makeCountingScroller(1920, 1920);
+        register(fake);
+
+        expect(moveCameraTo('alpha')).toBe(false);
+        expect(gsap.timeline).not.toHaveBeenCalled();
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('a robot edit-return starts nothing', () => {
+        const { fake } = makeCountingScroller(1920, 1920);
+        register(fake);
+
+        useUIStore.getState().selectRobot('alpha');
+        useUIStore.getState().setActiveHubTile('robots');
+        useUIStore.getState().setActiveHubTile(null);
+
+        expect(gsap.timeline).not.toHaveBeenCalled();
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('a resize that opens a range lets the next tick pick', () => {
+        const { fake, dims } = makeCountingScroller(1920, 1920);
+        register(fake);
+        tick();
+        expect(gsap.timeline).not.toHaveBeenCalled();
+
+        dims.scrollWidth = 3840;
+        observerOf(fake).fire();
+        tick();
+
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+        expect(getFollowedRobotId()).toBe('beta');
+      });
+
+      it('a resize that closes the range stands the camera down: the follow ends, the marker goes, scrollLeft is left alone', () => {
+        const { fake, dims } = makeCountingScroller(3840, 375);
+        register(fake);
+        tick();
+        (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
+        expect(getFollowedRobotId()).toBe('beta');
+        fake.scrollLeft = 100;
+
+        dims.scrollWidth = 375;
+        observerOf(fake).fire();
+
+        expect(getFollowedRobotId()).toBeNull();
+        expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBeUndefined();
+        tick();
+        expect(fake.scrollLeft).toBe(100);
+      });
+
+      it('a resize that closes the range mid-float kills the float', () => {
+        const { fake, dims } = makeCountingScroller(3840, 375);
+        register(fake);
+        tick();
+        const float = lastCreatedTimeline();
+        expect(getFollowedRobotId()).toBe('beta');
+
+        dims.scrollWidth = 375;
+        observerOf(fake).fire();
+
+        expect(float.kill).toHaveBeenCalled();
+        expect(getFollowedRobotId()).toBeNull();
+      });
+    });
+  });
+
   describe('source boundaries', () => {
     const source = () => readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
 

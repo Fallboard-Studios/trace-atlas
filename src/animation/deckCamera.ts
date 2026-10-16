@@ -7,8 +7,10 @@
 // pointer) on the deck scroller freezes the camera and kills any float in flight; letting go starts
 // the cooldown clock; a wheel does both at once. It also holds the pick algorithm (which robot to
 // follow) and the one gsap.ticker handler that runs the loop: float to the pick, follow it up to
-// DECK_CAMERA_FOLLOW_MS or until it docks, rest DECK_CAMERA_COOLDOWN_MS, pick again. Nothing here
-// reads audio state or calls AudioEngine (CLAUDE.md "Strict Separation").
+// DECK_CAMERA_FOLLOW_MS or until it docks, rest DECK_CAMERA_COOLDOWN_MS, pick again. The scroller's
+// dimensions are measured at registration and on resize, never per frame, and with nothing to
+// scroll the camera stands down (backlog item 26, candidate 2). Nothing here reads audio state or
+// calls AudioEngine (CLAUDE.md "Strict Separation").
 
 // ========================================
 // IMPORTS
@@ -35,6 +37,14 @@ import { prefersReducedMotion } from '@/utils/reducedMotion';
 // MODULE STATE
 // ========================================
 let scroller: HTMLElement | null = null;
+/** The scroller's `scrollWidth` and `clientWidth`, measured when it is registered and again on each
+ *  resize (`measure`), never per frame: read right after GSAP's transform writes they force a
+ *  layout, and the ticker used to read them every frame for a scroll range that is 0 on every
+ *  desktop window (backlog item 26, candidate 2; docs/PERFORMANCE.md "Desktop full-screen
+ *  underruns are raster-bound"). */
+let scrollWidth = 0;
+let clientWidth = 0;
+let resizeObserver: ResizeObserver | null = null;
 /** A finger or pointer is down on the scroller: the camera does nothing until it lifts. */
 let held = false;
 /** When the user last let go (or wheeled), or the last follow ended. `-Infinity` at boot, so the
@@ -72,6 +82,30 @@ function cancelAutomaticMotion(): void {
   currentFloat = null;
   subjectId = null;
   setFollowed(null);
+}
+
+/** Reads the scroller's two dimensions once. */
+function measure(): void {
+  if (!scroller) return;
+  scrollWidth = scroller.scrollWidth;
+  clientWidth = scroller.clientWidth;
+}
+
+/** How far the scroller can scroll: 0 on any viewport at or wider than the stage's 16:9, which is
+ *  every desktop window. */
+function scrollRange(): number {
+  return Math.max(0, scrollWidth - clientWidth);
+}
+
+/** A resize: re-measure, and with nothing left to scroll stand down — a float or follow would keep
+ *  writing a constant scrollLeft and keep the marker up for nothing. A range that opens needs no
+ *  action: the next tick picks. */
+function handleResize(): void {
+  measure();
+  if (scrollRange() === 0) {
+    cancelAutomaticMotion();
+    killTimeline(DECK_CAMERA_TIMELINE_ID);
+  }
 }
 
 /** Touch or pointer down: freeze the camera where it is. */
@@ -117,21 +151,32 @@ const LISTENERS: ReadonlyArray<readonly [string, () => void]> = [
  * something" signals, the camera's own `scrollLeft` writes can never be mistaken for one. Changing
  * or dropping the scroller lets go of any hold, since its `pointerup` would never arrive, and
  * drops any float or follow, which belonged to the old scroller. While a scroller is registered a
- * single `gsap.ticker` handler (`tick`) does the per-frame work.
+ * single `gsap.ticker` handler (`tick`) does the per-frame work, and a `ResizeObserver` on the
+ * scroller keeps the measured dimensions current (`handleResize`); where there is none (jsdom)
+ * the registration measure stands.
  */
 export function registerDeckScroller(el: HTMLElement | null): void {
   if (scroller) {
     for (const [type, handler] of LISTENERS) scroller.removeEventListener(type, handler);
   }
+  resizeObserver?.disconnect();
+  resizeObserver = null;
   gsap.ticker.remove(tick);
   unsubscribeUI?.();
   unsubscribeUI = null;
   lastSelected = null;
   scroller = el;
+  scrollWidth = 0;
+  clientWidth = 0;
   held = false;
   cancelAutomaticMotion();
   killTimeline(DECK_CAMERA_TIMELINE_ID);
   if (scroller) {
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(scroller);
+    }
     for (const [type, handler] of LISTENERS) scroller.addEventListener(type, handler);
     gsap.ticker.add(tick);
     unsubscribeUI = useUIStore.subscribe(onUIChange);
@@ -153,17 +198,19 @@ export function subscribeFollowedRobot(listener: () => void): () => void {
 
 /**
  * A robot's camera target: its live scene x (spec assumption 5), scaled to the stage's actual
- * pixel width and centred in the viewport, clamped to the scroller's own scroll range. `null`
- * when the robot has no ref yet or there is no scroller.
+ * pixel width and centred in the viewport, clamped to the scroller's scroll range. `null` when
+ * the robot has no ref yet, there is no scroller, or there is nothing to scroll. The scroller's
+ * dimensions are the measured ones; nothing is read from the element here.
  */
 function targetFor(robotId: string): number | null {
   if (!scroller) return null;
+  const max = scrollRange();
+  if (max === 0) return null;
   const el = getRef(`robot-${robotId}`);
   if (!el) return null;
   const x = Number(gsap.getProperty(el, 'x'));
-  const scale = scroller.scrollWidth / WORLD_BOUNDS.width;
-  const max = scroller.scrollWidth - scroller.clientWidth;
-  return Math.min(max, Math.max(0, x * scale - scroller.clientWidth / 2));
+  const scale = scrollWidth / WORLD_BOUNDS.width;
+  return Math.min(max, Math.max(0, x * scale - clientWidth / 2));
 }
 
 /** `targetFor`, exported for tests. */
@@ -324,9 +371,10 @@ function onUIChange(state: EditReturnState, prev: EditReturnState): void {
 }
 
 /** The one per-frame handler (spec §1.2): tracks the subject, or once the cooldown has passed
- *  picks the next robot. Does nothing while the user holds the scroller or a float is in flight. */
+ *  picks the next robot. Does nothing while the user holds the scroller, while a float is in
+ *  flight, or while there is nothing to scroll. */
 function tick(): void {
-  if (!scroller || held) return;
+  if (!scroller || held || scrollRange() === 0) return;
   const now = performance.now();
   if (subjectId !== null) {
     followSubject(scroller, subjectId, now);

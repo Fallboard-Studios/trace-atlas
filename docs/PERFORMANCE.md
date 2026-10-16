@@ -1716,7 +1716,8 @@ roots (`robots-back`, `bubbles`, `robots`, `marker`)**; about 50 elements change
 bodies, bubbles); 287 GSAP-cached elements. Chrome composites an SVG root, never a `<g>` inside it, so one robot's transform
 write re-rasters its whole 2560 × 1440 layer: that is the 94 %.
 
-**The deck camera runs at full screen.** The world view has scroll range 0 there, but `registerDeckScroller` adds the per-frame
+**The deck camera ran at full screen** (fixed 2026-10-16, `fix/deck-camera-idle-range`: dimensions cached on resize, the camera
+stands down at scroll range 0). The world view has scroll range 0 there, but `registerDeckScroller` added the per-frame
 tick whenever a scroller element exists; `targetFor` reads `scrollWidth` / `clientWidth` (a forced layout after GSAP's writes)
 and writes `scrollLeft` every frame for a result that is always 0. The camera is a cost here, not the cause.
 
