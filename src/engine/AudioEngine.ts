@@ -3,6 +3,7 @@
 // ========================================
 import * as Tone from 'tone';
 import gsap from 'gsap';
+import alea from 'alea';
 import { useLocaleStore } from '../stores/localeStore';
 import { useRobotPanReadoutStore } from '../stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
@@ -121,7 +122,20 @@ const SEND_RAMP_SECONDS = 0.05;
 // Precompute data X positions for seeded noise sampling (module scope — hot path safe)
 const VELOCITY_ROLL_X = precomputeDataX('audio.velocityRoll');
 const VELOCITY_VARIANCE_X = precomputeDataX('audio.velocityVariance');
-const HUMANIZE_X = precomputeDataX('audio.humanize');
+
+/** What a positioned roll is for; part of the draw's key, so the three never share a value at one tick. */
+export type PerformanceRollPurpose = 'velocityRoll' | 'velocityVariance' | 'humanize';
+
+/**
+ * The one draw the positioned velocity roll, its variance and Humanize are built on (Robot Performance T20): a
+ * uniform [0, 1) value from alea over `seed:purpose:position`. Independent across robots, purposes and ticks, and a
+ * pure function of its inputs, so a replay from power-on repeats it. It replaced sampling the locale noise map at
+ * `compositionSeed + position`: compositionSeed is a 0-1 fraction, so every robot sat within one unit of the others on a
+ * smooth field and a unison rolled, and shifted, together. The legacy no-position path still reads the noise map.
+ */
+export function performanceRoll(compositionSeed: number, purpose: PerformanceRollPurpose, position: number): number {
+  return alea(`${compositionSeed}:${purpose}:${position}`)();
+}
 
 // Validates a resolved pitch string before triggering (e.g. "C4", "F#3", "Bb2") — hoisted to
 // module scope, same "precompute once, not per-note" discipline as VELOCITY_ROLL_X/
@@ -510,10 +524,11 @@ function resolveDynamics(robot?: Robot): number {
 
 /**
  * Deterministic, locale-seeded velocity computation.
- * Samples the active locale's noise map at precomputed X positions to decide whether to vary this note and by how
- * much, around NOTE_VELOCITY_BASELINE. The noise offset is the robot's compositionSeed plus the playback `position`
- * (mod 97), so a replay from power-on repeats the pattern and two robots at the same tick differ. With no
- * `position` (tests, callers outside the playback loop) it falls back to the legacy per-robot counter. The robot's
+ * Decides whether to vary this note and by how much, around NOTE_VELOCITY_BASELINE. With a `position` the two draws
+ * are `performanceRoll(compositionSeed, purpose, position)`: uniform, independent across robots and ticks, and a pure
+ * function of their inputs, so a replay from power-on repeats the pattern and two robots at the same tick differ
+ * (T20). With no `position` (tests, callers outside the playback loop) it falls back to the legacy per-robot counter
+ * sampling the locale noise map at precomputed X positions. Either way the noise map's presence gates the roll. The robot's
  * Dynamics scales the variance rate and width (50 = today's exactly, 0 = flat). Falls back to no variance when the
  * noise map is unavailable. `robot` is the store robot when the caller already has it; otherwise it is looked up.
  */
@@ -523,29 +538,35 @@ export function computeNoteVelocitySeeded(robotId?: string, position?: number, r
   if (!noiseMap) return clampVelocity(NOTE_VELOCITY_BASELINE);
 
   const storeRobot = robot ?? (robotId ? findActiveRobot(robotId) : undefined);
-  let offset: number;
-  if (position !== undefined) {
-    offset = ((storeRobot?.compositionSeed ?? 0) + position) % VELOCITY_PERIOD;
-  } else {
-    const idx = robotId ? (robotNoteIndex.get(robotId) ?? 0) : 0;
-    offset = idx % VELOCITY_PERIOD;
-    if (robotId) robotNoteIndex.set(robotId, (idx + 1) % VELOCITY_PERIOD);
-  }
-
   const scale = resolveDynamics(storeRobot) / DYNAMICS_NEUTRAL;
   const rate = VELOCITY_VARIANCE_RATE * scale; // at most 0.3: resolveDynamics caps the scale at 2
   const width = VELOCITY_VARIANCE_AMOUNT * scale;
 
-  const roll = (noiseMap(VELOCITY_ROLL_X, offset) + 1) / 2; // map [-1,1] -> [0,1]
+  // The two draws: the roll in [0, 1) against the rate, and the signed variance in [-1, 1].
+  let roll: number;
+  let variance: number;
+  if (position !== undefined) {
+    const seed = storeRobot?.compositionSeed ?? 0;
+    roll = performanceRoll(seed, 'velocityRoll', position);
+    variance = performanceRoll(seed, 'velocityVariance', position) * 2 - 1;
+  } else {
+    const idx = robotId ? (robotNoteIndex.get(robotId) ?? 0) : 0;
+    const offset = idx % VELOCITY_PERIOD;
+    if (robotId) robotNoteIndex.set(robotId, (idx + 1) % VELOCITY_PERIOD);
+    roll = (noiseMap(VELOCITY_ROLL_X, offset) + 1) / 2; // map [-1,1] -> [0,1]
+    variance = noiseMap(VELOCITY_VARIANCE_X, offset);
+  }
+
   if (roll >= rate) return clampVelocity(NOTE_VELOCITY_BASELINE);
-  return clampVelocity(NOTE_VELOCITY_BASELINE + noiseMap(VELOCITY_VARIANCE_X, offset) * width);
+  return clampVelocity(NOTE_VELOCITY_BASELINE + variance * width);
 }
 
 /**
  * Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): a function from a robot id to how many seconds early or
- * late its note lands this tick, within ± humanizeMs. The locale noise map and the roster are fetched ONCE here, per
- * processMelodyStep call, not once per note; the per-robot work is a find over the roster and one noise sample at
- * the same (compositionSeed + position) offset the velocity roll uses, so a replay repeats and two robots differ.
+ * late its note lands this tick, within ± humanizeMs. The roster is fetched ONCE here, per processMelodyStep call,
+ * not once per note; the per-robot work is a find over the roster and one `performanceRoll(seed, 'humanize',
+ * position)` draw (T20), uniform and independent across robots and ticks, so a unison smears rather than shifting
+ * together, and a replay repeats. The locale noise map is only checked for presence (no active locale, no offset).
  * Returns a constant 0 (and fetches nothing) when Humanize is off or there is no noise map. MIN_LEAD less the
  * largest offset still leaves 80 ms of lead, inside CLAUDE.md's 50-100 ms rule.
  */
@@ -557,7 +578,7 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
   const range = humanizeMs / 1000;
   return (robotId) => {
     const seed = roster.find((r) => r.id === robotId)?.compositionSeed ?? 0;
-    return noiseMap(HUMANIZE_X, (seed + position) % VELOCITY_PERIOD) * range;
+    return (performanceRoll(seed, 'humanize', position) * 2 - 1) * range;
   };
 }
 

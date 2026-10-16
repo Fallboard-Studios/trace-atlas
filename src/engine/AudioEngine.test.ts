@@ -4136,16 +4136,21 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
       expect(computeNoteVelocitySeeded('r')).toBe(0.8);
     });
 
-    it('at Dynamics 50 the old roll decisions repeat, scaled to the 0.8 baseline (oracle re-recorded: baseline 1 to 0.8 and position-keyed rolls, assumptions 6 and 8)', async () => {
-      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 50 })]);
-      // Positions 0-2 vary (roll 0.025, 0.075, 0.125 are under 0.15); 3 does not (0.175).
-      expect(computeNoteVelocitySeeded('r', 0)).toBeCloseTo(0.8 - 0.25, 10);
-      expect(computeNoteVelocitySeeded('r', 1)).toBeCloseTo(0.8 - 0.25 * (2 / 3), 10);
-      expect(computeNoteVelocitySeeded('r', 2)).toBeCloseTo(0.8 - 0.25 * (1 / 3), 10);
-      expect(computeNoteVelocitySeeded('r', 3)).toBe(0.8);
-      // Position 20 varies upward (+0.25 on 0.8 is 1.05) and clamps to 1; 21 is back to -1.
-      expect(computeNoteVelocitySeeded('r', 20)).toBe(1);
-      expect(computeNoteVelocitySeeded('r', 21)).toBeCloseTo(0.55, 10);
+    // Robot Performance T20: the positioned roll is a uniform draw from (compositionSeed, purpose, position) through
+    // alea, not a noise-map sample at seed + position (compositionSeed is a 0-1 fraction, so that put every robot
+    // within one unit of each other on a smooth field and they rolled together). The oracle is the same arithmetic.
+    it('at Dynamics 50 each position rolls alea(`seed:velocityRoll:position`) against 0.15 and swings by alea(`seed:velocityVariance:position`) around the 0.8 baseline', async () => {
+      const { default: alea } = await import('alea');
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 50, compositionSeed: 0.42 })]);
+      const expected = (position: number) => {
+        if (alea(`0.42:velocityRoll:${position}`)() >= 0.15) return 0.8;
+        return Math.min(1, Math.max(0.05, 0.8 + (alea(`0.42:velocityVariance:${position}`)() * 2 - 1) * 0.25));
+      };
+      const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
+      velocities.forEach((v, p) => expect(v, `position ${p}`).toBeCloseTo(expected(p), 12));
+      const varied = velocities.filter((v) => v !== 0.8).length;
+      expect(varied, 'some notes vary at the 15 % rate over 200 positions').toBeGreaterThan(15);
+      expect(varied).toBeLessThan(45);
     });
 
     it('an absent Dynamics behaves exactly as 50', async () => {
@@ -4172,8 +4177,10 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
     it('at Dynamics 25 the swing narrows to half the default width (0.125) and fewer notes vary', async () => {
       const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 25 })]);
       const velocities = sweep((p) => computeNoteVelocitySeeded('r', p));
-      expect(velocities[0]).toBeCloseTo(0.8 - 0.125, 10);
-      expect(Math.max(...velocities.map((v) => Math.abs(v - 0.8)))).toBeLessThanOrEqual(0.125 + 1e-9);
+      const swings = velocities.map((v) => Math.abs(v - 0.8)).filter((s) => s > 0);
+      expect(swings.length).toBeGreaterThan(0);
+      expect(Math.max(...swings)).toBeLessThanOrEqual(0.125 + 1e-9);
+      expect(Math.max(...swings)).toBeGreaterThan(0.06); // the half-width is reached, not just undershot
       const varied = velocities.filter((v) => v !== 0.8).length / velocities.length;
       expect(varied).toBeGreaterThan(0);
       expect(varied).toBeLessThan(0.15);
@@ -4208,23 +4215,28 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
   });
 
   describe('rolls key off the playback position and the composition seed, not a counter', () => {
-    it('two robots with different compositionSeeds get different velocities at the same position', async () => {
-      const { computeNoteVelocitySeeded } = await setup([robotFixture('a', { compositionSeed: 0 }), robotFixture('b', { compositionSeed: 1 })]);
-      expect(computeNoteVelocitySeeded('a', 0)).not.toBe(computeNoteVelocitySeeded('b', 0));
+    it('two robots with different compositionSeeds get different velocity series over the same positions', async () => {
+      const { computeNoteVelocitySeeded } = await setup([robotFixture('a', { compositionSeed: 0, dynamics: 100 }), robotFixture('b', { compositionSeed: 1, dynamics: 100 })]);
+      expect(sweep((p) => computeNoteVelocitySeeded('a', p))).not.toEqual(sweep((p) => computeNoteVelocitySeeded('b', p)));
     });
 
-    it('the offset is the composition seed plus the position: seed 5 at position 0 is seed 0 at position 5', async () => {
-      const { computeNoteVelocitySeeded } = await setup([robotFixture('seed0', { compositionSeed: 0 }), robotFixture('seed5', { compositionSeed: 5 })]);
-      for (let position = 0; position < 40; position++) {
-        expect(computeNoteVelocitySeeded('seed5', position)).toBe(computeNoteVelocitySeeded('seed0', position + 5));
-      }
+    it('two robots with seeds 0.30 and 0.31 (a real roster\'s spacing) roll independently: on many positions exactly one of them varies', async () => {
+      const { computeNoteVelocitySeeded } = await setup([
+        robotFixture('a', { compositionSeed: 0.3, dynamics: 100 }),
+        robotFixture('b', { compositionSeed: 0.31, dynamics: 100 }),
+      ]);
+      const a = sweep((p) => computeNoteVelocitySeeded('a', p));
+      const b = sweep((p) => computeNoteVelocitySeeded('b', p));
+      const exactlyOne = a.filter((v, p) => (v !== 0.8) !== (b[p] !== 0.8)).length;
+      // Independent 30 % rolls disagree on 2 x 0.3 x 0.7 = 42 % of positions; the old seed + position offset gave ~0.
+      expect(exactlyOne).toBeGreaterThan(50);
     });
 
-    it('the pattern wraps at the 97 period: position 97 repeats position 0', async () => {
+    it('has no 97-step period: the pattern does not repeat at position + 97', async () => {
       const { computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
-      for (let position = 0; position < 10; position++) {
-        expect(computeNoteVelocitySeeded('r', position + 97)).toBe(computeNoteVelocitySeeded('r', position));
-      }
+      const first = sweep((p) => computeNoteVelocitySeeded('r', p), 60);
+      const shifted = sweep((p) => computeNoteVelocitySeeded('r', p + 97), 60);
+      expect(shifted).not.toEqual(first);
     });
 
     it('the same robot at the same position gets the same velocity however many other notes came between', async () => {
@@ -4246,6 +4258,51 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
     it('a robot the store does not hold is treated as seed 0 at Dynamics 50, without throwing', async () => {
       const { computeNoteVelocitySeeded } = await setup([robotFixture('known', { dynamics: 50 })]);
       expect(sweep((p) => computeNoteVelocitySeeded('ghost', p), 30)).toEqual(sweep((p) => computeNoteVelocitySeeded('known', p), 30));
+    });
+  });
+
+  // Robot Performance T20: the one draw both positioned rolls and Humanize are built on.
+  describe('performanceRoll: a uniform draw per robot, purpose and tick', () => {
+    const SEEDS: [number, number] = [0.3, 0.31];
+
+    it('is deterministic and equals alea(`seed:purpose:position`)()', async () => {
+      const { default: alea } = await import('alea');
+      const { performanceRoll } = await setup([]);
+      expect(performanceRoll(0.42, 'humanize', 7)).toBe(alea('0.42:humanize:7')());
+      expect(performanceRoll(0.42, 'humanize', 7)).toBe(performanceRoll(0.42, 'humanize', 7));
+    });
+
+    it('fills [0, 1) roughly uniformly over 400 ticks for one robot', async () => {
+      const { performanceRoll } = await setup([]);
+      const draws = Array.from({ length: 400 }, (_, p) => performanceRoll(0.3, 'velocityRoll', p));
+      const mean = draws.reduce((a, b) => a + b, 0) / draws.length;
+      expect(mean).toBeGreaterThan(0.42);
+      expect(mean).toBeLessThan(0.58);
+      expect(Math.min(...draws)).toBeLessThan(0.05);
+      expect(Math.max(...draws)).toBeGreaterThan(0.95);
+      expect(draws.every((d) => d >= 0 && d < 1)).toBe(true);
+    });
+
+    it('two seeds a real roster\'s distance apart (0.30, 0.31) draw independently: mean |difference| near 1/3, not near 0', async () => {
+      const { performanceRoll } = await setup([]);
+      const diffs = Array.from({ length: 400 }, (_, p) => Math.abs(performanceRoll(SEEDS[0], 'humanize', p) - performanceRoll(SEEDS[1], 'humanize', p)));
+      const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+      expect(mean).toBeGreaterThan(0.25);
+    });
+
+    it('consecutive ticks are unrelated for one robot (|lag-1 correlation| below 0.2)', async () => {
+      const { performanceRoll } = await setup([]);
+      const draws = Array.from({ length: 400 }, (_, p) => performanceRoll(0.3, 'humanize', p));
+      const mean = draws.reduce((a, b) => a + b, 0) / draws.length;
+      let num = 0; let den = 0;
+      for (let i = 0; i < draws.length - 1; i++) { num += (draws[i] - mean) * (draws[i + 1] - mean); den += (draws[i] - mean) ** 2; }
+      expect(Math.abs(num / den)).toBeLessThan(0.2);
+    });
+
+    it('the three purposes draw differently at the same seed and tick', async () => {
+      const { performanceRoll } = await setup([]);
+      const values = ['velocityRoll', 'velocityVariance', 'humanize'].map((purpose) => performanceRoll(0.3, purpose as never, 5));
+      expect(new Set(values).size).toBe(3);
     });
   });
 
@@ -4303,11 +4360,15 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
       await AudioEngine.start();
       AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
 
-      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: '4n', time: 0, position: 0 });
-      AudioEngine.scheduleNote({ robotId: 'r', note: 'D4', duration: '4n', time: 0, position: 4 });
+      // One position whose roll varies and one whose roll does not, found from the roll itself (T20: the draws
+      // are independent per position, so no fixed pair is guaranteed to differ).
+      const varying = Array.from({ length: 200 }, (_, p) => p).find((p) => computeNoteVelocitySeeded('r', p) !== 0.8)!;
+      const flat = Array.from({ length: 200 }, (_, p) => p).find((p) => computeNoteVelocitySeeded('r', p) === 0.8)!;
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: '4n', time: 0, position: varying });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'D4', duration: '4n', time: 0, position: flat });
 
-      expect(triggeredVelocity(Tone, 'C4')).toBe(computeNoteVelocitySeeded('r', 0));
-      expect(triggeredVelocity(Tone, 'D4')).toBe(computeNoteVelocitySeeded('r', 4));
+      expect(triggeredVelocity(Tone, 'C4')).toBe(computeNoteVelocitySeeded('r', varying));
+      expect(triggeredVelocity(Tone, 'D4')).toBe(0.8);
       expect(triggeredVelocity(Tone, 'C4')).not.toBe(triggeredVelocity(Tone, 'D4'));
     });
 
@@ -4560,15 +4621,42 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect(offset).not.toBe(0);
     });
 
-    it('scales with the setting: noise -1 at position 0 gives -0.020 s at 20 ms and -0.005 s at 5 ms', async () => {
+    // Robot Performance T20: the offset is (alea(`seed:humanize:position`)() x 2 - 1) x the setting, a uniform draw
+    // independent across robots and ticks (the noise-map sample at seed + position made a unison shift together).
+    it('scales with the setting: seed 0 at position 0 draws alea(`0:humanize:0`), times 0.020 s at 20 ms and 0.005 s at 5 ms', async () => {
+      const { default: alea } = await import('alea');
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
       AudioEngine.setHumanize(20);
       AudioEngine.processMelodyStep(1, 0);
       AudioEngine.setHumanize(5);
       AudioEngine.processMelodyStep(1, 0);
-      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
-      expect((params()[1].time as number) - MIN_LEAD).toBeCloseTo(-0.005, 10);
+      const unit = alea('0:humanize:0')() * 2 - 1;
+      expect(Math.abs(unit)).toBeGreaterThan(0.05); // the oracle is a real offset, not a near-zero draw
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(unit * 0.02, 10);
+      expect((params()[1].time as number) - MIN_LEAD).toBeCloseTo(unit * 0.005, 10);
+    });
+
+    it('twelve robots with seeds spread over 0-1 land more than 20 ms apart at one tick (a unison smears instead of shifting together)', async () => {
+      const robots = Array.from({ length: 12 }, (_, i) => robotFixture(`r${i}`, { compositionSeed: 0.04 + i / 12 }));
+      const { AudioEngine, params } = await setup(robots);
+      AudioEngine.setHumanize(20);
+      for (const r of robots) AudioEngine.registerRobotMelody(r.id, [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      const offsets = params().map((p) => (p.time as number) - MIN_LEAD);
+      expect(offsets).toHaveLength(12);
+      expect(Math.max(...offsets) - Math.min(...offsets)).toBeGreaterThan(0.02);
+      expect(new Set(offsets.map((o) => o.toFixed(4))).size).toBeGreaterThanOrEqual(10);
+    });
+
+    it('two robots with seeds 0.30 and 0.31 get unrelated offsets, not neighbours on a smooth field', async () => {
+      const { AudioEngine, params } = await setup([robotFixture('a', { compositionSeed: 0.3 }), robotFixture('b', { compositionSeed: 0.31 })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('a', [eventFixture()] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
+      const [a, b] = params().map((p) => (p.time as number) - MIN_LEAD);
+      expect(Math.abs(a - b)).toBeGreaterThan(0.005);
     });
 
     it('is identical on a repeated position, different for two robots with different seeds', async () => {
@@ -4609,24 +4697,30 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('clamps to 0-20 ms, and reads NaN as 0', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.setHumanize(20);
+      AudioEngine.processMelodyStep(1, 0);
       AudioEngine.setHumanize(99);
       AudioEngine.processMelodyStep(1, 0);
       AudioEngine.setHumanize(-5);
       AudioEngine.processMelodyStep(1, 0);
       AudioEngine.setHumanize(NaN);
       AudioEngine.processMelodyStep(1, 0);
-      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
-      expect(params()[1].time).toBe(MIN_LEAD);
+      expect(params()[0].time).not.toBe(MIN_LEAD);
+      expect(params()[1].time).toBe(params()[0].time); // 99 clamps to 20: the same draw, the same range
       expect(params()[2].time).toBe(MIN_LEAD);
+      expect(params()[3].time).toBe(MIN_LEAD);
     });
 
     it('survives a power cycle (killAll), like the polyphony cap', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      AudioEngine.processMelodyStep(1, 0);
       AudioEngine.killAll();
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
       AudioEngine.processMelodyStep(1, 0);
-      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
+      expect(params()[0].time).not.toBe(MIN_LEAD);
+      expect(params()[1].time).toBe(params()[0].time); // the setting survived the power cycle
     });
 
     it('with no noise map there is no offset and nothing throws', async () => {
@@ -4638,11 +4732,12 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     });
 
     it('a robot the store does not hold is humanized as seed 0 without throwing', async () => {
+      const { default: alea } = await import('alea');
       const { AudioEngine, params } = await setup([robotFixture('known')]);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('ghost', [eventFixture()] as never);
       AudioEngine.processMelodyStep(1, 0);
-      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(-0.02, 10);
+      expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo((alea('0:humanize:0')() * 2 - 1) * 0.02, 10);
     });
 
     it('reads the roster once per step with three robots sounding, and not at all at 0 ms', async () => {
