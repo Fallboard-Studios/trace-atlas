@@ -129,7 +129,7 @@ describe('useCompanyOptions', () => {
 
       const { options } = result.current;
       expect(options.active).toBe(false);
-      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0 });
+      expect(options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0, dynamics: 0 });
       expect(options.signatureArrayValue.layers).toHaveLength(3);
       expect(options.adsrValue).toEqual({ attack: 0, decay: 0, sustain: 0, release: 0 });
     });
@@ -180,7 +180,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0 });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'solo', masterVolume: 0.6, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0, dynamics: 50 });
       expect(result.current.options.pingControlsValue.rhythmicDensity).toBe(42);
     });
 
@@ -300,6 +300,57 @@ describe('useCompanyOptions', () => {
       act(() => result.current.options.onVolumeChange(50));
 
       expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  // docs/tasks/ROBOT_PERFORMANCE.md Task 9 - the company Levels screen needs a Dynamics value and handler so the shared
+  // section type-checks. TEMPORARY: the first member's value and an inert handler; Task 14 replaces both with the
+  // resolved snapshot value and the broadcast (and this block with the real tests).
+  describe('Dynamics pass-through (Robot Performance Task 9, replaced by Task 14)', () => {
+    it("is the first member's dynamics, not the second's", () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 72 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', dynamics: 10 }));
+      addCompany('c1', ['r1', 'r2']);
+
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      expect(result.current.options.audioSettingValue.dynamics).toBe(72);
+    });
+
+    it('is 50 for a first member that carries no field, and 0 for a first member at 0', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addCompany('c1', ['r1']);
+      expect(renderHook(() => useCompanyOptions('c1')).result.current.options.audioSettingValue.dynamics).toBe(50);
+
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 0 }));
+      expect(renderHook(() => useCompanyOptions('c1')).result.current.options.audioSettingValue.dynamics).toBe(0);
+    });
+
+    it('follows the first member when its dynamics changes elsewhere, and ignores a member that is not first', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 30 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', dynamics: 30 }));
+      addCompany('c1', ['r1', 'r2']);
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 80 }));
+      expect(result.current.options.audioSettingValue.dynamics).toBe(80);
+
+      const before = result.current.options.audioSettingValue;
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { dynamics: 5 }));
+      expect(result.current.options.audioSettingValue).toBe(before);
+    });
+
+    it('offers an onDynamicsChange that is a stable function and does not throw', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', dynamics: 30 }));
+      addCompany('c1', ['r1']);
+      const { result, rerender } = renderHook(() => useCompanyOptions('c1'));
+      const first = result.current.options.onDynamicsChange;
+
+      rerender();
+
+      expect(typeof first).toBe('function');
+      expect(result.current.options.onDynamicsChange).toBe(first);
+      expect(() => first(60)).not.toThrow();
     });
   });
 
@@ -649,7 +700,7 @@ describe('useCompanyOptions', () => {
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
-      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false, reverbSend: 0, delaySend: 0 });
+      expect(result.current.options.audioSettingValue).toEqual({ audioMode: 'none', masterVolume: 0.6, pan: -0.35, panAuto: false, reverbSend: 0, delaySend: 0, dynamics: 50 });
     });
 
     it('audioSettingValue shows the recorded snapshot over the first member, so the slider reads the stored pan', () => {

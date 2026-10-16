@@ -20,7 +20,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
-import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
+import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_DYNAMICS } from '@/engine/melodyGenerator';
 import { SIGNATURE_ARRAY_CONFIG, BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
@@ -36,7 +36,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyDynamics,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -218,7 +218,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     panAuto: robot.panAuto,
     reverbSend: robot.reverbSend,
     delaySend: robot.delaySend,
-  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto, robot.reverbSend, robot.delaySend]);
+    dynamics: robot.dynamics ?? DEFAULT_DYNAMICS,
+  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto, robot.reverbSend, robot.delaySend, robot.dynamics]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -266,6 +267,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     cancelSwellForRobotAttribute(latestRobot.current.id, 'delaySend');
     applyDelaySend(latestRobot.current, localeId, pct);
   }, [localeId]);
+
+  // Dynamics is read at trigger time and is not a swell attribute: no cancel, no melody regeneration (spec §1.5).
+  const handleDynamicsChange = useCallback((v: number) => applyDynamics(latestRobot.current, localeId, v), [localeId]);
 
   // Pan is not a swell attribute, so neither handler cancels one. Both read the latest robot, so the
   // action sees the live pan/panAuto, not the render's (applyPanAuto copies the engine's live value).
@@ -326,6 +330,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onPanAutoChange={handlePanAutoChange}
             onReverbSendChange={handleReverbSendChange}
             onDelaySendChange={handleDelaySendChange}
+            onDynamicsChange={handleDynamicsChange}
             volumeSwelling={volumeSwelling}
             reverbSendSwelling={reverbSendSwelling}
             delaySendSwelling={delaySendSwelling}
@@ -388,7 +393,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     }
   }, [
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
-    handleReverbSendChange, handleDelaySendChange, reverbSendSwelling, delaySendSwelling,
+    handleReverbSendChange, handleDelaySendChange, handleDynamicsChange, reverbSendSwelling, delaySendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,

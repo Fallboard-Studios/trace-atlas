@@ -45,6 +45,7 @@ const levelsStub = vi.hoisted(() => {
     onVolumeChange: unknown;
     onReverbSendChange: (pct: number) => void;
     onDelaySendChange: (pct: number) => void;
+    onDynamicsChange: (value: number) => void;
   }
   const stub = {
     renders: 0,
@@ -63,13 +64,14 @@ const levelsStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean; reverbSend: number; delaySend: number };
+    value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean; reverbSend: number; delaySend: number; dynamics: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
     onPanChange: (display: number) => void;
     onPanAutoChange: (auto: boolean) => void;
     onReverbSendChange: (pct: number) => void;
     onDelaySendChange: (pct: number) => void;
+    onDynamicsChange: (value: number) => void;
     livePan?: number;
     volumeSwelling?: boolean;
     reverbSendSwelling?: boolean;
@@ -78,6 +80,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     levelsStub.record({
       onPanChange: props.onPanChange, onPanAutoChange: props.onPanAutoChange, onVolumeChange: props.onVolumeChange,
       onReverbSendChange: props.onReverbSendChange, onDelaySendChange: props.onDelaySendChange,
+      onDynamicsChange: props.onDynamicsChange,
     });
     return (
       <div
@@ -88,6 +91,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-pan-auto={String(props.value.panAuto)}
         data-reverb-send={props.value.reverbSend}
         data-delay-send={props.value.delaySend}
+        data-dynamics={props.value.dynamics}
         data-has-send-handlers={String(typeof props.onReverbSendChange === 'function' && typeof props.onDelaySendChange === 'function')}
         data-live-pan={props.livePan}
         data-volume-swelling={String(props.volumeSwelling)}
@@ -101,6 +105,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         <button onClick={() => props.onPanAutoChange(true)}>probe-pan-auto-on</button>
         <button onClick={() => props.onReverbSendChange(40)}>probe-reverb-send</button>
         <button onClick={() => props.onDelaySendChange(40)}>probe-delay-send</button>
+        <button onClick={() => props.onDynamicsChange(65)}>probe-dynamics</button>
       </div>
     );
   }),
@@ -855,6 +860,107 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
     });
 
     // docs/specs/ROBOT_PAN.md §1.5 — Pan and its Auto toggle (docs/tasks/ROBOT_PAN.md Task 9).
+    // docs/tasks/ROBOT_PERFORMANCE.md Task 9: the screen passes the robot's Dynamics (50 when absent) and wires one handler.
+    describe('Dynamics (Robot Performance Task 9)', () => {
+      const stubDynamics = () => screen.getByTestId('audio-setting-section-stub').getAttribute('data-dynamics');
+
+      it("derives dynamics from the robot's own field", () => {
+        selectRobot(makeRobot('r1', { dynamics: 72 }), 'volume');
+        render(<RobotScreen />);
+        expect(stubDynamics()).toBe('72');
+      });
+
+      it('a robot with the field absent reaches the section as 50, the neutral Dynamics', () => {
+        selectRobot(makeRobot('r1'), 'volume');
+        render(<RobotScreen />);
+        expect(stubDynamics()).toBe('50');
+      });
+
+      it('a robot at 0 reaches the section as 0 (flat is a value, not an absent one)', () => {
+        selectRobot(makeRobot('r1', { dynamics: 0 }), 'volume');
+        render(<RobotScreen />);
+        expect(stubDynamics()).toBe('0');
+      });
+
+      it('follows the store: a Dynamics edited elsewhere reaches the section on the next render', () => {
+        selectRobot(makeRobot('r1', { dynamics: 30 }), 'volume');
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 90 }));
+        expect(stubDynamics()).toBe('90');
+      });
+
+      it('wires onDynamicsChange to applyDynamics with the robot and the number, once, and calls no other action', () => {
+        const robot = makeRobot('r1', { dynamics: 30 });
+        selectRobot(robot, 'volume');
+        const dynamics = vi.spyOn(robotOptionsActions, 'applyDynamics').mockImplementation(() => {});
+        const rests = vi.spyOn(robotOptionsActions, 'applyRests').mockImplementation(() => {});
+        const accents = vi.spyOn(robotOptionsActions, 'applyAccents').mockImplementation(() => {});
+        const volume = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-dynamics'));
+        expect(dynamics).toHaveBeenCalledTimes(1);
+        expect(dynamics).toHaveBeenCalledWith(robot, localeId, 65);
+        [rests, accents, volume].forEach((spy) => expect(spy).not.toHaveBeenCalled());
+      });
+
+      it('the handler reads the latest robot, not the one from the first render', () => {
+        selectRobot(makeRobot('r1', { dynamics: 10 }), 'volume');
+        const dynamics = vi.spyOn(robotOptionsActions, 'applyDynamics').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 80 }));
+        fireEvent.click(screen.getByText('probe-dynamics'));
+        expect(dynamics.mock.calls[0][0]).toMatchObject({ id: 'r1', dynamics: 80 });
+      });
+
+      it('a drag reaches the store as the number it was given, and never regenerates the melody or touches the engine', () => {
+        selectRobot(makeRobot('r1', { dynamics: 30 }), 'volume');
+        const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-dynamics'));
+        const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+        expect(stored.dynamics).toBe(65);
+        expect(engine).not.toHaveBeenCalled();
+      });
+
+      it('an edit does not interrupt a swell (Dynamics is not a swell attribute)', () => {
+        selectRobot(makeRobot('r1'), 'volume');
+        vi.spyOn(robotOptionsActions, 'applyDynamics').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-dynamics'));
+        expect(cancel).not.toHaveBeenCalled();
+      });
+
+      it("another robot's Dynamics is untouched by an edit on this one", () => {
+        selectRobot(makeRobot('r1', { dynamics: 30 }), 'volume');
+        useLocaleStore.getState().addRobot(localeId, makeRobot('r2', { dynamics: 20 }));
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-dynamics'));
+        expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r2')!.dynamics).toBe(20);
+      });
+
+      it('the handler keeps its identity across an unrelated robot change, and the section does not re-render', () => {
+        selectRobot(makeRobot('r1', { dynamics: 30 }), 'volume');
+        render(<RobotScreen />);
+        const first = levelsStub.last!;
+        const sectionBefore = levelsStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+        expect(levelsStub.last!.onDynamicsChange).toBe(first.onDynamicsChange);
+        expect(levelsStub.renders).toBe(sectionBefore);
+      });
+
+      it('a Dynamics change re-renders the section (the value is in its memo key) but keeps every handler identity', () => {
+        selectRobot(makeRobot('r1', { dynamics: 30 }), 'volume');
+        render(<RobotScreen />);
+        const first = levelsStub.last!;
+        const sectionBefore = levelsStub.renders;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { dynamics: 31 }));
+        expect(levelsStub.renders).toBeGreaterThan(sectionBefore);
+        expect(levelsStub.last!.onDynamicsChange).toBe(first.onDynamicsChange);
+        expect(levelsStub.last!.onVolumeChange).toBe(first.onVolumeChange);
+      });
+    });
+
     describe('Pan', () => {
       it("derives pan and panAuto from the robot's own fields", () => {
         selectRobot(makeRobot('r1', { pan: -0.3, panAuto: false }), 'volume');

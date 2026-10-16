@@ -17,6 +17,7 @@ import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
+import { DEFAULT_DYNAMICS } from '@/engine/melodyGenerator';
 import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -37,7 +38,12 @@ const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   panAuto: true,
   reverbSend: 0,
   delaySend: 0,
+  dynamics: 0,
 };
+
+// TODO T14 (docs/tasks/ROBOT_PERFORMANCE.md): Task 9 only keeps the shared Levels section type-checking on the company
+// screen. Task 14 replaces this inert handler with the broadcast and the value below with the resolved snapshot.
+const NO_DYNAMICS_BROADCAST = (): void => {};
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
   rhythmicDensity: 0,
@@ -113,6 +119,7 @@ export interface CompanyOptions {
   onPanAutoChange: (auto: boolean) => void;
   onReverbSendChange: (pct: number) => void;
   onDelaySendChange: (pct: number) => void;
+  onDynamicsChange: (value: number) => void;
   onDensityChange: (v: number) => void;
   onMotifLengthChange: (v: number) => void;
   onPitchRepeatChange: (v: number) => void;
@@ -224,14 +231,16 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedPanAuto = resolved?.panAuto;
   const resolvedReverbSend = resolved?.reverbSend;
   const resolvedDelaySend = resolved?.delaySend;
+  // TODO T14: the first member's own field until the snapshot carries dynamics.
+  const firstMemberDynamics = firstMember?.dynamics ?? DEFAULT_DYNAMICS;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
       ? {
         audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto!,
-        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!,
+        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!, dynamics: firstMemberDynamics,
       }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend]);
+  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend, firstMemberDynamics]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -494,6 +503,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onPanAutoChange,
     onReverbSendChange,
     onDelaySendChange,
+    onDynamicsChange: NO_DYNAMICS_BROADCAST,
     onDensityChange,
     onMotifLengthChange,
     onPitchRepeatChange,
