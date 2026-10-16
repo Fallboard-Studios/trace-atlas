@@ -1,0 +1,210 @@
+/* global document -- vitest runs this file under jsdom; the lint config gives scripts/ Node globals only */
+// Tests for the pure scene-markup helpers behind `npm run perf:idle` (scripts/perf/idle-paint.mjs).
+// The harness runs against the branch under test AND a `main` build in the same session, so its
+// selectors must read the stage markup (roadmap Phase 53) and the markup before it. The Chrome/CDP
+// plumbing is not unit-tested; it is verified by a real run (see docs/PERFORMANCE.md).
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { SCENE_SLOTS } from '../../src/components/panels/screen/worldView/sceneStack';
+import {
+  BUBBLE_CIRCLES,
+  SCENE_SLOT_NAMES,
+  SHEET_SELECTOR,
+  sceneSlotSelector,
+  slotNameOf,
+} from './scene-markup-lib.mjs';
+
+// ========================================
+// FIXTURES
+// ========================================
+
+/** The scene before the stage: seven svg layers straight under `.ocean-scene`, named `data-scene-layer`. */
+const OLD_SCENE = `
+  <div class="ocean-scene">
+    <svg class="ocean-scene__layer" data-scene-layer="back"><g id="factory-background-layer"><circle id="old-bg-circle" /></g></svg>
+    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="robots-back"><g id="robot-back-layer"><circle id="old-back-robot-circle" /></g></svg>
+    <svg class="ocean-scene__layer" data-scene-layer="mid"><g id="factory-midground-layer"><circle id="old-mid-circle" /></g><circle id="old-mid-stray" /></svg>
+    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="bubbles"><circle id="old-bubble-1" /><circle id="old-bubble-2" /></svg>
+    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="robots"><g id="robot-layer"><circle id="old-robot-circle" /></g></svg>
+    <svg class="ocean-scene__layer" data-scene-layer="front"><g id="factory-foreground-layer"><circle id="old-fg-circle" /></g></svg>
+    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="marker"></svg>
+  </div>`;
+
+/** The scene after Task 9: the same seven sheets inside the stage, named `data-scene-slot`. */
+const NEW_SCENE = `
+  <div class="ocean-scene">
+    <div class="ocean-scene__stage">
+      <svg class="ocean-scene__sheet" data-scene-slot="back"><g id="factory-background-layer"><circle id="new-bg-circle" /></g></svg>
+      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="robots-back"><g id="robot-back-layer"><circle id="new-back-robot-circle" /></g></svg>
+      <svg class="ocean-scene__sheet" data-scene-slot="mid"><g id="factory-midground-layer"><circle id="new-mid-circle" /></g><circle id="new-mid-stray" /></svg>
+      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="bubbles"><circle id="new-bubble-1" /><circle id="new-bubble-2" /></svg>
+      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="robots"><g id="robot-layer"><circle id="new-robot-circle" /></g></svg>
+      <svg class="ocean-scene__sheet" data-scene-slot="front"><g id="factory-foreground-layer"><circle id="new-fg-circle" /></g></svg>
+      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="marker"></svg>
+    </div>
+  </div>`;
+
+/** A later build: movers, which wear the same attribute as the sheets but are not sheets. */
+const MOVER_SCENE = `
+  <div class="ocean-scene"><div class="ocean-scene__stage">
+    <svg class="ocean-scene__sheet" data-scene-slot="back"></svg>
+    <div class="mover mover--robot" data-scene-slot="robots"><svg><circle id="mover-circle" /></svg></div>
+    <div class="mover mover--bubbles" data-scene-slot="bubbles"><svg><circle id="mover-bubble" /></svg></div>
+  </div></div>`;
+
+const ids = (nodes) => Array.from(nodes).map((n) => n.id);
+
+beforeEach(() => {
+  document.body.innerHTML = '';
+});
+
+// ========================================
+// TESTS
+// ========================================
+
+describe('SCENE_SLOT_NAMES', () => {
+  it('is the scene stack, back to front, exactly as sceneStack.ts names it', () => {
+    expect([...SCENE_SLOT_NAMES]).toEqual([...SCENE_SLOTS]);
+  });
+});
+
+describe('sceneSlotSelector', () => {
+  it.each([
+    ['the old markup', OLD_SCENE, 'old'],
+    ['the stage markup', NEW_SCENE, 'new'],
+  ])('finds a slot by name in %s', (_label, html, prefix) => {
+    document.body.innerHTML = html;
+    for (const name of ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front', 'marker']) {
+      const found = document.querySelectorAll(sceneSlotSelector(name));
+      expect(found, `${prefix} ${name}`).toHaveLength(1);
+    }
+    const bubbles = document.querySelector(sceneSlotSelector('bubbles'));
+    expect(ids(bubbles.querySelectorAll('circle'))).toEqual([`${prefix}-bubble-1`, `${prefix}-bubble-2`]);
+  });
+
+  it('matches only the slot asked for, not a slot whose name contains it', () => {
+    document.body.innerHTML = NEW_SCENE;
+    const robots = document.querySelectorAll(sceneSlotSelector('robots'));
+    expect(robots).toHaveLength(1);
+    expect(robots[0].getAttribute('data-scene-slot')).toBe('robots');
+  });
+
+  it('finds nothing for a slot the build does not have', () => {
+    document.body.innerHTML = NEW_SCENE;
+    expect(document.querySelectorAll(sceneSlotSelector('stations'))).toHaveLength(0);
+    expect(document.querySelectorAll(sceneSlotSelector('dissolve'))).toHaveLength(0);
+  });
+
+  it('finds every mover of a slot, which share their slot name with the sheets', () => {
+    document.body.innerHTML = MOVER_SCENE;
+    expect(document.querySelectorAll(sceneSlotSelector('robots'))).toHaveLength(1);
+    expect(document.querySelectorAll(sceneSlotSelector('back'))).toHaveLength(1);
+  });
+});
+
+describe('SHEET_SELECTOR', () => {
+  it.each([
+    ['the old markup', OLD_SCENE],
+    ['the stage markup', NEW_SCENE],
+  ])('counts the seven sheets in %s', (_label, html) => {
+    document.body.innerHTML = html;
+    expect(document.querySelectorAll(SHEET_SELECTOR)).toHaveLength(7);
+  });
+
+  it('is not the stage, and not a mover', () => {
+    document.body.innerHTML = MOVER_SCENE;
+    const matched = Array.from(document.querySelectorAll(SHEET_SELECTOR));
+    expect(matched).toHaveLength(1);
+    expect(matched[0].getAttribute('data-scene-slot')).toBe('back');
+    expect(matched.some((el) => el.classList.contains('ocean-scene__stage') || el.classList.contains('mover'))).toBe(false);
+  });
+});
+
+describe('BUBBLE_CIRCLES', () => {
+  it.each([
+    ['the old markup', OLD_SCENE, 'old'],
+    ['the stage markup', NEW_SCENE, 'new'],
+  ])('finds the bubble circles, and the factory-layer circles of builds before the split, in %s', (_label, html, prefix) => {
+    document.body.innerHTML = html;
+    expect(ids(document.querySelectorAll(BUBBLE_CIRCLES)).sort()).toEqual(
+      [`${prefix}-bg-circle`, `${prefix}-bubble-1`, `${prefix}-bubble-2`, `${prefix}-fg-circle`, `${prefix}-mid-circle`].sort(),
+    );
+  });
+
+  it('leaves the robots, and circles that are neither a bubble nor in a factory layer, alone', () => {
+    document.body.innerHTML = NEW_SCENE;
+    const found = ids(document.querySelectorAll(BUBBLE_CIRCLES));
+    for (const id of ['new-robot-circle', 'new-back-robot-circle', 'new-mid-stray']) expect(found).not.toContain(id);
+  });
+});
+
+describe('slotNameOf', () => {
+  it('reads the slot from a flat CDP attribute list', () => {
+    expect(slotNameOf(['class', 'ocean-scene__sheet', 'data-scene-slot', 'bubbles', 'width', '1920'])).toBe('bubbles');
+  });
+
+  it('falls back to the old layer attribute, so a main build is named too', () => {
+    expect(slotNameOf(['class', 'ocean-scene__layer', 'data-scene-layer', 'robots-back'])).toBe('robots-back');
+  });
+
+  it('prefers the slot attribute when a node has both', () => {
+    expect(slotNameOf(['data-scene-layer', 'old', 'data-scene-slot', 'new'])).toBe('new');
+    expect(slotNameOf(['data-scene-slot', 'new', 'data-scene-layer', 'old'])).toBe('new');
+  });
+
+  it('names nothing for a node with neither attribute, or no attributes at all', () => {
+    expect(slotNameOf(['class', 'sc-cabinet-box', 'id', 'x'])).toBeNull();
+    expect(slotNameOf([])).toBeNull();
+    expect(slotNameOf(undefined)).toBeNull();
+  });
+
+  it('reads an attribute name exactly, never as a prefix', () => {
+    expect(slotNameOf(['data-scene-slot-extra', 'nope'])).toBeNull();
+    expect(slotNameOf(['x-data-scene-slot', 'nope'])).toBeNull();
+  });
+
+  it('reads attribute values, never names: a value that looks like the attribute does not count', () => {
+    expect(slotNameOf(['class', 'data-scene-slot'])).toBeNull();
+    // Long enough that a parser stepping one entry at a time would take the value for a name and
+    // return the next entry, 'id'.
+    expect(slotNameOf(['class', 'data-scene-slot', 'id', 'x'])).toBeNull();
+    expect(slotNameOf(['class', 'data-scene-layer', 'id', 'x'])).toBeNull();
+  });
+
+  it('ignores a trailing name with no value', () => {
+    expect(slotNameOf(['class', 'sheet', 'data-scene-slot'])).toBeNull();
+  });
+});
+
+describe('idle-paint.mjs uses them', () => {
+  const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'idle-paint.mjs'), 'utf-8');
+
+  it('imports the helpers from the lib and declares no scene selectors of its own', () => {
+    expect(source).toMatch(/from '\.\/scene-markup-lib\.mjs'/);
+    for (const name of ['BUBBLE_CIRCLES', 'SCENE_SLOT_NAMES', 'SHEET_SELECTOR', 'sceneSlotSelector', 'slotNameOf']) {
+      expect(source, name).toContain(name);
+    }
+    expect(source).not.toMatch(/const SCENE_LAYERS\b/);
+  });
+
+  // Importing a helper is not using it: each is pinned where it does its work.
+  it('uses each helper where it counts', () => {
+    expect(source).toContain('const BUBBLES = BUBBLE_CIRCLES;');
+    expect(source).toContain('SCENE_SLOT_NAMES.map((name) => [name, sceneSlotSelector(name)])');
+    expect(source).toContain('document.querySelectorAll(${JSON.stringify(SHEET_SELECTOR)})');
+    expect(source).toContain('return slotNameOf(attrs);');
+    expect(source).toContain('JSON.stringify(SLOT_SELECTORS)');
+    expect(source).toContain('SCENE_SLOT_NAMES.map((name) => `${name} ${perLayer[name]}`)');
+  });
+
+  it('keeps no hard-coded layer or slot attribute selector: the lib reads both markups', () => {
+    expect(source).not.toContain('data-scene-layer');
+    expect(source).not.toContain('data-scene-slot');
+    expect(source).not.toContain('ocean-scene__layer');
+    expect(source).not.toContain('ocean-scene__sheet');
+  });
+});

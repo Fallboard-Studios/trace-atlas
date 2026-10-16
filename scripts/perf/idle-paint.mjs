@@ -24,6 +24,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { BUBBLE_CIRCLES, SCENE_SLOT_NAMES, SHEET_SELECTOR, sceneSlotSelector, slotNameOf } from './scene-markup-lib.mjs';
+
 const { values: opts } = parseArgs({
   options: {
     url: { type: 'string', default: 'http://localhost:4173/trace-atlas/' },
@@ -43,8 +45,8 @@ const { values: opts } = parseArgs({
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const WINDOW_MS = Number(opts.window);
 
-/** The bubble circles: in their own scene layer since the 17.2.5 layer split, inside the factory layers before it. */
-const BUBBLES = 'svg[data-scene-layer="bubbles"] circle, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle';
+/** The bubble circles — scene-markup-lib.mjs reads both the stage markup and the layers before it, so one name ablates a branch build and a `main` build. */
+const BUBBLES = BUBBLE_CIRCLES;
 
 /** Both robot rows: the front one (`#robot-layer`) and, since Phase 43 J4, the back one behind the midground. */
 const ROBOTS = '#robot-layer, #robot-back-layer';
@@ -53,8 +55,8 @@ const ROBOT_GROUPS = '#robot-layer .robot, #robot-back-layer .robot';
 /** The full-screen depth overlays: J4's four tints, and the two gradient rects they replaced, so one name ablates both builds. */
 const TINTS = 'rect[data-depth-tint], #gradient-back-mid, #gradient-mid-front';
 
-/** The scene's layers, back to front, as `data-scene-layer` names them (J4 added robots-back and mid; a pre-J4 build has four). */
-const SCENE_LAYERS = ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front', 'marker'];
+/** Each slot of the scene's stack, back to front, with the selector that finds its nodes in either markup (a slot the build lacks reads absent). */
+const SLOT_SELECTORS = Object.fromEntries(SCENE_SLOT_NAMES.map((name) => [name, sceneSlotSelector(name)]));
 
 /** Each ablation is a CSS snippet injected into the page. `stock` is traced first and last so drift is visible. */
 const ABLATIONS = [
@@ -262,7 +264,7 @@ async function describeNode(send, backendNodeId) {
  * Phase 43 J4 (Task 35): the compositor layers, once, before any traced window. Memory is estimated the way
  * DevTools' Layers panel does — width × height × 4 bytes for each layer that draws content — so it is a
  * comparison figure, not the GPU's real allocation. LayerTree reports CSS pixels, so the estimate is scaled
- * by the emulated device scale factor squared. The scene's own layers are named by `data-scene-layer`.
+ * by the emulated device scale factor squared. The scene's own layers are named by their slot (scene-markup-lib.mjs).
  */
 async function printCompositorLayers({ send, onEvent }, dpr) {
   let layers = null;
@@ -283,12 +285,12 @@ async function printCompositorLayers({ send, onEvent }, dpr) {
   console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}; ${owned.length} with an owning node); scene (CSS px): ${scene.join(', ') || 'none named'}`);
 }
 
-/** A layer's `data-scene-layer` name, if its owning node is one of the scene's `<svg>`s. */
+/** A layer's slot name, if its owning node is one of the scene's sheets or movers. */
 async function describeSceneLayer(send, backendNodeId) {
   try {
     const { node } = await send('DOM.describeNode', { backendNodeId });
     const attrs = node.attributes ?? [];
-    for (let i = 0; i < attrs.length; i += 2) if (attrs[i] === 'data-scene-layer') return attrs[i + 1];
+    return slotNameOf(attrs);
   } catch { /* not resolvable */ }
   return null;
 }
@@ -349,15 +351,15 @@ async function run(cdp) {
   const robots = await evaluate(`document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)}).length`);
   const factories = await evaluate(`document.querySelectorAll('[data-factory-type]').length`);
   const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
-  const layers = await evaluate(`document.querySelectorAll('.ocean-scene__layer').length`);
+  const layers = await evaluate(`document.querySelectorAll(${JSON.stringify(SHEET_SELECTOR)}).length`);
   console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows${opts['stay-off'] ? ', powered off' : ''}${opts.steps ? `, after: ${opts.steps}` : ''}`);
   console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)`);
   // Phase 43 J4: element count per scene layer, by name (a layer the build doesn't have reads "absent").
-  const perLayer = await evaluate(`(() => Object.fromEntries(${JSON.stringify(SCENE_LAYERS)}.map((name) => {
-    const layer = document.querySelector('svg[data-scene-layer="' + name + '"]');
-    return [name, layer ? layer.querySelectorAll('*').length : 'absent'];
+  const perLayer = await evaluate(`(() => Object.fromEntries(Object.entries(${JSON.stringify(SLOT_SELECTORS)}).map(([name, selector]) => {
+    const nodes = document.querySelectorAll(selector);
+    return [name, nodes.length ? [...nodes].reduce((n, el) => n + el.querySelectorAll('*').length, 0) : 'absent'];
   })))()`);
-  console.log(`Scene layers (elements): ${SCENE_LAYERS.map((name) => `${name} ${perLayer[name]}`).join(', ')}`);
+  console.log(`Scene layers (elements): ${SCENE_SLOT_NAMES.map((name) => `${name} ${perLayer[name]}`).join(', ')}`);
   // Phase 43 J2 gate: element counts in the robots layer's stack (stations included). Before J2 only #robot-layer exists;
   // before J4 there is no #robot-back-layer (reads 0). Since Task 34b #station-l4-layer is in robots-back, not robots.
   const stack = await evaluate(`(() => {
