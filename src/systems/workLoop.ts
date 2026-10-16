@@ -66,7 +66,7 @@ import type { ArcKind } from '../components/robot/gem/useHaloMotion';
 import { bodyShapeFromAdsr, calculateBodyScale } from '../components/robot/robotVisualHelpers';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
-import { getRef } from '../utils/refs';
+import { getRef, type RefElement } from '../utils/refs';
 import { prefersReducedMotion } from '../utils/reducedMotion';
 import {
   BACK_HOSTS_ENABLED,
@@ -170,7 +170,7 @@ const bodyOf = (robotId: string) => getRef(`robot-${robotId}`);
 
 /** An instant set on a body. `immediateRender` makes it land now even while the global timeline
  *  is paused, which a plain gsap.set does not. */
-function place(el: SVGGElement, vars: gsap.TweenVars): void {
+function place(el: RefElement, vars: gsap.TweenVars): void {
   gsap.set(el, { ...vars, immediateRender: true });
 }
 
