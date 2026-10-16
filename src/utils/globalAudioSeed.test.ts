@@ -50,7 +50,7 @@ import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { allowedPhaserNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
-import { COLOUR_LOAD_MIX_MAX, GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
+import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
@@ -707,7 +707,7 @@ describe('the modulation pedals (Global Modulation)', () => {
   });
 
   describe('a lit pedal', () => {
-    it('seeds a Mix inside its loading band and never above the shared ceiling', () => {
+    it('seeds a Mix inside its own loading band (to within float noise at the top edge)', () => {
       let litWah = 0;
       let litPhaser = 0;
       for (const { i, s } of samples) {
@@ -715,13 +715,13 @@ describe('the modulation pedals (Global Modulation)', () => {
           litWah++;
           const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet'];
           expect(s.autoWah.wet, `wah ${i}`).toBeGreaterThanOrEqual(min);
-          expect(s.autoWah.wet, `wah ${i}`).toBeLessThanOrEqual(Math.min(max, COLOUR_LOAD_MIX_MAX));
+          expect(s.autoWah.wet, `wah ${i}`).toBeLessThanOrEqual(max + 1e-9);
         }
         if (phaserLit(s)) {
           litPhaser++;
           const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['phaser.wet'];
           expect(s.phaser.wet, `phaser ${i}`).toBeGreaterThanOrEqual(min);
-          expect(s.phaser.wet, `phaser ${i}`).toBeLessThanOrEqual(Math.min(max, COLOUR_LOAD_MIX_MAX));
+          expect(s.phaser.wet, `phaser ${i}`).toBeLessThanOrEqual(max + 1e-9);
         }
       }
       expect(litWah).toBeGreaterThan(500);
@@ -730,8 +730,8 @@ describe('the modulation pedals (Global Modulation)', () => {
 
     it('reaches both the bottom and the top of the Mix band, so the band is not accidentally collapsed', () => {
       const wets = samples.filter(({ s }) => wahLit(s)).map(({ s }) => s.autoWah.wet);
-      expect(Math.min(...wets)).toBeLessThan(0.13);
-      expect(Math.max(...wets)).toBeGreaterThan(0.22);
+      expect(Math.min(...wets)).toBeLessThan(0.34);
+      expect(Math.max(...wets)).toBeGreaterThan(0.66);
     });
   });
 
@@ -1512,6 +1512,16 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // autoWah.lit 0.2357 (lit), phaser.lit 0.6222 (dark); autoWah.wet t 0.9720 -> 0.2458 -> 0.25 (the ceiling), and
 // phaser.wet t 0.9875 -> 0.2481 -> 0.25 but forced to 0, with no sync key. Every other value in both oracles is
 // untouched. Never re-recorded.
+//
+// AMENDED BY HAND AGAIN, Global Modulation T16 (Crawford, 2026-10-15: his recommended ranges, GLOBAL_CHAIN_GRID.md): the
+// pedal loading bands moved, so only the two pedal blocks in each oracle moved, and no other key. Every raw draw is the
+// one above; each value is the old one re-read through the new band. Alpha: baseFrequency t 0.6557 -> 50 * 5^t = 143.59;
+// Q t 0.2546 -> 2 * 3^t = 2.647; octaves 4.5, sensitivity -19, gain 6 on the new grids; phaser octaves 3.5, stages 10,
+// Q t 0.5172 -> 10^t = 3.291, wet t 0.3222 -> 0.25 + 0.35 * 0.3222 = 0.3628 -> 0.36; the synced note index is the same
+// but the 0.1 to 2.5 Hz band at 74 BPM holds more notes, and the pick is now 1/8 dotted (1.64 Hz). Theta: baseFrequency
+// t 0.5553 -> 122.21; Q t 0.7885 -> 4.752; wet t 0.9720 -> 0.3 + 0.4 * 0.9720 = 0.6888 -> 0.69; phaser stages 8, Q t 0.3762
+// -> 2.378, still dark (wet 0, no sync). The new values were read from the seeder once and then checked against these
+// derivations; the log-scale ones agree to three significant figures, the stepped ones to their grid.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1536,15 +1546,15 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.13 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
-      autoWah: { baseFrequency: 229.7500530863561, octaves: 5.5, sensitivity: -12, Q: 1.4240814873138776, gain: 6, follower: 0.3708443868326711, wet: 0 },
+      autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -19, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
-        rate: 0.8,
-        octaves: 3,
+        rate: 2.05,
+        octaves: 3.5,
         baseFrequency: 692.0599193838607,
-        stages: 7,
-        Q: 4.5986162250952765,
-        wet: 0.15,
-        sync: { division: '1/4', modifier: 'dotted' },
+        stages: 10,
+        Q: 3.291005415199408,
+        wet: 0.36,
+        sync: { division: '1/8', modifier: 'dotted' },
       },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
@@ -1570,8 +1580,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       chebyshev: { order: 3, wet: 0.08 },
       bitCrusher: { bits: 8, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
-      autoWah: { baseFrequency: 195.54132918613453, octaves: 4, sensitivity: -20, Q: 2.98055788806712, gain: 3, follower: 0.10429057048537012, wet: 0.25 },
-      phaser: { rate: 0.7000000000000001, octaves: 2.5, baseFrequency: 461.3838345902475, stages: 6, Q: 3.6638701440140573, wet: 0 },
+      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.6900000000000001 },
+      phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

@@ -66,19 +66,21 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   'bitCrusher.wet': { min: 0.05, max: 0.15 },
 
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the bands a LIT pedal draws from; a dark
-  // pedal keeps its shape values from the same bands and a `wet` of 0. Placeholders, tuned by ear at T16. Both Mix
-  // bands share Colour's ceiling (assumption 9): the pedals use the same taper (colourWetGain) and the same load rule.
-  'autoWah.baseFrequency': { min: 80, max: 400 },
-  'autoWah.octaves': { min: 3, max: 6 },
-  'autoWah.sensitivity': { min: -24, max: -6 },
-  'autoWah.Q': { min: 1, max: 4 },
-  'autoWah.gain': { min: 0, max: 6 },
+  // pedal keeps its shape values from the same bands and a `wet` of 0. Retuned at T16 (Crawford, 2026-10-15) to his
+  // recommended ranges. The Mix bands NO LONGER share COLOUR_LOAD_MIX_MAX (assumption 9): the pedals keep the same taper
+  // (colourWetGain), so a seeded Mix of 0.3 to 0.7 is a node gain of 0.09 to 0.49; the Phaser's stages now reach 12, the
+  // ceiling the Pixel gate ran. Colour's own ceiling is untouched.
+  'autoWah.baseFrequency': { min: 50, max: 250 },
+  'autoWah.octaves': { min: 2.5, max: 5 },
+  'autoWah.sensitivity': { min: -40, max: -10 },
+  'autoWah.Q': { min: 2, max: 6 },
+  'autoWah.gain': { min: 2, max: 6 },
   'autoWah.follower': { min: 0.1, max: 0.4 },
-  'autoWah.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
-  'phaser.rate': { min: 0.1, max: 1 },
-  'phaser.octaves': { min: 2, max: 4 },
+  'autoWah.wet': { min: 0.3, max: 0.7 },
+  'phaser.rate': { min: 0.1, max: 2.5 },
+  'phaser.octaves': { min: 2, max: 5 },
   'phaser.baseFrequency': { min: 200, max: 800 },
-  'phaser.stages': { min: 4, max: 8 },
-  'phaser.Q': { min: 2, max: 10 },
-  'phaser.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
+  'phaser.stages': { min: 4, max: 12 },
+  'phaser.Q': { min: 1, max: 10 },
+  'phaser.wet': { min: 0.25, max: 0.6 },
 };
