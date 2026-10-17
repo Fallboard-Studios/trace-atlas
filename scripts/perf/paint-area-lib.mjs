@@ -23,20 +23,43 @@ export function clipArea(clip) {
   return Math.abs(twice) / 2;
 }
 
+/** A compositor layer's on-screen CSS-px area: its reported size scaled by the ancestor scale LayerTree leaves out (the stage's). A missing size or a non-finite or negative scale is 0. */
+export function scaledLayerArea(layer, scale) {
+  const { width, height } = layer ?? {};
+  if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(scale) || scale < 0) return 0;
+  return width * height * scale * scale;
+}
+
 /**
  * Redrawn area per frame over one traced window. `events` are the trace events of the thread being judged (the
  * caller scopes them to the renderer main thread); only complete `Paint` events count. `dpr` converts CSS px to
  * device px, `frames` is the window's `BeginMainThreadFrame` count, `viewport` the emulated one in CSS px.
  * `screensPerFrame` is the headline figure: `pxPerFrame` over the viewport's device-pixel area.
+ *
+ * A `Paint` clip is a cull rect, not the repainted area: a promoted mover reports an unbounded one (Task 16), a sheet
+ * reports its viewBox's scene units. `layerAreas` (backend node id → that node's layer area in CSS px²) bounds each
+ * paint by the layer it drew into; a node with no known layer is capped at one viewport and counted in
+ * `unresolvedPaints`, so a gap in the map shows in the result instead of inflating it silently.
  */
-export function redrawnArea(events, { dpr, frames, viewport }) {
-  if (!frames) return { pxPerFrame: 0, screensPerFrame: 0 };
+export function redrawnArea(events, { dpr, frames, viewport, layerAreas }) {
+  if (!frames) return { pxPerFrame: 0, screensPerFrame: 0, unresolvedPaints: 0 };
+  const viewportCssPx = viewport.width * viewport.height;
   let cssPx = 0;
+  let unresolvedPaints = 0;
   for (const ev of events) {
     if (ev.name !== 'Paint' || ev.ph !== 'X' || !ev.dur) continue;
-    cssPx += clipArea(ev.args?.data?.clip);
+    const area = clipArea(ev.args?.data?.clip);
+    const layerArea = layerAreas?.get(ev.args?.data?.nodeId);
+    if (Number.isFinite(layerArea) && layerArea >= 0) {
+      cssPx += Math.min(area, layerArea);
+    } else if (area > viewportCssPx) {
+      cssPx += viewportCssPx;
+      unresolvedPaints++;
+    } else {
+      cssPx += area;
+    }
   }
   const pxPerFrame = (cssPx * dpr * dpr) / frames;
-  const screenPx = viewport.width * viewport.height * dpr * dpr;
-  return { pxPerFrame, screensPerFrame: screenPx ? pxPerFrame / screenPx : 0 };
+  const screenPx = viewportCssPx * dpr * dpr;
+  return { pxPerFrame, screensPerFrame: screenPx ? pxPerFrame / screenPx : 0, unresolvedPaints };
 }

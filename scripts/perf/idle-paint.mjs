@@ -24,7 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { redrawnArea } from './paint-area-lib.mjs';
+import { redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 import {
   BACK_ROBOT_ELEMENTS,
   BACK_ROBOT_GROUPS,
@@ -240,18 +240,19 @@ async function traceWindow({ send, onEvent }, ms, view) {
       const p = paintByNode.get(nodeId) ?? { count: 0, ms: 0, area: 0 };
       p.count++;
       p.ms += ev.dur / 1000;
-      p.area += area;
+      p.area += Math.min(area, view.layerAreas?.get(nodeId) ?? area);
       paintByNode.set(nodeId, p);
     }
   }
   const get = (n) => byName.get(n) ?? { count: 0, ms: 0 };
-  const redrawn = redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport });
+  const redrawn = redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport, layerAreas: view.layerAreas });
   return {
     'main busy (ms)': Math.round(mainBusy),
     'long tasks': longTaskBy.get(mainKey) ?? 0,
     frames,
     'redrawn px²/frame': Math.round(redrawn.pxPerFrame),
     'screens/frame': Number(redrawn.screensPerFrame.toFixed(2)),
+    'unresolved Paints': redrawn.unresolvedPaints,
     'Paint n': get('Paint').count,
     'Paint ms': Math.round(get('Paint').ms),
     'PaintLifecycle ms': Math.round(get('LocalFrameView::RunPaintLifecyclePhase').ms),
@@ -288,16 +289,20 @@ async function describeNode(send, backendNodeId) {
  * comparison figure, not the GPU's real allocation. LayerTree reports CSS pixels, so the estimate is scaled
  * by the emulated device scale factor squared. The scene's own layers are named by their slot (scene-markup-lib.mjs).
  */
-async function printCompositorLayers({ send, onEvent }, dpr) {
+async function printCompositorLayers({ send, onEvent }, dpr, stageScale) {
   let layers = null;
   const stop = onEvent((m) => { if (m.method === 'LayerTree.layerTreeDidChange' && m.params.layers) layers = m.params.layers; });
   await send('LayerTree.enable');
   for (let i = 0; i < 30 && !layers; i++) await sleep(100);
   await send('LayerTree.disable');
   stop();
-  if (!layers) { console.log('Compositor layers: no layer tree reported'); return; }
+  if (!layers) { console.log('Compositor layers: no layer tree reported'); return new Map(); }
   const drawing = layers.filter((l) => l.drawsContent);
-  const mb = (ls) => (ls.reduce((s, l) => s + l.width * l.height * 4 * dpr * dpr, 0) / (1024 * 1024)).toFixed(1);
+  // LayerTree reports a layer's bounds before the scale of the stage it sits in (Phase 53, memory finding 3), so a layer inside the stage is scaled
+  // here; a build with no stage (main) has none to apply. The scaled area is the layer's true size in CSS px, for the memory line and the paint clamp.
+  const scaled = new Map();
+  for (const l of layers) scaled.set(l, scaledLayerArea(l, (await insideStage(send, l)) ? stageScale : 1));
+  const mb = (ls) => (ls.reduce((s, l) => s + scaled.get(l) * 4 * dpr * dpr, 0) / (1024 * 1024)).toFixed(1);
   const owned = drawing.filter((l) => l.backendNodeId !== undefined);
   const scene = [];
   const moverLayers = [];
@@ -307,9 +312,22 @@ async function printCompositorLayers({ send, onEvent }, dpr) {
     scene.push(`${found.name}${found.mover ? ' (mover)' : ''} ${Math.round(l.width)}×${Math.round(l.height)}`);
     if (found.mover) moverLayers.push(l);
   }
-  console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}; ${owned.length} with an owning node); scene (CSS px): ${scene.join(', ') || 'none named'}`);
-  // Phase 53: the movers' layers, separately from the sheets' (a build without movers reads 0). LayerTree reports bounds before the stage's scale, so on the stage markup this is an upper bound.
-  console.log(`Mover layers: ${moverLayers.length}, ≈ ${mb(moverLayers)} MB at 4 B per device px (pre-scale bounds)`);
+  console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}, stage scale ${stageScale.toFixed(3)}; ${owned.length} with an owning node); scene (CSS px, pre-scale): ${scene.join(', ') || 'none named'}`);
+  // Phase 53: the movers' layers, separately from the sheets' (a build without movers reads 0).
+  console.log(`Mover layers: ${moverLayers.length}, ≈ ${mb(moverLayers)} MB at 4 B per device px`);
+  // Backend node id → layer area in CSS px², the bound each Paint is clamped to (paint-area-lib.mjs `redrawnArea`).
+  return new Map(layers.filter((l) => l.backendNodeId !== undefined).map((l) => [l.backendNodeId, scaled.get(l)]));
+}
+
+/** Whether a layer's owning node sits inside the scaled stage (`.ocean-scene__stage`), so LayerTree's bounds for it are pre-scale. */
+async function insideStage(send, layer) {
+  if (layer.backendNodeId === undefined) return false;
+  try {
+    const { object } = await send('DOM.resolveNode', { backendNodeId: layer.backendNodeId });
+    const r = await send('Runtime.callFunctionOn', { objectId: object.objectId, functionDeclaration: `function () { return !!(this.closest && this.closest('.ocean-scene__stage')); }`, returnByValue: true });
+    return r.result?.value === true;
+  } catch { /* not resolvable: treat as outside */ }
+  return false;
 }
 
 /** A layer's slot name and whether it is a mover, if its owning node is one of the scene's sheets or movers. */
@@ -400,7 +418,8 @@ async function run(cdp) {
       backRobots: n(${JSON.stringify(BACK_ROBOT_GROUPS)}), front: n('#station-front-layer *'), shown };
   })()`);
   console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, front row ${stack.frontRow}, front ${stack.front}; back row ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
-  await printCompositorLayers(cdp, view.dpr);
+  const stageScale = await evaluate(`(() => { const s = document.querySelector('.ocean-scene__stage'); return s ? new DOMMatrix(getComputedStyle(s).transform).a : 1; })()`);
+  view.layerAreas = await printCompositorLayers(cdp, view.dpr, stageScale);
   console.log('');
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
