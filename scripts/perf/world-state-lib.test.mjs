@@ -85,6 +85,11 @@ describe('checkDimmed', () => {
     expect(checkDimmed('no world view', 'no')).toMatch(/no world view/i);
   });
 
+  it('reads as English: a dimmed world, an undimmed world', () => {
+    expect(checkDimmed('undimmed', 'yes')).toContain('expected a dimmed world');
+    expect(checkDimmed('dimmed', 'no')).toContain('expected an undimmed world');
+  });
+
   it('a message always names the reading it rejected, so a log line says why the run was thrown away', () => {
     expect(checkDimmed('undimmed', 'yes')).toContain('undimmed');
     expect(checkDimmed('dimmed', 'no')).toContain('dimmed');

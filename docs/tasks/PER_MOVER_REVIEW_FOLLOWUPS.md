@@ -1,7 +1,7 @@
 # Follow-ups: Per-Mover Compositor Layers code review
 
 > **Status (2026-10-17):** **Phase A is built** (R1–R4, commits `43a0802a`…`4d754d94` on `perf/per-mover-layers`; see
-> "As shipped (Phase A)" below); Checkpoint A waits only on Crawford's review. Phases B and C are not started.
+> "As shipped (Phase A)" below); Checkpoint A waits only on Crawford's review. **Phase B is built** (R5: busy is a MISS, stopped for Crawford; R6: all three gates PASS; see "As shipped (Phase B)" below) and waits on Crawford's review. Phase C is not started.
 > Written from a five-axis code review of `perf/per-mover-layers`
 > at tip `b528d32d` (28 commits, 57 files, +5133/−1035). The review's verdict: **the code is approvable; the branch is
 > not ready to merge** because it has not met its own "Ready for PR" criteria (see "Open before merge", below, which
@@ -197,7 +197,7 @@ investigation (Task 20's miss): do them in the same session.**
   **Dependencies:** none (Phase A is independent). **Files:** `docs/PERFORMANCE.md`, a docs guard, this file.
   **Scope:** S.
 
-- [ ] **R6: The dimmed world (`data-dimmed`)**
+- [x] **R6: The dimmed world (`data-dimmed`)** — measured 2026-10-17, **all three gates PASS** ("As shipped (Phase B)" below)
 
   **Description:** `WorldView.css` puts `filter: brightness(0.42)` on every `.mover` (and `brightness(0.42) blur(2px)`
   on each sheet) whenever a hub tile is open (`WorldView.tsx`: `dimmed = activeHubTile !== null`). That makes every
@@ -207,9 +207,9 @@ investigation (Task 20's miss): do them in the same session.**
   so a run cannot silently be undimmed.
 
   **Acceptance criteria:**
-  - [ ] The harness reports the dimmed attribute for each run; a run where it is absent is rejected.
-  - [ ] Pass: branch busy, Paint and `screens/frame` not above `main`'s dimmed medians (inside `main`'s spread).
-  - [ ] Miss → **stop and report.** Any fix changes how the dimmed world is produced, which is a look decision: it
+  - [x] The harness reports the dimmed attribute for each run; a run where it is absent is rejected.
+  - [x] Pass: branch busy, Paint and `screens/frame` not above `main`'s dimmed medians (inside `main`'s spread).
+  - [x] (Not triggered: no miss.) Miss → **stop and report.** Any fix changes how the dimmed world is produced, which is a look decision: it
         needs Crawford and a short amendment to the spec, not a quiet change. (Possible direction, not a plan: one
         dimming layer instead of a filter per mover.)
 
@@ -217,7 +217,7 @@ investigation (Task 20's miss): do them in the same session.**
   this file. **Scope:** S–M (the harness change is the unknown).
 
 ### Checkpoint B: Measurements
-- [ ] R5 and R6 recorded with numbers, hashes and orphaned-Chrome counts; any miss written as a miss. (R5 is; R6 is not yet.)
+- [x] R5 and R6 recorded with numbers, hashes and orphaned-Chrome counts; any miss written as a miss. (R5 is a miss on busy; R6 passes.)
 - [ ] Reviewed with Crawford.
 
 ### As shipped (Phase B, 2026-10-17)
@@ -232,6 +232,14 @@ Records are in [docs/PERFORMANCE.md](../PERFORMANCE.md); guards `src/docs/perMov
 - **The Paint column cannot see the bubbles.** 135 circles animate (0–23 visible at a time), yet the bubble layers' Paint events total 42–44 in 30 s on both builds. Hypothesis, unproved: SVG child transform/opacity changes re-layerize without re-recording. So `screens/frame` is blind to them and busy / Compositor::Update / Layerize are the columns that see them. `screens/frame` from a 30 s window is also inflated by unresolved Paints (the layer map is read once, before the window), so it was recorded and not read.
 - **Diagnostic, one run each:** detaching the circles takes ≈ 200 ms off Compositor::Update on both builds, and the branch's extra ≈ 330 ms remains. So the gap is not the circles' motion; whether it is the strip layers themselves was **not** separated (the strip `div`s stay after the detach).
 - **Open for Crawford** (written into the PERFORMANCE.md section): accept; the Q3 bubble redesign; or first separate the strips from the other movers (a sticky ablation that removes the strip `div`s, not built).
+
+**R6, as measured (all three gates PASS).** Where it differs from the plan above:
+
+- **The harness part was built first** (`c1414fbe`): `--expect-dimmed yes|no|any` reads `data-dimmed` on `.world-view` after the steps and again after the windows and throws if it is not what was asked; every run prints `World: dimmed|undimmed|no world view`. Both rejections were tried live (Deck asked for dimmed; Fleet Params asked for undimmed). A one-word message fix ("an undimmed world") came with the R6 commit.
+- **The world is R5's, not Task 20's:** the dim is per mover, and the Task 20 world has no bubble strips to filter. One world, one tile (`--steps "Fleet Params"`, 58 cabinet boxes on both builds), the stock 6 s window with every category traced.
+- **Result:** busy 3555 ms against `main`'s 3654 (3651–3717); Paint 221 against 259 (258–262); `screens/frame` 1.93 against 3.19 (0.61 × `main`). All below `main`'s whole spread. Compositor::Update 520 → 567 ms (+9 %), recorded, not gated. The branch's `screens/frame` includes up to 0.83 of unresolved Paints, so it is an upper bound, and still passes.
+- **The rule used:** "not above `main`'s dimmed medians" read as branch median ≤ `main` median (stricter than the top of the spread); the branch is below `main`'s minimum on both time columns, so the reading does not matter here.
+- **Not tested:** whether the dimmed world *looks* the same (the `blur(2px)` inside the scaled stage); that stays Crawford's at Checkpoint B.
 
 ---
 

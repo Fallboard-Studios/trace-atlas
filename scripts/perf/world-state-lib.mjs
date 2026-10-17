@@ -37,8 +37,9 @@ export function parseExpectDimmed(value) {
 export function checkDimmed(reading, expect) {
   if (expect === 'any') return null;
   const wanted = expect === 'yes' ? 'dimmed' : 'undimmed';
+  const article = expect === 'yes' ? 'a' : 'an';
   if (reading === wanted) return null;
-  return `Run rejected: expected a ${wanted} world, read "${reading}"${reading === 'no world view' ? ' (the page has no .world-view; did power-on run?)' : ''}.`;
+  return `Run rejected: expected ${article} ${wanted} world, read "${reading}"${reading === 'no world view' ? ' (the page has no .world-view; did power-on run?)' : ''}.`;
 }
 
 // ========================================

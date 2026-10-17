@@ -1937,6 +1937,68 @@ The criterion as written is a MISS (busy). Options for Crawford: (1) accept it: 
 
 Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R5: Bubble strips with bubbles actually drawing". Guarded by `src/docs/perMoverReviewR5Docs.test.ts`.
 
+## Per-Mover Compositor Layers — review follow-up R6: the dimmed world (2026-10-17)
+
+The state the app is in whenever a branch is open, which the Task 20 gate never ran in ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md); plan [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R6). With a hub tile open, `WorldView.tsx` sets `data-dimmed` on `.world-view` and `WorldView.css` puts `filter: brightness(0.42)` on every `.mover` (and `brightness(0.42) blur(2px)` on each sheet), so each robot, bubble strip and the marker becomes a filtered surface. **Result: all three gated criteria PASS.** With Fleet Params open the branch is below `main`'s whole spread on busy time and Paint time, and at 0.61 × `main` on `screens/frame`. Compositor::Update is 9 % higher on the branch, recorded and not gated.
+
+### Method
+
+**Builds:** the same two as the R5 section above: `main` `4a9b3fec` on :4183, bundle `index-CVUy7kf3.js`; the branch `perf/per-mover-layers`, built at `c1414fbe` (its `src/` is identical to `4d754d94`), on :4181, bundle `index-Dil0Vyn4.js`. Both measured with the branch's harness (`scripts/perf/idle-paint.mjs` at `f4d20775`, plus the one-line message fix committed with this section).
+
+**World:** the R5 world (`alpha` at `(-100, -100)`, 12 robots, 18 factories, 135 bubble circles; link in the R5 section), chosen over the Task 20 world because the dim is per mover and that world has no bubble strips to filter. **Command** (each side, from the branch's checkout):
+
+```text
+npm run perf:idle -- --throttle 1 --only none --steps "Fleet Params" --expect-dimmed yes --port 9301 --url <link>
+```
+
+Headless Chrome at **1280 × 900**, 1×, no CPU throttle, the stock **6 s** window (every category traced, as in Task 20) after the 8 s power-on settle and the click that opens Fleet Params. `--steps` opens the tile; `--expect-dimmed yes` makes the harness read `data-dimmed` on `.world-view` after the click **and again after the windows** and throw if either is not dimmed. Three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last.
+
+**Every run was dimmed and on the same screen.** Each of the six logs prints `World: dimmed` before and after its window, and the harness's like-for-like line is identical on both sides: `Screen after steps: {"tabs":11,"sliders":4,"cabinetBoxes":58,"heading":"Fleet Params — your key to mesh-wide performance."}`. The rejection was also tried live on the branch build, in both directions: the Deck (undimmed) asked for a dimmed world ended with `Run rejected: expected a dimmed world, read "undimmed".` and exit 1; Fleet Params asked for an undimmed one ended with `Run rejected: expected an undimmed world, read "dimmed".` and exit 1.
+
+### Results (6 s window, stock, 1×, Fleet Params open, world dimmed)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3665259 | 3.18 | 5 | 3717 | 262 | 511 | 513 | 315 |
+| 2 | 3683133 | 3.20 | 6 | 3651 | 259 | 520 | 521 | 318 |
+| 3 | 3672251 | 3.19 | 6 | 3654 | 258 | 521 | 522 | 317 |
+| Median | 3672251 | 3.19 | 6 | 3654 | 259 | 520 | 521 | 317 |
+| Min–max | 3665259–3683133 | 3.18–3.20 | 5–6 | 3651–3717 | 258–262 | 511–521 | 513–522 | 315–318 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2255700 | 1.96 | 270 | 3555 | 221 | 567 | 568 | 326 |
+| 2 | 2222130 | 1.93 | 259 | 3607 | 221 | 558 | 560 | 326 |
+| 3 | 2146974 | 1.86 | 250 | 3527 | 218 | 567 | 569 | 328 |
+| Median | 2222130 | 1.93 | 259 | 3555 | 221 | 567 | 568 | 326 |
+| Min–max | 2146974–2255700 | 1.86–1.96 | 250–270 | 3527–3607 | 218–221 | 558–567 | 560–569 | 326–328 |
+
+Long tasks 2–4 per window on both sides (main 4, 2, 3; branch 3, 4, 4); not gated.
+
+### The gate
+
+The criterion is the task's own: the branch's median not above `main`'s dimmed median.
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| busy (median ms) | 3654 (3651–3717) | 3555 | ≤ main's median | PASS: below main's whole spread (its minimum is 3651) |
+| Paint (median ms) | 259 (258–262) | 221 | ≤ main's median | PASS: below main's whole spread (its minimum is 258) |
+| screens/frame (median) | 3.19 (3.18–3.20) | 1.93 | ≤ main's median | PASS: 0.61 × main |
+
+Compositor::Update 520 → 567 ms (+47, +9 %) and Layerize 521 → 568 ms are outside each other's spreads (511–521 and 558–567), and are recorded, not gated (as in Task 20). **Layers:** main `Compositor layers: 39 (36 drawing content, ≈ 51.5 MB at 4 B per device px, DPR 1, stage scale 1.000; 34 with an owning node)`, `Mover layers: 0`, `Bubble layers: 1 (1 drawing now, ≈ 4.60 MB; ≈ 4.60 MB if every one drew at once)`; branch `Compositor layers: 66` or `67` (`63`–`64 drawing content, ≈ 39.3–40.1 MB`, stage scale 0.763), `Mover layers: 24, ≈ 1.1 MB`, `Bubble layers: 18 (18 drawing now, ≈ 0.85 MB; ≈ 0.85 MB if every one drew at once)`. Layer memory is not gated here, and is lower on the branch. The dimmed Fleet Params runs have more layers than the undimmed Deck runs of the R5 section (main 39 against 28, branch 66–67 against 51), but that run was on a different screen as well, so the dim is not isolated by it.
+
+**Reading `screens/frame` with care.** The branch's figure includes 250–270 unresolved Paints per window (nodes with no layer when the layer map was read, each capped at one viewport): at most 270 ÷ 326 = 0.83 of its 1.86–1.96 screens/frame. The ratio is therefore an upper bound on the branch's, and it passes with that bound in. `main` has 5–6 unresolved.
+
+**Not tested, by design.** This is a cost measurement, not a look test: whether the dimmed world *looks* the same (the `blur(2px)` now sitting inside the scaled stage, so its effective radius is 2 × the stage scale; the plan's note 4 under "Open before merge") is Crawford's at Checkpoint B. One world, one tile (Fleet Params, 58 cabinet boxes), one viewport.
+
+No miss, so nothing is stopped here. Had a gate missed, any fix would change how the dimmed world is produced, which is a look decision for Crawford and a short amendment to the spec, not a quiet change.
+
+Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R6: The dimmed world (`data-dimmed`)". Guarded by `src/docs/perMoverReviewR6Docs.test.ts`.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
