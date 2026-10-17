@@ -408,15 +408,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 13. **Files:** `OceanScene.tsx`, `OceanScene.test.tsx`, `src/systems/workLoop.ts`,
   `workLoop.test.ts`, `workLoop.integration.test.ts` (fixture mounts a mover). **Scope:** M.
 
-- [ ] **Task 15: Remove the re-mount machinery**
+- [x] **Task 15: Remove the re-mount machinery**
 
   **Description:** `robotMotionRegistry.ts` loses the `layerSwitching` set and `markLayerSwitching`,
   `isLayerSwitching`, `clearLayerSwitching`; `useOrbiterMotion.ts` loses its `isLayerSwitching` branch (a world mount
   always attaches); their tests lose the matching cases; `robotJobsJ4Docs.test.ts` drops the three identifier rows.
 
   **Acceptance criteria:**
-  - [ ] No file in `src/` names the three exports (a test greps); `__reset` still clears the two maps.
-  - [ ] `useOrbiterMotion.test.tsx`: the three "marked world mount" cases are gone; every attach case passes.
+  - [x] No file in `src/` names the three exports (a test greps, non-test files); `clearRobotMotionRegistry` (the plan's `__reset`) still clears the two maps.
+  - [x] `useOrbiterMotion.test.tsx`: the "marked world mount" cases are gone (five, not three: the plan counted the avatar and other-robot variants short); every attach case passes.
 
   **Verification:**
   - [ ] `npx vitest run src/animation/robotMotionRegistry.test.ts src/components/robot/gem/useOrbiterMotion.test.tsx

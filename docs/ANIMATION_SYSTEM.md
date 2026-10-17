@@ -295,9 +295,9 @@ A robot enters and leaves a charging station through one arc timeline, keyed
 | Entry (`'despawn'`) | 1 → 0.15 | 1 → 0 | `power1.in` (v²) |
 
 The exit plays in the **back robot row** (Phase 43 J4, spec §1.6), between the station's back
-plate (L4) and L3. A robot not already there is hidden at the port and moved to the back row
-first (a layer switch with nothing to dissolve, see "Layer switch" below), and the arc plays on
-the re-mounted body with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows from 0.11 to
+plate (L4) and L3. A robot not already there is written to the back row first (`moveToRow`, a
+slot write with nothing to dissolve, see "Layer switch" below), and the arc plays on the same
+body in the same call, with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows from 0.11 to
 0.75 overall. Its next leg to a front-row site or a station is then an ordinary back → front
 switch. The entry plays in the front row, between L3 and L2.
 
@@ -320,9 +320,10 @@ renders, not tweens (spec §1.6).
 ### Layer switch
 A robot works in one of two robot rows (Phase 43 J4, spec §1.10): the front row (`robots`), or
 the back row (`robots-back`, behind the midground) while its destination is a background site or
-it is exiting a station. `Robot.layer` (`'background'`, else front) says which, and `OceanScene`
-renders each robot in its row's list, so a change of row is a React **re-mount**. The scene
-stack is under "Scene layers" below.
+it is exiting a station. `Robot.layer` (`'background'`, else front) says which, and the robot's
+mover carries it as `data-scene-slot`, so a change of row is a **write of `layer`** (`moveToRow`):
+`Robot.tsx` re-renders with the new slot, the stylesheet moves its z-index, and nothing is
+re-mounted (Phase 53). The scene stack is under "Scene layers" below.
 
 - **The row scale.** The back row is drawn `BACK_LAYER_SCALE` (0.75) smaller. The scale is on
   `.robot__row`, a wrapper inside `Robot.tsx`'s `.robot` group, set with `svgOrigin` at the gem
@@ -343,11 +344,11 @@ stack is under "Scene layers" below.
   with no switch point is skipped for that decision. A station leg with none switches where the
   robot is, since a robot can't skip going home.
 - **The split leg.** The work loop's `legTo` swims to the switch point at the current row's
-  scale, then on to the destination, each swim from rest. Front → back: at the switch point the
-  robot moves to the back row (`moveToRow`), and once it has re-mounted it swims on, easing to
-  0.75. Back → front: the robot stays in the back row and swims on, easing to 1; it re-mounts in
-  front only when the swim and the dissolve are both done, at rest.
-- **The dissolve.** The haze between the rows (tints B and C, 40 %) would pop at a re-mount, so
+  scale, then on to the destination, each swim from rest. Front → back: at the switch point
+  `layer` is written (`moveToRow`) and the robot swims on at once, easing to 0.75. Back → front:
+  the robot stays in the back row and swims on, easing to 1; `layer` is written, and the copy
+  removed, in one call when the swim and the dissolve are both done, at rest.
+- **The dissolve.** The haze between the rows (tints B and C, 40 %) would pop at the slot write, so
   for `LAYER_DISSOLVE_SECONDS` the robot is drawn twice. The copy is a mover (`.mover--dissolve`, holding an SVG `<use>`) of the
   robot's group (`#world-robot-{id}`), appended by the loop to `OceanScene`'s
   dissolve div (`data-scene-slot="dissolve"`, over the front robots, found via
@@ -355,19 +356,16 @@ stack is under "Scene layers" below.
   are its mover's, which a `<use>` of the group does not carry, so the copy's wrapper is placed at the
   body's pose and mirrored from the fade's `onUpdate`. In both directions the **front
   copy fades and the back robot stays opaque**: 1 → 0 after a front → back switch, 0 → 1 before a
-  back → front re-mount, after which the opaque copy goes. The fade is linear, keyed
+  back → front switch, whose slot write takes the opaque copy away in the same call. The fade is linear, keyed
   `` `dissolve-${robotId}` ``; a new dissolve ends the robot's earlier one first, and a fade's end
   removes only its own copy. It has no reduced-motion variant (it is already an opacity fade).
-- **The re-mount.** `moveToRow` marks the robot (`markLayerSwitching` in
-  `robotMotionRegistry.ts`), stores the leg's continuation in the run's `remounts`, and writes
-  `layer`. On the new mount `useOrbiterMotion` (world only) sees `isLayerSwitching` and shows the
-  orbiters docked at once, with no attach hop. `Robot.tsx` then calls `onRobotMounted`, which
-  clears the mark (`clearLayerSwitching`) and runs the continuation, or adopts the robot if its
-  leg was dropped in between. With no body mounted there is nothing to re-mount and the leg goes
-  straight on.
+- **No re-mount.** `moveToRow` writes `layer` and nothing else, body or no body. The write reaches
+  the DOM before the next frame paints (Zustand renders through `useSyncExternalStore`), so the copy
+  the same call starts or removes keeps that frame whole. `onRobotMounted` runs once per real mount,
+  where the loop adopts the robot; `useOrbiterMotion`'s world mount always attaches its orbiters.
 - **Interruptions.** A recall or turn-back drops the leg (`dropLeg`: the swim, the bob and the
-  dissolve go, and a pending re-mount adopts instead of continuing). `stopWorkLoop` removes every
-  copy and forgets every pending re-mount.
+  dissolve go). `stopWorkLoop` removes every copy; a robot already written to the other row stays
+  there.
 
 `BACK_HOSTS_ENABLED` (true) is the switch for the whole row: false puts the world back to
 midground and foreground hosts only, and with no background destination no robot changes row
