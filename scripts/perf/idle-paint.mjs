@@ -22,7 +22,7 @@
  * every sheet and mover). `--expect-dimmed yes|no` rejects, by throwing, a run whose world is not that state, before and after
  * the windows, so a run that silently measured the wrong state is never recorded. `--bubbles n` waits (up to 3 minutes) until at
  * least n bubble circles are in flight before the layers are read, so the bubble layers are read while they draw; a window
- * longer than a burst interval (`--window 30000`) covers several bursts either way.
+ * longer than a burst interval (`--window 30000`) covers several bursts either way; a window over 6 s is traced without invalidation tracking (world-state-lib.mjs `traceCategories`), so it prints no invalidation table and is compared only with windows of its own length.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -53,6 +53,8 @@ import {
   dimmedReading,
   paintTotalsFor,
   parseExpectDimmed,
+  traceCategories,
+  truncationWarning,
 } from './world-state-lib.mjs';
 
 const { values: opts } = parseArgs({
@@ -195,7 +197,7 @@ async function traceWindow({ send, onEvent }, ms, view) {
   });
   await send('Tracing.start', {
     transferMode: 'ReportEvents',
-    traceConfig: { includedCategories: ['devtools.timeline', 'blink', 'cc', 'disabled-by-default-devtools.timeline', 'disabled-by-default-devtools.timeline.frame', 'disabled-by-default-devtools.timeline.invalidationTracking'] },
+    traceConfig: { includedCategories: traceCategories(ms) },
   });
   await sleep(ms);
   await send('Tracing.end');
@@ -256,6 +258,8 @@ async function traceWindow({ send, onEvent }, ms, view) {
       paintByNode.set(nodeId, p);
     }
   }
+  const warning = truncationWarning(frames, ms);
+  if (warning) console.log(warning);
   const get = (n) => byName.get(n) ?? { count: 0, ms: 0 };
   const redrawn = redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport, layerAreas: view.layerAreas });
   return {

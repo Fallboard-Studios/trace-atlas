@@ -91,3 +91,42 @@ export function paintTotalsFor(paintByNode, nodeIds) {
   }
   return { paints, ms, area };
 }
+
+// ========================================
+// THE TRACE BUFFER
+// ========================================
+
+/** The longest window the trace buffer holds with the invalidation-tracking category on: about 6 s of a busy page (it is most of the volume). */
+const FULL_TRACE_WINDOW_MS = 6000;
+
+const INVALIDATION_TRACKING = 'disabled-by-default-devtools.timeline.invalidationTracking';
+
+/**
+ * The categories for `Tracing.start`. Up to 6 s: all of them, exactly as every earlier baseline was traced, invalidation tracking
+ * included (the harness's invalidation table reads it). Longer: without invalidation tracking, because that category alone fills the
+ * ~200 MB buffer in about 6 s and the trace then stops, so a "30 s" window quietly held the first ~6 s of it (review follow-up R5:
+ * 325 frames in 30 s; without the category, 1799). A long window therefore prints no invalidation table, and its busy time is
+ * not comparable with a 6 s window's (the tracing overhead differs); compare long windows with long windows.
+ */
+export function traceCategories(windowMs) {
+  const categories = [
+    'devtools.timeline',
+    'blink',
+    'cc',
+    'disabled-by-default-devtools.timeline',
+    'disabled-by-default-devtools.timeline.frame',
+    INVALIDATION_TRACKING,
+  ];
+  return Number.isFinite(windowMs) && windowMs > FULL_TRACE_WINDOW_MS ? categories.filter((c) => c !== INVALIDATION_TRACKING) : categories;
+}
+
+/**
+ * A message if a traced window holds too few frames for its length (under 30 per second; the headless page runs near 60), else null.
+ * A cut-short trace reads as a quiet, fast page, so it has to be said out loud. Also fires for a CPU-throttled page that is simply slow.
+ */
+export function truncationWarning(frames, windowMs) {
+  if (!Number.isFinite(windowMs) || windowMs <= 0) return null;
+  const fps = frames / (windowMs / 1000);
+  if (fps >= 30) return null;
+  return `Window warning: ${frames} frames in ${windowMs} ms is ${fps.toFixed(1)} frames/s; the trace may be truncated (buffer full) or the page throttled. Do not record this run.`;
+}

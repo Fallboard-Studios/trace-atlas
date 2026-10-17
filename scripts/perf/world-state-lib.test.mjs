@@ -16,6 +16,8 @@ import {
   dimmedReading,
   paintTotalsFor,
   parseExpectDimmed,
+  traceCategories,
+  truncationWarning,
 } from './world-state-lib.mjs';
 
 const MB = 1024 * 1024;
@@ -190,6 +192,75 @@ describe('BUBBLES_IN_FLIGHT', () => {
 });
 
 // ========================================
+// THE TRACE BUFFER
+// ========================================
+
+describe('traceCategories', () => {
+  const INVALIDATION = 'disabled-by-default-devtools.timeline.invalidationTracking';
+
+  it('keeps every category, invalidation tracking included, for the stock 6 s window, so earlier baselines stay comparable', () => {
+    expect(traceCategories(6000)).toEqual([
+      'devtools.timeline',
+      'blink',
+      'cc',
+      'disabled-by-default-devtools.timeline',
+      'disabled-by-default-devtools.timeline.frame',
+      INVALIDATION,
+    ]);
+    expect(traceCategories(1000)).toContain(INVALIDATION);
+  });
+
+  it('drops invalidation tracking once a window is longer than 6 s (its volume fills the trace buffer in about 6 s)', () => {
+    expect(traceCategories(6001)).not.toContain(INVALIDATION);
+    expect(traceCategories(30000)).not.toContain(INVALIDATION);
+  });
+
+  it('keeps everything a long window is judged by: the paint, frame and compositor categories', () => {
+    for (const category of ['devtools.timeline', 'blink', 'cc', 'disabled-by-default-devtools.timeline', 'disabled-by-default-devtools.timeline.frame']) {
+      expect(traceCategories(30000), category).toContain(category);
+    }
+  });
+
+  it('keeps the full set for a window that is not a positive number', () => {
+    for (const bad of [Number.NaN, 0, -5, undefined]) expect(traceCategories(bad)).toContain(INVALIDATION);
+  });
+
+  it('hands back a copy, so a caller cannot change the next window categories', () => {
+    traceCategories(6000).pop();
+    expect(traceCategories(6000)).toHaveLength(6);
+  });
+});
+
+describe('truncationWarning', () => {
+  it('is quiet when the window holds about a frame per 17 ms', () => {
+    expect(truncationWarning(360, 6000)).toBeNull();
+    expect(truncationWarning(1800, 30000)).toBeNull();
+  });
+
+  it('warns when the frames are far too few for the window, naming the rate and the window', () => {
+    const warning = truncationWarning(320, 30000);
+    expect(warning).toMatch(/10\.7/);
+    expect(warning).toMatch(/30000 ms/);
+    expect(warning).toMatch(/truncated/i);
+  });
+
+  it('warns on a window with no frames at all', () => {
+    expect(truncationWarning(0, 6000)).toMatch(/0\.0/);
+  });
+
+  it('draws the line at 30 frames per second: 30 is fine, just under it warns', () => {
+    expect(truncationWarning(180, 6000)).toBeNull();
+    expect(truncationWarning(179, 6000)).not.toBeNull();
+  });
+
+  it('says nothing when there is no window to judge', () => {
+    expect(truncationWarning(100, 0)).toBeNull();
+    expect(truncationWarning(100, Number.NaN)).toBeNull();
+    expect(truncationWarning(100, -1)).toBeNull();
+  });
+});
+
+// ========================================
 // THE HARNESS USES THEM
 // ========================================
 
@@ -219,6 +290,11 @@ describe('idle-paint.mjs uses them', () => {
   it('checks the dimmed state again after the windows, so a tile that closed mid-run cannot pass', () => {
     const calls = source.match(/dimmedReading\(await evaluate\(DIMMED_PROBE\)\)/g) ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('chooses the trace categories for the window and warns when the frames say it was cut short', () => {
+    expect(source).toContain('includedCategories: traceCategories(ms)');
+    expect(source).toContain('truncationWarning(frames, ms)');
   });
 
   it('reads the bubble layers and the bubble slot paints, and prints them', () => {
