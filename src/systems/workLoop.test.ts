@@ -1,6 +1,10 @@
 // ========================================
 // IMPORTS
 // ========================================
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 
@@ -17,7 +21,7 @@ import { getStations, type Station } from './stations';
 import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import * as stationsModule from './stations';
 import { getTimeline, killAllTimelines, timelineMap } from '../animation/timelineMap';
-import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry, isLayerSwitching } from '../animation/robotMotionRegistry';
+import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
 import * as buildJobTimelineModule from '../animation/jobMoves/buildJobTimeline';
 import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
 import { stationRippleKey } from '../animation/stationRipple';
@@ -25,6 +29,7 @@ import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrb
 import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { robotBoxAt } from '../animation/layerSwitch';
 import * as layerSwitchModule from '../animation/layerSwitch';
+import * as swimModule from '../animation/swimAnimation';
 import { GEM_CANVAS_H, gemWidth, getRobotGem } from '../components/robot/gem/polygon';
 import { bodyShapeFromAdsr, calculateBodyScale } from '../components/robot/robotVisualHelpers';
 import { chargingColorsKey } from '../components/stations/stationOccupancy';
@@ -563,24 +568,6 @@ function withReducedMotion(fn: () => void) {
   }
 }
 
-/**
- * Stands in for React's re-mount when the loop moves a mounted robot to the other row (its
- * `layer` changes while it is marked layerSwitching): Robot.tsx's mount would hand it back through
- * onRobotMounted. The same body, not a new one — enough for tests that aren't about the re-mount.
- * Returns the unsubscribe.
- */
-function remountOnRowChange(): () => void {
-  return useLocaleStore.subscribe((state, prev) => {
-    const before = prev.locales[LOCALE]?.robots ?? [];
-    for (const r of state.locales[LOCALE]?.robots ?? []) {
-      const old = before.find((b) => b.id === r.id);
-      if (old && (old.layer ?? 'foreground') !== (r.layer ?? 'foreground') && isLayerSwitching(r.id)) {
-        onRobotMounted(LOCALE, r.id);
-      }
-    }
-  });
-}
-
 /** One site; r1 Active, working at it, mounted, the loop running. */
 function workingAtA() {
   const { a } = sitesForSwitch();
@@ -606,16 +593,6 @@ function exitingAt(stationIndex = 0) {
 }
 
 describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6/§1.7)', () => {
-  // Since Task 34b an exit first moves the robot to the back row, which in the app is a React
-  // re-mount the loop waits for. These tests are about the arcs, ripples and recall, not the
-  // re-mount, so React's part is stood in for: the same body hands itself back. The Task 34/34b
-  // block swaps in a new body instead.
-  let unsubscribe: () => void = () => {};
-  beforeEach(() => {
-    unsubscribe = remountOnRowChange();
-  });
-  afterEach(() => unsubscribe());
-
   it('the fixture world has at least two stations', () => {
     registerLocale([sitesForSwitch().a], []);
     expect(stations().length).toBeGreaterThanOrEqual(2);
@@ -1391,16 +1368,16 @@ describe('workLoop — back hosts and layer switch points (Phase 43 Task 32, spe
 });
 
 // ========================================
-// TASK 34 — LAYER-AWARE LEGS, THE RE-MOUNT AND THE DISSOLVE
+// TASK 34 — LAYER-AWARE LEGS, THE ROW SWITCH AND THE DISSOLVE
 // ========================================
-// Spec §1.10. A leg that ends in the other robot row splits at its switch point. Front → back:
-// swim there, mark the robot and write `layer` + `position` (React re-mounts it in robots-back);
-// the re-mount continues the leg while a `<use>` copy in the front row fades 1 → 0 over it and the
-// row eases 1 → BACK_LAYER_SCALE. Back → front: the robot stays in the back row; at the switch
-// point a front copy fades 0 → 1 over it while it swims on easing to 1, and once both the swim and
-// the fade are done it is re-mounted in front — at rest, under an identical opaque copy, so nothing
-// changes on screen — and the copy goes. Either way the back robot is opaque throughout and the
-// front one is what fades: the sketch's rule (the front copy fades over the back copy).
+// Spec §1.10; Phase 53 Task 14 (PER_MOVER_COMPOSITOR_LAYERS.md §1.5). A leg that ends in the other
+// robot row splits at its switch point. Front → back: swim there, write `layer` (the mover's slot
+// follows it; nothing is re-mounted) and carry on at once — a front copy fades 1 → 0 over the robot
+// while the row eases 1 → BACK_LAYER_SCALE. Back → front: the robot stays in the back row; at the
+// switch point a front copy fades 0 → 1 over it while it swims on easing to 1, and once both the
+// swim and the fade are done `layer` is written and the copy removed in the same call, so nothing
+// changes on screen. Either way the back robot is opaque throughout and the front one is what
+// fades: the sketch's rule (the front copy fades over the back copy).
 describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec §1.10)', () => {
   const allSites = () => WORLD.map((actor) => ({ actor, site: getWorkSite(actor) }))
     .filter((s): s is { actor: Actor; site: WorkSite } => !!s.site && isWorkSiteEligible(s.actor, { backHosts: true }));
@@ -1434,17 +1411,6 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     });
     registerOrbiterWork(id, { lock: vi.fn(() => locals), unlock: vi.fn() });
     return { mover, el, row };
-  }
-
-  /** React's re-mount in the other row: the old mover goes, a new one mounts at the store's
-   *  position (RobotBody's hooks first — this records whether they saw the mark), then Robot's
-   *  mount hands it to the loop. */
-  function remount(id: string, old: { mover: Element }) {
-    old.mover.remove();
-    const m = mountRow(id);
-    const markedAtMount = isLayerSwitching(id);
-    onRobotMounted(LOCALE, id);
-    return { ...m, markedAtMount };
   }
 
   /** OceanScene's dissolve div (`data-scene-slot="dissolve"`, a stage child), registered as `robot-dissolve-layer`. */
@@ -1502,21 +1468,28 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
   });
 
   describe('front → back', () => {
-    it('the first swim ends at the switch point; there the robot is marked and written to the back row', () => {
-      const { site, point, layer } = frontToBack();
+    // Phase 53 Task 14 (spec §1.5): no re-mount. The row switch is a write of `layer` (the mover's
+    // slot follows it), and the leg carries on in the same call: the copy starts and the second swim
+    // is made on the very body that made the first.
+    it('the first swim ends at the switch point; there `layer` is written and the leg carries on in the same call', () => {
+      const { site, point, layer, first } = frontToBack();
       expect(get('r1').activity).toBe('transit');
       expect(get('r1').siteId).toBe(site.id);
       expect(get('r1').layer ?? 'foreground').toBe('foreground'); // in front for the whole first swim
-      expect(isLayerSwitching('r1')).toBe(false);
+      expect(copies(layer)).toEqual([]);
+      const swim = getTimeline('swim-r1')!;
       finish('swim-r1');
       expect(get('r1').position).toEqual(point);
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(true);
-      expect(copies(layer)).toEqual([]); // the copy belongs to the re-mount
-      expect(getTimeline('swim-r1')!.progress()).toBe(1); // and nothing swims on the old body
+      expect(copies(layer)).toHaveLength(1); // the fade began in the same call as the write
+      expect(getTimeline('swim-r1')).not.toBe(swim); // the second swim, made at once
+      expect(getTimeline('swim-r1')!.progress()).toBe(0);
+      expect(first.mover.isConnected).toBe(true); // and nothing was torn down
+      expect(get('r1').activity).toBe('transit');
     });
 
     it('the switch point is exactly what findLayerSwitchPoint answers for the leg, asked once', () => {
+      const swimSpy = vi.spyOn(swimModule, 'createSwimTimeline');
       registerLocale([backSite().actor], [robot('r1', OPEN_WATER)]);
       dissolveLayer();
       startWorkLoop(LOCALE, { now, backHosts: true });
@@ -1525,28 +1498,40 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(switchSpy).toHaveBeenCalledTimes(1); // the decision's answer is the one the leg uses
       const answer = switchSpy.mock.results[0].value as Vec2;
       expect(answer).not.toBeNull();
-      finish('swim-r1');
-      expect(get('r1').position).toEqual(answer);
+      // From open water the answer is where the robot already stands, so the first swim has no length
+      // and the whole switch happens inside next(): swim one ends at the answer, swim two starts there.
+      expect(swimSpy.mock.calls[0][1]).toEqual(answer);
+      expect(swimSpy.mock.calls[1][0].position).toEqual(answer);
       expect(get('r1').layer).toBe('background');
+      swimSpy.mockRestore();
     });
 
-    it('the re-mount sees the mark, then the loop clears it and continues the leg on the new body', () => {
+    it('a switch point away from the robot is where the first swim ends and `layer` is written', () => {
+      const swimSpy = vi.spyOn(swimModule, 'createSwimTimeline');
+      const { point } = frontToBack();
+      expect(point).not.toEqual(get('r1').position);
+      expect(swimSpy.mock.calls[0][1]).toEqual(point);
+      expect(get('r1').layer ?? 'foreground').toBe('foreground'); // not before it gets there
+      finish('swim-r1');
+      expect(swimSpy.mock.calls[1][0].position).toEqual(point);
+      expect(get('r1').layer).toBe('background');
+      swimSpy.mockRestore();
+    });
+
+    it('the second swim runs on the same body to the park, and the job starts there', () => {
       const { site, first } = frontToBack();
       finish('swim-r1');
-      const second = remount('r1', first);
-      expect(second.markedAtMount).toBe(true);
-      expect(isLayerSwitching('r1')).toBe(false);
       expect(get('r1').activity).toBe('transit');
       finish('swim-r1');
       expect(get('r1').position).toEqual(parkOf(site));
-      expect(xy(second.el).x).toBeCloseTo(parkOf(site).x, 2);
+      expect(xy(first.el).x).toBeCloseTo(parkOf(site).x, 2);
       expect(get('r1').activity).toBe('working');
     });
 
     it('the row eases 1 → BACK_LAYER_SCALE over the second swim, and the job is built at that scale', () => {
       const { first } = frontToBack();
       finish('swim-r1');
-      const { row } = remount('r1', first);
+      const { row } = first;
       expect(rowScale(row)).toBeCloseTo(1, 6);
       getTimeline('swim-r1')!.progress(0.5);
       const mid = rowScale(row);
@@ -1561,7 +1546,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     it('the dissolve: a front-row mover copy of the robot fades 1 → 0 over LAYER_DISSOLVE_SECONDS, the robot stays opaque, the copy goes', () => {
       const { layer, first } = frontToBack();
       finish('swim-r1');
-      const { el } = remount('r1', first);
+      const { el } = first;
       const [copy] = copies(layer);
       expect(copies(layer)).toHaveLength(1);
       expect(useOf(copy).getAttribute('href')).toBe('#world-robot-r1');
@@ -1579,9 +1564,8 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     // Phase 53 Task 12 (spec §1.5): the copy is a mover — a div in the dissolve slot's div, holding
     // an svg the size of the robot's gem canvas whose overflow shows, holding the <use>.
     it('the copy is div.mover.mover--dissolve › svg (the gem canvas, overflow visible) › use', () => {
-      const { layer, first } = frontToBack();
+      const { layer } = frontToBack();
       finish('swim-r1');
-      remount('r1', first);
       const [copy] = copies(layer);
       expect(copy.tagName).toBe('DIV');
       expect(copy.parentElement).toBe(layer);
@@ -1608,9 +1592,9 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
 
       it('front → back: the copy is placed at the body\'s x, y and rotation when it is created', () => {
         const { layer, first } = frontToBack();
-        finish('swim-r1');
         const setSpy = vi.spyOn(gsap, 'set');
-        const { el } = remount('r1', first);
+        finish('swim-r1'); // the switch: the copy is made and placed in this call
+        const { el } = first;
         const [copy] = copies(layer);
         expect(xy(el).x).not.toBe(0);
         expect(pose(copy)).toEqual(pose(el));
@@ -1623,7 +1607,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       it('front → back: after the swim and the dissolve are both seeked to 0.5 the copy is where the body is, tilt included', () => {
         const { layer, first } = frontToBack();
         finish('swim-r1');
-        const { el } = remount('r1', first);
+        const { el } = first;
         const [copy] = copies(layer);
         const start = pose(el);
         getTimeline('swim-r1')!.progress(0.5); // the body swims first: GSAP updates animations in creation order
@@ -1652,7 +1636,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       it('the copy follows a body that has been moved with no swim at all (a job\'s bob): the next dissolve update catches up', () => {
         const { layer, first } = frontToBack();
         finish('swim-r1');
-        const { el } = remount('r1', first);
+        const { el } = first;
         const [copy] = copies(layer);
         gsap.set(el, { y: xy(el).y - 7, immediateRender: true });
         getTimeline('dissolve-r1')!.progress(0.3);
@@ -1663,7 +1647,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       // mirror (the dissolve timeline's onUpdate) reads the body's position of the SAME frame only if
       // the swim was created first. The other order shows the copy one frame behind the robot.
       it.each([
-        ['front → back', () => { const s = frontToBack(); finish('swim-r1'); remount('r1', s.first); }],
+        ['front → back', () => { frontToBack(); finish('swim-r1'); }],
         ['back → front', () => { backToFront(); finish('swim-r1'); }],
       ])('%s: the swim timeline is created before the dissolve timeline, so each frame the copy mirrors a finished move', (_name, start) => {
         start();
@@ -1677,9 +1661,8 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     });
 
     it('a short second swim may arrive before the fade ends: the job starts, the copy keeps fading over it', () => {
-      const { layer, first } = frontToBack();
+      const { layer } = frontToBack();
       finish('swim-r1');
-      remount('r1', first);
       finish('swim-r1');
       expect(get('r1').activity).toBe('working');
       expect(copies(layer)).toHaveLength(1);
@@ -1687,7 +1670,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(copies(layer)).toEqual([]);
     });
 
-    it('no body (nothing mounted): the layer flips at the switch point with no re-mount to wait for', () => {
+    it('no body (nothing mounted): the layer flips at the switch point and the leg carries on', () => {
       const { actor, site } = backSite();
       registerLocale([actor], [robot('r1', OPEN_WATER)]);
       const point = midway(get('r1').position, parkOf(site));
@@ -1696,7 +1679,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       next('r1');
       finish('swim-r1');
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(false);
+      expect(getTimeline('swim-r1')!.progress()).toBe(0); // the second swim is made at once
       finish('swim-r1');
       expect(get('r1').position).toEqual(parkOf(site));
       expect(get('r1').activity).toBe('working');
@@ -1709,11 +1692,10 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
       stopWorkLoop();
       document.body.innerHTML = '';
-      registerLocale([frontSite().actor], [robot('r2', OPEN_WATER)]);
+      registerLocale([frontSite().actor], [robot('r2', OPEN_WATER, { activity: 'waiting' })]);
       startWorkLoop(LOCALE, { now, backHosts: false });
       const { row } = mountRow('r2');
       gsap.set(row, { scale: 0.9, immediateRender: true }); // e.g. a leg cut off mid-ease
-      expect(get('r2').activity).toBe('exiting'); // the station path: it returns early, after the row is set
       onRobotMounted(LOCALE, 'r2');
       expect(rowScale(row)).toBeCloseTo(1, 6);
     });
@@ -1735,7 +1717,6 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       finish('swim-r1');
       expect(get('r1').position).toEqual(point);
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(false);
       const [copy] = copies(layer);
       expect(useOf(copy).getAttribute('href')).toBe('#world-robot-r1');
       expect(opacity(copy)).toBeCloseTo(0, 6);
@@ -1743,7 +1724,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(opacity(copy)).toBeCloseTo(0.5, 6);
     });
 
-    it('it swims on in the back row easing to 1; only after the swim AND the fade is it re-mounted in front', () => {
+    it('it swims on in the back row easing to 1; only after the swim AND the fade is `layer` written, the copy removed and the leg on, in one call', () => {
       const { front, layer, first } = backToFront();
       finish('swim-r1');
       getTimeline('swim-r1')!.progress(0.5);
@@ -1753,35 +1734,32 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(rowScale(first.row)).toBeCloseTo(1, 6);
       expect(get('r1').position).toEqual(parkOf(front));
       expect(get('r1').layer).toBe('background'); // the fade isn't done
+      expect(get('r1').activity).toBe('transit');
+      expect(copies(layer)).toHaveLength(1);
       expect(opacity(first.el)).toBe(1);
       finish('dissolve-r1');
-      expect(opacity(copies(layer)[0])).toBeCloseTo(1, 6);
+      // The slot write, the copy's removal and the arrival are one call: no frame has the robot in
+      // front with the copy still over it, or the copy gone with the robot still behind the haze.
       expect(get('r1').layer).toBe('foreground');
-      expect(isLayerSwitching('r1')).toBe(true);
-      expect(copies(layer)).toHaveLength(1); // still covering until the front body is there
-      expect(get('r1').activity).toBe('transit');
-
-      const second = remount('r1', first);
-      expect(second.markedAtMount).toBe(true);
-      expect(isLayerSwitching('r1')).toBe(false);
       expect(copies(layer)).toEqual([]);
-      expect(rowScale(second.row)).toBeCloseTo(1, 6);
       expect(get('r1').activity).toBe('working');
+      expect(first.mover.isConnected).toBe(true);
+      expect(rowScale(first.row)).toBeCloseTo(1, 6);
       expect(jobSpy.mock.calls.at(-1)![0].layerScale).toBe(1);
     });
 
-    it('the fade may end first: the re-mount waits for the swim', () => {
-      backToFront();
+    it('the fade may end first: `layer` is written only when the swim is done too', () => {
+      const { layer } = backToFront();
       finish('swim-r1');
       finish('dissolve-r1');
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(false);
+      expect(copies(layer)).toHaveLength(1); // the opaque copy keeps covering until the swim arrives
       finish('swim-r1');
       expect(get('r1').layer).toBe('foreground');
-      expect(isLayerSwitching('r1')).toBe(true);
+      expect(copies(layer)).toEqual([]);
     });
 
-    it('recalled from the back row: the trip home ends in the front row at scale 1 before the station arc', () => {
+    it('recalled from the back row: the trip home ends in the front row at scale 1, and the station arc plays on the same body in the same call', () => {
       const { first, layer } = backToFront();
       land('r1', 'recalled', 'recalled');
       expect(get('r1').activity).toBe('returning');
@@ -1789,18 +1767,17 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(switchSpy.mock.calls.at(-1)![1]).toEqual(port);
       finish('swim-r1');
       finish('swim-r1');
+      expect(getTimeline('station-r1')).toBeUndefined(); // the fade isn't done: no arc yet
       finish('dissolve-r1');
       expect(get('r1').layer).toBe('foreground');
-      expect(getTimeline('station-r1')).toBeUndefined(); // no arc on the old body
-      const second = remount('r1', first);
       expect(copies(layer)).toEqual([]);
-      expect(rowScale(second.row)).toBeCloseTo(1, 6);
+      expect(rowScale(first.row)).toBeCloseTo(1, 6);
       expect(get('r1').activity).toBe('entering');
       expect(getTimeline('station-r1')).toBeDefined();
     });
 
     it('a station leg with no switch point switches where the robot is', () => {
-      const { first, layer } = backToFront();
+      const { layer } = backToFront();
       switchSpy.mockReturnValue(null);
       const here = { ...get('r1').position };
       land('r1', 'recalled', 'recalled');
@@ -1811,14 +1788,13 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(get('r1').layer).toBe('background');
       finish('swim-r1');
       finish('dissolve-r1');
-      remount('r1', first);
       expect(get('r1').layer).toBe('foreground');
       expect(get('r1').activity).toBe('entering');
     });
   });
 
   describe('legs that stay in their row', () => {
-    it('a back robot to a background site: one swim, no copy, no mark, the row stays at BACK_LAYER_SCALE', () => {
+    it('a back robot to a background site: one swim, no copy, no row write, the row stays at BACK_LAYER_SCALE', () => {
       const { actor, site } = backSite();
       registerLocale([actor], [robot('r1', OPEN_WATER, { layer: 'background', activity: 'waiting' })]);
       const layer = dissolveLayer();
@@ -1829,7 +1805,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       finish('swim-r1');
       expect(get('r1').activity).toBe('working');
       expect(copies(layer)).toEqual([]);
-      expect(isLayerSwitching('r1')).toBe(false);
+      expect(get('r1').layer).toBe('background');
       expect(rowScale(row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
       expect(getTimeline('dissolve-r1')).toBeUndefined();
       expect(switchSpy).not.toHaveBeenCalled();
@@ -1850,9 +1826,8 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
 
   describe('interruptions', () => {
     it('stopWorkLoop mid-dissolve: the copy goes and its timeline is killed', () => {
-      const { layer, first } = frontToBack();
+      const { layer } = frontToBack();
       finish('swim-r1');
-      remount('r1', first);
       expect(copies(layer)).toHaveLength(1);
       stopWorkLoop();
       expect(copies(layer)).toEqual([]);
@@ -1869,9 +1844,8 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     }
 
     it('stopWorkLoop sweeps every dissolve copy — any robot\'s — and nothing else in the layer', () => {
-      const { layer, first } = frontToBack();
+      const { layer } = frontToBack();
       finish('swim-r1');
-      remount('r1', first);
       const other = strayCopy(layer, 'r2');
       const bystander = layer.appendChild(document.createElement('div'));
       expect(copies(layer)).toHaveLength(2);
@@ -1882,11 +1856,10 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     });
 
     it('starting a dissolve, and a fade ending, take that robot\'s copy only', () => {
-      const { layer, first } = frontToBack();
-      finish('swim-r1');
+      const { layer } = frontToBack();
       const other = strayCopy(layer, 'r2');
       const bystander = layer.appendChild(document.createElement('div'));
-      remount('r1', first); // the dissolve starts: it ends r1's earlier copy (none) first
+      finish('swim-r1'); // the switch: the dissolve starts and ends r1's earlier copy (none) first
       expect(copies(layer)).toHaveLength(2);
       expect(other.isConnected).toBe(true);
       getTimeline('dissolve-r1')!.progress(1);
@@ -1894,17 +1867,18 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(bystander.isConnected).toBe(true);
     });
 
-    it('stopWorkLoop between the switch and the re-mount: the mark is cleared and the late mount continues nothing', () => {
-      const { first } = frontToBack();
+    it('stopWorkLoop right after the switch: the swim and the fade go, and the written row is left as it was written', () => {
+      const { layer } = frontToBack();
       finish('swim-r1');
-      expect(isLayerSwitching('r1')).toBe(true);
+      expect(get('r1').layer).toBe('background');
       stopWorkLoop();
-      expect(isLayerSwitching('r1')).toBe(false);
-      remount('r1', first);
       expect(getTimeline('swim-r1')).toBeUndefined();
+      expect(getTimeline('dissolve-r1')).toBeUndefined();
+      expect(copies(layer)).toEqual([]);
+      expect(get('r1').layer).toBe('background');
     });
 
-    it('stopWorkLoop after a back → front fade, before the re-mount: the opaque copy goes too', () => {
+    it('stopWorkLoop after a back → front fade, before the swim arrives: the opaque copy goes too', () => {
       const { layer } = backToFront();
       finish('swim-r1');
       finish('dissolve-r1');
@@ -1925,22 +1899,21 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(get('r1').layer).toBe('background');
       expect(get('r1').activity).toBe('returning');
       expect(switchSpy).toHaveBeenCalledTimes(1); // the new leg home asks for its own switch point
-      fade.progress(1); // a stale fade, had it survived, would count toward a re-mount here
+      fade.progress(1); // a stale fade, had it survived, would count toward the row write here
       finish('swim-r1'); // the new first swim: still in back, a fresh copy at 0
       expect(get('r1').layer).toBe('background');
       expect(opacity(copies(layer)[0])).toBeCloseTo(0, 6);
     });
 
-    it('a re-mount whose leg was dropped in between adopts as usual and clears the mark — the old leg does not resume', () => {
-      const { site, layer, first } = frontToBack();
-      finish('swim-r1'); // marked, layer written, re-mount pending
+    it('a recall right after the switch drops the leg: the old swim and out-fade do not resume, it heads home from the back row', () => {
+      const { site, layer } = frontToBack();
+      finish('swim-r1'); // layer written; the out-fade and the swim to the park are running
+      const outFade = getTimeline('dissolve-r1')!;
       land('r1', 'recalled', 'recalled');
-      const second = remount('r1', first);
-      expect(second.markedAtMount).toBe(true);
-      expect(isLayerSwitching('r1')).toBe(false);
       expect(get('r1').activity).toBe('returning');
       // Home from the back row: a copy fading IN (the dropped leg's would fade out) and a swim to
       // the port (the dropped leg's went to the park).
+      expect(getTimeline('dissolve-r1')).not.toBe(outFade);
       expect(copies(layer)).toHaveLength(1);
       expect(opacity(copies(layer)[0])).toBeCloseTo(0, 6);
       finish('swim-r1');
@@ -1950,9 +1923,8 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     });
 
     it('a new switch while the last fade is still running replaces its copy — never two, and the old fade can\'t take the new one', () => {
-      const { layer, first } = frontToBack();
+      const { layer } = frontToBack();
       finish('swim-r1');
-      remount('r1', first);
       finish('swim-r1'); // at the park, working; the out-fade still running
       expect(copies(layer)).toHaveLength(1);
       const oldFade = getTimeline('dissolve-r1')!;
@@ -1966,22 +1938,22 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(copies(layer)).toHaveLength(1);
     });
 
-    it('a plain re-mount (no layer switch) mid-dissolve ends the dissolve', () => {
+    it('a plain mount (the app mounting the robot afresh) mid-dissolve ends the dissolve', () => {
       const { layer, first } = frontToBack();
       finish('swim-r1');
-      const second = remount('r1', first);
       expect(copies(layer)).toHaveLength(1);
-      second.mover.remove();
+      first.mover.remove();
       mountRow('r1');
       onRobotMounted(LOCALE, 'r1');
       expect(copies(layer)).toEqual([]);
+      expect(getTimeline('dissolve-r1')).toBeUndefined();
     });
   });
 
   // Task 34b (spec §1.6): a robot leaving its station is in the back row — it appears between L4 and
-  // L3, at the back row's scale. It is written there while still hidden at the port (a re-mount,
-  // marked like any layer switch), and the exit arc plays on the re-mounted body. From there it
-  // leaves like any back-row robot.
+  // L3, at the back row's scale. It is written there while still hidden at the port (a slot write,
+  // Phase 53 Task 14), and the exit arc plays on the same body at once. From there it leaves like
+  // any back-row robot.
   describe('exits from the back row (Task 34b)', () => {
     /** One station; r1 at its port, as `over` says; the loop running with `backHosts`. */
     function atStation(over: Partial<Robot>, actors: Actor[] = [frontSite().actor], backHosts = false) {
@@ -1994,45 +1966,44 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       return { s, layer, first };
     }
 
-    it('an Active robot charging is written to the back row first — still hidden, marked — and its arc waits for the re-mount', () => {
+    // Phase 53 Task 14 (spec §1.5): the exit writes `layer: 'background'` and plays the arc in the same
+    // call, on the same body — there is no re-mount to wait for. The arc's first frame is the body
+    // hidden, so nothing shows in the front row on the way.
+    it('an Active robot charging is written to the back row and its arc starts in the same call, on the same body', () => {
       const { first } = atStation({ activity: 'charging' });
       gsap.set(first.el, { autoAlpha: 0, immediateRender: true }); // hidden in its station
       onRobotMounted(LOCALE, 'r1'); // Active: adopt exits it
       expect(get('r1').activity).toBe('exiting');
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(true);
-      expect(isHidden(first.el)).toBe(true);
-      expect(getTimeline('station-r1')).toBeUndefined();
+      expect(getTimeline('station-r1')).toBeDefined();
+      expect(isHidden(first.el)).toBe(true); // the arc's first frame
+      expect(first.mover.isConnected).toBe(true);
     });
 
-    it('a visible body is hidden before the switch, so nothing shows in the old row', () => {
+    it('a visible front-row body is hidden by the same call, so nothing shows in the front row on the way', () => {
       const { first } = atStation({ activity: 'exiting' });
       onRobotMounted(LOCALE, 'r1');
       expect(get('r1').layer).toBe('background');
       expect(isHidden(first.el)).toBe(true);
     });
 
-    it('the re-mount plays the arc in the back row: .robot 0.15 → 1 and 0 → 1 opacity, the row at BACK_LAYER_SCALE', () => {
+    it('the arc plays in the back row: scale STATION_PORT_SCALE → 1 and 0 → 1 opacity on the mover, the row at BACK_LAYER_SCALE', () => {
       const { first } = atStation({ activity: 'charging' });
       onRobotMounted(LOCALE, 'r1');
-      const second = remount('r1', first);
-      expect(second.markedAtMount).toBe(true);
-      expect(isLayerSwitching('r1')).toBe(false);
       const arc = getTimeline('station-r1')!;
       expect(arc).toBeDefined();
-      expect(scale(second.el)).toBeCloseTo(STATION_PORT_SCALE, 6);
-      expect(opacity(second.el)).toBeCloseTo(0, 6);
-      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+      expect(scale(first.el)).toBeCloseTo(STATION_PORT_SCALE, 6);
+      expect(opacity(first.el)).toBeCloseTo(0, 6);
+      expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
       arc.progress(1, true); // the end state, without the arc's next()
-      expect(scale(second.el)).toBeCloseTo(1, 6);
-      expect(isShown(second.el)).toBe(true);
-      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+      expect(scale(first.el)).toBeCloseTo(1, 6);
+      expect(isShown(first.el)).toBe(true);
+      expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
     });
 
     it('then a front site is a back → front leg: asked for its switch point, with the dissolve', () => {
-      const { first, layer } = atStation({ activity: 'charging' });
+      const { layer } = atStation({ activity: 'charging' });
       onRobotMounted(LOCALE, 'r1');
-      remount('r1', first);
       switchSpy.mockImplementation((from, to) => midway(from, to));
       finish('station-r1');
       expect(get('r1').activity).toBe('transit');
@@ -2045,20 +2016,19 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     it('a background site is a same-row swim: no switch point, no copy, still at BACK_LAYER_SCALE', () => {
       const { first, layer } = atStation({ activity: 'charging' }, [backSite().actor], true);
       onRobotMounted(LOCALE, 'r1');
-      const second = remount('r1', first);
       finish('station-r1');
       expect(get('r1').siteId).toBe(backSite().site.id);
       expect(switchSpy).not.toHaveBeenCalled();
       finish('swim-r1');
       expect(get('r1').activity).toBe('working');
       expect(copies(layer)).toEqual([]);
-      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+      expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
     });
 
-    it('a robot already in the back row exits at once, with no re-mount', () => {
+    it('a robot already in the back row exits at once and stays in it', () => {
       const { first } = atStation({ activity: 'exiting', layer: 'background' });
       onRobotMounted(LOCALE, 'r1');
-      expect(isLayerSwitching('r1')).toBe(false);
+      expect(get('r1').layer).toBe('background');
       expect(getTimeline('station-r1')).toBeDefined();
       expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
     });
@@ -2071,7 +2041,6 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       onLifecycleChange(LOCALE, 'r1', 'active');
       expect(get('r1').activity).toBe('exiting');
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(false);
       expect(getTimeline('station-r1')).toBeDefined();
     });
 
@@ -2085,16 +2054,13 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(get('r1').activity).toBe('exiting');
       expect(get('r1').stationId).toBe(s.id);
       expect(get('r1').layer).toBe('background');
-      expect(isLayerSwitching('r1')).toBe(true);
-      const second = remount('r1', first);
-      expect(getTimeline('station-r1')).toBeDefined();
-      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+      expect(getTimeline('station-r1')).toBeDefined(); // the new arc, started in the same call
+      expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
     });
 
     it('recalled mid-arc: the arc finishes, then it heads home from the back row', () => {
-      const { first } = atStation({ activity: 'charging' });
+      atStation({ activity: 'charging' });
       onRobotMounted(LOCALE, 'r1');
-      remount('r1', first);
       land('r1', 'recalled', 'recalled'); // exiting: the arc finishes first
       expect(get('r1').activity).toBe('exiting');
       finish('station-r1');
@@ -2104,7 +2070,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(switchSpy.mock.calls.at(-1)![1]).toEqual(port);
     });
 
-    it('power-on: robots mount hidden, then the loop moves each to the back row before any arc', () => {
+    it('power-on: robots mount hidden, then the loop moves each to the back row and starts its arc in the same call', () => {
       registerLocale([frontSite().actor], []);
       const [s0, s1] = stations();
       setRobots([
@@ -2121,24 +2087,18 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       startWorkLoop(LOCALE, { now, backHosts: false });
       for (const [i, id] of ['r1', 'r2'].entries()) {
         expect(get(id).layer).toBe('background');
-        expect(isLayerSwitching(id)).toBe(true);
         expect(isHidden(bodies[i].el)).toBe(true);
-        expect(getTimeline(`station-${id}`)).toBeUndefined();
+        expect(getTimeline(`station-${id}`)).toBeDefined();
       }
-      remount('r1', bodies[0]);
-      remount('r2', bodies[1]);
-      expect(getTimeline('station-r1')).toBeDefined();
-      expect(getTimeline('station-r2')).toBeDefined();
     });
 
     it('reduced motion: the arc fades in place in the back row, the row at BACK_LAYER_SCALE', () => {
       withReducedMotion(() => {
         const { first } = atStation({ activity: 'charging' });
         onRobotMounted(LOCALE, 'r1');
-        const second = remount('r1', first);
         expect(getTimeline('station-r1')!.duration()).toBeCloseTo(STATION_REDUCED_ARC_SECONDS, 6);
-        expect(scale(second.el)).toBeCloseTo(1, 6);
-        expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+        expect(scale(first.el)).toBeCloseTo(1, 6);
+        expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
       });
     });
 
@@ -2236,5 +2196,24 @@ describe('workLoop — the decoration tier (Job decorations Task 5, spec Assumpt
       clearRobotMotionRegistry();
       document.body.innerHTML = '';
     }
+  });
+});
+
+// Phase 53 Task 14 (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.5): a row switch is a write of
+// `layer`, so the loop keeps no list of pending re-mounts and marks nothing. The machinery's names
+// are gone from the module, and from stopWorkLoop with them.
+describe('workLoop — no re-mount machinery (Phase 53 Task 14)', () => {
+  const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'workLoop.ts'), 'utf-8');
+
+  it.each(['remounts', 'markLayerSwitching', 'clearLayerSwitching', 'isLayerSwitching', 'continueLeg'])(
+    'workLoop.ts names no %s',
+    (name) => {
+      expect(source).not.toMatch(new RegExp(String.raw`\b${name}\b`));
+    },
+  );
+
+  it('onRobotMounted is adopt-or-hide only: it holds no continuation for a pending layer switch', () => {
+    const body = source.slice(source.indexOf('export function onRobotMounted'));
+    expect(body).not.toMatch(/\.get\(robotId\)/);
   });
 });

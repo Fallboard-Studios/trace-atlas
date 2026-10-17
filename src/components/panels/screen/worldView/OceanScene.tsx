@@ -177,13 +177,11 @@ export function OceanScene({
   // `<Robot>` now looks up its own current data by id (Robot.tsx's own fix), decoupled entirely
   // from this scene's own re-render cadence.
   //
-  // One list per robot row (Phase 43 J4, spec §1.10): a robot draws in the row its `Robot.layer`
-  // names, unset meaning foreground. Still ids only, so the scene re-renders when a robot changes
-  // rows (its id moves list) and not for any other write.
-  const frontRobotIds = useLocaleStore(useShallow((s) =>
-    (s.locales[localeId]?.robots ?? []).filter((r) => r.layer !== 'background').map((r) => r.id)));
-  const backRobotIds = useLocaleStore(useShallow((s) =>
-    (s.locales[localeId]?.robots ?? []).filter((r) => r.layer === 'background').map((r) => r.id)));
+  // One list for both robot rows (Phase 53 Task 14, docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.5):
+  // a robot draws in the row its `Robot.layer` names (unset meaning foreground), but that is its own
+  // mover's `data-scene-slot` now (Robot.tsx), which the stylesheet turns into a z-index. So the scene
+  // only needs the roster: it re-renders when a robot is added or removed, never when one changes rows.
+  const robotIds = useLocaleStore(useShallow((s) => (s.locales[localeId]?.robots ?? []).map((r) => r.id)));
   const actors = useLocaleStore((s) => s.locales[localeId]?.actors ?? []);
 
   // The scene box the stage fits into (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1): observed for
@@ -332,15 +330,6 @@ export function OceanScene({
           </g>
         </Sheet>
 
-        {/* Movers: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
-            the midground, hazed by tints B–D like the buildings around them. Each robot is a stage
-            child of its own (Phase 53 Task 13, spec §1.4) and the stylesheet stacks it by its
-            `data-scene-slot`; this list sits here, and the front one below, only so document order
-            still reads as the stack. */}
-        {backRobotIds.map((id) => (
-          <Robot key={id} robotId={id} />
-        ))}
-
         {/* Static mid layer: tint B, midground factories, tint C, the ground line. */}
         <Sheet slot="mid" width={width} height={height}>
           <defs>
@@ -383,9 +372,12 @@ export function OceanScene({
           </g>
         </Sheet>
 
-        {/* Movers: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
-            `layer` isn't 'background'. */}
-        {frontRobotIds.map((id) => (
+        {/* Movers: every robot (GSAP-driven transforms, Robot.tsx), each a stage child of its own
+            (Phase 53 Tasks 13–14, spec §1.4). Where it sits in this list says nothing about the
+            stack: its `data-scene-slot` does — `robots-back` (Phase 43 J4: behind the midground,
+            hazed by tints B–D like the buildings around it) for a `layer` of 'background',
+            `robots` (over the stations' L3, under the dissolve copies) for every other. */}
+        {robotIds.map((id) => (
           <Robot key={id} robotId={id} />
         ))}
 

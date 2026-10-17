@@ -380,7 +380,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   `workLoop.test.ts`. **Scope:** L (seven files; the atomic cut-over the Architecture Decisions explain — the robot's
   transform and the copy's mirror cannot land apart without a wrong frame per switch).
 
-- [ ] **Task 14: One robot list; the row switch is a slot write**
+- [x] **Task 14: One robot list; the row switch is a slot write** (automated criteria done; the live switches are Checkpoint B's)
 
   **Description:** `OceanScene` renders one `useShallow` list of robot ids; a row change re-renders the robot's slot
   and never re-mounts it. `workLoop.ts`: `moveToRow` writes `layer` and returns; `intoBackRow` writes, dissolves `'out'`
@@ -390,14 +390,14 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   registry still exports them until Task 15).
 
   **Acceptance criteria:**
-  - [ ] `OceanScene.test.tsx`: a robot whose `layer` flips keeps its mount (`onRobotMounted` called once) and changes
+  - [x] `OceanScene.test.tsx`: a robot whose `layer` flips keeps its mount (`onRobotMounted` called once) and changes
         slot; the roster-change case still re-renders the list.
-  - [ ] `workLoop.test.ts`, the §1.5 cases replacing the re-mount ones: front → back writes `layer` at the switch point
+  - [x] `workLoop.test.ts`, the §1.5 cases replacing the re-mount ones: front → back writes `layer` at the switch point
         and swims on at once, easing the row to 0.75; back → front writes `layer` only after both swim and fade settle
         and removes the copy in the same call; no body → `layer` flips and the leg continues; the station exit of a
         front-row robot writes the back row and starts the arc in the same tick; a plain mount mid-dissolve ends the
         dissolve; `stopWorkLoop` no longer references pending re-mounts.
-  - [ ] Every `remounts`/`markLayerSwitching` reference is gone from `workLoop.ts` (a test greps the source).
+  - [x] Every `remounts`/`markLayerSwitching` reference is gone from `workLoop.ts` (a test greps the source).
   - [ ] Live: a row switch each way, a station exit from the front row, a recall mid-switch — no pop, no hang, no robot
         left behind the midground without its copy.
 

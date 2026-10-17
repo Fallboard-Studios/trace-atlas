@@ -3,21 +3,27 @@
 // ========================================
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, act } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 
 // A plain vi.fn(), not React.memo-wrapped — deliberately, so its own call count is a reliable
 // proxy for "did OceanScene's render body reconstruct the robot layer again" (docs/todo/
 // backlog.md #27 follow-up, 2026-09-15), the same "unmemoized mock as a render-count marker"
 // technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use. It draws a mover
 // marker per robot id, in the slot its row names (Robot.tsx's own contract, tested in Robot.test.tsx:
-// slotForLayer), so the robot tests can read which row each robot landed in. It reads the layer
-// once, at render, without subscribing: the scene's own re-render cadence is what these tests count.
+// slotForLayer), so the robot tests can read which row each robot landed in. Like the real one it
+// subscribes to its own slot only, as a string: a write that leaves the slot alone re-renders nothing,
+// and a layer write moves the slot on the SAME mounted element (robotMountMock counts real mounts).
 vi.mock('@/components/robot/Robot', () => ({
   Robot: vi.fn((props: { robotId: string }) => {
-    const robot = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID]?.robots.find((r) => r.id === props.robotId);
-    return <div className="mover mover--robot" data-robot-mock={props.robotId} data-scene-slot={slotForLayer(robot?.layer)} />;
+    const slot = useLocaleStore((s) =>
+      slotForLayer(s.locales[DEFAULT_LOCALE_ID]?.robots.find((r) => r.id === props.robotId)?.layer));
+    useEffect(() => {
+      robotMountMock(props.robotId);
+    }, [props.robotId]);
+    return <div className="mover mover--robot" data-robot-mock={props.robotId} data-scene-slot={slot} />;
   }),
 }));
+const robotMountMock = vi.fn();
 // Render an identifying marker (actor id + row) rather than null, so the scenery-interleave
 // tests below can assert document order without needing the real Factory/Scenery visuals.
 vi.mock('@/components/actors/Factory', () => ({
@@ -108,6 +114,15 @@ function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
 // The robot movers, by the slot the Robot mock puts them in (the real one: Robot.test.tsx).
 const BACK_ROBOT = '[data-robot-mock][data-scene-slot="robots-back"]';
 const FRONT_ROBOT = '[data-robot-mock][data-scene-slot="robots"]';
+
+// A thing's place in the stack is its slot first (the stylesheet's z-index follows SCENE_SLOTS, checked
+// in the CSS test) and its document order inside the slot second. A robot's mover can sit anywhere in
+// the stage's markup — it is the slot that stacks it — so document order alone says nothing about it.
+const slotRank = (el: Element) =>
+  SCENE_SLOTS.indexOf(el.closest('[data-scene-slot]')!.getAttribute('data-scene-slot') as SceneSlot);
+const under = (a: Element, b: Element) =>
+  slotRank(a) < slotRank(b) ||
+  (slotRank(a) === slotRank(b) && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
 
 // ========================================
 // TESTS
@@ -591,7 +606,7 @@ describe('OceanScene', () => {
           const { rect, stops } = tint(container, slot);
           return { rect, alpha: stops[0].opacity };
         });
-        const isAfter = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        const isAfter = under; // "followed by" in the stack, not in the markup (a mover stacks by slot)
         const coverage = (pred: (rect: Element) => boolean) =>
           1 - tints.filter((t) => pred(t.rect)).reduce((acc, t) => acc * (1 - t.alpha), 1);
         const over = (selector: string) => {
@@ -652,39 +667,67 @@ describe('OceanScene', () => {
         expect(idsIn(container, 'robots')).toEqual(['r1']);
       });
 
-      it('moves a robot between the rows when its layer changes, both ways', () => {
+      // Phase 53 Task 14 (spec §1.5, assumption 10): one list serves both rows, and a row switch is the
+      // slot attribute changing on the same mounted element — never a re-mount.
+      it('moves a robot between the rows by changing its slot: the same mover stays mounted, both ways', () => {
         const { container } = render(<OceanScene />);
+        const mover = container.querySelector('[data-robot-mock="r1"]')!;
+        robotMountMock.mockClear();
         act(() => {
           useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'background' });
         });
         expect(idsIn(container, 'robots-back')).toEqual(['r1']);
         expect(idsIn(container, 'robots')).toEqual([]);
+        expect(container.querySelector('[data-robot-mock="r1"]')).toBe(mover);
         act(() => {
           useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'foreground' });
         });
         expect(idsIn(container, 'robots-back')).toEqual([]);
         expect(idsIn(container, 'robots')).toEqual(['r1']);
+        expect(container.querySelector('[data-robot-mock="r1"]')).toBe(mover);
+        expect(robotMountMock).not.toHaveBeenCalled(); // (a mount runs the mock's effect; a slot write does not)
       });
 
-      // Back-row movers open the stack's lower half and front-row movers its upper one, the way the
-      // two robot sheets sat in it: the stations' plates and the tints are read off this order.
-      it('puts the back movers after the back sheet and before the mid sheet, and the front movers after the stations sheet and before the dissolve div', () => {
+      it('a row change re-renders the scene\'s list not at all: its ids, in roster order, did not change', () => {
         useLocaleStore.setState({
           locales: {
             [DEFAULT_LOCALE_ID]: {
               ...DEFAULT_LOCALE,
-              robots: [makeRobot({ id: 'r1' }), makeRobot({ id: 'r2', layer: 'background' })],
+              robots: [makeRobot({ id: 'r1' }), makeRobot({ id: 'r2' }), makeRobot({ id: 'r3' })],
               actors: [],
             },
           },
         });
         const { container } = render(<OceanScene />);
-        const after = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-        const sheet = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
-        const back = container.querySelector('[data-robot-mock="r2"]')!;
-        const front = container.querySelector('[data-robot-mock="r1"]')!;
-        expect(after(sheet('back'), back) && after(back, sheet('mid'))).toBe(true);
-        expect(after(sheet('stations'), front) && after(front, container.querySelector('[data-scene-slot="dissolve"]')!)).toBe(true);
+        const before = Array.from(container.querySelectorAll('.ocean-scene__stage > .mover--robot'));
+        act(() => {
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r2', { layer: 'background' });
+        });
+        const after = Array.from(container.querySelectorAll('.ocean-scene__stage > .mover--robot'));
+        expect(after).toEqual(before); // the same elements in the same order
+        expect(after.map((el) => el.getAttribute('data-scene-slot'))).toEqual(['robots', 'robots-back', 'robots']);
+      });
+
+      it('renders one mover per robot in roster order, whatever the rows', () => {
+        useLocaleStore.setState({
+          locales: {
+            [DEFAULT_LOCALE_ID]: {
+              ...DEFAULT_LOCALE,
+              robots: [
+                makeRobot({ id: 'r1', layer: 'background' }),
+                makeRobot({ id: 'r2' }),
+                makeRobot({ id: 'r3', layer: 'background' }),
+              ],
+              actors: [],
+            },
+          },
+        });
+        const { container } = render(<OceanScene />);
+        expect(
+          Array.from(container.querySelectorAll('.ocean-scene__stage > .mover--robot')).map((el) =>
+            el.getAttribute('data-robot-mock'),
+          ),
+        ).toEqual(['r1', 'r2', 'r3']);
       });
 
       it("still doesn't re-render either row for a write that leaves every robot's layer alone", () => {
@@ -862,12 +905,6 @@ describe('OceanScene', () => {
     // sheet's slot first (the stylesheet's z-index follows SCENE_SLOTS, checked in the CSS test) and
     // its document order inside the sheet second.
     describe('the stack, back to front', () => {
-      const slotRank = (el: Element) =>
-        SCENE_SLOTS.indexOf(el.closest('[data-scene-slot]')!.getAttribute('data-scene-slot') as SceneSlot);
-      const under = (a: Element, b: Element) =>
-        slotRank(a) < slotRank(b) ||
-        (slotRank(a) === slotRank(b) && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
-
       // The chain opens on the background buildings and tint A: before this phase L4 sat in a sheet
       // above all of `back`, so a plate lay over tint A, not under it.
       it('is background, tint A, L4, back robots, midground, bubbles, L3, front robots, copies, front fragment, tint D, foreground', () => {
@@ -909,9 +946,8 @@ describe('OceanScene', () => {
       });
       const { container } = render(<OceanScene />);
       const robotEl = container.querySelector('[data-robot-mock="r1"]')!;
-      const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-      expect(follows(container.querySelector('#station-l4-layer')!, robotEl)).toBe(true);
-      expect(follows(robotEl, container.querySelector('#station-l3-layer')!)).toBe(true);
+      expect(under(container.querySelector('#station-l4-layer')!, robotEl)).toBe(true);
+      expect(under(robotEl, container.querySelector('#station-l3-layer')!)).toBe(true);
     });
 
     // Phase 43 Task 34 (spec §1.10), reshaped by Phase 53 Task 12 (spec §1.2, §1.5): the layer-switch

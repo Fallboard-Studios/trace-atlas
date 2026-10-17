@@ -21,18 +21,20 @@
 // Layer-aware legs (Task 34, spec §1.10): a leg that ends in the other robot row splits at its
 // switch point — two swims, each from rest. In both directions the back-row robot stays opaque and
 // a front-row copy (a mover holding an SVG `<use>`, in OceanScene's dissolve div) is what fades, over
-// LAYER_DISSOLVE_SECONDS from the switch point, so the haze between the rows blends in. Front →
-// back: at the switch point the robot is marked layerSwitching and written to the back row; React
-// re-mounts it there, onRobotMounted continues the leg, and the copy fades 1 → 0 over it. Back →
-// front: the robot stays in the back row while the copy fades 0 → 1; once the swim and the fade
-// are both done it is re-mounted in front at rest, under an identical opaque copy, which then goes.
-// Either way `.robot__row` eases to the destination row's scale (BACK_LAYER_SCALE or 1) over the
-// second swim. A station leg with no switch point switches where the robot is.
+// LAYER_DISSOLVE_SECONDS from the switch point, so the haze between the rows blends in. A row switch
+// is a write of `layer` (moveToRow): the robot's mover keeps its place in the DOM and Robot.tsx only
+// moves its `data-scene-slot`, so there is no re-mount to wait for (Phase 53 Task 14, spec §1.5).
+// Front → back: at the switch point `layer` is written and the leg goes straight on — the copy fades
+// 1 → 0 over the second swim. Back → front: the robot stays in the back row while the copy fades
+// 0 → 1; once the swim and the fade are both done `layer` is written and the (now opaque) copy
+// removed in the same call, so no frame shows one without the other. Either way `.robot__row` eases
+// to the destination row's scale (BACK_LAYER_SCALE or 1) over the second swim. A station leg with
+// no switch point switches where the robot is.
 //
 // Every decision reads the robot's `docking`, so the visuals converge on the lifecycle however far
 // the Transport ran ahead (a hidden tab). The lifecycle tick (robotSystems.ts) reaches this module
-// only through onLifecycleChange; React reaches it through onRobotMounted (Robot.tsx); the start
-// and stop pairs are initializeLocale's and the power-off paths'.
+// only through onLifecycleChange; React reaches it through onRobotMounted (Robot.tsx), once per real
+// mount; the start and stop pairs are initializeLocale's and the power-off paths'.
 //
 // Module state is runtime only, never Zustand: an Actor write would re-render every factory layer
 // (spec §1.7). Site ids are actor ids — unique within a world (checked over the 121-seed grid),
@@ -54,7 +56,7 @@ import { getStations, nearestFreeStation, type Box, type Station } from './stati
 import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import { createSwimTimeline } from '../animation/swimAnimation';
 import { getTimeline, killTimeline, setTimeline, timelineMap } from '../animation/timelineMap';
-import { clearLayerSwitching, getArcDecorator, getOrbiterWork, markLayerSwitching } from '../animation/robotMotionRegistry';
+import { getArcDecorator, getOrbiterWork } from '../animation/robotMotionRegistry';
 import { playStationRipple } from '../animation/stationRipple';
 import { findLayerSwitchPoint, robotBoxAt } from '../animation/layerSwitch';
 import { buildJobTimeline } from '../animation/jobMoves/buildJobTimeline';
@@ -114,8 +116,6 @@ interface LoopRun {
   stations: Station[];
   now: () => number;
   rand: () => number;
-  /** A layer switch's continuation per robot, waiting for React's re-mount (onRobotMounted). */
-  remounts: Map<string, () => void>;
 }
 
 type RobotLayer = NonNullable<Robot['layer']>;
@@ -379,22 +379,18 @@ function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () =>
   tl.play();
 }
 
-/** Every leg the robot has in flight, gone (its job finished silently first), its dissolve ended
- *  and any layer switch still waiting for a re-mount forgotten. */
+/** Every leg the robot has in flight, gone (its job finished silently first) and its dissolve ended. */
 function killLegs(robotId: string): void {
   finishJobSilently(robotId);
   for (const prefix of LEG_KEY_PREFIXES) killTimeline(`${prefix}${robotId}`);
   endDissolve(robotId);
-  run?.remounts.delete(robotId);
 }
 
-/** A leg cut short (recall, turn-back): the swim, the bob and the dissolve go, and a pending
- *  re-mount continues nothing — it adopts the robot instead. */
-function dropLeg(loop: LoopRun, robotId: string): void {
+/** A leg cut short (recall, turn-back): the swim, the bob and the dissolve go. */
+function dropLeg(robotId: string): void {
   killTimeline(`swim-${robotId}`);
   killTimeline(`bob-wait-${robotId}`);
   endDissolve(robotId);
-  loop.remounts.delete(robotId);
 }
 
 /**
@@ -441,18 +437,13 @@ function swimTo(loop: LoopRun, robot: Robot, destination: Vec2, scale: number, o
 }
 
 /**
- * Write the robot into robot row `layer`. With a body, React re-mounts it in that row: it is
- * marked layerSwitching first (its hooks skip the mount flourish) and `then` waits for
- * onRobotMounted. With none there is nothing to re-mount: `then` at once.
+ * Write the robot into robot row `layer`, and nothing else (Phase 53 Task 14, spec §1.5). The write
+ * reaches the DOM before the next frame paints (Zustand renders through useSyncExternalStore), where
+ * Robot.tsx moves its mover's `data-scene-slot` and OceanScene.css moves its z-index: the same body,
+ * still mounted, now in front of or behind the midground. Body or no body, the caller carries straight
+ * on — a dissolve started or removed in the same call is what keeps that frame whole.
  */
-function moveToRow(loop: LoopRun, robot: Robot, layer: RobotLayer, then: () => void): void {
-  if (!bodyOf(robot.id)) {
-    write(loop, robot.id, { layer });
-    then();
-    return;
-  }
-  markLayerSwitching(robot.id);
-  loop.remounts.set(robot.id, then);
+function moveToRow(loop: LoopRun, robot: Robot, layer: RobotLayer): void {
   write(loop, robot.id, { layer });
 }
 
@@ -483,31 +474,29 @@ function legTo(
   });
 }
 
-/** Front → back, at the switch point: re-mount in the back row, then swim on easing to the back
- *  row's scale while the front copy fades out over it. */
+/** Front → back, at the switch point: write the back row, then swim on easing to the back row's
+ *  scale while the front copy fades out over it. */
 function intoBackRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: () => void): void {
-  moveToRow(loop, robot, 'background', () => {
-    const here = robotOf(loop, robot.id);
-    if (!here) return;
-    // The swim first, then the fade: the copy mirrors the body from the fade's onUpdate, which must
-    // run after the swim has moved the body (GSAP updates in the order animations were made).
-    swimTo(loop, here, destination, BACK_LAYER_SCALE, onArrive);
-    dissolve(loop, here, 'out', () => {});
-  });
+  moveToRow(loop, robot, 'background');
+  const here = robotOf(loop, robot.id);
+  if (!here) return;
+  // The swim first, then the fade: the copy mirrors the body from the fade's onUpdate, which must
+  // run after the swim has moved the body (GSAP updates in the order animations were made).
+  swimTo(loop, here, destination, BACK_LAYER_SCALE, onArrive);
+  dissolve(loop, here, 'out', () => {});
 }
 
 /** Back → front, at the switch point: swim on in the back row easing to 1 while the front copy
- *  fades in over it; when both are done, re-mount in front at rest and let the copy go. */
+ *  fades in over it; when both are done, write the front row and let the copy go, in one call. */
 function intoFrontRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: () => void): void {
   let waiting = 2;
   const settled = () => {
     if (--waiting > 0) return;
     const here = robotOf(loop, robot.id);
     if (!here) return;
-    moveToRow(loop, here, 'foreground', () => {
-      removeCopy(robot.id);
-      onArrive();
-    });
+    moveToRow(loop, here, 'foreground');
+    removeCopy(robot.id);
+    onArrive();
   };
   // The swim first, then the fade, as in intoBackRow: the copy follows the body the swim has moved.
   swimTo(loop, robot, destination, 1, settled);
@@ -623,24 +612,17 @@ function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station
 /**
  * Out of the station: the slot frees as the robot appears, then it goes to work. It leaves from the
  * back row (Task 34b, spec §1.6) — between the station's L4 and L3 — so a robot not already there is
- * hidden and moved first; the arc plays on the re-mounted body, at the back row's scale.
+ * written to it first, and the arc plays on the same body at once (Phase 53 Task 14), at the back
+ * row's scale. The arc's first frame is the body hidden, so nothing shows in the front row on the way.
  */
 function exitStation(loop: LoopRun, robot: Robot): void {
   write(loop, robot.id, { activity: 'exiting' });
   const station = loop.stations.find((s) => s.id === robot.stationId);
-  const arc = () => {
-    const here = robotOf(loop, robot.id);
-    if (!here) return;
-    placeRow(here, BACK_LAYER_SCALE);
-    stationArc(loop, here, 'spawn', station, () => next(robot.id));
-  };
-  if (rowOfRobot(robot) === 'background') {
-    arc();
-    return;
-  }
-  const el = bodyOf(robot.id);
-  if (el) place(el, { autoAlpha: 0 }); // nothing shows in the front row while it moves
-  moveToRow(loop, robot, 'background', arc);
+  if (rowOfRobot(robot) !== 'background') moveToRow(loop, robot, 'background');
+  const here = robotOf(loop, robot.id);
+  if (!here) return;
+  placeRow(here, BACK_LAYER_SCALE);
+  stationArc(loop, here, 'spawn', station, () => next(robot.id));
 }
 
 /** Home: reserve a slot at the nearest station with room, swim to its port, enter. */
@@ -680,7 +662,7 @@ function hideAtStation(localeId: string, robot: Robot, stations: Station[]): voi
   const el = bodyOf(robot.id);
   if (el) place(el, { x: position.x, y: position.y, autoAlpha: 0 });
   placeRow(robot, 1);
-  // Stations are in the front row. Hidden, so a re-mount there (it adopts again) shows nothing.
+  // Stations are in the front row. Hidden, so the slot change shows nothing.
   const layer = rowOfRobot(robot) === 'background' ? { layer: 'foreground' as const } : {};
   writeTo(localeId, robot.id, { activity: 'charging', position, ...layer, ...(station ? { stationId: station.id } : {}) });
 }
@@ -755,7 +737,6 @@ export function startWorkLoop(localeId: string, options: WorkLoopOptions = {}): 
     stations: getStations(localeId),
     now: options.now ?? (() => gsap.ticker.time),
     rand: options.rand ?? Alea(`${localeId}:work`),
-    remounts: new Map(),
   };
   run = loop;
   for (const robot of robotsOf(localeId)) {
@@ -767,12 +748,11 @@ export function startWorkLoop(localeId: string, options: WorkLoopOptions = {}): 
  * Stop the loop: every `work-*`, `swim-*`, `bob-wait-*`, `station-*` and `dissolve-*` timeline is
  * killed and the site state cleared. A job in progress is first run to its end without its
  * callback, so the orbiters are back on their docks and the bob at rest before they're unlocked.
- * Every dissolve copy goes, and a layer switch still waiting for its re-mount is forgotten (its
- * mark cleared — the late mount is an ordinary one). Idempotent.
+ * Every dissolve copy goes. A robot written to the other row stays there (a slot is not undone).
+ * Idempotent.
  */
 export function stopWorkLoop(): void {
   if (!run) return;
-  const loop = run;
   run = null;
   for (const key of [...timelineMap.keys()]) {
     if (!LOOP_KEY_PREFIXES.some((p) => key.startsWith(p))) continue;
@@ -780,8 +760,6 @@ export function stopWorkLoop(): void {
     else killTimeline(key);
   }
   dissolveLayer()?.querySelectorAll('.mover--dissolve[data-dissolve-copy]').forEach((copy) => copy.remove());
-  for (const robotId of loop.remounts.keys()) clearLayerSwitching(robotId);
-  loop.remounts.clear();
 }
 
 /**
@@ -818,36 +796,31 @@ export function onLifecycleChange(localeId: string, robotId: string, to: Lifecyc
 
   if (to === 'recalled') {
     if (robot.activity !== 'transit' && robot.activity !== 'waiting') return;
-    dropLeg(loop, robotId);
+    dropLeg(robotId);
     abandonSites(loop, robotId);
     returnToStation(loop, settle(loop, robotOf(loop, robotId)!));
   } else if (to === 'active') {
     if (robot.activity === 'charging') {
       exitStation(loop, robot);
     } else if (robot.activity === 'returning') {
-      dropLeg(loop, robotId);
+      dropLeg(robotId);
       resume(loop, settle(loop, robot));
     }
   }
 }
 
 /**
- * A world-context robot body has mounted (Robot.tsx). A layer switch's re-mount continues its leg
- * (spec §1.10); the layerSwitching mark ends here either way, its hooks having read it. Otherwise,
- * with the loop running for its locale, the loop adopts it. With none yet (a power-on), Docked and
- * Undocking robots are hidden at their station and exiting or charging ones hidden in place, so
- * nothing shows for a frame before startWorkLoop adopts them.
+ * A world-context robot body has mounted (Robot.tsx) — a real mount: a row switch no longer
+ * re-mounts (Phase 53 Task 14). With the loop running for its locale, the loop adopts it. With none
+ * yet (a power-on), Docked and Undocking robots are hidden at their station and exiting or charging
+ * ones hidden in place, so nothing shows for a frame before startWorkLoop adopts them.
  */
 export function onRobotMounted(localeId: string, robotId: string): void {
-  clearLayerSwitching(robotId);
   const robot = useLocaleStore.getState().getRobotById(localeId, robotId);
   if (!robot) return;
   if (run) {
     if (run.localeId !== localeId) return;
-    const continueLeg = run.remounts.get(robotId);
-    run.remounts.delete(robotId);
-    if (continueLeg) continueLeg();
-    else adopt(run, robot);
+    adopt(run, robot);
     return;
   }
   if (isDockedOrUndocking(robot)) {
