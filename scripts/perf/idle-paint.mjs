@@ -24,7 +24,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { BUBBLE_CIRCLES, SCENE_SLOT_NAMES, SHEET_SELECTOR, sceneSlotSelector, slotNameOf } from './scene-markup-lib.mjs';
+import { redrawnArea } from './paint-area-lib.mjs';
+import { BUBBLE_CIRCLES, SCENE_SLOT_NAMES, SHEET_SELECTOR, isMoverNode, sceneSlotSelector, slotNameOf } from './scene-markup-lib.mjs';
 
 const { values: opts } = parseArgs({
   options: {
@@ -150,8 +151,12 @@ async function connect(port) {
   };
 }
 
-/** Trace one window. Returns per-name totals, the main-thread busy time, frame count and per-node paint totals. */
-async function traceWindow({ send, onEvent }, ms) {
+/**
+ * Trace one window. Returns per-name totals, the main-thread busy time, frame count, per-node paint totals and the
+ * redrawn area per frame (roadmap Phase 53's gate: `redrawn px²/frame` and `screens/frame`, paint-area-lib.mjs).
+ * `view` is the emulated viewport and device scale the area is measured against.
+ */
+async function traceWindow({ send, onEvent }, ms, view) {
   const events = [];
   const stopCollecting = onEvent((m) => { if (m.method === 'Tracing.dataCollected') events.push(...m.params.value); });
   const complete = new Promise((resolve) => {
@@ -190,9 +195,11 @@ async function traceWindow({ send, onEvent }, ms) {
   const byName = new Map();
   const paintByNode = new Map();
   const invalidations = new Map(); // `${event} ${reason}` -> { count, nodes: Map<nodeId, count> }
+  const mainPaints = [];
   let frames = 0;
   for (const ev of events) {
     if (`${ev.pid}:${ev.tid}` !== mainKey) continue;
+    if (ev.name === 'Paint') mainPaints.push(ev);
     if (/InvalidationTracking$/.test(ev.name)) {
       const d = ev.args?.data ?? {};
       const key = `${ev.name.replace('InvalidationTracking', '')} ${d.reason ?? d.invalidationSet ?? d.changedClass ?? d.changedAttribute ?? ''}`.trim();
@@ -226,10 +233,13 @@ async function traceWindow({ send, onEvent }, ms) {
     }
   }
   const get = (n) => byName.get(n) ?? { count: 0, ms: 0 };
+  const redrawn = redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport });
   return {
     'main busy (ms)': Math.round(mainBusy),
     'long tasks': longTaskBy.get(mainKey) ?? 0,
     frames,
+    'redrawn px²/frame': Math.round(redrawn.pxPerFrame),
+    'screens/frame': Number(redrawn.screensPerFrame.toFixed(2)),
     'Paint n': get('Paint').count,
     'Paint ms': Math.round(get('Paint').ms),
     'PaintLifecycle ms': Math.round(get('LocalFrameView::RunPaintLifecyclePhase').ms),
@@ -278,19 +288,25 @@ async function printCompositorLayers({ send, onEvent }, dpr) {
   const mb = (ls) => (ls.reduce((s, l) => s + l.width * l.height * 4 * dpr * dpr, 0) / (1024 * 1024)).toFixed(1);
   const owned = drawing.filter((l) => l.backendNodeId !== undefined);
   const scene = [];
+  const moverLayers = [];
   for (const l of owned) {
-    const name = await describeSceneLayer(send, l.backendNodeId);
-    if (name) scene.push(`${name} ${Math.round(l.width)}×${Math.round(l.height)}`);
+    const found = await describeSceneLayer(send, l.backendNodeId);
+    if (!found) continue;
+    scene.push(`${found.name}${found.mover ? ' (mover)' : ''} ${Math.round(l.width)}×${Math.round(l.height)}`);
+    if (found.mover) moverLayers.push(l);
   }
   console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}; ${owned.length} with an owning node); scene (CSS px): ${scene.join(', ') || 'none named'}`);
+  // Phase 53: the movers' layers, separately from the sheets' (a build without movers reads 0). LayerTree reports bounds before the stage's scale, so on the stage markup this is an upper bound.
+  console.log(`Mover layers: ${moverLayers.length}, ≈ ${mb(moverLayers)} MB at 4 B per device px (pre-scale bounds)`);
 }
 
-/** A layer's slot name, if its owning node is one of the scene's sheets or movers. */
+/** A layer's slot name and whether it is a mover, if its owning node is one of the scene's sheets or movers. */
 async function describeSceneLayer(send, backendNodeId) {
   try {
     const { node } = await send('DOM.describeNode', { backendNodeId });
     const attrs = node.attributes ?? [];
-    return slotNameOf(attrs);
+    const name = slotNameOf(attrs);
+    return name ? { name, mover: isMoverNode(attrs) } : null;
   } catch { /* not resolvable */ }
   return null;
 }
@@ -304,6 +320,7 @@ async function run(cdp) {
   };
   const width = Number(opts.width);
   const isPhone = width <= 480;
+  const view = { dpr: isPhone ? 2 : 1, viewport: { width, height: isPhone ? 844 : 900 } };
   await send('Page.enable');
   await send('Runtime.enable');
   await send('DOM.enable');
@@ -370,7 +387,7 @@ async function run(cdp) {
       backRobots: n('#robot-back-layer .robot'), front: n('#station-front-layer *'), shown };
   })()`);
   console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; back row #robot-back-layer ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
-  await printCompositorLayers(cdp, isPhone ? 2 : 1);
+  await printCompositorLayers(cdp, view.dpr);
   console.log('');
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
@@ -386,7 +403,7 @@ async function run(cdp) {
       return true;
     })()`);
     await sleep(2000);
-    const r = await traceWindow(cdp, WINDOW_MS);
+    const r = await traceWindow(cdp, WINDOW_MS, view);
     const { paintByNode, invalidations, ...metrics } = r;
     if (ab.name === 'stock' && !stockPaint) stockPaint = paintByNode;
     if (opts.attribution && invalidations.size) {
@@ -401,7 +418,7 @@ async function run(cdp) {
       }
     }
     rows.push({ ablation: ab.name, ...metrics });
-    process.stdout.write(`  ${ab.name}: main busy ${metrics['main busy (ms)']} ms, paint ${metrics['Paint ms']} ms, compositor ${metrics['Compositor::Update ms']} ms, Paint n ${metrics['Paint n']}, long tasks ${metrics['long tasks']}\n`);
+    process.stdout.write(`  ${ab.name}: main busy ${metrics['main busy (ms)']} ms, paint ${metrics['Paint ms']} ms, compositor ${metrics['Compositor::Update ms']} ms, Paint n ${metrics['Paint n']}, redrawn ${metrics['screens/frame']} screens/frame, long tasks ${metrics['long tasks']}\n`);
     if (ab.undo) await evaluate(`(() => { ${ab.undo}; return true; })()`);
   }
   await evaluate(`(() => { document.getElementById('__ablate')?.remove(); return true; })()`);

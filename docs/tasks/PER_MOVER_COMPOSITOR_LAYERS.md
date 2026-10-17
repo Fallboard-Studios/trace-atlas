@@ -129,7 +129,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 1. **Files:** `docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md` (results only); the page stays in the
   scratchpad. **Scope:** S.
 
-- [ ] **Task 3: `scripts/perf/idle-paint.mjs` — `redrawn px²/frame`, `screens/frame`, the mover-aware readout, proved on `main`**
+- [x] **Task 3: `scripts/perf/idle-paint.mjs` — `redrawn px²/frame`, `screens/frame`, the mover-aware readout, proved on `main`**
 
   **Description:** A pure helper in a new `scripts/perf/paint-area-lib.mjs` (`redrawnArea(events, { dpr, frames })` →
   `{ pxPerFrame, screensPerFrame }` given the viewport), unit-tested like `audio-load-lib.test.mjs`; the harness reports
@@ -139,15 +139,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   foreground, orphaned Chrome 0: stock and `detach-bubbles+robots`.
 
   **Acceptance criteria:**
-  - [ ] `redrawnArea` sums each `Paint` event's clip-quad area × dpr² and divides by the frame count; a window with no
+  - [x] `redrawnArea` sums each `Paint` event's clip-quad area × dpr² and divides by the frame count; a window with no
         `Paint` events reads 0; the unit test feeds synthetic events and a mutation (drop the dpr²) fails it.
-  - [ ] On `main`, stock reads 3–5 screens/frame and `detach-bubbles+robots` under 0.2; the two numbers and the run's
+  - [x] On `main`, stock reads 3–5 screens/frame and `detach-bubbles+robots` under 0.2; the two numbers and the run's
         metadata are pasted under "Perf gate results" below.
-  - [ ] Stock not near 4 → stop and report: assumption 6 is wrong, the metric is redefined before Task 4.
+  - [x] Stock not near 4 → stop and report: assumption 6 is wrong, the metric is redefined before Task 4.
 
   **Verification:**
-  - [ ] `node --test scripts/perf/paint-area-lib.test.mjs` passes (or the repo's existing `.test.mjs` runner).
-  - [ ] `npm run perf:idle -- --throttle 1 --only detach-bubbles+robots --url …` prints the two columns.
+  - [x] `npx vitest run scripts/perf` passes (the repo's `.test.mjs` runner, not `node --test`; 99 cases).
+  - [x] `npm run perf:idle -- --throttle 1 --only detach-bubbles+robots --url …` prints the two columns.
 
   **Dependencies:** Task 1. **Files:** `scripts/perf/idle-paint.mjs`, `scripts/perf/paint-area-lib.mjs`,
   `scripts/perf/paint-area-lib.test.mjs`, this plan (results). **Scope:** M.
@@ -630,3 +630,36 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 (Task 3's proof on `main`, Task 4's baseline and Task 20's A/B go here, in run order, with build hashes, the link, the
 viewport, and orphaned-Chrome counts before and after.)
+
+### Task 3 — the metric proved on `main` (2026-10-17)
+
+`main` `4a9b3fec` (camera no-op merged), production build from a clean `git worktree` (`index-CVUy7kf3.js`, :4183),
+headless Chrome, 1280 × 900 at 1×, `--throttle 1`, 6 s windows, pinned `?session=` world (style `alpha`, `(0, 50)`,
+`DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2), foreground, one run at a time, orphaned `trace-atlas-perf`
+Chrome 0 before and after. Run: `--only detach-bubbles,detach-bubbles+robots` (the second ablation removes only the
+robots, so the first is needed to take the bubbles out too).
+
+| Window | frames | redrawn px²/frame | screens/frame | Paint n | busy (ms) |
+|---|---|---|---|---|---|
+| stock | 360 | 5 317 862 | **4.62** | 1085 | 2034 |
+| detach-bubbles | 334 | 5 413 324 | 4.70 | 1024 | 3231 |
+| detach-bubbles+robots | 1 | 0 | **0** | 0 | 138 |
+
+Stock is inside the 3–5 band and the detached window reads 0 (< 0.2): the acceptance criteria hold. The stock
+attribution is three painters per frame: the document (clip 1 152 000 = the viewport), and the two moving sheets
+(`robots-back` and `robots`, clip ≈ 2 074 680). 1 + 1.8 + 1.8 = 4.6.
+
+Also run, for comparison only (this branch at `14bdcf97` + the Task 3 harness, built to a scratch `--outDir`,
+`index-CBxihiz2.js`, :4184, same link): stock **4.85** and **4.82** (two runs), detach-bubbles 4.95 / 4.99,
+detach-bubbles+robots **0** (frames 1) in the second run. The first run read 0.48 (360 frames, 114 Paint events, 1502 ms
+busy) in that last window and was not reproduced; recorded as a one-off, not investigated.
+
+**Caveats the metric carries into Task 20 (not blocking Task 4):**
+- The sheet clips read **1920 × 1080 = 2 073 600**, the scene's own units, not device px (the layer is 1465 × 824 CSS
+  px). `main` and the branch agree because both report the same local space, but the figure is only comparable at one
+  viewport; a phone run is not comparable to a desktop run in `px²/frame`, only in `screens/frame` against its own
+  viewport, and even that is approximate while the stage scale is not 1.
+- The Task 2 spike saw a promoted mover emit a `Paint` with an unbounded clip (−8 388 608 … 8 388 607) and the document
+  keep painting its whole page every frame. A mover exists nowhere on this branch yet, so that is **unproved**; the
+  first mover (Task 13) is where it shows. If it does, `redrawnArea` needs a clamp or the signal changes (raster work)
+  before Task 20 reads it. Decision deferred to then.

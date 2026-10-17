@@ -54,6 +54,20 @@ export const BUBBLE_CIRCLES = [
 // ========================================
 
 /**
+ * Whether a node is a mover (the small per-mover wrapper of roadmap Phase 53, class `mover`) rather
+ * than a sheet, from the same flat attribute list. Reads whole class tokens; a build without movers
+ * has none, so the harness's mover line reads 0 there.
+ * @param {string[] | undefined} attributes
+ * @returns {boolean}
+ */
+export function isMoverNode(attributes) {
+  for (let i = 0; i + 1 < (attributes?.length ?? 0); i += 2) {
+    if (attributes[i] === 'class') return attributes[i + 1].split(/\s+/).includes('mover');
+  }
+  return false;
+}
+
+/**
  * A node's slot name from the flat `[name, value, name, value, …]` attribute list `DOM.describeNode`
  * returns, or null if it is not one of the scene's slots. The slot attribute wins over the old
  * layer attribute; names match exactly.

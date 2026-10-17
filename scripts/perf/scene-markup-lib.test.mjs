@@ -14,6 +14,7 @@ import {
   BUBBLE_CIRCLES,
   SCENE_SLOT_NAMES,
   SHEET_SELECTOR,
+  isMoverNode,
   sceneSlotSelector,
   slotNameOf,
 } from './scene-markup-lib.mjs';
@@ -180,6 +181,31 @@ describe('slotNameOf', () => {
   });
 });
 
+describe('isMoverNode', () => {
+  it('is true for a node whose class list has the mover token, with or without modifiers', () => {
+    expect(isMoverNode(['class', 'mover mover--robot', 'data-scene-slot', 'robots'])).toBe(true);
+    expect(isMoverNode(['data-scene-slot', 'robots', 'class', 'mover'])).toBe(true);
+  });
+
+  it('is false for a sheet, a stage or a node with no class', () => {
+    expect(isMoverNode(['class', 'ocean-scene__sheet', 'data-scene-slot', 'back'])).toBe(false);
+    expect(isMoverNode(['class', 'ocean-scene__layer', 'data-scene-layer', 'back'])).toBe(false);
+    expect(isMoverNode(['data-scene-slot', 'robots'])).toBe(false);
+    expect(isMoverNode([])).toBe(false);
+    expect(isMoverNode(undefined)).toBe(false);
+  });
+
+  it('reads whole class tokens only: a modifier or a longer name alone is not a mover', () => {
+    expect(isMoverNode(['class', 'mover--robot'])).toBe(false);
+    expect(isMoverNode(['class', 'remover movers'])).toBe(false);
+  });
+
+  it('reads the class value, never an attribute name or another attribute value', () => {
+    expect(isMoverNode(['data-x', 'mover'])).toBe(false);
+    expect(isMoverNode(['class', 'sheet', 'id', 'mover'])).toBe(false);
+  });
+});
+
 describe('idle-paint.mjs uses them', () => {
   const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'idle-paint.mjs'), 'utf-8');
 
@@ -196,9 +222,17 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toContain('const BUBBLES = BUBBLE_CIRCLES;');
     expect(source).toContain('SCENE_SLOT_NAMES.map((name) => [name, sceneSlotSelector(name)])');
     expect(source).toContain('document.querySelectorAll(${JSON.stringify(SHEET_SELECTOR)})');
-    expect(source).toContain('return slotNameOf(attrs);');
+    expect(source).toContain('const name = slotNameOf(attrs);');
     expect(source).toContain('JSON.stringify(SLOT_SELECTORS)');
     expect(source).toContain('SCENE_SLOT_NAMES.map((name) => `${name} ${perLayer[name]}`)');
+  });
+
+  it('reads the redrawn area and the mover layers where they count', () => {
+    expect(source).toContain("from './paint-area-lib.mjs'");
+    expect(source).toContain('redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport })');
+    expect(source).toContain("'screens/frame'");
+    expect(source).toContain('mover: isMoverNode(attrs)');
+    expect(source).toContain('Mover layers: ${moverLayers.length}');
   });
 
   it('keeps no hard-coded layer or slot attribute selector: the lib reads both markups', () => {
