@@ -513,7 +513,10 @@ function intoFrontRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: 
   const settled = () => {
     if (--waiting > 0) return;
     const here = robotOf(loop, robot.id);
-    if (!here) return;
+    if (!here) {
+      removeCopy(robot.id); // gone from the roster: nobody left to follow
+      return;
+    }
     moveToRow(loop, here, 'foreground');
     removeCopy(robot.id);
     onArrive();

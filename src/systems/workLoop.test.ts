@@ -1781,6 +1781,39 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
           expect(listeners.size).toBe(0);
         });
 
+        // Robot.tsx documents the roster as fixed, so this is close to unreachable; the guard is one line.
+        it('it goes when the robot is gone from the roster as the swim and the fade settle (fade first)', () => {
+          const { layer } = backToFront();
+          finish('swim-r1');
+          finish('dissolve-r1');
+          expect(listeners.size).toBe(1);
+          setRobots([]);
+          finish('swim-r1');
+          expect(copies(layer)).toEqual([]);
+          expect(listeners.size).toBe(0);
+        });
+
+        it('it goes when the robot is gone from the roster as the swim and the fade settle (swim first)', () => {
+          const { layer } = backToFront();
+          finish('swim-r1');
+          finish('swim-r1');
+          expect(listeners.size).toBe(1);
+          setRobots([]);
+          finish('dissolve-r1');
+          expect(copies(layer)).toEqual([]);
+          expect(listeners.size).toBe(0);
+        });
+
+        it('a robot gone from the roster is not written back or sent on to its job', () => {
+          backToFront();
+          finish('swim-r1');
+          finish('dissolve-r1');
+          setRobots([]);
+          finish('swim-r1');
+          expect(robots()).toEqual([]);
+          expect(getTimeline('work-r1')).toBeUndefined();
+        });
+
         it('a robot with no body, or no dissolve layer, adds none', () => {
           const { actor, site } = backSite();
           registerLocale([actor], [robot('r1', OPEN_WATER)]);
