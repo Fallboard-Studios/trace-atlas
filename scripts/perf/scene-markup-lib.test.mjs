@@ -348,10 +348,19 @@ describe('idle-paint.mjs uses them', () => {
 
   it('reads the redrawn area and the mover layers where they count', () => {
     expect(source).toContain("from './paint-area-lib.mjs'");
-    expect(source).toContain('redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport })');
+    expect(source).toContain('redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport, layerAreas: view.layerAreas })');
     expect(source).toContain("'screens/frame'");
+    expect(source).toContain("'unresolved Paints'");
     expect(source).toContain('mover: isMoverNode(attrs)');
     expect(source).toContain('Mover layers: ${moverLayers.length}');
+  });
+
+  it('clamps each Paint to its layer: the layer map is built once, scaled by the stage, and handed to the traced windows', () => {
+    expect(source).toContain("import { redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
+    expect(source).toContain(".ocean-scene__stage");
+    expect(source).toContain('scaledLayerArea(l, (await insideStage(send, l)) ? stageScale : 1)');
+    expect(source).toContain('view.layerAreas = await printCompositorLayers(cdp, view.dpr, stageScale)');
+    expect(source).toContain('p.area += Math.min(area, view.layerAreas?.get(nodeId) ?? area)');
   });
 
   it('keeps no hard-coded layer or slot attribute selector: the lib reads both markups', () => {
