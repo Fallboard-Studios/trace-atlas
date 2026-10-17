@@ -531,7 +531,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 5: Gates
 
-- [ ] **Task 20: Harness gate — STOP and report**
+- [x] **Task 20: Harness gate — STOP and report** (run 2026-10-17; **screens/frame MISSED, 0.31 × `main` against 0.25**; busy, Paint and layer memory pass; stopped, not acted on: see "Task 20 — the gate" below. Needed a prerequisite the plan did not list: the paint-area clamp, commit `6e3b07cb`.)
 
   **Description:** Spec §5.2 items 3: this branch against `main` (built in a throwaway worktree, served on a second
   port, bundle names checked), same pinned session, 1×, `--only none`, three rounds alternated, foreground, one at a
@@ -550,7 +550,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 19. **Files:** `docs/PERFORMANCE.md`, this plan. **Scope:** S.
 
-- [ ] **Task 21: Pixel listen (Crawford)**
+- [ ] **Task 21: Pixel listen (Crawford)** (**not run**; waits on Crawford's decision on the Task 20 miss)
 
   **Description:** Spec §5.2 item 4: the LAN production preview, landscape, Full Audio Load, the same link, `?debug`,
   three minutes on this branch and on `main`; the overlay's underrun count is the record.
@@ -706,4 +706,39 @@ the first time a mover exists and the Task 3 caveat above can be checked; Task 2
   nothing. Both belong in Task 20's attribution.
 - **Looks the same as `main`** (a throwaway CDP script, scratchpad, not committed): the same pinned world, powered on and
   settled 9 s on each build, shows the same gems, halos and scenery, and the robots' on-screen boxes agree to a pixel
-  (robot 0 at 287, 355 vs 287, 356; robot 1 at 820, 491 vs 821, 491). Crawford's Checkpoint B look is still the sign-off.
+  (robot 0 at 287, 355 vs 287, 356; robot 1 at 820, 491 vs 821, 491). Crawford's Checkpoint B look is still the sign-off
+
+### Task 20 — the gate (2026-10-17, **MISS on the headline criterion; stopped, not acted on**)
+
+Recorded in full in [PERFORMANCE.md](../PERFORMANCE.md) ("Per-Mover Compositor Layers — the Task 20 gate"), guarded by
+`src/docs/perMoverGateDocs.test.ts` (which also fails if a verdict disagrees with the numbers above it). `main` `4a9b3fec`
+(`index-CVUy7kf3.js`, :4183) against `perf/per-mover-layers` `6e3b07cb` (`index-DwiFixlk.js`, :4181), both measured with the
+branch's harness, the pinned `?session=` link, 1280 × 900 at 1×, `--only none`, three rounds alternated, foreground, one at a
+time, orphaned Chrome 0 before and after.
+
+**Prerequisite the plan did not list (commit `6e3b07cb`).** Task 16 had shown `redrawnArea` unusable on movers (unbounded
+`Paint` clip). `redrawnArea` now clamps each `Paint` to the area of the layer it drew into (LayerTree by backend node, scaled
+by the stage's scale for layers inside it); a node with no layer of its own is capped at one viewport and counted as
+`unresolved Paints`. 13 new cases, 10 of 10 mutants killed. `main` re-measured under the new metric reads 3.10, not the
+baseline's 4.63 (its sheets are 1465 × 824 layers, not 1920 × 1080 scene-unit clips); Task 4's table stays as recorded.
+
+| Gate criterion | main (median, spread) | branch (median) | Limit | Result |
+|---|---|---|---|---|
+| screens/frame | 3.10 (3.09–3.11) | 0.95 (0.90–0.95) | ≤ 0.775 | **MISS**: 0.31 × main |
+| busy (ms) | 2749 (2732–2791) | 2295 | within main's spread | PASS |
+| Paint (ms) | 246 (237–278) | 128 | within main's spread | PASS |
+| Layer memory | 37.8 MB (28 layers) | 24.2 MB (30–31 layers, 4 movers) | ≤ main | PASS |
+
+Recorded, not gated: Compositor::Update 231 → 240 ms, Layerize 233 → 242 ms (inside each other's spreads).
+
+**Why it misses, in one line:** the work the phase targeted fell from ≈ 2.07 to ≈ 0.16 screens/frame (over 90 %), but the
+**document layer** repaints a full viewport on 279–345 of ~350 frames on both builds (≈ 0.99 on `main`, ≈ 0.78 on the branch)
+and by itself equals the 0.775 limit. It is not the `rocker-light` pulse (ablating it on `main` leaves 3.12 → 3.14; the
+branch's own ablation window is unreadable, as is every window after a session's first). Its cause is unidentified. The
+static sheets are not the ripple (3–23 paints in 6 s), so spec §7 Q2's fallback does not apply; the layer-memory line was not
+tested for the bubbles' account (no bubble strip is a drawing layer in the idle window), so §7 Q3 is still open.
+
+**Crawford's call** (not made here): accept the criterion against the document layer and file the repaint as its own item;
+find and fix the document repaint, then re-run this gate unchanged; or amend the criterion to exclude the document layer from
+both sides (a stated decision, since it changes the gate after the result). Task 21 (Pixel) is not run. Checkpoints B and C
+were never recorded as passed either; the gate was run on the automated criteria alone..
