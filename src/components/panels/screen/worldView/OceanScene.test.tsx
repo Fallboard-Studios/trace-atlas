@@ -42,7 +42,9 @@ vi.mock('@/components/stations/ChargingStation', () => ({
 }));
 // The Deck camera's followed-robot marker, as a stub that records the locale it was handed.
 vi.mock('./FollowedRobotMarker', () => ({
-  FollowedRobotMarker: (props: { localeId: string }) => <g id="followed-robot-marker" data-followed-marker-mock={props.localeId} />,
+  FollowedRobotMarker: (props: { localeId: string }) => (
+    <div id="followed-robot-marker" className="mover mover--marker" data-scene-slot="marker" data-followed-marker-mock={props.localeId} />
+  ),
 }));
 // Records what the scene hands its bubble layer (which actors, what total) without running
 // BubbleStream's GSAP timelines.
@@ -348,15 +350,16 @@ describe('OceanScene', () => {
     // between the bubbles and the front robots. Task 13 (spec §1.4): the two robot sheets are gone —
     // every robot is a mover, a stage child of its own. Task 18 (spec §1.6): so is every bubble
     // stream, and the bubbles sheet goes with them — so the stage holds five sheets, the dissolve
-    // div, and the movers (the marker's sheet follows in Task 19).
-    it('renders five sheets and the dissolve div as the stage\'s children in back → mid → stations → dissolve → front → marker order, the movers among them', () => {
+    // div, and the movers. Task 19 (spec §1.7): so is the marker, the last sheet to go — the stage
+    // holds four static sheets, the dissolve div, and nothing but movers besides.
+    it('renders four sheets and the dissolve div as the stage\'s children in back → mid → stations → dissolve → front order, the movers among them', () => {
       const { container } = render(<OceanScene />);
       const stage = container.querySelector('.ocean-scene__stage')!;
       const sheets = Array.from(stage.querySelectorAll(':scope > svg.ocean-scene__sheet'));
-      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(['back', 'mid', 'stations', 'front', 'marker']);
+      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(['back', 'mid', 'stations', 'front']);
       const notMovers = Array.from(stage.children).filter((c) => !c.classList.contains('mover'));
       expect(notMovers.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
-        ['back', 'mid', 'stations', 'dissolve', 'front', 'marker'],
+        ['back', 'mid', 'stations', 'dissolve', 'front'],
       );
       expect(stage.querySelectorAll(':scope > .mover--robot')).toHaveLength(1); // the fixture's r1
     });
@@ -435,7 +438,7 @@ describe('OceanScene', () => {
     it('every sheet is the stage\'s own size: the world viewBox and no preserveAspectRatio (the stage does the fit)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(5);
+      expect(sheets).toHaveLength(4);
       for (const sheet of sheets) {
         expect(sheet.getAttribute('viewBox')).toBe('0 0 1920 1080');
         expect(sheet.hasAttribute('preserveAspectRatio')).toBe(false);
@@ -495,20 +498,22 @@ describe('OceanScene', () => {
       });
     });
 
-    it('marks only the marker layer as moving (the robots and the bubbles are movers now), and the back, mid, stations and front layers as not', () => {
+    // Roadmap 53 Task 19: every mover is its own small layer now, so no sheet moves and none is
+    // promoted: a `moving` modifier no longer exists for a sheet to wear.
+    it('marks no sheet as moving: the robots, bubbles and marker are movers, and the four sheets are all static', () => {
       const { container } = render(<OceanScene />);
-      const byName = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
-      expect(byName('marker').classList.contains('ocean-scene__sheet--moving')).toBe(true);
-      expect(container.querySelectorAll('.ocean-scene__sheet--moving')).toHaveLength(1);
+      expect(container.querySelectorAll('.ocean-scene__sheet--moving')).toHaveLength(0);
       for (const name of ['back', 'mid', 'stations', 'front']) {
-        expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(false);
+        const sheet = container.querySelector(`svg[data-scene-slot="${name}"]`)!;
+        expect(sheet.getAttribute('class')).toBe('ocean-scene__sheet');
       }
+      expect(container.querySelector('svg[data-scene-slot="marker"]')).toBeNull();
     });
 
     it('gives no layer a click-taking modifier — clicks are .robot\'s alone (spec §1.10)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(5);
+      expect(sheets).toHaveLength(4);
       for (const layer of sheets) {
         expect(layer.classList.contains('ocean-scene__sheet--robots')).toBe(false);
       }
@@ -1019,19 +1024,20 @@ describe('OceanScene', () => {
       expect(container.querySelectorAll('[data-scene-slot="dissolve"]')).toHaveLength(1);
     });
 
-    // The Deck camera's followed-robot marker moves every frame, so it lives in a moving layer —
-    // in a static one it would repaint the foreground factories each frame — and that layer is the
-    // last one, so it draws over the foreground buildings too.
-    it('renders the followed-robot marker alone in the top moving layer, handed the locale id', () => {
+    // The Deck camera's followed-robot marker moves every frame, so it is a mover of its own (Phase 53
+    // Task 19, spec §1.7) — in a static sheet it would repaint the foreground factories each frame —
+    // and the last stage child, so it draws over the foreground buildings too.
+    it('renders the followed-robot marker as the stage\'s last child, a mover handed the locale id, with no marker sheet', () => {
       const { container } = render(<OceanScene />);
-      const layer = container.querySelector('svg[data-scene-slot="marker"]')!;
       const stage = container.querySelector('.ocean-scene__stage')!;
+      const marker = stage.querySelector(':scope > .mover--marker')!;
 
-      expect(stage.lastElementChild).toBe(layer);
-      expect(layer.children).toHaveLength(1);
-
-      expect(layer.lastElementChild?.getAttribute('data-followed-marker-mock')).toBe(DEFAULT_LOCALE_ID);
+      expect(marker).not.toBeNull();
+      expect(stage.lastElementChild).toBe(marker);
+      expect(marker.getAttribute('data-scene-slot')).toBe('marker');
+      expect(marker.getAttribute('data-followed-marker-mock')).toBe(DEFAULT_LOCALE_ID);
       expect(container.querySelectorAll('[data-followed-marker-mock]')).toHaveLength(1);
+      expect(container.querySelector('svg[data-scene-slot="marker"]')).toBeNull();
     });
 
     it('a copy the loop appends survives a scene re-render', () => {
@@ -1053,7 +1059,7 @@ describe('OceanScene', () => {
       expect(new Set(fragmentsIn('back'))).toEqual(new Set(['l4']));
       expect(new Set(fragmentsIn('stations'))).toEqual(new Set(['l3']));
       expect(new Set(fragmentsIn('front'))).toEqual(new Set(['front']));
-      for (const name of ['robots-back', 'mid', 'robots', 'marker']) {
+      for (const name of ['robots-back', 'mid', 'robots']) {
         expect(fragmentsIn(name), name).toEqual([]);
       }
       expect(container.querySelectorAll('.mover g[data-station-mock]')).toHaveLength(0);

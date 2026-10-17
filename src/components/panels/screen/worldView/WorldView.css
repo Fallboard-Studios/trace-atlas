@@ -55,17 +55,13 @@
 
 /* Under the opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md
    Task 7) the world dims: WorldView.tsx sets data-dimmed while a branch is open. The sketch's values,
-   on OceanScene's static sheets, which paint once and keep the filtered result. The moving sheet
-   (the marker) and the movers (robots and bubble strips, docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.3),
+   on OceanScene's static sheets, which paint once and keep the filtered result. The movers
+   (robots, bubble strips and the marker, docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.3),
    compositor layers that repaint every frame, dim by the same brightness without the blur: most of
    them sits under the surface, and where the world shows around it (under the nav panel's glass, the
    gutters, the top band) a moving robot is no brighter than the world behind it. */
 .world-view[data-dimmed] .ocean-scene__sheet {
   filter: brightness(0.42) blur(2px);
-}
-
-.world-view[data-dimmed] .ocean-scene__sheet--moving {
-  filter: brightness(0.42);
 }
 
 .world-view[data-dimmed] .mover {

@@ -49,8 +49,6 @@ interface SheetProps {
   slot: SceneSlot;
   width: number;
   height: number;
-  /** A sheet whose content moves every frame — promoted to its own compositor layer (OceanScene.css). */
-  moving?: boolean;
   children: React.ReactNode;
 }
 
@@ -61,10 +59,9 @@ interface SheetProps {
  * (useStageFit) does the fit the old `xMidYMax slice` attribute did, for every sheet and mover at
  * once. A robot's mover at scene (x, y) still sits exactly over scene (x, y) in the factory sheets.
  */
-function Sheet({ slot, width, height, moving = false, children }: SheetProps) {
-  const className = ['ocean-scene__sheet', moving && 'ocean-scene__sheet--moving'].filter(Boolean).join(' ');
+function Sheet({ slot, width, height, children }: SheetProps) {
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className={className} data-scene-slot={slot} width={width} height={height}>
+    <svg viewBox={`0 0 ${width} ${height}`} className="ocean-scene__sheet" data-scene-slot={slot} width={width} height={height}>
       {children}
     </svg>
   );
@@ -409,13 +406,12 @@ export function OceanScene({
           <g id="ui-layer" />
         </Sheet>
 
-        {/* Moving: the Deck camera's followed-robot marker (square + "name | job"), in front of every
-            building. Its own layer, not the static front one (it moves every frame, and a write there
-            would repaint the foreground factories) and not the robots layer (the foreground would
-            hide it); renders nothing unless the camera is following. */}
-        <Sheet slot="marker" width={width} height={height} moving>
-          <FollowedRobotMarker localeId={localeId} />
-        </Sheet>
+        {/* Mover: the Deck camera's followed-robot marker (square + "name | job"), in front of every
+            building (Phase 53 Task 19, spec §1.7). A mover of its own, not drawn in the static front
+            sheet (it moves every frame, and a write there would repaint the foreground factories) and
+            not in a robot's slot (the foreground would hide it); renders nothing unless the camera is
+            following. */}
+        <FollowedRobotMarker localeId={localeId} />
       </div>
     </div>
   );

@@ -81,14 +81,18 @@ describe('OceanScene.css scene stage', () => {
     expect(body).toContain('pointer-events: none;');
   });
 
-  it('a moving sheet is promoted to its own compositor layer', () => {
-    const body = getCssRuleBody(cssSource, '.ocean-scene__sheet--moving');
-    expect(body).not.toBeNull();
-    expect(body).toContain('will-change: transform;');
-  });
-
   it('a static sheet is not promoted: it repaints once a second, on the lighting tick', () => {
     expect(getCssRuleBody(cssSource, '.ocean-scene__sheet')).not.toContain('will-change');
+  });
+
+  // Roadmap 53 Task 19: the last moving sheet (the marker's) is a mover now, so no sheet is promoted
+  // and the `--moving` modifier is gone from the stylesheet. Only a mover carries `will-change`.
+  it('no sheet is promoted: the --moving modifier and every will-change outside .mover are gone', () => {
+    expect(cssSource).not.toContain('ocean-scene__sheet--moving');
+    expect(getCssRuleBody(cssSource, '.ocean-scene__sheet--moving')).toBeNull();
+    const rules = [...cssSource.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)];
+    const promoted = rules.filter(([, , body]) => body.includes('will-change')).map(([, selector]) => selector.trim());
+    expect(promoted).toEqual(['.mover']);
   });
 
   it('a mover is an invisible absolutely positioned box on its own compositor layer', () => {

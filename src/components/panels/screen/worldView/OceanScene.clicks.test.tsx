@@ -94,11 +94,11 @@ describe('OceanScene clicks through the stacked layers (Phase 43 Task 33)', () =
     const { container } = render(<OceanScene />);
     const scene = container.querySelector('.ocean-scene')!;
     const outsideRobots = Array.from(scene.querySelectorAll('*')).filter((el) => !el.closest('.robot'));
-    // The stage, the five sheets, the dissolve div, both robots' movers and their svgs, a bubble
+    // The stage, the four sheets, the dissolve div, both robots' movers and their svgs, a bubble
     // strip, the tints and the stations are all in the list (Phase 53 Task 13: a robot is a mover, a
     // wrapper of its own; Task 18: so is a bubble stream).
     expect(outsideRobots.filter((el) => el.matches('.ocean-scene__stage'))).toHaveLength(1);
-    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__sheet'))).toHaveLength(5);
+    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__sheet'))).toHaveLength(4);
     expect(outsideRobots.filter((el) => el.matches('div.mover--bubbles'))).toHaveLength(1);
     expect(outsideRobots.filter((el) => el.matches('.ocean-scene__dissolve'))).toHaveLength(1);
     expect(outsideRobots.filter((el) => el.matches('div.mover--robot'))).toHaveLength(2);

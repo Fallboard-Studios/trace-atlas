@@ -51,20 +51,25 @@ const oceanScene = read('src/components/panels/screen/worldView/OceanScene.tsx')
 describe('ANIMATION_SYSTEM.md: the scene stack', () => {
   const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene layers — what may move where');
 
-  // Phase 53 Tasks 13 and 18: the two robot sheets and the bubbles sheet are movers now (the doc's
-  // paragraph below the table).
-  it('lists the five sheets in OceanScene.tsx\'s order', () => {
+  // Phase 53 Tasks 13, 18 and 19: the two robot sheets, the bubbles sheet and the marker sheet are
+  // movers now (the doc's paragraph below the table).
+  it('lists the four sheets in OceanScene.tsx\'s order', () => {
     const rendered = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"/g)].map((m) => m[1]);
-    expect(rendered).toHaveLength(5);
+    expect(rendered).toHaveLength(4);
     const documented = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l)).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
     expect(documented).toEqual(rendered);
   });
 
-  it('marks exactly the moving layers as moving', () => {
-    const moving = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"[^>]*\bmoving\b/g)].map((m) => m[1]);
-    for (const line of layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l))) {
-      const name = line.match(/^\| `([a-z-]+)`/)![1];
-      expect(line.includes('| moving |'), name).toBe(moving.includes(name));
+  // Phase 53 Task 19: the last moving sheet is a mover, so no sheet is marked moving - in the source
+  // (the `moving` prop is gone) or in the table (every row reads "static").
+  it('marks no sheet as moving, in the source or in the table', () => {
+    expect([...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"[^>]*\bmoving\b/g)]).toHaveLength(0);
+    expect(oceanScene).not.toMatch(/\bmoving\??:\s*boolean/);
+    const rows = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l));
+    expect(rows).toHaveLength(4);
+    for (const line of rows) {
+      expect(line.includes('| static |'), line).toBe(true);
+      expect(line.includes('| moving |'), line).toBe(false);
     }
   });
 

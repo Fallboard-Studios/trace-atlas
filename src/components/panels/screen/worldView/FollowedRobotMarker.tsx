@@ -34,6 +34,10 @@ const CAPTION_GAP = 6;
 const CAPTION_FONT_SIZE = 18.6;
 /** The caption's dark outline, so it reads over any water or building behind it. */
 const CAPTION_OUTLINE = '#0c1c4f';
+/** The mover's svg: the square plus the caption above it, origin-centred (spec §1.7). The drawing
+ *  overflows it on purpose (glow, long names), so this is the layer's nominal size, not a clip. */
+const BOX_W = MARKER_SIDE;
+const BOX_H = MARKER_SIDE + CAPTION_GAP + CAPTION_FONT_SIZE * 1.2;
 
 // ========================================
 // COMPONENT
@@ -57,26 +61,31 @@ function useMarkerRobot(robotId: string, localeId: string) {
 
 function Marker({ robotId, localeId }: MarkerProps) {
   const robot = useMarkerRobot(robotId, localeId);
-  const ref = useRef<SVGGElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const gemSeed = robot?.gemSeed;
 
-  // Rides the robot: each frame the marker takes the centre of the robot's gem canvas from its
-  // `.robot` group's live x/y (the swim and the job moves write them with GSAP), and hides while the
-  // robot has no group. Placed once before paint too, so it never shows a frame at the origin.
+  // Rides the robot: each frame the marker takes the centre of the robot's gem canvas from the
+  // robot's mover's live x/y (the swim and the job moves write them with GSAP), and hides while the
+  // robot has no mover. Placed once before paint too, so it never shows a frame at the origin.
+  //
+  // The drawing's origin is the middle of its svg (the viewBox is origin-centred), but a mover's
+  // translate puts its top-left corner at (x, y); pulling the wrapper back by half itself puts the
+  // origin on (x, y) instead, so x and y stay the robot's centre exactly.
   useLayoutEffect(() => {
     if (gemSeed === undefined) return undefined;
     const gem = getRobotGem(gemSeed);
     const half = { x: gemWidth(gem) / 2, y: GEM_CANVAS_H / 2 };
+    if (ref.current) gsap.set(ref.current, { xPercent: -50, yPercent: -50 });
     const place = () => {
-      const g = ref.current;
-      if (!g) return;
+      const el = ref.current;
+      if (!el) return;
       const body = getRef(`robot-${robotId}`);
       if (!body) {
-        g.setAttribute('visibility', 'hidden');
+        el.style.visibility = 'hidden';
         return;
       }
-      gsap.set(g, { x: Number(gsap.getProperty(body, 'x')) + half.x, y: Number(gsap.getProperty(body, 'y')) + half.y });
-      g.setAttribute('visibility', 'visible');
+      gsap.set(el, { x: Number(gsap.getProperty(body, 'x')) + half.x, y: Number(gsap.getProperty(body, 'y')) + half.y });
+      el.style.visibility = 'visible';
     };
     place();
     gsap.ticker.add(place);
@@ -94,54 +103,69 @@ function Marker({ robotId, localeId }: MarkerProps) {
   const glowRing = `M ${-reach} ${-reach} H ${reach} V ${reach} H ${-reach} Z M ${-inner} ${-inner} V ${inner} H ${inner} V ${-inner} Z`;
 
   return (
-    <g ref={ref} data-followed-robot={robotId} visibility="hidden" pointerEvents="none" aria-hidden="true">
-      <defs>
-        <clipPath id={GLOW_CLIP_ID}>
-          <rect x={-inner} y={-inner} width={2 * inner} height={2 * inner} />
-        </clipPath>
-        <filter id={GLOW_BLUR_ID} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation={GLOW_BLUR} />
-        </filter>
-      </defs>
-      {/* Outer line of the double border: its outer edge is the square's edge. */}
-      <rect
-        x={-side / 2 + BORDER_LINE / 2}
-        y={-side / 2 + BORDER_LINE / 2}
-        width={side - BORDER_LINE}
-        height={side - BORDER_LINE}
-        rx={BORDER_RADIUS}
-        fill="none"
-        stroke={robot.color}
-        strokeWidth={BORDER_LINE}
-      />
-      {/* Inner line: the gap (one line wide) sits between the two. */}
-      <rect
-        x={-inner - BORDER_LINE / 2}
-        y={-inner - BORDER_LINE / 2}
-        width={2 * inner + BORDER_LINE}
-        height={2 * inner + BORDER_LINE}
-        fill="none"
-        stroke={robot.color}
-        strokeWidth={BORDER_LINE}
-      />
-      <g clipPath={`url(#${GLOW_CLIP_ID})`}>
-        <path d={glowRing} fillRule="evenodd" fill={robot.color} filter={`url(#${GLOW_BLUR_ID})`} />
-      </g>
-      <text
-        x={0}
-        y={-side / 2 - CAPTION_GAP}
-        textAnchor="middle"
-        fill="#ffffff"
-        stroke={CAPTION_OUTLINE}
-        strokeWidth={3}
-        strokeLinejoin="round"
-        paintOrder="stroke"
-        fontSize={CAPTION_FONT_SIZE}
-        fontWeight={600}
+    <div
+      ref={ref}
+      className="mover mover--marker"
+      data-scene-slot="marker"
+      data-followed-robot={robotId}
+      style={{ visibility: 'hidden' }}
+      aria-hidden="true"
+    >
+      <svg
+        className="mover__svg"
+        width={BOX_W}
+        height={BOX_H}
+        viewBox={`${-BOX_W / 2} ${-BOX_H / 2} ${BOX_W} ${BOX_H}`}
+        overflow="visible"
       >
-        {fill('probe.followMarker', { name: robot.name, job })}
-      </text>
-    </g>
+        <defs>
+          <clipPath id={GLOW_CLIP_ID}>
+            <rect x={-inner} y={-inner} width={2 * inner} height={2 * inner} />
+          </clipPath>
+          <filter id={GLOW_BLUR_ID} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation={GLOW_BLUR} />
+          </filter>
+        </defs>
+        {/* Outer line of the double border: its outer edge is the square's edge. */}
+        <rect
+          x={-side / 2 + BORDER_LINE / 2}
+          y={-side / 2 + BORDER_LINE / 2}
+          width={side - BORDER_LINE}
+          height={side - BORDER_LINE}
+          rx={BORDER_RADIUS}
+          fill="none"
+          stroke={robot.color}
+          strokeWidth={BORDER_LINE}
+        />
+        {/* Inner line: the gap (one line wide) sits between the two. */}
+        <rect
+          x={-inner - BORDER_LINE / 2}
+          y={-inner - BORDER_LINE / 2}
+          width={2 * inner + BORDER_LINE}
+          height={2 * inner + BORDER_LINE}
+          fill="none"
+          stroke={robot.color}
+          strokeWidth={BORDER_LINE}
+        />
+        <g clipPath={`url(#${GLOW_CLIP_ID})`}>
+          <path d={glowRing} fillRule="evenodd" fill={robot.color} filter={`url(#${GLOW_BLUR_ID})`} />
+        </g>
+        <text
+          x={0}
+          y={-side / 2 - CAPTION_GAP}
+          textAnchor="middle"
+          fill="#ffffff"
+          stroke={CAPTION_OUTLINE}
+          strokeWidth={3}
+          strokeLinejoin="round"
+          paintOrder="stroke"
+          fontSize={CAPTION_FONT_SIZE}
+          fontWeight={600}
+        >
+          {fill('probe.followMarker', { name: robot.name, job })}
+        </text>
+      </svg>
+    </div>
   );
 }
 
@@ -149,9 +173,9 @@ function Marker({ robotId, localeId }: MarkerProps) {
  * The square and caption around the robot the Deck camera is floating to or following (the
  * indicator Crawford asked for after Checkpoint A of docs/tasks/DECK_CAMERA_FOLLOW.md): a 90 x 90
  * double border and inset glow (IntroPanel's) in the robot's identity colour, and "name | job" just above its top line. A sibling
- * overlay, not part of the robot, so the gem body is untouched (CLAUDE.md "Visual Mapping"). Lives
- * in a moving scene layer, because it moves every frame; in a static one it would repaint the
- * foreground factories each frame.
+ * overlay, not part of the robot, so the gem body is untouched (CLAUDE.md "Visual Mapping"). A mover
+ * (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.7) of its own, because it moves every frame; in a
+ * static sheet it would repaint the foreground factories each frame.
  */
 export function FollowedRobotMarker({ localeId }: { localeId: string }) {
   const robotId = useSyncExternalStore(subscribeFollowedRobot, getFollowedRobotId);
