@@ -745,6 +745,20 @@ at **every** depth (`hostObstacles`), background included. That way, turning
 silhouettes, but none overlaps one: a station's back plate is in the back robot row, so one that
 did would have midground drawn through it. `stations.test.ts` guards it (0 of 284 over the grid).
 
+### Station fragments and their sheets
+
+`ChargingStation` draws each station as three fragments, interleaved with the robot rows
+(spec §1.6), and `OceanScene.tsx` puts each in the static sheet that gives the right z-order
+(roadmap Phase 53, spec §1.8): `#station-l4-layer`, the back plate, is the last child of the `back`
+sheet (over tint A, under the back robot row); `#station-l3-layer`, the middle fragment, is the
+whole of the `stations` sheet (over the bubbles, under the front robots); `#station-front-layer`,
+the halo and the ripple, is the first child of the `front` sheet (over the front robots and the
+dissolve copies, under tint D). All three are static: no sheet carries anything that moves, and the
+only animation in a fragment is the station ripple, one second per arc, which repaints the `front`
+sheet while it plays. The z-order, back to front, is L4 · back robots · midground · bubbles · L3 ·
+front robots · dissolve copies · front fragment · tint D · foreground
+([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#scene-stack--the-stage-the-sheets-and-the-movers)).
+
 ### Midground silhouettes (`src/systems/midgroundSilhouettes.ts`)
 
 `getMidgroundSilhouettes(localeId)` returns a box for everything solid drawn between the two robot

@@ -187,10 +187,16 @@ Both are read outside the audio memo, so the once-a-second daylight tick never r
 
 ## Render contexts
 
-- **World** — `Robot.tsx` owns the root `<g>` (GSAP sets position; React sets no transform — robots
-  stopped mirroring on direction change in Phase 40, so there is no `scaleX` flip any more) and
-  renders `RobotBody`, which composes `RobotGem` with the audio scale. `motion="world"` enables
-  `useOrbiterMotion`.
+- **World** — `Robot.tsx` returns a **mover** (roadmap Phase 53, `.mover--robot`): a `div`, a
+  compositor layer of its own, holding an `<svg>` the size of the gem canvas (`overflow="visible"`,
+  so the halo, the orbiters' flights and the job decorations draw outside the box) holding the root
+  `<g>` (`.robot`). GSAP sets position and the swim tilt on the **mover**
+  (`getRef('robot-<id>')` is the mover); React sets no transform on it and `.robot` carries none —
+  robots stopped mirroring on direction change in Phase 40, so there is no `scaleX` flip any more.
+  The swim tilts about the gem canvas centre, which is the mover's centre. `.robot` renders
+  `RobotBody`, which composes `RobotGem` with the audio scale. `motion="world"` enables
+  `useOrbiterMotion`. A robot changes rows by changing the mover's `data-scene-slot`, not by being
+  re-mounted ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)).
   - **The back row** (Roadmap Phase 43 J4). A robot working at a background building, or exiting a
     station, is drawn in the back robot row, behind the midground, at `BACK_LAYER_SCALE` (0.75).
     That scale is on `.robot__row`, a wrapper between the root `<g>` and `RobotBody`, about the

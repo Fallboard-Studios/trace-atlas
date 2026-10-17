@@ -215,8 +215,8 @@ to `position` if it is more than 0.01 u off.
 **Two robot rows** (J4). With `backHosts` (`BACK_HOSTS_ENABLED`, true), background buildings host
 too, and a robot working at one is drawn in the back robot row, behind the midground, at
 `BACK_LAYER_SCALE` (0.75); `Robot.layer` says which row. A leg into the other row splits at a
-switch point clear of every midground silhouette, where the robot re-mounts in its new row under a
-1 s dissolve; a ready site whose leg has no such point sits out that decision (it is offered as
+switch point clear of every midground silhouette, where the robot's row is written (`layer`; no
+re-mount) under a 1 s dissolve; a ready site whose leg has no such point sits out that decision (it is offered as
 not ready). Stations are front-row, except that a robot exits into the back row. `layer` is live
 visual state like `activity`. The mechanics are in
 [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch).

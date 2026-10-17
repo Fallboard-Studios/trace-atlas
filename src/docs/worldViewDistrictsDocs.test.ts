@@ -86,7 +86,8 @@ describe('ANIMATION_SYSTEM.md: scene layers gain terrain/water', () => {
   const doc = read('docs/ANIMATION_SYSTEM.md');
 
   it('the scene-layers paragraph names terrain and water as static-layer content on the lighting tick', () => {
-    const at = doc.indexOf('### Scene layers');
+    // Renamed "Scene stack" in roadmap Phase 53 (perMoverLayersDocs.test.ts pins the new heading).
+    const at = doc.indexOf('### Scene stack');
     expect(at).toBeGreaterThan(-1);
     const next = doc.indexOf('\n### ', at + 1);
     const section = doc.slice(at, next === -1 ? undefined : next);

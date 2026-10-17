@@ -565,7 +565,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 6: Docs
 
-- [ ] **Task 22: Docs and the `perMoverLayersDocs` guard**
+- [x] **Task 22: Docs and the `perMoverLayersDocs` guard** (done 2026-10-17. Beyond the four docs the plan named: `ROBOT_LIFECYCLE.md` said a row switch "re-mounts" the robot, `CLAUDE.md`'s reference line still said "six-layer scene stack", and `intent/per-mover-compositor-layers.md` linked the old anchor; all three fixed. `robotJobsJ4Docs.test.ts` and `worldViewDistrictsDocs.test.ts` read the renamed heading. The stale-name sweep covers `CLAUDE.md` and the top-level `docs/*.md` except `PERFORMANCE.md`, which is measurement history and keeps old names on purpose; `remounts` is matched in its code forms only, since `CONSOLE_THEMING.md` uses the English verb. 15 mutants, all killed after two weak assertions were tightened.)
 
   **Description:** `ANIMATION_SYSTEM.md`: "Scene layers — what may move where" becomes "Scene stack — the stage, the
   sheets and the movers" (the slot table in `SCENE_SLOTS` order, which slots are movers, the fit, the rules that

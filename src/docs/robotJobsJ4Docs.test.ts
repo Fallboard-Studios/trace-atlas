@@ -49,26 +49,27 @@ function phase43(): string {
 const oceanScene = read('src/components/panels/screen/worldView/OceanScene.tsx');
 
 describe('ANIMATION_SYSTEM.md: the scene stack', () => {
-  const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene layers — what may move where');
+  const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene stack — the stage, the sheets and the movers');
+  const rows = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l));
+  const kindOf = (line: string) => line.split('|')[2].trim();
 
-  // Phase 53 Tasks 13, 18 and 19: the two robot sheets, the bubbles sheet and the marker sheet are
-  // movers now (the doc's paragraph below the table).
-  it('lists the four sheets in OceanScene.tsx\'s order', () => {
+  // Phase 53 Task 22: the table lists every slot (data-scene-slot), the sheets marked static and the
+  // movers' slots marked as movers; the rendered sheets are the static rows, in OceanScene.tsx's order.
+  it('lists the four sheets in OceanScene.tsx\'s order, as the static rows of the slot table', () => {
     const rendered = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"/g)].map((m) => m[1]);
     expect(rendered).toHaveLength(4);
-    const documented = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l)).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
+    const documented = rows.filter((l) => kindOf(l).startsWith('static')).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
     expect(documented).toEqual(rendered);
   });
 
   // Phase 53 Task 19: the last moving sheet is a mover, so no sheet is marked moving - in the source
-  // (the `moving` prop is gone) or in the table (every row reads "static").
+  // (the `moving` prop is gone) or in the table (a row is a static sheet or a mover slot, never a moving sheet).
   it('marks no sheet as moving, in the source or in the table', () => {
     expect([...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"[^>]*\bmoving\b/g)]).toHaveLength(0);
     expect(oceanScene).not.toMatch(/\bmoving\??:\s*boolean/);
-    const rows = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l));
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(9);
     for (const line of rows) {
-      expect(line.includes('| static |'), line).toBe(true);
+      expect(/^(static sheet|movers?)$/.test(kindOf(line)), line).toBe(true);
       expect(line.includes('| moving |'), line).toBe(false);
     }
   });
