@@ -12,11 +12,17 @@
  * Needs Node 22+ (built-in WebSocket) and Chrome/Edge. Serve a production build first (`npm run build && npx vite preview --port 4173`).
  *
  *   node scripts/perf/idle-paint.mjs [--throttle 4] [--window 6000] [--url http://localhost:4173/trace-atlas/] [--only a,b,c]
- *                                    [--stay-off] [--steps "Fleet Params,Spectral"]
+ *                                    [--stay-off] [--steps "Fleet Params,Spectral"] [--expect-dimmed yes|no|any] [--bubbles n]
  *
  * `--stay-off` measures the powered-off screen (layout rework, roadmap Phase 45): no power-on click, so the window is the still
  * world behind the off screen. `--steps` clicks each named button in turn after power-on (first button whose aria-label or text
  * contains the name, case-insensitive) to measure a content screen instead of the Deck.
+ *
+ * Every run prints `World: dimmed|undimmed|no world view` (a hub tile open puts `data-dimmed` on `.world-view`, which filters
+ * every sheet and mover). `--expect-dimmed yes|no` rejects, by throwing, a run whose world is not that state, before and after
+ * the windows, so a run that silently measured the wrong state is never recorded. `--bubbles n` waits (up to 3 minutes) until at
+ * least n bubble circles are in flight before the layers are read, so the bubble layers are read while they draw; a window
+ * longer than a burst interval (`--window 30000`) covers several bursts either way.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -39,9 +45,20 @@ import {
   sceneSlotSelector,
   slotNameOf,
 } from './scene-markup-lib.mjs';
+import {
+  BUBBLES_IN_FLIGHT,
+  DIMMED_PROBE,
+  bubbleLayerStats,
+  checkDimmed,
+  dimmedReading,
+  paintTotalsFor,
+  parseExpectDimmed,
+} from './world-state-lib.mjs';
 
 const { values: opts } = parseArgs({
   options: {
+    'expect-dimmed': { type: 'string' },
+    bubbles: { type: 'string' },
     url: { type: 'string', default: 'http://localhost:4173/trace-atlas/' },
     throttle: { type: 'string', default: '4' },
     window: { type: 'string', default: '6000' },
@@ -104,7 +121,9 @@ const ABLATIONS = [
 ];
 
 if (opts.help) {
-  console.log(`Usage: node scripts/perf/idle-paint.mjs [--throttle n] [--window ms] [--width px] [--url u] [--only names]
+  console.log(`Usage: node scripts/perf/idle-paint.mjs [--throttle n] [--window ms] [--width px] [--url u] [--only names] [--steps names]
+  [--expect-dimmed yes|no|any]  reject a run whose world is not (or is) dimmed by an open hub tile
+  [--bubbles n]                 wait until n bubble circles are in flight before reading the layers
 Ablations (comma-separate for --only): ${ABLATIONS.map((a) => a.name).join(', ')}`);
   process.exit(0);
 }
@@ -289,7 +308,7 @@ async function printCompositorLayers({ send, onEvent }, dpr, stageScale) {
   for (let i = 0; i < 30 && !layers; i++) await sleep(100);
   await send('LayerTree.disable');
   stop();
-  if (!layers) { console.log('Compositor layers: no layer tree reported'); return new Map(); }
+  if (!layers) { console.log('Compositor layers: no layer tree reported'); return { layerAreas: new Map(), bubbleNodes: new Set() }; }
   const drawing = layers.filter((l) => l.drawsContent);
   // LayerTree reports a layer's bounds before the scale of the stage it sits in (Phase 53, memory finding 3), so a layer inside the stage is scaled
   // here; a build with no stage (main) has none to apply. The scaled area is the layer's true size in CSS px, for the memory line and the paint clamp.
@@ -305,11 +324,23 @@ async function printCompositorLayers({ send, onEvent }, dpr, stageScale) {
     scene.push(`${found.name}${found.mover ? ' (mover)' : ''} ${Math.round(l.width)}×${Math.round(l.height)}`);
     if (found.mover) moverLayers.push(l);
   }
+  // Review follow-up R5: the bubble layers, drawing or not (a strip with nothing visible has a layer but no backing store yet).
+  const bubbleLayers = [];
+  for (const l of layers) {
+    if (l.backendNodeId === undefined) continue;
+    if ((await describeSceneLayer(send, l.backendNodeId))?.name === 'bubbles') bubbleLayers.push(l);
+  }
+  const bubbleStats = bubbleLayerStats(bubbleLayers.map((l) => ({ drawsContent: l.drawsContent, area: scaled.get(l) })), dpr);
   console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}, stage scale ${stageScale.toFixed(3)}; ${owned.length} with an owning node); scene (CSS px, pre-scale): ${scene.join(', ') || 'none named'}`);
   // Phase 53: the movers' layers, separately from the sheets' (a build without movers reads 0).
   console.log(`Mover layers: ${moverLayers.length}, ≈ ${mb(moverLayers)} MB at 4 B per device px`);
-  // Backend node id → layer area in CSS px², the bound each Paint is clamped to (paint-area-lib.mjs `redrawnArea`).
-  return new Map(layers.filter((l) => l.backendNodeId !== undefined).map((l) => [l.backendNodeId, scaled.get(l)]));
+  console.log(`Bubble layers: ${bubbleStats.count} (${bubbleStats.drawing} drawing now, ≈ ${bubbleStats.mbDrawing.toFixed(2)} MB; ≈ ${bubbleStats.mbAll.toFixed(2)} MB if every one drew at once)`);
+  // Backend node id → layer area in CSS px², the bound each Paint is clamped to (paint-area-lib.mjs `redrawnArea`);
+  // and the bubble layers' nodes, whose paints the stock window reports apart.
+  return {
+    layerAreas: new Map(layers.filter((l) => l.backendNodeId !== undefined).map((l) => [l.backendNodeId, scaled.get(l)])),
+    bubbleNodes: new Set(bubbleLayers.map((l) => l.backendNodeId)),
+  };
 }
 
 /** Whether a layer's owning node sits inside the scaled stage (`.ocean-scene__stage`), so LayerTree's bounds for it are pre-scale. */
@@ -412,7 +443,23 @@ async function run(cdp) {
   })()`);
   console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, front row ${stack.frontRow}, front ${stack.front}; back row ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
   const stageScale = await evaluate(`(() => { const s = document.querySelector('.ocean-scene__stage'); return s ? new DOMMatrix(getComputedStyle(s).transform).a : 1; })()`);
-  view.layerAreas = await printCompositorLayers(cdp, view.dpr, stageScale);
+  const expectDimmed = parseExpectDimmed(opts['expect-dimmed']);
+  const worldBefore = dimmedReading(await evaluate(DIMMED_PROBE));
+  console.log(`World: ${worldBefore}`);
+  const rejectedBefore = checkDimmed(worldBefore, expectDimmed);
+  if (rejectedBefore) throw new Error(rejectedBefore);
+  if (opts.bubbles !== undefined) {
+    const wanted = Number(opts.bubbles);
+    let inFlight = await evaluate(BUBBLES_IN_FLIGHT);
+    for (let i = 0; i < 360 && inFlight < wanted; i++) {
+      await sleep(500);
+      inFlight = await evaluate(BUBBLES_IN_FLIGHT);
+    }
+    if (inFlight < wanted) throw new Error(`--bubbles ${wanted}: only ${inFlight} bubble circles in flight after 3 minutes.`);
+  }
+  console.log(`Bubbles in flight at the layer read: ${await evaluate(BUBBLES_IN_FLIGHT)}`);
+  const layerInfo = await printCompositorLayers(cdp, view.dpr, stageScale);
+  view.layerAreas = layerInfo.layerAreas;
   console.log('');
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
@@ -447,8 +494,19 @@ async function run(cdp) {
     if (ab.undo) await evaluate(`(() => { ${ab.undo}; return true; })()`);
   }
   await evaluate(`(() => { document.getElementById('__ablate')?.remove(); return true; })()`);
+  // The world must still be the state the run began in: a tile that closed (or opened) mid-run voids every window.
+  const worldAfter = dimmedReading(await evaluate(DIMMED_PROBE));
+  console.log(`World after the windows: ${worldAfter}`);
+  const rejectedAfter = checkDimmed(worldAfter, expectDimmed);
+  if (rejectedAfter) throw new Error(rejectedAfter);
   console.log('');
   console.table(rows);
+
+  if (stockPaint && rows[0]) {
+    const b = paintTotalsFor(stockPaint, layerInfo.bubbleNodes);
+    const frames = rows[0].frames;
+    console.log(`Bubble paints (stock window): ${b.paints} paints, ${Math.round(b.ms)} ms, ${frames ? Math.round((b.area * view.dpr * view.dpr) / frames) : 0} redrawn px²/frame, over ${layerInfo.bubbleNodes.size} bubble layers`);
+  }
 
   if (opts.attribution && stockPaint) {
     await send('DOM.getDocument', { depth: 0 }); // DOM.pushNodesByBackendIdsToFrontend needs a document first

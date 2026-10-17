@@ -376,7 +376,8 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toContain("import { paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
     expect(source).toContain(".ocean-scene__stage");
     expect(source).toContain('scaledLayerArea(l, (await insideStage(send, l)) ? stageScale : 1)');
-    expect(source).toContain('view.layerAreas = await printCompositorLayers(cdp, view.dpr, stageScale)');
+    expect(source).toContain('const layerInfo = await printCompositorLayers(cdp, view.dpr, stageScale)');
+    expect(source).toContain('view.layerAreas = layerInfo.layerAreas');
   });
 
   it('keeps no hard-coded layer or slot attribute selector: the lib reads both markups', () => {
