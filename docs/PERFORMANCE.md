@@ -1848,6 +1848,95 @@ The phone half of the phase's gates ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](spec
 
 Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 21". Guarded by `src/docs/perMoverPixelDocs.test.ts`.
 
+## Per-Mover Compositor Layers — review follow-up R5: bubble strips drawing (2026-10-17)
+
+The measurement spec §7 Q3 left open ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md); plan [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R5): do the always-promoted bubble strips cost more than the one sheet they replaced, while bubbles are actually drawing? **Result: one of the three criteria is a MISS, and the run stopped here, not acted on.** Layer memory passes (29.7 MB against 42.4 MB) and Paint passes; busy time reads 10330 ms against `main`'s 9514–9572 ms. Compositor::Update and Layerize, recorded and not gated, are 18 % higher on the branch. The decision is Crawford's (spec Q3: the reaction to a miss on the bubbles' account is his bubble redesign, not a promote-only-mid-burst workaround).
+
+### The Task 20 world could not have tested this
+
+The Task 20 gate's pinned world (style `alpha`, locale `(0, 50)`) has **0 bubble circles**: the harness's `Scene:` line reads "2 factories, 0 bubble circles" there, so no strip existed to draw, and the Task 20 note that "no bubble strip appears among the drawing layers" was a statement about that world, not about the strips. This measurement therefore uses another world. Nine locales were tried on the branch build (the world follows the locale `(x, y)`; the style made no difference in the cases tried); the busiest found, and the one used, is `alpha` at `(-100, -100)`: 12 robots, **18 factories, 135 bubble circles, 18 bubble streams**. The others read 0 to 18 streams (`(0, 50)` 0, `(200, -30)` 0, `(50, -200)` 4, `(100, 100)` 8, `(-150, 90)` 13, `(0, 0)` 13, `(0, 300)` 13, `(300, 300)` 18). The spec's "fifty-odd strips" was an estimate; **18 is the most any tried world has**, so the always-promoted cost is bounded by that here, and a denser world may exist that was not found.
+
+### Method
+
+**Builds:** `main` `4a9b3fec`, from a throwaway `git worktree`, built with `npx vite build`, served by `vite preview` on :4183, bundle `index-CVUy7kf3.js` (the Task 20 and Task 4 bundle). The branch `perf/per-mover-layers`, built at `c1414fbe` (its `src/` is identical to `4d754d94`, the last commit that touched it), served on :4181, bundle `index-Dil0Vyn4.js`. Both bundles were read back from the served HTML. Both sides were measured with the **branch's** harness (`scripts/perf/idle-paint.mjs` at `f4d20775`).
+
+**World link** (port changed per side):
+
+```text
+http://localhost:4183/trace-atlas/?session=eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOi0xMDAsInkiOi0xMDB9LCJnIjp7ImNvbXByZXNzb3JCZWZvcmVEZWxheSI6ZmFsc2UsInJldmVyYiI6eyJkZWNheSI6MS41LCJwcmVEZWxheSI6MC4wMiwid2V0IjoxfSwiZGVsYXkiOnsiZGVsYXlUaW1lIjowLjI1LCJmZWVkYmFjayI6MC4yLCJ3ZXQiOjF9LCJjb21wcmVzc29yIjp7InRocmVzaG9sZCI6LTI0LCJyYXRpbyI6MiwiYXR0YWNrIjowLjAwMywicmVsZWFzZSI6MC4yNSwia25lZSI6Nn0sImVxMyI6eyJsb3ciOjAsIm1pZCI6MCwiaGlnaCI6MH0sImZpbHRlckxQRiI6eyJ0eXBlIjoibG93cGFzcyIsImZyZXF1ZW5jeSI6MjAwMDAsIlEiOjF9LCJmaWx0ZXJIUEYiOnsidHlwZSI6ImhpZ2hwYXNzIiwiZnJlcXVlbmN5IjoyMCwiUSI6MX0sImRpc3RvcnRpb24iOnsiYW1vdW50IjowLjMsIndldCI6MH0sImNoZWJ5c2hldiI6eyJvcmRlciI6Miwid2V0IjowfSwiYml0Q3J1c2hlciI6eyJiaXRzIjo4LCJ3ZXQiOjB9LCJhdXRvV2FoIjp7ImJhc2VGcmVxdWVuY3kiOjEwMCwib2N0YXZlcyI6Niwic2Vuc2l0aXZpdHkiOjAsIlEiOjIsImdhaW4iOjIsImZvbGxvd2VyIjowLjIsIndldCI6MH0sInBoYXNlciI6eyJyYXRlIjowLjUsIm9jdGF2ZXMiOjMsImJhc2VGcmVxdWVuY3kiOjM1MCwic3RhZ2VzIjoxMCwiUSI6MTAsIndldCI6MH0sImxpbWl0ZXIiOnsidGhyZXNob2xkIjotMTJ9fX0
+```
+
+It is the Task 20 link with only the locale changed (the same style and `DEFAULT_GLOBAL_AUDIO_SETTINGS`, built by decoding that link and rewriting `c`).
+
+**Command** (each side, from the branch's checkout):
+
+```text
+npm run perf:idle -- --throttle 1 --only none --window 30000 --bubbles 5 --expect-dimmed no --port 9301 --url <link>
+```
+
+Headless Chrome at **1280 × 900**, 1×, no CPU throttle, the 8 s power-on settle, then a **30 s** window (a burst starts somewhere about every 4 s, so the window holds several; the stock 6 s window can hold none). `--bubbles 5` waits until at least 5 bubble circles are visible before the layers are read (the wait returned at once every time: 15–16 were in flight), and `--expect-dimmed no` rejects a run whose world is dimmed, before and after the windows (none was; the Deck is undimmed). Three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last (after the diagnostic runs below as well).
+
+**A harness finding that changed the method.** The first 30 s runs reported **325 frames** (about 11 a second) and a busy time of a 6 s window. The trace held only the first ~5.8 s: the default trace buffer fills in about 6 s with the invalidation tracking category on, and the trace then stops. The harness now drops that category for any window over 6 s (`traceCategories` in `scripts/perf/world-state-lib.mjs`) and prints a warning when a window holds under 30 frames a second; those runs held 1799–1801 frames over a 30.0 s span. The 6 s stock window keeps every category, so earlier baselines are unchanged. **A long window prints no invalidation table, and its busy time is not comparable with a 6 s window's** (the tracing overhead differs): this section compares only with itself. The two truncated runs were discarded.
+
+### Results (30 s window, stock, 1×)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3661137 | 3.18 | 30 | 9572 | 1567 | 1938 | 1945 | 1801 |
+| 2 | 3656556 | 3.17 | 30 | 9566 | 1575 | 1940 | 1948 | 1800 |
+| 3 | 3657827 | 3.18 | 28 | 9514 | 1578 | 1964 | 1972 | 1801 |
+| Median | 3657827 | 3.18 | 30 | 9566 | 1575 | 1940 | 1948 | 1801 |
+| Min–max | 3656556–3661137 | 3.17–3.18 | 28–30 | 9514–9572 | 1567–1578 | 1938–1964 | 1945–1972 | 1800–1801 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 4421260 | 3.84 | 4950 | 10410 | 1571 | 2309 | 2316 | 1801 |
+| 2 | 4410964 | 3.83 | 4934 | 10330 | 1559 | 2283 | 2289 | 1800 |
+| 3 | 4403028 | 3.82 | 4942 | 10251 | 1557 | 2287 | 2294 | 1800 |
+| Median | 4410964 | 3.83 | 4942 | 10330 | 1559 | 2287 | 2294 | 1800 |
+| Min–max | 4403028–4421260 | 3.82–3.84 | 4934–4950 | 10251–10410 | 1557–1571 | 2283–2309 | 2289–2316 | 1800–1801 |
+
+Long tasks 0 in every round, both sides.
+
+### The gate
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| busy (median ms) | 9566 (9514–9572) | 10330 | within main's spread | MISS: 758 ms above the top of main's spread (9572), +8 % on its median |
+| Paint (median ms) | 1575 (1567–1578) | 1559 | within main's spread | PASS: below it |
+| Layer memory | 42.4 MB | 29.7 MB | ≤ main | PASS |
+
+Compositor::Update 1940 → 2287 ms (+347, +18 %) and Layerize 1948 → 2294 ms (+346, +18 %) are outside each other's spreads, and are recorded, not gated (as in Task 20). They are about half of the busy gap (758 ms); the rest is not located.
+
+**Compositor-layer readouts** (identical in all three rounds of a side). Main: `Compositor layers: 28 (25 drawing content, ≈ 42.4 MB at 4 B per device px, DPR 1, stage scale 1.000; 24 with an owning node)`; `Mover layers: 0`; `Bubble layers: 1 (1 drawing now, ≈ 4.60 MB; ≈ 4.60 MB if every one drew at once)`, which is the one 1465 × 824 bubbles sheet. Branch: `Compositor layers: 51 (48 drawing content, ≈ 29.7 MB at 4 B per device px, DPR 1, stage scale 0.763; 47 with an owning node)`; `Mover layers: 23, ≈ 1.0 MB`; `Bubble layers: 18 (18 drawing now, ≈ 0.85 MB; ≈ 0.85 MB if every one drew at once)`, the 18 strips (the 23 movers are those 18, four robots and the marker). At the read 15–16 circles were visible, in a few strips at most, yet all 18 strips were drawing layers, so a strip is a drawing layer without a visible bubble in it (its circles are transparent, not removed), and "if every one drew at once" equals "drawing now". **The memory half of Q3 is answered:** 18 strips hold ≈ 0.85 MB where the one sheet held ≈ 4.60 MB. The layers are read once, before the window.
+
+### What the Paint column does not see
+
+The bubbles are moving: a throwaway probe on the `main` build sampled the circles' computed opacity every 500 ms for 45 s, and 0–23 of the 135 were visible at any moment, fading in and out. Yet the paint events for the bubble layers total **43, 42 and 44 on `main` (one sheet)** and **43, 44 and 44 on the branch (18 strips)**, in a window of about 1800 frames; the `Bubble paints` line of the harness gives them, and they are the same on both builds. So bubble motion is **not visible in the `Paint` column or in `screens/frame` on either build**. Hypothesis, not proved: a transform or opacity change on an SVG child updates a property-tree node and re-layerizes without re-recording the display list, so it lands in Compositor::Update and Layerize and not in `Paint`. If that holds, those two columns and busy time are the ones that can see the bubbles, which is why the miss is on them.
+
+`screens/frame` (3.18 on main, 3.83 on the branch) is recorded and **not read**. The layer map is read once before the window, and in 30 s new movers appear (dissolve copies, among them) that have no layer in it, so each of their paints is capped at one viewport: the branch's 4942 unresolved Paints account for at most 4942 ÷ 1800 = 2.75 of its 3.83 screens/frame. It is not comparable with Task 20's 6 s figure.
+
+### Diagnostic (one run each, indicative, not gated): detach the bubbles
+
+`--only detach-bubbles` traces the stock window, then removes every bubble circle and traces again, in one session. Later windows in a session run busier on both builds (Task 20), so the busy column is confounded; Compositor::Update is the column read.
+
+| Side | stock Compositor::Update (ms) | after detach (ms) | change | busy before → after (ms) |
+|---|---|---|---|---|
+| main | 1975 | 1770 | −205 | 9721 → 10545 |
+| branch | 2303 | 2102 | −201 | 10281 → 10917 |
+
+Removing the circles takes about 200 ms off Compositor::Update on both builds, so the bubbles' motion costs the same on each. The branch's extra ≈ 330 ms is still there afterwards (2102 against 1770), so **it is not the circles' motion**. This cannot say whether it is the 18 strip layers themselves: the detach removes the circles and leaves the strip `div`s in the page, and whether they stay layers was not read. The branch's other movers are also in the gap. (The branch's `redrawn` after the detach, 7.43 screens/frame, is an artefact of the stale layer map and is ignored.)
+
+### Stopped here, not acted on
+
+The criterion as written is a MISS (busy). Options for Crawford: (1) accept it: +8 % busy and +18 % Compositor::Update on a 18-stream world over a 30 s window, against 0.85 MB of layers instead of 4.60 MB; (2) the bubble redesign spec §7 Q3 names (fewer layers, for example one stream per district); (3) first separate how much of the gap is the strips, for example with a sticky ablation that removes the strip `div`s themselves (not run), since the diagnostic above does not attribute it to them. Nothing was changed in the product, and the Task 20 result above stands as recorded.
+
+Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R5: Bubble strips with bubbles actually drawing". Guarded by `src/docs/perMoverReviewR5Docs.test.ts`.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
