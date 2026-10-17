@@ -1,5 +1,12 @@
 # Intent: Per-Mover Compositor Layers
 
+> **Status (2026-10-17, roadmap Phase 53):** built on `perf/per-mover-layers`, not merged (the PR is Crawford's). The
+> Task 20 idle-paint gate **MISSED its headline criterion**: `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+> limit 0.25; busy, Paint and layer memory are within their limits, and the work this intent targeted fell by over 90 %,
+> but a document-layer repaint of unknown cause keeps the total above the line (PERFORMANCE.md, "the Task 20 gate").
+> The Pixel listen (Task 21) ran: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping;
+> no `main` count was taken, so the not-above-`main` criterion is open. Checkpoints B and C were never recorded as passed.
+
 Confirmed 2026-10-16 via the interview-me skill (5 questions; every guess confirmed, with one
 correction and one note). The correction: the target is any device, not Crawford's laptop. The
 laptop is where the cost became audible (backlog item 26; the baseline in

@@ -593,6 +593,14 @@ and give the Settings → Seeds coordinates a reason to be stepped rather than t
 
 ### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
 
+**Status (2026-10-17): mostly built, one finding left open.** Candidate 1 is done: small layers per mover, built as
+[roadmap Phase 53](roadmap.md#53-per-mover-compositor-layers) on `perf/per-mover-layers` (not merged). Candidate 2 is
+done (the camera's idle no-op, merged). Candidate 3 is not taken (the audio-headroom default stays Crawford's call).
+The idle-paint gate missed its headline criterion, 0.31 × `main` against 0.25, because of a **document layer** that
+repaints a full viewport on nearly every frame on both builds (cause unidentified); the work this item described fell
+by over 90 %. That repaint is the open remainder, to be accepted, fixed or reframed by Crawford. The record below is the
+original diagnosis, kept as written.
+
 Diagnosed 2026-10-16 while finishing roadmap 50.5, after Crawford reported the sound breaking up about 25–30 s into every
 world on his laptop at full screen. **Not an audio feature.** `main` at `2ec52f2f` reproduces it (411 underruns by 0:47,
 25 fps) and a window at a quarter of the area halves the cost (66 underruns by 1:00, 54 fps), so the cost scales with pixels.

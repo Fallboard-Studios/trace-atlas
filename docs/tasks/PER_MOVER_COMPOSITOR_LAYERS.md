@@ -1,7 +1,14 @@
 # Implementation Plan: Per-Mover Compositor Layers
 
+> **Status (2026-10-17, roadmap Phase 53):** Tasks 1–23 done on `perf/per-mover-layers`, not merged (the PR is Crawford's).
+> Task 20's idle-paint gate **MISSED its headline criterion**: `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+> limit 0.25; busy, Paint and layer memory are within their limits, and the targeted work fell by over 90 %, but a
+> document-layer repaint of unknown cause keeps the total above the line ("Task 20 — the gate" below). Task 21's Pixel
+> listen ran: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping; no `main` count was
+> taken, so its not-above-`main` bullet stays open. Checkpoints B and C were never recorded as passed.
+
 Source spec: [docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md](../specs/PER_MOVER_COMPOSITOR_LAYERS.md). Source intent:
-[docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md). Roadmap Phase 53 (proposed).
+[docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md). Roadmap Phase 53.
 Diagnosis: backlog item 26. Branch `perf/per-mover-layers` off `main`, **after the Deck camera idle no-op PR merges**
 (spec "Dependency"; it is not a task here).
 
@@ -585,7 +592,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 21. **Files:** the four docs, `src/docs/perMoverLayersDocs.test.ts`. **Scope:** M.
 
-- [ ] **Task 23: Roadmap 53, backlog 26, status headers**
+- [x] **Task 23: Roadmap 53, backlog 26, status headers** (done 2026-10-17. Backlog item 26 stays open with a status paragraph rather than moving to the archive: candidates 1 and 2 are done and 3 not taken, but the document-layer repaint is unresolved. The roadmap entry has an Open section for it.)
 
   **Description:** Roadmap Phase 53 in Phase 52's shape (links, status, About, Not Doing: the audio-headroom default,
   machine-side fixes, the re-mount path); backlog item 26 → a shipped pointer (candidates 1 and 2 done, 3 not taken);
@@ -601,10 +608,10 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   plan. **Scope:** XS.
 
 ### Checkpoint: Complete
-- [ ] Types, lint, full suite, `npm run build` clean.
-- [ ] Every automated acceptance criterion met; the two gates recorded with numbers, a skipped Pixel listen flagged.
-- [ ] Docs match the shipped source; every named identifier spot-checked.
-- [ ] Ready for Crawford's PR.
+- [x] Types, lint (0 errors, the 4 old warnings), full suite (368 files / 12406 tests) and `npm run build` clean, 2026-10-17.
+- [ ] Every automated acceptance criterion met; the two gates recorded with numbers, a skipped Pixel listen flagged. (**Not met:** Task 20's `screens/frame` criterion is a recorded MISS, and Task 21 has no `main` count. Both are recorded with numbers; neither is rewritten as a pass.)
+- [x] Docs match the shipped source; every named identifier spot-checked (`perMoverLayersDocs.test.ts` checks each against its source file).
+- [ ] Ready for Crawford's PR. (Waits on his call about the Task 20 miss and the unsigned Checkpoints B and C.)
 
 ## Risks and Mitigations
 

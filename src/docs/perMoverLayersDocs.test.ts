@@ -263,6 +263,158 @@ describe('no current doc still names a removed identifier', () => {
   });
 });
 
+// ---------------------------------------------------------------------------------------------------------
+// Task 23: the roadmap entry, the backlog pointer and the status headers. The outcomes are written as they
+// were: the Task 20 headline criterion is a MISS (0.31 x main against 0.25) and stays one; the Pixel listen
+// ran with no main count; Checkpoints B and C were never recorded as passed; the branch is not merged.
+// ---------------------------------------------------------------------------------------------------------
+
+/** Prose with its line breaks, blockquote markers and runs of spaces collapsed to single spaces. */
+const flat = (text: string) => text.replace(/\n>/g, '\n').replace(/\s+/g, ' ');
+
+/** Roadmap Phase 53, up to the next `## ` heading (or the end of the file). */
+function phase53(): string {
+  const roadmap = read('docs/todo/roadmap.md');
+  const at = roadmap.indexOf('\n## 53. Per-Mover Compositor Layers');
+  if (at === -1) return '';
+  const rest = roadmap.slice(at + 1);
+  const next = rest.indexOf('\n## ', 1);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+describe('roadmap Phase 53', () => {
+  const phase = phase53();
+
+  it('exists, after Phase 52, and is no longer proposed', () => {
+    expect(phase).not.toBe('');
+    const roadmap = read('docs/todo/roadmap.md');
+    expect(roadmap.indexOf('\n## 53. ')).toBeGreaterThan(roadmap.indexOf('\n## 52. '));
+    expect(phase).not.toMatch(/\bproposed\b/i);
+  });
+
+  it('links the intent, the spec and the plan, and every link resolves', () => {
+    for (const doc of ['intent/per-mover-compositor-layers.md', 'specs/PER_MOVER_COMPOSITOR_LAYERS.md', 'tasks/PER_MOVER_COMPOSITOR_LAYERS.md']) {
+      expect(phase, doc).toContain(`](../${doc})`);
+    }
+    const dir = resolve(repoRoot, 'docs/todo');
+    const missing = [...phase.matchAll(/\]\(([^)\s]+)\)/g)]
+      .map((m) => m[1].split('#')[0])
+      .filter((t) => t && !/^[a-z]+:/i.test(t))
+      .filter((t) => !existsSync(resolve(dir, t)));
+    expect(missing).toEqual([]);
+  });
+
+  it('has the Phase 52 shape: a status paragraph, About, Not Doing and Open', () => {
+    expect(phase).toContain('### About');
+    expect(phase).toContain('### Not Doing (and why)');
+    expect(phase).toContain('### Open');
+  });
+
+  it('states the outcomes as they were: the gate miss with its numbers, the Pixel listen, the unrecorded checkpoints, unmerged', () => {
+    const status = flat(phase.slice(0, phase.indexOf('### About')));
+    expect(status, 'the headline miss').toMatch(/MISS/);
+    expect(status, 'its ratio and limit').toMatch(/0\.31 × `?main`?/);
+    expect(status).toMatch(/0\.25/);
+    expect(status, 'the criteria that passed').toMatch(/busy/i);
+    expect(status).toMatch(/layer memory/i);
+    expect(status, 'the Pixel listen as it ran').toMatch(/Pixel listen/i);
+    expect(status).toMatch(/about 12 underruns|12 underruns/);
+    expect(status, 'no main count').toMatch(/\bno `?main`? (listen|count)\b/i);
+    expect(status, 'checkpoints B and C').toMatch(/Checkpoints? B and C/);
+    expect(status, 'not merged').toMatch(/not (yet )?merged/i);
+    expect(status, 'the gate is not described as passed').not.toMatch(/gate (passed|met)|passed the gate/i);
+  });
+
+  it('records, in Not Doing, the audio-headroom default, the machine-side fixes and the re-mount path', () => {
+    const notDoing = flat(phase.slice(phase.indexOf('### Not Doing (and why)'), phase.indexOf('### Open')));
+    expect(notDoing).toMatch(/audio[- ]headroom/i);
+    expect(notDoing).toMatch(/machine-side/i);
+    expect(notDoing).toMatch(/re-mount/i);
+  });
+
+  it('Open names the document-layer repaint and the bubble-strip memory question', () => {
+    const open = flat(phase.slice(phase.indexOf('### Open')));
+    expect(open).toMatch(/document layer/i);
+    expect(open).toMatch(/bubble strip|bubbles/i);
+    expect(open, 'the open main comparison for the listen').toMatch(/`?main`? (count|listen|comparison)/i);
+  });
+
+  it('every identifier it names exists in source', () => {
+    for (const [name, source] of [
+      ['SCENE_SLOTS', `${STAGE_DIR}/sceneStack.ts`],
+      ['sceneFit', `${STAGE_DIR}/sceneFit.ts`],
+      ['redrawnArea', 'scripts/perf/paint-area-lib.mjs'],
+    ] as const) {
+      if (!word(name).test(phase)) continue;
+      expect(read(source), `${source} defines ${name}`).toMatch(word(name));
+    }
+  });
+});
+
+describe('backlog item 26', () => {
+  const backlog = read('docs/todo/backlog.md');
+  // Prose wraps, so the status is matched on its words with line breaks collapsed.
+  const item = flat(section(backlog, '### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame'));
+
+  it('points at the shipped phase: candidates 1 and 2 done, 3 not taken, the document layer left open', () => {
+    expect(item).not.toBe('');
+    expect(item).toContain('](roadmap.md#53-per-mover-compositor-layers');
+    expect(item).toMatch(/[Cc]andidate 1[^.\n]*done/);
+    expect(item).toMatch(/[Cc]andidate 2[^.\n]*done/);
+    expect(item).toMatch(/[Cc]andidate 3[^.\n]*not taken/);
+    expect(item).toMatch(/document layer/i);
+    // On the raw section: `flat` has no line starts left. Archived items (J4's item 8) open with "**Closed**".
+    const raw = section(backlog, '### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame');
+    expect(raw, 'the open item is not closed').not.toMatch(/^\*\*Closed\*\*/m);
+  });
+
+  it('the anchor it links exists as a roadmap heading', () => {
+    const anchor = /\(roadmap\.md#([a-z0-9-]+)\)/.exec(item)?.[1];
+    expect(anchor).toBeDefined();
+    const heading = /^## (53\. .+)$/m.exec(read('docs/todo/roadmap.md'))![1];
+    const slug = heading.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s/g, '-');
+    expect(anchor).toBe(slug);
+  });
+});
+
+describe('the intent, the spec and the plan carry a status header', () => {
+  const docs = [
+    'docs/intent/per-mover-compositor-layers.md',
+    'docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md',
+    'docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md',
+  ];
+
+  /** The first `> **Status` blockquote paragraph, if it is in the first 40 lines. */
+  const header = (path: string) => {
+    const head = read(path).split('\n').slice(0, 40).join('\n');
+    const at = head.indexOf('> **Status');
+    if (at === -1) return '';
+    const rest = head.slice(at);
+    const end = rest.search(/\n(?!>)/);
+    return flat(end === -1 ? rest : rest.slice(0, end));
+  };
+
+  it.each(docs)('%s opens with the status, naming both gates\' outcomes', (path) => {
+    const status = header(path);
+    expect(status, `${path} has a "> **Status" header`).not.toBe('');
+    expect(status).toMatch(/Phase 53/);
+    expect(status, 'the Task 20 miss').toMatch(/MISS/);
+    expect(status).toMatch(/0\.31/);
+    expect(status, 'the Pixel listen, including that no main count was taken').toMatch(/Pixel listen/);
+    expect(status).toMatch(/\bno `?main`? (listen|count)\b/i);
+    expect(status).toMatch(/not (yet )?merged/i);
+  });
+
+  it.each(docs.slice(1))('%s no longer says the roadmap entry is proposed', (path) => {
+    const head = read(path).split('\n').slice(0, 40).join('\n');
+    expect(head).not.toMatch(/Roadmap Phase 53 \(proposed/);
+  });
+
+  it('the plan ticks Task 23', () => {
+    expect(read('docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md')).toMatch(/^- \[x\] \*\*Task 23: Roadmap 53, backlog 26, status headers\*\*/m);
+  });
+});
+
 describe('every relative link in the docs this phase touches resolves', () => {
   /** Every relative markdown link target in `doc` (anchors and URLs left out). */
   const targets = (doc: string) =>

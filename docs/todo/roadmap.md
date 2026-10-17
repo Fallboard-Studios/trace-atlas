@@ -1950,3 +1950,69 @@ state module plus a builder that makes its SVG nodes once, in a `<g class="robot
 - Spec questions 1, 2, 3 and 5 (battery dim, identity colour, count 1, droplet numbers) shipped as the spec
   proposed them and were not separately confirmed by Crawford.
 - If the Pixel shows trouble: cut the Full-tier cost (skip unchanged attribute writes, or fewer nodes at `'all'`).
+
+## 53. Per-Mover Compositor Layers
+
+Intent [docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md), spec
+[docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md](../specs/PER_MOVER_COMPOSITOR_LAYERS.md), plan
+[docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md](../tasks/PER_MOVER_COMPOSITOR_LAYERS.md); diagnosis in
+[backlog item 26](backlog.md#26-desktop-paint-stage-sized-moving-layers-re-raster-every-frame) and
+[PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16). **Built on
+`perf/per-mover-layers`, 2026-10-16 to 2026-10-17 (Tasks 1–23); not merged** (the PR is Crawford's). The Task 20
+idle-paint gate **MISSED its headline criterion**: median `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+and the limit was 0.25. Busy time (2295 against 2749 ms), Paint time (128 against 246 ms) and layer memory (24.2
+against 37.8 MB) were within their limits. The work the phase targeted fell by over 90 % (about 2.07 to about 0.16
+screens/frame); what keeps the total above the line is the document layer, which repaints a full viewport on nearly
+every frame on both builds, cause unidentified. The run was stopped and not acted on. The Pixel listen (Task 21) ran
+2026-10-17: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping, Crawford: "good to
+go"; no `main` count was taken, so the plan's not-above-`main` criterion is open. Checkpoints B and C (Crawford's
+look, Chrome and Firefox) were never recorded as passed; he proceeded on the automated checks and the Pixel listen.
+Numbers: PERFORMANCE.md, "Per-Mover Compositor Layers — the Task 20 gate" and "the Task 21 Pixel listen".
+
+### About
+
+Chrome composites a whole `<svg>`, so the four stage-sized sheets that carried the robots, bubbles and marker were each
+repainted in full whenever one robot moved, and the cost grew with the screen. The scene is now one scaled stage
+(`sceneFit`, `useStageFit`) holding four static sheets and one small mover per robot, per bubble stream, for the
+marker and for a row switch's dissolve copy. A swim slides a layer and repaints nothing; only a change inside a mover
+repaints, and only its own patch. A robot changes rows by a slot write (`data-scene-slot`, `SCENE_SLOTS`), not a
+React re-mount, so the re-mount machinery is gone. Nothing a viewer sees changes. The idle-paint harness gained a
+redrawn-area metric (`redrawn px²/frame`, `screens/frame`) with each paint clamped to its layer, and a mover-layer
+readout. As built, in [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#scene-stack--the-stage-the-sheets-and-the-movers).
+
+**Decisions made while building.**
+
+- **Hairline softness accepted.** A promoted mover under the scaled stage draws hairlines slightly softer than direct
+  vector (measured in Chrome 155); Crawford looked at the spike page in Chrome and Firefox on 2026-10-17 and said it
+  looks fine. No snapping or promote-only-while-moving mitigation was built.
+- **The swim pivots about the gem canvas centre** (the mover's centre), not the old bounding-box centre.
+- **The paint-area metric needed a prerequisite the plan did not list.** A `Paint` event's clip is a cull rect, and a
+  promoted mover's is unbounded, so each `Paint` is clamped to the layer it drew into (Task 20's prerequisite).
+  `main` re-measured under it reads 3.10, not the baseline's 4.63.
+- **Bubble strips are always promoted**, one per stream, as specified.
+- **The swim timeline is created before the dissolve's**, because GSAP updates in creation order and the copy mirrors
+  the body in the dissolve's update.
+
+### Not Doing (and why)
+
+- **The audio-headroom default** (the Standard Audio Load preset, `?latency=playback`) — mitigation, not cause, and
+  Crawford's call.
+- **Machine-side fixes** (routing Chrome onto the discrete GPU) — they help one machine, not anyone else.
+- **The re-mount path** and the `<use>`-inside-a-sheet dissolve — removed, not kept for its own sake; pre-v1 keeps
+  nothing because it was how it was.
+- **Any look change** — the world, the marker and its caption are as they were.
+- **Per-station sheets** — the fallback for a ripple-driven paint miss; the static sheets paint 3–23 times in 6 s, so
+  the miss is not that.
+- **Amending the gate after the result** — a criterion changed after its run is a stated decision, and none was made.
+
+### Open
+
+- **The document layer's repaint** (a full viewport on 279–345 of about 350 frames on both builds): Crawford's call
+  between accepting the criterion against it and filing the repaint as its own item, fixing it and re-running the gate
+  unchanged, or amending the criterion to exclude it from both sides.
+- **The Pixel `main` comparison**: no `main` listen was taken in the same session, so the listen is a clean branch
+  listen, not an A/B.
+- **Bubble strips' memory**: no strip was a drawing layer in the idle window, so spec §7 Q3 (fifty always-promoted
+  strips against the one sheet they replaced) is untested by the gate.
+- **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
+  is unverified.

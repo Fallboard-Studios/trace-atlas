@@ -1,5 +1,12 @@
 # Phase Spec: Per-Mover Compositor Layers
 
+> **Status (2026-10-17, roadmap Phase 53):** built on `perf/per-mover-layers`, not merged (the PR is Crawford's). The
+> Task 20 gate (§5.2 item 3) **MISSED its headline criterion**: `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+> limit 0.25; busy, Paint and layer memory are within their limits, and the targeted work fell by over 90 %, but a
+> document-layer repaint of unknown cause keeps the total above the line (PERFORMANCE.md, "the Task 20 gate"). The Pixel
+> listen (§5.2 item 4, Task 21) ran: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping;
+> no `main` count was taken, so the not-above-`main` criterion is open. Checkpoints B and C were never recorded as passed.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)
@@ -13,7 +20,7 @@
 >   against `main` (docs/PERFORMANCE.md, "Diagnosing audio on a real phone")
 > - Dev server: `npm run dev`
 
-Roadmap Phase 53 (proposed; 52 is the last entry). Intent:
+Roadmap Phase 53 (built, unmerged; see the status above). Intent:
 [docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md) (confirmed 2026-10-16; where
 this spec and the intent differ, the intent wins). Diagnosis: backlog item 26 and
 [PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16). No sketch: the visible
