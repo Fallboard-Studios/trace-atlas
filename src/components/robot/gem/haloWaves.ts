@@ -140,6 +140,27 @@ export function unmapPoint(m: Matrix2D, x: number, y: number): { x: number; y: n
   return { x: (m.d * dx - m.c * dy) / det, y: (-m.b * dx + m.a * dy) / det };
 }
 
+/** A matrix read in another matrix's frame: `frame⁻¹ · m`. With `frame` the scene's screen matrix and `m` a group's,
+ *  the result is the group's transform in scene units — the stage's scale and the deck's scroll, which both carry
+ *  alike, cancel out, and whatever moves the group's wrapper (the swim's x, y and tilt) stays in. */
+export function matrixWithin(frame: Matrix2D, m: Matrix2D): Matrix2D {
+  const det = frame.a * frame.d - frame.b * frame.c || 1;
+  const ia = frame.d / det;
+  const ib = -frame.b / det;
+  const ic = -frame.c / det;
+  const id = frame.a / det;
+  const ie = -(ia * frame.e + ic * frame.f);
+  const iff = -(ib * frame.e + id * frame.f);
+  return {
+    a: ia * m.a + ic * m.b,
+    b: ib * m.a + id * m.b,
+    c: ia * m.c + ic * m.d,
+    d: ib * m.c + id * m.d,
+    e: ia * m.e + ic * m.f + ie,
+    f: ib * m.e + id * m.f + iff,
+  };
+}
+
 /** Which half of a bar, either side of its middle, a piece of the trail is on. */
 export type TrailSide = 'right' | 'left';
 export const WAVE_TRAIL_SIDES: readonly TrailSide[] = ['right', 'left'];

@@ -19,6 +19,7 @@ import {
   WAVE_TOTAL_SECONDS,
   WAVE_TRAVEL,
   mapPoint,
+  matrixWithin,
   trailGradient,
   unmapPoint,
   waveState,
@@ -342,5 +343,36 @@ describe('mapPoint / unmapPoint — pinning the waves\' centre in the scene whil
     const scene = mapPoint(m, 40, 40);
     const moved = { ...m, e: 500 }; // the robot swam 200 scene units right
     expect(unmapPoint(moved, scene.x, scene.y)).toEqual({ x: -360, y: 40 });
+  });
+});
+
+describe('matrixWithin — a group\'s screen matrix read in the scene\'s own units', () => {
+  // The stage scales the scene to the screen (half size, scrolled 10 / 20 px); a robot's wrapper then moves it
+  // 100 scene units right and doubles it. The screen matrix of the group carries both; the frame takes the stage off.
+  const stage = { a: 0.5, b: 0, c: 0, d: 0.5, e: 10, f: 20 };
+  const inScene = { a: 2, b: 0, c: 0, d: 2, e: 100, f: 0 };
+  const onScreen = { a: 1, b: 0, c: 0, d: 1, e: 60, f: 20 }; // stage · inScene
+
+  it('takes the stage out of a screen matrix, leaving the group\'s place in the scene', () => {
+    const m = matrixWithin(stage, onScreen);
+    expect(m.a).toBeCloseTo(inScene.a, 10);
+    expect(m.d).toBeCloseTo(inScene.d, 10);
+    expect(m.e).toBeCloseTo(inScene.e, 10);
+    expect(m.f).toBeCloseTo(inScene.f, 10);
+    expect(m.b).toBeCloseTo(0, 10);
+    expect(m.c).toBeCloseTo(0, 10);
+  });
+
+  it('is unchanged by where the stage sits on the screen (a scrolled deck camera moves both matrices alike)', () => {
+    const scrolled = { ...stage, e: stage.e - 300 };
+    const onScreenScrolled = { ...onScreen, e: onScreen.e - 300 };
+    expect(matrixWithin(scrolled, onScreenScrolled)).toEqual(matrixWithin(stage, onScreen));
+  });
+
+  it('keeps a rotation (a swim tilts the wrapper)', () => {
+    const quarter = { a: 0, b: 1, c: -1, d: 0, e: 0, f: 0 };
+    const m = matrixWithin({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }, quarter);
+    expect(m).toEqual(quarter);
+    expect(mapPoint(m, 1, 0)).toEqual({ x: 0, y: 1 });
   });
 });

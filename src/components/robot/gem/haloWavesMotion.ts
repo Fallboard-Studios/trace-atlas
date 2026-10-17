@@ -23,6 +23,7 @@ import {
   WAVE_TOTAL_SECONDS,
   WAVE_TRAIL_SIDES,
   mapPoint,
+  matrixWithin,
   unmapPoint,
   waveState,
   wavePath,
@@ -55,9 +56,17 @@ const TRAIL_STRIPS_PER_WAVE = 3 * WAVE_TRAIL_SIDES.length;
 /** This group's transform to scene units, read off its current chain (the arc scales the robot from
  *  STATION_PORT_SCALE to 1 while the waves play, on top of the gem's and the row's own scale, and it swims
  *  away after), so the waves can be sized and pinned in scene units. null where the browser cannot say
- *  (jsdom has no getCTM). */
+ *  (jsdom has no getCTM).
+ *
+ *  In the world a robot is a mover (Phase 53): the gem draws in an svg of its own, inside a wrapper div that
+ *  GSAP moves, so `getCTM()` stops at that svg and leaves the wrapper's swim out; pinned that way the waves
+ *  would ride the robot. The scene's frame is then a static sheet's screen matrix, and the group's screen
+ *  matrix is read against it. An avatar or card has no scene and keeps `getCTM()`. */
 function sceneMatrixOf(el: SVGGraphicsElement): Matrix2D | null {
-  const ctm = typeof el.getCTM === 'function' ? el.getCTM() : null;
+  const sheet = el.closest('.ocean-scene')?.querySelector<SVGGraphicsElement>('svg.ocean-scene__sheet');
+  const frame = sheet && typeof sheet.getScreenCTM === 'function' ? sheet.getScreenCTM() : null;
+  const screen = frame && typeof el.getScreenCTM === 'function' ? el.getScreenCTM() : null;
+  const ctm = frame && screen ? matrixWithin(frame, screen) : typeof el.getCTM === 'function' ? el.getCTM() : null;
   return ctm && Math.hypot(ctm.a, ctm.b) > 0.001 ? ctm : null;
 }
 
