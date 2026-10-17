@@ -393,7 +393,7 @@ async function run(cdp) {
   const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
   const layers = await evaluate(`document.querySelectorAll(${JSON.stringify(SHEET_SELECTOR)}).length`);
   console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows${opts['stay-off'] ? ', powered off' : ''}${opts.steps ? `, after: ${opts.steps}` : ''}`);
-  console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)`);
+  console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} bubble circles,${layers} scene layers (0 = the pre-17.2.5 single svg)`);
   // Phase 43 J4: element count per scene layer, by name (a layer the build doesn't have reads "absent").
   const perLayer = await evaluate(`(() => Object.fromEntries(Object.entries(${JSON.stringify(SLOT_SELECTORS)}).map(([name, selector]) => {
     const nodes = document.querySelectorAll(selector);
