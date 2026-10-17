@@ -353,7 +353,9 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   visible] > g#world-robot-<id>.robot > g.robot__row > RobotBody`. The ref, `setRef`, the mount `gsap.set` and
   `onRobotMounted` move to the wrapper; `.robot` loses its transform. `OceanScene` renders both robot lists as stage
   children and deletes the `robots-back` and `robots` sheets. `dissolve()` places the copy wrapper at the body's live
-  `x`/`y`/`rotation` and mirrors them from the timeline's `onUpdate` (three `gsap.quickSetter`s). The clicks test's
+  `x`/`y`/`rotation` and mirrors them every frame (three `gsap.quickSetter`s; **as shipped, from a `gsap.ticker` listener
+  that lives as long as the copy, not the timeline's `onUpdate`**, which froze a back → front copy once the one-second
+  fade had completed: see the fix commit and spec assumption 13). The clicks test's
   "which row" cases read `data-scene-slot` on the mover.
 
   **Acceptance criteria:**

@@ -354,7 +354,8 @@ re-mounted (Phase 53). The scene stack is under "Scene layers" below.
   dissolve div (`data-scene-slot="dissolve"`, over the front robots, found via
   `getRef('robot-dissolve-layer')`) and marked `data-dissolve-copy`. The robot's x/y/rotation
   are its mover's, which a `<use>` of the group does not carry, so the copy's wrapper is placed at the
-  body's pose and mirrored from the fade's `onUpdate`. In both directions the **front
+  body's pose and mirrored every frame by a `gsap.ticker` listener that lives exactly as long as
+  the copy (not from the fade's `onUpdate`: a back → front copy outlives its fade). In both directions the **front
   copy fades and the back robot stays opaque**: 1 → 0 after a front → back switch, 0 → 1 before a
   back → front switch, whose slot write takes the opaque copy away in the same call. The fade is linear, keyed
   `` `dissolve-${robotId}` ``; a new dissolve ends the robot's earlier one first, and a fade's end

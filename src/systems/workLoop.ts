@@ -147,6 +147,9 @@ const SETTLE_EPSILON = 0.01;
 // ========================================
 let run: LoopRun | null = null;
 
+/** Each dissolve copy's per-frame follower, by robot id (startFollowing). Runtime only. */
+const followers = new Map<string, () => void>();
+
 // ========================================
 // HELPERS
 // ========================================
@@ -293,8 +296,9 @@ function easeRowWith(tl: gsap.core.Timeline, robot: Robot, scale: number): void 
 
 const dissolveLayer = () => getRef('robot-dissolve-layer');
 
-/** Take the robot's dissolve copy away (if any). */
+/** Take the robot's dissolve copy away (if any), and stop it following the robot. */
 function removeCopy(robotId: string): void {
+  stopFollowing(robotId);
   dissolveLayer()?.querySelectorAll(`.mover--dissolve[data-dissolve-copy="${robotId}"]`).forEach((copy) => copy.remove());
 }
 
@@ -323,11 +327,19 @@ function createCopy(robot: Robot): HTMLDivElement {
 }
 
 /**
- * Put `copy` where `body` is now and return the function that does it again (spec §1.5, assumption
- * 13). Both are canvas-sized movers turning about their centre, so equal x, y and rotation lay one
- * exactly over the other. Three quick setters, so a frame costs three writes and no tween.
+ * Put `copy` where `body` is now, and keep it there every frame for as long as the copy exists
+ * (spec §1.5, assumption 13). Both are canvas-sized movers turning
+ * about their centre, so equal x, y and rotation lay one exactly over the other. Three quick setters,
+ * so a frame costs three writes and no tween.
+ *
+ * The frame is a `gsap.ticker` listener, not a callback of the fade: the copy outlives its fade (a
+ * back → front copy stays opaque until the swim arrives, many seconds on), and a finished timeline
+ * updates nothing, which left the copy frozen while the robot swam on. A ticker listener also runs
+ * after every timeline has updated, so it never reads a body one frame stale. It is removed with the
+ * copy (removeCopy, the stop, the fade's own end) — one per robot, kept in `followers`.
  */
-function followBody(copy: HTMLElement, body: RefElement): () => void {
+function startFollowing(robotId: string, copy: HTMLElement, body: RefElement): void {
+  stopFollowing(robotId);
   place(copy, { transformOrigin: '50% 50%' });
   const setX = gsap.quickSetter(copy, 'x', 'px');
   const setY = gsap.quickSetter(copy, 'y', 'px');
@@ -338,7 +350,16 @@ function followBody(copy: HTMLElement, body: RefElement): () => void {
     setRotation(Number(gsap.getProperty(body, 'rotation')));
   };
   follow();
-  return follow;
+  followers.set(robotId, follow);
+  gsap.ticker.add(follow);
+}
+
+/** Stop the robot's copy following it. */
+function stopFollowing(robotId: string): void {
+  const follow = followers.get(robotId);
+  if (!follow) return;
+  gsap.ticker.remove(follow);
+  followers.delete(robotId);
 }
 
 /** A dissolve, ended: its fade killed and its copy gone. */
@@ -362,15 +383,16 @@ function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () =>
     return;
   }
   const copy = layer.appendChild(createCopy(robot));
+  startFollowing(robot.id, copy, body);
   const out = kind === 'out';
   const tl = gsap.timeline({
     paused: true,
-    // The copy rides the robot: GSAP updates animations in the order they were made, so a swim made
-    // before this fade has moved the body by the time this runs (legs make the swim first).
-    onUpdate: followBody(copy, body),
-    // Its own copy only — never a newer dissolve's for the same robot.
+    // Its own copy only — a newer dissolve for the robot killed this fade (endDissolve) before it could end.
     onComplete: live(loop, () => {
-      if (out) copy.remove();
+      if (out) {
+        stopFollowing(robot.id);
+        copy.remove();
+      }
       onDone();
     }),
   });
@@ -480,10 +502,8 @@ function intoBackRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: (
   moveToRow(loop, robot, 'background');
   const here = robotOf(loop, robot.id);
   if (!here) return;
-  // The swim first, then the fade: the copy mirrors the body from the fade's onUpdate, which must
-  // run after the swim has moved the body (GSAP updates in the order animations were made).
-  swimTo(loop, here, destination, BACK_LAYER_SCALE, onArrive);
   dissolve(loop, here, 'out', () => {});
+  swimTo(loop, here, destination, BACK_LAYER_SCALE, onArrive);
 }
 
 /** Back → front, at the switch point: swim on in the back row easing to 1 while the front copy
@@ -498,9 +518,8 @@ function intoFrontRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: 
     removeCopy(robot.id);
     onArrive();
   };
-  // The swim first, then the fade, as in intoBackRow: the copy follows the body the swim has moved.
-  swimTo(loop, robot, destination, 1, settled);
   dissolve(loop, robot, 'in', settled);
+  swimTo(loop, robot, destination, 1, settled);
 }
 
 function transit(loop: LoopRun, robot: Robot, site: WorkSite, job: Robot['job'], point?: Vec2): void {
@@ -759,6 +778,7 @@ export function stopWorkLoop(): void {
     if (key.startsWith('work-')) finishJobSilently(key.slice('work-'.length));
     else killTimeline(key);
   }
+  for (const robotId of [...followers.keys()]) stopFollowing(robotId);
   dissolveLayer()?.querySelectorAll('.mover--dissolve[data-dissolve-copy]').forEach((copy) => copy.remove());
 }
 

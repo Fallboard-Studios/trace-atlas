@@ -1584,11 +1584,37 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
 
     // Phase 53 Task 13 (spec §1.5, assumption 13): the robot's x/y/rotation are the wrapper's now, not
     // the group's, so a <use> of the group no longer carries them. The copy wrapper wears the body's
-    // transform instead — placed at creation, mirrored from the dissolve timeline's onUpdate — about
-    // the same origin (both wrappers are the canvas's size), so the two overlay exactly.
+    // transform instead — placed at creation, then mirrored every frame for as long as the copy exists —
+    // about the same origin (both wrappers are the canvas's size), so the two overlay exactly.
+    //
+    // The mirror is a gsap.ticker listener, not the fade timeline's onUpdate: the copy outlives the fade
+    // (back → front keeps it at full opacity until the swim arrives), and a timeline that has completed
+    // updates nothing — which froze the copy while the robot swam on (found live, 2026-10-17). A ticker
+    // listener also runs after every timeline has updated, so it never reads a body a frame stale.
     describe('the copy rides the robot (spec assumption 13)', () => {
       const rotation = (el: Element) => Number(gsap.getProperty(el, 'rotation'));
       const pose = (el: Element) => ({ ...xy(el), rotation: rotation(el) });
+
+      // jsdom has no frames. Capturing what is added to the ticker and running it by hand makes a frame.
+      let listeners: Set<() => void>;
+      let addSpy: MockInstance<typeof gsap.ticker.add>;
+      let removeSpy: MockInstance<typeof gsap.ticker.remove>;
+      beforeEach(() => {
+        listeners = new Set();
+        addSpy = vi.spyOn(gsap.ticker, 'add').mockImplementation((fn) => {
+          listeners.add(fn as () => void);
+          return fn;
+        });
+        removeSpy = vi.spyOn(gsap.ticker, 'remove').mockImplementation((fn) => {
+          listeners.delete(fn as () => void);
+          return gsap.ticker;
+        });
+      });
+      afterEach(() => {
+        addSpy.mockRestore();
+        removeSpy.mockRestore();
+      });
+      const frame = () => [...listeners].forEach((listener) => listener());
 
       it('front → back: the copy is placed at the body\'s x, y and rotation when it is created', () => {
         const { layer, first } = frontToBack();
@@ -1604,19 +1630,19 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
         setSpy.mockRestore();
       });
 
-      it('front → back: after the swim and the dissolve are both seeked to 0.5 the copy is where the body is, tilt included', () => {
+      it('front → back: after the swim moves on, a frame puts the copy where the body is, tilt included', () => {
         const { layer, first } = frontToBack();
         finish('swim-r1');
         const { el } = first;
         const [copy] = copies(layer);
         const start = pose(el);
-        getTimeline('swim-r1')!.progress(0.5); // the body swims first: GSAP updates animations in creation order
+        getTimeline('swim-r1')!.progress(0.5);
         expect(pose(el)).not.toEqual(start);
         expect(rotation(el)).not.toBe(0); // the swim's tilt: a mirror of x and y alone would miss it
-        getTimeline('dissolve-r1')!.progress(0.5);
+        frame();
         expect(pose(copy)).toEqual(pose(el));
         getTimeline('swim-r1')!.progress(0.9);
-        getTimeline('dissolve-r1')!.progress(0.9);
+        frame();
         expect(pose(copy)).toEqual(pose(el));
       });
 
@@ -1628,35 +1654,142 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
         const atSwitch = pose(el);
         expect(pose(copy)).toEqual(atSwitch);
         getTimeline('swim-r1')!.progress(0.5);
-        getTimeline('dissolve-r1')!.progress(0.5);
+        frame();
         expect(pose(el)).not.toEqual(atSwitch); // both moved off the switch point...
         expect(pose(copy)).toEqual(pose(el)); // ...together
       });
 
-      it('the copy follows a body that has been moved with no swim at all (a job\'s bob): the next dissolve update catches up', () => {
+      // The live bug: leaving a station and heading for a front site is a back → front leg. The copy
+      // fades in over one second and then stays, opaque, until the swim — several seconds more —
+      // arrives. After the fade ends nothing but the mirror moves it.
+      it('back → front: the copy keeps following after its fade has ended, until the swim arrives', () => {
+        const { layer, first } = backToFront();
+        const { el } = first;
+        finish('swim-r1'); // the switch point: the in-copy starts, the swim on to the park too
+        const [copy] = copies(layer);
+        finish('dissolve-r1'); // the fade is over (the swim is not): the copy stays, fully opaque
+        expect(opacity(copy)).toBeCloseTo(1, 6);
+        expect(copies(layer)).toHaveLength(1);
+        const frozenAt = pose(copy);
+        getTimeline('swim-r1')!.progress(0.4);
+        frame();
+        expect(pose(el)).not.toEqual(frozenAt); // the robot swam on...
+        expect(pose(copy)).toEqual(pose(el)); // ...and so did its copy
+        getTimeline('swim-r1')!.progress(0.8);
+        frame();
+        expect(pose(copy)).toEqual(pose(el));
+      });
+
+      it('the same after a station exit: out of the port, a front site is a back → front leg whose copy outlives its fade', () => {
+        const { layer, first } = (() => {
+          registerLocale([frontSite().actor], []);
+          const s = stations()[0];
+          setRobots([robot('r1', s.port, { stationId: s.id, activity: 'charging' })]);
+          const dissolveDiv = dissolveLayer();
+          startWorkLoop(LOCALE, { now, backHosts: false });
+          return { layer: dissolveDiv, first: mountRow('r1') };
+        })();
+        switchSpy.mockImplementation((from, to) => midway(from, to));
+        onRobotMounted(LOCALE, 'r1'); // Active: it exits into the back row
+        finish('station-r1'); // the arc ends: a front site, a back → front leg
+        finish('swim-r1'); // the switch point: the in-copy starts
+        const [copy] = copies(layer);
+        finish('dissolve-r1');
+        const frozenAt = pose(copy);
+        getTimeline('swim-r1')!.progress(0.5);
+        frame();
+        expect(pose(first.el)).not.toEqual(frozenAt); // the robot swam on after the fade ended...
+        expect(pose(copy)).toEqual(pose(first.el)); // ...and the copy with it
+      });
+
+      it('the copy follows a body that has been moved with no swim at all (a job\'s bob): the next frame catches up', () => {
         const { layer, first } = frontToBack();
         finish('swim-r1');
         const { el } = first;
         const [copy] = copies(layer);
         gsap.set(el, { y: xy(el).y - 7, immediateRender: true });
-        getTimeline('dissolve-r1')!.progress(0.3);
+        frame();
         expect(xy(copy).y).toBe(xy(el).y);
       });
 
-      // GSAP updates the global timeline's children in the order they were created, so the copy's
-      // mirror (the dissolve timeline's onUpdate) reads the body's position of the SAME frame only if
-      // the swim was created first. The other order shows the copy one frame behind the robot.
-      it.each([
-        ['front → back', () => { frontToBack(); finish('swim-r1'); }],
-        ['back → front', () => { backToFront(); finish('swim-r1'); }],
-      ])('%s: the swim timeline is created before the dissolve timeline, so each frame the copy mirrors a finished move', (_name, start) => {
-        start();
-        const order = gsap.globalTimeline.getChildren(false, false, true);
-        const swim = order.indexOf(getTimeline('swim-r1')!);
-        const fade = order.indexOf(getTimeline('dissolve-r1')!);
-        expect(swim).toBeGreaterThanOrEqual(0);
-        expect(fade).toBeGreaterThanOrEqual(0);
-        expect(swim).toBeLessThan(fade);
+      // One listener per live copy, and none left once the copy is gone, whichever way it goes: a
+      // listener that outlived its copy would keep reading a robot's pose forever.
+      describe('the follower lives exactly as long as its copy', () => {
+        it('there is one while a copy exists', () => {
+          frontToBack();
+          expect(listeners.size).toBe(0);
+          finish('swim-r1');
+          expect(listeners.size).toBe(1);
+        });
+
+        it('a new dissolve for the same robot replaces it: still one, never two', () => {
+          frontToBack();
+          finish('swim-r1');
+          finish('swim-r1'); // at the park, working; the out-fade running
+          land('r1', 'recalled', 'recalled');
+          finish('work-r1'); // home: a back → front leg
+          finish('swim-r1'); // its switch point: a new in-copy
+          expect(listeners.size).toBe(1);
+        });
+
+        it('it goes when an out-fade ends and takes its copy away', () => {
+          const { layer } = frontToBack();
+          finish('swim-r1');
+          expect(listeners.size).toBe(1);
+          finish('dissolve-r1');
+          expect(copies(layer)).toEqual([]);
+          expect(listeners.size).toBe(0);
+        });
+
+        it('it goes when a back → front swim arrives and the slot write removes the copy', () => {
+          const { layer } = backToFront();
+          finish('swim-r1');
+          finish('dissolve-r1');
+          expect(listeners.size).toBe(1); // the copy outlives its fade, and so does the follower
+          finish('swim-r1');
+          expect(copies(layer)).toEqual([]);
+          expect(listeners.size).toBe(0);
+        });
+
+        it('it goes on a recall that drops the leg', () => {
+          backToFront();
+          finish('swim-r1');
+          expect(listeners.size).toBe(1);
+          switchSpy.mockClear();
+          switchSpy.mockImplementation((from, to) => midway(from, to));
+          land('r1', 'recalled', 'recalled');
+          // The old copy and its follower went with the dropped leg; the new leg home has not made one yet.
+          expect(listeners.size).toBeLessThanOrEqual(1);
+          expect(removeSpy).toHaveBeenCalled();
+        });
+
+        it('it goes when the loop stops', () => {
+          frontToBack();
+          finish('swim-r1');
+          expect(listeners.size).toBe(1);
+          stopWorkLoop();
+          expect(listeners.size).toBe(0);
+        });
+
+        it('it goes when the app mounts the robot afresh mid-dissolve', () => {
+          const { first } = frontToBack();
+          finish('swim-r1');
+          expect(listeners.size).toBe(1);
+          first.mover.remove();
+          mountRow('r1');
+          onRobotMounted(LOCALE, 'r1');
+          expect(listeners.size).toBe(0);
+        });
+
+        it('a robot with no body, or no dissolve layer, adds none', () => {
+          const { actor, site } = backSite();
+          registerLocale([actor], [robot('r1', OPEN_WATER)]);
+          switchSpy.mockReturnValue(midway(get('r1').position, parkOf(site)));
+          startWorkLoop(LOCALE, { now, backHosts: true });
+          next('r1');
+          finish('swim-r1');
+          expect(listeners.size).toBe(0);
+        });
       });
     });
 

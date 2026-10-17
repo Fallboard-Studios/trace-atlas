@@ -94,9 +94,13 @@ Every file, function and constant named below was checked against the working tr
 12. **A hidden or scaled body is the whole mover.** `hideAtStation`'s `autoAlpha: 0`, the station arc's `scale` and
     `autoAlpha`, the job's bob on the body and `settle`'s position read all target what `getRef('robot-<id>')`
     returns, which is now the wrapper. A `visibility: hidden` wrapper paints nothing and takes no clicks.
-13. **The dissolve copy rides the robot through the dissolve timeline's `onUpdate`**, which mirrors the body's live
-    `x`, `y` and `rotation` onto the copy's wrapper (three `gsap.quickSetter`s). A GSAP callback writing a transform is
-    the job decorations' own pattern (`ctx.run`'s `write(t)`), and it never touches audio.
+13. **The dissolve copy rides the robot through a `gsap.ticker` listener** that lives exactly as long as the copy and
+    mirrors the body's live `x`, `y` and `rotation` onto the copy's wrapper (three `gsap.quickSetter`s). It never touches
+    audio, and it is the camera's and the marker's own pattern. *Amended 2026-10-17:* this assumption first named the
+    dissolve timeline's `onUpdate`, which froze the copy: a back → front copy stays opaque until the swim arrives,
+    seconds after the one-second fade (and so the timeline) has completed, and a finished timeline updates nothing.
+    The robot swam on and its copy stood still, found live on a station exit. A ticker listener also runs after every
+    timeline has updated, so it never reads a body one frame stale.
 14. **The marker's wrapper is sized to the square and its caption band**, origin-centred, with `overflow: visible` for
     a long "name | job"; the glow is clipped inside the square already.
 15. **No new tunable constants.** `WORLD_BOUNDS` (1920 × 1080) is the stage; the bubble strip and the marker box are
@@ -203,8 +207,8 @@ pixels). The dimming rule moves with it: `.world-view[data-dimmed] .ocean-scene_
   `HTMLDivElement`) a `div.mover.mover--dissolve[data-dissolve-copy=<id>]` holding
   `<svg width=W height=H viewBox overflow="visible"><use href="#world-robot-<id>"/></svg>`, placed at the body's
   current `x`/`y`/`rotation`. Its timeline, keyed `dissolve-<id>`, tweens the wrapper's `opacity` (`'out'` 1 → 0 then
-  removes it; `'in'` 0 → 1 and stays until the slot write) over `LAYER_DISSOLVE_SECONDS`, linear, and its `onUpdate`
-  mirrors the body's live `x`, `y` and `rotation` (assumption 13). The front copy fades and the back robot stays
+  removes it; `'in'` 0 → 1 and stays until the slot write) over `LAYER_DISSOLVE_SECONDS`, linear; a ticker listener
+  mirrors the body's live `x`, `y` and `rotation` for as long as the copy exists (assumption 13). The front copy fades and the back robot stays
   opaque, both directions, as the J4 gate chose. `removeCopy`, `endDissolve` and `stopWorkLoop`'s sweep select
   `.mover--dissolve[data-dissolve-copy]` instead of `use[data-dissolve-copy]`.
 - **Station exit.** `exitStation` writes `layer: 'background'` for a robot not already there and plays the arc on the
@@ -341,7 +345,7 @@ docs/
   `queueMicrotask` anywhere in this phase. The ResizeObserver callback is the one non-GSAP callback, and it writes
   CSS custom properties, never animates.
 - **Strict Separation holds.** No timeline callback added here reads audio state or calls `AudioEngine`; the dissolve's
-  `onUpdate` writes a transform and nothing else.
+  ticker listener writes a transform and nothing else.
 - **Visual Mapping holds.** The haze between rows stays the scene's (tints B and C in `mid`); no overlay is added to a
   robot. Day/night lightness and battery dimming remain the only two.
 - **No cabinetry or styling on wrappers.** A mover is an invisible box: no border, background, shadow or filter of its
