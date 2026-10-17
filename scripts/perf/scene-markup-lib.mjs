@@ -50,6 +50,35 @@ export const BUBBLE_CIRCLES = [
 ].join(', ');
 
 // ========================================
+// ROBOTS
+// ========================================
+// A robot is a mover in the stage since Phase 53 Task 13 (`div.mover.mover--robot`, its row in
+// `data-scene-slot`); before that, a `.robot` group inside `#robot-layer` (front) or, since Phase 43 J4,
+// `#robot-back-layer` (behind the midground). Each selector below reads both.
+
+/** What the `no-robots` ablation hides: the rows' groups on the old markup, the robots' movers on the new. */
+export const ROBOT_CONTAINERS = '#robot-layer, #robot-back-layer, .mover--robot';
+
+/** Every robot, counted by its `.robot` group (a dissolve copy is not one: it holds a `<use>`, no group). */
+export const ROBOT_GROUPS = '#robot-layer .robot, #robot-back-layer .robot, .mover--robot .robot';
+
+/**
+ * What the sticky detach removes. On the old markup the groups (the rows stay as the empty sheets
+ * they are); on the new the movers themselves, so no empty compositor layer is left behind to flatter
+ * the number.
+ */
+export const ROBOT_DETACH = '#robot-layer .robot, #robot-back-layer .robot, .mover--robot';
+
+/** The elements inside the front row's robots, for the stack line's element counts. */
+export const FRONT_ROBOT_ELEMENTS = '#robot-layer *, .mover--robot[data-scene-slot="robots"] *';
+
+/** The elements inside the back row's robots. */
+export const BACK_ROBOT_ELEMENTS = '#robot-back-layer *, .mover--robot[data-scene-slot="robots-back"] *';
+
+/** The back row's robots, counted by their `.robot` group. */
+export const BACK_ROBOT_GROUPS = '#robot-back-layer .robot, .mover--robot[data-scene-slot="robots-back"] .robot';
+
+// ========================================
 // CDP
 // ========================================
 

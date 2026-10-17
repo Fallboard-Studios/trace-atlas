@@ -425,15 +425,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 14. **Files:** `robotMotionRegistry.ts`, `robotMotionRegistry.test.ts`,
   `useOrbiterMotion.ts`, `useOrbiterMotion.test.tsx`, `src/docs/robotJobsJ4Docs.test.ts`. **Scope:** S.
 
-- [ ] **Task 16: Harness robot selectors**
+- [x] **Task 16: Harness robot selectors** (selectors live in `scene-markup-lib.mjs` and read both markups, so the Task 20 A/B against `main` still works; the run is recorded under "Perf gate results")
 
   **Description:** `idle-paint.mjs`: `ROBOT_GROUPS` = `.mover--robot .robot`, the `no-robots` ablation hides
   `.mover--robot`, `detach-bubbles+robots` removes `.mover--robot`, the "Robots stack" readout counts `.mover--robot`
   per slot.
 
   **Acceptance criteria:**
-  - [ ] `npm run perf:idle -- --only no-robots` on the branch reports 12 robots in the scene line and a `no-robots`
-        row whose `screens/frame` is below stock's.
+  - [x] `npm run perf:idle -- --only no-robots` on the branch reports 12 robots in the scene line and a `no-robots`
+        row whose `screens/frame` is below stock's. (Met as worded; both numbers are nonsense on movers: see "Task 16".)
 
   **Verification:** the run above.
 
@@ -671,3 +671,28 @@ Recorded in full in [PERFORMANCE.md](../PERFORMANCE.md) ("Pre-change baseline fo
 at 1× as Task 3, three foreground rounds, orphaned Chrome 0 before and after. The headline for Task 20 to beat:
 **`screens/frame` 4.63 (4.63–4.67)**; median busy 1694 ms (1674–1719), Paint 177 ms (161–185), Compositor::Update 139 ms
 (136–146), Layerize 141 ms (138–147), 360 frames; compositor layers 28 (24 drawing, ≈ 37.8 MB), `Mover layers: 0`.
+
+### Task 16 — the first run with robots as movers (2026-10-17, **not a gate**)
+
+One `npm run perf:idle -- --throttle 1 --only no-robots` window pair, branch tip after Task 15 built to a scratch `--outDir`
+(`index-BJdTJuZX.js`, :4181), same pinned link, 1280 × 900, 1×, foreground, orphaned Chrome 0 after. Recorded because it is
+the first time a mover exists and the Task 3 caveat above can be checked; Task 20 does the formal A/B.
+
+- **The harness reads the movers**: `Scene: 12 robots`, `Mover layers: 3` (the three visible robots, 145 × 114, 141 × 161 and
+  100 × 80 CSS px), `Robots stack` front row 891 elements, back row 93 (1 robot).
+- **The Task 3 caveat is real: `redrawnArea` is useless on movers.** A promoted mover's `Paint` clip is
+  `−8388608 … 8388607`, so the stock window reads **409 482 583 screens/frame** (the movers' average clip is
+  281 474 943 156 224 px²) and `no-robots` 75 128 210. `no-robots` is numerically "below stock", which is all this task's
+  acceptance asked, but neither figure means anything. Task 20 cannot gate on `screens/frame` as written: clamp each
+  `Paint` clip to its layer's own bounds (LayerTree, by node) or take the signal from raster work instead. Not decided here.
+- **What does read sensibly (single window, not comparable to the baseline's medians)**: stock main busy 1577 ms, Paint 93 ms,
+  Compositor::Update 176 ms, Layerize 177 ms, 361 frames. Against `main`'s baseline medians that is Paint ~half, busy slightly
+  lower, Compositor::Update and Layerize higher. The per-node table shows each robot mover painting ~200 times in 6 s
+  (16, 9 and 9 ms); the four static sheets paint 3–23 times; the document layer still paints 285 times (55 ms) at the
+  viewport size, which the `rocker-light` pulse (`StyleRecalc Animation`, 361) is the visible suspect for.
+- **Layer memory is not comparable yet**: 32 layers, ≈ 46.7 MB at the harness's pre-scale bounds (the memory note's finding 3:
+  the stage's scale is not applied), and `dissolve` (the empty div) shows as a 1920 × 1080 layer — promoted by overlap, drawing
+  nothing. Both belong in Task 20's attribution.
+- **Looks the same as `main`** (a throwaway CDP script, scratchpad, not committed): the same pinned world, powered on and
+  settled 9 s on each build, shows the same gems, halos and scenery, and the robots' on-screen boxes agree to a pixel
+  (robot 0 at 287, 355 vs 287, 356; robot 1 at 820, 491 vs 821, 491). Crawford's Checkpoint B look is still the sign-off.

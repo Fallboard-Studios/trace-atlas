@@ -25,7 +25,20 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { redrawnArea } from './paint-area-lib.mjs';
-import { BUBBLE_CIRCLES, SCENE_SLOT_NAMES, SHEET_SELECTOR, isMoverNode, sceneSlotSelector, slotNameOf } from './scene-markup-lib.mjs';
+import {
+  BACK_ROBOT_ELEMENTS,
+  BACK_ROBOT_GROUPS,
+  BUBBLE_CIRCLES,
+  FRONT_ROBOT_ELEMENTS,
+  ROBOT_CONTAINERS,
+  ROBOT_DETACH,
+  ROBOT_GROUPS,
+  SCENE_SLOT_NAMES,
+  SHEET_SELECTOR,
+  isMoverNode,
+  sceneSlotSelector,
+  slotNameOf,
+} from './scene-markup-lib.mjs';
 
 const { values: opts } = parseArgs({
   options: {
@@ -49,9 +62,8 @@ const WINDOW_MS = Number(opts.window);
 /** The bubble circles — scene-markup-lib.mjs reads both the stage markup and the layers before it, so one name ablates a branch build and a `main` build. */
 const BUBBLES = BUBBLE_CIRCLES;
 
-/** Both robot rows: the front one (`#robot-layer`) and, since Phase 43 J4, the back one behind the midground. */
-const ROBOTS = '#robot-layer, #robot-back-layer';
-const ROBOT_GROUPS = '#robot-layer .robot, #robot-back-layer .robot';
+/** Both robot rows, on either markup (scene-markup-lib.mjs): the rows' groups before Phase 53, the robots' movers since. */
+const ROBOTS = ROBOT_CONTAINERS;
 
 /** The full-screen depth overlays: J4's four tints, and the two gradient rects they replaced, so one name ablates both builds. */
 const TINTS = 'rect[data-depth-tint], #gradient-back-mid, #gradient-mid-front';
@@ -83,7 +95,7 @@ const ABLATIONS = [
   // Irreversible (sticky) steps, last: moving nodes are REMOVED from the DOM, not hidden — GSAP keeps writing transforms
   // to a display:none element and Blink still invalidates style/layout for it, so display:none is not "nothing moves".
   { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())` },
-  { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)}).forEach((e) => e.remove())` },
+  { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll(${JSON.stringify(ROBOT_DETACH)}).forEach((e) => e.remove())` },
   // How much of a robot's per-frame cost is the body moving vs. the propeller spinning (docs/PERFORMANCE.md, 17.2.5:
   // the propellers turned out to be a small share, and HTML-positioned robots were measured neutral and reverted).
   { name: 'detach-propellers', sticky: true, js: `document.querySelectorAll('.propeller').forEach((e) => e.remove())` },
@@ -377,16 +389,17 @@ async function run(cdp) {
     return [name, nodes.length ? [...nodes].reduce((n, el) => n + el.querySelectorAll('*').length, 0) : 'absent'];
   })))()`);
   console.log(`Scene layers (elements): ${SCENE_SLOT_NAMES.map((name) => `${name} ${perLayer[name]}`).join(', ')}`);
-  // Phase 43 J2 gate: element counts in the robots layer's stack (stations included). Before J2 only #robot-layer exists;
-  // before J4 there is no #robot-back-layer (reads 0). Since Phase 53 Task 11 the three station groups are static: L4 closes the back sheet, L3 is the stations sheet, the front fragment opens the front sheet.
+  // Phase 43 J2 gate: element counts in the robots' stack (stations included). The robot rows are read through scene-markup-lib.mjs:
+  // before J4 only the front row exists (the back row reads 0), and since Phase 53 Task 13 a row is its robots' movers, not a group.
+  // Since Task 11 the three station groups are static: L4 closes the back sheet, L3 is the stations sheet, the front fragment opens the front sheet.
   const stack = await evaluate(`(() => {
     const n = (s) => document.querySelectorAll(s).length;
     const shown = [...document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)})].filter((e) => getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none').length;
     return { stations: new Set([...document.querySelectorAll('[data-station-id]')].map((e) => e.dataset.stationId)).size,
-      l4: n('#station-l4-layer *'), l3: n('#station-l3-layer *'), robotLayer: n('#robot-layer *'), backRow: n('#robot-back-layer *'),
-      backRobots: n('#robot-back-layer .robot'), front: n('#station-front-layer *'), shown };
+      l4: n('#station-l4-layer *'), l3: n('#station-l3-layer *'), frontRow: n(${JSON.stringify(FRONT_ROBOT_ELEMENTS)}), backRow: n(${JSON.stringify(BACK_ROBOT_ELEMENTS)}),
+      backRobots: n(${JSON.stringify(BACK_ROBOT_GROUPS)}), front: n('#station-front-layer *'), shown };
   })()`);
-  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; back row #robot-back-layer ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
+  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, front row ${stack.frontRow}, front ${stack.front}; back row ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
   await printCompositorLayers(cdp, view.dpr);
   console.log('');
 

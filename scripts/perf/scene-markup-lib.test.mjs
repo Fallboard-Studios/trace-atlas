@@ -11,7 +11,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { SCENE_SLOTS } from '../../src/components/panels/screen/worldView/sceneStack';
 import {
+  BACK_ROBOT_ELEMENTS,
+  BACK_ROBOT_GROUPS,
   BUBBLE_CIRCLES,
+  FRONT_ROBOT_ELEMENTS,
+  ROBOT_CONTAINERS,
+  ROBOT_DETACH,
+  ROBOT_GROUPS,
   SCENE_SLOT_NAMES,
   SHEET_SELECTOR,
   isMoverNode,
@@ -27,10 +33,10 @@ import {
 const OLD_SCENE = `
   <div class="ocean-scene">
     <svg class="ocean-scene__layer" data-scene-layer="back"><g id="factory-background-layer"><circle id="old-bg-circle" /></g></svg>
-    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="robots-back"><g id="robot-back-layer"><circle id="old-back-robot-circle" /></g></svg>
+    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="robots-back"><g id="robot-back-layer"><g class="robot" id="old-back-robot"><circle id="old-back-robot-circle" /></g></g></svg>
     <svg class="ocean-scene__layer" data-scene-layer="mid"><g id="factory-midground-layer"><circle id="old-mid-circle" /></g><circle id="old-mid-stray" /></svg>
     <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="bubbles"><circle id="old-bubble-1" /><circle id="old-bubble-2" /></svg>
-    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="robots"><g id="robot-layer"><circle id="old-robot-circle" /></g></svg>
+    <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="robots"><g id="robot-layer"><g class="robot" id="old-robot"><circle id="old-robot-circle" /></g></g></svg>
     <svg class="ocean-scene__layer" data-scene-layer="front"><g id="factory-foreground-layer"><circle id="old-fg-circle" /></g></svg>
     <svg class="ocean-scene__layer ocean-scene__layer--moving" data-scene-layer="marker"></svg>
   </div>`;
@@ -40,21 +46,25 @@ const NEW_SCENE = `
   <div class="ocean-scene">
     <div class="ocean-scene__stage">
       <svg class="ocean-scene__sheet" data-scene-slot="back"><g id="factory-background-layer"><circle id="new-bg-circle" /></g></svg>
-      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="robots-back"><g id="robot-back-layer"><circle id="new-back-robot-circle" /></g></svg>
+      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="robots-back"><g id="robot-back-layer"><g class="robot" id="new-back-robot"><circle id="new-back-robot-circle" /></g></g></svg>
       <svg class="ocean-scene__sheet" data-scene-slot="mid"><g id="factory-midground-layer"><circle id="new-mid-circle" /></g><circle id="new-mid-stray" /></svg>
       <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="bubbles"><circle id="new-bubble-1" /><circle id="new-bubble-2" /></svg>
-      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="robots"><g id="robot-layer"><circle id="new-robot-circle" /></g></svg>
+      <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="robots"><g id="robot-layer"><g class="robot" id="new-robot"><circle id="new-robot-circle" /></g></g></svg>
       <svg class="ocean-scene__sheet" data-scene-slot="front"><g id="factory-foreground-layer"><circle id="new-fg-circle" /></g></svg>
       <svg class="ocean-scene__sheet ocean-scene__sheet--moving" data-scene-slot="marker"></svg>
     </div>
   </div>`;
 
-/** A later build: movers, which wear the same attribute as the sheets but are not sheets. */
+/** A later build: movers, which wear the same attribute as the sheets but are not sheets. Robots are
+ *  movers in the stage (Phase 53 Task 13), a front and a back one, plus a dissolve copy that is a mover
+ *  too but no robot. */
 const MOVER_SCENE = `
   <div class="ocean-scene"><div class="ocean-scene__stage">
     <svg class="ocean-scene__sheet" data-scene-slot="back"></svg>
-    <div class="mover mover--robot" data-scene-slot="robots"><svg><circle id="mover-circle" /></svg></div>
+    <div class="mover mover--robot" data-scene-slot="robots-back" id="mover-back-robot"><svg><g class="robot" id="mover-back-group"><circle id="mover-back-circle" /></g></svg></div>
+    <div class="mover mover--robot" data-scene-slot="robots" id="mover-front-robot"><svg><g class="robot" id="mover-front-group"><circle id="mover-circle" /></g></svg></div>
     <div class="mover mover--bubbles" data-scene-slot="bubbles"><svg><circle id="mover-bubble" /></svg></div>
+    <div class="ocean-scene__dissolve" data-scene-slot="dissolve"><div class="mover mover--dissolve" data-dissolve-copy="r1"><svg><use /></svg></div></div>
   </div></div>`;
 
 const ids = (nodes) => Array.from(nodes).map((n) => n.id);
@@ -103,6 +113,7 @@ describe('sceneSlotSelector', () => {
   it('finds every mover of a slot, which share their slot name with the sheets', () => {
     document.body.innerHTML = MOVER_SCENE;
     expect(document.querySelectorAll(sceneSlotSelector('robots'))).toHaveLength(1);
+    expect(document.querySelectorAll(sceneSlotSelector('robots-back'))).toHaveLength(1);
     expect(document.querySelectorAll(sceneSlotSelector('back'))).toHaveLength(1);
   });
 });
@@ -116,7 +127,7 @@ describe('SHEET_SELECTOR', () => {
     expect(document.querySelectorAll(SHEET_SELECTOR)).toHaveLength(7);
   });
 
-  it('is not the stage, and not a mover', () => {
+  it('is not the stage, not the dissolve div and not a mover', () => {
     document.body.innerHTML = MOVER_SCENE;
     const matched = Array.from(document.querySelectorAll(SHEET_SELECTOR));
     expect(matched).toHaveLength(1);
@@ -140,6 +151,82 @@ describe('BUBBLE_CIRCLES', () => {
     document.body.innerHTML = NEW_SCENE;
     const found = ids(document.querySelectorAll(BUBBLE_CIRCLES));
     for (const id of ['new-robot-circle', 'new-back-robot-circle', 'new-mid-stray']) expect(found).not.toContain(id);
+  });
+});
+
+// Phase 53 Task 16: a robot is a mover in the stage, not a group inside a robots sheet; the harness
+// reads both so a `main` build still ablates and counts its robots in the same session.
+describe('the robot selectors', () => {
+  const SCENES = [
+    ['the old markup', OLD_SCENE, ['old-back-robot', 'old-robot']],
+    ['the sheets markup', NEW_SCENE, ['new-back-robot', 'new-robot']],
+    ['the movers markup', MOVER_SCENE, ['mover-back-group', 'mover-front-group']],
+  ];
+
+  describe('ROBOT_GROUPS (every robot, counted by its .robot group)', () => {
+    it.each(SCENES)('finds both robots in %s', (_label, html, groupIds) => {
+      document.body.innerHTML = html;
+      expect(ids(document.querySelectorAll(ROBOT_GROUPS)).sort()).toEqual([...groupIds].sort());
+    });
+
+    it('does not count a dissolve copy or a bubble stream', () => {
+      document.body.innerHTML = MOVER_SCENE;
+      expect(document.querySelectorAll(ROBOT_GROUPS)).toHaveLength(2);
+    });
+  });
+
+  describe('ROBOT_CONTAINERS (what the no-robots ablation hides)', () => {
+    it.each([
+      ['the old markup', OLD_SCENE, ['robot-back-layer', 'robot-layer']],
+      ['the sheets markup', NEW_SCENE, ['robot-back-layer', 'robot-layer']],
+      ['the movers markup', MOVER_SCENE, ['mover-back-robot', 'mover-front-robot']],
+    ])('finds the robots\' containers in %s', (_label, html, wanted) => {
+      document.body.innerHTML = html;
+      expect(ids(document.querySelectorAll(ROBOT_CONTAINERS)).sort()).toEqual([...wanted].sort());
+    });
+
+    it('takes no other mover: neither the bubble streams nor the dissolve copies', () => {
+      document.body.innerHTML = MOVER_SCENE;
+      for (const el of document.querySelectorAll(ROBOT_CONTAINERS)) expect(el.classList.contains('mover--robot')).toBe(true);
+    });
+  });
+
+  describe('ROBOT_DETACH (what the sticky detach removes)', () => {
+    it('removes the movers themselves, so no robot layer is left behind', () => {
+      document.body.innerHTML = MOVER_SCENE;
+      document.querySelectorAll(ROBOT_DETACH).forEach((e) => e.remove());
+      expect(document.querySelectorAll('.mover--robot')).toHaveLength(0);
+      expect(document.querySelectorAll('.mover--bubbles, .mover--dissolve')).toHaveLength(2);
+    });
+
+    it.each([
+      ['the old markup', OLD_SCENE],
+      ['the sheets markup', NEW_SCENE],
+    ])('removes the .robot groups and leaves the rows\' own groups in %s', (_label, html) => {
+      document.body.innerHTML = html;
+      document.querySelectorAll(ROBOT_DETACH).forEach((e) => e.remove());
+      expect(document.querySelectorAll('.robot')).toHaveLength(0);
+      expect(document.querySelectorAll('#robot-layer, #robot-back-layer')).toHaveLength(2);
+    });
+  });
+
+  describe('the rows\' element counts', () => {
+    it.each([
+      ['the old markup', OLD_SCENE, 'old'],
+      ['the sheets markup', NEW_SCENE, 'new'],
+    ])('count each row\'s own elements in %s', (_label, html, prefix) => {
+      document.body.innerHTML = html;
+      expect(ids(document.querySelectorAll(FRONT_ROBOT_ELEMENTS))).toEqual([`${prefix}-robot`, `${prefix}-robot-circle`]);
+      expect(ids(document.querySelectorAll(BACK_ROBOT_ELEMENTS))).toEqual([`${prefix}-back-robot`, `${prefix}-back-robot-circle`]);
+      expect(ids(document.querySelectorAll(BACK_ROBOT_GROUPS))).toEqual([`${prefix}-back-robot`]);
+    });
+
+    it('count the movers\' contents by the slot their mover wears', () => {
+      document.body.innerHTML = MOVER_SCENE;
+      expect(ids(document.querySelectorAll(FRONT_ROBOT_ELEMENTS)).filter(Boolean)).toEqual(['mover-front-group', 'mover-circle']);
+      expect(ids(document.querySelectorAll(BACK_ROBOT_ELEMENTS)).filter(Boolean)).toEqual(['mover-back-group', 'mover-back-circle']);
+      expect(ids(document.querySelectorAll(BACK_ROBOT_GROUPS))).toEqual(['mover-back-group']);
+    });
   });
 });
 
@@ -218,6 +305,22 @@ describe('idle-paint.mjs uses them', () => {
   });
 
   // Importing a helper is not using it: each is pinned where it does its work.
+  it('uses the robot selectors where they count: the ablations, the detach, the scene line and the stack line', () => {
+    expect(source).toContain('const ROBOTS = ROBOT_CONTAINERS;');
+    expect(source).toContain("{ name: 'no-robots', css: `${ROBOTS} { display: none !important; }` }");
+    expect(source).toContain('document.querySelectorAll(${JSON.stringify(ROBOT_DETACH)}).forEach((e) => e.remove())');
+    expect(source).toContain('const robots = await evaluate(`document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)}).length`);');
+    expect(source).toContain('JSON.stringify(FRONT_ROBOT_ELEMENTS)');
+    expect(source).toContain('JSON.stringify(BACK_ROBOT_ELEMENTS)');
+    expect(source).toContain('JSON.stringify(BACK_ROBOT_GROUPS)');
+  });
+
+  it('keeps no robot-row id of its own: the lib reads both markups', () => {
+    expect(source).not.toContain('#robot-layer');
+    expect(source).not.toContain('#robot-back-layer');
+    expect(source).not.toContain('mover--robot');
+  });
+
   it('uses each helper where it counts', () => {
     expect(source).toContain('const BUBBLES = BUBBLE_CIRCLES;');
     expect(source).toContain('SCENE_SLOT_NAMES.map((name) => [name, sceneSlotSelector(name)])');
