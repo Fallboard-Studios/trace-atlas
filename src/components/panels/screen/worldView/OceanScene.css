@@ -53,6 +53,15 @@
   will-change: transform;
 }
 
+/* The dissolve slot (spec §1.2, §1.5): an empty positioned box the work loop puts a layer switch's
+   copy movers in. A place in the stack, not a layer of its own — nothing is drawn on it, so it is
+   never promoted; each copy inside is the compositor layer. */
+.ocean-scene__dissolve {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* A mover: the small, positioned wrapper one moving thing draws in (spec §1.3). GSAP writes its
    transform in scene units; the stage's scale turns them into pixels. An invisible box, with no
    border, background or shadow of its own, on a compositor layer of its own. */

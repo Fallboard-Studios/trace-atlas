@@ -20,7 +20,7 @@
 //
 // Layer-aware legs (Task 34, spec §1.10): a leg that ends in the other robot row splits at its
 // switch point — two swims, each from rest. In both directions the back-row robot stays opaque and
-// a front-row copy (an SVG `<use>` in OceanScene's #robot-dissolve-layer) is what fades, over
+// a front-row copy (a mover holding an SVG `<use>`, in OceanScene's dissolve div) is what fades, over
 // LAYER_DISSOLVE_SECONDS from the switch point, so the haze between the rows blends in. Front →
 // back: at the switch point the robot is marked layerSwitching and written to the back row; React
 // re-mounts it there, onRobotMounted continues the leg, and the copy fades 1 → 0 over it. Back →
@@ -295,7 +295,30 @@ const dissolveLayer = () => getRef('robot-dissolve-layer');
 
 /** Take the robot's dissolve copy away (if any). */
 function removeCopy(robotId: string): void {
-  dissolveLayer()?.querySelectorAll(`use[data-dissolve-copy="${robotId}"]`).forEach((use) => use.remove());
+  dissolveLayer()?.querySelectorAll(`.mover--dissolve[data-dissolve-copy="${robotId}"]`).forEach((copy) => copy.remove());
+}
+
+/**
+ * A dissolve copy (spec §1.5): a mover (OceanScene.css) holding an svg the size of the robot's gem
+ * canvas, whose `<use>` draws the robot's group. `.robot` still carries the swim's x/y, which a
+ * `<use>` draws with its target, so the wrapper stays at the origin and gets no transform of its
+ * own; `overflow: visible` lets the halo and orbiters outside the canvas show, as they do on the robot.
+ */
+function createCopy(robot: Robot): HTMLDivElement {
+  const gem = getRobotGem(robot.gemSeed);
+  const width = gemWidth(gem);
+  const copy = document.createElement('div');
+  copy.className = 'mover mover--dissolve';
+  copy.setAttribute('data-dissolve-copy', robot.id);
+  const svg = copy.appendChild(document.createElementNS(SVG_NS, 'svg'));
+  svg.setAttribute('class', 'mover__svg');
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(GEM_CANVAS_H));
+  svg.setAttribute('viewBox', `0 0 ${width} ${GEM_CANVAS_H}`);
+  svg.setAttribute('overflow', 'visible');
+  const use = svg.appendChild(document.createElementNS(SVG_NS, 'use'));
+  use.setAttribute('href', `#world-robot-${robot.id}`);
+  return copy;
 }
 
 /** A dissolve, ended: its fade killed and its copy gone. */
@@ -305,10 +328,10 @@ function endDissolve(robotId: string): void {
 }
 
 /**
- * The layer switch's dissolve, keyed `dissolve-${robotId}`: a front-row `<use>` of the robot's
- * group fades `'out'` (1 → 0, then goes — front → back) or `'in'` (0 → 1, and stays until the
- * front re-mount takes over — back → front) over LAYER_DISSOLVE_SECONDS. With no body or no copy
- * layer there is nothing to see: `onDone` at once.
+ * The layer switch's dissolve, keyed `dissolve-${robotId}`: a front-row copy (a mover, see
+ * createCopy) of the robot's group fades `'out'` (1 → 0, then goes — front → back) or `'in'`
+ * (0 → 1, and stays until the front re-mount takes over — back → front) over
+ * LAYER_DISSOLVE_SECONDS. With no body or no copy layer there is nothing to see: `onDone` at once.
  */
 function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () => void): void {
   const layer = dissolveLayer();
@@ -317,20 +340,17 @@ function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () =>
     onDone();
     return;
   }
-  const use = document.createElementNS(SVG_NS, 'use');
-  use.setAttribute('href', `#world-robot-${robot.id}`);
-  use.setAttribute('data-dissolve-copy', robot.id);
-  layer.appendChild(use);
+  const copy = layer.appendChild(createCopy(robot));
   const out = kind === 'out';
   const tl = gsap.timeline({
     paused: true,
     // Its own copy only — never a newer dissolve's for the same robot.
     onComplete: live(loop, () => {
-      if (out) use.remove();
+      if (out) copy.remove();
       onDone();
     }),
   });
-  tl.fromTo(use, { opacity: out ? 1 : 0 }, { opacity: out ? 0 : 1, duration: LAYER_DISSOLVE_SECONDS, ease: 'none' }, 0);
+  tl.fromTo(copy, { opacity: out ? 1 : 0 }, { opacity: out ? 0 : 1, duration: LAYER_DISSOLVE_SECONDS, ease: 'none' }, 0);
   setTimeline(`dissolve-${robot.id}`, tl);
   tl.play();
 }
@@ -732,7 +752,7 @@ export function stopWorkLoop(): void {
     if (key.startsWith('work-')) finishJobSilently(key.slice('work-'.length));
     else killTimeline(key);
   }
-  dissolveLayer()?.querySelectorAll('use[data-dissolve-copy]').forEach((use) => use.remove());
+  dissolveLayer()?.querySelectorAll('.mover--dissolve[data-dissolve-copy]').forEach((copy) => copy.remove());
   for (const robotId of loop.remounts.keys()) clearLayerSwitching(robotId);
   loop.remounts.clear();
 }

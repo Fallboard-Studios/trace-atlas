@@ -322,7 +322,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 3: The robots
 
-- [ ] **Task 12: The dissolve copy becomes a mover (drawn at the origin)**
+- [x] **Task 12: The dissolve copy becomes a mover (drawn at the origin)** (automated criteria done; the live crossfade look is Checkpoint B's)
 
   **Description:** `OceanScene` replaces the `#robot-dissolve-layer` `<g>` with `div.ocean-scene__dissolve
   [data-scene-slot="dissolve"]`, a stage child registered under the same ref key. `workLoop.ts`'s `dissolve()` appends
@@ -332,11 +332,11 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   select `.mover--dissolve[data-dissolve-copy]`.
 
   **Acceptance criteria:**
-  - [ ] `workLoop.test.ts`'s dissolve cases pass against the new nodes: the copy is a `.mover--dissolve` in the dissolve
+  - [x] `workLoop.test.ts`'s dissolve cases pass against the new nodes: the copy is a `.mover--dissolve` in the dissolve
         div, its `use` points at `#world-robot-<id>`, the wrapper's opacity fades 1 → 0 (`'out'`) / 0 → 1 (`'in'`) over
         `LAYER_DISSOLVE_SECONDS`, the robot stays opaque, the copy goes at the right moment; `stopWorkLoop` removes every
         copy; a recall mid-fade drops it.
-  - [ ] The copy wrapper has no `x`/`y` write in this task (a test asserts the wrapper's transform is unset).
+  - [x] The copy wrapper has no `x`/`y` write in this task (a test asserts the wrapper's transform is unset).
   - [ ] Live: a row switch each way shows the one-second crossfade exactly as before.
 
   **Verification:**

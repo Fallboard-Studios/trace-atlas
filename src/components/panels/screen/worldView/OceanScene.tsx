@@ -71,8 +71,8 @@ function Sheet({ slot, width, height, moving = false, children }: SheetProps) {
   );
 }
 
-/** Registers the dissolve copies' group for the work loop (getRef('robot-dissolve-layer')). */
-function registerDissolveLayer(el: SVGGElement | null): void {
+/** Registers the dissolve copies' div for the work loop (getRef('robot-dissolve-layer')). */
+function registerDissolveLayer(el: HTMLDivElement | null): void {
   if (el) setRef('robot-dissolve-layer', el);
   else deleteRef('robot-dissolve-layer');
 }
@@ -391,11 +391,14 @@ export function OceanScene({
               <Robot key={id} robotId={id} />
             ))}
           </g>
-          {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10): the work loop appends an SVG
-              `<use>` of a switching robot here — the front row's look of it, fading over the back
-              row's. Empty in JSX, so React never touches what the loop puts in it. */}
-          <g id="robot-dissolve-layer" ref={registerDissolveLayer} />
         </Sheet>
+
+        {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10; Phase 53 Task 12, spec §1.5): the
+            work loop appends a mover holding an SVG `<use>` of a switching robot here — the front
+            row's look of it, fading over the back row's. A div of its own in the `dissolve` slot,
+            over the front robots and under the front sheet, and empty in JSX, so React never
+            touches what the loop puts in it. */}
+        <div className="ocean-scene__dissolve" data-scene-slot="dissolve" ref={registerDissolveLayer} />
 
         {/* Static front layer: each station's front fragment (L2 + halo + L1), then tint D, then the
             foreground-row factories (closest to the viewer). */}

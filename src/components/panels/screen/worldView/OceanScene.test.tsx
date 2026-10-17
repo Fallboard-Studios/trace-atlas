@@ -313,14 +313,14 @@ describe('OceanScene', () => {
 
     // Phase 53 Task 11 (spec §1.2, §1.8): the stations' L3 plates get a static sheet of their own
     // between the bubbles and the front robots, so there are eight.
-    it('renders eight sheets as the stage\'s children in back → robots-back → mid → bubbles → stations → robots → front → marker order', () => {
+    it('renders eight sheets, and the dissolve div between robots and front, as the stage\'s children in back → robots-back → mid → bubbles → stations → robots → dissolve → front → marker order', () => {
       const { container } = render(<OceanScene />);
       const stage = container.querySelector('.ocean-scene__stage')!;
-      expect(stage.children).toHaveLength(8);
+      expect(stage.children).toHaveLength(9);
       const sheets = Array.from(stage.querySelectorAll(':scope > svg.ocean-scene__sheet'));
       expect(sheets).toHaveLength(8);
-      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
-        ['back', 'robots-back', 'mid', 'bubbles', 'stations', 'robots', 'front', 'marker'],
+      expect(Array.from(stage.children).map((l) => l.getAttribute('data-scene-slot'))).toEqual(
+        ['back', 'robots-back', 'mid', 'bubbles', 'stations', 'robots', 'dissolve', 'front', 'marker'],
       );
     });
 
@@ -807,14 +807,14 @@ describe('OceanScene', () => {
       expect(Array.from(sheet.children).map((c) => c.id)).toEqual(['station-l3-layer']);
     });
 
-    // The two robot sheets hold robots and nothing else now (the dissolve copies' group stays in the
-    // front one until the copy becomes a mover, Task 12).
-    it('leaves the robot sheets holding only the robot rows (and the dissolve group)', () => {
+    // The two robot sheets hold robots and nothing else now: the dissolve copies have a div of their
+    // own (Phase 53 Task 12).
+    it('leaves the robot sheets holding only the robot rows', () => {
       const { container } = render(<OceanScene />);
       const childIds = (name: string) =>
         Array.from(container.querySelector(`svg[data-scene-slot="${name}"]`)!.children).map((c) => c.id);
       expect(childIds('robots-back')).toEqual(['robot-back-layer']);
-      expect(childIds('robots')).toEqual(['robot-layer', 'robot-dissolve-layer']);
+      expect(childIds('robots')).toEqual(['robot-layer']);
     });
 
     // Spec §1.8: "The z-order is today's exactly: L4 · back robots · midground · bubbles · L3 · front
@@ -823,7 +823,7 @@ describe('OceanScene', () => {
     // its document order inside the sheet second.
     describe('the stack, back to front', () => {
       const slotRank = (el: Element) =>
-        SCENE_SLOTS.indexOf(el.closest('svg.ocean-scene__sheet')!.getAttribute('data-scene-slot') as SceneSlot);
+        SCENE_SLOTS.indexOf(el.closest('[data-scene-slot]')!.getAttribute('data-scene-slot') as SceneSlot);
       const under = (a: Element, b: Element) =>
         slotRank(a) < slotRank(b) ||
         (slotRank(a) === slotRank(b) && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
@@ -842,7 +842,7 @@ describe('OceanScene', () => {
           ['bubbles', q('svg[data-scene-slot="bubbles"]')],
           ['L3', q('#station-l3-layer')],
           ['front robots', q('#robot-layer')],
-          ['copies', q('#robot-dissolve-layer')],
+          ['copies', q('[data-scene-slot="dissolve"]')],
           ['front fragment', q('#station-front-layer')],
           ['tint D', q('rect[data-depth-tint="D"]')],
           ['foreground', q('#factory-foreground-layer')],
@@ -866,17 +866,27 @@ describe('OceanScene', () => {
       expect(follows(robotEl, container.querySelector('#station-l3-layer')!)).toBe(true);
     });
 
-    // Phase 43 Task 34 (spec §1.10): the layer-switch dissolve's `<use>` copies go here — in the
-    // front robot row, over the front robots and under the station's front fragment. The work loop
-    // fills it imperatively, so React renders it empty and registers it for getRef.
-    it('renders an empty #robot-dissolve-layer after the robots and registers it as robot-dissolve-layer', () => {
+    // Phase 43 Task 34 (spec §1.10), reshaped by Phase 53 Task 12 (spec §1.2, §1.5): the layer-switch
+    // dissolve's copies go in a div of their own in the `dissolve` slot — over the front robots and
+    // under the station's front fragment. The work loop fills it imperatively, so React renders it
+    // empty and registers it for getRef.
+    it('renders an empty dissolve div between the robots and the front sheet and registers it as robot-dissolve-layer', () => {
       const { container, unmount } = render(<OceanScene />);
-      const layer = container.querySelector('svg[data-scene-slot="robots"] > #robot-dissolve-layer');
+      const stage = container.querySelector('.ocean-scene__stage')!;
+      const layer = stage.querySelector(':scope > div.ocean-scene__dissolve[data-scene-slot="dissolve"]');
       expect(layer).not.toBeNull();
       expect(layer!.children).toHaveLength(0);
+      expect(layer!.previousElementSibling).toBe(stage.querySelector('svg[data-scene-slot="robots"]'));
+      expect(layer!.nextElementSibling).toBe(stage.querySelector('svg[data-scene-slot="front"]'));
       expect(getRef('robot-dissolve-layer')).toBe(layer);
       unmount();
       expect(getRef('robot-dissolve-layer')).toBeUndefined();
+    });
+
+    it('draws no dissolve group inside any sheet any more', () => {
+      const { container } = render(<OceanScene />);
+      expect(container.querySelector('#robot-dissolve-layer')).toBeNull();
+      expect(container.querySelectorAll('[data-scene-slot="dissolve"]')).toHaveLength(1);
     });
 
     // The Deck camera's followed-robot marker moves every frame, so it lives in a moving layer —
@@ -897,11 +907,11 @@ describe('OceanScene', () => {
     it('a copy the loop appends survives a scene re-render', () => {
       const { container } = render(<OceanScene />);
       const layer = getRef('robot-dissolve-layer')!;
-      const use = layer.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'use'));
+      const copy = layer.appendChild(document.createElement('div'));
       act(() => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot({ id: 'r9' }));
       });
-      expect(container.querySelector('#robot-dissolve-layer')!.firstChild).toBe(use);
+      expect(container.querySelector('[data-scene-slot="dissolve"]')!.firstChild).toBe(copy);
     });
 
     it('draws each fragment in its own sheet only: l4 in back, l3 in stations, front in front, none in a moving sheet', () => {

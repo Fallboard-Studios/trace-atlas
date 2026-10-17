@@ -103,6 +103,17 @@ describe('OceanScene.css scene stage', () => {
     expect(body).not.toMatch(/border|background|box-shadow|filter/);
   });
 
+  // Phase 53 Task 12 (spec §1.2): the dissolve slot is an empty positioned div the work loop fills
+  // with movers. It is a place, not a layer: promoting it would put a stage-sized sheet back.
+  it('the dissolve div fills the stage, takes no clicks and is not promoted itself', () => {
+    const body = getCssRuleBody(cssSource, '.ocean-scene__dissolve');
+    expect(body).not.toBeNull();
+    expect(body).toContain('position: absolute;');
+    expect(body).toContain('inset: 0;');
+    expect(body).toContain('pointer-events: none;');
+    expect(body).not.toContain('will-change');
+  });
+
   describe('the slot order', () => {
     const zIndexOf = (slot: string): number => {
       const body = getCssRuleBody(cssSource, `[data-scene-slot='${slot}']`);

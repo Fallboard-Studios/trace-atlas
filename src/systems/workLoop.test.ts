@@ -25,7 +25,7 @@ import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrb
 import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { robotBoxAt } from '../animation/layerSwitch';
 import * as layerSwitchModule from '../animation/layerSwitch';
-import { getRobotGem } from '../components/robot/gem/polygon';
+import { GEM_CANVAS_H, gemWidth, getRobotGem } from '../components/robot/gem/polygon';
 import { bodyShapeFromAdsr, calculateBodyScale } from '../components/robot/robotVisualHelpers';
 import { chargingColorsKey } from '../components/stations/stationOccupancy';
 import { setRef, clearRefs } from '../utils/refs';
@@ -1439,13 +1439,16 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
     return { ...m, markedAtMount };
   }
 
-  /** OceanScene's `#robot-dissolve-layer`, registered. */
+  /** OceanScene's dissolve div (`data-scene-slot="dissolve"`, a stage child), registered as `robot-dissolve-layer`. */
   function dissolveLayer() {
-    const g = document.body.appendChild(document.createElementNS(SVG_NS, 'svg')).appendChild(document.createElementNS(SVG_NS, 'g'));
-    setRef('robot-dissolve-layer', g);
-    return g;
+    const div = document.body.appendChild(document.createElement('div'));
+    div.setAttribute('data-scene-slot', 'dissolve');
+    setRef('robot-dissolve-layer', div);
+    return div;
   }
-  const copies = (layer: Element) => [...layer.querySelectorAll('use')];
+  /** The dissolve copies: each a `.mover--dissolve` wrapper (Phase 53 Task 12). */
+  const copies = (layer: Element) => [...layer.querySelectorAll('.mover--dissolve[data-dissolve-copy]')];
+  const useOf = (copy: Element) => copy.querySelector('use')!;
   const rowScale = (row: Element) => Number(gsap.getProperty(row, 'scaleX'));
 
   let switchSpy: MockInstance<typeof layerSwitchModule.findLayerSwitchPoint>;
@@ -1547,22 +1550,62 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(jobSpy.mock.calls[0][0].layerScale).toBe(BACK_LAYER_SCALE);
     });
 
-    it('the dissolve: a front-row <use> of the robot fades 1 → 0 over LAYER_DISSOLVE_SECONDS, the robot stays opaque, the copy goes', () => {
+    it('the dissolve: a front-row mover copy of the robot fades 1 → 0 over LAYER_DISSOLVE_SECONDS, the robot stays opaque, the copy goes', () => {
       const { layer, first } = frontToBack();
       finish('swim-r1');
       const { el } = remount('r1', first);
-      const [use] = copies(layer);
+      const [copy] = copies(layer);
       expect(copies(layer)).toHaveLength(1);
-      expect(use.getAttribute('href')).toBe('#world-robot-r1');
+      expect(useOf(copy).getAttribute('href')).toBe('#world-robot-r1');
       const fade = getTimeline('dissolve-r1')!;
       expect(fade.duration()).toBeCloseTo(LAYER_DISSOLVE_SECONDS, 6);
-      expect(opacity(use)).toBeCloseTo(1, 6);
+      expect(opacity(copy)).toBeCloseTo(1, 6);
       fade.progress(0.5);
-      expect(opacity(use)).toBeCloseTo(0.5, 6);
+      expect(opacity(copy)).toBeCloseTo(0.5, 6);
       expect(opacity(el)).toBe(1);
       fade.progress(1);
       expect(copies(layer)).toEqual([]);
       expect(opacity(el)).toBe(1);
+    });
+
+    // Phase 53 Task 12 (spec §1.5): the copy is a mover now — a div in the dissolve slot's div,
+    // holding an svg the size of the robot's gem canvas whose overflow shows, holding the <use>.
+    // `.robot` still carries the swim's transform in this task, and a <use> draws its target with
+    // that transform, so the wrapper sits at the origin: any x/y on it would draw the robot twice
+    // as far from where it is.
+    it('the copy is div.mover.mover--dissolve › svg (the gem canvas, overflow visible) › use, with no transform of its own', () => {
+      const { layer, first } = frontToBack();
+      finish('swim-r1');
+      remount('r1', first);
+      const [copy] = copies(layer);
+      expect(copy.tagName).toBe('DIV');
+      expect(copy.parentElement).toBe(layer);
+      expect(copy.classList.contains('mover')).toBe(true);
+      expect(copy.getAttribute('data-dissolve-copy')).toBe('r1');
+      expect(copy.children).toHaveLength(1);
+      const svg = copy.firstElementChild!;
+      expect(svg.tagName.toLowerCase()).toBe('svg');
+      expect(svg.getAttribute('width')).toBe(String(gemWidth(gem)));
+      expect(svg.getAttribute('height')).toBe(String(GEM_CANVAS_H));
+      expect(svg.getAttribute('viewBox')).toBe(`0 0 ${gemWidth(gem)} ${GEM_CANVAS_H}`);
+      expect(svg.getAttribute('overflow')).toBe('visible');
+      expect(svg.children).toHaveLength(1);
+      expect(svg.firstElementChild!.tagName.toLowerCase()).toBe('use');
+      expect((copy as HTMLElement).style.transform).toBe('');
+      expect(gsap.getProperty(copy, 'x')).toBe(0);
+      expect(gsap.getProperty(copy, 'y')).toBe(0);
+    });
+
+    it('the wrapper stays untransformed through the whole fade, however far the robot has swum', () => {
+      const { layer, first } = frontToBack();
+      finish('swim-r1');
+      const { el } = remount('r1', first);
+      const [copy] = copies(layer);
+      getTimeline('swim-r1')!.progress(0.5);
+      expect(xy(el).x).not.toBe(0);
+      getTimeline('dissolve-r1')!.progress(0.5);
+      expect((copy as HTMLElement).style.transform).toBe('');
+      expect(gsap.getProperty(copy, 'x')).toBe(0);
     });
 
     it('a short second swim may arrive before the fade ends: the job starts, the copy keeps fading over it', () => {
@@ -1625,11 +1668,11 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(get('r1').position).toEqual(point);
       expect(get('r1').layer).toBe('background');
       expect(isLayerSwitching('r1')).toBe(false);
-      const [use] = copies(layer);
-      expect(use.getAttribute('href')).toBe('#world-robot-r1');
-      expect(opacity(use)).toBeCloseTo(0, 6);
+      const [copy] = copies(layer);
+      expect(useOf(copy).getAttribute('href')).toBe('#world-robot-r1');
+      expect(opacity(copy)).toBeCloseTo(0, 6);
       getTimeline('dissolve-r1')!.progress(0.5);
-      expect(opacity(use)).toBeCloseTo(0.5, 6);
+      expect(opacity(copy)).toBeCloseTo(0.5, 6);
     });
 
     it('it swims on in the back row easing to 1; only after the swim AND the fade is it re-mounted in front', () => {
@@ -1746,6 +1789,41 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       stopWorkLoop();
       expect(copies(layer)).toEqual([]);
       expect(getTimeline('dissolve-r1')).toBeUndefined();
+    });
+
+    // The sweep and the per-robot removal select copies by class and robot id, not by position: the
+    // layer is a plain div now, so a selector that took any child would take its neighbours too.
+    function strayCopy(layer: Element, robotId: string) {
+      const copy = layer.appendChild(document.createElement('div'));
+      copy.className = 'mover mover--dissolve';
+      copy.setAttribute('data-dissolve-copy', robotId);
+      return copy;
+    }
+
+    it('stopWorkLoop sweeps every dissolve copy — any robot\'s — and nothing else in the layer', () => {
+      const { layer, first } = frontToBack();
+      finish('swim-r1');
+      remount('r1', first);
+      const other = strayCopy(layer, 'r2');
+      const bystander = layer.appendChild(document.createElement('div'));
+      expect(copies(layer)).toHaveLength(2);
+      stopWorkLoop();
+      expect(copies(layer)).toEqual([]);
+      expect(other.isConnected).toBe(false);
+      expect(bystander.isConnected).toBe(true);
+    });
+
+    it('starting a dissolve, and a fade ending, take that robot\'s copy only', () => {
+      const { layer, first } = frontToBack();
+      finish('swim-r1');
+      const other = strayCopy(layer, 'r2');
+      const bystander = layer.appendChild(document.createElement('div'));
+      remount('r1', first); // the dissolve starts: it ends r1's earlier copy (none) first
+      expect(copies(layer)).toHaveLength(2);
+      expect(other.isConnected).toBe(true);
+      getTimeline('dissolve-r1')!.progress(1);
+      expect(copies(layer)).toEqual([other]);
+      expect(bystander.isConnected).toBe(true);
     });
 
     it('stopWorkLoop between the switch and the re-mount: the mark is cleared and the late mount continues nothing', () => {
