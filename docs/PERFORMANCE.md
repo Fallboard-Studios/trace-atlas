@@ -1825,6 +1825,27 @@ The area added up per frame, branch round 1: the document ≈ 0.78 screens, the 
 
 Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate". Guarded by `src/docs/perMoverGateDocs.test.ts`.
 
+## Per-Mover Compositor Layers — the Task 21 Pixel listen (2026-10-17)
+
+The phone half of the phase's gates ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md) §5.2 item 4; plan [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) Task 21). Crawford ran it by hand on the Pixel after the Task 20 miss and reported it back in his own words; this section records what he reported and nothing he did not.
+
+**Conditions as planned:** the Pixel, landscape, the LAN production preview of `perf/per-mover-layers` (tip `a04d4a0c` when the result was reported), the pinned `?session=` link of the Task 20 gate, Full Audio Load, the `?debug` overlay open. Crawford's report stated only the audio setting, the length and the counts, so the link, the orientation and the overlay are the plan's conditions, not something he restated.
+
+| What | Result |
+|---|---|
+| Audio setting | Full Audio Load |
+| Length | over five minutes (the spec asked for three) |
+| Playback underruns (overlay count) | about 12, a dozen, in the whole listen |
+| Distortion | no distortion, for the whole length |
+| Clipping | no clipping; no underrun caused any |
+| Crawford's verdict | **good to go** |
+
+**What this does not establish.** No `main` listen was taken in the same session, so there is no `main` count and no run-to-run spread to compare the 12 against. The plan's criterion "the branch's count is not above the recorded run-to-run spread" is therefore open, not met: this is a clean listen of the branch on its own terms (a dozen underruns over more than five minutes, none audible as a fault), not an A/B. The length also differs from the spec's three minutes, so the count is not comparable with a three-minute figure from earlier phases without scaling.
+
+**The Task 20 miss stands, unchanged.** `screens/frame` 0.31 × `main` against the 0.25 limit is still recorded as a MISS above, and the document-layer repaint is still unidentified. Crawford went on to the docs phase after this listen; that is a decision to proceed, and this section does not rewrite the gate into a pass or amend its criterion.
+
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 21". Guarded by `src/docs/perMoverPixelDocs.test.ts`.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

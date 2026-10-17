@@ -550,7 +550,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 19. **Files:** `docs/PERFORMANCE.md`, this plan. **Scope:** S.
 
-- [ ] **Task 21: Pixel listen (Crawford)** (**not run**; waits on Crawford's decision on the Task 20 miss)
+- [x] **Task 21: Pixel listen (Crawford)** (ran 2026-10-17: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping; Crawford: "good to go". **No `main` count was taken**, so the not-above-`main` bullet stays open. Recorded in PERFORMANCE.md "the Task 21 Pixel listen".)
 
   **Description:** Spec §5.2 item 4: the LAN production preview, landscape, Full Audio Load, the same link, `?debug`,
   three minutes on this branch and on `main`; the overlay's underrun count is the record.
@@ -742,3 +742,7 @@ tested for the bubbles' account (no bubble strip is a drawing layer in the idle 
 find and fix the document repaint, then re-run this gate unchanged; or amend the criterion to exclude the document layer from
 both sides (a stated decision, since it changes the gate after the result). Task 21 (Pixel) is not run. Checkpoints B and C
 were never recorded as passed either; the gate was run on the automated criteria alone..
+
+**Task 21 (Pixel listen) ran 2026-10-17, after this record was written.** Crawford's result: Full Audio Load, over five
+minutes, about 12 underruns, no distortion, no clipping, "good to go"; no `main` count was taken. The Task 20 verdicts above
+are unchanged (the MISS stands); see PERFORMANCE.md "the Task 21 Pixel listen".
