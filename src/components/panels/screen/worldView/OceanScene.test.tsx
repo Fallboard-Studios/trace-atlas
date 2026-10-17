@@ -8,10 +8,15 @@ import type { ReactElement } from 'react';
 // A plain vi.fn(), not React.memo-wrapped — deliberately, so its own call count is a reliable
 // proxy for "did OceanScene's render body reconstruct the robot layer again" (docs/todo/
 // backlog.md #27 follow-up, 2026-09-15), the same "unmemoized mock as a render-count marker"
-// technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use. It draws a marker
-// per robot id, so the robot-layer tests can read which row each robot landed in.
+// technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use. It draws a mover
+// marker per robot id, in the slot its row names (Robot.tsx's own contract, tested in Robot.test.tsx:
+// slotForLayer), so the robot tests can read which row each robot landed in. It reads the layer
+// once, at render, without subscribing: the scene's own re-render cadence is what these tests count.
 vi.mock('@/components/robot/Robot', () => ({
-  Robot: vi.fn((props: { robotId: string }) => <g data-robot-mock={props.robotId} />),
+  Robot: vi.fn((props: { robotId: string }) => {
+    const robot = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID]?.robots.find((r) => r.id === props.robotId);
+    return <div className="mover mover--robot" data-robot-mock={props.robotId} data-scene-slot={slotForLayer(robot?.layer)} />;
+  }),
 }));
 // Render an identifying marker (actor id + row) rather than null, so the scenery-interleave
 // tests below can assert document order without needing the real Factory/Scenery visuals.
@@ -72,7 +77,7 @@ vi.mock('@/utils/sessionDiff', () => ({
 // IMPORTS
 // ========================================
 import { OceanScene } from './OceanScene';
-import { SCENE_SLOTS, type SceneSlot } from './sceneStack';
+import { SCENE_SLOTS, slotForLayer, type SceneSlot } from './sceneStack';
 import { Robot } from '@/components/robot/Robot';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
@@ -99,6 +104,10 @@ function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
     ...overrides,
   } as RobotType;
 }
+
+// The robot movers, by the slot the Robot mock puts them in (the real one: Robot.test.tsx).
+const BACK_ROBOT = '[data-robot-mock][data-scene-slot="robots-back"]';
+const FRONT_ROBOT = '[data-robot-mock][data-scene-slot="robots"]';
 
 // ========================================
 // TESTS
@@ -312,16 +321,27 @@ describe('OceanScene', () => {
     });
 
     // Phase 53 Task 11 (spec §1.2, §1.8): the stations' L3 plates get a static sheet of their own
-    // between the bubbles and the front robots, so there are eight.
-    it('renders eight sheets, and the dissolve div between robots and front, as the stage\'s children in back → robots-back → mid → bubbles → stations → robots → dissolve → front → marker order', () => {
+    // between the bubbles and the front robots. Task 13 (spec §1.4): the two robot sheets are gone —
+    // every robot is a mover, a stage child of its own — so the stage holds six sheets, the dissolve
+    // div, and the robot movers (the bubbles' and the marker's sheets follow in Tasks 18 and 19).
+    it('renders six sheets and the dissolve div as the stage\'s children in back → mid → bubbles → stations → dissolve → front → marker order, the robot movers among them', () => {
       const { container } = render(<OceanScene />);
       const stage = container.querySelector('.ocean-scene__stage')!;
-      expect(stage.children).toHaveLength(9);
       const sheets = Array.from(stage.querySelectorAll(':scope > svg.ocean-scene__sheet'));
-      expect(sheets).toHaveLength(8);
-      expect(Array.from(stage.children).map((l) => l.getAttribute('data-scene-slot'))).toEqual(
-        ['back', 'robots-back', 'mid', 'bubbles', 'stations', 'robots', 'dissolve', 'front', 'marker'],
+      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(['back', 'mid', 'bubbles', 'stations', 'front', 'marker']);
+      const notRobots = Array.from(stage.children).filter((c) => !c.classList.contains('mover--robot'));
+      expect(notRobots.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
+        ['back', 'mid', 'bubbles', 'stations', 'dissolve', 'front', 'marker'],
       );
+      expect(stage.querySelectorAll(':scope > .mover--robot')).toHaveLength(1); // the fixture's r1
+    });
+
+    it('has no robots or robots-back sheet any more — a robot is a mover, not a group in a sheet', () => {
+      const { container } = render(<OceanScene />);
+      expect(container.querySelector('svg[data-scene-slot="robots"]')).toBeNull();
+      expect(container.querySelector('svg[data-scene-slot="robots-back"]')).toBeNull();
+      expect(container.querySelector('#robot-layer')).toBeNull();
+      expect(container.querySelector('#robot-back-layer')).toBeNull();
     });
 
     // The stage is exactly as large as its sheets' viewBox, so a sheet that fills it needs no
@@ -352,7 +372,7 @@ describe('OceanScene', () => {
     it('every sheet is the stage\'s own size: the world viewBox and no preserveAspectRatio (the stage does the fit)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(8);
+      expect(sheets).toHaveLength(6);
       for (const sheet of sheets) {
         expect(sheet.getAttribute('viewBox')).toBe('0 0 1920 1080');
         expect(sheet.hasAttribute('preserveAspectRatio')).toBe(false);
@@ -412,10 +432,10 @@ describe('OceanScene', () => {
       });
     });
 
-    it('marks both robot layers, the bubbles layer and the marker layer as moving, and the back, mid, stations and front layers as not', () => {
+    it('marks the bubbles layer and the marker layer as moving (the robots are movers now), and the back, mid, stations and front layers as not', () => {
       const { container } = render(<OceanScene />);
       const byName = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
-      for (const name of ['robots-back', 'bubbles', 'robots', 'marker']) {
+      for (const name of ['bubbles', 'marker']) {
         expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(true);
       }
       for (const name of ['back', 'mid', 'stations', 'front']) {
@@ -426,20 +446,18 @@ describe('OceanScene', () => {
     it('gives no layer a click-taking modifier — clicks are .robot\'s alone (spec §1.10)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(8);
+      expect(sheets).toHaveLength(6);
       for (const layer of sheets) {
         expect(layer.classList.contains('ocean-scene__sheet--robots')).toBe(false);
       }
     });
 
-    it('keeps each row in its layer: background in back, midground in mid, the robot rows in robots-back and robots, foreground in front', () => {
+    it('keeps each row in its layer: background in back, midground in mid, foreground in front', () => {
       const { container } = render(<OceanScene />);
       const layerOf = (selector: string) =>
         container.querySelector(selector)?.closest('svg.ocean-scene__sheet')?.getAttribute('data-scene-slot');
       expect(layerOf('#factory-background-layer')).toBe('back');
-      expect(layerOf('#robot-back-layer')).toBe('robots-back');
       expect(layerOf('#factory-midground-layer')).toBe('mid');
-      expect(layerOf('#robot-layer')).toBe('robots');
       expect(layerOf('#factory-foreground-layer')).toBe('front');
       expect(container.querySelectorAll('#factory-background-layer, #factory-midground-layer, #factory-foreground-layer'))
         .toHaveLength(3);
@@ -560,6 +578,14 @@ describe('OceanScene', () => {
       // and 20 %; its rendered scene, like this one, puts D over them too, so the honest figures are
       // 1 − .94·.75·.8·.9 ≈ 49 % and 1 − .8·.9 = 28 %. The robot rows and the pop are as signed off.
       it('coverage 1 − Π(1 − α) per row: background 49 %, back-row robots 46 %, midground 28 %, front-row robots 10 %, foreground 0 %, pop 40 %', () => {
+        useLocaleStore.setState({
+          locales: {
+            [DEFAULT_LOCALE_ID]: {
+              ...useLocaleStore.getState().locales[DEFAULT_LOCALE_ID],
+              robots: [makeRobot({ id: 'r1' }), makeRobot({ id: 'r2', layer: 'background' })],
+            },
+          },
+        });
         const { container } = render(<OceanScene />);
         const tints = (['A', 'B', 'C', 'D'] as const).map((slot) => {
           const { rect, stops } = tint(container, slot);
@@ -574,25 +600,28 @@ describe('OceanScene', () => {
         };
 
         expect(over('#factory-background-layer')).toBeCloseTo(1 - 0.94 * 0.75 * 0.8 * 0.9, 10);
-        expect(over('#robot-back-layer')).toBeCloseTo(1 - 0.75 * 0.8 * 0.9, 10);
+        expect(over(BACK_ROBOT)).toBeCloseTo(1 - 0.75 * 0.8 * 0.9, 10);
         expect(over('#factory-midground-layer')).toBeCloseTo(1 - 0.8 * 0.9, 10);
-        expect(over('#robot-layer')).toBeCloseTo(0.1, 10);
+        expect(over(FRONT_ROBOT)).toBeCloseTo(0.1, 10);
         expect(over('#factory-foreground-layer')).toBe(0);
         // Rounded, as the sketch prints them.
         expect(Math.round(over('#factory-background-layer') * 100)).toBe(49);
-        expect(Math.round(over('#robot-back-layer') * 100)).toBe(46);
+        expect(Math.round(over(BACK_ROBOT) * 100)).toBe(46);
         expect(Math.round(over('#factory-midground-layer') * 100)).toBe(28);
         // The pop at a row switch: the tints between the two robot rows.
-        const back = container.querySelector('#robot-back-layer')!;
-        const front = container.querySelector('#robot-layer')!;
+        const back = container.querySelector(BACK_ROBOT)!;
+        const front = container.querySelector(FRONT_ROBOT)!;
         expect(coverage((rect) => isAfter(back, rect) && isAfter(rect, front))).toBeCloseTo(0.4, 10);
       });
     });
 
     // Spec §1.10 "Which layer": each robot renders in its `Robot.layer`'s list; unset = foreground.
+    // Phase 53 Task 13 (spec §1.4): a robot is a mover and a stage child; the slot is the row.
     describe('robot rows (Phase 43 Task 33)', () => {
-      const idsIn = (container: HTMLElement, groupId: string) =>
-        Array.from(container.querySelectorAll(`#${groupId} > [data-robot-mock]`)).map((el) => el.getAttribute('data-robot-mock'));
+      const idsIn = (container: HTMLElement, slot: 'robots' | 'robots-back') =>
+        Array.from(container.querySelectorAll(`.ocean-scene__stage > [data-robot-mock][data-scene-slot="${slot}"]`)).map((el) =>
+          el.getAttribute('data-robot-mock'),
+        );
 
       it("renders a robot with layer 'background' in robots-back, and 'foreground' or unset in robots", () => {
         useLocaleStore.setState({
@@ -610,17 +639,17 @@ describe('OceanScene', () => {
           },
         });
         const { container } = render(<OceanScene />);
-        expect(idsIn(container, 'robot-back-layer')).toEqual(['r2', 'r4']);
-        expect(idsIn(container, 'robot-layer')).toEqual(['r1', 'r3']);
-        // Each robot drawn exactly once.
+        expect(idsIn(container, 'robots-back')).toEqual(['r2', 'r4']);
+        expect(idsIn(container, 'robots')).toEqual(['r1', 'r3']);
+        // Each robot drawn exactly once, and always as a stage child of its own — never inside a sheet.
         expect(container.querySelectorAll('[data-robot-mock]')).toHaveLength(4);
+        expect(container.querySelectorAll('svg [data-robot-mock]')).toHaveLength(0);
       });
 
-      it('an empty back row still renders its group (the perf harness and Task 34 key on it)', () => {
+      it('an empty back row renders no mover at all', () => {
         const { container } = render(<OceanScene />);
-        expect(container.querySelector('svg[data-scene-slot="robots-back"] > #robot-back-layer')).not.toBeNull();
-        expect(idsIn(container, 'robot-back-layer')).toEqual([]);
-        expect(idsIn(container, 'robot-layer')).toEqual(['r1']);
+        expect(idsIn(container, 'robots-back')).toEqual([]);
+        expect(idsIn(container, 'robots')).toEqual(['r1']);
       });
 
       it('moves a robot between the rows when its layer changes, both ways', () => {
@@ -628,13 +657,34 @@ describe('OceanScene', () => {
         act(() => {
           useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'background' });
         });
-        expect(idsIn(container, 'robot-back-layer')).toEqual(['r1']);
-        expect(idsIn(container, 'robot-layer')).toEqual([]);
+        expect(idsIn(container, 'robots-back')).toEqual(['r1']);
+        expect(idsIn(container, 'robots')).toEqual([]);
         act(() => {
           useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'foreground' });
         });
-        expect(idsIn(container, 'robot-back-layer')).toEqual([]);
-        expect(idsIn(container, 'robot-layer')).toEqual(['r1']);
+        expect(idsIn(container, 'robots-back')).toEqual([]);
+        expect(idsIn(container, 'robots')).toEqual(['r1']);
+      });
+
+      // Back-row movers open the stack's lower half and front-row movers its upper one, the way the
+      // two robot sheets sat in it: the stations' plates and the tints are read off this order.
+      it('puts the back movers after the back sheet and before the mid sheet, and the front movers after the stations sheet and before the dissolve div', () => {
+        useLocaleStore.setState({
+          locales: {
+            [DEFAULT_LOCALE_ID]: {
+              ...DEFAULT_LOCALE,
+              robots: [makeRobot({ id: 'r1' }), makeRobot({ id: 'r2', layer: 'background' })],
+              actors: [],
+            },
+          },
+        });
+        const { container } = render(<OceanScene />);
+        const after = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        const sheet = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
+        const back = container.querySelector('[data-robot-mock="r2"]')!;
+        const front = container.querySelector('[data-robot-mock="r1"]')!;
+        expect(after(sheet('back'), back) && after(back, sheet('mid'))).toBe(true);
+        expect(after(sheet('stations'), front) && after(front, container.querySelector('[data-scene-slot="dissolve"]')!)).toBe(true);
       });
 
       it("still doesn't re-render either row for a write that leaves every robot's layer alone", () => {
@@ -807,16 +857,6 @@ describe('OceanScene', () => {
       expect(Array.from(sheet.children).map((c) => c.id)).toEqual(['station-l3-layer']);
     });
 
-    // The two robot sheets hold robots and nothing else now: the dissolve copies have a div of their
-    // own (Phase 53 Task 12).
-    it('leaves the robot sheets holding only the robot rows', () => {
-      const { container } = render(<OceanScene />);
-      const childIds = (name: string) =>
-        Array.from(container.querySelector(`svg[data-scene-slot="${name}"]`)!.children).map((c) => c.id);
-      expect(childIds('robots-back')).toEqual(['robot-back-layer']);
-      expect(childIds('robots')).toEqual(['robot-layer']);
-    });
-
     // Spec §1.8: "The z-order is today's exactly: L4 · back robots · midground · bubbles · L3 · front
     // robots · copies · front fragment · tint D · foreground." A thing's place in the stack is its
     // sheet's slot first (the stylesheet's z-index follows SCENE_SLOTS, checked in the CSS test) and
@@ -831,17 +871,25 @@ describe('OceanScene', () => {
       // The chain opens on the background buildings and tint A: before this phase L4 sat in a sheet
       // above all of `back`, so a plate lay over tint A, not under it.
       it('is background, tint A, L4, back robots, midground, bubbles, L3, front robots, copies, front fragment, tint D, foreground', () => {
+        useLocaleStore.setState({
+          locales: {
+            [DEFAULT_LOCALE_ID]: {
+              ...useLocaleStore.getState().locales[DEFAULT_LOCALE_ID],
+              robots: [makeRobot({ id: 'r1' }), makeRobot({ id: 'r2', layer: 'background' })],
+            },
+          },
+        });
         const { container } = render(<OceanScene />);
         const q = (selector: string) => container.querySelector(selector)!;
         const chain: Array<[string, Element]> = [
           ['background', q('#factory-background-layer')],
           ['tint A', q('rect[data-depth-tint="A"]')],
           ['L4', q('#station-l4-layer')],
-          ['back robots', q('#robot-back-layer')],
+          ['back robots', q(BACK_ROBOT)],
           ['midground', q('#factory-midground-layer')],
           ['bubbles', q('svg[data-scene-slot="bubbles"]')],
           ['L3', q('#station-l3-layer')],
-          ['front robots', q('#robot-layer')],
+          ['front robots', q(FRONT_ROBOT)],
           ['copies', q('[data-scene-slot="dissolve"]')],
           ['front fragment', q('#station-front-layer')],
           ['tint D', q('rect[data-depth-tint="D"]')],
@@ -871,13 +919,18 @@ describe('OceanScene', () => {
     // under the station's front fragment. The work loop fills it imperatively, so React renders it
     // empty and registers it for getRef.
     it('renders an empty dissolve div between the robots and the front sheet and registers it as robot-dissolve-layer', () => {
+      useLocaleStore.setState({
+        locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1' })], actors: [] } },
+      });
       const { container, unmount } = render(<OceanScene />);
       const stage = container.querySelector('.ocean-scene__stage')!;
       const layer = stage.querySelector(':scope > div.ocean-scene__dissolve[data-scene-slot="dissolve"]');
       expect(layer).not.toBeNull();
       expect(layer!.children).toHaveLength(0);
-      expect(layer!.previousElementSibling).toBe(stage.querySelector('svg[data-scene-slot="robots"]'));
       expect(layer!.nextElementSibling).toBe(stage.querySelector('svg[data-scene-slot="front"]'));
+      // Everything before it is the stack below: the stations sheet, then the front robot movers.
+      const front = stage.querySelector(':scope > .mover--robot[data-scene-slot="robots"]');
+      expect(front!.compareDocumentPosition(layer!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(getRef('robot-dissolve-layer')).toBe(layer);
       unmount();
       expect(getRef('robot-dissolve-layer')).toBeUndefined();
@@ -926,6 +979,7 @@ describe('OceanScene', () => {
       for (const name of ['robots-back', 'mid', 'bubbles', 'robots', 'marker']) {
         expect(fragmentsIn(name), name).toEqual([]);
       }
+      expect(container.querySelectorAll('.mover g[data-station-mock]')).toHaveLength(0);
       expect(fragmentsIn('back').length).toBeGreaterThan(0);
     });
   });

@@ -348,11 +348,12 @@ stack is under "Scene layers" below.
   0.75. Back → front: the robot stays in the back row and swims on, easing to 1; it re-mounts in
   front only when the swim and the dissolve are both done, at rest.
 - **The dissolve.** The haze between the rows (tints B and C, 40 %) would pop at a re-mount, so
-  for `LAYER_DISSOLVE_SECONDS` the robot is drawn twice. The copy is an SVG `<use>` of the
+  for `LAYER_DISSOLVE_SECONDS` the robot is drawn twice. The copy is a mover (`.mover--dissolve`, holding an SVG `<use>`) of the
   robot's group (`#world-robot-{id}`), appended by the loop to `OceanScene`'s
-  `#robot-dissolve-layer` (front row, after `#robot-layer`, found via
-  `getRef('robot-dissolve-layer')`) and marked `data-dissolve-copy`. A `<use>` follows the live
-  transforms of the group it points at across the two `<svg>`s. In both directions the **front
+  dissolve div (`data-scene-slot="dissolve"`, over the front robots, found via
+  `getRef('robot-dissolve-layer')`) and marked `data-dissolve-copy`. The robot's x/y/rotation
+  are its mover's, which a `<use>` of the group does not carry, so the copy's wrapper is placed at the
+  body's pose and mirrored from the fade's `onUpdate`. In both directions the **front
   copy fades and the back robot stays opaque**: 1 → 0 after a front → back switch, 0 → 1 before a
   back → front re-mount, after which the opaque copy goes. The fade is linear, keyed
   `` `dissolve-${robotId}` ``; a new dissolve ends the robot's earlier one first, and a fade's end
@@ -395,18 +396,18 @@ gets a target-less timeline of the same length under the same key, because `crea
 no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
 
 ### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is eight stacked `<svg>` layers that share one viewBox and `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
+The ocean scene (`OceanScene.tsx`) is six stacked `<svg>` sheets, the robots' movers and the dissolve div, all children of one scaled stage that carries the `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-slot` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10; Phase 53 made each robot a mover of its own, so the two robot sheets are gone — interim wording, rewritten with the rest of this section in Phase 53 Task 22). The sheets, back to front:
 
 | Layer | Moves? | Contents |
 |---|---|---|
 | `back` | static | water column, light shafts, the terrain ridge, background factories/scenery and pipe bridges, tint A, `#station-l4-layer` (each station's back plate) |
-| `robots-back` | moving | `#robot-back-layer` (robots whose `layer` is `'background'`) |
 | `mid` | static | tint B, midground factories/scenery and pipe bridges, tint C, the ground line |
 | `bubbles` | moving | every building's and vent's bubbles |
 | `stations` | static | `#station-l3-layer` (each station's middle fragment) |
-| `robots` | moving | `#robot-layer` (every other robot), `#robot-dissolve-layer` (layer-switch copies) |
 | `front` | static | `#station-front-layer` (each station's front fragment: halo and ripple), tint D, foreground factories/scenery and pipe bridges |
 | `marker` | moving | the Deck camera's followed-robot marker (`FollowedRobotMarker`), in front of every building; its own layer because it moves every frame and a write in `front` would repaint the foreground factories |
+
+Between the sheets sit the movers, stacked by the same `data-scene-slot` z-index table (`SCENE_SLOTS`, `sceneStack.ts`): each robot is a `div.mover.mover--robot` holding its gem-canvas `<svg>`, in slot `robots-back` (its `layer` is `'background'`, behind `mid`) or `robots` (every other robot, above `stations`), and the work loop's dissolve copies live in the `dissolve` slot's div (`getRef('robot-dissolve-layer')`), under `front`. `getRef('robot-<id>')` is the robot's mover: the swim, the job's bob and the station arc move it, in scene units, and the `.robot` group inside carries no transform.
 
 The four **depth tints** (`DEPTH_TINTS`, full-screen `rect[data-depth-tint]`, each a gradient `#depth-tint-{slot}` defined in the layer that draws it) replaced the old two gradients. A is 0.06 and B 0.25 (`#0c1c4f` → `vent.shadow`), C 0.20 and D 0.10 (`vent.shadow`). Coverage, 1 − Π(1 − α): background buildings 49 %, back-row robots 46 %, midground 28 %, front-row robots, stations and bubbles 10 %, foreground 0. Only B and C sit between the robot rows, so a row switch gains or loses 40 % haze, which the dissolve blends. The haze is the scene's, not a robot overlay. No layer takes clicks (`pointer-events: none`); `.robot` takes them, in either row.
 

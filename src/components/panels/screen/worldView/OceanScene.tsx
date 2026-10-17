@@ -56,11 +56,10 @@ interface SheetProps {
 
 /**
  * One of the stage's stacked `<svg>` sheets (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.2). All
- * seven share the world viewBox and OceanScene.css makes each fill the stage, whose own box is that
+ * of them share the world viewBox and OceanScene.css makes each fill the stage, whose own box is that
  * viewBox's size, so no `preserveAspectRatio` is needed: the stage's one CSS scale and offset
- * (useStageFit) does the fit the old `xMidYMax slice` attribute did, for every sheet at once. A
- * robot at scene (x, y) in either robots sheet still sits exactly over scene (x, y) in the factory
- * sheets.
+ * (useStageFit) does the fit the old `xMidYMax slice` attribute did, for every sheet and mover at
+ * once. A robot's mover at scene (x, y) still sits exactly over scene (x, y) in the factory sheets.
  */
 function Sheet({ slot, width, height, moving = false, children }: SheetProps) {
   const className = ['ocean-scene__sheet', moving && 'ocean-scene__sheet--moving'].filter(Boolean).join(' ');
@@ -128,24 +127,26 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 
 /**
  * Root scene component. Renders one scaled stage (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1)
- * holding eight stacked SVG sheets (roadmap 17.2.5; Phase 43 J4, spec §1.10), back to front:
- * static `back` (water, ridge, background factories, tint A, the stations' L4 plates), the moving
- * back robot row `robots-back`, static `mid` (tint B, midground factories, tint C, the ground
- * line), the moving bubble layer (every building's vent bubbles), static `stations` (the stations'
- * L3 plates), the moving front robot row `robots`, and static `front` (the stations' front
- * fragments, tint D, foreground factories), then the moving `marker` layer (the Deck camera's
- * followed-robot marker, in front of every building). Kicks off factory placement, robot spawning
- * and factory production scheduling on mount.
+ * holding six stacked SVG sheets, the dissolve div and one mover per robot (roadmap 17.2.5; Phase 43
+ * J4, spec §1.10; Phase 53), back to front: static `back` (water, ridge, background factories, tint
+ * A, the stations' L4 plates), the back robot row's movers (`robots-back`), static `mid` (tint B,
+ * midground factories, tint C, the ground line), the moving bubble layer (every building's vent
+ * bubbles), static `stations` (the stations' L3 plates), the front robot row's movers (`robots`), the
+ * `dissolve` div (a layer switch's copies), and static `front` (the stations' front fragments, tint
+ * D, foreground factories), then the moving `marker` layer (the Deck camera's followed-robot marker,
+ * in front of every building). Kicks off factory placement, robot spawning and factory production
+ * scheduling on mount.
  *
  * The stage is the world at 1920 x 1080 CSS pixels and one CSS scale and offset (useStageFit, from
  * the scene box) fits it to the screen — `xMidYMax slice`, which every sheet used to carry as its
- * own attribute. Every sheet is a child of the stage, ordered by its `data-scene-slot` (sceneStack.ts).
+ * own attribute. Every sheet and mover is a child of the stage, ordered by its `data-scene-slot`
+ * (sceneStack.ts).
  *
  * Why layers: the idle paint localizer (scripts/perf/idle-paint.mjs) found the old single <svg>
  * repainting all sixty factories at full viewport size on every frame, because the robots and
- * bubbles that move every frame shared its paint layer. The moving layers are compositor layers
- * of their own now (OceanScene.css), so a transform write repaints only a dozen robots or a
- * handful of circles; the factory layers repaint once a second, on the lighting tick.
+ * bubbles that move every frame shared its paint layer. The movers are compositor layers of their
+ * own (OceanScene.css), so a swim is a composite and a transform write repaints only a robot's own
+ * small patch; the factory layers repaint once a second, on the lighting tick.
  *
  * Z-order is the old order with one change: bubbles from every row rise behind the robots and
  * below the foreground factories (foreground-row bubbles used to pass in front of the robots —
@@ -331,15 +332,14 @@ export function OceanScene({
           </g>
         </Sheet>
 
-        {/* Moving: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
-            the midground, hazed by tints B–D like the buildings around them. */}
-        <Sheet slot="robots-back" width={width} height={height} moving>
-          <g id="robot-back-layer">
-            {backRobotIds.map((id) => (
-              <Robot key={id} robotId={id} />
-            ))}
-          </g>
-        </Sheet>
+        {/* Movers: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
+            the midground, hazed by tints B–D like the buildings around them. Each robot is a stage
+            child of its own (Phase 53 Task 13, spec §1.4) and the stylesheet stacks it by its
+            `data-scene-slot`; this list sits here, and the front one below, only so document order
+            still reads as the stack. */}
+        {backRobotIds.map((id) => (
+          <Robot key={id} robotId={id} />
+        ))}
 
         {/* Static mid layer: tint B, midground factories, tint C, the ground line. */}
         <Sheet slot="mid" width={width} height={height}>
@@ -383,15 +383,11 @@ export function OceanScene({
           </g>
         </Sheet>
 
-        {/* Moving: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
+        {/* Movers: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
             `layer` isn't 'background'. */}
-        <Sheet slot="robots" width={width} height={height} moving>
-          <g id="robot-layer">
-            {frontRobotIds.map((id) => (
-              <Robot key={id} robotId={id} />
-            ))}
-          </g>
-        </Sheet>
+        {frontRobotIds.map((id) => (
+          <Robot key={id} robotId={id} />
+        ))}
 
         {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10; Phase 53 Task 12, spec §1.5): the
             work loop appends a mover holding an SVG `<use>` of a switching robot here — the front

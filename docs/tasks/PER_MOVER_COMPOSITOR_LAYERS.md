@@ -346,7 +346,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 11, Task 8. **Files:** `OceanScene.tsx`, `OceanScene.test.tsx`, `src/systems/workLoop.ts`,
   `workLoop.test.ts`. **Scope:** M.
 
-- [ ] **Task 13: The robot mover, and the copy mirrors it — needs Task 2's pass**
+- [x] **Task 13: The robot mover, and the copy mirrors it — needs Task 2's pass** (automated criteria done; the live look is Checkpoint B's)
 
   **Description:** `Robot` returns the mover of spec §1.4: `div.mover.mover--robot[data-robot-id]
   [data-scene-slot=slotForLayer(robot.layer)] > svg.mover__svg[width = gemWidth, height = GEM_CANVAS_H, overflow
@@ -357,15 +357,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   "which row" cases read `data-scene-slot` on the mover.
 
   **Acceptance criteria:**
-  - [ ] `Robot.test.tsx`: the registered ref is the wrapper; the mount `gsap.set` targets it; the slot follows
+  - [x] `Robot.test.tsx`: the registered ref is the wrapper; the mount `gsap.set` targets it; the slot follows
         `layer` (background → `robots-back`, else `robots`); the inner svg is the gem canvas and `overflow="visible"`;
         `#world-robot-<id>` and the single `.robot__row` child are unchanged; the click-routing, glow and halo cases pass.
-  - [ ] `OceanScene.test.tsx`: no sheet named `robots` or `robots-back`; each robot is a `.mover--robot` stage child in
+  - [x] `OceanScene.test.tsx`: no sheet named `robots` or `robots-back`; each robot is a `.mover--robot` stage child in
         the slot its row names (one back-row and one front-row fixture at different positions).
-  - [ ] `workLoop.test.ts`: the copy's `x`/`y`/`rotation` equal the body's at creation and after seeking the swim and
+  - [x] `workLoop.test.ts`: the copy's `x`/`y`/`rotation` equal the body's at creation and after seeking the swim and
         the dissolve to 0.5 (mutation: drop the `onUpdate` and the seek case fails); `settle` reads the wrapper's
         position; `hideAtStation` hides the wrapper.
-  - [ ] `OceanScene.clicks.test.tsx`: nothing outside `.robot` takes pointer events — stage, sheets and movers
+  - [x] `OceanScene.clicks.test.tsx`: nothing outside `.robot` takes pointer events — stage, sheets and movers
         included; a back-slot and a front-slot robot each select on click.
   - [ ] Live: a swim, a job (orbiters out to the roof, the decoration reaching the vent or outline, nothing clipped),
         a selection halo, a station arc, a row switch — identical to `main` by eye; the deck camera and the marker still

@@ -51,9 +51,10 @@ const oceanScene = read('src/components/panels/screen/worldView/OceanScene.tsx')
 describe('ANIMATION_SYSTEM.md: the scene stack', () => {
   const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene layers — what may move where');
 
-  it('lists the eight layers in OceanScene.tsx\'s order', () => {
+  // Phase 53 Task 13: the two robot sheets are movers now (the doc's paragraph below the table).
+  it('lists the six sheets in OceanScene.tsx\'s order', () => {
     const rendered = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"/g)].map((m) => m[1]);
-    expect(rendered).toHaveLength(8);
+    expect(rendered).toHaveLength(6);
     const documented = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l)).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
     expect(documented).toEqual(rendered);
   });

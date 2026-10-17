@@ -103,6 +103,14 @@ describe('OceanScene.css scene stage', () => {
     expect(body).not.toMatch(/border|background|box-shadow|filter/);
   });
 
+  // Phase 53 Task 13: the wrapper is exactly its svg's box (the swim's tilt turns about its centre,
+  // the dissolve copy shares the wrapper's size), and an inline svg leaves a descender gap under it.
+  it('a mover\'s svg is a block, so the wrapper is exactly the canvas it holds', () => {
+    const body = getCssRuleBody(cssSource, '.mover__svg');
+    expect(body).not.toBeNull();
+    expect(body).toContain('display: block;');
+  });
+
   // Phase 53 Task 12 (spec §1.2): the dissolve slot is an empty positioned div the work loop fills
   // with movers. It is a place, not a layer: promoting it would put a stage-sized sheet back.
   it('the dissolve div fills the stage, takes no clicks and is not promoted itself', () => {

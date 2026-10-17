@@ -98,15 +98,17 @@ function robot(id: string, centre: Vec2, over: Partial<Robot> = {}): Robot {
   } as Robot;
 }
 
-/** Mount a robot's `.robot` group and two orbiters, and register its orbiter control. */
+/** Mount a robot's mover (the registered body: `div.mover.mover--robot`, Phase 53 Task 13) and two
+ *  orbiters, and register its orbiter control. */
 function mount(id: string) {
-  const svg = document.body.appendChild(document.createElementNS(SVG_NS, 'svg'));
-  const el = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
+  const el = document.body.appendChild(document.createElement('div'));
+  el.className = 'mover mover--robot';
+  const svg = el.appendChild(document.createElementNS(SVG_NS, 'svg'));
   const r = get(id);
   gsap.set(el, { x: r.position.x, y: r.position.y, immediateRender: true }); // renders even with the global timeline paused
   setRef(`robot-${id}`, el);
   const locals = [0, 1].map(() => {
-    const copy = el.appendChild(document.createElementNS(SVG_NS, 'g'));
+    const copy = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
     const local = copy.appendChild(document.createElementNS(SVG_NS, 'g'));
     gsap.set(local, { x: 0, y: 0, scale: 1, immediateRender: true });
     return local;
@@ -517,8 +519,8 @@ const robots = () => useLocaleStore.getState().getLocaleById(LOCALE)!.robots;
 const xy = (el: Element) => ({ x: Number(gsap.getProperty(el, 'x')), y: Number(gsap.getProperty(el, 'y')) });
 const opacity = (el: Element) => Number(gsap.getProperty(el, 'opacity'));
 const scale = (el: Element) => Number(gsap.getProperty(el, 'scaleX'));
-const isHidden = (el: SVGGElement) => el.style.visibility === 'hidden' && opacity(el) === 0;
-const isShown = (el: SVGGElement) => el.style.visibility !== 'hidden' && opacity(el) === 1;
+const isHidden = (el: HTMLElement | SVGElement) => el.style.visibility === 'hidden' && opacity(el) === 0;
+const isShown = (el: HTMLElement | SVGElement) => el.style.visibility !== 'hidden' && opacity(el) === 1;
 const distance = (p: Vec2, q: Vec2) => Math.hypot(p.x - q.x, p.y - q.y);
 
 function nearestStation(centre: Vec2, among = stations()): Station {
@@ -1408,16 +1410,22 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
   const OPEN_WATER: Vec2 = { x: 960, y: 120 };
   const midway = (p: Vec2, q: Vec2): Vec2 => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
 
-  /** As Robot.tsx draws it: `g#world-robot-{id}.robot` › `g.robot__row` › the body (two orbiters). */
+  /** As Robot.tsx draws it (Phase 53 Task 13): `div.mover.mover--robot` (the registered body, which GSAP
+   *  moves) › the gem canvas svg › `g#world-robot-{id}.robot` › `g.robot__row` › the body (two orbiters). */
   function mountRow(id: string) {
-    const svg = document.body.appendChild(document.createElementNS(SVG_NS, 'svg'));
-    const el = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
-    el.setAttribute('id', `world-robot-${id}`);
-    el.setAttribute('class', 'robot');
-    const row = el.appendChild(document.createElementNS(SVG_NS, 'g'));
-    row.setAttribute('class', 'robot__row');
+    const mover = document.body.appendChild(document.createElement('div'));
+    mover.className = 'mover mover--robot';
     const r = get(id);
-    gsap.set(el, { x: r.position.x, y: r.position.y, immediateRender: true });
+    const svg = mover.appendChild(document.createElementNS(SVG_NS, 'svg'));
+    svg.setAttribute('width', String(gemWidth(gem)));
+    svg.setAttribute('height', String(GEM_CANVAS_H));
+    const group = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
+    group.setAttribute('id', `world-robot-${id}`);
+    group.setAttribute('class', 'robot');
+    const row = group.appendChild(document.createElementNS(SVG_NS, 'g'));
+    row.setAttribute('class', 'robot__row');
+    const el = mover;
+    gsap.set(el, { x: r.position.x, y: r.position.y, transformOrigin: '50% 50%', immediateRender: true });
     setRef(`robot-${id}`, el);
     const locals = [0, 1].map(() => {
       const local = row.appendChild(document.createElementNS(SVG_NS, 'g')).appendChild(document.createElementNS(SVG_NS, 'g'));
@@ -1425,14 +1433,14 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       return local;
     });
     registerOrbiterWork(id, { lock: vi.fn(() => locals), unlock: vi.fn() });
-    return { svg, el, row };
+    return { mover, el, row };
   }
 
-  /** React's re-mount in the other row: the old group goes, a new one mounts at the store's
+  /** React's re-mount in the other row: the old mover goes, a new one mounts at the store's
    *  position (RobotBody's hooks first — this records whether they saw the mark), then Robot's
    *  mount hands it to the loop. */
-  function remount(id: string, old: { svg: SVGSVGElement }) {
-    old.svg.remove();
+  function remount(id: string, old: { mover: Element }) {
+    old.mover.remove();
     const m = mountRow(id);
     const markedAtMount = isLayerSwitching(id);
     onRobotMounted(LOCALE, id);
@@ -1568,12 +1576,9 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(opacity(el)).toBe(1);
     });
 
-    // Phase 53 Task 12 (spec §1.5): the copy is a mover now — a div in the dissolve slot's div,
-    // holding an svg the size of the robot's gem canvas whose overflow shows, holding the <use>.
-    // `.robot` still carries the swim's transform in this task, and a <use> draws its target with
-    // that transform, so the wrapper sits at the origin: any x/y on it would draw the robot twice
-    // as far from where it is.
-    it('the copy is div.mover.mover--dissolve › svg (the gem canvas, overflow visible) › use, with no transform of its own', () => {
+    // Phase 53 Task 12 (spec §1.5): the copy is a mover — a div in the dissolve slot's div, holding
+    // an svg the size of the robot's gem canvas whose overflow shows, holding the <use>.
+    it('the copy is div.mover.mover--dissolve › svg (the gem canvas, overflow visible) › use', () => {
       const { layer, first } = frontToBack();
       finish('swim-r1');
       remount('r1', first);
@@ -1591,21 +1596,84 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       expect(svg.getAttribute('overflow')).toBe('visible');
       expect(svg.children).toHaveLength(1);
       expect(svg.firstElementChild!.tagName.toLowerCase()).toBe('use');
-      expect((copy as HTMLElement).style.transform).toBe('');
-      expect(gsap.getProperty(copy, 'x')).toBe(0);
-      expect(gsap.getProperty(copy, 'y')).toBe(0);
     });
 
-    it('the wrapper stays untransformed through the whole fade, however far the robot has swum', () => {
-      const { layer, first } = frontToBack();
-      finish('swim-r1');
-      const { el } = remount('r1', first);
-      const [copy] = copies(layer);
-      getTimeline('swim-r1')!.progress(0.5);
-      expect(xy(el).x).not.toBe(0);
-      getTimeline('dissolve-r1')!.progress(0.5);
-      expect((copy as HTMLElement).style.transform).toBe('');
-      expect(gsap.getProperty(copy, 'x')).toBe(0);
+    // Phase 53 Task 13 (spec §1.5, assumption 13): the robot's x/y/rotation are the wrapper's now, not
+    // the group's, so a <use> of the group no longer carries them. The copy wrapper wears the body's
+    // transform instead — placed at creation, mirrored from the dissolve timeline's onUpdate — about
+    // the same origin (both wrappers are the canvas's size), so the two overlay exactly.
+    describe('the copy rides the robot (spec assumption 13)', () => {
+      const rotation = (el: Element) => Number(gsap.getProperty(el, 'rotation'));
+      const pose = (el: Element) => ({ ...xy(el), rotation: rotation(el) });
+
+      it('front → back: the copy is placed at the body\'s x, y and rotation when it is created', () => {
+        const { layer, first } = frontToBack();
+        finish('swim-r1');
+        const setSpy = vi.spyOn(gsap, 'set');
+        const { el } = remount('r1', first);
+        const [copy] = copies(layer);
+        expect(xy(el).x).not.toBe(0);
+        expect(pose(copy)).toEqual(pose(el));
+        // jsdom computes no layout, so an origin cannot be read back: pin the write. Both wrappers
+        // are the canvas's size, so the same 50% 50% turns the copy about the body's own centre.
+        expect(setSpy.mock.calls.some(([target, vars]) => target === copy && (vars as gsap.TweenVars).transformOrigin === '50% 50%')).toBe(true);
+        setSpy.mockRestore();
+      });
+
+      it('front → back: after the swim and the dissolve are both seeked to 0.5 the copy is where the body is, tilt included', () => {
+        const { layer, first } = frontToBack();
+        finish('swim-r1');
+        const { el } = remount('r1', first);
+        const [copy] = copies(layer);
+        const start = pose(el);
+        getTimeline('swim-r1')!.progress(0.5); // the body swims first: GSAP updates animations in creation order
+        expect(pose(el)).not.toEqual(start);
+        expect(rotation(el)).not.toBe(0); // the swim's tilt: a mirror of x and y alone would miss it
+        getTimeline('dissolve-r1')!.progress(0.5);
+        expect(pose(copy)).toEqual(pose(el));
+        getTimeline('swim-r1')!.progress(0.9);
+        getTimeline('dissolve-r1')!.progress(0.9);
+        expect(pose(copy)).toEqual(pose(el));
+      });
+
+      it('back → front: the same — placed at creation, then mirrored while it fades in', () => {
+        const { layer, first } = backToFront();
+        const { el } = first;
+        finish('swim-r1'); // to the switch point; the in-copy starts there
+        const [copy] = copies(layer);
+        const atSwitch = pose(el);
+        expect(pose(copy)).toEqual(atSwitch);
+        getTimeline('swim-r1')!.progress(0.5);
+        getTimeline('dissolve-r1')!.progress(0.5);
+        expect(pose(el)).not.toEqual(atSwitch); // both moved off the switch point...
+        expect(pose(copy)).toEqual(pose(el)); // ...together
+      });
+
+      it('the copy follows a body that has been moved with no swim at all (a job\'s bob): the next dissolve update catches up', () => {
+        const { layer, first } = frontToBack();
+        finish('swim-r1');
+        const { el } = remount('r1', first);
+        const [copy] = copies(layer);
+        gsap.set(el, { y: xy(el).y - 7, immediateRender: true });
+        getTimeline('dissolve-r1')!.progress(0.3);
+        expect(xy(copy).y).toBe(xy(el).y);
+      });
+
+      // GSAP updates the global timeline's children in the order they were created, so the copy's
+      // mirror (the dissolve timeline's onUpdate) reads the body's position of the SAME frame only if
+      // the swim was created first. The other order shows the copy one frame behind the robot.
+      it.each([
+        ['front → back', () => { const s = frontToBack(); finish('swim-r1'); remount('r1', s.first); }],
+        ['back → front', () => { backToFront(); finish('swim-r1'); }],
+      ])('%s: the swim timeline is created before the dissolve timeline, so each frame the copy mirrors a finished move', (_name, start) => {
+        start();
+        const order = gsap.globalTimeline.getChildren(false, false, true);
+        const swim = order.indexOf(getTimeline('swim-r1')!);
+        const fade = order.indexOf(getTimeline('dissolve-r1')!);
+        expect(swim).toBeGreaterThanOrEqual(0);
+        expect(fade).toBeGreaterThanOrEqual(0);
+        expect(swim).toBeLessThan(fade);
+      });
     });
 
     it('a short second swim may arrive before the fade ends: the job starts, the copy keeps fading over it', () => {
@@ -1903,7 +1971,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       finish('swim-r1');
       const second = remount('r1', first);
       expect(copies(layer)).toHaveLength(1);
-      second.svg.remove();
+      second.mover.remove();
       mountRow('r1');
       onRobotMounted(LOCALE, 'r1');
       expect(copies(layer)).toEqual([]);

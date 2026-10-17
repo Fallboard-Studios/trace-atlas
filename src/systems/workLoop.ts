@@ -300,9 +300,10 @@ function removeCopy(robotId: string): void {
 
 /**
  * A dissolve copy (spec §1.5): a mover (OceanScene.css) holding an svg the size of the robot's gem
- * canvas, whose `<use>` draws the robot's group. `.robot` still carries the swim's x/y, which a
- * `<use>` draws with its target, so the wrapper stays at the origin and gets no transform of its
- * own; `overflow: visible` lets the halo and orbiters outside the canvas show, as they do on the robot.
+ * canvas, whose `<use>` draws the robot's group; `overflow: visible` lets the halo and orbiters
+ * outside the canvas show, as they do on the robot. The robot's x/y/rotation are its own mover's, not
+ * the group's, so the `<use>` draws the robot at the canvas origin and the copy's wrapper has to be
+ * carried to where the robot is: see followBody.
  */
 function createCopy(robot: Robot): HTMLDivElement {
   const gem = getRobotGem(robot.gemSeed);
@@ -321,6 +322,25 @@ function createCopy(robot: Robot): HTMLDivElement {
   return copy;
 }
 
+/**
+ * Put `copy` where `body` is now and return the function that does it again (spec §1.5, assumption
+ * 13). Both are canvas-sized movers turning about their centre, so equal x, y and rotation lay one
+ * exactly over the other. Three quick setters, so a frame costs three writes and no tween.
+ */
+function followBody(copy: HTMLElement, body: RefElement): () => void {
+  place(copy, { transformOrigin: '50% 50%' });
+  const setX = gsap.quickSetter(copy, 'x', 'px');
+  const setY = gsap.quickSetter(copy, 'y', 'px');
+  const setRotation = gsap.quickSetter(copy, 'rotation', 'deg');
+  const follow = () => {
+    setX(Number(gsap.getProperty(body, 'x')));
+    setY(Number(gsap.getProperty(body, 'y')));
+    setRotation(Number(gsap.getProperty(body, 'rotation')));
+  };
+  follow();
+  return follow;
+}
+
 /** A dissolve, ended: its fade killed and its copy gone. */
 function endDissolve(robotId: string): void {
   killTimeline(`dissolve-${robotId}`);
@@ -335,8 +355,9 @@ function endDissolve(robotId: string): void {
  */
 function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () => void): void {
   const layer = dissolveLayer();
+  const body = bodyOf(robot.id);
   endDissolve(robot.id);
-  if (!bodyOf(robot.id) || !layer) {
+  if (!body || !layer) {
     onDone();
     return;
   }
@@ -344,6 +365,9 @@ function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () =>
   const out = kind === 'out';
   const tl = gsap.timeline({
     paused: true,
+    // The copy rides the robot: GSAP updates animations in the order they were made, so a swim made
+    // before this fade has moved the body by the time this runs (legs make the swim first).
+    onUpdate: followBody(copy, body),
     // Its own copy only — never a newer dissolve's for the same robot.
     onComplete: live(loop, () => {
       if (out) copy.remove();
@@ -465,8 +489,10 @@ function intoBackRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: (
   moveToRow(loop, robot, 'background', () => {
     const here = robotOf(loop, robot.id);
     if (!here) return;
-    dissolve(loop, here, 'out', () => {});
+    // The swim first, then the fade: the copy mirrors the body from the fade's onUpdate, which must
+    // run after the swim has moved the body (GSAP updates in the order animations were made).
     swimTo(loop, here, destination, BACK_LAYER_SCALE, onArrive);
+    dissolve(loop, here, 'out', () => {});
   });
 }
 
@@ -483,8 +509,9 @@ function intoFrontRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: 
       onArrive();
     });
   };
-  dissolve(loop, robot, 'in', settled);
+  // The swim first, then the fade, as in intoBackRow: the copy follows the body the swim has moved.
   swimTo(loop, robot, destination, 1, settled);
+  dissolve(loop, robot, 'in', settled);
 }
 
 function transit(loop: LoopRun, robot: Robot, site: WorkSite, job: Robot['job'], point?: Vec2): void {
