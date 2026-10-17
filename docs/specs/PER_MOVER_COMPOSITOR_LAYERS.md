@@ -37,6 +37,11 @@ Every file, function and constant named below was checked against the working tr
    it in every browser on the machine before anything is built on it** — Chrome's Layers panel and Firefox's
    paint-flashing — and records which browsers were checked; a browser that clips instead gets the fallback, a wrapper
    box sized to the robot's largest reach (§7 Q1). Safari is unverified unless a device turns up.
+   **Verified 2026-10-17 (Task 2 spike; the throwaway page is not committed):** Chrome 155 ✓ and Firefox ✓ (Firefox
+   checked by eye by Crawford; its version was not recorded). In Chrome the wrapper is its own compositor layer, 251 × 122
+   CSS px for a 100 × 80 box with a circle 90 units outside it, so the layer bounds do follow the overflow; the circle draws
+   at every position and device scale (1×, 1.5×, 2×); a slide emits 0 `Paint` events. In both browsers, by eye, paint
+   flashing shows nothing while a mover slides and only a small patch while its own content changes. Safari is unverified.
 2. **GSAP writes a CSS transform on the wrapper, not an SVG `transform` attribute.** Verified in `gsap.js`:
    `_isSVG(e)` requires `e.ownerSVGElement` for any element with a parent, and a `<div>` (or an outer `<svg>`) has
    none. `x`, `y`, `rotation` and `scale` on the wrapper are composite-only writes.
@@ -45,6 +50,15 @@ Every file, function and constant named below was checked against the working tr
    both do this; WebKit has historically rasterised some composited layers at 1× and scaled them up. Task 1 checks
    it at 150 % and 200 % zoom in every browser on the machine, and a browser that blurs gets the fit applied to the
    sheets' `viewBox` and to each mover's own transform instead of to one ancestor (§7 Q1).
+   **Checked 2026-10-17 (Task 2 spike): holds only in a weaker form, accepted by Crawford.** Chrome 155 does not draw a
+   promoted mover as crisply as today's full-size sheet with the fit inside its `viewBox`. Against a plain viewBox svg
+   (stroke darkness of a 1 px circle, lower is darker): at 1× today's sheet reads 88 and is pixel-identical to the
+   reference, the mover under the scaled stage 105; at 1.5× 68 and 99 (reference 48); at 2× on a fractional position 24 and
+   68 (reference 25). Neither a 3D-translate promotion, nor the scale on the wrapper itself (this assumption's own
+   fallback), nor CSS `zoom` on the stage fixes it; only an unpromoted wrapper matches, which defeats the phase. Crawford
+   compared the two side by side in Chrome and Firefox and judged it fine ("it looks fine", 2026-10-17), so the one-ancestor
+   fit stands and the §7 Q1 blur fallback is **not** adopted. Untried if it is ever noticed: snapping each mover's `x`/`y`
+   to the device-pixel grid, or promoting a mover only while it moves.
 4. **`<use href="#world-robot-<id>">` keeps resolving across `<svg>` roots in the same document.** It already does:
    today's copy sits in the `robots` sheet and points into `robots-back`.
 5. **A Zustand write commits to the DOM before the next frame paints.** Zustand renders through
@@ -55,6 +69,11 @@ Every file, function and constant named below was checked against the working tr
    `BeginMainThreadFrame` events is "redrawn area per frame". The harness already reads the quad for its per-node
    attribution. The metric is proved before it is trusted (§1.11): on `main` the stock window reads about four
    viewport areas per frame and the `detach-bubbles+robots` ablation about none.
+   **Doubt raised 2026-10-17 (Task 2 spike):** in Chrome 155 a `Paint` event's `clip` is the cull rect, not the repainted
+   area: with one small mover repainting, the events were a `#document` paint with a clip of the whole page and a
+   `DIV#mover` paint with an unbounded clip (-8388608 to 8388607), and `LayerTree.layerPainted` never fired. Task 3
+   therefore has to prove the metric on `main` as written, and if stock does not read near four screens, replace the
+   signal (for instance the raster work) before taking the baseline.
 7. **`.ocean-scene` is never narrower than 16:9.** `OceanScene.css` gives it `height: 100%`, `min-width: 100%` and
    `aspect-ratio: 16 / 9`, so it is exactly 16:9 (portrait phones, where the scroller pans it) or wider. The fit
    (§1.1) therefore needs one formula: scale by whichever of width or height is the larger ratio, centre
