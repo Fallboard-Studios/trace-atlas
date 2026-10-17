@@ -83,10 +83,43 @@ const baseProps = {
 
 function renderStream(overrides: Partial<typeof baseProps> & { depthScale?: number } = {}) {
   return render(
-    <svg>
+    <div>
       <BubbleStream {...baseProps} {...overrides} />
-    </svg>,
+    </div>,
   );
+}
+
+// The OLD derivation, kept inline as the parity reference (roadmap 53, Task 17): the draws the
+// component made inside its useGSAP body before they moved into the config memo. Same seeds, same
+// order, so the strip is sized from exactly the numbers the timelines tween.
+const POP_SCALE = 2.5;
+function oldDerivation(seed: number, depthScale: number) {
+  const rand = makeLcg(seed);
+  const radius = (8 + rand() * 2) * depthScale;
+  rand(); // burstStagger
+  const count = 5 + Math.floor(rand() * 6);
+  const bubbleRand = makeLcg(seed ^ 0xb0bb1e5);
+  const params = Array.from({ length: count }, () => {
+    const scaledMinRise = 100 * depthScale;
+    const risePx = scaledMinRise + bubbleRand() * (500 - scaledMinRise);
+    const riseSpeed = 40 + bubbleRand() * (70 - 40);
+    const wobbleAmp = (8 + bubbleRand() * 12) * depthScale;
+    const wobblePeriod = 0.4 + bubbleRand() * 0.4;
+    const wobbleDir = bubbleRand() > 0.5 ? 1 : -1;
+    return { risePx, riseDuration: risePx / riseSpeed, wobbleAmp, wobblePeriod, wobbleDir };
+  });
+  const margin = radius * POP_SCALE;
+  const maxWobbleAmp = Math.max(...params.map((p) => p.wobbleAmp));
+  const maxRisePx = Math.max(...params.map((p) => p.risePx));
+  const W = 2 * (maxWobbleAmp + margin);
+  const H = maxRisePx + 2 * margin;
+  return { radius, count, params, margin, W, H };
+}
+
+function strip(container: HTMLElement): HTMLElement {
+  const el = container.querySelector<HTMLElement>('.mover--bubbles');
+  if (!el) throw new Error('no .mover--bubbles rendered');
+  return el;
 }
 
 function stubReducedMotion(matches: boolean) {
@@ -156,6 +189,154 @@ describe('BubbleStream', () => {
       unmount();
       expect(tl.kill).toHaveBeenCalled();
       expect(timelineMap.has(`bubble-${baseProps.actorId}`)).toBe(false);
+    });
+  });
+
+  describe('the strip mover (roadmap 53, Task 17 - spec 1.6)', () => {
+    it('is one div.mover.mover--bubbles in the bubbles slot holding one svg', () => {
+      const { container } = renderStream();
+      const el = strip(container);
+      expect(el.classList.contains('mover')).toBe(true);
+      expect(el.getAttribute('data-scene-slot')).toBe('bubbles');
+      expect(container.querySelectorAll('.mover--bubbles')).toHaveLength(1);
+      expect(el.querySelectorAll(':scope > svg')).toHaveLength(1);
+      expect(el.querySelectorAll('svg')).toHaveLength(1);
+    });
+
+    it('sizes the svg W x H from the seeded parameters: W = 2 x (maxWobbleAmp + margin), H = maxRisePx + 2 x margin', () => {
+      const { container } = renderStream();
+      const ref = oldDerivation(baseProps.seed, 1);
+      const svg = strip(container).querySelector('svg')!;
+      expect(Number(svg.getAttribute('width'))).toBeCloseTo(ref.W, 9);
+      expect(Number(svg.getAttribute('height'))).toBeCloseTo(ref.H, 9);
+      expect(svg.getAttribute('viewBox')).toBe(`0 0 ${ref.W} ${ref.H}`);
+    });
+
+    it('places the strip so the vent lands on the circles: left = ventX - W/2, top = ventY + margin - H', () => {
+      const { container } = renderStream();
+      const ref = oldDerivation(baseProps.seed, 1);
+      const el = strip(container);
+      expect(parseFloat(el.style.left)).toBeCloseTo(baseProps.ventX - ref.W / 2, 6);
+      expect(parseFloat(el.style.top)).toBeCloseTo(baseProps.ventY + ref.margin - ref.H, 6);
+    });
+
+    it('puts every circle at the local vent (W/2, H - margin) with the seeded radius', () => {
+      const { container } = renderStream();
+      const ref = oldDerivation(baseProps.seed, 1);
+      const circles = Array.from(container.querySelectorAll('circle'));
+      expect(circles).toHaveLength(ref.count);
+      for (const c of circles) {
+        expect(Number(c.getAttribute('cx'))).toBeCloseTo(ref.W / 2, 9);
+        expect(Number(c.getAttribute('cy'))).toBeCloseTo(ref.H - ref.margin, 9);
+        expect(Number(c.getAttribute('r'))).toBeCloseTo(ref.radius, 9);
+      }
+    });
+
+    it('the vent in scene units is unchanged: strip origin + the circle position = (ventX, ventY)', () => {
+      const { container } = renderStream({ ventX: 333, ventY: 777 });
+      const el = strip(container);
+      const c = container.querySelector('circle')!;
+      expect(parseFloat(el.style.left) + Number(c.getAttribute('cx'))).toBeCloseTo(333, 6);
+      expect(parseFloat(el.style.top) + Number(c.getAttribute('cy'))).toBeCloseTo(777, 6);
+    });
+
+    it('holds the whole burst: the highest popped bubble and the widest wobble stay inside the strip', () => {
+      const { container } = renderStream();
+      const ref = oldDerivation(baseProps.seed, 1);
+      const svg = strip(container).querySelector('svg')!;
+      const W = Number(svg.getAttribute('width'));
+      const H = Number(svg.getAttribute('height'));
+      const cx = ref.W / 2;
+      const cy = H - ref.margin;
+      for (const p of ref.params) {
+        // The bubble ends its rise at y = -risePx with the pop's scale, at most wobbleAmp aside.
+        expect(cy - p.risePx - ref.margin).toBeGreaterThanOrEqual(-1e-9);
+        expect(cx - p.wobbleAmp - ref.margin).toBeGreaterThanOrEqual(-1e-9);
+        expect(cx + p.wobbleAmp + ref.margin).toBeLessThanOrEqual(W + 1e-9);
+      }
+      expect(cy + ref.margin).toBeLessThanOrEqual(H + 1e-9);
+    });
+
+    it('depthScale 1/3 shrinks the strip, the margin and the offsets by the same factor', () => {
+      const depth = 1 / 3;
+      const { container } = renderStream({ depthScale: depth });
+      const ref = oldDerivation(baseProps.seed, depth);
+      const el = strip(container);
+      const svg = el.querySelector('svg')!;
+      expect(Number(svg.getAttribute('width'))).toBeCloseTo(ref.W, 9);
+      expect(Number(svg.getAttribute('height'))).toBeCloseTo(ref.H, 9);
+      expect(parseFloat(el.style.left)).toBeCloseTo(baseProps.ventX - ref.W / 2, 6);
+      expect(parseFloat(el.style.top)).toBeCloseTo(baseProps.ventY + ref.margin - ref.H, 6);
+      const full = oldDerivation(baseProps.seed, 1);
+      expect(ref.W).toBeLessThan(full.W);
+      expect(ref.H).toBeLessThan(full.H);
+    });
+
+    it('draws the same parameters the old effect drew: the first bubble tweens the old rise, wobble and duration', () => {
+      renderStream();
+      const ref = oldDerivation(baseProps.seed, 1);
+      const bubbles = registeredParent().children;
+      expect(bubbles).toHaveLength(ref.count);
+      bubbles.forEach((b, i) => {
+        const rise = findTo(b, (v) => 'y' in v);
+        const wobble = findTo(b, (v) => v.yoyo === true);
+        expect(rise.vars.y).toBeCloseTo(-ref.params[i].risePx, 9);
+        expect(rise.vars.duration).toBeCloseTo(ref.params[i].riseDuration, 9);
+        expect(wobble.vars.x).toBeCloseTo(ref.params[i].wobbleDir * ref.params[i].wobbleAmp, 9);
+        expect(wobble.vars.duration).toBeCloseTo(ref.params[i].wobblePeriod, 9);
+      });
+    });
+
+    it('sizes the strip from the seed alone, for several seeds and both depth extremes', () => {
+      for (const seed of [0, 1, 42, 999, 0xdeadbeef]) {
+        for (const depth of [1, 0.5, 1 / 3]) {
+          cleanup();
+          const { container } = renderStream({ seed, depthScale: depth });
+          const ref = oldDerivation(seed, depth);
+          const svg = strip(container).querySelector('svg')!;
+          expect(Number(svg.getAttribute('width'))).toBeCloseTo(ref.W, 9);
+          expect(Number(svg.getAttribute('height'))).toBeCloseTo(ref.H, 9);
+        }
+      }
+    });
+
+    it('keeps the strip and its hidden circles under reduced motion (no timeline, same box)', () => {
+      stubReducedMotion(true);
+      const { container } = renderStream();
+      const ref = oldDerivation(baseProps.seed, 1);
+      const svg = strip(container).querySelector('svg')!;
+      expect(Number(svg.getAttribute('width'))).toBeCloseTo(ref.W, 9);
+      expect(container.querySelectorAll('circle')).toHaveLength(ref.count);
+      expect(timelineMap.has(`bubble-${baseProps.actorId}`)).toBe(false);
+    });
+
+    it('a vent near the scene edge gives a strip that hangs outside it rather than clamping (the circles must stay on the vent)', () => {
+      const { container } = renderStream({ ventX: 2, ventY: 50 });
+      const el = strip(container);
+      const c = container.querySelector('circle')!;
+      expect(parseFloat(el.style.left)).toBeLessThan(0);
+      expect(parseFloat(el.style.top)).toBeLessThan(0);
+      expect(parseFloat(el.style.left) + Number(c.getAttribute('cx'))).toBeCloseTo(2, 6);
+      expect(parseFloat(el.style.top) + Number(c.getAttribute('cy'))).toBeCloseTo(50, 6);
+    });
+
+    it('moving the vent moves the strip without re-seeding it (same size, new left/top)', () => {
+      const { container, rerender } = renderStream({ ventX: 100, ventY: 400 });
+      const svgBefore = strip(container).querySelector('svg')!;
+      const w = svgBefore.getAttribute('width');
+      const h = svgBefore.getAttribute('height');
+      rerender(
+        <div>
+          <BubbleStream {...baseProps} ventX={250} ventY={500} />
+        </div>,
+      );
+      const el = strip(container);
+      const svg = el.querySelector('svg')!;
+      expect(svg.getAttribute('width')).toBe(w);
+      expect(svg.getAttribute('height')).toBe(h);
+      const ref = oldDerivation(baseProps.seed, 1);
+      expect(parseFloat(el.style.left)).toBeCloseTo(250 - ref.W / 2, 6);
+      expect(parseFloat(el.style.top)).toBeCloseTo(500 + ref.margin - ref.H, 6);
     });
   });
 
