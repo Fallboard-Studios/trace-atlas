@@ -146,7 +146,6 @@ const IDENTIFIERS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [strin
     ['robotBoxAt', 'src/animation/layerSwitch.ts'],
     ['getMidgroundSilhouettes', 'src/systems/midgroundSilhouettes.ts'],
     ['legTo', 'src/systems/workLoop.ts'],
-    ['moveToRow', 'src/systems/workLoop.ts'],
     ['dropLeg', 'src/systems/workLoop.ts'],
     ['killLegs', 'src/systems/workLoop.ts'],
     ['LOOP_KEY_PREFIXES', 'src/systems/workLoop.ts'],

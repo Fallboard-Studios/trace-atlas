@@ -22,8 +22,11 @@
 // switch point — two swims, each from rest. In both directions the back-row robot stays opaque and
 // a front-row copy (a mover holding an SVG `<use>`, in OceanScene's dissolve div) is what fades, over
 // LAYER_DISSOLVE_SECONDS from the switch point, so the haze between the rows blends in. A row switch
-// is a write of `layer` (moveToRow): the robot's mover keeps its place in the DOM and Robot.tsx only
-// moves its `data-scene-slot`, so there is no re-mount to wait for (Phase 53 Task 14, spec §1.5).
+// is a write of `layer` and nothing else: the robot's mover keeps its place in the DOM and Robot.tsx
+// only moves its `data-scene-slot` (and OceanScene.css its z-index), so there is no re-mount to wait
+// for (Phase 53 Task 14, spec §1.5). The write reaches the DOM before the next frame paints (Zustand
+// renders through useSyncExternalStore), body or no body, so the caller carries straight on and a
+// dissolve started or a copy removed in the same call keeps that frame whole.
 // Front → back: at the switch point `layer` is written and the leg goes straight on — the copy fades
 // 1 → 0 over the second swim. Back → front: the robot stays in the back row while the copy fades
 // 0 → 1; once the swim and the fade are both done `layer` is written and the (now opaque) copy
@@ -459,17 +462,6 @@ function swimTo(loop: LoopRun, robot: Robot, destination: Vec2, scale: number, o
 }
 
 /**
- * Write the robot into robot row `layer`, and nothing else (Phase 53 Task 14, spec §1.5). The write
- * reaches the DOM before the next frame paints (Zustand renders through useSyncExternalStore), where
- * Robot.tsx moves its mover's `data-scene-slot` and OceanScene.css moves its z-index: the same body,
- * still mounted, now in front of or behind the midground. Body or no body, the caller carries straight
- * on — a dissolve started or removed in the same call is what keeps that frame whole.
- */
-function moveToRow(loop: LoopRun, robot: Robot, layer: RobotLayer): void {
-  write(loop, robot.id, { layer });
-}
-
-/**
  * A leg to `destination` (a robot position) in robot row `layer`, then `onArrive`. In the robot's
  * own row, one swim. Into the other, it splits at the switch point (`point`, else the robot's
  * answer from findLayerSwitchPoint, else where it is): see the header for the two directions.
@@ -499,7 +491,7 @@ function legTo(
 /** Front → back, at the switch point: write the back row, then swim on easing to the back row's
  *  scale while the front copy fades out over it. */
 function intoBackRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: () => void): void {
-  moveToRow(loop, robot, 'background');
+  write(loop, robot.id, { layer: 'background' }); // the row switch: see the header
   const here = robotOf(loop, robot.id);
   if (!here) return;
   dissolve(loop, here, 'out', () => {});
@@ -517,7 +509,7 @@ function intoFrontRow(loop: LoopRun, robot: Robot, destination: Vec2, onArrive: 
       removeCopy(robot.id); // gone from the roster: nobody left to follow
       return;
     }
-    moveToRow(loop, here, 'foreground');
+    write(loop, robot.id, { layer: 'foreground' }); // the row switch and the copy's removal, one call
     removeCopy(robot.id);
     onArrive();
   };
@@ -640,7 +632,7 @@ function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station
 function exitStation(loop: LoopRun, robot: Robot): void {
   write(loop, robot.id, { activity: 'exiting' });
   const station = loop.stations.find((s) => s.id === robot.stationId);
-  if (rowOfRobot(robot) !== 'background') moveToRow(loop, robot, 'background');
+  if (rowOfRobot(robot) !== 'background') write(loop, robot.id, { layer: 'background' });
   const here = robotOf(loop, robot.id);
   if (!here) return;
   placeRow(here, BACK_LAYER_SCALE);

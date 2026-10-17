@@ -116,7 +116,6 @@ describe('ANIMATION_SYSTEM.md: the layer switch', () => {
   it.each([
     ['dissolve', 'src/systems/workLoop.ts'],
     ['removeCopy', 'src/systems/workLoop.ts'],
-    ['moveToRow', 'src/systems/workLoop.ts'],
     ['slotForLayer', `${STAGE_DIR}/sceneStack.ts`],
     ['sceneFit', `${STAGE_DIR}/sceneFit.ts`],
     ['useStageFit', `${STAGE_DIR}/useStageFit.ts`],
@@ -124,6 +123,13 @@ describe('ANIMATION_SYSTEM.md: the layer switch', () => {
     expect(sw, `Layer switch names ${name}`).toMatch(word(name));
     // Defined there, not just mentioned (a comment can outlive a rename).
     expect(read(source), `${source} defines ${name}`).toMatch(new RegExp(`(function|const) ${name}\\b`));
+  });
+
+  // The row switch is a bare write of `layer` at each call site; the one-line wrapper that once carried
+  // the name was deleted (review follow-up R2), so neither the doc nor the source may point at it.
+  it('does not name moveToRow, which no longer exists', () => {
+    expect(doc).not.toMatch(word('moveToRow'));
+    expect(read('src/systems/workLoop.ts')).not.toMatch(word('moveToRow'));
   });
 
   it('names the copy\'s class and the selector the sweeps use', () => {

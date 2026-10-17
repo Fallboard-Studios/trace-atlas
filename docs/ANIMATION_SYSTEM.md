@@ -295,7 +295,7 @@ A robot enters and leaves a charging station through one arc timeline, keyed
 | Entry (`'despawn'`) | 1 → 0.15 | 1 → 0 | `power1.in` (v²) |
 
 The exit plays in the **back robot row** (Phase 43 J4, spec §1.6), between the station's back
-plate (L4) and L3. A robot not already there is written to the back row first (`moveToRow`, a
+plate (L4) and L3. A robot not already there is written to the back row first (a
 slot write with nothing to dissolve, see "Layer switch" below), and the arc plays on the same
 body in the same call, with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows from 0.11 to
 0.75 overall. Its next leg to a front-row site or a station is then an ordinary back → front
@@ -322,7 +322,7 @@ A robot works in one of two robot rows (Phase 43 J4, spec §1.10): the front row
 the back row (`robots-back`, behind the midground) while its destination is a background site or
 it is exiting a station. `Robot.layer` (`'background'`, else front) says which, and the robot's
 mover carries it as `data-scene-slot` (`slotForLayer(layer)`, `sceneStack.ts`), so a change of row is
-a **slot write**, a write of `layer` (`moveToRow`): `Robot.tsx` re-renders with the new slot, the
+a **slot write**, a write of `layer`: `Robot.tsx` re-renders with the new slot, the
 stylesheet moves its z-index, and nothing is re-mounted (Phase 53). The stack, and the stage whose
 single scale (`sceneFit`, written by `useStageFit`) puts every mover's scene-unit `x`/`y` on the
 screen, are under "Scene stack" below.
@@ -347,7 +347,7 @@ screen, are under "Scene stack" below.
   robot is, since a robot can't skip going home.
 - **The split leg.** The work loop's `legTo` swims to the switch point at the current row's
   scale, then on to the destination, each swim from rest. Front → back: at the switch point
-  `layer` is written (`moveToRow`) and the robot swims on at once, easing to 0.75. Back → front:
+  `layer` is written and the robot swims on at once, easing to 0.75. Back → front:
   the robot stays in the back row and swims on, easing to 1; `layer` is written, and the copy
   removed, in one call when the swim and the dissolve are both done, at rest.
 - **The dissolve.** The haze between the rows (tints B and C, 40 %) would pop at the slot write, so
@@ -362,7 +362,7 @@ screen, are under "Scene stack" below.
   back → front switch, whose slot write takes the opaque copy away in the same call. The fade is linear, keyed
   `` `dissolve-${robotId}` ``; a new dissolve ends the robot's earlier one first, and a fade's end
   removes only its own copy. It has no reduced-motion variant (it is already an opacity fade).
-- **No re-mount.** `moveToRow` writes `layer` and nothing else, body or no body. The write reaches
+- **No re-mount.** The row switch writes `layer` and nothing else, body or no body. The write reaches
   the DOM before the next frame paints (Zustand renders through `useSyncExternalStore`), so the copy
   the same call starts or removes keeps that frame whole. `onRobotMounted` runs once per real mount,
   where the loop adopts the robot; `useOrbiterMotion`'s world mount always attaches its orbiters.
