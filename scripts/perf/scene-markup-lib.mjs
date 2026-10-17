@@ -39,16 +39,14 @@ export const SHEET_SELECTOR = '.ocean-scene__sheet, .ocean-scene__layer';
 
 /**
  * The bubble circles: in a strip mover each since Phase 53 Task 17 (`div.mover.mover--bubbles`), in
- * their own sheet since the 17.2.5 layer split, and inside the factory groups before it (so one name
- * ablates all three builds).
+ * their own sheet since the 17.2.5 layer split (so one name ablates a branch build and a `main` build).
+ * Builds from before that split drew them inside the factory groups; those are no longer an A/B target,
+ * and their selectors matched the buildings' own circles, so a detach deleted real buildings.
  */
 export const BUBBLE_CIRCLES = [
   '.mover--bubbles circle',
   'svg[data-scene-slot="bubbles"] circle',
   'svg[data-scene-layer="bubbles"] circle',
-  '#factory-background-layer circle',
-  '#factory-midground-layer circle',
-  '#factory-foreground-layer circle',
 ].join(', ');
 
 // ========================================

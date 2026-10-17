@@ -124,7 +124,7 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 
 /**
  * Root scene component. Renders one scaled stage (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1)
- * holding five stacked SVG sheets, the dissolve div and the movers (roadmap 17.2.5; Phase 43
+ * holding four static SVG sheets, the dissolve div and the movers (roadmap 17.2.5; Phase 43
  * J4, spec §1.10; Phase 53), back to front: static `back` (water, ridge, background factories, tint
  * A, the stations' L4 plates), the back robot row's movers (`robots-back`), static `mid` (tint B,
  * midground factories, tint C, the ground line), the bubble strips (one mover per vent stream,

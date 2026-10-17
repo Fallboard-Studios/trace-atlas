@@ -24,7 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
+import { paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 import {
   BACK_ROBOT_ELEMENTS,
   BACK_ROBOT_GROUPS,
@@ -230,17 +230,10 @@ async function traceWindow({ send, onEvent }, ms, view) {
     byName.set(ev.name, cur);
     if (ev.name === 'Paint') {
       const nodeId = ev.args?.data?.nodeId ?? -1;
-      const clip = ev.args?.data?.clip;
-      let area = 0;
-      if (Array.isArray(clip) && clip.length >= 8) {
-        const xs = [clip[0], clip[2], clip[4], clip[6]];
-        const ys = [clip[1], clip[3], clip[5], clip[7]];
-        area = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
-      }
       const p = paintByNode.get(nodeId) ?? { count: 0, ms: 0, area: 0 };
       p.count++;
       p.ms += ev.dur / 1000;
-      p.area += Math.min(area, view.layerAreas?.get(nodeId) ?? area);
+      p.area += paintEventArea(ev, { viewport: view.viewport, layerAreas: view.layerAreas }).area;
       paintByNode.set(nodeId, p);
     }
   }

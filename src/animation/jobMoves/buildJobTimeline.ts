@@ -50,7 +50,7 @@ import type { WorkSite } from '../../systems/workSites';
 // ========================================
 export interface JobTimelineInput {
   robot: Pick<Robot, 'id' | 'position' | 'gemSeed' | 'identityColor'>;
-  /** The robot's `.robot` group (`getRef(\`robot-${id}\`)`), at `robot.position`. */
+  /** The robot's mover wrapper (`getRef(\`robot-${id}\`)`, the `div.mover--robot` GSAP moves), at `robot.position`. */
   robotEl: Element;
   site: Pick<WorkSite, 'points' | 'paths'>;
   /** Picks the moves (`JOB_MOVES`). */

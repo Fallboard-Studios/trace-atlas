@@ -31,15 +31,34 @@ export function scaledLayerArea(layer, scale) {
 }
 
 /**
- * Redrawn area per frame over one traced window. `events` are the trace events of the thread being judged (the
- * caller scopes them to the renderer main thread); only complete `Paint` events count. `dpr` converts CSS px to
- * device px, `frames` is the window's `BeginMainThreadFrame` count, `viewport` the emulated one in CSS px.
- * `screensPerFrame` is the headline figure: `pxPerFrame` over the viewport's device-pixel area.
+ * One event's share of the redrawn area, in CSS px² — the single rule the headline figure (`redrawnArea`) and the
+ * harness's per-node table both use, so they cannot disagree about a node.
  *
  * A `Paint` clip is a cull rect, not the repainted area: a promoted mover reports an unbounded one (Task 16), a sheet
- * reports its viewBox's scene units. `layerAreas` (backend node id → that node's layer area in CSS px²) bounds each
- * paint by the layer it drew into; a node with no known layer is capped at one viewport and counted in
- * `unresolvedPaints`, so a gap in the map shows in the result instead of inflating it silently.
+ * reports its viewBox's scene units. `layerAreas` (backend node id → that node's layer area in CSS px²) bounds the
+ * paint by the layer it drew into; a node with no known layer (missing, NaN, infinite or negative) is capped at one
+ * `viewport` and reported `unresolved`, so a gap in the map shows in the result instead of inflating it silently.
+ * Anything that is not a complete `Paint` (another event, a begin/end half, a zero-duration mark) is 0 and resolved.
+ * @param {{ name?: string, ph?: string, dur?: number, args?: { data?: { clip?: number[], nodeId?: number } } }} ev
+ * @param {{ viewport: { width: number, height: number }, layerAreas?: Map<number, number> }} bounds
+ * @returns {{ area: number, unresolved: boolean }}
+ */
+export function paintEventArea(ev, { viewport, layerAreas }) {
+  if (ev.name !== 'Paint' || ev.ph !== 'X' || !ev.dur) return { area: 0, unresolved: false };
+  const area = clipArea(ev.args?.data?.clip);
+  const layerArea = layerAreas?.get(ev.args?.data?.nodeId);
+  if (Number.isFinite(layerArea) && layerArea >= 0) return { area: Math.min(area, layerArea), unresolved: false };
+  const viewportCssPx = viewport.width * viewport.height;
+  if (area > viewportCssPx) return { area: viewportCssPx, unresolved: true };
+  return { area, unresolved: false };
+}
+
+/**
+ * Redrawn area per frame over one traced window. `events` are the trace events of the thread being judged (the
+ * caller scopes them to the renderer main thread); only complete `Paint` events count, each by `paintEventArea`.
+ * `dpr` converts CSS px to device px, `frames` is the window's `BeginMainThreadFrame` count, `viewport` the emulated
+ * one in CSS px, `layerAreas` the per-node layer bounds. `screensPerFrame` is the headline figure: `pxPerFrame` over
+ * the viewport's device-pixel area; `unresolvedPaints` counts the events `paintEventArea` could not bound.
  */
 export function redrawnArea(events, { dpr, frames, viewport, layerAreas }) {
   if (!frames) return { pxPerFrame: 0, screensPerFrame: 0, unresolvedPaints: 0 };
@@ -47,17 +66,9 @@ export function redrawnArea(events, { dpr, frames, viewport, layerAreas }) {
   let cssPx = 0;
   let unresolvedPaints = 0;
   for (const ev of events) {
-    if (ev.name !== 'Paint' || ev.ph !== 'X' || !ev.dur) continue;
-    const area = clipArea(ev.args?.data?.clip);
-    const layerArea = layerAreas?.get(ev.args?.data?.nodeId);
-    if (Number.isFinite(layerArea) && layerArea >= 0) {
-      cssPx += Math.min(area, layerArea);
-    } else if (area > viewportCssPx) {
-      cssPx += viewportCssPx;
-      unresolvedPaints++;
-    } else {
-      cssPx += area;
-    }
+    const { area, unresolved } = paintEventArea(ev, { viewport, layerAreas });
+    cssPx += area;
+    if (unresolved) unresolvedPaints++;
   }
   const pxPerFrame = (cssPx * dpr * dpr) / frames;
   const screenPx = viewportCssPx * dpr * dpr;

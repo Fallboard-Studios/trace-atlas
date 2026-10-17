@@ -89,7 +89,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
         transformOrigin: '50% 50%',
       });
       // The work loop takes it from here (Phase 43, spec §1.7): hidden in its station if Docked,
-      // out of it if 'exiting', else on to work — also the whole remount and power-on story.
+      // out of it if 'exiting', else on to work — also the whole power-on story.
       onRobotMounted(localeId, robotId);
     }
     return () => deleteRef(`robot-${robotId}`);

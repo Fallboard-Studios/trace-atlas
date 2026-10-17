@@ -3,7 +3,7 @@
 // The Chrome/CDP plumbing is not unit-tested; the metric is proved on a real `main` build (docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md Task 3).
 import { describe, expect, it } from 'vitest';
 
-import { clipArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
+import { clipArea, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 
 // ========================================
 // FIXTURES
@@ -176,6 +176,77 @@ describe('redrawnArea with layer bounds', () => {
   it('reports no unresolved paints for a window with no Paint events', () => {
     expect(redrawnArea([], { dpr: 1, frames: 10, viewport: VIEWPORT }).unresolvedPaints).toBe(0);
     expect(redrawnArea([], { dpr: 1, frames: 0, viewport: VIEWPORT }).unresolvedPaints).toBe(0);
+  });
+});
+
+// ========================================
+// paintEventArea — the one rule redrawnArea and the per-node table share
+// ========================================
+
+describe('paintEventArea', () => {
+  const layerAreas = new Map([[7, 145 * 114]]);
+  const of = (ev, over = {}) => paintEventArea(ev, { viewport: VIEWPORT, layerAreas, ...over });
+
+  it('clamps an unbounded clip to the layer area of the painted node', () => {
+    expect(of(paintOn(7, UNBOUNDED))).toEqual({ area: 145 * 114, unresolved: false });
+  });
+
+  it('keeps a clip that is already smaller than its layer', () => {
+    expect(of(paintOn(7, rect(0, 0, 10, 10)))).toEqual({ area: 100, unresolved: false });
+  });
+
+  it('caps an unbounded clip on a node with no known layer at one viewport, and says it was unresolved', () => {
+    expect(of(paintOn(99, UNBOUNDED))).toEqual({ area: VIEWPORT.width * VIEWPORT.height, unresolved: true });
+  });
+
+  it('keeps a small clip on a node with no known layer, and does not call it unresolved', () => {
+    expect(of(paintOn(99, rect(0, 0, 5, 5)))).toEqual({ area: 25, unresolved: false });
+  });
+
+  it('keeps a clip of exactly one viewport on an unknown node: only a larger one is capped and counted', () => {
+    expect(of(paintOn(99, rect(0, 0, VIEWPORT.width, VIEWPORT.height)))).toEqual({ area: VIEWPORT.width * VIEWPORT.height, unresolved: false });
+  });
+
+  it('caps at one viewport when no layer map is given at all', () => {
+    expect(of(paintOn(5, UNBOUNDED), { layerAreas: undefined })).toEqual({ area: VIEWPORT.width * VIEWPORT.height, unresolved: true });
+  });
+
+  it('treats a node with no id (-1 in the harness table, or missing) as unknown', () => {
+    expect(of({ name: 'Paint', ph: 'X', dur: 100, args: { data: { clip: UNBOUNDED } } }).unresolved).toBe(true);
+  });
+
+  it('treats a layer area that is not a finite, non-negative number as unknown', () => {
+    const odd = new Map([[1, NaN], [2, -5], [3, Infinity]]);
+    for (const id of [1, 2, 3]) {
+      expect(of(paintOn(id, UNBOUNDED), { layerAreas: odd })).toEqual({ area: VIEWPORT.width * VIEWPORT.height, unresolved: true });
+    }
+  });
+
+  it('lets a zero-area layer contribute nothing, resolved', () => {
+    expect(of(paintOn(7, UNBOUNDED), { layerAreas: new Map([[7, 0]]) })).toEqual({ area: 0, unresolved: false });
+  });
+
+  it('is 0 and resolved for what is not a complete Paint: another event, a begin/end half, a zero-duration mark, a missing clip', () => {
+    const none = { area: 0, unresolved: false };
+    expect(of({ name: 'Layerize', ph: 'X', dur: 100, args: { data: { nodeId: 7, clip: UNBOUNDED } } })).toEqual(none);
+    expect(of({ ...paintOn(7, UNBOUNDED), ph: 'B' })).toEqual(none);
+    expect(of({ ...paintOn(7, UNBOUNDED), dur: 0 })).toEqual(none);
+    expect(of({ name: 'Paint', ph: 'X', dur: 100, args: {} })).toEqual(none);
+    expect(of({ name: 'Paint', ph: 'X', dur: 100 })).toEqual(none);
+  });
+
+  it('reads a rotated quad by its true area, as redrawnArea does, not by its bounding box', () => {
+    expect(of(paintOn(99, [50, 0, 100, 50, 50, 100, 0, 50])).area).toBe(5000);
+  });
+
+  it('agrees with redrawnArea: the window total is the events\' areas summed, over the frames', () => {
+    const events = [paintOn(7, UNBOUNDED), paintOn(7, rect(0, 0, 10, 10)), paintOn(99, UNBOUNDED), paintOn(99, rect(0, 0, 5, 5))];
+    const opts = { viewport: VIEWPORT, layerAreas };
+    const summed = events.reduce((sum, ev) => sum + paintEventArea(ev, opts).area, 0);
+    const unresolved = events.filter((ev) => paintEventArea(ev, opts).unresolved).length;
+    const r = redrawnArea(events, { dpr: 1, frames: 4, ...opts });
+    expect(r.pxPerFrame).toBe(summed / 4);
+    expect(r.unresolvedPaints).toBe(unresolved);
   });
 });
 

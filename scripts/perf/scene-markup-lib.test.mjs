@@ -140,11 +140,21 @@ describe('BUBBLE_CIRCLES', () => {
   it.each([
     ['the old markup', OLD_SCENE, 'old'],
     ['the stage markup', NEW_SCENE, 'new'],
-  ])('finds the bubble circles, and the factory-layer circles of builds before the split, in %s', (_label, html, prefix) => {
+  ])('finds the bubble circles of the bubbles sheet, and no building circle, in %s', (_label, html, prefix) => {
     document.body.innerHTML = html;
-    expect(ids(document.querySelectorAll(BUBBLE_CIRCLES)).sort()).toEqual(
-      [`${prefix}-bg-circle`, `${prefix}-bubble-1`, `${prefix}-bubble-2`, `${prefix}-fg-circle`, `${prefix}-mid-circle`].sort(),
-    );
+    expect(ids(document.querySelectorAll(BUBBLE_CIRCLES)).sort()).toEqual([`${prefix}-bubble-1`, `${prefix}-bubble-2`]);
+  });
+
+  // The factory layers hold buildings, and a building has circles of its own (windows, vents). Builds old
+  // enough to draw bubbles inside them are no longer an A/B target (`main` has the bubbles sheet), and on
+  // this branch the three selectors that served them deleted real buildings under `detach-bubbles`.
+  it.each([
+    ['the old markup', OLD_SCENE, 'old'],
+    ['the stage markup', NEW_SCENE, 'new'],
+  ])('leaves the circles inside the factory layers alone in %s, so a detach never deletes a building', (_label, html, prefix) => {
+    document.body.innerHTML = html;
+    const found = ids(document.querySelectorAll(BUBBLE_CIRCLES));
+    for (const id of [`${prefix}-bg-circle`, `${prefix}-mid-circle`, `${prefix}-fg-circle`]) expect(found).not.toContain(id);
   });
 
   // Phase 53 Task 18: a stream is a strip mover (`div.mover.mover--bubbles`), not circles in a sheet.
@@ -163,7 +173,7 @@ describe('BUBBLE_CIRCLES', () => {
     expect(ids(document.querySelectorAll(BUBBLE_CIRCLES)).sort()).toEqual(['s1-a', 's1-b', 's2-a']);
   });
 
-  it('leaves the robots, and circles that are neither a bubble nor in a factory layer, alone', () => {
+  it('leaves the robots, and circles that are not a bubble, alone', () => {
     document.body.innerHTML = NEW_SCENE;
     const found = ids(document.querySelectorAll(BUBBLE_CIRCLES));
     for (const id of ['new-robot-circle', 'new-back-robot-circle', 'new-mid-stray']) expect(found).not.toContain(id);
@@ -346,6 +356,13 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toContain('SCENE_SLOT_NAMES.map((name) => `${name} ${perLayer[name]}`)');
   });
 
+  // One rule for both numbers: the per-node table caps an unresolved node the way the headline figure does.
+  it('attributes each Paint to its node by the same rule as the headline: through paintEventArea, not a rule of its own', () => {
+    expect(source).toContain('paintEventArea(ev, { viewport: view.viewport, layerAreas: view.layerAreas })');
+    expect(source).not.toContain('?? area');
+    expect(source).not.toContain('Math.max(...xs)');
+  });
+
   it('reads the redrawn area and the mover layers where they count', () => {
     expect(source).toContain("from './paint-area-lib.mjs'");
     expect(source).toContain('redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport, layerAreas: view.layerAreas })');
@@ -356,11 +373,10 @@ describe('idle-paint.mjs uses them', () => {
   });
 
   it('clamps each Paint to its layer: the layer map is built once, scaled by the stage, and handed to the traced windows', () => {
-    expect(source).toContain("import { redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
+    expect(source).toContain("import { paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
     expect(source).toContain(".ocean-scene__stage");
     expect(source).toContain('scaledLayerArea(l, (await insideStage(send, l)) ? stageScale : 1)');
     expect(source).toContain('view.layerAreas = await printCompositorLayers(cdp, view.dpr, stageScale)');
-    expect(source).toContain('p.area += Math.min(area, view.layerAreas?.get(nodeId) ?? area)');
   });
 
   it('keeps no hard-coded layer or slot attribute selector: the lib reads both markups', () => {

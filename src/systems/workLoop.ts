@@ -374,7 +374,7 @@ function endDissolve(robotId: string): void {
 /**
  * The layer switch's dissolve, keyed `dissolve-${robotId}`: a front-row copy (a mover, see
  * createCopy) of the robot's group fades `'out'` (1 → 0, then goes — front → back) or `'in'`
- * (0 → 1, and stays until the front re-mount takes over — back → front) over
+ * (0 → 1, and stays until the swim arrives and intoFrontRow's layer write removes it — back → front) over
  * LAYER_DISSOLVE_SECONDS. With no body or no copy layer there is nothing to see: `onDone` at once.
  */
 function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () => void): void {
