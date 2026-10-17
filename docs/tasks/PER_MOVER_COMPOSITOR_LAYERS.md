@@ -452,7 +452,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 4: Bubbles and the marker
 
-- [ ] **Task 17: `BubbleStream.tsx` — a strip mover per stream**
+- [x] **Task 17: `BubbleStream.tsx` — a strip mover per stream** (automated criteria done; the live look is Checkpoint C's)
 
   **Description:** The seeded per-bubble parameters move from the `useGSAP` body into the `config` memo (same seeds,
   same draws, same order); render returns `div.mover.mover--bubbles[data-scene-slot="bubbles"]` at
@@ -473,7 +473,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 9. **Files:** `BubbleStream.tsx`, `BubbleStream.test.tsx`. **Scope:** S.
 
-- [ ] **Task 18: `BubbleLayer` as a fragment; the `bubbles` sheet goes; harness bubble selectors**
+- [x] **Task 18: `BubbleLayer` as a fragment; the `bubbles` sheet goes; harness bubble selectors** (automated criteria done; the live look is Checkpoint C's)
 
   **Description:** `BubbleLayer` returns a fragment of streams; `OceanScene` renders it as a stage child and deletes the
   `bubbles` sheet. `idle-paint.mjs`: `BUBBLES` = `.mover--bubbles circle` (plus the pre-split factory-layer selectors it
@@ -492,7 +492,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 17. **Files:** `BubbleLayer.tsx`, `BubbleLayer.test.tsx`, `OceanScene.tsx`,
   `OceanScene.test.tsx`, `scripts/perf/idle-paint.mjs`. **Scope:** S.
 
-- [ ] **Task 19: The marker mover; the last moving sheet goes; `Sheet` loses `moving`**
+- [x] **Task 19: The marker mover; the last moving sheet goes; `Sheet` loses `moving`** (automated criteria done; the live look is Checkpoint C's)
 
   **Description:** `Marker` returns `div.mover.mover--marker[data-scene-slot="marker"][data-followed-robot]` holding an
   origin-centred `svg[viewBox="−W/2 −H/2 W H", overflow visible]` and the unchanged drawing (spec §1.7); `place()` sets
@@ -512,6 +512,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 18. **Files:** `FollowedRobotMarker.tsx`, `FollowedRobotMarker.test.tsx`, `OceanScene.tsx`,
   `OceanScene.css`, `OceanScene.css.test.ts`, `src/docs/robotJobsJ4Docs.test.ts`. **Scope:** M.
+
+**As shipped (Tasks 17–19, 2026-10-17):**
+- Between Task 17 and Task 18 the strip sat inside the old `bubbles` sheet's svg, so the bubbles did not draw in the live app for that one commit (a `div` in an `svg` renders nothing). Tasks 17 and 18 are one working state; do not stop on 17.
+- `BubbleLayer` was already a bare fragment, so Task 18's "no wrapping `<svg>`" criterion is a regression guard, not a change.
+- Task 18 also updated `ANIMATION_SYSTEM.md`'s interim sheet table and `robotJobsJ4Docs.test.ts` (five, then four, sheets), because that guard compares the doc to `OceanScene.tsx`; Task 22 still rewrites the section.
+- Task 19: the svg's viewBox is origin-centred, but a mover's translate puts its top-left at (x, y), so `place()` also sets `xPercent`/`yPercent` to -50 once. `x`/`y` stay the robot's canvas centre exactly, as the spec says; the spec did not name the offset.
+- Task 19 deleted `WorldView.test.tsx`'s moving-sheet dim case (no sheet moves) and replaced it with a guard that the rule is gone; `OceanScene.css.test.ts` now asserts `.mover` is the only rule with `will-change`.
+- `detach-bubbles` still removes only the circles, leaving ~50 empty strip movers (promoted layers drawing nothing). The paint-area number is unaffected, but the layer count in that window is not comparable; Task 20 should read the layer readout from the stock window.
+- Mutation gates: Task 17 12/12, Task 18 5/5, Task 19 15/15 killed (one survivor, the initial `visibility: hidden`, got a test for a robot with no gem seed).
 
 ### Checkpoint C: Everything moves on its own sheet (Crawford, Chrome and Firefox)
 - [ ] Spec §5.3's whole list, in Chrome and again in Firefox; Safari if a device is to hand.
