@@ -412,6 +412,61 @@ describe('useHaloMotion.decorateArc — the triangular waves (haloWaves.ts, halo
       createdTimelines[before].progress(0.3);
       expect(Number(m.paths[0].getAttribute('stroke-width'))).toBe(WAVE_LINE_WIDTH / 2);
     });
+
+    // The sheet is a static stage child, so it is found once when the arc's timeline is made; the two
+    // screen matrices (the deck camera's scroll changes the frame) are still read on every frame.
+    describe('finding the scene', () => {
+      const FRAMES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+      const asked = (spy: { mock: { calls: unknown[][] } }, needle: string) =>
+        spy.mock.calls.filter(([selector]) => String(selector).includes(needle)).length;
+
+      /** Plays one arc over ten frames, and returns the timeline once the spies are set. */
+      function playTenFrames(m: ReturnType<typeof mountInScene>) {
+        const arc = gsap.timeline() as unknown as FakeTimeline;
+        const before = createdTimelines.length;
+        m.decorateArc('spawn', 1, arc as unknown as Parameters<typeof m.decorateArc>[2]);
+        const tl = createdTimelines[before];
+        FRAMES.forEach((p) => tl.progress(p));
+      }
+
+      it('looks the scene and its sheet up at most once across ten frames of one arc', () => {
+        const m = mountInScene(matrix(0.5, 10, 20), { x: 100, scale: 1 });
+        const closestSpy = vi.spyOn(Element.prototype, 'closest');
+        const queryOneSpy = vi.spyOn(Element.prototype, 'querySelector');
+        try {
+          playTenFrames(m);
+          expect(asked(closestSpy, 'ocean-scene')).toBeLessThanOrEqual(1);
+          expect(asked(queryOneSpy, 'ocean-scene__sheet')).toBeLessThanOrEqual(1);
+        } finally {
+          closestSpy.mockRestore();
+          queryOneSpy.mockRestore();
+        }
+      });
+
+      it('still reads the sheet\'s and the group\'s screen matrices on every frame', () => {
+        const m = mountInScene(matrix(0.5, 10, 20), { x: 100, scale: 1 });
+        const sheetSpy = vi.spyOn(document.querySelector('svg.ocean-scene__sheet') as SVGGraphicsElement, 'getScreenCTM');
+        const groupSpy = vi.spyOn(document.querySelector('g.gem') as SVGGraphicsElement, 'getScreenCTM');
+        playTenFrames(m);
+        expect(sheetSpy.mock.calls.length).toBeGreaterThanOrEqual(FRAMES.length);
+        expect(groupSpy.mock.calls.length).toBeGreaterThanOrEqual(FRAMES.length);
+      });
+    });
+  });
+
+  it('an avatar or card has no scene: it keeps getCTM, and looks for a scene once, not every frame', () => {
+    const { container, decorateArc, paths } = mount();
+    const group = container.querySelector('g.gem') as unknown as Record<string, unknown>;
+    group.getCTM = () => ({ a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 });
+    const closestSpy = vi.spyOn(Element.prototype, 'closest');
+    try {
+      const tl = arcOf(decorateArc, 'spawn').waves;
+      [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].forEach((p) => tl.progress(p));
+      expect(Number(paths[0].getAttribute('stroke-width'))).toBe(WAVE_LINE_WIDTH / 2);
+      expect(closestSpy.mock.calls.filter(([selector]) => String(selector).includes('ocean-scene')).length).toBeLessThanOrEqual(1);
+    } finally {
+      closestSpy.mockRestore();
+    }
   });
 
   it('reduced motion: nothing is added to the arc', () => {
