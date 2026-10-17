@@ -152,7 +152,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 1. **Files:** `scripts/perf/idle-paint.mjs`, `scripts/perf/paint-area-lib.mjs`,
   `scripts/perf/paint-area-lib.test.mjs`, this plan (results). **Scope:** M.
 
-- [ ] **Task 4: Baseline on `main` — docs/PERFORMANCE.md**
+- [x] **Task 4: Baseline on `main` — docs/PERFORMANCE.md**
 
   **Description:** `main` with the camera no-op merged, production build, the pinned `?session=` link, 1×,
   `--only none`, three rounds, foreground, one at a time: `redrawn px²/frame`, `screens/frame`, busy, Paint,
@@ -160,14 +160,14 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   baseline for Phase 53 — Per-Mover Compositor Layers (<date>)" in the format of the 17.2.6 baseline.
 
   **Acceptance criteria:**
-  - [ ] The section exists with the three rounds, medians and the min–max spread per column, and names the build hash,
+  - [x] The section exists with the three rounds, medians and the min–max spread per column, and names the build hash,
         the link and the viewport.
 
   **Verification:**
-  - [ ] Three rows in the table; 0 orphaned Chrome before and after (`Get-CimInstance Win32_Process -Filter
+  - [x] Three rows in the table; 0 orphaned Chrome before and after (`Get-CimInstance Win32_Process -Filter
         "Name='chrome.exe'"` filtered on `trace-atlas-perf`).
 
-  **Dependencies:** Task 3. **Files:** `docs/PERFORMANCE.md`. **Scope:** S.
+  **Dependencies:** Task 3. **Files:** `docs/PERFORMANCE.md`, `src/docs/perMoverBaselineDocs.test.ts` (added as shipped: a docs guard for these criteria; Task 22's guard covers the rest). **Scope:** S.
 
 ### Checkpoint 0: The design and the number stand
 - [ ] Assumptions 1 and 3 verified in the spec; assumption 6 proved in this plan; the baseline recorded.
@@ -663,3 +663,11 @@ busy) in that last window and was not reproduced; recorded as a one-off, not inv
   keep painting its whole page every frame. A mover exists nowhere on this branch yet, so that is **unproved**; the
   first mover (Task 13) is where it shows. If it does, `redrawnArea` needs a clamp or the signal changes (raster work)
   before Task 20 reads it. Decision deferred to then.
+
+### Task 4 — the baseline on `main` (2026-10-17)
+
+Recorded in full in [PERFORMANCE.md](../PERFORMANCE.md) ("Pre-change baseline for Phase 53"), guarded by
+`src/docs/perMoverBaselineDocs.test.ts`. `main` `4a9b3fec`, bundle `index-CVUy7kf3.js`, the same pinned link and 1280 × 900
+at 1× as Task 3, three foreground rounds, orphaned Chrome 0 before and after. The headline for Task 20 to beat:
+**`screens/frame` 4.63 (4.63–4.67)**; median busy 1694 ms (1674–1719), Paint 177 ms (161–185), Compositor::Update 139 ms
+(136–146), Layerize 141 ms (138–147), 360 frames; compositor layers 28 (24 drawing, ≈ 37.8 MB), `Mover layers: 0`.

@@ -1734,6 +1734,38 @@ graphics settings did not take (the AMD stayed active); the NVIDIA Control Panel
    and `perf-traces/`), then `npm run perf:trace -- <file>` and compare the thread table and the per-frame movers.
 3. `npm run perf:idle` for the paint-per-node attribution, the gate this document already uses.
 
+## Pre-change baseline for Phase 53 — Per-Mover Compositor Layers (2026-10-17)
+
+The reference Phase 53's gate is compared against ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md) §5; plan [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) Task 4). **Nothing in the product was changed to take it.** It is the idle Deck on today's `main`, with the Deck camera idle no-op already merged, so the phase is judged against the world it ships into rather than against the 2026-10-16 diagnosis.
+
+**Code measured:** `main` `4a9b3fec` (merge of PR #562), from a clean `git worktree` checkout, `npx vite build`, served by `vite preview` on :4183. Served bundle `index-CVUy7kf3.js` (checked against the build, and identical to the Task 3 proof build). Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: desktop **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle.
+
+**Pinned world:** one `?session=` link, Attenuation Style `alpha`, locale `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2 — the world the Phase 45 and Phase 46 gates used. Built with `encodeSessionPayload` (a throwaway `vite-node` script, not committed):
+
+```text
+http://localhost:4183/trace-atlas/?session=eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOjAsInkiOjUwfSwiZyI6eyJjb21wcmVzc29yQmVmb3JlRGVsYXkiOmZhbHNlLCJyZXZlcmIiOnsiZGVjYXkiOjEuNSwicHJlRGVsYXkiOjAuMDIsIndldCI6MX0sImRlbGF5Ijp7ImRlbGF5VGltZSI6MC4yNSwiZmVlZGJhY2siOjAuMiwid2V0IjoxfSwiY29tcHJlc3NvciI6eyJ0aHJlc2hvbGQiOi0yNCwicmF0aW8iOjIsImF0dGFjayI6MC4wMDMsInJlbGVhc2UiOjAuMjUsImtuZWUiOjZ9LCJlcTMiOnsibG93IjowLCJtaWQiOjAsImhpZ2giOjB9LCJmaWx0ZXJMUEYiOnsidHlwZSI6Imxvd3Bhc3MiLCJmcmVxdWVuY3kiOjIwMDAwLCJRIjoxfSwiZmlsdGVySFBGIjp7InR5cGUiOiJoaWdocGFzcyIsImZyZXF1ZW5jeSI6MjAsIlEiOjF9LCJkaXN0b3J0aW9uIjp7ImFtb3VudCI6MC4zLCJ3ZXQiOjB9LCJjaGVieXNoZXYiOnsib3JkZXIiOjIsIndldCI6MH0sImJpdENydXNoZXIiOnsiYml0cyI6OCwid2V0IjowfSwiYXV0b1dhaCI6eyJiYXNlRnJlcXVlbmN5IjoxMDAsIm9jdGF2ZXMiOjYsInNlbnNpdGl2aXR5IjowLCJRIjoyLCJnYWluIjoyLCJmb2xsb3dlciI6MC4yLCJ3ZXQiOjB9LCJwaGFzZXIiOnsicmF0ZSI6MC41LCJvY3RhdmVzIjozLCJiYXNlRnJlcXVlbmN5IjozNTAsInN0YWdlcyI6MTAsIlEiOjEwLCJ3ZXQiOjB9LCJsaW1pdGVyIjp7InRocmVzaG9sZCI6LTEyfX19
+```
+
+**Method:** 3 rounds of the same build, each a fresh headless Chrome, foreground, one run at a time (one call per run), nothing else running; a single build, so there is no start order to rotate. Orphaned `trace-atlas-perf` Chrome count 0 before the first round and 0 after the last (filtered `Win32_Process` query on `Name='chrome.exe'`).
+
+### Results (6 s idle window, stock, 1×)
+
+| Round | redrawn px²/frame | screens/frame | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|
+| 1 | 5376976 | 4.67 | 1674 | 185 | 146 | 147 | 359 |
+| 2 | 5332588 | 4.63 | 1694 | 161 | 136 | 138 | 360 |
+| 3 | 5332588 | 4.63 | 1719 | 177 | 139 | 141 | 360 |
+| Median | 5332588 | 4.63 | 1694 | 177 | 139 | 141 | 360 |
+| Min–max | 5332588–5376976 | 4.63–4.67 | 1674–1719 | 161–185 | 136–146 | 138–147 | 359–360 |
+
+Long tasks 0 in every round. **The number the phase is gated on is `screens/frame`: 4.63 (4.63–4.67).** It is tight because the repainted rectangles are fixed: every frame paints the document (one viewport, clip 1 152 000 px²) and the two moving sheets (`robots-back` and `robots`, clip 2 074 680 each), 359–360 times in the window. Busy time spreads under 3 % across the rounds and Paint ms about 14 %, so a later A/B that claims less than that on those two columns is noise; `screens/frame` is the column to read.
+
+**Compositor-layer readout (identical in all three rounds):** `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB at 4 B per device px, DPR 1; 23 with an owning node)`; the scene's named layers `robots-back`, `mid`, `robots`, `front` and `marker`, each 1465 × 824 CSS px. `Mover layers: 0` — there are no movers on `main`. This is the layer-memory figure the Task 20 gate compares the branch against.
+
+**Stock painters (round 1, top of the attribution table):** the document 359 paints, 103 ms; the `robots` sheet 359 paints, 65 ms; the `robots-back` sheet 359 paints, 16 ms. Everything else paints a handful of times in 6 s.
+
+**What the numbers mean — and do not.** `redrawn px²/frame` sums each `Paint` event's `clip`, so it counts the area the paint phase recorded, not raster damage, and the sheet clips are in the scene's own units (1920 × 1080 → 2 074 680 here, the scene units, not the 1465 × 824 CSS px of the layer). It is comparable only at one viewport and one device scale; do not read it as device pixels, and do not compare a phone run's `px²/frame` with this one (use `screens/frame` against each run's own viewport, and treat it as approximate while the stage scale is not 1). Whether a promoted mover's `Paint` event reads as a small patch is unproved until the first mover exists (Task 13); see the plan's "Perf gate results" in [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) for the proof on `main` (stock 4.62, movers detached 0) and the two caveats.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
