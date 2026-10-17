@@ -311,14 +311,16 @@ describe('OceanScene', () => {
       expect(container.querySelectorAll('.ocean-scene__stage')).toHaveLength(1);
     });
 
-    it('renders seven sheets as the stage\'s children in back → robots-back → mid → bubbles → robots → front → marker order', () => {
+    // Phase 53 Task 11 (spec §1.2, §1.8): the stations' L3 plates get a static sheet of their own
+    // between the bubbles and the front robots, so there are eight.
+    it('renders eight sheets as the stage\'s children in back → robots-back → mid → bubbles → stations → robots → front → marker order', () => {
       const { container } = render(<OceanScene />);
       const stage = container.querySelector('.ocean-scene__stage')!;
-      expect(stage.children).toHaveLength(7);
+      expect(stage.children).toHaveLength(8);
       const sheets = Array.from(stage.querySelectorAll(':scope > svg.ocean-scene__sheet'));
-      expect(sheets).toHaveLength(7);
+      expect(sheets).toHaveLength(8);
       expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
-        ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front', 'marker'],
+        ['back', 'robots-back', 'mid', 'bubbles', 'stations', 'robots', 'front', 'marker'],
       );
     });
 
@@ -350,7 +352,7 @@ describe('OceanScene', () => {
     it('every sheet is the stage\'s own size: the world viewBox and no preserveAspectRatio (the stage does the fit)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(7);
+      expect(sheets).toHaveLength(8);
       for (const sheet of sheets) {
         expect(sheet.getAttribute('viewBox')).toBe('0 0 1920 1080');
         expect(sheet.hasAttribute('preserveAspectRatio')).toBe(false);
@@ -410,13 +412,13 @@ describe('OceanScene', () => {
       });
     });
 
-    it('marks both robot layers, the bubbles layer and the marker layer as moving, and the back, mid and front layers as not', () => {
+    it('marks both robot layers, the bubbles layer and the marker layer as moving, and the back, mid, stations and front layers as not', () => {
       const { container } = render(<OceanScene />);
       const byName = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
       for (const name of ['robots-back', 'bubbles', 'robots', 'marker']) {
         expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(true);
       }
-      for (const name of ['back', 'mid', 'front']) {
+      for (const name of ['back', 'mid', 'stations', 'front']) {
         expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(false);
       }
     });
@@ -424,7 +426,7 @@ describe('OceanScene', () => {
     it('gives no layer a click-taking modifier — clicks are .robot\'s alone (spec §1.10)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(7);
+      expect(sheets).toHaveLength(8);
       for (const layer of sheets) {
         expect(layer.classList.contains('ocean-scene__sheet--robots')).toBe(false);
       }
@@ -517,11 +519,14 @@ describe('OceanScene', () => {
         }
       });
 
-      it('A is the top of back, over the background buildings and their pipe bridges', () => {
+      // Task 11: the stations' L4 plates close the back sheet, after tint A, so a plate is hazed by
+      // the tints that follow it exactly as it was when it sat in the back robot row's sheet.
+      it('A is the top of back but for the stations\' L4 plates, over the background buildings and their pipe bridges', () => {
         const { container } = render(<OceanScene />);
         const children = drawn(container, 'back');
-        expect(children.at(-1)!.getAttribute('data-depth-tint')).toBe('A');
-        expect(children.findIndex((el) => el.id === 'factory-background-layer')).toBeLessThan(children.length - 1);
+        expect(children.at(-1)!.id).toBe('station-l4-layer');
+        expect(children.at(-2)!.getAttribute('data-depth-tint')).toBe('A');
+        expect(children.findIndex((el) => el.id === 'factory-background-layer')).toBeLessThan(children.length - 2);
       });
 
       it('B is the bottom of mid; C sits over the midground and its pipe bridges, under the ground line', () => {
@@ -539,11 +544,14 @@ describe('OceanScene', () => {
         expect(c).toBe(ground - 1);
       });
 
-      it('D is the bottom of front, under the foreground buildings', () => {
+      // Task 11: the stations' front fragments open the front sheet, so tint D still lies over them
+      // as it did when they sat at the end of the front robot row's sheet.
+      it('D is under the foreground buildings and over the stations\' front fragment', () => {
         const { container } = render(<OceanScene />);
         const children = drawn(container, 'front');
-        expect(children[0].getAttribute('data-depth-tint')).toBe('D');
-        expect(children.findIndex((el) => el.id === 'factory-foreground-layer')).toBeGreaterThan(0);
+        expect(children[0].id).toBe('station-front-layer');
+        expect(children[1].getAttribute('data-depth-tint')).toBe('D');
+        expect(children.findIndex((el) => el.id === 'factory-foreground-layer')).toBeGreaterThan(1);
       });
 
       // One readout of the haze each row sits under, read off the rendered DOM: the layers stack in
@@ -766,10 +774,12 @@ describe('OceanScene', () => {
   // fragments per station interleaved with the robots, back to front L4 · (exiting robots) · L3 ·
   // robots · L2 + halo + L1. Exits use the slot between L4 and L3 until J4's back row lands.
   describe('charging stations (Phase 43 Task 20)', () => {
-    // Phase 43 Task 34b (spec §1.6): back to front, L4 · exiting robots · L3 · entering robots · L2 ·
-    // halo + ripple · L1. L4 and the exiting robots are in the back robot row; L3 and the front
-    // fragment stay in the front row around the front robots.
-    it("renders every station's fragments around the robot rows: L4 under the back row, L3 and the front around the front row", () => {
+    // Phase 53 Task 11 (spec §1.2, §1.8): the three fragments are static content, so none of them
+    // lives in a moving robot sheet any more. Back to front, L4 closes the back sheet (after tint A),
+    // L3 has the stations sheet between the bubbles and the front robots, and the front fragment
+    // opens the front sheet (before tint D). Only the station ripple, one second per arc, ever
+    // animates one, and it repaints a static sheet for that second.
+    it("renders every station's fragments in static sheets: L4 closing back, L3 in stations, the front fragment opening front", () => {
       useLocaleStore.setState({
         locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1' })], actors: [] } },
       });
@@ -777,19 +787,72 @@ describe('OceanScene', () => {
       expect(stations.length).toBeGreaterThanOrEqual(2);
       const { container } = render(<OceanScene />);
       const layer = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
-      const groupsOf = (name: string) => Array.from(layer(name).querySelectorAll(':scope > g')).map((g) => g.id);
-      expect(groupsOf('robots-back')).toEqual(['station-l4-layer', 'robot-back-layer']);
-      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
       for (const [name, id, fragment] of [
-        ['robots-back', 'station-l4-layer', 'l4'],
-        ['robots', 'station-l3-layer', 'l3'],
-        ['robots', 'station-front-layer', 'front'],
+        ['back', 'station-l4-layer', 'l4'],
+        ['stations', 'station-l3-layer', 'l3'],
+        ['front', 'station-front-layer', 'front'],
       ] as const) {
-        const markers = Array.from(layer(name).querySelectorAll(`#${id} > g[data-station-mock]`));
-        expect(markers.map((m) => m.getAttribute('data-station-mock'))).toEqual(stations.map((s) => s.id));
+        const markers = Array.from(layer(name).querySelectorAll(`:scope > #${id} > g[data-station-mock]`));
+        expect(markers.map((m) => m.getAttribute('data-station-mock')), `${fragment} in ${name}`).toEqual(
+          stations.map((s) => s.id),
+        );
         for (const m of markers) expect(m.getAttribute('data-fragment')).toBe(fragment);
+        expect(container.querySelectorAll(`#${id}`), id).toHaveLength(1);
       }
-      expect(container.querySelectorAll('#station-l4-layer')).toHaveLength(1);
+    });
+
+    it('opens the stations sheet with the L3 group alone, and the sheet draws nothing else', () => {
+      const { container } = render(<OceanScene />);
+      const sheet = container.querySelector('svg[data-scene-slot="stations"]')!;
+      expect(Array.from(sheet.children).map((c) => c.id)).toEqual(['station-l3-layer']);
+    });
+
+    // The two robot sheets hold robots and nothing else now (the dissolve copies' group stays in the
+    // front one until the copy becomes a mover, Task 12).
+    it('leaves the robot sheets holding only the robot rows (and the dissolve group)', () => {
+      const { container } = render(<OceanScene />);
+      const childIds = (name: string) =>
+        Array.from(container.querySelector(`svg[data-scene-slot="${name}"]`)!.children).map((c) => c.id);
+      expect(childIds('robots-back')).toEqual(['robot-back-layer']);
+      expect(childIds('robots')).toEqual(['robot-layer', 'robot-dissolve-layer']);
+    });
+
+    // Spec §1.8: "The z-order is today's exactly: L4 · back robots · midground · bubbles · L3 · front
+    // robots · copies · front fragment · tint D · foreground." A thing's place in the stack is its
+    // sheet's slot first (the stylesheet's z-index follows SCENE_SLOTS, checked in the CSS test) and
+    // its document order inside the sheet second.
+    describe('the stack, back to front', () => {
+      const slotRank = (el: Element) =>
+        SCENE_SLOTS.indexOf(el.closest('svg.ocean-scene__sheet')!.getAttribute('data-scene-slot') as SceneSlot);
+      const under = (a: Element, b: Element) =>
+        slotRank(a) < slotRank(b) ||
+        (slotRank(a) === slotRank(b) && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+
+      // The chain opens on the background buildings and tint A: before this phase L4 sat in a sheet
+      // above all of `back`, so a plate lay over tint A, not under it.
+      it('is background, tint A, L4, back robots, midground, bubbles, L3, front robots, copies, front fragment, tint D, foreground', () => {
+        const { container } = render(<OceanScene />);
+        const q = (selector: string) => container.querySelector(selector)!;
+        const chain: Array<[string, Element]> = [
+          ['background', q('#factory-background-layer')],
+          ['tint A', q('rect[data-depth-tint="A"]')],
+          ['L4', q('#station-l4-layer')],
+          ['back robots', q('#robot-back-layer')],
+          ['midground', q('#factory-midground-layer')],
+          ['bubbles', q('svg[data-scene-slot="bubbles"]')],
+          ['L3', q('#station-l3-layer')],
+          ['front robots', q('#robot-layer')],
+          ['copies', q('#robot-dissolve-layer')],
+          ['front fragment', q('#station-front-layer')],
+          ['tint D', q('rect[data-depth-tint="D"]')],
+          ['foreground', q('#factory-foreground-layer')],
+        ];
+        for (const [, el] of chain) expect(el).not.toBeNull();
+        for (let i = 1; i < chain.length; i++) {
+          expect(under(chain[i - 1][1], chain[i][1]), `${chain[i - 1][0]} under ${chain[i][0]}`).toBe(true);
+          expect(under(chain[i][1], chain[i - 1][1]), `${chain[i][0]} not under ${chain[i - 1][0]}`).toBe(false);
+        }
+      });
     });
 
     it('a back-row robot draws over L4 and under L3', () => {
@@ -841,15 +904,19 @@ describe('OceanScene', () => {
       expect(container.querySelector('#robot-dissolve-layer')!.firstChild).toBe(use);
     });
 
-    it('draws no station in any other layer, and only L4 in the back row', () => {
+    it('draws each fragment in its own sheet only: l4 in back, l3 in stations, front in front, none in a moving sheet', () => {
       const { container } = render(<OceanScene />);
-      for (const name of ['back', 'mid', 'bubbles', 'front']) {
-        expect(container.querySelector(`svg[data-scene-slot="${name}"] g[data-station-mock]`)).toBeNull();
+      const fragmentsIn = (name: string) =>
+        Array.from(container.querySelectorAll(`svg[data-scene-slot="${name}"] g[data-station-mock]`)).map((m) =>
+          m.getAttribute('data-fragment'),
+        );
+      expect(new Set(fragmentsIn('back'))).toEqual(new Set(['l4']));
+      expect(new Set(fragmentsIn('stations'))).toEqual(new Set(['l3']));
+      expect(new Set(fragmentsIn('front'))).toEqual(new Set(['front']));
+      for (const name of ['robots-back', 'mid', 'bubbles', 'robots', 'marker']) {
+        expect(fragmentsIn(name), name).toEqual([]);
       }
-      const back = Array.from(container.querySelectorAll('svg[data-scene-slot="robots-back"] g[data-station-mock]'));
-      expect(back.length).toBeGreaterThan(0);
-      for (const m of back) expect(m.getAttribute('data-fragment')).toBe('l4');
-      expect(container.querySelector('svg[data-scene-slot="robots"] g[data-fragment="l4"]')).toBeNull();
+      expect(fragmentsIn('back').length).toBeGreaterThan(0);
     });
   });
 

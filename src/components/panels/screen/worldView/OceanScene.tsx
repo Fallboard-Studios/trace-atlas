@@ -128,11 +128,12 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 
 /**
  * Root scene component. Renders one scaled stage (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1)
- * holding seven stacked SVG sheets (roadmap 17.2.5; Phase 43 J4, spec §1.10), back to front:
- * static `back` (water, ridge, background factories, tint A), the moving back robot row
- * `robots-back`, static `mid` (tint B, midground factories, tint C, the ground line), the moving
- * bubble layer (every building's vent bubbles), the moving front robot row `robots`, and static
- * `front` (tint D, foreground factories), then the moving `marker` layer (the Deck camera's
+ * holding eight stacked SVG sheets (roadmap 17.2.5; Phase 43 J4, spec §1.10), back to front:
+ * static `back` (water, ridge, background factories, tint A, the stations' L4 plates), the moving
+ * back robot row `robots-back`, static `mid` (tint B, midground factories, tint C, the ground
+ * line), the moving bubble layer (every building's vent bubbles), static `stations` (the stations'
+ * L3 plates), the moving front robot row `robots`, and static `front` (the stations' front
+ * fragments, tint D, foreground factories), then the moving `marker` layer (the Deck camera's
  * followed-robot marker, in front of every building). Kicks off factory placement, robot spawning
  * and factory production scheduling on mount.
  *
@@ -319,18 +320,20 @@ export function OceanScene({
           <PipeBridges factories={backgroundFactories} />
           {/* Tint A: over the background buildings, under the back robot row. */}
           <TintRect slot="A" width={width} height={height} />
-        </Sheet>
-
-        {/* Moving: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
-            the midground, hazed by tints B–D like the buildings around them. */}
-        <Sheet slot="robots-back" width={width} height={height} moving>
-          {/* Each station's back fragment (L4), under the back row: a robot exiting a station is in
-              this row (Task 34b, spec §1.6), so it appears between L4 and L3. */}
+          {/* Each station's back fragment (L4), over tint A and under the back robot row: a robot
+              exiting a station is in that row (Task 34b, spec §1.6), so it appears between L4 and
+              L3. Static content (Phase 53, spec §1.8): only the station ripple, one second per
+              arc, ever animates a fragment, so none of the three sits on a moving sheet. */}
           <g id="station-l4-layer">
             {stations.map((s) => (
               <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
             ))}
           </g>
+        </Sheet>
+
+        {/* Moving: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
+            the midground, hazed by tints B–D like the buildings around them. */}
+        <Sheet slot="robots-back" width={width} height={height} moving>
           <g id="robot-back-layer">
             {backRobotIds.map((id) => (
               <Robot key={id} robotId={id} />
@@ -366,18 +369,23 @@ export function OceanScene({
           <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
         </Sheet>
 
-        {/* Moving: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
-            `layer` isn't 'background'. Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
+        {/* Static: each station's middle fragment (L3), between the bubbles and the front robots
+            (Phase 53, spec §1.2, §1.8). Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
             §1.6) are three fragments interleaved with the robots, back to front: L4 · exiting
-            robots · L3 · robots · L2 + halo + L1. L4 and the exiting robots are in robots-back
-            (Task 34b), so an exiting robot appears behind L3 and an entering one passes between L2
-            and L3. Stations take no clicks. */}
-        <Sheet slot="robots" width={width} height={height} moving>
+            robots · L3 · robots · L2 + halo + L1. L4 is the end of the back sheet and the exiting
+            robots are in robots-back (Task 34b), so an exiting robot appears behind L3 and an
+            entering one passes between L2 and L3. Stations take no clicks. */}
+        <Sheet slot="stations" width={width} height={height}>
           <g id="station-l3-layer">
             {stations.map((s) => (
               <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l3" />
             ))}
           </g>
+        </Sheet>
+
+        {/* Moving: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
+            `layer` isn't 'background'. */}
+        <Sheet slot="robots" width={width} height={height} moving>
           <g id="robot-layer">
             {frontRobotIds.map((id) => (
               <Robot key={id} robotId={id} />
@@ -387,18 +395,20 @@ export function OceanScene({
               `<use>` of a switching robot here — the front row's look of it, fading over the back
               row's. Empty in JSX, so React never touches what the loop puts in it. */}
           <g id="robot-dissolve-layer" ref={registerDissolveLayer} />
+        </Sheet>
+
+        {/* Static front layer: each station's front fragment (L2 + halo + L1), then tint D, then the
+            foreground-row factories (closest to the viewer). */}
+        <Sheet slot="front" width={width} height={height}>
+          <defs>
+            <TintGradient slot="D" />
+          </defs>
+          {/* Over the front robots and the layer-switch copies, under tint D (Phase 53, spec §1.8). */}
           <g id="station-front-layer">
             {stations.map((s) => (
               <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
             ))}
           </g>
-        </Sheet>
-
-        {/* Static front layer: tint D, then the foreground-row factories (closest to the viewer). */}
-        <Sheet slot="front" width={width} height={height}>
-          <defs>
-            <TintGradient slot="D" />
-          </defs>
           {/* Tint D: over the front robot row, under the foreground. */}
           <TintRect slot="D" width={width} height={height} />
           <g id="factory-foreground-layer">

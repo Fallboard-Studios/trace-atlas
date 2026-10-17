@@ -395,16 +395,17 @@ gets a target-less timeline of the same length under the same key, because `crea
 no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
 
 ### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is seven stacked `<svg>` layers that share one viewBox and `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
+The ocean scene (`OceanScene.tsx`) is eight stacked `<svg>` layers that share one viewBox and `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
 
 | Layer | Moves? | Contents |
 |---|---|---|
-| `back` | static | water column, light shafts, the terrain ridge, background factories/scenery and pipe bridges, tint A |
-| `robots-back` | moving | `#station-l4-layer` (each station's back plate), `#robot-back-layer` (robots whose `layer` is `'background'`) |
+| `back` | static | water column, light shafts, the terrain ridge, background factories/scenery and pipe bridges, tint A, `#station-l4-layer` (each station's back plate) |
+| `robots-back` | moving | `#robot-back-layer` (robots whose `layer` is `'background'`) |
 | `mid` | static | tint B, midground factories/scenery and pipe bridges, tint C, the ground line |
 | `bubbles` | moving | every building's and vent's bubbles |
-| `robots` | moving | `#station-l3-layer`, `#robot-layer` (every other robot), `#robot-dissolve-layer` (layer-switch copies), `#station-front-layer` |
-| `front` | static | tint D, foreground factories/scenery and pipe bridges |
+| `stations` | static | `#station-l3-layer` (each station's middle fragment) |
+| `robots` | moving | `#robot-layer` (every other robot), `#robot-dissolve-layer` (layer-switch copies) |
+| `front` | static | `#station-front-layer` (each station's front fragment: halo and ripple), tint D, foreground factories/scenery and pipe bridges |
 | `marker` | moving | the Deck camera's followed-robot marker (`FollowedRobotMarker`), in front of every building; its own layer because it moves every frame and a write in `front` would repaint the foreground factories |
 
 The four **depth tints** (`DEPTH_TINTS`, full-screen `rect[data-depth-tint]`, each a gradient `#depth-tint-{slot}` defined in the layer that draws it) replaced the old two gradients. A is 0.06 and B 0.25 (`#0c1c4f` → `vent.shadow`), C 0.20 and D 0.10 (`vent.shadow`). Coverage, 1 − Π(1 − α): background buildings 49 %, back-row robots 46 %, midground 28 %, front-row robots, stations and bubbles 10 %, foreground 0. Only B and C sit between the robot rows, so a row switch gains or loses 40 % haze, which the dissolve blends. The haze is the scene's, not a robot overlay. No layer takes clicks (`pointer-events: none`); `.robot` takes them, in either row.
@@ -425,7 +426,7 @@ bug-like of the three (opacity-only, no position write), so a future "drift the 
 revisited, is a moving-layer addition and must clear the same idle-paint gate this section
 describes before it ships, not after.
 
-- Anything that moves every frame goes in a moving layer (robots and station fragments in the two robot layers, bubbles in `BubbleLayer`), never inside the static factory layers.
+- Anything that moves every frame goes in a moving layer (robots in the two robot layers, bubbles in `BubbleLayer`; the station fragments are static, and only the one-second ripple animates one), never inside the static factory layers.
 - No CSS `transition`/`animation` on scene SVG fills or attributes — a running transition style-invalidates its element every frame, which is how the old `fill 4.8s` lighting fade kept the whole scene repainting. Lighting steps once a second instead.
 
 Measure with `npm run perf:idle` before and after any change to what moves in the scene (docs/PERFORMANCE.md, "Idle paint & composite").
