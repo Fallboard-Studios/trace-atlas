@@ -6,7 +6,7 @@ import { render } from '@testing-library/react';
 vi.mock('./BubbleStream', () => ({
   __esModule: true,
   default: (props: { actorId: string; totalBuildings: number; depthScale?: number; isActive: boolean }) => (
-    <g
+    <div
       data-testid="bubble-stream-stub"
       data-actor-id={props.actorId}
       data-total-buildings={props.totalBuildings}
@@ -49,13 +49,13 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
       makeActor('f-unset', undefined),
       makeActor('f-pipes', 'pipeWorks'),
     ];
-    const { container } = render(<svg><BubbleLayer actors={factories} totalBuildings={3} /></svg>);
+    const { container } = render(<div><BubbleLayer actors={factories} totalBuildings={3} /></div>);
     expect(stubs(container).map((el) => el.getAttribute('data-actor-id'))).toEqual(['f-heavy', 'f-unset', 'f-pipes']);
   });
 
   it('forwards totalBuildings to every stream unchanged', () => {
     const factories = [makeActor('a', 'heavyIndustry'), makeActor('b', 'chemicalProcessing')];
-    const { container } = render(<svg><BubbleLayer actors={factories} totalBuildings={37} /></svg>);
+    const { container } = render(<div><BubbleLayer actors={factories} totalBuildings={37} /></div>);
     expect(stubs(container).map((el) => el.getAttribute('data-total-buildings'))).toEqual(['37', '37']);
   });
 
@@ -65,7 +65,7 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
       makeActor('mid', 'heavyIndustry', rowIndexFor('midground'), { derelict: true }),
       makeActor('fg', 'heavyIndustry', rowIndexFor('foreground')),
     ];
-    const { container } = render(<svg><BubbleLayer actors={factories} totalBuildings={3} /></svg>);
+    const { container } = render(<div><BubbleLayer actors={factories} totalBuildings={3} /></div>);
     const byId = Object.fromEntries(stubs(container).map((el) => [el.getAttribute('data-actor-id'), el]));
     expect(Number(byId.bg.getAttribute('data-depth-scale'))).toBeCloseTo(1 / 3, 9);
     expect(byId.mid.getAttribute('data-depth-scale')).toBe('0.5');
@@ -75,8 +75,19 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
     expect(byId.fg.getAttribute('data-active')).toBe('true');
   });
 
+  // Roadmap 53, Task 18 (spec 1.6): each stream is a mover and a stage child, so the layer is a
+  // bare fragment of streams - no <svg> of its own to nest them in.
+  it('wraps its streams in no element of its own: they are its container\'s direct children', () => {
+    const factories = [makeActor('a', 'heavyIndustry'), makeActor('b', 'chemicalProcessing')];
+    const { container } = render(<div id="host"><BubbleLayer actors={factories} totalBuildings={2} /></div>);
+    const host = container.querySelector('#host')!;
+    expect(host.children).toHaveLength(2);
+    expect(Array.from(host.children).every((el) => el.getAttribute('data-testid') === 'bubble-stream-stub')).toBe(true);
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
   it('renders nothing for an empty locale', () => {
-    const { container } = render(<svg><BubbleLayer actors={[]} totalBuildings={0} /></svg>);
+    const { container } = render(<div><BubbleLayer actors={[]} totalBuildings={0} /></div>);
     expect(stubs(container)).toHaveLength(0);
   });
 
@@ -96,7 +107,7 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
       config: { kind: 'vent', row: ventRow, district: 'ventfield' },
     };
     const actors = [makeActor('f-heavy', 'heavyIndustry'), ventActor];
-    const { container } = render(<svg><BubbleLayer actors={actors} totalBuildings={2} /></svg>);
+    const { container } = render(<div><BubbleLayer actors={actors} totalBuildings={2} /></div>);
     expect(stubs(container).map((el) => el.getAttribute('data-actor-id')).sort()).toEqual(['f-heavy', 'vent-1']);
   });
 
@@ -108,7 +119,7 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
       isActive: false,
       config: { kind: 'wall', row: 0, district: 'outskirts' },
     };
-    const { container } = render(<svg><BubbleLayer actors={[wallActor]} totalBuildings={0} /></svg>);
+    const { container } = render(<div><BubbleLayer actors={[wallActor]} totalBuildings={0} /></div>);
     expect(stubs(container)).toHaveLength(0);
   });
 });

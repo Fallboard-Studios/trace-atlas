@@ -47,6 +47,14 @@ vi.mock('./FollowedRobotMarker', () => ({
 // Records what the scene hands its bubble layer (which actors, what total) without running
 // BubbleStream's GSAP timelines.
 const bubbleLayerMock = vi.fn((_props: { actors: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
+/** A bubble layer that renders `n` strip movers, as the real one does (BubbleStream.tsx). */
+const bubbleStrips = (n: number) => () => (
+  <>
+    {Array.from({ length: n }, (_, i) => (
+      <div key={i} className="mover mover--bubbles" data-scene-slot="bubbles" data-strip-stub={i} />
+    ))}
+  </>
+);
 vi.mock('@/components/actors/BubbleLayer', () => ({
   BubbleLayer: (props: { actors: { id: string }[]; totalBuildings: number }) => bubbleLayerMock(props),
 }));
@@ -307,6 +315,7 @@ describe('OceanScene', () => {
 
     beforeEach(() => {
       bubbleLayerMock.mockClear();
+      bubbleLayerMock.mockImplementation(() => null); // a test that swaps in strips cannot leak them
       useLocaleStore.setState({
         locales: {
           [DEFAULT_LOCALE_ID]: {
@@ -337,18 +346,57 @@ describe('OceanScene', () => {
 
     // Phase 53 Task 11 (spec §1.2, §1.8): the stations' L3 plates get a static sheet of their own
     // between the bubbles and the front robots. Task 13 (spec §1.4): the two robot sheets are gone —
-    // every robot is a mover, a stage child of its own — so the stage holds six sheets, the dissolve
-    // div, and the robot movers (the bubbles' and the marker's sheets follow in Tasks 18 and 19).
-    it('renders six sheets and the dissolve div as the stage\'s children in back → mid → bubbles → stations → dissolve → front → marker order, the robot movers among them', () => {
+    // every robot is a mover, a stage child of its own. Task 18 (spec §1.6): so is every bubble
+    // stream, and the bubbles sheet goes with them — so the stage holds five sheets, the dissolve
+    // div, and the movers (the marker's sheet follows in Task 19).
+    it('renders five sheets and the dissolve div as the stage\'s children in back → mid → stations → dissolve → front → marker order, the movers among them', () => {
       const { container } = render(<OceanScene />);
       const stage = container.querySelector('.ocean-scene__stage')!;
       const sheets = Array.from(stage.querySelectorAll(':scope > svg.ocean-scene__sheet'));
-      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(['back', 'mid', 'bubbles', 'stations', 'front', 'marker']);
-      const notRobots = Array.from(stage.children).filter((c) => !c.classList.contains('mover--robot'));
-      expect(notRobots.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
-        ['back', 'mid', 'bubbles', 'stations', 'dissolve', 'front', 'marker'],
+      expect(sheets.map((l) => l.getAttribute('data-scene-slot'))).toEqual(['back', 'mid', 'stations', 'front', 'marker']);
+      const notMovers = Array.from(stage.children).filter((c) => !c.classList.contains('mover'));
+      expect(notMovers.map((l) => l.getAttribute('data-scene-slot'))).toEqual(
+        ['back', 'mid', 'stations', 'dissolve', 'front', 'marker'],
       );
       expect(stage.querySelectorAll(':scope > .mover--robot')).toHaveLength(1); // the fixture's r1
+    });
+
+    // Roadmap 53 Task 18 (spec §1.6, §1.9): the bubbles sheet is deleted; BubbleLayer is a fragment
+    // of strip movers, each a stage child in the `bubbles` slot.
+    it('has no bubbles sheet any more', () => {
+      bubbleLayerMock.mockImplementation(bubbleStrips(2));
+      const { container } = render(<OceanScene />);
+      expect(container.querySelector('svg[data-scene-slot="bubbles"]')).toBeNull();
+      expect(container.querySelector('svg.ocean-scene__sheet[data-scene-slot="bubbles"]')).toBeNull();
+      bubbleLayerMock.mockImplementation(() => null);
+    });
+
+    it('renders each bubble strip as a .mover--bubbles stage child in the bubbles slot', () => {
+      bubbleLayerMock.mockImplementation(bubbleStrips(3));
+      const { container } = render(<OceanScene />);
+      const stage = container.querySelector('.ocean-scene__stage')!;
+      const strips = stage.querySelectorAll(':scope > .mover--bubbles');
+      expect(strips).toHaveLength(3);
+      for (const strip of strips) expect(strip.getAttribute('data-scene-slot')).toBe('bubbles');
+      expect(container.querySelectorAll('.mover--bubbles')).toHaveLength(3); // none nested anywhere else
+      bubbleLayerMock.mockImplementation(() => null);
+    });
+
+    it('puts the bubble strips between the mid sheet and the stations sheet in the stage\'s document order', () => {
+      bubbleLayerMock.mockImplementation(bubbleStrips(2));
+      const { container } = render(<OceanScene />);
+      const stage = container.querySelector('.ocean-scene__stage')!;
+      const order = Array.from(stage.children)
+        .map((c) => c.getAttribute('data-scene-slot'))
+        .filter((s) => s !== 'robots' && s !== 'robots-back');
+      expect(order.indexOf('mid')).toBeLessThan(order.indexOf('bubbles'));
+      expect(order.lastIndexOf('bubbles')).toBeLessThan(order.indexOf('stations'));
+      bubbleLayerMock.mockImplementation(() => null);
+    });
+
+    it('draws no bubble strip when the layer renders none (an empty locale)', () => {
+      const { container } = render(<OceanScene />);
+      expect(container.querySelectorAll('.mover--bubbles')).toHaveLength(0);
     });
 
     it('has no robots or robots-back sheet any more — a robot is a mover, not a group in a sheet', () => {
@@ -387,7 +435,7 @@ describe('OceanScene', () => {
     it('every sheet is the stage\'s own size: the world viewBox and no preserveAspectRatio (the stage does the fit)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(6);
+      expect(sheets).toHaveLength(5);
       for (const sheet of sheets) {
         expect(sheet.getAttribute('viewBox')).toBe('0 0 1920 1080');
         expect(sheet.hasAttribute('preserveAspectRatio')).toBe(false);
@@ -447,12 +495,11 @@ describe('OceanScene', () => {
       });
     });
 
-    it('marks the bubbles layer and the marker layer as moving (the robots are movers now), and the back, mid, stations and front layers as not', () => {
+    it('marks only the marker layer as moving (the robots and the bubbles are movers now), and the back, mid, stations and front layers as not', () => {
       const { container } = render(<OceanScene />);
       const byName = (name: string) => container.querySelector(`svg[data-scene-slot="${name}"]`)!;
-      for (const name of ['bubbles', 'marker']) {
-        expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(true);
-      }
+      expect(byName('marker').classList.contains('ocean-scene__sheet--moving')).toBe(true);
+      expect(container.querySelectorAll('.ocean-scene__sheet--moving')).toHaveLength(1);
       for (const name of ['back', 'mid', 'stations', 'front']) {
         expect(byName(name).classList.contains('ocean-scene__sheet--moving')).toBe(false);
       }
@@ -461,7 +508,7 @@ describe('OceanScene', () => {
     it('gives no layer a click-taking modifier — clicks are .robot\'s alone (spec §1.10)', () => {
       const { container } = render(<OceanScene />);
       const sheets = container.querySelectorAll('svg.ocean-scene__sheet');
-      expect(sheets).toHaveLength(6);
+      expect(sheets).toHaveLength(5);
       for (const layer of sheets) {
         expect(layer.classList.contains('ocean-scene__sheet--robots')).toBe(false);
       }
@@ -790,13 +837,6 @@ describe('OceanScene', () => {
       expect(props.totalBuildings).toBe(3); // 2 bubble-eligible factories + 1 vent
     });
 
-    it('keeps the bubble layer inside the bubbles svg', () => {
-      bubbleLayerMock.mockImplementation(() => <g data-testid="bubble-layer-stub" />);
-      const { container } = render(<OceanScene />);
-      expect(container.querySelector('svg[data-scene-slot="bubbles"] [data-testid="bubble-layer-stub"]')).not.toBeNull();
-      bubbleLayerMock.mockImplementation(() => null);
-    });
-
     // Terrain (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3, roadmap Phase 42 Task 7): the ridge
     // must stand behind every factory, and the ground must bury under midground bases, so
     // their document-order position relative to the existing groups is load-bearing, not
@@ -908,6 +948,7 @@ describe('OceanScene', () => {
       // The chain opens on the background buildings and tint A: before this phase L4 sat in a sheet
       // above all of `back`, so a plate lay over tint A, not under it.
       it('is background, tint A, L4, back robots, midground, bubbles, L3, front robots, copies, front fragment, tint D, foreground', () => {
+        bubbleLayerMock.mockImplementation(bubbleStrips(1));
         useLocaleStore.setState({
           locales: {
             [DEFAULT_LOCALE_ID]: {
@@ -924,7 +965,7 @@ describe('OceanScene', () => {
           ['L4', q('#station-l4-layer')],
           ['back robots', q(BACK_ROBOT)],
           ['midground', q('#factory-midground-layer')],
-          ['bubbles', q('svg[data-scene-slot="bubbles"]')],
+          ['bubbles', q('.mover--bubbles')],
           ['L3', q('#station-l3-layer')],
           ['front robots', q(FRONT_ROBOT)],
           ['copies', q('[data-scene-slot="dissolve"]')],
@@ -1012,7 +1053,7 @@ describe('OceanScene', () => {
       expect(new Set(fragmentsIn('back'))).toEqual(new Set(['l4']));
       expect(new Set(fragmentsIn('stations'))).toEqual(new Set(['l3']));
       expect(new Set(fragmentsIn('front'))).toEqual(new Set(['front']));
-      for (const name of ['robots-back', 'mid', 'bubbles', 'robots', 'marker']) {
+      for (const name of ['robots-back', 'mid', 'robots', 'marker']) {
         expect(fragmentsIn(name), name).toEqual([]);
       }
       expect(container.querySelectorAll('.mover g[data-station-mock]')).toHaveLength(0);

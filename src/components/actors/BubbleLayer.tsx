@@ -14,12 +14,13 @@ interface BubbleLayerProps {
 }
 
 /**
- * Every building's bubble stream, in one scene layer of its own (roadmap 17.2.5).
+ * Every building's bubble stream, each a strip mover of its own (roadmap 17.2.5; Phase 53 Task 18).
  *
- * Rendered inside OceanScene's "bubbles" `<svg>` — a compositor layer separate from the static
- * factory skyline — so a rising bubble's transform writes repaint only this layer. Bubbles from
- * every row share the one layer: they rise behind the robots and below the foreground factories,
- * where the old per-row placement put foreground-row bubbles in front of the robots. Vents
+ * A bare fragment of `BubbleStream`s, rendered by OceanScene as children of its stage: each stream
+ * is a small `div.mover.mover--bubbles` in the `bubbles` slot, a compositor layer separate from the
+ * static factory skyline, so a rising bubble's transform writes repaint only its own strip. Bubbles
+ * from every row share the one slot: they rise behind the robots and below the foreground
+ * factories, where the old per-row placement put foreground-row bubbles in front of the robots. Vents
  * (roadmap Phase 42 Task 17, §1.11) bubble the same way — `getActorBubbleProps` filters every
  * other scenery kind out via its own `null` return.
  */

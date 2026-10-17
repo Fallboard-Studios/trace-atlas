@@ -147,6 +147,22 @@ describe('BUBBLE_CIRCLES', () => {
     );
   });
 
+  // Phase 53 Task 18: a stream is a strip mover (`div.mover.mover--bubbles`), not circles in a sheet.
+  it('finds the circles inside the strip movers, and only those (a robot mover\'s circle is not a bubble)', () => {
+    document.body.innerHTML = MOVER_SCENE;
+    expect(ids(document.querySelectorAll(BUBBLE_CIRCLES))).toEqual(['mover-bubble']);
+  });
+
+  it('finds every strip\'s circles when there are several streams', () => {
+    document.body.innerHTML = `
+      <div class="ocean-scene__stage">
+        <div class="mover mover--bubbles" data-scene-slot="bubbles"><svg><circle id="s1-a" /><circle id="s1-b" /></svg></div>
+        <div class="mover mover--bubbles" data-scene-slot="bubbles"><svg><circle id="s2-a" /></svg></div>
+        <div class="mover mover--robot" data-scene-slot="robots"><svg><g class="robot"><circle id="not-a-bubble" /></g></svg></div>
+      </div>`;
+    expect(ids(document.querySelectorAll(BUBBLE_CIRCLES)).sort()).toEqual(['s1-a', 's1-b', 's2-a']);
+  });
+
   it('leaves the robots, and circles that are neither a bubble nor in a factory layer, alone', () => {
     document.body.innerHTML = NEW_SCENE;
     const found = ids(document.querySelectorAll(BUBBLE_CIRCLES));

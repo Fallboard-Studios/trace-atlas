@@ -395,18 +395,17 @@ gets a target-less timeline of the same length under the same key, because `crea
 no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
 
 ### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is six stacked `<svg>` sheets, the robots' movers and the dissolve div, all children of one scaled stage that carries the `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-slot` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10; Phase 53 made each robot a mover of its own, so the two robot sheets are gone — interim wording, rewritten with the rest of this section in Phase 53 Task 22). The sheets, back to front:
+The ocean scene (`OceanScene.tsx`) is five stacked `<svg>` sheets, the robots' and bubble streams' movers and the dissolve div, all children of one scaled stage that carries the `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-slot` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10; Phase 53 made each robot and each bubble stream a mover of its own, so the two robot sheets and the bubbles sheet are gone — interim wording, rewritten with the rest of this section in Phase 53 Task 22). The sheets, back to front:
 
 | Layer | Moves? | Contents |
 |---|---|---|
 | `back` | static | water column, light shafts, the terrain ridge, background factories/scenery and pipe bridges, tint A, `#station-l4-layer` (each station's back plate) |
 | `mid` | static | tint B, midground factories/scenery and pipe bridges, tint C, the ground line |
-| `bubbles` | moving | every building's and vent's bubbles |
 | `stations` | static | `#station-l3-layer` (each station's middle fragment) |
 | `front` | static | `#station-front-layer` (each station's front fragment: halo and ripple), tint D, foreground factories/scenery and pipe bridges |
 | `marker` | moving | the Deck camera's followed-robot marker (`FollowedRobotMarker`), in front of every building; its own layer because it moves every frame and a write in `front` would repaint the foreground factories |
 
-Between the sheets sit the movers, stacked by the same `data-scene-slot` z-index table (`SCENE_SLOTS`, `sceneStack.ts`): each robot is a `div.mover.mover--robot` holding its gem-canvas `<svg>`, in slot `robots-back` (its `layer` is `'background'`, behind `mid`) or `robots` (every other robot, above `stations`), and the work loop's dissolve copies live in the `dissolve` slot's div (`getRef('robot-dissolve-layer')`), under `front`. `getRef('robot-<id>')` is the robot's mover: the swim, the job's bob and the station arc move it, in scene units, and the `.robot` group inside carries no transform.
+Between the sheets sit the movers, stacked by the same `data-scene-slot` z-index table (`SCENE_SLOTS`, `sceneStack.ts`): each robot is a `div.mover.mover--robot` holding its gem-canvas `<svg>`, in slot `robots-back` (its `layer` is `'background'`, behind `mid`) or `robots` (every other robot, above `stations`), every building's and vent's bubbles are one `div.mover.mover--bubbles` per `BubbleStream`, in slot `bubbles` (above `mid`, under `stations`), sized from that stream's own seeded rise and wobble with the vent at its bottom-centre, and the work loop's dissolve copies live in the `dissolve` slot's div (`getRef('robot-dissolve-layer')`), under `front`. `getRef('robot-<id>')` is the robot's mover: the swim, the job's bob and the station arc move it, in scene units, and the `.robot` group inside carries no transform.
 
 The four **depth tints** (`DEPTH_TINTS`, full-screen `rect[data-depth-tint]`, each a gradient `#depth-tint-{slot}` defined in the layer that draws it) replaced the old two gradients. A is 0.06 and B 0.25 (`#0c1c4f` → `vent.shadow`), C 0.20 and D 0.10 (`vent.shadow`). Coverage, 1 − Π(1 − α): background buildings 49 %, back-row robots 46 %, midground 28 %, front-row robots, stations and bubbles 10 %, foreground 0. Only B and C sit between the robot rows, so a row switch gains or loses 40 % haze, which the dissolve blends. The haze is the scene's, not a robot overlay. No layer takes clicks (`pointer-events: none`); `.robot` takes them, in either row.
 
@@ -426,7 +425,7 @@ bug-like of the three (opacity-only, no position write), so a future "drift the 
 revisited, is a moving-layer addition and must clear the same idle-paint gate this section
 describes before it ships, not after.
 
-- Anything that moves every frame goes in a moving layer (robots in the two robot layers, bubbles in `BubbleLayer`; the station fragments are static, and only the one-second ripple animates one), never inside the static factory layers.
+- Anything that moves every frame goes in a moving layer (robots as movers in the two robot slots, bubbles as one strip mover per `BubbleStream`; the station fragments are static, and only the one-second ripple animates one), never inside the static factory layers.
 - No CSS `transition`/`animation` on scene SVG fills or attributes — a running transition style-invalidates its element every frame, which is how the old `fill 4.8s` lighting fade kept the whole scene repainting. Lighting steps once a second instead.
 
 Measure with `npm run perf:idle` before and after any change to what moves in the scene (docs/PERFORMANCE.md, "Idle paint & composite").

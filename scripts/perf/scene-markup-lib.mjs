@@ -38,10 +38,12 @@ export const sceneSlotSelector = (name) => `[data-scene-slot="${name}"], [data-s
 export const SHEET_SELECTOR = '.ocean-scene__sheet, .ocean-scene__layer';
 
 /**
- * The bubble circles: in their own sheet since the 17.2.5 layer split, and inside the factory
- * groups before it (so one name ablates both builds).
+ * The bubble circles: in a strip mover each since Phase 53 Task 17 (`div.mover.mover--bubbles`), in
+ * their own sheet since the 17.2.5 layer split, and inside the factory groups before it (so one name
+ * ablates all three builds).
  */
 export const BUBBLE_CIRCLES = [
+  '.mover--bubbles circle',
   'svg[data-scene-slot="bubbles"] circle',
   'svg[data-scene-layer="bubbles"] circle',
   '#factory-background-layer circle',

@@ -27,7 +27,7 @@ vi.mock('@/components/stations/ChargingStation', () => ({
     <rect data-station-mock={props.station.id} data-fragment={props.fragment} width="10" height="10" />
   ),
 }));
-vi.mock('@/components/actors/BubbleLayer', () => ({ BubbleLayer: () => <circle data-bubble-stub r="4" /> }));
+vi.mock('@/components/actors/BubbleLayer', () => ({ BubbleLayer: () => <div className="mover mover--bubbles" data-scene-slot="bubbles" data-bubble-stub /> }));
 vi.mock('@/systems/worldTransition', () => ({ initializeLocale: vi.fn() }));
 vi.mock('@/systems/robotSystems', () => ({ stopRobotLifecycle: vi.fn() }));
 const { consumeSessionSharePayloadMock } = vi.hoisted(() => ({ consumeSessionSharePayloadMock: vi.fn(() => null) }));
@@ -94,10 +94,12 @@ describe('OceanScene clicks through the stacked layers (Phase 43 Task 33)', () =
     const { container } = render(<OceanScene />);
     const scene = container.querySelector('.ocean-scene')!;
     const outsideRobots = Array.from(scene.querySelectorAll('*')).filter((el) => !el.closest('.robot'));
-    // The stage, the six sheets, the dissolve div, both robots' movers and their svgs, the tints and
-    // the stations are all in the list (Phase 53 Task 13: a robot is a mover, a wrapper of its own).
+    // The stage, the five sheets, the dissolve div, both robots' movers and their svgs, a bubble
+    // strip, the tints and the stations are all in the list (Phase 53 Task 13: a robot is a mover, a
+    // wrapper of its own; Task 18: so is a bubble stream).
     expect(outsideRobots.filter((el) => el.matches('.ocean-scene__stage'))).toHaveLength(1);
-    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__sheet'))).toHaveLength(6);
+    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__sheet'))).toHaveLength(5);
+    expect(outsideRobots.filter((el) => el.matches('div.mover--bubbles'))).toHaveLength(1);
     expect(outsideRobots.filter((el) => el.matches('.ocean-scene__dissolve'))).toHaveLength(1);
     expect(outsideRobots.filter((el) => el.matches('div.mover--robot'))).toHaveLength(2);
     expect(outsideRobots.filter((el) => el.matches('div.mover--robot > svg'))).toHaveLength(2);

@@ -127,11 +127,11 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 
 /**
  * Root scene component. Renders one scaled stage (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1)
- * holding six stacked SVG sheets, the dissolve div and one mover per robot (roadmap 17.2.5; Phase 43
+ * holding five stacked SVG sheets, the dissolve div and the movers (roadmap 17.2.5; Phase 43
  * J4, spec §1.10; Phase 53), back to front: static `back` (water, ridge, background factories, tint
  * A, the stations' L4 plates), the back robot row's movers (`robots-back`), static `mid` (tint B,
- * midground factories, tint C, the ground line), the moving bubble layer (every building's vent
- * bubbles), static `stations` (the stations' L3 plates), the front robot row's movers (`robots`), the
+ * midground factories, tint C, the ground line), the bubble strips (one mover per vent stream,
+ * `bubbles`), static `stations` (the stations' L3 plates), the front robot row's movers (`robots`), the
  * `dissolve` div (a layer switch's copies), and static `front` (the stations' front fragments, tint
  * D, foreground factories), then the moving `marker` layer (the Deck camera's followed-robot marker,
  * in front of every building). Kicks off factory placement, robot spawning and factory production
@@ -352,11 +352,11 @@ export function OceanScene({
           <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
         </Sheet>
 
-        {/* Moving: every building's AND vent's bubbles, all rows (BubbleStream timelines), behind
-            the robots (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11). */}
-        <Sheet slot="bubbles" width={width} height={height} moving>
-          <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
-        </Sheet>
+        {/* Movers: every building's AND vent's bubbles, all rows (BubbleStream timelines), behind
+            the robots (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11). One strip mover per stream, each a
+            stage child of its own in the `bubbles` slot (Phase 53 Task 18, spec §1.6), so a rising
+            bubble repaints its own small strip and no sheet is left for them to share. */}
+        <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
 
         {/* Static: each station's middle fragment (L3), between the bubbles and the front robots
             (Phase 53, spec §1.2, §1.8). Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
