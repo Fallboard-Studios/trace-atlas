@@ -271,6 +271,7 @@ Records are in [docs/PERFORMANCE.md](../PERFORMANCE.md); guards `src/docs/perMov
 1. **Task 20's `screens/frame` MISS:** 0.95 vs `main`'s 3.10 is 0.31 × (limit 0.25). The targeted work fell from ≈2.07 to
    ≈0.16 screens/frame; the miss is the document layer repainting a full viewport per frame on both builds, cause
    unknown. Accept and file it, fix it and re-run, or amend the criterion as a stated decision.
+   **RESOLVED 2026-10-17 (option 2, then found to be the harness):** there was no document repaint; the painter was Chrome's whole-frame `#document` `Paint` wrapper, charged as a viewport per frame. Fixed in the harness (`998207a5`), gate re-run passes all four criteria at 0.08 × `main` (PERFORMANCE.md "the Task 20 gate, re-run with the frame wrappers left out"; [DOCUMENT_REPAINT.md](DOCUMENT_REPAINT.md)). The Task 20 section stands as written. R5's busy MISS (item on its own) is unaffected.
 2. **Checkpoints B and C were never signed.** The Chrome and Firefox look list (plan Checkpoints B and C, spec §5.3)
    should include **a station exit with halo waves** — the halo test stubs `getScreenCTM`, so nothing but a live
    browser shows how Chrome, Firefox and Safari resolve it through an HTML ancestor's CSS transform.

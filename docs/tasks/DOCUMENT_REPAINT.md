@@ -1,6 +1,12 @@
 # The document-layer repaint: find it, fix it, re-run the Task 20 gate
 
-> **Status (2026-10-17):** not started. Written after the Task 20 gate (roadmap Phase 53) missed on `screens/frame`
+> **Status (2026-10-17): COMPLETE.** Phases 0–4 done and merged into `perf/per-mover-layers` (`d6e2ada6`). **There was no
+> document repaint:** the harness was charging Chrome's whole-frame `#document` `Paint` as a painted viewport (Gate 1
+> outcome, below). Option (a) shipped (`998207a5`); the Task 20 gate re-run passes all four criteria (0.08 × `main`).
+> Open: T4.4 not run (its premise was wrong, see Phase 4); option (b), the raster-per-layer column, is a follow-up;
+> the three side findings under Gate 1 are filed, not acted on.
+>
+> Originally written after the Task 20 gate (roadmap Phase 53) missed on `screens/frame`
 > (0.31 × `main`, limit 0.25) and attributed the miss to the **document layer repainting a full viewport nearly every
 > frame on both builds**, cause unknown (PERFORMANCE.md "Per-Mover Compositor Layers — the Task 20 gate"). Crawford
 > chose option 2 of the three recorded there: **find and fix the repaint, then re-run the gate unchanged.**
