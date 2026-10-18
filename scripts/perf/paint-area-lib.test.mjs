@@ -3,7 +3,7 @@
 // The Chrome/CDP plumbing is not unit-tested; the metric is proved on a real `main` build (docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md Task 3).
 import { describe, expect, it } from 'vitest';
 
-import { clipArea, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
+import { clipArea, framePaintWrappers, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 
 // ========================================
 // FIXTURES
@@ -247,6 +247,106 @@ describe('paintEventArea', () => {
     const r = redrawnArea(events, { dpr: 1, frames: 4, ...opts });
     expect(r.pxPerFrame).toBe(summed / 4);
     expect(r.unresolvedPaints).toBe(unresolved);
+  });
+});
+
+// ========================================
+// framePaintWrappers — Chrome's whole-frame `#document` Paint is a wrapper, not a repaint
+// ========================================
+
+// Chrome opens one `Paint` on `#document` (layerId 0, clip = the viewport) per frame that paints anything, and the
+// per-layer Paints sit inside it by timestamp. Its compositor layer does not raster (docs/tasks/DOCUMENT_REPAINT.md,
+// Phase 1: one raster frame in 179 on both builds). Charging it a viewport per frame was the whole of the Task 20 miss.
+
+/** A `#document` Paint as the trace reports it: the frame's wrapper when other Paints sit inside its span. */
+const documentPaint = (ts, dur, extra = {}) => ({
+  name: 'Paint', ph: 'X', ts, dur, args: { data: { nodeId: 2, nodeName: '#document', layerId: 0, clip: rect(0, 0, VIEWPORT.width, VIEWPORT.height) } }, ...extra,
+});
+
+/** A mover's Paint inside a frame, at a timestamp and duration. */
+const moverPaintAt = (ts, dur, nodeId = 7) => ({ name: 'Paint', ph: 'X', ts, dur, args: { data: { nodeId, nodeName: 'DIV', clip: UNBOUNDED } } });
+
+describe('framePaintWrappers', () => {
+  it('returns the #document Paint that wraps another complete Paint', () => {
+    const doc = documentPaint(1000, 500);
+    const mover = moverPaintAt(1100, 100);
+    expect(framePaintWrappers([doc, mover])).toEqual(new Set([doc]));
+  });
+
+  it('does not return a #document Paint that stands alone: that is a root-layer repaint and still counts', () => {
+    const doc = documentPaint(1000, 500);
+    expect(framePaintWrappers([doc])).toEqual(new Set());
+    expect(framePaintWrappers([doc, moverPaintAt(2000, 100)])).toEqual(new Set());
+  });
+
+  it('does not return a Paint on any other node, even one that wraps another', () => {
+    const sheet = { name: 'Paint', ph: 'X', ts: 1000, dur: 500, args: { data: { nodeId: 19, nodeName: 'svg', clip: rect(0, 0, 1920, 1080) } } };
+    expect(framePaintWrappers([sheet, moverPaintAt(1100, 100)])).toEqual(new Set());
+  });
+
+  it('needs a complete Paint inside: a begin/end half, a zero-duration mark or another event does not make it a wrapper', () => {
+    const doc = documentPaint(1000, 500);
+    const half = { ...moverPaintAt(1100, 100), ph: 'B' };
+    const mark = moverPaintAt(1100, 0);
+    const other = { name: 'Layerize', ph: 'X', ts: 1100, dur: 100, args: { data: { nodeId: 7, clip: UNBOUNDED } } };
+    expect(framePaintWrappers([doc, half, mark, other])).toEqual(new Set());
+  });
+
+  it('wraps by span: a Paint that starts inside but ends after the #document Paint is not inside it', () => {
+    const doc = documentPaint(1000, 500);
+    expect(framePaintWrappers([doc, moverPaintAt(1400, 200)])).toEqual(new Set());
+    expect(framePaintWrappers([doc, moverPaintAt(1400, 100)])).toEqual(new Set([doc]));
+  });
+
+  it('finds every frame\'s wrapper in a window, in any order', () => {
+    const doc1 = documentPaint(1000, 500);
+    const doc2 = documentPaint(17_000, 500);
+    const alone = documentPaint(33_000, 500);
+    const events = [moverPaintAt(17_100, 100), doc2, alone, moverPaintAt(1100, 100), doc1];
+    expect(framePaintWrappers(events)).toEqual(new Set([doc1, doc2]));
+  });
+
+  it('ignores a #document Paint with no timestamp or duration', () => {
+    const doc = { ...documentPaint(undefined, 500) };
+    expect(framePaintWrappers([doc, moverPaintAt(1100, 100)])).toEqual(new Set());
+  });
+
+  it('is empty for an empty window', () => {
+    expect(framePaintWrappers([])).toEqual(new Set());
+  });
+});
+
+describe('redrawnArea without the frame wrappers', () => {
+  const layerAreas = new Map([[7, 145 * 114]]);
+
+  it('charges the mover, not the viewport, for a frame whose #document Paint wraps a mover Paint', () => {
+    // The Task 20 shape: one small mover repainting under the frame's #document wrapper.
+    const events = [documentPaint(1000, 500), moverPaintAt(1100, 100)];
+    const r = redrawnArea(events, { dpr: 1, frames: 1, viewport: VIEWPORT, layerAreas });
+    expect(r).toEqual({ pxPerFrame: 145 * 114, screensPerFrame: (145 * 114) / (VIEWPORT.width * VIEWPORT.height), unresolvedPaints: 0 });
+  });
+
+  it('still charges a #document Paint that stands alone', () => {
+    const r = redrawnArea([documentPaint(1000, 500)], { dpr: 1, frames: 1, viewport: VIEWPORT, layerAreas });
+    expect(r.pxPerFrame).toBe(VIEWPORT.width * VIEWPORT.height);
+    expect(r.screensPerFrame).toBe(1);
+  });
+
+  it('main\'s shape: a wrapper round two moving sheets is the two sheets, not three screens', () => {
+    const sheets = new Map([[19, 1465 * 824], [22, 1465 * 824]]);
+    const sheet = (ts, nodeId) => ({ name: 'Paint', ph: 'X', ts, dur: 100, args: { data: { nodeId, nodeName: 'svg', clip: rect(0, 0, 1921, 1080) } } });
+    const events = [documentPaint(1000, 1000), sheet(1100, 19), sheet(1300, 22)];
+    const r = redrawnArea(events, { dpr: 1, frames: 1, viewport: VIEWPORT, layerAreas: sheets });
+    expect(r.pxPerFrame).toBe(2 * 1465 * 824);
+    expect(r.unresolvedPaints).toBe(0);
+  });
+
+  it('agrees with framePaintWrappers: the total is the areas of the events that are not wrappers', () => {
+    const events = [documentPaint(1000, 500), moverPaintAt(1100, 100), documentPaint(17_000, 500), moverPaintAt(20_000, 100, 99)];
+    const opts = { viewport: VIEWPORT, layerAreas };
+    const wrappers = framePaintWrappers(events);
+    const summed = events.filter((ev) => !wrappers.has(ev)).reduce((sum, ev) => sum + paintEventArea(ev, opts).area, 0);
+    expect(redrawnArea(events, { dpr: 1, frames: 2, ...opts }).pxPerFrame).toBe(summed / 2);
   });
 });
 

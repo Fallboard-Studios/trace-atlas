@@ -30,7 +30,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
+import { framePaintWrappers, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 import {
   BACK_ROBOT_ELEMENTS,
   BACK_ROBOT_GROUPS,
@@ -249,14 +249,18 @@ async function traceWindow({ send, onEvent }, ms, view) {
     cur.count++;
     cur.ms += ev.dur / 1000;
     byName.set(ev.name, cur);
-    if (ev.name === 'Paint') {
-      const nodeId = ev.args?.data?.nodeId ?? -1;
-      const p = paintByNode.get(nodeId) ?? { count: 0, ms: 0, area: 0 };
-      p.count++;
-      p.ms += ev.dur / 1000;
-      p.area += paintEventArea(ev, { viewport: view.viewport, layerAreas: view.layerAreas }).area;
-      paintByNode.set(nodeId, p);
-    }
+  }
+  // Per-node attribution, by the headline's rule: the frame's `#document` wrapper (paint-area-lib.mjs
+  // `framePaintWrappers`) is not a painter, so it is left out here as it is in `redrawnArea`.
+  const wrappers = framePaintWrappers(mainPaints);
+  for (const ev of mainPaints) {
+    if (ev.ph !== 'X' || !ev.dur || wrappers.has(ev)) continue;
+    const nodeId = ev.args?.data?.nodeId ?? -1;
+    const p = paintByNode.get(nodeId) ?? { count: 0, ms: 0, area: 0 };
+    p.count++;
+    p.ms += ev.dur / 1000;
+    p.area += paintEventArea(ev, { viewport: view.viewport, layerAreas: view.layerAreas }).area;
+    paintByNode.set(nodeId, p);
   }
   const warning = truncationWarning(frames, ms);
   if (warning) console.log(warning);
@@ -269,6 +273,7 @@ async function traceWindow({ send, onEvent }, ms, view) {
     'redrawn px²/frame': Math.round(redrawn.pxPerFrame),
     'screens/frame': Number(redrawn.screensPerFrame.toFixed(2)),
     'unresolved Paints': redrawn.unresolvedPaints,
+    'frame wrappers': wrappers.size,
     'Paint n': get('Paint').count,
     'Paint ms': Math.round(get('Paint').ms),
     'PaintLifecycle ms': Math.round(get('LocalFrameView::RunPaintLifecyclePhase').ms),

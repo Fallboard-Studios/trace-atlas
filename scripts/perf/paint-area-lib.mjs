@@ -53,9 +53,35 @@ export function paintEventArea(ev, { viewport, layerAreas }) {
   return { area, unresolved: false };
 }
 
+/** A complete `Paint` event: the `X` phase with a duration. The begin/end halves and zero-duration marks are not. */
+const isCompletePaint = (ev) => ev?.name === 'Paint' && ev.ph === 'X' && Number.isFinite(ev.ts) && Number.isFinite(ev.dur) && ev.dur > 0;
+
+/**
+ * The frame wrappers in a window: Chrome opens one `Paint` on `#document` (layerId 0, a viewport-sized clip) per
+ * frame that paints anything, and the per-layer `Paint` events sit inside its span. It is the whole-frame paint pass
+ * (`LocalFrameView::PaintTree`), not a repaint of the document's layer, which does not raster for it
+ * (docs/tasks/DOCUMENT_REPAINT.md, Phase 1: one raster frame in 179 on both builds; charging it a viewport per frame
+ * was the whole of the Task 20 miss). A `#document` Paint with **no** complete `Paint` inside its span is left out of
+ * the set: that is a root-layer repaint with nothing nested, and it still counts. Returns the wrapper events
+ * themselves, so a caller can skip them by identity.
+ * @param {Array<{ name?: string, ph?: string, ts?: number, dur?: number, args?: { data?: { nodeName?: string } } }>} events
+ * @returns {Set<object>}
+ */
+export function framePaintWrappers(events) {
+  const paints = (events ?? []).filter(isCompletePaint);
+  const wrappers = new Set();
+  for (const doc of paints) {
+    if (doc.args?.data?.nodeName !== '#document') continue;
+    const end = doc.ts + doc.dur;
+    if (paints.some((p) => p !== doc && p.ts >= doc.ts && p.ts + p.dur <= end)) wrappers.add(doc);
+  }
+  return wrappers;
+}
+
 /**
  * Redrawn area per frame over one traced window. `events` are the trace events of the thread being judged (the
- * caller scopes them to the renderer main thread); only complete `Paint` events count, each by `paintEventArea`.
+ * caller scopes them to the renderer main thread); only complete `Paint` events count, each by `paintEventArea`,
+ * and never a frame wrapper (`framePaintWrappers`).
  * `dpr` converts CSS px to device px, `frames` is the window's `BeginMainThreadFrame` count, `viewport` the emulated
  * one in CSS px, `layerAreas` the per-node layer bounds. `screensPerFrame` is the headline figure: `pxPerFrame` over
  * the viewport's device-pixel area; `unresolvedPaints` counts the events `paintEventArea` could not bound.
@@ -63,9 +89,11 @@ export function paintEventArea(ev, { viewport, layerAreas }) {
 export function redrawnArea(events, { dpr, frames, viewport, layerAreas }) {
   if (!frames) return { pxPerFrame: 0, screensPerFrame: 0, unresolvedPaints: 0 };
   const viewportCssPx = viewport.width * viewport.height;
+  const wrappers = framePaintWrappers(events);
   let cssPx = 0;
   let unresolvedPaints = 0;
   for (const ev of events) {
+    if (wrappers.has(ev)) continue;
     const { area, unresolved } = paintEventArea(ev, { viewport, layerAreas });
     cssPx += area;
     if (unresolved) unresolvedPaints++;

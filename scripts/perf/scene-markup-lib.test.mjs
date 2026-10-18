@@ -363,6 +363,14 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).not.toContain('Math.max(...xs)');
   });
 
+  // The frame's #document wrapper is not a painter (docs/tasks/DOCUMENT_REPAINT.md): the per-node table leaves it out
+  // the way redrawnArea does, and the row reports how many wrappers the window had.
+  it('leaves the frame wrappers out of the per-node table, by the same helper as the headline', () => {
+    expect(source).toContain('const wrappers = framePaintWrappers(mainPaints);');
+    expect(source).toContain("if (ev.ph !== 'X' || !ev.dur || wrappers.has(ev)) continue;");
+    expect(source).toContain("'frame wrappers': wrappers.size");
+  });
+
   it('reads the redrawn area and the mover layers where they count', () => {
     expect(source).toContain("from './paint-area-lib.mjs'");
     expect(source).toContain('redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport, layerAreas: view.layerAreas })');
@@ -373,7 +381,7 @@ describe('idle-paint.mjs uses them', () => {
   });
 
   it('clamps each Paint to its layer: the layer map is built once, scaled by the stage, and handed to the traced windows', () => {
-    expect(source).toContain("import { paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
+    expect(source).toContain("import { framePaintWrappers, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
     expect(source).toContain(".ocean-scene__stage");
     expect(source).toContain('scaledLayerArea(l, (await insideStage(send, l)) ? stageScale : 1)');
     expect(source).toContain('const layerInfo = await printCompositorLayers(cdp, view.dpr, stageScale)');
