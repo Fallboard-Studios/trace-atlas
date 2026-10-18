@@ -14,6 +14,7 @@ import {
   BACK_ROBOT_ELEMENTS,
   BACK_ROBOT_GROUPS,
   BUBBLE_CIRCLES,
+  BUBBLE_HOSTS,
   FRONT_ROBOT_ELEMENTS,
   ROBOT_CONTAINERS,
   ROBOT_DETACH,
@@ -217,6 +218,33 @@ describe('the robot selectors', () => {
     });
   });
 
+  describe('BUBBLE_HOSTS (what detach-bubble-strips removes: the strips, or the one sheet before them)', () => {
+    it('removes every strip mover, and leaves the robots, the dissolve copies and the sheets', () => {
+      document.body.innerHTML = MOVER_SCENE.replace(
+        '<div class="ocean-scene__dissolve"',
+        '<div class="mover mover--bubbles" data-scene-slot="bubbles"><svg><circle /></svg></div><div class="mover mover--bubbles" data-scene-slot="bubbles"><svg><circle /></svg></div><div class="ocean-scene__dissolve"'
+      );
+      expect(document.querySelectorAll(BUBBLE_HOSTS)).toHaveLength(3);
+      document.querySelectorAll(BUBBLE_HOSTS).forEach((e) => e.remove());
+      expect(document.querySelectorAll('.mover--bubbles, [data-scene-slot="bubbles"]')).toHaveLength(0);
+      expect(document.querySelectorAll('.mover--robot')).toHaveLength(2);
+      expect(document.querySelectorAll('.mover--dissolve')).toHaveLength(1);
+      expect(document.querySelectorAll('.ocean-scene__sheet')).toHaveLength(1);
+    });
+
+    it.each([
+      ['the old markup', OLD_SCENE, '.ocean-scene__layer'],
+      ['the sheets markup', NEW_SCENE, '.ocean-scene__sheet'],
+    ])('removes only the bubbles sheet in %s', (_label, html, sheet) => {
+      document.body.innerHTML = html;
+      expect(document.querySelectorAll(BUBBLE_HOSTS)).toHaveLength(1);
+      document.querySelectorAll(BUBBLE_HOSTS).forEach((e) => e.remove());
+      expect(document.querySelectorAll(sheet)).toHaveLength(6);
+      expect(document.querySelectorAll(BUBBLE_CIRCLES)).toHaveLength(0);
+      expect(document.querySelectorAll('.robot')).toHaveLength(2);
+    });
+  });
+
   describe('ROBOT_DETACH (what the sticky detach removes)', () => {
     it('removes the movers themselves, so no robot layer is left behind', () => {
       document.body.innerHTML = MOVER_SCENE;
@@ -328,6 +356,18 @@ describe('idle-paint.mjs uses them', () => {
       expect(source, name).toContain(name);
     }
     expect(source).not.toMatch(/const SCENE_LAYERS\b/);
+  });
+
+  // R5's open option (3): separate the strip layers from the other movers. The step removes the hosts after the
+  // circles are gone, and reports how many it found and how many are left, so a step that matched nothing is visible.
+  it('detaches the bubble hosts as a sticky step after detach-bubbles, and checks what it removed', () => {
+    expect(source).toContain(
+      "{ name: 'detach-bubble-strips', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLE_HOSTS)}).forEach((e) => e.remove())`, check: BUBBLE_HOSTS }"
+    );
+    expect(source.indexOf("name: 'detach-bubbles',")).toBeLessThan(source.indexOf("name: 'detach-bubble-strips'"));
+    expect(source.indexOf("name: 'detach-bubble-strips'")).toBeLessThan(source.indexOf("name: 'detach-bubbles+robots'"));
+    expect(source).toContain('if (ab.check)');
+    expect(source).toMatch(/matched \$\{before\}[^\n]*\$\{left\} left/);
   });
 
   // Importing a helper is not using it: each is pinned where it does its work.

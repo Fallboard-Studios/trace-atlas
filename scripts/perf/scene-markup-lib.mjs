@@ -49,6 +49,13 @@ export const BUBBLE_CIRCLES = [
   'svg[data-scene-layer="bubbles"] circle',
 ].join(', ');
 
+/**
+ * What holds the bubbles: the strip movers since Phase 53 Task 17, the one bubbles sheet before them.
+ * Removing these takes the bubbles' compositor layers out too, which detaching the circles alone does not
+ * (review follow-up R5: the strips stay drawing layers with no circle in them).
+ */
+export const BUBBLE_HOSTS = sceneSlotSelector('bubbles');
+
 // ========================================
 // ROBOTS
 // ========================================

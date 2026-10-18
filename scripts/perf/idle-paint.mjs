@@ -40,6 +40,7 @@ import {
   BACK_ROBOT_ELEMENTS,
   BACK_ROBOT_GROUPS,
   BUBBLE_CIRCLES,
+  BUBBLE_HOSTS,
   FRONT_ROBOT_ELEMENTS,
   ROBOT_CONTAINERS,
   ROBOT_DETACH,
@@ -120,6 +121,9 @@ const ABLATIONS = [
   // Irreversible (sticky) steps, last: moving nodes are REMOVED from the DOM, not hidden — GSAP keeps writing transforms
   // to a display:none element and Blink still invalidates style/layout for it, so display:none is not "nothing moves".
   { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())` },
+  // Review follow-up R5, option (3): the circles are gone but the strips stay drawing layers, so take the hosts too —
+  // the strips on a branch build, the one bubbles sheet on `main`. `check` reports what the step found and left.
+  { name: 'detach-bubble-strips', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLE_HOSTS)}).forEach((e) => e.remove())`, check: BUBBLE_HOSTS },
   { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll(${JSON.stringify(ROBOT_DETACH)}).forEach((e) => e.remove())` },
   // How much of a robot's per-frame cost is the body moving vs. the propeller spinning (docs/PERFORMANCE.md, 17.2.5:
   // the propellers turned out to be a small share, and HTML-positioned robots were measured neutral and reverted).
@@ -517,6 +521,8 @@ async function run(cdp) {
   let stockRaster = null;
   for (const ab of ABLATIONS) {
     if (wanted && !wanted.has(ab.name) && ab.name !== 'stock') continue;
+    const count = (selector) => evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
+    const before = ab.check ? await count(ab.check) : 0;
     await evaluate(`(() => {
       let s = document.getElementById('__ablate');
       if (!s) { s = document.createElement('style'); s.id = '__ablate'; document.head.appendChild(s); }
@@ -524,6 +530,12 @@ async function run(cdp) {
       ${ab.js ?? ''};
       return true;
     })()`);
+    // A sticky step that matched nothing measured nothing; one that left some behind measured part of it.
+    if (ab.check) {
+      const left = await count(ab.check);
+      console.log(`  ${ab.name}: matched ${before} before the step, ${left} left`);
+      if (left > 0) throw new Error(`${ab.name}: ${left} of ${before} elements matching ${ab.check} are still in the page.`);
+    }
     await sleep(2000);
     const r = await traceWindow(cdp, WINDOW_MS, view);
     const { paintByNode, invalidations, rasterByLayer, rasterLayersById, ...metrics } = r;
