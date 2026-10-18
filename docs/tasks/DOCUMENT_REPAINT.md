@@ -4,8 +4,9 @@
 > document repaint:** the harness was charging Chrome's whole-frame `#document` `Paint` as a painted viewport (Gate 1
 > outcome, below). Option (a) shipped (`998207a5`); the Task 20 gate re-run passes all four criteria (0.08 × `main`).
 > Open: T4.4 not run (its premise was wrong, see Phase 4); the three side findings under Gate 1 are filed, not acted on.
-> **Phase 5 (2026-10-18): option (b), the re-rastered area column, IN PROGRESS** on `perf/per-mover-layers` (Crawford's
-> "go" after the context review); tasks and gate below.
+> **Phase 5 (2026-10-18): option (b), the re-rastered area column, COMPLETE** on `perf/per-mover-layers` (Crawford's
+> "go" after the context review): `rastered screens/frame` main 3.23, branch 0.25 (0.08 ×), recorded, not gated; four
+> findings filed under Phase 5, not acted on.
 >
 > Originally written after the Task 20 gate (roadmap Phase 53) missed on `screens/frame`
 > (0.31 × `main`, limit 0.25) and attributed the miss to the **document layer repainting a full viewport nearly every
@@ -268,25 +269,25 @@ six unnamed layers on the branch appear after it) is charged 0 and counted in `u
 a viewport the way an unbounded `Paint` is: a tile is small, and a viewport charge would swamp the column. Decision
 taken by default in the plan review; Crawford did not object.
 
-- [ ] **T5.1 `rasteredArea` in `paint-area-lib.mjs`, TDD.** `rasteredArea(events, { frames, dpr, viewport, layerAreasById })`
+- [x] **T5.1 `rasteredArea` in `paint-area-lib.mjs`, TDD.** `rasteredArea(events, { frames, dpr, viewport, layerAreasById })`
   → `{ pxPerFrame, screensPerFrame, unresolvedLayers, perLayer }`, where `perLayer` is `layerId → { frames, tasks, area }`.
   Only complete `RasterTask` events (`ph` `X`) with a numeric `layerId` and `sourceFrameNumber` count; the same frame
   rastered twice by one layer counts once; no frames or no events read 0, not NaN. Mutation-check: drop the distinct-frame
   rule, charge an unknown layer a viewport, ignore the scale, count a non-RasterTask event.
-- [ ] **T5.2 Harness wiring in `idle-paint.mjs`.** `printCompositorLayers` also returns `layerAreasById`; `traceWindow`
+- [x] **T5.2 Harness wiring in `idle-paint.mjs`.** `printCompositorLayers` also returns `layerAreasById`; `traceWindow`
   collects `RasterTask` from every thread; two new row columns `rastered px²/frame` and `rastered screens/frame`, plus
   `unresolved raster layers`; in attribution mode a "raster by layer" table for the stock window (layer, node, size,
   frames rastered, tasks). `scene-markup-lib.test.mjs` pins the import and the call.
-- [ ] **T5.3 Measure.** Three alternated rounds, `main` (:4183, `index-CVUy7kf3.js`) vs the branch (:4181,
+- [x] **T5.3 Measure.** Three alternated rounds, `main` (:4183, `index-CVUy7kf3.js`) vs the branch (:4181,
   `index-Dil0Vyn4.js`; `src/` unchanged since `4d754d94`, checked), the baseline's `?session=` link, fresh headless
   Chrome each, foreground, one at a time, orphaned `trace-atlas-perf` Chrome 0 before and after. Read the new columns
   and the raster-by-layer table; the existing columns must still read as the Phase 4 re-run did (same builds, same harness
   rule for them), which is the check that the wiring changed nothing else.
-- [ ] **T5.4 Record.** A new appended PERFORMANCE.md section "Per-Mover Compositor Layers — the re-rastered area column
+- [x] **T5.4 Record.** A new appended PERFORMANCE.md section "Per-Mover Compositor Layers — the re-rastered area column
   (2026-10-18)": both builds' tables, the method, what rasters on each build, and anything the table shows that the
   `Paint` column did not. One sentence for the new columns in the localizer paragraph; an appended clause on the
   `RasterTask` caveat (time unstable, presence read). The Task 20 and re-run sections stay untouched.
-- [ ] **T5.5 Docs guard.** `src/docs/perMoverLayersDocs.test.ts` learns the new column names; a sibling test pins the
+- [x] **T5.5 Docs guard.** `src/docs/perMoverLayersDocs.test.ts` learns the new column names; a sibling test pins the
   new section's tables (px² and screens agree over the 1280 × 900 viewport, every round has frames) the way
   `perMoverGateDocs.test.ts` does.
 
@@ -298,6 +299,49 @@ baseline for later phases.
 nearly every frame, ≈ 3 screens/frame; on the branch the movers are tiny but the empty 1920 × 1080 `dissolve` div
 rastered on 43 of 179 frames and the `mid` sheet on 30, which would put the branch near 0.4 screens/frame. If the
 dissolve layer rasters while empty, that is a new finding to file.
+
+**Gate 5: PASSED (2026-10-18).** Suite green, types clean, lint 0 errors on the touched files.
+
+**As shipped (Phase 5).**
+- **T5.1** `8e44b2f7`: `rasteredArea(events, { frames, dpr, viewport, layerAreasById })` → `{ pxPerFrame,
+  screensPerFrame, unresolvedLayers, perLayer }`; 14 tests; 5 mutants killed (charge per task; charge an unknown layer a
+  viewport; ignore dpr; count a non-`RasterTask`; accept a missing frame number).
+- **T5.2** `10833d3f`: the harness collects `RasterTask` from every thread; new row columns `rastered px²/frame`,
+  `rastered screens/frame`, `unresolved raster layers` and, **a deviation from the plan,** `late layers`: the first smoke
+  run showed six rastering layers that were not in the pre-window LayerTree snapshot, one of them on 105 of 352 frames,
+  so `traceWindow` now reads the LayerTree a second time right after each window and sizes the layers that appeared
+  during it (layer ids are stable for a layer's life). The paint clamp keeps the pre-window map, unchanged. The stock
+  window prints a "raster by layer" table (layer, node, size, frames rastered, tasks, area). Pinned in
+  `scene-markup-lib.test.mjs`.
+- **T5.3** measured as planned (three alternated rounds, same builds and link as Phase 4, hygiene held, orphan count 0
+  before and after). The paint-clip columns reproduce Phase 4 on the same builds (main 2.12 vs 2.10, branch 0.17 vs 0.16
+  screens/frame), the check that the wiring changed nothing else. Headline: **`rastered screens/frame` main 3.23, branch
+  0.25, 0.08 × `main`**, recorded, not gated. The expectation above was right about `main` (three moving sheets ≈ 3.14 of
+  the 3.23) and about the branch's shape (the `dissolve` div and the `mid` sheet, ≈ 0.075 screens/frame each) but high
+  on its size (0.25, not 0.4: a 6 s window, not the probe's 3 s, and seven unresolved layers charged 0). This session ran
+  slower than Phase 4's throughout (main busy 2372–2657 vs 1801–1905; long tasks 1–2 vs 0), both sides together.
+- **T5.4** PERFORMANCE.md: new section "Per-Mover Compositor Layers — the re-rastered area column (2026-10-18)" between the
+  gate re-run and "Recording a new baseline"; a "Re-rastered area" sentence appended to the localizer paragraph; a clause
+  appended to the `RasterTask` caveat (time unstable, presence read). Nothing earlier edited.
+- **T5.5** `src/docs/perMoverRasterDocs.test.ts` (14 checks over the new section: tables, medians, ranges, both area
+  columns against their px², the reproduction of the re-run's `screens/frame` within 0.05, the ratio text, recorded-not-
+  gated, method and hygiene, the plan link); `perMoverLayersDocs.test.ts` learns the four new labels. Checked to bite:
+  five doc mutants (a median off by 0.01, a round's screens off its px², the ratio text, a claimed unresolved layer on
+  `main`, the localizer paragraph losing the column) each fail it.
+
+**Findings (filed, not acted on; PERFORMANCE.md "Reading").**
+1. **`main`'s marker sheet re-rasters every frame with no `Paint`.** Three moving sheets raster on 347–352 of 352–355
+   frames; the paint table has only two (robots-back, robots). The third, the `marker` sheet by layer order, rasters one
+   tile per frame with no main-thread `Paint` in any round: R5's "What the Paint column does not see", seen. What
+   invalidates it is not read here.
+2. **The branch's area is three big layers rastering now and then, not the movers:** the empty `dissolve` div
+   (1920 × 1080 at 0.763) on 25–26 frames of 353, the `mid` sheet on 23–25, `div.screen-content` on 31–35; together
+   ≈ 0.24 of the 0.25. The three robot movers are ≈ 0.01 in all.
+3. **Seven single-tile layers on the branch in neither LayerTree snapshot** (ids above the snapshot's highest; one task
+   per frame rastered; the busiest on 108 of 353 frames, then 71–73, 33–34, 23, 22–23 and two smaller), charged 0: the
+   branch's 0.25 is a floor. These are the "six small unnamed layers" of Gate 1's side finding 1.
+4. **`div.screen-content` (1248 × 824, the shell) rasters about one frame in eleven on both builds**, three to four
+   tiles each time; neither the paint table nor the invalidation table names it. New.
 
 ---
 
