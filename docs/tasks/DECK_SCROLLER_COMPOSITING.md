@@ -1,6 +1,7 @@
 # Deck scroller compositing: an A/B of the two mitigations the Task 11 follow-up named
 
-> **Status (2026-10-18): PLANNED, not started.** Set up at Crawford's request after the Phase 5 investigation in
+> **Status (2026-10-18): Phase 0 done, Gate 0 passed** (results under Gate 0 below); Phase 1 next, on
+> `feature/deck-scroller-compositing`. Set up at Crawford's request after the Phase 5 investigation in
 > [DOCUMENT_REPAINT.md](DOCUMENT_REPAINT.md) found that the deck camera's pans re-raster the console shell's compositor
 > layer every frame, with no `Paint` ([PERFORMANCE.md](../PERFORMANCE.md) "Follow-up, same day: the shell layer and the
 > marker sheet are the deck camera"). Nothing here is decided: this is a measurement, and whether a pan's raster cost is
@@ -56,21 +57,54 @@ other, never with the 6 s sections of PERFORMANCE.md.
 
 ## Phase 0 — Set up (S)
 
-- [ ] **T0.1 Cut the branch** as above. The three untracked `global-pedals` docs, if still untracked, carry across; leave them alone.
-- [ ] **T0.2 Three builds, three ports.** From the branch tip: variant A is the tip as it is; B and C are the one-line
+- [x] **T0.1 Cut the branch** as above. The three untracked `global-pedals` docs, if still untracked, carry across; leave them alone.
+- [x] **T0.2 Three builds, three ports.** From the branch tip: variant A is the tip as it is; B and C are the one-line
   edits, each built to its own scratch `--outDir` (`npx vite build --outDir <scratch>/b`) and served with
   `npx vite preview --outDir <scratch>/b --port 4185` (A on :4184, B on :4185, C on :4186; :4181 and :4183 may still be
   serving the Phase 5 builds, leave them). **Never commit B or C before Gate 2**: build from a working-tree edit, then
   restore the file from a `cp` backup (not `git checkout --`, DOCUMENT_REPAINT.md's lesson). Record each served bundle
   hash from the served HTML, and that A's hash equals the tip's own build.
-- [ ] **T0.3 Confirm the camera runs in each build** before any round: on each port, at 1280 × 900, `.world-view__scroller.scrollLeft`
+- [x] **T0.3 Confirm the camera runs in each build** before any round: on each port, at 1280 × 900, `.world-view__scroller.scrollLeft`
   read through the harness's `Runtime.evaluate` path (or a scratch probe) changes between two reads 10 s apart after
   power-on. A build whose scroller does not scroll is not measuring the camera.
-- [ ] **T0.4 Confirm variant B composites the scroller:** the harness's `Compositor layers:` line for B lists a layer whose
+- [x] **T0.4 Confirm variant B composites the scroller:** the harness's `Compositor layers:` line for B lists a layer whose
   node is `div.world-view__scroller` (or the LayerTree read in a scratch probe does); A and C list none. If B does not
   composite it, stop: the declaration did not take, and the rest is moot.
 
 **Gate 0:** three served builds, the camera moving in all three, B's scroller composited and A's and C's not.
+
+**Gate 0 result (2026-10-18): PASSED.**
+
+- **T0.1:** `feature/deck-scroller-compositing` cut from `perf/per-mover-layers` at `c456ee82` (not merged to `main`);
+  the three `global-pedals` docs carried across untracked.
+- **T0.2:** built with `npx vite build --outDir <scratch>/{a,b,c}`. B and C were each made by adding one line after
+  `scrollbar-width: none;` in a working-tree copy, then the file was restored from a `cp` backup (`git diff` empty
+  afterwards). Each built CSS rule was read back from `assets/*.css`; only the added declaration differs. A is the clean
+  tip with no edit, so its bundle is the tip's own build. Served bundles, read from each port's HTML:
+
+  | Variant | Port | JS bundle | CSS bundle |
+  |---|---|---|---|
+  | A, stock | :4184 | `index-Dil0Vyn4.js` | `index-BtavptJm.css` |
+  | B, `will-change: scroll-position` | :4185 | `index-BSuw5Pa7.js` | `index-BZMeQvU9.css` |
+  | C, `contain: paint` | :4186 | `index-Ds3mB9Ot.js` | `index-CM3rPZB5.css` |
+
+  (The JS hash changes with the CSS hash because the entry chunk references the stylesheet; no source besides the CSS
+  line differs.)
+- **T0.3:** a scratch probe (the harness's launch and power-on, then `scrollLeft` once a second for 25 s, at 1280 × 900,
+  pinned link) read the camera moving on all three: 217 px for the first ~8 s after the settle, a pan, then 0 for the
+  rest (A `217 … 176 33 0 …`, B `217 … 178 35 0 …`, C `217 … 192 50 0 …`). `scrollWidth` 1465, `clientWidth` 1248,
+  `clientHeight` 824 on all three, so the scroll range at 1280 × 900 is 217 px, not the ≈ 295 px the 1543-wide
+  estimate above implied.
+- **T0.4:** the same probe read one LayerTree snapshot per build, with every layer's owning node. **B:** two layers owned
+  by `div.world-view__scroller`, a 1248 × 824 container that draws nothing and a **1465 × 824 scrolling-contents layer
+  that draws** (≈ 4.6 MiB at 1×, before DPR); and `div.screen-content`'s layer **stops drawing content**
+  (`drawsContent` false; true on A and C). **A and C:** no layer owned by the scroller; `div.screen-content` draws.
+  The harness's own `Compositor layers:` line names only scene slots, so it does not show the scroller layer; T1.1
+  reads it from the raster-by-layer table instead. LayerTree reports every layer as a child of the root, so nesting
+  under the new layer cannot be read from it; the sheet and mover counts are compared in T1.1 as the Risks row says.
+  Totals per snapshot (unscaled, the probe's own sum): A 38 layers / 34 drawing / 31.3 MB, B 40 / 34 / 32.0, C 36 / 33
+  / 31.2. Counts move between reads of the same build (A read 35 and 38) because bubble layers come and go, so they
+  are not compared here.
 
 ---
 
