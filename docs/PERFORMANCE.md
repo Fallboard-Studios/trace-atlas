@@ -777,7 +777,7 @@ The last of the 17.2.x series: with nothing open, the main thread was ~84 % busy
 
 Flags: `--throttle n` (default 4), `--window ms` (6000), `--width px` (1280), `--url`, `--only a,b` (ablation names; `stock` always runs first), `--help` lists the ablations. Each row reports main-thread busy time (`RunTask` on the renderer main thread), frames, `Paint` count/ms, `PaintArtifactCompositor::Update` ms, style/layout ms and JS buckets. Two things learned building it: pick the renderer main thread by its `thread_name` metadata (the busiest thread in a trace is not it), and `display: none` is **not** "nothing moves" — GSAP keeps writing transforms to a hidden element and Blink still invalidates style for it, so the moving-node ablations detach the nodes instead.
 
-**Redrawn area (roadmap Phase 53).** Every row also reports `redrawn px²/frame` and its headline form `screens/frame`: the area of every `Paint` event in the window, divided by the window's frame count (and, for `screens/frame`, by the emulated viewport's device-pixel area). `scripts/perf/paint-area-lib.mjs` computes it. A `Paint` event's `clip` is a cull rect and not the repainted area, and a promoted mover's is unbounded, so each `Paint` is **clamped** to the area of the compositor layer it drew into (LayerTree, matched by backend node, with the stage's scale applied to layers inside the stage, since LayerTree reports bounds before it); a node with no layer of its own is capped at one viewport and counted in the `unresolved Paints` column. The readout also prints `Mover layers:` (the count, sizes and estimated memory of the `.mover` layers, apart from the sheets'), and layers are named by their `data-scene-slot`. The metric is proved by ablation, not by reading: on `main` stock reads a few screens per frame and `detach-bubbles+robots` reads 0. Method, baseline and the phase's gate are under "Pre-change baseline for Phase 53" and "Per-Mover Compositor Layers — the Task 20 gate" below.
+**Redrawn area (roadmap Phase 53).** Every row also reports `redrawn px²/frame` and its headline form `screens/frame`: the area of every `Paint` event in the window, divided by the window's frame count (and, for `screens/frame`, by the emulated viewport's device-pixel area). `scripts/perf/paint-area-lib.mjs` computes it. A `Paint` event's `clip` is a cull rect and not the repainted area, and a promoted mover's is unbounded, so each `Paint` is **clamped** to the area of the compositor layer it drew into (LayerTree, matched by backend node, with the stage's scale applied to layers inside the stage, since LayerTree reports bounds before it); a node with no layer of its own is capped at one viewport and counted in the `unresolved Paints` column. Chrome also opens one `Paint` on `#document` per frame that paints anything, the whole-frame paint pass with a viewport-sized cull rect, and the per-layer `Paint` events sit inside its span; it is a wrapper, not a repaint (the document's layer does not raster for it), so `framePaintWrappers` leaves it out of the sum and of the per-node table, and the `frame wrappers` column counts how many were left out (a `#document` Paint with nothing nested still counts: "Per-Mover Compositor Layers — the Task 20 gate, re-run" below, and [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md)). The readout also prints `Mover layers:` (the count, sizes and estimated memory of the `.mover` layers, apart from the sheets'), and layers are named by their `data-scene-slot`. The metric is proved by ablation, not by reading: on `main` stock reads a few screens per frame and `detach-bubbles+robots` reads 0. Method, baseline and the phase's gate are under "Pre-change baseline for Phase 53" and "Per-Mover Compositor Layers — the Task 20 gate" below.
 
 ### What was found (main `368e5cd4`, desktop 1280×900, production build, 6 s windows)
 
@@ -1998,6 +1998,59 @@ Compositor::Update 520 → 567 ms (+47, +9 %) and Layerize 521 → 568 ms are ou
 No miss, so nothing is stopped here. Had a gate missed, any fix would change how the dimmed world is produced, which is a look decision for Crawford and a short amendment to the spec, not a quiet change.
 
 Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R6: The dimmed world (`data-dimmed`)". Guarded by `src/docs/perMoverReviewR6Docs.test.ts`.
+
+## Per-Mover Compositor Layers — the Task 20 gate, re-run with the frame wrappers left out (2026-10-17)
+
+The Task 20 gate above, run again unchanged after the "document repaint" it missed on was found ([tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md), Crawford's option 2: find and fix it, then re-run). **Result: all four criteria PASS.** `screens/frame` reads 0.08 × `main` against the 0.25 limit; busy time, Paint time and layer memory are below `main`'s. The original section is left as it was written; this one is the re-run.
+
+**What was found.** There is no document repaint. The unnamed painter in the Task 20 attribution table ("the document", 279–345 paints of ~350 frames, a full viewport each) is the `Paint` trace event Chrome opens on `#document` (`layerId` 0, cull rect = the viewport) once per frame that paints anything: the whole-frame paint pass, inside whose span the per-layer `Paint` events sit. On both builds every one of 179 such events in a 3 s probe wrapped other `Paint` events and none stood alone, and the document's own compositor layer (layer 9, 1280 × 900) rastered on one frame in 179 (`RasterTask` events by `tileData.layerId`). The harness charged that wrapper one viewport per frame, because its clip is exactly the viewport and it has no layer of its own; that charge was ≈ 0.99 screens/frame on `main` and ≈ 0.77 on the branch, the whole of the miss. The spec had raised this doubt before the baseline (§4 assumption 6, Task 2 spike: "a `#document` paint with a clip of the whole page") and let the metric stand because `main` read near the predicted four screens; the agreement was a coincidence of the two sheets plus the wrapper. No ablation could name it: hiding the robots, factories, stations, gradients or transitions left the paint count untouched (`static-scene` 1054 of stock 1088 paints), and only `no-scene`, which leaves nothing to paint, removed it.
+
+**The metric changed, so the Task 20 numbers are not the comparison.** Commit `998207a5` (`scripts/perf/paint-area-lib.mjs` `framePaintWrappers`): a `#document` `Paint` whose span contains another complete `Paint` is a frame wrapper and is left out of the sum and of the per-node table; one with nothing nested still counts, so a genuine root-layer repaint is not hidden. Each `Paint` is still **clamped** to the area of the compositor layer it drew into, as before. Every row now also reports `frame wrappers` (the count left out): 355–357 on `main`, 277–280 on the branch, in the rounds below. TDD: 11 tests, 4 mutations killed; `src/docs/perMoverLayersDocs.test.ts` and `scripts/perf/scene-markup-lib.test.mjs` pin the harness. No product file changed.
+
+**Builds:** `main` `4a9b3fec`, from a throwaway `git worktree`, served on :4183, bundle `index-CVUy7kf3.js` (the Task 20 and Task 4 bundle, rebuilt and read back from the served HTML); the branch `fix/document-repaint` at `6e61e0ee` (= `perf/per-mover-layers` `570b279b` plus the harness fix and this investigation's docs; `src/` unchanged since `4d754d94`), served on :4181, bundle `index-Dil0Vyn4.js`. Both sides measured with the **branch's** harness at `998207a5`. Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle. The pinned world is the baseline's `?session=` link (style `alpha`, `(0, 50)`, defaults), with the port changed per side.
+
+**Method:** three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time, in one session. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last. The same session first re-ran the Task 20 harness as it was (commit `8fb301e1`) on both builds and reproduced its numbers (main 3.09 / 3.09 / 3.10, branch 0.95 / 0.91 / 0.91 screens/frame), so the drop below is the metric change and nothing else.
+
+### Results (6 s idle window, stock, 1×)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2417168 | 2.10 | 3 | 1905 | 172 | 153 | 155 | 361 |
+| 2 | 2437359 | 2.12 | 3 | 1801 | 172 | 154 | 156 | 359 |
+| 3 | 2410480 | 2.09 | 3 | 1845 | 173 | 158 | 159 | 361 |
+| Median | 2417168 | 2.10 | 3 | 1845 | 172 | 154 | 156 | 361 |
+| Min–max | 2410480–2437359 | 2.09–2.12 | 3–3 | 1801–1905 | 172–173 | 153–158 | 155–159 | 359–361 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 194502 | 0.17 | 49 | 1522 | 76 | 158 | 159 | 360 |
+| 2 | 182225 | 0.16 | 45 | 1500 | 78 | 160 | 161 | 359 |
+| 3 | 187811 | 0.16 | 47 | 1516 | 80 | 163 | 164 | 361 |
+| Median | 187811 | 0.16 | 47 | 1516 | 78 | 160 | 161 | 360 |
+| Min–max | 182225–194502 | 0.16–0.17 | 45–49 | 1500–1522 | 76–80 | 158–163 | 159–164 | 359–361 |
+
+### The gate
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| screens/frame (median) | 2.10 | 0.16 | ≤ 0.25 × main = 0.525 | PASS: 0.08 × main |
+| busy (median ms) | 1845 (1801–1905) | 1516 | within main's spread | PASS: below it |
+| Paint (median ms) | 172 (172–173) | 78 | within main's spread | PASS: below it |
+| Layer memory | 37.8 MB | 24.2 MB | ≤ main | PASS |
+
+Compositor::Update 154 ms → 160 ms and Layerize 156 ms → 161 ms (medians) are recorded, not gated (spec §5.2), as are the layer counts: 28 → 31 compositor layers, 0 → 4 mover layers (≈ 0.1 MB in all). Busy and Paint are lower on both sides than in the Task 20 session (main 2749 → 1845 ms busy); sessions differ, which is why each gate is read inside one.
+
+**Compositor-layer readouts.** Main (all three rounds): `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB at 4 B per device px, DPR 1, stage scale 1.000; 23 with an owning node)`; the scene's five named layers (`robots-back`, `mid`, `robots`, `front`, `marker`) each 1465 × 824 CSS px; `Mover layers: 0`. Branch (all three rounds): `Compositor layers: 31 (28 drawing content, ≈ 24.2 MB at 4 B per device px, DPR 1, stage scale 0.763; 27 with an owning node)`; `mid` and the empty `dissolve` div are 1920 × 1080 layers before the scale, three robot movers and the marker are 90–145 × 80–159; `Mover layers: 4`. The same world as Task 20, so no bubble strip draws in this window either; the bubble question is R5's.
+
+**Stock painters (round 1, top of the attribution table, the wrapper now left out).** Main: the `robots` sheet 356 paints / 61 ms; the `robots-back` sheet 356 / 14 ms; every other node a handful (`html` 2, the static sheets 2–4, `div.meta-box` 6). Branch: the three robot movers 191, 182 and 220 paints at 4 657–13 050 px² (12, 8, 7 ms); the static sheets 24, 22, 3 and 4 paints; `html` 2; everything else a handful. The area per frame on the branch is the movers (≈ 0.015 screens) and the static sheets' occasional paints (≈ 0.14, 45–49 of them `unresolved` and capped at a viewport each); on `main` it is the two moving sheets (≈ 2.07). The work the phase set out to remove is the whole of the difference.
+
+**Three side findings from the probe, filed and not acted on** ([tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) Gate 1 outcome): the branch promotes a `g.gem__part` (70 × 190) and a `circle.robot__work-drop` to compositor layers of their own, plus six small unnamed layers, and the gem part rasters every frame; both builds force a synchronous style-and-layout inside the rAF tick every frame (`Blink.ForcedStyleAndLayout` under the swim's `FunctionCall`, two `Layout`s per frame); and Chrome dispatches a fake mouse move with a hit test at the top of every frame, which follows from layout changing every frame.
+
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate" (the criteria) and [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) (this run). Guarded by `src/docs/perMoverGateDocs.test.ts`.
 
 ## Recording a new baseline
 

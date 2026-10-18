@@ -207,20 +207,37 @@ sides were measured with the branch's harness, as Task 20 did. T4.1 is therefore
 
 ## Phase 4 — Re-run the Task 20 gate, unchanged (S)
 
-- [ ] **T4.1 Merge** `fix/document-repaint` into `perf/per-mover-layers`. Also apply the fix to `main` **for the
+- [x] **T4.1 Merge** `fix/document-repaint` into `perf/per-mover-layers`. Also apply the fix to `main` **for the
   measurement only** (a throwaway local branch, not pushed) so both sides are measured without the repaint; the gate
   compares the phase's work, and the fix is not the phase's.
-- [ ] **T4.2 Re-run the gate exactly as written**: same world, same window, three alternated rounds, all four criteria.
+- [x] **T4.2 Re-run the gate exactly as written**: same world, same window, three alternated rounds, all four criteria.
   Write a new PERFORMANCE.md section "Per-Mover Compositor Layers — the Task 20 gate, re-run after the document repaint
   fix (date)" with its own tables and PASS/MISS words. Do not edit the original Task 20 section.
-- [ ] **T4.3 Extend the docs guard.** `src/docs/perMoverGateDocs.test.ts` pins the original section; add the re-run
+- [x] **T4.3 Extend the docs guard.** `src/docs/perMoverGateDocs.test.ts` pins the original section; add the re-run
   section to it (or a sibling test) so its verdict words are checked against its numbers the same way. This is the last
   edit those guards get before R7a trims them.
-- [ ] **T4.4 Re-measure R5** (bubble strips, busy MISS) on the fixed branch, since the document repaint may have been
+- [ ] **T4.4 Re-measure R5 (NOT RUN, see As shipped)** (bubble strips, busy MISS) on the fixed branch, since the document repaint may have been
   part of its busy time. Record the result under R5; its decision stays Crawford's.
 
 **Gate 4:** all four Task 20 criteria PASS on the re-run. If `screens/frame` still misses with the document repaint gone,
-the miss is real and the decision returns to Crawford (options 1 and 3).
+the miss is real and the decision returns to Crawford (options 1 and 3). **PASSED (2026-10-17).**
+
+**As shipped (Phase 4).**
+- **T4.2:** PERFORMANCE.md gains "Per-Mover Compositor Layers — the Task 20 gate, re-run with the frame wrappers left
+  out (2026-10-17)" after R6 and before "Recording a new baseline", with the Phase 3 rounds as its two tables, the four
+  verdicts (`screens/frame` PASS: 0.08 × main; busy, Paint and memory PASS: below main), the builds, the method, what was
+  found, the metric change (`998207a5`), the stock painters and the three side findings. The original Task 20 section is
+  untouched, MISS and all. The harness paragraph ("Redrawn area (roadmap Phase 53)") gains one sentence on the wrapper.
+- **T4.3:** `src/docs/perMoverGateDocs.test.ts` is parametrised and runs the same 13 checks over both sections (the
+  original must still read MISS; the re-run must name `framePaintWrappers`, `#document`, the metric change and the
+  wrapper counts). The re-run guard was checked to bite: flipping its headline verdict to MISS fails "writes every
+  verdict so that it agrees with the tables above it". 27 tests.
+- **T4.4: not run, and why.** R5's gate is busy, Paint and layer memory (PERFORMANCE.md R5 "The gate"), none of which
+  the harness fix touches: busy is main-thread time and the fix changes only how `Paint` events are summed. There is no
+  document repaint to have been "part of its busy time"; the premise of T4.4 was the Task 20 wording, now known to be
+  wrong. R5's `screens/frame` columns are overstated by about one screen per frame on both sides (a 30 s window's
+  wrappers), recorded here, not gated there. The R5 busy MISS stands as R5 recorded it, for Crawford.
+- **T4.1:** `fix/document-repaint` merged into `perf/per-mover-layers` as a fast-forward (the base had not moved).
 
 ---
 
