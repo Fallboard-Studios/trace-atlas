@@ -96,6 +96,10 @@
      background while a branch is open. Opaque by rule, so the world never reads through the content;
      the sketch's --surf2. */
   --content-surface: #141a20;
+  /* ContentPane's own background (Crawford, 2026-10-18): see-through at the wells' value, so the dimmed world
+     reads behind the content. Its own token: --content-surface stays solid for the surfaces that still lay
+     content on it (the robot screen, the roster tiles, the help popover's base). */
+  --content-pane-background: rgba(12, 16, 20, 0.55);
   /* Readouts are wells, cut into the surface (spec §1.1: in = read): the meta box, the breadcrumb and
      the phone bar's well. These are the accent-free parts; each well adds its own glow,
      `inset 0 0 8px var(--color-accent)`, and a 1 px accent border, which must resolve on the element
@@ -107,6 +111,8 @@
   --color-accent-b: #68cb97;
   --color-accent: color-mix(in srgb, #41ad9f 50%, #68cb97 50%);
   --color-accent-gradient: linear-gradient(135deg, #41ad9f, #68cb97);
+  /* The darker of the pair by luminance (traitColors.ts buildAccentStyle), for surfaces tinted in the trait's colour. */
+  --color-accent-dark: #41ad9f;
   --color-text-primary: rgba(255, 255, 255, 0.87);
   /* The same default value as --color-text-primary above, but NEVER overridden by
      getRobotColorStyle's light-color contrast flip (traitColors.ts) — every consumer that must

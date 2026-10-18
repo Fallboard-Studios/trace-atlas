@@ -57,14 +57,17 @@ export const TRAIT_COLORS: Record<Trait, [string, string]> = {
   colour: [ACCENT_COLORS.red, ACCENT_COLORS.tangerine],
 };
 
-/** The 4 custom properties buildAccentStyle below always sets, typed explicitly (rather than a
+/** The 5 custom properties buildAccentStyle below always sets, typed explicitly (rather than a
  *  blanket `as CSSProperties` cast) so a typo'd property name fails to compile instead of
  *  silently producing a dead custom property. */
 type AccentCSSProperties = CSSProperties &
-  Record<'--color-accent-a' | '--color-accent-b' | '--color-accent' | '--color-accent-gradient', string>;
+  Record<
+    '--color-accent-a' | '--color-accent-b' | '--color-accent' | '--color-accent-gradient' | '--color-accent-dark',
+    string
+  >;
 
 /**
- * Builds all 4 accent custom properties from 2 literal colors. Bug fix, found live via browser
+ * Builds all 5 accent custom properties from 2 literal colors. Bug fix, found live via browser
  * DevTools (jsdom never resolves real CSS cascade/color-mix(), so this was invisible to every test
  * in this file until it was rewritten): --color-accent/--color-accent-gradient must NEVER be
  * expressed as a nested var()-derivation of --color-accent-a/-b (e.g.
@@ -84,12 +87,16 @@ function buildAccentStyle(a: string, b: string): AccentCSSProperties {
     '--color-accent-b': b,
     '--color-accent': `color-mix(in srgb, ${a} 50%, ${b} 50%)`,
     '--color-accent-gradient': `linear-gradient(135deg, ${a}, ${b})`,
+    // The darker tone, for a surface tinted in the trait's colour (the tab content's panel facade,
+    // DirectionalPanel.css). By luminance, not slot: Spectral's darker tone is its second. One tone (a
+    // robot's) is compared with nothing, so a fixture's missing identityColor never reaches the parse.
+    '--color-accent-dark': a === b || relativeLuminance(a) < relativeLuminance(b) ? a : b,
   };
 }
 
 /**
  * Inline-style object a component spreads onto whichever DOM element should root that trait's
- * color scope — every descendant CabinetBox/outline/fill inherits all 4 accent properties via
+ * color scope — every descendant CabinetBox/outline/fill inherits all 5 accent properties via
  * plain CSS cascade, no other wiring needed.
  */
 export function getTraitColorStyle(trait: Trait): CSSProperties {

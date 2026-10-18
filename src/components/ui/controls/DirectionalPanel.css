@@ -98,6 +98,17 @@
    docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.3. */
 .sc-directional-panel-facade>.sc-cabinet-box {
   width: 100%;
+  /* The tab content's background (Crawford, 2026-10-18): a faint wash of the section's darker trait tone on
+     every face, not the opaque --color-surface, so the content pane's translucency carries through. Set on this
+     element, where the trait scope's accents have already cascaded (traitColors.ts's nesting gotcha). */
+  --cabinet-box-color: color-mix(in srgb, var(--color-accent-dark) 5%, transparent);
+}
+
+/* A custom property inherits: without this every control's own cabinet box inside the panel (a radio option, a
+   voxel cell) would read the wash too and lose its trait-coloured faces. `initial` is the guaranteed-invalid value,
+   so each box falls back to its own default; a box given a `color` prop sets it inline, which still wins. */
+.sc-directional-panel-facade>.sc-cabinet-box .sc-cabinet-box {
+  --cabinet-box-color: initial;
 }
 
 /* display: block + height: auto (overriding CabinetBox.css's own fixed

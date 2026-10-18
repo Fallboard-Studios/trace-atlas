@@ -1,6 +1,8 @@
-/* The opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md Task 7).
+/* The content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md Task 7).
    With a branch open the content covers the world, which dims under it (WorldView's data-dimmed). It
-   is the one flat plate: no glass, so the panels inside paint the app's own --color-surface over it.
+   is the one flat plate, no glass (no blur), and since 2026-10-18 see-through (Crawford): its own
+   --content-pane-background, at the wells' value, lets the dimmed world read behind the content, and
+   the tab content's panel facade is a faint wash of its trait colour (DirectionalPanel.css), not opaque.
    The band it fills runs from the top bar's lower edge (Header.css's --top-bar-bottom: the slim header
    or the power corner, whichever reaches lower) down to the bottom of the screen. On the desk it sits
    right of the nav panel: --nav-panel-width (NavPanel.css) is the width the panel tweens as Probes or
@@ -18,7 +20,7 @@
   z-index: 1;
   box-sizing: border-box;
   border: 1px solid var(--color-border);
-  background-color: var(--content-surface);
+  background-color: var(--content-pane-background);
   /* The breadcrumb's band (Task 8): the breadcrumb sits in this corner over the surface
      (NavBreadcrumb.css), and the content ends above it, so nothing scrolls out of reach under it. */
   padding-bottom: var(--nav-breadcrumb-height);
