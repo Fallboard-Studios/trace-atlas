@@ -539,6 +539,10 @@ A miss on 3 or 4 stops the phase for Crawford with the numbers; nothing is re-tu
   (2026-10-16): if the bubbles as they are turn out to be the problem, he is happy to rework them completely rather
   than keep the strips — so a miss on the bubbles' account stops for a redesign (one stream per district, fewer
   circles, a different effect), not for a workaround.
+  **Resolved (Crawford, 2026-10-18): strips stay always promoted, no redesign.** Measured in review follow-up R5 (18
+  strips on the busiest world found, 0.85 MB against the sheet's 4.60 MB; busy +8 %, a MISS) and its option (3) (the
+  strip layers are about a third of the Compositor::Update gap, the robot movers most of the rest); Crawford accepted
+  the MISS. PERFORMANCE.md "review follow-up R5, option 3: the strips separated".
 - **Q4 The camera no-op as a hard prerequisite.** Taking the baseline before it merges is valid A/B too (both sides
   carry the marker). Recommendation: merge it first, so the baseline is the world this phase ships into.
 - **Q5 Roadmap number 53.** 51 (Guide) and 52 (Job Decorations) are the last entries; nothing else has claimed 53.
