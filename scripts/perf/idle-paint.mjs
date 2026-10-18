@@ -76,6 +76,7 @@ const { values: opts } = parseArgs({
     attribution: { type: 'boolean', default: true },
     'stay-off': { type: 'boolean', default: false },
     steps: { type: 'string' },
+    'raster-top': { type: 'string', default: '12' },
     help: { type: 'boolean', default: false },
   },
 });
@@ -131,6 +132,7 @@ if (opts.help) {
   console.log(`Usage: node scripts/perf/idle-paint.mjs [--throttle n] [--window ms] [--width px] [--url u] [--only names] [--steps names]
   [--expect-dimmed yes|no|any]  reject a run whose world is not (or is) dimmed by an open hub tile
   [--bubbles n]                 wait until n bubble circles are in flight before reading the layers
+  [--raster-top n]              rows in the stock window's raster-by-layer table (default 12; a 30 s window rasters 100+ layers)
 Ablations (comma-separate for --only): ${ABLATIONS.map((a) => a.name).join(', ')}`);
   process.exit(0);
 }
@@ -568,7 +570,7 @@ async function run(cdp) {
     console.table(out);
   }
 
-  if (opts.attribution && stockRaster) await printRasterByLayer(send, stockRaster, 'Stock window — raster by layer', 12);
+  if (opts.attribution && stockRaster) await printRasterByLayer(send, stockRaster, 'Stock window — raster by layer', Number(opts['raster-top']));
 }
 
 /**
