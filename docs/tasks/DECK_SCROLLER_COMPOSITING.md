@@ -1,7 +1,8 @@
 # Deck scroller compositing: an A/B of the two mitigations the Task 11 follow-up named
 
-> **Status (2026-10-18): Phase 0 done, Gate 0 passed** (results under Gate 0 below); Phase 1 next, on
-> `feature/deck-scroller-compositing`. Set up at Crawford's request after the Phase 5 investigation in
+> **Status (2026-10-18): Phases 0 and 1 done** (Gate 0 passed; Gate 1 recorded, results under each gate below), on
+> `feature/deck-scroller-compositing`. Next: Gate 2, Crawford's, including whether Phase 2's Pixel A/B still means
+> anything (stock already composites the scroller at DPR ≥ 1.5; see the Gate 1 result). Set up at Crawford's request after the Phase 5 investigation in
 > [DOCUMENT_REPAINT.md](DOCUMENT_REPAINT.md) found that the deck camera's pans re-raster the console shell's compositor
 > layer every frame, with no `Paint` ([PERFORMANCE.md](../PERFORMANCE.md) "Follow-up, same day: the shell layer and the
 > marker sheet are the deck camera"). Nothing here is decided: this is a measurement, and whether a pan's raster cost is
@@ -117,15 +118,15 @@ per variant. Command, per variant and round:
 npm run perf:idle -- --throttle 1 --window 30000 --only none --port 9301 --url <link on that port>
 ```
 
-- [ ] **T1.1 Three rotated rounds at 1280 × 900**, A B C, then B C A, then C A B, each a fresh headless Chrome, foreground,
+- [x] **T1.1 Three rotated rounds at 1280 × 900**, A B C, then B C A, then C A B, each a fresh headless Chrome, foreground,
   one run per call. From each run record: `rastered px²/frame`, `rastered screens/frame`, `unresolved raster layers`,
   `late layers`, `redrawn px²/frame`, `screens/frame`, busy, Paint, Compositor::Update, Layerize, frames, long tasks, and
   from the stock raster-by-layer table the **shell layer's frames rastered and tasks** (`div.screen-content`) and, for B,
   the scroller layer's own row. Record the `Compositor layers:` line and `Mover layers:` of each variant.
-- [ ] **T1.2 One control round at 1600 × 900** (`--width 1600`), A B C: the camera stands down at 16:9 (`scrollRange()`
+- [x] **T1.2 One control round at 1600 × 900** (`--width 1600`), A B C: the camera stands down at 16:9 (`scrollRange()`
   is 0), so the three variants must read alike there, shell layer at ≤ 7 frames in 30 s on all three. A variant that
   differs from A at 1600 × 900 changed something other than the camera's cost.
-- [ ] **T1.3 Write the rounds up** as a new appended PERFORMANCE.md section "Deck scroller compositing — the desktop A/B
+- [x] **T1.3 Write the rounds up** as a new appended PERFORMANCE.md section "Deck scroller compositing — the desktop A/B
   (date)": one results table per variant (Round rows 1–3, Median, Min–max, the columns above), the 1600 × 900 control
   table, the layer readouts, the builds (hashes, ports, tip commit), the method and hygiene sentence, and the reading.
   Guard it with a sibling of `src/docs/perMoverRasterDocs.test.ts` (tables agree with their medians and ranges; both area
@@ -136,6 +137,33 @@ frames rastered; `rastered screens/frame`; busy, Paint and Compositor::Update in
 MB. Expected if B works: shell layer frames ≈ 0 and `rastered screens/frame` lower by the shell's share (≈ 0.1 of
 `main`'s 3.23 at 6 s; different at 30 s, read it), a new scroller layer of ≈ 5 MB at 1×, Compositor::Update possibly
 higher. Expected for C: no change. A MISS here is not a stop: this phase records, Gate 2 decides.
+
+**Gate 1 result (2026-10-18, recorded):** written up and guarded in PERFORMANCE.md "Deck scroller compositing — the
+desktop A/B (2026-10-18)" (`src/docs/deckScrollerCompositingDocs.test.ts`, 8 doc mutants killed). Medians against A:
+
+| | A, stock | B, `will-change: scroll-position` | C, `contain: paint` |
+|---|---|---|---|
+| shell layer frames rastered (30 s) | 140 | **0** | 142 |
+| scroller layer frames rastered | — (no layer) | 48 | — (no layer) |
+| `rastered screens/frame` | 0.29 | **0.25** (0.86 × A) | 0.29 |
+| busy / Paint / Compositor::Update (ms) | 9827 / 1505 / 1463 | 9720 / 1484 / 1427 | 9776 / 1487 / 1448 |
+| compositor layer memory, 1× | 24.2 MB | 24.9 MB (**+ 0.7**) | 24.2 MB |
+
+B and C both sit just under A's min–max on the three main-thread columns, so those are session spread, not B. B
+removes the camera's share of the shell raster (≈ 92 frames per 30 s) and keeps the ≈ 48 per-second frames, which move
+to its scroller layer; C does nothing, as expected, and is dropped from Phase 2 (open question 2's default). Two
+corrections to this plan: the scroll range at 1280 × 900 is 217 px (`scrollWidth` 1465), so B's layer is 1465 × 824, not
+≈ 1543; and the T1.2 expectation "≤ 7 shell frames in 30 s" was wrong: the control reads 47–48 on every variant (in B,
+on the scroller layer), the per-second raster inside the scroller that a 6 s window barely caught.
+
+**A finding that changes Phase 2.** Stock Chrome composites the scroller **by itself** at DPR ≥ 1.5 or in mobile mode
+(scratch probe on stock A: not composited at DPR 1 and 1.25 desktop; composited at DPR 1.5, 2, and DPR 1 with
+`mobile: true`; one harness run each of A and B at the phone emulation reads the same scroller layer and the same 62.8 MB).
+So the camera's per-pan shell raster is a **low-DPI desktop** cost, and on the Pixel (DPR ≈ 2.6, mobile) stock already
+does what B does. T2.1's underrun A/B would compare two builds with the same layers. **Open, for Crawford at Gate 2:**
+run T2.1 as written anyway, replace it with a check that the Pixel's own LayerTree (remote DevTools, Layers panel) shows
+the scroller layer on stock, or drop it; and what DPR the desktop window Crawford hears the underruns on runs at (Windows
+display scaling 100 % or 125 % is DPR 1 or 1.25, the case B changes).
 
 ---
 
