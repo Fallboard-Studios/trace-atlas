@@ -3,7 +3,7 @@
 // The Chrome/CDP plumbing is not unit-tested; the metric is proved on a real `main` build (docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md Task 3).
 import { describe, expect, it } from 'vitest';
 
-import { clipArea, framePaintWrappers, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
+import { clipArea, framePaintWrappers, paintEventArea, rasteredArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 
 // ========================================
 // FIXTURES
@@ -368,5 +368,123 @@ describe('scaledLayerArea', () => {
     expect(scaledLayerArea({ width: 100, height: 100 }, NaN)).toBe(0);
     expect(scaledLayerArea({ width: 100, height: 100 }, -1)).toBe(0);
     expect(scaledLayerArea(undefined, 1)).toBe(0);
+  });
+});
+
+// ========================================
+// rasteredArea (docs/tasks/DOCUMENT_REPAINT.md Phase 5, option b)
+// ========================================
+
+/** A `RasterTask` trace event the way a raster worker thread emits it: the layer and the frame live under `tileData`. */
+const raster = (layerId, sourceFrameNumber, extra = {}) => ({
+  name: 'RasterTask',
+  ph: 'X',
+  dur: 25,
+  args: { tileData: { layerId, sourceFrameNumber, tileResolution: 'HIGH_RESOLUTION' } },
+  ...extra,
+});
+
+const SHEET = 1465 * 824; // one of main's moving sheets, in CSS px²
+const BOUNDS = { frames: 2, dpr: 1, viewport: VIEWPORT };
+
+describe('rasteredArea', () => {
+  it('charges a layer its area for each frame it rastered, over the frame count', () => {
+    const events = [raster(12, 500), raster(12, 501)];
+    const { pxPerFrame } = rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[12, SHEET]]) });
+    expect(pxPerFrame).toBe(SHEET);
+  });
+
+  it('counts a frame once for a layer however many tiles it rastered in it', () => {
+    const events = [raster(12, 500), raster(12, 500), raster(12, 500), raster(12, 501)];
+    const { pxPerFrame, perLayer } = rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[12, SHEET]]) });
+    expect(pxPerFrame).toBe(SHEET);
+    expect(perLayer.get(12)).toEqual({ frames: 2, tasks: 4, area: SHEET });
+  });
+
+  it('sums the layers: two sheets that each raster every frame are two sheets per frame', () => {
+    const events = [raster(12, 500), raster(15, 500), raster(12, 501), raster(15, 501)];
+    const { pxPerFrame } = rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[12, SHEET], [15, SHEET]]) });
+    expect(pxPerFrame).toBe(2 * SHEET);
+  });
+
+  it('charges a layer that rastered on some frames only for those frames', () => {
+    // The dissolve layer's shape: a full sheet that rasters one frame in four.
+    const events = [raster(106, 500)];
+    const { pxPerFrame } = rasteredArea(events, { frames: 4, dpr: 1, viewport: VIEWPORT, layerAreasById: new Map([[106, SHEET]]) });
+    expect(pxPerFrame).toBe(SHEET / 4);
+  });
+
+  it('reports screens/frame against the viewport in device pixels', () => {
+    const full = VIEWPORT.width * VIEWPORT.height;
+    const events = [raster(9, 500), raster(9, 501)];
+    expect(rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[9, full]]) }).screensPerFrame).toBe(1);
+    expect(rasteredArea(events, { ...BOUNDS, dpr: 2, layerAreasById: new Map([[9, full]]) }).screensPerFrame).toBe(1);
+  });
+
+  it('scales px²/frame by the device pixel ratio squared', () => {
+    const events = [raster(12, 500), raster(12, 501)];
+    expect(rasteredArea(events, { ...BOUNDS, dpr: 2, layerAreasById: new Map([[12, 100]]) }).pxPerFrame).toBe(400);
+  });
+
+  it('charges a layer with no known area nothing, and counts it as unresolved once', () => {
+    // The branch's unnamed layers (112-118) appear after the LayerTree snapshot; a tile is small, a viewport charge would swamp the column.
+    const events = [raster(116, 500), raster(116, 501), raster(118, 500), raster(12, 500)];
+    const r = rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[12, SHEET]]) });
+    expect(r.pxPerFrame).toBe(SHEET / 2);
+    expect(r.unresolvedLayers).toBe(2);
+    expect(r.perLayer.get(116)).toEqual({ frames: 2, tasks: 2, area: undefined });
+  });
+
+  it('treats a layer area that is not a finite, non-negative number as unknown', () => {
+    const events = [raster(12, 500)];
+    for (const bad of [NaN, Infinity, -1, 'big']) {
+      const r = rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[12, bad]]) });
+      expect(r.pxPerFrame, String(bad)).toBe(0);
+      expect(r.unresolvedLayers, String(bad)).toBe(1);
+    }
+  });
+
+  it('matches a layer whether the trace and the snapshot key it as a number or a string', () => {
+    const events = [raster(12, 500), raster('15', 500)];
+    const { pxPerFrame } = rasteredArea(events, { frames: 1, dpr: 1, viewport: VIEWPORT, layerAreasById: new Map([['12', SHEET], [15, SHEET]]) });
+    expect(pxPerFrame).toBe(2 * SHEET);
+  });
+
+  it('ignores what is not a complete RasterTask: another event, a begin/end half, one with no layer or no frame', () => {
+    const events = [
+      raster(12, 500, { name: 'Paint' }),
+      raster(12, 500, { ph: 'B' }),
+      raster(12, 500, { ph: 'E' }),
+      raster(undefined, 500),
+      raster(12, undefined),
+      { name: 'RasterTask', ph: 'X', dur: 25, args: {} },
+    ];
+    const r = rasteredArea(events, { ...BOUNDS, layerAreasById: new Map([[12, SHEET]]) });
+    expect(r).toMatchObject({ pxPerFrame: 0, screensPerFrame: 0, unresolvedLayers: 0 });
+    expect(r.perLayer.size).toBe(0);
+  });
+
+  it('reads a window with no RasterTask events as 0, not NaN', () => {
+    const r = rasteredArea([], { frames: 360, dpr: 1, viewport: VIEWPORT, layerAreasById: new Map() });
+    expect(r).toMatchObject({ pxPerFrame: 0, screensPerFrame: 0, unresolvedLayers: 0 });
+  });
+
+  it('reads a window with no frames as 0, not Infinity', () => {
+    const r = rasteredArea([raster(12, 500)], { frames: 0, dpr: 1, viewport: VIEWPORT, layerAreasById: new Map([[12, SHEET]]) });
+    expect(r).toMatchObject({ pxPerFrame: 0, screensPerFrame: 0, unresolvedLayers: 0 });
+  });
+
+  it('works without a layer map at all: every layer is unresolved', () => {
+    const r = rasteredArea([raster(12, 500)], { frames: 1, dpr: 1, viewport: VIEWPORT });
+    expect(r.pxPerFrame).toBe(0);
+    expect(r.unresolvedLayers).toBe(1);
+  });
+
+  it('main\'s shape: three sheets that raster every frame of a 3 s probe read about three screens per frame', () => {
+    const events = [];
+    for (let f = 0; f < 179; f++) for (const id of [12, 15, 17]) events.push(raster(id, 500 + f));
+    const r = rasteredArea(events, { frames: 179, dpr: 1, viewport: VIEWPORT, layerAreasById: new Map([[12, SHEET], [15, SHEET], [17, SHEET]]) });
+    expect(r.screensPerFrame).toBeCloseTo((3 * SHEET) / (VIEWPORT.width * VIEWPORT.height), 6);
+    expect(r.unresolvedLayers).toBe(0);
   });
 });

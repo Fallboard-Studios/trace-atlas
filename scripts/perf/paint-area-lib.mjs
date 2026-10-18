@@ -102,3 +102,54 @@ export function redrawnArea(events, { dpr, frames, viewport, layerAreas }) {
   const screenPx = viewportCssPx * dpr * dpr;
   return { pxPerFrame, screensPerFrame: screenPx ? pxPerFrame / screenPx : 0, unresolvedPaints };
 }
+
+/** A complete `RasterTask` event that names its layer and its frame (`args.tileData`, as the raster worker threads emit it). */
+const isCompleteRaster = (ev) => {
+  if (ev?.name !== 'RasterTask' || ev.ph !== 'X') return false;
+  const { layerId, sourceFrameNumber } = ev.args?.tileData ?? {};
+  return layerId !== undefined && layerId !== null && Number.isFinite(sourceFrameNumber);
+};
+
+/**
+ * Re-rastered area per frame over one traced window (docs/tasks/DOCUMENT_REPAINT.md Phase 5, option b): what the
+ * compositor actually re-drew, as against `redrawnArea`, which reads the paint phase's cull rects. Each compositor
+ * layer is charged its on-screen area once for every frame in which at least one `RasterTask` ran for it (one or
+ * more tiles per layer per frame; the time of those tasks is unstable between runs and is not read), summed over the
+ * layers and divided by `frames`. `events` are the whole trace (raster tasks run on worker threads, not the renderer
+ * main); `layerAreasById` maps a LayerTree `layerId` to that layer's area in CSS px² (stage scale applied), keyed by
+ * number or string. A layer with no known area (missing, NaN, infinite or negative — the snapshot predates it) is
+ * charged 0 and counted once in `unresolvedLayers`, not capped at a viewport: a tile is small and a viewport charge
+ * would swamp the column. `perLayer` is `layerId → { frames, tasks, area }` for the harness's raster-by-layer table.
+ */
+export function rasteredArea(events, { frames, dpr, viewport, layerAreasById }) {
+  const perLayer = new Map();
+  if (!frames) return { pxPerFrame: 0, screensPerFrame: 0, unresolvedLayers: 0, perLayer };
+  const frameSets = new Map();
+  for (const ev of events ?? []) {
+    if (!isCompleteRaster(ev)) continue;
+    const { layerId, sourceFrameNumber } = ev.args.tileData;
+    const key = Number.isFinite(Number(layerId)) ? Number(layerId) : layerId;
+    const set = frameSets.get(key) ?? new Set();
+    set.add(sourceFrameNumber);
+    frameSets.set(key, set);
+    const cur = perLayer.get(key) ?? { frames: 0, tasks: 0, area: undefined };
+    cur.tasks++;
+    perLayer.set(key, cur);
+  }
+  let cssPx = 0;
+  let unresolvedLayers = 0;
+  for (const [key, set] of frameSets) {
+    const cur = perLayer.get(key);
+    cur.frames = set.size;
+    const area = layerAreasById?.get(key) ?? layerAreasById?.get(String(key));
+    if (Number.isFinite(area) && area >= 0) {
+      cur.area = area;
+      cssPx += area * set.size;
+    } else {
+      unresolvedLayers++;
+    }
+  }
+  const pxPerFrame = (cssPx * dpr * dpr) / frames;
+  const screenPx = viewport.width * viewport.height * dpr * dpr;
+  return { pxPerFrame, screensPerFrame: screenPx ? pxPerFrame / screenPx : 0, unresolvedLayers, perLayer };
+}
