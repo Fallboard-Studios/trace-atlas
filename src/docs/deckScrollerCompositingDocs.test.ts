@@ -215,6 +215,24 @@ describe('PERFORMANCE.md: the deck scroller compositing desktop A/B (DECK_SCROLL
     );
   });
 
+  it('records the Gate 2 decision as a dated paragraph: B adopted, the memory cost stated, the commit, and the rule pinned', () => {
+    const s = section();
+    const decision = /^\*\*Gate 2 decision \((\d{4}-\d{2}-\d{2})\): adopt B\.\*\*([^\n]*)$/m.exec(
+      s
+    );
+    expect(decision, 'a dated Gate 2 paragraph').not.toBeNull();
+    const body = decision![2];
+    expect(body).toMatch(/Crawford/);
+    expect(body, 'the memory cost, at 1× and at DPR 1.25').toMatch(
+      /0\.7 MB at 1×[^\n]*1\.1 MB at DPR 1\.25/
+    );
+    expect(body, 'the commit').toMatch(/`9443dd1c`/);
+    expect(body).toMatch(/T2\.1[^\n]*skipped/);
+    expect(body).toMatch(/T2\.2[^\n]*passed/i);
+    const css = read('src/components/panels/screen/worldView/WorldView.css');
+    expect(css).toMatch(/\.world-view__scroller \{[^}]*will-change: scroll-position;[^}]*\}/);
+  });
+
   it('links the plan relatively, and the plan carries Phase 1 and the guard', () => {
     const s = section();
     expect(s).toMatch(/\]\(tasks\/DECK_SCROLLER_COMPOSITING\.md\)/);

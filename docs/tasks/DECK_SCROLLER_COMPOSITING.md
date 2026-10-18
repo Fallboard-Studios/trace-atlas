@@ -1,8 +1,8 @@
 # Deck scroller compositing: an A/B of the two mitigations the Task 11 follow-up named
 
-> **Status (2026-10-18): Phases 0 and 1 done** (Gate 0 passed; Gate 1 recorded, results under each gate below), on
-> `feature/deck-scroller-compositing`. T2.1 (Pixel) skipped by Crawford: stock already composites the scroller at
-> DPR ≥ 1.5. Next: T2.2, Crawford's desktop look at DPR 1.25, then Gate 2. Set up at Crawford's request after the Phase 5 investigation in
+> **Status (2026-10-18): COMPLETE, B adopted at Gate 2** (`9443dd1c`, `will-change: scroll-position`), on
+> `feature/deck-scroller-compositing`. Gate 0 passed, Gate 1 recorded, T2.1 skipped, T2.2 passed; results under each
+> gate below. Left: the PR (Crawford's), with or after `perf/per-mover-layers`. Set up at Crawford's request after the Phase 5 investigation in
 > [DOCUMENT_REPAINT.md](DOCUMENT_REPAINT.md) found that the deck camera's pans re-raster the console shell's compositor
 > layer every frame, with no `Paint` ([PERFORMANCE.md](../PERFORMANCE.md) "Follow-up, same day: the shell layer and the
 > marker sheet are the deck camera"). Nothing here is decided: this is a measurement, and whether a pan's raster cost is
@@ -176,7 +176,7 @@ display scaling 100 % or 125 % is DPR 1 or 1.25, the case B changes).
   A; the camera's raster cost is the phone's cost, and this is the measurement that matters.
   **SKIPPED (Crawford, 2026-10-18):** stock already composites the scroller on the Pixel (Gate 1 result), so the A/B would
   compare identical layers. The phone was never where this cost lands.
-- [ ] **T2.2 The look, B against A, same phone and a desktop window narrower than 16:9** (1280 × 900 in Chrome): a camera
+- [x] **T2.2 The look, B against A, same phone and a desktop window narrower than 16:9** (1280 × 900 in Chrome): a camera
   pan and a follow look the same (no snap, no blur, no shimmer of the world's text or hairlines while scrolling, the
   marker tracks the robot); a swipe and a wheel still freeze and release the camera; the dimmed world (a hub tile open)
   still dims. **This is a MISS if the look changed.**
@@ -185,6 +185,7 @@ display scaling 100 % or 125 % is DPR 1 or 1.25, the case B changes).
   and B with the 1465 × 824 scrolling-contents layer and the shell layer not drawing, exactly as at DPR 1. B's layer
   memory there is ≈ + 1.1 MB (the + 0.7 MB at 1× times 1.25²). DPR 1.25 is also where Chrome keeps LCD sub-pixel text on
   stock and drops it on a composited scroller, so the world's text and hairlines are the thing to look at.
+  **PASSED (Crawford, 2026-10-18):** A on :4184 and B on :4185 in desktop Chrome at 125 %, "they both look fine".
 
 **Gate 2 (Crawford's decision):** adopt B, adopt nothing, or ask for a spec. Adopt B only if Gate 1 shows the shell layer
 quiet and busy/Paint within A's spread, T2.1 shows the Pixel at or below A, and T2.2 passes; the layer-memory increase is
@@ -193,6 +194,12 @@ stated in the decision, not hidden. If adopted: commit the one line with the Wor
 in ANIMATION_SYSTEM.md's deck camera section saying the scroller is composited and why, and the Gate 2 decision written
 into the PERFORMANCE.md section as a dated paragraph. If not adopted: the section records why, and the scroller stays as
 it is.
+
+**Gate 2 result (Crawford, 2026-10-18): adopt B.** The criteria as met: the shell layer quiet (140 → 0 frames per 30 s);
+busy and Paint just under A's spread, as C's no-op is too; T2.1 skipped (the phone composites the scroller on stock, so
+there was nothing to compare); T2.2 passed at Crawford's DPR 1.25. Memory: ≈ + 0.7 MB at 1×, ≈ + 1.1 MB at DPR 1.25,
+nothing on a phone. Done as listed: `9443dd1c` (the CSS line, the rule test, the ANIMATION_SYSTEM.md paragraph) and the
+dated paragraph in the PERFORMANCE.md section.
 
 ---
 
