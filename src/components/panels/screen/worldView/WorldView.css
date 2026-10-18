@@ -39,7 +39,9 @@
    around its own tween). overscroll-behavior-x: contain stops
    a swipe past the stage's edge from navigating the page (there's no edge gesture to conflict
    with — the phone shell's nav is a sheet, not a swipe). No visible scrollbar: the world is not
-   a document. */
+   a document. will-change: scroll-position makes it a composited scroller: Chrome does that on
+   its own at DPR >= 1.5 and on mobile, but not on a low-DPI desktop, where every camera pan
+   re-rastered the shell layer (docs/tasks/DECK_SCROLLER_COMPOSITING.md). */
 .world-view__scroller {
   position: absolute;
   inset: 0;
@@ -47,6 +49,7 @@
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
+  will-change: scroll-position;
 }
 
 .world-view__scroller::-webkit-scrollbar {

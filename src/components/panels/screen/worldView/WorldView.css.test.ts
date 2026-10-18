@@ -25,6 +25,15 @@ describe('WorldView.css — the scroller', () => {
     expect(body).toContain('scrollbar-width: none;');
   });
 
+  // Deck scroller compositing, Gate 2 (docs/tasks/DECK_SCROLLER_COMPOSITING.md): below DPR 1.5 on a desktop Chrome does
+  // not composite the scroller, so every camera pan re-rastered the shell layer. A composited scroller pans on the
+  // compositor instead. `contain: paint` was measured and did nothing, so it is not here.
+  it('is a composited scroller (will-change: scroll-position), so a camera pan does not re-raster the shell', () => {
+    const body = getCssRuleBody(cssSource, '.world-view__scroller');
+    expect(body).toContain('will-change: scroll-position;');
+    expect(body).not.toMatch(/contain:/);
+  });
+
   it('hides the webkit scrollbar too — the world is not a document', () => {
     const body = getCssRuleBody(cssSource, '.world-view__scroller::-webkit-scrollbar');
     expect(body).not.toBeNull();
