@@ -31,13 +31,29 @@ section's numbers or verdicts.
 
 ## Phase 0 — Set up (S)
 
-- [ ] **T0.1 Cut the branch.** `git switch -c fix/document-repaint` from `perf/per-mover-layers`. The three untracked
+- [x] **T0.1 Cut the branch.** `git switch -c fix/document-repaint` from `perf/per-mover-layers`. The three untracked
   `global-pedals` docs carry across; leave them alone.
-- [ ] **T0.2 Confirm the baseline reproduces.** One stock round on `main` *and* one on the branch, same session, three
+- [x] **T0.2 Confirm the baseline reproduces.** One stock round on `main` *and* one on the branch, same session, three
   alternated rounds. Expect the document layer at ≈ 0.99 (main) and ≈ 0.78 (branch) screens/frame with 279–345 paints
   in ~350 frames. If it does not reproduce, stop: the harness or the machine has changed, and the rest is moot.
 
-**Gate 0:** the document repaint is present on both builds at roughly the recorded size.
+**Gate 0:** the document repaint is present on both builds at roughly the recorded size. **PASSED (2026-10-17).**
+
+**As measured (Phase 0).** `main` `4a9b3fec` from a throwaway worktree, bundle `index-CVUy7kf3.js` (identical to the
+Task 20 build), served on :4183; `fix/document-repaint` `f6a512a3` (= `perf/per-mover-layers` tip + this plan), bundle
+`index-Dil0Vyn4.js`, on :4181. Three alternated rounds (main, branch, …), fresh headless Chrome each, foreground, one
+at a time; orphaned `trace-atlas-perf` Chrome 0 before and after. The unnamed painter (`''` in paint-by-node: a layer
+with no owning node, avg clip 1 152 000 px² = exactly the 1280 × 900 viewport) is the document layer:
+
+| Round | main screens/frame | main document paints / frames | branch screens/frame | branch document paints / frames |
+|---|---|---|---|---|
+| 1 | 3.09 | 357 / 361 | 0.95 | 280 / 358 |
+| 2 | 3.09 | 357 / 361 | 0.91 | 277 / 358 |
+| 3 | 3.10 | 355 / 361 | 0.91 | 277 / 358 |
+
+Matches Task 20 (3.10 / 0.95). Two things to carry into Phase 1: the painter has **no owning node**, which is why no
+`StyleRecalc`/`Layout` entry in the invalidation table names it; and on the branch it paints on ~77 % of frames against
+~99 % on `main`, so something the branch changed (the stage scale 0.763? the movers?) already skips it one frame in four.
 
 ---
 
