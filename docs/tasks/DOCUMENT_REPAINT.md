@@ -163,18 +163,45 @@ to Crawford with options 1 and 3 from the Task 20 section.
 
 ## Phase 3 — Fix it (S, or M with a spec)
 
-- [ ] **T3.1 Decide the shape.** If the cause is a single CSS rule or a stray animation: fix in place, one commit. If it
+- [x] **T3.1 Decide the shape.** If the cause is a single CSS rule or a stray animation: fix in place, one commit. If it
   is the camera loop, the scene stack, a shell layer or a React render pattern: write `docs/specs/DOCUMENT_REPAINT.md`
   first (short; what changes, what must not change in the look, the gate), and get Crawford's nod before T3.2.
-- [ ] **T3.2 Fix it, TDD where there is logic.** A unit test only where a function changes; a CSS-only fix has no unit
+- [x] **T3.2 Fix it, TDD where there is logic.** A unit test only where a function changes; a CSS-only fix has no unit
   test, and the measurement is its test. Guardrails: no `setTimeout`/`rAF` for timing, no refs in state; if the fix
   touches a GSAP ticker, it stays outside `timelineMap` the way the dissolve follower does.
-- [ ] **T3.3 Prove it on the branch.** Three alternated stock rounds, branch fixed vs branch unfixed, same session. The
+- [x] **T3.3 Prove it on the branch.** Three alternated stock rounds, branch fixed vs branch unfixed, same session. The
   document layer's paints drop to a handful; busy and Paint do not rise. **This is a MISS if the look changed** — check
   Checkpoint B's list (a station exit with halo waves; the dimmed world) in a live browser.
 
 **Gate 3:** the document repaint is gone on the fixed branch, the look is unchanged, suite green, types clean, lint 0
-errors.
+errors. **PASSED (2026-10-17), as option (a).**
+
+**As shipped (Phase 3).** Commit `998207a5`. `scripts/perf/paint-area-lib.mjs` gains `framePaintWrappers(events)`:
+the set of `#document` `Paint` events whose span contains another complete `Paint`. `redrawnArea` skips them; a
+`#document` Paint with nothing nested still counts (a root-layer repaint). `idle-paint.mjs` builds its per-node table
+from the same set, so the `''` row is gone, and every row carries a new `frame wrappers` column (the count skipped).
+TDD: 11 tests in `paint-area-lib.test.mjs` (the Task 20 shape, `main`'s two-sheet shape, standalone, span edges,
+halves and marks), 4 mutations each killed (drop the skip; any node is a wrapper; alone is a wrapper; ignore the
+span's end). `scene-markup-lib.test.mjs` pins the harness's use of it. No product file changed, so the look is
+unchanged by construction. Suite 371 files / 12 512 tests green, types clean, lint 0 errors (4 old warnings).
+
+**Measured with the corrected harness** (same builds and servers as Phase 0, three alternated rounds, fresh headless
+Chrome each, foreground, one at a time; orphaned `trace-atlas-perf` Chrome 0 before and after):
+
+| Round | main screens/frame | main frame wrappers | main busy | main Paint | branch screens/frame | branch frame wrappers | branch busy | branch Paint |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2.10 | 356 | 1905 | 172 | 0.17 | 280 | 1522 | 76 |
+| 2 | 2.12 | 357 | 1801 | 172 | 0.16 | 277 | 1500 | 78 |
+| 3 | 2.09 | 355 | 1845 | 173 | 0.16 | 280 | 1516 | 80 |
+| Median | 2.10 | 356 | 1845 | 172 | 0.16 | 280 | 1516 | 78 |
+
+Layer memory unchanged from Task 20: `main` ≈ 37.8 MB (28 layers), branch ≈ 24.2 MB (31 layers, 4 movers ≈ 0.1 MB).
+`screens/frame` ratio **0.16 / 2.10 = 0.076 ×** (limit 0.25). Busy, Paint and memory are all below `main`. These are
+the Phase 4 numbers; Phase 4 writes them into PERFORMANCE.md as the gate's re-run and extends the docs guard.
+
+**Phase 4 note.** T4.1's "apply the fix to `main` for the measurement" is moot: the fix is in the harness, and both
+sides were measured with the branch's harness, as Task 20 did. T4.1 is therefore just the merge into
+`perf/per-mover-layers`.
 
 ---
 
