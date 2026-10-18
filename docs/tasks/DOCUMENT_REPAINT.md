@@ -329,11 +329,14 @@ dissolve layer rasters while empty, that is a new finding to file.
   five doc mutants (a median off by 0.01, a round's screens off its px², the ratio text, a claimed unresolved layer on
   `main`, the localizer paragraph losing the column) each fail it.
 
-**Findings (filed, not acted on; PERFORMANCE.md "Reading").**
+**Findings (filed, not acted on; PERFORMANCE.md "Reading"). Same day, Crawford asked for 4 to be looked into: 1 and 4
+share a cause, the deck camera's pans, and are CLOSED as findings (PERFORMANCE.md "Follow-up, same day: the shell layer
+and the marker sheet are the deck camera"); whether to mitigate is his call. 2 and 3 stay open.**
 1. **`main`'s marker sheet re-rasters every frame with no `Paint`.** Three moving sheets raster on 347–352 of 352–355
    frames; the paint table has only two (robots-back, robots). The third, the `marker` sheet by layer order, rasters one
-   tile per frame with no main-thread `Paint` in any round: R5's "What the Paint column does not see", seen. What
-   invalidates it is not read here.
+   tile per frame with no main-thread `Paint` in any round: R5's "What the Paint column does not see", seen.
+   **Cause: the deck camera's follow moves the marker every frame.** At 1600 × 900 (scroll range 0, camera standing
+   down) the marker sheet is not even composited and `main` reads 1.81 rastered screens/frame, its two robot sheets.
 2. **The branch's area is three big layers rastering now and then, not the movers:** the empty `dissolve` div
    (1920 × 1080 at 0.763) on 25–26 frames of 353, the `mid` sheet on 23–25, `div.screen-content` on 31–35; together
    ≈ 0.24 of the 0.25. The three robot movers are ≈ 0.01 in all.
@@ -341,7 +344,13 @@ dissolve layer rasters while empty, that is a new finding to file.
    per frame rastered; the busiest on 108 of 353 frames, then 71–73, 33–34, 23, 22–23 and two smaller), charged 0: the
    branch's 0.25 is a floor. These are the "six small unnamed layers" of Gate 1's side finding 1.
 4. **`div.screen-content` (1248 × 824, the shell) rasters about one frame in eleven on both builds**, three to four
-   tiles each time; neither the paint table nor the invalidation table names it. New.
+   tiles each time; neither the paint table nor the invalidation table names it. New. **Cause: the deck camera's 1.4 s
+   pan scrolls `.world-view__scroller`, a non-composited scroller whose contents draw into the shell's layer, so every
+   frame of a pan re-rasters 4 of its tiles with no `Paint`** (a 22 s probe: one 1.5 s every-frame burst plus a frame
+   every 1–2 s; the 6 s windows caught a pan, part of one or none, hence 29–35 vs the probes' 0–4). At 1600 × 900 the
+   shell layer rasters 3 frames on `main` and 0 on the branch. The harness side-effect: at 1280 × 900 the camera runs
+   (the Task 11 follow-up's cause 1), so every idle window here includes camera pans. Mitigation candidates the Task 11
+   follow-up already named, untried: `will-change: scroll-position` or `contain: paint` on the scroller.
 
 ---
 

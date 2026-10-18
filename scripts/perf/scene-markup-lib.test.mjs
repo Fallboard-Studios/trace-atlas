@@ -394,6 +394,9 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toContain('for (const l of (await readLayerTree({ send, onEvent })) ?? []) {');
     expect(source).toContain('layerAreasById.set(l.layerId, scaledLayerArea(l, (await insideStage(send, l)) ? view.stageScale : 1));');
     expect(source).toContain('raster by layer');
+    // One table per window, like the invalidations: the stock window in full, each ablation's top rows.
+    expect(source).toContain("await printRasterByLayer(send, stockRaster, 'Stock window — raster by layer', 12)");
+    expect(source).toContain('await printRasterByLayer(send, { byLayer: rasterByLayer, layersById: rasterLayersById }, `  ${ab.name} — raster by layer`, 8)');
   });
 
   it('clamps each Paint to its layer: the layer map is built once, scaled by the stage, and handed to the traced windows', () => {

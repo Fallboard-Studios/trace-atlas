@@ -537,6 +537,7 @@ async function run(cdp) {
         console.log(`    ${String(v.count).padStart(6)}  ${key}  [${named.join(', ')}]`);
       }
     }
+    if (opts.attribution && rasterByLayer.size) await printRasterByLayer(send, { byLayer: rasterByLayer, layersById: rasterLayersById }, `  ${ab.name} — raster by layer`, 8);
     rows.push({ ablation: ab.name, ...metrics });
     process.stdout.write(`  ${ab.name}: main busy ${metrics['main busy (ms)']} ms, paint ${metrics['Paint ms']} ms, compositor ${metrics['Compositor::Update ms']} ms, Paint n ${metrics['Paint n']}, redrawn ${metrics['screens/frame']} screens/frame, long tasks ${metrics['long tasks']}\n`);
     if (ab.undo) await evaluate(`(() => { ${ab.undo}; return true; })()`);
@@ -567,20 +568,25 @@ async function run(cdp) {
     console.table(out);
   }
 
-  // Option (b) of docs/tasks/DOCUMENT_REPAINT.md: which compositor layers the raster workers re-drew, and how often. A layer
-  // neither LayerTree snapshot had (it came and went inside the window) shows its id and no size; the column charged it 0.
-  if (opts.attribution && stockRaster) {
-    await send('DOM.getDocument', { depth: 0 });
-    const top = [...stockRaster.byLayer].sort((a, b) => b[1].frames - a[1].frames || b[1].tasks - a[1].tasks).slice(0, 12);
-    const out = [];
-    for (const [layerId, r] of top) {
-      const layer = stockRaster.layersById.get(layerId) ?? stockRaster.layersById.get(String(layerId));
-      const node = layer === undefined ? '(in no layer snapshot)' : layer.backendNodeId === undefined ? '(no node)' : await describeNode(send, layer.backendNodeId);
-      out.push({ layer: layerId, node, 'size (CSS px, pre-scale)': layer ? `${Math.round(layer.width)}×${Math.round(layer.height)}` : '', 'frames rastered': r.frames, tasks: r.tasks, 'area px²': r.area === undefined ? '' : Math.round(r.area) });
-    }
-    console.log(`Stock window — raster by layer (top 12 of ${stockRaster.byLayer.size}, by frames rastered):`);
-    console.table(out);
+  if (opts.attribution && stockRaster) await printRasterByLayer(send, stockRaster, 'Stock window — raster by layer', 12);
+}
+
+/**
+ * Option (b) of docs/tasks/DOCUMENT_REPAINT.md: which compositor layers the raster workers re-drew in a window, and how
+ * often. A layer neither LayerTree snapshot had (it came and went inside the window) shows its id and no size; the
+ * column charged it 0. Printed in full for the stock window and as a short list for each ablation, like the invalidations.
+ */
+async function printRasterByLayer(send, { byLayer, layersById }, label, top) {
+  await send('DOM.getDocument', { depth: 0 });
+  const rows = [...byLayer].sort((a, b) => b[1].frames - a[1].frames || b[1].tasks - a[1].tasks).slice(0, top);
+  const out = [];
+  for (const [layerId, r] of rows) {
+    const layer = layersById.get(layerId) ?? layersById.get(String(layerId));
+    const node = layer === undefined ? '(in no layer snapshot)' : layer.backendNodeId === undefined ? '(no node)' : await describeNode(send, layer.backendNodeId);
+    out.push({ layer: layerId, node, 'size (CSS px, pre-scale)': layer ? `${Math.round(layer.width)}×${Math.round(layer.height)}` : '', 'frames rastered': r.frames, tasks: r.tasks, 'area px²': r.area === undefined ? '' : Math.round(r.area) });
   }
+  console.log(`${label} (top ${top} of ${byLayer.size}, by frames rastered):`);
+  console.table(out);
 }
 
 async function main() {
