@@ -356,6 +356,7 @@ and the marker sheet are the deck camera"); whether to mitigate is his call. 2 a
 
 ## Then (not tasks here)
 
+- The deck scroller A/B (findings 1 and 4's mitigation candidates, measured): [DECK_SCROLLER_COMPOSITING.md](DECK_SCROLLER_COMPOSITING.md), planned 2026-10-18, not started.
 - R7a trims the docs guards once, as planned.
 - Checkpoints B and C (live look in Chrome and Firefox) and the Pixel underrun count (Task 21) remain Crawford's.
 - `perf/per-mover-layers` PR.
