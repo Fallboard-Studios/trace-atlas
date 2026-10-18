@@ -1,8 +1,8 @@
 # Deck scroller compositing: an A/B of the two mitigations the Task 11 follow-up named
 
 > **Status (2026-10-18): Phases 0 and 1 done** (Gate 0 passed; Gate 1 recorded, results under each gate below), on
-> `feature/deck-scroller-compositing`. Next: Gate 2, Crawford's, including whether Phase 2's Pixel A/B still means
-> anything (stock already composites the scroller at DPR ≥ 1.5; see the Gate 1 result). Set up at Crawford's request after the Phase 5 investigation in
+> `feature/deck-scroller-compositing`. T2.1 (Pixel) skipped by Crawford: stock already composites the scroller at
+> DPR ≥ 1.5. Next: T2.2, Crawford's desktop look at DPR 1.25, then Gate 2. Set up at Crawford's request after the Phase 5 investigation in
 > [DOCUMENT_REPAINT.md](DOCUMENT_REPAINT.md) found that the deck camera's pans re-raster the console shell's compositor
 > layer every frame, with no `Paint` ([PERFORMANCE.md](../PERFORMANCE.md) "Follow-up, same day: the shell layer and the
 > marker sheet are the deck camera"). Nothing here is decided: this is a measurement, and whether a pan's raster cost is
@@ -174,10 +174,17 @@ display scaling 100 % or 125 % is DPR 1 or 1.25, the case B changes).
   `?debug` overlay open, three minutes each, A then B then A, in one sitting. Record each listen's overlay underrun count
   and whether anything was audible, in Crawford's own words, the way the Task 21 Pixel section does. Expect B at or below
   A; the camera's raster cost is the phone's cost, and this is the measurement that matters.
+  **SKIPPED (Crawford, 2026-10-18):** stock already composites the scroller on the Pixel (Gate 1 result), so the A/B would
+  compare identical layers. The phone was never where this cost lands.
 - [ ] **T2.2 The look, B against A, same phone and a desktop window narrower than 16:9** (1280 × 900 in Chrome): a camera
   pan and a follow look the same (no snap, no blur, no shimmer of the world's text or hairlines while scrolling, the
   marker tracks the robot); a swipe and a wheel still freeze and release the camera; the dimmed world (a hub tile open)
   still dims. **This is a MISS if the look changed.**
+  **Narrowed (2026-10-18):** desktop only, since the phone is identical on A and B. Crawford's desktop runs at Windows
+  125 % scaling, DPR 1.25, which is the case B changes: the Phase 0 probe at DPR 1.25 reads stock with no scroller layer
+  and B with the 1465 × 824 scrolling-contents layer and the shell layer not drawing, exactly as at DPR 1. B's layer
+  memory there is ≈ + 1.1 MB (the + 0.7 MB at 1× times 1.25²). DPR 1.25 is also where Chrome keeps LCD sub-pixel text on
+  stock and drops it on a composited scroller, so the world's text and hairlines are the thing to look at.
 
 **Gate 2 (Crawford's decision):** adopt B, adopt nothing, or ask for a spec. Adopt B only if Gate 1 shows the shell layer
 quiet and busy/Paint within A's spread, T2.1 shows the Pixel at or below A, and T2.2 passes; the layer-memory increase is
