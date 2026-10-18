@@ -120,7 +120,7 @@ const ABLATIONS = [
   { name: 'stock (again)', css: '' },
   // Irreversible (sticky) steps, last: moving nodes are REMOVED from the DOM, not hidden — GSAP keeps writing transforms
   // to a display:none element and Blink still invalidates style/layout for it, so display:none is not "nothing moves".
-  { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())` },
+  { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())`, check: BUBBLES },
   // Review follow-up R5, option (3): the circles are gone but the strips stay drawing layers, so take the hosts too —
   // the strips on a branch build, the one bubbles sheet on `main`. `check` reports what the step found and left.
   { name: 'detach-bubble-strips', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLE_HOSTS)}).forEach((e) => e.remove())`, check: BUBBLE_HOSTS },
@@ -538,6 +538,7 @@ async function run(cdp) {
     }
     await sleep(2000);
     const r = await traceWindow(cdp, WINDOW_MS, view);
+    if (ab.check) console.log(`  ${ab.name}: ${await count(ab.check)} matching after the window`);
     const { paintByNode, invalidations, rasterByLayer, rasterLayersById, ...metrics } = r;
     if (ab.name === 'stock' && !stockPaint) { stockPaint = paintByNode; stockRaster = { byLayer: rasterByLayer, layersById: rasterLayersById }; }
     if (opts.attribution && invalidations.size) {

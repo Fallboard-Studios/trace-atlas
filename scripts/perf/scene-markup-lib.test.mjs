@@ -370,6 +370,14 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toMatch(/matched \$\{before\}[^\n]*\$\{left\} left/);
   });
 
+  // A detach can decay: React or a timeline may put nodes back during the window, so the count is read again after it.
+  it('checks the circle detach too, and reads every checked count again after the window', () => {
+    expect(source).toContain(
+      "{ name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())`, check: BUBBLES }"
+    );
+    expect(source).toMatch(/\$\{ab\.name\}: \$\{await count\(ab\.check\)\} matching after the window/);
+  });
+
   // Importing a helper is not using it: each is pinned where it does its work.
   it('uses the robot selectors where they count: the ablations, the detach, the scene line and the stack line', () => {
     expect(source).toContain('const ROBOTS = ROBOT_CONTAINERS;');
