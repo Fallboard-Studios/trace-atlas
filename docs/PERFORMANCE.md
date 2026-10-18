@@ -2289,6 +2289,8 @@ Window 2, medians of the accepted runs: the **Compositor::Update gap +357 → +3
 
 **A harness caveat found on the way.** In a 3 s smoke run on `main` with every step at once, the page had no `.world-view` after `detach-bubbles+robots` (after `detach-bubble-strips`), and the run was rejected by the world check: the robots' detach pulls out nodes React owns, and the next React update after it appears to unmount the world. The rounds above do not use that step, and the world check passed at the end of every one. Not chased.
 
+**Decision (2026-10-18): Crawford accepts R5's busy MISS.** On the evidence above: +8 % busy and +18 % Compositor::Update on the busiest world found, over 30 s, for 0.85 MB of bubble layers instead of 4.60 MB, with the larger part of the gap belonging to the robot movers that no bubble change reaches. No bubble redesign follows from it, and spec §7 Q3 is closed by this decision; R5's numbers and its MISS stand as recorded.
+
 Guarded by `src/docs/perMoverStripsDocs.test.ts` (every row against the acceptance rule, the medians and gaps against the accepted rows, the reading against the medians; 8 doc mutants killed).
 
 ## Recording a new baseline

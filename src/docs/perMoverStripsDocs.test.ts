@@ -184,6 +184,16 @@ describe('PERFORMANCE.md: R5 option (3), the bubble strips separated from the ot
     expect(s, 'the window-position confound is named').toMatch(/same window position/);
   });
 
+  it('records the decision as a dated paragraph, and the plan carries it on R5', () => {
+    const decision =
+      /^\*\*Decision \((\d{4}-\d{2}-\d{2})\): Crawford accepts R5's busy MISS\.\*\*([^\n]*)$/m.exec(
+        section()
+      );
+    expect(decision, 'a dated decision paragraph').not.toBeNull();
+    expect(decision![2], 'no bubble redesign follows from it').toMatch(/no bubble redesign/i);
+    expect(read(PLAN_DOC)).toMatch(/\*\*ACCEPTED by Crawford, (\d{4}-\d{2}-\d{2})\*\*/);
+  });
+
   it('names the builds, the harness, the world and the hygiene', () => {
     const s = section();
     expect(s).toContain('index-CVUy7kf3.js');

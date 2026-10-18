@@ -1,7 +1,7 @@
 # Follow-ups: Per-Mover Compositor Layers code review
 
 > **Status (2026-10-17):** **Phase A is built** (R1–R4, commits `43a0802a`…`4d754d94` on `perf/per-mover-layers`; see
-> "As shipped (Phase A)" below); Checkpoint A waits only on Crawford's review. **Phase B is built** (R5: busy is a MISS, stopped for Crawford; R6: all three gates PASS; see "As shipped (Phase B)" below) and waits on Crawford's review. Phase C is not started.
+> "As shipped (Phase A)" below); Checkpoint A waits only on Crawford's review. **Phase B is built** (R5: busy is a MISS, **accepted by Crawford 2026-10-18** after option (3) separated the strips; R6: all three gates PASS; see "As shipped (Phase B)" below) and waits on Crawford's review. Phase C is not started.
 > Written from a five-axis code review of `perf/per-mover-layers`
 > at tip `b528d32d` (28 commits, 57 files, +5133/−1035). The review's verdict: **the code is approvable; the branch is
 > not ready to merge** because it has not met its own "Ready for PR" criteria (see "Open before merge", below, which
@@ -188,7 +188,7 @@ investigation (Task 20's miss): do them in the same session.**
   Paint, Compositor::Update and Layerize, on `main` and the branch.
 
   **Acceptance criteria:**
-  - [ ] **Not met on busy** (layer memory and Paint pass). Pass: branch layer memory (stage scale applied) ≤ `main`'s in the same window; busy and Paint within `main`'s
+  - [x] **Not met on busy.** **ACCEPTED by Crawford, 2026-10-18** (after option (3) separated the strips; no bubble redesign). (Layer memory and Paint pass.) Pass: branch layer memory (stage scale applied) ≤ `main`'s in the same window; busy and Paint within `main`'s
         spread. Compositor::Update and Layerize recorded, not gated (as in Task 20).
   - [x] Miss → **stop and report.** Per spec §7 Q3 and Crawford's standing permission (2026-10-16) the reaction is his
         bubble redesign, not a promote-only-mid-burst workaround.
