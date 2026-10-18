@@ -131,7 +131,7 @@ fail). Line numbers are at `b528d32d` and may drift.
 ### Checkpoint A: One-shots
 - [x] `npm run build:types`, `npm run lint`, full `npm test` clean.
 - [x] The six mutants from "What the review checked" re-run and still killed.
-- [ ] Reviewed with Crawford before Phase B.
+- [x] Reviewed with Crawford before Phase B. **Signed off, 2026-10-18** ("they're good").
 
 ### As shipped (Phase A, 2026-10-17)
 
@@ -218,7 +218,7 @@ investigation (Task 20's miss): do them in the same session.**
 
 ### Checkpoint B: Measurements
 - [x] R5 and R6 recorded with numbers, hashes and orphaned-Chrome counts; any miss written as a miss. (R5 is a miss on busy; R6 passes.)
-- [ ] Reviewed with Crawford.
+- [x] Reviewed with Crawford. **Signed off, 2026-10-18**, with R5's MISS accepted the same day.
 
 ### As shipped (Phase B, 2026-10-17)
 
@@ -246,7 +246,7 @@ Records are in [docs/PERFORMANCE.md](../PERFORMANCE.md); guards `src/docs/perMov
 
 ### Phase C: Decisions that are Crawford's (not buildable yet)
 
-- [ ] **R7a: Trim the Phase 53 docs guards — after the gate decision**
+- [x] **R7a: Trim the Phase 53 docs guards — after the gate decision** — **DECIDED (Crawford, 2026-10-18): keep them as they are**; nothing trimmed.
 
   **Description:** `src/docs/perMoverBaselineDocs.test.ts`, `perMoverGateDocs.test.ts`, `perMoverPixelDocs.test.ts`
   and `perMoverLayersDocs.test.ts` total about 930 lines and recompute medians from PERFORMANCE.md's prose tables and
@@ -258,7 +258,7 @@ Records are in [docs/PERFORMANCE.md](../PERFORMANCE.md); guards `src/docs/perMov
 
   **Dependencies:** Crawford's Task 20 decision. **Scope:** S–M.
 
-- [ ] **R7b: Split the PR?**
+- [x] **R7b: Split the PR?** — **DECIDED (Crawford, 2026-10-18): one PR**, not split.
 
   **Description:** 28 commits, 57 files. The stage (plan Tasks 5–11) is a pure refactor that should look identical, so
   it could land alone; then the robots (12–16, with the halo fix), then the bubbles and marker (17–19), then the
