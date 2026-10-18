@@ -395,7 +395,9 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toContain('layerAreasById.set(l.layerId, scaledLayerArea(l, (await insideStage(send, l)) ? view.stageScale : 1));');
     expect(source).toContain('raster by layer');
     // One table per window, like the invalidations: the stock window in full, each ablation's top rows.
-    expect(source).toContain("await printRasterByLayer(send, stockRaster, 'Stock window — raster by layer', 12)");
+    // The stock table's row count is `--raster-top` (default 12): a 30 s window rasters 100+ layers (DECK_SCROLLER_COMPOSITING.md).
+    expect(source).toContain("await printRasterByLayer(send, stockRaster, 'Stock window — raster by layer', Number(opts['raster-top']))");
+    expect(source).toContain("'raster-top': { type: 'string', default: '12' }");
     expect(source).toContain('await printRasterByLayer(send, { byLayer: rasterByLayer, layersById: rasterLayersById }, `  ${ab.name} — raster by layer`, 8)');
   });
 

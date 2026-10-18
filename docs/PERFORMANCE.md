@@ -2118,6 +2118,89 @@ At 1600 × 900 `main` rasters exactly its two robot sheets (1568 × 824 each, 35
 
 **What it means.** On a desktop window at or wider than 16:9 there is no cost: the camera never moves. On every narrower viewport, which is every phone in portrait and the harness's own default, each pan re-rasters the shell layer's visible scroller contents every frame for 1.4 s, then the follow re-rasters it on every frame the robot moves a whole pixel, and on `main` the marker sheet re-rasters every frame of the follow as well. The Task 11 follow-up named the mitigations without trying them: `will-change: scroll-position` (a composited scroller, so a scroll is a transform on the compositor and no re-raster) or `contain: paint` on `.world-view__scroller`, one at a time, measured with this column at 1280 × 900 and on the Pixel. Not done here: the camera is a shipped feature, the scroller's compositing is architecture, and the raster column has just arrived; **Crawford's call** whether a pan's raster cost is worth a spec. Findings 1 and 4 under Phase 5 in [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) are closed with this cause; 2 and 3 stay open.
 
+## Deck scroller compositing — the desktop A/B (2026-10-18)
+
+Phase 1 of [tasks/DECK_SCROLLER_COMPOSITING.md](tasks/DECK_SCROLLER_COMPOSITING.md): the two mitigations the follow-up above named for the deck camera's pans, one CSS declaration each on `.world-view__scroller`, against stock. **Recorded, not gated:** Gate 1 is read at Gate 2, which is Crawford's decision. No variant is committed; the scroller rule on the branch is unchanged.
+
+**Builds.** All three from `feature/deck-scroller-compositing` at `c456ee82` (cut from `perf/per-mover-layers`), built with `npx vite build --outDir <scratch>` and served with `vite preview`: **A, stock**, the tip as it is, :4184, `index-Dil0Vyn4.js`; **B**, `will-change: scroll-position` added to the rule, :4185, `index-BSuw5Pa7.js`; **C**, `contain: paint` added, :4186, `index-Ds3mB9Ot.js`. B and C were built from a working-tree edit restored from a `cp` backup, and each built stylesheet was read back: only the added declaration differs. Every bundle was read from the served HTML before measuring. Harness: `scripts/perf/idle-paint.mjs` at `76927960`, which adds `--raster-top` (the stock window's raster-by-layer table at 30 s rasters 113–124 layers, and the robot movers push the shell layer out of the default 12 rows; a first round 1 taken without it could not read the shell row and was discarded).
+
+**Method.** `npm run perf:idle -- --throttle 1 --window 30000 --only none --port 9301 --raster-top 300 --url <link>`, the pinned link of "Pre-change baseline for Phase 53" (`?session=`, style `alpha`, `(0, 50)`, defaults) with the port changed per variant, **1280 × 900** at 1×, the 8 s power-on settle, then one **30 s** window: one camera cycle is at most 1.4 + 20 + 3 s, so every window holds a pan (the scroll range at 1280 × 900 is 217 px: `scrollWidth` 1465, `clientWidth` 1248). Three rounds with the start order rotated (A B C, B C A, C A B), each run a fresh headless Chrome, foreground, one call per round, and the orphaned-Chrome count 0 before and 0 after every call (filtered `Win32_Process` query on `Name='chrome.exe'`). A 30 s window is traced without the invalidation table, so these figures compare only with each other, never with the 6 s sections above. `shell layer` is `div.screen-content`'s row in the stock window's raster-by-layer table; `scroller layer` is the row of B's scrolling-contents layer, owned by `div.world-view__scroller` (1465 × 824); 0 means the layer did not raster or does not exist.
+
+**Gate 0** ([tasks/DECK_SCROLLER_COMPOSITING.md](tasks/DECK_SCROLLER_COMPOSITING.md), Phase 0): the camera moves in all three builds, and only B gives the scroller a layer of its own (a 1248 × 824 container that draws nothing and the 1465 × 824 scrolling-contents layer that draws), while `div.screen-content`'s layer stops drawing content. The harness's `Compositor layers:` line names only scene slots, so the scroller layer is read from the raster table here.
+
+### A, stock
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 326139 | 0.28 | 108 | 11 | 2477393 | 2.15 | 10343 | 9992 | 1571 | 1530 | 1540 | 1798 | 0 | 140 | 475 | 0 | 0 |
+| 2 | 333891 | 0.29 | 110 | 9 | 2544966 | 2.21 | 9827 | 10080 | 1505 | 1459 | 1468 | 1797 | 0 | 139 | 476 | 0 | 0 |
+| 3 | 333807 | 0.29 | 110 | 9 | 2549417 | 2.21 | 9799 | 10106 | 1497 | 1463 | 1473 | 1800 | 0 | 142 | 480 | 0 | 0 |
+| Median | 333807 | 0.29 | 110 | 9 | 2544966 | 2.21 | 9827 | 10080 | 1505 | 1463 | 1473 | 1798 | 0 | 140 | 476 | 0 | 0 |
+| Min–max | 326139–333891 | 0.28–0.29 | 108–110 | 9–11 | 2477393–2549417 | 2.15–2.21 | 9799–10343 | 9992–10106 | 1497–1571 | 1459–1530 | 1468–1540 | 1797–1800 | 0–0 | 139–142 | 475–480 | 0–0 | 0–0 |
+
+### B, `will-change: scroll-position`
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 284200 | 0.25 | 102 | 10 | 2343291 | 2.03 | 9635 | 9777 | 1467 | 1421 | 1430 | 1800 | 0 | 0 | 0 | 45 | 241 |
+| 2 | 286374 | 0.25 | 110 | 9 | 2572131 | 2.23 | 9720 | 10106 | 1484 | 1427 | 1435 | 1795 | 0 | 0 | 0 | 48 | 250 |
+| 3 | 285535 | 0.25 | 111 | 10 | 2543521 | 2.21 | 9764 | 10082 | 1494 | 1441 | 1450 | 1798 | 0 | 0 | 0 | 48 | 247 |
+| Median | 285535 | 0.25 | 110 | 10 | 2543521 | 2.21 | 9720 | 10082 | 1484 | 1427 | 1435 | 1798 | 0 | 0 | 0 | 48 | 247 |
+| Min–max | 284200–286374 | 0.25–0.25 | 102–111 | 9–10 | 2343291–2572131 | 2.03–2.23 | 9635–9764 | 9777–10106 | 1467–1494 | 1421–1441 | 1430–1450 | 1795–1800 | 0–0 | 0–0 | 0–0 | 45–48 | 241–250 |
+
+### C, `contain: paint`
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 340058 | 0.30 | 111 | 9 | 2577582 | 2.24 | 9776 | 10150 | 1487 | 1445 | 1454 | 1800 | 0 | 143 | 481 | 0 | 0 |
+| 2 | 327764 | 0.28 | 110 | 9 | 2538236 | 2.20 | 9798 | 10076 | 1506 | 1448 | 1458 | 1797 | 0 | 140 | 477 | 0 | 0 |
+| 3 | 331297 | 0.29 | 110 | 10 | 2550457 | 2.21 | 9671 | 10093 | 1468 | 1457 | 1467 | 1798 | 0 | 142 | 479 | 0 | 0 |
+| Median | 331297 | 0.29 | 110 | 9 | 2550457 | 2.21 | 9776 | 10093 | 1487 | 1448 | 1458 | 1798 | 0 | 142 | 479 | 0 | 0 |
+| Min–max | 327764–340058 | 0.28–0.30 | 110–111 | 9–10 | 2538236–2577582 | 2.20–2.24 | 9671–9798 | 10076–10150 | 1468–1506 | 1445–1457 | 1454–1467 | 1797–1800 | 0–0 | 140–143 | 477–481 | 0–0 | 0–0 |
+
+### The control: 1600 × 900, one run each
+
+`--width 1600`, A B C, everything else as above. 1600 × 900 is 16:9, the scroll range is 0 and the camera stands down (`scrollRange()`), so the three variants should read alike here.
+
+| Variant | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A, stock | 321383 | 0.22 | 109 | 11 | 3179950 | 2.21 | 9358 | 10094 | 1485 | 1433 | 1442 | 1798 | 0 | 48 | 100 | 0 | 0 |
+| B, `will-change: scroll-position` | 324461 | 0.23 | 101 | 9 | 2944406 | 2.04 | 9108 | 9806 | 1449 | 1399 | 1408 | 1800 | 0 | 0 | 0 | 48 | 100 |
+| C, `contain: paint` | 319672 | 0.22 | 109 | 10 | 3187826 | 2.21 | 9426 | 10102 | 1500 | 1438 | 1447 | 1799 | 0 | 47 | 99 | 0 | 0 |
+
+All three read alike on `rastered screens/frame` (0.22, 0.23, 0.22). **The plan's "≤ 7 shell frames in 30 s" was wrong**: it scaled the follow-up's 6 s single run (branch 0) and the "3–7 frames in 6 s" per-second raster, and a 30 s window holds 47–48 of those per-second frames (99–100 tasks, about two tiles each). In B the same 48 frames and 100 tasks move from the shell layer to the scroller layer, so the per-second raster is something **inside the scroller**, not the camera and not the shell's own chrome; it is not chased here. C reads as A.
+
+### Compositor-layer readouts
+
+A `30–31 (27–28 drawing content, ≈ 24.2 MB at 4 B per device px, DPR 1, stage scale 0.763)`, B `32 (27 drawing content, ≈ 24.9 MB …)` in all three rounds, C `30–31 (27–28 drawing content, ≈ 24.2 MB …)`; `Mover layers: 4, ≈ 0.1 MB` on all three, and the named scene layers are the same set on all three (`mid`, `dissolve` and the movers), so B did not move the Phase 53 layer structure. B's two extra layers are the scroller's; its memory rises **≈ 0.7 MB at 1×**: the scrolling-contents layer adds 1465 × 824 × 4 B ≈ 4.6 MiB and `div.screen-content` stops drawing (1248 × 824 × 4 B ≈ 3.9 MiB released). At 1600 × 900 the two are the same size (1568 × 824) and B reads 29.0 MB, as A and C do.
+
+### A finding outside the plan: the phone already composites the scroller
+
+The Risks table asks what B's layer costs on the Pixel, so A and B were also run once each at the harness's phone emulation (`--width 412`: 412 × 844, DPR 2, `mobile: true`):
+
+| Variant | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A, stock | 898835 | 0.65 | 21 | 9 | 3261374 | 2.34 | 9439 | 10134 | 1441 | 1247 | 1257 | 1798 | 0 | 0 | 0 | 50 | 263 |
+| B, `will-change: scroll-position` | 905163 | 0.65 | 21 | 7 | 3247721 | 2.33 | 10413 | 10088 | 1587 | 1475 | 1486 | 1794 | 0 | 0 | 0 | 47 | 257 |
+
+**Stock A already has the scroller layer there** (1365 × 768, rastering on 50 frames), and its shell layer does not raster; B reads the same layers and the same 62.8 MB. A scratch probe on stock A at 1280 × 900 (the Phase 0 probe, one LayerTree read per setting) found where the line is: the scroller is **not** composited at DPR 1 and 1.25 with `mobile: false`, and **is** composited at DPR 1.5, at DPR 2, and at DPR 1 with `mobile: true`. Chrome composites a scroller on its own whenever it does not need to keep LCD sub-pixel text (DPR ≥ 1.5, or a mobile device), and those are the cases where it keeps the layer we are asking B for. So the camera's per-pan re-raster of the shell is a **low-DPI desktop** cost only: on the Pixel (DPR ≈ 2.6, mobile) stock is already on B's path, and B can change nothing there. The phone runs are one each and their main-thread numbers (busy 9439 against 10413) are not read; their layer readouts are the finding.
+
+### Reading (Gate 1, recorded)
+
+Medians over the three rounds, each variant against A:
+
+- **The shell layer: A 140 frames rastered (476 tasks), B 0, C 142.** B takes the shell out of the raster table entirely. What B's own scroller layer rasters instead, 48 frames, is the per-second raster the control round shows on every variant at 1600 × 900 (48 frames there too), so B removes exactly the camera's share: about 92 frames per 30 s, the 1.4 s pan at every frame plus the follow's whole-pixel steps.
+- **`rastered screens/frame`: A 0.29, B 0.25, C 0.29**, B at 0.86 × A. The 0.04 is the shell's 140 × 1248 × 824 px² over the window's frames (≈ 0.07) less B's scroller layer's 48 × 1465 × 824 (≈ 0.03). The column charges a layer its whole area for every frame it rasters in, however few tiles, so both shares are upper bounds of the tiles actually drawn.
+- **Main thread: no variant is distinguishable.** Busy A 9827 ms (9799–10343), B 9720, C 9776; Paint A 1505 ms (1497–1571), B 1484, C 1487; Compositor::Update A 1463 ms (1459–1530), B 1427, C 1448. B and C both sit just under A's minimum on all three, and C is a no-op by every other column, so the gap is session spread that a no-op shows too, not B's doing. As expected, B's work is off the main thread: a composited scroll moves a layer on the compositor and never reached Paint.
+- **C, `contain: paint`: no change**, as the plan expected. It does not composite the scroller, so the shell still re-rasters on every pan. Per the plan's default, it is dropped from Phase 2.
+- **Layer memory: B + 0.7 MB at 1×** (above), and nothing at DPR ≥ 1.5, where stock already holds the same layer.
+
+What Gate 2 is left with, for Crawford: on a DPR-1 desktop window narrower than 16:9, B removes the camera's raster of the shell layer (≈ 92 frames per 30 s of a 1248 × 824 layer) for ≈ 0.7 MB, with no main-thread change; on the phone it changes nothing because the phone already does it. The Phase 2 Pixel underrun A/B would compare two builds whose layers are the same, so it cannot show B's effect; whether to run it as planned, replace it with a check that the Pixel's own LayerTree shows the scroller layer on stock, or drop it, is part of the Gate 2 decision. The look check (T2.2) still applies to a desktop window: a composited scroller is exactly the case where Chrome gives up LCD sub-pixel text at DPR 1, and the only text under the scroller is the world's own.
+
+**Gate 2 decision (2026-10-18): adopt B.** Crawford's call, on the evidence above. His desktop runs at Windows 125 % scaling, DPR 1.25, the case B changes: a probe at DPR 1.25 reads stock with no scroller layer and B with the scrolling-contents layer and the shell layer not drawing, as at DPR 1. T2.1 (the Pixel underrun A/B) was skipped, since the phone composites the scroller on stock and the A/B would compare identical layers. T2.2 (the look, A against B in desktop Chrome at 125 %) passed: "they both look fine". The cost, stated: ≈ 0.7 MB at 1× on 1280 × 900, ≈ 1.1 MB at DPR 1.25 (× 1.25²), nothing on a phone. Committed as `9443dd1c`: `will-change: scroll-position` on `.world-view__scroller`, pinned by `WorldView.css.test.ts`, and a paragraph in ANIMATION_SYSTEM.md's deck camera section. The tables above stay as measured; "No variant is committed" was true when they were taken.
+
+Guarded by `src/docs/deckScrollerCompositingDocs.test.ts` (tables against their medians, ranges and viewports, the control, the reading's figures; 8 doc mutants killed).
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
