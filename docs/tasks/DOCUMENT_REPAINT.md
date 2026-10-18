@@ -63,27 +63,83 @@ Each step re-traces the same 6 s window with one thing off. The harness already 
 `scripts/perf/idle-paint.mjs` (`ABLATIONS`); none needs a rebuild. Read **the document layer's paint count and
 screens/frame**, not the total. Run on `main` (fewer moving parts); confirm the winner on the branch once found.
 
-- [ ] **T1.1 Scene or shell?** `--only no-scene`. If the document repaint survives with the whole ocean scene hidden,
+- [x] **T1.1 Scene or shell?** `--only no-scene`. If the document repaint survives with the whole ocean scene hidden,
   the culprit is in the console shell (header, viewport chrome, drawers, nav). If it vanishes, it is inside the scene.
   This single run halves the search.
-- [ ] **T1.2 Shell branch:** `--only all-anim-off`, then `--only all-anim-off+no-header`. The first switches off every
+- [x] **T1.2 Shell branch:** `--only all-anim-off`, then `--only all-anim-off+no-header`. The first switches off every
   known CSS animation (bridge flicker, rocker pulse, scene transitions); the second also hides the header. `no-rocker-pulse`
   alone is already cleared (PERFORMANCE.md) and need not be re-run.
-- [ ] **T1.3 Scene branch:** `--only static-scene` (robots, bubbles and transitions off), then `--only no-gradient-rects`
+- [x] **T1.3 Scene branch:** `--only static-scene` (robots, bubbles and transitions off), then `--only no-gradient-rects`
   and `--only no-factories`, `--only no-stations`. Promoted movers were already shown not to be the document's painter
   (their paints land in their own layers), so the suspects are the things *without* their own layer.
-- [ ] **T1.4 Read the invalidation table** (printed with `--attribution`, the default, for each 6 s window). Look for the
+- [x] **T1.4 Read the invalidation table** (printed with `--attribution`, the default, for each 6 s window). Look for the
   top `StyleRecalc` / `Layout` reasons whose node is **outside** the stage, or on the stage root itself. A reason that
   fires ~300 times per window on one node is the shape of the answer. Record the top 8 in the write-up.
-- [ ] **T1.5 Add an ablation if needed.** If T1.1–T1.4 point at something with no existing switch, add one entry to
+- [x] **T1.5 Add an ablation if needed.** If T1.1–T1.4 point at something with no existing switch, add one entry to
   `ABLATIONS` (a CSS snippet, or a sticky `js:` node removal) and re-run. Keep the entry; it becomes the proof.
 
 **Gate 1:** one ablation makes the document layer's paints drop from ~300 to a handful in the window, on both builds,
 and the invalidation table names a node and reason consistent with it. If no ablation does, go to Phase 2.
 
+**Gate 1 outcome (2026-10-17): FOUND, and it is in the harness, not the product.** Phase 2 is not needed.
+
+**What the ablations said (T1.1–T1.3, all on `main`, one run each).** `no-scene` takes the repaint with it (Paint n
+1091 → 32, 3.11 → 0.08 screens/frame), so it is inside the scene. But *every* scene-side switch leaves the paint count
+untouched: `static-scene` 1054, `no-robots` 1060, `no-gradient-rects` 1063, `no-factories` 1054, `no-stations` 1058,
+`no-fill-transitions` 1046 (stock 1082–1094), all at 3.12–3.15 screens/frame. Hiding the robots does not stop "the
+document" painting. So the driver was not scene content, and the invalidation table could never name it: the painter
+has no node.
+
+**What the raw trace says (T1.4/T1.5, a scratch probe at
+`C:\Users\Crawford\AppData\Local\Temp\claude\c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7\02173d54-d74c-45b9-be6d-aa0ea8fb65c6\scratchpad\probe-paints.mjs`,
+3 s windows, same launch and power-on as the harness).** The unnamed painter is the `Paint` event with
+`nodeName: "#document"`, `nodeId: 2`, `layerId: 0`, clip = the 1280 × 900 viewport. On both builds, 179 frames:
+
+| | main | branch |
+|---|---|---|
+| `#document` Paint events | 179 | 179 |
+| …that wrap other Paint events (by timestamp and duration) | 179 | 179 |
+| …that stand alone | 0 | 0 |
+| other Paint events outside a `#document` Paint | 0 | 0 |
+| `RasterTask` events for the document's compositor layer (layer 9, 1280 × 900) | 4 | 4 |
+| frames in which that layer rastered | 1 | 1 |
+
+The `#document` `Paint` is Chrome's whole-frame paint pass (`LocalFrameView::PaintTree`): it opens once per frame
+that paints anything and the per-layer `Paint` events (the moving sheets on `main`; the robot movers on the branch)
+sit inside it. Its self time is bookkeeping (≈ 43 ms of 203 ms over 3 s on `main`). The document's actual compositor
+layer rastered on **one frame in 179**. There is no document repaint. `scripts/perf/paint-area-lib.mjs`
+`paintEventArea` sees a complete `Paint` with a viewport-sized clip and no layer of its own, and charges one viewport
+per frame for it. That charge is the whole of the miss:
+
+| | main | branch |
+|---|---|---|
+| measured `screens/frame` (Phase 0 medians) | 3.09 | 0.91 |
+| the wrapper's charge (document paints ÷ frames × 1 viewport) | 357/361 = 0.99 | 277/358 = 0.77 |
+| without the wrapper | ≈ 2.10 | ≈ 0.14 |
+| ratio | | **≈ 0.07 ×** (limit 0.25) |
+
+**Side findings, not this task's (file them):** (1) the branch promotes a `g.gem__part` (70 × 190) and a
+`circle.robot__work-drop` to compositor layers of their own, plus six small unnamed layers (116, 112–118), and the
+gem part rasters every frame; cheap, but unexplained. (2) Both builds force a synchronous style-and-layout inside the
+rAF callback every frame (`Blink.ForcedStyleAndLayout` under `FunctionCall v@index:217`, two `Layout`s per frame):
+a layout-read-after-write in the swim tick, worth its own look. (3) `EventHandler::handleMouseMoveEvent` + hit test
+at the top of every frame: Chrome's fake mouse move after layout; harmless, but it means layout changes every frame.
+
+**Decision for Crawford (Phase 3's shape).** The product has nothing to fix. The gate's metric does. Two ways:
+
+- **(a) Minimal, keeps the metric's definition:** `paintEventArea` ignores a `Paint` whose `nodeName` is `#document`
+  when it wraps other `Paint` events in the same window, counting it only when it stands alone (a genuine root-layer
+  repaint with nothing nested would then still be charged). TDD in `paint-area-lib.test.mjs` with the nesting fixture
+  above. Then Phase 4 re-runs the gate with the corrected harness and records the method change the way `6e3b07cb`
+  was recorded. Recommended.
+- **(b) Better metric, bigger change:** read `RasterTask` per compositor layer (as the probe does) and report
+  re-rastered area per frame = Σ (frames a layer rastered × its area) ÷ frames. That is literally what Phase 53 set
+  out to reduce, and what the desktop-underrun finding named. It is a new column, not a replacement, and a new
+  baseline; its own small task after (a).
+
 ---
 
-## Phase 2 — If style switches do not find it (M)
+## Phase 2 — If style switches do not find it (M) — NOT NEEDED, see Gate 1 outcome
 
 A document-layer repaint can come from the compositor rather than from a style change: a `will-change`, `filter` or
 `backdrop-filter` on an element Chrome cannot promote; a `transform` on an ancestor of the stage; a per-frame JS write
