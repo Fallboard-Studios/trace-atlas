@@ -66,7 +66,7 @@ screens/frame**, not the total. Run on `main` (fewer moving parts); confirm the 
 - [x] **T1.1 Scene or shell?** `--only no-scene`. If the document repaint survives with the whole ocean scene hidden,
   the culprit is in the console shell (header, viewport chrome, drawers, nav). If it vanishes, it is inside the scene.
   This single run halves the search.
-- [x] **T1.2 Shell branch:** `--only all-anim-off`, then `--only all-anim-off+no-header`. The first switches off every
+- [ ] **T1.2 Shell branch (NOT RUN: T1.1 put it in the scene):** `--only all-anim-off`, then `--only all-anim-off+no-header`. The first switches off every
   known CSS animation (bridge flicker, rocker pulse, scene transitions); the second also hides the header. `no-rocker-pulse`
   alone is already cleared (PERFORMANCE.md) and need not be re-run.
 - [x] **T1.3 Scene branch:** `--only static-scene` (robots, bubbles and transitions off), then `--only no-gradient-rects`
