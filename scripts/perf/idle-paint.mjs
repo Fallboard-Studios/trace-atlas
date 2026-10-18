@@ -9,6 +9,11 @@
  *   2. Ablation: the same idle window is re-traced with one suspect switched off at a time (a `<style>` injected into the
  *      page — no rebuild, no product change), and the paint/composite totals compared against the stock window.
  *
+ * Two area columns per window (paint-area-lib.mjs): `screens/frame`, from the paint phase's `Paint` clips clamped to their
+ * layers, and `rastered screens/frame`, from the raster workers' `RasterTask` events, each compositor layer charged its
+ * area once per frame it rastered in (docs/tasks/DOCUMENT_REPAINT.md Phase 5); the stock window's raster-by-layer table
+ * names the layers.
+ *
  * Needs Node 22+ (built-in WebSocket) and Chrome/Edge. Serve a production build first (`npm run build && npx vite preview --port 4173`).
  *
  *   node scripts/perf/idle-paint.mjs [--throttle 4] [--window 6000] [--url http://localhost:4173/trace-atlas/] [--only a,b,c]
@@ -30,7 +35,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { framePaintWrappers, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
+import { framePaintWrappers, paintEventArea, rasteredArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 import {
   BACK_ROBOT_ELEMENTS,
   BACK_ROBOT_GROUPS,
@@ -266,6 +271,20 @@ async function traceWindow({ send, onEvent }, ms, view) {
   if (warning) console.log(warning);
   const get = (n) => byName.get(n) ?? { count: 0, ms: 0 };
   const redrawn = redrawnArea(mainPaints, { dpr: view.dpr, frames, viewport: view.viewport, layerAreas: view.layerAreas });
+  // Option (b) of docs/tasks/DOCUMENT_REPAINT.md: what the compositor re-drew, from the RasterTask events on every
+  // thread (the raster workers, not the main thread), each layer charged its area once per frame it rastered in.
+  // A layer that appeared after the pre-window snapshot is read from a second snapshot taken now (layer ids are stable
+  // for a layer's life); one gone again by now stays unresolved. The paint clamp keeps the pre-window map, unchanged.
+  const layersById = new Map(view.layersById);
+  const layerAreasById = new Map(view.layerAreasById);
+  let lateLayers = 0;
+  for (const l of (await readLayerTree({ send, onEvent })) ?? []) {
+    if (layersById.has(l.layerId)) continue;
+    layersById.set(l.layerId, l);
+    layerAreasById.set(l.layerId, scaledLayerArea(l, (await insideStage(send, l)) ? view.stageScale : 1));
+    lateLayers++;
+  }
+  const rastered = rasteredArea(events, { frames, dpr: view.dpr, viewport: view.viewport, layerAreasById });
   return {
     'main busy (ms)': Math.round(mainBusy),
     'long tasks': longTaskBy.get(mainKey) ?? 0,
@@ -274,6 +293,10 @@ async function traceWindow({ send, onEvent }, ms, view) {
     'screens/frame': Number(redrawn.screensPerFrame.toFixed(2)),
     'unresolved Paints': redrawn.unresolvedPaints,
     'frame wrappers': wrappers.size,
+    'rastered px²/frame': Math.round(rastered.pxPerFrame),
+    'rastered screens/frame': Number(rastered.screensPerFrame.toFixed(2)),
+    'unresolved raster layers': rastered.unresolvedLayers,
+    'late layers': lateLayers,
     'Paint n': get('Paint').count,
     'Paint ms': Math.round(get('Paint').ms),
     'PaintLifecycle ms': Math.round(get('LocalFrameView::RunPaintLifecyclePhase').ms),
@@ -286,6 +309,8 @@ async function traceWindow({ send, onEvent }, ms, view) {
     'TimerFire ms': Math.round(get('TimerFire').ms),
     paintByNode,
     invalidations,
+    rasterByLayer: rastered.perLayer,
+    rasterLayersById: layersById,
   };
 }
 
@@ -310,14 +335,10 @@ async function describeNode(send, backendNodeId) {
  * comparison figure, not the GPU's real allocation. LayerTree reports CSS pixels, so the estimate is scaled
  * by the emulated device scale factor squared. The scene's own layers are named by their slot (scene-markup-lib.mjs).
  */
-async function printCompositorLayers({ send, onEvent }, dpr, stageScale) {
-  let layers = null;
-  const stop = onEvent((m) => { if (m.method === 'LayerTree.layerTreeDidChange' && m.params.layers) layers = m.params.layers; });
-  await send('LayerTree.enable');
-  for (let i = 0; i < 30 && !layers; i++) await sleep(100);
-  await send('LayerTree.disable');
-  stop();
-  if (!layers) { console.log('Compositor layers: no layer tree reported'); return { layerAreas: new Map(), bubbleNodes: new Set() }; }
+async function printCompositorLayers(cdp, dpr, stageScale) {
+  const { send } = cdp;
+  const layers = await readLayerTree(cdp);
+  if (!layers) { console.log('Compositor layers: no layer tree reported'); return { layerAreas: new Map(), layerAreasById: new Map(), layersById: new Map(), bubbleNodes: new Set() }; }
   const drawing = layers.filter((l) => l.drawsContent);
   // LayerTree reports a layer's bounds before the scale of the stage it sits in (Phase 53, memory finding 3), so a layer inside the stage is scaled
   // here; a build with no stage (main) has none to apply. The scaled area is the layer's true size in CSS px, for the memory line and the paint clamp.
@@ -345,11 +366,25 @@ async function printCompositorLayers({ send, onEvent }, dpr, stageScale) {
   console.log(`Mover layers: ${moverLayers.length}, ≈ ${mb(moverLayers)} MB at 4 B per device px`);
   console.log(`Bubble layers: ${bubbleStats.count} (${bubbleStats.drawing} drawing now, ≈ ${bubbleStats.mbDrawing.toFixed(2)} MB; ≈ ${bubbleStats.mbAll.toFixed(2)} MB if every one drew at once)`);
   // Backend node id → layer area in CSS px², the bound each Paint is clamped to (paint-area-lib.mjs `redrawnArea`);
-  // and the bubble layers' nodes, whose paints the stock window reports apart.
+  // layer id → the same area, for the RasterTask events (`rasteredArea`), with the layers themselves for the raster-by-layer
+  // table; and the bubble layers' nodes, whose paints the stock window reports apart.
   return {
     layerAreas: new Map(layers.filter((l) => l.backendNodeId !== undefined).map((l) => [l.backendNodeId, scaled.get(l)])),
+    layerAreasById: new Map(layers.map((l) => [l.layerId, scaled.get(l)])),
+    layersById: new Map(layers.map((l) => [l.layerId, l])),
     bubbleNodes: new Set(bubbleLayers.map((l) => l.backendNodeId)),
   };
+}
+
+/** One LayerTree snapshot (the first `layerTreeDidChange` after enabling it, up to 3 s), or null if none was reported. */
+async function readLayerTree({ send, onEvent }) {
+  let layers = null;
+  const stop = onEvent((m) => { if (m.method === 'LayerTree.layerTreeDidChange' && m.params.layers) layers = m.params.layers; });
+  await send('LayerTree.enable');
+  for (let i = 0; i < 30 && !layers; i++) await sleep(100);
+  await send('LayerTree.disable');
+  stop();
+  return layers;
 }
 
 /** Whether a layer's owning node sits inside the scaled stage (`.ocean-scene__stage`), so LayerTree's bounds for it are pre-scale. */
@@ -469,11 +504,15 @@ async function run(cdp) {
   console.log(`Bubbles in flight at the layer read: ${await evaluate(BUBBLES_IN_FLIGHT)}`);
   const layerInfo = await printCompositorLayers(cdp, view.dpr, stageScale);
   view.layerAreas = layerInfo.layerAreas;
+  view.layerAreasById = layerInfo.layerAreasById;
+  view.layersById = layerInfo.layersById;
+  view.stageScale = stageScale;
   console.log('');
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
   const rows = [];
   let stockPaint = null;
+  let stockRaster = null;
   for (const ab of ABLATIONS) {
     if (wanted && !wanted.has(ab.name) && ab.name !== 'stock') continue;
     await evaluate(`(() => {
@@ -485,8 +524,8 @@ async function run(cdp) {
     })()`);
     await sleep(2000);
     const r = await traceWindow(cdp, WINDOW_MS, view);
-    const { paintByNode, invalidations, ...metrics } = r;
-    if (ab.name === 'stock' && !stockPaint) stockPaint = paintByNode;
+    const { paintByNode, invalidations, rasterByLayer, rasterLayersById, ...metrics } = r;
+    if (ab.name === 'stock' && !stockPaint) { stockPaint = paintByNode; stockRaster = { byLayer: rasterByLayer, layersById: rasterLayersById }; }
     if (opts.attribution && invalidations.size) {
       await send('DOM.getDocument', { depth: 0 });
       const top = [...invalidations].sort((a, b) => b[1].count - a[1].count).slice(0, 8);
@@ -525,6 +564,21 @@ async function run(cdp) {
       out.push({ node: nodeId === -1 ? '(no node)' : await describeNode(send, nodeId), paints: p.count, 'ms': Math.round(p.ms), 'avg clip px²': Math.round(p.area / Math.max(1, p.count)) });
     }
     console.log('Stock window — paint time by painted node (top 12):');
+    console.table(out);
+  }
+
+  // Option (b) of docs/tasks/DOCUMENT_REPAINT.md: which compositor layers the raster workers re-drew, and how often. A layer
+  // neither LayerTree snapshot had (it came and went inside the window) shows its id and no size; the column charged it 0.
+  if (opts.attribution && stockRaster) {
+    await send('DOM.getDocument', { depth: 0 });
+    const top = [...stockRaster.byLayer].sort((a, b) => b[1].frames - a[1].frames || b[1].tasks - a[1].tasks).slice(0, 12);
+    const out = [];
+    for (const [layerId, r] of top) {
+      const layer = stockRaster.layersById.get(layerId) ?? stockRaster.layersById.get(String(layerId));
+      const node = layer === undefined ? '(in no layer snapshot)' : layer.backendNodeId === undefined ? '(no node)' : await describeNode(send, layer.backendNodeId);
+      out.push({ layer: layerId, node, 'size (CSS px, pre-scale)': layer ? `${Math.round(layer.width)}×${Math.round(layer.height)}` : '', 'frames rastered': r.frames, tasks: r.tasks, 'area px²': r.area === undefined ? '' : Math.round(r.area) });
+    }
+    console.log(`Stock window — raster by layer (top 12 of ${stockRaster.byLayer.size}, by frames rastered):`);
     console.table(out);
   }
 }

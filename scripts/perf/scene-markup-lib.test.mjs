@@ -380,8 +380,24 @@ describe('idle-paint.mjs uses them', () => {
     expect(source).toContain('Mover layers: ${moverLayers.length}');
   });
 
+  // Option (b) of docs/tasks/DOCUMENT_REPAINT.md: the re-rastered area column reads RasterTask events from every
+  // thread (raster workers, not the renderer main) against the same LayerTree snapshot, keyed by layer id this time.
+  it('reads the re-rastered area from the whole trace, by layer id, and prints it as its own columns', () => {
+    expect(source).toContain('rasteredArea(events, { frames, dpr: view.dpr, viewport: view.viewport, layerAreasById })');
+    expect(source).toContain("'rastered px²/frame'");
+    expect(source).toContain("'rastered screens/frame'");
+    expect(source).toContain("'unresolved raster layers'");
+    expect(source).toContain("'late layers': lateLayers");
+    expect(source).toContain('view.layerAreasById = layerInfo.layerAreasById');
+    expect(source).toContain('layerAreasById: new Map(layers.map((l) => [l.layerId, scaled.get(l)]))');
+    // A layer that appeared during the window is sized from a second snapshot, with the same stage-scale rule as the first.
+    expect(source).toContain('for (const l of (await readLayerTree({ send, onEvent })) ?? []) {');
+    expect(source).toContain('layerAreasById.set(l.layerId, scaledLayerArea(l, (await insideStage(send, l)) ? view.stageScale : 1));');
+    expect(source).toContain('raster by layer');
+  });
+
   it('clamps each Paint to its layer: the layer map is built once, scaled by the stage, and handed to the traced windows', () => {
-    expect(source).toContain("import { framePaintWrappers, paintEventArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
+    expect(source).toContain("import { framePaintWrappers, paintEventArea, rasteredArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs'");
     expect(source).toContain(".ocean-scene__stage");
     expect(source).toContain('scaledLayerArea(l, (await insideStage(send, l)) ? stageScale : 1)');
     expect(source).toContain('const layerInfo = await printCompositorLayers(cdp, view.dpr, stageScale)');
