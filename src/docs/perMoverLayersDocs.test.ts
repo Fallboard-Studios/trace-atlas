@@ -206,13 +206,19 @@ describe('PERFORMANCE.md: the localizer\'s columns', () => {
     expect(localizer).toMatch(/clamp/i);
     expect(localizer).toContain('unresolved Paints');
     expect(localizer).toContain('Mover layers');
+    // docs/tasks/DOCUMENT_REPAINT.md Phase 5: the re-rastered area column and its two counts.
+    expect(localizer).toContain('rastered px²/frame');
+    expect(localizer).toContain('rastered screens/frame');
+    expect(localizer).toContain('unresolved raster layers');
+    expect(localizer).toContain('late layers');
+    expect(localizer).toMatch(/RasterTask/);
   });
 
   it('every one of those strings is printed by the harness', () => {
     const harness = ['scripts/perf/idle-paint.mjs', 'scripts/perf/paint-area-lib.mjs']
       .map((p) => read(p))
       .join('\n');
-    for (const label of ['redrawn px²/frame', 'screens/frame', 'unresolved Paints', 'Mover layers']) {
+    for (const label of ['redrawn px²/frame', 'screens/frame', 'unresolved Paints', 'Mover layers', 'rastered px²/frame', 'rastered screens/frame', 'unresolved raster layers', 'late layers', 'raster by layer']) {
       expect(harness, label).toContain(label);
     }
   });
