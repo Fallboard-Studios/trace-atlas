@@ -3,8 +3,9 @@
 > **Status (2026-10-17): COMPLETE.** Phases 0–4 done and merged into `perf/per-mover-layers` (`d6e2ada6`). **There was no
 > document repaint:** the harness was charging Chrome's whole-frame `#document` `Paint` as a painted viewport (Gate 1
 > outcome, below). Option (a) shipped (`998207a5`); the Task 20 gate re-run passes all four criteria (0.08 × `main`).
-> Open: T4.4 not run (its premise was wrong, see Phase 4); option (b), the raster-per-layer column, is a follow-up;
-> the three side findings under Gate 1 are filed, not acted on.
+> Open: T4.4 not run (its premise was wrong, see Phase 4); the three side findings under Gate 1 are filed, not acted on.
+> **Phase 5 (2026-10-18): option (b), the re-rastered area column, IN PROGRESS** on `perf/per-mover-layers` (Crawford's
+> "go" after the context review); tasks and gate below.
 >
 > Originally written after the Task 20 gate (roadmap Phase 53) missed on `screens/frame`
 > (0.31 × `main`, limit 0.25) and attributed the miss to the **document layer repainting a full viewport nearly every
@@ -244,6 +245,59 @@ the miss is real and the decision returns to Crawford (options 1 and 3). **PASSE
   wrong. R5's `screens/frame` columns are overstated by about one screen per frame on both sides (a 30 s window's
   wrappers), recorded here, not gated there. The R5 busy MISS stands as R5 recorded it, for Crawford.
 - **T4.1:** `fix/document-repaint` merged into `perf/per-mover-layers` as a fast-forward (the base had not moved).
+
+---
+
+## Phase 5 — Option (b): the re-rastered area column (S–M, 2026-10-18)
+
+The Gate 1 decision's second way, taken after option (a) shipped. **A new recorded column, not a replacement and not a
+gate:** re-rastered area per frame = Σ over compositor layers (frames in which that layer had at least one `RasterTask`
+× the layer's on-screen area) ÷ the window's frames, in px² and in screens. It reads what the compositor actually
+re-drew, which is what Phase 53 set out to reduce and what the desktop-underrun finding named; `screens/frame` (the
+`Paint`-clip metric) stays as it is and the Task 20 criteria are untouched.
+
+**Signal.** `RasterTask` trace events (`cat` `cc,disabled-by-default-devtools.timeline`, already in the harness's
+categories), on the raster worker threads, one or more per layer per frame: `args.tileData.layerId` names the
+compositor layer, `args.tileData.sourceFrameNumber` the frame. The harness currently drops them because it scopes to the
+renderer main thread. Their **time** is unstable between runs (PERFORMANCE.md caveats); their **presence per layer per
+frame** is what the column reads (the probe read 179 of 179 frames for the same layer on both builds, Gate 1).
+
+**Layer area.** The LayerTree snapshot the harness already takes (`printCompositorLayers`), keyed by `layerId` this
+time, with the same stage-scale correction as the paint clamp. A layer that rasters but is not in the snapshot (the
+six unnamed layers on the branch appear after it) is charged 0 and counted in `unresolved raster layers`, not capped at
+a viewport the way an unbounded `Paint` is: a tile is small, and a viewport charge would swamp the column. Decision
+taken by default in the plan review; Crawford did not object.
+
+- [ ] **T5.1 `rasteredArea` in `paint-area-lib.mjs`, TDD.** `rasteredArea(events, { frames, dpr, viewport, layerAreasById })`
+  → `{ pxPerFrame, screensPerFrame, unresolvedLayers, perLayer }`, where `perLayer` is `layerId → { frames, tasks, area }`.
+  Only complete `RasterTask` events (`ph` `X`) with a numeric `layerId` and `sourceFrameNumber` count; the same frame
+  rastered twice by one layer counts once; no frames or no events read 0, not NaN. Mutation-check: drop the distinct-frame
+  rule, charge an unknown layer a viewport, ignore the scale, count a non-RasterTask event.
+- [ ] **T5.2 Harness wiring in `idle-paint.mjs`.** `printCompositorLayers` also returns `layerAreasById`; `traceWindow`
+  collects `RasterTask` from every thread; two new row columns `rastered px²/frame` and `rastered screens/frame`, plus
+  `unresolved raster layers`; in attribution mode a "raster by layer" table for the stock window (layer, node, size,
+  frames rastered, tasks). `scene-markup-lib.test.mjs` pins the import and the call.
+- [ ] **T5.3 Measure.** Three alternated rounds, `main` (:4183, `index-CVUy7kf3.js`) vs the branch (:4181,
+  `index-Dil0Vyn4.js`; `src/` unchanged since `4d754d94`, checked), the baseline's `?session=` link, fresh headless
+  Chrome each, foreground, one at a time, orphaned `trace-atlas-perf` Chrome 0 before and after. Read the new columns
+  and the raster-by-layer table; the existing columns must still read as the Phase 4 re-run did (same builds, same harness
+  rule for them), which is the check that the wiring changed nothing else.
+- [ ] **T5.4 Record.** A new appended PERFORMANCE.md section "Per-Mover Compositor Layers — the re-rastered area column
+  (2026-10-18)": both builds' tables, the method, what rasters on each build, and anything the table shows that the
+  `Paint` column did not. One sentence for the new columns in the localizer paragraph; an appended clause on the
+  `RasterTask` caveat (time unstable, presence read). The Task 20 and re-run sections stay untouched.
+- [ ] **T5.5 Docs guard.** `src/docs/perMoverLayersDocs.test.ts` learns the new column names; a sibling test pins the
+  new section's tables (px² and screens agree over the 1280 × 900 viewport, every round has frames) the way
+  `perMoverGateDocs.test.ts` does.
+
+**Gate 5:** the column reads on both builds with `unresolved raster layers` explained, the existing columns reproduce
+the Phase 4 re-run on the same builds, suite green, types clean, lint 0 errors. Recorded, not gated: the ratio is a new
+baseline for later phases.
+
+**Expected, to be confirmed (from the Gate 1 probe, 3 s):** `main`'s three moving sheets (1465 × 824 each) raster
+nearly every frame, ≈ 3 screens/frame; on the branch the movers are tiny but the empty 1920 × 1080 `dissolve` div
+rastered on 43 of 179 frames and the `mid` sheet on 30, which would put the branch near 0.4 screens/frame. If the
+dissolve layer rasters while empty, that is a new finding to file.
 
 ---
 
