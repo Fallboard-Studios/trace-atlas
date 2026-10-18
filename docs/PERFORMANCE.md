@@ -2201,6 +2201,96 @@ What Gate 2 is left with, for Crawford: on a DPR-1 desktop window narrower than 
 
 Guarded by `src/docs/deckScrollerCompositingDocs.test.ts` (tables against their medians, ranges and viewports, the control, the reading's figures; 8 doc mutants killed).
 
+## Per-Mover Compositor Layers — review follow-up R5, option 3: the strips separated (2026-10-18)
+
+Option (3) of "review follow-up R5" above ([tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R5): before Crawford chooses between accepting R5's busy MISS and the bubble redesign, find out how much of the branch's extra cost is the 18 bubble strips themselves, as layers, and how much is the other movers. R5's own diagnostic detached the circles and left the strip `div`s in the page, so it could not say. **Recorded, not gated, and not a decision:** the R5 section above stands as written, and what to do about its MISS is still Crawford's.
+
+**Result, in one line:** at the moment measured, about a third of the branch's Compositor::Update gap (and more of its busy gap) is the strip layers standing in the page, almost none of it is the circles' motion, and the rest is the other movers, mostly the robots, whose share rises and falls with how many robots are moving.
+
+### Method
+
+**Builds:** `main` `4a9b3fec`, R5's own build, still served on :4183, bundle `index-CVUy7kf3.js`; the branch `perf/per-mover-layers` at `f5e38e46` (with the deck scroller change, `will-change: scroll-position`), served on :4187, bundle `index-BSuw5Pa7.js`. Both bundles read back from the served HTML. Harness: `scripts/perf/idle-paint.mjs` with two additions, `2d05d6d8` (`detach-bubble-strips`, a sticky step that removes `sceneSlotSelector('bubbles')`: the 18 strip movers on the branch, the one bubbles sheet on `main`) and `1eb022d2` (a checked step prints how many elements it matched, how many were left, and how many match again after its window, and throws if any are left). Every run read 1 matched and 0 left on `main`, 18 and 0 on the branch, 135 and 0 for the circles, and 0 again after every window: no detach decayed.
+
+**World and command:** R5's world, `alpha` at `(-100, -100)` (18 factories, 135 bubble circles, 18 streams), R5's `?session=` link with the port changed per build. `npm run perf:idle -- --throttle 1 --window 30000 --bubbles 5 --expect-dimmed no --port 9301 --only <steps> --url <link>`, 1280 × 900 at 1×, the 8 s power-on settle, 30 s windows. Each run is a fresh headless Chrome, foreground, one at a time, the builds alternated and the order rotated between rounds; the orphaned-Chrome count 0 before and 0 after every call (filtered `Win32_Process` query on `Name='chrome.exe'`).
+
+**Why every comparison is at the same window position.** A run traces its windows one after another, and the world does not stand still between them: in the second window (about 40–72 s after power-on) the branch's robot movers raster on ≈ 1 600 frames each, against ≈ 600–700 in the third. The branch-over-`main` gap moves with it. So a condition is never compared with another window of the same run; each condition is the **second window** of its own runs, after the same stock first window, and is compared with the other build at the same window position. Three run shapes give the three conditions:
+
+- **bubbles present:** `--only "stock (again),detach-bubbles,detach-bubble-strips"`, window 2 = `stock (again)` (these runs' windows 3 and 4 are under "Later windows" below);
+- **circles detached, strips kept:** `--only detach-bubbles`, R5's own diagnostic, re-run;
+- **strips detached (circles with them):** `--only detach-bubble-strips`.
+
+**The acceptance rule.** From 12:33 the machine had bursts of slowness lasting about a window (the user's own Chrome, then a burst with every Chrome closed), +25–30 % on every column of a stock window. A run is **accepted if its stock window's Compositor::Update is within ±10 % of its build's median stock over every run in the session**, which is `main` 1940 ms and the branch 2305 ms; ordinary run-to-run spread is ≈ 2 %. Every run is in the tables, rejected ones included. `q3a`, `q3b` and `q3` are the three takes of round 3 (12:33, 12:37 and 12:43, after Crawford closed Chrome); `q5-main` replaced the rejected `q4-main`. `q3a-main` passes the rule on its stock window although its second window was caught by the burst; the rule keeps it, and the median is 1775 ms with or without it.
+
+### Window 2, bubbles present
+
+| Run | Build | stock Compositor::Update (ms) | accepted | window 2 busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| r1-main | `main` | 1940 | yes | 11123 | 1864 | 2103 | 2111 | 1800 |
+| r1-tip | branch | 2292 | yes | 11601 | 1923 | 2455 | 2462 | 1800 |
+| r2-main | `main` | 1965 | yes | 11156 | 1929 | 2111 | 2118 | 1801 |
+| r2-tip | branch | 2249 | yes | 11687 | 1933 | 2483 | 2489 | 1801 |
+| r3-main | `main` | 1904 | yes | 11078 | 1891 | 2112 | 2120 | 1801 |
+| r3-tip | branch | 2269 | yes | 11695 | 1916 | 2468 | 2475 | 1800 |
+
+### Window 2, circles detached, strips kept
+
+| Run | Build | stock Compositor::Update (ms) | accepted | window 2 busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| d2-main | `main` | 1975 | yes | 10296 | 1909 | 1742 | 1749 | 1801 |
+| d2-tip | branch | 2290 | yes | 11102 | 1944 | 2082 | 2089 | 1799 |
+| d3-main | `main` | 1919 | yes | 10540 | 1904 | 1759 | 1766 | 1801 |
+| d3-tip | branch | 2296 | yes | 10972 | 1933 | 2102 | 2108 | 1799 |
+| r5diag-main | `main` | 1927 | yes | 10573 | 1908 | 1770 | 1778 | 1801 |
+| r5diag-tip | branch | 2354 | yes | 10997 | 1985 | 2101 | 2108 | 1800 |
+
+### Window 2, strips detached (circles with them)
+
+| Run | Build | stock Compositor::Update (ms) | accepted | window 2 busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| q1-main | `main` | 1926 | yes | 10682 | 1920 | 1775 | 1783 | 1799 |
+| q1-tip | branch | 2361 | yes | 10781 | 1939 | 2017 | 2023 | 1800 |
+| q2-main | `main` | 1935 | yes | 11028 | 2081 | 1914 | 1922 | 1800 |
+| q2-tip | branch | 2337 | yes | 10770 | 1912 | 1984 | 1991 | 1801 |
+| q3-main | `main` | 1964 | yes | 10511 | 1883 | 1730 | 1737 | 1801 |
+| q3-tip | branch | 2314 | yes | 10624 | 1908 | 1965 | 1972 | 1800 |
+| q3a-main | `main` | 1902 | yes | 12618 | 2456 | 2219 | 2229 | 1791 |
+| q3a-tip | branch | 2730 | **no** | 13227 | 2525 | 2612 | 2621 | 1795 |
+| q3b-main | `main` | 2472 | **no** | 12576 | 2379 | 2269 | 2279 | 1798 |
+| q3b-tip | branch | 2973 | **no** | 13111 | 2494 | 2557 | 2566 | 1799 |
+| q4-main | `main` | 2568 | **no** | 10604 | 1922 | 1735 | 1742 | 1800 |
+| q4-tip | branch | 2294 | yes | 12933 | 2256 | 2434 | 2442 | 1797 |
+| q5-main | `main` | 1948 | yes | 10424 | 1928 | 1744 | 1752 | 1800 |
+
+### Medians of the accepted runs, and the gap
+
+| Window 2 condition | `main` runs | branch runs | busy main → branch (gap) | Paint main → branch (gap) | Compositor::Update main → branch (gap) | Layerize main → branch (gap) |
+|---|---|---|---|---|---|---|
+| bubbles present | 3 | 3 | 11123 → 11687 (+564) | 1891 → 1923 (+32) | 2111 → 2468 (+357) | 2118 → 2475 (+357) |
+| circles detached, strips kept | 3 | 3 | 10540 → 10997 (+457) | 1908 → 1944 (+36) | 1759 → 2101 (+342) | 1766 → 2108 (+342) |
+| strips detached (circles with them) | 5 | 4 | 10682 → 10775.5 (+93.5) | 1928 → 1925.5 (-2.5) | 1775 → 2000.5 (+225.5) | 1783 → 2007 (+224) |
+
+### Later windows, the sequence runs
+
+| Window | condition | `main` runs | branch runs | busy main → branch (gap) | Compositor::Update main → branch (gap) |
+|---|---|---|---|---|---|
+| 3 | circles detached, strips kept | 3 | 3 | 7817 → 7293 (-524) | 1604 → 1659 (+55) |
+| 4 | strips detached (circles with them) | 3 | 3 | 7293 → 7089 (-204) | 1502 → 1515 (+13) |
+
+### Reading
+
+Window 2, medians of the accepted runs: the **Compositor::Update gap +357 → +342 → +226 ms**, and the **busy gap +564 → +457 → +94 ms**, from bubbles present, to circles detached, to strips detached.
+
+- **The circles' motion is not the gap.** Detaching the 135 circles takes about the same off both builds: Compositor::Update −367 ms on the branch (2468 → 2101) and −352 on `main` (2111 → 1759); busy −690 and −583. The gap barely moves (+357 → +342). Moving circles cost the same whether they sit in one sheet or in 18 strips, which is what R5's diagnostic found too.
+- **The strip layers themselves are a real share.** With the circles already gone, removing the 18 empty strips takes another ≈ 100 ms of Compositor::Update off the branch (2101 → 2000.5); removing `main`'s one empty sheet changes nothing (1759 → 1775). On Compositor::Update that is ≈ 116 ms of the gap, about a third; on busy, the column R5 gated, the gap falls by 363 ms (the branch's own drop is 222 ms), so the strips cost the main thread more than their Compositor::Update share. Busy is the noisier column here (the accepted runs spread over ≈ 600 ms in the strips condition, ≈ 50 ms in Compositor::Update), so read the busy share as somewhere between 220 and 360 ms of 564, not as a point.
+- **With no bubbles at all, a gap remains, and it is the other movers.** +226 ms Compositor::Update and +94 ms busy with every strip and the sheet gone: what is left on the branch that `main` does not have is the robot, marker and dissolve movers. Its size follows the robots: in the same runs' later windows, where fewer robots move, the strips-detached gap is +13 ms Compositor::Update and the branch is **faster** than `main` on busy (−204 ms), as it is with only the circles detached (−524 ms).
+- **Paint does not see any of it**: the Paint gap is +32, +36 and −2.5 ms across the three conditions, as R5 found for the bubbles.
+
+**What this says about R5's options** (Crawford's call, not decided here): a bubble redesign that cuts the number of always-promoted strip layers goes after the strips' share, about a third of the Compositor::Update gap and roughly half of the busy gap at this moment; nothing done to the bubbles touches the robots' share, which is the larger part of the Compositor::Update gap whenever several robots are moving and close to nothing when few are. The decomposition is of window 2 only: the harness always traces a stock window first, so R5's own gated window (window 1) cannot be detached in place. Its gap reproduces on this build (stock busy 9537 → 10379.5 ms, Compositor::Update 1935 → 2295, against R5's 9566 → 10330 and 1940 → 2287), so the branch build with the scroller change carries the same gap R5 measured.
+
+**A harness caveat found on the way.** In a 3 s smoke run on `main` with every step at once, the page had no `.world-view` after `detach-bubbles+robots` (after `detach-bubble-strips`), and the run was rejected by the world check: the robots' detach pulls out nodes React owns, and the next React update after it appears to unmount the world. The rounds above do not use that step, and the world check passed at the end of every one. Not chased.
+
+Guarded by `src/docs/perMoverStripsDocs.test.ts` (every row against the acceptance rule, the medians and gaps against the accepted rows, the reading against the medians; 8 doc mutants killed).
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
