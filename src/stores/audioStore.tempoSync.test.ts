@@ -27,6 +27,11 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalBitCrusher: vi.fn(),
     setGlobalAutoWah: vi.fn(),
     setGlobalPhaser: vi.fn(),
+    setGlobalChorus: vi.fn(),
+    setGlobalTremolo: vi.fn(),
+    setGlobalVibrato: vi.fn(),
+    setGlobalFrequencyShifter: vi.fn(),
+    setGlobalStereoWidener: vi.fn(),
     setMasterVolume: vi.fn(),
     setHumanize: vi.fn(),
   },
@@ -1433,5 +1438,239 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
 
       expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Global Pedals T7 (docs/specs/GLOBAL_PEDALS.md §1.4): the three LFO pedals join the Phaser on one synced-rate rail -
+// a resolved-rate setter per block, setPedalSyncMode(key, synced), and the tempo re-apply over SYNCED_RATE_KEYS.
+describe('useAudioStore - Global Pedals sync (Global Pedals T7)', () => {
+  const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+  const EIGHTH_DOTTED = { division: '1/8', modifier: 'dotted' } as const;
+  const FOUR_BARS = { division: '4', modifier: 'straight' } as const;
+  // Free blocks at non-default values, distinct per pedal, so a swapped block cannot pass by coincidence.
+  const FREE = {
+    chorus: { rate: 0.9, delayTime: 5.5, depth: 0.45, spread: 120, feedback: 0.15, wet: 0.3 },
+    tremolo: { rate: 0.9, depth: 0.55, spread: 95, wet: 0.35 },
+    vibrato: { rate: 0.9, depth: 0.12, wet: 0.25 },
+  } as const;
+  const SETTER = {
+    chorus: 'setGlobalChorus',
+    tremolo: 'setGlobalTremolo',
+    vibrato: 'setGlobalVibrato',
+  } as const;
+  type Pedal = keyof typeof FREE;
+  const PEDALS = ['chorus', 'tremolo', 'vibrato'] as const;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** A fresh store with every LFO pedal Free (then the given overrides), the Phaser Free, bpm pinned, mocks cleared. */
+  async function setup(over: Partial<Record<Pedal, Record<string, unknown>>> = {}, bpm = 60) {
+    const { useAudioStore, applyGlobalAudioToEngine, SYNCED_RATE_KEYS } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    const current = useAudioStore.getState().globalAudio;
+    const { sync: _phaserSync, ...freePhaser } = current.phaser;
+    useAudioStore.setState({
+      bpm,
+      globalAudio: {
+        ...current,
+        phaser: freePhaser,
+        delay: { delayTime: 0.3, feedback: 0.2, wet: 1 },
+        chorus: { ...FREE.chorus, ...over.chorus } as never,
+        tremolo: { ...FREE.tremolo, ...over.tremolo } as never,
+        vibrato: { ...FREE.vibrato, ...over.vibrato } as never,
+      },
+    });
+    vi.clearAllMocks();
+    return { useAudioStore, applyGlobalAudioToEngine, SYNCED_RATE_KEYS, AudioEngine, lfoEngine };
+  }
+
+  function lastPush(AudioEngine: Record<string, unknown>, pedal: Pedal): Record<string, unknown> {
+    return vi.mocked(AudioEngine[SETTER[pedal]] as (p: unknown) => void).mock.calls.at(-1)![0] as Record<string, unknown>;
+  }
+
+  it('lists the four synced-rate blocks, the Phaser first, in chain order', async () => {
+    const { SYNCED_RATE_KEYS } = await setup();
+    expect([...SYNCED_RATE_KEYS]).toStrictEqual(['phaser', 'chorus', 'tremolo', 'vibrato']);
+  });
+
+  describe.each(PEDALS)('setGlobalAudio(%s, ...)', (pedal) => {
+    it('a sync partial pushes the resolved Hz - 1/4 is 1 Hz at 60 BPM - with no sync key, and stores the note', async () => {
+      const { useAudioStore, AudioEngine } = await setup({}, 60);
+
+      useAudioStore.getState().setGlobalAudio(pedal, { sync: QUARTER });
+
+      expect(AudioEngine[SETTER[pedal]]).toHaveBeenCalledTimes(1);
+      const pushed = lastPush(AudioEngine as never, pedal);
+      expect(pushed).toStrictEqual({ rate: 1 });
+      expect('sync' in pushed).toBe(false);
+      expect(useAudioStore.getState().globalAudio[pedal]).toStrictEqual({ ...FREE[pedal], sync: QUARTER });
+    });
+
+    it('a rate edit on a synced block pushes the resolved Hz, not the given Free value', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ [pedal]: { ...FREE[pedal], sync: EIGHTH_DOTTED } }, 90);
+
+      useAudioStore.getState().setGlobalAudio(pedal, { rate: 7 });
+
+      // 1/8 dotted = 0.75 beats; at 90 BPM that is 0.5 s => 2 Hz
+      expect(lastPush(AudioEngine as never, pedal).rate as number).toBeCloseTo(2, 10);
+      expect(useAudioStore.getState().globalAudio[pedal].rate).toBe(7);
+    });
+
+    it('a Free rate edit pushes that rate', async () => {
+      const { useAudioStore, AudioEngine } = await setup({}, 60);
+      useAudioStore.getState().setGlobalAudio(pedal, { rate: 3.35 });
+      expect(lastPush(AudioEngine as never, pedal)).toStrictEqual({ rate: 3.35 });
+    });
+
+    it('any other edit is forwarded exactly as given: no rate is added', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ [pedal]: { ...FREE[pedal], sync: QUARTER } }, 60);
+      useAudioStore.getState().setGlobalAudio(pedal, { wet: 0.4 });
+      expect(lastPush(AudioEngine as never, pedal)).toStrictEqual({ wet: 0.4 });
+      expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe.each(PEDALS)('setPedalSyncMode(%s, ...)', (pedal) => {
+    it('Free -> Sync snaps to the nearest allowed note, keeps rate underneath, and pushes the note Hz', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ [pedal]: { ...FREE[pedal], rate: 1 } }, 60);
+
+      useAudioStore.getState().setPedalSyncMode(pedal, true);
+
+      expect(useAudioStore.getState().globalAudio[pedal]).toStrictEqual({ ...FREE[pedal], rate: 1, sync: QUARTER });
+      expect(lastPush(AudioEngine as never, pedal)).toStrictEqual({ rate: 1 });
+    });
+
+    it('Sync -> Free keeps the heard Hz on the 0.05 Hz grid and leaves no sync key', async () => {
+      // 1/4 dotted at 60 BPM is 0.667 Hz -> 0.65 on the grid.
+      const QUARTER_DOTTED = { division: '1/4', modifier: 'dotted' } as const;
+      const { useAudioStore, AudioEngine } = await setup({ [pedal]: { ...FREE[pedal], rate: 5, sync: QUARTER_DOTTED } }, 60);
+
+      useAudioStore.getState().setPedalSyncMode(pedal, false);
+
+      const block = useAudioStore.getState().globalAudio[pedal];
+      expect(block).toStrictEqual({ ...FREE[pedal], rate: 0.65 });
+      expect('sync' in block).toBe(false);
+      expect(lastPush(AudioEngine as never, pedal)).toStrictEqual({ rate: 0.65 });
+    });
+
+    it('touches only its own block: the other pedals and the Phaser are unchanged and unpushed', async () => {
+      const { useAudioStore, AudioEngine } = await setup({}, 60);
+      const before = useAudioStore.getState().globalAudio;
+
+      useAudioStore.getState().setPedalSyncMode(pedal, true);
+
+      const after = useAudioStore.getState().globalAudio;
+      for (const other of PEDALS.filter((p) => p !== pedal)) {
+        expect(after[other]).toBe(before[other]);
+        expect(AudioEngine[SETTER[other]]).not.toHaveBeenCalled();
+      }
+      expect(after.phaser).toBe(before.phaser);
+      expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+    });
+  });
+
+  it('setPhaserSyncMode still converts the Phaser, through the same rail', async () => {
+    const { useAudioStore, AudioEngine } = await setup({}, 60);
+    useAudioStore.setState({ globalAudio: { ...useAudioStore.getState().globalAudio, phaser: { rate: 1, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0.2 } } });
+
+    useAudioStore.getState().setPhaserSyncMode(true);
+
+    expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(QUARTER);
+    expect(AudioEngine.setGlobalPhaser).toHaveBeenLastCalledWith({ rate: 1 });
+    expect(AudioEngine.setGlobalChorus).not.toHaveBeenCalled();
+  });
+
+  describe('setBPM re-applies every synced pedal', () => {
+    it('re-pushes each synced pedal once at the new tempo and leaves a Free one alone', async () => {
+      const { useAudioStore, AudioEngine } = await setup(
+        { chorus: { ...FREE.chorus, sync: QUARTER }, vibrato: { ...FREE.vibrato, sync: EIGHTH_DOTTED } },
+        60,
+      );
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(AudioEngine.setGlobalChorus).toHaveBeenCalledTimes(1);
+      expect(lastPush(AudioEngine as never, 'chorus')).toStrictEqual({ rate: 2 });
+      expect(AudioEngine.setGlobalVibrato).toHaveBeenCalledTimes(1);
+      // 1/8 dotted at 120 BPM: 0.375 s => 2.667 Hz
+      expect(lastPush(AudioEngine as never, 'vibrato').rate as number).toBeCloseTo(1 / 0.375, 10);
+      expect(AudioEngine.setGlobalTremolo).not.toHaveBeenCalled();
+      expect(AudioEngine.setGlobalPhaser).not.toHaveBeenCalled();
+    });
+
+    it.each(PEDALS)('re-pushes a synced %s on its own', async (pedal) => {
+      const { useAudioStore, AudioEngine } = await setup({ [pedal]: { ...FREE[pedal], sync: QUARTER } }, 60);
+      useAudioStore.getState().setBPM(120);
+      expect(AudioEngine[SETTER[pedal]]).toHaveBeenCalledTimes(1);
+      expect(lastPush(AudioEngine as never, pedal)).toStrictEqual({ rate: 2 });
+    });
+
+    it('clamps into the pedal range as the tempo drops and never writes the clamp into state', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ tremolo: { ...FREE.tremolo, sync: FOUR_BARS } }, 120);
+      useAudioStore.getState().setBPM(40);
+      expect(lastPush(AudioEngine as never, 'tremolo')).toStrictEqual({ rate: 0.05 });
+      expect(useAudioStore.getState().globalAudio.tremolo.sync).toEqual(FOUR_BARS);
+    });
+
+    it('pushes nothing for a world with every pedal Free', async () => {
+      const { useAudioStore, AudioEngine } = await setup({}, 60);
+      useAudioStore.getState().setBPM(120);
+      for (const pedal of PEDALS) expect(AudioEngine[SETTER[pedal]]).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('applyGlobalAudioToEngine pushes the five Global Pedals blocks', () => {
+    it('pushes each LFO pedal whole with its rate resolved and no sync key, the shifter and the widener as stored', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup();
+      const globalAudio = {
+        ...useAudioStore.getState().globalAudio,
+        chorus: { ...FREE.chorus, sync: QUARTER },
+        tremolo: { ...FREE.tremolo },
+        vibrato: { ...FREE.vibrato, sync: EIGHTH_DOTTED },
+        frequencyShifter: { shift: -14, wet: 0.22 },
+        stereoWidener: { width: 0.61 },
+      };
+      vi.clearAllMocks();
+
+      applyGlobalAudioToEngine(globalAudio, 120);
+
+      expect(AudioEngine.setGlobalChorus).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.setGlobalChorus).toHaveBeenCalledWith({ ...FREE.chorus, rate: 2 });
+      expect(AudioEngine.setGlobalTremolo).toHaveBeenCalledWith({ ...FREE.tremolo });
+      const vibrato = lastPush(AudioEngine as never, 'vibrato');
+      expect('sync' in vibrato).toBe(false);
+      expect(vibrato.rate as number).toBeCloseTo(1 / 0.375, 10);
+      expect(AudioEngine.setGlobalFrequencyShifter).toHaveBeenCalledWith({ shift: -14, wet: 0.22 });
+      expect(AudioEngine.setGlobalStereoWidener).toHaveBeenCalledWith({ width: 0.61 });
+    });
+
+    it('pushes them after the Phaser, in chain order, and the widener before the Limiter', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup();
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 120);
+      const order = (fn: unknown) => (fn as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+      const sequence = [
+        AudioEngine.setGlobalPhaser,
+        AudioEngine.setGlobalChorus,
+        AudioEngine.setGlobalTremolo,
+        AudioEngine.setGlobalVibrato,
+        AudioEngine.setGlobalFrequencyShifter,
+        AudioEngine.setGlobalStereoWidener,
+        AudioEngine.setGlobalLimiter,
+      ].map(order);
+      expect(sequence).toStrictEqual([...sequence].sort((a, b) => a - b));
+    });
+  });
+
+  it('routes the shifter and the widener straight to their engine setters, exactly as given', async () => {
+    const { useAudioStore, AudioEngine } = await setup();
+    useAudioStore.getState().setGlobalAudio('frequencyShifter', { shift: 12 });
+    useAudioStore.getState().setGlobalAudio('stereoWidener', { width: 0.2 });
+    expect(AudioEngine.setGlobalFrequencyShifter).toHaveBeenCalledWith({ shift: 12 });
+    expect(AudioEngine.setGlobalStereoWidener).toHaveBeenCalledWith({ width: 0.2 });
+    expect(useAudioStore.getState().globalAudio.frequencyShifter.shift).toBe(12);
+    expect(useAudioStore.getState().globalAudio.stereoWidener).toStrictEqual({ width: 0.2 });
   });
 });

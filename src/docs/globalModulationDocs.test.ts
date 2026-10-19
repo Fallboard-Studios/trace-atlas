@@ -129,9 +129,11 @@ describe('the named Global Modulation symbols are declared where the spec says t
     ['AudioEngine exposes setGlobalPhaser', 'src/engine/AudioEngine.ts', /\bsetGlobalPhaser,/],
     ['setPhaserSyncMode on the store', 'src/stores/audioStore.ts', /setPhaserSyncMode: \(synced: boolean\) => void;/],
     ['the store routes autoWah to the engine', 'src/stores/audioStore.ts', /\bautoWah: AudioEngine\.setGlobalAutoWah,/],
-    ['the store routes phaser through the resolver', 'src/stores/audioStore.ts', /\bphaser: setGlobalPhaserResolved,/],
+    // Global Pedals T7 (docs/specs/GLOBAL_PEDALS.md §1.4) generalised the Phaser's resolver into a per-block factory and
+    // the apply push into resolvedRateBlock; the Phaser is that rail's first instance.
+    ['the store routes phaser through the resolver', 'src/stores/audioStore.ts', /\bphaser: setGlobalRateResolved\('phaser'\),/],
     ['the store pushes autoWah on apply', 'src/stores/audioStore.ts', /AudioEngine\.setGlobalAutoWah\(globalAudio\.autoWah\)/],
-    ['the store pushes phaser on apply', 'src/stores/audioStore.ts', /AudioEngine\.setGlobalPhaser\(\{ \.\.\.phaser, rate: resolvePhaserRateHz\(globalAudio\.phaser, bpm\) \}\)/],
+    ['the store pushes phaser on apply', 'src/stores/audioStore.ts', /AudioEngine\.setGlobalPhaser\(resolvedRateBlock<'phaser'>\(globalAudio\.phaser, bpm\)\)/],
     ['no new trait: autoWah wears spectral', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const AUDIO_RIG_EFFECT_TRAIT[^=]*=\s*\{[^}]*\bautoWah: 'spectral',/],
     ['no new trait: phaser wears spectral', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const AUDIO_RIG_EFFECT_TRAIT[^=]*=\s*\{[^}]*\bphaser: 'spectral',/],
     ["'autoWah' and 'phaser' in AudioRigEffectKey", 'src/data/audioRigConfig.ts', /export type AudioRigEffectKey =[^;]*'autoWah'[^;]*'phaser'/],
