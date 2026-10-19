@@ -668,12 +668,12 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   (`Scale._setRange`), which jumps the delay's read position. Offline render, a 440 Hz sine through a wet Chorus, metric
   = the peak second difference in the 150 ms after a change divided by the steady state's (1 = smooth): one 0.5 ms Delay
   step x217, one 0.01 Depth step x13, a 5° Spread step x65-81 at every timing tried; the ramped Rate and Tremolo Depth
-  (controls) x1; Tremolo Spread x1 at four of five timings and x8.9 at one. `rampChorusSweep` in `globalFx.ts` now ramps
+  (controls) x1; Tremolo Spread x1 at four of five timings and x8.9 at one offline, but x7 every time in real time (next
+  entry: offline renders do not place an unscheduled native call where real time does). `rampChorusSweep` in `globalFx.ts` now ramps
   the same range (centre d, deviation d·depth) on both LFOs' Scale Signals (`_add`, `_mult`) over `COLOUR_RAMP_SECONDS`,
   measured x1 for both the Delay and the Depth step, and keeps Tone's stored fields in step; when those Tone internals
   are missing it falls back to Tone's setters. Tone floors the range at 0; Depth is clamped to 0–1 first, so the floor
-  could never bite and was left out (an equivalent mutant). Both Spreads still write through Tone's `phase` setter,
-  which restarts the LFOs (see §7).
+  could never bite and was left out (an equivalent mutant). The Spreads are the next entry.
 - **A tripwire for the cuts (2026-10-18 review).** The cuts depend on two facts about `standardized-audio-context`
   (25.3.77 under Tone 15.1.22): `detectCycles` walks every path with no memo, and stops at any node with a `delayTime`.
   `src/engine/audioEngine/chainCycleSearch.test.ts` drives the library's real `createDetectCycles` over fake
@@ -681,3 +681,19 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   none; a mid-chain cut bounds the walk), so an upgrade that changes either fails the suite instead of hanging power-on.
   Mutation-checked by breaking the library's delay guard (two cases fail). If it fails, re-measure power-on before
   keeping or removing the cuts.
+- **A lit Chorus or Tremolo ducks to write its Spread (Crawford's choice, 2026-10-19).** Tone's `spread` setter sets each
+  LFO's `phase`, and `Oscillator.phase` swaps the waveform on the native node at once (`setPeriodicWave`, on the audio
+  thread's current time), so the sweep jumps; it cannot be ramped. Measured in a REAL-TIME context in headless Chrome (a
+  native `AudioContext` under Tone, the output recorded, lookAhead 0.1, three runs each, same metric): one 5° step on a
+  lit node, plain x49-79 Chorus / x7.1-7.5 Tremolo; a Mix duck that ramps from Tone's `now()` and writes 25 ms later
+  x28-81 / x1.9-4.9; the same ramping from `immediate()` x74-82 / x1.7-5.9; a duck that writes after `lookAhead` + the
+  ramp + 10 ms **x1.3 / x1.6 on every run**. Tone ramps start lookAhead ahead of the audio thread and the waveform swap
+  does not, so the write has to wait the lookAhead out. Built that way in `globalFx.ts` (`writeSpread`,
+  `finishSpreadDuck`, `SPREAD_DUCK_SECONDS` 0.02, `SPREAD_WRITE_MARGIN_SECONDS` 0.01): a lit pedal's Mix ramps to dry,
+  the Spread is written from `Tone.getContext().setTimeout` (the audio-clock timer `scheduleVoiceRelease` already
+  uses; a parameter de-click, not musical timing, so CLAUDE.md's timing rule is not engaged) and the Mix ramps back to
+  the last value written. Every step of a drag re-arms the one timer, so the pedal stays dry (about 0.25 s at
+  lookAhead 0.1) until the drag stops and only the last Spread lands; a Mix edit during the duck moves the return level
+  without ramping up early; a dry pedal (every seeded apply at load) is written at once; a chain rebuild cancels the
+  timer. Offline renders were misleading here and are not evidence for this path. 16 tests (both pedals), RED first;
+  8 mutants, 7 killed, the eighth (a check that the node was not rebuilt) was unreachable behind the cancel and deleted.

@@ -264,6 +264,7 @@ export function buildGlobalFxChain(): void {
   // Global Pedals: built dry (wet 0) at the stored defaults. Tone's Chorus and Tremolo do NOT start their LFOs in the
   // constructor, so each is started once here and runs for the chain's life: a dark pedal is Mix 0, not a stopped LFO
   // (docs/specs/GLOBAL_PEDALS.md assumption 4). A failed construction leaves the slot empty and the chain whole.
+  resetSpreadDucks();
   _globalChorus = null;
   if (ChorusCtor) {
     try {
@@ -889,9 +890,73 @@ function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, d
   }
 }
 
+/**
+ * The Spread de-click (docs/specs/GLOBAL_PEDALS.md §8). Tone's Chorus and Tremolo `spread` setters swap both LFOs'
+ * waveform at once, on the audio thread's current time, so the sweep jumps: in a real-time context one 5° step clicked
+ * x49-79 on a lit Chorus and x7 on a lit Tremolo. A lit pedal is ducked instead: its Mix ramps to dry, the Spread is
+ * written from Tone's audio-clock timer (as scheduleVoiceRelease uses it) once that ramp has run, and the Mix ramps
+ * back; measured x1.3 / x1.6. Ramps start lookAhead ahead of the audio thread and the swap does not, so the write waits
+ * lookAhead + the ramp + a margin. Every step of a drag re-arms the one timer, so the pedal stays dry until the drag
+ * stops and only the last Spread is written. A dry pedal is written at once: there is nothing to hear.
+ */
+const SPREAD_DUCK_SECONDS = 0.02;
+const SPREAD_WRITE_MARGIN_SECONDS = 0.01;
+type SpreadPedal = 'chorus' | 'tremolo';
+type SpreadNode = { spread: number; wet: { rampTo?: (value: number, rampTime: number) => void; value: unknown } };
+/** The Mix gain (already tapered) each Spread pedal's node was last given: what a duck ramps back to. 0 = dry. */
+const _spreadWetGain: Record<SpreadPedal, number> = { chorus: 0, tremolo: 0 };
+/** A duck in progress: the Spread to write and the timer that writes it. */
+const _spreadDuck: Partial<Record<SpreadPedal, { spread: number; timer: number }>> = {};
+
+/** Drop every pending duck and forget the Mix gains: the nodes are being rebuilt dry. */
+function resetSpreadDucks(): void {
+  for (const pedal of ['chorus', 'tremolo'] as const) {
+    const pending = _spreadDuck[pedal];
+    if (pending) Tone.getContext().clearTimeout(pending.timer);
+    delete _spreadDuck[pedal];
+    _spreadWetGain[pedal] = 0;
+  }
+}
+
+/** A Spread write: at once on a dry pedal, ducked on a lit one (see SPREAD_DUCK_SECONDS). */
+function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void {
+  const pending = _spreadDuck[pedal];
+  if (!pending && _spreadWetGain[pedal] === 0) {
+    node.spread = spread;
+    return;
+  }
+  const context = Tone.getContext();
+  if (pending) context.clearTimeout(pending.timer);
+  else rampOrSet(node.wet, 0, SPREAD_DUCK_SECONDS);
+  const timer = context.setTimeout(
+    () => finishSpreadDuck(pedal, node),
+    context.lookAhead + SPREAD_DUCK_SECONDS + SPREAD_WRITE_MARGIN_SECONDS,
+  );
+  _spreadDuck[pedal] = { spread, timer };
+}
+
+/** The bottom of a duck: write the Spread and ramp the Mix back. (A rebuild cancels the timer: resetSpreadDucks.) */
+function finishSpreadDuck(pedal: SpreadPedal, node: SpreadNode): void {
+  const pending = _spreadDuck[pedal];
+  delete _spreadDuck[pedal];
+  if (!pending) return;
+  try {
+    node.spread = pending.spread;
+    rampOrSet(node.wet, _spreadWetGain[pedal], SPREAD_DUCK_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] a ducked Spread write failed', err);
+  }
+}
+
+/** A Mix write on a Spread pedal: remembered as the duck's return level, and ramped now unless a duck holds it dry. */
+function writeSpreadPedalWet(pedal: SpreadPedal, node: SpreadNode, wet: number): void {
+  _spreadWetGain[pedal] = colourWetGain(wet);
+  if (!_spreadDuck[pedal]) rampOrSet(node.wet, _spreadWetGain[pedal], COLOUR_RAMP_SECONDS);
+}
+
 /** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
  *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms) and depth are ramped
- *  through the LFOs' range (rampChorusSweep); spread is a plain setter; the Mix is tapered like Colour's. */
+ *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread); the Mix is tapered like Colour's. */
 export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
   const chorus = _globalChorus;
   if (!chorus) return;
@@ -904,16 +969,16 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     const wet = clampIfGiven('chorus.wet', params.wet);
     if (rate !== undefined) rampOrSet(chorus.frequency, rate, COLOUR_RAMP_SECONDS);
     if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
-    if (spread !== undefined) chorus.spread = spread;
+    if (spread !== undefined) writeSpread('chorus', chorus, spread);
     if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(chorus.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeSpreadPedalWet('chorus', chorus, wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChorus failed', err);
   }
 }
 
 /** Tremolo (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are Signals fanned to both LFOs;
- *  spread is a plain setter; the Mix is tapered like Colour's. `rate` arrives already resolved to Hz. */
+ *  spread is ducked when lit (writeSpread); the Mix is tapered like Colour's. `rate` arrives already resolved to Hz. */
 export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>): void {
   const tremolo = _globalTremolo;
   if (!tremolo) return;
@@ -924,8 +989,8 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
     const wet = clampIfGiven('tremolo.wet', params.wet);
     if (rate !== undefined) rampOrSet(tremolo.frequency, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
-    if (spread !== undefined) tremolo.spread = spread;
-    if (wet !== undefined) rampOrSet(tremolo.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
+    if (wet !== undefined) writeSpreadPedalWet('tremolo', tremolo, wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalTremolo failed', err);
   }

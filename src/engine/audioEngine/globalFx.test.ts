@@ -10,6 +10,11 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vite
 // Global Colour T3 (docs/specs/GLOBAL_COLOUR.md section 1.3). BitCrusher is hoisted so every access sees one
 // constructor with one call history, and so a test can hide it (a headless env, or a browser without worklets).
 const toneFlags = vi.hoisted(() => ({
+  // Tone.getContext()'s audio-clock timer, which the Spread de-click defers its write on (docs/specs/GLOBAL_PEDALS.md
+  // §8). A test fires a pending callback by hand with fireTimeouts(); `lookAhead` is the context's, read at call time.
+  lookAhead: 0.1,
+  timeouts: [] as Array<{ id: number; fn: () => void; seconds: number }>,
+  nextTimeoutId: 0,
   // Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): AutoWah is hoisted for the same two
   // reasons - one constructor with one call history, and a switch to hide it. Q, gain and wet are Signals; the
   // sweep range, sensitivity and follower smoothing are plain properties, as in Tone 15.
@@ -235,8 +240,26 @@ vi.mock('tone', () => ({
   // The read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md) are NATIVE AnalyserNodes made from Tone's raw
   // context: Tone.Analyser cannot be used, because it sets fftSize = 2 * size and caps size at 16384, so it can neither
   // build a 32768 window nor read more than half of one (found in the real-browser check, Task 6).
-  getContext: vi.fn(() => ({ rawContext: { createAnalyser: () => createAnalyser() } })),
+  getContext: vi.fn(() => ({
+    rawContext: { createAnalyser: () => createAnalyser() },
+    lookAhead: toneFlags.lookAhead,
+    setTimeout: (fn: () => void, seconds: number) => {
+      toneFlags.nextTimeoutId += 1;
+      toneFlags.timeouts.push({ id: toneFlags.nextTimeoutId, fn, seconds });
+      return toneFlags.nextTimeoutId;
+    },
+    clearTimeout: (id: number) => {
+      toneFlags.timeouts = toneFlags.timeouts.filter((t) => t.id !== id);
+    },
+  })),
 }));
+
+/** Run every pending Tone.getContext().setTimeout callback, as the audio clock passing their time would. */
+function fireTimeouts(): void {
+  const due = toneFlags.timeouts;
+  toneFlags.timeouts = [];
+  for (const t of due) t.fn();
+}
 
 /** A native AnalyserNode stand-in that enforces the real API's fftSize limit (a power of two, 32..32768). */
 function makeFakeAnalyser() {
@@ -297,6 +320,8 @@ describe('globalFx', () => {
     toneFlags.shifterAbsent = false;
     toneFlags.widenerAbsent = false;
     toneFlags.cutAbsent = false;
+    toneFlags.lookAhead = 0.1;
+    toneFlags.timeouts = [];
   });
 
   describe('getGlobalChainEntry', () => {
@@ -2133,6 +2158,111 @@ describe('globalFx', () => {
       });
       expect(() => globalFx.setGlobalTremolo({ depth: 0.3 })).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalTremolo failed', expect.any(Error));
+    });
+  });
+
+  // The Spread de-click (docs/specs/GLOBAL_PEDALS.md §8). Tone's `spread` setter swaps both LFOs' waveform at once, on
+  // the audio thread's current time: measured in a real-time context, one 5° step clicked x49-79 on a lit Chorus and
+  // x7 on a lit Tremolo. A lit pedal is ducked instead: Mix ramps to dry over 20 ms, Spread is written from Tone's
+  // audio-clock timer once the ramp has run (lookAhead + 20 ms + 10 ms, because ramps start lookAhead ahead and the
+  // swap does not), then Mix ramps back. Measured x1.3 / x1.6. A dry pedal is written at once.
+  describe.each([
+    {
+      pedal: 'chorus' as const,
+      set: (fx: typeof import('./globalFx'), p: { spread?: number; wet?: number }) => fx.setGlobalChorus(p),
+      node: () => lastInstance(toneFlags.chorusCtor),
+    },
+    {
+      pedal: 'tremolo' as const,
+      set: (fx: typeof import('./globalFx'), p: { spread?: number; wet?: number }) => fx.setGlobalTremolo(p),
+      node: () => lastInstance(toneFlags.tremoloCtor),
+    },
+  ])('the $pedal Spread de-click', ({ set, node }) => {
+    async function lit(mix = 0.5) {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      set(globalFx, { wet: mix });
+      return { globalFx, n: node() };
+    }
+
+    it('writes Spread at once on a dry pedal: nothing to hear, so no duck and no timer', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const n = node();
+      set(globalFx, { spread: 90 });
+      expect(n.spread).toBe(90);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(n.wet.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('on a lit pedal ducks to dry over 20 ms, writes Spread only when the timer fires, then ramps back to its Mix', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      expect(n.wet.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(n.spread).toBe(180);
+      expect(toneFlags.timeouts).toHaveLength(1);
+      expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.1 + 0.02 + 0.01, 9);
+      fireTimeouts();
+      expect(n.spread).toBe(90);
+      expect(n.wet.rampTo).toHaveBeenLastCalledWith(expect.closeTo(0.25, 9), 0.02);
+    });
+
+    it("waits out the context's lookAhead as it is at the call", async () => {
+      toneFlags.lookAhead = 0.03;
+      const { globalFx } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.03 + 0.02 + 0.01, 9);
+    });
+
+    it('folds a drag into one write: one duck, the timer re-armed on every step, the last Spread written', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 170 });
+      set(globalFx, { spread: 160 });
+      set(globalFx, { spread: 150 });
+      expect(n.wet.rampTo.mock.calls.filter(([v]: unknown[]) => v === 0)).toHaveLength(1);
+      expect(toneFlags.timeouts).toHaveLength(1);
+      fireTimeouts();
+      expect(n.spread).toBe(150);
+    });
+
+    it('a Mix edit during the duck moves where it returns to, without ramping up early', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      set(globalFx, { wet: 0.8 });
+      expect(n.wet.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      fireTimeouts();
+      expect(n.wet.rampTo).toHaveBeenLastCalledWith(expect.closeTo(0.64, 9), 0.02);
+    });
+
+    it('a Mix of 0 during the duck leaves the pedal dry after the write', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      set(globalFx, { wet: 0 });
+      fireTimeouts();
+      expect(n.spread).toBe(90);
+      expect(n.wet.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+    });
+
+    it('a chain rebuilt during the duck drops the pending write and starts the new node dry', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      globalFx.buildGlobalFxChain();
+      const fresh = node();
+      expect(fresh).not.toBe(n);
+      fireTimeouts();
+      expect(n.spread).toBe(180);
+      set(globalFx, { spread: 45 });
+      expect(fresh.spread).toBe(45);
+    });
+
+    it('warns and does not throw when the deferred write throws', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      n.wet.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => fireTimeouts()).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] a ducked Spread write failed', expect.any(Error));
     });
   });
 

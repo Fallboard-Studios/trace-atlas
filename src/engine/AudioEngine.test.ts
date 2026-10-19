@@ -2605,6 +2605,9 @@ describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', 
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     AudioEngine.setGlobalChorus({ delayTime: 7, rate: 1.25 });
+    // Dry first: start() may leave the seeded Tremolo lit, and a lit pedal's Spread waits for the de-click duck's timer
+    // (globalFx.ts writeSpread), which this file's context mock never fires.
+    AudioEngine.setGlobalTremolo({ wet: 0 });
     AudioEngine.setGlobalTremolo({ spread: 30, wet: 1 });
     expect(last(Tone.Chorus).delayTime).toBe(7);
     expect(last(Tone.Chorus).frequency.rampTo).toHaveBeenCalledWith(1.25, 0.05);
