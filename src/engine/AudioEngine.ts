@@ -53,6 +53,8 @@ import {
   setGlobalPhaser,
   setGlobalChorus,
   setGlobalTremolo,
+  setGlobalVibrato,
+  setGlobalFrequencyShifter,
   getGlobalModulationTarget,
 } from './audioEngine/globalFx';
 
@@ -1468,4 +1470,6 @@ export const AudioEngine = {
   setGlobalPhaser,
   setGlobalChorus,
   setGlobalTremolo,
+  setGlobalVibrato,
+  setGlobalFrequencyShifter,
 };

@@ -18,6 +18,8 @@ import type {
   PhaserSettings,
   ChorusSettings,
   TremoloSettings,
+  VibratoSettings,
+  FrequencyShifterSettings,
 } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
@@ -47,6 +49,9 @@ let _phaserLive: PhaserLive = defaultPhaserLive();
 // The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
 let _globalChorus: Tone.Chorus | null = null;
 let _globalTremolo: Tone.Tremolo | null = null;
+// The two mono pedals (Tone `Effect`s, not `StereoEffect`s): each sums the stereo chain it is given.
+let _globalVibrato: Tone.Vibrato | null = null;
+let _globalFrequencyShifter: Tone.FrequencyShifter | null = null;
 // The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
 let _lastControlledDecay = false;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
@@ -155,6 +160,8 @@ export function buildGlobalFxChain(): void {
   const PhaserCtor = getToneCtor<Tone.Phaser>('Phaser');
   const ChorusCtor = getToneCtor<Tone.Chorus>('Chorus');
   const TremoloCtor = getToneCtor<Tone.Tremolo>('Tremolo');
+  const VibratoCtor = getToneCtor<Tone.Vibrato>('Vibrato');
+  const FrequencyShifterCtor = getToneCtor<Tone.FrequencyShifter>('FrequencyShifter');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -243,6 +250,30 @@ export function buildGlobalFxChain(): void {
       _globalTremolo = null;
     }
   }
+  // The Vibrato starts its own LFO in its constructor, so it is never start()ed here. Its `maxDelay` (constructor-only,
+  // the Depth ceiling) is left at Tone's 0.005 s default, which the full Depth range is written against.
+  _globalVibrato = null;
+  if (VibratoCtor) {
+    try {
+      const { rate, depth } = DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato;
+      _globalVibrato = new VibratoCtor({ frequency: rate, depth, wet: 0 });
+    } catch (err) {
+      devWarn('[AudioEngine] Vibrato could not be constructed; the pedal slot runs without it', err);
+      _globalVibrato = null;
+    }
+  }
+  _globalFrequencyShifter = null;
+  if (FrequencyShifterCtor) {
+    try {
+      _globalFrequencyShifter = new FrequencyShifterCtor({
+        frequency: DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter.shift,
+        wet: 0,
+      });
+    } catch (err) {
+      devWarn('[AudioEngine] FrequencyShifter could not be constructed; the pedal slot runs without it', err);
+      _globalFrequencyShifter = null;
+    }
+  }
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -282,6 +313,8 @@ function disconnectAllFxNodes(): void {
     _globalPhaser,
     _globalChorus,
     _globalTremolo,
+    _globalVibrato,
+    _globalFrequencyShifter,
     _globalDelay,
     _globalReverb,
     _globalCompressor,
@@ -302,7 +335,8 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Compressor →
+ * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Vibrato →
+ * FrequencyShifter → Compressor →
  * Limiter → masterGain → Destination (or straight to Destination if masterGain
  * wasn't constructed). An absent colour or modulation node (headless, or a worklet
  * that failed to construct) is skipped by the filter below, so the chain
@@ -339,6 +373,8 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     _globalPhaser,
     _globalChorus,
     _globalTremolo,
+    _globalVibrato,
+    _globalFrequencyShifter,
     _globalCompressor,
     _globalLimiter,
   ].filter(Boolean) as Array<{
@@ -798,6 +834,38 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
     if (wet !== undefined) rampOrSet(tremolo.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalTremolo failed', err);
+  }
+}
+
+/** Vibrato (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are the LFO's Signals; the Mix is
+ *  tapered like Colour's. `rate` arrives already resolved to Hz. The node is mono: it sums the stereo chain. */
+export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>): void {
+  const vibrato = _globalVibrato;
+  if (!vibrato) return;
+  try {
+    const rate = clampIfGiven('vibrato.rate', params.rate);
+    const depth = clampIfGiven('vibrato.depth', params.depth);
+    const wet = clampIfGiven('vibrato.wet', params.wet);
+    if (rate !== undefined) rampOrSet(vibrato.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(vibrato.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalVibrato failed', err);
+  }
+}
+
+/** Frequency Shifter (docs/specs/GLOBAL_PEDALS.md §1.3). `shift` is Tone's signed `frequency` Signal, clamped into
+ *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's. */
+export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettings>): void {
+  const shifter = _globalFrequencyShifter;
+  if (!shifter) return;
+  try {
+    const shift = clampIfGiven('frequencyShifter.shift', params.shift);
+    const wet = clampIfGiven('frequencyShifter.wet', params.wet);
+    if (shift !== undefined) rampOrSet(shifter.frequency, shift, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(shifter.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);
   }
 }
 

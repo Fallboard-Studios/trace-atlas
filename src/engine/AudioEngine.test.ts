@@ -190,6 +190,23 @@ vi.mock('tone', () => ({
     depth: { value: 0.5, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Pedals T5: the two mono pedals. The Vibrato starts itself (its `start` must stay uncalled).
+  Vibrato: vi.fn((opts: { frequency?: number; depth?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    frequency: { value: opts.frequency ?? 5, rampTo: vi.fn() },
+    depth: { value: opts.depth ?? 0.1, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  FrequencyShifter: vi.fn((opts: { frequency?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2576,6 +2593,36 @@ describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', 
     expect(last(Tone.Chorus).frequency.rampTo).toHaveBeenCalledWith(1.25, 0.05);
     expect(last(Tone.Tremolo).spread).toBe(30);
     expect(last(Tone.Tremolo).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
+  });
+});
+
+// Global Pedals T5: start() builds one Vibrato (never start()ed: it starts itself) and one FrequencyShifter.
+describe('AudioEngine.start — the Vibrato and the FrequencyShifter (Global Pedals T5)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+  it('constructs exactly one of each, and never starts the Vibrato', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Vibrato).mockClear();
+    vi.mocked(Tone.FrequencyShifter).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.Vibrato).toHaveBeenCalledTimes(1);
+    expect(Tone.FrequencyShifter).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Vibrato).start).not.toHaveBeenCalled();
+  });
+
+  it('exposes and routes setGlobalVibrato and setGlobalFrequencyShifter', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalVibrato({ depth: 0.2 });
+    AudioEngine.setGlobalFrequencyShifter({ shift: -9 });
+    expect(last(Tone.Vibrato).depth.rampTo).toHaveBeenCalledWith(0.2, 0.05);
+    expect(last(Tone.FrequencyShifter).frequency.rampTo).toHaveBeenCalledWith(-9, 0.05);
   });
 });
 

@@ -27,6 +27,9 @@ vi.mock('tone', () => ({
   // Global Pedals T4: the Chorus and the Tremolo are skipped the same way.
   Chorus: undefined,
   Tremolo: undefined,
+  // Global Pedals T5.
+  Vibrato: undefined,
+  FrequencyShifter: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({
@@ -76,6 +79,8 @@ describe('globalFx without the room constructors', () => {
       globalFx.setGlobalChorus({ rate: 2, delayTime: 5, depth: 0.5, spread: 90, feedback: 0.2, wet: 0.5 }),
     ).not.toThrow();
     expect(() => globalFx.setGlobalTremolo({ rate: 2, depth: 0.5, spread: 90, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalVibrato({ rate: 3, depth: 0.2, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalFrequencyShifter({ shift: -12, wet: 0.5 })).not.toThrow();
   });
 
   it('sets every AutoWah field without throwing when no AutoWah exists', async () => {

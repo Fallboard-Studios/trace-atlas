@@ -83,6 +83,27 @@ const toneFlags = vi.hoisted(() => ({
     node.start.mockReturnValue(node);
     return node;
   }),
+  // Global Pedals T5: the Vibrato and the FrequencyShifter, mono Tone Effects. The Vibrato's constructor starts its own
+  // LFO, so `start` is a spy that must stay uncalled; `frequency` and `depth` are Signals. The shifter's `frequency` is
+  // a signed Signal. `wet` is a Signal on both.
+  vibratoAbsent: false,
+  vibratoCtor: vi.fn((opts: { frequency?: number; depth?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    frequency: { value: opts.frequency ?? 5, rampTo: vi.fn() },
+    depth: { value: opts.depth ?? 0.1, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  shifterAbsent: false,
+  shifterCtor: vi.fn((opts: { frequency?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
   crusherAbsent: false,
   crusherCtor: vi.fn((opts: { bits?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
@@ -126,6 +147,12 @@ vi.mock('tone', () => ({
   },
   get Tremolo() {
     return toneFlags.tremoloAbsent ? undefined : toneFlags.tremoloCtor;
+  },
+  get Vibrato() {
+    return toneFlags.vibratoAbsent ? undefined : toneFlags.vibratoCtor;
+  },
+  get FrequencyShifter() {
+    return toneFlags.shifterAbsent ? undefined : toneFlags.shifterCtor;
   },
   Compressor: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -240,6 +267,8 @@ describe('globalFx', () => {
     toneFlags.phaserAbsent = false;
     toneFlags.chorusAbsent = false;
     toneFlags.tremoloAbsent = false;
+    toneFlags.vibratoAbsent = false;
+    toneFlags.shifterAbsent = false;
   });
 
   describe('getGlobalChainEntry', () => {
@@ -758,6 +787,8 @@ describe('globalFx', () => {
       toneFlags.phaserAbsent = true;
       toneFlags.chorusAbsent = true;
       toneFlags.tremoloAbsent = true;
+      toneFlags.vibratoAbsent = true;
+      toneFlags.shifterAbsent = true;
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
@@ -1287,20 +1318,25 @@ describe('globalFx', () => {
       expect(lastInstance(toneFlags.tremoloCtor).start).toHaveBeenCalledTimes(1);
     });
 
-    it.each([false, true])('wires Phaser -> Chorus -> Tremolo -> Compressor with controlledDecay=%s, each wired to one node', async (controlled) => {
+    // Global Pedals T5 extends the slot: ... Tremolo -> Vibrato -> FrequencyShifter -> Compressor.
+    it.each([false, true])('wires Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor with controlledDecay=%s, each wired to one node', async (controlled) => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const phaser = lastInstance(toneFlags.phaserCtor);
       const chorus = lastInstance(toneFlags.chorusCtor);
       const tremolo = lastInstance(toneFlags.tremoloCtor);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      const shifter = lastInstance(toneFlags.shifterCtor);
       const comp = lastInstance(Tone.Compressor);
-      for (const node of [phaser, chorus, tremolo]) node.connect.mockClear();
+      for (const node of [phaser, chorus, tremolo, vibrato, shifter]) node.connect.mockClear();
 
       globalFx.wireGlobalFxChain(controlled);
 
       expect(phaser.connect.mock.calls).toEqual([[chorus]]);
       expect(chorus.connect.mock.calls).toEqual([[tremolo]]);
-      expect(tremolo.connect.mock.calls).toEqual([[comp]]);
+      expect(tremolo.connect.mock.calls).toEqual([[vibrato]]);
+      expect(vibrato.connect.mock.calls).toEqual([[shifter]]);
+      expect(shifter.connect.mock.calls).toEqual([[comp]]);
     });
 
     it('keeps the rooms off both pedals: no room or return connects to either, nor either to a room or return', async () => {
@@ -1327,7 +1363,7 @@ describe('globalFx', () => {
       for (const pedal of pedals) expect(pedal.disconnect).toHaveBeenCalledTimes(1);
     });
 
-    it('wires Phaser -> Tremolo when the Chorus constructor is absent, and Phaser -> Compressor when both are', async () => {
+    it('wires Phaser -> Tremolo when the Chorus constructor is absent, and Phaser -> Vibrato when both are', async () => {
       toneFlags.chorusAbsent = true;
       let globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
@@ -1338,7 +1374,7 @@ describe('globalFx', () => {
       toneFlags.tremoloAbsent = true;
       globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.vibratoCtor));
       expect(() => globalFx.setGlobalTremolo({ rate: 2, wet: 1 })).not.toThrow();
     });
 
@@ -1353,14 +1389,203 @@ describe('globalFx', () => {
       expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
     });
 
-    it('builds and wires on when the Tremolo constructor throws: the Chorus hands to the Compressor', async () => {
+    it('builds and wires on when the Tremolo constructor throws: the Chorus hands to the Vibrato', async () => {
       toneFlags.tremoloCtor.mockImplementationOnce(() => {
         throw new Error('no tremolo');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Tremolo'), expect.any(Error));
-      expect(lastInstance(toneFlags.chorusCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(lastInstance(toneFlags.chorusCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.vibratoCtor));
+    });
+  });
+
+  // ========================================
+  // Global Pedals T5 (docs/specs/GLOBAL_PEDALS.md §1.3): the Vibrato and the FrequencyShifter, the two mono pedals,
+  // after the Tremolo and before the Compressor.
+  // ========================================
+  describe('buildGlobalFxChain - the Vibrato and the FrequencyShifter (Global Pedals)', () => {
+    it('constructs exactly one of each, dry (wet 0) at Tone defaults, the Vibrato at Tone\'s own maxDelay', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.vibratoCtor).toHaveBeenCalledTimes(1);
+      // No maxDelay key: Tone's 0.005 s default is the Depth ceiling the full range is written against.
+      expect(toneFlags.vibratoCtor).toHaveBeenCalledWith({ frequency: 5, depth: 0.1, wet: 0 });
+      expect(toneFlags.shifterCtor).toHaveBeenCalledTimes(1);
+      expect(toneFlags.shifterCtor).toHaveBeenCalledWith({ frequency: 0, wet: 0 });
+    });
+
+    // Tone's Vibrato starts its LFO in its own constructor; starting it again would restart the LFO's phase.
+    it('never calls start() on the Vibrato', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      globalFx.setGlobalVibrato({ rate: 3, depth: 0.2, wet: 0.5 });
+      expect(lastInstance(toneFlags.vibratoCtor).start).not.toHaveBeenCalled();
+    });
+
+    it('wires the Tremolo straight to the shifter when the Vibrato constructor is absent, and the Vibrato to the Compressor when the shifter is', async () => {
+      toneFlags.vibratoAbsent = true;
+      let globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(lastInstance(toneFlags.tremoloCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.shifterCtor));
+      expect(() => globalFx.setGlobalVibrato({ rate: 3, wet: 1 })).not.toThrow();
+
+      vi.resetModules();
+      vi.clearAllMocks();
+      toneFlags.vibratoAbsent = false;
+      toneFlags.shifterAbsent = true;
+      globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(lastInstance(toneFlags.vibratoCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(() => globalFx.setGlobalFrequencyShifter({ shift: 10, wet: 1 })).not.toThrow();
+    });
+
+    it('builds and wires on when either constructor throws', async () => {
+      toneFlags.vibratoCtor.mockImplementationOnce(() => {
+        throw new Error('no vibrato');
+      });
+      toneFlags.shifterCtor.mockImplementationOnce(() => {
+        throw new Error('no shifter');
+      });
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Vibrato'), expect.any(Error));
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('FrequencyShifter'), expect.any(Error));
+      expect(lastInstance(toneFlags.tremoloCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+    });
+
+    it('disconnects each once per rewire and connects neither to a room or a return', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const pedals = [lastInstance(toneFlags.vibratoCtor), lastInstance(toneFlags.shifterCtor)];
+      for (const pedal of pedals) pedal.disconnect.mockClear();
+      globalFx.wireGlobalFxChain(true);
+      const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
+      const returns = rooms.map(returnOf);
+      for (const pedal of pedals) {
+        expect(pedal.disconnect).toHaveBeenCalledTimes(1);
+        for (const other of [...rooms, ...returns]) {
+          expect(pedal.connect).not.toHaveBeenCalledWith(other);
+          expect(other.connect).not.toHaveBeenCalledWith(pedal);
+        }
+      }
+    });
+  });
+
+  describe('setGlobalVibrato (Global Pedals)', () => {
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      return { globalFx, vibrato: lastInstance(toneFlags.vibratoCtor) };
+    }
+
+    it('no-ops silently before the chain is built', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.setGlobalVibrato({ rate: 3, depth: 0.2, wet: 1 })).not.toThrow();
+      expect(devWarn).not.toHaveBeenCalled();
+    });
+
+    it('ramps the rate (Tone frequency) and the depth Signal over 50 ms', async () => {
+      const { globalFx, vibrato } = await built();
+      globalFx.setGlobalVibrato({ rate: 6.5, depth: 0.25 });
+      expect(vibrato.frequency.rampTo).toHaveBeenCalledWith(6.5, 0.05);
+      expect(vibrato.depth.rampTo).toHaveBeenCalledWith(0.25, 0.05);
+    });
+
+    it('ramps the tapered (squared) wet, and writes only the fields given', async () => {
+      const { globalFx, vibrato } = await built();
+      globalFx.setGlobalVibrato({ wet: 0.5 });
+      expect(vibrato.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      expect(vibrato.frequency.rampTo).not.toHaveBeenCalled();
+      expect(vibrato.depth.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('clamps every field into its full range at both ends', async () => {
+      const { globalFx, vibrato } = await built();
+      globalFx.setGlobalVibrato({ rate: 0, depth: -1, wet: -1 });
+      expect(vibrato.frequency.rampTo).toHaveBeenLastCalledWith(0.05, 0.05);
+      expect(vibrato.depth.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      expect(vibrato.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      globalFx.setGlobalVibrato({ rate: 20, depth: 3, wet: 3 });
+      expect(vibrato.frequency.rampTo).toHaveBeenLastCalledWith(10, 0.05);
+      expect(vibrato.depth.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      expect(vibrato.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('ignores a non-finite value and still writes the finite fields beside it', async () => {
+      const { globalFx, vibrato } = await built();
+      globalFx.setGlobalVibrato({ rate: Number.NaN, depth: Number.POSITIVE_INFINITY, wet: 0.4 });
+      expect(vibrato.frequency.rampTo).not.toHaveBeenCalled();
+      expect(vibrato.depth.rampTo).not.toHaveBeenCalled();
+      expect(vibrato.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.16, 6), 0.05);
+    });
+
+    it('warns and does not throw when the node throws', async () => {
+      const { globalFx, vibrato } = await built();
+      vibrato.depth.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => globalFx.setGlobalVibrato({ depth: 0.3 })).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalVibrato failed', expect.any(Error));
+    });
+  });
+
+  describe('setGlobalFrequencyShifter (Global Pedals)', () => {
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      return { globalFx, shifter: lastInstance(toneFlags.shifterCtor) };
+    }
+
+    it('no-ops silently before the chain is built', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.setGlobalFrequencyShifter({ shift: 12, wet: 1 })).not.toThrow();
+      expect(devWarn).not.toHaveBeenCalled();
+    });
+
+    it('ramps the shift to Tone frequency over 50 ms, keeping its sign', async () => {
+      const { globalFx, shifter } = await built();
+      globalFx.setGlobalFrequencyShifter({ shift: 12 });
+      expect(shifter.frequency.rampTo).toHaveBeenLastCalledWith(12, 0.05);
+      globalFx.setGlobalFrequencyShifter({ shift: -7 });
+      expect(shifter.frequency.rampTo).toHaveBeenLastCalledWith(-7, 0.05);
+      globalFx.setGlobalFrequencyShifter({ shift: 0 });
+      expect(shifter.frequency.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+    });
+
+    it('clamps the shift signed, not by magnitude: -3000 -> -1000 and 3000 -> 1000', async () => {
+      const { globalFx, shifter } = await built();
+      globalFx.setGlobalFrequencyShifter({ shift: -3000 });
+      expect(shifter.frequency.rampTo).toHaveBeenLastCalledWith(-1000, 0.05);
+      globalFx.setGlobalFrequencyShifter({ shift: 3000 });
+      expect(shifter.frequency.rampTo).toHaveBeenLastCalledWith(1000, 0.05);
+    });
+
+    it('ramps the tapered (squared) wet and clamps it, writing only the fields given', async () => {
+      const { globalFx, shifter } = await built();
+      globalFx.setGlobalFrequencyShifter({ wet: 0.5 });
+      expect(shifter.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      expect(shifter.frequency.rampTo).not.toHaveBeenCalled();
+      globalFx.setGlobalFrequencyShifter({ wet: 4 });
+      expect(shifter.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('ignores a non-finite shift and still writes the finite wet beside it', async () => {
+      const { globalFx, shifter } = await built();
+      globalFx.setGlobalFrequencyShifter({ shift: Number.NaN, wet: 0.2 });
+      globalFx.setGlobalFrequencyShifter({ shift: Number.NEGATIVE_INFINITY });
+      expect(shifter.frequency.rampTo).not.toHaveBeenCalled();
+      expect(shifter.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.04, 6), 0.05);
+    });
+
+    it('warns and does not throw when the node throws', async () => {
+      const { globalFx, shifter } = await built();
+      shifter.frequency.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => globalFx.setGlobalFrequencyShifter({ shift: 5 })).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalFrequencyShifter failed', expect.any(Error));
     });
   });
 
@@ -1532,7 +1757,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
-    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Compressor -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> Limiter -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
@@ -1546,6 +1771,8 @@ describe('globalFx', () => {
       const phaserNode = lastInstance(toneFlags.phaserCtor);
       const chorusNode = lastInstance(toneFlags.chorusCtor);
       const tremoloNode = lastInstance(toneFlags.tremoloCtor);
+      const vibratoNode = lastInstance(toneFlags.vibratoCtor);
+      const shifterNode = lastInstance(toneFlags.shifterCtor);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -1563,7 +1790,9 @@ describe('globalFx', () => {
       expect(phaserNode.connect).toHaveBeenCalledWith(chorusNode);
       expect(phaserNode.connect).not.toHaveBeenCalledWith(compNode);
       expect(chorusNode.connect).toHaveBeenCalledWith(tremoloNode);
-      expect(tremoloNode.connect).toHaveBeenCalledWith(compNode);
+      expect(tremoloNode.connect).toHaveBeenCalledWith(vibratoNode);
+      expect(vibratoNode.connect).toHaveBeenCalledWith(shifterNode);
+      expect(shifterNode.connect).toHaveBeenCalledWith(compNode);
       expect(compNode.connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
@@ -1607,7 +1836,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Compressor -> Limiter -> masterGain', async () => {
+    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> Limiter -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
@@ -1621,6 +1850,8 @@ describe('globalFx', () => {
       const phaserNode = lastInstance(toneFlags.phaserCtor);
       const chorusNode = lastInstance(toneFlags.chorusCtor);
       const tremoloNode = lastInstance(toneFlags.tremoloCtor);
+      const vibratoNode = lastInstance(toneFlags.vibratoCtor);
+      const shifterNode = lastInstance(toneFlags.shifterCtor);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -1636,7 +1867,9 @@ describe('globalFx', () => {
       expect(wahNode.connect).toHaveBeenLastCalledWith(phaserNode);
       expect(phaserNode.connect).toHaveBeenLastCalledWith(chorusNode);
       expect(chorusNode.connect).toHaveBeenLastCalledWith(tremoloNode);
-      expect(tremoloNode.connect).toHaveBeenLastCalledWith(compNode);
+      expect(tremoloNode.connect).toHaveBeenLastCalledWith(vibratoNode);
+      expect(vibratoNode.connect).toHaveBeenLastCalledWith(shifterNode);
+      expect(shifterNode.connect).toHaveBeenLastCalledWith(compNode);
       expect(compNode.connect).toHaveBeenLastCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
     });
