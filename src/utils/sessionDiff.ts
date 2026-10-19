@@ -16,12 +16,13 @@ import {
   type LfoLink,
   type BankLfoSettings,
 } from '../types/lfo';
-import { withGlobalAudioDefaults, type DelaySettings, type PhaserSettings } from '../types/globalAudio';
+import { withGlobalAudioDefaults, type DelaySettings, type GlobalAudioSettings } from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
-import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
+import { useAudioStore, applyGlobalAudioToEngine, SYNCED_RATE_KEYS, type SyncedRateKey } from '../stores/audioStore';
+import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { quantizeToStep, roundToDecimals } from './math';
 import { SEND_MIN, SEND_MAX } from '../constants';
@@ -87,11 +88,21 @@ function sanitizeDelaySync(delay: DelaySettings): DelaySettings {
   return free;
 }
 
-/** sanitizeLaneSync for the Phaser's Rate -- same rule, same shape (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5). */
-function sanitizePhaserSync(phaser: PhaserSettings): PhaserSettings {
-  if (!('sync' in phaser) || isNoteValue(phaser.sync)) return phaser;
-  const { sync: _sync, ...free } = phaser;
-  return free;
+/** sanitizeLaneSync for a synced Rate block -- the Phaser and the three LFO pedals (SYNCED_RATE_KEYS) -- same
+ *  rule, same shape (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5, docs/specs/GLOBAL_PEDALS.md §1.5). */
+function sanitizeSyncedRate<T extends SyncedRate>(block: T): T {
+  if (!('sync' in block) || isNoteValue(block.sync)) return block;
+  const { sync: _sync, ...free } = block;
+  return free as T;
+}
+
+/** globalAudio with sanitizeSyncedRate applied to every synced Rate block; a block with nothing to drop is kept as-is. */
+function sanitizeSyncedRateBlocks(globalAudio: GlobalAudioSettings): GlobalAudioSettings {
+  const result = { ...globalAudio };
+  for (const key of SYNCED_RATE_KEYS) {
+    (result as Record<SyncedRateKey, SyncedRate>)[key] = sanitizeSyncedRate(globalAudio[key]);
+  }
+  return result;
 }
 
 /** Same backfill, for globalLfoLinks -- see backfillLfoBank above. */
@@ -547,7 +558,7 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // A payload saved before a block existed (the colour blocks, docs/specs/GLOBAL_COLOUR.md assumption 11)
   // lacks it: fill from the defaults first, so nothing below dereferences a missing block.
   const filled = withGlobalAudioDefaults(payload.globalAudio);
-  const globalAudio = { ...filled, delay: sanitizeDelaySync(filled.delay), phaser: sanitizePhaserSync(filled.phaser) };
+  const globalAudio = { ...sanitizeSyncedRateBlocks(filled), delay: sanitizeDelaySync(filled.delay) };
   useAudioStore.setState({ globalAudio });
   // A synced Delay resolves at the tempo this payload is about to install (setBPM below re-pushes it
   // too, but the engine should never hear it at the live world's old tempo in between).

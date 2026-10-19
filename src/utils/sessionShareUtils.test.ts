@@ -1220,3 +1220,86 @@ describe('pedal defaults and Phaser sync on the wire (Global Modulation T12)', (
     expect([second.globalAudio.phaser.wet, second.globalAudio.autoWah.wet]).toEqual([0, 0]);
   });
 });
+
+// ----------------------------------------
+// GLOBAL PEDALS ON THE WIRE (docs/specs/GLOBAL_PEDALS.md; docs/tasks/GLOBAL_PEDALS.md Task 12)
+// ----------------------------------------
+// Nothing new is encoded: the five blocks travel inside `g` whole, a synced Rate's `sync` with them. A link written
+// before they existed decodes with all five at the defaults. Two old links: the recorded 50.2 baseline (before
+// the colour blocks too) and one with the full 50.4 set (AutoWah and a synced Phaser) but none of the five.
+
+const NEW_PEDAL_KEYS = ['chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'stereoWidener'] as const;
+const LIT_NEW_PEDALS = {
+  chorus: { rate: 2.2, delayTime: 4, depth: 0.6, spread: 90, feedback: 0.2, wet: 0.35, sync: { division: '1/4', modifier: 'dotted' } as NoteValue },
+  tremolo: { rate: 6, depth: 0.4, spread: 120, wet: 0.25 },
+  vibrato: { rate: 3.5, depth: 0.3, wet: 0.15 },
+  frequencyShifter: { shift: -7, wet: 0.2 },
+  stereoWidener: { width: 0.2 },
+};
+
+/** A link as the 50.4 build wrote it: every block it knew, a lit synced Phaser among them, none of the five. */
+function pre506Link(): string {
+  const { chorus: _c, tremolo: _t, vibrato: _v, frequencyShifter: _f, stereoWidener: _w, ...old } = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+  const phaser = { rate: 0.8, octaves: 4, baseFrequency: 420, stages: 7, Q: 6, wet: 0.3, sync: { division: '1/2', modifier: 'straight' } };
+  return encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...old, phaser } });
+}
+
+describe('Global Pedals defaults and synced Rates on the wire (Global Pedals T12)', () => {
+  it('both old links really lack the five keys (the fixtures prove what they claim)', () => {
+    for (const link of [PRE_COLOUR_BASELINE_LINK, pre506Link()]) {
+      const wire = decodeRawWire(link) as { g: Record<string, unknown> };
+      for (const key of NEW_PEDAL_KEYS) expect(key in wire.g, key).toBe(false);
+    }
+  });
+
+  it.each([
+    ['the recorded 50.2 baseline link', PRE_COLOUR_BASELINE_LINK],
+    ['a 50.4 link with a synced Phaser', pre506Link()],
+  ])('decodes %s with the five blocks at the defaults, no sync, and its saved keys untouched', (_label, link) => {
+    const decoded = decodeSessionPayload(link)!;
+    expect(decoded).not.toBeNull();
+    for (const key of NEW_PEDAL_KEYS) expect(decoded.globalAudio[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    for (const key of ['chorus', 'tremolo', 'vibrato'] as const) expect('sync' in decoded.globalAudio[key], key).toBe(false);
+    const wire = decodeRawWire(link) as { g: Record<string, unknown> };
+    for (const [key, value] of Object.entries(wire.g)) {
+      expect(decoded.globalAudio[key as keyof typeof decoded.globalAudio], key).toEqual(value);
+    }
+  });
+
+  it('a link written with a synced Chorus and Width 0.2 decodes exactly, the five riding in g with no codec of their own', () => {
+    const payload = makePayload({ version: 2, globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, ...LIT_NEW_PEDALS } });
+    const encoded = encodeSessionPayload(payload);
+    expect(decodeSessionPayload(encoded)).toEqual(payload);
+    const wire = decodeRawWire(encoded) as { g: Record<string, unknown> };
+    for (const key of NEW_PEDAL_KEYS) expect(wire.g[key], key).toEqual(LIT_NEW_PEDALS[key]);
+    expect(Object.keys(wire.g).sort()).toEqual(Object.keys(payload.globalAudio).sort());
+  });
+
+  it('a Free Tremolo and Vibrato stay Free on the wire and after the round trip: no `sync` key appears', () => {
+    const payload = makePayload({ version: 2, globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, ...LIT_NEW_PEDALS } });
+    const encoded = encodeSessionPayload(payload);
+    const wire = decodeRawWire(encoded) as { g: Record<string, object> };
+    const decoded = decodeSessionPayload(encoded)!;
+    for (const key of ['tremolo', 'vibrato'] as const) {
+      expect('sync' in wire.g[key], key).toBe(false);
+      expect('sync' in decoded.globalAudio[key], key).toBe(false);
+    }
+  });
+
+  it('a null block is a missing one and takes the default', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, tremolo: null, stereoWidener: null } });
+    const decoded = decodeSessionPayload(link)!;
+    expect(decoded.globalAudio.tremolo).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo);
+    expect(decoded.globalAudio.stereoWidener).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener);
+  });
+
+  it('the decoded defaults are copies: editing one decode never changes the shared defaults or the next decode', () => {
+    const first = decodeSessionPayload(pre506Link())!;
+    first.globalAudio.chorus.wet = 0.9;
+    first.globalAudio.stereoWidener.width = 1;
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width).toBe(0.5);
+    const second = decodeSessionPayload(pre506Link())!;
+    expect([second.globalAudio.chorus.wet, second.globalAudio.stereoWidener.width]).toEqual([0, 0.5]);
+  });
+});

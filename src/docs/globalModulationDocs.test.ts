@@ -109,7 +109,8 @@ describe('the named Global Modulation symbols are declared where the spec says t
     ['PHASER_RATE_STEP_HZ', 'src/types/globalAudio.ts', /export const PHASER_RATE_STEP_HZ\b/],
     ['withGlobalAudioDefaults', 'src/types/globalAudio.ts', /export function withGlobalAudioDefaults\(partial: Partial<GlobalAudioSettings>\): GlobalAudioSettings/],
     ['the restore path defaults globalAudio', 'src/utils/sessionDiff.ts', /withGlobalAudioDefaults\(payload\.globalAudio\)/],
-    ['the restore path sanitises phaser.sync', 'src/utils/sessionDiff.ts', /phaser: sanitizePhaserSync\(filled\.phaser\)/],
+    // Global Pedals T12 generalised it: sanitizeSyncedRate over every SYNCED_RATE_KEYS block, the Phaser included.
+    ['the restore path sanitises phaser.sync', 'src/utils/sessionDiff.ts', /for \(const key of SYNCED_RATE_KEYS\) \{[^}]*sanitizeSyncedRate\(globalAudio\[key\]\)[\s\S]*\.\.\.sanitizeSyncedRateBlocks\(filled\)/],
     ['the share decoder defaults globalAudio', 'src/utils/sessionShareUtils.ts', /withGlobalAudioDefaults\(compact\.g\)/],
     ...PEDAL_FIELDS.flatMap((field): [string, string, RegExp][] => [
       [`seed range ${field}`, 'src/data/globalAudioSeedRanges.ts', new RegExp(`^\\s*'${field.replace('.', '\\.')}': \\{`, 'm')],
