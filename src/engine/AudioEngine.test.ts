@@ -207,6 +207,14 @@ vi.mock('tone', () => ({
     frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Pedals T6: the Width stage between the Compressor and the Limiter.
+  StereoWidener: vi.fn((opts: { width?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    width: { value: opts.width ?? 0.5, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2623,6 +2631,25 @@ describe('AudioEngine.start — the Vibrato and the FrequencyShifter (Global Ped
     AudioEngine.setGlobalFrequencyShifter({ shift: -9 });
     expect(last(Tone.Vibrato).depth.rampTo).toHaveBeenCalledWith(0.2, 0.05);
     expect(last(Tone.FrequencyShifter).frequency.rampTo).toHaveBeenCalledWith(-9, 0.05);
+  });
+});
+
+// Global Pedals T6: start() builds one StereoWidener; its setter is on the public surface.
+describe('AudioEngine.start — the StereoWidener (Global Pedals T6)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+  it('constructs exactly one and routes setGlobalStereoWidener to it, untapered', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.StereoWidener).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.StereoWidener).toHaveBeenCalledTimes(1);
+    AudioEngine.setGlobalStereoWidener({ width: 0.3 });
+    expect(last(Tone.StereoWidener).width.rampTo).toHaveBeenLastCalledWith(0.3, 0.05);
   });
 });
 

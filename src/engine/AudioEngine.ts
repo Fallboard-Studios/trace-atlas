@@ -55,6 +55,7 @@ import {
   setGlobalTremolo,
   setGlobalVibrato,
   setGlobalFrequencyShifter,
+  setGlobalStereoWidener,
   getGlobalModulationTarget,
 } from './audioEngine/globalFx';
 
@@ -1472,4 +1473,5 @@ export const AudioEngine = {
   setGlobalTremolo,
   setGlobalVibrato,
   setGlobalFrequencyShifter,
+  setGlobalStereoWidener,
 };

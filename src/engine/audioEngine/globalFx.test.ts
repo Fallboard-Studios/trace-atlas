@@ -104,6 +104,15 @@ const toneFlags = vi.hoisted(() => ({
     frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Pedals T6: the StereoWidener between the Compressor and the Limiter. `width` and `wet` are Signals.
+  widenerAbsent: false,
+  widenerCtor: vi.fn((opts: { width?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    width: { value: opts.width ?? 0.5, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
   crusherAbsent: false,
   crusherCtor: vi.fn((opts: { bits?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
@@ -153,6 +162,9 @@ vi.mock('tone', () => ({
   },
   get FrequencyShifter() {
     return toneFlags.shifterAbsent ? undefined : toneFlags.shifterCtor;
+  },
+  get StereoWidener() {
+    return toneFlags.widenerAbsent ? undefined : toneFlags.widenerCtor;
   },
   Compressor: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -269,6 +281,7 @@ describe('globalFx', () => {
     toneFlags.tremoloAbsent = false;
     toneFlags.vibratoAbsent = false;
     toneFlags.shifterAbsent = false;
+    toneFlags.widenerAbsent = false;
   });
 
   describe('getGlobalChainEntry', () => {
@@ -392,13 +405,13 @@ describe('globalFx', () => {
       expect(crush.connect).toHaveBeenCalledWith(wah);
     });
 
-    it('keeps the same slot in Controlled Decay, with the returns joining after it at the Limiter', async () => {
+    it('keeps the same slot in Controlled Decay, with the returns joining after it at the Width stage (Global Pedals T6)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const dist = lastInstance(Tone.Distortion);
       const cheb = lastInstance(Tone.Chebyshev);
       const crush = lastInstance(toneFlags.crusherCtor);
-      const limiter = lastInstance(Tone.Limiter);
+      const widener = lastInstance(toneFlags.widenerCtor);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
 
       globalFx.wireGlobalFxChain(true);
@@ -407,7 +420,7 @@ describe('globalFx', () => {
       expect(dist.connect).toHaveBeenLastCalledWith(cheb);
       expect(cheb.connect).toHaveBeenLastCalledWith(crush);
       expect(crush.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.wahCtor));
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener);
     });
 
     it('connects no colour node to a room or a return, and no room or return to a colour node', async () => {
@@ -740,13 +753,13 @@ describe('globalFx', () => {
       expect(phaser.connect).toHaveBeenCalledWith(chorus);
     });
 
-    it('keeps the same slot in Controlled Decay, with the returns joining after it at the Limiter', async () => {
+    it('keeps the same slot in Controlled Decay, with the returns joining after it at the Width stage (Global Pedals T6)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const wah = lastInstance(toneFlags.wahCtor);
       const phaser = lastInstance(toneFlags.phaserCtor);
       const chorus = lastInstance(toneFlags.chorusCtor);
-      const limiter = lastInstance(Tone.Limiter);
+      const widener = lastInstance(toneFlags.widenerCtor);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
 
       globalFx.wireGlobalFxChain(true);
@@ -754,7 +767,7 @@ describe('globalFx', () => {
       expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenLastCalledWith(wah);
       expect(wah.connect).toHaveBeenLastCalledWith(phaser);
       expect(phaser.connect).toHaveBeenLastCalledWith(chorus);
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener);
     });
 
     it('connects neither pedal to a room or a return, and no room or return to either pedal', async () => {
@@ -1193,17 +1206,17 @@ describe('globalFx', () => {
         expect(fresh.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
       });
 
-      it('re-wires in the Decay Mode last passed to wireGlobalFxChain: Controlled keeps the returns at the Limiter', async () => {
+      it('re-wires in the Decay Mode last passed to wireGlobalFxChain: Controlled keeps the returns at the widener', async () => {
         const { globalFx } = await built();
         globalFx.wireGlobalFxChain(true);
         const reverbReturn = returnOf(lastInstance(Tone.Reverb));
         const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
-        const limiter = lastInstance(Tone.Limiter);
+        const widener = lastInstance(toneFlags.widenerCtor);
 
         globalFx.setGlobalPhaser({ stages: 6 });
 
-        expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
-        expect(delayReturn.connect).toHaveBeenLastCalledWith(limiter);
+        expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener);
+        expect(delayReturn.connect).toHaveBeenLastCalledWith(widener);
         expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
       });
 
@@ -1470,6 +1483,154 @@ describe('globalFx', () => {
           expect(other.connect).not.toHaveBeenCalledWith(pedal);
         }
       }
+    });
+  });
+
+  // ========================================
+  // Global Pedals T6 (docs/specs/GLOBAL_PEDALS.md §1.3, assumption 2): the Width stage between the Compressor and the
+  // Limiter. Under Controlled Decay the rooms' returns now join at the widener's input instead of the Limiter's, so the
+  // widener hears the rooms in both modes (Width 0 folds the echoes too).
+  // ========================================
+  describe('buildGlobalFxChain - the StereoWidener and the Controlled-Decay join (Global Pedals)', () => {
+    it('constructs exactly one, at unity width (0.5) and fully wet', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.widenerCtor).toHaveBeenCalledTimes(1);
+      expect(toneFlags.widenerCtor).toHaveBeenCalledWith({ width: 0.5, wet: 1 });
+    });
+
+    it.each([false, true])('wires Compressor -> StereoWidener -> Limiter with controlledDecay=%s', async (controlled) => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const comp = lastInstance(Tone.Compressor);
+      const widener = lastInstance(toneFlags.widenerCtor);
+      const limiter = lastInstance(Tone.Limiter);
+      for (const node of [comp, widener]) node.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(controlled);
+
+      expect(comp.connect.mock.calls).toEqual([[widener]]);
+      expect(widener.connect.mock.calls).toEqual([[limiter]]);
+    });
+
+    it('joins both returns at the Compressor under Natural Decay (unchanged), so they reach the widener after it', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const comp = lastInstance(Tone.Compressor);
+      const widener = lastInstance(toneFlags.widenerCtor);
+      for (const room of [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)]) {
+        expect(returnOf(room).connect).toHaveBeenLastCalledWith(comp);
+        expect(returnOf(room).connect).not.toHaveBeenCalledWith(widener);
+      }
+    });
+
+    it('joins both returns at the widener under Controlled Decay, not at the Limiter', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const widener = lastInstance(toneFlags.widenerCtor);
+      const limiter = lastInstance(Tone.Limiter);
+      const returns = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)].map(returnOf);
+      for (const ret of returns) ret.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(true);
+
+      for (const ret of returns) {
+        expect(ret.connect.mock.calls).toEqual([[widener]]);
+        expect(ret.connect).not.toHaveBeenCalledWith(limiter);
+      }
+    });
+
+    it('falls back to the Limiter for the Controlled join, and Compressor -> Limiter, when the widener constructor is absent', async () => {
+      toneFlags.widenerAbsent = true;
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      const comp = lastInstance(Tone.Compressor);
+      const limiter = lastInstance(Tone.Limiter);
+      globalFx.wireGlobalFxChain(true);
+      expect(comp.connect).toHaveBeenLastCalledWith(limiter);
+      for (const room of [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)]) {
+        expect(returnOf(room).connect).toHaveBeenLastCalledWith(limiter);
+      }
+      expect(() => globalFx.setGlobalStereoWidener({ width: 0.2 })).not.toThrow();
+    });
+
+    it('builds and wires on when the widener constructor throws, with the same Limiter fallback', async () => {
+      toneFlags.widenerCtor.mockImplementationOnce(() => {
+        throw new Error('no widener');
+      });
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('StereoWidener'), expect.any(Error));
+      globalFx.wireGlobalFxChain(true);
+      expect(returnOf(lastInstance(Tone.Reverb)).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
+    });
+
+    it('keeps the width across a Decay flip: the node is rewired, never rebuilt', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const widener = lastInstance(toneFlags.widenerCtor);
+      globalFx.setGlobalStereoWidener({ width: 0.2 });
+      widener.width.rampTo.mockClear();
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(toneFlags.widenerCtor).toHaveBeenCalledTimes(1);
+      expect(widener.width.rampTo).not.toHaveBeenCalled();
+      expect(widener.disconnect).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('setGlobalStereoWidener (Global Pedals)', () => {
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      return { globalFx, widener: lastInstance(toneFlags.widenerCtor) };
+    }
+
+    it('no-ops silently before the chain is built', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.setGlobalStereoWidener({ width: 0.2 })).not.toThrow();
+      expect(devWarn).not.toHaveBeenCalled();
+    });
+
+    // 0.5 must stay unity, so the width is never squared the way a Mix is: 0.3 is 0.3, not 0.09.
+    it('ramps the width over 50 ms with no taper', async () => {
+      const { globalFx, widener } = await built();
+      globalFx.setGlobalStereoWidener({ width: 0.3 });
+      expect(widener.width.rampTo).toHaveBeenLastCalledWith(0.3, 0.05);
+      globalFx.setGlobalStereoWidener({ width: 0.5 });
+      expect(widener.width.rampTo).toHaveBeenLastCalledWith(0.5, 0.05);
+    });
+
+    it('clamps the width into 0 - 1', async () => {
+      const { globalFx, widener } = await built();
+      globalFx.setGlobalStereoWidener({ width: -0.4 });
+      expect(widener.width.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      globalFx.setGlobalStereoWidener({ width: 1.7 });
+      expect(widener.width.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('ignores a non-finite width and writes nothing for an empty object; never touches the node wet', async () => {
+      const { globalFx, widener } = await built();
+      globalFx.setGlobalStereoWidener({ width: Number.NaN });
+      globalFx.setGlobalStereoWidener({});
+      expect(widener.width.rampTo).not.toHaveBeenCalled();
+      expect(widener.wet.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a direct value write when the Signal has no rampTo', async () => {
+      const { globalFx, widener } = await built();
+      widener.width = { value: 0.5 };
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      expect(widener.width.value).toBe(0.8);
+    });
+
+    it('warns and does not throw when the node throws', async () => {
+      const { globalFx, widener } = await built();
+      widener.width.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => globalFx.setGlobalStereoWidener({ width: 0.3 })).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalStereoWidener failed', expect.any(Error));
     });
   });
 
@@ -1757,7 +1918,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
-    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
@@ -1793,7 +1954,8 @@ describe('globalFx', () => {
       expect(tremoloNode.connect).toHaveBeenCalledWith(vibratoNode);
       expect(vibratoNode.connect).toHaveBeenCalledWith(shifterNode);
       expect(shifterNode.connect).toHaveBeenCalledWith(compNode);
-      expect(compNode.connect).toHaveBeenCalledWith(limiterNode);
+      expect(compNode.connect).toHaveBeenCalledWith(lastInstance(toneFlags.widenerCtor));
+      expect(lastInstance(toneFlags.widenerCtor).connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
     });
@@ -1836,7 +1998,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> Limiter -> masterGain', async () => {
+    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
@@ -1870,17 +2032,20 @@ describe('globalFx', () => {
       expect(tremoloNode.connect).toHaveBeenLastCalledWith(vibratoNode);
       expect(vibratoNode.connect).toHaveBeenLastCalledWith(shifterNode);
       expect(shifterNode.connect).toHaveBeenLastCalledWith(compNode);
-      expect(compNode.connect).toHaveBeenLastCalledWith(limiterNode);
+      expect(compNode.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.widenerCtor));
+      expect(lastInstance(toneFlags.widenerCtor).connect).toHaveBeenLastCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
     });
 
-    it('joins both returns at the Limiter input and none at the Compressor', async () => {
+    // Global Pedals T6: the Controlled join moved from the Limiter to the StereoWidener just before it.
+    it('joins both returns at the StereoWidener input and none at the Compressor or the Limiter', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const delayNode = lastInstance(Tone.FeedbackDelay);
       const reverbNode = lastInstance(Tone.Reverb);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
+      const widenerNode = lastInstance(toneFlags.widenerCtor);
       const reverbReturn = returnOf(reverbNode);
       const delayReturn = returnOf(delayNode);
       for (const ret of [reverbReturn, delayReturn]) ret.connect.mockClear();
@@ -1894,7 +2059,8 @@ describe('globalFx', () => {
       expect(delayNode.connect).toHaveBeenCalledWith(delayReturn);
       for (const ret of [reverbReturn, delayReturn]) {
         expect(ret.connect).toHaveBeenCalledTimes(1);
-        expect(ret.connect).toHaveBeenCalledWith(limiterNode);
+        expect(ret.connect).toHaveBeenCalledWith(widenerNode);
+        expect(ret.connect).not.toHaveBeenCalledWith(limiterNode);
         expect(ret.connect).not.toHaveBeenCalledWith(compNode);
       }
     });
@@ -1934,7 +2100,7 @@ describe('globalFx', () => {
       const compNode = lastInstance(Tone.Compressor);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
       const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.widenerCtor));
 
       globalFx.wireGlobalFxChain(false);
 

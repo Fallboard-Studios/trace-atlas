@@ -20,6 +20,7 @@ import type {
   TremoloSettings,
   VibratoSettings,
   FrequencyShifterSettings,
+  StereoWidenerSettings,
 } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
@@ -52,6 +53,8 @@ let _globalTremolo: Tone.Tremolo | null = null;
 // The two mono pedals (Tone `Effect`s, not `StereoEffect`s): each sums the stereo chain it is given.
 let _globalVibrato: Tone.Vibrato | null = null;
 let _globalFrequencyShifter: Tone.FrequencyShifter | null = null;
+// The Width stage, between the Compressor and the Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
+let _globalStereoWidener: Tone.StereoWidener | null = null;
 // The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
 let _lastControlledDecay = false;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
@@ -162,6 +165,7 @@ export function buildGlobalFxChain(): void {
   const TremoloCtor = getToneCtor<Tone.Tremolo>('Tremolo');
   const VibratoCtor = getToneCtor<Tone.Vibrato>('Vibrato');
   const FrequencyShifterCtor = getToneCtor<Tone.FrequencyShifter>('FrequencyShifter');
+  const StereoWidenerCtor = getToneCtor<Tone.StereoWidener>('StereoWidener');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -274,6 +278,16 @@ export function buildGlobalFxChain(): void {
       _globalFrequencyShifter = null;
     }
   }
+  // Width: built at unity (0.5) and held fully wet - Width itself is the control; there is no Mix and no dark state.
+  _globalStereoWidener = null;
+  if (StereoWidenerCtor) {
+    try {
+      _globalStereoWidener = new StereoWidenerCtor({ width: DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width, wet: 1 });
+    } catch (err) {
+      devWarn('[AudioEngine] StereoWidener could not be constructed; the chain runs without the Width stage', err);
+      _globalStereoWidener = null;
+    }
+  }
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -318,6 +332,7 @@ function disconnectAllFxNodes(): void {
     _globalDelay,
     _globalReverb,
     _globalCompressor,
+    _globalStereoWidener,
     _globalLimiter,
     _globalReverbReturn,
     _globalDelayReturn,
@@ -336,7 +351,7 @@ function disconnectAllFxNodes(): void {
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
  * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Vibrato →
- * FrequencyShifter → Compressor →
+ * FrequencyShifter → Compressor → StereoWidener →
  * Limiter → masterGain → Destination (or straight to Destination if masterGain
  * wasn't constructed). An absent colour or modulation node (headless, or a worklet
  * that failed to construct) is skipped by the filter below, so the chain
@@ -350,8 +365,10 @@ function disconnectAllFxNodes(): void {
  *
  * - Natural Decay (controlledDecay=false, default): both returns join at the
  *   Compressor input, so the echoes are compressed with the dry signal.
- * - Controlled Decay (controlledDecay=true): both returns join at the Limiter
- *   input, past the Compressor, so the echoes are not squeezed by it.
+ * - Controlled Decay (controlledDecay=true): both returns join at the
+ *   StereoWidener's input, past the Compressor, so the echoes are not squeezed
+ *   by it but are still folded or spread by Width (docs/specs/GLOBAL_PEDALS.md
+ *   assumption 2). Without a widener node the join falls back to the Limiter.
  *
  * A room's own input is never disconnected here, so the robots' sends stay
  * connected across every flip. Called once from
@@ -376,6 +393,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     _globalVibrato,
     _globalFrequencyShifter,
     _globalCompressor,
+    _globalStereoWidener,
     _globalLimiter,
   ].filter(Boolean) as Array<{
     connect: (t: unknown) => unknown;
@@ -408,7 +426,8 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     }
 
     // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped.
-    const join = (controlledDecay ? _globalLimiter : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
+    const join =
+      (controlledDecay ? (_globalStereoWidener ?? _globalLimiter) : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
     if (join) {
       _globalReverb?.connect(_globalReverbReturn ?? join);
       _globalReverbReturn?.connect(join);
@@ -866,6 +885,19 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
     if (wet !== undefined) rampOrSet(shifter.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);
+  }
+}
+
+/** Width (docs/specs/GLOBAL_PEDALS.md §1.3). Tone's `width` Signal, clamped 0 - 1 and NEVER tapered: 0.5 is unity
+ *  (as recorded), 0 folds everything after the rooms' join to mono, 1 is all side. The node's own `wet` stays 1. */
+export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): void {
+  const widener = _globalStereoWidener;
+  if (!widener) return;
+  try {
+    const width = clampIfGiven('stereoWidener.width', params.width);
+    if (width !== undefined) rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalStereoWidener failed', err);
   }
 }
 
