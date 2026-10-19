@@ -658,3 +658,8 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   `syncedRateToSync` / `syncedRateToFree` over `PEDAL_RATE_RANGE_HZ` like the other three, the drawer and the tests call
   `setPedalSyncMode('phaser', …)`, and the seeder's Phaser roll reads `PEDAL_SYNC_ODDS`. The Phaser's own test cases were
   kept and now drive the generic helpers on a `PhaserSettings` object.
+- **One name for the shared rate range (2026-10-18 review).** Assumption 5 made `PEDAL_RATE_RANGE_HZ` /
+  `PEDAL_RATE_STEP_HZ` re-exports of the Phaser's `PHASER_RATE_RANGE_HZ` / `PHASER_RATE_STEP_HZ`, so the same constant
+  had two names and the Phaser's rig row used the old one beside three rows using the new. The values (0.05–10 Hz,
+  step 0.05) are now declared once as `PEDAL_RATE_*` in `src/types/globalAudio.ts` and the `PHASER_RATE_*` names are
+  gone from `src`.

@@ -25,7 +25,7 @@ import { AUDIO_LOAD_PRESETS, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '../constan
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '../types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
-import { PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '../types/globalAudio';
+import { PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '../types/globalAudio';
 import { CONTENT, labels, options } from '@/content';
 import type { ControlSchema } from '@/types/controls';
 
@@ -355,9 +355,9 @@ describe('AUDIO_RIG_CONFIG', () => {
       }
     });
 
-    it('the Phaser Rate is a linear slider over PHASER_RATE_RANGE_HZ at PHASER_RATE_STEP_HZ, the shape TempoSyncSlider takes', () => {
+    it('the Phaser Rate is a linear slider over PEDAL_RATE_RANGE_HZ at PEDAL_RATE_STEP_HZ, the shape TempoSyncSlider takes', () => {
       expect(findParam('phaser', 'rate').schema).toMatchObject({
-        type: 'sliderLinear', min: PHASER_RATE_RANGE_HZ.min, max: PHASER_RATE_RANGE_HZ.max, step: PHASER_RATE_STEP_HZ,
+        type: 'sliderLinear', min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ,
       });
     });
 

@@ -105,8 +105,8 @@ describe('the named Global Modulation symbols are declared where the spec says t
     ['PhaserSettings', 'src/types/globalAudio.ts', /export interface PhaserSettings \{[^}]*\brate: number;[^}]*\boctaves: number;[^}]*\bbaseFrequency: number;[^}]*\bstages: number;[^}]*\bQ: number;[^}]*\bwet: number;/],
     ['GlobalAudioSettings.autoWah', 'src/types/globalAudio.ts', /\bautoWah: AutoWahSettings;/],
     ['GlobalAudioSettings.phaser', 'src/types/globalAudio.ts', /\bphaser: PhaserSettings;/],
-    ['PHASER_RATE_RANGE_HZ', 'src/types/globalAudio.ts', /export const PHASER_RATE_RANGE_HZ = \{ min: 0\.05, max: 10 \} as const;/],
-    ['PHASER_RATE_STEP_HZ', 'src/types/globalAudio.ts', /export const PHASER_RATE_STEP_HZ\b/],
+    ['PEDAL_RATE_RANGE_HZ', 'src/types/globalAudio.ts', /export const PEDAL_RATE_RANGE_HZ = \{ min: 0\.05, max: 10 \} as const;/],
+    ['PEDAL_RATE_STEP_HZ', 'src/types/globalAudio.ts', /export const PEDAL_RATE_STEP_HZ\b/],
     ['withGlobalAudioDefaults', 'src/types/globalAudio.ts', /export function withGlobalAudioDefaults\(partial: Partial<GlobalAudioSettings>\): GlobalAudioSettings/],
     ['the restore path defaults globalAudio', 'src/utils/sessionDiff.ts', /withGlobalAudioDefaults\(payload\.globalAudio\)/],
     // Global Pedals T12 generalised it: sanitizeSyncedRate over every SYNCED_RATE_KEYS block, the Phaser included.

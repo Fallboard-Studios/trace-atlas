@@ -18,7 +18,7 @@ import { LFO_BANK_LANE_CONTENT } from './lfoConfig';
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
-import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '@/types/globalAudio';
+import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 import { HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '@/constants';
@@ -170,7 +170,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     key: 'phaser',
     panel: panelSchema('phaser', 'fleet.phaser', 'column'),
     params: [
-      { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PHASER_RATE_RANGE_HZ.min, max: PHASER_RATE_RANGE_HZ.max, step: PHASER_RATE_STEP_HZ, orientation: 'horizontal' } },
+      { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'phaser.octaves', type: 'sliderLinear', ...labels('fleet.phaser.octaves'), min: 0.5, max: 6, step: 0.5, orientation: 'horizontal' } },
       { field: 'baseFrequency', schema: { id: 'phaser.baseFrequency', type: 'sliderLog', ...labels('fleet.phaser.baseFrequency'), min: 50, max: 2000, orientation: 'horizontal' } },
       { field: 'stages', schema: { id: 'phaser.stages', type: 'sliderLinear', ...labels('fleet.phaser.stages'), min: 1, max: 12, step: 1, orientation: 'horizontal' } },

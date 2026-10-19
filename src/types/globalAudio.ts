@@ -90,11 +90,13 @@ export interface BitCrusherSettings {
   wet: number;
 }
 
-/** The Phaser Rate control's full range (Hz), which is also the Free | Sync clamp. Zero is excluded: a
- *  stopped phaser is a fixed notch, not "off" - Mix 0 is off. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
-export const PHASER_RATE_RANGE_HZ = { min: 0.05, max: 10 } as const;
-/** The Phaser Rate slider's draggable step; also the grid a Sync -> Free conversion quantises onto. */
-export const PHASER_RATE_STEP_HZ = 0.05;
+/** The Rate range every synced pedal (Phaser, Chorus, Tremolo, Vibrato) shares, which is also each one's Free | Sync
+ *  clamp. Zero is excluded: a stopped sweep is a fixed notch or a still delay, not "off" - Mix 0 is off. The Phaser's
+ *  range first (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1), shared by the Global Pedals under this one name
+ *  (docs/specs/GLOBAL_PEDALS.md assumption 5). */
+export const PEDAL_RATE_RANGE_HZ = { min: 0.05, max: 10 } as const;
+/** The pedal Rate sliders' draggable step; also the grid a Sync -> Free conversion quantises onto. */
+export const PEDAL_RATE_STEP_HZ = 0.05;
 
 /** Auto Wah: Tone.AutoWah, an envelope follower sweeping a bandpass. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
 export interface AutoWahSettings {
@@ -116,7 +118,7 @@ export interface AutoWahSettings {
 
 /** Phaser: Tone.Phaser, a stack of allpass notches swept by its own wall-clock LFO. */
 export interface PhaserSettings {
-  /** Hz, PHASER_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
    *  resolveSyncedRateHz() (utils/tempoSync.ts), never directly. */
   rate: number;
   /** 0.5 - 6 */
@@ -134,12 +136,6 @@ export interface PhaserSettings {
   sync?: NoteValue;
 }
 
-/** The Rate range every synced pedal (Phaser, Chorus, Tremolo, Vibrato) shares, which is also each one's Free | Sync
- *  clamp. The Phaser's constants under a generic name, re-exported rather than duplicated (docs/specs/GLOBAL_PEDALS.md
- *  assumption 5). */
-export const PEDAL_RATE_RANGE_HZ = PHASER_RATE_RANGE_HZ;
-/** The pedal Rate sliders' draggable step; also the grid a Sync -> Free conversion quantises onto. */
-export const PEDAL_RATE_STEP_HZ = PHASER_RATE_STEP_HZ;
 
 /** Chorus: Tone.Chorus, two LFO-swept delay lines (a flanger with feedback). Docs/specs/GLOBAL_PEDALS.md §1.1. */
 export interface ChorusSettings {

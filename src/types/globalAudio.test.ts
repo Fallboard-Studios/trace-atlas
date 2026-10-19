@@ -7,8 +7,6 @@ import {
   DEFAULT_GLOBAL_AUDIO_SETTINGS,
   PEDAL_RATE_RANGE_HZ,
   PEDAL_RATE_STEP_HZ,
-  PHASER_RATE_RANGE_HZ,
-  PHASER_RATE_STEP_HZ,
   withGlobalAudioDefaults,
 } from './globalAudio';
 import type { ChorusSettings, GlobalAudioSettings, PhaserSettings, TremoloSettings } from './globalAudio';
@@ -214,26 +212,19 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS Global Pedals blocks', () => {
   });
 });
 
-describe('PEDAL_RATE_RANGE_HZ / PEDAL_RATE_STEP_HZ', () => {
-  it('re-exports the Phaser constants by identity, not as a copy', () => {
-    expect(PEDAL_RATE_RANGE_HZ).toBe(PHASER_RATE_RANGE_HZ);
-    expect(PEDAL_RATE_STEP_HZ).toBe(PHASER_RATE_STEP_HZ);
-  });
-});
-
-describe('PHASER_RATE_RANGE_HZ', () => {
+describe('PEDAL_RATE_RANGE_HZ', () => {
   it('spans 0.05 - 10 Hz: zero is excluded because a stopped phaser is a fixed notch, not off', () => {
-    expect(PHASER_RATE_RANGE_HZ).toStrictEqual({ min: 0.05, max: 10 });
+    expect(PEDAL_RATE_RANGE_HZ).toStrictEqual({ min: 0.05, max: 10 });
   });
 
   it('steps the Rate slider by 0.05 Hz, the lane Rate slider step, so a Sync to Free conversion lands on its grid', () => {
-    expect(PHASER_RATE_STEP_HZ).toBe(0.05);
-    expect(PHASER_RATE_STEP_HZ).toBe(PHASER_RATE_RANGE_HZ.min);
+    expect(PEDAL_RATE_STEP_HZ).toBe(0.05);
+    expect(PEDAL_RATE_STEP_HZ).toBe(PEDAL_RATE_RANGE_HZ.min);
   });
 
   it('contains the default rate', () => {
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeGreaterThanOrEqual(PHASER_RATE_RANGE_HZ.min);
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeLessThanOrEqual(PHASER_RATE_RANGE_HZ.max);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeGreaterThanOrEqual(PEDAL_RATE_RANGE_HZ.min);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeLessThanOrEqual(PEDAL_RATE_RANGE_HZ.max);
   });
 });
 

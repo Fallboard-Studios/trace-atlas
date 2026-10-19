@@ -125,8 +125,10 @@ describe('the named Global Pedals symbols are declared where the spec says they 
       'src/types/globalAudio.ts',
       new RegExp(`\\b${key}: ${SETTER[key][0]}Settings;`),
     ]),
-    ['PEDAL_RATE_RANGE_HZ', 'src/types/globalAudio.ts', /export const PEDAL_RATE_RANGE_HZ = PHASER_RATE_RANGE_HZ;/],
-    ['PEDAL_RATE_STEP_HZ', 'src/types/globalAudio.ts', /export const PEDAL_RATE_STEP_HZ = PHASER_RATE_STEP_HZ;/],
+    // One name since the 2026-10-18 review: the Phaser's PHASER_RATE_* were folded into these (spec §8).
+    ['PEDAL_RATE_RANGE_HZ', 'src/types/globalAudio.ts', /export const PEDAL_RATE_RANGE_HZ = \{ min: 0\.05, max: 10 \} as const;/],
+    ['PEDAL_RATE_STEP_HZ', 'src/types/globalAudio.ts', /export const PEDAL_RATE_STEP_HZ = 0\.05;/],
+    ['no PHASER_RATE_* name is left', 'src/types/globalAudio.ts', /^(?![\s\S]*PHASER_RATE_)/],
     ['SyncedRate', 'src/utils/tempoSync.ts', /export interface SyncedRate \{/],
     ['resolveSyncedRateHz', 'src/utils/tempoSync.ts', /export function resolveSyncedRateHz\(field: SyncedRate, bpm: number, range: RateRange\): number/],
     ['allowedRateNoteValues', 'src/utils/tempoSync.ts', /export function allowedRateNoteValues\(bpm: number, range: RateRange\): NoteValue\[\]/],

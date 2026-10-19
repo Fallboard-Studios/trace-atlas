@@ -122,7 +122,7 @@ export const GLOBAL_AUDIO_SEED_RANGES: Record<GlobalAudioSeedFieldKey, SeedRange
   'bitCrusher.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 5). `phaser.rate` mirrors
-  // PHASER_RATE_RANGE_HZ (src/types/globalAudio.ts) and is linear because TempoSyncSlider takes a linear schema.
+  // PEDAL_RATE_RANGE_HZ (src/types/globalAudio.ts) and is linear because TempoSyncSlider takes a linear schema.
   // `phaser.stages` is the node's real stage count and the gate's ceiling (spec §5): it is constructor-only in
   // Tone, so a change rebuilds the node. None of these is LFO-able, so no LfoTarget reads them.
   'autoWah.baseFrequency': { min: 50, max: 1000, scale: 'log' },

@@ -8,7 +8,6 @@ import {
   DEFAULT_GLOBAL_AUDIO_SETTINGS,
   PEDAL_RATE_RANGE_HZ,
   PEDAL_RATE_STEP_HZ,
-  PHASER_RATE_RANGE_HZ,
 } from '@/types/globalAudio';
 
 // ========================================
@@ -193,9 +192,9 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['phaser.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
   });
 
-  it('keeps the Phaser rate range equal to PHASER_RATE_RANGE_HZ, so the Free slider and the Sync clamp agree', () => {
-    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].min).toBe(PHASER_RATE_RANGE_HZ.min);
-    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].max).toBe(PHASER_RATE_RANGE_HZ.max);
+  it('keeps the Phaser rate range equal to PEDAL_RATE_RANGE_HZ, so the Free slider and the Sync clamp agree', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].min).toBe(PEDAL_RATE_RANGE_HZ.min);
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].max).toBe(PEDAL_RATE_RANGE_HZ.max);
   });
 
   it('keeps phaser.stages a whole-number field: Tone builds that many allpass stages', () => {

@@ -45,8 +45,6 @@ import {
   DELAY_TIME_STEP_SECONDS,
   PEDAL_RATE_RANGE_HZ,
   PEDAL_RATE_STEP_HZ,
-  PHASER_RATE_RANGE_HZ,
-  PHASER_RATE_STEP_HZ,
   type ChorusSettings,
   type DelaySettings,
   type PhaserSettings,
@@ -543,9 +541,9 @@ const phaser = (over: Partial<PhaserSettings> = {}): PhaserSettings => ({
 
 describe('resolveSyncedRateHz on the Phaser', () => {
   it('passes a Free rate through, including both ends of the range', () => {
-    expect(resolveSyncedRateHz(phaser({ rate: PHASER_RATE_RANGE_HZ.min }), 60, PEDAL_RATE_RANGE_HZ)).toBe(PHASER_RATE_RANGE_HZ.min);
+    expect(resolveSyncedRateHz(phaser({ rate: PEDAL_RATE_RANGE_HZ.min }), 60, PEDAL_RATE_RANGE_HZ)).toBe(PEDAL_RATE_RANGE_HZ.min);
     expect(resolveSyncedRateHz(phaser({ rate: 2.35 }), 60, PEDAL_RATE_RANGE_HZ)).toBe(2.35);
-    expect(resolveSyncedRateHz(phaser({ rate: PHASER_RATE_RANGE_HZ.max }), 60, PEDAL_RATE_RANGE_HZ)).toBe(PHASER_RATE_RANGE_HZ.max);
+    expect(resolveSyncedRateHz(phaser({ rate: PEDAL_RATE_RANGE_HZ.max }), 60, PEDAL_RATE_RANGE_HZ)).toBe(PEDAL_RATE_RANGE_HZ.max);
   });
 
   it('derives a Sync rate from the note and tempo, ignoring the stored Free value', () => {
@@ -560,15 +558,15 @@ describe('resolveSyncedRateHz on the Phaser', () => {
   });
 
   it('clamps a note slower than the range up to its minimum (4 bars is 0.0208 Hz at 20 BPM)', () => {
-    expect(resolveSyncedRateHz(phaser({ sync: nv('4') }), 20, PEDAL_RATE_RANGE_HZ)).toBe(PHASER_RATE_RANGE_HZ.min);
+    expect(resolveSyncedRateHz(phaser({ sync: nv('4') }), 20, PEDAL_RATE_RANGE_HZ)).toBe(PEDAL_RATE_RANGE_HZ.min);
   });
 
   it('clamps a note faster than the range down to its maximum (1/32 triplet is 12 Hz at 60 BPM)', () => {
-    expect(resolveSyncedRateHz(phaser({ sync: nv('1/32', 'triplet') }), 60, PEDAL_RATE_RANGE_HZ)).toBe(PHASER_RATE_RANGE_HZ.max);
+    expect(resolveSyncedRateHz(phaser({ sync: nv('1/32', 'triplet') }), 60, PEDAL_RATE_RANGE_HZ)).toBe(PEDAL_RATE_RANGE_HZ.max);
   });
 
   it('keeps a note exactly at the range minimum un-clamped (1 bar at 12 BPM is exactly 0.05 Hz)', () => {
-    expect(resolveSyncedRateHz(phaser({ sync: nv('1') }), 12, PEDAL_RATE_RANGE_HZ)).toBeCloseTo(PHASER_RATE_RANGE_HZ.min, 9);
+    expect(resolveSyncedRateHz(phaser({ sync: nv('1') }), 12, PEDAL_RATE_RANGE_HZ)).toBeCloseTo(PEDAL_RATE_RANGE_HZ.min, 9);
   });
 
   it.each(INVALID_SYNCS)('resolves an invalid sync (%s) as Free', (_name, bad) => {
@@ -588,8 +586,8 @@ describe('allowedRateNoteValues on the Phaser range', () => {
       expect(list.length, `bpm ${bpm}`).toBeGreaterThan(0);
       for (const v of list) {
         const hz = noteValueHz(v, bpm);
-        expect(hz, `${v.division}/${v.modifier} at ${bpm}`).toBeGreaterThanOrEqual(PHASER_RATE_RANGE_HZ.min);
-        expect(hz, `${v.division}/${v.modifier} at ${bpm}`).toBeLessThanOrEqual(PHASER_RATE_RANGE_HZ.max);
+        expect(hz, `${v.division}/${v.modifier} at ${bpm}`).toBeGreaterThanOrEqual(PEDAL_RATE_RANGE_HZ.min);
+        expect(hz, `${v.division}/${v.modifier} at ${bpm}`).toBeLessThanOrEqual(PEDAL_RATE_RANGE_HZ.max);
       }
     }
   });
@@ -631,12 +629,12 @@ describe('syncedRateToSync on the Phaser', () => {
   });
 
   it('snaps the minimum rate to the slowest allowed note', () => {
-    expect(syncedRateToSync(phaser({ rate: PHASER_RATE_RANGE_HZ.min }), 60, PEDAL_RATE_RANGE_HZ).sync).toEqual(allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ)[0]);
+    expect(syncedRateToSync(phaser({ rate: PEDAL_RATE_RANGE_HZ.min }), 60, PEDAL_RATE_RANGE_HZ).sync).toEqual(allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ)[0]);
   });
 
   it('snaps the maximum rate to the fastest allowed note', () => {
     const allowed = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
-    expect(syncedRateToSync(phaser({ rate: PHASER_RATE_RANGE_HZ.max }), 60, PEDAL_RATE_RANGE_HZ).sync).toEqual(allowed[allowed.length - 1]);
+    expect(syncedRateToSync(phaser({ rate: PEDAL_RATE_RANGE_HZ.max }), 60, PEDAL_RATE_RANGE_HZ).sync).toEqual(allowed[allowed.length - 1]);
   });
 
   it('only ever picks a note from the allowed list, whatever the rate and tempo', () => {
@@ -694,21 +692,21 @@ describe('syncedRateToFree on the Phaser', () => {
   it('never goes below the range minimum, even for the slowest note at the slowest tempo (rate stays 0.05, never 0)', () => {
     for (const bpm of [20, 40]) {
       const out = syncedRateToFree(phaser({ sync: nv('4') }), bpm, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ);
-      expect(out.rate, `bpm ${bpm}`).toBe(PHASER_RATE_RANGE_HZ.min);
+      expect(out.rate, `bpm ${bpm}`).toBe(PEDAL_RATE_RANGE_HZ.min);
     }
   });
 
   it('never goes above the range maximum: 1/32 triplet at 60 BPM (12 Hz) → 10', () => {
-    expect(syncedRateToFree(phaser({ sync: nv('1/32', 'triplet') }), 60, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ).rate).toBe(PHASER_RATE_RANGE_HZ.max);
+    expect(syncedRateToFree(phaser({ sync: nv('1/32', 'triplet') }), 60, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ).rate).toBe(PEDAL_RATE_RANGE_HZ.max);
   });
 
   it('lands on the 0.05 Hz slider grid, inside the range, for every note at an awkward tempo', () => {
     for (const v of NOTE_VALUES) {
       const { rate } = syncedRateToFree(phaser({ sync: v }), 97, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ);
-      expect(rate, `${v.division}/${v.modifier}`).toBeGreaterThanOrEqual(PHASER_RATE_RANGE_HZ.min);
-      expect(rate).toBeLessThanOrEqual(PHASER_RATE_RANGE_HZ.max);
+      expect(rate, `${v.division}/${v.modifier}`).toBeGreaterThanOrEqual(PEDAL_RATE_RANGE_HZ.min);
+      expect(rate).toBeLessThanOrEqual(PEDAL_RATE_RANGE_HZ.max);
       expect(rate).toBe(Number(rate.toFixed(2)));
-      expect(Math.abs(rate / PHASER_RATE_STEP_HZ - Math.round(rate / PHASER_RATE_STEP_HZ))).toBeLessThan(1e-9);
+      expect(Math.abs(rate / PEDAL_RATE_STEP_HZ - Math.round(rate / PEDAL_RATE_STEP_HZ))).toBeLessThan(1e-9);
     }
   });
 
