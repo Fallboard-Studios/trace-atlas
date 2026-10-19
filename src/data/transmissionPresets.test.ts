@@ -20,6 +20,7 @@ import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells } from '../systems/audioSwells';
 import { CONTENT, fill, labels } from '../content';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -134,6 +135,15 @@ describe('TRANSMISSION_PRESETS', () => {
         rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0,
       });
       expect(payload.globalAudio?.phaser && 'sync' in payload.globalAudio.phaser).toBe(false);
+    });
+
+    // Global Pedals T1 (docs/specs/GLOBAL_PEDALS.md assumption 10): presets stay clean, so the five new blocks are
+    // carried explicitly at the defaults - every motion pedal dry and Free, the widener at unity.
+    it('carries the five Global Pedals blocks at the defaults, dry and Free, Width at unity', () => {
+      for (const key of ['chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'stereoWidener'] as const) {
+        expect(payload.globalAudio?.[key], key).toBeDefined();
+        expect(payload.globalAudio?.[key], key).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+      }
     });
 
     it('carries every LFO lane and every global LFO link, never a partial set', () => {

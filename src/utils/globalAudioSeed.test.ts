@@ -106,9 +106,12 @@ describe('generateGlobalAudioSettings', () => {
     expect(settings.limiter).toBeDefined();
   });
 
-  it('returns no chorus field and no reverb.dampening field', () => {
+  // V2 removed the old Chorus; Global Pedals (docs/specs/GLOBAL_PEDALS.md) brings one back as a seeded pedal.
+  it('returns the five Global Pedals blocks and no reverb.dampening field', () => {
     const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-    expect('chorus' in settings).toBe(false);
+    for (const key of ['chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'stereoWidener'] as const) {
+      expect(key in settings, key).toBe(true);
+    }
     expect('dampening' in settings.reverb).toBe(false);
   });
 
@@ -1631,6 +1634,12 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         wet: 0.23,
         sync: { division: '1/8', modifier: 'dotted' },
       },
+      // Global Pedals T1: the five blocks ADDED at the dry defaults as a placeholder; T8 replaces them with hand-derived draws.
+      chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },
+      tremolo: { rate: 10, depth: 0.5, spread: 180, wet: 0 },
+      vibrato: { rate: 5, depth: 0.1, wet: 0 },
+      frequencyShifter: { shift: 0, wet: 0 },
+      stereoWidener: { width: 0.5 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
@@ -1657,6 +1666,12 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.49 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
+      // Global Pedals T1: the five blocks ADDED at the dry defaults as a placeholder; T8 replaces them with hand-derived draws.
+      chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },
+      tremolo: { rate: 10, depth: 0.5, spread: 180, wet: 0 },
+      vibrato: { rate: 5, depth: 0.1, wet: 0 },
+      frequencyShifter: { shift: 0, wet: 0 },
+      stereoWidener: { width: 0.5 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
       reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },

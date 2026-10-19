@@ -112,6 +112,12 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   bitCrusher: AudioEngine.setGlobalBitCrusher,
   autoWah: AudioEngine.setGlobalAutoWah,
   phaser: setGlobalPhaserResolved,
+  // T7 (docs/tasks/GLOBAL_PEDALS.md): no-op placeholders until the engine setters and the resolved-rate factory exist.
+  chorus: () => {},
+  tremolo: () => {},
+  vibrato: () => {},
+  frequencyShifter: () => {},
+  stereoWidener: () => {},
 };
 
 /**

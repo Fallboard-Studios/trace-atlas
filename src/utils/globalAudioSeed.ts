@@ -272,6 +272,12 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       wet: phaserLit ? phaserWet : 0,
       ...(phaserSync !== undefined && { sync: phaserSync }),
     },
+    // Global Pedals T1 placeholder: the dry defaults. T8 replaces these with the lit rolls and value draws.
+    chorus: structuredClone(defaults.chorus),
+    tremolo: structuredClone(defaults.tremolo),
+    vibrato: structuredClone(defaults.vibrato),
+    frequencyShifter: structuredClone(defaults.frequencyShifter),
+    stereoWidener: structuredClone(defaults.stereoWidener),
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },

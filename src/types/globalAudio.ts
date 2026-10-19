@@ -134,6 +134,72 @@ export interface PhaserSettings {
   sync?: NoteValue;
 }
 
+/** The Rate range every synced pedal (Phaser, Chorus, Tremolo, Vibrato) shares, which is also each one's Free | Sync
+ *  clamp. The Phaser's constants under a generic name, re-exported rather than duplicated (docs/specs/GLOBAL_PEDALS.md
+ *  assumption 5). */
+export const PEDAL_RATE_RANGE_HZ = PHASER_RATE_RANGE_HZ;
+/** The pedal Rate sliders' draggable step; also the grid a Sync -> Free conversion quantises onto. */
+export const PEDAL_RATE_STEP_HZ = PHASER_RATE_STEP_HZ;
+
+/** Chorus: Tone.Chorus, two LFO-swept delay lines (a flanger with feedback). Docs/specs/GLOBAL_PEDALS.md §1.1. */
+export interface ChorusSettings {
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
+   *  resolveSyncedRateHz() (utils/tempoSync.ts), never directly. */
+  rate: number;
+  /** ms (1 - 20) - the delay lines' centre */
+  delayTime: number;
+  /** 0 - 1 - how far the LFOs move the delay */
+  depth: number;
+  /** degrees (0 - 180) - the right LFO's phase offset from the left */
+  spread: number;
+  /** 0 - 0.9 - Tone's `feedback` Signal; above 0 the chorus is a flanger */
+  feedback: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet), not wet itself. */
+  wet: number;
+  /** Present = Sync, absent = Free. Never `sync: undefined`. Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
+  sync?: NoteValue;
+}
+
+/** Tremolo: Tone.Tremolo, LFO-swept amplitude inverted per channel. */
+export interface TremoloSettings {
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`; the Free value, read through resolveSyncedRateHz(). */
+  rate: number;
+  /** 0 - 1 */
+  depth: number;
+  /** degrees (0 - 180) */
+  spread: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  wet: number;
+  /** Present = Sync, absent = Free. Never `sync: undefined`. */
+  sync?: NoteValue;
+}
+
+/** Vibrato: Tone.Vibrato, an LFO-swept short delay (pitch wobble). Mono: it sums the stereo chain. */
+export interface VibratoSettings {
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`; the Free value, read through resolveSyncedRateHz(). */
+  rate: number;
+  /** 0 - 1, of Tone's default maxDelay (0.005 s) */
+  depth: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  wet: number;
+  /** Present = Sync, absent = Free. Never `sync: undefined`. */
+  sync?: NoteValue;
+}
+
+/** Frequency Shifter: Tone.FrequencyShifter, single-sideband ring modulation. Mono. */
+export interface FrequencyShifterSettings {
+  /** Hz (-1000 - 1000), signed. Tone's `frequency`: every partial moves by the same Hz. */
+  shift: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  wet: number;
+}
+
+/** Width: Tone.StereoWidener, a mid/side stage between the Compressor and the Limiter. */
+export interface StereoWidenerSettings {
+  /** 0 - 1. Tone's `width` Signal: 0.5 is unity (as recorded), 0 is mono, 1 is all side. Never tapered. */
+  width: number;
+}
+
 export interface LimiterSettings {
   /** dB (-20 - 0) — Tone.Limiter's only controllable param; wraps a fixed ratio=20/attack=0.003/release=0.01 Compressor internally. */
   threshold: number;
@@ -162,6 +228,13 @@ export interface GlobalAudioSettings {
   /** Modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). */
   autoWah: AutoWahSettings;
   phaser: PhaserSettings;
+  /** Motion pedals, in chain order after the Phaser (docs/specs/GLOBAL_PEDALS.md §1.3). */
+  chorus: ChorusSettings;
+  tremolo: TremoloSettings;
+  vibrato: VibratoSettings;
+  frequencyShifter: FrequencyShifterSettings;
+  /** Width stage between the Compressor and the Limiter, after the rooms' join (docs/specs/GLOBAL_PEDALS.md §1.3). */
+  stereoWidener: StereoWidenerSettings;
   limiter: LimiterSettings;
 }
 
@@ -181,6 +254,13 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   // Modulation is dry by default too, at Tone's own parameter defaults (spec assumption 10). No `sync` key: Free.
   autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
   phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
+  // Global Pedals: Tone's defaults, every Mix 0 and Width at unity, so a default world is unchanged
+  // (docs/specs/GLOBAL_PEDALS.md assumption 10). No `sync` key: Free.
+  chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },
+  tremolo: { rate: 10, depth: 0.5, spread: 180, wet: 0 },
+  vibrato: { rate: 5, depth: 0.1, wet: 0 },
+  frequencyShifter: { shift: 0, wet: 0 },
+  stereoWidener: { width: 0.5 },
   limiter: { threshold: -12 },
 };
 
