@@ -665,3 +665,63 @@ one-way collapse seen on `bravo` at Full (2026-09-21). **Outcome:** T15b, a Mix 
 already costs the full price. Crawford chose (2026-10-19) to take a dark effect out of the signal path for all ten
 effects (the five pedals, plus the AutoWah, Phaser and three Colour effects already on `main`). A desktop measurement
 of each effect's dark cost comes first.
+
+## Dark-Effect Bypass, desktop baselines — T0, 2026-10-19
+
+Task 0 of docs/tasks/DARK_EFFECT_BYPASS.md: the "before" numbers that spec §5 steps 3 and 4 compare the cells against.
+Nothing in the product was changed to take them. **Code measured:** branch `feature/pedals` at `47ce45d3` (clean product
+tree; only untracked docs) and `main` at `d29ac778` (the clean worktree from round 2). Both were production builds
+(`vite build --outDir` into this session's scratchpad). They were served side by side by one `vite preview` on port 4173,
+with `main` as `main.html` beside the branch's `index.html`. Only the main script chunk differed; every other asset was
+byte-identical. The stale previews on ports 4173 and 4174 were stopped first.
+
+**(a) Render capacity, `npm run perf:audio`.** The world is round 2's run A link: the seed-`alpha` baseline payload,
+so every new pedal is dark, with `load=full`. One deviation from the recipe: the script's `name:x:y` writes `?seed=`,
+which the app no longer reads, so the world was pinned by a `session=` query appended to each spec
+(`alpha:0:50?load=full&session=…` and `alpha:0:50@main.html?load=full&session=…`). The HUD read `0,50` on both pages,
+which confirms the payload's locale. Its seed field reads `random` because it shows the retired `?seed=` override, not
+the session's world. Three interleaved rounds, start order rotated (branch, main, branch first), 240 s series, 15 s
+buckets, 8 s warm-up, two runs per foreground call, nothing else running. The orphaned-Chrome count was 0 before and
+after every call.
+
+| Round | Branch mean | Branch peak window | `main` mean | `main` peak window | Branch − `main` (mean) |
+|---|---|---|---|---|---|
+| 1 | 0.716 | 0.844 | 0.448 | 0.528 | +0.268 |
+| 2 | 0.553 | 0.708 | 0.468 | 0.574 | +0.085 |
+| 3 | 0.602 | 0.704 | 0.449 | 0.609 | +0.153 |
+| **Average** | **0.624** | **0.752** | **0.455** | **0.570** | **+0.169** |
+
+The overall max was 0.991–0.997 on every run, the usual single-poll spikes. `main` is steady (means 0.448–0.468).
+The branch is higher in every round and much less steady (0.553–0.716). So on the desktop, too, five more dark effects
+cost the audio thread about 37 % more on average (0.624 against 0.455), with nothing lit. Spec §5 step 3's gate for after the cells is
+branch ≤ `main` on this same A/B.
+
+**(b) Main thread, the hang probe over CDP.** The recipe from GLOBAL_PEDALS.md §8 (Checkpoint A fix): `vite` dev
+server on port 5199, headless Chrome on port 9377, click Power on, poll the page with a 1.5 s timeout. Then, through
+the store: a Decay flip (`setCompressorBeforeDelay(true)`), a Phaser Stages change, and all seven global LFO targets
+unlinked and relinked. The world is the baseline payload plus the Chorus and Tremolo blocks from the 2026-10-19
+single-pedal links, both at Mix 1. The probe read both back from the store as Mix 1 after power-on (Vibrato 0,
+Natural Decay). One warm-up load was discarded, then three runs:
+
+| Run | Power-on | Unresponsive | Decay flip | Phaser Stages | Seven LFO links |
+|---|---|---|---|---|---|
+| 1 | 1 375 ms | 0 ms | 3 ms | 31 ms | 1 ms |
+| 2 | 1 385 ms | 0 ms | 2 ms | 28 ms | 1 ms |
+| 3 | 1 166 ms | 0 ms | 2 ms | 26 ms | 1 ms |
+
+The power-on time resolves to about 0.1–0.2 s, since that is the probe's poll interval. These sit under the
+2026-10-18 figures in GLOBAL_PEDALS.md §8 (about 2 s, 3–4 ms, about 40 ms, 1 ms), measured in another session.
+T13 should compare against this table, or re-run this baseline in its own session if the numbers look drifted.
+Aside, from the single plumbing check on the production builds (baseline link, one run each, not a measurement): the
+branch powered on in 1.1 s with 0 ms unresponsive, and `main` in 2.5 s with 1.5 s unresponsive. That fits `main`
+lacking the cycle-search cuts.
+
+**(c) The dark-cost probe folder still exists** at the path in spec §5 (`dark-cost/` with `index.html`, `probe.js`
+and the `node_modules` junction, plus `dark-cost-drive.mjs` and `dark-cost-5r.json`). T12 can re-run it rather than
+rebuild it.
+
+This session's files, in its scratchpad
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/ead4402b-820a-4dd2-bbbf-db766ff79614/scratchpad/t0/`:
+`site/` (the side-by-side build), `round1.json`–`round3.json`, `baseline.txt` and `two-lit.txt` (the payloads,
+written by `payloads.mjs`), and `probe.mjs` (the hang probe, plus `HUD=1` and a restored-values read-out). No server
+was left running.
