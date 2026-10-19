@@ -276,7 +276,7 @@ Records are in [docs/PERFORMANCE.md](../PERFORMANCE.md); guards `src/docs/perMov
 2. **Checkpoints B and C were never signed.** The Chrome and Firefox look list (plan Checkpoints B and C, spec §5.3)
    should include **a station exit with halo waves** — the halo test stubs `getScreenCTM`, so nothing but a live
    browser shows how Chrome, Firefox and Safari resolve it through an HTML ancestor's CSS transform.
-3. **No `main` underrun count from the Pixel** (Task 21), so its not-above-`main` bullet is open.
+3. **No `main` underrun count from the Pixel** (Task 21), so its not-above-`main` bullet is open. **CLOSED 2026-10-18 by Crawford's decision, not as a measured pass:** the Pixel A/B (PERFORMANCE.md "the Pixel A/B: not separable on the phone") read `main` about 22 and the branch 41 to about 88, a spread wider than the difference; `main` underruns too, filed as backlog item 27. Task 21 was portrait, not landscape (corrected there).
 4. **FYI, no action planned:** the dim `blur(2px)` now sits inside the scaled stage, so its effective radius is 2 × the
    stage scale (~1.3 px at 1280 wide, ~2.7 px at 2560) — a small look change in a phase whose spec says no look changes.
    Raise it if the dimmed world looks different at Checkpoint B.

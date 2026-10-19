@@ -2293,6 +2293,27 @@ Window 2, medians of the accepted runs: the **Compositor::Update gap +357 → +3
 
 Guarded by `src/docs/perMoverStripsDocs.test.ts` (every row against the acceptance rule, the medians and gaps against the accepted rows, the reading against the medians; 8 doc mutants killed).
 
+## Per-Mover Compositor Layers — the Pixel A/B: not separable on the phone (2026-10-18)
+
+The `main` listen the Task 21 section above left open ([tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md), "Open before merge" item 3): the Pixel, `perf/per-mover-layers` against `main`, by ear and with the `?debug` overlay. **Result: the run-to-run spread on the phone is larger than the difference being looked for, so the A/B could not separate the two builds.** The gate was decided by Crawford on that basis (below).
+
+**Conditions.** The Pixel 8, **portrait**, the LAN production previews: the branch's own `npm run build` of the tip (`82282e32` source, `dist/` built 14:41, served by `vite preview --host` on :4173, bundle `index-BdWK58nR.js`) and `main` `4a9b3fec` (served on :4174, bundle `index-CVUy7kf3.js`, the R5 and Task 20 `main` build). The world is the Task 20 gate's pinned `?session=` link (the overlay reads `@ 0,50`), with `&debug&load=light`: **Light** Audio Load on both dials (`load 20%·fx 20%`, latency `playback`, all three LFO tiers off), so lighter than Task 21's Full. Crawford let the phone cool first. Readings are from his screenshots of the overlay; the first run's are small and read approximately.
+
+| Listen | Build | Length | Underruns (overlay total) | Crawford's words |
+|---|---|---|---|---|
+| Task 21, 2026-10-17 (section above) | branch (`a04d4a0c`) | over 5 min, Full | about 12 | no distortion; "good to go" |
+| Run 1 | branch | 5:11 | about 12 at 0:34, about 68 at 2:03, about 88 at 5:11 | "MUCH better" than an earlier incognito try (non-stop distortion from about 3 min, no numbers), "still a little more distortion than I wanted" |
+| Run 2 | `main` | 3:03 | about 22–23 | "good at light audio quality" |
+| Run 3 | branch | 3:02 | 41 (875 ms), avg output latency 265 ms (21–307), `lag 9ms (max 650ms)` | "a few distortions, but not as bad as earlier runs" |
+
+**What the screenshots do establish.** Every reading is `fin ok` with the master peak well below 0 dB (−3.4 to −11.5 dB): no clipping and no non-finite samples. The crackle is **playback underruns**, the audio thread missing its deadline in bursts of one to four, with the UI at 57–60 fps and the main-thread lag low between bursts. **`main` also underruns** (about 22 in three minutes), so the crackle predates this branch and is filed on its own as backlog item 27 ([todo/backlog.md](todo/backlog.md)). The branch's own counts run from about 12 (Task 21, Full, over five minutes) to about 88 (run 1, Light, five minutes): a spread far wider than the `main`-against-branch difference in this sitting (about 22 against 41 at three minutes), so that difference is not evidence either way. The branch's changes are to how the screen is composited, with no path into the audio graph; on a phone the two still share the CPU, which is why the gate asks.
+
+**Correction to the Task 21 section above.** It lists landscape among the plan's conditions and says Crawford did not restate the orientation. He has since said every run on his phone, Task 21's included, was **portrait**, where the deck camera runs. The Task 21 section stands as written; this is the correction.
+
+**Decision (2026-10-18): Crawford moves on.** The A/B is not separable on this instrument; with Task 21's clean listen, today's runs ("a few distortions, not as bad as earlier runs") and `main` underrunning too, the open "not above `main`" item is closed by his decision, not met as a measured criterion. A better instrument, if this ever needs settling, is the audio thread's render capacity read through Chrome's remote DevTools over USB, a continuous load figure rather than a count of failures.
+
+Guarded by `src/docs/perMoverPixelAbDocs.test.ts`.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
