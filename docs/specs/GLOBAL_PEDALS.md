@@ -612,3 +612,26 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
     approximation for the shifter; four Gains for the widener. Cheap by inspection; the gate decides.
 11. **Roadmap number (assumption 17):** 50.6, under the series umbrella, rather than a new top-level entry.
     The file's last top-level entry is 52 on this branch and 53 is the per-mover layers phase, so a top-level entry would be 54.
+
+---
+
+## 8. As built
+
+*(Started 2026-10-18 during Phase 1; the docs task, T17, completes this section.)*
+
+- **The cycle-search cuts (a fix found at Checkpoint A, approved by Crawford 2026-10-18).** After T8 the app hung on
+  power-on: the Power button kept flashing and the main thread never returned. Cause: Tone's `standardized-audio-context`
+  runs `detectCycles` on every `connect` and `disconnect`, enumerating every simple path downstream of the destination
+  (no memoising) and stopping only at a node with a `delayTime`. Each Tone effect has a dry and a wet path and the
+  stereo and mid/side ones split again, so the path count multiplies per stage. Measured in headless Chrome over CDP
+  (power-on, then a Decay flip, a Phaser Stages change and linking all seven global LFOs): `main`'s chain powered on in
+  2.8-4.8 s with 1.5-3 s unresponsive; each new node alone multiplied that (Chorus x2, Tremolo x3, Vibrato x2, shifter
+  x2, widener x12), so all five came to an estimated ~14 minutes. **Fix, in `globalFx.ts`:** two zero-delay `Tone.Delay`
+  nodes (`CHAIN_CUT_OPTIONS`, `maxDelay` 0.01 s) in the dry chain, one at its entry (`getGlobalChainEntry()` returns it;
+  every robot bus connects into it) and one between the High-Pass Filter and the Distortion (where the global LFO targets
+  end), and `disconnectAllFxNodes` walks the chain downstream-first. Neither cut is in a cycle, so a delay of 0 passes the
+  sound unchanged. Result with all five pedals: power-on about 2 s with no unresponsive time, a Decay flip 3-4 ms, a Phaser
+  Stages change about 40 ms, linking all seven global LFOs 1 ms (an entry cut alone left a Decay flip at 2.6 s and the
+  seven links at 8.1 s). The chain-order line is therefore entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion ->
+  ...; with no `Delay` constructor (headless) the chain enters at the EQ3 as before. The two nodes are on T14's phone
+  gate like everything else.

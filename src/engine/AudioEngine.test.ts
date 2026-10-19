@@ -207,6 +207,13 @@ vi.mock('tone', () => ({
     frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // The cycle-search cuts: zero-delay Delay nodes at the chain entry and after the High-Pass Filter.
+  Delay: vi.fn((opts: { delayTime?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    delayTime: { value: opts.delayTime ?? 0 },
+  })),
   // Global Pedals T6: the Width stage between the Compressor and the Limiter.
   StereoWidener: vi.fn((opts: { width?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
@@ -1833,18 +1840,20 @@ describe('AudioEngine - Global FX Chain', () => {
   });
 
   describe('reserveVoice — bus wiring', () => {
-    it('connects each robot bus into getGlobalChainEntry()\'s node (EQ3), not a compressor-specific accessor', async () => {
+    it('connects each robot bus into getGlobalChainEntry()\'s node (the entry cut in front of the EQ3), not a compressor-specific accessor', async () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      const eqNode = lastInstance(Tone.EQ3) ?? { connect: vi.fn() };
+      // The entry cycle-search cut, the first of the two Delay nodes each build makes (globalFx.ts CHAIN_CUT_OPTIONS).
+      const entryNode = vi.mocked(Tone.Delay).mock.results.at(-2)?.value ?? { connect: vi.fn() };
       const layered = { base: 'sine', layers: [{ type: 'sine', gain: 0.8 }] } as any;
       AudioEngine.reserveVoice('bus-wiring-test', layered, TEST_ADSR);
       // busFilter is a Tone.Filter instance — it's the third Filter construction
       // per reserveVoice call site (after LPF/HPF from loadInstruments), so grab
       // the freshest one and confirm it was connected into the chain entry.
       const busFilterNode = lastInstance(Tone.Filter);
-      expect(busFilterNode.connect).toHaveBeenCalledWith(eqNode);
+      expect(busFilterNode.connect).toHaveBeenCalledWith(entryNode);
+      expect(busFilterNode.connect).not.toHaveBeenCalledWith(lastInstance(Tone.EQ3));
     });
   });
 
@@ -3793,7 +3802,7 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       const busFilter = lastInstance(Tone.Filter);
       const reverbRoom = lastInstance(Tone.Reverb);
       const delayRoom = lastInstance(Tone.FeedbackDelay);
-      const chainEntry = lastInstance(Tone.EQ3);
+      const chainEntry = vi.mocked(Tone.Delay).mock.results.at(-2)?.value; // the entry cycle-search cut
 
       expect(busFilter.connect).toHaveBeenCalledWith(sends.reverb);
       expect(busFilter.connect).toHaveBeenCalledWith(sends.delay);

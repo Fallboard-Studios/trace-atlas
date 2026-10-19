@@ -32,6 +32,8 @@ vi.mock('tone', () => ({
   FrequencyShifter: undefined,
   // Global Pedals T6.
   StereoWidener: undefined,
+  // The cycle-search cuts are skipped the same way.
+  Delay: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({

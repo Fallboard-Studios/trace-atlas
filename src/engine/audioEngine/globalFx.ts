@@ -55,6 +55,9 @@ let _globalVibrato: Tone.Vibrato | null = null;
 let _globalFrequencyShifter: Tone.FrequencyShifter | null = null;
 // The Width stage, between the Compressor and the Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
 let _globalStereoWidener: Tone.StereoWidener | null = null;
+// The cycle-search cuts: zero-delay DelayNodes at the chain entry and after the High-Pass Filter (see CHAIN_CUT_OPTIONS).
+let _entryCut: Tone.Delay | null = null;
+let _filterCut: Tone.Delay | null = null;
 // The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
 let _lastControlledDecay = false;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
@@ -120,6 +123,30 @@ function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages
   });
 }
 
+/**
+ * The cycle-search cuts (docs/specs/GLOBAL_PEDALS.md, as-built). Tone's standardized-audio-context runs `detectCycles`
+ * on every connect and disconnect: it enumerates EVERY simple path downstream of the destination, without memoising, and
+ * stops only at a node that has a `delayTime`. Each Tone effect has a dry and a wet path and the stereo and mid/side
+ * ones split again, so the path count multiplies stage by stage. With the five Global Pedals a power-on (every robot
+ * voice connecting into the front of the chain) took an estimated ~14 minutes of main thread, measured in headless
+ * Chrome on 2026-10-18; even `main`'s chain spent ~1.5 s unresponsive. So two zero-delay DelayNodes sit in the dry
+ * chain: one at its entry (every robot bus connects into it) and one after the High-Pass Filter (where the global LFO
+ * targets end). Neither is in a cycle, so a delayTime of 0 adds no latency: the sound passes through unchanged. The
+ * buffer is tiny because the delay never moves. Measured with both cuts and the downstream-first disconnect: power-on
+ * 1.4 s with no unresponsive time, a Decay flip 3 ms, linking all seven global LFOs 1 ms.
+ */
+const CHAIN_CUT_OPTIONS = { delayTime: 0, maxDelay: 0.01 } as const;
+
+function buildChainCut(DelayCtor: (new (...args: unknown[]) => Tone.Delay) | undefined, where: string): Tone.Delay | null {
+  if (!DelayCtor) return null;
+  try {
+    return new DelayCtor({ ...CHAIN_CUT_OPTIONS });
+  } catch (err) {
+    devWarn('[AudioEngine] the ' + where + ' cycle-search cut could not be constructed; the chain runs without it', err);
+    return null;
+  }
+}
+
 /** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
 function clampIfGiven(key: GlobalAudioSeedFieldKey, value: number | undefined): number | undefined {
   return value === undefined ? undefined : clampColour(key, value);
@@ -166,6 +193,10 @@ export function buildGlobalFxChain(): void {
   const VibratoCtor = getToneCtor<Tone.Vibrato>('Vibrato');
   const FrequencyShifterCtor = getToneCtor<Tone.FrequencyShifter>('FrequencyShifter');
   const StereoWidenerCtor = getToneCtor<Tone.StereoWidener>('StereoWidener');
+  const ChainCutCtor = getToneCtor<Tone.Delay>('Delay');
+
+  _entryCut = buildChainCut(ChainCutCtor, 'entry');
+  _filterCut = buildChainCut(ChainCutCtor, 'post-filter');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -316,10 +347,15 @@ export function buildGlobalFxChain(): void {
  * track exact prior edges — safe to call even if nothing was ever connected.
  */
 function disconnectAllFxNodes(): void {
+  // Signal order, upstream to downstream (the rooms feed their returns, which feed the join), walked BACKWARDS: every
+  // disconnect runs Tone's cycle search from the nodes it drops, so dropping the downstream ones first leaves each later
+  // search a node with no outputs (see CHAIN_CUT_OPTIONS; front-to-back took a Decay flip 2.6 s with the pedals).
   const nodes = [
+    _entryCut,
     _globalEQ,
     _globalLPF,
     _globalHPF,
+    _filterCut,
     _globalDistortion,
     _globalChebyshev,
     _globalBitCrusher,
@@ -331,14 +367,14 @@ function disconnectAllFxNodes(): void {
     _globalFrequencyShifter,
     _globalDelay,
     _globalReverb,
+    _globalReverbReturn,
+    _globalDelayReturn,
     _globalCompressor,
     _globalStereoWidener,
     _globalLimiter,
-    _globalReverbReturn,
-    _globalDelayReturn,
     _masterGain,
   ].filter(Boolean) as Array<{ disconnect: () => void }>;
-  for (const node of nodes) {
+  for (const node of nodes.reverse()) {
     try {
       node.disconnect();
     } catch (err) {
@@ -380,9 +416,11 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
   disconnectAllFxNodes();
 
   const chainNodes = [
+    _entryCut,
     _globalEQ,
     _globalLPF,
     _globalHPF,
+    _filterCut,
     _globalDistortion,
     _globalChebyshev,
     _globalBitCrusher,
@@ -444,14 +482,13 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
   connectTapsIfWanted();
 }
 
-/** The live chain-entry node — EQ3, first in both Natural and Controlled
- *  Decay topologies — read by AudioEngine.ts's reserveVoice() to connect each
- *  robot's per-voice bus into the global chain. Null until
- *  buildGlobalFxChain() has run. Replaces the old getMasterCompressor(),
- *  which stopped being accurate once the V2 reorder moved Compressor off the
- *  front of the chain. */
-export function getGlobalChainEntry(): Tone.EQ3 | null {
-  return _globalEQ;
+/** The live chain-entry node — the entry cycle-search cut, which feeds the EQ3 (first in both Natural and Controlled
+ *  Decay topologies), or the EQ3 itself when no Delay node could be built — read by AudioEngine.ts's reserveVoice() to
+ *  connect each robot's per-voice bus into the global chain. Entering at a delay node keeps every bus connect's cycle
+ *  search to one node (see CHAIN_CUT_OPTIONS). Null until buildGlobalFxChain() has run. Replaces the old
+ *  getMasterCompressor(), which stopped being accurate once the V2 reorder moved Compressor off the front of the chain. */
+export function getGlobalChainEntry(): Tone.ToneAudioNode | null {
+  return _entryCut ?? _globalEQ;
 }
 
 /** The Reverb room, read by AudioEngine.ts's reserveVoice() to connect each robot's reverb send into it.

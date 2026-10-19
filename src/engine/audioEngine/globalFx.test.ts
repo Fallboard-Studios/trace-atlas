@@ -104,6 +104,15 @@ const toneFlags = vi.hoisted(() => ({
     frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // The cycle-search cuts (docs/specs/GLOBAL_PEDALS.md, as-built): zero-delay Tone.Delay nodes at the chain entry and
+  // after the High-Pass Filter. `delayTime` is a Param.
+  cutAbsent: false,
+  cutCtor: vi.fn((opts: { delayTime?: number; maxDelay?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    delayTime: { value: opts.delayTime ?? 0 },
+  })),
   // Global Pedals T6: the StereoWidener between the Compressor and the Limiter. `width` and `wet` are Signals.
   widenerAbsent: false,
   widenerCtor: vi.fn((opts: { width?: number; wet?: number } = {}) => ({
@@ -165,6 +174,9 @@ vi.mock('tone', () => ({
   },
   get StereoWidener() {
     return toneFlags.widenerAbsent ? undefined : toneFlags.widenerCtor;
+  },
+  get Delay() {
+    return toneFlags.cutAbsent ? undefined : toneFlags.cutCtor;
   },
   Compressor: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -269,6 +281,8 @@ const secondLastInstance = (ctor: unknown) => (ctor as unknown as AnyMock).mock.
  *  so these tests do not depend on the order buildGlobalFxChain constructs its Gains in. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const returnOf = (room: any) => room.connect.mock.calls.at(-1)?.[0];
+/** The post-filter cycle-search cut: the second (last) Delay node a build makes, between the HPF and the Distortion. */
+const filterCutOf = () => toneFlags.cutCtor.mock.results.at(-1)?.value;
 
 describe('globalFx', () => {
   beforeEach(() => {
@@ -282,6 +296,7 @@ describe('globalFx', () => {
     toneFlags.vibratoAbsent = false;
     toneFlags.shifterAbsent = false;
     toneFlags.widenerAbsent = false;
+    toneFlags.cutAbsent = false;
   });
 
   describe('getGlobalChainEntry', () => {
@@ -290,11 +305,137 @@ describe('globalFx', () => {
       expect(globalFx.getGlobalChainEntry()).toBeNull();
     });
 
-    it('returns the EQ3 node after build — the entry point in both topologies', async () => {
+    // The entry is the zero-delay cut in front of the EQ3 (see the cycle-search cuts block below), so every robot bus
+    // connects into a delay node; the cut feeds the EQ3, still first in both topologies.
+    it('returns the entry cut after build, which feeds the EQ3', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const eqNode = lastInstance(Tone.EQ3);
-      expect(globalFx.getGlobalChainEntry()).toBe(eqNode);
+      const entry = globalFx.getGlobalChainEntry() as unknown as { delayTime: unknown; connect: ReturnType<typeof vi.fn> };
+      expect(entry).toBe(toneFlags.cutCtor.mock.results[0].value);
+      expect('delayTime' in entry).toBe(true);
+      expect(entry.connect).toHaveBeenCalledWith(lastInstance(Tone.EQ3));
+    });
+
+    it('returns the EQ3 itself when no Delay constructor exists (headless)', async () => {
+      toneFlags.cutAbsent = true;
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(globalFx.getGlobalChainEntry()).toBe(lastInstance(Tone.EQ3));
+    });
+  });
+
+  // ========================================
+  // The cycle-search cuts (docs/specs/GLOBAL_PEDALS.md, as-built). Tone's standardized-audio-context runs detectCycles on
+  // every connect and disconnect: it enumerates EVERY simple path downstream of the destination and stops only at a node
+  // with a `delayTime`. Each Tone effect has a dry and a wet path and the stereo / mid-side ones split again, so the count
+  // multiplies stage by stage; with the five Global Pedals a power-on took an estimated ~14 minutes of main thread. Two
+  // zero-delay DelayNodes (no cycle, so no latency) bound every search, and a rewire disconnects downstream first.
+  // ========================================
+  describe('the cycle-search cuts', () => {
+    it('constructs exactly two zero-delay Delay nodes with a tiny buffer', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(2);
+      for (const call of toneFlags.cutCtor.mock.calls) {
+        expect(call[0]).toStrictEqual({ delayTime: 0, maxDelay: 0.01 });
+      }
+    });
+
+    it.each([false, true])('puts a cut in front of the EQ3 and one between the HPF and the Distortion, controlledDecay=%s', async (controlled) => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const [entryCut, filterCut] = toneFlags.cutCtor.mock.results.map((r) => r.value);
+      const hpf = lastInstance(Tone.Filter);
+      for (const node of [entryCut, filterCut, hpf]) node.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(controlled);
+
+      expect(entryCut.connect.mock.calls).toEqual([[lastInstance(Tone.EQ3)]]);
+      expect(hpf.connect.mock.calls).toEqual([[filterCut]]);
+      expect(filterCut.connect.mock.calls).toEqual([[lastInstance(Tone.Distortion)]]);
+    });
+
+    it('keeps the cuts across a rewire: never rebuilt', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(2);
+    });
+
+    it('wires HPF -> Distortion and enters at the EQ3 when the Delay constructor is absent', async () => {
+      toneFlags.cutAbsent = true;
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Distortion));
+    });
+
+    it('builds and wires on when the Delay constructor throws, falling back to the EQ3 entry', async () => {
+      toneFlags.cutCtor.mockImplementation(() => {
+        throw new Error('no delay');
+      });
+      try {
+        const globalFx = await import('./globalFx');
+        expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('cut'), expect.any(Error));
+        expect(globalFx.getGlobalChainEntry()).toBe(lastInstance(Tone.EQ3));
+        expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Distortion));
+      } finally {
+        toneFlags.cutCtor.mockReset();
+        toneFlags.cutCtor.mockImplementation((opts: { delayTime?: number; maxDelay?: number } = {}) => ({
+          connect: vi.fn().mockReturnThis(),
+          disconnect: vi.fn(),
+          toDestination: vi.fn(),
+          delayTime: { value: opts.delayTime ?? 0 },
+        }));
+      }
+    });
+
+    // A disconnect runs detectCycles from each destination it drops. Dropping the downstream nodes first means every
+    // later search starts from a node that has no outputs left (a front-to-back rewire took 2.6 s with the pedals).
+    it('disconnects the chain downstream first on a rewire: master, Limiter, widener, ..., EQ3, entry cut', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const [entryCut, filterCut] = toneFlags.cutCtor.mock.results.map((r) => r.value);
+      const chain = [
+        entryCut,
+        lastInstance(Tone.EQ3),
+        secondLastInstance(Tone.Filter),
+        lastInstance(Tone.Filter),
+        filterCut,
+        lastInstance(Tone.Distortion),
+        lastInstance(Tone.Chebyshev),
+        lastInstance(toneFlags.crusherCtor),
+        lastInstance(toneFlags.wahCtor),
+        lastInstance(toneFlags.phaserCtor),
+        lastInstance(toneFlags.chorusCtor),
+        lastInstance(toneFlags.tremoloCtor),
+        lastInstance(toneFlags.vibratoCtor),
+        lastInstance(toneFlags.shifterCtor),
+        lastInstance(Tone.Compressor),
+        lastInstance(toneFlags.widenerCtor),
+        lastInstance(Tone.Limiter),
+        lastInstance(Tone.Gain),
+      ];
+      for (const node of chain) node.disconnect.mockClear();
+
+      globalFx.wireGlobalFxChain(true);
+
+      const order = chain.map((node) => node.disconnect.mock.invocationCallOrder[0]);
+      for (const at of order) expect(at).toBeDefined();
+      expect(order).toStrictEqual([...order].sort((a, b) => b - a));
+    });
+
+    it('disconnects each room after the return it feeds, and each return after the master', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
+      const nodes = [...rooms, ...rooms.map(returnOf), lastInstance(Tone.Gain)];
+      for (const node of nodes) node.disconnect.mockClear();
+      globalFx.wireGlobalFxChain(true);
+      const at = (node: { disconnect: ReturnType<typeof vi.fn> }) => node.disconnect.mock.invocationCallOrder[0];
+      for (const room of rooms) expect(at(room)).toBeGreaterThan(at(returnOf(room)));
+      for (const room of rooms) expect(at(returnOf(room))).toBeGreaterThan(at(lastInstance(Tone.Gain)));
     });
   });
 
@@ -395,7 +536,8 @@ describe('globalFx', () => {
       const wah = lastInstance(toneFlags.wahCtor);
 
       expect(hpf.connect).toHaveBeenCalledTimes(1);
-      expect(hpf.connect).toHaveBeenCalledWith(dist);
+      expect(hpf.connect).toHaveBeenCalledWith(filterCutOf());
+      expect(filterCutOf().connect).toHaveBeenCalledWith(dist);
       expect(dist.connect).toHaveBeenCalledTimes(1);
       expect(dist.connect).toHaveBeenCalledWith(cheb);
       expect(cheb.connect).toHaveBeenCalledTimes(1);
@@ -416,7 +558,8 @@ describe('globalFx', () => {
 
       globalFx.wireGlobalFxChain(true);
 
-      expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(dist);
+      expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(filterCutOf());
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(dist);
       expect(dist.connect).toHaveBeenLastCalledWith(cheb);
       expect(cheb.connect).toHaveBeenLastCalledWith(crush);
       expect(crush.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.wahCtor));
@@ -447,7 +590,8 @@ describe('globalFx', () => {
 
       const dist = lastInstance(Tone.Distortion);
       const cheb = lastInstance(Tone.Chebyshev);
-      expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(dist);
+      expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(filterCutOf());
+      expect(filterCutOf().connect).toHaveBeenCalledWith(dist);
       expect(dist.connect).toHaveBeenCalledWith(cheb);
       expect(cheb.connect).toHaveBeenCalledWith(lastInstance(toneFlags.wahCtor));
       expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 1 })).not.toThrow();
@@ -1918,7 +2062,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
-    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
@@ -1940,7 +2084,8 @@ describe('globalFx', () => {
 
       expect(eqNode.connect).toHaveBeenCalledWith(lpfNode);
       expect(lpfNode.connect).toHaveBeenCalledWith(hpfNode);
-      expect(hpfNode.connect).toHaveBeenCalledWith(distNode);
+      expect(hpfNode.connect).toHaveBeenCalledWith(filterCutOf());
+      expect(filterCutOf().connect).toHaveBeenCalledWith(distNode);
       expect(hpfNode.connect).not.toHaveBeenCalledWith(compNode);
       expect(distNode.connect).toHaveBeenCalledWith(chebNode);
       expect(chebNode.connect).toHaveBeenCalledWith(crushNode);
@@ -1998,7 +2143,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain', async () => {
+    it('keeps the same dry chain entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
@@ -2022,7 +2167,8 @@ describe('globalFx', () => {
 
       expect(eqNode.connect).toHaveBeenLastCalledWith(lpfNode);
       expect(lpfNode.connect).toHaveBeenLastCalledWith(hpfNode);
-      expect(hpfNode.connect).toHaveBeenLastCalledWith(distNode);
+      expect(hpfNode.connect).toHaveBeenLastCalledWith(filterCutOf());
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(distNode);
       expect(distNode.connect).toHaveBeenLastCalledWith(chebNode);
       expect(chebNode.connect).toHaveBeenLastCalledWith(crushNode);
       expect(crushNode.connect).toHaveBeenLastCalledWith(wahNode);
