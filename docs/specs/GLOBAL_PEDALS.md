@@ -674,3 +674,10 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   are missing it falls back to Tone's setters. Tone floors the range at 0; Depth is clamped to 0–1 first, so the floor
   could never bite and was left out (an equivalent mutant). Both Spreads still write through Tone's `phase` setter,
   which restarts the LFOs (see §7).
+- **A tripwire for the cuts (2026-10-18 review).** The cuts depend on two facts about `standardized-audio-context`
+  (25.3.77 under Tone 15.1.22): `detectCycles` walks every path with no memo, and stops at any node with a `delayTime`.
+  `src/engine/audioEngine/chainCycleSearch.test.ts` drives the library's real `createDetectCycles` over fake
+  split-and-rejoin graphs and pins both (ten stages cost over 2^10 expansions; a connect into a delay node expands
+  none; a mid-chain cut bounds the walk), so an upgrade that changes either fails the suite instead of hanging power-on.
+  Mutation-checked by breaking the library's delay guard (two cases fail). If it fails, re-measure power-on before
+  keeping or removing the cuts.
