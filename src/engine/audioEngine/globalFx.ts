@@ -134,6 +134,10 @@ export type Cell = {
  *  constructor is missing, its cell could not be built, or the Gain / Delay constructors are missing altogether. */
 const _cells: Partial<Record<BypassKey, Cell>> = {};
 
+/** The effects whose setters write their Mix through their cell (writeCellMix): built pinned at wet 1 in a dark cell.
+ *  Dark-Effect Bypass T3 starts with the Vibrato; the other nine are still built transparent. */
+const BUILT_DARK: ReadonlySet<BypassKey> = new Set<BypassKey>(['vibrato']);
+
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
  *  a cell at cellGains(w) sounds exactly as the bare effect at wet w. Tone 15's CrossFade (component/channel/CrossFade.js)
  *  feeds a constant 1 through a mono StereoPanner at pan 2·fade − 1 and splits it into the two gains, which is the
@@ -212,9 +216,10 @@ function disposeQuietly(node: Tone.ToneAudioNode | null): void {
 /**
  * Builds `key`'s bypass cell around `effect` (docs/specs/DARK_EFFECT_BYPASS.md section 1.1): `in` -> `dry` -> `cut` and
  * `in` -> effect -> `wet` -> `cut`. Each cell ends in its own zero-delay cut, so a connect's cycle search never walks
- * further than one cell (see CHAIN_CUT_OPTIONS). Built transparent for now: the effect connected and the cell at dry 0
- * / wet 1, so the effect's own `wet` still carries its Mix. An effect whose constructor threw (null) gets an empty
- * cell wired dry. If the cell itself cannot be built, the effect is released and left out of the chain.
+ * further than one cell (see CHAIN_CUT_OPTIONS). An effect in BUILT_DARK is pinned at wet 1 and its cell built dark
+ * (dry 1 / wet 0, unconnected), so the cell carries its Mix; the rest are built transparent for now (the effect connected,
+ * the cell at dry 0 / wet 1, the effect's own `wet` carrying its Mix). An effect whose constructor threw (null) gets an
+ * empty cell wired dry. If the cell itself cannot be built, the effect is released and left out of the chain.
  */
 function buildCell(
   key: BypassKey,
@@ -222,15 +227,16 @@ function buildCell(
   GainCtor: new (...args: unknown[]) => Tone.Gain,
   DelayCtor: new (...args: unknown[]) => Tone.Delay,
 ): void {
+  const transparent = effect !== null && !BUILT_DARK.has(key);
   try {
     _cells[key] = {
       in: new GainCtor(1),
-      dry: new GainCtor(effect ? 0 : 1),
-      wet: new GainCtor(effect ? 1 : 0),
+      dry: new GainCtor(transparent ? 0 : 1),
+      wet: new GainCtor(transparent ? 1 : 0),
       cut: new DelayCtor({ ...CHAIN_CUT_OPTIONS }),
       effect,
-      connected: effect !== null,
-      mix: effect ? 1 : 0,
+      connected: transparent,
+      mix: transparent ? 1 : 0,
       darken: null,
     };
   } catch (err) {
@@ -275,6 +281,81 @@ function wireCell(cell: Cell): void {
     cell.in.connect(cell.effect);
     cell.effect.connect(cell.wet);
   }
+}
+
+/** Ramp a cell's two gains to the law at `w` (cellGains). */
+function rampCell(cell: Cell, w: number, seconds: number): void {
+  const { dry, wet } = cellGains(w);
+  rampOrSet(cell.dry.gain, dry, seconds);
+  rampOrSet(cell.wet.gain, wet, seconds);
+}
+
+/** Make the effect's two edges. Only ever called while the cell's wet gain is 0, so the new path is silent. False, with
+ *  a warning, if Tone refused: the cell stays dry and unconnected, and the next light tries again. */
+function connectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): boolean {
+  try {
+    cell.in.connect(effect);
+    effect.connect(cell.wet);
+    cell.connected = true;
+    return true;
+  } catch (err) {
+    devWarn(
+      '[AudioEngine] the ' + key + ' effect could not be connected into its bypass cell; it stays dry',
+      err,
+    );
+    return false;
+  }
+}
+
+/** Break the effect's two edges, once the wet gain has reached 0 on the audio thread. On a failure the cell keeps
+ *  `connected`, so a later light only ramps (the edges that are still there carry it) and a rewire re-makes them. */
+function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): void {
+  try {
+    cell.in.disconnect(effect);
+    effect.disconnect(cell.wet);
+    cell.connected = false;
+  } catch (err) {
+    devWarn(
+      '[AudioEngine] the ' + key + ' effect could not be disconnected from its bypass cell',
+      err,
+    );
+  }
+}
+
+/**
+ * A Mix write through `key`'s cell (docs/specs/DARK_EFFECT_BYPASS.md section 1.2, assumption 4). `mix` is the stored,
+ * clamped Mix; the cell runs the tapered `w = colourWetGain(mix)`. Light (w > 0): cancel a pending disconnect, connect the
+ * effect if it is not (the wet gain is 0, so the path appears silently), then ramp the cell to the law. Darken (w = 0):
+ * ramp to dry and arm the one disconnect for when the ramp has run on the audio thread (lookAhead + the ramp + a margin),
+ * where it goes only if the cell is still dark. A re-sent value with nothing left to do writes nothing, so a whole-block
+ * apply does not re-ramp or re-arm.
+ */
+function writeCellMix(key: BypassKey, mix: number): void {
+  const cell = _cells[key];
+  const effect = cell?.effect;
+  if (!cell || !effect) return;
+  const w = colourWetGain(mix);
+  if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
+  const context = Tone.getContext();
+  if (w > 0) {
+    if (cell.darken !== null) {
+      context.clearTimeout(cell.darken);
+      cell.darken = null;
+    }
+    if (!cell.connected && !connectEffect(key, cell, effect)) return;
+    cell.mix = w;
+    rampCell(cell, w, COLOUR_RAMP_SECONDS);
+    return;
+  }
+  cell.mix = 0;
+  rampCell(cell, 0, COLOUR_RAMP_SECONDS);
+  cell.darken = context.setTimeout(
+    () => {
+      cell.darken = null;
+      if (cell.mix === 0 && cell.connected) disconnectEffect(key, cell, effect);
+    },
+    context.lookAhead + COLOUR_RAMP_SECONDS + BYPASS_DISCONNECT_MARGIN_SECONDS,
+  );
 }
 
 /** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
@@ -422,7 +503,8 @@ export function buildGlobalFxChain(): void {
   if (VibratoCtor) {
     try {
       const { rate, depth } = DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato;
-      _globalVibrato = new VibratoCtor({ frequency: rate, depth, wet: 0 });
+      // Pinned fully wet: its bypass cell carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9).
+      _globalVibrato = new VibratoCtor({ frequency: rate, depth, wet: 1 });
     } catch (err) {
       devWarn('[AudioEngine] Vibrato could not be constructed; the pedal slot runs without it', err);
       _globalVibrato = null;
@@ -453,6 +535,10 @@ export function buildGlobalFxChain(): void {
   // The bypass cells (docs/specs/DARK_EFFECT_BYPASS.md section 1.3), one per effect whose constructor exists, built
   // before the returns and the master so the master stays the last Gain made. Without a Gain or a Delay constructor no
   // cell can exist, and the ten effects are released and left out of the chain.
+  // A pending disconnect belongs to the cell it was armed on: cancel it with the cell.
+  for (const cell of Object.values(_cells)) {
+    if (cell.darken !== null) Tone.getContext().clearTimeout(cell.darken);
+  }
   for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
   const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
     ['distortion', DistortionCtor, _globalDistortion],
@@ -1181,7 +1267,8 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
 }
 
 /** Vibrato (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are the LFO's Signals; the Mix is
- *  tapered like Colour's. `rate` arrives already resolved to Hz. Stereo: one LFO moves one delay for both channels. */
+ *  tapered like Colour's and written through the bypass cell (writeCellMix), which takes the node out of the signal path
+ *  while it is dark. `rate` arrives already resolved to Hz. Stereo: one LFO moves one delay for both channels. */
 export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>): void {
   const vibrato = _globalVibrato;
   if (!vibrato) return;
@@ -1191,7 +1278,7 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
     const wet = clampIfGiven('vibrato.wet', params.wet);
     if (rate !== undefined) rampOrSet(vibrato.frequency, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(vibrato.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('vibrato', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalVibrato failed', err);
   }

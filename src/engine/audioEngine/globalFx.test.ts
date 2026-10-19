@@ -322,9 +322,11 @@ const filterCutOf = () => toneFlags.cutCtor.mock.results[1]?.value;
 const delaysBuilt = () => toneFlags.cutCtor.mock.results.map((r) => r.value);
 /** An effect's bypass cell (Dark-Effect Bypass T2, docs/specs/DARK_EFFECT_BYPASS.md section 1.1), found through the
  *  wiring: its `in` is the Gain that feeds the effect, its `wet` the node the effect feeds, its `cut` the node the `wet`
- *  feeds, and its `dry` whatever else the `in` feeds. */
+ *  feeds, and its `dry` whatever else the `in` feeds. An effect that was never connected (built dark, T3) has no edge to
+ *  its cell, so its cell is found by build order instead (cellByBuildOrder). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function cellOf(effect: any) {
+  if (effect.connect.mock.calls.length === 0) return cellByBuildOrder(effect);
   const gains = toneFlags.gainCtor.mock.results.map((r) => r.value);
   const input = gains.find((g) => g.connect.mock.calls.some(([target]: unknown[]) => target === effect));
   const wet = effect.connect.mock.calls.at(-1)?.[0];
@@ -334,6 +336,18 @@ function cellOf(effect: any) {
     wet,
     cut: wet?.connect.mock.calls.at(-1)?.[0],
   };
+}
+/** The latest build's cell for `effect`, by position: the cells are built in chain order, one per effect whose
+ *  constructor exists (a throwing one included), each as three Gains (in, dry, wet) and a cut, before the two returns
+ *  and the master Gain; their cuts are the build's last Delays. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function cellByBuildOrder(effect: any) {
+  const present = tenEffects().filter((e) => e !== undefined);
+  const k = present.indexOf(effect);
+  const n = present.length;
+  const gains = toneFlags.gainCtor.mock.results.map((r) => r.value).slice(-(3 * n + 3), -3);
+  const cuts = delaysBuilt().slice(-n);
+  return { in: gains[3 * k], dry: gains[3 * k + 1], wet: gains[3 * k + 2], cut: cuts[k] };
 }
 /** Where the chain enters an effect's cell, and where it leaves it. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -541,6 +555,9 @@ describe('globalFx', () => {
       'FrequencyShifter',
       'StereoWidener',
     ];
+    /** The effects a fresh build leaves dark (T3 onward): dry 1 / wet 0, the effect pinned at wet 1 and unconnected. */
+    const BUILT_DARK = new Set(['Vibrato']);
+    const isBuiltDark = (index: number) => BUILT_DARK.has(EFFECT_NAMES[index]);
 
     it('builds ten cells: twelve zero-delay Delays in all, and three Gains per cell besides the returns and master', async () => {
       const globalFx = await import('./globalFx');
@@ -550,7 +567,35 @@ describe('globalFx', () => {
       expect(toneFlags.gainCtor).toHaveBeenCalledTimes(30 + 3);
     });
 
-    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const))(
+    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const).filter(([name]) => BUILT_DARK.has(name)))(
+      'builds the %s dark: pinned at wet 1, unconnected, its cell in -> dry -> cut and wet -> cut at dry 1, wet 0',
+      async (_name, index) => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const effect = tenEffects()[index];
+        const cell = cellOf(effect);
+        const gains = toneFlags.gainCtor.mock.results.map((r) => r.value);
+
+        expect(effect.wet.value).toBe(1);
+        expect(gains).toContain(cell.in);
+        expect(gains).toContain(cell.dry);
+        expect(gains).toContain(cell.wet);
+        expect(new Set([cell.in, cell.dry, cell.wet, cell.cut]).size).toBe(4);
+        expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+        expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
+        expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
+        expect(effect.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.value).toBe(1);
+        expect(cell.wet.gain.value).toBe(0);
+
+        // A Decay flip restores exactly what was connected: still nothing to or from the effect.
+        globalFx.wireGlobalFxChain(true);
+        expect(cell.in.connect).not.toHaveBeenCalledWith(effect);
+        expect(effect.connect).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const).filter(([name]) => !BUILT_DARK.has(name)))(
       'puts the %s in a transparent cell: in -> effect -> wet -> cut, in -> dry -> cut, dry 0, wet 1',
       async (_name, index) => {
         const globalFx = await import('./globalFx');
@@ -662,9 +707,14 @@ describe('globalFx', () => {
         globalFx.wireGlobalFxChain(flip);
         for (const node of nodes) expect(node.disconnect).toHaveBeenCalledTimes(1);
         cells.forEach((cell, i) => {
-          expect(cell.in.connect.mock.calls).toHaveLength(2);
-          expect(cell.in.connect.mock.calls).toEqual(expect.arrayContaining([[cell.dry], [effects[i]]]));
-          expect(effects[i].connect.mock.calls).toEqual([[cell.wet]]);
+          if (isBuiltDark(i)) {
+            expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+            expect(effects[i].connect).not.toHaveBeenCalled();
+          } else {
+            expect(cell.in.connect.mock.calls).toHaveLength(2);
+            expect(cell.in.connect.mock.calls).toEqual(expect.arrayContaining([[cell.dry], [effects[i]]]));
+            expect(effects[i].connect.mock.calls).toEqual([[cell.wet]]);
+          }
           expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
           expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
           expect(cell.cut.connect).toHaveBeenCalledTimes(1);
@@ -1885,8 +1935,11 @@ describe('globalFx', () => {
 
       globalFx.wireGlobalFxChain(controlled);
 
-      // Dark-Effect Bypass T2: each pedal feeds only its own cell's wet gain, and the cells chain cut to in.
-      pedals.forEach((pedal, i) => expect(pedal.connect.mock.calls).toEqual([[cells[i].wet]]));
+      // Dark-Effect Bypass T2: each pedal feeds only its own cell's wet gain, and the cells chain cut to in. T3: the
+      // Vibrato is built dark, so it feeds nothing.
+      pedals.forEach((pedal, i) =>
+        expect(pedal.connect.mock.calls).toEqual(pedal === vibrato ? [] : [[cells[i].wet]]),
+      );
       expect(cells[0].cut.connect.mock.calls).toEqual([[inOf(chorus)]]);
       expect(cells[1].cut.connect.mock.calls).toEqual([[inOf(tremolo)]]);
       expect(cells[2].cut.connect.mock.calls).toEqual([[inOf(vibrato)]]);
@@ -1962,12 +2015,12 @@ describe('globalFx', () => {
   // after the Tremolo and before the Compressor.
   // ========================================
   describe('buildGlobalFxChain - the Vibrato and the FrequencyShifter (Global Pedals)', () => {
-    it('constructs exactly one of each, dry (wet 0) at Tone defaults, the Vibrato at Tone\'s own maxDelay', async () => {
+    it('constructs exactly one of each at Tone defaults: the Vibrato pinned wet (its cell carries the Mix) at Tone\'s own maxDelay, the shifter dry', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       expect(toneFlags.vibratoCtor).toHaveBeenCalledTimes(1);
       // No maxDelay key: Tone's 0.005 s default is the Depth ceiling the full range is written against.
-      expect(toneFlags.vibratoCtor).toHaveBeenCalledWith({ frequency: 5, depth: 0.1, wet: 0 });
+      expect(toneFlags.vibratoCtor).toHaveBeenCalledWith({ frequency: 5, depth: 0.1, wet: 1 });
       expect(toneFlags.shifterCtor).toHaveBeenCalledTimes(1);
       expect(toneFlags.shifterCtor).toHaveBeenCalledWith({ frequency: 0, wet: 0 });
     });
@@ -2209,32 +2262,40 @@ describe('globalFx', () => {
       expect(vibrato.depth.rampTo).toHaveBeenCalledWith(0.25, 0.05);
     });
 
-    it('ramps the tapered (squared) wet, and writes only the fields given', async () => {
+    it('ramps the cell to the tapered (squared) Mix, never the pinned wet, and writes only the fields given', async () => {
       const { globalFx, vibrato } = await built();
+      const cell = cellOf(vibrato);
       globalFx.setGlobalVibrato({ wet: 0.5 });
-      expect(vibrato.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      expect(cell.dry.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(Math.cos((0.25 * Math.PI) / 2), 9), 0.05);
+      expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(Math.sin((0.25 * Math.PI) / 2), 9), 0.05);
+      expect(vibrato.wet.rampTo).not.toHaveBeenCalled();
       expect(vibrato.frequency.rampTo).not.toHaveBeenCalled();
       expect(vibrato.depth.rampTo).not.toHaveBeenCalled();
     });
 
     it('clamps every field into its full range at both ends', async () => {
       const { globalFx, vibrato } = await built();
+      const cell = cellOf(vibrato);
       globalFx.setGlobalVibrato({ rate: 0, depth: -1, wet: -1 });
       expect(vibrato.frequency.rampTo).toHaveBeenLastCalledWith(0.05, 0.05);
       expect(vibrato.depth.rampTo).toHaveBeenLastCalledWith(0, 0.05);
-      expect(vibrato.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      // A Mix of -1 is 0: already dark, so nothing to write.
+      expect(vibrato.connect).not.toHaveBeenCalled();
+      expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
       globalFx.setGlobalVibrato({ rate: 20, depth: 3, wet: 3 });
       expect(vibrato.frequency.rampTo).toHaveBeenLastCalledWith(10, 0.05);
       expect(vibrato.depth.rampTo).toHaveBeenLastCalledWith(1, 0.05);
-      expect(vibrato.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(0, 9), 0.05);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(1, 0.05);
     });
 
     it('ignores a non-finite value and still writes the finite fields beside it', async () => {
       const { globalFx, vibrato } = await built();
+      const cell = cellOf(vibrato);
       globalFx.setGlobalVibrato({ rate: Number.NaN, depth: Number.POSITIVE_INFINITY, wet: 0.4 });
       expect(vibrato.frequency.rampTo).not.toHaveBeenCalled();
       expect(vibrato.depth.rampTo).not.toHaveBeenCalled();
-      expect(vibrato.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.16, 6), 0.05);
+      expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(Math.sin((0.16 * Math.PI) / 2), 9), 0.05);
     });
 
     it('warns and does not throw when the node throws', async () => {
@@ -2244,6 +2305,330 @@ describe('globalFx', () => {
       });
       expect(() => globalFx.setGlobalVibrato({ depth: 0.3 })).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalVibrato failed', expect.any(Error));
+    });
+  });
+
+  // ========================================
+  // Dark-Effect Bypass T3 (docs/specs/DARK_EFFECT_BYPASS.md section 1.2): the crossing protocol, on the Vibrato. A light
+  // connects the effect while the cell's wet gain is 0, then ramps the cell to Tone's CrossFade law; a darken ramps the
+  // cell to dry and disconnects the effect once lookAhead + the ramp + a margin has passed, so both graph changes happen
+  // on a silent path. One pending disconnect per cell; a re-sent value with nothing pending does nothing.
+  // ========================================
+  describe('the crossing protocol, on the Vibrato (Dark-Effect Bypass T3)', () => {
+    const DISCONNECT_AFTER = 0.1 + 0.05 + 0.01;
+    const lawDry = (w: number) => Math.cos((w * Math.PI) / 2);
+    const lawWet = (w: number) => Math.sin((w * Math.PI) / 2);
+
+    async function dark() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      return { globalFx, vibrato, cell: cellOf(vibrato) };
+    }
+    async function lit(mix = 0.3) {
+      const built = await dark();
+      built.globalFx.setGlobalVibrato({ wet: mix });
+      return built;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function clearCalls(vibrato: any, cell: any) {
+      for (const node of [vibrato, cell.in, cell.dry, cell.wet, cell.cut]) {
+        node.connect.mockClear();
+        node.disconnect.mockClear();
+      }
+      cell.dry.gain.rampTo.mockClear();
+      cell.wet.gain.rampTo.mockClear();
+    }
+
+    describe('lighting', () => {
+      it('connects in -> effect, then effect -> wet, once each, before ramping the cell to the law', async () => {
+        const { vibrato, cell } = await lit(0.3);
+        expect(cell.in.connect).toHaveBeenCalledWith(vibrato);
+        expect(cell.in.connect.mock.calls.filter(([target]: unknown[]) => target === vibrato)).toHaveLength(1);
+        expect(vibrato.connect.mock.calls).toEqual([[cell.wet]]);
+        const order = (spy: { mock: { invocationCallOrder: number[] } }) => spy.mock.invocationCallOrder[0];
+        const inToEffect = cell.in.connect.mock.invocationCallOrder[cell.in.connect.mock.calls.findIndex(([t]: unknown[]) => t === vibrato)];
+        expect(inToEffect).toBeLessThan(order(vibrato.connect));
+        expect(order(vibrato.connect)).toBeLessThan(order(cell.dry.gain.rampTo));
+        expect(order(vibrato.connect)).toBeLessThan(order(cell.wet.gain.rampTo));
+      });
+
+      it('ramps dry to cos(0.09 pi/2) and wet to sin(0.09 pi/2) over 50 ms for a Mix of 0.3', async () => {
+        const { cell } = await lit(0.3);
+        expect(cell.dry.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawDry(0.09), 9), 0.05]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.09), 9), 0.05]]);
+      });
+
+      it('arms no timer and writes nothing to the effect itself', async () => {
+        const { vibrato } = await lit(0.3);
+        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(vibrato.wet.rampTo).not.toHaveBeenCalled();
+        expect(vibrato.wet.value).toBe(1);
+      });
+
+      it('does nothing at all for a re-sent Mix', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0.3 });
+        expect(cell.in.connect).not.toHaveBeenCalled();
+        expect(vibrato.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
+
+      it('moves a lit cell to a new Mix by ramping only: no second connect', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0.6 });
+        expect(cell.in.connect).not.toHaveBeenCalled();
+        expect(vibrato.connect).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawWet(0.36), 9), 0.05);
+      });
+
+      it('lights at a Mix of 0.001', async () => {
+        const { vibrato, cell } = await lit(0.001);
+        expect(vibrato.connect).toHaveBeenCalledWith(cell.wet);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawWet(0.000001), 12), 0.05);
+      });
+
+      it('clamps a Mix of 2 to 1 and lights at dry 0, wet 1', async () => {
+        const { vibrato, cell } = await lit(2);
+        expect(vibrato.connect).toHaveBeenCalledWith(cell.wet);
+        expect(cell.dry.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(0, 9), 0.05);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(1, 0.05);
+      });
+
+      it.each([
+        ['0', 0],
+        ['-0', -0],
+        ['NaN', Number.NaN],
+      ])('leaves a dark cell alone for a Mix of %s: no connect, no ramp, no timer', async (_label, mix) => {
+        const { vibrato, cell } = await lit(mix);
+        expect(cell.in.connect).not.toHaveBeenCalledWith(vibrato);
+        expect(vibrato.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
+
+      it('warns, keeps the cell dry and stays unconnected when the connect throws; the next light retries', async () => {
+        const { globalFx, vibrato, cell } = await dark();
+        cell.in.connect.mockImplementationOnce(() => {
+          throw new Error('connect failed');
+        });
+        expect(() => globalFx.setGlobalVibrato({ wet: 0.3 })).not.toThrow();
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('vibrato'), expect.any(Error));
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        // Unconnected: a Decay flip does not wire the effect in.
+        globalFx.wireGlobalFxChain(true);
+        expect(vibrato.connect).not.toHaveBeenCalled();
+
+        globalFx.setGlobalVibrato({ wet: 0.3 });
+        expect(cell.in.connect).toHaveBeenCalledWith(vibrato);
+        expect(vibrato.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawWet(0.09), 9), 0.05);
+      });
+
+      it('keeps the effect wired through a Decay flip once lit', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        clearCalls(vibrato, cell);
+        globalFx.wireGlobalFxChain(true);
+        expect(cell.in.connect).toHaveBeenCalledWith(vibrato);
+        expect(vibrato.connect.mock.calls).toEqual([[cell.wet]]);
+      });
+    });
+
+    describe('darkening', () => {
+      it('ramps the cell to dry 1, wet 0 and arms one disconnect at lookAhead + ramp + margin, disconnecting nothing yet', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        expect(cell.dry.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.05]]);
+        expect(toneFlags.timeouts).toHaveLength(1);
+        expect(toneFlags.timeouts[0].seconds).toBeCloseTo(DISCONNECT_AFTER, 9);
+        expect(cell.in.disconnect).not.toHaveBeenCalled();
+        expect(vibrato.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('disconnects in -> effect and effect -> wet once each when the timer fires, and no other edge', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        clearCalls(vibrato, cell);
+        fireTimeouts();
+        expect(cell.in.disconnect.mock.calls).toEqual([[vibrato]]);
+        expect(vibrato.disconnect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.dry.disconnect).not.toHaveBeenCalled();
+        expect(cell.wet.disconnect).not.toHaveBeenCalled();
+        expect(cell.cut.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('leaves the effect out of a Decay flip once disconnected', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        fireTimeouts();
+        clearCalls(vibrato, cell);
+        globalFx.wireGlobalFxChain(true);
+        expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+        expect(vibrato.connect).not.toHaveBeenCalled();
+      });
+
+      it("waits out the context's lookAhead as it is at the call", async () => {
+        const { globalFx } = await lit(0.3);
+        toneFlags.lookAhead = 0.03;
+        globalFx.setGlobalVibrato({ wet: 0 });
+        expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.09, 9);
+      });
+
+      it('does nothing for a re-sent 0 while the disconnect is pending', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        clearCalls(vibrato, cell);
+        const pending = toneFlags.timeouts[0].id;
+        globalFx.setGlobalVibrato({ wet: 0 });
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts.map((t) => t.id)).toEqual([pending]);
+      });
+
+      it('does nothing for a re-sent 0 after the disconnect', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        fireTimeouts();
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
+
+      it('warns and does not throw when the disconnect throws, and a later light ramps up without reconnecting', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        cell.in.disconnect.mockImplementationOnce(() => {
+          throw new Error('disconnect failed');
+        });
+        expect(() => fireTimeouts()).not.toThrow();
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('vibrato'), expect.any(Error));
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0.3 });
+        expect(cell.in.connect).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawWet(0.09), 9), 0.05);
+      });
+
+      it('retries the disconnect on a re-sent 0 after a failed one', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        cell.in.disconnect.mockImplementationOnce(() => {
+          throw new Error('disconnect failed');
+        });
+        fireTimeouts();
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        expect(toneFlags.timeouts).toHaveLength(1);
+        fireTimeouts();
+        expect(cell.in.disconnect.mock.calls).toEqual([[vibrato]]);
+        expect(vibrato.disconnect.mock.calls).toEqual([[cell.wet]]);
+      });
+    });
+
+    describe('re-lighting and the one pending timer', () => {
+      it('cancels a pending disconnect on 0.3 -> 0 -> 0.2: nothing disconnects, no second connect, the cell ramps up', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0.2 });
+        expect(toneFlags.timeouts).toHaveLength(0);
+        fireTimeouts();
+        expect(cell.in.disconnect).not.toHaveBeenCalled();
+        expect(vibrato.disconnect).not.toHaveBeenCalled();
+        expect(cell.in.connect).not.toHaveBeenCalled();
+        expect(vibrato.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawDry(0.04), 9), 0.05);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawWet(0.04), 9), 0.05);
+      });
+
+      it('leaves exactly one pending timer after 0 -> 0.1 -> 0 -> 0.1 -> 0, and one disconnect pair when it fires', async () => {
+        const { globalFx, vibrato, cell } = await dark();
+        clearCalls(vibrato, cell);
+        for (const mix of [0.1, 0, 0.1, 0]) globalFx.setGlobalVibrato({ wet: mix });
+        expect(toneFlags.timeouts).toHaveLength(1);
+        expect(cell.in.connect.mock.calls.filter(([target]: unknown[]) => target === vibrato)).toHaveLength(1);
+        fireTimeouts();
+        expect(cell.in.disconnect.mock.calls).toEqual([[vibrato]]);
+        expect(vibrato.disconnect.mock.calls).toEqual([[cell.wet]]);
+      });
+
+      // The clock may already have dispatched the callback when the re-light lands; the callback itself checks.
+      it('disconnects nothing when a disconnect callback runs after a re-light', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        clearCalls(vibrato, cell);
+        const late = toneFlags.timeouts[0].fn;
+        globalFx.setGlobalVibrato({ wet: 0.2 });
+        late();
+        expect(cell.in.disconnect).not.toHaveBeenCalled();
+        expect(vibrato.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('disconnects nothing when a disconnect callback runs a second time', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        clearCalls(vibrato, cell);
+        const callback = toneFlags.timeouts[0].fn;
+        fireTimeouts();
+        callback();
+        expect(cell.in.disconnect).toHaveBeenCalledTimes(1);
+        expect(vibrato.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it('connects again on a light after the disconnect', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        fireTimeouts();
+        clearCalls(vibrato, cell);
+        globalFx.setGlobalVibrato({ wet: 0.5 });
+        expect(cell.in.connect.mock.calls).toEqual([[vibrato]]);
+        expect(vibrato.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledWith(expect.closeTo(lawWet(0.25), 9), 0.05);
+      });
+
+      it('cancels a pending disconnect when the chain is rebuilt, so it never reaches the old cell', async () => {
+        const { globalFx, vibrato, cell } = await lit(0.3);
+        globalFx.setGlobalVibrato({ wet: 0 });
+        globalFx.buildGlobalFxChain();
+        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(cell.in.disconnect).not.toHaveBeenCalledWith(vibrato);
+        expect(vibrato.disconnect).not.toHaveBeenCalledWith(cell.wet);
+      });
+    });
+
+    describe('no node', () => {
+      it('no-ops when the Vibrato constructor is absent', async () => {
+        toneFlags.vibratoAbsent = true;
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        expect(() => globalFx.setGlobalVibrato({ wet: 0.5 })).not.toThrow();
+        expect(() => globalFx.setGlobalVibrato({ wet: 0 })).not.toThrow();
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
+
+      it('leaves the empty cell dry when the Vibrato constructor threw', async () => {
+        toneFlags.vibratoCtor.mockImplementationOnce(() => {
+          throw new Error('no vibrato');
+        });
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const empty = emptyCellAfter(cutOf(lastInstance(toneFlags.tremoloCtor)));
+        empty.dry.gain.rampTo.mockClear();
+        globalFx.setGlobalVibrato({ wet: 0.5 });
+        globalFx.setGlobalVibrato({ wet: 0 });
+        expect(empty.dry.gain.value).toBe(1);
+        expect(empty.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
     });
   });
 
