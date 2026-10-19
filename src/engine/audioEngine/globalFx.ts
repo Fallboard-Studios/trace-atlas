@@ -907,19 +907,28 @@ type SpreadNode = { spread: number; wet: { rampTo?: (value: number, rampTime: nu
 const _spreadWetGain: Record<SpreadPedal, number> = { chorus: 0, tremolo: 0 };
 /** A duck in progress: the Spread to write and the timer that writes it. */
 const _spreadDuck: Partial<Record<SpreadPedal, { spread: number; timer: number }>> = {};
+/** The Spread each node has, or is about to get from a duck. Every whole-block apply re-sends it, and a lit pedal must
+ *  not drop to dry for a value it already has. */
+const _spreadTarget: Record<SpreadPedal, number> = {
+  chorus: DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.spread,
+  tremolo: DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo.spread,
+};
 
-/** Drop every pending duck and forget the Mix gains: the nodes are being rebuilt dry. */
+/** Drop every pending duck and forget the Mix gains: the nodes are being rebuilt dry, at the default Spread. */
 function resetSpreadDucks(): void {
   for (const pedal of ['chorus', 'tremolo'] as const) {
     const pending = _spreadDuck[pedal];
     if (pending) Tone.getContext().clearTimeout(pending.timer);
     delete _spreadDuck[pedal];
     _spreadWetGain[pedal] = 0;
+    _spreadTarget[pedal] = DEFAULT_GLOBAL_AUDIO_SETTINGS[pedal].spread;
   }
 }
 
-/** A Spread write: at once on a dry pedal, ducked on a lit one (see SPREAD_DUCK_SECONDS). */
+/** A Spread write: nothing if the node has (or is getting) it, at once on a dry pedal, ducked on a lit one. */
 function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void {
+  if (spread === _spreadTarget[pedal]) return;
+  _spreadTarget[pedal] = spread;
   const pending = _spreadDuck[pedal];
   if (!pending && _spreadWetGain[pedal] === 0) {
     node.spread = spread;

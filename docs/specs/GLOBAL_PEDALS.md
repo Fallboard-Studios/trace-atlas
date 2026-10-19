@@ -695,5 +695,8 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   the last value written. Every step of a drag re-arms the one timer, so the pedal stays dry (about 0.25 s at
   lookAhead 0.1) until the drag stops and only the last Spread lands; a Mix edit during the duck moves the return level
   without ramping up early; a dry pedal (every seeded apply at load) is written at once; a chain rebuild cancels the
-  timer. Offline renders were misleading here and are not evidence for this path. 16 tests (both pedals), RED first;
-  8 mutants, 7 killed, the eighth (a check that the node was not rebuilt) was unreachable behind the cancel and deleted.
+  timer. A write of the Spread the node already has, or a duck is already heading for, does nothing (`_spreadTarget`):
+  `applyGlobalAudioToEngine` re-sends every block whole, and without that every re-apply would drop a lit pedal to dry
+  (found by a full-suite run, where a second seeded apply ducked a lit Tremolo). Offline renders were misleading here and
+  are not evidence for this path. 20 tests (both pedals), RED first; 11 mutants, 10 killed, the eleventh (a check that
+  the node was not rebuilt) was unreachable behind the cancel and deleted.

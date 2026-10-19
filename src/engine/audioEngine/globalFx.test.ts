@@ -2207,6 +2207,27 @@ describe('globalFx', () => {
       expect(n.wet.rampTo).toHaveBeenLastCalledWith(expect.closeTo(0.25, 9), 0.02);
     });
 
+    it('treats a write of the Spread the node already has as a no-op: a whole-block re-apply never ducks a lit pedal', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 180 });
+      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(n.wet.rampTo.mock.calls.filter(([v]: unknown[]) => v === 0)).toHaveLength(0);
+      set(globalFx, { spread: 90 });
+      fireTimeouts();
+      set(globalFx, { spread: 90 });
+      expect(toneFlags.timeouts).toHaveLength(0);
+    });
+
+    it('a write of the Spread a duck is already heading for adds no step to it', async () => {
+      const { globalFx, n } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      const timer = toneFlags.timeouts[0].id;
+      set(globalFx, { spread: 90 });
+      expect(toneFlags.timeouts.map((t) => t.id)).toEqual([timer]);
+      fireTimeouts();
+      expect(n.spread).toBe(90);
+    });
+
     it("waits out the context's lookAhead as it is at the call", async () => {
       toneFlags.lookAhead = 0.03;
       const { globalFx } = await lit(0.5);
@@ -2251,8 +2272,9 @@ describe('globalFx', () => {
       expect(fresh).not.toBe(n);
       fireTimeouts();
       expect(n.spread).toBe(180);
-      set(globalFx, { spread: 45 });
-      expect(fresh.spread).toBe(45);
+      // The fresh node is at the default again, so the same 90 is a real change for it, written at once (it is dry).
+      set(globalFx, { spread: 90 });
+      expect(fresh.spread).toBe(90);
     });
 
     it('warns and does not throw when the deferred write throws', async () => {
