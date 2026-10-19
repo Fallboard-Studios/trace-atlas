@@ -169,8 +169,12 @@ Timing: a spawn run lasts `WAVE_TOTAL_SECONDS` (about 3.2 s), longer than the 1 
 the waves (`playHaloWaves`) on a timeline of their own (`halo-waves-{context}-{robotId}` in `timelineMap`, killed with the body) rather
 than as a child of the arc, which would hold back the arc's `onComplete` and the robot's next step. A despawn run is
 squeezed into the arc, since the robot, and the halo inside it, is hidden when the arc ends. Distances are scene units:
-each frame the halo group's transform (`getCTM`) gives its scale, and the waves' centre is pinned to the scene point
+each frame the halo group's transform to scene units gives its scale, and the waves' centre is pinned to the scene point
 the robot stood on when they began, so a spawn run that outlasts the arc stays at the station as the robot swims off.
+In the world that transform is the group's `getScreenCTM()` read against a static scene sheet's (`matrixWithin`), not
+`getCTM()`: since roadmap 53 a robot draws in an svg of its own inside a wrapper div that the swim moves, and `getCTM()`
+stops at that svg, so a pin taken from it rides along with the robot (found live, 2026-10-17). An avatar or card, which has
+no scene, still uses `getCTM()`.
 Every line has a **trail** (Crawford, 2026-10-12, after trying a kite and a notch on each side — "too much"): one
 gradient on the side the line has come from, so a wave reads as a bright line with a fading tail, and nothing ahead of
 it. "Behind" is the inside of an outward wave and the outside of the counter wave, and every wave swaps sides while a

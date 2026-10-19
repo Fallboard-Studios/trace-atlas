@@ -9,8 +9,11 @@
 //
 // Each frame writes plain attributes, and only the ones that changed: a run touches up to 35 elements (five
 // lines, thirty trail strips) and most are idle for most of it, so `gsap.set` per element per frame was
-// the dominant cost. The one forced read is `getCTM()`, once per frame per running robot, which the pinned
-// centre and the scene-unit sizes need while the robot scales and swims.
+// the dominant cost. The forced reads are the matrices the pinned centre and the scene-unit sizes need while
+// the robot scales and swims, once per frame per running robot: in the world (a robot is a mover inside an
+// `.ocean-scene`) the scene sheet's and the gem group's `getScreenCTM()`, the pair read each frame because the
+// deck camera's scroll moves the frame; for an avatar or card, the group's `getCTM()`. The sheet itself is a
+// static stage child, so it is looked up once, when the arc's timeline is made, not on every frame.
 
 // ========================================
 // IMPORTS
@@ -23,6 +26,7 @@ import {
   WAVE_TOTAL_SECONDS,
   WAVE_TRAIL_SIDES,
   mapPoint,
+  matrixWithin,
   unmapPoint,
   waveState,
   wavePath,
@@ -55,9 +59,16 @@ const TRAIL_STRIPS_PER_WAVE = 3 * WAVE_TRAIL_SIDES.length;
 /** This group's transform to scene units, read off its current chain (the arc scales the robot from
  *  STATION_PORT_SCALE to 1 while the waves play, on top of the gem's and the row's own scale, and it swims
  *  away after), so the waves can be sized and pinned in scene units. null where the browser cannot say
- *  (jsdom has no getCTM). */
-function sceneMatrixOf(el: SVGGraphicsElement): Matrix2D | null {
-  const ctm = typeof el.getCTM === 'function' ? el.getCTM() : null;
+ *  (jsdom has no getCTM).
+ *
+ *  In the world a robot is a mover (Phase 53): the gem draws in an svg of its own, inside a wrapper div that
+ *  GSAP moves, so `getCTM()` stops at that svg and leaves the wrapper's swim out; pinned that way the waves
+ *  would ride the robot. The scene's frame is then a static sheet's screen matrix, and the group's screen
+ *  matrix is read against it. An avatar or card has no scene (`sheet` is null) and keeps `getCTM()`. */
+function sceneMatrixOf(el: SVGGraphicsElement, sheet: SVGGraphicsElement | null): Matrix2D | null {
+  const frame = sheet && typeof sheet.getScreenCTM === 'function' ? sheet.getScreenCTM() : null;
+  const screen = frame && typeof el.getScreenCTM === 'function' ? el.getScreenCTM() : null;
+  const ctm = frame && screen ? matrixWithin(frame, screen) : typeof el.getCTM === 'function' ? el.getCTM() : null;
   return ctm && Math.hypot(ctm.a, ctm.b) > 0.001 ? ctm : null;
 }
 
@@ -101,6 +112,8 @@ export function playHaloWaves({ group, kind, duration, dimOpacity }: PlayHaloWav
   if (!waveGroup || paths.length === 0) return null;
   const cx = Number(waveGroup.getAttribute('data-cx'));
   const cy = Number(waveGroup.getAttribute('data-cy'));
+  // The scene's frame of reference: a static sheet of the robot's own `.ocean-scene`, found once (null for an avatar or card).
+  const sheet = group.closest('.ocean-scene')?.querySelector<SVGGraphicsElement>('svg.ocean-scene__sheet') ?? null;
 
   // Strips left by a run that was cut short (its timeline replaced) would stay as they were drawn.
   waveGroup.querySelectorAll('.gem__wave-trail').forEach((strip) => strip.remove());
@@ -119,7 +132,7 @@ export function playHaloWaves({ group, kind, duration, dimOpacity }: PlayHaloWav
       duration: kind === 'spawn' ? WAVE_TOTAL_SECONDS : duration,
       ease: 'none',
       onUpdate: () => {
-        const matrix = sceneMatrixOf(group);
+        const matrix = sceneMatrixOf(group, sheet);
         if (matrix && !anchor) anchor = mapPoint(matrix, cx, cy);
         const scale = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
         const at = matrix && anchor ? unmapPoint(matrix, anchor.x, anchor.y) : { x: cx, y: cy };

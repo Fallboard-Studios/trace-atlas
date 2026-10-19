@@ -73,7 +73,7 @@ describe('ContentPane reads its copy from src/content (docs/specs/CONTENT_LAYER.
 // bottom — the sleeve strip on the desk, PhoneBar's top on the phone (--phone-bar-clearance, Task 5) —
 // right of the nav panel on the desk (NavPanel.css's --nav-panel-width) and edge to edge on the phone.
 // The shell reaches CSS as ScreenViewport's data-shell, useShell()'s value.
-describe('ContentPane.css — the opaque content surface', () => {
+describe('ContentPane.css — the content surface', () => {
   const PHONE_RULE = "#screen-viewport[data-shell='phone'] .content-pane";
 
   async function readCss(relativePath: string): Promise<string> {
@@ -89,8 +89,20 @@ describe('ContentPane.css — the opaque content surface', () => {
     return body!;
   }
 
-  it('paints --content-surface, a solid colour (no alpha) declared once in index.css', async () => {
-    expect(await ruleBody('ContentPane.css', '.content-pane')).toContain('background-color: var(--content-surface);');
+  // Crawford, 2026-10-18: the pane is see-through, at the wells' own value, so the dimmed world reads behind it.
+  // Its own token, not --well-background (a well is a readout cut into the surface) and not --content-surface,
+  // which stays solid: the robot screen, the roster tiles and the help popover lay their content on it.
+  it('paints --content-pane-background, a translucent colour at the wells’ value, declared once in index.css', async () => {
+    expect(await ruleBody('ContentPane.css', '.content-pane')).toContain('background-color: var(--content-pane-background);');
+    const root = await ruleBody('../../../../index.css', ':root');
+    const declarations = root.match(/--content-pane-background:\s*([^;]+);/g) ?? [];
+    expect(declarations).toHaveLength(1);
+    const value = declarations[0]!.replace(/--content-pane-background:\s*|;/g, '').trim();
+    expect(value).toBe('rgba(12, 16, 20, 0.55)');
+    expect(root).toContain(`--well-background: ${value};`);
+  });
+
+  it('leaves --content-surface a solid colour (no alpha) for the surfaces that still lay content on it', async () => {
     const root = await ruleBody('../../../../index.css', ':root');
     const declarations = root.match(/--content-surface:\s*([^;]+);/g) ?? [];
     expect(declarations).toHaveLength(1);

@@ -6,12 +6,14 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
 import { RobotBody } from './RobotBody';
+import { GEM_CANVAS_H, gemViewBox, gemWidth, getRobotGem } from './gem/polygon';
 import { setRef, deleteRef } from '../../utils/refs';
 import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../../stores/attenuationStyleStore';
 import { onRobotMounted } from '../../systems/workLoop';
 import { selectEntity } from '../panels/screen/nav/navActions';
+import { slotForLayer } from '../panels/screen/worldView/sceneStack';
 
 // ========================================
 // TYPES
@@ -25,14 +27,21 @@ interface RobotProps {
 // ========================================
 /**
  * Robot - Main robot component with positioning, selection, and interaction
- * Handles click events and stores SVG ref for GSAP animations
+ * Handles click events and stores the mover's ref for GSAP animations
  *
- * IMPORTANT: The top-level <g> has NO React-managed `transform` attribute.
- * GSAP is the single source of truth for all transforms (position, rotation)
- * on this element. React re-renders must never overwrite GSAP's SVG
- * transform attribute. Robots have no discernible front (Roadmap Phase 40,
- * docs/specs/ORBITING_POLYGONS.md §1.6) and no longer mirror on direction
- * change — only x/y and the swim tilt's rotation are GSAP-owned.
+ * A robot is a mover (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.3, §1.4; roadmap Phase 53): a
+ * small positioned `div` that is a compositor layer of its own, holding an `<svg>` the size of the
+ * robot's gem canvas, holding the robot group. The wrapper is the robot's body as far as the rest of
+ * the app goes — `getRef('robot-<id>')` returns it, and the swim, the job's bob, the station arc, the
+ * deck camera and the marker all read and write its x/y in scene units. Its `data-scene-slot` is the
+ * robot's row (sceneStack.ts `slotForLayer`), which OceanScene.css turns into a z-index, so a robot
+ * changing rows is this attribute changing, not a re-mount.
+ *
+ * IMPORTANT: The mover has NO React-managed `transform`. GSAP is the single source of truth for all
+ * transforms (position, rotation) on it, and the `<g>` inside carries none. React re-renders must
+ * never overwrite GSAP's transform. Robots have no discernible front (Roadmap Phase 40,
+ * docs/specs/ORBITING_POLYGONS.md §1.6) and no longer mirror on direction change — only x/y and the
+ * swim tilt's rotation are GSAP-owned.
  *
  * Takes `robotId`, not the whole `Robot` object (docs/todo/backlog.md #27 follow-up, 2026-09-15)
  * — looks its own robot up directly via `useLocaleStore` (`.find()` returns the existing array
@@ -46,7 +55,7 @@ interface RobotProps {
  * mount-only effect below) and so was never actually the source of that churn.
  */
 export const Robot = memo(function Robot({ robotId }: RobotProps) {
-  const ref = useRef<SVGGElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
   const selectRobot = useUIStore((s) => s.selectRobot);
   const activeHubTile = useUIStore((s) => s.activeHubTile);
@@ -80,7 +89,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
         transformOrigin: '50% 50%',
       });
       // The work loop takes it from here (Phase 43, spec §1.7): hidden in its station if Docked,
-      // out of it if 'exiting', else on to work — also the whole remount and power-on story.
+      // out of it if 'exiting', else on to work — also the whole power-on story.
       onRobotMounted(localeId, robotId);
     }
     return () => deleteRef(`robot-${robotId}`);
@@ -115,20 +124,39 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
     .join(' ');
 
   // Phase 43 J4 (spec §1.10): the id is what a layer switch's dissolve copy (an SVG `<use>` in the
-  // other robot row) points at. `.robot__row` carries the back row's scale (BACK_LAYER_SCALE), set
+  // dissolve slot) points at. `.robot__row` carries the back row's scale (BACK_LAYER_SCALE), set
   // by the work loop about the gem canvas centre — the frame sceneToOrbiterLocal assumes — so it
-  // never shares a transform with the swim's x/y/rotation on this group.
+  // never shares a transform with the swim's x/y/rotation, which are the mover's.
+  //
+  // The svg is the gem canvas, so the wrapper is exactly the canvas (OceanScene.css `.mover__svg` is a
+  // block) and the swim's tilt turns about the canvas centre; `overflow="visible"` lets the halo, the
+  // orbiters' flights and the job decorations draw outside it (spec §1.3). Only `.robot` takes clicks.
+  const gem = getRobotGem(robot.gemSeed);
   return (
-    <g
+    <div
       ref={ref}
-      id={`world-robot-${robotId}`}
-      className={className}
-      onClick={handleClick}
-      style={style}
+      className="mover mover--robot"
+      data-robot-id={robotId}
+      data-scene-slot={slotForLayer(robot.layer)}
     >
-      <g className="robot__row">
-        <RobotBody robot={robot} motion="world" />
-      </g>
-    </g>
+      <svg
+        className="mover__svg"
+        width={gemWidth(gem)}
+        height={GEM_CANVAS_H}
+        viewBox={gemViewBox(gem)}
+        overflow="visible"
+      >
+        <g
+          id={`world-robot-${robotId}`}
+          className={className}
+          onClick={handleClick}
+          style={style}
+        >
+          <g className="robot__row">
+            <RobotBody robot={robot} motion="world" />
+          </g>
+        </g>
+      </svg>
+    </div>
   );
 });

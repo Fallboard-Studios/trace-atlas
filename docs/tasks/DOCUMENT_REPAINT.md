@@ -1,0 +1,367 @@
+# The document-layer repaint: find it, fix it, re-run the Task 20 gate
+
+> **Status (2026-10-17): COMPLETE.** Phases 0–4 done and merged into `perf/per-mover-layers` (`d6e2ada6`). **There was no
+> document repaint:** the harness was charging Chrome's whole-frame `#document` `Paint` as a painted viewport (Gate 1
+> outcome, below). Option (a) shipped (`998207a5`); the Task 20 gate re-run passes all four criteria (0.08 × `main`).
+> Open: T4.4 not run (its premise was wrong, see Phase 4); the three side findings under Gate 1 are filed, not acted on.
+> **Phase 5 (2026-10-18): option (b), the re-rastered area column, COMPLETE** on `perf/per-mover-layers` (Crawford's
+> "go" after the context review): `rastered screens/frame` main 3.23, branch 0.25 (0.08 ×), recorded, not gated; four
+> findings filed under Phase 5, not acted on.
+>
+> Originally written after the Task 20 gate (roadmap Phase 53) missed on `screens/frame`
+> (0.31 × `main`, limit 0.25) and attributed the miss to the **document layer repainting a full viewport nearly every
+> frame on both builds**, cause unknown (PERFORMANCE.md "Per-Mover Compositor Layers — the Task 20 gate"). Crawford
+> chose option 2 of the three recorded there: **find and fix the repaint, then re-run the gate unchanged.**
+
+Written for: Crawford walking it step by step, and a fresh agent session picking it up cold.
+
+**Branch:** `fix/document-repaint`, cut from `perf/per-mover-layers` (not `main`): the clamped paint-area metric, the
+invalidation table and the R5/R6 harness additions live only on that branch. `perf/per-mover-layers` stays unmerged
+until Phase 4 here lands.
+
+**Model and effort:** the diagnosis (Phases 1–2) with Fable 5.1 at high effort. The fix and the re-measure (Phases 3–4)
+can run on Opus 5.5 at medium once the culprit is proven.
+
+**Not a spec.** This is a diagnosis; a spec is written in Phase 3 only if the fix touches architecture (scene stack,
+camera follow loop, shell layers). A one-line CSS fix gets a commit and the gate re-run as its proof.
+
+**Commands:** `npm run build && npx vite preview --port 4173` once, then
+`npm run perf:idle -- --throttle 1 --port 9301 --url <pinned ?session= link> --only <ablations>` (window 6 s, the
+stock window; a longer window drops the invalidation table). The pinned link and the method are in PERFORMANCE.md
+"Pre-change baseline for Phase 53". **Hygiene (never relaxed):** one Chrome in the foreground at a time, no orphaned
+Chrome between runs, A/B in the same session, three alternated rounds for any number that gets written down.
+
+**Rules that apply:** CLAUDE.md guardrails (no timers for timing, no refs or timelines in state, GSAP for animation).
+`docs/PERFORMANCE.md` is append-only and guarded by `src/docs/*.test.ts`: a new section, never an edit to the Task 20
+section's numbers or verdicts.
+
+---
+
+## Phase 0 — Set up (S)
+
+- [x] **T0.1 Cut the branch.** `git switch -c fix/document-repaint` from `perf/per-mover-layers`. The three untracked
+  `global-pedals` docs carry across; leave them alone.
+- [x] **T0.2 Confirm the baseline reproduces.** One stock round on `main` *and* one on the branch, same session, three
+  alternated rounds. Expect the document layer at ≈ 0.99 (main) and ≈ 0.78 (branch) screens/frame with 279–345 paints
+  in ~350 frames. If it does not reproduce, stop: the harness or the machine has changed, and the rest is moot.
+
+**Gate 0:** the document repaint is present on both builds at roughly the recorded size. **PASSED (2026-10-17).**
+
+**As measured (Phase 0).** `main` `4a9b3fec` from a throwaway worktree, bundle `index-CVUy7kf3.js` (identical to the
+Task 20 build), served on :4183; `fix/document-repaint` `f6a512a3` (= `perf/per-mover-layers` tip + this plan), bundle
+`index-Dil0Vyn4.js`, on :4181. Three alternated rounds (main, branch, …), fresh headless Chrome each, foreground, one
+at a time; orphaned `trace-atlas-perf` Chrome 0 before and after. The unnamed painter (`''` in paint-by-node: a layer
+with no owning node, avg clip 1 152 000 px² = exactly the 1280 × 900 viewport) is the document layer:
+
+| Round | main screens/frame | main document paints / frames | branch screens/frame | branch document paints / frames |
+|---|---|---|---|---|
+| 1 | 3.09 | 357 / 361 | 0.95 | 280 / 358 |
+| 2 | 3.09 | 357 / 361 | 0.91 | 277 / 358 |
+| 3 | 3.10 | 355 / 361 | 0.91 | 277 / 358 |
+
+Matches Task 20 (3.10 / 0.95). Two things to carry into Phase 1: the painter has **no owning node**, which is why no
+`StyleRecalc`/`Layout` entry in the invalidation table names it; and on the branch it paints on ~77 % of frames against
+~99 % on `main`, so something the branch changed (the stage scale 0.763? the movers?) already skips it one frame in four.
+
+---
+
+## Phase 1 — Narrow it down by switching things off (S–M)
+
+Each step re-traces the same 6 s window with one thing off. The harness already has every ablation named below in
+`scripts/perf/idle-paint.mjs` (`ABLATIONS`); none needs a rebuild. Read **the document layer's paint count and
+screens/frame**, not the total. Run on `main` (fewer moving parts); confirm the winner on the branch once found.
+
+- [x] **T1.1 Scene or shell?** `--only no-scene`. If the document repaint survives with the whole ocean scene hidden,
+  the culprit is in the console shell (header, viewport chrome, drawers, nav). If it vanishes, it is inside the scene.
+  This single run halves the search.
+- [ ] **T1.2 Shell branch (NOT RUN: T1.1 put it in the scene):** `--only all-anim-off`, then `--only all-anim-off+no-header`. The first switches off every
+  known CSS animation (bridge flicker, rocker pulse, scene transitions); the second also hides the header. `no-rocker-pulse`
+  alone is already cleared (PERFORMANCE.md) and need not be re-run.
+- [x] **T1.3 Scene branch:** `--only static-scene` (robots, bubbles and transitions off), then `--only no-gradient-rects`
+  and `--only no-factories`, `--only no-stations`. Promoted movers were already shown not to be the document's painter
+  (their paints land in their own layers), so the suspects are the things *without* their own layer.
+- [x] **T1.4 Read the invalidation table** (printed with `--attribution`, the default, for each 6 s window). Look for the
+  top `StyleRecalc` / `Layout` reasons whose node is **outside** the stage, or on the stage root itself. A reason that
+  fires ~300 times per window on one node is the shape of the answer. Record the top 8 in the write-up.
+- [x] **T1.5 Add an ablation if needed.** If T1.1–T1.4 point at something with no existing switch, add one entry to
+  `ABLATIONS` (a CSS snippet, or a sticky `js:` node removal) and re-run. Keep the entry; it becomes the proof.
+
+**Gate 1:** one ablation makes the document layer's paints drop from ~300 to a handful in the window, on both builds,
+and the invalidation table names a node and reason consistent with it. If no ablation does, go to Phase 2.
+
+**Gate 1 outcome (2026-10-17): FOUND, and it is in the harness, not the product.** Phase 2 is not needed.
+
+**What the ablations said (T1.1–T1.3, all on `main`, one run each).** `no-scene` takes the repaint with it (Paint n
+1091 → 32, 3.11 → 0.08 screens/frame), so it is inside the scene. But *every* scene-side switch leaves the paint count
+untouched: `static-scene` 1054, `no-robots` 1060, `no-gradient-rects` 1063, `no-factories` 1054, `no-stations` 1058,
+`no-fill-transitions` 1046 (stock 1082–1094), all at 3.12–3.15 screens/frame. Hiding the robots does not stop "the
+document" painting. So the driver was not scene content, and the invalidation table could never name it: the painter
+has no node.
+
+**What the raw trace says (T1.4/T1.5, a scratch probe at
+`C:\Users\Crawford\AppData\Local\Temp\claude\c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7\02173d54-d74c-45b9-be6d-aa0ea8fb65c6\scratchpad\probe-paints.mjs`,
+3 s windows, same launch and power-on as the harness).** The unnamed painter is the `Paint` event with
+`nodeName: "#document"`, `nodeId: 2`, `layerId: 0`, clip = the 1280 × 900 viewport. On both builds, 179 frames:
+
+| | main | branch |
+|---|---|---|
+| `#document` Paint events | 179 | 179 |
+| …that wrap other Paint events (by timestamp and duration) | 179 | 179 |
+| …that stand alone | 0 | 0 |
+| other Paint events outside a `#document` Paint | 0 | 0 |
+| `RasterTask` events for the document's compositor layer (layer 9, 1280 × 900) | 4 | 4 |
+| frames in which that layer rastered | 1 | 1 |
+
+The `#document` `Paint` is Chrome's whole-frame paint pass (`LocalFrameView::PaintTree`): it opens once per frame
+that paints anything and the per-layer `Paint` events (the moving sheets on `main`; the robot movers on the branch)
+sit inside it. Its self time is bookkeeping (≈ 43 ms of 203 ms over 3 s on `main`). The document's actual compositor
+layer rastered on **one frame in 179**. There is no document repaint. `scripts/perf/paint-area-lib.mjs`
+`paintEventArea` sees a complete `Paint` with a viewport-sized clip and no layer of its own, and charges one viewport
+per frame for it. That charge is the whole of the miss:
+
+| | main | branch |
+|---|---|---|
+| measured `screens/frame` (Phase 0 medians) | 3.09 | 0.91 |
+| the wrapper's charge (document paints ÷ frames × 1 viewport) | 357/361 = 0.99 | 277/358 = 0.77 |
+| without the wrapper | ≈ 2.10 | ≈ 0.14 |
+| ratio | | **≈ 0.07 ×** (limit 0.25) |
+
+**Side findings, not this task's (file them):** (1) the branch promotes a `g.gem__part` (70 × 190) and a
+`circle.robot__work-drop` to compositor layers of their own, plus six small unnamed layers (116, 112–118), and the
+gem part rasters every frame; cheap, but unexplained. (2) Both builds force a synchronous style-and-layout inside the
+rAF callback every frame (`Blink.ForcedStyleAndLayout` under `FunctionCall v@index:217`, two `Layout`s per frame):
+a layout-read-after-write in the swim tick, worth its own look. (3) `EventHandler::handleMouseMoveEvent` + hit test
+at the top of every frame: Chrome's fake mouse move after layout; harmless, but it means layout changes every frame.
+
+**Decision for Crawford (Phase 3's shape).** The product has nothing to fix. The gate's metric does. Two ways:
+
+- **(a) Minimal, keeps the metric's definition:** `paintEventArea` ignores a `Paint` whose `nodeName` is `#document`
+  when it wraps other `Paint` events in the same window, counting it only when it stands alone (a genuine root-layer
+  repaint with nothing nested would then still be charged). TDD in `paint-area-lib.test.mjs` with the nesting fixture
+  above. Then Phase 4 re-runs the gate with the corrected harness and records the method change the way `6e3b07cb`
+  was recorded. Recommended.
+- **(b) Better metric, bigger change:** read `RasterTask` per compositor layer (as the probe does) and report
+  re-rastered area per frame = Σ (frames a layer rastered × its area) ÷ frames. That is literally what Phase 53 set
+  out to reduce, and what the desktop-underrun finding named. It is a new column, not a replacement, and a new
+  baseline; its own small task after (a).
+
+---
+
+## Phase 2 — If style switches do not find it (M) — NOT NEEDED, see Gate 1 outcome
+
+A document-layer repaint can come from the compositor rather than from a style change: a `will-change`, `filter` or
+`backdrop-filter` on an element Chrome cannot promote; a `transform` on an ancestor of the stage; a per-frame JS write
+that sets an attribute to its current value. The invalidation table does not always show these.
+
+- [ ] **T2.1 Full trace.** `npm run perf:trace` on the stock window and read the `Paint` events on the document layer:
+  their `clip`, and which `UpdateLayer` / `Layerize` events precede them. A paint preceded every frame by a compositor
+  update of a root-level layer points at promotion, not style.
+- [ ] **T2.2 Per-frame JS writers.** With Chrome DevTools open on the preview (the `browser-testing-with-devtools` skill),
+  record 3 s of Performance and look at who runs every frame: the `gsap.ticker` listeners (the dissolve follower, the
+  deck camera's follow loop), any Zustand subscriber that writes to a root element, React commits per frame. Any writer
+  whose target is outside the stage is a suspect; stub it with a sticky `js:` ablation and re-run Phase 1's measurement.
+- [ ] **T2.3 Layer tree.** Read `Mover layers:` and the compositor-layer readout for a layer that is viewport-sized and
+  **not** one of the five named sheets. An unnamed viewport-sized drawing layer that was not in the Task 4 baseline is a
+  finding on its own.
+
+**Gate 2:** same as Gate 1. If still not found after T2.3, stop and write up what was ruled out; the decision returns
+to Crawford with options 1 and 3 from the Task 20 section.
+
+---
+
+## Phase 3 — Fix it (S, or M with a spec)
+
+- [x] **T3.1 Decide the shape.** If the cause is a single CSS rule or a stray animation: fix in place, one commit. If it
+  is the camera loop, the scene stack, a shell layer or a React render pattern: write `docs/specs/DOCUMENT_REPAINT.md`
+  first (short; what changes, what must not change in the look, the gate), and get Crawford's nod before T3.2.
+- [x] **T3.2 Fix it, TDD where there is logic.** A unit test only where a function changes; a CSS-only fix has no unit
+  test, and the measurement is its test. Guardrails: no `setTimeout`/`rAF` for timing, no refs in state; if the fix
+  touches a GSAP ticker, it stays outside `timelineMap` the way the dissolve follower does.
+- [x] **T3.3 Prove it on the branch.** Three alternated stock rounds, branch fixed vs branch unfixed, same session. The
+  document layer's paints drop to a handful; busy and Paint do not rise. **This is a MISS if the look changed** — check
+  Checkpoint B's list (a station exit with halo waves; the dimmed world) in a live browser.
+
+**Gate 3:** the document repaint is gone on the fixed branch, the look is unchanged, suite green, types clean, lint 0
+errors. **PASSED (2026-10-17), as option (a).**
+
+**As shipped (Phase 3).** Commit `998207a5`. `scripts/perf/paint-area-lib.mjs` gains `framePaintWrappers(events)`:
+the set of `#document` `Paint` events whose span contains another complete `Paint`. `redrawnArea` skips them; a
+`#document` Paint with nothing nested still counts (a root-layer repaint). `idle-paint.mjs` builds its per-node table
+from the same set, so the `''` row is gone, and every row carries a new `frame wrappers` column (the count skipped).
+TDD: 11 tests in `paint-area-lib.test.mjs` (the Task 20 shape, `main`'s two-sheet shape, standalone, span edges,
+halves and marks), 4 mutations each killed (drop the skip; any node is a wrapper; alone is a wrapper; ignore the
+span's end). `scene-markup-lib.test.mjs` pins the harness's use of it. No product file changed, so the look is
+unchanged by construction. Suite 371 files / 12 512 tests green, types clean, lint 0 errors (4 old warnings).
+
+**Measured with the corrected harness** (same builds and servers as Phase 0, three alternated rounds, fresh headless
+Chrome each, foreground, one at a time; orphaned `trace-atlas-perf` Chrome 0 before and after):
+
+| Round | main screens/frame | main frame wrappers | main busy | main Paint | branch screens/frame | branch frame wrappers | branch busy | branch Paint |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2.10 | 356 | 1905 | 172 | 0.17 | 280 | 1522 | 76 |
+| 2 | 2.12 | 357 | 1801 | 172 | 0.16 | 277 | 1500 | 78 |
+| 3 | 2.09 | 355 | 1845 | 173 | 0.16 | 280 | 1516 | 80 |
+| Median | 2.10 | 356 | 1845 | 172 | 0.16 | 280 | 1516 | 78 |
+
+Layer memory unchanged from Task 20: `main` ≈ 37.8 MB (28 layers), branch ≈ 24.2 MB (31 layers, 4 movers ≈ 0.1 MB).
+`screens/frame` ratio **0.16 / 2.10 = 0.076 ×** (limit 0.25). Busy, Paint and memory are all below `main`. These are
+the Phase 4 numbers; Phase 4 writes them into PERFORMANCE.md as the gate's re-run and extends the docs guard.
+
+**Phase 4 note.** T4.1's "apply the fix to `main` for the measurement" is moot: the fix is in the harness, and both
+sides were measured with the branch's harness, as Task 20 did. T4.1 is therefore just the merge into
+`perf/per-mover-layers`.
+
+---
+
+## Phase 4 — Re-run the Task 20 gate, unchanged (S)
+
+- [x] **T4.1 Merge** `fix/document-repaint` into `perf/per-mover-layers`. Also apply the fix to `main` **for the
+  measurement only** (a throwaway local branch, not pushed) so both sides are measured without the repaint; the gate
+  compares the phase's work, and the fix is not the phase's.
+- [x] **T4.2 Re-run the gate exactly as written**: same world, same window, three alternated rounds, all four criteria.
+  Write a new PERFORMANCE.md section "Per-Mover Compositor Layers — the Task 20 gate, re-run after the document repaint
+  fix (date)" with its own tables and PASS/MISS words. Do not edit the original Task 20 section.
+- [x] **T4.3 Extend the docs guard.** `src/docs/perMoverGateDocs.test.ts` pins the original section; add the re-run
+  section to it (or a sibling test) so its verdict words are checked against its numbers the same way. This is the last
+  edit those guards get before R7a trims them.
+- [ ] **T4.4 Re-measure R5 (NOT RUN, see As shipped)** (bubble strips, busy MISS) on the fixed branch, since the document repaint may have been
+  part of its busy time. Record the result under R5; its decision stays Crawford's.
+
+**Gate 4:** all four Task 20 criteria PASS on the re-run. If `screens/frame` still misses with the document repaint gone,
+the miss is real and the decision returns to Crawford (options 1 and 3). **PASSED (2026-10-17).**
+
+**As shipped (Phase 4).**
+- **T4.2:** PERFORMANCE.md gains "Per-Mover Compositor Layers — the Task 20 gate, re-run with the frame wrappers left
+  out (2026-10-17)" after R6 and before "Recording a new baseline", with the Phase 3 rounds as its two tables, the four
+  verdicts (`screens/frame` PASS: 0.08 × main; busy, Paint and memory PASS: below main), the builds, the method, what was
+  found, the metric change (`998207a5`), the stock painters and the three side findings. The original Task 20 section is
+  untouched, MISS and all. The harness paragraph ("Redrawn area (roadmap Phase 53)") gains one sentence on the wrapper.
+- **T4.3:** `src/docs/perMoverGateDocs.test.ts` is parametrised and runs the same 13 checks over both sections (the
+  original must still read MISS; the re-run must name `framePaintWrappers`, `#document`, the metric change and the
+  wrapper counts). The re-run guard was checked to bite: flipping its headline verdict to MISS fails "writes every
+  verdict so that it agrees with the tables above it". 27 tests.
+- **T4.4: not run, and why.** R5's gate is busy, Paint and layer memory (PERFORMANCE.md R5 "The gate"), none of which
+  the harness fix touches: busy is main-thread time and the fix changes only how `Paint` events are summed. There is no
+  document repaint to have been "part of its busy time"; the premise of T4.4 was the Task 20 wording, now known to be
+  wrong. R5's `screens/frame` columns are overstated by about one screen per frame on both sides (a 30 s window's
+  wrappers), recorded here, not gated there. The R5 busy MISS stands as R5 recorded it, for Crawford.
+- **T4.1:** `fix/document-repaint` merged into `perf/per-mover-layers` as a fast-forward (the base had not moved).
+
+---
+
+## Phase 5 — Option (b): the re-rastered area column (S–M, 2026-10-18)
+
+The Gate 1 decision's second way, taken after option (a) shipped. **A new recorded column, not a replacement and not a
+gate:** re-rastered area per frame = Σ over compositor layers (frames in which that layer had at least one `RasterTask`
+× the layer's on-screen area) ÷ the window's frames, in px² and in screens. It reads what the compositor actually
+re-drew, which is what Phase 53 set out to reduce and what the desktop-underrun finding named; `screens/frame` (the
+`Paint`-clip metric) stays as it is and the Task 20 criteria are untouched.
+
+**Signal.** `RasterTask` trace events (`cat` `cc,disabled-by-default-devtools.timeline`, already in the harness's
+categories), on the raster worker threads, one or more per layer per frame: `args.tileData.layerId` names the
+compositor layer, `args.tileData.sourceFrameNumber` the frame. The harness currently drops them because it scopes to the
+renderer main thread. Their **time** is unstable between runs (PERFORMANCE.md caveats); their **presence per layer per
+frame** is what the column reads (the probe read 179 of 179 frames for the same layer on both builds, Gate 1).
+
+**Layer area.** The LayerTree snapshot the harness already takes (`printCompositorLayers`), keyed by `layerId` this
+time, with the same stage-scale correction as the paint clamp. A layer that rasters but is not in the snapshot (the
+six unnamed layers on the branch appear after it) is charged 0 and counted in `unresolved raster layers`, not capped at
+a viewport the way an unbounded `Paint` is: a tile is small, and a viewport charge would swamp the column. Decision
+taken by default in the plan review; Crawford did not object.
+
+- [x] **T5.1 `rasteredArea` in `paint-area-lib.mjs`, TDD.** `rasteredArea(events, { frames, dpr, viewport, layerAreasById })`
+  → `{ pxPerFrame, screensPerFrame, unresolvedLayers, perLayer }`, where `perLayer` is `layerId → { frames, tasks, area }`.
+  Only complete `RasterTask` events (`ph` `X`) with a numeric `layerId` and `sourceFrameNumber` count; the same frame
+  rastered twice by one layer counts once; no frames or no events read 0, not NaN. Mutation-check: drop the distinct-frame
+  rule, charge an unknown layer a viewport, ignore the scale, count a non-RasterTask event.
+- [x] **T5.2 Harness wiring in `idle-paint.mjs`.** `printCompositorLayers` also returns `layerAreasById`; `traceWindow`
+  collects `RasterTask` from every thread; two new row columns `rastered px²/frame` and `rastered screens/frame`, plus
+  `unresolved raster layers`; in attribution mode a "raster by layer" table for the stock window (layer, node, size,
+  frames rastered, tasks). `scene-markup-lib.test.mjs` pins the import and the call.
+- [x] **T5.3 Measure.** Three alternated rounds, `main` (:4183, `index-CVUy7kf3.js`) vs the branch (:4181,
+  `index-Dil0Vyn4.js`; `src/` unchanged since `4d754d94`, checked), the baseline's `?session=` link, fresh headless
+  Chrome each, foreground, one at a time, orphaned `trace-atlas-perf` Chrome 0 before and after. Read the new columns
+  and the raster-by-layer table; the existing columns must still read as the Phase 4 re-run did (same builds, same harness
+  rule for them), which is the check that the wiring changed nothing else.
+- [x] **T5.4 Record.** A new appended PERFORMANCE.md section "Per-Mover Compositor Layers — the re-rastered area column
+  (2026-10-18)": both builds' tables, the method, what rasters on each build, and anything the table shows that the
+  `Paint` column did not. One sentence for the new columns in the localizer paragraph; an appended clause on the
+  `RasterTask` caveat (time unstable, presence read). The Task 20 and re-run sections stay untouched.
+- [x] **T5.5 Docs guard.** `src/docs/perMoverLayersDocs.test.ts` learns the new column names; a sibling test pins the
+  new section's tables (px² and screens agree over the 1280 × 900 viewport, every round has frames) the way
+  `perMoverGateDocs.test.ts` does.
+
+**Gate 5:** the column reads on both builds with `unresolved raster layers` explained, the existing columns reproduce
+the Phase 4 re-run on the same builds, suite green, types clean, lint 0 errors. Recorded, not gated: the ratio is a new
+baseline for later phases.
+
+**Expected, to be confirmed (from the Gate 1 probe, 3 s):** `main`'s three moving sheets (1465 × 824 each) raster
+nearly every frame, ≈ 3 screens/frame; on the branch the movers are tiny but the empty 1920 × 1080 `dissolve` div
+rastered on 43 of 179 frames and the `mid` sheet on 30, which would put the branch near 0.4 screens/frame. If the
+dissolve layer rasters while empty, that is a new finding to file.
+
+**Gate 5: PASSED (2026-10-18).** Suite green, types clean, lint 0 errors on the touched files.
+
+**As shipped (Phase 5).**
+- **T5.1** `8e44b2f7`: `rasteredArea(events, { frames, dpr, viewport, layerAreasById })` → `{ pxPerFrame,
+  screensPerFrame, unresolvedLayers, perLayer }`; 14 tests; 5 mutants killed (charge per task; charge an unknown layer a
+  viewport; ignore dpr; count a non-`RasterTask`; accept a missing frame number).
+- **T5.2** `10833d3f`: the harness collects `RasterTask` from every thread; new row columns `rastered px²/frame`,
+  `rastered screens/frame`, `unresolved raster layers` and, **a deviation from the plan,** `late layers`: the first smoke
+  run showed six rastering layers that were not in the pre-window LayerTree snapshot, one of them on 105 of 352 frames,
+  so `traceWindow` now reads the LayerTree a second time right after each window and sizes the layers that appeared
+  during it (layer ids are stable for a layer's life). The paint clamp keeps the pre-window map, unchanged. The stock
+  window prints a "raster by layer" table (layer, node, size, frames rastered, tasks, area). Pinned in
+  `scene-markup-lib.test.mjs`.
+- **T5.3** measured as planned (three alternated rounds, same builds and link as Phase 4, hygiene held, orphan count 0
+  before and after). The paint-clip columns reproduce Phase 4 on the same builds (main 2.12 vs 2.10, branch 0.17 vs 0.16
+  screens/frame), the check that the wiring changed nothing else. Headline: **`rastered screens/frame` main 3.23, branch
+  0.25, 0.08 × `main`**, recorded, not gated. The expectation above was right about `main` (three moving sheets ≈ 3.14 of
+  the 3.23) and about the branch's shape (the `dissolve` div and the `mid` sheet, ≈ 0.075 screens/frame each) but high
+  on its size (0.25, not 0.4: a 6 s window, not the probe's 3 s, and seven unresolved layers charged 0). This session ran
+  slower than Phase 4's throughout (main busy 2372–2657 vs 1801–1905; long tasks 1–2 vs 0), both sides together.
+- **T5.4** PERFORMANCE.md: new section "Per-Mover Compositor Layers — the re-rastered area column (2026-10-18)" between the
+  gate re-run and "Recording a new baseline"; a "Re-rastered area" sentence appended to the localizer paragraph; a clause
+  appended to the `RasterTask` caveat (time unstable, presence read). Nothing earlier edited.
+- **T5.5** `src/docs/perMoverRasterDocs.test.ts` (14 checks over the new section: tables, medians, ranges, both area
+  columns against their px², the reproduction of the re-run's `screens/frame` within 0.05, the ratio text, recorded-not-
+  gated, method and hygiene, the plan link); `perMoverLayersDocs.test.ts` learns the four new labels. Checked to bite:
+  five doc mutants (a median off by 0.01, a round's screens off its px², the ratio text, a claimed unresolved layer on
+  `main`, the localizer paragraph losing the column) each fail it.
+
+**Findings (filed, not acted on; PERFORMANCE.md "Reading"). Same day, Crawford asked for 4 to be looked into: 1 and 4
+share a cause, the deck camera's pans, and are CLOSED as findings (PERFORMANCE.md "Follow-up, same day: the shell layer
+and the marker sheet are the deck camera"); whether to mitigate is his call. 2 and 3 stay open.**
+1. **`main`'s marker sheet re-rasters every frame with no `Paint`.** Three moving sheets raster on 347–352 of 352–355
+   frames; the paint table has only two (robots-back, robots). The third, the `marker` sheet by layer order, rasters one
+   tile per frame with no main-thread `Paint` in any round: R5's "What the Paint column does not see", seen.
+   **Cause: the deck camera's follow moves the marker every frame.** At 1600 × 900 (scroll range 0, camera standing
+   down) the marker sheet is not even composited and `main` reads 1.81 rastered screens/frame, its two robot sheets.
+2. **The branch's area is three big layers rastering now and then, not the movers:** the empty `dissolve` div
+   (1920 × 1080 at 0.763) on 25–26 frames of 353, the `mid` sheet on 23–25, `div.screen-content` on 31–35; together
+   ≈ 0.24 of the 0.25. The three robot movers are ≈ 0.01 in all.
+3. **Seven single-tile layers on the branch in neither LayerTree snapshot** (ids above the snapshot's highest; one task
+   per frame rastered; the busiest on 108 of 353 frames, then 71–73, 33–34, 23, 22–23 and two smaller), charged 0: the
+   branch's 0.25 is a floor. These are the "six small unnamed layers" of Gate 1's side finding 1.
+4. **`div.screen-content` (1248 × 824, the shell) rasters about one frame in eleven on both builds**, three to four
+   tiles each time; neither the paint table nor the invalidation table names it. New. **Cause: the deck camera's 1.4 s
+   pan scrolls `.world-view__scroller`, a non-composited scroller whose contents draw into the shell's layer, so every
+   frame of a pan re-rasters 4 of its tiles with no `Paint`** (a 22 s probe: one 1.5 s every-frame burst plus a frame
+   every 1–2 s; the 6 s windows caught a pan, part of one or none, hence 29–35 vs the probes' 0–4). At 1600 × 900 the
+   shell layer rasters 3 frames on `main` and 0 on the branch. The harness side-effect: at 1280 × 900 the camera runs
+   (the Task 11 follow-up's cause 1), so every idle window here includes camera pans. Mitigation candidates the Task 11
+   follow-up already named, untried: `will-change: scroll-position` or `contain: paint` on the scroller.
+
+---
+
+## Then (not tasks here)
+
+- The deck scroller A/B (findings 1 and 4's mitigation candidates, measured): [DECK_SCROLLER_COMPOSITING.md](DECK_SCROLLER_COMPOSITING.md), planned 2026-10-18, not started.
+- R7a trims the docs guards once, as planned.
+- Checkpoints B and C (live look in Chrome and Firefox) and the Pixel underrun count (Task 21) remain Crawford's.
+- `perf/per-mover-layers` PR.
+
+## Decision log
+
+- 2026-10-17 — Option 2 chosen (fix and re-run; the gate criterion stays untouched). Branch off `perf/per-mover-layers`
+  because the harness lives there. No spec until the cause is known.

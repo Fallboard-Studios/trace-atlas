@@ -52,7 +52,7 @@ The default step sequence: power on → open Fleet Params → open each of its a
 - **The world is random per load unless pinned.** For like-for-like comparisons (especially audio load) pin it: a `?session=` shareable link (Phase 21) is what pins a world now — `?seed=`/`?x=`/`?y=`, which the older sections below still cite, were removed on 2026-09-28. The harness does not add these params itself; pass them via `--url`. `perf:idle` sidesteps this by running every variant in one session on one world. Baselines recorded before 2026-09-19 were taken on random worlds.
 - **Run-to-run variance is large** (e.g. Probes at 4× throttle: 2.3 s in one run, 3.9 s in another — background robot/swell activity differs per run). Run 3× and compare medians, and only trust differences bigger than that spread.
 - **Trace durations overlap.** A `FunctionCall` contains its own layouts, so compare an event's total across runs, never across event names.
-- **Trace `RasterTask` totals are unstable** between runs (worker-thread events); ignore them.
+- **Trace `RasterTask` totals are unstable** between runs (worker-thread events); ignore them. Their *time*, that is: which layer rastered in which frame is stable, and that is what `rastered screens/frame` reads (localizer section below; "Per-Mover Compositor Layers — the re-rastered area column").
 - **Real phone:** the harness does not attach to a phone. To measure one, use Chrome's DevTools → Remote devices over USB and read the Performance panel / Local metrics by hand; record it in the table below.
 
 ## Baseline (2026-09-18, production build, desktop 1280×900, headless Chrome)
@@ -776,6 +776,8 @@ The last of the 17.2.x series: with nothing open, the main thread was ~84 % busy
 - **Ablation:** the same 6 s window is re-traced with one suspect switched off at a time — a `<style>` injected into the page (no rebuild), or, for the moving nodes, the nodes *removed* from the DOM. It also summarizes Chrome's invalidation-tracking events (`StyleRecalc` / `Layout` reason + node), which is what names the culprit directly.
 
 Flags: `--throttle n` (default 4), `--window ms` (6000), `--width px` (1280), `--url`, `--only a,b` (ablation names; `stock` always runs first), `--help` lists the ablations. Each row reports main-thread busy time (`RunTask` on the renderer main thread), frames, `Paint` count/ms, `PaintArtifactCompositor::Update` ms, style/layout ms and JS buckets. Two things learned building it: pick the renderer main thread by its `thread_name` metadata (the busiest thread in a trace is not it), and `display: none` is **not** "nothing moves" — GSAP keeps writing transforms to a hidden element and Blink still invalidates style for it, so the moving-node ablations detach the nodes instead.
+
+**Redrawn area (roadmap Phase 53).** Every row also reports `redrawn px²/frame` and its headline form `screens/frame`: the area of every `Paint` event in the window, divided by the window's frame count (and, for `screens/frame`, by the emulated viewport's device-pixel area). `scripts/perf/paint-area-lib.mjs` computes it. A `Paint` event's `clip` is a cull rect and not the repainted area, and a promoted mover's is unbounded, so each `Paint` is **clamped** to the area of the compositor layer it drew into (LayerTree, matched by backend node, with the stage's scale applied to layers inside the stage, since LayerTree reports bounds before it); a node with no layer of its own is capped at one viewport and counted in the `unresolved Paints` column. Chrome also opens one `Paint` on `#document` per frame that paints anything, the whole-frame paint pass with a viewport-sized cull rect, and the per-layer `Paint` events sit inside its span; it is a wrapper, not a repaint (the document's layer does not raster for it), so `framePaintWrappers` leaves it out of the sum and of the per-node table, and the `frame wrappers` column counts how many were left out (a `#document` Paint with nothing nested still counts: "Per-Mover Compositor Layers — the Task 20 gate, re-run" below, and [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md)). The readout also prints `Mover layers:` (the count, sizes and estimated memory of the `.mover` layers, apart from the sheets'), and layers are named by their `data-scene-slot`. The metric is proved by ablation, not by reading: on `main` stock reads a few screens per frame and `detach-bubbles+robots` reads 0. Method, baseline and the phase's gate are under "Pre-change baseline for Phase 53" and "Per-Mover Compositor Layers — the Task 20 gate" below. **Re-rastered area (DOCUMENT_REPAINT.md Phase 5, option b).** Every row also reports `rastered px²/frame` and `rastered screens/frame`: what the compositor actually re-drew, from the `RasterTask` events on the raster worker threads (`args.tileData.layerId` and `sourceFrameNumber`), each compositor layer charged its on-screen area (the LayerTree snapshot, keyed by layer id, stage scale applied) once for every frame it rastered in, summed and divided by the frames; `rasteredArea` in `paint-area-lib.mjs`. A layer that rasters but was in neither the pre-window snapshot nor a second one read right after the window is charged 0 and counted in `unresolved raster layers` (`late layers` counts the ones the second read sized), so the figure is a floor, and the stock window's "raster by layer" table names every layer that rastered with its frames and tasks. Recorded, not gated; its baseline is "Per-Mover Compositor Layers — the re-rastered area column" below.
 
 ### What was found (main `368e5cd4`, desktop 1280×900, production build, 6 s windows)
 
@@ -1733,6 +1735,584 @@ graphics settings did not take (the AMD stayed active); the NVIDIA Control Panel
 2. DevTools Performance, record 0:20–0:40, save JSON beside the repo (not in it: `.gitignore` covers `docs/reference/Trace-*.json`
    and `perf-traces/`), then `npm run perf:trace -- <file>` and compare the thread table and the per-frame movers.
 3. `npm run perf:idle` for the paint-per-node attribution, the gate this document already uses.
+
+## Pre-change baseline for Phase 53 — Per-Mover Compositor Layers (2026-10-17)
+
+The reference Phase 53's gate is compared against ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md) §5; plan [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) Task 4). **Nothing in the product was changed to take it.** It is the idle Deck on today's `main`, with the Deck camera idle no-op already merged, so the phase is judged against the world it ships into rather than against the 2026-10-16 diagnosis.
+
+**Code measured:** `main` `4a9b3fec` (merge of PR #562), from a clean `git worktree` checkout, `npx vite build`, served by `vite preview` on :4183. Served bundle `index-CVUy7kf3.js` (checked against the build, and identical to the Task 3 proof build). Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: desktop **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle.
+
+**Pinned world:** one `?session=` link, Attenuation Style `alpha`, locale `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2 — the world the Phase 45 and Phase 46 gates used. Built with `encodeSessionPayload` (a throwaway `vite-node` script, not committed):
+
+```text
+http://localhost:4183/trace-atlas/?session=eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOjAsInkiOjUwfSwiZyI6eyJjb21wcmVzc29yQmVmb3JlRGVsYXkiOmZhbHNlLCJyZXZlcmIiOnsiZGVjYXkiOjEuNSwicHJlRGVsYXkiOjAuMDIsIndldCI6MX0sImRlbGF5Ijp7ImRlbGF5VGltZSI6MC4yNSwiZmVlZGJhY2siOjAuMiwid2V0IjoxfSwiY29tcHJlc3NvciI6eyJ0aHJlc2hvbGQiOi0yNCwicmF0aW8iOjIsImF0dGFjayI6MC4wMDMsInJlbGVhc2UiOjAuMjUsImtuZWUiOjZ9LCJlcTMiOnsibG93IjowLCJtaWQiOjAsImhpZ2giOjB9LCJmaWx0ZXJMUEYiOnsidHlwZSI6Imxvd3Bhc3MiLCJmcmVxdWVuY3kiOjIwMDAwLCJRIjoxfSwiZmlsdGVySFBGIjp7InR5cGUiOiJoaWdocGFzcyIsImZyZXF1ZW5jeSI6MjAsIlEiOjF9LCJkaXN0b3J0aW9uIjp7ImFtb3VudCI6MC4zLCJ3ZXQiOjB9LCJjaGVieXNoZXYiOnsib3JkZXIiOjIsIndldCI6MH0sImJpdENydXNoZXIiOnsiYml0cyI6OCwid2V0IjowfSwiYXV0b1dhaCI6eyJiYXNlRnJlcXVlbmN5IjoxMDAsIm9jdGF2ZXMiOjYsInNlbnNpdGl2aXR5IjowLCJRIjoyLCJnYWluIjoyLCJmb2xsb3dlciI6MC4yLCJ3ZXQiOjB9LCJwaGFzZXIiOnsicmF0ZSI6MC41LCJvY3RhdmVzIjozLCJiYXNlRnJlcXVlbmN5IjozNTAsInN0YWdlcyI6MTAsIlEiOjEwLCJ3ZXQiOjB9LCJsaW1pdGVyIjp7InRocmVzaG9sZCI6LTEyfX19
+```
+
+**Method:** 3 rounds of the same build, each a fresh headless Chrome, foreground, one run at a time (one call per run), nothing else running; a single build, so there is no start order to rotate. Orphaned `trace-atlas-perf` Chrome count 0 before the first round and 0 after the last (filtered `Win32_Process` query on `Name='chrome.exe'`).
+
+### Results (6 s idle window, stock, 1×)
+
+| Round | redrawn px²/frame | screens/frame | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|
+| 1 | 5376976 | 4.67 | 1674 | 185 | 146 | 147 | 359 |
+| 2 | 5332588 | 4.63 | 1694 | 161 | 136 | 138 | 360 |
+| 3 | 5332588 | 4.63 | 1719 | 177 | 139 | 141 | 360 |
+| Median | 5332588 | 4.63 | 1694 | 177 | 139 | 141 | 360 |
+| Min–max | 5332588–5376976 | 4.63–4.67 | 1674–1719 | 161–185 | 136–146 | 138–147 | 359–360 |
+
+Long tasks 0 in every round. **The number the phase is gated on is `screens/frame`: 4.63 (4.63–4.67).** It is tight because the repainted rectangles are fixed: every frame paints the document (one viewport, clip 1 152 000 px²) and the two moving sheets (`robots-back` and `robots`, clip 2 074 680 each), 359–360 times in the window. Busy time spreads under 3 % across the rounds and Paint ms about 14 %, so a later A/B that claims less than that on those two columns is noise; `screens/frame` is the column to read.
+
+**Compositor-layer readout (identical in all three rounds):** `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB at 4 B per device px, DPR 1; 23 with an owning node)`; the scene's named layers `robots-back`, `mid`, `robots`, `front` and `marker`, each 1465 × 824 CSS px. `Mover layers: 0` — there are no movers on `main`. This is the layer-memory figure the Task 20 gate compares the branch against.
+
+**Stock painters (round 1, top of the attribution table):** the document 359 paints, 103 ms; the `robots` sheet 359 paints, 65 ms; the `robots-back` sheet 359 paints, 16 ms. Everything else paints a handful of times in 6 s.
+
+**What the numbers mean — and do not.** `redrawn px²/frame` sums each `Paint` event's `clip`, so it counts the area the paint phase recorded, not raster damage, and the sheet clips are in the scene's own units (1920 × 1080 → 2 074 680 here, the scene units, not the 1465 × 824 CSS px of the layer). It is comparable only at one viewport and one device scale; do not read it as device pixels, and do not compare a phone run's `px²/frame` with this one (use `screens/frame` against each run's own viewport, and treat it as approximate while the stage scale is not 1). Whether a promoted mover's `Paint` event reads as a small patch is unproved until the first mover exists (Task 13); see the plan's "Perf gate results" in [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) for the proof on `main` (stock 4.62, movers detached 0) and the two caveats.
+
+## Per-Mover Compositor Layers — the Task 20 gate (2026-10-17)
+
+The A/B the phase is gated on ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md) §5.2; plan [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) Task 20). **Result: one of the four criteria is a MISS, and the run stopped here, not acted on.** The headline criterion, `screens/frame` ≤ 0.25 × `main`, reads 0.31 × `main`; busy time, Paint time and layer memory pass. The decision is Crawford's.
+
+**Builds:** `main` `4a9b3fec`, from a throwaway `git worktree`, served on :4183, bundle `index-CVUy7kf3.js` (the Task 4 baseline's bundle); the branch `perf/per-mover-layers` at `6e3b07cb`, served on :4181, bundle `index-DwiFixlk.js`. Both bundles were read back from the served HTML before measuring. Both sides were measured with the **branch's** harness (`scripts/perf/idle-paint.mjs` at `6e3b07cb`, which reads either markup), so the metric is one function on both. Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle. The pinned world is the baseline's `?session=` link above (style `alpha`, `(0, 50)`, defaults), with the port changed per side.
+
+**Method:** three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last.
+
+**The metric changed, so the baseline's 4.63 is not the comparison.** The Task 4 baseline summed unbounded `Paint` clips (a sheet read in scene units; a promoted mover reads ±8 388 608, which gave ~4e8 `screens/frame` with movers on the page, plan "Task 16"). Commit `6e3b07cb` clamps each `Paint` to the area of the layer it drew into (LayerTree, by backend node, with the stage's scale applied to layers inside it, since LayerTree reports bounds before it). A node with no layer of its own is capped at one viewport and counted in `unresolved Paints`. `main` was therefore re-measured with the same harness, and reads **3.10**, not 4.63: its two moving sheets are 1465 × 824 layers (1.05 screens each), not the 1920 × 1080 scene-unit clips (1.8 each).
+
+### Results (6 s idle window, stock, 1×)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3562980 | 3.09 | 3 | 2732 | 237 | 212 | 214 | 349 |
+| 2 | 3579797 | 3.11 | 3 | 2749 | 246 | 231 | 233 | 352 |
+| 3 | 3569868 | 3.10 | 3 | 2791 | 278 | 247 | 249 | 352 |
+| Median | 3569868 | 3.10 | 3 | 2749 | 246 | 231 | 233 | 352 |
+| Min–max | 3562980–3579797 | 3.09–3.11 | 3–3 | 2732–2791 | 237–278 | 212–247 | 214–249 | 349–352 |
+
+#### branch (`index-DwiFixlk.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 1092027 | 0.95 | 47 | 2284 | 134 | 240 | 242 | 356 |
+| 2 | 1090930 | 0.95 | 47 | 2424 | 128 | 242 | 244 | 352 |
+| 3 | 1038786 | 0.90 | 36 | 2295 | 127 | 237 | 239 | 348 |
+| Median | 1090930 | 0.95 | 47 | 2295 | 128 | 240 | 242 | 352 |
+| Min–max | 1038786–1092027 | 0.90–0.95 | 36–47 | 2284–2424 | 127–134 | 237–242 | 239–244 | 348–356 |
+
+### The gate
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| screens/frame (median) | 3.10 | 0.95 | ≤ 0.25 × main = 0.775 | MISS: 0.31 × main |
+| busy (median ms) | 2749 (2732–2791) | 2295 | within main's spread | PASS: below it |
+| Paint (median ms) | 246 (237–278) | 128 | within main's spread | PASS: below it |
+| Layer memory | 37.8 MB | 24.2 MB | ≤ main | PASS |
+
+Compositor::Update 231 ms → 240 ms and Layerize 233 ms → 242 ms (medians, both inside each other's spreads, so no change) are recorded, not gated (spec §5.2), as are the layer counts: 28 → 30–31 compositor layers, 0 → 4 mover layers (≈ 0.1 MB in all).
+
+**Compositor-layer readouts.** Main (all three rounds): `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB at 4 B per device px, DPR 1, stage scale 1.000; 23 with an owning node)`; the scene's five named layers (`robots-back`, `mid`, `robots`, `front`, `marker`) are each 1465 × 824 CSS px; `Mover layers: 0`. Branch: `Compositor layers: 30` or `31` (27–28 drawing content, ≈ 24.2–24.3 MB, stage scale 0.763); `mid` and the empty `dissolve` div are 1920 × 1080 layers before the scale, and three robot movers and the marker are 90–145 × 80–173; `Mover layers: 4`. No bubble strip appears among the drawing layers in this window, so spec §7 Q3's question (do fifty always-promoted strips cost more than the sheet they replace?) is not tested by it; the layer-memory line passes on the sheets' and robots' account.
+
+### Where the missing 0.20 screens/frame is
+
+**Stock painters (round 1, top of the attribution table).** Main: the document 345 paints / 131 ms; the `robots` sheet 345 / 84 ms; the `robots-back` sheet 345 / 20 ms; every other node paints a handful of times. Branch: the document 279 / 78 ms; the three robot movers 227, 179, 219 paints at 4 657–14 199 px² (25, 13, 13 ms); the static sheets 23, 21, 3 and 4 paints; everything else a handful.
+
+The area added up per frame, branch round 1: the document ≈ 0.78 screens, the three movers ≈ 0.015, the static sheets ≈ 0.14 (47 of their paints are `unresolved`, capped at a viewport each, which understates them by under 0.01 screens, since a sheet's true area is 1.207 M px² against the 1.152 M cap). Main: the document ≈ 0.99, the two moving sheets ≈ 2.07. **The work the phase set out to remove fell from ≈ 2.07 screens/frame to ≈ 0.16, a drop of over 90 %.** The miss is the document layer, which the phase does not touch: it repaints a full viewport on 279–345 frames of ~350 on both builds, and on the branch it alone (≈ 0.78 in round 1) already equals the limit (0.775). With nothing else drawn at all, the branch would still sit on the line.
+
+**Not the `rocker-light` pulse.** Task 16 suspected it. `--only no-rocker-pulse` on `main` leaves `screens/frame` unchanged (stock 3.12, ablated 3.14), so the document repaint is not the pulse. The branch's own ablated window reads 3.58 and cannot be used: every window after the first in a session is busier on both builds (main 2672 → 4247 ms busy), and the layer map was read before the ablation. The cause of the document repaint is unidentified.
+
+**The sheets are not the ripple.** Spec §7 Q2's fallback (per-station sheets) is for a ripple-driven paint miss; the static sheets paint 3–23 times in 6 s, so this miss is not that.
+
+**Stopped here, not acted on** (plan Task 20: "Do not act on a miss"). The options for Crawford: (1) accept the criterion as written against the document layer, recording the phase as met on the work it targeted (≈ 2.07 → ≈ 0.16 screens/frame) with the document repaint filed as its own item; (2) find and fix the document repaint first, then re-run this gate unchanged; (3) amend the criterion to exclude the document layer from both sides. Option 3 changes the gate after seeing the result, so it should be a stated decision, not a quiet one. The Pixel listen (Task 21) is Crawford's either way and has not been run.
+
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate". Guarded by `src/docs/perMoverGateDocs.test.ts`.
+
+## Per-Mover Compositor Layers — the Task 21 Pixel listen (2026-10-17)
+
+The phone half of the phase's gates ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md) §5.2 item 4; plan [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) Task 21). Crawford ran it by hand on the Pixel after the Task 20 miss and reported it back in his own words; this section records what he reported and nothing he did not.
+
+**Conditions as planned:** the Pixel, landscape, the LAN production preview of `perf/per-mover-layers` (tip `a04d4a0c` when the result was reported), the pinned `?session=` link of the Task 20 gate, Full Audio Load, the `?debug` overlay open. Crawford's report stated only the audio setting, the length and the counts, so the link, the orientation and the overlay are the plan's conditions, not something he restated.
+
+| What | Result |
+|---|---|
+| Audio setting | Full Audio Load |
+| Length | over five minutes (the spec asked for three) |
+| Playback underruns (overlay count) | about 12, a dozen, in the whole listen |
+| Distortion | no distortion, for the whole length |
+| Clipping | no clipping; no underrun caused any |
+| Crawford's verdict | **good to go** |
+
+**What this does not establish.** No `main` listen was taken in the same session, so there is no `main` count and no run-to-run spread to compare the 12 against. The plan's criterion "the branch's count is not above the recorded run-to-run spread" is therefore open, not met: this is a clean listen of the branch on its own terms (a dozen underruns over more than five minutes, none audible as a fault), not an A/B. The length also differs from the spec's three minutes, so the count is not comparable with a three-minute figure from earlier phases without scaling.
+
+**The Task 20 miss stands, unchanged.** `screens/frame` 0.31 × `main` against the 0.25 limit is still recorded as a MISS above, and the document-layer repaint is still unidentified. Crawford went on to the docs phase after this listen; that is a decision to proceed, and this section does not rewrite the gate into a pass or amend its criterion.
+
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 21". Guarded by `src/docs/perMoverPixelDocs.test.ts`.
+
+## Per-Mover Compositor Layers — review follow-up R5: bubble strips drawing (2026-10-17)
+
+The measurement spec §7 Q3 left open ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md); plan [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R5): do the always-promoted bubble strips cost more than the one sheet they replaced, while bubbles are actually drawing? **Result: one of the three criteria is a MISS, and the run stopped here, not acted on.** Layer memory passes (29.7 MB against 42.4 MB) and Paint passes; busy time reads 10330 ms against `main`'s 9514–9572 ms. Compositor::Update and Layerize, recorded and not gated, are 18 % higher on the branch. The decision is Crawford's (spec Q3: the reaction to a miss on the bubbles' account is his bubble redesign, not a promote-only-mid-burst workaround).
+
+### The Task 20 world could not have tested this
+
+The Task 20 gate's pinned world (style `alpha`, locale `(0, 50)`) has **0 bubble circles**: the harness's `Scene:` line reads "2 factories, 0 bubble circles" there, so no strip existed to draw, and the Task 20 note that "no bubble strip appears among the drawing layers" was a statement about that world, not about the strips. This measurement therefore uses another world. Nine locales were tried on the branch build (the world follows the locale `(x, y)`; the style made no difference in the cases tried); the busiest found, and the one used, is `alpha` at `(-100, -100)`: 12 robots, **18 factories, 135 bubble circles, 18 bubble streams**. The others read 0 to 18 streams (`(0, 50)` 0, `(200, -30)` 0, `(50, -200)` 4, `(100, 100)` 8, `(-150, 90)` 13, `(0, 0)` 13, `(0, 300)` 13, `(300, 300)` 18). The spec's "fifty-odd strips" was an estimate; **18 is the most any tried world has**, so the always-promoted cost is bounded by that here, and a denser world may exist that was not found.
+
+### Method
+
+**Builds:** `main` `4a9b3fec`, from a throwaway `git worktree`, built with `npx vite build`, served by `vite preview` on :4183, bundle `index-CVUy7kf3.js` (the Task 20 and Task 4 bundle). The branch `perf/per-mover-layers`, built at `c1414fbe` (its `src/` is identical to `4d754d94`, the last commit that touched it), served on :4181, bundle `index-Dil0Vyn4.js`. Both bundles were read back from the served HTML. Both sides were measured with the **branch's** harness (`scripts/perf/idle-paint.mjs` at `f4d20775`).
+
+**World link** (port changed per side):
+
+```text
+http://localhost:4183/trace-atlas/?session=eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOi0xMDAsInkiOi0xMDB9LCJnIjp7ImNvbXByZXNzb3JCZWZvcmVEZWxheSI6ZmFsc2UsInJldmVyYiI6eyJkZWNheSI6MS41LCJwcmVEZWxheSI6MC4wMiwid2V0IjoxfSwiZGVsYXkiOnsiZGVsYXlUaW1lIjowLjI1LCJmZWVkYmFjayI6MC4yLCJ3ZXQiOjF9LCJjb21wcmVzc29yIjp7InRocmVzaG9sZCI6LTI0LCJyYXRpbyI6MiwiYXR0YWNrIjowLjAwMywicmVsZWFzZSI6MC4yNSwia25lZSI6Nn0sImVxMyI6eyJsb3ciOjAsIm1pZCI6MCwiaGlnaCI6MH0sImZpbHRlckxQRiI6eyJ0eXBlIjoibG93cGFzcyIsImZyZXF1ZW5jeSI6MjAwMDAsIlEiOjF9LCJmaWx0ZXJIUEYiOnsidHlwZSI6ImhpZ2hwYXNzIiwiZnJlcXVlbmN5IjoyMCwiUSI6MX0sImRpc3RvcnRpb24iOnsiYW1vdW50IjowLjMsIndldCI6MH0sImNoZWJ5c2hldiI6eyJvcmRlciI6Miwid2V0IjowfSwiYml0Q3J1c2hlciI6eyJiaXRzIjo4LCJ3ZXQiOjB9LCJhdXRvV2FoIjp7ImJhc2VGcmVxdWVuY3kiOjEwMCwib2N0YXZlcyI6Niwic2Vuc2l0aXZpdHkiOjAsIlEiOjIsImdhaW4iOjIsImZvbGxvd2VyIjowLjIsIndldCI6MH0sInBoYXNlciI6eyJyYXRlIjowLjUsIm9jdGF2ZXMiOjMsImJhc2VGcmVxdWVuY3kiOjM1MCwic3RhZ2VzIjoxMCwiUSI6MTAsIndldCI6MH0sImxpbWl0ZXIiOnsidGhyZXNob2xkIjotMTJ9fX0
+```
+
+It is the Task 20 link with only the locale changed (the same style and `DEFAULT_GLOBAL_AUDIO_SETTINGS`, built by decoding that link and rewriting `c`).
+
+**Command** (each side, from the branch's checkout):
+
+```text
+npm run perf:idle -- --throttle 1 --only none --window 30000 --bubbles 5 --expect-dimmed no --port 9301 --url <link>
+```
+
+Headless Chrome at **1280 × 900**, 1×, no CPU throttle, the 8 s power-on settle, then a **30 s** window (a burst starts somewhere about every 4 s, so the window holds several; the stock 6 s window can hold none). `--bubbles 5` waits until at least 5 bubble circles are visible before the layers are read (the wait returned at once every time: 15–16 were in flight), and `--expect-dimmed no` rejects a run whose world is dimmed, before and after the windows (none was; the Deck is undimmed). Three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last (after the diagnostic runs below as well).
+
+**A harness finding that changed the method.** The first 30 s runs reported **325 frames** (about 11 a second) and a busy time of a 6 s window. The trace held only the first ~5.8 s: the default trace buffer fills in about 6 s with the invalidation tracking category on, and the trace then stops. The harness now drops that category for any window over 6 s (`traceCategories` in `scripts/perf/world-state-lib.mjs`) and prints a warning when a window holds under 30 frames a second; those runs held 1799–1801 frames over a 30.0 s span. The 6 s stock window keeps every category, so earlier baselines are unchanged. **A long window prints no invalidation table, and its busy time is not comparable with a 6 s window's** (the tracing overhead differs): this section compares only with itself. The two truncated runs were discarded.
+
+### Results (30 s window, stock, 1×)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3661137 | 3.18 | 30 | 9572 | 1567 | 1938 | 1945 | 1801 |
+| 2 | 3656556 | 3.17 | 30 | 9566 | 1575 | 1940 | 1948 | 1800 |
+| 3 | 3657827 | 3.18 | 28 | 9514 | 1578 | 1964 | 1972 | 1801 |
+| Median | 3657827 | 3.18 | 30 | 9566 | 1575 | 1940 | 1948 | 1801 |
+| Min–max | 3656556–3661137 | 3.17–3.18 | 28–30 | 9514–9572 | 1567–1578 | 1938–1964 | 1945–1972 | 1800–1801 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 4421260 | 3.84 | 4950 | 10410 | 1571 | 2309 | 2316 | 1801 |
+| 2 | 4410964 | 3.83 | 4934 | 10330 | 1559 | 2283 | 2289 | 1800 |
+| 3 | 4403028 | 3.82 | 4942 | 10251 | 1557 | 2287 | 2294 | 1800 |
+| Median | 4410964 | 3.83 | 4942 | 10330 | 1559 | 2287 | 2294 | 1800 |
+| Min–max | 4403028–4421260 | 3.82–3.84 | 4934–4950 | 10251–10410 | 1557–1571 | 2283–2309 | 2289–2316 | 1800–1801 |
+
+Long tasks 0 in every round, both sides.
+
+### The gate
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| busy (median ms) | 9566 (9514–9572) | 10330 | within main's spread | MISS: 758 ms above the top of main's spread (9572), +8 % on its median |
+| Paint (median ms) | 1575 (1567–1578) | 1559 | within main's spread | PASS: below it |
+| Layer memory | 42.4 MB | 29.7 MB | ≤ main | PASS |
+
+Compositor::Update 1940 → 2287 ms (+347, +18 %) and Layerize 1948 → 2294 ms (+346, +18 %) are outside each other's spreads, and are recorded, not gated (as in Task 20). They are about half of the busy gap (758 ms); the rest is not located.
+
+**Compositor-layer readouts** (identical in all three rounds of a side). Main: `Compositor layers: 28 (25 drawing content, ≈ 42.4 MB at 4 B per device px, DPR 1, stage scale 1.000; 24 with an owning node)`; `Mover layers: 0`; `Bubble layers: 1 (1 drawing now, ≈ 4.60 MB; ≈ 4.60 MB if every one drew at once)`, which is the one 1465 × 824 bubbles sheet. Branch: `Compositor layers: 51 (48 drawing content, ≈ 29.7 MB at 4 B per device px, DPR 1, stage scale 0.763; 47 with an owning node)`; `Mover layers: 23, ≈ 1.0 MB`; `Bubble layers: 18 (18 drawing now, ≈ 0.85 MB; ≈ 0.85 MB if every one drew at once)`, the 18 strips (the 23 movers are those 18, four robots and the marker). At the read 15–16 circles were visible, in a few strips at most, yet all 18 strips were drawing layers, so a strip is a drawing layer without a visible bubble in it (its circles are transparent, not removed), and "if every one drew at once" equals "drawing now". **The memory half of Q3 is answered:** 18 strips hold ≈ 0.85 MB where the one sheet held ≈ 4.60 MB. The layers are read once, before the window.
+
+### What the Paint column does not see
+
+The bubbles are moving: a throwaway probe on the `main` build sampled the circles' computed opacity every 500 ms for 45 s, and 0–23 of the 135 were visible at any moment, fading in and out. Yet the paint events for the bubble layers total **43, 42 and 44 on `main` (one sheet)** and **43, 44 and 44 on the branch (18 strips)**, in a window of about 1800 frames; the `Bubble paints` line of the harness gives them, and they are the same on both builds. So bubble motion is **not visible in the `Paint` column or in `screens/frame` on either build**. Hypothesis, not proved: a transform or opacity change on an SVG child updates a property-tree node and re-layerizes without re-recording the display list, so it lands in Compositor::Update and Layerize and not in `Paint`. If that holds, those two columns and busy time are the ones that can see the bubbles, which is why the miss is on them.
+
+`screens/frame` (3.18 on main, 3.83 on the branch) is recorded and **not read**. The layer map is read once before the window, and in 30 s new movers appear (dissolve copies, among them) that have no layer in it, so each of their paints is capped at one viewport: the branch's 4942 unresolved Paints account for at most 4942 ÷ 1800 = 2.75 of its 3.83 screens/frame. It is not comparable with Task 20's 6 s figure.
+
+### Diagnostic (one run each, indicative, not gated): detach the bubbles
+
+`--only detach-bubbles` traces the stock window, then removes every bubble circle and traces again, in one session. Later windows in a session run busier on both builds (Task 20), so the busy column is confounded; Compositor::Update is the column read.
+
+| Side | stock Compositor::Update (ms) | after detach (ms) | change | busy before → after (ms) |
+|---|---|---|---|---|
+| main | 1975 | 1770 | −205 | 9721 → 10545 |
+| branch | 2303 | 2102 | −201 | 10281 → 10917 |
+
+Removing the circles takes about 200 ms off Compositor::Update on both builds, so the bubbles' motion costs the same on each. The branch's extra ≈ 330 ms is still there afterwards (2102 against 1770), so **it is not the circles' motion**. This cannot say whether it is the 18 strip layers themselves: the detach removes the circles and leaves the strip `div`s in the page, and whether they stay layers was not read. The branch's other movers are also in the gap. (The branch's `redrawn` after the detach, 7.43 screens/frame, is an artefact of the stale layer map and is ignored.)
+
+### Stopped here, not acted on
+
+The criterion as written is a MISS (busy). Options for Crawford: (1) accept it: +8 % busy and +18 % Compositor::Update on a 18-stream world over a 30 s window, against 0.85 MB of layers instead of 4.60 MB; (2) the bubble redesign spec §7 Q3 names (fewer layers, for example one stream per district); (3) first separate how much of the gap is the strips, for example with a sticky ablation that removes the strip `div`s themselves (not run), since the diagnostic above does not attribute it to them. Nothing was changed in the product, and the Task 20 result above stands as recorded.
+
+Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R5: Bubble strips with bubbles actually drawing". Guarded by `src/docs/perMoverReviewR5Docs.test.ts`.
+
+## Per-Mover Compositor Layers — review follow-up R6: the dimmed world (2026-10-17)
+
+The state the app is in whenever a branch is open, which the Task 20 gate never ran in ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](specs/PER_MOVER_COMPOSITOR_LAYERS.md); plan [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R6). With a hub tile open, `WorldView.tsx` sets `data-dimmed` on `.world-view` and `WorldView.css` puts `filter: brightness(0.42)` on every `.mover` (and `brightness(0.42) blur(2px)` on each sheet), so each robot, bubble strip and the marker becomes a filtered surface. **Result: all three gated criteria PASS.** With Fleet Params open the branch is below `main`'s whole spread on busy time and Paint time, and at 0.61 × `main` on `screens/frame`. Compositor::Update is 9 % higher on the branch, recorded and not gated.
+
+### Method
+
+**Builds:** the same two as the R5 section above: `main` `4a9b3fec` on :4183, bundle `index-CVUy7kf3.js`; the branch `perf/per-mover-layers`, built at `c1414fbe` (its `src/` is identical to `4d754d94`), on :4181, bundle `index-Dil0Vyn4.js`. Both measured with the branch's harness (`scripts/perf/idle-paint.mjs` at `f4d20775`, plus the one-line message fix committed with this section).
+
+**World:** the R5 world (`alpha` at `(-100, -100)`, 12 robots, 18 factories, 135 bubble circles; link in the R5 section), chosen over the Task 20 world because the dim is per mover and that world has no bubble strips to filter. **Command** (each side, from the branch's checkout):
+
+```text
+npm run perf:idle -- --throttle 1 --only none --steps "Fleet Params" --expect-dimmed yes --port 9301 --url <link>
+```
+
+Headless Chrome at **1280 × 900**, 1×, no CPU throttle, the stock **6 s** window (every category traced, as in Task 20) after the 8 s power-on settle and the click that opens Fleet Params. `--steps` opens the tile; `--expect-dimmed yes` makes the harness read `data-dimmed` on `.world-view` after the click **and again after the windows** and throw if either is not dimmed. Three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last.
+
+**Every run was dimmed and on the same screen.** Each of the six logs prints `World: dimmed` before and after its window, and the harness's like-for-like line is identical on both sides: `Screen after steps: {"tabs":11,"sliders":4,"cabinetBoxes":58,"heading":"Fleet Params — your key to mesh-wide performance."}`. The rejection was also tried live on the branch build, in both directions: the Deck (undimmed) asked for a dimmed world ended with `Run rejected: expected a dimmed world, read "undimmed".` and exit 1; Fleet Params asked for an undimmed one ended with `Run rejected: expected an undimmed world, read "dimmed".` and exit 1.
+
+### Results (6 s window, stock, 1×, Fleet Params open, world dimmed)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3665259 | 3.18 | 5 | 3717 | 262 | 511 | 513 | 315 |
+| 2 | 3683133 | 3.20 | 6 | 3651 | 259 | 520 | 521 | 318 |
+| 3 | 3672251 | 3.19 | 6 | 3654 | 258 | 521 | 522 | 317 |
+| Median | 3672251 | 3.19 | 6 | 3654 | 259 | 520 | 521 | 317 |
+| Min–max | 3665259–3683133 | 3.18–3.20 | 5–6 | 3651–3717 | 258–262 | 511–521 | 513–522 | 315–318 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2255700 | 1.96 | 270 | 3555 | 221 | 567 | 568 | 326 |
+| 2 | 2222130 | 1.93 | 259 | 3607 | 221 | 558 | 560 | 326 |
+| 3 | 2146974 | 1.86 | 250 | 3527 | 218 | 567 | 569 | 328 |
+| Median | 2222130 | 1.93 | 259 | 3555 | 221 | 567 | 568 | 326 |
+| Min–max | 2146974–2255700 | 1.86–1.96 | 250–270 | 3527–3607 | 218–221 | 558–567 | 560–569 | 326–328 |
+
+Long tasks 2–4 per window on both sides (main 4, 2, 3; branch 3, 4, 4); not gated.
+
+### The gate
+
+The criterion is the task's own: the branch's median not above `main`'s dimmed median.
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| busy (median ms) | 3654 (3651–3717) | 3555 | ≤ main's median | PASS: below main's whole spread (its minimum is 3651) |
+| Paint (median ms) | 259 (258–262) | 221 | ≤ main's median | PASS: below main's whole spread (its minimum is 258) |
+| screens/frame (median) | 3.19 (3.18–3.20) | 1.93 | ≤ main's median | PASS: 0.61 × main |
+
+Compositor::Update 520 → 567 ms (+47, +9 %) and Layerize 521 → 568 ms are outside each other's spreads (511–521 and 558–567), and are recorded, not gated (as in Task 20). **Layers:** main `Compositor layers: 39 (36 drawing content, ≈ 51.5 MB at 4 B per device px, DPR 1, stage scale 1.000; 34 with an owning node)`, `Mover layers: 0`, `Bubble layers: 1 (1 drawing now, ≈ 4.60 MB; ≈ 4.60 MB if every one drew at once)`; branch `Compositor layers: 66` or `67` (`63`–`64 drawing content, ≈ 39.3–40.1 MB`, stage scale 0.763), `Mover layers: 24, ≈ 1.1 MB`, `Bubble layers: 18 (18 drawing now, ≈ 0.85 MB; ≈ 0.85 MB if every one drew at once)`. Layer memory is not gated here, and is lower on the branch. The dimmed Fleet Params runs have more layers than the undimmed Deck runs of the R5 section (main 39 against 28, branch 66–67 against 51), but that run was on a different screen as well, so the dim is not isolated by it.
+
+**Reading `screens/frame` with care.** The branch's figure includes 250–270 unresolved Paints per window (nodes with no layer when the layer map was read, each capped at one viewport): at most 270 ÷ 326 = 0.83 of its 1.86–1.96 screens/frame. The ratio is therefore an upper bound on the branch's, and it passes with that bound in. `main` has 5–6 unresolved.
+
+**Not tested, by design.** This is a cost measurement, not a look test: whether the dimmed world *looks* the same (the `blur(2px)` now sitting inside the scaled stage, so its effective radius is 2 × the stage scale; the plan's note 4 under "Open before merge") is Crawford's at Checkpoint B. One world, one tile (Fleet Params, 58 cabinet boxes), one viewport.
+
+No miss, so nothing is stopped here. Had a gate missed, any fix would change how the dimmed world is produced, which is a look decision for Crawford and a short amendment to the spec, not a quiet change.
+
+Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R6: The dimmed world (`data-dimmed`)". Guarded by `src/docs/perMoverReviewR6Docs.test.ts`.
+
+## Per-Mover Compositor Layers — the Task 20 gate, re-run with the frame wrappers left out (2026-10-17)
+
+The Task 20 gate above, run again unchanged after the "document repaint" it missed on was found ([tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md), Crawford's option 2: find and fix it, then re-run). **Result: all four criteria PASS.** `screens/frame` reads 0.08 × `main` against the 0.25 limit; busy time, Paint time and layer memory are below `main`'s. The original section is left as it was written; this one is the re-run.
+
+**What was found.** There is no document repaint. The unnamed painter in the Task 20 attribution table ("the document", 279–345 paints of ~350 frames, a full viewport each) is the `Paint` trace event Chrome opens on `#document` (`layerId` 0, cull rect = the viewport) once per frame that paints anything: the whole-frame paint pass, inside whose span the per-layer `Paint` events sit. On both builds every one of 179 such events in a 3 s probe wrapped other `Paint` events and none stood alone, and the document's own compositor layer (layer 9, 1280 × 900) rastered on one frame in 179 (`RasterTask` events by `tileData.layerId`). The harness charged that wrapper one viewport per frame, because its clip is exactly the viewport and it has no layer of its own; that charge was ≈ 0.99 screens/frame on `main` and ≈ 0.77 on the branch, the whole of the miss. The spec had raised this doubt before the baseline (§4 assumption 6, Task 2 spike: "a `#document` paint with a clip of the whole page") and let the metric stand because `main` read near the predicted four screens; the agreement was a coincidence of the two sheets plus the wrapper. No ablation could name it: hiding the robots, factories, stations, gradients or transitions left the paint count untouched (`static-scene` 1054 of stock 1088 paints), and only `no-scene`, which leaves nothing to paint, removed it.
+
+**The metric changed, so the Task 20 numbers are not the comparison.** Commit `998207a5` (`scripts/perf/paint-area-lib.mjs` `framePaintWrappers`): a `#document` `Paint` whose span contains another complete `Paint` is a frame wrapper and is left out of the sum and of the per-node table; one with nothing nested still counts, so a genuine root-layer repaint is not hidden. Each `Paint` is still **clamped** to the area of the compositor layer it drew into, as before. Every row now also reports `frame wrappers` (the count left out): 355–357 on `main`, 277–280 on the branch, in the rounds below. TDD: 11 tests, 4 mutations killed; `src/docs/perMoverLayersDocs.test.ts` and `scripts/perf/scene-markup-lib.test.mjs` pin the harness. No product file changed.
+
+**Builds:** `main` `4a9b3fec`, from a throwaway `git worktree`, served on :4183, bundle `index-CVUy7kf3.js` (the Task 20 and Task 4 bundle, rebuilt and read back from the served HTML); the branch `fix/document-repaint` at `6e61e0ee` (= `perf/per-mover-layers` `570b279b` plus the harness fix and this investigation's docs; `src/` unchanged since `4d754d94`), served on :4181, bundle `index-Dil0Vyn4.js`. Both sides measured with the **branch's** harness at `998207a5`. Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle. The pinned world is the baseline's `?session=` link (style `alpha`, `(0, 50)`, defaults), with the port changed per side.
+
+**Method:** three rounds alternated, main then branch each round (main, branch, main, branch, main, branch), each a fresh headless Chrome, foreground, one run at a time, in one session. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last. The same session first re-ran the Task 20 harness as it was (commit `8fb301e1`) on both builds and reproduced its numbers (main 3.09 / 3.09 / 3.10, branch 0.95 / 0.91 / 0.91 screens/frame), so the drop below is the metric change and nothing else.
+
+### Results (6 s idle window, stock, 1×)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2417168 | 2.10 | 3 | 1905 | 172 | 153 | 155 | 361 |
+| 2 | 2437359 | 2.12 | 3 | 1801 | 172 | 154 | 156 | 359 |
+| 3 | 2410480 | 2.09 | 3 | 1845 | 173 | 158 | 159 | 361 |
+| Median | 2417168 | 2.10 | 3 | 1845 | 172 | 154 | 156 | 361 |
+| Min–max | 2410480–2437359 | 2.09–2.12 | 3–3 | 1801–1905 | 172–173 | 153–158 | 155–159 | 359–361 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | redrawn px²/frame | screens/frame | unresolved Paints | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 194502 | 0.17 | 49 | 1522 | 76 | 158 | 159 | 360 |
+| 2 | 182225 | 0.16 | 45 | 1500 | 78 | 160 | 161 | 359 |
+| 3 | 187811 | 0.16 | 47 | 1516 | 80 | 163 | 164 | 361 |
+| Median | 187811 | 0.16 | 47 | 1516 | 78 | 160 | 161 | 360 |
+| Min–max | 182225–194502 | 0.16–0.17 | 45–49 | 1500–1522 | 76–80 | 158–163 | 159–164 | 359–361 |
+
+### The gate
+
+| Gate criterion | main | branch | Limit | Result |
+|---|---|---|---|---|
+| screens/frame (median) | 2.10 | 0.16 | ≤ 0.25 × main = 0.525 | PASS: 0.08 × main |
+| busy (median ms) | 1845 (1801–1905) | 1516 | within main's spread | PASS: below it |
+| Paint (median ms) | 172 (172–173) | 78 | within main's spread | PASS: below it |
+| Layer memory | 37.8 MB | 24.2 MB | ≤ main | PASS |
+
+Compositor::Update 154 ms → 160 ms and Layerize 156 ms → 161 ms (medians) are recorded, not gated (spec §5.2), as are the layer counts: 28 → 31 compositor layers, 0 → 4 mover layers (≈ 0.1 MB in all). Busy and Paint are lower on both sides than in the Task 20 session (main 2749 → 1845 ms busy); sessions differ, which is why each gate is read inside one.
+
+**Compositor-layer readouts.** Main (all three rounds): `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB at 4 B per device px, DPR 1, stage scale 1.000; 23 with an owning node)`; the scene's five named layers (`robots-back`, `mid`, `robots`, `front`, `marker`) each 1465 × 824 CSS px; `Mover layers: 0`. Branch (all three rounds): `Compositor layers: 31 (28 drawing content, ≈ 24.2 MB at 4 B per device px, DPR 1, stage scale 0.763; 27 with an owning node)`; `mid` and the empty `dissolve` div are 1920 × 1080 layers before the scale, three robot movers and the marker are 90–145 × 80–159; `Mover layers: 4`. The same world as Task 20, so no bubble strip draws in this window either; the bubble question is R5's.
+
+**Stock painters (round 1, top of the attribution table, the wrapper now left out).** Main: the `robots` sheet 356 paints / 61 ms; the `robots-back` sheet 356 / 14 ms; every other node a handful (`html` 2, the static sheets 2–4, `div.meta-box` 6). Branch: the three robot movers 191, 182 and 220 paints at 4 657–13 050 px² (12, 8, 7 ms); the static sheets 24, 22, 3 and 4 paints; `html` 2; everything else a handful. The area per frame on the branch is the movers (≈ 0.015 screens) and the static sheets' occasional paints (≈ 0.14, 45–49 of them `unresolved` and capped at a viewport each); on `main` it is the two moving sheets (≈ 2.07). The work the phase set out to remove is the whole of the difference.
+
+**Three side findings from the probe, filed and not acted on** ([tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) Gate 1 outcome): the branch promotes a `g.gem__part` (70 × 190) and a `circle.robot__work-drop` to compositor layers of their own, plus six small unnamed layers, and the gem part rasters every frame; both builds force a synchronous style-and-layout inside the rAF tick every frame (`Blink.ForcedStyleAndLayout` under the swim's `FunctionCall`, two `Layout`s per frame); and Chrome dispatches a fake mouse move with a hit test at the top of every frame, which follows from layout changing every frame.
+
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate" (the criteria) and [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) (this run). Guarded by `src/docs/perMoverGateDocs.test.ts`.
+
+## Per-Mover Compositor Layers — the re-rastered area column (2026-10-18)
+
+Option (b) of [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) (Phase 5), taken after option (a) shipped: a **new recorded column, not a gate and not a replacement.** `rastered screens/frame` reads what the compositor actually re-drew, where `screens/frame` reads the paint phase's cull rects clamped to their layers. The Task 20 criteria and their re-run above are untouched; this section is the column's baseline on the same two builds.
+
+**The column.** Each compositor layer is charged its on-screen area once for every frame in which at least one `RasterTask` ran for it (one or more tiles per layer per frame, on the raster worker threads; `args.tileData.layerId` names the layer, `sourceFrameNumber` the frame), summed over the layers and divided by the window's frames. The time of those tasks is unstable between runs (caveats at the top) and is not read; their presence per layer per frame is. The layer's area is the LayerTree snapshot's, keyed by layer id, with the stage scale applied as the paint clamp applies it. `rasteredArea` in `scripts/perf/paint-area-lib.mjs` (14 tests, 5 mutants killed: charge per task instead of per frame, charge an unknown layer a viewport, ignore the device scale, count a non-`RasterTask` event, accept a missing frame number); the harness also reads the LayerTree a second time right after each window so a layer that appeared during it is sized (`late layers`), and a layer in neither snapshot is charged 0 and counted in `unresolved raster layers`, which makes the figure a **floor**. The stock window prints a "raster by layer" table: layer id, node, size, frames rastered, tasks.
+
+**Builds:** `main` `4a9b3fec`, from the throwaway `git worktree`, served on :4183, bundle `index-CVUy7kf3.js`; the branch `perf/per-mover-layers` at `10833d3f` (harness only; `src/` unchanged since `4d754d94`, checked with `git diff`), served on :4181, bundle `index-Dil0Vyn4.js`, the re-run's build. Both sides measured with the branch's harness. Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle. The pinned world is the baseline's `?session=` link (style `alpha`, `(0, 50)`, defaults), with the port changed per side.
+
+**Method:** three rounds alternated, main then branch each round, each a fresh headless Chrome, foreground, one run at a time, in one session. Orphaned `trace-atlas-perf` Chrome count 0 before the first run and 0 after the last. The paint-clip columns (`screens/frame`, its clamp and `frame wrappers`) kept their rule, so they are the check that the wiring changed nothing else: they reproduce the re-run above on the same builds (main 2.12 against 2.10, branch 0.17 against 0.16).
+
+### Results (6 s idle window, stock, 1×)
+
+#### main (`index-CVUy7kf3.js`)
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 3699840 | 3.21 | 0 | 0 | 2424017 | 2.10 | 2372 | 238 | 188 | 190 | 355 |
+| 2 | 3723624 | 3.23 | 0 | 0 | 2441090 | 2.12 | 2491 | 252 | 197 | 199 | 352 |
+| 3 | 3739248 | 3.25 | 0 | 0 | 2454808 | 2.13 | 2657 | 266 | 208 | 210 | 352 |
+| Median | 3723624 | 3.23 | 0 | 0 | 2441090 | 2.12 | 2491 | 252 | 197 | 199 | 352 |
+| Min–max | 3699840–3739248 | 3.21–3.25 | 0–0 | 0–0 | 2424017–2454808 | 2.10–2.13 | 2372–2657 | 238–266 | 188–208 | 190–210 | 352–355 |
+
+#### branch (`index-Dil0Vyn4.js`)
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 267489 | 0.23 | 7 | 5 | 194139 | 0.17 | 2131 | 126 | 206 | 208 | 353 |
+| 2 | 290341 | 0.25 | 7 | 5 | 190630 | 0.17 | 2065 | 133 | 203 | 205 | 353 |
+| 3 | 283003 | 0.25 | 7 | 4 | 186500 | 0.16 | 2134 | 129 | 207 | 209 | 355 |
+| Median | 283003 | 0.25 | 7 | 5 | 190630 | 0.17 | 2131 | 129 | 206 | 208 | 353 |
+| Min–max | 267489–290341 | 0.23–0.25 | 7–7 | 4–5 | 186500–194139 | 0.16–0.17 | 2065–2134 | 126–133 | 203–207 | 205–209 | 353–355 |
+
+Long tasks 1, 1, 2 on `main` and 1, 1, 1 on the branch; busy is 2372–2657 ms against the re-run's 1801–1905 on the same `main` build, so this session was slower throughout (both sides moved together, and the branch stays below `main` on busy and Paint). Sessions differ; the column is read inside this one.
+
+### Reading
+
+**`rastered screens/frame`: main 3.23, branch 0.25, a ratio of 0.08 × `main`** (recorded, not gated; the Paint-clip ratio on the same runs is 0.17 / 2.12 = 0.08 too). The two columns agree on the ratio and disagree on what `main` is made of:
+
+- **`main` is three moving sheets, not two.** The raster-by-layer table (round 1; rounds 2 and 3 within ±2 frames) has the three `--moving` sheets at 1465 × 824 (1 207 160 px², 1.05 screens each) rastering on 351, 351 and 347 of 355 frames (449, 390 and 347 tasks), ≈ 3.14 screens/frame; then `div.screen-content` (1248 × 824) on 34 frames (≈ 0.10) and the two static sheets on 6 and 4. The paint table on the same window has only **two** of the moving sheets, 351 paints each (85 and 20 ms); the third, the `marker` sheet by layer order, rastered every frame with one tile per frame and **no `Paint` event in any round**. That is the shape R5 hypothesised ("What the Paint column does not see"): a layer can re-raster without the main thread re-recording it, and the `Paint` column cannot see it. What invalidates the marker sheet each frame is not read here.
+- **The branch is the sheets' occasional rasters, not the movers.** The three robot movers (145 × 112, 141 × 173, 100 × 80 pre-scale; 4 657–14 199 px² after it) raster on 181, 124 and 78 frames for ≈ 0.01 screens/frame in all; the `g.gem__part` layer (side finding 1 above; 560–574 × 14–26, a thin part) on 136–147 frames for ≈ 0.003. The area is three big layers rastering now and then: the empty `dissolve` div (1920 × 1080 at 0.763 = 1 207 069 px²) on 25–26 frames with 79 tasks (≈ 0.075 screens/frame), the `mid` sheet (same size) on 23–25 frames with 54 tasks (≈ 0.075), and `div.screen-content` on 31–35 frames (≈ 0.09). Those three are ≈ 0.24 of the 0.25.
+- **The floor.** Seven layers on the branch rastered and were in neither LayerTree snapshot (ids above the snapshot's highest, so created after it, and gone or unreported by the second read): one on 108 frames of 353, then 71–73, 33–34, 23, 22–23 and two smaller. Each had exactly one task per frame it rastered in, so each is a single-tile layer; they are charged 0, and the branch's 0.23–0.25 is a floor by whatever seven tiles come to. Zero on `main`. The six "small unnamed layers" in side finding 1 are these.
+- **`div.screen-content` rasters about one frame in eleven on both builds** (29–34 frames on `main`, 31–35 on the branch; 112–137 tasks, so three to four tiles each time), a 1248 × 824 shell layer that is not the scene and that neither the Paint table nor the invalidation table names. New side finding, filed with the three above and not acted on.
+
+**Compositor-layer readouts** are the re-run's: `main` `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB …; 23 with an owning node)`, `Mover layers: 0`; branch `Compositor layers: 30 (27 drawing content, ≈ 24.2 MB …, stage scale 0.763; 26 with an owning node)`, `Mover layers: 4, ≈ 0.1 MB` (30 rather than the re-run's 31: one fewer unowned layer at the read, the same drawing set). Compositor::Update 197 → 206 ms and Layerize 199 → 208 ms (medians) are recorded, not gated, as before.
+
+**What to do with the column.** Read it next to `screens/frame`, not instead of it: `screens/frame` says what the main thread recorded, `rastered screens/frame` what the GPU redrew, and a layer that shows in one and not the other (the marker sheet here) is the finding. Compare it only inside one session and at one viewport, like every other figure here. Plan and record: [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) Phase 5. Guarded by `src/docs/perMoverRasterDocs.test.ts`.
+
+### Follow-up, same day: the shell layer and the marker sheet are the deck camera
+
+Crawford asked for the `div.screen-content` rasters to be looked into. Two of the four findings above have one cause: **the deck camera's pans.** The camera (`src/animation/deckCamera.ts`, Phase 46) scrolls `.world-view__scroller` by writing `scrollLeft` from a 1.4 s GSAP tween (`DECK_CAMERA_PAN_S`), then follows the robot for up to 20 s, rests 3 s and picks again. The scroller is not a composited scroller (no layer of its own in any LayerTree read), so its scrolling contents are drawn into the nearest composited ancestor's layer, which is `div.screen-content`; every frame the scroll offset changes, cc re-rasters the shell layer's damaged tiles with **no `Paint` event** (the display list is unchanged; only the scroll offset moved). The marker sheet is the same thing one layer down: the followed-robot marker is placed on the robot each frame while the camera follows, so its sheet re-rasters every frame on `main` with no `Paint`. The camera runs in the harness at all because 1280 × 900 (1.42:1) is narrower than the stage's 16:9, which the "Mobile Deck Camera — the Task 11 perf gate" root-cause follow-up had already established (its cause 1: the stage box is wider than the client at that viewport, so the scroll range is not 0); what is new is that the raster column makes the cost of each pan visible, and names the layer it lands on.
+
+**How it was found** (`main`, same build and link, three scratch probes in this session's scratchpad, not committed). (1) A 6 s `MutationObserver` on `.screen-content` outside the scene saw only the clock text once a second and a handful of marker attribute writes: nothing that could raster a 1248 × 824 layer 30 times. (2) A per-variant trace (stock, no header, no nav, no bridge flicker, no rocker pulse, no scene, no meta box) read the shell layer at 0–4 raster frames per 4 s window whatever was switched off, against the harness's 29–35 per 6 s: the rasters were not steady, so no ablation could own them. (3) One continuous 22 s trace from power-on + 6 s: the shell layer rastered on 98–99 frames, of which 86–89 fell in **one burst of about 1.5 s at every frame, 4 tiles per frame** (16.0–17.5 s after power-on in one run, 20.5–22.1 s in the other), the rest one frame every 1–2 s. In the burst frames, two bundle functions ran that ran almost nowhere else (92 of 104 and 90 of 92 calls), one DOM node took 100 of its 115 style invalidations, and `div.world-view__scroller` painted once. The burst's length is the camera's pan; which frames it lands in depends on when a robot the camera will pick goes active, so a 6 s window catches a pan, part of one, or none, which is why the Phase 5 rounds read 29–35 frames and the probes 0–4.
+
+**The confirmation: one run per build at 1600 × 900**, a true 16:9 viewport, where the scroll range is 0 and the camera stands down (`handleResize`/`scrollRange`), everything else as in the rounds above:
+
+| Width | Build | shell layer frames rastered (tasks) | marker sheet frames rastered | rastered screens/frame | screens/frame | compositor layers |
+|---|---|---|---|---|---|---|
+| 1280 | `main` (round 1 above) | 34 (133) | 347 | 3.21 | 2.10 | 28 |
+| 1600 | `main` | **3 (8)** | **not composited, 0** | **1.81** | 1.81 | 28 |
+| 1280 | branch (round 1 above) | 31 (121) | 1 | 0.23 | 0.17 | 30 |
+| 1600 | branch | **0** | 0 | **0.16** | 0.17 | 29 |
+
+At 1600 × 900 `main` rasters exactly its two robot sheets (1568 × 824 each, 350 of 353 frames) and nothing else of note, and the two area columns agree to the hundredth (1.81 and 1.81). On the branch the shell layer leaves the raster table altogether; what stays (the `dissolve` div 27 frames, the `mid` sheet 25, the seven single-tile layers) is **not** the camera and is still unexplained. The per-second single-tile shell raster that remains at 1600 × 900 and under `no-scene` (3–7 frames in 6 s) is also not the camera; it is small and not chased.
+
+**What it means.** On a desktop window at or wider than 16:9 there is no cost: the camera never moves. On every narrower viewport, which is every phone in portrait and the harness's own default, each pan re-rasters the shell layer's visible scroller contents every frame for 1.4 s, then the follow re-rasters it on every frame the robot moves a whole pixel, and on `main` the marker sheet re-rasters every frame of the follow as well. The Task 11 follow-up named the mitigations without trying them: `will-change: scroll-position` (a composited scroller, so a scroll is a transform on the compositor and no re-raster) or `contain: paint` on `.world-view__scroller`, one at a time, measured with this column at 1280 × 900 and on the Pixel. Not done here: the camera is a shipped feature, the scroller's compositing is architecture, and the raster column has just arrived; **Crawford's call** whether a pan's raster cost is worth a spec. Findings 1 and 4 under Phase 5 in [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) are closed with this cause; 2 and 3 stay open.
+
+## Deck scroller compositing — the desktop A/B (2026-10-18)
+
+Phase 1 of [tasks/DECK_SCROLLER_COMPOSITING.md](tasks/DECK_SCROLLER_COMPOSITING.md): the two mitigations the follow-up above named for the deck camera's pans, one CSS declaration each on `.world-view__scroller`, against stock. **Recorded, not gated:** Gate 1 is read at Gate 2, which is Crawford's decision. No variant is committed; the scroller rule on the branch is unchanged.
+
+**Builds.** All three from `feature/deck-scroller-compositing` at `c456ee82` (cut from `perf/per-mover-layers`), built with `npx vite build --outDir <scratch>` and served with `vite preview`: **A, stock**, the tip as it is, :4184, `index-Dil0Vyn4.js`; **B**, `will-change: scroll-position` added to the rule, :4185, `index-BSuw5Pa7.js`; **C**, `contain: paint` added, :4186, `index-Ds3mB9Ot.js`. B and C were built from a working-tree edit restored from a `cp` backup, and each built stylesheet was read back: only the added declaration differs. Every bundle was read from the served HTML before measuring. Harness: `scripts/perf/idle-paint.mjs` at `76927960`, which adds `--raster-top` (the stock window's raster-by-layer table at 30 s rasters 113–124 layers, and the robot movers push the shell layer out of the default 12 rows; a first round 1 taken without it could not read the shell row and was discarded).
+
+**Method.** `npm run perf:idle -- --throttle 1 --window 30000 --only none --port 9301 --raster-top 300 --url <link>`, the pinned link of "Pre-change baseline for Phase 53" (`?session=`, style `alpha`, `(0, 50)`, defaults) with the port changed per variant, **1280 × 900** at 1×, the 8 s power-on settle, then one **30 s** window: one camera cycle is at most 1.4 + 20 + 3 s, so every window holds a pan (the scroll range at 1280 × 900 is 217 px: `scrollWidth` 1465, `clientWidth` 1248). Three rounds with the start order rotated (A B C, B C A, C A B), each run a fresh headless Chrome, foreground, one call per round, and the orphaned-Chrome count 0 before and 0 after every call (filtered `Win32_Process` query on `Name='chrome.exe'`). A 30 s window is traced without the invalidation table, so these figures compare only with each other, never with the 6 s sections above. `shell layer` is `div.screen-content`'s row in the stock window's raster-by-layer table; `scroller layer` is the row of B's scrolling-contents layer, owned by `div.world-view__scroller` (1465 × 824); 0 means the layer did not raster or does not exist.
+
+**Gate 0** ([tasks/DECK_SCROLLER_COMPOSITING.md](tasks/DECK_SCROLLER_COMPOSITING.md), Phase 0): the camera moves in all three builds, and only B gives the scroller a layer of its own (a 1248 × 824 container that draws nothing and the 1465 × 824 scrolling-contents layer that draws), while `div.screen-content`'s layer stops drawing content. The harness's `Compositor layers:` line names only scene slots, so the scroller layer is read from the raster table here.
+
+### A, stock
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 326139 | 0.28 | 108 | 11 | 2477393 | 2.15 | 10343 | 9992 | 1571 | 1530 | 1540 | 1798 | 0 | 140 | 475 | 0 | 0 |
+| 2 | 333891 | 0.29 | 110 | 9 | 2544966 | 2.21 | 9827 | 10080 | 1505 | 1459 | 1468 | 1797 | 0 | 139 | 476 | 0 | 0 |
+| 3 | 333807 | 0.29 | 110 | 9 | 2549417 | 2.21 | 9799 | 10106 | 1497 | 1463 | 1473 | 1800 | 0 | 142 | 480 | 0 | 0 |
+| Median | 333807 | 0.29 | 110 | 9 | 2544966 | 2.21 | 9827 | 10080 | 1505 | 1463 | 1473 | 1798 | 0 | 140 | 476 | 0 | 0 |
+| Min–max | 326139–333891 | 0.28–0.29 | 108–110 | 9–11 | 2477393–2549417 | 2.15–2.21 | 9799–10343 | 9992–10106 | 1497–1571 | 1459–1530 | 1468–1540 | 1797–1800 | 0–0 | 139–142 | 475–480 | 0–0 | 0–0 |
+
+### B, `will-change: scroll-position`
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 284200 | 0.25 | 102 | 10 | 2343291 | 2.03 | 9635 | 9777 | 1467 | 1421 | 1430 | 1800 | 0 | 0 | 0 | 45 | 241 |
+| 2 | 286374 | 0.25 | 110 | 9 | 2572131 | 2.23 | 9720 | 10106 | 1484 | 1427 | 1435 | 1795 | 0 | 0 | 0 | 48 | 250 |
+| 3 | 285535 | 0.25 | 111 | 10 | 2543521 | 2.21 | 9764 | 10082 | 1494 | 1441 | 1450 | 1798 | 0 | 0 | 0 | 48 | 247 |
+| Median | 285535 | 0.25 | 110 | 10 | 2543521 | 2.21 | 9720 | 10082 | 1484 | 1427 | 1435 | 1798 | 0 | 0 | 0 | 48 | 247 |
+| Min–max | 284200–286374 | 0.25–0.25 | 102–111 | 9–10 | 2343291–2572131 | 2.03–2.23 | 9635–9764 | 9777–10106 | 1467–1494 | 1421–1441 | 1430–1450 | 1795–1800 | 0–0 | 0–0 | 0–0 | 45–48 | 241–250 |
+
+### C, `contain: paint`
+
+| Round | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 340058 | 0.30 | 111 | 9 | 2577582 | 2.24 | 9776 | 10150 | 1487 | 1445 | 1454 | 1800 | 0 | 143 | 481 | 0 | 0 |
+| 2 | 327764 | 0.28 | 110 | 9 | 2538236 | 2.20 | 9798 | 10076 | 1506 | 1448 | 1458 | 1797 | 0 | 140 | 477 | 0 | 0 |
+| 3 | 331297 | 0.29 | 110 | 10 | 2550457 | 2.21 | 9671 | 10093 | 1468 | 1457 | 1467 | 1798 | 0 | 142 | 479 | 0 | 0 |
+| Median | 331297 | 0.29 | 110 | 9 | 2550457 | 2.21 | 9776 | 10093 | 1487 | 1448 | 1458 | 1798 | 0 | 142 | 479 | 0 | 0 |
+| Min–max | 327764–340058 | 0.28–0.30 | 110–111 | 9–10 | 2538236–2577582 | 2.20–2.24 | 9671–9798 | 10076–10150 | 1468–1506 | 1445–1457 | 1454–1467 | 1797–1800 | 0–0 | 140–143 | 477–481 | 0–0 | 0–0 |
+
+### The control: 1600 × 900, one run each
+
+`--width 1600`, A B C, everything else as above. 1600 × 900 is 16:9, the scroll range is 0 and the camera stands down (`scrollRange()`), so the three variants should read alike here.
+
+| Variant | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A, stock | 321383 | 0.22 | 109 | 11 | 3179950 | 2.21 | 9358 | 10094 | 1485 | 1433 | 1442 | 1798 | 0 | 48 | 100 | 0 | 0 |
+| B, `will-change: scroll-position` | 324461 | 0.23 | 101 | 9 | 2944406 | 2.04 | 9108 | 9806 | 1449 | 1399 | 1408 | 1800 | 0 | 0 | 0 | 48 | 100 |
+| C, `contain: paint` | 319672 | 0.22 | 109 | 10 | 3187826 | 2.21 | 9426 | 10102 | 1500 | 1438 | 1447 | 1799 | 0 | 47 | 99 | 0 | 0 |
+
+All three read alike on `rastered screens/frame` (0.22, 0.23, 0.22). **The plan's "≤ 7 shell frames in 30 s" was wrong**: it scaled the follow-up's 6 s single run (branch 0) and the "3–7 frames in 6 s" per-second raster, and a 30 s window holds 47–48 of those per-second frames (99–100 tasks, about two tiles each). In B the same 48 frames and 100 tasks move from the shell layer to the scroller layer, so the per-second raster is something **inside the scroller**, not the camera and not the shell's own chrome; it is not chased here. C reads as A.
+
+### Compositor-layer readouts
+
+A `30–31 (27–28 drawing content, ≈ 24.2 MB at 4 B per device px, DPR 1, stage scale 0.763)`, B `32 (27 drawing content, ≈ 24.9 MB …)` in all three rounds, C `30–31 (27–28 drawing content, ≈ 24.2 MB …)`; `Mover layers: 4, ≈ 0.1 MB` on all three, and the named scene layers are the same set on all three (`mid`, `dissolve` and the movers), so B did not move the Phase 53 layer structure. B's two extra layers are the scroller's; its memory rises **≈ 0.7 MB at 1×**: the scrolling-contents layer adds 1465 × 824 × 4 B ≈ 4.6 MiB and `div.screen-content` stops drawing (1248 × 824 × 4 B ≈ 3.9 MiB released). At 1600 × 900 the two are the same size (1568 × 824) and B reads 29.0 MB, as A and C do.
+
+### A finding outside the plan: the phone already composites the scroller
+
+The Risks table asks what B's layer costs on the Pixel, so A and B were also run once each at the harness's phone emulation (`--width 412`: 412 × 844, DPR 2, `mobile: true`):
+
+| Variant | rastered px²/frame | rastered screens/frame | unresolved raster layers | late layers | redrawn px²/frame | screens/frame | busy (ms) | Paint n | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames | long tasks | shell layer frames | shell layer tasks | scroller layer frames | scroller layer tasks |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A, stock | 898835 | 0.65 | 21 | 9 | 3261374 | 2.34 | 9439 | 10134 | 1441 | 1247 | 1257 | 1798 | 0 | 0 | 0 | 50 | 263 |
+| B, `will-change: scroll-position` | 905163 | 0.65 | 21 | 7 | 3247721 | 2.33 | 10413 | 10088 | 1587 | 1475 | 1486 | 1794 | 0 | 0 | 0 | 47 | 257 |
+
+**Stock A already has the scroller layer there** (1365 × 768, rastering on 50 frames), and its shell layer does not raster; B reads the same layers and the same 62.8 MB. A scratch probe on stock A at 1280 × 900 (the Phase 0 probe, one LayerTree read per setting) found where the line is: the scroller is **not** composited at DPR 1 and 1.25 with `mobile: false`, and **is** composited at DPR 1.5, at DPR 2, and at DPR 1 with `mobile: true`. Chrome composites a scroller on its own whenever it does not need to keep LCD sub-pixel text (DPR ≥ 1.5, or a mobile device), and those are the cases where it keeps the layer we are asking B for. So the camera's per-pan re-raster of the shell is a **low-DPI desktop** cost only: on the Pixel (DPR ≈ 2.6, mobile) stock is already on B's path, and B can change nothing there. The phone runs are one each and their main-thread numbers (busy 9439 against 10413) are not read; their layer readouts are the finding.
+
+### Reading (Gate 1, recorded)
+
+Medians over the three rounds, each variant against A:
+
+- **The shell layer: A 140 frames rastered (476 tasks), B 0, C 142.** B takes the shell out of the raster table entirely. What B's own scroller layer rasters instead, 48 frames, is the per-second raster the control round shows on every variant at 1600 × 900 (48 frames there too), so B removes exactly the camera's share: about 92 frames per 30 s, the 1.4 s pan at every frame plus the follow's whole-pixel steps.
+- **`rastered screens/frame`: A 0.29, B 0.25, C 0.29**, B at 0.86 × A. The 0.04 is the shell's 140 × 1248 × 824 px² over the window's frames (≈ 0.07) less B's scroller layer's 48 × 1465 × 824 (≈ 0.03). The column charges a layer its whole area for every frame it rasters in, however few tiles, so both shares are upper bounds of the tiles actually drawn.
+- **Main thread: no variant is distinguishable.** Busy A 9827 ms (9799–10343), B 9720, C 9776; Paint A 1505 ms (1497–1571), B 1484, C 1487; Compositor::Update A 1463 ms (1459–1530), B 1427, C 1448. B and C both sit just under A's minimum on all three, and C is a no-op by every other column, so the gap is session spread that a no-op shows too, not B's doing. As expected, B's work is off the main thread: a composited scroll moves a layer on the compositor and never reached Paint.
+- **C, `contain: paint`: no change**, as the plan expected. It does not composite the scroller, so the shell still re-rasters on every pan. Per the plan's default, it is dropped from Phase 2.
+- **Layer memory: B + 0.7 MB at 1×** (above), and nothing at DPR ≥ 1.5, where stock already holds the same layer.
+
+What Gate 2 is left with, for Crawford: on a DPR-1 desktop window narrower than 16:9, B removes the camera's raster of the shell layer (≈ 92 frames per 30 s of a 1248 × 824 layer) for ≈ 0.7 MB, with no main-thread change; on the phone it changes nothing because the phone already does it. The Phase 2 Pixel underrun A/B would compare two builds whose layers are the same, so it cannot show B's effect; whether to run it as planned, replace it with a check that the Pixel's own LayerTree shows the scroller layer on stock, or drop it, is part of the Gate 2 decision. The look check (T2.2) still applies to a desktop window: a composited scroller is exactly the case where Chrome gives up LCD sub-pixel text at DPR 1, and the only text under the scroller is the world's own.
+
+**Gate 2 decision (2026-10-18): adopt B.** Crawford's call, on the evidence above. His desktop runs at Windows 125 % scaling, DPR 1.25, the case B changes: a probe at DPR 1.25 reads stock with no scroller layer and B with the scrolling-contents layer and the shell layer not drawing, as at DPR 1. T2.1 (the Pixel underrun A/B) was skipped, since the phone composites the scroller on stock and the A/B would compare identical layers. T2.2 (the look, A against B in desktop Chrome at 125 %) passed: "they both look fine". The cost, stated: ≈ 0.7 MB at 1× on 1280 × 900, ≈ 1.1 MB at DPR 1.25 (× 1.25²), nothing on a phone. Committed as `9443dd1c`: `will-change: scroll-position` on `.world-view__scroller`, pinned by `WorldView.css.test.ts`, and a paragraph in ANIMATION_SYSTEM.md's deck camera section. The tables above stay as measured; "No variant is committed" was true when they were taken.
+
+Guarded by `src/docs/deckScrollerCompositingDocs.test.ts` (tables against their medians, ranges and viewports, the control, the reading's figures; 8 doc mutants killed).
+
+## Per-Mover Compositor Layers — review follow-up R5, option 3: the strips separated (2026-10-18)
+
+Option (3) of "review follow-up R5" above ([tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R5): before Crawford chooses between accepting R5's busy MISS and the bubble redesign, find out how much of the branch's extra cost is the 18 bubble strips themselves, as layers, and how much is the other movers. R5's own diagnostic detached the circles and left the strip `div`s in the page, so it could not say. **Recorded, not gated, and not a decision:** the R5 section above stands as written, and what to do about its MISS is still Crawford's.
+
+**Result, in one line:** at the moment measured, about a third of the branch's Compositor::Update gap (and more of its busy gap) is the strip layers standing in the page, almost none of it is the circles' motion, and the rest is the other movers, mostly the robots, whose share rises and falls with how many robots are moving.
+
+### Method
+
+**Builds:** `main` `4a9b3fec`, R5's own build, still served on :4183, bundle `index-CVUy7kf3.js`; the branch `perf/per-mover-layers` at `f5e38e46` (with the deck scroller change, `will-change: scroll-position`), served on :4187, bundle `index-BSuw5Pa7.js`. Both bundles read back from the served HTML. Harness: `scripts/perf/idle-paint.mjs` with two additions, `2d05d6d8` (`detach-bubble-strips`, a sticky step that removes `sceneSlotSelector('bubbles')`: the 18 strip movers on the branch, the one bubbles sheet on `main`) and `1eb022d2` (a checked step prints how many elements it matched, how many were left, and how many match again after its window, and throws if any are left). Every run read 1 matched and 0 left on `main`, 18 and 0 on the branch, 135 and 0 for the circles, and 0 again after every window: no detach decayed.
+
+**World and command:** R5's world, `alpha` at `(-100, -100)` (18 factories, 135 bubble circles, 18 streams), R5's `?session=` link with the port changed per build. `npm run perf:idle -- --throttle 1 --window 30000 --bubbles 5 --expect-dimmed no --port 9301 --only <steps> --url <link>`, 1280 × 900 at 1×, the 8 s power-on settle, 30 s windows. Each run is a fresh headless Chrome, foreground, one at a time, the builds alternated and the order rotated between rounds; the orphaned-Chrome count 0 before and 0 after every call (filtered `Win32_Process` query on `Name='chrome.exe'`).
+
+**Why every comparison is at the same window position.** A run traces its windows one after another, and the world does not stand still between them: in the second window (about 40–72 s after power-on) the branch's robot movers raster on ≈ 1 600 frames each, against ≈ 600–700 in the third. The branch-over-`main` gap moves with it. So a condition is never compared with another window of the same run; each condition is the **second window** of its own runs, after the same stock first window, and is compared with the other build at the same window position. Three run shapes give the three conditions:
+
+- **bubbles present:** `--only "stock (again),detach-bubbles,detach-bubble-strips"`, window 2 = `stock (again)` (these runs' windows 3 and 4 are under "Later windows" below);
+- **circles detached, strips kept:** `--only detach-bubbles`, R5's own diagnostic, re-run;
+- **strips detached (circles with them):** `--only detach-bubble-strips`.
+
+**The acceptance rule.** From 12:33 the machine had bursts of slowness lasting about a window (the user's own Chrome, then a burst with every Chrome closed), +25–30 % on every column of a stock window. A run is **accepted if its stock window's Compositor::Update is within ±10 % of its build's median stock over every run in the session**, which is `main` 1940 ms and the branch 2305 ms; ordinary run-to-run spread is ≈ 2 %. Every run is in the tables, rejected ones included. `q3a`, `q3b` and `q3` are the three takes of round 3 (12:33, 12:37 and 12:43, after Crawford closed Chrome); `q5-main` replaced the rejected `q4-main`. `q3a-main` passes the rule on its stock window although its second window was caught by the burst; the rule keeps it, and the median is 1775 ms with or without it.
+
+### Window 2, bubbles present
+
+| Run | Build | stock Compositor::Update (ms) | accepted | window 2 busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| r1-main | `main` | 1940 | yes | 11123 | 1864 | 2103 | 2111 | 1800 |
+| r1-tip | branch | 2292 | yes | 11601 | 1923 | 2455 | 2462 | 1800 |
+| r2-main | `main` | 1965 | yes | 11156 | 1929 | 2111 | 2118 | 1801 |
+| r2-tip | branch | 2249 | yes | 11687 | 1933 | 2483 | 2489 | 1801 |
+| r3-main | `main` | 1904 | yes | 11078 | 1891 | 2112 | 2120 | 1801 |
+| r3-tip | branch | 2269 | yes | 11695 | 1916 | 2468 | 2475 | 1800 |
+
+### Window 2, circles detached, strips kept
+
+| Run | Build | stock Compositor::Update (ms) | accepted | window 2 busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| d2-main | `main` | 1975 | yes | 10296 | 1909 | 1742 | 1749 | 1801 |
+| d2-tip | branch | 2290 | yes | 11102 | 1944 | 2082 | 2089 | 1799 |
+| d3-main | `main` | 1919 | yes | 10540 | 1904 | 1759 | 1766 | 1801 |
+| d3-tip | branch | 2296 | yes | 10972 | 1933 | 2102 | 2108 | 1799 |
+| r5diag-main | `main` | 1927 | yes | 10573 | 1908 | 1770 | 1778 | 1801 |
+| r5diag-tip | branch | 2354 | yes | 10997 | 1985 | 2101 | 2108 | 1800 |
+
+### Window 2, strips detached (circles with them)
+
+| Run | Build | stock Compositor::Update (ms) | accepted | window 2 busy (ms) | Paint (ms) | Compositor::Update (ms) | Layerize (ms) | frames |
+|---|---|---|---|---|---|---|---|---|
+| q1-main | `main` | 1926 | yes | 10682 | 1920 | 1775 | 1783 | 1799 |
+| q1-tip | branch | 2361 | yes | 10781 | 1939 | 2017 | 2023 | 1800 |
+| q2-main | `main` | 1935 | yes | 11028 | 2081 | 1914 | 1922 | 1800 |
+| q2-tip | branch | 2337 | yes | 10770 | 1912 | 1984 | 1991 | 1801 |
+| q3-main | `main` | 1964 | yes | 10511 | 1883 | 1730 | 1737 | 1801 |
+| q3-tip | branch | 2314 | yes | 10624 | 1908 | 1965 | 1972 | 1800 |
+| q3a-main | `main` | 1902 | yes | 12618 | 2456 | 2219 | 2229 | 1791 |
+| q3a-tip | branch | 2730 | **no** | 13227 | 2525 | 2612 | 2621 | 1795 |
+| q3b-main | `main` | 2472 | **no** | 12576 | 2379 | 2269 | 2279 | 1798 |
+| q3b-tip | branch | 2973 | **no** | 13111 | 2494 | 2557 | 2566 | 1799 |
+| q4-main | `main` | 2568 | **no** | 10604 | 1922 | 1735 | 1742 | 1800 |
+| q4-tip | branch | 2294 | yes | 12933 | 2256 | 2434 | 2442 | 1797 |
+| q5-main | `main` | 1948 | yes | 10424 | 1928 | 1744 | 1752 | 1800 |
+
+### Medians of the accepted runs, and the gap
+
+| Window 2 condition | `main` runs | branch runs | busy main → branch (gap) | Paint main → branch (gap) | Compositor::Update main → branch (gap) | Layerize main → branch (gap) |
+|---|---|---|---|---|---|---|
+| bubbles present | 3 | 3 | 11123 → 11687 (+564) | 1891 → 1923 (+32) | 2111 → 2468 (+357) | 2118 → 2475 (+357) |
+| circles detached, strips kept | 3 | 3 | 10540 → 10997 (+457) | 1908 → 1944 (+36) | 1759 → 2101 (+342) | 1766 → 2108 (+342) |
+| strips detached (circles with them) | 5 | 4 | 10682 → 10775.5 (+93.5) | 1928 → 1925.5 (-2.5) | 1775 → 2000.5 (+225.5) | 1783 → 2007 (+224) |
+
+### Later windows, the sequence runs
+
+| Window | condition | `main` runs | branch runs | busy main → branch (gap) | Compositor::Update main → branch (gap) |
+|---|---|---|---|---|---|
+| 3 | circles detached, strips kept | 3 | 3 | 7817 → 7293 (-524) | 1604 → 1659 (+55) |
+| 4 | strips detached (circles with them) | 3 | 3 | 7293 → 7089 (-204) | 1502 → 1515 (+13) |
+
+### Reading
+
+Window 2, medians of the accepted runs: the **Compositor::Update gap +357 → +342 → +226 ms**, and the **busy gap +564 → +457 → +94 ms**, from bubbles present, to circles detached, to strips detached.
+
+- **The circles' motion is not the gap.** Detaching the 135 circles takes about the same off both builds: Compositor::Update −367 ms on the branch (2468 → 2101) and −352 on `main` (2111 → 1759); busy −690 and −583. The gap barely moves (+357 → +342). Moving circles cost the same whether they sit in one sheet or in 18 strips, which is what R5's diagnostic found too.
+- **The strip layers themselves are a real share.** With the circles already gone, removing the 18 empty strips takes another ≈ 100 ms of Compositor::Update off the branch (2101 → 2000.5); removing `main`'s one empty sheet changes nothing (1759 → 1775). On Compositor::Update that is ≈ 116 ms of the gap, about a third; on busy, the column R5 gated, the gap falls by 363 ms (the branch's own drop is 222 ms), so the strips cost the main thread more than their Compositor::Update share. Busy is the noisier column here (the accepted runs spread over ≈ 600 ms in the strips condition, ≈ 50 ms in Compositor::Update), so read the busy share as somewhere between 220 and 360 ms of 564, not as a point.
+- **With no bubbles at all, a gap remains, and it is the other movers.** +226 ms Compositor::Update and +94 ms busy with every strip and the sheet gone: what is left on the branch that `main` does not have is the robot, marker and dissolve movers. Its size follows the robots: in the same runs' later windows, where fewer robots move, the strips-detached gap is +13 ms Compositor::Update and the branch is **faster** than `main` on busy (−204 ms), as it is with only the circles detached (−524 ms).
+- **Paint does not see any of it**: the Paint gap is +32, +36 and −2.5 ms across the three conditions, as R5 found for the bubbles.
+
+**What this says about R5's options** (Crawford's call, not decided here): a bubble redesign that cuts the number of always-promoted strip layers goes after the strips' share, about a third of the Compositor::Update gap and roughly half of the busy gap at this moment; nothing done to the bubbles touches the robots' share, which is the larger part of the Compositor::Update gap whenever several robots are moving and close to nothing when few are. The decomposition is of window 2 only: the harness always traces a stock window first, so R5's own gated window (window 1) cannot be detached in place. Its gap reproduces on this build (stock busy 9537 → 10379.5 ms, Compositor::Update 1935 → 2295, against R5's 9566 → 10330 and 1940 → 2287), so the branch build with the scroller change carries the same gap R5 measured.
+
+**A harness caveat found on the way.** In a 3 s smoke run on `main` with every step at once, the page had no `.world-view` after `detach-bubbles+robots` (after `detach-bubble-strips`), and the run was rejected by the world check: the robots' detach pulls out nodes React owns, and the next React update after it appears to unmount the world. The rounds above do not use that step, and the world check passed at the end of every one. Not chased.
+
+**Decision (2026-10-18): Crawford accepts R5's busy MISS.** On the evidence above: +8 % busy and +18 % Compositor::Update on the busiest world found, over 30 s, for 0.85 MB of bubble layers instead of 4.60 MB, with the larger part of the gap belonging to the robot movers that no bubble change reaches. No bubble redesign follows from it, and spec §7 Q3 is closed by this decision; R5's numbers and its MISS stand as recorded.
+
+Guarded by `src/docs/perMoverStripsDocs.test.ts` (every row against the acceptance rule, the medians and gaps against the accepted rows, the reading against the medians; 8 doc mutants killed).
+
+## Per-Mover Compositor Layers — the Pixel A/B: not separable on the phone (2026-10-18)
+
+The `main` listen the Task 21 section above left open ([tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md), "Open before merge" item 3): the Pixel, `perf/per-mover-layers` against `main`, by ear and with the `?debug` overlay. **Result: the run-to-run spread on the phone is larger than the difference being looked for, so the A/B could not separate the two builds.** The gate was decided by Crawford on that basis (below).
+
+**Conditions.** The Pixel 8, **portrait**, the LAN production previews: the branch's own `npm run build` of the tip (`82282e32` source, `dist/` built 14:41, served by `vite preview --host` on :4173, bundle `index-BdWK58nR.js`) and `main` `4a9b3fec` (served on :4174, bundle `index-CVUy7kf3.js`, the R5 and Task 20 `main` build). The world is the Task 20 gate's pinned `?session=` link (the overlay reads `@ 0,50`), with `&debug&load=light`: **Light** Audio Load on both dials (`load 20%·fx 20%`, latency `playback`, all three LFO tiers off), so lighter than Task 21's Full. Crawford let the phone cool first. Readings are from his screenshots of the overlay; the first run's are small and read approximately.
+
+| Listen | Build | Length | Underruns (overlay total) | Crawford's words |
+|---|---|---|---|---|
+| Task 21, 2026-10-17 (section above) | branch (`a04d4a0c`) | over 5 min, Full | about 12 | no distortion; "good to go" |
+| Run 1 | branch | 5:11 | about 12 at 0:34, about 68 at 2:03, about 88 at 5:11 | "MUCH better" than an earlier incognito try (non-stop distortion from about 3 min, no numbers), "still a little more distortion than I wanted" |
+| Run 2 | `main` | 3:03 | about 22–23 | "good at light audio quality" |
+| Run 3 | branch | 3:02 | 41 (875 ms), avg output latency 265 ms (21–307), `lag 9ms (max 650ms)` | "a few distortions, but not as bad as earlier runs" |
+
+**What the screenshots do establish.** Every reading is `fin ok` with the master peak well below 0 dB (−3.4 to −11.5 dB): no clipping and no non-finite samples. The crackle is **playback underruns**, the audio thread missing its deadline in bursts of one to four, with the UI at 57–60 fps and the main-thread lag low between bursts. **`main` also underruns** (about 22 in three minutes), so the crackle predates this branch and is filed on its own as backlog item 27 ([todo/backlog.md](todo/backlog.md)). The branch's own counts run from about 12 (Task 21, Full, over five minutes) to about 88 (run 1, Light, five minutes): a spread far wider than the `main`-against-branch difference in this sitting (about 22 against 41 at three minutes), so that difference is not evidence either way. The branch's changes are to how the screen is composited, with no path into the audio graph; on a phone the two still share the CPU, which is why the gate asks.
+
+**Correction to the Task 21 section above.** It lists landscape among the plan's conditions and says Crawford did not restate the orientation. He has since said every run on his phone, Task 21's included, was **portrait**, where the deck camera runs. The Task 21 section stands as written; this is the correction.
+
+**Decision (2026-10-18): Crawford moves on.** The A/B is not separable on this instrument; with Task 21's clean listen, today's runs ("a few distortions, not as bad as earlier runs") and `main` underrunning too, the open "not above `main`" item is closed by his decision, not met as a measured criterion. A better instrument, if this ever needs settling, is the audio thread's render capacity read through Chrome's remote DevTools over USB, a continuous load figure rather than a count of failures.
+
+Guarded by `src/docs/perMoverPixelAbDocs.test.ts`.
 
 ## Recording a new baseline
 

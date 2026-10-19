@@ -593,6 +593,14 @@ and give the Settings → Seeds coordinates a reason to be stepped rather than t
 
 ### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
 
+**Status (2026-10-17): mostly built, one finding left open.** Candidate 1 is done: small layers per mover, built as
+[roadmap Phase 53](roadmap.md#53-per-mover-compositor-layers) on `perf/per-mover-layers` (not merged). Candidate 2 is
+done (the camera's idle no-op, merged). Candidate 3 is not taken (the audio-headroom default stays Crawford's call).
+The idle-paint gate missed its headline criterion, 0.31 × `main` against 0.25, because of a **document layer** that
+repaints a full viewport on nearly every frame on both builds (cause unidentified); the work this item described fell
+by over 90 %. That repaint is the open remainder, to be accepted, fixed or reframed by Crawford. The record below is the
+original diagnosis, kept as written.
+
 Diagnosed 2026-10-16 while finishing roadmap 50.5, after Crawford reported the sound breaking up about 25–30 s into every
 world on his laptop at full screen. **Not an audio feature.** `main` at `2ec52f2f` reproduces it (411 underruns by 0:47,
 25 fps) and a window at a quarter of the area halves the cost (66 underruns by 1:00, 54 fps), so the cost scales with pixels.
@@ -629,3 +637,25 @@ much of the 25 fps is the Radeon specifically; the Windows setting did not take 
 Control Panel / Lenovo Vantage discrete-mode routes were not tried.
 
 **How to start:** `interview-me` from this item for candidate 1; candidate 2 can go straight to a RED test.
+
+### 27. Audio: Phone Playback Underruns at Light Load, `main` Included
+
+**Found 2026-10-18** during the per-mover Pixel A/B (PERFORMANCE.md "the Pixel A/B: not separable on the phone"). On the
+Pixel 8 at **Light** Audio Load (`load 20%·fx 20%`, latency `playback`, every LFO tier off), the Task 20 world crackles
+on both builds: `main` about 22 playback underruns in three minutes, the branch 41 to about 88 depending on the run. The
+`?debug` overlay rules out a broken signal (`fin ok`, master peak −3 to −11 dB, no clipping) and the main thread (57–60
+fps, low lag): the audio thread misses its deadline in bursts of one to four, and keeps doing so with only one robot
+sounding, so most of the cost does not scale with notes played. Related history:
+[scratchy-audio-phones.md](scratchy-audio-phones.md) (the Audio Load Budget was its mitigation).
+
+**First candidate, unmeasured:** the five colour and modulation effects in the global chain (Distortion, Chebyshev,
+BitCrusher, AutoWah, Phaser; `src/engine/audioEngine/globalFx.ts`) sit in series and are never disconnected, so at wet 0
+each still processes every sample; Tone's dry/wet mix only discards the result. The Phaser runs ten all-pass stages per
+channel and the BitCrusher is an AudioWorklet. Disconnecting an effect at wet 0, the way an LFO at rate 0 Hz disconnects
+(roadmap: LFO Active toggle removed), would take that cost off a world that does not use them. Changing how the chain is
+wired is an audio-architecture change (CLAUDE.md: ask first).
+
+**How to start:** measure before changing anything: the audio thread's render capacity with the five effects in the chain
+against out of it (a scratch build), on the desktop with `npm run perf:audio` and on the Pixel through Chrome's remote
+DevTools WebAudio panel over USB, which reads a continuous load figure rather than counting failures. The phone's
+underrun count alone proved too noisy to separate two builds (the A/B above). Then Crawford's call.

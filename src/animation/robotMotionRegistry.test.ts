@@ -1,5 +1,10 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+import * as registry from './robotMotionRegistry';
 import {
   registerArcDecorator,
   getArcDecorator,
@@ -8,9 +13,6 @@ import {
   getOrbiterWork,
   deleteOrbiterWork,
   clearRobotMotionRegistry,
-  markLayerSwitching,
-  isLayerSwitching,
-  clearLayerSwitching,
   type OrbiterWork,
 } from './robotMotionRegistry';
 import type { ArcDecorator } from '@/components/robot/gem/useHaloMotion';
@@ -101,44 +103,51 @@ describe('robotMotionRegistry — orbiter work controls', () => {
   });
 });
 
-// Phase 43 Task 34 (spec §1.10 "Re-mount without a flourish"): the work loop marks a robot before
-// it writes the robot's `layer`, so the re-mount React then does in the other robot row knows it is
-// a layer switch — RobotBody's hooks run before Robot's own mount hands the robot back to the loop,
-// which clears the mark.
-describe('robotMotionRegistry — the layerSwitching set', () => {
-  beforeEach(() => clearRobotMotionRegistry());
+// Phase 53 Task 15 (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.5): a row switch no longer re-mounts
+// the robot, so there is nothing to mark. The layerSwitching set and its three functions (Phase 43
+// Task 34) are gone, and the registry is exactly its two maps.
+describe('robotMotionRegistry — no layer-switch marks (Phase 53 Task 15)', () => {
+  const REMOVED = ['markLayerSwitching', 'isLayerSwitching', 'clearLayerSwitching'];
 
-  it('a robot is switching only between mark and clear, per robot id', () => {
-    expect(isLayerSwitching('r1')).toBe(false);
-    markLayerSwitching('r1');
-    expect(isLayerSwitching('r1')).toBe(true);
-    expect(isLayerSwitching('r2')).toBe(false);
-    clearLayerSwitching('r1');
-    expect(isLayerSwitching('r1')).toBe(false);
+  it('exports exactly the two maps\' functions and the reset', () => {
+    expect(Object.keys(registry).sort()).toEqual([
+      'clearRobotMotionRegistry',
+      'deleteArcDecorator',
+      'deleteOrbiterWork',
+      'getArcDecorator',
+      'getOrbiterWork',
+      'registerArcDecorator',
+      'registerOrbiterWork',
+    ]);
+    for (const name of REMOVED) expect(registry).not.toHaveProperty(name);
   });
 
-  it('marking twice needs one clear; clearing an unmarked robot is a no-op', () => {
-    markLayerSwitching('r1');
-    markLayerSwitching('r1');
-    clearLayerSwitching('r1');
-    expect(isLayerSwitching('r1')).toBe(false);
-    expect(() => clearLayerSwitching('nobody')).not.toThrow();
+  // Test files are left out: a guard like workLoop.test.ts's names them as strings it expects to be
+  // gone, and a test that still imported one would fail to type-check anyway.
+  it('no source file in src/ names them', () => {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.(ts|tsx)$/.test(entry.name)) files.push(path);
+      }
+    };
+    walk(root);
+    expect(files.length).toBeGreaterThan(300);
+    const offenders = files.filter((file) => {
+      const text = readFileSync(file, 'utf-8');
+      return REMOVED.some((name) => text.includes(name));
+    });
+    expect(offenders.map((f) => f.slice(root.length + 1).replace(/\\/g, '/'))).toEqual([]);
   });
 
-  it('clearRobotMotionRegistry clears it with the two maps', () => {
-    markLayerSwitching('r1');
+  it('clearRobotMotionRegistry clears both maps', () => {
+    registerArcDecorator('r1', decorator());
+    registerOrbiterWork('r1', work());
     clearRobotMotionRegistry();
-    expect(isLayerSwitching('r1')).toBe(false);
-  });
-
-  it('is independent of the two maps', () => {
-    const w = work();
-    registerOrbiterWork('r1', w);
-    markLayerSwitching('r1');
-    deleteOrbiterWork('r1');
-    expect(isLayerSwitching('r1')).toBe(true);
-    clearLayerSwitching('r1');
-    registerOrbiterWork('r1', w);
-    expect(getOrbiterWork('r1')).toBe(w);
+    expect(getArcDecorator('r1')).toBeUndefined();
+    expect(getOrbiterWork('r1')).toBeUndefined();
   });
 });

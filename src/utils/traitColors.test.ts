@@ -3,6 +3,9 @@ import { TRAIT_COLORS, getTraitColorStyle, getRobotColorStyle, getDisabledTraitC
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { TRAIT_IDS } from '@/types/traits';
 
+/** The darker of two tones by WCAG luminance — the rule --color-accent-dark follows (a tie keeps the second). */
+const darkerOf = (a: string, b: string) => (relativeLuminance(a) >= relativeLuminance(b) ? b : a);
+
 describe('TRAIT_COLORS', () => {
   it('has exactly one entry per TRAIT_IDS member', () => {
     expect(Object.keys(TRAIT_COLORS).sort()).toEqual([...TRAIT_IDS].sort());
@@ -63,21 +66,23 @@ describe('TRAIT_COLORS', () => {
 // at the exact point --color-accent-a/-b are being scoped — never through a second layer of
 // custom-property indirection. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.2's amendment.
 describe('getTraitColorStyle', () => {
-  it('returns all 4 accent properties, matching the trait\'s own pair', () => {
+  it('returns all 5 accent properties, matching the trait\'s own pair', () => {
     expect(getTraitColorStyle('output')).toEqual({
       '--color-accent-a': ACCENT_COLORS.burntOrange,
       '--color-accent-b': ACCENT_COLORS.orange,
       '--color-accent': `color-mix(in srgb, ${ACCENT_COLORS.burntOrange} 50%, ${ACCENT_COLORS.orange} 50%)`,
       '--color-accent-gradient': `linear-gradient(135deg, ${ACCENT_COLORS.burntOrange}, ${ACCENT_COLORS.orange})`,
+      '--color-accent-dark': darkerOf(ACCENT_COLORS.burntOrange, ACCENT_COLORS.orange),
     });
   });
 
-  it('sets all 4 accent properties for the colour trait from red and tangerine', () => {
+  it('sets all 5 accent properties for the colour trait from red and tangerine', () => {
     expect(getTraitColorStyle('colour')).toEqual({
       '--color-accent-a': ACCENT_COLORS.red,
       '--color-accent-b': ACCENT_COLORS.tangerine,
       '--color-accent': `color-mix(in srgb, ${ACCENT_COLORS.red} 50%, ${ACCENT_COLORS.tangerine} 50%)`,
       '--color-accent-gradient': `linear-gradient(135deg, ${ACCENT_COLORS.red}, ${ACCENT_COLORS.tangerine})`,
+      '--color-accent-dark': darkerOf(ACCENT_COLORS.red, ACCENT_COLORS.tangerine),
     });
   });
 
@@ -89,8 +94,16 @@ describe('getTraitColorStyle', () => {
         '--color-accent-b': b,
         '--color-accent': `color-mix(in srgb, ${a} 50%, ${b} 50%)`,
         '--color-accent-gradient': `linear-gradient(135deg, ${a}, ${b})`,
+        '--color-accent-dark': darkerOf(a, b),
       });
     }
+  });
+
+  // The darker tone, for surfaces tinted in the trait's colour (the tab content's panel, 2026-10-18). By
+  // luminance, not by slot: Spectral's darker tone is its second.
+  it('names the darker tone by luminance, not by slot: indigo for Spectral, teal for Header', () => {
+    expect((getTraitColorStyle('spectral') as Record<string, string>)['--color-accent-dark']).toBe(ACCENT_COLORS.indigo);
+    expect((getTraitColorStyle('header') as Record<string, string>)['--color-accent-dark']).toBe(ACCENT_COLORS.teal);
   });
 
   it('never leaves a var() reference inside --color-accent or --color-accent-gradient\'s own value — both must be fully literal', () => {
@@ -158,6 +171,7 @@ describe('getDisabledTraitColorStyle', () => {
         '--color-accent-b': expectedB,
         '--color-accent': `color-mix(in srgb, ${expectedA} 50%, ${expectedB} 50%)`,
         '--color-accent-gradient': `linear-gradient(135deg, ${expectedA}, ${expectedB})`,
+        '--color-accent-dark': darkerOf(expectedA, expectedB),
       });
     }
   });
@@ -184,12 +198,13 @@ describe('getDisabledTraitColorStyle', () => {
 });
 
 describe('getRobotColorStyle', () => {
-  it('sets all 4 accent properties to the same given color (a degenerate solid "gradient")', () => {
+  it('sets all 5 accent properties to the same given color (a degenerate solid "gradient")', () => {
     expect(getRobotColorStyle('#abc123')).toEqual({
       '--color-accent-a': '#abc123',
       '--color-accent-b': '#abc123',
       '--color-accent': 'color-mix(in srgb, #abc123 50%, #abc123 50%)',
       '--color-accent-gradient': 'linear-gradient(135deg, #abc123, #abc123)',
+      '--color-accent-dark': '#abc123',
       '--color-text-primary': 'rgba(255, 255, 255, 0.87)',
     });
   });
@@ -203,6 +218,7 @@ describe('getRobotColorStyle', () => {
       '--color-accent-b': '#ffffff',
       '--color-accent': 'color-mix(in srgb, #ffffff 50%, #ffffff 50%)',
       '--color-accent-gradient': 'linear-gradient(135deg, #ffffff, #ffffff)',
+      '--color-accent-dark': '#ffffff',
       '--color-text-primary': '#12161a',
     });
   });

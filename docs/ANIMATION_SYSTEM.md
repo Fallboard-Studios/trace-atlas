@@ -41,7 +41,7 @@ Two more exports exist alongside these: `getTimeline(id): Timeline | undefined` 
 This is the supported pattern for keeping timelines out of React state and cleaning them up reliably.
 
 ### Ref registry
-Top-level components register SVG elements with `setRef(key, element)` and animation helpers read them later with `getRef(key)`. This is how modules such as swim animation and the work loop find robot DOM nodes (`robot-${id}`) and a charging station's ripple (`station-front-${stationId}`) without coupling them to React render state. Two cleanup exports also exist: `deleteRef(key): void` (remove one) and `clearRefs(): void` (remove all — testing/reset).
+Top-level components register elements with `setRef(key, element)` and animation helpers read them later with `getRef(key)`. An element is a `RefElement` (`SVGElement | HTMLElement`, `src/utils/refs.ts`): a robot's ref is its **mover**, an HTML `div`, the dissolve slot's ref is a `div`, and a charging station's ripple ref is an SVG `<g>`. This is how modules such as swim animation and the work loop find robot DOM nodes (`robot-${id}`) and a charging station's ripple (`station-front-${stationId}`) without coupling them to React render state. Two cleanup exports also exist: `deleteRef(key): void` (remove one) and `clearRefs(): void` (remove all — testing/reset).
 
 ## Current Runtime Pattern
 
@@ -295,9 +295,9 @@ A robot enters and leaves a charging station through one arc timeline, keyed
 | Entry (`'despawn'`) | 1 → 0.15 | 1 → 0 | `power1.in` (v²) |
 
 The exit plays in the **back robot row** (Phase 43 J4, spec §1.6), between the station's back
-plate (L4) and L3. A robot not already there is hidden at the port and moved to the back row
-first (a layer switch with nothing to dissolve, see "Layer switch" below), and the arc plays on
-the re-mounted body with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows from 0.11 to
+plate (L4) and L3. A robot not already there is written to the back row first (a
+slot write with nothing to dissolve, see "Layer switch" below), and the arc plays on the same
+body in the same call, with `.robot__row` at `BACK_LAYER_SCALE`, so the robot grows from 0.11 to
 0.75 overall. Its next leg to a front-row site or a station is then an ordinary back → front
 switch. The entry plays in the front row, between L3 and L2.
 
@@ -320,9 +320,12 @@ renders, not tweens (spec §1.6).
 ### Layer switch
 A robot works in one of two robot rows (Phase 43 J4, spec §1.10): the front row (`robots`), or
 the back row (`robots-back`, behind the midground) while its destination is a background site or
-it is exiting a station. `Robot.layer` (`'background'`, else front) says which, and `OceanScene`
-renders each robot in its row's list, so a change of row is a React **re-mount**. The scene
-stack is under "Scene layers" below.
+it is exiting a station. `Robot.layer` (`'background'`, else front) says which, and the robot's
+mover carries it as `data-scene-slot` (`slotForLayer(layer)`, `sceneStack.ts`), so a change of row is
+a **slot write**, a write of `layer`: `Robot.tsx` re-renders with the new slot, the
+stylesheet moves its z-index, and nothing is re-mounted (Phase 53). The stack, and the stage whose
+single scale (`sceneFit`, written by `useStageFit`) puts every mover's scene-unit `x`/`y` on the
+screen, are under "Scene stack" below.
 
 - **The row scale.** The back row is drawn `BACK_LAYER_SCALE` (0.75) smaller. The scale is on
   `.robot__row`, a wrapper inside `Robot.tsx`'s `.robot` group, set with `svgOrigin` at the gem
@@ -343,30 +346,29 @@ stack is under "Scene layers" below.
   with no switch point is skipped for that decision. A station leg with none switches where the
   robot is, since a robot can't skip going home.
 - **The split leg.** The work loop's `legTo` swims to the switch point at the current row's
-  scale, then on to the destination, each swim from rest. Front → back: at the switch point the
-  robot moves to the back row (`moveToRow`), and once it has re-mounted it swims on, easing to
-  0.75. Back → front: the robot stays in the back row and swims on, easing to 1; it re-mounts in
-  front only when the swim and the dissolve are both done, at rest.
-- **The dissolve.** The haze between the rows (tints B and C, 40 %) would pop at a re-mount, so
-  for `LAYER_DISSOLVE_SECONDS` the robot is drawn twice. The copy is an SVG `<use>` of the
+  scale, then on to the destination, each swim from rest. Front → back: at the switch point
+  `layer` is written and the robot swims on at once, easing to 0.75. Back → front:
+  the robot stays in the back row and swims on, easing to 1; `layer` is written, and the copy
+  removed, in one call when the swim and the dissolve are both done, at rest.
+- **The dissolve.** The haze between the rows (tints B and C, 40 %) would pop at the slot write, so
+  for `LAYER_DISSOLVE_SECONDS` the robot is drawn twice. The copy is a mover (`.mover--dissolve`, holding an SVG `<use>`) of the
   robot's group (`#world-robot-{id}`), appended by the loop to `OceanScene`'s
-  `#robot-dissolve-layer` (front row, after `#robot-layer`, found via
-  `getRef('robot-dissolve-layer')`) and marked `data-dissolve-copy`. A `<use>` follows the live
-  transforms of the group it points at across the two `<svg>`s. In both directions the **front
+  dissolve div (`data-scene-slot="dissolve"`, over the front robots, found via
+  `getRef('robot-dissolve-layer')`) and marked `data-dissolve-copy` (`removeCopy`, a fade's end and the `stopWorkLoop` sweep all select `.mover--dissolve[data-dissolve-copy]`). The robot's x/y/rotation
+  are its mover's, which a `<use>` of the group does not carry, so the copy's wrapper is placed at the
+  body's pose and mirrored every frame by a `gsap.ticker` listener that lives exactly as long as
+  the copy (not from the fade's `onUpdate`: a back → front copy outlives its fade). In both directions the **front
   copy fades and the back robot stays opaque**: 1 → 0 after a front → back switch, 0 → 1 before a
-  back → front re-mount, after which the opaque copy goes. The fade is linear, keyed
+  back → front switch, whose slot write takes the opaque copy away in the same call. The fade is linear, keyed
   `` `dissolve-${robotId}` ``; a new dissolve ends the robot's earlier one first, and a fade's end
   removes only its own copy. It has no reduced-motion variant (it is already an opacity fade).
-- **The re-mount.** `moveToRow` marks the robot (`markLayerSwitching` in
-  `robotMotionRegistry.ts`), stores the leg's continuation in the run's `remounts`, and writes
-  `layer`. On the new mount `useOrbiterMotion` (world only) sees `isLayerSwitching` and shows the
-  orbiters docked at once, with no attach hop. `Robot.tsx` then calls `onRobotMounted`, which
-  clears the mark (`clearLayerSwitching`) and runs the continuation, or adopts the robot if its
-  leg was dropped in between. With no body mounted there is nothing to re-mount and the leg goes
-  straight on.
+- **No re-mount.** The row switch writes `layer` and nothing else, body or no body. The write reaches
+  the DOM before the next frame paints (Zustand renders through `useSyncExternalStore`), so the copy
+  the same call starts or removes keeps that frame whole. `onRobotMounted` runs once per real mount,
+  where the loop adopts the robot; `useOrbiterMotion`'s world mount always attaches its orbiters.
 - **Interruptions.** A recall or turn-back drops the leg (`dropLeg`: the swim, the bob and the
-  dissolve go, and a pending re-mount adopts instead of continuing). `stopWorkLoop` removes every
-  copy and forgets every pending re-mount.
+  dissolve go). `stopWorkLoop` removes every copy; a robot already written to the other row stays
+  there.
 
 `BACK_HOSTS_ENABLED` (true) is the switch for the whole row: false puts the world back to
 midground and foreground hosts only, and with no background destination no robot changes row
@@ -382,34 +384,40 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `bob-wait-${robotId}` `` | the work loop's wait | one `WAIT_RETRY_SECONDS` bob | its own end, a recall, `stopWorkLoop` |
 | `` `station-${robotId}` `` | the work loop's `stationArc` | one arc | its own end, `stopWorkLoop` |
 | `` `station-ripple-${stationId}` `` | `stationRipple.ts` | one ripple | its own end, `stopWorkLoop` (it matches `station-`) |
-| `` `dissolve-${robotId}` `` | the work loop's `dissolve` | one layer-switch fade | its own end, the robot's next dissolve, a recall or turn-back (`dropLeg`), an adoption (`killLegs`), `stopWorkLoop` — each removes the `<use>` copy too |
+| `` `dissolve-${robotId}` `` | the work loop's `dissolve` | one layer-switch fade | its own end, the robot's next dissolve, a recall or turn-back (`dropLeg`), an adoption (`killLegs`), `stopWorkLoop` — each removes the `.mover--dissolve` copy too |
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
 | `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
 
 `stopWorkLoop` kills every `work-`, `swim-`, `bob-wait-`, `station-` and `dissolve-` key
 (`LOOP_KEY_PREFIXES`; power-off, and before every `startWorkLoop` in `initializeLocale`), removes
-every dissolve copy and clears every pending layer-switch mark. Per robot there is at most one live job and one swim,
+every dissolve copy; no robot is ever re-mounted for a row switch, so there is nothing else to clear. Per robot there is at most one live job and one swim,
 and no standing per-robot or per-building GSAP object (spec §1.12). A robot with no mounted body
 gets a target-less timeline of the same length under the same key, because `createSwimTimeline`'s
 no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
 
-### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is seven stacked `<svg>` layers that share one viewBox and `xMidYMax slice` fit (cropping takes the top of the world, never the bottom), each named by its `data-scene-layer` (Phase 43 J4 split the old back layer around a second robot row, spec §1.10). Back to front:
+### Scene stack — the stage, the sheets and the movers
+The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1920 × 1080 scene units, inside `.ocean-scene`. The stage carries the `xMidYMax slice` fit as a single CSS transform: `sceneFit(box)` (pure, `sceneFit.ts`) returns the scale and offsets that fill the box with the world, cropping the top of it and never the ground, and `useStageFit` (a `ResizeObserver` on `.ocean-scene`) writes them as `--stage-scale`, `--stage-x` and `--stage-y`, once per resize and never per frame. Every child of the stage is positioned in scene units and wears a `data-scene-slot`, which `OceanScene.css` gives a `z-index`; `SCENE_SLOTS` (`sceneStack.ts`) is the one ordered list. Four slots are static `<svg class="ocean-scene__sheet">` sheets; the rest hold **movers**, small `div`s that are compositor layers of their own. (Phase 43 J4 split the old back sheet around a second robot row, spec §1.10; Phase 53 made each robot, each bubble stream and the marker a mover, so the old robot, bubbles and marker sheets are gone and no sheet moves.) The slots, back to front:
 
-| Layer | Moves? | Contents |
+| Slot | Kind | Contents |
 |---|---|---|
-| `back` | static | water column, light shafts, the terrain ridge, background factories/scenery and pipe bridges, tint A |
-| `robots-back` | moving | `#station-l4-layer` (each station's back plate), `#robot-back-layer` (robots whose `layer` is `'background'`) |
-| `mid` | static | tint B, midground factories/scenery and pipe bridges, tint C, the ground line |
-| `bubbles` | moving | every building's and vent's bubbles |
-| `robots` | moving | `#station-l3-layer`, `#robot-layer` (every other robot), `#robot-dissolve-layer` (layer-switch copies), `#station-front-layer` |
-| `front` | static | tint D, foreground factories/scenery and pipe bridges |
-| `marker` | moving | the Deck camera's followed-robot marker (`FollowedRobotMarker`), in front of every building; its own layer because it moves every frame and a write in `front` would repaint the foreground factories |
+| `back` | static sheet | water column, light shafts, the terrain ridge, background factories/scenery and pipe bridges, tint A, `#station-l4-layer` (each station's back plate), last |
+| `robots-back` | movers | every robot whose `layer` is `'background'`, each a `div.mover.mover--robot`, behind `mid` |
+| `mid` | static sheet | tint B, midground factories/scenery and pipe bridges, tint C, the ground line |
+| `bubbles` | movers | every building's and vent's bubbles, one `div.mover.mover--bubbles` strip per `BubbleStream`, over `mid` |
+| `stations` | static sheet | `#station-l3-layer` (each station's middle fragment) |
+| `robots` | movers | every other robot, each a `div.mover.mover--robot`, over `stations` |
+| `dissolve` | movers | the layer switch's copies, `div.mover.mover--dissolve`, appended by the work loop to this slot's empty `div` (`getRef('robot-dissolve-layer')`) |
+| `front` | static sheet | `#station-front-layer` (each station's front fragment: halo and ripple), first, then tint D, foreground factories/scenery and pipe bridges |
+| `marker` | mover | the Deck camera's followed-robot marker (`FollowedRobotMarker`), a `div.mover.mover--marker` in front of every building |
+
+A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the followed robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
+
+Each station's three fragments are plain groups in three sheets, not sheets of their own: `#station-l4-layer` is the last child of `back`, `#station-l3-layer` is all of `stations`, and `#station-front-layer` is the first child of `front` (before tint D). All three are static; only the one-second ripple animates one.
 
 The four **depth tints** (`DEPTH_TINTS`, full-screen `rect[data-depth-tint]`, each a gradient `#depth-tint-{slot}` defined in the layer that draws it) replaced the old two gradients. A is 0.06 and B 0.25 (`#0c1c4f` → `vent.shadow`), C 0.20 and D 0.10 (`vent.shadow`). Coverage, 1 − Π(1 − α): background buildings 49 %, back-row robots 46 %, midground 28 %, front-row robots, stations and bubbles 10 %, foreground 0. Only B and C sit between the robot rows, so a row switch gains or loses 40 % haze, which the dissolve blends. The haze is the scene's, not a robot overlay. No layer takes clicks (`pointer-events: none`); `.robot` takes them, in either row.
 
-The moving layers carry `will-change: transform` (OceanScene.css) and are compositor layers of their own, so a per-frame transform write repaints only them. This is a roadmap 17.2.5 finding, not a style choice: with everything in one `<svg>`, every GSAP write re-rasterized all sixty factories at full viewport size on every frame. Chrome also promotes `mid`, which is static but painted above a composited layer; the J4 perf gate measured the two extra layers at about +31 ms paint per 6 s window and ≈ +17 MB on a Pixel 8, accepted (docs/PERFORMANCE.md "Robot Jobs J4"). Two rules follow:
+The movers (`.mover`) carry `will-change: transform` (OceanScene.css) and are compositor layers of their own, so a per-frame transform write moves a small layer and repaints nothing, and a change inside a mover (orbiters flying, a burst rising) repaints that mover's patch; no sheet is promoted by us. This is a roadmap 17.2.5 and 53 finding, not a style choice: with everything in one `<svg>`, every GSAP write re-rasterized all sixty factories at full viewport size on every frame, and with the robots, bubbles and marker on four stage-sized sheets each write still repainted a whole viewport per sheet. Chrome promotes `mid` and the empty `dissolve` div anyway, because they are painted above composited layers; they draw nothing per frame. The measured effect and the one gate miss are in docs/PERFORMANCE.md ("Per-Mover Compositor Layers — the Task 20 gate"). The dimming rule follows the split: `.world-view[data-dimmed]` blurs and dims the sheets and only dims the movers.
 
 `TerrainLayer` (the ridge/ground polygons) and `WaterColumn` (the gradient + surface glow) are
 static-layer content, same as the factories: both re-fill on the once-a-second lighting tick only
@@ -425,7 +433,9 @@ bug-like of the three (opacity-only, no position write), so a future "drift the 
 revisited, is a moving-layer addition and must clear the same idle-paint gate this section
 describes before it ships, not after.
 
-- Anything that moves every frame goes in a moving layer (robots and station fragments in the two robot layers, bubbles in `BubbleLayer`), never inside the static factory layers.
+Two rules follow from all of this:
+
+- Anything that moves every frame is a mover (robots in the two robot slots, bubbles as one strip mover per `BubbleStream`, the followed-robot marker; the station fragments are static, and only the one-second ripple animates one), never inside the static factory layers.
 - No CSS `transition`/`animation` on scene SVG fills or attributes — a running transition style-invalidates its element every frame, which is how the old `fill 4.8s` lighting fade kept the whole scene repainting. Lighting steps once a second instead.
 
 Measure with `npm run perf:idle` before and after any change to what moves in the scene (docs/PERFORMANCE.md, "Idle paint & composite").
@@ -451,6 +461,8 @@ The module is runtime-only, in the pattern of `timelineMap` and the ref registry
 **The loop.** One `gsap.ticker` handler, added in `registerDeckScroller` and removed when the scroller goes, does all per-frame work. Every clock is a `performance.now()` comparison inside it; there are no timers.
 
 **The scroller's dimensions are measured, never read per frame.** `scrollWidth` and `clientWidth` are read once when the scroller is registered and again on each resize (a `ResizeObserver` on the scroller); read right after GSAP's transform writes they force a layout, and the old ticker read them every frame. **With nothing to scroll** — any viewport at or wider than the stage's 16:9, which is every desktop window — the camera stands down: the ticker returns at once, `moveCameraTo` starts nothing, the edit-return overrides do nothing and the marker never appears. A resize that opens a range lets the next tick pick; one that closes it ends any float or follow (backlog item 26, candidate 2, 2026-10-16).
+
+**The scroller is composited** (`will-change: scroll-position` on `.world-view__scroller`, 2026-10-18). The camera writes `scrollLeft` and nothing else, so a composited scroller turns each pan into a compositor scroll of the scroller's own layer. Without it, Chrome on a desktop below DPR 1.5 draws the scroller into the console shell's layer (`div.screen-content`) and re-rasters that layer on every frame of a pan with no `Paint` event; at DPR ≥ 1.5 and on mobile Chrome composites the scroller anyway, so phones were never affected. The cost is the scroller's layer, ≈ 0.7 MB at 1× on 1280 × 900. Measured in [tasks/DECK_SCROLLER_COMPOSITING.md](tasks/DECK_SCROLLER_COMPOSITING.md) and PERFORMANCE.md "Deck scroller compositing — the desktop A/B"; `contain: paint` was measured too and did nothing.
 
 1. **Pick** (`pick(candidateIds)`): among the candidates, the lowest battery above `DECK_CAMERA_MIN_BATTERY_PCT`, else the lowest overall; a tie goes to the robot whose target is nearest the scroller's current position. An empty pool returns `null` and restarts the cooldown. The ticker picks from `undockedRobotIds()` (robots that are `Active` or `Recalled`; docked ones are never chosen, and a robot's position on screen never matters).
 2. **Float** (`moveCameraTo(robotId)`): a `gsap` timeline of length `DECK_CAMERA_PAN_S` eases a progress value from 0 to 1, and on each update writes `scrollLeft = start + progress × (live target − start)`, re-reading the robot's target every frame (its live scene x scaled to the stage's pixel width, centred, clamped to the scroll range; `deckCameraTargetFor` exposes it for tests). It chases the robot rather than scrolling to a snapshot: a fixed target landed where the robot *was* at pick time, and a robot that moved meanwhile got a hard jump on the first follow write (worst when it crossed the camera's path; Crawford, 2026-10-12). Landing on the live target means the follow's first write is no jump, and since the ease flattens to zero slope at the end the camera arrives at the robot's own velocity. If the robot's ref vanishes mid-float the last known target holds. It is registered in `timelineMap` under `DECK_CAMERA_TIMELINE_ID`, so a new float kills the old one. Under `prefers-reduced-motion` the duration is 0 and `onComplete` writes the landing position itself.

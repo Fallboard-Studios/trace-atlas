@@ -94,10 +94,12 @@ function frame(): void {
 }
 
 function renderMarker() {
-  return render(<svg><FollowedRobotMarker localeId={LOCALE} /></svg>);
+  return render(<div><FollowedRobotMarker localeId={LOCALE} /></div>);
 }
 
-const marker = (c: HTMLElement) => c.querySelector<SVGGElement>('g[data-followed-robot]');
+// Roadmap 53 Task 19 (spec 1.7): the marker is a mover, a div wrapper holding an svg, not a group
+// in a sheet. What the wrapper draws in is the same drawing as before.
+const marker = (c: HTMLElement) => c.querySelector<HTMLElement>('.mover--marker');
 const frameRect = (c: HTMLElement) => marker(c)!.querySelector('rect:not(clipPath rect)')!;
 const caption = (c: HTMLElement) => marker(c)!.querySelector('text')!;
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
@@ -203,12 +205,74 @@ describe('FollowedRobotMarker', () => {
       expect(num(caption(container), 'y')).toBeLessThan(-side / 2);
     });
 
-    it('is decorative: takes no clicks and is hidden from assistive technology', () => {
+    it('is decorative: a mover (which takes no clicks, OceanScene.css) hidden from assistive technology', () => {
       follow('a');
       const { container } = renderMarker();
 
-      expect(marker(container)!.getAttribute('pointer-events')).toBe('none');
+      expect(marker(container)!.classList.contains('mover')).toBe(true);
       expect(marker(container)!.getAttribute('aria-hidden')).toBe('true');
+    });
+  });
+
+  describe('the mover (roadmap 53, Task 19)', () => {
+    // W = MARKER_SIDE; H = MARKER_SIDE + CAPTION_GAP + CAPTION_FONT_SIZE x 1.2 (spec 1.7).
+    const W = 90;
+    const H = 90 + 6 + 18.6 * 1.2;
+
+    it('is one div.mover.mover--marker in the marker slot, carrying the followed robot id', () => {
+      follow('a');
+      const { container } = renderMarker();
+      const el = marker(container)!;
+
+      expect(el.tagName.toLowerCase()).toBe('div');
+      expect(el.getAttribute('data-scene-slot')).toBe('marker');
+      expect(el.getAttribute('data-followed-robot')).toBe('a');
+      expect(container.querySelectorAll('.mover--marker')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-followed-robot]')).toHaveLength(1);
+    });
+
+    it('holds one svg, W x H, origin-centred, overflow visible, drawing the unchanged marker', () => {
+      follow('a');
+      const { container } = renderMarker();
+      const svgs = marker(container)!.querySelectorAll('svg');
+
+      expect(svgs).toHaveLength(1);
+      const svg = svgs[0];
+      expect(marker(container)!.firstElementChild).toBe(svg);
+      expect(num(svg, 'width')).toBeCloseTo(W, 6);
+      expect(num(svg, 'height')).toBeCloseTo(H, 6);
+      expect(svg.getAttribute('viewBox')!.split(' ').map(Number)).toEqual([
+        expect.closeTo(-W / 2, 6), expect.closeTo(-H / 2, 6), expect.closeTo(W, 6), expect.closeTo(H, 6),
+      ]);
+      expect(svg.getAttribute('overflow')).toBe('visible');
+      expect(svg.classList.contains('mover__svg')).toBe(true);
+      expect(svg.querySelector('text')).not.toBeNull();
+    });
+
+    it('keeps the same box for a back-row robot (only the drawn square shrinks)', () => {
+      follow('c');
+      const { container } = renderMarker();
+      const svg = marker(container)!.querySelector('svg')!;
+
+      expect(num(svg, 'width')).toBeCloseTo(W, 6);
+      expect(num(svg, 'height')).toBeCloseTo(H, 6);
+    });
+
+    it('centres the wrapper on its position: the drawing origin is the svg centre, so the wrapper is pulled back by half itself', () => {
+      follow('a');
+      const { container } = renderMarker();
+      const el = marker(container)!;
+
+      expect(gsap.getProperty(el, 'xPercent')).toBe(-50);
+      expect(gsap.getProperty(el, 'yPercent')).toBe(-50);
+    });
+
+    it('is never an svg group any more: no g[data-followed-robot], nothing outside the wrapper', () => {
+      follow('a');
+      const { container } = renderMarker();
+
+      expect(container.querySelector('g[data-followed-robot]')).toBeNull();
+      expect(container.firstElementChild!.children).toHaveLength(1);
     });
   });
 
@@ -290,24 +354,48 @@ describe('FollowedRobotMarker', () => {
       follow('a');
       const { container } = renderMarker();
       const g = marker(container)!;
-      expect(g.getAttribute('visibility')).toBe('hidden');
+      expect(g.style.visibility).toBe('hidden');
 
       mountRobotRef('a', 300, 200);
       frame();
 
-      expect(g.getAttribute('visibility')).toBe('visible');
+      expect(g.style.visibility).toBe('visible');
     });
 
     it('hides again if the robot\'s ref goes away', () => {
       follow('a');
       const { container } = renderMarker();
       const g = marker(container)!;
-      expect(g.getAttribute('visibility')).toBe('visible');
+      expect(g.style.visibility).toBe('visible');
 
       clearRefs();
       frame();
 
-      expect(g.getAttribute('visibility')).toBe('hidden');
+      expect(g.style.visibility).toBe('hidden');
+    });
+
+    it('is hidden in its markup, so a robot with no gem seed (never placed) leaves no marker at the origin', () => {
+      seed(robot('nogem', { gemSeed: undefined }));
+      mountRobotRef('nogem', 300, 200);
+      follow('nogem');
+      const { container } = renderMarker();
+
+      expect(marker(container)!.style.visibility).toBe('hidden');
+      frame();
+      expect(marker(container)!.style.visibility).toBe('hidden');
+    });
+
+    it('rides a robot whose mover is an html wrapper, reading the wrapper\'s x and y', () => {
+      follow('a');
+      const { container } = renderMarker();
+      const wrapper = document.createElement('div');
+      gsap.set(wrapper, { x: 640, y: 77 });
+      setRef('robot-a', wrapper);
+      frame();
+
+      const c = centreOf(640, 77);
+      expect(gsap.getProperty(marker(container)!, 'x')).toBe(c.x);
+      expect(gsap.getProperty(marker(container)!, 'y')).toBe(c.y);
     });
   });
 

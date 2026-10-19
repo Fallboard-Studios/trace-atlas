@@ -111,6 +111,10 @@ function makeLcg(seed: number): () => number {
  * docs/ANIMATION_SYSTEM.md): each `<circle>` is placed once at the vent via
  * its `cx`/`cy`/`r` attributes and never has its geometry re-tweened, so a
  * frame costs a transform write rather than an SVG geometry recompute.
+ *
+ * The stream is a strip mover (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.6): a small `div`
+ * on a compositor layer of its own, sized from this stream's own seeded rise and wobble, with
+ * the vent at its bottom-centre. A bubble's frame repaints that strip, not a stage-sized sheet.
  */
 const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
   actorId,
@@ -130,7 +134,41 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
     const burstInterval = TARGET_GLOBAL_BURST_INTERVAL_SECONDS * Math.max(1, totalBuildings);
     // Scatter initial burst so factories don't all fire at the same time.
     const initialDelay = rand() * burstInterval;
-    return { radius, burstStagger, count, burstInterval, initialDelay };
+
+    // Per-bubble RNG: different seed space so values don't correlate with config. Drawn here, not
+    // in the effect, so render can size the strip the bubbles live in from the same numbers the
+    // timelines tween.
+    const bubbleRand = makeLcg(seed ^ 0xb0bb1e5);
+    const bubbleParams = Array.from({ length: count }, () => {
+      const scaledMinRise = MIN_RISE_PX * depthScale;
+      const risePx = scaledMinRise + bubbleRand() * (MAX_RISE_PX - scaledMinRise);
+      const riseSpeed = MIN_RISE_SPEED + bubbleRand() * (MAX_RISE_SPEED - MIN_RISE_SPEED);
+      const wobbleAmp = (8 + bubbleRand() * 12) * depthScale; // 8–20 px side-to-side, scaled by depth
+      const wobblePeriod = 0.4 + bubbleRand() * 0.4; // 0.4–0.8 s per half-oscillation
+      const wobbleDir = bubbleRand() > 0.5 ? 1 : -1; // random initial direction
+      return { risePx, riseDuration: risePx / riseSpeed, wobbleAmp, wobblePeriod, wobbleDir };
+    });
+
+    // The strip (spec §1.6): room for the biggest popped bubble on every side of the widest wobble
+    // and the highest rise, with the vent at the bottom-centre. The popped radius is the largest
+    // a bubble ever draws, so nothing is clipped.
+    const margin = radius * POP_SCALE;
+    const maxWobbleAmp = Math.max(...bubbleParams.map((p) => p.wobbleAmp));
+    const maxRisePx = Math.max(...bubbleParams.map((p) => p.risePx));
+    const stripW = 2 * (maxWobbleAmp + margin);
+    const stripH = maxRisePx + 2 * margin;
+
+    return {
+      radius,
+      burstStagger,
+      count,
+      burstInterval,
+      initialDelay,
+      bubbleParams,
+      margin,
+      stripW,
+      stripH,
+    };
   }, [seed, depthScale, totalBuildings]);
 
   const circleRefs = React.useMemo(
@@ -144,19 +182,7 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
   useGSAP(() => {
     if (prefersReducedMotion()) return;
 
-    const { burstStagger, count, burstInterval, initialDelay } = config;
-
-    // Per-bubble RNG: different seed space so values don't correlate with config.
-    const bubbleRand = makeLcg(seed ^ 0xb0bb1e5);
-    const bubbleParams = Array.from({ length: count }, () => {
-      const scaledMinRise = MIN_RISE_PX * depthScale;
-      const risePx = scaledMinRise + bubbleRand() * (MAX_RISE_PX - scaledMinRise);
-      const riseSpeed = MIN_RISE_SPEED + bubbleRand() * (MAX_RISE_SPEED - MIN_RISE_SPEED);
-      const wobbleAmp = (8 + bubbleRand() * 12) * depthScale; // 8–20 px side-to-side, scaled by depth
-      const wobblePeriod = 0.4 + bubbleRand() * 0.4; // 0.4–0.8 s per half-oscillation
-      const wobbleDir = bubbleRand() > 0.5 ? 1 : -1; // random initial direction
-      return { risePx, riseDuration: risePx / riseSpeed, wobbleAmp, wobblePeriod, wobbleDir };
-    });
+    const { burstStagger, count, burstInterval, initialDelay, bubbleParams } = config;
 
     const maxDuration = Math.max(...bubbleParams.map((p) => p.riseDuration));
     const totalBurstDuration = (count - 1) * burstStagger + maxDuration;
@@ -216,7 +242,7 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
 
     setTimeline(timelineKey, tl);
     return () => killTimeline(timelineKey);
-    // The vent position lives on the circles' cx/cy attributes, not in the timeline, so
+    // The vent position lives on the strip's left/top, not in the timeline, so
     // ventX/ventY aren't dependencies here — `config` already covers seed/depth/count.
   }, { dependencies: [config, timelineKey], revertOnUpdate: true });
 
@@ -234,21 +260,36 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
   }, [timelineKey, isActive]);
 
   const bubbleFill = `hsl(${bodyHue}, 30%, 70%)`;
+  const { stripW, stripH, margin } = config;
 
+  // One strip mover per stream (spec §1.6): a small positioned box, on a compositor layer of its
+  // own, so a rising bubble repaints only this strip. The vent sits at the strip's bottom-centre;
+  // `left`/`top` are the one computed position the style rule allows.
   return (
-    <>
-      {circleRefs.map((ref, idx) => (
-        <circle
-          key={idx}
-          ref={ref}
-          cx={ventX}
-          cy={ventY}
-          r={config.radius}
-          fill={bubbleFill}
-          opacity={0}
-        />
-      ))}
-    </>
+    <div
+      className="mover mover--bubbles"
+      data-scene-slot="bubbles"
+      style={{ left: ventX - stripW / 2, top: ventY + margin - stripH }}
+    >
+      <svg
+        className="mover__svg"
+        width={stripW}
+        height={stripH}
+        viewBox={`0 0 ${stripW} ${stripH}`}
+      >
+        {circleRefs.map((ref, idx) => (
+          <circle
+            key={idx}
+            ref={ref}
+            cx={stripW / 2}
+            cy={stripH - margin}
+            r={config.radius}
+            fill={bubbleFill}
+            opacity={0}
+          />
+        ))}
+      </svg>
+    </div>
   );
 };
 

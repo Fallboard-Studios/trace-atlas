@@ -1,7 +1,14 @@
 # Implementation Plan: Per-Mover Compositor Layers
 
+> **Status (2026-10-17, roadmap Phase 53):** Tasks 1–23 done on `perf/per-mover-layers`, not merged (the PR is Crawford's).
+> Task 20's idle-paint gate **MISSED its headline criterion**: `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+> limit 0.25; busy, Paint and layer memory are within their limits, and the targeted work fell by over 90 %, but a
+> document-layer repaint of unknown cause keeps the total above the line ("Task 20 — the gate" below). Task 21's Pixel
+> listen ran: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping; no `main` count was
+> taken, so its not-above-`main` bullet stays open. Checkpoints B and C were never recorded as passed.
+
 Source spec: [docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md](../specs/PER_MOVER_COMPOSITOR_LAYERS.md). Source intent:
-[docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md). Roadmap Phase 53 (proposed).
+[docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md). Roadmap Phase 53.
 Diagnosis: backlog item 26. Branch `perf/per-mover-layers` off `main`, **after the Deck camera idle no-op PR merges**
 (spec "Dependency"; it is not a task here).
 
@@ -129,7 +136,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 1. **Files:** `docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md` (results only); the page stays in the
   scratchpad. **Scope:** S.
 
-- [ ] **Task 3: `scripts/perf/idle-paint.mjs` — `redrawn px²/frame`, `screens/frame`, the mover-aware readout, proved on `main`**
+- [x] **Task 3: `scripts/perf/idle-paint.mjs` — `redrawn px²/frame`, `screens/frame`, the mover-aware readout, proved on `main`**
 
   **Description:** A pure helper in a new `scripts/perf/paint-area-lib.mjs` (`redrawnArea(events, { dpr, frames })` →
   `{ pxPerFrame, screensPerFrame }` given the viewport), unit-tested like `audio-load-lib.test.mjs`; the harness reports
@@ -139,20 +146,20 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   foreground, orphaned Chrome 0: stock and `detach-bubbles+robots`.
 
   **Acceptance criteria:**
-  - [ ] `redrawnArea` sums each `Paint` event's clip-quad area × dpr² and divides by the frame count; a window with no
+  - [x] `redrawnArea` sums each `Paint` event's clip-quad area × dpr² and divides by the frame count; a window with no
         `Paint` events reads 0; the unit test feeds synthetic events and a mutation (drop the dpr²) fails it.
-  - [ ] On `main`, stock reads 3–5 screens/frame and `detach-bubbles+robots` under 0.2; the two numbers and the run's
+  - [x] On `main`, stock reads 3–5 screens/frame and `detach-bubbles+robots` under 0.2; the two numbers and the run's
         metadata are pasted under "Perf gate results" below.
-  - [ ] Stock not near 4 → stop and report: assumption 6 is wrong, the metric is redefined before Task 4.
+  - [x] Stock not near 4 → stop and report: assumption 6 is wrong, the metric is redefined before Task 4.
 
   **Verification:**
-  - [ ] `node --test scripts/perf/paint-area-lib.test.mjs` passes (or the repo's existing `.test.mjs` runner).
-  - [ ] `npm run perf:idle -- --throttle 1 --only detach-bubbles+robots --url …` prints the two columns.
+  - [x] `npx vitest run scripts/perf` passes (the repo's `.test.mjs` runner, not `node --test`; 99 cases).
+  - [x] `npm run perf:idle -- --throttle 1 --only detach-bubbles+robots --url …` prints the two columns.
 
   **Dependencies:** Task 1. **Files:** `scripts/perf/idle-paint.mjs`, `scripts/perf/paint-area-lib.mjs`,
   `scripts/perf/paint-area-lib.test.mjs`, this plan (results). **Scope:** M.
 
-- [ ] **Task 4: Baseline on `main` — docs/PERFORMANCE.md**
+- [x] **Task 4: Baseline on `main` — docs/PERFORMANCE.md**
 
   **Description:** `main` with the camera no-op merged, production build, the pinned `?session=` link, 1×,
   `--only none`, three rounds, foreground, one at a time: `redrawn px²/frame`, `screens/frame`, busy, Paint,
@@ -160,14 +167,14 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   baseline for Phase 53 — Per-Mover Compositor Layers (<date>)" in the format of the 17.2.6 baseline.
 
   **Acceptance criteria:**
-  - [ ] The section exists with the three rounds, medians and the min–max spread per column, and names the build hash,
+  - [x] The section exists with the three rounds, medians and the min–max spread per column, and names the build hash,
         the link and the viewport.
 
   **Verification:**
-  - [ ] Three rows in the table; 0 orphaned Chrome before and after (`Get-CimInstance Win32_Process -Filter
+  - [x] Three rows in the table; 0 orphaned Chrome before and after (`Get-CimInstance Win32_Process -Filter
         "Name='chrome.exe'"` filtered on `trace-atlas-perf`).
 
-  **Dependencies:** Task 3. **Files:** `docs/PERFORMANCE.md`. **Scope:** S.
+  **Dependencies:** Task 3. **Files:** `docs/PERFORMANCE.md`, `src/docs/perMoverBaselineDocs.test.ts` (added as shipped: a docs guard for these criteria; Task 22's guard covers the rest). **Scope:** S.
 
 ### Checkpoint 0: The design and the number stand
 - [ ] Assumptions 1 and 3 verified in the spec; assumption 6 proved in this plan; the baseline recorded.
@@ -322,7 +329,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 3: The robots
 
-- [ ] **Task 12: The dissolve copy becomes a mover (drawn at the origin)**
+- [x] **Task 12: The dissolve copy becomes a mover (drawn at the origin)** (automated criteria done; the live crossfade look is Checkpoint B's)
 
   **Description:** `OceanScene` replaces the `#robot-dissolve-layer` `<g>` with `div.ocean-scene__dissolve
   [data-scene-slot="dissolve"]`, a stage child registered under the same ref key. `workLoop.ts`'s `dissolve()` appends
@@ -332,11 +339,11 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   select `.mover--dissolve[data-dissolve-copy]`.
 
   **Acceptance criteria:**
-  - [ ] `workLoop.test.ts`'s dissolve cases pass against the new nodes: the copy is a `.mover--dissolve` in the dissolve
+  - [x] `workLoop.test.ts`'s dissolve cases pass against the new nodes: the copy is a `.mover--dissolve` in the dissolve
         div, its `use` points at `#world-robot-<id>`, the wrapper's opacity fades 1 → 0 (`'out'`) / 0 → 1 (`'in'`) over
         `LAYER_DISSOLVE_SECONDS`, the robot stays opaque, the copy goes at the right moment; `stopWorkLoop` removes every
         copy; a recall mid-fade drops it.
-  - [ ] The copy wrapper has no `x`/`y` write in this task (a test asserts the wrapper's transform is unset).
+  - [x] The copy wrapper has no `x`/`y` write in this task (a test asserts the wrapper's transform is unset).
   - [ ] Live: a row switch each way shows the one-second crossfade exactly as before.
 
   **Verification:**
@@ -346,26 +353,28 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 11, Task 8. **Files:** `OceanScene.tsx`, `OceanScene.test.tsx`, `src/systems/workLoop.ts`,
   `workLoop.test.ts`. **Scope:** M.
 
-- [ ] **Task 13: The robot mover, and the copy mirrors it — needs Task 2's pass**
+- [x] **Task 13: The robot mover, and the copy mirrors it — needs Task 2's pass** (automated criteria done; the live look is Checkpoint B's)
 
   **Description:** `Robot` returns the mover of spec §1.4: `div.mover.mover--robot[data-robot-id]
   [data-scene-slot=slotForLayer(robot.layer)] > svg.mover__svg[width = gemWidth, height = GEM_CANVAS_H, overflow
   visible] > g#world-robot-<id>.robot > g.robot__row > RobotBody`. The ref, `setRef`, the mount `gsap.set` and
   `onRobotMounted` move to the wrapper; `.robot` loses its transform. `OceanScene` renders both robot lists as stage
   children and deletes the `robots-back` and `robots` sheets. `dissolve()` places the copy wrapper at the body's live
-  `x`/`y`/`rotation` and mirrors them from the timeline's `onUpdate` (three `gsap.quickSetter`s). The clicks test's
+  `x`/`y`/`rotation` and mirrors them every frame (three `gsap.quickSetter`s; **as shipped, from a `gsap.ticker` listener
+  that lives as long as the copy, not the timeline's `onUpdate`**, which froze a back → front copy once the one-second
+  fade had completed: see the fix commit and spec assumption 13). The clicks test's
   "which row" cases read `data-scene-slot` on the mover.
 
   **Acceptance criteria:**
-  - [ ] `Robot.test.tsx`: the registered ref is the wrapper; the mount `gsap.set` targets it; the slot follows
+  - [x] `Robot.test.tsx`: the registered ref is the wrapper; the mount `gsap.set` targets it; the slot follows
         `layer` (background → `robots-back`, else `robots`); the inner svg is the gem canvas and `overflow="visible"`;
         `#world-robot-<id>` and the single `.robot__row` child are unchanged; the click-routing, glow and halo cases pass.
-  - [ ] `OceanScene.test.tsx`: no sheet named `robots` or `robots-back`; each robot is a `.mover--robot` stage child in
+  - [x] `OceanScene.test.tsx`: no sheet named `robots` or `robots-back`; each robot is a `.mover--robot` stage child in
         the slot its row names (one back-row and one front-row fixture at different positions).
-  - [ ] `workLoop.test.ts`: the copy's `x`/`y`/`rotation` equal the body's at creation and after seeking the swim and
+  - [x] `workLoop.test.ts`: the copy's `x`/`y`/`rotation` equal the body's at creation and after seeking the swim and
         the dissolve to 0.5 (mutation: drop the `onUpdate` and the seek case fails); `settle` reads the wrapper's
         position; `hideAtStation` hides the wrapper.
-  - [ ] `OceanScene.clicks.test.tsx`: nothing outside `.robot` takes pointer events — stage, sheets and movers
+  - [x] `OceanScene.clicks.test.tsx`: nothing outside `.robot` takes pointer events — stage, sheets and movers
         included; a back-slot and a front-slot robot each select on click.
   - [ ] Live: a swim, a job (orbiters out to the roof, the decoration reaching the vent or outline, nothing clipped),
         a selection halo, a station arc, a row switch — identical to `main` by eye; the deck camera and the marker still
@@ -380,7 +389,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   `workLoop.test.ts`. **Scope:** L (seven files; the atomic cut-over the Architecture Decisions explain — the robot's
   transform and the copy's mirror cannot land apart without a wrong frame per switch).
 
-- [ ] **Task 14: One robot list; the row switch is a slot write**
+- [x] **Task 14: One robot list; the row switch is a slot write** (automated criteria done; the live switches are Checkpoint B's)
 
   **Description:** `OceanScene` renders one `useShallow` list of robot ids; a row change re-renders the robot's slot
   and never re-mounts it. `workLoop.ts`: `moveToRow` writes `layer` and returns; `intoBackRow` writes, dissolves `'out'`
@@ -390,14 +399,14 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   registry still exports them until Task 15).
 
   **Acceptance criteria:**
-  - [ ] `OceanScene.test.tsx`: a robot whose `layer` flips keeps its mount (`onRobotMounted` called once) and changes
+  - [x] `OceanScene.test.tsx`: a robot whose `layer` flips keeps its mount (`onRobotMounted` called once) and changes
         slot; the roster-change case still re-renders the list.
-  - [ ] `workLoop.test.ts`, the §1.5 cases replacing the re-mount ones: front → back writes `layer` at the switch point
+  - [x] `workLoop.test.ts`, the §1.5 cases replacing the re-mount ones: front → back writes `layer` at the switch point
         and swims on at once, easing the row to 0.75; back → front writes `layer` only after both swim and fade settle
         and removes the copy in the same call; no body → `layer` flips and the leg continues; the station exit of a
         front-row robot writes the back row and starts the arc in the same tick; a plain mount mid-dissolve ends the
         dissolve; `stopWorkLoop` no longer references pending re-mounts.
-  - [ ] Every `remounts`/`markLayerSwitching` reference is gone from `workLoop.ts` (a test greps the source).
+  - [x] Every `remounts`/`markLayerSwitching` reference is gone from `workLoop.ts` (a test greps the source).
   - [ ] Live: a row switch each way, a station exit from the front row, a recall mid-switch — no pop, no hang, no robot
         left behind the midground without its copy.
 
@@ -408,15 +417,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 13. **Files:** `OceanScene.tsx`, `OceanScene.test.tsx`, `src/systems/workLoop.ts`,
   `workLoop.test.ts`, `workLoop.integration.test.ts` (fixture mounts a mover). **Scope:** M.
 
-- [ ] **Task 15: Remove the re-mount machinery**
+- [x] **Task 15: Remove the re-mount machinery**
 
   **Description:** `robotMotionRegistry.ts` loses the `layerSwitching` set and `markLayerSwitching`,
   `isLayerSwitching`, `clearLayerSwitching`; `useOrbiterMotion.ts` loses its `isLayerSwitching` branch (a world mount
   always attaches); their tests lose the matching cases; `robotJobsJ4Docs.test.ts` drops the three identifier rows.
 
   **Acceptance criteria:**
-  - [ ] No file in `src/` names the three exports (a test greps); `__reset` still clears the two maps.
-  - [ ] `useOrbiterMotion.test.tsx`: the three "marked world mount" cases are gone; every attach case passes.
+  - [x] No file in `src/` names the three exports (a test greps, non-test files); `clearRobotMotionRegistry` (the plan's `__reset`) still clears the two maps.
+  - [x] `useOrbiterMotion.test.tsx`: the "marked world mount" cases are gone (five, not three: the plan counted the avatar and other-robot variants short); every attach case passes.
 
   **Verification:**
   - [ ] `npx vitest run src/animation/robotMotionRegistry.test.ts src/components/robot/gem/useOrbiterMotion.test.tsx
@@ -425,15 +434,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 14. **Files:** `robotMotionRegistry.ts`, `robotMotionRegistry.test.ts`,
   `useOrbiterMotion.ts`, `useOrbiterMotion.test.tsx`, `src/docs/robotJobsJ4Docs.test.ts`. **Scope:** S.
 
-- [ ] **Task 16: Harness robot selectors**
+- [x] **Task 16: Harness robot selectors** (selectors live in `scene-markup-lib.mjs` and read both markups, so the Task 20 A/B against `main` still works; the run is recorded under "Perf gate results")
 
   **Description:** `idle-paint.mjs`: `ROBOT_GROUPS` = `.mover--robot .robot`, the `no-robots` ablation hides
   `.mover--robot`, `detach-bubbles+robots` removes `.mover--robot`, the "Robots stack" readout counts `.mover--robot`
   per slot.
 
   **Acceptance criteria:**
-  - [ ] `npm run perf:idle -- --only no-robots` on the branch reports 12 robots in the scene line and a `no-robots`
-        row whose `screens/frame` is below stock's.
+  - [x] `npm run perf:idle -- --only no-robots` on the branch reports 12 robots in the scene line and a `no-robots`
+        row whose `screens/frame` is below stock's. (Met as worded; both numbers are nonsense on movers: see "Task 16".)
 
   **Verification:** the run above.
 
@@ -450,7 +459,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 4: Bubbles and the marker
 
-- [ ] **Task 17: `BubbleStream.tsx` — a strip mover per stream**
+- [x] **Task 17: `BubbleStream.tsx` — a strip mover per stream** (automated criteria done; the live look is Checkpoint C's)
 
   **Description:** The seeded per-bubble parameters move from the `useGSAP` body into the `config` memo (same seeds,
   same draws, same order); render returns `div.mover.mover--bubbles[data-scene-slot="bubbles"]` at
@@ -471,7 +480,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 9. **Files:** `BubbleStream.tsx`, `BubbleStream.test.tsx`. **Scope:** S.
 
-- [ ] **Task 18: `BubbleLayer` as a fragment; the `bubbles` sheet goes; harness bubble selectors**
+- [x] **Task 18: `BubbleLayer` as a fragment; the `bubbles` sheet goes; harness bubble selectors** (automated criteria done; the live look is Checkpoint C's)
 
   **Description:** `BubbleLayer` returns a fragment of streams; `OceanScene` renders it as a stage child and deletes the
   `bubbles` sheet. `idle-paint.mjs`: `BUBBLES` = `.mover--bubbles circle` (plus the pre-split factory-layer selectors it
@@ -490,7 +499,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 17. **Files:** `BubbleLayer.tsx`, `BubbleLayer.test.tsx`, `OceanScene.tsx`,
   `OceanScene.test.tsx`, `scripts/perf/idle-paint.mjs`. **Scope:** S.
 
-- [ ] **Task 19: The marker mover; the last moving sheet goes; `Sheet` loses `moving`**
+- [x] **Task 19: The marker mover; the last moving sheet goes; `Sheet` loses `moving`** (automated criteria done; the live look is Checkpoint C's)
 
   **Description:** `Marker` returns `div.mover.mover--marker[data-scene-slot="marker"][data-followed-robot]` holding an
   origin-centred `svg[viewBox="−W/2 −H/2 W H", overflow visible]` and the unchanged drawing (spec §1.7); `place()` sets
@@ -511,6 +520,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 18. **Files:** `FollowedRobotMarker.tsx`, `FollowedRobotMarker.test.tsx`, `OceanScene.tsx`,
   `OceanScene.css`, `OceanScene.css.test.ts`, `src/docs/robotJobsJ4Docs.test.ts`. **Scope:** M.
 
+**As shipped (Tasks 17–19, 2026-10-17):**
+- Between Task 17 and Task 18 the strip sat inside the old `bubbles` sheet's svg, so the bubbles did not draw in the live app for that one commit (a `div` in an `svg` renders nothing). Tasks 17 and 18 are one working state; do not stop on 17.
+- `BubbleLayer` was already a bare fragment, so Task 18's "no wrapping `<svg>`" criterion is a regression guard, not a change.
+- Task 18 also updated `ANIMATION_SYSTEM.md`'s interim sheet table and `robotJobsJ4Docs.test.ts` (five, then four, sheets), because that guard compares the doc to `OceanScene.tsx`; Task 22 still rewrites the section.
+- Task 19: the svg's viewBox is origin-centred, but a mover's translate puts its top-left at (x, y), so `place()` also sets `xPercent`/`yPercent` to -50 once. `x`/`y` stay the robot's canvas centre exactly, as the spec says; the spec did not name the offset.
+- Task 19 deleted `WorldView.test.tsx`'s moving-sheet dim case (no sheet moves) and replaced it with a guard that the rule is gone; `OceanScene.css.test.ts` now asserts `.mover` is the only rule with `will-change`.
+- `detach-bubbles` still removes only the circles, leaving ~50 empty strip movers (promoted layers drawing nothing). The paint-area number is unaffected, but the layer count in that window is not comparable; Task 20 should read the layer readout from the stock window.
+- Mutation gates: Task 17 12/12, Task 18 5/5, Task 19 15/15 killed (one survivor, the initial `visibility: hidden`, got a test for a robot with no gem seed).
+
 ### Checkpoint C: Everything moves on its own sheet (Crawford, Chrome and Firefox)
 - [ ] Spec §5.3's whole list, in Chrome and again in Firefox; Safari if a device is to hand.
 - [ ] Types, lint, full suite, `npm run build` clean.
@@ -520,7 +538,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 5: Gates
 
-- [ ] **Task 20: Harness gate — STOP and report**
+- [x] **Task 20: Harness gate — STOP and report** (run 2026-10-17; **screens/frame MISSED, 0.31 × `main` against 0.25**; busy, Paint and layer memory pass; stopped, not acted on: see "Task 20 — the gate" below. Needed a prerequisite the plan did not list: the paint-area clamp, commit `6e3b07cb`.)
 
   **Description:** Spec §5.2 items 3: this branch against `main` (built in a throwaway worktree, served on a second
   port, bundle names checked), same pinned session, 1×, `--only none`, three rounds alternated, foreground, one at a
@@ -539,7 +557,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 19. **Files:** `docs/PERFORMANCE.md`, this plan. **Scope:** S.
 
-- [ ] **Task 21: Pixel listen (Crawford)**
+- [x] **Task 21: Pixel listen (Crawford)** (ran 2026-10-17: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping; Crawford: "good to go". **No `main` count was taken**, so the not-above-`main` bullet stays open. Recorded in PERFORMANCE.md "the Task 21 Pixel listen".)
 
   **Description:** Spec §5.2 item 4: the LAN production preview, landscape, Full Audio Load, the same link, `?debug`,
   three minutes on this branch and on `main`; the overlay's underrun count is the record.
@@ -554,7 +572,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 ### Phase 6: Docs
 
-- [ ] **Task 22: Docs and the `perMoverLayersDocs` guard**
+- [x] **Task 22: Docs and the `perMoverLayersDocs` guard** (done 2026-10-17. Beyond the four docs the plan named: `ROBOT_LIFECYCLE.md` said a row switch "re-mounts" the robot, `CLAUDE.md`'s reference line still said "six-layer scene stack", and `intent/per-mover-compositor-layers.md` linked the old anchor; all three fixed. `robotJobsJ4Docs.test.ts` and `worldViewDistrictsDocs.test.ts` read the renamed heading. The stale-name sweep covers `CLAUDE.md` and the top-level `docs/*.md` except `PERFORMANCE.md`, which is measurement history and keeps old names on purpose; `remounts` is matched in its code forms only, since `CONSOLE_THEMING.md` uses the English verb. 15 mutants, all killed after two weak assertions were tightened.)
 
   **Description:** `ANIMATION_SYSTEM.md`: "Scene layers — what may move where" becomes "Scene stack — the stage, the
   sheets and the movers" (the slot table in `SCENE_SLOTS` order, which slots are movers, the fit, the rules that
@@ -574,7 +592,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
   **Dependencies:** Task 21. **Files:** the four docs, `src/docs/perMoverLayersDocs.test.ts`. **Scope:** M.
 
-- [ ] **Task 23: Roadmap 53, backlog 26, status headers**
+- [x] **Task 23: Roadmap 53, backlog 26, status headers** (done 2026-10-17. Backlog item 26 stays open with a status paragraph rather than moving to the archive: candidates 1 and 2 are done and 3 not taken, but the document-layer repaint is unresolved. The roadmap entry has an Open section for it.)
 
   **Description:** Roadmap Phase 53 in Phase 52's shape (links, status, About, Not Doing: the audio-headroom default,
   machine-side fixes, the re-mount path); backlog item 26 → a shipped pointer (candidates 1 and 2 done, 3 not taken);
@@ -590,10 +608,10 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   plan. **Scope:** XS.
 
 ### Checkpoint: Complete
-- [ ] Types, lint, full suite, `npm run build` clean.
-- [ ] Every automated acceptance criterion met; the two gates recorded with numbers, a skipped Pixel listen flagged.
-- [ ] Docs match the shipped source; every named identifier spot-checked.
-- [ ] Ready for Crawford's PR.
+- [x] Types, lint (0 errors, the 4 old warnings), full suite (368 files / 12406 tests) and `npm run build` clean, 2026-10-17.
+- [ ] Every automated acceptance criterion met; the two gates recorded with numbers, a skipped Pixel listen flagged. (**Not met:** Task 20's `screens/frame` criterion is a recorded MISS, and Task 21 has no `main` count. Both are recorded with numbers; neither is rewritten as a pass.)
+- [x] Docs match the shipped source; every named identifier spot-checked (`perMoverLayersDocs.test.ts` checks each against its source file).
+- [ ] Ready for Crawford's PR. (Waits on his call about the Task 20 miss and the unsigned Checkpoints B and C.)
 
 ## Risks and Mitigations
 
@@ -630,3 +648,108 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 
 (Task 3's proof on `main`, Task 4's baseline and Task 20's A/B go here, in run order, with build hashes, the link, the
 viewport, and orphaned-Chrome counts before and after.)
+
+### Task 3 — the metric proved on `main` (2026-10-17)
+
+`main` `4a9b3fec` (camera no-op merged), production build from a clean `git worktree` (`index-CVUy7kf3.js`, :4183),
+headless Chrome, 1280 × 900 at 1×, `--throttle 1`, 6 s windows, pinned `?session=` world (style `alpha`, `(0, 50)`,
+`DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2), foreground, one run at a time, orphaned `trace-atlas-perf`
+Chrome 0 before and after. Run: `--only detach-bubbles,detach-bubbles+robots` (the second ablation removes only the
+robots, so the first is needed to take the bubbles out too).
+
+| Window | frames | redrawn px²/frame | screens/frame | Paint n | busy (ms) |
+|---|---|---|---|---|---|
+| stock | 360 | 5 317 862 | **4.62** | 1085 | 2034 |
+| detach-bubbles | 334 | 5 413 324 | 4.70 | 1024 | 3231 |
+| detach-bubbles+robots | 1 | 0 | **0** | 0 | 138 |
+
+Stock is inside the 3–5 band and the detached window reads 0 (< 0.2): the acceptance criteria hold. The stock
+attribution is three painters per frame: the document (clip 1 152 000 = the viewport), and the two moving sheets
+(`robots-back` and `robots`, clip ≈ 2 074 680). 1 + 1.8 + 1.8 = 4.6.
+
+Also run, for comparison only (this branch at `14bdcf97` + the Task 3 harness, built to a scratch `--outDir`,
+`index-CBxihiz2.js`, :4184, same link): stock **4.85** and **4.82** (two runs), detach-bubbles 4.95 / 4.99,
+detach-bubbles+robots **0** (frames 1) in the second run. The first run read 0.48 (360 frames, 114 Paint events, 1502 ms
+busy) in that last window and was not reproduced; recorded as a one-off, not investigated.
+
+**Caveats the metric carries into Task 20 (not blocking Task 4):**
+- The sheet clips read **1920 × 1080 = 2 073 600**, the scene's own units, not device px (the layer is 1465 × 824 CSS
+  px). `main` and the branch agree because both report the same local space, but the figure is only comparable at one
+  viewport; a phone run is not comparable to a desktop run in `px²/frame`, only in `screens/frame` against its own
+  viewport, and even that is approximate while the stage scale is not 1.
+- The Task 2 spike saw a promoted mover emit a `Paint` with an unbounded clip (−8 388 608 … 8 388 607) and the document
+  keep painting its whole page every frame. A mover exists nowhere on this branch yet, so that is **unproved**; the
+  first mover (Task 13) is where it shows. If it does, `redrawnArea` needs a clamp or the signal changes (raster work)
+  before Task 20 reads it. Decision deferred to then.
+
+### Task 4 — the baseline on `main` (2026-10-17)
+
+Recorded in full in [PERFORMANCE.md](../PERFORMANCE.md) ("Pre-change baseline for Phase 53"), guarded by
+`src/docs/perMoverBaselineDocs.test.ts`. `main` `4a9b3fec`, bundle `index-CVUy7kf3.js`, the same pinned link and 1280 × 900
+at 1× as Task 3, three foreground rounds, orphaned Chrome 0 before and after. The headline for Task 20 to beat:
+**`screens/frame` 4.63 (4.63–4.67)**; median busy 1694 ms (1674–1719), Paint 177 ms (161–185), Compositor::Update 139 ms
+(136–146), Layerize 141 ms (138–147), 360 frames; compositor layers 28 (24 drawing, ≈ 37.8 MB), `Mover layers: 0`.
+
+### Task 16 — the first run with robots as movers (2026-10-17, **not a gate**)
+
+One `npm run perf:idle -- --throttle 1 --only no-robots` window pair, branch tip after Task 15 built to a scratch `--outDir`
+(`index-BJdTJuZX.js`, :4181), same pinned link, 1280 × 900, 1×, foreground, orphaned Chrome 0 after. Recorded because it is
+the first time a mover exists and the Task 3 caveat above can be checked; Task 20 does the formal A/B.
+
+- **The harness reads the movers**: `Scene: 12 robots`, `Mover layers: 3` (the three visible robots, 145 × 114, 141 × 161 and
+  100 × 80 CSS px), `Robots stack` front row 891 elements, back row 93 (1 robot).
+- **The Task 3 caveat is real: `redrawnArea` is useless on movers.** A promoted mover's `Paint` clip is
+  `−8388608 … 8388607`, so the stock window reads **409 482 583 screens/frame** (the movers' average clip is
+  281 474 943 156 224 px²) and `no-robots` 75 128 210. `no-robots` is numerically "below stock", which is all this task's
+  acceptance asked, but neither figure means anything. Task 20 cannot gate on `screens/frame` as written: clamp each
+  `Paint` clip to its layer's own bounds (LayerTree, by node) or take the signal from raster work instead. Not decided here.
+- **What does read sensibly (single window, not comparable to the baseline's medians)**: stock main busy 1577 ms, Paint 93 ms,
+  Compositor::Update 176 ms, Layerize 177 ms, 361 frames. Against `main`'s baseline medians that is Paint ~half, busy slightly
+  lower, Compositor::Update and Layerize higher. The per-node table shows each robot mover painting ~200 times in 6 s
+  (16, 9 and 9 ms); the four static sheets paint 3–23 times; the document layer still paints 285 times (55 ms) at the
+  viewport size, which the `rocker-light` pulse (`StyleRecalc Animation`, 361) is the visible suspect for.
+- **Layer memory is not comparable yet**: 32 layers, ≈ 46.7 MB at the harness's pre-scale bounds (the memory note's finding 3:
+  the stage's scale is not applied), and `dissolve` (the empty div) shows as a 1920 × 1080 layer — promoted by overlap, drawing
+  nothing. Both belong in Task 20's attribution.
+- **Looks the same as `main`** (a throwaway CDP script, scratchpad, not committed): the same pinned world, powered on and
+  settled 9 s on each build, shows the same gems, halos and scenery, and the robots' on-screen boxes agree to a pixel
+  (robot 0 at 287, 355 vs 287, 356; robot 1 at 820, 491 vs 821, 491). Crawford's Checkpoint B look is still the sign-off
+
+### Task 20 — the gate (2026-10-17, **MISS on the headline criterion; stopped, not acted on**)
+
+Recorded in full in [PERFORMANCE.md](../PERFORMANCE.md) ("Per-Mover Compositor Layers — the Task 20 gate"), guarded by
+`src/docs/perMoverGateDocs.test.ts` (which also fails if a verdict disagrees with the numbers above it). `main` `4a9b3fec`
+(`index-CVUy7kf3.js`, :4183) against `perf/per-mover-layers` `6e3b07cb` (`index-DwiFixlk.js`, :4181), both measured with the
+branch's harness, the pinned `?session=` link, 1280 × 900 at 1×, `--only none`, three rounds alternated, foreground, one at a
+time, orphaned Chrome 0 before and after.
+
+**Prerequisite the plan did not list (commit `6e3b07cb`).** Task 16 had shown `redrawnArea` unusable on movers (unbounded
+`Paint` clip). `redrawnArea` now clamps each `Paint` to the area of the layer it drew into (LayerTree by backend node, scaled
+by the stage's scale for layers inside it); a node with no layer of its own is capped at one viewport and counted as
+`unresolved Paints`. 13 new cases, 10 of 10 mutants killed. `main` re-measured under the new metric reads 3.10, not the
+baseline's 4.63 (its sheets are 1465 × 824 layers, not 1920 × 1080 scene-unit clips); Task 4's table stays as recorded.
+
+| Gate criterion | main (median, spread) | branch (median) | Limit | Result |
+|---|---|---|---|---|
+| screens/frame | 3.10 (3.09–3.11) | 0.95 (0.90–0.95) | ≤ 0.775 | **MISS**: 0.31 × main |
+| busy (ms) | 2749 (2732–2791) | 2295 | within main's spread | PASS |
+| Paint (ms) | 246 (237–278) | 128 | within main's spread | PASS |
+| Layer memory | 37.8 MB (28 layers) | 24.2 MB (30–31 layers, 4 movers) | ≤ main | PASS |
+
+Recorded, not gated: Compositor::Update 231 → 240 ms, Layerize 233 → 242 ms (inside each other's spreads).
+
+**Why it misses, in one line:** the work the phase targeted fell from ≈ 2.07 to ≈ 0.16 screens/frame (over 90 %), but the
+**document layer** repaints a full viewport on 279–345 of ~350 frames on both builds (≈ 0.99 on `main`, ≈ 0.78 on the branch)
+and by itself equals the 0.775 limit. It is not the `rocker-light` pulse (ablating it on `main` leaves 3.12 → 3.14; the
+branch's own ablation window is unreadable, as is every window after a session's first). Its cause is unidentified. The
+static sheets are not the ripple (3–23 paints in 6 s), so spec §7 Q2's fallback does not apply; the layer-memory line was not
+tested for the bubbles' account (no bubble strip is a drawing layer in the idle window), so §7 Q3 is still open.
+
+**Crawford's call** (not made here): accept the criterion against the document layer and file the repaint as its own item;
+find and fix the document repaint, then re-run this gate unchanged; or amend the criterion to exclude the document layer from
+both sides (a stated decision, since it changes the gate after the result). Task 21 (Pixel) is not run. Checkpoints B and C
+were never recorded as passed either; the gate was run on the automated criteria alone..
+
+**Task 21 (Pixel listen) ran 2026-10-17, after this record was written.** Crawford's result: Full Audio Load, over five
+minutes, about 12 underruns, no distortion, no clipping, "good to go"; no `main` count was taken. The Task 20 verdicts above
+are unchanged (the MISS stands); see PERFORMANCE.md "the Task 21 Pixel listen".

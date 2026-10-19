@@ -14,6 +14,7 @@ vi.mock('@/systems/workLoop', () => ({
 }));
 
 import { Robot } from './Robot';
+import { GEM_CANVAS_H, gemWidth, getRobotGem } from './gem/polygon';
 import { onRobotMounted } from '@/systems/workLoop';
 import { getRef } from '@/utils/refs';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
@@ -49,7 +50,7 @@ const localeId = getActiveLocaleId();
 function renderRobot(overrides: Partial<RobotType> = {}) {
   const robot = makeRobot(overrides);
   useLocaleStore.getState().addRobot(localeId, robot);
-  return { robot, ...render(<svg><Robot robotId={robot.id} /></svg>) };
+  return { robot, ...render(<Robot robotId={robot.id} />) };
 }
 
 describe('Robot click routing (Roadmap Phase 8)', () => {
@@ -211,6 +212,17 @@ describe('Robot mount transform (Phase 40 Task 7b — no flip)', () => {
     expect(call![1]).toMatchObject({ x: 10, y: 20, transformOrigin: '50% 50%' });
     setSpy.mockRestore();
   });
+
+  // Phase 53 Task 13 (spec §1.4): the position is the mover's, not the group's. The wrapper is what
+  // the swim, the bob, the station arc and the camera read and write, so it is what gets placed.
+  it('the mount gsap.set targets the mover wrapper, never the .robot group', () => {
+    const setSpy = vi.spyOn(gsap, 'set');
+    const { container } = renderRobot({ id: 'r1' });
+    const call = setSpy.mock.calls.find(([, vars]) => vars !== null && typeof vars === 'object' && 'x' in (vars as object));
+    expect(call![0]).toBe(container.querySelector('.mover--robot'));
+    expect(call![0]).not.toBe(container.querySelector('g.robot'));
+    setSpy.mockRestore();
+  });
 });
 
 describe('Robot mount hands the robot to the work loop (Phase 43 Task 23)', () => {
@@ -228,12 +240,12 @@ describe('Robot mount hands the robot to the work loop (Phase 43 Task 23)', () =
     const currentLocaleId = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.currentLocaleId ?? '';
     expect(onRobotMounted).toHaveBeenCalledTimes(1);
     expect(onRobotMounted).toHaveBeenCalledWith(currentLocaleId, 'r1');
-    expect(refAtCall).toBe(container.querySelector('g.robot'));
+    expect(refAtCall).toBe(container.querySelector('.mover--robot'));
   });
 
   it('a re-render does not call it again', () => {
     const { rerender } = renderRobot({ id: 'r1' });
-    rerender(<svg><Robot robotId="r1" /></svg>);
+    rerender(<Robot robotId="r1" />);
     useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 40 });
     expect(onRobotMounted).toHaveBeenCalledTimes(1);
   });
@@ -264,14 +276,125 @@ describe('Robot — the dissolve id and the row wrapper (Phase 43 Task 34)', () 
 
   it('two robots get two ids', () => {
     const { container } = render(
-      <svg>
+      <>
         {(['a', 'b'] as const).map((id) => {
           useLocaleStore.getState().addRobot(localeId, makeRobot({ id }));
           return <Robot key={id} robotId={id} />;
         })}
-      </svg>,
+      </>,
     );
     expect([...container.querySelectorAll('g.robot')].map((g) => g.id)).toEqual(['world-robot-a', 'world-robot-b']);
+  });
+});
+
+// Phase 53 Task 13 (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.3, §1.4): a robot is a mover — a small
+// positioned wrapper that is its own compositor layer — holding an svg the size of its gem canvas,
+// holding the unchanged robot group. The wrapper is what GSAP moves and what the registry hands out.
+describe('Robot — the mover (Phase 53 Task 13)', () => {
+  /** Two seeds whose gems have different canvas widths, so a hard-coded width cannot pass. */
+  const seeds = (() => {
+    const first = 101;
+    const other = Array.from({ length: 400 }, (_, i) => i + 102).find(
+      (s) => getRobotGem(s).widthFactor !== getRobotGem(first).widthFactor,
+    )!;
+    return [first, other] as const;
+  })();
+
+  beforeEach(() => {
+    vi.mocked(onRobotMounted).mockReset();
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+  });
+
+  it('is div.mover.mover--robot[data-robot-id] › svg.mover__svg › g#world-robot-{id}.robot', () => {
+    const { container } = renderRobot({ id: 'r1', gemSeed: seeds[0] });
+    const mover = container.firstElementChild!;
+    expect(mover.tagName).toBe('DIV');
+    expect(mover.classList.contains('mover')).toBe(true);
+    expect(mover.classList.contains('mover--robot')).toBe(true);
+    expect(mover.getAttribute('data-robot-id')).toBe('r1');
+    expect(container.children).toHaveLength(1);
+    expect(mover.children).toHaveLength(1);
+    const svg = mover.firstElementChild!;
+    expect(svg.tagName.toLowerCase()).toBe('svg');
+    expect(svg.getAttribute('class')).toBe('mover__svg');
+    expect(svg.children).toHaveLength(1);
+    expect(svg.firstElementChild).toBe(container.querySelector('g.robot'));
+    expect(svg.firstElementChild!.id).toBe('world-robot-r1');
+  });
+
+  it.each(seeds)('the svg is the gem canvas of seed %s, and its overflow shows (halo, orbiters, decorations)', (gemSeed) => {
+    const { container } = renderRobot({ id: 'r1', gemSeed });
+    const gem = getRobotGem(gemSeed);
+    const svg = container.querySelector('.mover--robot > svg')!;
+    expect(svg.getAttribute('width')).toBe(String(gemWidth(gem)));
+    expect(svg.getAttribute('height')).toBe(String(GEM_CANVAS_H));
+    expect(svg.getAttribute('viewBox')).toBe(`0 0 ${gemWidth(gem)} ${GEM_CANVAS_H}`);
+    expect(svg.getAttribute('overflow')).toBe('visible');
+  });
+
+  it('the two seeds really do differ in width', () => {
+    expect(gemWidth(getRobotGem(seeds[0]))).not.toBe(gemWidth(getRobotGem(seeds[1])));
+  });
+
+  it('the slot is the row: background → robots-back; foreground and unset → robots', () => {
+    const slotOf = (layer?: RobotType['layer']) => {
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+      const { container, unmount } = renderRobot({ id: 'r1', layer });
+      const slot = container.querySelector('.mover--robot')!.getAttribute('data-scene-slot');
+      unmount();
+      return slot;
+    };
+    expect(slotOf('background')).toBe('robots-back');
+    expect(slotOf('foreground')).toBe('robots');
+    expect(slotOf(undefined)).toBe('robots');
+  });
+
+  it('a layer write changes the slot on the very same mover — it is not re-mounted', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    const mover = container.querySelector('.mover--robot')!;
+    const group = container.querySelector('g.robot')!;
+    expect(mover.getAttribute('data-scene-slot')).toBe('robots');
+
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { layer: 'background' }));
+    expect(container.querySelector('.mover--robot')).toBe(mover);
+    expect(container.querySelector('g.robot')).toBe(group);
+    expect(mover.getAttribute('data-scene-slot')).toBe('robots-back');
+
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { layer: 'foreground' }));
+    expect(mover.getAttribute('data-scene-slot')).toBe('robots');
+    expect(onRobotMounted).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers the wrapper as robot-{id}, and drops the registration on unmount', () => {
+    const { container, unmount } = renderRobot({ id: 'r1' });
+    expect(getRef('robot-r1')).toBe(container.querySelector('.mover--robot'));
+    unmount();
+    expect(getRef('robot-r1')).toBeUndefined();
+  });
+
+  // The global gsap mock (vitest.setup.ts) records calls and renders nothing, so the placement is
+  // read off the set call; the real transform is workLoop.test.ts's, which unmocks gsap.
+  it('places the wrapper at the robot\'s position at mount, once, and the robot group carries no transform', () => {
+    const setSpy = vi.spyOn(gsap, 'set');
+    const { container } = renderRobot({ id: 'r1', position: { x: 33, y: 44 } });
+    const placements = setSpy.mock.calls.filter(([, vars]) => vars !== null && typeof vars === 'object' && 'x' in (vars as object));
+    expect(placements).toHaveLength(1);
+    expect(placements[0][0]).toBe(container.querySelector('.mover--robot'));
+    expect(placements[0][1]).toMatchObject({ x: 33, y: 44 });
+    const group = container.querySelector('g.robot')!;
+    expect(group.getAttribute('transform')).toBeNull();
+    expect((group as SVGGElement).style.transform).toBe('');
+    setSpy.mockRestore();
+  });
+
+  it('a re-render (a battery write, a layer write) never places it again — the animation owns the position', () => {
+    const { container } = renderRobot({ id: 'r1', position: { x: 33, y: 44 } });
+    const setSpy = vi.spyOn(gsap, 'set');
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { layer: 'background' }));
+    expect(container.querySelector('.mover--robot')!.getAttribute('data-scene-slot')).toBe('robots-back');
+    expect(setSpy).not.toHaveBeenCalled();
+    setSpy.mockRestore();
   });
 });
 

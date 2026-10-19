@@ -49,20 +49,28 @@ function phase43(): string {
 const oceanScene = read('src/components/panels/screen/worldView/OceanScene.tsx');
 
 describe('ANIMATION_SYSTEM.md: the scene stack', () => {
-  const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene layers — what may move where');
+  const layers = section(read('docs/ANIMATION_SYSTEM.md'), '### Scene stack — the stage, the sheets and the movers');
+  const rows = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l));
+  const kindOf = (line: string) => line.split('|')[2].trim();
 
-  it('lists the seven layers in OceanScene.tsx\'s order', () => {
-    const rendered = [...oceanScene.matchAll(/<SceneLayer name="([a-z-]+)"/g)].map((m) => m[1]);
-    expect(rendered).toHaveLength(7);
-    const documented = layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l)).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
+  // Phase 53 Task 22: the table lists every slot (data-scene-slot), the sheets marked static and the
+  // movers' slots marked as movers; the rendered sheets are the static rows, in OceanScene.tsx's order.
+  it('lists the four sheets in OceanScene.tsx\'s order, as the static rows of the slot table', () => {
+    const rendered = [...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"/g)].map((m) => m[1]);
+    expect(rendered).toHaveLength(4);
+    const documented = rows.filter((l) => kindOf(l).startsWith('static')).map((l) => l.match(/^\| `([a-z-]+)`/)![1]);
     expect(documented).toEqual(rendered);
   });
 
-  it('marks exactly the moving layers as moving', () => {
-    const moving = [...oceanScene.matchAll(/<SceneLayer name="([a-z-]+)"[^>]*\bmoving\b/g)].map((m) => m[1]);
-    for (const line of layers.split('\n').filter((l) => /^\| `[a-z-]+` \|/.test(l))) {
-      const name = line.match(/^\| `([a-z-]+)`/)![1];
-      expect(line.includes('| moving |'), name).toBe(moving.includes(name));
+  // Phase 53 Task 19: the last moving sheet is a mover, so no sheet is marked moving - in the source
+  // (the `moving` prop is gone) or in the table (a row is a static sheet or a mover slot, never a moving sheet).
+  it('marks no sheet as moving, in the source or in the table', () => {
+    expect([...oceanScene.matchAll(/<Sheet slot="([a-z-]+)"[^>]*\bmoving\b/g)]).toHaveLength(0);
+    expect(oceanScene).not.toMatch(/\bmoving\??:\s*boolean/);
+    expect(rows).toHaveLength(9);
+    for (const line of rows) {
+      expect(/^(static sheet|movers?)$/.test(kindOf(line)), line).toBe(true);
+      expect(line.includes('| moving |'), line).toBe(false);
     }
   });
 
@@ -138,15 +146,11 @@ const IDENTIFIERS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [strin
     ['robotBoxAt', 'src/animation/layerSwitch.ts'],
     ['getMidgroundSilhouettes', 'src/systems/midgroundSilhouettes.ts'],
     ['legTo', 'src/systems/workLoop.ts'],
-    ['moveToRow', 'src/systems/workLoop.ts'],
     ['dropLeg', 'src/systems/workLoop.ts'],
     ['killLegs', 'src/systems/workLoop.ts'],
     ['LOOP_KEY_PREFIXES', 'src/systems/workLoop.ts'],
     ['onRobotMounted', 'src/systems/workLoop.ts'],
     ['layerScale', 'src/systems/workLoop.ts'],
-    ['markLayerSwitching', 'src/animation/robotMotionRegistry.ts'],
-    ['isLayerSwitching', 'src/animation/robotMotionRegistry.ts'],
-    ['clearLayerSwitching', 'src/animation/robotMotionRegistry.ts'],
     ['DEPTH_TINTS', 'src/components/panels/screen/worldView/OceanScene.tsx'],
     ['robot-dissolve-layer', 'src/components/panels/screen/worldView/OceanScene.tsx'],
     ['data-dissolve-copy', 'src/systems/workLoop.ts'],

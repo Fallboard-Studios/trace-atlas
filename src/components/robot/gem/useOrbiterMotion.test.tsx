@@ -123,12 +123,7 @@ import { gemPalette } from './gemPalette';
 import { orbiterPlan, ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION } from './orbiterMotion';
 import type { OrbiterDials } from './orbiterDials';
 import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
-import {
-  getOrbiterWork,
-  clearRobotMotionRegistry,
-  markLayerSwitching,
-  clearLayerSwitching,
-} from '../../../animation/robotMotionRegistry';
+import { getOrbiterWork, clearRobotMotionRegistry } from '../../../animation/robotMotionRegistry';
 
 // ========================================
 // FIXTURES
@@ -817,10 +812,9 @@ describe('useOrbiterMotion — the work lock (Phase 43, Task 17)', () => {
   });
 });
 
-// Phase 43 Task 34 (spec §1.10 "Re-mount without a flourish"): a layer switch re-mounts the robot
-// in the other robot row mid-leg. Its orbiters were already docked in the old row, so the new
-// mount shows them docked at once — no initial attach hop — and is otherwise an ordinary mount.
-describe('useOrbiterMotion — a layer-switch re-mount (Phase 43 Task 34)', () => {
+// Phase 53 Task 15 (spec §1.5): a row switch no longer re-mounts the robot, so there is no mount that
+// skips the attach flourish — every world mount attaches, however the robot got to this row.
+describe('useOrbiterMotion — a world mount always attaches (Phase 53 Task 15)', () => {
   beforeEach(() => {
     setCalls.length = 0;
     toCalls.length = 0;
@@ -837,48 +831,26 @@ describe('useOrbiterMotion — a layer-switch re-mount (Phase 43 Task 34)', () =
   });
 
   const allHops = (container: HTMLElement) => [0, 1, 2, 3].flatMap((c) => hopTweensFor(container, c));
-  const allFades = (container: HTMLElement) => [0, 1, 2, 3].flatMap((c) => fadeTweensFor(container, c));
 
-  it('a marked world mount plays no attach hop: the shown corners are docked at rest at once, the others hidden', () => {
-    markLayerSwitching('r1');
-    const plan = orbiterPlan(GEM_SEED);
+  const attachHops = (container: HTMLElement) => allHops(container).filter((h) => h.vars.ease === 'back.out(1.7)');
+
+  it('a world mount plays one attach hop per shown corner, at the size dial — it is never docked at once', () => {
     const { container } = render(<Harness dials={dials({ count: 3, size: 0.8 })} />);
-    expect(allHops(container)).toEqual([]);
-    const shown = new Set(plan.cornerOrder.slice(0, 3));
-    for (let corner = 0; corner < 4; corner++) {
-      expect(isShown(container, corner)).toBe(shown.has(corner));
-      if (!shown.has(corner)) continue;
-      expect(lastSetFor(localEl(container, corner), 'opacity')).toMatchObject({ x: 0, y: 0, scale: 0.8, opacity: 1 });
-    }
+    expect(attachHops(container)).toHaveLength(3);
+    for (const hop of attachHops(container)) expect(hop.vars).toMatchObject({ y: 0, scale: 0.8, opacity: 1 });
   });
 
-  it('reduced motion: no fade-in either', () => {
-    setMatchMedia(true);
-    markLayerSwitching('r1');
-    const { container } = render(<Harness dials={dials({ count: 2 })} />);
-    expect(allFades(container)).toEqual([]);
-    expect(allHops(container)).toEqual([]);
-  });
-
-  it('only the marked robot skips it: another robot mounting beside it attaches as usual', () => {
-    markLayerSwitching('r2');
+  it('a world mount beside another robot attaches the same way, whatever the other robot is doing', () => {
+    render(<Harness robotId="r2" dials={dials({ count: 2 })} />);
     const { container } = render(<Harness robotId="r1" dials={dials({ count: 2 })} />);
-    expect(allHops(container).filter((h) => h.vars.ease === 'back.out(1.7)')).toHaveLength(2);
+    expect(attachHops(container)).toHaveLength(2);
   });
 
-  it('an avatar mount of a marked robot attaches as usual — the mark is the world row\'s', () => {
-    markLayerSwitching('r1');
-    const { container } = render(<Harness context="avatar" dials={dials({ count: 2 })} />);
-    expect(allHops(container).filter((h) => h.vars.ease === 'back.out(1.7)')).toHaveLength(2);
-  });
-
-  it('it still registers its work lock, and the queue still runs a later count change', () => {
-    markLayerSwitching('r1');
+  it('it registers its work lock, and the queue runs a later count change', () => {
     const { container, rerender } = render(<Harness dials={dials({ count: 2 })} />);
     expect(getOrbiterWork('r1')).toBeDefined();
-    clearLayerSwitching('r1'); // the loop clears it once the mount is handed back
     rerender(<Harness dials={dials({ count: 3 })} />);
-    expect(allHops(container).filter((h) => h.vars.ease === 'back.out(1.7)')).toHaveLength(1);
+    expect(attachHops(container)).toHaveLength(3); // the two initial hops and the one a count change adds
     expect(getOrbiterWork('r1')!.lock()).toHaveLength(3); // the hop finishes; the lock returns all three
   });
 });

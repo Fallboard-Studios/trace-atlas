@@ -5,8 +5,10 @@ import { dirname, resolve } from 'node:path';
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 
-// Phase 43 Task 33 (spec §1.10 "Clicks"): seven full-screen <svg> layers stack over one another, and
-// the front robots layer and the static front layer sit above the back robot row. jsdom does no hit
+// Phase 43 Task 33 (spec §1.10 "Clicks"): full-screen <svg> sheets stack over one another, and the
+// front robots and the static front layer sit above the back robot row. Since Phase 53 Task 13 each
+// robot is a small positioned mover, not a group in a sheet, and it is the movers' wrappers that must
+// stay click-blind around the `.robot` they hold. jsdom does no hit
 // testing, but it does cascade and inherit `pointer-events`, so this file loads the real
 // OceanScene.css, renders the real <Robot> in both rows, and checks the browser's rule from the
 // DOM: a click reaches a back-row robot only if nothing drawn above it takes pointer events — so
@@ -25,7 +27,7 @@ vi.mock('@/components/stations/ChargingStation', () => ({
     <rect data-station-mock={props.station.id} data-fragment={props.fragment} width="10" height="10" />
   ),
 }));
-vi.mock('@/components/actors/BubbleLayer', () => ({ BubbleLayer: () => <circle data-bubble-stub r="4" /> }));
+vi.mock('@/components/actors/BubbleLayer', () => ({ BubbleLayer: () => <div className="mover mover--bubbles" data-scene-slot="bubbles" data-bubble-stub /> }));
 vi.mock('@/systems/worldTransition', () => ({ initializeLocale: vi.fn() }));
 vi.mock('@/systems/robotSystems', () => ({ stopRobotLifecycle: vi.fn() }));
 const { consumeSessionSharePayloadMock } = vi.hoisted(() => ({ consumeSessionSharePayloadMock: vi.fn(() => null) }));
@@ -84,15 +86,23 @@ describe('OceanScene clicks through the stacked layers (Phase 43 Task 33)', () =
 
   it('the stylesheet is live in this document (the checks below would pass vacuously without it)', () => {
     const { container } = render(<OceanScene />);
-    expect(pointerEvents(container.querySelector('svg.ocean-scene__layer')!)).toBe('none');
+    expect(pointerEvents(container.querySelector('svg.ocean-scene__sheet')!)).toBe('none');
+    expect(pointerEvents(container.querySelector('.ocean-scene__stage')!)).toBe('none');
   });
 
   it('nothing in the scene outside a robot takes pointer events — no layer, tint, building group or station', () => {
     const { container } = render(<OceanScene />);
     const scene = container.querySelector('.ocean-scene')!;
     const outsideRobots = Array.from(scene.querySelectorAll('*')).filter((el) => !el.closest('.robot'));
-    // The seven layers, the tints, the row groups and the stations are all in the list.
-    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__layer'))).toHaveLength(7);
+    // The stage, the four sheets, the dissolve div, both robots' movers and their svgs, a bubble
+    // strip, the tints and the stations are all in the list (Phase 53 Task 13: a robot is a mover, a
+    // wrapper of its own; Task 18: so is a bubble stream).
+    expect(outsideRobots.filter((el) => el.matches('.ocean-scene__stage'))).toHaveLength(1);
+    expect(outsideRobots.filter((el) => el.matches('svg.ocean-scene__sheet'))).toHaveLength(4);
+    expect(outsideRobots.filter((el) => el.matches('div.mover--bubbles'))).toHaveLength(1);
+    expect(outsideRobots.filter((el) => el.matches('.ocean-scene__dissolve'))).toHaveLength(1);
+    expect(outsideRobots.filter((el) => el.matches('div.mover--robot'))).toHaveLength(2);
+    expect(outsideRobots.filter((el) => el.matches('div.mover--robot > svg'))).toHaveLength(2);
     expect(outsideRobots.some((el) => el.hasAttribute('data-station-mock'))).toBe(true);
     for (const el of outsideRobots) {
       expect({ el: el.tagName + (el.id ? `#${el.id}` : ''), pe: pointerEvents(el) }).toEqual({
@@ -115,7 +125,9 @@ describe('OceanScene clicks through the stacked layers (Phase 43 Task 33)', () =
   it('a click on a back-row robot selects it', () => {
     const { container } = render(<OceanScene />);
     const body = container.querySelector('[data-robot-body="back-bot"]')!;
-    expect(body.closest('svg.ocean-scene__layer')!.getAttribute('data-scene-layer')).toBe('robots-back');
+    const mover = body.closest('.mover--robot')!;
+    expect(mover.getAttribute('data-scene-slot')).toBe('robots-back');
+    expect(mover.parentElement!.classList.contains('ocean-scene__stage')).toBe(true);
     fireEvent.click(body);
     expect(useUIStore.getState().selectedRobotId).toBe('back-bot');
     expect(useUIStore.getState().activeHubTile).toBe('robots');
@@ -124,7 +136,9 @@ describe('OceanScene clicks through the stacked layers (Phase 43 Task 33)', () =
   it('a click on a front-row robot still selects it', () => {
     const { container } = render(<OceanScene />);
     const body = container.querySelector('[data-robot-body="front-bot"]')!;
-    expect(body.closest('svg.ocean-scene__layer')!.getAttribute('data-scene-layer')).toBe('robots');
+    const mover = body.closest('.mover--robot')!;
+    expect(mover.getAttribute('data-scene-slot')).toBe('robots');
+    expect(mover.parentElement!.classList.contains('ocean-scene__stage')).toBe(true);
     fireEvent.click(body);
     expect(useUIStore.getState().selectedRobotId).toBe('front-bot');
   });

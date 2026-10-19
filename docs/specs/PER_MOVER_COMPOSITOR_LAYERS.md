@@ -1,5 +1,12 @@
 # Phase Spec: Per-Mover Compositor Layers
 
+> **Status (2026-10-17, roadmap Phase 53):** built on `perf/per-mover-layers`, not merged (the PR is Crawford's). The
+> Task 20 gate (§5.2 item 3) **MISSED its headline criterion**: `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+> limit 0.25; busy, Paint and layer memory are within their limits, and the targeted work fell by over 90 %, but a
+> document-layer repaint of unknown cause keeps the total above the line (PERFORMANCE.md, "the Task 20 gate"). The Pixel
+> listen (§5.2 item 4, Task 21) ran: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping;
+> no `main` count was taken, so the not-above-`main` criterion is open. Checkpoints B and C were never recorded as passed.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)
@@ -13,7 +20,7 @@
 >   against `main` (docs/PERFORMANCE.md, "Diagnosing audio on a real phone")
 > - Dev server: `npm run dev`
 
-Roadmap Phase 53 (proposed; 52 is the last entry). Intent:
+Roadmap Phase 53 (built, unmerged; see the status above). Intent:
 [docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md) (confirmed 2026-10-16; where
 this spec and the intent differ, the intent wins). Diagnosis: backlog item 26 and
 [PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16). No sketch: the visible
@@ -37,6 +44,11 @@ Every file, function and constant named below was checked against the working tr
    it in every browser on the machine before anything is built on it** — Chrome's Layers panel and Firefox's
    paint-flashing — and records which browsers were checked; a browser that clips instead gets the fallback, a wrapper
    box sized to the robot's largest reach (§7 Q1). Safari is unverified unless a device turns up.
+   **Verified 2026-10-17 (Task 2 spike; the throwaway page is not committed):** Chrome 155 ✓ and Firefox ✓ (Firefox
+   checked by eye by Crawford; its version was not recorded). In Chrome the wrapper is its own compositor layer, 251 × 122
+   CSS px for a 100 × 80 box with a circle 90 units outside it, so the layer bounds do follow the overflow; the circle draws
+   at every position and device scale (1×, 1.5×, 2×); a slide emits 0 `Paint` events. In both browsers, by eye, paint
+   flashing shows nothing while a mover slides and only a small patch while its own content changes. Safari is unverified.
 2. **GSAP writes a CSS transform on the wrapper, not an SVG `transform` attribute.** Verified in `gsap.js`:
    `_isSVG(e)` requires `e.ownerSVGElement` for any element with a parent, and a `<div>` (or an outer `<svg>`) has
    none. `x`, `y`, `rotation` and `scale` on the wrapper are composite-only writes.
@@ -45,6 +57,15 @@ Every file, function and constant named below was checked against the working tr
    both do this; WebKit has historically rasterised some composited layers at 1× and scaled them up. Task 1 checks
    it at 150 % and 200 % zoom in every browser on the machine, and a browser that blurs gets the fit applied to the
    sheets' `viewBox` and to each mover's own transform instead of to one ancestor (§7 Q1).
+   **Checked 2026-10-17 (Task 2 spike): holds only in a weaker form, accepted by Crawford.** Chrome 155 does not draw a
+   promoted mover as crisply as today's full-size sheet with the fit inside its `viewBox`. Against a plain viewBox svg
+   (stroke darkness of a 1 px circle, lower is darker): at 1× today's sheet reads 88 and is pixel-identical to the
+   reference, the mover under the scaled stage 105; at 1.5× 68 and 99 (reference 48); at 2× on a fractional position 24 and
+   68 (reference 25). Neither a 3D-translate promotion, nor the scale on the wrapper itself (this assumption's own
+   fallback), nor CSS `zoom` on the stage fixes it; only an unpromoted wrapper matches, which defeats the phase. Crawford
+   compared the two side by side in Chrome and Firefox and judged it fine ("it looks fine", 2026-10-17), so the one-ancestor
+   fit stands and the §7 Q1 blur fallback is **not** adopted. Untried if it is ever noticed: snapping each mover's `x`/`y`
+   to the device-pixel grid, or promoting a mover only while it moves.
 4. **`<use href="#world-robot-<id>">` keeps resolving across `<svg>` roots in the same document.** It already does:
    today's copy sits in the `robots` sheet and points into `robots-back`.
 5. **A Zustand write commits to the DOM before the next frame paints.** Zustand renders through
@@ -55,6 +76,11 @@ Every file, function and constant named below was checked against the working tr
    `BeginMainThreadFrame` events is "redrawn area per frame". The harness already reads the quad for its per-node
    attribution. The metric is proved before it is trusted (§1.11): on `main` the stock window reads about four
    viewport areas per frame and the `detach-bubbles+robots` ablation about none.
+   **Doubt raised 2026-10-17 (Task 2 spike):** in Chrome 155 a `Paint` event's `clip` is the cull rect, not the repainted
+   area: with one small mover repainting, the events were a `#document` paint with a clip of the whole page and a
+   `DIV#mover` paint with an unbounded clip (-8388608 to 8388607), and `LayerTree.layerPainted` never fired. Task 3
+   therefore has to prove the metric on `main` as written, and if stock does not read near four screens, replace the
+   signal (for instance the raster work) before taking the baseline.
 7. **`.ocean-scene` is never narrower than 16:9.** `OceanScene.css` gives it `height: 100%`, `min-width: 100%` and
    `aspect-ratio: 16 / 9`, so it is exactly 16:9 (portrait phones, where the scroller pans it) or wider. The fit
    (§1.1) therefore needs one formula: scale by whichever of width or height is the larger ratio, centre
@@ -75,9 +101,13 @@ Every file, function and constant named below was checked against the working tr
 12. **A hidden or scaled body is the whole mover.** `hideAtStation`'s `autoAlpha: 0`, the station arc's `scale` and
     `autoAlpha`, the job's bob on the body and `settle`'s position read all target what `getRef('robot-<id>')`
     returns, which is now the wrapper. A `visibility: hidden` wrapper paints nothing and takes no clicks.
-13. **The dissolve copy rides the robot through the dissolve timeline's `onUpdate`**, which mirrors the body's live
-    `x`, `y` and `rotation` onto the copy's wrapper (three `gsap.quickSetter`s). A GSAP callback writing a transform is
-    the job decorations' own pattern (`ctx.run`'s `write(t)`), and it never touches audio.
+13. **The dissolve copy rides the robot through a `gsap.ticker` listener** that lives exactly as long as the copy and
+    mirrors the body's live `x`, `y` and `rotation` onto the copy's wrapper (three `gsap.quickSetter`s). It never touches
+    audio, and it is the camera's and the marker's own pattern. *Amended 2026-10-17:* this assumption first named the
+    dissolve timeline's `onUpdate`, which froze the copy: a back → front copy stays opaque until the swim arrives,
+    seconds after the one-second fade (and so the timeline) has completed, and a finished timeline updates nothing.
+    The robot swam on and its copy stood still, found live on a station exit. A ticker listener also runs after every
+    timeline has updated, so it never reads a body one frame stale.
 14. **The marker's wrapper is sized to the square and its caption band**, origin-centred, with `overflow: visible` for
     a long "name | job"; the glow is clipped inside the square already.
 15. **No new tunable constants.** `WORLD_BOUNDS` (1920 × 1080) is the stage; the bubble strip and the marker box are
@@ -184,8 +214,8 @@ pixels). The dimming rule moves with it: `.world-view[data-dimmed] .ocean-scene_
   `HTMLDivElement`) a `div.mover.mover--dissolve[data-dissolve-copy=<id>]` holding
   `<svg width=W height=H viewBox overflow="visible"><use href="#world-robot-<id>"/></svg>`, placed at the body's
   current `x`/`y`/`rotation`. Its timeline, keyed `dissolve-<id>`, tweens the wrapper's `opacity` (`'out'` 1 → 0 then
-  removes it; `'in'` 0 → 1 and stays until the slot write) over `LAYER_DISSOLVE_SECONDS`, linear, and its `onUpdate`
-  mirrors the body's live `x`, `y` and `rotation` (assumption 13). The front copy fades and the back robot stays
+  removes it; `'in'` 0 → 1 and stays until the slot write) over `LAYER_DISSOLVE_SECONDS`, linear; a ticker listener
+  mirrors the body's live `x`, `y` and `rotation` for as long as the copy exists (assumption 13). The front copy fades and the back robot stays
   opaque, both directions, as the J4 gate chose. `removeCopy`, `endDissolve` and `stopWorkLoop`'s sweep select
   `.mover--dissolve[data-dissolve-copy]` instead of `use[data-dissolve-copy]`.
 - **Station exit.** `exitStation` writes `layer: 'background'` for a robot not already there and plays the arc on the
@@ -322,7 +352,7 @@ docs/
   `queueMicrotask` anywhere in this phase. The ResizeObserver callback is the one non-GSAP callback, and it writes
   CSS custom properties, never animates.
 - **Strict Separation holds.** No timeline callback added here reads audio state or calls `AudioEngine`; the dissolve's
-  `onUpdate` writes a transform and nothing else.
+  ticker listener writes a transform and nothing else.
 - **Visual Mapping holds.** The haze between rows stays the scene's (tints B and C in `mid`); no overlay is added to a
   robot. Day/night lightness and battery dimming remain the only two.
 - **No cabinetry or styling on wrappers.** A mover is an invisible box: no border, background, shadow or filter of its
@@ -509,6 +539,10 @@ A miss on 3 or 4 stops the phase for Crawford with the numbers; nothing is re-tu
   (2026-10-16): if the bubbles as they are turn out to be the problem, he is happy to rework them completely rather
   than keep the strips — so a miss on the bubbles' account stops for a redesign (one stream per district, fewer
   circles, a different effect), not for a workaround.
+  **Resolved (Crawford, 2026-10-18): strips stay always promoted, no redesign.** Measured in review follow-up R5 (18
+  strips on the busiest world found, 0.85 MB against the sheet's 4.60 MB; busy +8 %, a MISS) and its option (3) (the
+  strip layers are about a third of the Compositor::Update gap, the robot movers most of the rest); Crawford accepted
+  the MISS. PERFORMANCE.md "review follow-up R5, option 3: the strips separated".
 - **Q4 The camera no-op as a hard prerequisite.** Taking the baseline before it merges is valid A/B too (both sides
   carry the marker). Recommendation: merge it first, so the baseline is the world this phase ships into.
 - **Q5 Roadmap number 53.** 51 (Guide) and 52 (Job Decorations) are the last entries; nothing else has claimed 53.

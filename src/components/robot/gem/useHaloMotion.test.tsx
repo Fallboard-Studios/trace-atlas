@@ -77,7 +77,7 @@ import gsap from 'gsap';
 
 import { useHaloMotion } from './useHaloMotion';
 import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
-import { WAVE_COUNT, WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TOTAL_SECONDS, waveState } from './haloWaves';
+import { WAVE_COUNT, WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TOTAL_SECONDS, waveState, wavePath } from './haloWaves';
 
 // ========================================
 // FIXTURES
@@ -97,8 +97,11 @@ function Harness({
   dimOpacity = 1,
   withWaves = false,
   withTrail = false,
+  inScene = false,
   onDecorateArc,
 }: {
+  /** Renders the gem the way the world does (Phase 53): in its own mover svg inside a stage child, a static scene sheet beside it. */
+  inScene?: boolean;
   robotId?: string;
   context?: 'world' | 'avatar';
   dimOpacity?: number;
@@ -112,8 +115,8 @@ function Harness({
   const ref = useRef<SVGGElement>(null);
   const { decorateArc } = useHaloMotion({ root: ref, robotId, context, dimOpacity });
   onDecorateArc?.(decorateArc);
-  return (
-    <svg>
+  const gem = (
+    <svg className={inScene ? 'mover__svg' : undefined}>
       <g ref={ref} className="gem">
         {withWaves && (
           <g
@@ -128,6 +131,15 @@ function Harness({
         )}
       </g>
     </svg>
+  );
+  if (!inScene) return gem;
+  return (
+    <div className="ocean-scene">
+      <div className="ocean-scene__stage">
+        <svg className="ocean-scene__sheet" data-scene-slot="back" />
+        <div className="mover mover--robot">{gem}</div>
+      </div>
+    </div>
   );
 }
 
@@ -356,6 +368,105 @@ describe('useHaloMotion.decorateArc — the triangular waves (haloWaves.ts, halo
     tl.progress(0.3);
     expect(opacityOf(paths[0])).toBeCloseTo(0.5 * waveState('spawn', 0.3, 0).alpha, 10);
     expect(Number(paths[0].getAttribute('stroke-width'))).toBe(WAVE_LINE_WIDTH);
+  });
+
+  describe('in the world (Phase 53: each robot is a mover of its own, so the gem\'s own svg is not the scene)', () => {
+    type M = { a: number; b: number; c: number; d: number; e: number; f: number };
+    const matrix = (a: number, e: number, f = 0): M => ({ a, b: 0, c: 0, d: a, e, f });
+    const stub = (el: Element, name: 'getCTM' | 'getScreenCTM', read: () => M) => {
+      (el as unknown as Record<string, () => M>)[name] = read;
+    };
+
+    /** A world with the stage at `stage` on the screen and the robot's wrapper `robotX` scene units along (scale `robotScale`);
+     *  `getCTM` answers as the browser does, with the mover svg as its viewport (so the wrapper is not in it). */
+    function mountInScene(stage: M, robot: { x: number; scale: number }) {
+      let decorateArc!: ReturnType<typeof useHaloMotion>['decorateArc'];
+      const { container } = render(<Harness inScene withWaves onDecorateArc={(dec) => { decorateArc = dec; }} />);
+      const group = container.querySelector('g.gem')!;
+      stub(container.querySelector('svg.ocean-scene__sheet')!, 'getScreenCTM', () => stage);
+      stub(group, 'getCTM', () => matrix(1, 0));
+      stub(group, 'getScreenCTM', () => matrix(stage.a * robot.scale, stage.a * robot.x + stage.e, stage.f));
+      return { decorateArc, paths: [...container.querySelectorAll<SVGPathElement>('path.gem__wave')], robot };
+    }
+
+    it('the waves stay where the arc began when the robot\'s wrapper swims on (they follow the station, not the robot)', () => {
+      const m = mountInScene(matrix(0.5, 10, 20), { x: 100, scale: 1 });
+      const tl = (() => {
+        const arc = gsap.timeline() as unknown as FakeTimeline;
+        const before = createdTimelines.length;
+        m.decorateArc('spawn', 1, arc as unknown as Parameters<typeof m.decorateArc>[2]);
+        return createdTimelines[before];
+      })();
+      tl.progress(0.1);
+      m.robot.x = 300; // the swim moved the wrapper 200 scene units right
+      tl.progress(0.3);
+      // Still centred on the point the first frame found: 200 units to the robot's left, in the robot's own units.
+      expect(d(m.paths[0])).toBe(wavePath(waveState('spawn', 0.3, 0), -200, 0, 1));
+    });
+
+    it('sizes the lines in scene units, with the stage\'s scale taken out of the group\'s', () => {
+      const m = mountInScene(matrix(0.5, 10, 20), { x: 100, scale: 2 });
+      const arc = gsap.timeline() as unknown as FakeTimeline;
+      const before = createdTimelines.length;
+      m.decorateArc('spawn', 1, arc as unknown as Parameters<typeof m.decorateArc>[2]);
+      createdTimelines[before].progress(0.3);
+      expect(Number(m.paths[0].getAttribute('stroke-width'))).toBe(WAVE_LINE_WIDTH / 2);
+    });
+
+    // The sheet is a static stage child, so it is found once when the arc's timeline is made; the two
+    // screen matrices (the deck camera's scroll changes the frame) are still read on every frame.
+    describe('finding the scene', () => {
+      const FRAMES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+      const asked = (spy: { mock: { calls: unknown[][] } }, needle: string) =>
+        spy.mock.calls.filter(([selector]) => String(selector).includes(needle)).length;
+
+      /** Plays one arc over ten frames, and returns the timeline once the spies are set. */
+      function playTenFrames(m: ReturnType<typeof mountInScene>) {
+        const arc = gsap.timeline() as unknown as FakeTimeline;
+        const before = createdTimelines.length;
+        m.decorateArc('spawn', 1, arc as unknown as Parameters<typeof m.decorateArc>[2]);
+        const tl = createdTimelines[before];
+        FRAMES.forEach((p) => tl.progress(p));
+      }
+
+      it('looks the scene and its sheet up at most once across ten frames of one arc', () => {
+        const m = mountInScene(matrix(0.5, 10, 20), { x: 100, scale: 1 });
+        const closestSpy = vi.spyOn(Element.prototype, 'closest');
+        const queryOneSpy = vi.spyOn(Element.prototype, 'querySelector');
+        try {
+          playTenFrames(m);
+          expect(asked(closestSpy, 'ocean-scene')).toBeLessThanOrEqual(1);
+          expect(asked(queryOneSpy, 'ocean-scene__sheet')).toBeLessThanOrEqual(1);
+        } finally {
+          closestSpy.mockRestore();
+          queryOneSpy.mockRestore();
+        }
+      });
+
+      it('still reads the sheet\'s and the group\'s screen matrices on every frame', () => {
+        const m = mountInScene(matrix(0.5, 10, 20), { x: 100, scale: 1 });
+        const sheetSpy = vi.spyOn(document.querySelector('svg.ocean-scene__sheet') as SVGGraphicsElement, 'getScreenCTM');
+        const groupSpy = vi.spyOn(document.querySelector('g.gem') as SVGGraphicsElement, 'getScreenCTM');
+        playTenFrames(m);
+        expect(sheetSpy.mock.calls.length).toBeGreaterThanOrEqual(FRAMES.length);
+        expect(groupSpy.mock.calls.length).toBeGreaterThanOrEqual(FRAMES.length);
+      });
+    });
+  });
+
+  it('an avatar or card has no scene: it keeps getCTM, and looks for a scene once, not every frame', () => {
+    const { container, decorateArc, paths } = mount();
+    const group = container.querySelector('g.gem') as unknown as Record<string, unknown>;
+    group.getCTM = () => ({ a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 });
+    const closestSpy = vi.spyOn(Element.prototype, 'closest');
+    try {
+      const tl = arcOf(decorateArc, 'spawn').waves;
+      [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].forEach((p) => tl.progress(p));
+      expect(Number(paths[0].getAttribute('stroke-width'))).toBe(WAVE_LINE_WIDTH / 2);
+      expect(closestSpy.mock.calls.filter(([selector]) => String(selector).includes('ocean-scene')).length).toBeLessThanOrEqual(1);
+    } finally {
+      closestSpy.mockRestore();
+    }
   });
 
   it('reduced motion: nothing is added to the arc', () => {

@@ -19,7 +19,7 @@ import { tickRobotLifecycle } from './robotSystems';
 import { placeDistrict } from './districts';
 import { getStations } from './stations';
 import { getTimeline, killAllTimelines } from '../animation/timelineMap';
-import { registerArcDecorator, registerOrbiterWork, clearRobotMotionRegistry, isLayerSwitching } from '../animation/robotMotionRegistry';
+import { registerArcDecorator, registerOrbiterWork, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
 import { positionForCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { getRobotGem } from '../components/robot/gem/polygon';
@@ -117,12 +117,14 @@ function simulate(bpm: number) {
   const t0 = gsap.globalTimeline.time();
   startWorkLoop(LOCALE, { now: () => gsapT, rand: () => 0.5 });
 
-  // r1's body: a `.robot` group with a `.robot__row` holding two orbiters, as Robot.tsx draws it.
-  const svg = document.body.appendChild(document.createElementNS(SVG_NS, 'svg'));
-  const el = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
+  // r1's body: a mover (Phase 53 Task 13) holding a `.robot` group with a `.robot__row` holding two
+  // orbiters, as Robot.tsx draws it. The mover is what the loop moves, hides and registers.
+  const el = document.body.appendChild(document.createElement('div'));
+  el.className = 'mover mover--robot';
+  const group = el.appendChild(document.createElementNS(SVG_NS, 'svg')).appendChild(document.createElementNS(SVG_NS, 'g'));
   gsap.set(el, { x: get('r1').position.x, y: get('r1').position.y, immediateRender: true });
   setRef('robot-r1', el);
-  const row = el.appendChild(document.createElementNS(SVG_NS, 'g'));
+  const row = group.appendChild(document.createElementNS(SVG_NS, 'g'));
   row.setAttribute('class', 'robot__row');
   const locals = [0, 1].map(() => row.appendChild(document.createElementNS(SVG_NS, 'g')).appendChild(document.createElementNS(SVG_NS, 'g')));
   registerOrbiterWork('r1', { lock: () => locals, unlock: () => {} });
@@ -144,19 +146,10 @@ function simulate(bpm: number) {
     }
   };
   const unsubscribeRecord = useLocaleStore.subscribe(record);
-  // React's part of a row change (Phase 43 Tasks 34/34b): when the loop moves r1 to the other robot
-  // row it marks it and waits for the re-mount, which Robot.tsx's mount hands back. The same body
-  // stands in for the new one.
-  const unsubscribeRemount = useLocaleStore.subscribe((state, prev) => {
-    const now = state.locales[LOCALE]?.robots.find((r) => r.id === 'r1');
-    const before = prev.locales[LOCALE]?.robots.find((r) => r.id === 'r1');
-    if (now && before && (now.layer ?? 'foreground') !== (before.layer ?? 'foreground') && isLayerSwitching('r1')) {
-      onRobotMounted(LOCALE, 'r1');
-    }
-  });
+  // A row change (Phase 43 Tasks 34/34b) is a write of `layer` now (Phase 53 Task 14): React moves
+  // the mover's slot and the same body carries on, so nothing here stands in for a re-mount.
   const unsubscribe = () => {
     unsubscribeRecord();
-    unsubscribeRemount();
   };
   onRobotMounted(LOCALE, 'r1');
   record();

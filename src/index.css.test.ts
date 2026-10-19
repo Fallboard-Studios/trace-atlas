@@ -130,6 +130,10 @@ describe(':root color-accent-a/-b mechanism (Task 4)', () => {
   // guards — a repaint should be a small, localized edit that visibly breaks if a spot is missed).
   const { teal, green } = ACCENT_COLORS;
 
+  it('defines --color-accent-dark as the darker of the Header pair (teal), a literal like the others', () => {
+    expect(rootBody).toContain(`--color-accent-dark: ${teal};`);
+  });
+
   it('defines --color-accent-a/-b with the Header trait pair (teal/green) as the ambient default', () => {
     expect(rootBody).not.toBeNull();
     expect(rootBody).toContain(`--color-accent-a: ${teal};`);

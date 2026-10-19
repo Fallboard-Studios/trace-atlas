@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import './OceanScene.css';
@@ -6,6 +6,8 @@ import { TerrainLayer } from './TerrainLayer';
 import { WaterColumn } from './WaterColumn';
 import { LightShafts } from './LightShafts';
 import { FollowedRobotMarker } from './FollowedRobotMarker';
+import { type SceneSlot } from './sceneStack';
+import { useStageFit } from './useStageFit';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -39,50 +41,34 @@ interface OceanSceneProps {
 }
 
 // ========================================
-// SCENE LAYER
+// SHEET
 // ========================================
 
-interface SceneLayerProps {
-  /** Which of the seven layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
-  name: 'back' | 'robots-back' | 'mid' | 'bubbles' | 'robots' | 'front' | 'marker';
+interface SheetProps {
+  /** Which slot of the stack (sceneStack.ts) — becomes `data-scene-slot`, which OceanScene.css gives its z-index and tests and the perf harness key on. */
+  slot: SceneSlot;
   width: number;
   height: number;
-  /** A layer whose content moves every frame — promoted to its own compositor layer (OceanScene.css). */
-  moving?: boolean;
   children: React.ReactNode;
 }
 
 /**
- * One of the scene's stacked `<svg>` layers. All seven share the viewBox and the "slice" (cover)
- * fit, and OceanScene.css makes each fill the same box, so their coordinate systems map to the
- * same pixels — a robot at scene (x, y) in either robots layer sits exactly over scene (x, y) in
- * the factory layers.
+ * One of the stage's stacked `<svg>` sheets (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.2). All
+ * of them share the world viewBox and OceanScene.css makes each fill the stage, whose own box is that
+ * viewBox's size, so no `preserveAspectRatio` is needed: the stage's one CSS scale and offset
+ * (useStageFit) does the fit the old `xMidYMax slice` attribute did, for every sheet and mover at
+ * once. A robot's mover at scene (x, y) still sits exactly over scene (x, y) in the factory sheets.
  */
-function SceneLayer({ name, width, height, moving = false, children }: SceneLayerProps) {
-  const className = ['ocean-scene__layer', moving && 'ocean-scene__layer--moving'].filter(Boolean).join(' ');
+function Sheet({ slot, width, height, children }: SheetProps) {
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className={className}
-      data-scene-layer={name}
-      width={width}
-      height={height}
-      // "slice" (cover), not the default "meet" (contain) — the back layer's background rect fills
-      // the whole viewBox, and it must never be smaller than the tablet screen in either
-      // direction. slice scales the scene UP until both dimensions cover the box, cropping
-      // whichever axis overflows — never scaled down to fit with letterbox bars outside it. It is
-      // centred horizontally but pinned to the BOTTOM (YMax): a box wider than 16:9 loses the top
-      // of the world (ocean, a few building tops), never the ground. The SVG's own default
-      // overflow:hidden (and .world-view's, WorldView.css) clips the crop; nothing scrolls.
-      preserveAspectRatio="xMidYMax slice"
-    >
+    <svg viewBox={`0 0 ${width} ${height}`} className="ocean-scene__sheet" data-scene-slot={slot} width={width} height={height}>
       {children}
     </svg>
   );
 }
 
-/** Registers the dissolve copies' group for the work loop (getRef('robot-dissolve-layer')). */
-function registerDissolveLayer(el: SVGGElement | null): void {
+/** Registers the dissolve copies' div for the work loop (getRef('robot-dissolve-layer')). */
+function registerDissolveLayer(el: HTMLDivElement | null): void {
   if (el) setRef('robot-dissolve-layer', el);
   else deleteRef('robot-dissolve-layer');
 }
@@ -137,27 +123,35 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 // ========================================
 
 /**
- * Root scene component. Renders seven stacked SVG layers (roadmap 17.2.5; Phase 43 J4, spec §1.10),
- * back to front: static `back` (water, ridge, background factories, tint A), the moving back robot
- * row `robots-back`, static `mid` (tint B, midground factories, tint C, the ground line), the
- * moving bubble layer (every building's vent bubbles), the moving front robot row `robots`, and
- * static `front` (tint D, foreground factories), then the moving `marker` layer (the Deck camera's
- * followed-robot marker, in front of every building). Kicks off factory placement, robot spawning and
- * factory production scheduling on mount.
+ * Root scene component. Renders one scaled stage (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1)
+ * holding four static SVG sheets, the dissolve div and the movers (roadmap 17.2.5; Phase 43
+ * J4, spec §1.10; Phase 53), back to front: static `back` (water, ridge, background factories, tint
+ * A, the stations' L4 plates), the back robot row's movers (`robots-back`), static `mid` (tint B,
+ * midground factories, tint C, the ground line), the bubble strips (one mover per vent stream,
+ * `bubbles`), static `stations` (the stations' L3 plates), the front robot row's movers (`robots`), the
+ * `dissolve` div (a layer switch's copies), and static `front` (the stations' front fragments, tint
+ * D, foreground factories), then the moving `marker` layer (the Deck camera's followed-robot marker,
+ * in front of every building). Kicks off factory placement, robot spawning and factory production
+ * scheduling on mount.
+ *
+ * The stage is the world at 1920 x 1080 CSS pixels and one CSS scale and offset (useStageFit, from
+ * the scene box) fits it to the screen — `xMidYMax slice`, which every sheet used to carry as its
+ * own attribute. Every sheet and mover is a child of the stage, ordered by its `data-scene-slot`
+ * (sceneStack.ts).
  *
  * Why layers: the idle paint localizer (scripts/perf/idle-paint.mjs) found the old single <svg>
  * repainting all sixty factories at full viewport size on every frame, because the robots and
- * bubbles that move every frame shared its paint layer. The moving layers are compositor layers
- * of their own now (OceanScene.css), so a transform write repaints only a dozen robots or a
- * handful of circles; the factory layers repaint once a second, on the lighting tick.
+ * bubbles that move every frame shared its paint layer. The movers are compositor layers of their
+ * own (OceanScene.css), so a swim is a composite and a transform write repaints only a robot's own
+ * small patch; the factory layers repaint once a second, on the lighting tick.
  *
  * Z-order is the old order with one change: bubbles from every row rise behind the robots and
  * below the foreground factories (foreground-row bubbles used to pass in front of the robots —
  * Crawford chose behind, 2026-10-02). J4 adds the back robot row behind the midground: the old
  * `back` layer split in two around it, and the four depth tints replaced the old two gradients.
  *
- * No layer takes clicks (OceanScene.css): every layer is full-screen, so one that did would block
- * all those under it. `.robot` takes them, in either row.
+ * Nothing in the stack takes clicks (OceanScene.css): the stage and every sheet are full-screen, so
+ * one that did would block all those under it. `.robot` takes them, in either row.
  *
  * @param width           - SVG viewBox width in pixels (default 1920).
  * @param height          - SVG viewBox height in pixels (default 1080).
@@ -180,14 +174,17 @@ export function OceanScene({
   // `<Robot>` now looks up its own current data by id (Robot.tsx's own fix), decoupled entirely
   // from this scene's own re-render cadence.
   //
-  // One list per robot row (Phase 43 J4, spec §1.10): a robot draws in the row its `Robot.layer`
-  // names, unset meaning foreground. Still ids only, so the scene re-renders when a robot changes
-  // rows (its id moves list) and not for any other write.
-  const frontRobotIds = useLocaleStore(useShallow((s) =>
-    (s.locales[localeId]?.robots ?? []).filter((r) => r.layer !== 'background').map((r) => r.id)));
-  const backRobotIds = useLocaleStore(useShallow((s) =>
-    (s.locales[localeId]?.robots ?? []).filter((r) => r.layer === 'background').map((r) => r.id)));
+  // One list for both robot rows (Phase 53 Task 14, docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.5):
+  // a robot draws in the row its `Robot.layer` names (unset meaning foreground), but that is its own
+  // mover's `data-scene-slot` now (Robot.tsx), which the stylesheet turns into a z-index. So the scene
+  // only needs the roster: it re-renders when a robot is added or removed, never when one changes rows.
+  const robotIds = useLocaleStore(useShallow((s) => (s.locales[localeId]?.robots ?? []).map((r) => r.id)));
   const actors = useLocaleStore((s) => s.locales[localeId]?.actors ?? []);
+
+  // The scene box the stage fits into (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1): observed for
+  // size, never the stage itself, whose own box is always the world's.
+  const sceneRef = useRef<HTMLDivElement>(null);
+  useStageFit(sceneRef);
 
   // categorize factory actors by row — memoised so robot updates don't
   // create new array references and trigger unnecessary Factory re-renders
@@ -288,129 +285,134 @@ export function OceanScene({
 
 
   return (
-    <div className="ocean-scene">
-      {/* Static back layer: ocean floor, background factories, tint A. */}
-      <SceneLayer name="back" width={width} height={height}>
-        <defs>
-          <TintGradient slot="A" />
-        </defs>
+    <div className="ocean-scene" ref={sceneRef}>
+      {/* The stage is as large as its sheets' viewBox (one size, so a sheet that fills it needs no
+          preserveAspectRatio), set inline rather than in the stylesheet: OceanScene.css fixes no
+          width here, and the phone shell's 320 px guard (shell320.css.test.ts) walks every sheet. */}
+      <div className="ocean-scene__stage" style={{ width, height }}>
+        {/* Static back layer: ocean floor, background factories, tint A. */}
+        <Sheet slot="back" width={width} height={height}>
+          <defs>
+            <TintGradient slot="A" />
+          </defs>
 
-        {/* Water column (§1.5): vertical gradient + surface glow, replacing the old flat
-            backgroundColor rect. */}
-        <WaterColumn localeId={localeId} width={width} height={height} />
+          {/* Water column (§1.5): vertical gradient + surface glow, replacing the old flat
+              backgroundColor rect. */}
+          <WaterColumn localeId={localeId} width={width} height={height} />
 
-        {/* Light shafts (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12), after the water column and
-            before the ridge so they read as light falling through the water onto the terrain. */}
-        <LightShafts localeId={localeId} />
+          {/* Light shafts (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12), after the water column and
+              before the ridge so they read as light falling through the water onto the terrain. */}
+          <LightShafts localeId={localeId} />
 
-        {/* Seabed ridge (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3), drawn before every
-            factory so background-row towers can stand in front of it. */}
-        <TerrainLayer localeId={localeId} part="ridge" width={width} height={height} />
+          {/* Seabed ridge (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3), drawn before every
+              factory so background-row towers can stand in front of it. */}
+          <TerrainLayer localeId={localeId} part="ridge" width={width} height={height} />
 
-        {/* Factory rows rendered back-to-front for proper depth perception */}
-        {/* Background-row factories (rendered furthest back) */}
-        <g id="factory-background-layer">
-          {backgroundActors.map(renderActor)}
-        </g>
-        <PipeBridges factories={backgroundFactories} />
-        {/* Tint A: over the background buildings, under the back robot row. */}
-        <TintRect slot="A" width={width} height={height} />
-      </SceneLayer>
+          {/* Factory rows rendered back-to-front for proper depth perception */}
+          {/* Background-row factories (rendered furthest back) */}
+          <g id="factory-background-layer">
+            {backgroundActors.map(renderActor)}
+          </g>
+          <PipeBridges factories={backgroundFactories} />
+          {/* Tint A: over the background buildings, under the back robot row. */}
+          <TintRect slot="A" width={width} height={height} />
+          {/* Each station's back fragment (L4), over tint A and under the back robot row: a robot
+              exiting a station is in that row (Task 34b, spec §1.6), so it appears between L4 and
+              L3. Static content (Phase 53, spec §1.8): only the station ripple, one second per
+              arc, ever animates a fragment, so none of the three sits on a moving sheet. */}
+          <g id="station-l4-layer">
+            {stations.map((s) => (
+              <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
+            ))}
+          </g>
+        </Sheet>
 
-      {/* Moving: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
-          the midground, hazed by tints B–D like the buildings around them. */}
-      <SceneLayer name="robots-back" width={width} height={height} moving>
-        {/* Each station's back fragment (L4), under the back row: a robot exiting a station is in
-            this row (Task 34b, spec §1.6), so it appears between L4 and L3. */}
-        <g id="station-l4-layer">
-          {stations.map((s) => (
-            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
-          ))}
-        </g>
-        <g id="robot-back-layer">
-          {backRobotIds.map((id) => (
-            <Robot key={id} robotId={id} />
-          ))}
-        </g>
-      </SceneLayer>
+        {/* Static mid layer: tint B, midground factories, tint C, the ground line. */}
+        <Sheet slot="mid" width={width} height={height}>
+          <defs>
+            <TintGradient slot="B" />
+            <TintGradient slot="C" />
+          </defs>
+          {/* Tint B: over the back robot row, under the midground. */}
+          <TintRect slot="B" width={width} height={height} />
 
-      {/* Static mid layer: tint B, midground factories, tint C, the ground line. */}
-      <SceneLayer name="mid" width={width} height={height}>
-        <defs>
-          <TintGradient slot="B" />
-          <TintGradient slot="C" />
-        </defs>
-        {/* Tint B: over the back robot row, under the midground. */}
-        <TintRect slot="B" width={width} height={height} />
+          <g id="factory-midground-layer">
+            {midgroundActors.map(renderActor)}
+          </g>
+          <PipeBridges factories={midgroundFactories} />
+          {/* Tint C: over the midground, under the front robot row. */}
+          <TintRect slot="C" width={width} height={height} />
 
-        <g id="factory-midground-layer">
-          {midgroundActors.map(renderActor)}
-        </g>
-        <PipeBridges factories={midgroundFactories} />
-        {/* Tint C: over the midground, under the front robot row. */}
-        <TintRect slot="C" width={width} height={height} />
+          {/* Stepped ground line (§1.3), drawn after tint C so midground bases bury under it rather
+              than floating above it. In `mid`, not `back`: it is a midground silhouette (Task 32),
+              so a back-row robot passes behind it. */}
+          <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
+        </Sheet>
 
-        {/* Stepped ground line (§1.3), drawn after tint C so midground bases bury under it rather
-            than floating above it. In `mid`, not `back`: it is a midground silhouette (Task 32),
-            so a back-row robot passes behind it. */}
-        <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
-      </SceneLayer>
-
-      {/* Moving: every building's AND vent's bubbles, all rows (BubbleStream timelines), behind
-          the robots (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11). */}
-      <SceneLayer name="bubbles" width={width} height={height} moving>
+        {/* Movers: every building's AND vent's bubbles, all rows (BubbleStream timelines), behind
+            the robots (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11). One strip mover per stream, each a
+            stage child of its own in the `bubbles` slot (Phase 53 Task 18, spec §1.6), so a rising
+            bubble repaints its own small strip and no sheet is left for them to share. */}
         <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
-      </SceneLayer>
 
-      {/* Moving: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
-          `layer` isn't 'background'. Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
-          §1.6) are three fragments interleaved with the robots, back to front: L4 · exiting
-          robots · L3 · robots · L2 + halo + L1. L4 and the exiting robots are in robots-back
-          (Task 34b), so an exiting robot appears behind L3 and an entering one passes between L2
-          and L3. Stations take no clicks. */}
-      <SceneLayer name="robots" width={width} height={height} moving>
-        <g id="station-l3-layer">
-          {stations.map((s) => (
-            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l3" />
-          ))}
-        </g>
-        <g id="robot-layer">
-          {frontRobotIds.map((id) => (
-            <Robot key={id} robotId={id} />
-          ))}
-        </g>
-        {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10): the work loop appends an SVG
-            `<use>` of a switching robot here — the front row's look of it, fading over the back
-            row's. Empty in JSX, so React never touches what the loop puts in it. */}
-        <g id="robot-dissolve-layer" ref={registerDissolveLayer} />
-        <g id="station-front-layer">
-          {stations.map((s) => (
-            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
-          ))}
-        </g>
-      </SceneLayer>
+        {/* Static: each station's middle fragment (L3), between the bubbles and the front robots
+            (Phase 53, spec §1.2, §1.8). Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
+            §1.6) are three fragments interleaved with the robots, back to front: L4 · exiting
+            robots · L3 · robots · L2 + halo + L1. L4 is the end of the back sheet and the exiting
+            robots are in robots-back (Task 34b), so an exiting robot appears behind L3 and an
+            entering one passes between L2 and L3. Stations take no clicks. */}
+        <Sheet slot="stations" width={width} height={height}>
+          <g id="station-l3-layer">
+            {stations.map((s) => (
+              <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l3" />
+            ))}
+          </g>
+        </Sheet>
 
-      {/* Static front layer: tint D, then the foreground-row factories (closest to the viewer). */}
-      <SceneLayer name="front" width={width} height={height}>
-        <defs>
-          <TintGradient slot="D" />
-        </defs>
-        {/* Tint D: over the front robot row, under the foreground. */}
-        <TintRect slot="D" width={width} height={height} />
-        <g id="factory-foreground-layer">
-          {foregroundActors.map(renderActor)}
-        </g>
-        <PipeBridges factories={foregroundFactories} />
-        <g id="ui-layer" />
-      </SceneLayer>
+        {/* Movers: every robot (GSAP-driven transforms, Robot.tsx), each a stage child of its own
+            (Phase 53 Tasks 13–14, spec §1.4). Where it sits in this list says nothing about the
+            stack: its `data-scene-slot` does — `robots-back` (Phase 43 J4: behind the midground,
+            hazed by tints B–D like the buildings around it) for a `layer` of 'background',
+            `robots` (over the stations' L3, under the dissolve copies) for every other. */}
+        {robotIds.map((id) => (
+          <Robot key={id} robotId={id} />
+        ))}
 
-      {/* Moving: the Deck camera's followed-robot marker (square + "name | job"), in front of every
-          building. Its own layer, not the static front one (it moves every frame, and a write there
-          would repaint the foreground factories) and not the robots layer (the foreground would
-          hide it); renders nothing unless the camera is following. */}
-      <SceneLayer name="marker" width={width} height={height} moving>
+        {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10; Phase 53 Task 12, spec §1.5): the
+            work loop appends a mover holding an SVG `<use>` of a switching robot here — the front
+            row's look of it, fading over the back row's. A div of its own in the `dissolve` slot,
+            over the front robots and under the front sheet, and empty in JSX, so React never
+            touches what the loop puts in it. */}
+        <div className="ocean-scene__dissolve" data-scene-slot="dissolve" ref={registerDissolveLayer} />
+
+        {/* Static front layer: each station's front fragment (L2 + halo + L1), then tint D, then the
+            foreground-row factories (closest to the viewer). */}
+        <Sheet slot="front" width={width} height={height}>
+          <defs>
+            <TintGradient slot="D" />
+          </defs>
+          {/* Over the front robots and the layer-switch copies, under tint D (Phase 53, spec §1.8). */}
+          <g id="station-front-layer">
+            {stations.map((s) => (
+              <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
+            ))}
+          </g>
+          {/* Tint D: over the front robot row, under the foreground. */}
+          <TintRect slot="D" width={width} height={height} />
+          <g id="factory-foreground-layer">
+            {foregroundActors.map(renderActor)}
+          </g>
+          <PipeBridges factories={foregroundFactories} />
+          <g id="ui-layer" />
+        </Sheet>
+
+        {/* Mover: the Deck camera's followed-robot marker (square + "name | job"), in front of every
+            building (Phase 53 Task 19, spec §1.7). A mover of its own, not drawn in the static front
+            sheet (it moves every frame, and a write there would repaint the foreground factories) and
+            not in a robot's slot (the foreground would hide it); renders nothing unless the camera is
+            following. */}
         <FollowedRobotMarker localeId={localeId} />
-      </SceneLayer>
+      </div>
     </div>
   );
 }
