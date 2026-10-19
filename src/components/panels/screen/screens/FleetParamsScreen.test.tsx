@@ -511,6 +511,24 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
     expect(crumb()).toBe(path(human('fleet.modulation'), human('fleet.phaser')));
   });
 
+  it('reads the Global Pedals: Modulation / Chorus, Modulation / Shifter, then Output / Width', () => {
+    render(
+      <>
+        <FleetParamsScreen />
+        <NavBreadcrumb />
+      </>,
+    );
+    pick(human('fleet.modulation'));
+    pick(human('fleet.chorus'));
+    expect(crumb()).toBe(path(human('fleet.modulation'), human('fleet.chorus')));
+    pick(human('fleet.frequencyShifter'));
+    expect(crumb()).toBe(path(human('fleet.modulation'), human('fleet.frequencyShifter')));
+    pick(human('fleet.output'));
+    expect(crumb()).toBe(path(human('fleet.output'), human('fleet.compressor')));
+    pick(human('fleet.stereoWidener'));
+    expect(crumb()).toBe(path(human('fleet.output'), human('fleet.stereoWidener')));
+  });
+
   it('reads Colour and its effect: picking the tab, then Bit Crusher', () => {
     render(
       <>
@@ -564,10 +582,13 @@ describe('FleetParamsScreen — the Colour section (Global Colour T9)', () => {
 });
 
 describe('FleetParamsScreen — the Modulation section (Global Modulation T10)', () => {
-  it('shows the two pedals as its sub-tabs, in chain order, opening on Auto Wah', () => {
+  it('shows the six pedals as its sub-tabs, in chain order, opening on Auto Wah (Global Pedals T10 added four)', () => {
     useUIStore.setState({ fleetParamsSection: 'modulation', fleetParamsSubsection: null });
     render(<FleetParamsScreen />);
-    expect(tabNames(subRow('fleet.modulation'))).toEqual([human('fleet.autoWah'), human('fleet.phaser')]);
+    expect(tabNames(subRow('fleet.modulation'))).toEqual([
+      human('fleet.autoWah'), human('fleet.phaser'), human('fleet.chorus'), human('fleet.tremolo'),
+      human('fleet.vibrato'), human('fleet.frequencyShifter'),
+    ]);
     expect(selectedTab(subRow('fleet.modulation')).textContent).toBe(human('fleet.autoWah'));
     expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['autoWah']);
   });
@@ -575,7 +596,10 @@ describe('FleetParamsScreen — the Modulation section (Global Modulation T10)',
   it('each sub-tab mounts exactly its own effect panel, and nothing else', () => {
     render(<FleetParamsScreen />);
     pick(human('fleet.modulation'));
-    for (const [name, key] of [['fleet.phaser', 'phaser'], ['fleet.autoWah', 'autoWah']] as const) {
+    for (const [name, key] of [
+      ['fleet.phaser', 'phaser'], ['fleet.chorus', 'chorus'], ['fleet.tremolo', 'tremolo'], ['fleet.vibrato', 'vibrato'],
+      ['fleet.frequencyShifter', 'frequencyShifter'], ['fleet.autoWah', 'autoWah'],
+    ] as const) {
       pick(human(name));
       expect(useUIStore.getState().fleetParamsSubsection).toBe(key);
       expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual([key]);
@@ -601,16 +625,50 @@ describe('FleetParamsScreen — the Modulation section (Global Modulation T10)',
     expect(selectedTab(subRow('fleet.modulation')).textContent).toBe(human('fleet.autoWah'));
   });
 
-  it('on the phone shell the Modulation tab is there too, with the same two sub-tabs', () => {
+  it('on the phone shell the Modulation tab is there too, with the same six sub-tabs', () => {
     shell.set('phone');
     useUIStore.setState({ fleetParamsSection: 'modulation', fleetParamsSubsection: null });
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toContain(human('fleet.modulation'));
-    expect(tabNames(subRow('fleet.modulation'))).toHaveLength(2);
+    expect(tabNames(subRow('fleet.modulation'))).toHaveLength(6);
   });
 
   it('the default section is still the LFO Bank, so Modulation is a tab you open, not the landing view', () => {
     expect(useUIStore.getState().fleetParamsSection).not.toBe('modulation');
+  });
+});
+
+describe('FleetParamsScreen — the Output section gains Width (Global Pedals T10)', () => {
+  it('shows Compressor, Width and Limiter as its sub-tabs, in chain order, still opening on the Compressor', () => {
+    useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    expect(tabNames(subRow('fleet.output'))).toEqual([human('fleet.compressor'), human('fleet.stereoWidener'), human('fleet.limiter')]);
+    expect(selectedTab(subRow('fleet.output')).textContent).toBe(human('fleet.compressor'));
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['compressor']);
+  });
+
+  it('the Width sub-tab mounts exactly the widener panel, and nothing else', () => {
+    render(<FleetParamsScreen />);
+    pick(human('fleet.output'));
+    pick(human('fleet.stereoWidener'));
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('stereoWidener');
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['stereoWidener']);
+    expect(mountedPanels()).toHaveLength(1);
+  });
+
+  it('the Width sub-tab wears the output trait, like its neighbours', () => {
+    useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    const output = getTraitColorStyle('output') as Record<string, string>;
+    const width = within(subRow('fleet.output')).getByRole('tab', { name: human('fleet.stereoWidener') });
+    expect(width.style.getPropertyValue('--color-accent')).toBe(output['--color-accent']);
+  });
+
+  it('on the phone shell Output has the same three sub-tabs', () => {
+    shell.set('phone');
+    useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: null });
+    render(<FleetParamsScreen />);
+    expect(tabNames(subRow('fleet.output'))).toEqual([human('fleet.compressor'), human('fleet.stereoWidener'), human('fleet.limiter')]);
   });
 });
 

@@ -922,6 +922,108 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.6, docs/tasks/GLOBAL_PEDALS.md Task 10): the four motion pedals
+  // and Width render through the same panel as every other effect — one slider per field, the motion pedals in
+  // the spectral trait and Width in the output trait, no LFO link. Task 11 swaps the three LFO pedals' Rate row
+  // for the Free | Sync slider; the slider count below holds either way.
+  describe('Global Pedals panels (Chorus, Tremolo, Vibrato, Shifter, Width)', () => {
+    const PANELS = [
+      { key: 'chorus', heading: 'fleet.chorus', sliders: ['rate', 'delay', 'depth', 'spread', 'feedback', 'mix'], trait: 'spectral' },
+      { key: 'tremolo', heading: 'fleet.tremolo', sliders: ['rate', 'depth', 'spread', 'mix'], trait: 'spectral' },
+      { key: 'vibrato', heading: 'fleet.vibrato', sliders: ['rate', 'depth', 'mix'], trait: 'spectral' },
+      { key: 'frequencyShifter', heading: 'fleet.frequencyShifter', sliders: ['shift', 'mix'], trait: 'spectral' },
+      { key: 'stereoWidener', heading: 'fleet.stereoWidener', sliders: ['width'], trait: 'output' },
+    ] as const;
+    const TRAIT_ACCENTS = {
+      spectral: [ACCENT_COLORS.cyan, ACCENT_COLORS.indigo],
+      output: [ACCENT_COLORS.burntOrange, ACCENT_COLORS.orange],
+    } as const;
+
+    it.each(PANELS)('$key shows its heading and one slider per parameter, named from content', ({ key, heading, sliders }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const block = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(within(block).getByText(CONTENT[heading].heading)).toBeTruthy();
+      expect(within(block).getAllByRole('slider')).toHaveLength(sliders.length);
+      for (const slider of sliders) {
+        const entry = CONTENT[`${heading}.${slider}` as keyof typeof CONTENT];
+        expect(within(block).getByRole('slider', { name: entry.human }), `${heading}.${slider}`).toBeTruthy();
+      }
+    });
+
+    it.each(PANELS)('$key is scoped to the $trait trait, as literals', ({ key, trait }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const el = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(el.style.getPropertyValue('--color-accent-a')).toBe(TRAIT_ACCENTS[trait][0]);
+      expect(el.style.getPropertyValue('--color-accent-b')).toBe(TRAIT_ACCENTS[trait][1]);
+      expect(el.style.getPropertyValue('--color-accent')).not.toContain('var(');
+    });
+
+    it.each(PANELS)('$key has no LFO link rows', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelector('.sc-lfo-link')).toBeNull();
+    });
+
+    it.each(['frequencyShifter', 'stereoWidener'] as const)('the %s panel has no Free | Sync toggle — it has no rate', (key) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelector('[role="switch"], [aria-pressed]')).toBeNull();
+    });
+
+    it('moving Chorus Mix writes only wet — the other five fields keep their values', () => {
+      const before = { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0.1, wet: 0.2 };
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, chorus: before } }));
+      render(<AudioRigEffectPanel effectKey="chorus" />);
+      const mix = screen.getByRole('slider', { name: CONTENT['fleet.chorus.mix'].human });
+      mix.focus();
+      fireEvent.keyDown(mix, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.chorus).toEqual({ ...before, wet: 0.21 });
+    });
+
+    it('the Chorus Delay slider writes delayTime, in half-millisecond steps', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, chorus: { ...s.globalAudio.chorus, delayTime: 3.5 } } }));
+      render(<AudioRigEffectPanel effectKey="chorus" />);
+      const delay = screen.getByRole('slider', { name: CONTENT['fleet.chorus.delay'].human });
+      delay.focus();
+      fireEvent.keyDown(delay, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.chorus.delayTime).toBe(4);
+    });
+
+    it.each([
+      { from: 0, key: 'ArrowLeft', to: -1 },
+      { from: 0, key: 'ArrowRight', to: 1 },
+      { from: -1000, key: 'ArrowLeft', to: -1000 },
+      { from: 1000, key: 'ArrowRight', to: 1000 },
+    ])('Shift at $from after $key reads $to — signed, one hertz a press, holding at both ends', ({ from, key, to }) => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, frequencyShifter: { shift: from, wet: 0.2 } } }));
+      render(<AudioRigEffectPanel effectKey="frequencyShifter" />);
+      const shift = screen.getByRole('slider', { name: CONTENT['fleet.frequencyShifter.shift'].human });
+      shift.focus();
+      fireEvent.keyDown(shift, { key });
+      expect(useAudioStore.getState().globalAudio.frequencyShifter).toEqual({ shift: to, wet: 0.2 });
+    });
+
+    it.each([
+      { from: 0.5, key: 'ArrowRight', to: 0.51 },
+      { from: 0, key: 'ArrowLeft', to: 0 },
+      { from: 1, key: 'ArrowRight', to: 1 },
+    ])('Width at $from after $key reads $to — the whole 0 to 1, mono to all side', ({ from, key, to }) => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, stereoWidener: { width: from } } }));
+      render(<AudioRigEffectPanel effectKey="stereoWidener" />);
+      const width = screen.getByRole('slider', { name: CONTENT['fleet.stereoWidener.width'].human });
+      width.focus();
+      fireEvent.keyDown(width, { key });
+      expect(useAudioStore.getState().globalAudio.stereoWidener.width).toBe(to);
+    });
+
+    it('a real user edit asks the swell system to cancel its own (effect, field) pair, like every other effect panel', () => {
+      const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
+      render(<AudioRigEffectPanel effectKey="tremolo" />);
+      const depth = screen.getByRole('slider', { name: CONTENT['fleet.tremolo.depth'].human });
+      depth.focus();
+      fireEvent.keyDown(depth, { key: 'ArrowRight' });
+      expect(spy).toHaveBeenCalledWith('tremolo', 'depth');
+    });
+  });
+
   describe('re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
     it("a setGlobalAudio update to ONE field (Delay's delayTime, simulating an audio-swell tick) does not re-execute a SIBLING field's own control (Delay's Mix/wet) — only the changed field's own control re-renders", () => {
       render(<AudioRigEffectPanel effectKey="delay" />);

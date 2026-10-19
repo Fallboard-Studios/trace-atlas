@@ -49,30 +49,7 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  Exempt from the unreferenced check only while they are still unreferenced: the moment a consumer
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
-const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  // docs/tasks/GLOBAL_PEDALS.md: the five pedal blocks read these at Task 10.
-  'fleet.chorus': 'GLOBAL_PEDALS T10',
-  'fleet.chorus.rate': 'GLOBAL_PEDALS T10',
-  'fleet.chorus.delay': 'GLOBAL_PEDALS T10',
-  'fleet.chorus.depth': 'GLOBAL_PEDALS T10',
-  'fleet.chorus.spread': 'GLOBAL_PEDALS T10',
-  'fleet.chorus.feedback': 'GLOBAL_PEDALS T10',
-  'fleet.chorus.mix': 'GLOBAL_PEDALS T10',
-  'fleet.tremolo': 'GLOBAL_PEDALS T10',
-  'fleet.tremolo.rate': 'GLOBAL_PEDALS T10',
-  'fleet.tremolo.depth': 'GLOBAL_PEDALS T10',
-  'fleet.tremolo.spread': 'GLOBAL_PEDALS T10',
-  'fleet.tremolo.mix': 'GLOBAL_PEDALS T10',
-  'fleet.vibrato': 'GLOBAL_PEDALS T10',
-  'fleet.vibrato.rate': 'GLOBAL_PEDALS T10',
-  'fleet.vibrato.depth': 'GLOBAL_PEDALS T10',
-  'fleet.vibrato.mix': 'GLOBAL_PEDALS T10',
-  'fleet.frequencyShifter': 'GLOBAL_PEDALS T10',
-  'fleet.frequencyShifter.shift': 'GLOBAL_PEDALS T10',
-  'fleet.frequencyShifter.mix': 'GLOBAL_PEDALS T10',
-  'fleet.stereoWidener': 'GLOBAL_PEDALS T10',
-  'fleet.stereoWidener.width': 'GLOBAL_PEDALS T10',
-};
+const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {};
 
 describe('content guard', () => {
   it('every key is referenced from src/ outside src/content', () => {

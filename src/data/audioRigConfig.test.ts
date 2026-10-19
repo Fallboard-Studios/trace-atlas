@@ -25,7 +25,7 @@ import { AUDIO_LOAD_PRESETS, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '../constan
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '../types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
-import { PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '../types/globalAudio';
+import { PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '../types/globalAudio';
 import { CONTENT, labels, options } from '@/content';
 import type { ControlSchema } from '@/types/controls';
 
@@ -34,7 +34,7 @@ import type { ControlSchema } from '@/types/controls';
 // ========================================
 
 // Effect key order matches the new V2 chain order (docs/reference/GLOBAL_CHAIN_GRID.md).
-const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'autoWah', 'phaser', 'delay', 'reverb', 'compressor', 'limiter'] as const;
+const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'delay', 'reverb', 'compressor', 'stereoWidener', 'limiter'] as const;
 
 function findBlock(key: (typeof EFFECT_KEYS)[number]) {
   const block = AUDIO_RIG_CONFIG.find((b) => b.key === key);
@@ -307,10 +307,12 @@ describe('AUDIO_RIG_CONFIG', () => {
     const contentKeyOf = (block: 'autoWah' | 'phaser', field: string): `fleet.${string}` =>
       `fleet.${block}.${field === 'wet' ? 'mix' : field === 'Q' ? 'q' : field}`;
 
-    it('there are twelve blocks, and AutoWah then Phaser sit straight after Bit Crusher and before Delay', () => {
+    it('there are seventeen blocks, and AutoWah then Phaser sit straight after Bit Crusher, ahead of the four Global Pedals and Delay', () => {
       const keys = AUDIO_RIG_CONFIG.map((b) => b.key as string);
-      expect(keys).toHaveLength(12);
-      expect(keys.slice(keys.indexOf('bitCrusher'), keys.indexOf('delay'))).toEqual(['bitCrusher', 'autoWah', 'phaser']);
+      expect(keys).toHaveLength(17);
+      expect(keys.slice(keys.indexOf('bitCrusher'), keys.indexOf('delay'))).toEqual(
+        ['bitCrusher', 'autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter'],
+      );
     });
 
     it.each(MODULATION_BLOCKS)('$key has its params in order: $fields', ({ key, fields }) => {
@@ -408,8 +410,111 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
   });
 
-  it('has no chorus block at all', () => {
-    expect(AUDIO_RIG_CONFIG.map((b) => b.key as string)).not.toContain('chorus');
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.6, assumption 5; docs/tasks/GLOBAL_PEDALS.md Task 10): four
+  // motion pedals after the Phaser and the Width stage between the Compressor and the Limiter. V2 removed a
+  // Chorus block ("not correct for this music"); this one is a dry-chain pedal at Mix 0 by default, not V2's.
+  describe('Global Pedals blocks (Chorus, Tremolo, Vibrato, Shifter, Width)', () => {
+    const PEDAL_BLOCKS = [
+      { key: 'chorus', fields: ['rate', 'delayTime', 'depth', 'spread', 'feedback', 'wet'], heading: 'fleet.chorus' },
+      { key: 'tremolo', fields: ['rate', 'depth', 'spread', 'wet'], heading: 'fleet.tremolo' },
+      { key: 'vibrato', fields: ['rate', 'depth', 'wet'], heading: 'fleet.vibrato' },
+      { key: 'frequencyShifter', fields: ['shift', 'wet'], heading: 'fleet.frequencyShifter' },
+      { key: 'stereoWidener', fields: ['width'], heading: 'fleet.stereoWidener' },
+    ] as const;
+    type PedalKey = (typeof PEDAL_BLOCKS)[number]['key'];
+
+    /** The content key a field reads: `wet` is Mix and the Chorus's `delayTime` is its Delay. */
+    const contentKeyOf = (block: PedalKey, field: string) =>
+      `fleet.${block}.${field === 'wet' ? 'mix' : field === 'delayTime' ? 'delay' : field}` as Parameters<typeof labels>[0];
+
+    const pedalParams = () => PEDAL_BLOCKS.flatMap(({ key }) => findBlock(key).params.map((param) => ({ key, param })));
+
+    it('the four motion pedals follow the Phaser in chain order, and Width sits between the Compressor and the Limiter', () => {
+      const keys = AUDIO_RIG_CONFIG.map((b) => b.key as string);
+      expect(keys.slice(keys.indexOf('phaser'), keys.indexOf('delay') + 1)).toEqual(
+        ['phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'delay'],
+      );
+      expect(keys.slice(keys.indexOf('compressor'))).toEqual(['compressor', 'stereoWidener', 'limiter']);
+    });
+
+    it.each(PEDAL_BLOCKS)('$key has its params in order: $fields', ({ key, fields }) => {
+      expect(findBlock(key).params.map((p) => p.field)).toEqual([...fields]);
+    });
+
+    it('the five blocks carry sixteen params between them, twenty-nine with the AutoWah and Phaser', () => {
+      expect(pedalParams()).toHaveLength(16);
+      const withModulation = pedalParams().length + findBlock('autoWah').params.length + findBlock('phaser').params.length;
+      expect(withModulation).toBe(29);
+    });
+
+    it.each(PEDAL_BLOCKS)('$key panel reads its heading from $heading, in a column', ({ key, heading }) => {
+      expect(findBlock(key).panel).toMatchObject({
+        id: `audioRig.${key}`, type: 'directionalPanel', orientation: 'column',
+        loreLabel: CONTENT[heading].heading, humanLabel: CONTENT[heading].human,
+      });
+    });
+
+    it('every pedal slider spans exactly its field\'s full seed range at the seed step', () => {
+      for (const { key, param } of pedalParams()) {
+        const range = GLOBAL_AUDIO_SEED_RANGES[`${key}.${param.field}` as GlobalAudioSeedFieldKey];
+        const where = `${key}.${param.field}`;
+        expect(range, where).toBeDefined();
+        const schema = param.schema as { min: number; max: number; step?: number };
+        expect(schema.min, where).toBe(range.min);
+        expect(schema.max, where).toBe(range.max);
+        expect(schema.step, where).toBe(range.step);
+      }
+    });
+
+    it('Shift is the only centred-zero slider, symmetric about 0; every other pedal slider is linear (none is log)', () => {
+      for (const { key, param } of pedalParams()) {
+        const where = `${key}.${param.field}`;
+        expect(param.schema.type, where).toBe(where === 'frequencyShifter.shift' ? 'sliderCenteredZero' : 'sliderLinear');
+      }
+      const shift = findParam('frequencyShifter', 'shift').schema as { min: number; max: number };
+      expect(shift.min).toBe(-shift.max);
+      expect(shift.max).toBeGreaterThan(0);
+    });
+
+    it.each(['chorus', 'tremolo', 'vibrato'] as const)(
+      'the %s Rate is a linear slider over PEDAL_RATE_RANGE_HZ at PEDAL_RATE_STEP_HZ, the shape TempoSyncSlider takes',
+      (key) => {
+        expect(findParam(key, 'rate').schema).toMatchObject({
+          type: 'sliderLinear', min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ,
+        });
+      },
+    );
+
+    it('every pedal param reads its label, lore and unit from its own content entry', () => {
+      for (const { key, fields } of PEDAL_BLOCKS) {
+        for (const field of fields) {
+          const schema = findParam(key, field).schema as { humanLabel: string; loreLabel?: string; unit?: string };
+          const expected = labels(contentKeyOf(key, field));
+          expect(schema.humanLabel, `${key}.${field}`).toBe(expected.humanLabel);
+          expect(schema.loreLabel, `${key}.${field}`).toBe(expected.loreLabel);
+          expect(schema.unit, `${key}.${field}`).toBe(expected.unit);
+        }
+      }
+    });
+
+    it('every pedal slider is horizontal, and every one carries a step well under its range (the toggle-collapse regression the Delay params guard)', () => {
+      for (const { key, param } of pedalParams()) {
+        const schema = param.schema as { step?: number; min: number; max: number; orientation?: string };
+        expect(schema.orientation, `${key}.${param.field}`).toBe('horizontal');
+        expect(schema.step, `${key}.${param.field}.step`).toBeDefined();
+        expect(schema.step!, `${key}.${param.field}.step`).toBeLessThan((schema.max - schema.min) / 10);
+      }
+    });
+
+    it('no pedal param is LFO-flagged — none of the five is a GlobalLfoTargetId', () => {
+      for (const { key, param } of pedalParams()) expect(param.lfoTarget, `${key}.${param.field}`).toBeUndefined();
+    });
+
+    it('every schema id in the rig config is still unique, the sixteen new ones included', () => {
+      const ids = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const { key, param } of pedalParams()) expect(ids).toContain(`${key}.${param.field}`);
+    });
   });
 
   it('flags exactly the 7 GlobalLfoTargetId params — no more, no fewer', () => {
@@ -780,9 +885,14 @@ const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: 
   bitCrusher: labels('fleet.bitCrusher', { surface: 'heading' }),
   autoWah: labels('fleet.autoWah', { surface: 'heading' }),
   phaser: labels('fleet.phaser', { surface: 'heading' }),
+  chorus: labels('fleet.chorus', { surface: 'heading' }),
+  tremolo: labels('fleet.tremolo', { surface: 'heading' }),
+  vibrato: labels('fleet.vibrato', { surface: 'heading' }),
+  frequencyShifter: labels('fleet.frequencyShifter', { surface: 'heading' }),
   delay: labels('fleet.delay', { surface: 'heading' }),
   reverb: labels('fleet.reverb', { surface: 'heading' }),
   compressor: labels('fleet.compressor', { surface: 'heading' }),
+  stereoWidener: labels('fleet.stereoWidener', { surface: 'heading' }),
   limiter: labels('fleet.limiter', { surface: 'heading' }),
 };
 
