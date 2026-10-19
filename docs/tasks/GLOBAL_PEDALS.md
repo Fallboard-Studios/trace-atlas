@@ -497,7 +497,7 @@ name the pedals — these last cases are **red until T17** and say so in their t
 ### Task 14: Phone gate — **STOP for Crawford**
 
 **Description:** Spec §5's three steps, in full and recorded. Against T0's baseline: on the branch, the same
-world (`?debug&session=` payload), Pixel 8, the preview build, **one worst-case run** — all seven Modulation
+world (`?debug&session=` payload), Pixel 8, the preview build, **one worst-case run** — all six Modulation
 pedals at full Mix, the Phaser at 12 stages, Width at 1 — Full 3:00 and Standard 3:00, HUD `underruns` start →
 end for each; `npm run perf` on the desktop before and after. **Bisect only on a miss:** Chorus, Tremolo,
 Vibrato one at a time at full Mix, then the shifter, same lengths, counts recorded.
@@ -595,7 +595,7 @@ append-only in their own endings (backlog CRLF, roadmap LF). Spec §8 "As built"
 ### Checkpoint: Complete
 - [ ] All acceptance criteria met; `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
 - [ ] Phone counts and the listen recorded, not paraphrased.
-- [ ] Crawford opens the PR from `feature/palette-pedals`.
+- [ ] Crawford opens the PR from `feature/pedals` (the branch as built; this plan proposed `feature/palette-pedals`).
 
 ## Risks and Mitigations
 

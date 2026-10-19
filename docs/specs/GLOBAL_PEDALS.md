@@ -568,7 +568,7 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
    50.5 chain), Pixel 8, `?debug`, Full 3:00 and Standard 3:00, HUD `underruns` at start and end recorded in
    `scratchy-audio-phones.md`. 50.3's and 50.4's T0 never ran, so this is the first measured baseline since
    Sends.
-2. **One worst-case run on the branch**, same world, same lengths: all seven Modulation pedals at full Mix,
+2. **One worst-case run on the branch**, same world, same lengths: all six Modulation pedals at full Mix,
    the Phaser at 12 stages, Width at 1. Underrun counts at Full and at Standard, plus the desktop
    `npm run perf` before and after.
 3. **Pass:** zero underruns at Full and no more than the re-baseline at Standard. **Bisect only on a miss:**
