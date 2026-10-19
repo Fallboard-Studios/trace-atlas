@@ -83,7 +83,7 @@ const toneFlags = vi.hoisted(() => ({
     node.start.mockReturnValue(node);
     return node;
   }),
-  // Global Pedals T5: the Vibrato and the FrequencyShifter, mono Tone Effects. The Vibrato's constructor starts its own
+  // Global Pedals T5: the Vibrato and the FrequencyShifter, plain Tone Effects. The Vibrato's constructor starts its own
   // LFO, so `start` is a spy that must stay uncalled; `frequency` and `depth` are Signals. The shifter's `frequency` is
   // a signed Signal. `wet` is a Signal on both.
   vibratoAbsent: false,
@@ -1558,7 +1558,7 @@ describe('globalFx', () => {
   });
 
   // ========================================
-  // Global Pedals T5 (docs/specs/GLOBAL_PEDALS.md §1.3): the Vibrato and the FrequencyShifter, the two mono pedals,
+  // Global Pedals T5 (docs/specs/GLOBAL_PEDALS.md §1.3): the Vibrato and the FrequencyShifter, the two plain Effects,
   // after the Tremolo and before the Compressor.
   // ========================================
   describe('buildGlobalFxChain - the Vibrato and the FrequencyShifter (Global Pedals)', () => {

@@ -12,8 +12,13 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo
 convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status (2026-10-17): NOT STARTED.** The spec is written and awaiting Crawford's approval; its veto points
-> (spec §7) are the slot order (mono nodes first or last), the cap mechanism (sequential or pick-two), the
+> **Status (2026-10-18): T1–T13 BUILT on `feature/pedals`** (Crawford's branch name; this plan says
+> `feature/palette-pedals` throughout), Checkpoints A–C passed, the five-axis review's follow-ups applied. Open:
+> T0 and T14 (the Pixel, Crawford's device), T15b only on a miss, T16, T17.
+>
+> *(Original status, 2026-10-17:)* The spec is written and awaiting Crawford's approval; its veto points
+> (spec §7) are the slot order (since answered: the Vibrato is stereo, so only the shifter's sideband leak on
+> panned voices is open), the cap mechanism (sequential or pick-two), the
 > nominal odds, the lit bands (the shifter's ±2–20 Hz above all), always-running LFOs, the widener taking the
 > Controlled-Decay join, `sliderCenteredZero` for the shift, presets clean, lore words and the roadmap number.
 
@@ -46,9 +51,10 @@ RED first; one commit per task; the mutation harness at the named gates.
   generic helpers are pure and mutation-gated; the Phaser's four helpers become wrappers in the same commit
   and their existing tests must pass unchanged — that is the proof the generalisation is faithful, and it
   happens before three new callers exist.
-- **Nodes land in pairs by Tone family (T4 the two stereo LFO pedals, T5 the two mono effects), then the
-  widener alone (T6).** T4 establishes the `start()` expectation and the Signal-vs-plain-setter split for a
-  `StereoEffect`; T5 covers the mono `Effect`s and the signed `shift`; T6 moves the Controlled-Decay join,
+- **Nodes land in pairs by Tone family (T4 the two `StereoEffect` LFO pedals, T5 the two plain `Effect`s),
+  then the widener alone (T6).** T4 establishes the `start()` expectation and the Signal-vs-plain-setter split
+  for a `StereoEffect`; T5 covers the plain `Effect`s (first thought mono; the Vibrato is stereo and only the
+  shifter's sine branch is downmixed, spec §8) and the signed `shift`; T6 moves the Controlled-Decay join,
   the only change to wiring that exists today, with its own chain-order test in both modes.
 - **Store before the seeder (T7 before T8).** The seeder's values reach the engine only through
   `applyGlobalAudioToEngine`, so Checkpoint A can be heard.
@@ -536,16 +542,16 @@ src/components/debug/hudLines.test.ts`; T14 again.
 ### Task 16: Crawford's listen, band tuning and the order veto — **STOP**
 
 **Description:** The spec §5 manual listen, on the desk: a world per lit pedal, a capped world, a neither
-world; **a lit Chorus world with the Vibrato at full — if the mono collapse at the Vibrato is audible, the
-motion slot's order swaps to Vibrato → Chorus → Tremolo → Shifter (spec assumption 3, one line in
-`chainNodes` plus the chain-order tests)**; the shifter's seeded band judged at its edges (±2 and ±20 Hz);
+world; **a lit shifter on a world with hard-panned robots as well as a centred one — the shifter leaks its
+other sideband on a panned voice (spec assumption 3 and §8, corrected 2026-10-18: the Vibrato is stereo, so
+there is no mono collapse to swap away from); if the leak sounds wrong rather than strange, lower the
+shifter's lit edge or narrow its band**; the shifter's seeded band judged at its edges (±2 and ±20 Hz);
 each pedal's lit Mix band judged for "a hint, not a wash". Whatever Crawford settles on is written into
 `GLOBAL_AUDIO_LOADING_RANGES`, the grid rows and T8's calibration targets, and the oracles are re-derived by
 hand for any band that moved.
 
 **Acceptance criteria:**
-- [ ] The slot order is decided and, if swapped, T4/T5's chain-order tests and the grid's chain-order line are
-  updated in the same commit.
+- [ ] The shifter-on-panned-voices question is answered; if the edge or band moved, it is in the files below.
 - [ ] Every band Crawford moved is in both range files, the grid and the calibration test, and the oracles
   pass with the re-derived values.
 - [ ] The findings are recorded in the spec's §7 as answers, with the numbers.
@@ -553,7 +559,7 @@ hand for any band that moved.
 **Verification:** `npm test`; Crawford's ears.
 
 **Dependencies:** T14. **Files:** `src/data/globalAudioLoadingRanges.ts`, `src/utils/globalAudioSeed.ts`, `.test.ts`,
-`src/engine/audioEngine/globalFx.ts` (if swapped), `docs/reference/GLOBAL_CHAIN_GRID.md`,
+`docs/reference/GLOBAL_CHAIN_GRID.md`,
 `docs/specs/GLOBAL_PEDALS.md`. **Scope:** S–M, by what moves.
 
 ---
@@ -564,7 +570,7 @@ hand for any band that moved.
 
 **Description:** `docs/AUDIO_SYSTEM.md` (Signal Graph: the four motion pedals after the Phaser, the Width
 stage after the Compressor, the moved Controlled join, the five setters, one paragraph on the always-running
-LFOs and the mono nodes); `docs/specs/FREE_SYNC_TOGGLE.md` (one line: three more synced rates on the generic
+LFOs and the shifter's downmixed sine branch); `docs/specs/FREE_SYNC_TOGGLE.md` (one line: three more synced rates on the generic
 rail); `docs/SESSION_STORAGE.md` (one line: absent pedal keys load as defaults; four synced blocks sanitised);
 `docs/ideas/themes.md` (one sentence on the new edges and the cap); `docs/reference/GLOBAL_CHAIN_GRID.md`
 footnote ⁵ if T2's was a stub; `docs/todo/roadmap.md` gains **50.6 Global Pedals** after 50.5 (the series'
@@ -596,7 +602,7 @@ append-only in their own endings (backlog CRLF, roadmap LF). Spec §8 "As built"
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Three always-running LFOs plus a shifter cost the Pixel underruns | High | T0 baseline; T14 worst-case run with counts; bisect names the pedal; T15b holds the blamed pedal's wet at 0 on lighter loads; withdrawal is an outcome, not a failure |
-| The mono Vibrato / shifter collapse the Phaser's and Chorus's stereo image | Med | T16's lit-Chorus-plus-Vibrato listen holds the order veto; the swap is one line and two tests |
+| The shifter leaks its other sideband on panned voices (its sine branch is downmixed; the Vibrato, first thought mono, is stereo — measured 2026-10-18, spec §8) | Med | T16's panned-world listen; the levers are the shifter's lit edge and band |
 | Moving the Controlled-Decay join breaks the rooms' return path | Med | T6 is its own task with the join asserted in both modes and the ctor-missing fallback pinned |
 | A Chorus or Tremolo constructed but never started is silent motion with a lit Mix | Med | T4 pins the `start()` call by constructor spy; the Vibrato test pins the opposite |
 | The sequential cap starves the shifter (rolled last, lowest odds) to near zero | Low | T8's calibration records the measured share; T16 or a theme raises the edge; the order is the spec's |
@@ -607,7 +613,7 @@ append-only in their own endings (backlog CRLF, roadmap LF). Spec §8 "As built"
 | The hand-amended oracles hide a moved value | Low | The existing `toStrictEqual` over every pre-existing key; T8 and T16 re-derive only the moved blocks |
 
 ## Open Questions
-- Spec §7: slot order (T4/T5 as specified; T16 may swap), cap mechanism (T8 sequential), nominal odds (T8),
+- Spec §7: the shifter on panned voices (T16; the slot order stays as built), cap mechanism (T8 sequential), nominal odds (T8),
   lit bands and the shifter's ±2–20 Hz (T8 placeholders, T16 moves), always-running LFOs (T4; T15b or a
   stop-at-Mix-0 variant only if T14 blames an idle LFO), the widener join (T6), `sliderCenteredZero` for
   `shift` (T10), presets clean (T1), lore words (T9 placeholders, T17 copy pass), roadmap number 50.6 (T17).

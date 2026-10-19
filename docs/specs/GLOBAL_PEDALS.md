@@ -79,12 +79,15 @@ every citation below was read, not recalled):
   start the LFOs.** Defaults `{ frequency: 1.5, delayTime: 3.5, depth: 0.7, type: 'sine', spread: 180,
   feedback: 0 }`. `Tremolo extends StereoEffect`: two LFOs on two amplitude Gains, phase inverted per
   channel; `frequency` and `depth` are Signals fanned to both LFOs; `spread`, `type` plain setters; **`start()`
-  required.** Defaults `{ frequency: 10, depth: 0.5, spread: 180 }`. `Vibrato extends Effect` (mono): one
-  LFO on one `Delay` with `maxDelay` constructor-only (default 0.005 s — the Depth ceiling); `frequency`
-  and `depth` are the LFO's frequency and amplitude Signals; **the constructor starts the LFO.** Defaults
-  `{ frequency: 5, depth: 0.1 }`. `FrequencyShifter extends Effect` (mono): `frequency` a Signal, signed,
-  ±sampleRate/2, default 0; single-sideband ring modulation, aliases towards the top (the global LPF is
-  upstream). `StereoWidener extends MidSideEffect`: `width` a Signal 0–1, default 0.5 = unity
+  required.** Defaults `{ frequency: 10, depth: 0.5, spread: 180 }`. `Vibrato extends Effect`, which is
+  **not** mono: `Effect` is gains and a crossfade, and the one LFO moves one `Delay` that delays left and right
+  alike, so the stereo image passes through. `maxDelay` is constructor-only (default 0.005 s — the Depth
+  ceiling); `frequency` and `depth` are the LFO's frequency and amplitude Signals; **the constructor starts
+  the LFO.** Defaults `{ frequency: 5, depth: 0.1 }`. `FrequencyShifter extends Effect`: `frequency` a
+  Signal, signed, ±sampleRate/2, default 0; single-sideband ring modulation, aliases towards the top (the
+  global LPF is upstream). It is **half mono**: its sine branch reaches the output through `Add.addend`, an
+  AudioParam, which the browser downmixes, while its cosine branch stays stereo. A centred voice shifts
+  cleanly; a panned one leaks the other sideband and a copy into the far channel (measured in §8). `StereoWidener extends MidSideEffect`: `width` a Signal 0–1, default 0.5 = unity
   (`Mid *= 2(1−width)`, `Side *= 2·width`); it has a `wet` like every Effect, held at 1.
 
 ASSUMPTIONS I'm making beyond the intent's decisions (correct now or I'll proceed with these):
@@ -102,12 +105,14 @@ ASSUMPTIONS I'm making beyond the intent's decisions (correct now or I'll procee
    join at the Compressor and flow through the widener anyway. So the widener is the one node that hears
    the rooms in both modes, and Width 0 folds everything.
 3. **Order inside the motion slot: Chorus → Tremolo → Vibrato → FrequencyShifter.** Chorus first because it
-   is the only stereo-feedback node and the Phaser hands it a stereo signal; the shifter last because it is
-   mono and ring-modulating a tremolo'd, chorused signal is the "strange" the backlog wants, while a chorus
-   of a ring-modulated signal just smears aliasing. A listening item in §7. Note the Vibrato and the shifter
-   are mono `Effect`s: each sums the stereo chain to mono and the widener restores side content only from
-   what the Compressor passes. **Veto point:** if the mono collapse at the Vibrato is audible on a lit
-   Chorus world, swap to Vibrato → Chorus → Tremolo → Shifter (mono nodes first) — one line.
+   is the only stereo-feedback node and the Phaser hands it a stereo signal; the shifter last because
+   ring-modulating a tremolo'd, chorused signal is the "strange" the backlog wants, while a chorus of a
+   ring-modulated signal just smears aliasing. A listening item in §7. *(Corrected 2026-10-18, review: this
+   assumption first said the Vibrato and the shifter were mono `Effect`s that sum the chain. The Vibrato is
+   fully stereo; only the shifter's sine branch is downmixed — see §1 above and §8.)* **Veto point:** if the
+   shifter's sideband leak on panned voices (Robot Pan) sounds wrong rather than strange on a lit world,
+   the choices are a lower lit share for the shifter or a centred-only band — not a slot swap, since the
+   leak is in the node, wherever it sits.
 4. **The LFOs run always.** Chorus and Tremolo are `start()`ed once at construction (the Phaser's LFOs
    already run always; Vibrato starts itself). A dark pedal is Mix 0, not a stopped LFO. Simplest, no
    start/stop state; the cost of three idle LFOs is the gate's to measure. Never `sync()` a pedal LFO to the
@@ -492,7 +497,7 @@ export function resolvePhaserRateHz(phaser: PhaserSettings, bpm: number): number
   seed keys `block.field`; content keys `fleet.<block>.<param>`; constants `PEDAL_*` in the module that owns
   them.
 - Comments cite this spec by section where a choice is not obvious from the code (the widener join, the
-  always-running LFOs, the sequential cap, the hand-amended oracle, the mono nodes in a stereo chain).
+  always-running LFOs, the sequential cap, the hand-amended oracle, the shifter's downmixed sine branch).
 - Tests colocated; TDD per task; one commit per task; the mutation harness run on each pure module.
 
 ---
@@ -553,8 +558,8 @@ clean. Mutation harness on `tempoSync.ts`, `globalAudioSeed.ts`, `globalAudio.ts
 neither world, found by cycling seeds with the HUD's seed readout; each pedal from 0 to full by hand with no
 click; **Width dragged 0.5 → 0 → 1 while a lit Delay plays — the fold must take the delay's stereo tail with
 it**; each synced Rate Free → Sync → Free, then a Tempo change with Sync on; a Natural ↔ Controlled flip
-keeps every pedal and the Width fold in both modes; the shifter at ±5 Hz and at ±500 Hz; a lit Chorus world
-with the Vibrato at full (assumption 3's mono-collapse veto); save, reload and share-link round trips
+keeps every pedal and the Width fold in both modes; the shifter at ±5 Hz and at ±500 Hz, on a world with
+hard-panned robots as well as a centred one (assumption 3's sideband-leak veto); save, reload and share-link round trips
 including a synced Chorus; an old `?session=` link loads with all five at defaults; keyboard and every "?".
 
 **Phone gate (the series' "without distortion", done in full this time):**
@@ -589,9 +594,11 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
 
 ## 7. Open Questions & Risks
 
-1. **Slot order (assumption 3):** Chorus → Tremolo → Vibrato → Shifter, or mono nodes first? The Vibrato
-   and the shifter are mono `Effect`s inside a chain that has been stereo since the Phaser; each sums left
-   and right. The desktop listen on a lit Chorus world decides; the swap is one line.
+1. **The shifter on panned voices (assumption 3):** the Vibrato keeps the stereo image (it was first
+   written down as mono; corrected 2026-10-18), so the slot order no longer has a mono question. The open
+   item is the shifter: on a hard-panned voice it leaks its other sideband at a third of the wanted one and
+   puts a quarter-level copy in the far channel. The desktop listen on a panned world decides whether that
+   is the backlog's "strange" or a fault; the levers are its lit share and its band.
 2. **The cap (assumption 7):** sequential in chain order (AutoWah and Phaser keep first claim, oracles
    untouched) or a pick of up to two from six (equal standing, oracles move)? Sequential is proposed.
 3. **Odds (assumption 7):** 0.25 / 0.25 / 0.25 / 0.15 nominal, measured lower under the cap. The
@@ -635,3 +642,12 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   seven links at 8.1 s). The chain-order line is therefore entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion ->
   ...; with no `Delay` constructor (headless) the chain enters at the EQ3 as before. The two nodes are on T14's phone
   gate like everything else.
+- **The Vibrato is stereo; the shifter is half mono (found in the 2026-10-18 review, measured the same day).** §1 and
+  assumption 3 first said both were mono `Effect`s that sum the chain. Tone's `Effect` is gains and a crossfade, and the
+  Vibrato is one LFO on one `Delay`, so it delays left and right alike. The shifter's sine branch is negated into
+  `Add.addend`, an AudioParam, so that branch is downmixed to mono (`0.5·(L+R)`) while the cosine branch stays stereo.
+  Measured with an offline Tone render in headless Chrome (a 440 Hz sine on the LEFT channel only, each node at wet 1,
+  amplitude per tone by Goertzel): Chorus, Tremolo and Vibrato leave the right channel at exactly 0; the shifter at
+  +100 Hz gives left 540 Hz 0.75 and 340 Hz 0.25 (the sideband it should cancel), right 540 Hz 0.25 and 340 Hz 0.25.
+  With the same sine on both channels it is clean: 540 Hz 1.0, 340 Hz 0.003. So a centred voice shifts as designed and
+  a panned one (Robot Pan) leaks; the veto in assumption 3 and §7 Q1 was rewritten around that. No code changed.

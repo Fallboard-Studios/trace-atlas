@@ -50,7 +50,8 @@ let _phaserLive: PhaserLive = defaultPhaserLive();
 // The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
 let _globalChorus: Tone.Chorus | null = null;
 let _globalTremolo: Tone.Tremolo | null = null;
-// The two mono pedals (Tone `Effect`s, not `StereoEffect`s): each sums the stereo chain it is given.
+// Plain Tone `Effect`s, not `StereoEffect`s, but neither is mono: the Vibrato's delay moves left and right alike, and
+// only the shifter's sine branch is downmixed (see setGlobalFrequencyShifter).
 let _globalVibrato: Tone.Vibrato | null = null;
 let _globalFrequencyShifter: Tone.FrequencyShifter | null = null;
 // The Width stage, between the Compressor and the Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
@@ -894,7 +895,7 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
 }
 
 /** Vibrato (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are the LFO's Signals; the Mix is
- *  tapered like Colour's. `rate` arrives already resolved to Hz. The node is mono: it sums the stereo chain. */
+ *  tapered like Colour's. `rate` arrives already resolved to Hz. Stereo: one LFO moves one delay for both channels. */
 export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>): void {
   const vibrato = _globalVibrato;
   if (!vibrato) return;
@@ -911,7 +912,10 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
 }
 
 /** Frequency Shifter (docs/specs/GLOBAL_PEDALS.md §1.3). `shift` is Tone's signed `frequency` Signal, clamped into
- *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's. */
+ *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's. Half mono: Tone negates the sine
+ *  branch into `Add.addend`, an AudioParam, which the browser downmixes, while the cosine branch stays stereo. A centred
+ *  voice shifts cleanly; a hard-panned one leaks the other sideband at a third of the wanted one and puts both, at a
+ *  quarter level, in the far channel (measured, docs/specs/GLOBAL_PEDALS.md §8). */
 export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettings>): void {
   const shifter = _globalFrequencyShifter;
   if (!shifter) return;

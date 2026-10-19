@@ -174,7 +174,7 @@ export interface TremoloSettings {
   sync?: NoteValue;
 }
 
-/** Vibrato: Tone.Vibrato, an LFO-swept short delay (pitch wobble). Mono: it sums the stereo chain. */
+/** Vibrato: Tone.Vibrato, an LFO-swept short delay (pitch wobble). Stereo: one delay moves left and right alike. */
 export interface VibratoSettings {
   /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`; the Free value, read through resolveSyncedRateHz(). */
   rate: number;
@@ -186,7 +186,8 @@ export interface VibratoSettings {
   sync?: NoteValue;
 }
 
-/** Frequency Shifter: Tone.FrequencyShifter, single-sideband ring modulation. Mono. */
+/** Frequency Shifter: Tone.FrequencyShifter, single-sideband ring modulation. Clean on a centred voice; a panned one
+ *  leaks the other sideband, because Tone downmixes the sine branch (docs/specs/GLOBAL_PEDALS.md §8). */
 export interface FrequencyShifterSettings {
   /** Hz (-1000 - 1000), signed. Tone's `frequency`: every partial moves by the same Hz. */
   shift: number;

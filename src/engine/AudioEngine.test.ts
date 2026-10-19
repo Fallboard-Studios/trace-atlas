@@ -190,7 +190,7 @@ vi.mock('tone', () => ({
     depth: { value: 0.5, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
-  // Global Pedals T5: the two mono pedals. The Vibrato starts itself (its `start` must stay uncalled).
+  // Global Pedals T5: the two plain Effects. The Vibrato starts itself (its `start` must stay uncalled).
   Vibrato: vi.fn((opts: { frequency?: number; depth?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
