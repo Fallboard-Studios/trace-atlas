@@ -187,7 +187,23 @@ describe('generateGlobalAudioSettings', () => {
     // Global Modulation: the two pedal Mix rows are absent for the same reason - a dark pedal seeds wet 0 (they are
     // pinned by the pedal tests below). The eleven pedal shape rows are in valueByKey above.
     const PEDAL_WET_ROWS = 2;
-    expect(sampledKeys.length).toBe(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length - 2 - COLOUR_WET_ROWS - PEDAL_WET_ROWS);
+    // Global Pedals T2: the four motion-pedal Mix rows are absent for the same reason (a dark pedal seeds wet 0), and
+    // the shift row because it is a MAGNITUDE band - the seeded shift is signed, so half of all worlds sit outside it
+    // (pinned by the T8 shifter tests instead).
+    const MOTION_WET_ROWS = 4;
+    const SHIFT_MAGNITUDE_ROW = 1;
+    // T1's placeholder seeder returns the dry defaults for the five new blocks (tremolo.rate's default 10 Hz lies
+    // outside its lit band), so their eleven remaining rows join valueByKey when T8's draws land. T8 deletes this line.
+    const PEDAL_ROWS_UNTIL_T8 = 11;
+    expect(sampledKeys.length).toBe(
+      Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length -
+        2 -
+        COLOUR_WET_ROWS -
+        PEDAL_WET_ROWS -
+        MOTION_WET_ROWS -
+        SHIFT_MAGNITUDE_ROW -
+        PEDAL_ROWS_UNTIL_T8,
+    );
     for (const key of sampledKeys) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);

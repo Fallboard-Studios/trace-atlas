@@ -84,4 +84,27 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   'phaser.stages': { min: 4, max: 12 },
   'phaser.Q': { min: 1, max: 10 },
   'phaser.wet': { min: 0.15, max: 0.4 },
+
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md assumption 6): the bands a LIT motion pedal draws from, placeholders
+  // for Crawford's listen (plan T16). A dark pedal keeps its shape values from the same bands and a `wet` of 0. Each
+  // Mix band is the pedal's own and goes through the same colourWetGain taper.
+  'chorus.rate': { min: 0.2, max: 2 },
+  'chorus.delayTime': { min: 2, max: 8 },
+  'chorus.depth': { min: 0.3, max: 0.7 },
+  'chorus.spread': { min: 90, max: 180 },
+  'chorus.feedback': { min: 0, max: 0.2 },
+  'chorus.wet': { min: 0.15, max: 0.4 },
+  'tremolo.rate': { min: 0.5, max: 6 },
+  'tremolo.depth': { min: 0.3, max: 0.7 },
+  'tremolo.spread': { min: 90, max: 180 },
+  'tremolo.wet': { min: 0.2, max: 0.5 },
+  'vibrato.rate': { min: 2, max: 7 },
+  'vibrato.depth': { min: 0.05, max: 0.3 },
+  'vibrato.wet': { min: 0.2, max: 0.5 },
+  // A MAGNITUDE band: the seeder draws the sign separately (`globalAudio.frequencyShifter.sign`), so a seeded shift is
+  // ±(2 - 20) Hz and never inside ±2 Hz.
+  'frequencyShifter.shift': { min: 2, max: 20 },
+  'frequencyShifter.wet': { min: 0.1, max: 0.3 },
+  // Never near 0: the mono fold is a hand setting only. The widener has no dark state.
+  'stereoWidener.width': { min: 0.4, max: 0.65 },
 };

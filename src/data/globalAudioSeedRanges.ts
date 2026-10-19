@@ -63,6 +63,22 @@ export type GlobalAudioSeedFieldKey =
   | 'phaser.stages'
   | 'phaser.Q'
   | 'phaser.wet'
+  | 'chorus.rate'
+  | 'chorus.delayTime'
+  | 'chorus.depth'
+  | 'chorus.spread'
+  | 'chorus.feedback'
+  | 'chorus.wet'
+  | 'tremolo.rate'
+  | 'tremolo.depth'
+  | 'tremolo.spread'
+  | 'tremolo.wet'
+  | 'vibrato.rate'
+  | 'vibrato.depth'
+  | 'vibrato.wet'
+  | 'frequencyShifter.shift'
+  | 'frequencyShifter.wet'
+  | 'stereoWidener.width'
   | 'limiter.threshold';
 
 // V2: Chorus (rate/depth/delayTime/feedback/wet) removed entirely — the
@@ -122,6 +138,27 @@ export const GLOBAL_AUDIO_SEED_RANGES: Record<GlobalAudioSeedFieldKey, SeedRange
   'phaser.stages': { min: 1, max: 12, scale: 'linear', step: 1 },
   'phaser.Q': { min: 0.5, max: 20, scale: 'log' },
   'phaser.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md assumption 5). Not the V2 Chorus: a new dry-by-default pedal after the
+  // Phaser. The three synced rates mirror PEDAL_RATE_RANGE_HZ / PEDAL_RATE_STEP_HZ (src/types/globalAudio.ts) and are
+  // linear because TempoSyncSlider takes a linear schema. `frequencyShifter.shift` is signed (Tone's `frequency`);
+  // `stereoWidener.width` 0.5 is unity. None of these is LFO-able, so no LfoTarget reads them.
+  'chorus.rate': { min: 0.05, max: 10, scale: 'linear', step: 0.05 },
+  'chorus.delayTime': { min: 1, max: 20, scale: 'linear', step: 0.5 },
+  'chorus.depth': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'chorus.spread': { min: 0, max: 180, scale: 'linear', step: 5 },
+  'chorus.feedback': { min: 0, max: 0.9, scale: 'linear', step: 0.01 },
+  'chorus.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'tremolo.rate': { min: 0.05, max: 10, scale: 'linear', step: 0.05 },
+  'tremolo.depth': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'tremolo.spread': { min: 0, max: 180, scale: 'linear', step: 5 },
+  'tremolo.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'vibrato.rate': { min: 0.05, max: 10, scale: 'linear', step: 0.05 },
+  'vibrato.depth': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'vibrato.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'frequencyShifter.shift': { min: -1000, max: 1000, scale: 'linear', step: 1 },
+  'frequencyShifter.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  'stereoWidener.width': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   'limiter.threshold': { min: -20, max: 0, scale: 'linear', step: 1 },
 };

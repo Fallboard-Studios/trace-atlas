@@ -54,7 +54,26 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'phaser.stages': { min: 4, max: 12 },
   'phaser.Q': { min: 1, max: 10 },
   'phaser.wet': { min: 0.15, max: 0.4 },
+  // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md assumption 6): the lit bands, placeholders tuned by ear at T16.
+  'chorus.rate': { min: 0.2, max: 2 },
+  'chorus.delayTime': { min: 2, max: 8 },
+  'chorus.depth': { min: 0.3, max: 0.7 },
+  'chorus.spread': { min: 90, max: 180 },
+  'chorus.feedback': { min: 0, max: 0.2 },
+  'chorus.wet': { min: 0.15, max: 0.4 },
+  'tremolo.rate': { min: 0.5, max: 6 },
+  'tremolo.depth': { min: 0.3, max: 0.7 },
+  'tremolo.spread': { min: 90, max: 180 },
+  'tremolo.wet': { min: 0.2, max: 0.5 },
+  'vibrato.rate': { min: 2, max: 7 },
+  'vibrato.depth': { min: 0.05, max: 0.3 },
+  'vibrato.wet': { min: 0.2, max: 0.5 },
+  'frequencyShifter.shift': { min: 2, max: 20 },
+  'frequencyShifter.wet': { min: 0.1, max: 0.3 },
+  'stereoWidener.width': { min: 0.4, max: 0.65 },
 };
+
+const MOTION_PEDAL_PREFIXES = ['chorus.', 'tremolo.', 'vibrato.', 'frequencyShifter.'] as const;
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   it('has exactly the same key set as GLOBAL_AUDIO_SEED_RANGES — no more, no fewer', () => {
@@ -152,6 +171,52 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
 
   it('keeps every lit pedal field a real band: the wide fields are never a single point', () => {
     for (const key of ['autoWah.baseFrequency', 'autoWah.Q', 'autoWah.follower', 'phaser.rate', 'phaser.baseFrequency', 'phaser.Q'] as const) {
+      const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+      expect(max / min, key).toBeGreaterThan(1.5);
+    }
+  });
+
+  // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md assumption 6).
+  it('keeps every motion pedal Mix band above zero, so a lit pedal is always audible', () => {
+    for (const key of ['chorus.wet', 'tremolo.wet', 'vibrato.wet', 'frequencyShifter.wet'] as const) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].min, key).toBeGreaterThan(0);
+    }
+  });
+
+  it('seeds the shift as a magnitude band strictly above zero, inside the signed full range on the positive side', () => {
+    const band = GLOBAL_AUDIO_LOADING_RANGES['frequencyShifter.shift'];
+    const full = GLOBAL_AUDIO_SEED_RANGES['frequencyShifter.shift'];
+    expect(band).toStrictEqual({ min: 2, max: 20 });
+    expect(band.min).toBeGreaterThan(0);
+    // The sign is a separate draw, so the negated band must fit inside the full range too.
+    expect(-band.max).toBeGreaterThanOrEqual(full.min);
+    expect(full.min).toBeLessThan(0);
+  });
+
+  it('never seeds the widener near a mono fold: the width band starts above zero and contains unity (0.5)', () => {
+    const band = GLOBAL_AUDIO_LOADING_RANGES['stereoWidener.width'];
+    expect(band.min).toBeGreaterThan(0);
+    expect(band.min).toBeLessThanOrEqual(0.5);
+    expect(band.max).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('puts both loading edges of every stepped Global Pedals field on its full range grid', () => {
+    const keys = (Object.keys(GLOBAL_AUDIO_SEED_RANGES) as GlobalAudioSeedFieldKey[]).filter(
+      (key) => MOTION_PEDAL_PREFIXES.some((prefix) => key.startsWith(prefix)) || key.startsWith('stereoWidener.'),
+    );
+    expect(keys).toHaveLength(16);
+    for (const key of keys) {
+      const { min: fullMin, step } = GLOBAL_AUDIO_SEED_RANGES[key];
+      expect(step, key + ' step').toBeDefined();
+      for (const edge of ['min', 'max'] as const) {
+        const stepsFromMin = (GLOBAL_AUDIO_LOADING_RANGES[key][edge] - fullMin) / (step as number);
+        expect(Math.abs(stepsFromMin - Math.round(stepsFromMin)), key + ' ' + edge).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it('keeps every lit pedal rate band a real band, never a single point', () => {
+    for (const key of ['chorus.rate', 'tremolo.rate', 'vibrato.rate'] as const) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(max / min, key).toBeGreaterThan(1.5);
     }
