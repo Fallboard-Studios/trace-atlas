@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { SYNCED_RATE_KEYS, useAudioStore, type SyncedRateKey } from '@/stores/audioStore';
+import { isSyncedRateKey, useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -52,9 +52,6 @@ const REVERB_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.reverb.top
 
 /** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
 const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
-
-/** The blocks whose `rate` row is a Free | Sync TempoSyncSlider: the store's synced-rate keys (docs/specs/GLOBAL_PEDALS.md §1.6). */
-const SYNCED_RATE_BLOCKS: ReadonlySet<AudioRigEffectKey> = new Set<AudioRigEffectKey>(SYNCED_RATE_KEYS);
 
 const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   eq3: 'spectral',
@@ -230,7 +227,8 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // The synced-rate pedals' Rate takes the same rail (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6, generalised by
   // docs/specs/GLOBAL_PEDALS.md §1.6 from the Phaser to the Chorus, Tremolo and Vibrato): this block's own `sync`
   // selector, and the one `bpm` selector shared with the Delay's, so only these panels re-render on a tempo change.
-  const syncedRateKey = SYNCED_RATE_BLOCKS.has(effectKey) ? (effectKey as SyncedRateKey) : null;
+  // The blocks whose `rate` row is a Free | Sync TempoSyncSlider: the store's synced-rate keys (GLOBAL_PEDALS.md §1.6).
+  const syncedRateKey = isSyncedRateKey(effectKey) ? effectKey : null;
   const hasSyncedRate = syncedRateKey !== null;
   const delaySync = useAudioStore((s) => (isDelay ? s.globalAudio.delay.sync : undefined));
   const rateSync = useAudioStore((s) => (syncedRateKey ? s.globalAudio[syncedRateKey].sync : undefined));

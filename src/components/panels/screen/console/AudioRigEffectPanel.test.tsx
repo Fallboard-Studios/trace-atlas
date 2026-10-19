@@ -1850,7 +1850,7 @@ describe('AudioRigEffectPanel', () => {
   });
 
   // docs/specs/GLOBAL_PEDALS.md §1.6, docs/tasks/GLOBAL_PEDALS.md Task 11: the Chorus, Tremolo and Vibrato Rate rows
-  // take the Phaser's Free | Sync rail through one generalised branch (SYNCED_RATE_BLOCKS), all four on the shared
+  // take the Phaser's Free | Sync rail through one generalised branch (isSyncedRateKey), all four on the shared
   // PEDAL_RATE_RANGE_HZ. Tested against the REAL store, as the Phaser's is, so a wrong key shows up as wrong state.
   describe.each([
     {

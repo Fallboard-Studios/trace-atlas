@@ -149,7 +149,7 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ['setGlobalFrequencyShifter', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalFrequencyShifter\(params: Partial<FrequencyShifterSettings>\): void/],
     ['setGlobalStereoWidener', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalStereoWidener\(params: Partial<StereoWidenerSettings>\): void/],
     ['the dry chain: the motion pedals after the Phaser, Width between the Compressor and the Limiter', 'src/engine/audioEngine/globalFx.ts', /const chainNodes = \[[^\]]*_globalPhaser,\s*_globalChorus,\s*_globalTremolo,\s*_globalVibrato,\s*_globalFrequencyShifter,[^\]]*_globalCompressor,\s*_globalStereoWidener,\s*_globalLimiter,/],
-    ['the Controlled-Decay join is the widener, the Limiter its fallback', 'src/engine/audioEngine/globalFx.ts', /controlledDecay \? \(_globalStereoWidener \?\? _globalLimiter\) : _globalCompressor/],
+    ['the Controlled-Decay join is the widener, the Limiter its fallback', 'src/engine/audioEngine/globalFx.ts', /const join = \(controlledDecay \? _globalStereoWidener : _globalCompressor\) \?\? _globalLimiter \?\? _globalCompressor;/],
     ...PEDALS.map((key): [string, string, RegExp] => [
       `AudioEngine exposes ${SETTER[key][1]}`,
       'src/engine/AudioEngine.ts',
@@ -181,7 +181,9 @@ describe('the named Global Pedals symbols are declared where the spec says they 
       new RegExp(`const AUDIO_RIG_EFFECT_TRAIT[^=]*=\\s*\\{[^}]*\\b${key}: 'spectral',`),
     ]),
     ['no new trait: stereoWidener wears output', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const AUDIO_RIG_EFFECT_TRAIT[^=]*=\s*\{[^}]*\bstereoWidener: 'output',/],
-    ['SYNCED_RATE_BLOCKS is the store keys', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const SYNCED_RATE_BLOCKS: ReadonlySet<AudioRigEffectKey> = new Set<AudioRigEffectKey>\(SYNCED_RATE_KEYS\);/],
+    // The 2026-10-18 review replaced the drawer's own SYNCED_RATE_BLOCKS set (and its cast) with the store's guard.
+    ['isSyncedRateKey on the store', 'src/stores/audioStore.ts', /export function isSyncedRateKey\(key: string\): key is SyncedRateKey/],
+    ['the drawer branches on isSyncedRateKey', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const syncedRateKey = isSyncedRateKey\(effectKey\) \? effectKey : null;/],
     ['FLEET_PARAMS_SUBSECTIONS.modulation, the six pedals in chain order', 'src/components/panels/screen/nav/navActions.ts', /\bmodulation: \[[^\]]*'autoWah'[^\]]*'phaser'[^\]]*'chorus'[^\]]*'tremolo'[^\]]*'vibrato'[^\]]*'frequencyShifter'/],
     ['FLEET_PARAMS_SUBSECTIONS.output, Width between the Compressor and the Limiter', 'src/components/panels/screen/nav/navActions.ts', /\boutput: \[[^\]]*'compressor'[^\]]*'stereoWidener'[^\]]*'limiter'/],
   ];

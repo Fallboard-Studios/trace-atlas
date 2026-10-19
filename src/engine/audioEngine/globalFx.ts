@@ -464,9 +464,9 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
       }
     }
 
-    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped.
-    const join =
-      (controlledDecay ? (_globalStereoWidener ?? _globalLimiter) : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
+    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped. Without a widener the
+    // Controlled join falls through to the Limiter, as it was before the widener existed.
+    const join = (controlledDecay ? _globalStereoWidener : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
     if (join) {
       _globalReverb?.connect(_globalReverbReturn ?? join);
       _globalReverbReturn?.connect(join);

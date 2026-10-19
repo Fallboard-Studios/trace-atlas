@@ -78,6 +78,11 @@ function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
 export const SYNCED_RATE_KEYS = ['phaser', 'chorus', 'tremolo', 'vibrato'] as const;
 export type SyncedRateKey = (typeof SYNCED_RATE_KEYS)[number];
 
+/** Whether `key` names a synced-rate block, narrowing it to SyncedRateKey (the drawer's Rate-row branch). */
+export function isSyncedRateKey(key: string): key is SyncedRateKey {
+  return (SYNCED_RATE_KEYS as readonly string[]).includes(key);
+}
+
 /** What a synced-rate block's engine setter takes: Hz only, never a `sync`. */
 type EngineRateBlock<K extends SyncedRateKey> = Partial<Omit<GlobalAudioSettings[K], 'sync'>>;
 

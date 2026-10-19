@@ -1498,6 +1498,14 @@ describe('useAudioStore - Global Pedals sync (Global Pedals T7)', () => {
     expect([...SYNCED_RATE_KEYS]).toStrictEqual(['phaser', 'chorus', 'tremolo', 'vibrato']);
   });
 
+  it('isSyncedRateKey is true for exactly those four keys, and false for every other effect key and for junk', async () => {
+    const { isSyncedRateKey, SYNCED_RATE_KEYS } = await import('./audioStore');
+    for (const key of SYNCED_RATE_KEYS) expect(isSyncedRateKey(key), key).toBe(true);
+    for (const key of ['autoWah', 'frequencyShifter', 'stereoWidener', 'delay', 'reverb', 'eq3', 'limiter', '', 'Phaser', 'rate']) {
+      expect(isSyncedRateKey(key), key).toBe(false);
+    }
+  });
+
   describe.each(PEDALS)('setGlobalAudio(%s, ...)', (pedal) => {
     it('a sync partial pushes the resolved Hz - 1/4 is 1 Hz at 60 BPM - with no sync key, and stores the note', async () => {
       const { useAudioStore, AudioEngine } = await setup({}, 60);
