@@ -97,6 +97,54 @@ export function colourWetGain(mix: number): number {
   return mix * mix;
 }
 
+// ========================================
+// BYPASS CELLS (docs/specs/DARK_EFFECT_BYPASS.md section 1.1)
+// ========================================
+/** The ten global effects that sit in a bypass cell and leave the signal path while dark. */
+export type BypassKey =
+  | 'distortion'
+  | 'chebyshev'
+  | 'bitCrusher'
+  | 'autoWah'
+  | 'phaser'
+  | 'chorus'
+  | 'tremolo'
+  | 'vibrato'
+  | 'frequencyShifter'
+  | 'stereoWidener';
+
+/** One effect's bypass cell: `in` -> `dry` -> `cut`, and `in` -> effect -> `wet` -> `cut`. The effect's two edges
+ *  exist only while it is lit, and are made and broken only while `wet` is at zero. */
+export type Cell = {
+  in: Tone.Gain;
+  dry: Tone.Gain;
+  wet: Tone.Gain;
+  cut: Tone.Delay;
+  /** The Phaser's is replaced by its rebuild. */
+  effect: Tone.ToneAudioNode | null;
+  /** The two effect edges are present. */
+  connected: boolean;
+  /** The law's input: colourWetGain(wet), or Width's f (0 or 1). */
+  mix: number;
+  /** The pending Tone.getContext().setTimeout id of a darken's disconnect. */
+  darken: number | null;
+};
+
+/** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
+ *  a cell at cellGains(w) sounds exactly as the bare effect at wet w. Tone 15's CrossFade (component/channel/CrossFade.js)
+ *  feeds a constant 1 through a mono StereoPanner at pan 2·fade − 1 and splits it into the two gains, which is the
+ *  Web Audio equal-power pan: cos(fade·π/2) for the dry input and sin(fade·π/2) for the wet. Spec assumption 2. */
+export function cellGains(w: number): { dry: number; wet: number } {
+  return { dry: Math.cos((w * Math.PI) / 2), wet: Math.sin((w * Math.PI) / 2) };
+}
+
+/** The StereoWidener's cell gains for its fade `f` (0-1). At width 0.5 the widener passes its input unchanged, so both
+ *  paths carry the same signal and a linear fade keeps the sum constant; an equal-power fade would swell it by up to
+ *  √2 mid-crossing. Spec assumption 5. */
+export function widthCellGains(f: number): { dry: number; wet: number } {
+  return { dry: 1 - f, wet: f };
+}
+
 /** `value` clamped into the field's full range, or undefined when it is not a finite number. A saved session or a
  *  share link is untrusted input: an out-of-range colour value must not reach a node (an order of 1e9 would stall
  *  the shaper-map build) and NaN must not be written at all. */
@@ -901,6 +949,9 @@ function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, d
  */
 const SPREAD_DUCK_SECONDS = 0.02;
 const SPREAD_WRITE_MARGIN_SECONDS = 0.01;
+/** A darkening cell disconnects its effect once lookAhead + the Mix ramp + this margin has passed, so the wet gain has
+ *  reached zero on the audio thread first (the Spread write's margin, for the same reason). Dark-Effect Bypass §1.2. */
+export const BYPASS_DISCONNECT_MARGIN_SECONDS = 0.01;
 type SpreadPedal = 'chorus' | 'tremolo';
 type SpreadNode = { spread: number; wet: { rampTo?: (value: number, rampTime: number) => void; value: unknown } };
 /** The Mix gain (already tapered) each Spread pedal's node was last given: what a duck ramps back to. 0 = dry. */
