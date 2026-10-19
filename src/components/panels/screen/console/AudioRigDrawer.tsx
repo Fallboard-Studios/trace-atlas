@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useAudioStore } from '@/stores/audioStore';
+import { SYNCED_RATE_KEYS, useAudioStore, type SyncedRateKey } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -11,7 +11,7 @@ import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
 import { TempoSyncSlider } from '@/components/ui/controls/TempoSyncSlider';
 import type { NoteValue } from '@/data/noteValues';
-import { allowedDelayNoteValues, allowedPhaserNoteValues } from '@/utils/tempoSync';
+import { allowedDelayNoteValues, allowedRateNoteValues } from '@/utils/tempoSync';
 import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
@@ -23,7 +23,7 @@ import { getTraitColorStyle } from '@/utils/traitColors';
 import { cancelSwellForGlobalField, isGlobalTargetSwelling } from '@/systems/audioSwells';
 import type { Trait } from '@/types/traits';
 import type { DirectionalPanelSchema, LfoLinkSchema, LfoLinkValue, SliderLinearSchema } from '@/types/controls';
-import type { GlobalAudioSettings } from '@/types/globalAudio';
+import { PEDAL_RATE_RANGE_HZ, type GlobalAudioSettings } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 import './AudioRigDrawer.css';
 
@@ -52,6 +52,9 @@ const REVERB_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.reverb.top
 
 /** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
 const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
+
+/** The blocks whose `rate` row is a Free | Sync TempoSyncSlider: the store's synced-rate keys (docs/specs/GLOBAL_PEDALS.md §1.6). */
+const SYNCED_RATE_BLOCKS: ReadonlySet<AudioRigEffectKey> = new Set<AudioRigEffectKey>(SYNCED_RATE_KEYS);
 
 const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   eq3: 'spectral',
@@ -224,25 +227,34 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // conditional-selector shape compressorBeforeDelay uses. Off the Delay panel both return a constant, so
   // a tempo change re-renders no other effect's panel.
   const isDelay = effectKey === 'delay';
-  // The Phaser's Rate takes the same rail (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6): its own `sync` selector,
-  // and the one `bpm` selector shared with the Delay's, so only these two panels re-render on a tempo change.
-  const isPhaser = effectKey === 'phaser';
+  // The synced-rate pedals' Rate takes the same rail (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6, generalised by
+  // docs/specs/GLOBAL_PEDALS.md §1.6 from the Phaser to the Chorus, Tremolo and Vibrato): this block's own `sync`
+  // selector, and the one `bpm` selector shared with the Delay's, so only these panels re-render on a tempo change.
+  const syncedRateKey = SYNCED_RATE_BLOCKS.has(effectKey) ? (effectKey as SyncedRateKey) : null;
+  const hasSyncedRate = syncedRateKey !== null;
   const delaySync = useAudioStore((s) => (isDelay ? s.globalAudio.delay.sync : undefined));
-  const phaserSync = useAudioStore((s) => (isPhaser ? s.globalAudio.phaser.sync : undefined));
-  const bpm = useAudioStore((s) => (isDelay || isPhaser ? s.bpm : 0));
+  const rateSync = useAudioStore((s) => (syncedRateKey ? s.globalAudio[syncedRateKey].sync : undefined));
+  const bpm = useAudioStore((s) => (isDelay || hasSyncedRate ? s.bpm : 0));
   const setDelaySyncMode = useAudioStore((s) => s.setDelaySyncMode);
-  const setPhaserSyncMode = useAudioStore((s) => s.setPhaserSyncMode);
+  const setPedalSyncMode = useAudioStore((s) => s.setPedalSyncMode);
   // Memoized on bpm so TempoSyncSlider's memo and its derived Sync schema both bail on every render that
-  // isn't a tempo change.
+  // isn't a tempo change. The four synced rates share PEDAL_RATE_RANGE_HZ, so they share one list per tempo.
   const delayNoteValues = useMemo(() => (isDelay ? allowedDelayNoteValues(bpm) : NO_NOTE_VALUES), [isDelay, bpm]);
-  const phaserNoteValues = useMemo(() => (isPhaser ? allowedPhaserNoteValues(bpm) : NO_NOTE_VALUES), [isPhaser, bpm]);
+  const rateNoteValues = useMemo(
+    () => (hasSyncedRate ? allowedRateNoteValues(bpm, PEDAL_RATE_RANGE_HZ) : NO_NOTE_VALUES),
+    [hasSyncedRate, bpm],
+  );
   const handleDelaySyncChange = useCallback(
     (note: NoteValue) => setGlobalAudio('delay', { sync: note }),
     [setGlobalAudio],
   );
-  const handlePhaserSyncChange = useCallback(
-    (note: NoteValue) => setGlobalAudio('phaser', { sync: note }),
-    [setGlobalAudio],
+  const handleRateSyncChange = useCallback(
+    (note: NoteValue) => { if (syncedRateKey) setGlobalAudio(syncedRateKey, { sync: note }); },
+    [syncedRateKey, setGlobalAudio],
+  );
+  const handleRateModeChange = useCallback(
+    (synced: boolean) => { if (syncedRateKey) setPedalSyncMode(syncedRateKey, synced); },
+    [syncedRateKey, setPedalSyncMode],
   );
 
   // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — this used to be a plain
@@ -346,21 +358,21 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             </DirectionalPanel>
             {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
           </>
-        ) : block.key === 'phaser' ? (
-          // Rate goes through TempoSyncSlider (Free = Hz, Sync = a note value that follows the Tempo; the toggle
-          // is in a row of its own under the slider, inside this one param-row), first in the block; the other
-          // five rows are plain, in block order. No LfoLink on any of them: the Phaser is not an LFO target.
+        ) : hasSyncedRate ? (
+          // Phaser, Chorus, Tremolo, Vibrato: Rate goes through TempoSyncSlider (Free = Hz, Sync = a note value that
+          // follows the Tempo; the toggle is in a row of its own under the slider, inside this one param-row), first
+          // in the block; the other rows are plain, in block order. No LfoLink on any of them: no pedal is an LFO target.
           <>
             <div className="audio-rig-drawer__param-row">
               <TempoSyncSlider
-                // Safe cast: audioRigConfig.ts declares rate as a sliderLinear (the Free-mode schema).
+                // Safe cast: audioRigConfig.ts declares every synced rate as a sliderLinear (the Free-mode schema).
                 schema={findParam(block.params, 'rate').schema as SliderLinearSchema}
                 freeValue={effect.rate}
-                syncValue={phaserSync}
-                allowed={phaserNoteValues}
+                syncValue={rateSync}
+                allowed={rateNoteValues}
                 onFreeChange={fieldOnChange.rate}
-                onSyncChange={handlePhaserSyncChange}
-                onModeChange={setPhaserSyncMode}
+                onSyncChange={handleRateSyncChange}
+                onModeChange={handleRateModeChange}
                 swelling={isGlobalTargetSwelling(effectKey, 'rate')}
               />
             </div>
