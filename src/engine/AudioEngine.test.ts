@@ -167,6 +167,29 @@ vi.mock('tone', () => ({
     Q: { value: 10, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Pedals T4: the Chorus and the Tremolo after the Phaser; both need start() (Tone does not start their LFOs).
+  Chorus: vi.fn((opts: { frequency?: number; delayTime?: number; depth?: number; spread?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    delayTime: opts.delayTime ?? 3.5,
+    depth: opts.depth ?? 0.7,
+    spread: opts.spread ?? 180,
+    frequency: { value: opts.frequency ?? 1.5, rampTo: vi.fn() },
+    feedback: { value: 0, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  Tremolo: vi.fn((opts: { frequency?: number; spread?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    spread: opts.spread ?? 180,
+    frequency: { value: opts.frequency ?? 10, rampTo: vi.fn() },
+    depth: { value: 0.5, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -2513,6 +2536,46 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     AudioEngine.setGlobalPhaser({ stages: target });
     expect(Tone.Phaser).toHaveBeenCalledTimes(before + 1);
     expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: target, octaves: 4, frequency: 2 });
+  });
+});
+
+// Global Pedals T4 (docs/specs/GLOBAL_PEDALS.md §1.3): start() builds one Chorus and one Tremolo and starts their LFOs;
+// their setters are on the public AudioEngine surface beside setGlobalPhaser.
+describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+  it('constructs exactly one of each and starts each LFO once', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Chorus).mockClear();
+    vi.mocked(Tone.Tremolo).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.Chorus).toHaveBeenCalledTimes(1);
+    expect(Tone.Tremolo).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Chorus).start).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Tremolo).start).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes setGlobalChorus and setGlobalTremolo', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalChorus).toBe('function');
+    expect(typeof AudioEngine.setGlobalTremolo).toBe('function');
+  });
+
+  it('routes each public setter to its live node', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalChorus({ delayTime: 7, rate: 1.25 });
+    AudioEngine.setGlobalTremolo({ spread: 30, wet: 1 });
+    expect(last(Tone.Chorus).delayTime).toBe(7);
+    expect(last(Tone.Chorus).frequency.rampTo).toHaveBeenCalledWith(1.25, 0.05);
+    expect(last(Tone.Tremolo).spread).toBe(30);
+    expect(last(Tone.Tremolo).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
   });
 });
 

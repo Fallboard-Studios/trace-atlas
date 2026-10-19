@@ -45,6 +45,44 @@ const toneFlags = vi.hoisted(() => ({
       wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
     }),
   ),
+  // Global Pedals T4 (docs/specs/GLOBAL_PEDALS.md section 1.3): the Chorus and the Tremolo, hoisted for one call
+  // history and a switch to hide each. Both are Tone LFOEffects whose constructor does NOT start the LFOs, so `start`
+  // is a spy. Chorus: `frequency` and `feedback` are Signals, `delayTime` / `depth` / `spread` plain setters.
+  // Tremolo: `frequency` and `depth` are Signals, `spread` a plain setter. `wet` is a Signal on both.
+  chorusAbsent: false,
+  chorusCtor: vi.fn(
+    (opts: { frequency?: number; delayTime?: number; depth?: number; spread?: number; feedback?: number; wet?: number } = {}) => {
+      const node = {
+        connect: vi.fn().mockReturnThis(),
+        disconnect: vi.fn(),
+        toDestination: vi.fn(),
+        start: vi.fn(),
+        delayTime: opts.delayTime ?? 3.5,
+        depth: opts.depth ?? 0.7,
+        spread: opts.spread ?? 180,
+        frequency: { value: opts.frequency ?? 1.5, rampTo: vi.fn() },
+        feedback: { value: opts.feedback ?? 0, rampTo: vi.fn() },
+        wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+      };
+      node.start.mockReturnValue(node);
+      return node;
+    },
+  ),
+  tremoloAbsent: false,
+  tremoloCtor: vi.fn((opts: { frequency?: number; depth?: number; spread?: number; wet?: number } = {}) => {
+    const node = {
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+      toDestination: vi.fn(),
+      start: vi.fn(),
+      spread: opts.spread ?? 180,
+      frequency: { value: opts.frequency ?? 10, rampTo: vi.fn() },
+      depth: { value: opts.depth ?? 0.5, rampTo: vi.fn() },
+      wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+    };
+    node.start.mockReturnValue(node);
+    return node;
+  }),
   crusherAbsent: false,
   crusherCtor: vi.fn((opts: { bits?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
@@ -82,6 +120,12 @@ vi.mock('tone', () => ({
   },
   get Phaser() {
     return toneFlags.phaserAbsent ? undefined : toneFlags.phaserCtor;
+  },
+  get Chorus() {
+    return toneFlags.chorusAbsent ? undefined : toneFlags.chorusCtor;
+  },
+  get Tremolo() {
+    return toneFlags.tremoloAbsent ? undefined : toneFlags.tremoloCtor;
   },
   Compressor: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -194,6 +238,8 @@ describe('globalFx', () => {
     toneFlags.crusherAbsent = false;
     toneFlags.wahAbsent = false;
     toneFlags.phaserAbsent = false;
+    toneFlags.chorusAbsent = false;
+    toneFlags.tremoloAbsent = false;
   });
 
   describe('getGlobalChainEntry', () => {
@@ -215,9 +261,10 @@ describe('globalFx', () => {
     expect('getMasterCompressor' in globalFx).toBe(false);
   });
 
-  it('no longer exports setGlobalChorus — Chorus removed entirely from the global chain', async () => {
+  // V2 removed the old Chorus; Global Pedals (docs/specs/GLOBAL_PEDALS.md) brings one back as a pedal after the Phaser.
+  it('exports setGlobalChorus again — the Global Pedals Chorus', async () => {
     const globalFx = await import('./globalFx');
-    expect('setGlobalChorus' in globalFx).toBe(false);
+    expect(typeof globalFx.setGlobalChorus).toBe('function');
   });
 
   it('exports setGlobalLimiter', async () => {
@@ -648,19 +695,20 @@ describe('globalFx', () => {
       });
     });
 
-    it('wires BitCrusher -> AutoWah -> Phaser -> Compressor in Natural Decay, each pedal wired to nothing else', async () => {
+    // Global Pedals T4: the Phaser now hands to the Chorus, the first motion pedal (docs/specs/GLOBAL_PEDALS.md §1.3).
+    it('wires BitCrusher -> AutoWah -> Phaser -> Chorus in Natural Decay, each pedal wired to nothing else', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const crush = lastInstance(toneFlags.crusherCtor);
       const wah = lastInstance(toneFlags.wahCtor);
       const phaser = lastInstance(toneFlags.phaserCtor);
-      const comp = lastInstance(Tone.Compressor);
+      const chorus = lastInstance(toneFlags.chorusCtor);
 
       expect(crush.connect).toHaveBeenCalledWith(wah);
       expect(wah.connect).toHaveBeenCalledTimes(1);
       expect(wah.connect).toHaveBeenCalledWith(phaser);
       expect(phaser.connect).toHaveBeenCalledTimes(1);
-      expect(phaser.connect).toHaveBeenCalledWith(comp);
+      expect(phaser.connect).toHaveBeenCalledWith(chorus);
     });
 
     it('keeps the same slot in Controlled Decay, with the returns joining after it at the Limiter', async () => {
@@ -668,7 +716,7 @@ describe('globalFx', () => {
       globalFx.buildGlobalFxChain();
       const wah = lastInstance(toneFlags.wahCtor);
       const phaser = lastInstance(toneFlags.phaserCtor);
-      const comp = lastInstance(Tone.Compressor);
+      const chorus = lastInstance(toneFlags.chorusCtor);
       const limiter = lastInstance(Tone.Limiter);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
 
@@ -676,7 +724,7 @@ describe('globalFx', () => {
 
       expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenLastCalledWith(wah);
       expect(wah.connect).toHaveBeenLastCalledWith(phaser);
-      expect(phaser.connect).toHaveBeenLastCalledWith(comp);
+      expect(phaser.connect).toHaveBeenLastCalledWith(chorus);
       expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
     });
 
@@ -705,9 +753,11 @@ describe('globalFx', () => {
       expect(() => globalFx.setGlobalAutoWah({ baseFrequency: 200, wet: 1 })).not.toThrow();
     });
 
-    it('wires BitCrusher -> Compressor when neither pedal constructor exists', async () => {
+    it('wires BitCrusher -> Compressor when no Modulation pedal constructor exists', async () => {
       toneFlags.wahAbsent = true;
       toneFlags.phaserAbsent = true;
+      toneFlags.chorusAbsent = true;
+      toneFlags.tremoloAbsent = true;
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
@@ -749,7 +799,7 @@ describe('globalFx', () => {
       });
     });
 
-    it('builds and wires on when the Phaser constructor throws: the AutoWah hands to the Compressor and its setter still works', async () => {
+    it('builds and wires on when the Phaser constructor throws: the AutoWah hands to the Chorus and its setter still works', async () => {
       toneFlags.phaserCtor.mockImplementationOnce(() => {
         throw new Error('no phaser');
       });
@@ -757,7 +807,7 @@ describe('globalFx', () => {
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
       const wah = lastInstance(toneFlags.wahCtor);
-      expect(wah.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(wah.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
       expect(() => globalFx.setGlobalPhaser({ rate: 2, stages: 4, wet: 1 })).not.toThrow();
       globalFx.setGlobalAutoWah({ Q: 5 });
@@ -1046,7 +1096,7 @@ describe('globalFx', () => {
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('disposing'), expect.any(Error));
         const fresh = lastInstance(toneFlags.phaserCtor);
         expect(lastInstance(toneFlags.wahCtor).connect).toHaveBeenLastCalledWith(fresh);
-        expect(fresh.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+        expect(fresh.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
       });
 
       it('treats a fresh build as ten stages again: rebuilding at 6, building the chain anew, then asking for 6 rebuilds', async () => {
@@ -1103,14 +1153,13 @@ describe('globalFx', () => {
         expect(lastInstance(toneFlags.phaserCtor).dispose).not.toHaveBeenCalled();
       });
 
-      it('re-wires the chain so the new node sits between the AutoWah and the Compressor (Natural Decay)', async () => {
+      it('re-wires the chain so the new node sits between the AutoWah and the Chorus (Natural Decay)', async () => {
         const { globalFx } = await built();
         const wah = lastInstance(toneFlags.wahCtor);
-        const comp = lastInstance(Tone.Compressor);
         globalFx.setGlobalPhaser({ stages: 6 });
         const fresh = lastInstance(toneFlags.phaserCtor);
         expect(wah.connect).toHaveBeenLastCalledWith(fresh);
-        expect(fresh.connect).toHaveBeenCalledWith(comp);
+        expect(fresh.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
       });
 
       it('re-wires in the Decay Mode last passed to wireGlobalFxChain: Controlled keeps the returns at the Limiter', async () => {
@@ -1124,7 +1173,7 @@ describe('globalFx', () => {
 
         expect(reverbReturn.connect).toHaveBeenLastCalledWith(limiter);
         expect(delayReturn.connect).toHaveBeenLastCalledWith(limiter);
-        expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+        expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
       });
 
       it('re-wires Natural after a flip back from Controlled', async () => {
@@ -1165,7 +1214,7 @@ describe('globalFx', () => {
         expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
         expect(old.dispose).not.toHaveBeenCalled();
-        expect(old.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
+        expect(old.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.chorusCtor));
 
         globalFx.setGlobalPhaser({ stages: 6 });
         expect(ctorOptions()).toMatchObject({ stages: 6 });
@@ -1200,8 +1249,290 @@ describe('globalFx', () => {
     });
   });
 
+  // ========================================
+  // Global Pedals T4 (docs/specs/GLOBAL_PEDALS.md §1.3): the Chorus and the Tremolo after the Phaser.
+  // ========================================
+  describe('buildGlobalFxChain - the Chorus and the Tremolo (Global Pedals)', () => {
+    it('constructs exactly one of each, dry (wet 0) at Tone defaults', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.chorusCtor).toHaveBeenCalledTimes(1);
+      expect(toneFlags.chorusCtor).toHaveBeenCalledWith({
+        frequency: 1.5,
+        delayTime: 3.5,
+        depth: 0.7,
+        spread: 180,
+        feedback: 0,
+        wet: 0,
+      });
+      expect(toneFlags.tremoloCtor).toHaveBeenCalledTimes(1);
+      expect(toneFlags.tremoloCtor).toHaveBeenCalledWith({ frequency: 10, depth: 0.5, spread: 180, wet: 0 });
+    });
+
+    // Tone's Chorus and Tremolo do not start their LFOs in the constructor: an unstarted one is a fixed delay / a fixed
+    // gain, so a lit Mix would hear no motion (spec assumption 4: the LFOs run always, a dark pedal is Mix 0).
+    it('starts each LFO exactly once at construction', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(lastInstance(toneFlags.chorusCtor).start).toHaveBeenCalledTimes(1);
+      expect(lastInstance(toneFlags.tremoloCtor).start).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not start them again on a Decay Mode flip', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(lastInstance(toneFlags.chorusCtor).start).toHaveBeenCalledTimes(1);
+      expect(lastInstance(toneFlags.tremoloCtor).start).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([false, true])('wires Phaser -> Chorus -> Tremolo -> Compressor with controlledDecay=%s, each wired to one node', async (controlled) => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const phaser = lastInstance(toneFlags.phaserCtor);
+      const chorus = lastInstance(toneFlags.chorusCtor);
+      const tremolo = lastInstance(toneFlags.tremoloCtor);
+      const comp = lastInstance(Tone.Compressor);
+      for (const node of [phaser, chorus, tremolo]) node.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(controlled);
+
+      expect(phaser.connect.mock.calls).toEqual([[chorus]]);
+      expect(chorus.connect.mock.calls).toEqual([[tremolo]]);
+      expect(tremolo.connect.mock.calls).toEqual([[comp]]);
+    });
+
+    it('keeps the rooms off both pedals: no room or return connects to either, nor either to a room or return', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      const pedals = [lastInstance(toneFlags.chorusCtor), lastInstance(toneFlags.tremoloCtor)];
+      const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
+      const returns = rooms.map(returnOf);
+      for (const pedal of pedals) {
+        for (const other of [...rooms, ...returns]) {
+          expect(pedal.connect).not.toHaveBeenCalledWith(other);
+          expect(other.connect).not.toHaveBeenCalledWith(pedal);
+        }
+      }
+    });
+
+    it('disconnects each pedal once per rewire, so a Decay flip never doubles an edge', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const pedals = [lastInstance(toneFlags.chorusCtor), lastInstance(toneFlags.tremoloCtor)];
+      for (const pedal of pedals) pedal.disconnect.mockClear();
+      globalFx.wireGlobalFxChain(true);
+      for (const pedal of pedals) expect(pedal.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('wires Phaser -> Tremolo when the Chorus constructor is absent, and Phaser -> Compressor when both are', async () => {
+      toneFlags.chorusAbsent = true;
+      let globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.tremoloCtor));
+      expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
+
+      vi.resetModules();
+      toneFlags.tremoloAbsent = true;
+      globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(() => globalFx.setGlobalTremolo({ rate: 2, wet: 1 })).not.toThrow();
+    });
+
+    it('builds and wires on when the Chorus constructor throws: the Phaser hands to the Tremolo', async () => {
+      toneFlags.chorusCtor.mockImplementationOnce(() => {
+        throw new Error('no chorus');
+      });
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Chorus'), expect.any(Error));
+      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.tremoloCtor));
+      expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
+    });
+
+    it('builds and wires on when the Tremolo constructor throws: the Chorus hands to the Compressor', async () => {
+      toneFlags.tremoloCtor.mockImplementationOnce(() => {
+        throw new Error('no tremolo');
+      });
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Tremolo'), expect.any(Error));
+      expect(lastInstance(toneFlags.chorusCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+    });
+  });
+
+  describe('setGlobalChorus (Global Pedals)', () => {
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      return { globalFx, chorus: lastInstance(toneFlags.chorusCtor) };
+    }
+
+    it('no-ops silently before the chain is built', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.setGlobalChorus({ rate: 2, delayTime: 5, wet: 1 })).not.toThrow();
+      expect(devWarn).not.toHaveBeenCalled();
+    });
+
+    it('ramps the rate (Tone frequency) and the feedback Signal over 50 ms', async () => {
+      const { globalFx, chorus } = await built();
+      globalFx.setGlobalChorus({ rate: 2.5, feedback: 0.4 });
+      expect(chorus.frequency.rampTo).toHaveBeenCalledWith(2.5, 0.05);
+      expect(chorus.feedback.rampTo).toHaveBeenCalledWith(0.4, 0.05);
+    });
+
+    it('writes delayTime, depth and spread straight to the node (plain setters in Tone)', async () => {
+      const { globalFx, chorus } = await built();
+      globalFx.setGlobalChorus({ delayTime: 6.5, depth: 0.4, spread: 90 });
+      expect(chorus.delayTime).toBe(6.5);
+      expect(chorus.depth).toBe(0.4);
+      expect(chorus.spread).toBe(90);
+    });
+
+    it('ramps the tapered (squared) wet over 50 ms', async () => {
+      const { globalFx, chorus } = await built();
+      globalFx.setGlobalChorus({ wet: 0.5 });
+      expect(chorus.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      globalFx.setGlobalChorus({ wet: 1 });
+      expect(chorus.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('writes only the fields given', async () => {
+      const { globalFx, chorus } = await built();
+      globalFx.setGlobalChorus({});
+      globalFx.setGlobalChorus({ wet: 0.5 });
+      expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([3.5, 0.7, 180]);
+      expect(chorus.frequency.rampTo).not.toHaveBeenCalled();
+      expect(chorus.feedback.rampTo).not.toHaveBeenCalled();
+      expect(chorus.wet.rampTo).toHaveBeenCalledTimes(1);
+    });
+
+    it('clamps every field into its full range at both ends', async () => {
+      const { globalFx, chorus } = await built();
+      globalFx.setGlobalChorus({ rate: 0, delayTime: 0, depth: -1, spread: -10, feedback: -1, wet: -1 });
+      expect(chorus.frequency.rampTo).toHaveBeenLastCalledWith(0.05, 0.05);
+      expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([1, 0, 0]);
+      expect(chorus.feedback.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      expect(chorus.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+
+      globalFx.setGlobalChorus({ rate: 99, delayTime: 99, depth: 9, spread: 999, feedback: 5, wet: 3 });
+      expect(chorus.frequency.rampTo).toHaveBeenLastCalledWith(10, 0.05);
+      expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([20, 1, 180]);
+      // Above 0.9 a feedback loop runs away; the full range stops there.
+      expect(chorus.feedback.rampTo).toHaveBeenLastCalledWith(0.9, 0.05);
+      expect(chorus.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('ignores a non-finite value and still writes the finite fields beside it', async () => {
+      const { globalFx, chorus } = await built();
+      globalFx.setGlobalChorus({
+        rate: Number.NaN,
+        delayTime: Number.POSITIVE_INFINITY,
+        depth: Number.NaN,
+        spread: Number.NEGATIVE_INFINITY,
+        feedback: Number.NaN,
+        wet: 0.6,
+      });
+      expect(chorus.frequency.rampTo).not.toHaveBeenCalled();
+      expect(chorus.feedback.rampTo).not.toHaveBeenCalled();
+      expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([3.5, 0.7, 180]);
+      expect(chorus.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.36, 6), 0.05);
+    });
+
+    it('falls back to a direct value write when the Signals have no rampTo', async () => {
+      const { globalFx, chorus } = await built();
+      chorus.frequency = { value: 1.5 };
+      chorus.feedback = { value: 0 };
+      chorus.wet = { value: 0 };
+      globalFx.setGlobalChorus({ rate: 3, feedback: 0.2, wet: 0.7 });
+      expect(chorus.frequency.value).toBe(3);
+      expect(chorus.feedback.value).toBe(0.2);
+      expect(chorus.wet.value).toBeCloseTo(0.49, 6);
+    });
+
+    it('warns and does not throw when the node throws', async () => {
+      const { globalFx, chorus } = await built();
+      chorus.feedback.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => globalFx.setGlobalChorus({ feedback: 0.3 })).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalChorus failed', expect.any(Error));
+    });
+  });
+
+  describe('setGlobalTremolo (Global Pedals)', () => {
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      return { globalFx, tremolo: lastInstance(toneFlags.tremoloCtor) };
+    }
+
+    it('no-ops silently before the chain is built', async () => {
+      const globalFx = await import('./globalFx');
+      expect(() => globalFx.setGlobalTremolo({ rate: 2, depth: 0.5, wet: 1 })).not.toThrow();
+      expect(devWarn).not.toHaveBeenCalled();
+    });
+
+    it('ramps the rate (Tone frequency) and the depth Signal over 50 ms, and writes spread plain', async () => {
+      const { globalFx, tremolo } = await built();
+      globalFx.setGlobalTremolo({ rate: 4, depth: 0.3, spread: 45 });
+      expect(tremolo.frequency.rampTo).toHaveBeenCalledWith(4, 0.05);
+      expect(tremolo.depth.rampTo).toHaveBeenCalledWith(0.3, 0.05);
+      expect(tremolo.spread).toBe(45);
+    });
+
+    it('ramps the tapered (squared) wet over 50 ms', async () => {
+      const { globalFx, tremolo } = await built();
+      globalFx.setGlobalTremolo({ wet: 0.5 });
+      expect(tremolo.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+    });
+
+    it('writes only the fields given', async () => {
+      const { globalFx, tremolo } = await built();
+      globalFx.setGlobalTremolo({ wet: 0.5 });
+      expect(tremolo.spread).toBe(180);
+      expect(tremolo.frequency.rampTo).not.toHaveBeenCalled();
+      expect(tremolo.depth.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('clamps every field into its full range at both ends', async () => {
+      const { globalFx, tremolo } = await built();
+      globalFx.setGlobalTremolo({ rate: -1, depth: -1, spread: -1, wet: -1 });
+      expect(tremolo.frequency.rampTo).toHaveBeenLastCalledWith(0.05, 0.05);
+      expect(tremolo.depth.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      expect(tremolo.spread).toBe(0);
+      expect(tremolo.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      globalFx.setGlobalTremolo({ rate: 50, depth: 2, spread: 400, wet: 2 });
+      expect(tremolo.frequency.rampTo).toHaveBeenLastCalledWith(10, 0.05);
+      expect(tremolo.depth.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      expect(tremolo.spread).toBe(180);
+      expect(tremolo.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+    });
+
+    it('ignores a non-finite value and still writes the finite fields beside it', async () => {
+      const { globalFx, tremolo } = await built();
+      globalFx.setGlobalTremolo({ rate: Number.NaN, depth: Number.POSITIVE_INFINITY, spread: Number.NaN, wet: 0.4 });
+      expect(tremolo.frequency.rampTo).not.toHaveBeenCalled();
+      expect(tremolo.depth.rampTo).not.toHaveBeenCalled();
+      expect(tremolo.spread).toBe(180);
+      expect(tremolo.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.16, 6), 0.05);
+    });
+
+    it('warns and does not throw when the node throws', async () => {
+      const { globalFx, tremolo } = await built();
+      tremolo.depth.rampTo.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      expect(() => globalFx.setGlobalTremolo({ depth: 0.3 })).not.toThrow();
+      expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalTremolo failed', expect.any(Error));
+    });
+  });
+
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
-    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Compressor -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Compressor -> Limiter -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
@@ -1213,6 +1544,8 @@ describe('globalFx', () => {
       const crushNode = lastInstance(toneFlags.crusherCtor);
       const wahNode = lastInstance(toneFlags.wahCtor);
       const phaserNode = lastInstance(toneFlags.phaserCtor);
+      const chorusNode = lastInstance(toneFlags.chorusCtor);
+      const tremoloNode = lastInstance(toneFlags.tremoloCtor);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -1227,7 +1560,10 @@ describe('globalFx', () => {
       expect(crushNode.connect).not.toHaveBeenCalledWith(compNode);
       expect(wahNode.connect).toHaveBeenCalledWith(phaserNode);
       expect(wahNode.connect).not.toHaveBeenCalledWith(compNode);
-      expect(phaserNode.connect).toHaveBeenCalledWith(compNode);
+      expect(phaserNode.connect).toHaveBeenCalledWith(chorusNode);
+      expect(phaserNode.connect).not.toHaveBeenCalledWith(compNode);
+      expect(chorusNode.connect).toHaveBeenCalledWith(tremoloNode);
+      expect(tremoloNode.connect).toHaveBeenCalledWith(compNode);
       expect(compNode.connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
@@ -1271,7 +1607,7 @@ describe('globalFx', () => {
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Compressor -> Limiter -> masterGain', async () => {
+    it('keeps the same dry chain EQ3 -> LPF -> HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Compressor -> Limiter -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
@@ -1283,6 +1619,8 @@ describe('globalFx', () => {
       const crushNode = lastInstance(toneFlags.crusherCtor);
       const wahNode = lastInstance(toneFlags.wahCtor);
       const phaserNode = lastInstance(toneFlags.phaserCtor);
+      const chorusNode = lastInstance(toneFlags.chorusCtor);
+      const tremoloNode = lastInstance(toneFlags.tremoloCtor);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -1296,7 +1634,9 @@ describe('globalFx', () => {
       expect(chebNode.connect).toHaveBeenLastCalledWith(crushNode);
       expect(crushNode.connect).toHaveBeenLastCalledWith(wahNode);
       expect(wahNode.connect).toHaveBeenLastCalledWith(phaserNode);
-      expect(phaserNode.connect).toHaveBeenLastCalledWith(compNode);
+      expect(phaserNode.connect).toHaveBeenLastCalledWith(chorusNode);
+      expect(chorusNode.connect).toHaveBeenLastCalledWith(tremoloNode);
+      expect(tremoloNode.connect).toHaveBeenLastCalledWith(compNode);
       expect(compNode.connect).toHaveBeenLastCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
     });
@@ -1368,7 +1708,7 @@ describe('globalFx', () => {
       // The dry chain is the same either way; only where the returns rejoin moves.
       expect(reverbReturn.connect).toHaveBeenLastCalledWith(compNode);
       expect(delayReturn.connect).toHaveBeenLastCalledWith(compNode);
-      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenLastCalledWith(compNode);
+      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.chorusCtor));
     });
 
     it('only ever calls disconnect() with no arguments, so a robot send into a room survives every flip', async () => {

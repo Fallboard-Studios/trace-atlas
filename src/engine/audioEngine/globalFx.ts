@@ -16,6 +16,8 @@ import type {
   BitCrusherSettings,
   AutoWahSettings,
   PhaserSettings,
+  ChorusSettings,
+  TremoloSettings,
 } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
@@ -42,6 +44,9 @@ let _globalPhaser: Tone.Phaser | null = null;
 type PhaserLive = Omit<PhaserSettings, 'sync' | 'stages'>;
 let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
 let _phaserLive: PhaserLive = defaultPhaserLive();
+// The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
+let _globalChorus: Tone.Chorus | null = null;
+let _globalTremolo: Tone.Tremolo | null = null;
 // The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
 let _lastControlledDecay = false;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
@@ -148,6 +153,8 @@ export function buildGlobalFxChain(): void {
   const BitCrusherCtor = getToneCtor<Tone.BitCrusher>('BitCrusher');
   const AutoWahCtor = getToneCtor<Tone.AutoWah>('AutoWah');
   const PhaserCtor = getToneCtor<Tone.Phaser>('Phaser');
+  const ChorusCtor = getToneCtor<Tone.Chorus>('Chorus');
+  const TremoloCtor = getToneCtor<Tone.Tremolo>('Tremolo');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -211,6 +218,31 @@ export function buildGlobalFxChain(): void {
       _globalPhaser = null;
     }
   }
+  // Global Pedals: built dry (wet 0) at the stored defaults. Tone's Chorus and Tremolo do NOT start their LFOs in the
+  // constructor, so each is started once here and runs for the chain's life: a dark pedal is Mix 0, not a stopped LFO
+  // (docs/specs/GLOBAL_PEDALS.md assumption 4). A failed construction leaves the slot empty and the chain whole.
+  _globalChorus = null;
+  if (ChorusCtor) {
+    try {
+      const { rate, delayTime, depth, spread, feedback } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus;
+      _globalChorus = new ChorusCtor({ frequency: rate, delayTime, depth, spread, feedback, wet: 0 });
+      _globalChorus.start();
+    } catch (err) {
+      devWarn('[AudioEngine] Chorus could not be constructed; the pedal slot runs without it', err);
+      _globalChorus = null;
+    }
+  }
+  _globalTremolo = null;
+  if (TremoloCtor) {
+    try {
+      const { rate, depth, spread } = DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo;
+      _globalTremolo = new TremoloCtor({ frequency: rate, depth, spread, wet: 0 });
+      _globalTremolo.start();
+    } catch (err) {
+      devWarn('[AudioEngine] Tremolo could not be constructed; the pedal slot runs without it', err);
+      _globalTremolo = null;
+    }
+  }
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -248,6 +280,8 @@ function disconnectAllFxNodes(): void {
     _globalBitCrusher,
     _globalAutoWah,
     _globalPhaser,
+    _globalChorus,
+    _globalTremolo,
     _globalDelay,
     _globalReverb,
     _globalCompressor,
@@ -268,7 +302,7 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Compressor →
+ * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Compressor →
  * Limiter → masterGain → Destination (or straight to Destination if masterGain
  * wasn't constructed). An absent colour or modulation node (headless, or a worklet
  * that failed to construct) is skipped by the filter below, so the chain
@@ -303,6 +337,8 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     _globalBitCrusher,
     _globalAutoWah,
     _globalPhaser,
+    _globalChorus,
+    _globalTremolo,
     _globalCompressor,
     _globalLimiter,
   ].filter(Boolean) as Array<{
@@ -719,6 +755,49 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     if (wet !== undefined) rampOrSet(phaser.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalPhaser failed', err);
+  }
+}
+
+/** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
+ *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms), depth and spread are
+ *  plain setters that recompute the LFOs' range; the Mix is tapered like Colour's. */
+export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
+  const chorus = _globalChorus;
+  if (!chorus) return;
+  try {
+    const rate = clampIfGiven('chorus.rate', params.rate);
+    const delayTime = clampIfGiven('chorus.delayTime', params.delayTime);
+    const depth = clampIfGiven('chorus.depth', params.depth);
+    const spread = clampIfGiven('chorus.spread', params.spread);
+    const feedback = clampIfGiven('chorus.feedback', params.feedback);
+    const wet = clampIfGiven('chorus.wet', params.wet);
+    if (rate !== undefined) rampOrSet(chorus.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (delayTime !== undefined) chorus.delayTime = delayTime;
+    if (depth !== undefined) chorus.depth = depth;
+    if (spread !== undefined) chorus.spread = spread;
+    if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) rampOrSet(chorus.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalChorus failed', err);
+  }
+}
+
+/** Tremolo (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are Signals fanned to both LFOs;
+ *  spread is a plain setter; the Mix is tapered like Colour's. `rate` arrives already resolved to Hz. */
+export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>): void {
+  const tremolo = _globalTremolo;
+  if (!tremolo) return;
+  try {
+    const rate = clampIfGiven('tremolo.rate', params.rate);
+    const depth = clampIfGiven('tremolo.depth', params.depth);
+    const spread = clampIfGiven('tremolo.spread', params.spread);
+    const wet = clampIfGiven('tremolo.wet', params.wet);
+    if (rate !== undefined) rampOrSet(tremolo.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
+    if (spread !== undefined) tremolo.spread = spread;
+    if (wet !== undefined) rampOrSet(tremolo.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalTremolo failed', err);
   }
 }
 

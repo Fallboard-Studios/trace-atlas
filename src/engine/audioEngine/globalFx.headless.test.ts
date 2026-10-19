@@ -24,6 +24,9 @@ vi.mock('tone', () => ({
   // Global Modulation T4: the modulation slot is skipped the same way.
   AutoWah: undefined,
   Phaser: undefined,
+  // Global Pedals T4: the Chorus and the Tremolo are skipped the same way.
+  Chorus: undefined,
+  Tremolo: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({
@@ -64,6 +67,15 @@ describe('globalFx without the room constructors', () => {
     expect(() =>
       globalFx.setGlobalPhaser({ rate: 2, octaves: 4, baseFrequency: 500, stages: 4, Q: 5, wet: 0.5 }),
     ).not.toThrow();
+  });
+
+  it('sets every Chorus and Tremolo field without throwing when neither node exists', async () => {
+    const globalFx = await import('./globalFx');
+    globalFx.buildGlobalFxChain();
+    expect(() =>
+      globalFx.setGlobalChorus({ rate: 2, delayTime: 5, depth: 0.5, spread: 90, feedback: 0.2, wet: 0.5 }),
+    ).not.toThrow();
+    expect(() => globalFx.setGlobalTremolo({ rate: 2, depth: 0.5, spread: 90, wet: 0.5 })).not.toThrow();
   });
 
   it('sets every AutoWah field without throwing when no AutoWah exists', async () => {
