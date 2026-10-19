@@ -21,6 +21,10 @@ import {
   phaserToSync,
   phaserToFree,
   pickSeedNoteValue,
+  resolveSyncedRateHz,
+  allowedRateNoteValues,
+  syncedRateToSync,
+  syncedRateToFree,
 } from './tempoSync';
 import { LFO_BANK_RATE_BANDS } from './globalAudioSeed';
 import {
@@ -43,8 +47,11 @@ import {
 import {
   DELAY_TIME_RANGE_SECONDS,
   DELAY_TIME_STEP_SECONDS,
+  PEDAL_RATE_RANGE_HZ,
+  PEDAL_RATE_STEP_HZ,
   PHASER_RATE_RANGE_HZ,
   PHASER_RATE_STEP_HZ,
+  type ChorusSettings,
   type DelaySettings,
   type PhaserSettings,
 } from '@/types/globalAudio';
@@ -725,6 +732,172 @@ describe('phaserToFree', () => {
     const input = phaser({ sync: nv('1/4') });
     const out = phaserToFree(input, 60);
     expect([out.octaves, out.baseFrequency, out.stages, out.Q, out.wet]).toEqual([3, 350, 10, 10, 0.2]);
+    expect(out).not.toBe(input);
+    expect(input.sync).toEqual(nv('1/4'));
+  });
+});
+
+// ========================================
+// THE GENERIC SYNCED-RATE RAIL — docs/specs/GLOBAL_PEDALS.md §1.5. Tested on a ChorusSettings-shaped object, and
+// mostly on a NARROW range (0.5 - 4 Hz, step 0.25) so a helper that ignored its `range` / `step` argument and used
+// the Phaser's would fail.
+// ========================================
+
+const chorus = (over: Partial<ChorusSettings> = {}): ChorusSettings => ({
+  rate: 1.5,
+  delayTime: 3.5,
+  depth: 0.7,
+  spread: 180,
+  feedback: 0.1,
+  wet: 0.3,
+  ...over,
+});
+
+const NARROW = { min: 0.5, max: 4 } as const;
+const NARROW_STEP = 0.25;
+
+describe('resolveSyncedRateHz', () => {
+  it('passes a Free rate through untouched (the range is a Sync clamp, not a Free one)', () => {
+    expect(resolveSyncedRateHz(chorus({ rate: 2.35 }), 60, NARROW)).toBe(2.35);
+    expect(resolveSyncedRateHz(chorus({ rate: 9 }), 60, NARROW)).toBe(9);
+  });
+
+  it('derives a Sync rate from the note and the tempo, ignoring the stored Free value', () => {
+    expect(resolveSyncedRateHz(chorus({ rate: 3, sync: nv('1/4') }), 60, NARROW)).toBeCloseTo(1, 9);
+    expect(resolveSyncedRateHz(chorus({ rate: 3, sync: nv('1/4') }), 120, NARROW)).toBeCloseTo(2, 9);
+  });
+
+  it('clamps a synced rate into the GIVEN range at both ends', () => {
+    // 1 bar at 60 BPM is 0.25 Hz; 1/32 at 60 BPM is 8 Hz.
+    expect(resolveSyncedRateHz(chorus({ sync: nv('1') }), 60, NARROW)).toBe(NARROW.min);
+    expect(resolveSyncedRateHz(chorus({ sync: nv('1/32') }), 60, NARROW)).toBe(NARROW.max);
+    // The same notes are inside the pedal range, so they are not clamped there.
+    expect(resolveSyncedRateHz(chorus({ sync: nv('1') }), 60, PEDAL_RATE_RANGE_HZ)).toBeCloseTo(0.25, 9);
+    expect(resolveSyncedRateHz(chorus({ sync: nv('1/32') }), 60, PEDAL_RATE_RANGE_HZ)).toBeCloseTo(8, 9);
+  });
+
+  it.each(INVALID_SYNCS)('resolves an invalid sync (%s) as Free', (_name, bad) => {
+    expect(resolveSyncedRateHz(chorus({ rate: 1.7, sync: junk(bad) }), 60, NARROW)).toBe(1.7);
+  });
+});
+
+describe('allowedRateNoteValues', () => {
+  it('runs slowest to fastest in Hz and keeps only notes inside the given range, at several tempos', () => {
+    for (const bpm of [20, 60, 97, 140, 200]) {
+      const list = allowedRateNoteValues(bpm, NARROW);
+      expect(list.length, `bpm ${bpm}`).toBeGreaterThan(0);
+      const hz = list.map((v) => noteValueHz(v, bpm));
+      for (let i = 0; i < hz.length; i++) {
+        expect(hz[i], `${bpm} #${i}`).toBeGreaterThanOrEqual(NARROW.min);
+        expect(hz[i], `${bpm} #${i}`).toBeLessThanOrEqual(NARROW.max);
+        if (i > 0) expect(hz[i]).toBeGreaterThan(hz[i - 1]);
+      }
+    }
+  });
+
+  it('is every allowed note in the range and no other (the narrow list is a strict subset of the pedal one)', () => {
+    const narrow = allowedRateNoteValues(60, NARROW);
+    const wide = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
+    expect(narrow.length).toBeLessThan(wide.length);
+    expect(narrow).toEqual(wide.filter((v) => noteValueHz(v, 60) >= NARROW.min && noteValueHz(v, 60) <= NARROW.max));
+  });
+
+  it('matches the Phaser list over the Phaser range', () => {
+    for (const bpm of [20, 74, 120, 200]) {
+      expect(allowedRateNoteValues(bpm, PHASER_RATE_RANGE_HZ), `bpm ${bpm}`).toEqual(allowedPhaserNoteValues(bpm));
+    }
+  });
+
+  it('is empty when the tempo leaves no note inside the range', () => {
+    expect(allowedRateNoteValues(0.1, NARROW)).toEqual([]);
+  });
+});
+
+describe('syncedRateToSync', () => {
+  it('snaps to the nearest note INSIDE the given range: 0.3 Hz at 60 BPM is 1/2 (0.5 Hz) here, not 1/2 dotted', () => {
+    expect(syncedRateToSync(chorus({ rate: 0.3 }), 60, NARROW).sync).toEqual(nv('1/2'));
+    expect(syncedRateToSync(chorus({ rate: 0.3 }), 60, PEDAL_RATE_RANGE_HZ).sync).toEqual(nv('1/2', 'dotted'));
+  });
+
+  it('keeps rate underneath and every other field, returns a new object, does not mutate its input', () => {
+    const input = chorus({ rate: 1 });
+    const out = syncedRateToSync(input, 60, NARROW);
+    expect(out.sync).toEqual(nv('1/4'));
+    expect({ ...out, sync: undefined }).toEqual({ ...input, sync: undefined });
+    expect(out).not.toBe(input);
+    expect('sync' in input).toBe(false);
+  });
+
+  it('returns an already-synced object as a copy on the same note: its stored rate is stale, not a request', () => {
+    const input = chorus({ rate: 3.9, sync: nv('1/4', 'dotted') });
+    const out = syncedRateToSync(input, 60, NARROW);
+    expect(out).toEqual(input);
+    expect(out).not.toBe(input);
+  });
+
+  it('treats an invalid sync as Free and snaps from rate', () => {
+    expect(syncedRateToSync(chorus({ rate: 1, sync: junk('off') }), 60, NARROW).sync).toEqual(nv('1/4'));
+  });
+
+  it('only ever picks an allowed note, whatever the rate and tempo', () => {
+    for (const bpm of [20, 77, 120, 200]) {
+      for (const rate of [0.05, 0.5, 1.35, 4, 10]) {
+        const out = syncedRateToSync(chorus({ rate }), bpm, NARROW).sync as NoteValue;
+        expect(allowedRateNoteValues(bpm, NARROW).some((v) => noteValueEquals(v, out)), `${rate} Hz at ${bpm}`).toBe(true);
+      }
+    }
+  });
+
+  it('always yields a real note, even when the tempo leaves nothing allowed (never throws)', () => {
+    expect(isNoteValue(syncedRateToSync(chorus(), 0.1, NARROW).sync)).toBe(true);
+  });
+});
+
+describe('syncedRateToFree', () => {
+  it('keeps the heard Hz quantised onto the GIVEN step from the range minimum: 1/4 dotted at 60 BPM (0.667 Hz) -> 0.75', () => {
+    const out = syncedRateToFree(chorus({ rate: 3, sync: nv('1/4', 'dotted') }), 60, NARROW, NARROW_STEP);
+    expect(out.rate).toBe(0.75);
+    expect('sync' in out).toBe(false);
+  });
+
+  it('on the pedal range and step the same note lands on 0.65, as the Phaser does', () => {
+    const out = syncedRateToFree(chorus({ sync: nv('1/4', 'dotted') }), 60, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ);
+    expect(out.rate).toBe(0.65);
+  });
+
+  it('never leaves the range: the slowest note floors at the minimum, the fastest caps at the maximum', () => {
+    expect(syncedRateToFree(chorus({ sync: nv('4') }), 20, NARROW, NARROW_STEP).rate).toBe(NARROW.min);
+    expect(syncedRateToFree(chorus({ sync: nv('1/32', 'triplet') }), 200, NARROW, NARROW_STEP).rate).toBe(NARROW.max);
+  });
+
+  it('lands on the step grid, inside the range, for every note at an awkward tempo', () => {
+    for (const v of NOTE_VALUES) {
+      const { rate } = syncedRateToFree(chorus({ sync: v }), 97, NARROW, NARROW_STEP);
+      expect(rate, `${v.division}/${v.modifier}`).toBeGreaterThanOrEqual(NARROW.min);
+      expect(rate).toBeLessThanOrEqual(NARROW.max);
+      const steps = (rate - NARROW.min) / NARROW_STEP;
+      expect(Math.abs(steps - Math.round(steps))).toBeLessThan(1e-9);
+    }
+  });
+
+  it('on an object that was never synced, returns an equal copy with no sync key', () => {
+    const input = chorus({ rate: 1.35 });
+    const out = syncedRateToFree(input, 60, NARROW, NARROW_STEP);
+    expect(out).toEqual(input);
+    expect(out).not.toBe(input);
+    expect('sync' in out).toBe(false);
+  });
+
+  it('on an invalid sync, drops the key and keeps the stored rate', () => {
+    const out = syncedRateToFree(chorus({ rate: 1.35, sync: junk('off') }), 60, NARROW, NARROW_STEP);
+    expect(out.rate).toBe(1.35);
+    expect('sync' in out).toBe(false);
+  });
+
+  it('keeps every other field and does not mutate its input', () => {
+    const input = chorus({ sync: nv('1/4') });
+    const out = syncedRateToFree(input, 60, NARROW, NARROW_STEP);
+    expect([out.delayTime, out.depth, out.spread, out.feedback, out.wet]).toEqual([3.5, 0.7, 180, 0.1, 0.3]);
     expect(out).not.toBe(input);
     expect(input.sync).toEqual(nv('1/4'));
   });
