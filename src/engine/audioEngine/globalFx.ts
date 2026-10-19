@@ -851,9 +851,47 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
   }
 }
 
+/** The Tone 15 Chorus internals a ramped Delay / Depth change writes: the stored centre (SECONDS) and depth, and each
+ *  LFO's Scale, whose `_add` (the range's floor) and `_mult` (its span) are Signals. */
+type ChorusScale = { _min: number; _max: number; _add: { rampTo?: (value: number, rampTime: number) => void; value: unknown }; _mult: { rampTo?: (value: number, rampTime: number) => void; value: unknown } };
+type ChorusSweep = { _delayTime: number; _depth: number; _lfoL?: { _scaler?: ChorusScale }; _lfoR?: { _scaler?: ChorusScale } };
+
+/**
+ * A Chorus Delay (ms) and / or Depth change, ramped (docs/specs/GLOBAL_PEDALS.md §8). Tone's own `delayTime` / `depth`
+ * setters write each LFO's range as an instant Signal step (Scale._setRange), which jumps the delay's read position: in
+ * an offline render one 0.5 ms Delay step measured x217 the steady waveform's peak second difference, one 0.01 Depth step
+ * x13, the same changes ramped like this x1. So this computes the range as Tone's setter does (centre d, deviation
+ * d * depth, floor d - deviation) and ramps the two Signals of both LFOs over COLOUR_RAMP_SECONDS, keeping
+ * Tone's stored fields in step so its getters and any later setter agree. When the internals are not the shape this
+ * was written against (a Tone upgrade, a test stub), it falls back to Tone's setters, which step.
+ */
+function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, depth: number | undefined): void {
+  const sweep = chorus as unknown as Partial<ChorusSweep>;
+  const scales = [sweep._lfoL?._scaler, sweep._lfoR?._scaler];
+  if (typeof sweep._delayTime !== 'number' || typeof sweep._depth !== 'number' || !scales.every((s) => s?._add && s._mult)) {
+    if (delayTimeMs !== undefined) chorus.delayTime = delayTimeMs;
+    if (depth !== undefined) chorus.depth = depth;
+    return;
+  }
+  const centre = delayTimeMs === undefined ? sweep._delayTime : delayTimeMs / 1000;
+  const newDepth = depth === undefined ? sweep._depth : depth;
+  const deviation = centre * newDepth;
+  // Tone floors this at 0; Depth arrives clamped to 0 - 1, so the floor can never bite here.
+  const min = centre - deviation;
+  const max = centre + deviation;
+  sweep._delayTime = centre;
+  sweep._depth = newDepth;
+  for (const scale of scales as ChorusScale[]) {
+    scale._min = min;
+    scale._max = max;
+    rampOrSet(scale._add, min, COLOUR_RAMP_SECONDS);
+    rampOrSet(scale._mult, max - min, COLOUR_RAMP_SECONDS);
+  }
+}
+
 /** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
- *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms), depth and spread are
- *  plain setters that recompute the LFOs' range; the Mix is tapered like Colour's. */
+ *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms) and depth are ramped
+ *  through the LFOs' range (rampChorusSweep); spread is a plain setter; the Mix is tapered like Colour's. */
 export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
   const chorus = _globalChorus;
   if (!chorus) return;
@@ -865,8 +903,7 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     const feedback = clampIfGiven('chorus.feedback', params.feedback);
     const wet = clampIfGiven('chorus.wet', params.wet);
     if (rate !== undefined) rampOrSet(chorus.frequency, rate, COLOUR_RAMP_SECONDS);
-    if (delayTime !== undefined) chorus.delayTime = delayTime;
-    if (depth !== undefined) chorus.depth = depth;
+    if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
     if (spread !== undefined) chorus.spread = spread;
     if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
     if (wet !== undefined) rampOrSet(chorus.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);

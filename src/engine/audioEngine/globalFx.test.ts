@@ -1914,12 +1914,87 @@ describe('globalFx', () => {
       expect(chorus.feedback.rampTo).toHaveBeenCalledWith(0.4, 0.05);
     });
 
-    it('writes delayTime, depth and spread straight to the node (plain setters in Tone)', async () => {
+    it("without Tone's sweep internals, writes delayTime and depth through Tone's own setters; spread is a plain write", async () => {
       const { globalFx, chorus } = await built();
       globalFx.setGlobalChorus({ delayTime: 6.5, depth: 0.4, spread: 90 });
       expect(chorus.delayTime).toBe(6.5);
       expect(chorus.depth).toBe(0.4);
       expect(chorus.spread).toBe(90);
+    });
+
+    // Tone's Chorus `delayTime` / `depth` setters write each LFO's range as an instant Signal step (Scale._setRange), a
+    // click: one 0.5 ms Delay step measured x217 the steady peak second difference in an offline render, one 0.01 Depth
+    // step x13 (docs/specs/GLOBAL_PEDALS.md §8). setGlobalChorus ramps the same two Signals per LFO instead.
+    describe("with Tone's sweep internals present", () => {
+      type Ramp = { value: number; rampTo: ReturnType<typeof vi.fn> };
+      type Scaler = { _min: number; _max: number; _add: Ramp; _mult: Ramp };
+      type Sweep = { _delayTime: number; _depth: number; _lfoL: { _scaler: Scaler }; _lfoR: { _scaler: Scaler } };
+      const scaler = (): Scaler => ({ _min: 0, _max: 1, _add: { value: 0, rampTo: vi.fn() }, _mult: { value: 1, rampTo: vi.fn() } });
+
+      async function builtWithSweep() {
+        const { globalFx, chorus } = await built();
+        // Tone stores delayTime in SECONDS internally (the setter takes ms).
+        const sweep = Object.assign(chorus, { _delayTime: 0.0035, _depth: 0.7, _lfoL: { _scaler: scaler() }, _lfoR: { _scaler: scaler() } }) as typeof chorus & Sweep;
+        return { globalFx, chorus: sweep };
+      }
+
+      /** Each LFO's scaler ramped to Tone's own range for (delay seconds, depth): min = d - d*depth, span = 2*d*depth. */
+      function expectSweepRamped(chorus: Sweep, delaySeconds: number, depth: number) {
+        const min = delaySeconds - delaySeconds * depth;
+        const max = delaySeconds + delaySeconds * depth;
+        for (const lfo of [chorus._lfoL, chorus._lfoR]) {
+          expect(lfo._scaler._add.rampTo).toHaveBeenLastCalledWith(expect.closeTo(min, 9), 0.05);
+          expect(lfo._scaler._mult.rampTo).toHaveBeenLastCalledWith(expect.closeTo(max - min, 9), 0.05);
+          expect(lfo._scaler._min).toBeCloseTo(min, 9);
+          expect(lfo._scaler._max).toBeCloseTo(max, 9);
+        }
+        expect(chorus._delayTime).toBeCloseTo(delaySeconds, 9);
+        expect(chorus._depth).toBeCloseTo(depth, 9);
+      }
+
+      it("ramps a Delay change over 50 ms and never calls Tone's stepping setter", async () => {
+        const { globalFx, chorus } = await builtWithSweep();
+        globalFx.setGlobalChorus({ delayTime: 4 });
+        expectSweepRamped(chorus, 0.004, 0.7);
+        expect(chorus.delayTime).toBe(3.5);
+      });
+
+      it('ramps a Depth change around the stored Delay', async () => {
+        const { globalFx, chorus } = await builtWithSweep();
+        globalFx.setGlobalChorus({ depth: 0.2 });
+        expectSweepRamped(chorus, 0.0035, 0.2);
+        expect(chorus.depth).toBe(0.7);
+      });
+
+      it('ramps both at once to the range of the new pair, and a later Depth edit keeps the new Delay', async () => {
+        const { globalFx, chorus } = await builtWithSweep();
+        globalFx.setGlobalChorus({ delayTime: 8, depth: 0.5 });
+        expectSweepRamped(chorus, 0.008, 0.5);
+        globalFx.setGlobalChorus({ depth: 0.25 });
+        expectSweepRamped(chorus, 0.008, 0.25);
+      });
+
+      it('clamps first: Delay 0 is 1 ms and Depth 9 is 1, so the range runs from 0 to 2 ms', async () => {
+        const { globalFx, chorus } = await builtWithSweep();
+        globalFx.setGlobalChorus({ delayTime: 0, depth: 9 });
+        expectSweepRamped(chorus, 0.001, 1);
+      });
+
+      it('touches no scaler for an edit that changes neither Delay nor Depth', async () => {
+        const { globalFx, chorus } = await builtWithSweep();
+        globalFx.setGlobalChorus({ rate: 2, spread: 90, wet: 0.5 });
+        expect(chorus._lfoL._scaler._add.rampTo).not.toHaveBeenCalled();
+        expect(chorus._lfoR._scaler._mult.rampTo).not.toHaveBeenCalled();
+      });
+
+      it("falls back to Tone's setters when one LFO's scaler is missing (a Tone that changed its internals)", async () => {
+        const { globalFx, chorus } = await builtWithSweep();
+        (chorus._lfoR as { _scaler?: Scaler })._scaler = undefined;
+        globalFx.setGlobalChorus({ delayTime: 6, depth: 0.3 });
+        expect(chorus.delayTime).toBe(6);
+        expect(chorus.depth).toBe(0.3);
+        expect(chorus._lfoL._scaler._add.rampTo).not.toHaveBeenCalled();
+      });
     });
 
     it('ramps the tapered (squared) wet over 50 ms', async () => {

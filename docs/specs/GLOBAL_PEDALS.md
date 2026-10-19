@@ -663,3 +663,14 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   had two names and the Phaser's rig row used the old one beside three rows using the new. The values (0.05–10 Hz,
   step 0.05) are now declared once as `PEDAL_RATE_*` in `src/types/globalAudio.ts` and the `PHASER_RATE_*` names are
   gone from `src`.
+- **The Chorus's Delay and Depth ramp; they no longer click (2026-10-18 review, measured 2026-10-19).** §1.3 wrote
+  `delayTime` and `depth` through Tone's plain setters. Those write each LFO's range as an instant Signal step
+  (`Scale._setRange`), which jumps the delay's read position. Offline render, a 440 Hz sine through a wet Chorus, metric
+  = the peak second difference in the 150 ms after a change divided by the steady state's (1 = smooth): one 0.5 ms Delay
+  step x217, one 0.01 Depth step x13, a 5° Spread step x65-81 at every timing tried; the ramped Rate and Tremolo Depth
+  (controls) x1; Tremolo Spread x1 at four of five timings and x8.9 at one. `rampChorusSweep` in `globalFx.ts` now ramps
+  the same range (centre d, deviation d·depth) on both LFOs' Scale Signals (`_add`, `_mult`) over `COLOUR_RAMP_SECONDS`,
+  measured x1 for both the Delay and the Depth step, and keeps Tone's stored fields in step; when those Tone internals
+  are missing it falls back to Tone's setters. Tone floors the range at 0; Depth is clamped to 0–1 first, so the floor
+  could never bite and was left out (an equivalent mutant). Both Spreads still write through Tone's `phase` setter,
+  which restarts the LFOs (see §7).
