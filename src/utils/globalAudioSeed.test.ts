@@ -42,7 +42,6 @@ import {
   COLOUR_CHARACTER_NODES,
   COLOUR_CHARACTER_BANDS,
   PEDAL_LIT_EDGE,
-  PHASER_SYNC_ODDS,
   PEDAL_SYNC_ODDS,
   MAX_LIT_PEDALS,
   MOTION_PEDALS,
@@ -52,12 +51,13 @@ import {
 } from './globalAudioSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal, getUniformSeededVal } from './getSeededVal';
-import { allowedPhaserNoteValues, pickSeedNoteValue } from './tempoSync';
+import { allowedRateNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
+import { PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
 
@@ -589,7 +589,7 @@ describe('the modulation pedals (Global Modulation)', () => {
     }
   }, 120000);
 
-  describe('PEDAL_LIT_EDGE and PHASER_SYNC_ODDS', () => {
+  describe('PEDAL_LIT_EDGE and PEDAL_SYNC_ODDS', () => {
     // Measured, not fitted: the lit rolls and the sync roll are uniform draws (getUniformSeededVal), so the nominal edge
     // is the realised share. Over 20 000 styles ('PedalCalibration<n>'): AutoWah lit 33.07 %, Phaser lit 33.30 %, both lit
     // 11.22 % (product 11.01 %), a lit Phaser Sync 50.20 %, and each pedal lit alongside a lit Colour 24.95 % / 25.09 %
@@ -600,7 +600,7 @@ describe('the modulation pedals (Global Modulation)', () => {
       // Global Pedals T8 widened the record to six pedals; these two edges are unchanged.
       expect(PEDAL_LIT_EDGE.autoWah).toBe(1 / 3);
       expect(PEDAL_LIT_EDGE.phaser).toBe(1 / 3);
-      expect(PHASER_SYNC_ODDS).toBe(0.5);
+      expect(PEDAL_SYNC_ODDS).toBe(0.5);
     });
   });
 
@@ -772,11 +772,11 @@ describe('the modulation pedals (Global Modulation)', () => {
   });
 
   describe('the Phaser Sync roll', () => {
-    it('syncs about PHASER_SYNC_ODDS of lit Phasers, within 5 points', () => {
+    it('syncs about PEDAL_SYNC_ODDS of lit Phasers, within 5 points', () => {
       const lit = samples.filter(({ s }) => phaserLit(s));
       const synced = lit.filter(({ s }) => 'sync' in s.phaser).length;
       expect(lit.length).toBeGreaterThan(500);
-      expect(Math.abs(synced / lit.length - PHASER_SYNC_ODDS) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced / lit.length - PEDAL_SYNC_ODDS) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
     });
 
     it('seeds only real notes that sit inside the lit rate band at the style tempo, drawn from the allowed list', () => {
@@ -792,7 +792,7 @@ describe('the modulation pedals (Global Modulation)', () => {
         const band = GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'];
         expect(hz, `style ${i} at ${bpm} BPM`).toBeGreaterThanOrEqual(band.min);
         expect(hz, `style ${i} at ${bpm} BPM`).toBeLessThanOrEqual(band.max);
-        expect(allowedPhaserNoteValues(bpm).some((v) => v.division === sync.division && v.modifier === sync.modifier), `style ${i}`).toBe(true);
+        expect(allowedRateNoteValues(bpm, PEDAL_RATE_RANGE_HZ).some((v) => v.division === sync.division && v.modifier === sync.modifier), `style ${i}`).toBe(true);
       }
       expect(synced).toBeGreaterThan(200);
     });
@@ -981,7 +981,6 @@ describe('the Global Pedals (Global Pedals T8)', () => {
     it('caps a world at two lit Modulation pedals and syncs about half of lit LFO pedals', () => {
       expect(MAX_LIT_PEDALS).toBe(2);
       expect(PEDAL_SYNC_ODDS).toBe(0.5);
-      expect(PHASER_SYNC_ODDS).toBe(PEDAL_SYNC_ODDS);
     });
 
     it('rolls the motion pedals in chain order', () => {

@@ -15,7 +15,7 @@ import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload,
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { SessionPayload } from '../types/session';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '../types/globalAudio';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { generateAttenuationStyleBpm } from './bpmSeed';
@@ -33,7 +33,7 @@ import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { noteValueHz } from '../data/noteValues';
-import { resolveLaneRateHz, resolveDelayTimeSeconds, resolvePhaserRateHz } from './tempoSync';
+import { resolveLaneRateHz, resolveDelayTimeSeconds, resolveSyncedRateHz } from './tempoSync';
 import { lfoEngine } from '../engine/lfoEngine';
 import { AudioEngine } from '../engine/AudioEngine';
 
@@ -2030,7 +2030,7 @@ describe('applySessionPayload', () => {
           applySessionPayload(buildPhaserPayload(FREE_PHASER, bpm), { skipLocaleRebuild: true });
           const { phaser } = useAudioStore.getState().globalAudio;
           expect('sync' in phaser, `${bpm} BPM`).toBe(false);
-          expect(resolvePhaserRateHz(phaser, bpm), `${bpm} BPM`).toBe(FREE_PHASER.rate);
+          expect(resolveSyncedRateHz(phaser, bpm, PEDAL_RATE_RANGE_HZ), `${bpm} BPM`).toBe(FREE_PHASER.rate);
         }
       });
     });

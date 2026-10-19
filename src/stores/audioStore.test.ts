@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
-import { resolveDelayTimeSeconds, resolvePhaserRateHz } from '../utils/tempoSync';
+import { resolveDelayTimeSeconds, resolveSyncedRateHz } from '../utils/tempoSync';
+import { PEDAL_RATE_RANGE_HZ } from '../types/globalAudio';
 
 // Ensure AudioEngine is mocked before importing the store so the module's
 // import of AudioEngine receives the mock. The store now calls the full
@@ -143,7 +144,7 @@ describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
     const { sync: _phaserSync, ...enginePhaser } = globalAudio.phaser;
     expect(AudioEngine.setGlobalPhaser).toHaveBeenCalledWith({
       ...enginePhaser,
-      rate: resolvePhaserRateHz(globalAudio.phaser, bpm),
+      rate: resolveSyncedRateHz(globalAudio.phaser, bpm, PEDAL_RATE_RANGE_HZ),
     });
   });
 

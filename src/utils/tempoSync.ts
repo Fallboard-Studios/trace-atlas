@@ -31,10 +31,7 @@ import {
 import {
   DELAY_TIME_RANGE_SECONDS,
   DELAY_TIME_STEP_SECONDS,
-  PHASER_RATE_RANGE_HZ,
-  PHASER_RATE_STEP_HZ,
   type DelaySettings,
-  type PhaserSettings,
 } from '@/types/globalAudio';
 import { quantizeToStep, roundToDecimals } from '@/utils/math';
 
@@ -129,12 +126,6 @@ export function resolveSyncedRateHz(field: SyncedRate, bpm: number, range: RateR
   return clamp(noteValueHz(field.sync, bpm), range.min, range.max);
 }
 
-/** Hz the Phaser's LFO should use (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5): resolveSyncedRateHz over the
- *  Phaser's range. */
-export function resolvePhaserRateHz(phaser: PhaserSettings, bpm: number): number {
-  return resolveSyncedRateHz(phaser, bpm, PHASER_RATE_RANGE_HZ);
-}
-
 // ========================================
 // ALLOWED LISTS
 // ========================================
@@ -154,11 +145,6 @@ export function allowedDelayNoteValues(bpm: number): NoteValue[] {
  *  direction, as for the lanes). NOTE_VALUES is ascending by duration, i.e. fastest first in Hz, hence the reverse. */
 export function allowedRateNoteValues(bpm: number, range: RateRange): NoteValue[] {
   return allowedNoteValues(bpm, range, 'hz').reverse();
-}
-
-/** Notes the Phaser may sync to at `bpm`: allowedRateNoteValues over the Phaser's range. */
-export function allowedPhaserNoteValues(bpm: number): NoteValue[] {
-  return allowedRateNoteValues(bpm, PHASER_RATE_RANGE_HZ);
 }
 
 // ========================================
@@ -236,16 +222,6 @@ export function syncedRateToFree<T extends SyncedRate>(field: T, bpm: number, ra
   const { sync, ...rest } = field;
   if (!isNoteValue(sync)) return rest as T;
   return { ...rest, rate: quantizeClean(resolveSyncedRateHz(field, bpm, range), range.min, step) } as T;
-}
-
-/** Free -> Sync for the Phaser's Rate: syncedRateToSync over the Phaser's range. */
-export function phaserToSync(phaser: PhaserSettings, bpm: number): PhaserSettings {
-  return syncedRateToSync(phaser, bpm, PHASER_RATE_RANGE_HZ);
-}
-
-/** Sync -> Free for the Phaser's Rate: syncedRateToFree over the Phaser's range and slider step. */
-export function phaserToFree(phaser: PhaserSettings, bpm: number): PhaserSettings {
-  return syncedRateToFree(phaser, bpm, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ);
 }
 
 // ========================================

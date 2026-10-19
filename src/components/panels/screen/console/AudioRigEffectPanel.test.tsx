@@ -47,7 +47,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { CONTENT } from '@/content';
 import { noteValueEquals, noteValueSeconds, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
-import { allowedDelayNoteValues, allowedPhaserNoteValues, allowedRateNoteValues } from '@/utils/tempoSync';
+import { allowedDelayNoteValues, allowedRateNoteValues } from '@/utils/tempoSync';
 import { formatNoteValue } from '@/utils/formatNoteValue';
 import { facadeCurrentLabels } from '@/testUtils/toggleFacade';
 import * as audioSwells from '@/systems/audioSwells';
@@ -1610,7 +1610,7 @@ describe('AudioRigEffectPanel', () => {
       it('shows a checked switch with the Anchored facade and the note\'s index on the thumb, announced by name', () => {
         setPhaser({ rate: 7, sync: nv('1/8', 'dotted') });
         render(<AudioRigEffectPanel effectKey="phaser" />);
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
         expect(facadeCurrentLabels(tempoToggle())).toEqual(SYNC);
         expect(rateThumb().getAttribute('aria-valuenow')).toBe(String(indexOf(list, nv('1/8', 'dotted'))));
@@ -1628,7 +1628,7 @@ describe('AudioRigEffectPanel', () => {
         const push = spyOnPhaserPush();
         setPhaser({ rate: 0.3, sync: nv('1/4') });
         render(<AudioRigEffectPanel effectKey="phaser" />);
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         const next = list[indexOf(list, nv('1/4')) + 1];
         rateThumb().focus();
         fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
@@ -1643,7 +1643,7 @@ describe('AudioRigEffectPanel', () => {
       it('the notes run slowest to fastest, so a step toward the slow end moves to the previous note', () => {
         setPhaser({ rate: 0.3, sync: nv('1/4') });
         render(<AudioRigEffectPanel effectKey="phaser" />);
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         const hz = (n: NoteValue) => 1 / noteValueSeconds(n, 60);
         expect(hz(list[0])).toBeLessThan(hz(list[list.length - 1]));
         const previous = list[indexOf(list, nv('1/4')) - 1];
@@ -1661,7 +1661,7 @@ describe('AudioRigEffectPanel', () => {
       });
 
       it('stepping at either end stays on the end note — no out-of-range note is ever written', () => {
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         setPhaser({ sync: list[list.length - 1] });
         const { unmount } = render(<AudioRigEffectPanel effectKey="phaser" />);
         rateThumb().focus();
@@ -1683,7 +1683,7 @@ describe('AudioRigEffectPanel', () => {
 
         act(() => useAudioStore.setState({ bpm: 120 }));
         await act(async () => { await Promise.resolve(); }); // the slider eases a non-drag change
-        const fast = allowedPhaserNoteValues(120);
+        const fast = allowedRateNoteValues(120, PEDAL_RATE_RANGE_HZ);
         expect(rateThumb().getAttribute('aria-valuemax')).toBe(String(fast.length - 1));
         expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(fast[fast.length - 1]));
         expect(storedPhaser().sync).toEqual(nv('1/32')); // display-only: nothing written
@@ -1703,7 +1703,7 @@ describe('AudioRigEffectPanel', () => {
     });
 
     describe('the toggle', () => {
-      it('Float -> Anchored writes the nearest note at the current tempo, via setPhaserSyncMode', () => {
+      it('Float -> Anchored writes the nearest note at the current tempo, via setPedalSyncMode for the Phaser', () => {
         setPhaser({ rate: 1 }); // 1 Hz at 60 BPM is exactly a quarter note
         render(<AudioRigEffectPanel effectKey="phaser" />);
         fireEvent.click(tempoToggle());
@@ -1835,7 +1835,7 @@ describe('AudioRigEffectPanel', () => {
       it('a Phaser sync change does not re-render the Delay panel', () => {
         const commits = renderCountingCommits('delay');
         const before = commits();
-        act(() => { useAudioStore.getState().setPhaserSyncMode(true); });
+        act(() => { useAudioStore.getState().setPedalSyncMode('phaser', true); });
         act(() => { useAudioStore.getState().setGlobalAudio('phaser', { sync: nv('1/2') }); });
         expect(commits()).toBe(before);
       });

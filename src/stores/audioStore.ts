@@ -352,17 +352,12 @@ export interface AudioStore {
    */
   setDelaySyncMode: (synced: boolean) => void;
   /**
-   * Flips the Phaser's Rate between Free and Sync (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5), the Delay's
-   * shape in Hz: Free -> Sync snaps `rate` to the nearest allowed note at the current tempo, Sync -> Free keeps the
-   * Hz the user was hearing, on the 0.05 Hz grid. A whole-object replacement of `globalAudio.phaser`, so the Free
-   * result carries no `sync` key; pushes the resolved rate to the engine.
-   */
-  setPhaserSyncMode: (synced: boolean) => void;
-  /**
-   * Flips any synced-rate block's Rate between Free and Sync (docs/specs/GLOBAL_PEDALS.md §1.4): the Phaser's, the
-   * Chorus's, the Tremolo's or the Vibrato's, all on the 0.05 Hz pedal grid over PEDAL_RATE_RANGE_HZ. Same shape as
-   * setPhaserSyncMode, which is now this action for 'phaser': a whole-object replacement of the block (a Free result
-   * carries no `sync` key), then the resolved rate pushed to that block's engine setter.
+   * Flips a synced-rate block's Rate between Free and Sync (docs/specs/GLOBAL_PEDALS.md §1.4, generalised from the
+   * Phaser's, docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5): the Phaser's, the Chorus's, the Tremolo's or the
+   * Vibrato's, the Delay's shape in Hz. Free -> Sync snaps `rate` to the nearest allowed note at the current tempo;
+   * Sync -> Free keeps the Hz the user was hearing, on the 0.05 Hz pedal grid over PEDAL_RATE_RANGE_HZ. A
+   * whole-object replacement of the block, so a Free result carries no `sync` key; then the resolved rate is pushed
+   * to that block's engine setter.
    */
   setPedalSyncMode: (key: SyncedRateKey, synced: boolean) => void;
   /** Sets isMuted and pushes the resulting gain to AudioEngine — 0 when muted,
@@ -523,10 +518,6 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
       : syncedRateToFree(globalAudio[key], bpm, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ);
     set({ globalAudio: { ...globalAudio, [key]: block } });
     engineRateSetter(key)({ rate: resolveSyncedRateHz(block, bpm, PEDAL_RATE_RANGE_HZ) });
-  },
-
-  setPhaserSyncMode: (synced) => {
-    get().setPedalSyncMode('phaser', synced);
   },
 
   setCompressorBeforeDelay: (value) => {

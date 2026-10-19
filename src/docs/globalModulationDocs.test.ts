@@ -118,18 +118,17 @@ describe('the named Global Modulation symbols are declared where the spec says t
     ]),
     // Global Pedals T8 widened the record to the six Modulation pedals; the AutoWah and Phaser keep their entries.
     ['PEDAL_LIT_EDGE', 'src/utils/globalAudioSeed.ts', /export const PEDAL_LIT_EDGE: Record<'autoWah' \| 'phaser' \| MotionPedal, number>/],
-    ['PHASER_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /export const PHASER_SYNC_ODDS = /],
-    ['resolvePhaserRateHz', 'src/utils/tempoSync.ts', /export function resolvePhaserRateHz\(phaser: PhaserSettings, bpm: number\): number/],
-    ['allowedPhaserNoteValues', 'src/utils/tempoSync.ts', /export function allowedPhaserNoteValues\(bpm: number\): NoteValue\[\]/],
-    ['phaserToSync', 'src/utils/tempoSync.ts', /export function phaserToSync\(phaser: PhaserSettings, bpm: number\): PhaserSettings/],
-    ['phaserToFree', 'src/utils/tempoSync.ts', /export function phaserToFree\(phaser: PhaserSettings, bpm: number\): PhaserSettings/],
+    // The Global Pedals review folded PHASER_SYNC_ODDS and the Phaser's four rate helpers into the generic rail
+    // (docs/specs/GLOBAL_PEDALS.md §8); the generic symbols are pinned in globalPedalsDocs.test.ts. Here: the Phaser
+    // still rolls its sync on the shared odds.
+    ['the Phaser sync roll reads PEDAL_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /phaserLit && phaserSyncModeT < PEDAL_SYNC_ODDS/],
     ['the AutoWah node', 'src/engine/audioEngine/globalFx.ts', /let _globalAutoWah: Tone\.AutoWah \| null/],
     ['the Phaser node', 'src/engine/audioEngine/globalFx.ts', /let _globalPhaser: Tone\.Phaser \| null/],
     ['setGlobalAutoWah', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalAutoWah\(params: Partial<AutoWahSettings>\): void/],
     ['setGlobalPhaser', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalPhaser\(params: Partial<Omit<PhaserSettings, 'sync'>>\): void/],
     ['AudioEngine exposes setGlobalAutoWah', 'src/engine/AudioEngine.ts', /\bsetGlobalAutoWah,/],
     ['AudioEngine exposes setGlobalPhaser', 'src/engine/AudioEngine.ts', /\bsetGlobalPhaser,/],
-    ['setPhaserSyncMode on the store', 'src/stores/audioStore.ts', /setPhaserSyncMode: \(synced: boolean\) => void;/],
+    ['the Phaser Free | Sync toggle is setPedalSyncMode on the store', 'src/stores/audioStore.ts', /setPedalSyncMode: \(key: SyncedRateKey, synced: boolean\) => void;/],
     ['the store routes autoWah to the engine', 'src/stores/audioStore.ts', /\bautoWah: AudioEngine\.setGlobalAutoWah,/],
     // Global Pedals T7 (docs/specs/GLOBAL_PEDALS.md §1.4) generalised the Phaser's resolver into a per-block factory and
     // the apply push into resolvedRateBlock; the Phaser is that rail's first instance.
@@ -152,7 +151,7 @@ describe('the named Global Modulation symbols are declared where the spec says t
   it('the declared-pattern table itself fails on a rename (a pattern that matches nothing is not a pass)', () => {
     expect(read('src/types/globalAudio.ts')).not.toMatch(/export interface PhaserSettingsX \{/);
     expect(read('src/engine/audioEngine/globalFx.ts')).not.toMatch(/let _globalPhaserX: /);
-    expect(read('src/utils/tempoSync.ts')).not.toMatch(/export function resolvePhaserRateHzX\(/);
+    expect(read('src/engine/audioEngine/globalFx.ts')).not.toMatch(/export function setGlobalPhaserX\(/);
   });
 
   it("introduces no 'modulation' Trait (assumption 11: the tab wears Spectral)", () => {
@@ -224,7 +223,8 @@ describe('the living docs name the pedals', () => {
   const docs: [doc: string, names: readonly string[]][] = [
     ['docs/AUDIO_SYSTEM.md', ['autoWah', 'phaser', 'setGlobalAutoWah', 'setGlobalPhaser']],
     ['docs/SESSION_STORAGE.md', ['autoWah', 'phaser', 'phaser.sync']],
-    ['docs/specs/FREE_SYNC_TOGGLE.md', ['resolvePhaserRateHz', 'phaserToSync', 'phaserToFree']],
+    // The Phaser's own helper names were folded into the generic rail (docs/specs/GLOBAL_PEDALS.md §8).
+    ['docs/specs/FREE_SYNC_TOGGLE.md', ['resolveSyncedRateHz', 'syncedRateToSync', 'syncedRateToFree']],
   ];
 
   it.each(docs)('%s names what Task 17 added', (doc, names) => {

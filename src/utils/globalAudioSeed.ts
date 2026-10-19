@@ -169,16 +169,11 @@ export const MAX_LIT_PEDALS = 2;
 
 /**
  * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free: each one's sync roll
- * falls under this (docs/specs/GLOBAL_PEDALS.md assumption 8). A dark pedal never seeds Sync. Measured 49.82 / 50.88 /
- * 49.73 % of lit Chorus / Tremolo / Vibrato worlds over the 20 000 calibration styles.
+ * falls under this (docs/specs/GLOBAL_PEDALS.md assumption 8, the Phaser's from docs/specs/GLOBAL_MODULATION_COLOUR.md
+ * assumption 8). A dark pedal never seeds Sync. Measured 50.20 % of 6 660 lit Phasers, and 49.82 / 50.88 / 49.73 % of lit
+ * Chorus / Tremolo / Vibrato worlds, over 20 000 styles; the rolls are uniform.
  */
 export const PEDAL_SYNC_ODDS = 0.5;
-
-/**
- * The Phaser's name for PEDAL_SYNC_ODDS (Global Modulation, spec assumption 8). Measured 50.20 % of 6 660 lit Phasers
- * over 20 000 styles; the roll is uniform.
- */
-export const PHASER_SYNC_ODDS = PEDAL_SYNC_ODDS;
 
 /**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
@@ -203,7 +198,7 @@ export const PHASER_SYNC_ODDS = PEDAL_SYNC_ODDS;
  *
  * The two modulation pedals are the same kind of exception, each on its own roll (PEDAL_LIT_EDGE): about a third of
  * worlds light each, independently. A dark pedal seeds `wet` 0 and still draws every other field from its band; a lit
- * Phaser seeds Sync in about half of worlds (PHASER_SYNC_ODDS), with the note drawn from the lit rate band.
+ * Phaser seeds Sync in about half of worlds (PEDAL_SYNC_ODDS), with the note drawn from the lit rate band.
  *
  * The four Global Pedals motion pedals roll after them in chain order under a two-lit cap (MAX_LIT_PEDALS), each with
  * the same dark-pedal rule; a lit Chorus, Tremolo or Vibrato seeds Sync about half the time, the shifter's sign is its own
@@ -241,7 +236,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   const phaserWet = sampleField(noiseMap, 'phaser.wet', true);
   // A dark Phaser is Free (no `sync` key), like a Free lane; an empty band leaves a lit one Free too.
   const phaserSync =
-    phaserLit && phaserSyncModeT < PHASER_SYNC_ODDS
+    phaserLit && phaserSyncModeT < PEDAL_SYNC_ODDS
       ? pickSeedNoteValue(phaserSyncNoteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES['phaser.rate']], 'hz')
       : undefined;
 

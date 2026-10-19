@@ -1321,11 +1321,11 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     });
   });
 
-  describe('setPhaserSyncMode', () => {
+  describe('setPedalSyncMode on the Phaser', () => {
     it('Free -> Sync snaps to the nearest allowed note, keeps rate underneath, and pushes that note Hz', async () => {
       const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
       // 0.9 Hz: 1/4 (1 Hz) is 0.1 away, 1/4 dotted (0.667 Hz) is 0.233 away
       expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
@@ -1336,7 +1336,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('Sync -> Free keeps what the user hears: rate becomes the resolved Hz on the 0.05 grid and sync is DELETED', async () => {
       const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 7, sync: QUARTER_DOTTED }, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(false);
+      useAudioStore.getState().setPedalSyncMode('phaser', false);
 
       // 1/4 dotted at 60 BPM is 0.6667 Hz => 0.65 on the grid
       const phaser = useAudioStore.getState().globalAudio.phaser;
@@ -1348,7 +1348,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('Sync -> Free pushes the same number it stored (no audible jump)', async () => {
       const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, sync: EIGHTH_DOTTED }, 70);
 
-      useAudioStore.getState().setPhaserSyncMode(false);
+      useAudioStore.getState().setPedalSyncMode('phaser', false);
 
       expect(lastPhaserPush(AudioEngine).rate).toBe(useAudioStore.getState().globalAudio.phaser.rate);
     });
@@ -1356,7 +1356,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('Sync -> Free from a clamped note stores the clamped Hz - what was audible - not the raw 0.0417', async () => {
       const { useAudioStore } = await setup({ ...FREE_PHASER, sync: FOUR_BARS }, 40);
 
-      useAudioStore.getState().setPhaserSyncMode(false);
+      useAudioStore.getState().setPedalSyncMode('phaser', false);
 
       expect(useAudioStore.getState().globalAudio.phaser.rate).toBe(0.05);
     });
@@ -1364,8 +1364,8 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('a Free -> Sync -> Free round trip leaves no sync key anywhere in the serialised phaser', async () => {
       const { useAudioStore } = await setup(FREE_PHASER, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(true);
-      useAudioStore.getState().setPhaserSyncMode(false);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
+      useAudioStore.getState().setPedalSyncMode('phaser', false);
 
       expect(JSON.stringify(useAudioStore.getState().globalAudio.phaser)).not.toContain('sync');
     });
@@ -1373,7 +1373,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('keeps the stored state JSON-serialisable while synced (no functions, no undefined keys)', async () => {
       const { useAudioStore } = await setup(FREE_PHASER, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
       const phaser = useAudioStore.getState().globalAudio.phaser;
       expect(JSON.parse(JSON.stringify(phaser))).toStrictEqual(phaser);
@@ -1382,7 +1382,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('setting Sync on an already-synced Phaser keeps its note - a stale Free rate is not a request to re-snap', async () => {
       const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 7, sync: EIGHTH_DOTTED }, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
       expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(EIGHTH_DOTTED);
       expect(lastPhaserPush(AudioEngine).rate as number).toBeCloseTo(1 / 0.75, 10);
@@ -1391,7 +1391,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('setting Free on an already-Free Phaser changes nothing and pushes its own rate', async () => {
       const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(false);
+      useAudioStore.getState().setPedalSyncMode('phaser', false);
 
       expect(useAudioStore.getState().globalAudio.phaser).toStrictEqual(FREE_PHASER);
       expect(lastPhaserPush(AudioEngine)).toStrictEqual({ rate: 0.9 });
@@ -1399,21 +1399,23 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
 
     it('a Phaser at the 0.05 Hz minimum snaps to the slowest allowed note, not to NaN or a crash', async () => {
       const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 0.05 }, 60);
-      const { allowedPhaserNoteValues } = await import('../utils/tempoSync');
+      const { allowedRateNoteValues } = await import('../utils/tempoSync');
+      const { PEDAL_RATE_RANGE_HZ } = await import('../types/globalAudio');
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
-      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(allowedPhaserNoteValues(60)[0]);
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ)[0]);
       expect(lastPhaserPush(AudioEngine).rate as number).toBeGreaterThan(0);
     });
 
     it('a Phaser at the 10 Hz ceiling snaps to the fastest allowed note and never pushes past 10', async () => {
       const { useAudioStore, AudioEngine } = await setup({ ...FREE_PHASER, rate: 10 }, 60);
-      const { allowedPhaserNoteValues } = await import('../utils/tempoSync');
+      const { allowedRateNoteValues } = await import('../utils/tempoSync');
+      const { PEDAL_RATE_RANGE_HZ } = await import('../types/globalAudio');
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
-      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(allowedPhaserNoteValues(60).at(-1));
+      expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ).at(-1));
       expect(lastPhaserPush(AudioEngine).rate as number).toBeLessThanOrEqual(10);
     });
 
@@ -1421,7 +1423,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
       const { useAudioStore, AudioEngine } = await setup(FREE_PHASER, 60);
       const before = useAudioStore.getState().globalAudio;
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
       const after = useAudioStore.getState().globalAudio;
       expect([after.phaser.octaves, after.phaser.baseFrequency, after.phaser.stages, after.phaser.Q, after.phaser.wet]).toStrictEqual([3, 350, 10, 10, 0.2]);
@@ -1434,7 +1436,7 @@ describe('useAudioStore - Phaser Sync (Global Modulation T6)', () => {
     it('does not touch the LFO Bank engine', async () => {
       const { useAudioStore, lfoEngine } = await setup(FREE_PHASER, 60);
 
-      useAudioStore.getState().setPhaserSyncMode(true);
+      useAudioStore.getState().setPedalSyncMode('phaser', true);
 
       expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
     });
@@ -1572,11 +1574,11 @@ describe('useAudioStore - Global Pedals sync (Global Pedals T7)', () => {
     });
   });
 
-  it('setPhaserSyncMode still converts the Phaser, through the same rail', async () => {
+  it('the phaser key converts the Phaser only, on the same rail as the pedals', async () => {
     const { useAudioStore, AudioEngine } = await setup({}, 60);
     useAudioStore.setState({ globalAudio: { ...useAudioStore.getState().globalAudio, phaser: { rate: 1, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0.2 } } });
 
-    useAudioStore.getState().setPhaserSyncMode(true);
+    useAudioStore.getState().setPedalSyncMode('phaser', true);
 
     expect(useAudioStore.getState().globalAudio.phaser.sync).toEqual(QUARTER);
     expect(AudioEngine.setGlobalPhaser).toHaveBeenLastCalledWith({ rate: 1 });

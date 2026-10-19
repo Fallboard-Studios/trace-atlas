@@ -651,3 +651,10 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   +100 Hz gives left 540 Hz 0.75 and 340 Hz 0.25 (the sideband it should cancel), right 540 Hz 0.25 and 340 Hz 0.25.
   With the same sine on both channels it is clean: 540 Hz 1.0, 340 Hz 0.003. So a centred voice shifts as designed and
   a panned one (Robot Pan) leaks; the veto in assumption 3 and §7 Q1 was rewritten around that. No code changed.
+- **The Phaser's wrappers are gone (2026-10-18 review).** §1.4, §1.5 and T3/T7/T8 kept `resolvePhaserRateHz`,
+  `allowedPhaserNoteValues`, `phaserToSync`, `phaserToFree`, `setPhaserSyncMode` and the `PHASER_SYNC_ODDS` alias as
+  one-line wrappers so the Phaser's existing tests could prove the generic rail faithful. With that proved and no caller
+  left outside tests, all six were deleted: the Phaser calls `resolveSyncedRateHz` / `allowedRateNoteValues` /
+  `syncedRateToSync` / `syncedRateToFree` over `PEDAL_RATE_RANGE_HZ` like the other three, the drawer and the tests call
+  `setPedalSyncMode('phaser', …)`, and the seeder's Phaser roll reads `PEDAL_SYNC_ODDS`. The Phaser's own test cases were
+  kept and now drive the generic helpers on a `PhaserSettings` object.

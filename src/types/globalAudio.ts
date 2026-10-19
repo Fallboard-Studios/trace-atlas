@@ -117,7 +117,7 @@ export interface AutoWahSettings {
 /** Phaser: Tone.Phaser, a stack of allpass notches swept by its own wall-clock LFO. */
 export interface PhaserSettings {
   /** Hz, PHASER_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
-   *  resolvePhaserRateHz() (utils/tempoSync.ts), never directly. */
+   *  resolveSyncedRateHz() (utils/tempoSync.ts), never directly. */
   rate: number;
   /** 0.5 - 6 */
   octaves: number;
