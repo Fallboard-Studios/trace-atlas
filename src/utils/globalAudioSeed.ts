@@ -13,6 +13,7 @@ import { pickSeedNoteValue } from './tempoSync';
 import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
 import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
 
+import type { NoteValue } from '@/data/noteValues';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
@@ -136,13 +137,48 @@ export function pickColourCharacter(t: number): ColourCharacter {
  * and a lit wah landed in 55.9 % of worlds with a clean Colour against 26.8 % of coloured ones. If the targets move
  * (Crawford's listen, roadmap 50.4 T16), change the edge and re-measure the same way.
  */
-export const PEDAL_LIT_EDGE: Record<'autoWah' | 'phaser', number> = { autoWah: 1 / 3, phaser: 1 / 3 };
+export const PEDAL_LIT_EDGE: Record<'autoWah' | 'phaser' | MotionPedal, number> = {
+  autoWah: 1 / 3,
+  phaser: 1 / 3,
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md assumption 7): nominal edges, rolled after the two above in chain order
+  // and capped by MAX_LIT_PEDALS, so each realises less than its edge (see MAX_LIT_PEDALS for the measured shares).
+  chorus: 0.25,
+  tremolo: 0.25,
+  vibrato: 0.25,
+  frequencyShifter: 0.15,
+};
+
+/** The Global Pedals' four motion pedals in chain order (docs/specs/GLOBAL_PEDALS.md §1.2), the order they roll in. */
+export const MOTION_PEDALS = ['chorus', 'tremolo', 'vibrato', 'frequencyShifter'] as const;
+export type MotionPedal = (typeof MOTION_PEDALS)[number];
+/** The three motion pedals whose rate is a Free | Sync field. */
+const LFO_PEDALS = ['chorus', 'tremolo', 'vibrato'] as const;
 
 /**
- * The share of LIT Phasers that seed Sync rather than Free: the sync roll falls under this (spec assumption 8). A dark
- * Phaser never seeds Sync. Measured 50.20 % of 6 660 lit Phasers over the same 20 000 styles; the roll is uniform.
+ * The most Modulation pedals a fresh world lights, counting the AutoWah and the Phaser (docs/specs/GLOBAL_PEDALS.md
+ * assumption 7). A SEQUENTIAL cap: the AutoWah and Phaser roll first and untouched, then each motion pedal in chain order
+ * rolls its own uniform draw and is forced dark if two are already lit. Every roll key is read on every style, so the
+ * draw set never depends on the outcome. The rolls are uniform and independent, so the realised shares follow from the
+ * edges exactly - the 50.4 pedals leave 0 / 1 / 2 lit in 4/9 / 4/9 / 1/9 of worlds - giving Chorus 22.2 %, Tremolo
+ * 19.4 %, Vibrato 16.7 % and the shifter 8.4 %. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-18): Chorus
+ * 22.68 %, Tremolo 19.33 %, Vibrato 16.75 %, shifter 8.20 %, two pedals lit in 49.38 % of worlds and never more. The
+ * test holds a different set ('PedalsShare<n>', 3 000 styles) to within 3 points of those. A theme that wants more lit
+ * moves the edges or this cap. By hand any number of pedals can be lit.
  */
-export const PHASER_SYNC_ODDS = 0.5;
+export const MAX_LIT_PEDALS = 2;
+
+/**
+ * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free: each one's sync roll
+ * falls under this (docs/specs/GLOBAL_PEDALS.md assumption 8). A dark pedal never seeds Sync. Measured 49.82 / 50.88 /
+ * 49.73 % of lit Chorus / Tremolo / Vibrato worlds over the 20 000 calibration styles.
+ */
+export const PEDAL_SYNC_ODDS = 0.5;
+
+/**
+ * The Phaser's name for PEDAL_SYNC_ODDS (Global Modulation, spec assumption 8). Measured 50.20 % of 6 660 lit Phasers
+ * over 20 000 styles; the roll is uniform.
+ */
+export const PHASER_SYNC_ODDS = PEDAL_SYNC_ODDS;
 
 /**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
@@ -168,6 +204,10 @@ export const PHASER_SYNC_ODDS = 0.5;
  * The two modulation pedals are the same kind of exception, each on its own roll (PEDAL_LIT_EDGE): about a third of
  * worlds light each, independently. A dark pedal seeds `wet` 0 and still draws every other field from its band; a lit
  * Phaser seeds Sync in about half of worlds (PHASER_SYNC_ODDS), with the note drawn from the lit rate band.
+ *
+ * The four Global Pedals motion pedals roll after them in chain order under a two-lit cap (MAX_LIT_PEDALS), each with
+ * the same dark-pedal rule; a lit Chorus, Tremolo or Vibrato seeds Sync about half the time, the shifter's sign is its own
+ * draw, and Width always seeds from its band (docs/specs/GLOBAL_PEDALS.md §1.2).
  */
 export function generateGlobalAudioSettings(attenuationStyleId: string, attenuationStyleName: string): GlobalAudioSettings {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
@@ -204,6 +244,34 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     phaserLit && phaserSyncModeT < PHASER_SYNC_ODDS
       ? pickSeedNoteValue(phaserSyncNoteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES['phaser.rate']], 'hz')
       : undefined;
+
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.2): the sequential cap. Each motion pedal's roll is read whether or not
+  // the cap would allow it, so the draw set is total; the AutoWah and Phaser results above count towards the cap.
+  let litCount = Number(autoWahLit) + Number(phaserLit);
+  const pedalLit = {} as Record<MotionPedal, boolean>;
+  for (const pedal of MOTION_PEDALS) {
+    const wants = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.lit`) < PEDAL_LIT_EDGE[pedal];
+    pedalLit[pedal] = wants && litCount < MAX_LIT_PEDALS;
+    if (pedalLit[pedal]) litCount += 1;
+  }
+  // A sync pair per LFO pedal, read on every style; Sync only when lit and under the odds, the note from the lit band.
+  const pedalSync = {} as Record<(typeof LFO_PEDALS)[number], NoteValue | undefined>;
+  for (const pedal of LFO_PEDALS) {
+    const modeT = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.syncMode`);
+    const noteT = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.syncNote`);
+    pedalSync[pedal] =
+      pedalLit[pedal] && modeT < PEDAL_SYNC_ODDS
+        ? pickSeedNoteValue(noteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES[`${pedal}.rate`]], 'hz')
+        : undefined;
+  }
+  // The shift is a magnitude band with its own sign draw, so a seeded shift is never inside ±2 Hz.
+  const shiftSign = getUniformSeededVal(noiseMap, 'globalAudio.frequencyShifter.sign') < 0.5 ? -1 : 1;
+  const pedalWet = (pedal: MotionPedal): number => {
+    const wet = sampleField(noiseMap, `${pedal}.wet`, true);
+    return pedalLit[pedal] ? wet : 0;
+  };
+  const withSync = <T extends object>(block: T, sync: NoteValue | undefined): T =>
+    sync === undefined ? block : { ...block, sync };
 
   return {
     compressorBeforeDelay: defaults.compressorBeforeDelay,
@@ -272,12 +340,41 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       wet: phaserLit ? phaserWet : 0,
       ...(phaserSync !== undefined && { sync: phaserSync }),
     },
-    // Global Pedals T1 placeholder: the dry defaults. T8 replaces these with the lit rolls and value draws.
-    chorus: structuredClone(defaults.chorus),
-    tremolo: structuredClone(defaults.tremolo),
-    vibrato: structuredClone(defaults.vibrato),
-    frequencyShifter: structuredClone(defaults.frequencyShifter),
-    stereoWidener: structuredClone(defaults.stereoWidener),
+    // Global Pedals: every value a uniform draw from its band, lit or dark; a dark pedal has Mix 0 and no sync key.
+    chorus: withSync(
+      {
+        rate: sampleField(noiseMap, 'chorus.rate', true),
+        delayTime: sampleField(noiseMap, 'chorus.delayTime', true),
+        depth: sampleField(noiseMap, 'chorus.depth', true),
+        spread: sampleField(noiseMap, 'chorus.spread', true),
+        feedback: sampleField(noiseMap, 'chorus.feedback', true),
+        wet: pedalWet('chorus'),
+      },
+      pedalSync.chorus,
+    ),
+    tremolo: withSync(
+      {
+        rate: sampleField(noiseMap, 'tremolo.rate', true),
+        depth: sampleField(noiseMap, 'tremolo.depth', true),
+        spread: sampleField(noiseMap, 'tremolo.spread', true),
+        wet: pedalWet('tremolo'),
+      },
+      pedalSync.tremolo,
+    ),
+    vibrato: withSync(
+      {
+        rate: sampleField(noiseMap, 'vibrato.rate', true),
+        depth: sampleField(noiseMap, 'vibrato.depth', true),
+        wet: pedalWet('vibrato'),
+      },
+      pedalSync.vibrato,
+    ),
+    frequencyShifter: {
+      shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift', true),
+      wet: pedalWet('frequencyShifter'),
+    },
+    // Width has no dark state: always a value from its band, never near the mono fold.
+    stereoWidener: { width: sampleField(noiseMap, 'stereoWidener.width', true) },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },

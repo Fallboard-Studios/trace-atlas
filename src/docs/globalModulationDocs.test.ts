@@ -115,7 +115,8 @@ describe('the named Global Modulation symbols are declared where the spec says t
       [`seed range ${field}`, 'src/data/globalAudioSeedRanges.ts', new RegExp(`^\\s*'${field.replace('.', '\\.')}': \\{`, 'm')],
       [`loading range ${field}`, 'src/data/globalAudioLoadingRanges.ts', new RegExp(`^\\s*'${field.replace('.', '\\.')}': \\{`, 'm')],
     ]),
-    ['PEDAL_LIT_EDGE', 'src/utils/globalAudioSeed.ts', /export const PEDAL_LIT_EDGE: Record<'autoWah' \| 'phaser', number>/],
+    // Global Pedals T8 widened the record to the six Modulation pedals; the AutoWah and Phaser keep their entries.
+    ['PEDAL_LIT_EDGE', 'src/utils/globalAudioSeed.ts', /export const PEDAL_LIT_EDGE: Record<'autoWah' \| 'phaser' \| MotionPedal, number>/],
     ['PHASER_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /export const PHASER_SYNC_ODDS = /],
     ['resolvePhaserRateHz', 'src/utils/tempoSync.ts', /export function resolvePhaserRateHz\(phaser: PhaserSettings, bpm: number\): number/],
     ['allowedPhaserNoteValues', 'src/utils/tempoSync.ts', /export function allowedPhaserNoteValues\(bpm: number\): NoteValue\[\]/],
