@@ -16,6 +16,12 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > `feature/palette-pedals` throughout), Checkpoints A–C passed, the five-axis review's follow-ups applied. Open:
 > T0 and T14 (the Pixel, Crawford's device), T15b only on a miss, T16, T17.
 >
+> **Update (2026-10-19): T0 and T14 ran, and T14 MISSED** (docs/todo/scratchy-audio-phones.md, "Global Pedals (roadmap
+> 50.6) on the Pixel"). The cause is the dark effects still processing, not the lit ones, so T15b would not help and is
+> dropped. In its place comes the **Dark-Effect Bypass**: intent confirmed at
+> [docs/intent/dark-effect-bypass.md](../intent/dark-effect-bypass.md); its spec and tasks come next. It lands before
+> T16 and T17, and T14 is re-run on it.
+>
 > *(Original status, 2026-10-17:)* The spec is written and awaiting Crawford's approval; its veto points
 > (spec §7) are the slot order (since answered: the Vibrato is stereo, so only the shifter's sideband leak on
 > panned voices is open), the cap mechanism (sequential or pick-two), the

@@ -609,3 +609,59 @@ underruns" at Full does not meet the first half as written, and with no baseline
 raised the count: run (c) is the worst case the plan names, so a clean ear on it is encouraging, not a pass. Nothing is
 changed on this evidence: the Stages ceiling stays at 12 and `LOAD_PEDAL_MIN` (T15b) is not built. What would settle it
 is the same world run on `main` (T0) and the HUD's count from this branch's run, both at Full 3:00.
+
+## Global Pedals (roadmap 50.6) on the Pixel — T0 and T14, Crawford's runs, 2026-10-19
+
+T0 and T14 of docs/tasks/GLOBAL_PEDALS.md, run back to back in one sitting. T0 is `main` at `d29ac778`, served on port
+4173. T14 is `feature/pedals` at `f0ddc8eb`, served on port 4174. Both are local Vite preview builds on the LAN, on the
+Pixel 8 with `?debug`. Each link opens a fresh page, so each run starts from a new AudioContext. The world is the
+seed-`alpha` baseline payload above. The worst case adds, on top of it: all six Modulation pedals at Mix 1 (AutoWah,
+Phaser, Chorus, Tremolo, Vibrato, Shifter), Tone's default parameters except Phaser stages 12, Shifter +10 Hz and Width 1.
+The tier is chosen with `&load=full` or `&load=standard`. The start count was 0 wherever Crawford wrote none, as agreed.
+
+| # | Build | Tier | World | Length | `underruns` start → end | By ear (Crawford's words) |
+|---|---|---|---|---|---|---|
+| 1 | main `d29ac778` | Full | baseline | 3:00 | 0 → **36** | "sounded great" |
+| 2 | main `d29ac778` | Standard | baseline | 3:00 | 0 → **59** | "some stutter in the first minute, it got a little better in minute 2 but never GREAT. one stutter happened during a solo robot melody." |
+| 3 | branch `f0ddc8eb` | Full | worst case | 3:00 | 0 → **92** | "just a little bit stutter throughout, but not nearly as much as i would expect from the volume of underruns." Pedals confirmed lit in the drawer. |
+| 4 | branch `f0ddc8eb` | Standard | worst case | 3:00 | 0 → **193** | "some stutter throughout. going through tabs didn't seem to cause an increase in underruns this time." |
+
+**Run 3 kept going past 3:00, in Crawford's words:** "around 3:30 i started looking at the drawers to make sure
+everything was lit, and underruns with distortion took off, around 1600 by 4:15. once they started piling up they don't
+seem to ever slow down again, even if i go back to the deck view. at 6:00 we're at 3058. around 6:20 I turned the power
+off and back on, and it was still very distorted. 4730 at 7:00."
+
+**Reading against the gate.** As written, the gate is zero underruns at Full and no more than T0's count at Standard.
+`main` itself no longer meets the first half: 36 at Full, where the 2026-10-13 baseline on `ca2b6868` read 0. So the
+branch is read against `main`. Full went from 36 to 92 (about 2.6×) and Standard from 59 to 193 (about 3.3×). **T14
+misses.** Each figure is a single run, with no repeat to show the spread. On both builds Standard counted more than Full
+in this sitting.
+
+**The runaway after 3:30 on run 3 is a separate finding.** The count went from about 1 600 to 4 730 over about three
+minutes. It did not recover in the deck view, nor after a power-off and power-on (power-off does not close the
+AudioContext, and the global chain keeps processing). Nothing here says whether `main` does the same when the drawers
+are browsed, or whether the cause is the pedals, the drawer render or heat. Run 4 browsed tabs without a rise.
+
+**Not yet recorded:** the bisect, the idle cost of the dark pedals, a drawer-browsing control on `main`, and the desktop
+`npm run perf` before and after.
+
+**Round 2, the same sitting.** The plan's bisect was replaced by three runs that separate the causes. A is the branch with
+the baseline link, so every new pedal is dark. B is `main` with the baseline link, hands off to 3:00, then browsing the
+drawers. C1 is the branch with the Chorus alone at Mix 1. All three are Full. Crawford stopped after C1, since A already
+answered the question (C2–C4 were not run).
+
+| # | Build | World | `underruns` at 3:00 | After 3:00 (Crawford's words, shortened only where marked …) |
+|---|---|---|---|---|
+| A | branch `f0ddc8eb` | baseline, every new pedal dark, hands off | 0 → **380** | "some stutter, but overall not TOO bad. barely acceptable. unerruns DOUBLED in the last 10 seconds. by 3:20 there were at 900. i didn't touch anything. lots of distortion, it's bad. at 3:45 we're at 1845. at 4:00 we're at 2502. at 4:05 it started completely dropping out. at 4:20 it turned silent. log says "4:42 main thread stalled -746ms" i still haven't touched aything. around 5:15 music started playing again, still pretty distorted." |
+| B | main `d29ac778` | baseline, drawers browsed after 3:00 | 0 → **94** | "barely any stutter. looking through tabs was completely fine, no underrun spikes or anything. at 4:00 we're at 112." |
+| C1 | branch `f0ddc8eb` | baseline + Chorus alone at Mix 1, hands off | 0 → **360** | "some stutter, but overall not TOO bad. acceptable. unerruns DOUBLED in the last 10 seconds again. by 3:20 there were at 880. … at 3:45 we're at 1800. at 4:00 we're at 3200. at 3:50 it started completely dropping out. at 4:00 it turned silent. log says "4:06 audio clock stalle (x0.47)" and "4:07 audio clock recovered after .6x" and "4:33 main thread stalled -770ms" and then several more main thread stalled notes, about every 5 seconds. i still haven't touched aything. 6:15 in and the music still hasn't started back up." |
+
+**What round 2 shows.** The runaway is the branch's, not the drawers' and not the phone's. B ran between A and C1 in the
+same sitting and stayed clean through drawer browsing. A and C1 collapsed hands-off at about 2:50. Lighting a pedal adds
+little: C1 matches A, and the worst case read 92 at 3:00. On these single runs, the cost is the pedals' presence, not
+their Mix. That agrees with Tone 15's `Effect`: the effect path keeps running behind the CrossFade at any `wet`, and the
+browser does not skip a node whose output is faded to zero. Once the phone tipped over, it did not recover: the same
+one-way collapse seen on `bravo` at Full (2026-09-21). **Outcome:** T15b, a Mix threshold, would not help, since Mix 0
+already costs the full price. Crawford chose (2026-10-19) to take a dark effect out of the signal path for all ten
+effects (the five pedals, plus the AutoWah, Phaser and three Colour effects already on `main`). A desktop measurement
+of each effect's dark cost comes first.
