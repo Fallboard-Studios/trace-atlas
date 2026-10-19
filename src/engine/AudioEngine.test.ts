@@ -1844,8 +1844,9 @@ describe('AudioEngine - Global FX Chain', () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      // The entry cycle-search cut, the first of the two Delay nodes each build makes (globalFx.ts CHAIN_CUT_OPTIONS).
-      const entryNode = vi.mocked(Tone.Delay).mock.results.at(-2)?.value ?? { connect: vi.fn() };
+      // The entry cycle-search cut, the first of the twelve Delay nodes each build makes: the two cuts, then one per bypass
+      // cell (globalFx.ts CHAIN_CUT_OPTIONS, docs/specs/DARK_EFFECT_BYPASS.md).
+      const entryNode = vi.mocked(Tone.Delay).mock.results.at(-12)?.value ?? { connect: vi.fn() };
       const layered = { base: 'sine', layers: [{ type: 'sine', gain: 0.8 }] } as any;
       AudioEngine.reserveVoice('bus-wiring-test', layered, TEST_ADSR);
       // busFilter is a Tone.Filter instance — it's the third Filter construction
@@ -3805,7 +3806,7 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       const busFilter = lastInstance(Tone.Filter);
       const reverbRoom = lastInstance(Tone.Reverb);
       const delayRoom = lastInstance(Tone.FeedbackDelay);
-      const chainEntry = vi.mocked(Tone.Delay).mock.results.at(-2)?.value; // the entry cycle-search cut
+      const chainEntry = vi.mocked(Tone.Delay).mock.results.at(-12)?.value; // the entry cycle-search cut, first of a build's twelve
 
       expect(busFilter.connect).toHaveBeenCalledWith(sends.reverb);
       expect(busFilter.connect).toHaveBeenCalledWith(sends.delay);
@@ -4060,11 +4061,17 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
     const primeSpy = vi.spyOn(AudioEngine, 'updateRobotSends');
     /** Every send gain built so far, in reservation order: the Gains constructed at 0 (the mock ignores its
      *  constructor argument, so the argument is the only honest marker), reverb then delay for each robot. */
+    // A send is a Gain built at 0 that feeds a room. The room test matters since Dark-Effect Bypass T2: each bypass cell's
+    // dry Gain is built at 0 too, but feeds its cell's cut.
     const sendGains = () => {
       const gainMock = (Tone.Gain as unknown as AnyMock).mock;
+      const rooms = new Set(
+        [Tone.Reverb, Tone.FeedbackDelay].flatMap((ctor) => (ctor as unknown as AnyMock).mock.results.map((r) => r.value)),
+      );
       return gainMock.results
         .filter((_: unknown, i: number) => gainMock.calls[i][0] === 0)
-        .map((r: { value: unknown }) => r.value as { gain: { value: number } });
+        .map((r: { value: unknown }) => r.value as { gain: { value: number }; connect: AnyMock })
+        .filter((g) => g.connect.mock.calls.some(([target]: unknown[]) => rooms.has(target)));
     };
     const edit = (id: string, patch: Record<string, unknown>) =>
       storeMod.useLocaleStore.getState().updateRobot(localeId, id, patch as any);

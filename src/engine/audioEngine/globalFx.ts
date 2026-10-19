@@ -130,6 +130,10 @@ export type Cell = {
   darken: number | null;
 };
 
+/** The live cells, rebuilt by every buildGlobalFxChain. An absent key is an effect left out of the chain: its
+ *  constructor is missing, its cell could not be built, or the Gain / Delay constructors are missing altogether. */
+const _cells: Partial<Record<BypassKey, Cell>> = {};
+
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
  *  a cell at cellGains(w) sounds exactly as the bare effect at wet w. Tone 15's CrossFade (component/channel/CrossFade.js)
  *  feeds a constant 1 through a mono StereoPanner at pan 2·fade − 1 and splits it into the two gains, which is the
@@ -193,6 +197,83 @@ function buildChainCut(DelayCtor: (new (...args: unknown[]) => Tone.Delay) | und
   } catch (err) {
     devWarn('[AudioEngine] the ' + where + ' cycle-search cut could not be constructed; the chain runs without it', err);
     return null;
+  }
+}
+
+/** Release a node that will never be wired, so an effect left out of the chain does not run its LFOs unheard. */
+function disposeQuietly(node: Tone.ToneAudioNode | null): void {
+  try {
+    node?.dispose();
+  } catch {
+    // Nothing to do: the node is unwired either way.
+  }
+}
+
+/**
+ * Builds `key`'s bypass cell around `effect` (docs/specs/DARK_EFFECT_BYPASS.md section 1.1): `in` -> `dry` -> `cut` and
+ * `in` -> effect -> `wet` -> `cut`. Each cell ends in its own zero-delay cut, so a connect's cycle search never walks
+ * further than one cell (see CHAIN_CUT_OPTIONS). Built transparent for now: the effect connected and the cell at dry 0
+ * / wet 1, so the effect's own `wet` still carries its Mix. An effect whose constructor threw (null) gets an empty
+ * cell wired dry. If the cell itself cannot be built, the effect is released and left out of the chain.
+ */
+function buildCell(
+  key: BypassKey,
+  effect: Tone.ToneAudioNode | null,
+  GainCtor: new (...args: unknown[]) => Tone.Gain,
+  DelayCtor: new (...args: unknown[]) => Tone.Delay,
+): void {
+  try {
+    _cells[key] = {
+      in: new GainCtor(1),
+      dry: new GainCtor(effect ? 0 : 1),
+      wet: new GainCtor(effect ? 1 : 0),
+      cut: new DelayCtor({ ...CHAIN_CUT_OPTIONS }),
+      effect,
+      connected: effect !== null,
+      mix: effect ? 1 : 0,
+      darken: null,
+    };
+  } catch (err) {
+    devWarn(
+      '[AudioEngine] the ' + key + ' bypass cell could not be constructed; the chain runs without the ' + key,
+      err,
+    );
+    disposeQuietly(effect);
+  }
+}
+
+/** The effect in `key`'s cell, or null when the cell is absent or empty: what the `_global<Effect>` aliases hold. */
+function cellEffect<T extends Tone.ToneAudioNode>(key: BypassKey): T | null {
+  return (_cells[key]?.effect as T | null | undefined) ?? null;
+}
+
+/** One stage of the dry chain: where the previous stage connects in, and where this one connects on. */
+type ChainSpan = { head: Tone.ToneAudioNode; tail: Tone.ToneAudioNode };
+
+function nodeSpan(node: Tone.ToneAudioNode | null): ChainSpan | null {
+  return node ? { head: node, tail: node } : null;
+}
+
+/** A cell as a chain stage: entered at its `in`, left at its `cut`. Null for an absent cell. */
+function cellSpan(key: BypassKey): ChainSpan | null {
+  const cell = _cells[key];
+  return cell ? { head: cell.in, tail: cell.cut } : null;
+}
+
+/** A cell's nodes in signal order, upstream first, for disconnectAllFxNodes. Empty for an absent cell. */
+function cellNodes(key: BypassKey): Array<Tone.ToneAudioNode | null> {
+  const cell = _cells[key];
+  return cell ? [cell.in, cell.dry, cell.effect, cell.wet, cell.cut] : [];
+}
+
+/** A cell's own edges: the dry path always, the effect's two edges only while `connected`. */
+function wireCell(cell: Cell): void {
+  cell.in.connect(cell.dry);
+  cell.dry.connect(cell.cut);
+  cell.wet.connect(cell.cut);
+  if (cell.connected && cell.effect) {
+    cell.in.connect(cell.effect);
+    cell.effect.connect(cell.wet);
   }
 }
 
@@ -369,6 +450,44 @@ export function buildGlobalFxChain(): void {
       _globalStereoWidener = null;
     }
   }
+  // The bypass cells (docs/specs/DARK_EFFECT_BYPASS.md section 1.3), one per effect whose constructor exists, built
+  // before the returns and the master so the master stays the last Gain made. Without a Gain or a Delay constructor no
+  // cell can exist, and the ten effects are released and left out of the chain.
+  for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
+  const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
+    ['distortion', DistortionCtor, _globalDistortion],
+    ['chebyshev', ChebyshevCtor, _globalChebyshev],
+    ['bitCrusher', BitCrusherCtor, _globalBitCrusher],
+    ['autoWah', AutoWahCtor, _globalAutoWah],
+    ['phaser', PhaserCtor, _globalPhaser],
+    ['chorus', ChorusCtor, _globalChorus],
+    ['tremolo', TremoloCtor, _globalTremolo],
+    ['vibrato', VibratoCtor, _globalVibrato],
+    ['frequencyShifter', FrequencyShifterCtor, _globalFrequencyShifter],
+    ['stereoWidener', StereoWidenerCtor, _globalStereoWidener],
+  ];
+  if (GainCtorFX && ChainCutCtor) {
+    for (const [key, ctor, effect] of effects) {
+      if (ctor) buildCell(key, effect, GainCtorFX, ChainCutCtor);
+    }
+  } else if (effects.some(([, , effect]) => effect)) {
+    devWarn(
+      '[AudioEngine] no Gain or Delay constructor for the bypass cells; the ten global effects are left out of the chain',
+    );
+    for (const [, , effect] of effects) disposeQuietly(effect);
+  }
+  // The `_global<Effect>` names stay as aliases of the cells' effects, so a left-out effect's setter no-ops.
+  _globalDistortion = cellEffect<Tone.Distortion>('distortion');
+  _globalChebyshev = cellEffect<Tone.Chebyshev>('chebyshev');
+  _globalBitCrusher = cellEffect<Tone.BitCrusher>('bitCrusher');
+  _globalAutoWah = cellEffect<Tone.AutoWah>('autoWah');
+  _globalPhaser = cellEffect<Tone.Phaser>('phaser');
+  _globalChorus = cellEffect<Tone.Chorus>('chorus');
+  _globalTremolo = cellEffect<Tone.Tremolo>('tremolo');
+  _globalVibrato = cellEffect<Tone.Vibrato>('vibrato');
+  _globalFrequencyShifter = cellEffect<Tone.FrequencyShifter>('frequencyShifter');
+  _globalStereoWidener = cellEffect<Tone.StereoWidener>('stereoWidener');
+
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -399,28 +518,29 @@ export function buildGlobalFxChain(): void {
 function disconnectAllFxNodes(): void {
   // Signal order, upstream to downstream (the rooms feed their returns, which feed the join), walked BACKWARDS: every
   // disconnect runs Tone's cycle search from the nodes it drops, so dropping the downstream ones first leaves each later
-  // search a node with no outputs (see CHAIN_CUT_OPTIONS; front-to-back took a Decay flip 2.6 s with the pedals).
+  // search a node with no outputs (see CHAIN_CUT_OPTIONS; front-to-back took a Decay flip 2.6 s with the pedals). Each
+  // cell's effect is dropped too, so a rewire re-makes every edge from nothing.
   const nodes = [
     _entryCut,
     _globalEQ,
     _globalLPF,
     _globalHPF,
     _filterCut,
-    _globalDistortion,
-    _globalChebyshev,
-    _globalBitCrusher,
-    _globalAutoWah,
-    _globalPhaser,
-    _globalChorus,
-    _globalTremolo,
-    _globalVibrato,
-    _globalFrequencyShifter,
+    ...cellNodes('distortion'),
+    ...cellNodes('chebyshev'),
+    ...cellNodes('bitCrusher'),
+    ...cellNodes('autoWah'),
+    ...cellNodes('phaser'),
+    ...cellNodes('chorus'),
+    ...cellNodes('tremolo'),
+    ...cellNodes('vibrato'),
+    ...cellNodes('frequencyShifter'),
     _globalDelay,
     _globalReverb,
     _globalReverbReturn,
     _globalDelayReturn,
     _globalCompressor,
-    _globalStereoWidener,
+    ...cellNodes('stereoWidener'),
     _globalLimiter,
     _masterGain,
   ].filter(Boolean) as Array<{ disconnect: () => void }>;
@@ -439,9 +559,11 @@ function disconnectAllFxNodes(): void {
  * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Vibrato →
  * FrequencyShifter → Compressor → StereoWidener →
  * Limiter → masterGain → Destination (or straight to Destination if masterGain
- * wasn't constructed). An absent colour or modulation node (headless, or a worklet
- * that failed to construct) is skipped by the filter below, so the chain
- * never breaks.
+ * wasn't constructed). Each of those ten effects is a bypass cell, entered at its
+ * `in` and left at its `cut` (docs/specs/DARK_EFFECT_BYPASS.md section 1.3); an
+ * absent cell (headless, or no Gain / Delay constructor) is skipped by the filter
+ * below, and an effect that failed to construct leaves an empty cell wired dry,
+ * so the chain never breaks.
  *
  * Reverb and Delay are two parallel rooms OFF that chain, not stages in it.
  * Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
@@ -452,9 +574,9 @@ function disconnectAllFxNodes(): void {
  * - Natural Decay (controlledDecay=false, default): both returns join at the
  *   Compressor input, so the echoes are compressed with the dry signal.
  * - Controlled Decay (controlledDecay=true): both returns join at the
- *   StereoWidener's input, past the Compressor, so the echoes are not squeezed
+ *   Width cell's input, past the Compressor, so the echoes are not squeezed
  *   by it but are still folded or spread by Width (docs/specs/GLOBAL_PEDALS.md
- *   assumption 2). Without a widener node the join falls back to the Limiter.
+ *   assumption 2). Without a Width cell the join falls back to the Limiter.
  *
  * A room's own input is never disconnected here, so the robots' sends stay
  * connected across every flip. Called once from
@@ -466,27 +588,24 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
   disconnectAllFxNodes();
 
   const chainNodes = [
-    _entryCut,
-    _globalEQ,
-    _globalLPF,
-    _globalHPF,
-    _filterCut,
-    _globalDistortion,
-    _globalChebyshev,
-    _globalBitCrusher,
-    _globalAutoWah,
-    _globalPhaser,
-    _globalChorus,
-    _globalTremolo,
-    _globalVibrato,
-    _globalFrequencyShifter,
-    _globalCompressor,
-    _globalStereoWidener,
-    _globalLimiter,
-  ].filter(Boolean) as Array<{
-    connect: (t: unknown) => unknown;
-    toDestination?: () => void;
-  }>;
+    nodeSpan(_entryCut),
+    nodeSpan(_globalEQ),
+    nodeSpan(_globalLPF),
+    nodeSpan(_globalHPF),
+    nodeSpan(_filterCut),
+    cellSpan('distortion'),
+    cellSpan('chebyshev'),
+    cellSpan('bitCrusher'),
+    cellSpan('autoWah'),
+    cellSpan('phaser'),
+    cellSpan('chorus'),
+    cellSpan('tremolo'),
+    cellSpan('vibrato'),
+    cellSpan('frequencyShifter'),
+    nodeSpan(_globalCompressor),
+    cellSpan('stereoWidener'),
+    nodeSpan(_globalLimiter),
+  ].filter((span): span is ChainSpan => span !== null);
 
   if (chainNodes.length === 0) {
     // No FX nodes available at all (fully headless env) — nothing to wire.
@@ -495,9 +614,12 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
 
   try {
     for (let i = 0; i < chainNodes.length - 1; i++) {
-      chainNodes[i].connect(chainNodes[i + 1]);
+      chainNodes[i].tail.connect(chainNodes[i + 1].head);
     }
-    const last = chainNodes[chainNodes.length - 1];
+    // Each cell's own edges, after the chain: the effect's two only if it was lit, so a Decay flip or a rebuild
+    // restores exactly what was connected.
+    for (const cell of Object.values(_cells)) wireCell(cell);
+    const last = chainNodes[chainNodes.length - 1].tail;
     if (_masterGain) {
       last.connect(_masterGain);
       try {
@@ -513,9 +635,10 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
       }
     }
 
-    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped. Without a widener the
-    // Controlled join falls through to the Limiter, as it was before the widener existed.
-    const join = (controlledDecay ? _globalStereoWidener : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
+    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped. Controlled joins at the
+    // Width cell's `in`, lit or dark (docs/specs/DARK_EFFECT_BYPASS.md assumption 6); without a Width cell it falls
+    // through to the Limiter, as it was before the widener existed.
+    const join = (controlledDecay ? _cells.stereoWidener?.in : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
     if (join) {
       _globalReverb?.connect(_globalReverbReturn ?? join);
       _globalReverbReturn?.connect(join);
@@ -856,6 +979,7 @@ function rebuildPhaser(stages: number): boolean {
   }
   const old = _globalPhaser;
   _globalPhaser = fresh;
+  if (_cells.phaser) _cells.phaser.effect = fresh;
   _phaserStages = stages;
   try {
     old?.dispose();

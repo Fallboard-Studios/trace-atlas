@@ -135,6 +135,24 @@ const toneFlags = vi.hoisted(() => ({
     bits: { value: opts.bits ?? 4, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Dark-Effect Bypass T2 (docs/specs/DARK_EFFECT_BYPASS.md section 1.1): the bypass cells are three Gains each, so the
+  // Gain is hoisted for a switch to hide it. It takes Tone's numeric constructor argument as its gain, and `gain` is a
+  // Param with `rampTo`, as the cells' crossfades need.
+  gainAbsent: false,
+  gainCtor: vi.fn((value?: unknown) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    gain: { value: typeof value === 'number' ? value : 1, rampTo: vi.fn() },
+  })),
+  // Hoisted with a switch so a test can end the chain on the Width cell.
+  limiterAbsent: false,
+  limiterCtor: vi.fn(() => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    threshold: { value: -12 },
+  })),
 }));
 
 vi.mock('tone', () => ({
@@ -225,18 +243,12 @@ vi.mock('tone', () => ({
     frequency: { value: 20000, rampTo: vi.fn() },
     Q: { value: 1 },
   })),
-  Gain: vi.fn(() => ({
-    connect: vi.fn().mockReturnThis(),
-    disconnect: vi.fn(),
-    toDestination: vi.fn(),
-    gain: { value: 1 },
-  })),
-  Limiter: vi.fn(() => ({
-    connect: vi.fn().mockReturnThis(),
-    disconnect: vi.fn(),
-    toDestination: vi.fn(),
-    threshold: { value: -12 },
-  })),
+  get Gain() {
+    return toneFlags.gainAbsent ? undefined : toneFlags.gainCtor;
+  },
+  get Limiter() {
+    return toneFlags.limiterAbsent ? undefined : toneFlags.limiterCtor;
+  },
   // The read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md) are NATIVE AnalyserNodes made from Tone's raw
   // context: Tone.Analyser cannot be used, because it sets fftSize = 2 * size and caps size at 16384, so it can neither
   // build a 32768 window nor read more than half of one (found in the real-browser check, Task 6).
@@ -305,7 +317,49 @@ const secondLastInstance = (ctor: unknown) => (ctor as unknown as AnyMock).mock.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const returnOf = (room: any) => room.connect.mock.calls.at(-1)?.[0];
 /** The post-filter cycle-search cut: the second (last) Delay node a build makes, between the HPF and the Distortion. */
-const filterCutOf = () => toneFlags.cutCtor.mock.results.at(-1)?.value;
+const filterCutOf = () => toneFlags.cutCtor.mock.results[1]?.value;
+/** Every Delay node made so far: the two cycle-search cuts first, then the ten cells' cuts. */
+const delaysBuilt = () => toneFlags.cutCtor.mock.results.map((r) => r.value);
+/** An effect's bypass cell (Dark-Effect Bypass T2, docs/specs/DARK_EFFECT_BYPASS.md section 1.1), found through the
+ *  wiring: its `in` is the Gain that feeds the effect, its `wet` the node the effect feeds, its `cut` the node the `wet`
+ *  feeds, and its `dry` whatever else the `in` feeds. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function cellOf(effect: any) {
+  const gains = toneFlags.gainCtor.mock.results.map((r) => r.value);
+  const input = gains.find((g) => g.connect.mock.calls.some(([target]: unknown[]) => target === effect));
+  const wet = effect.connect.mock.calls.at(-1)?.[0];
+  return {
+    in: input,
+    dry: input?.connect.mock.calls.find(([target]: unknown[]) => target !== effect)?.[0],
+    wet,
+    cut: wet?.connect.mock.calls.at(-1)?.[0],
+  };
+}
+/** Where the chain enters an effect's cell, and where it leaves it. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const inOf = (effect: any) => cellOf(effect).in;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cutOf = (effect: any) => cellOf(effect).cut;
+/** The empty cell (an effect whose constructor threw) the chain enters from `prevCut`: in -> dry -> cut, no effect. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function emptyCellAfter(prevCut: any) {
+  const input = prevCut.connect.mock.calls.at(-1)[0];
+  const dry = input.connect.mock.calls.at(-1)[0];
+  return { in: input, dry, cut: dry.connect.mock.calls.at(-1)[0] };
+}
+/** The ten effects in chain order, each the most recent instance of its constructor. */
+const tenEffects = () => [
+  lastInstance(Tone.Distortion),
+  lastInstance(Tone.Chebyshev),
+  lastInstance(toneFlags.crusherCtor),
+  lastInstance(toneFlags.wahCtor),
+  lastInstance(toneFlags.phaserCtor),
+  lastInstance(toneFlags.chorusCtor),
+  lastInstance(toneFlags.tremoloCtor),
+  lastInstance(toneFlags.vibratoCtor),
+  lastInstance(toneFlags.shifterCtor),
+  lastInstance(toneFlags.widenerCtor),
+];
 
 describe('globalFx', () => {
   beforeEach(() => {
@@ -320,6 +374,8 @@ describe('globalFx', () => {
     toneFlags.shifterAbsent = false;
     toneFlags.widenerAbsent = false;
     toneFlags.cutAbsent = false;
+    toneFlags.gainAbsent = false;
+    toneFlags.limiterAbsent = false;
     toneFlags.lookAhead = 0.1;
     toneFlags.timeouts = [];
   });
@@ -357,16 +413,17 @@ describe('globalFx', () => {
   // zero-delay DelayNodes (no cycle, so no latency) bound every search, and a rewire disconnects downstream first.
   // ========================================
   describe('the cycle-search cuts', () => {
-    it('constructs exactly two zero-delay Delay nodes with a tiny buffer', async () => {
+    // Dark-Effect Bypass T2: two cuts in the dry chain plus one ending each of the ten bypass cells.
+    it('constructs exactly twelve zero-delay Delay nodes with a tiny buffer', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(2);
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(12);
       for (const call of toneFlags.cutCtor.mock.calls) {
         expect(call[0]).toStrictEqual({ delayTime: 0, maxDelay: 0.01 });
       }
     });
 
-    it.each([false, true])('puts a cut in front of the EQ3 and one between the HPF and the Distortion, controlledDecay=%s', async (controlled) => {
+    it.each([false, true])('puts a cut in front of the EQ3 and one between the HPF and the Distortion cell, controlledDecay=%s', async (controlled) => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const [entryCut, filterCut] = toneFlags.cutCtor.mock.results.map((r) => r.value);
@@ -377,7 +434,7 @@ describe('globalFx', () => {
 
       expect(entryCut.connect.mock.calls).toEqual([[lastInstance(Tone.EQ3)]]);
       expect(hpf.connect.mock.calls).toEqual([[filterCut]]);
-      expect(filterCut.connect.mock.calls).toEqual([[lastInstance(Tone.Distortion)]]);
+      expect(filterCut.connect.mock.calls).toEqual([[inOf(lastInstance(Tone.Distortion))]]);
     });
 
     it('keeps the cuts across a rewire: never rebuilt', async () => {
@@ -385,17 +442,18 @@ describe('globalFx', () => {
       globalFx.buildGlobalFxChain();
       globalFx.wireGlobalFxChain(true);
       globalFx.wireGlobalFxChain(false);
-      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(2);
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(12);
     });
 
-    it('wires HPF -> Distortion and enters at the EQ3 when the Delay constructor is absent', async () => {
+    // Dark-Effect Bypass T2: without a Delay constructor no bypass cell exists, so the ten effects are left out.
+    it('wires HPF -> Compressor and enters at the EQ3 when the Delay constructor is absent', async () => {
       toneFlags.cutAbsent = true;
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Distortion));
+      expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
     });
 
-    it('builds and wires on when the Delay constructor throws, falling back to the EQ3 entry', async () => {
+    it('builds and wires on when the Delay constructor throws, falling back to the EQ3 entry and HPF -> Compressor', async () => {
       toneFlags.cutCtor.mockImplementation(() => {
         throw new Error('no delay');
       });
@@ -404,7 +462,8 @@ describe('globalFx', () => {
         expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('cut'), expect.any(Error));
         expect(globalFx.getGlobalChainEntry()).toBe(lastInstance(Tone.EQ3));
-        expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Distortion));
+        expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+        expect(lastInstance(Tone.Distortion).connect).not.toHaveBeenCalled();
       } finally {
         toneFlags.cutCtor.mockReset();
         toneFlags.cutCtor.mockImplementation((opts: { delayTime?: number; maxDelay?: number } = {}) => ({
@@ -418,27 +477,26 @@ describe('globalFx', () => {
 
     // A disconnect runs detectCycles from each destination it drops. Dropping the downstream nodes first means every
     // later search starts from a node that has no outputs left (a front-to-back rewire took 2.6 s with the pedals).
-    it('disconnects the chain downstream first on a rewire: master, Limiter, widener, ..., EQ3, entry cut', async () => {
+    it('disconnects the chain downstream first on a rewire: master, Limiter, Width cell, ..., EQ3, entry cut', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const [entryCut, filterCut] = toneFlags.cutCtor.mock.results.map((r) => r.value);
+      // Each bypass cell in signal order: in, dry, effect, wet, cut (Dark-Effect Bypass T2).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cellChain = (effect: any) => {
+        const cell = cellOf(effect);
+        return [cell.in, cell.dry, effect, cell.wet, cell.cut];
+      };
+      const effects = tenEffects();
       const chain = [
         entryCut,
         lastInstance(Tone.EQ3),
         secondLastInstance(Tone.Filter),
         lastInstance(Tone.Filter),
         filterCut,
-        lastInstance(Tone.Distortion),
-        lastInstance(Tone.Chebyshev),
-        lastInstance(toneFlags.crusherCtor),
-        lastInstance(toneFlags.wahCtor),
-        lastInstance(toneFlags.phaserCtor),
-        lastInstance(toneFlags.chorusCtor),
-        lastInstance(toneFlags.tremoloCtor),
-        lastInstance(toneFlags.vibratoCtor),
-        lastInstance(toneFlags.shifterCtor),
+        ...effects.slice(0, 9).flatMap(cellChain),
         lastInstance(Tone.Compressor),
-        lastInstance(toneFlags.widenerCtor),
+        ...cellChain(effects[9]),
         lastInstance(Tone.Limiter),
         lastInstance(Tone.Gain),
       ];
@@ -461,6 +519,306 @@ describe('globalFx', () => {
       const at = (node: { disconnect: ReturnType<typeof vi.fn> }) => node.disconnect.mock.invocationCallOrder[0];
       for (const room of rooms) expect(at(room)).toBeGreaterThan(at(returnOf(room)));
       for (const room of rooms) expect(at(returnOf(room))).toBeGreaterThan(at(lastInstance(Tone.Gain)));
+    });
+  });
+
+  // ========================================
+  // Dark-Effect Bypass T2 (docs/specs/DARK_EFFECT_BYPASS.md sections 1.1 and 1.3): each of the ten global effects sits
+  // in a fixed four-node cell, in -> dry -> cut and in -> effect -> wet -> cut, and the chain runs through the cells.
+  // Built TRANSPARENT here: the effect connected, the cell at dry 0 / wet 1, the effect still carrying its own Mix, so
+  // the sound is unchanged until T3 moves the Mix law onto the cell.
+  // ========================================
+  describe('bypass cells (Dark-Effect Bypass T2)', () => {
+    const EFFECT_NAMES = [
+      'Distortion',
+      'Chebyshev',
+      'BitCrusher',
+      'AutoWah',
+      'Phaser',
+      'Chorus',
+      'Tremolo',
+      'Vibrato',
+      'FrequencyShifter',
+      'StereoWidener',
+    ];
+
+    it('builds ten cells: twelve zero-delay Delays in all, and three Gains per cell besides the returns and master', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(12);
+      for (const call of toneFlags.cutCtor.mock.calls) expect(call[0]).toStrictEqual({ delayTime: 0, maxDelay: 0.01 });
+      expect(toneFlags.gainCtor).toHaveBeenCalledTimes(30 + 3);
+    });
+
+    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const))(
+      'puts the %s in a transparent cell: in -> effect -> wet -> cut, in -> dry -> cut, dry 0, wet 1',
+      async (_name, index) => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const effect = tenEffects()[index];
+        const cell = cellOf(effect);
+        const gains = toneFlags.gainCtor.mock.results.map((r) => r.value);
+
+        expect(gains).toContain(cell.in);
+        expect(gains).toContain(cell.dry);
+        expect(gains).toContain(cell.wet);
+        expect(delaysBuilt().slice(2)).toContain(cell.cut);
+        expect(new Set([cell.in, cell.dry, cell.wet, cell.cut]).size).toBe(4);
+
+        expect(cell.in.connect.mock.calls).toEqual(expect.arrayContaining([[cell.dry], [effect]]));
+        expect(cell.in.connect).not.toHaveBeenCalledWith(cell.cut);
+        expect(effect.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
+        expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
+        expect(cell.dry.gain.value).toBe(0);
+        expect(cell.wet.gain.value).toBe(1);
+      },
+    );
+
+    it('gives each effect its own cell', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const ins = tenEffects().map((effect) => cellOf(effect).in);
+      const cuts = tenEffects().map((effect) => cellOf(effect).cut);
+      expect(new Set(ins).size).toBe(10);
+      expect(new Set(cuts).size).toBe(10);
+    });
+
+    it.each([false, true])(
+      'runs the chain through the cells, controlledDecay=%s: filter cut -> nine cells -> Compressor -> Width cell -> Limiter -> master',
+      async (controlled) => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const cells = tenEffects().map(cellOf);
+        const compressor = lastInstance(Tone.Compressor);
+        const limiter = lastInstance(Tone.Limiter);
+        const master = lastInstance(Tone.Gain);
+        const stages = [
+          delaysBuilt()[0],
+          lastInstance(Tone.EQ3),
+          secondLastInstance(Tone.Filter),
+          lastInstance(Tone.Filter),
+          filterCutOf(),
+        ];
+        const all = [...stages, compressor, limiter, ...cells.flatMap((c) => [c.in, c.cut])];
+        for (const node of all) node.connect.mockClear();
+
+        globalFx.wireGlobalFxChain(controlled);
+
+        for (let i = 0; i < stages.length - 1; i++) expect(stages[i].connect.mock.calls).toEqual([[stages[i + 1]]]);
+        expect(filterCutOf().connect.mock.calls).toEqual([[cells[0].in]]);
+        for (let i = 0; i < 8; i++) expect(cells[i].cut.connect.mock.calls).toEqual([[cells[i + 1].in]]);
+        expect(cells[8].cut.connect.mock.calls).toEqual([[compressor]]);
+        expect(compressor.connect.mock.calls).toEqual([[cells[9].in]]);
+        expect(cells[9].cut.connect.mock.calls).toEqual([[limiter]]);
+        expect(limiter.connect.mock.calls).toEqual([[master]]);
+        for (const cell of cells) expect(cell.in.connect).not.toHaveBeenCalledWith(cell.cut);
+      },
+    );
+
+    it('joins both returns at the Compressor in Natural Decay and at the Width cell in Controlled Decay', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const returns = [returnOf(lastInstance(Tone.Reverb)), returnOf(lastInstance(Tone.FeedbackDelay))];
+      const widthIn = cellOf(lastInstance(toneFlags.widenerCtor)).in;
+      for (const ret of returns) expect(ret.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
+
+      globalFx.wireGlobalFxChain(true);
+      for (const ret of returns) expect(ret.connect).toHaveBeenLastCalledWith(widthIn);
+      for (const ret of returns) expect(ret.connect).not.toHaveBeenCalledWith(lastInstance(toneFlags.widenerCtor));
+    });
+
+    it('falls the Controlled join back to the Limiter when there is no Width cell, and runs Compressor -> Limiter', async () => {
+      toneFlags.widenerAbsent = true;
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      const limiter = lastInstance(Tone.Limiter);
+      expect(returnOf(lastInstance(Tone.Reverb)).connect).toHaveBeenLastCalledWith(limiter);
+      expect(lastInstance(Tone.Compressor).connect).toHaveBeenLastCalledWith(limiter);
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(11);
+    });
+
+    it('leaves a chain that ends on the Width cell from its cut: no Limiter, Width cell cut -> master', async () => {
+      toneFlags.limiterAbsent = true;
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const cell = cellOf(lastInstance(toneFlags.widenerCtor));
+      expect(cell.cut.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+      expect(cell.in.connect).not.toHaveBeenCalledWith(lastInstance(Tone.Gain));
+    });
+
+    it('disconnects every cell node and its effect exactly once per Decay flip, and re-makes each edge exactly once', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const effects = tenEffects();
+      const cells = effects.map(cellOf);
+      const nodes = [...effects, ...cells.flatMap((c) => [c.in, c.dry, c.wet, c.cut])];
+      for (const flip of [true, false]) {
+        for (const node of nodes) {
+          node.connect.mockClear();
+          node.disconnect.mockClear();
+        }
+        globalFx.wireGlobalFxChain(flip);
+        for (const node of nodes) expect(node.disconnect).toHaveBeenCalledTimes(1);
+        cells.forEach((cell, i) => {
+          expect(cell.in.connect.mock.calls).toHaveLength(2);
+          expect(cell.in.connect.mock.calls).toEqual(expect.arrayContaining([[cell.dry], [effects[i]]]));
+          expect(effects[i].connect.mock.calls).toEqual([[cell.wet]]);
+          expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
+          expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
+          expect(cell.cut.connect).toHaveBeenCalledTimes(1);
+        });
+      }
+    });
+
+    // A rewire disconnects downstream first (see the cycle-search cuts): within a cell, the cut before the two gains
+    // and the effect, and the `in` last.
+    it('disconnects each cell downstream first: cut, wet, effect, dry, in', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      for (const effect of tenEffects()) {
+        const cell = cellOf(effect);
+        const at = (node: { disconnect: ReturnType<typeof vi.fn> }) => node.disconnect.mock.invocationCallOrder.at(-1);
+        globalFx.wireGlobalFxChain(true);
+        const order = [cell.cut, cell.wet, effect, cell.dry, cell.in].map(at);
+        expect(order).toStrictEqual([...order].sort((a, b) => (a ?? 0) - (b ?? 0)));
+      }
+    });
+
+    it('rebuilds no cell on a rewire', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(12);
+      expect(toneFlags.gainCtor).toHaveBeenCalledTimes(33);
+    });
+
+    it('builds fresh cells on a second build, and the chain runs through the new ones', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.cutCtor).toHaveBeenCalledTimes(24);
+      const cell = cellOf(lastInstance(Tone.Distortion));
+      expect(toneFlags.cutCtor.mock.results[13].value.connect).toHaveBeenLastCalledWith(cell.in);
+    });
+
+    describe('failure paths', () => {
+      it.each([
+        ['Gain', () => (toneFlags.gainAbsent = true)],
+        ['Delay', () => (toneFlags.cutAbsent = true)],
+      ])('with no %s constructor builds no cells, leaves the ten effects out with one warning, and every setter no-ops', async (_name, hide) => {
+        hide();
+        const globalFx = await import('./globalFx');
+        expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+        const bypassWarnings = vi.mocked(devWarn).mock.calls.filter(([message]) => String(message).includes('bypass'));
+        expect(bypassWarnings).toHaveLength(1);
+        expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(
+          toneFlags.cutAbsent ? lastInstance(Tone.Compressor) : filterCutOf(),
+        );
+        if (!toneFlags.cutAbsent) expect(filterCutOf().connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
+        expect(lastInstance(Tone.Compressor).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
+        for (const effect of tenEffects()) {
+          expect(effect.connect).not.toHaveBeenCalled();
+        }
+
+        globalFx.setGlobalDistortion({ wet: 0.5 });
+        globalFx.setGlobalChebyshev({ wet: 0.5 });
+        globalFx.setGlobalBitCrusher({ wet: 0.5 });
+        globalFx.setGlobalAutoWah({ wet: 0.5 });
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        globalFx.setGlobalChorus({ wet: 0.5 });
+        globalFx.setGlobalTremolo({ wet: 0.5 });
+        globalFx.setGlobalVibrato({ wet: 0.5 });
+        globalFx.setGlobalFrequencyShifter({ wet: 0.5 });
+        globalFx.setGlobalStereoWidener({ width: 0.8 });
+        for (const effect of tenEffects().slice(0, 9)) expect(effect.wet.rampTo).not.toHaveBeenCalled();
+        expect(lastInstance(toneFlags.widenerCtor).width.rampTo).not.toHaveBeenCalled();
+      });
+
+      it('drops a cell from the chain on a rebuild whose effect constructor has gone', async () => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const oldPhaserIn = inOf(lastInstance(toneFlags.phaserCtor));
+        toneFlags.phaserAbsent = true;
+        globalFx.buildGlobalFxChain();
+        expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
+        oldPhaserIn.connect.mockClear();
+        globalFx.wireGlobalFxChain(true);
+        expect(oldPhaserIn.connect).not.toHaveBeenCalled();
+      });
+
+      it('releases an effect it could not put in a cell, so its LFOs do not run on unheard', async () => {
+        toneFlags.cutAbsent = true;
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        expect(lastInstance(toneFlags.phaserCtor).dispose).toHaveBeenCalledTimes(1);
+      });
+
+      it('leaves one effect out with one warning when its cell constructor throws, and its setter no-ops', async () => {
+        const real = toneFlags.cutCtor.getMockImplementation()!;
+        toneFlags.cutCtor
+          .mockImplementationOnce(real)
+          .mockImplementationOnce(real)
+          .mockImplementationOnce(() => {
+            throw new Error('no delay for the Distortion cell');
+          });
+        const globalFx = await import('./globalFx');
+        expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+
+        const dist = lastInstance(Tone.Distortion);
+        expect(dist.connect).not.toHaveBeenCalled();
+        expect(devWarn).toHaveBeenCalledTimes(1);
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('distortion'), expect.any(Error));
+        expect(filterCutOf().connect).toHaveBeenLastCalledWith(cellOf(lastInstance(Tone.Chebyshev)).in);
+        globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 });
+        expect(dist.wet.rampTo).not.toHaveBeenCalled();
+      });
+
+      it('releases the effect whose cell could not be built', async () => {
+        const real = toneFlags.cutCtor.getMockImplementation()!;
+        // The two cycle-search cuts, then the Distortion, Chebyshev, BitCrusher and AutoWah cells; the Phaser's is 7th.
+        for (let i = 0; i < 6; i++) toneFlags.cutCtor.mockImplementationOnce(real);
+        toneFlags.cutCtor.mockImplementationOnce(() => {
+          throw new Error('no delay for the Phaser cell');
+        });
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const phaser = lastInstance(toneFlags.phaserCtor);
+        expect(phaser.dispose).toHaveBeenCalledTimes(1);
+        expect(phaser.connect).not.toHaveBeenCalled();
+        expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
+        globalFx.setGlobalPhaser({ stages: 4, wet: 0.5 });
+        expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+      });
+
+      it('wires an empty cell dry when an effect constructor throws: in -> dry -> cut at dry 1, wet 0', async () => {
+        toneFlags.vibratoCtor.mockImplementationOnce(() => {
+          throw new Error('no vibrato');
+        });
+        const globalFx = await import('./globalFx');
+        expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+
+        const empty = cellOf(lastInstance(toneFlags.tremoloCtor)).cut.connect.mock.calls.at(-1)[0];
+        const dry = empty.connect.mock.calls.at(-1)[0];
+        const cut = dry.connect.mock.calls.at(-1)[0];
+        expect(empty.connect.mock.calls).toEqual([[dry]]);
+        expect(dry.gain.value).toBe(1);
+        expect(delaysBuilt()).toContain(cut);
+        expect(cut.connect).toHaveBeenLastCalledWith(cellOf(lastInstance(toneFlags.shifterCtor)).in);
+        const wet = toneFlags.gainCtor.mock.results
+          .map((r) => r.value)
+          .find((g) => g !== dry && g.connect.mock.calls.some(([target]: unknown[]) => target === cut));
+        expect(wet.gain.value).toBe(0);
+        expect(() => globalFx.setGlobalVibrato({ rate: 3, depth: 0.2, wet: 0.5 })).not.toThrow();
+      });
+
+      it('keeps the entry cut as the chain entry with every cell built', async () => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        expect(globalFx.getGlobalChainEntry()).toBe(delaysBuilt()[0]);
+      });
     });
   });
 
@@ -551,6 +909,7 @@ describe('globalFx', () => {
       expect(toneFlags.crusherCtor).toHaveBeenCalledWith({ bits: 8, wet: 0 });
     });
 
+    // Dark-Effect Bypass T2: the chain runs cell to cell (each cell's cut into the next cell's in).
     it('wires HPF -> Distortion -> Chebyshev -> BitCrusher -> AutoWah in Natural Decay', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
@@ -562,14 +921,14 @@ describe('globalFx', () => {
 
       expect(hpf.connect).toHaveBeenCalledTimes(1);
       expect(hpf.connect).toHaveBeenCalledWith(filterCutOf());
-      expect(filterCutOf().connect).toHaveBeenCalledWith(dist);
-      expect(dist.connect).toHaveBeenCalledTimes(1);
-      expect(dist.connect).toHaveBeenCalledWith(cheb);
-      expect(cheb.connect).toHaveBeenCalledTimes(1);
-      expect(cheb.connect).toHaveBeenCalledWith(crush);
-      expect(crush.connect).toHaveBeenCalledTimes(1);
+      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(dist));
+      expect(cutOf(dist).connect).toHaveBeenCalledTimes(1);
+      expect(cutOf(dist).connect).toHaveBeenCalledWith(inOf(cheb));
+      expect(cutOf(cheb).connect).toHaveBeenCalledTimes(1);
+      expect(cutOf(cheb).connect).toHaveBeenCalledWith(inOf(crush));
+      expect(cutOf(crush).connect).toHaveBeenCalledTimes(1);
       // Global Modulation T4: the colour slot now hands on to the modulation slot, not the Compressor.
-      expect(crush.connect).toHaveBeenCalledWith(wah);
+      expect(cutOf(crush).connect).toHaveBeenCalledWith(inOf(wah));
     });
 
     it('keeps the same slot in Controlled Decay, with the returns joining after it at the Width stage (Global Pedals T6)', async () => {
@@ -584,11 +943,11 @@ describe('globalFx', () => {
       globalFx.wireGlobalFxChain(true);
 
       expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(filterCutOf());
-      expect(filterCutOf().connect).toHaveBeenLastCalledWith(dist);
-      expect(dist.connect).toHaveBeenLastCalledWith(cheb);
-      expect(cheb.connect).toHaveBeenLastCalledWith(crush);
-      expect(crush.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.wahCtor));
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener);
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(inOf(dist));
+      expect(cutOf(dist).connect).toHaveBeenLastCalledWith(inOf(cheb));
+      expect(cutOf(cheb).connect).toHaveBeenLastCalledWith(inOf(crush));
+      expect(cutOf(crush).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.wahCtor)));
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
     });
 
     it('connects no colour node to a room or a return, and no room or return to a colour node', async () => {
@@ -606,7 +965,8 @@ describe('globalFx', () => {
       }
     });
 
-    it('wires HPF -> Distortion -> Chebyshev -> AutoWah and does not throw when the BitCrusher constructor throws', async () => {
+    // Dark-Effect Bypass T2: a constructor that throws leaves an empty cell wired dry between its neighbours.
+    it('wires HPF -> Distortion -> Chebyshev -> (empty cell) -> AutoWah and does not throw when the BitCrusher constructor throws', async () => {
       toneFlags.crusherCtor.mockImplementationOnce(() => {
         throw new Error('AudioWorklet is not supported');
       });
@@ -616,20 +976,22 @@ describe('globalFx', () => {
       const dist = lastInstance(Tone.Distortion);
       const cheb = lastInstance(Tone.Chebyshev);
       expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(filterCutOf());
-      expect(filterCutOf().connect).toHaveBeenCalledWith(dist);
-      expect(dist.connect).toHaveBeenCalledWith(cheb);
-      expect(cheb.connect).toHaveBeenCalledWith(lastInstance(toneFlags.wahCtor));
+      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(dist));
+      expect(cutOf(dist).connect).toHaveBeenCalledWith(inOf(cheb));
+      const empty = emptyCellAfter(cutOf(cheb));
+      expect(empty.in.connect.mock.calls).toEqual([[empty.dry]]);
+      expect(empty.cut.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.wahCtor)));
       expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 1 })).not.toThrow();
     });
 
-    it('wires the same way when the BitCrusher constructor is absent altogether', async () => {
+    it('wires the Chebyshev cell straight to the AutoWah cell when the BitCrusher constructor is absent altogether', async () => {
       toneFlags.crusherAbsent = true;
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
       const cheb = lastInstance(Tone.Chebyshev);
       expect(toneFlags.crusherCtor).not.toHaveBeenCalled();
-      expect(cheb.connect).toHaveBeenCalledWith(lastInstance(toneFlags.wahCtor));
+      expect(cutOf(cheb).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.wahCtor)));
     });
 
     it('disconnects and reconnects the three exactly once per Decay Mode flip', async () => {
@@ -915,11 +1277,12 @@ describe('globalFx', () => {
       const phaser = lastInstance(toneFlags.phaserCtor);
       const chorus = lastInstance(toneFlags.chorusCtor);
 
-      expect(crush.connect).toHaveBeenCalledWith(wah);
-      expect(wah.connect).toHaveBeenCalledTimes(1);
-      expect(wah.connect).toHaveBeenCalledWith(phaser);
-      expect(phaser.connect).toHaveBeenCalledTimes(1);
-      expect(phaser.connect).toHaveBeenCalledWith(chorus);
+      // Dark-Effect Bypass T2: cell to cell, and each pedal feeds only its own cell's wet gain.
+      expect(cutOf(crush).connect).toHaveBeenCalledWith(inOf(wah));
+      expect(wah.connect.mock.calls).toEqual([[cellOf(wah).wet]]);
+      expect(cutOf(wah).connect.mock.calls).toEqual([[inOf(phaser)]]);
+      expect(phaser.connect.mock.calls).toEqual([[cellOf(phaser).wet]]);
+      expect(cutOf(phaser).connect.mock.calls).toEqual([[inOf(chorus)]]);
     });
 
     it('keeps the same slot in Controlled Decay, with the returns joining after it at the Width stage (Global Pedals T6)', async () => {
@@ -933,10 +1296,10 @@ describe('globalFx', () => {
 
       globalFx.wireGlobalFxChain(true);
 
-      expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenLastCalledWith(wah);
-      expect(wah.connect).toHaveBeenLastCalledWith(phaser);
-      expect(phaser.connect).toHaveBeenLastCalledWith(chorus);
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener);
+      expect(cutOf(lastInstance(toneFlags.crusherCtor)).connect).toHaveBeenLastCalledWith(inOf(wah));
+      expect(cutOf(wah).connect).toHaveBeenLastCalledWith(inOf(phaser));
+      expect(cutOf(phaser).connect).toHaveBeenLastCalledWith(inOf(chorus));
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
     });
 
     it('connects neither pedal to a room or a return, and no room or return to either pedal', async () => {
@@ -954,17 +1317,17 @@ describe('globalFx', () => {
       }
     });
 
-    it('wires BitCrusher -> Phaser and does not throw when the AutoWah constructor is absent', async () => {
+    it('wires the BitCrusher cell to the Phaser cell and does not throw when the AutoWah constructor is absent', async () => {
       toneFlags.wahAbsent = true;
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
       expect(toneFlags.wahCtor).not.toHaveBeenCalled();
-      expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.phaserCtor));
+      expect(cutOf(lastInstance(toneFlags.crusherCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.phaserCtor)));
       expect(() => globalFx.setGlobalAutoWah({ baseFrequency: 200, wet: 1 })).not.toThrow();
     });
 
-    it('wires BitCrusher -> Compressor when no Modulation pedal constructor exists', async () => {
+    it('wires the BitCrusher cell to the Compressor when no Modulation pedal constructor exists', async () => {
       toneFlags.wahAbsent = true;
       toneFlags.phaserAbsent = true;
       toneFlags.chorusAbsent = true;
@@ -974,7 +1337,7 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
-      expect(lastInstance(toneFlags.crusherCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(cutOf(lastInstance(toneFlags.crusherCtor)).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
     });
 
     it('disconnects and reconnects each pedal exactly once per Decay Mode flip', async () => {
@@ -1012,7 +1375,7 @@ describe('globalFx', () => {
       });
     });
 
-    it('builds and wires on when the Phaser constructor throws: the AutoWah hands to the Chorus and its setter still works', async () => {
+    it('builds and wires on when the Phaser constructor throws: the AutoWah hands through an empty cell to the Chorus and its setter still works', async () => {
       toneFlags.phaserCtor.mockImplementationOnce(() => {
         throw new Error('no phaser');
       });
@@ -1020,7 +1383,7 @@ describe('globalFx', () => {
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
       const wah = lastInstance(toneFlags.wahCtor);
-      expect(wah.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
+      expect(emptyCellAfter(cutOf(wah)).cut.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
       expect(() => globalFx.setGlobalPhaser({ rate: 2, stages: 4, wet: 1 })).not.toThrow();
       globalFx.setGlobalAutoWah({ Q: 5 });
@@ -1308,8 +1671,9 @@ describe('globalFx', () => {
         expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('disposing'), expect.any(Error));
         const fresh = lastInstance(toneFlags.phaserCtor);
-        expect(lastInstance(toneFlags.wahCtor).connect).toHaveBeenLastCalledWith(fresh);
-        expect(fresh.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
+        expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(fresh));
+        expect(fresh.connect.mock.calls).toEqual([[cellOf(fresh).wet]]);
+        expect(cutOf(fresh).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
       });
 
       it('treats a fresh build as ten stages again: rebuilding at 6, building the chain anew, then asking for 6 rebuilds', async () => {
@@ -1366,13 +1730,17 @@ describe('globalFx', () => {
         expect(lastInstance(toneFlags.phaserCtor).dispose).not.toHaveBeenCalled();
       });
 
-      it('re-wires the chain so the new node sits between the AutoWah and the Chorus (Natural Decay)', async () => {
-        const { globalFx } = await built();
+      // Dark-Effect Bypass T2: the new node goes into the Phaser's existing cell; the cell itself is not rebuilt.
+      it('re-wires the chain so the new node sits in the Phaser cell, between the AutoWah and the Chorus (Natural Decay)', async () => {
+        const { globalFx, phaser: old } = await built();
         const wah = lastInstance(toneFlags.wahCtor);
+        const cell = cellOf(old);
         globalFx.setGlobalPhaser({ stages: 6 });
         const fresh = lastInstance(toneFlags.phaserCtor);
-        expect(wah.connect).toHaveBeenLastCalledWith(fresh);
-        expect(fresh.connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
+        expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cutOf(wah).connect).toHaveBeenLastCalledWith(cell.in);
+        expect(cell.cut.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
       });
 
       it('re-wires in the Decay Mode last passed to wireGlobalFxChain: Controlled keeps the returns at the widener', async () => {
@@ -1384,9 +1752,9 @@ describe('globalFx', () => {
 
         globalFx.setGlobalPhaser({ stages: 6 });
 
-        expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener);
-        expect(delayReturn.connect).toHaveBeenLastCalledWith(widener);
-        expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.chorusCtor));
+        expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
+        expect(delayReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
+        expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
       });
 
       it('re-wires Natural after a flip back from Controlled', async () => {
@@ -1427,7 +1795,8 @@ describe('globalFx', () => {
         expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
         expect(old.dispose).not.toHaveBeenCalled();
-        expect(old.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.chorusCtor));
+        expect(old.connect).toHaveBeenLastCalledWith(cellOf(old).wet);
+        expect(cutOf(old).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
 
         globalFx.setGlobalPhaser({ stages: 6 });
         expect(ctorOptions()).toMatchObject({ stages: 6 });
@@ -1510,15 +1879,19 @@ describe('globalFx', () => {
       const vibrato = lastInstance(toneFlags.vibratoCtor);
       const shifter = lastInstance(toneFlags.shifterCtor);
       const comp = lastInstance(Tone.Compressor);
-      for (const node of [phaser, chorus, tremolo, vibrato, shifter]) node.connect.mockClear();
+      const pedals = [phaser, chorus, tremolo, vibrato, shifter];
+      const cells = pedals.map(cellOf);
+      for (const node of [...pedals, ...cells.map((c) => c.cut)]) node.connect.mockClear();
 
       globalFx.wireGlobalFxChain(controlled);
 
-      expect(phaser.connect.mock.calls).toEqual([[chorus]]);
-      expect(chorus.connect.mock.calls).toEqual([[tremolo]]);
-      expect(tremolo.connect.mock.calls).toEqual([[vibrato]]);
-      expect(vibrato.connect.mock.calls).toEqual([[shifter]]);
-      expect(shifter.connect.mock.calls).toEqual([[comp]]);
+      // Dark-Effect Bypass T2: each pedal feeds only its own cell's wet gain, and the cells chain cut to in.
+      pedals.forEach((pedal, i) => expect(pedal.connect.mock.calls).toEqual([[cells[i].wet]]));
+      expect(cells[0].cut.connect.mock.calls).toEqual([[inOf(chorus)]]);
+      expect(cells[1].cut.connect.mock.calls).toEqual([[inOf(tremolo)]]);
+      expect(cells[2].cut.connect.mock.calls).toEqual([[inOf(vibrato)]]);
+      expect(cells[3].cut.connect.mock.calls).toEqual([[inOf(shifter)]]);
+      expect(cells[4].cut.connect.mock.calls).toEqual([[comp]]);
     });
 
     it('keeps the rooms off both pedals: no room or return connects to either, nor either to a room or return', async () => {
@@ -1545,40 +1918,42 @@ describe('globalFx', () => {
       for (const pedal of pedals) expect(pedal.disconnect).toHaveBeenCalledTimes(1);
     });
 
-    it('wires Phaser -> Tremolo when the Chorus constructor is absent, and Phaser -> Vibrato when both are', async () => {
+    it('wires the Phaser cell to the Tremolo cell when the Chorus constructor is absent, and to the Vibrato cell when both are', async () => {
       toneFlags.chorusAbsent = true;
       let globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.tremoloCtor));
+      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
       expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
 
       vi.resetModules();
       toneFlags.tremoloAbsent = true;
       globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.vibratoCtor));
+      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.vibratoCtor)));
       expect(() => globalFx.setGlobalTremolo({ rate: 2, wet: 1 })).not.toThrow();
     });
 
-    it('builds and wires on when the Chorus constructor throws: the Phaser hands to the Tremolo', async () => {
+    it('builds and wires on when the Chorus constructor throws: the Phaser hands through an empty cell to the Tremolo', async () => {
       toneFlags.chorusCtor.mockImplementationOnce(() => {
         throw new Error('no chorus');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Chorus'), expect.any(Error));
-      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.tremoloCtor));
+      const empty = emptyCellAfter(cutOf(lastInstance(toneFlags.phaserCtor)));
+      expect(empty.cut.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
       expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
     });
 
-    it('builds and wires on when the Tremolo constructor throws: the Chorus hands to the Vibrato', async () => {
+    it('builds and wires on when the Tremolo constructor throws: the Chorus hands through an empty cell to the Vibrato', async () => {
       toneFlags.tremoloCtor.mockImplementationOnce(() => {
         throw new Error('no tremolo');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Tremolo'), expect.any(Error));
-      expect(lastInstance(toneFlags.chorusCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.vibratoCtor));
+      const empty = emptyCellAfter(cutOf(lastInstance(toneFlags.chorusCtor)));
+      expect(empty.cut.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.vibratoCtor)));
     });
   });
 
@@ -1606,11 +1981,11 @@ describe('globalFx', () => {
       expect(lastInstance(toneFlags.vibratoCtor).start).not.toHaveBeenCalled();
     });
 
-    it('wires the Tremolo straight to the shifter when the Vibrato constructor is absent, and the Vibrato to the Compressor when the shifter is', async () => {
+    it('wires the Tremolo cell straight to the shifter cell when the Vibrato constructor is absent, and the Vibrato cell to the Compressor when the shifter is', async () => {
       toneFlags.vibratoAbsent = true;
       let globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(lastInstance(toneFlags.tremoloCtor).connect).toHaveBeenCalledWith(lastInstance(toneFlags.shifterCtor));
+      expect(cutOf(lastInstance(toneFlags.tremoloCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.shifterCtor)));
       expect(() => globalFx.setGlobalVibrato({ rate: 3, wet: 1 })).not.toThrow();
 
       vi.resetModules();
@@ -1619,11 +1994,11 @@ describe('globalFx', () => {
       toneFlags.shifterAbsent = true;
       globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(lastInstance(toneFlags.vibratoCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(cutOf(lastInstance(toneFlags.vibratoCtor)).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
       expect(() => globalFx.setGlobalFrequencyShifter({ shift: 10, wet: 1 })).not.toThrow();
     });
 
-    it('builds and wires on when either constructor throws', async () => {
+    it('builds and wires on through two empty cells when either constructor throws', async () => {
       toneFlags.vibratoCtor.mockImplementationOnce(() => {
         throw new Error('no vibrato');
       });
@@ -1634,7 +2009,8 @@ describe('globalFx', () => {
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Vibrato'), expect.any(Error));
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('FrequencyShifter'), expect.any(Error));
-      expect(lastInstance(toneFlags.tremoloCtor).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      const vibratoCell = emptyCellAfter(cutOf(lastInstance(toneFlags.tremoloCtor)));
+      expect(emptyCellAfter(vibratoCell.cut).cut.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
     });
 
     it('disconnects each once per rewire and connects neither to a room or a return', async () => {
@@ -1668,21 +2044,24 @@ describe('globalFx', () => {
       expect(toneFlags.widenerCtor).toHaveBeenCalledWith({ width: 0.5, wet: 1 });
     });
 
-    it.each([false, true])('wires Compressor -> StereoWidener -> Limiter with controlledDecay=%s', async (controlled) => {
+    // Dark-Effect Bypass T2: Width sits in its own cell, entered at the cell's in and left at its cut.
+    it.each([false, true])('wires Compressor -> StereoWidener cell -> Limiter with controlledDecay=%s', async (controlled) => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const comp = lastInstance(Tone.Compressor);
       const widener = lastInstance(toneFlags.widenerCtor);
       const limiter = lastInstance(Tone.Limiter);
-      for (const node of [comp, widener]) node.connect.mockClear();
+      const cell = cellOf(widener);
+      for (const node of [comp, widener, cell.cut]) node.connect.mockClear();
 
       globalFx.wireGlobalFxChain(controlled);
 
-      expect(comp.connect.mock.calls).toEqual([[widener]]);
-      expect(widener.connect.mock.calls).toEqual([[limiter]]);
+      expect(comp.connect.mock.calls).toEqual([[cell.in]]);
+      expect(widener.connect.mock.calls).toEqual([[cell.wet]]);
+      expect(cell.cut.connect.mock.calls).toEqual([[limiter]]);
     });
 
-    it('joins both returns at the Compressor under Natural Decay (unchanged), so they reach the widener after it', async () => {
+    it('joins both returns at the Compressor under Natural Decay (unchanged), so they reach the Width cell after it', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const comp = lastInstance(Tone.Compressor);
@@ -1690,10 +2069,11 @@ describe('globalFx', () => {
       for (const room of [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)]) {
         expect(returnOf(room).connect).toHaveBeenLastCalledWith(comp);
         expect(returnOf(room).connect).not.toHaveBeenCalledWith(widener);
+        expect(returnOf(room).connect).not.toHaveBeenCalledWith(inOf(widener));
       }
     });
 
-    it('joins both returns at the widener under Controlled Decay, not at the Limiter', async () => {
+    it('joins both returns at the Width cell under Controlled Decay, not at the widener itself nor the Limiter', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const widener = lastInstance(toneFlags.widenerCtor);
@@ -1704,7 +2084,8 @@ describe('globalFx', () => {
       globalFx.wireGlobalFxChain(true);
 
       for (const ret of returns) {
-        expect(ret.connect.mock.calls).toEqual([[widener]]);
+        expect(ret.connect.mock.calls).toEqual([[inOf(widener)]]);
+        expect(ret.connect).not.toHaveBeenCalledWith(widener);
         expect(ret.connect).not.toHaveBeenCalledWith(limiter);
       }
     });
@@ -1723,7 +2104,9 @@ describe('globalFx', () => {
       expect(() => globalFx.setGlobalStereoWidener({ width: 0.2 })).not.toThrow();
     });
 
-    it('builds and wires on when the widener constructor throws, with the same Limiter fallback', async () => {
+    // Dark-Effect Bypass T2: a widener that failed to build leaves an empty Width cell, which runs dry to the Limiter, so
+    // the Controlled join at its in sounds as the Limiter fallback did.
+    it('builds and wires on when the widener constructor throws: the Controlled join is the empty Width cell, dry into the Limiter', async () => {
       toneFlags.widenerCtor.mockImplementationOnce(() => {
         throw new Error('no widener');
       });
@@ -1731,7 +2114,10 @@ describe('globalFx', () => {
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('StereoWidener'), expect.any(Error));
       globalFx.wireGlobalFxChain(true);
-      expect(returnOf(lastInstance(Tone.Reverb)).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
+      const empty = emptyCellAfter(lastInstance(Tone.Compressor));
+      expect(returnOf(lastInstance(Tone.Reverb)).connect).toHaveBeenLastCalledWith(empty.in);
+      expect(empty.in.connect.mock.calls.at(-1)).toEqual([empty.dry]);
+      expect(empty.cut.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
     });
 
     it('keeps the width across a Decay flip: the node is rewired, never rebuilt', async () => {
@@ -2312,22 +2698,23 @@ describe('globalFx', () => {
       expect(eqNode.connect).toHaveBeenCalledWith(lpfNode);
       expect(lpfNode.connect).toHaveBeenCalledWith(hpfNode);
       expect(hpfNode.connect).toHaveBeenCalledWith(filterCutOf());
-      expect(filterCutOf().connect).toHaveBeenCalledWith(distNode);
+      // Dark-Effect Bypass T2: each effect sits in its cell; the chain runs filter cut -> cell in ... cell cut -> next.
+      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(distNode));
       expect(hpfNode.connect).not.toHaveBeenCalledWith(compNode);
-      expect(distNode.connect).toHaveBeenCalledWith(chebNode);
-      expect(chebNode.connect).toHaveBeenCalledWith(crushNode);
-      expect(crushNode.connect).toHaveBeenCalledWith(wahNode);
-      expect(crushNode.connect).not.toHaveBeenCalledWith(compNode);
-      expect(wahNode.connect).toHaveBeenCalledWith(phaserNode);
-      expect(wahNode.connect).not.toHaveBeenCalledWith(compNode);
-      expect(phaserNode.connect).toHaveBeenCalledWith(chorusNode);
-      expect(phaserNode.connect).not.toHaveBeenCalledWith(compNode);
-      expect(chorusNode.connect).toHaveBeenCalledWith(tremoloNode);
-      expect(tremoloNode.connect).toHaveBeenCalledWith(vibratoNode);
-      expect(vibratoNode.connect).toHaveBeenCalledWith(shifterNode);
-      expect(shifterNode.connect).toHaveBeenCalledWith(compNode);
-      expect(compNode.connect).toHaveBeenCalledWith(lastInstance(toneFlags.widenerCtor));
-      expect(lastInstance(toneFlags.widenerCtor).connect).toHaveBeenCalledWith(limiterNode);
+      expect(cutOf(distNode).connect).toHaveBeenCalledWith(inOf(chebNode));
+      expect(cutOf(chebNode).connect).toHaveBeenCalledWith(inOf(crushNode));
+      expect(cutOf(crushNode).connect).toHaveBeenCalledWith(inOf(wahNode));
+      expect(cutOf(crushNode).connect).not.toHaveBeenCalledWith(compNode);
+      expect(cutOf(wahNode).connect).toHaveBeenCalledWith(inOf(phaserNode));
+      expect(cutOf(wahNode).connect).not.toHaveBeenCalledWith(compNode);
+      expect(cutOf(phaserNode).connect).toHaveBeenCalledWith(inOf(chorusNode));
+      expect(cutOf(phaserNode).connect).not.toHaveBeenCalledWith(compNode);
+      expect(cutOf(chorusNode).connect).toHaveBeenCalledWith(inOf(tremoloNode));
+      expect(cutOf(tremoloNode).connect).toHaveBeenCalledWith(inOf(vibratoNode));
+      expect(cutOf(vibratoNode).connect).toHaveBeenCalledWith(inOf(shifterNode));
+      expect(cutOf(shifterNode).connect).toHaveBeenCalledWith(compNode);
+      expect(compNode.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
+      expect(cutOf(lastInstance(toneFlags.widenerCtor)).connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
     });
@@ -2395,23 +2782,25 @@ describe('globalFx', () => {
       expect(eqNode.connect).toHaveBeenLastCalledWith(lpfNode);
       expect(lpfNode.connect).toHaveBeenLastCalledWith(hpfNode);
       expect(hpfNode.connect).toHaveBeenLastCalledWith(filterCutOf());
-      expect(filterCutOf().connect).toHaveBeenLastCalledWith(distNode);
-      expect(distNode.connect).toHaveBeenLastCalledWith(chebNode);
-      expect(chebNode.connect).toHaveBeenLastCalledWith(crushNode);
-      expect(crushNode.connect).toHaveBeenLastCalledWith(wahNode);
-      expect(wahNode.connect).toHaveBeenLastCalledWith(phaserNode);
-      expect(phaserNode.connect).toHaveBeenLastCalledWith(chorusNode);
-      expect(chorusNode.connect).toHaveBeenLastCalledWith(tremoloNode);
-      expect(tremoloNode.connect).toHaveBeenLastCalledWith(vibratoNode);
-      expect(vibratoNode.connect).toHaveBeenLastCalledWith(shifterNode);
-      expect(shifterNode.connect).toHaveBeenLastCalledWith(compNode);
-      expect(compNode.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.widenerCtor));
-      expect(lastInstance(toneFlags.widenerCtor).connect).toHaveBeenLastCalledWith(limiterNode);
+      // Dark-Effect Bypass T2: cell to cell, as in Natural Decay.
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(inOf(distNode));
+      expect(cutOf(distNode).connect).toHaveBeenLastCalledWith(inOf(chebNode));
+      expect(cutOf(chebNode).connect).toHaveBeenLastCalledWith(inOf(crushNode));
+      expect(cutOf(crushNode).connect).toHaveBeenLastCalledWith(inOf(wahNode));
+      expect(cutOf(wahNode).connect).toHaveBeenLastCalledWith(inOf(phaserNode));
+      expect(cutOf(phaserNode).connect).toHaveBeenLastCalledWith(inOf(chorusNode));
+      expect(cutOf(chorusNode).connect).toHaveBeenLastCalledWith(inOf(tremoloNode));
+      expect(cutOf(tremoloNode).connect).toHaveBeenLastCalledWith(inOf(vibratoNode));
+      expect(cutOf(vibratoNode).connect).toHaveBeenLastCalledWith(inOf(shifterNode));
+      expect(cutOf(shifterNode).connect).toHaveBeenLastCalledWith(compNode);
+      expect(compNode.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
+      expect(cutOf(lastInstance(toneFlags.widenerCtor)).connect).toHaveBeenLastCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
     });
 
-    // Global Pedals T6: the Controlled join moved from the Limiter to the StereoWidener just before it.
-    it('joins both returns at the StereoWidener input and none at the Compressor or the Limiter', async () => {
+    // Global Pedals T6: the Controlled join moved from the Limiter to the StereoWidener just before it; Dark-Effect
+    // Bypass T2 moved it to the Width cell's in, where it stays lit or dark.
+    it('joins both returns at the Width cell input and none at the Compressor or the Limiter', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const delayNode = lastInstance(Tone.FeedbackDelay);
@@ -2432,7 +2821,7 @@ describe('globalFx', () => {
       expect(delayNode.connect).toHaveBeenCalledWith(delayReturn);
       for (const ret of [reverbReturn, delayReturn]) {
         expect(ret.connect).toHaveBeenCalledTimes(1);
-        expect(ret.connect).toHaveBeenCalledWith(widenerNode);
+        expect(ret.connect).toHaveBeenCalledWith(inOf(widenerNode));
         expect(ret.connect).not.toHaveBeenCalledWith(limiterNode);
         expect(ret.connect).not.toHaveBeenCalledWith(compNode);
       }
@@ -2473,14 +2862,14 @@ describe('globalFx', () => {
       const compNode = lastInstance(Tone.Compressor);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
       const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.widenerCtor));
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
 
       globalFx.wireGlobalFxChain(false);
 
       // The dry chain is the same either way; only where the returns rejoin moves.
       expect(reverbReturn.connect).toHaveBeenLastCalledWith(compNode);
       expect(delayReturn.connect).toHaveBeenLastCalledWith(compNode);
-      expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenLastCalledWith(lastInstance(toneFlags.chorusCtor));
+      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
     });
 
     it('only ever calls disconnect() with no arguments, so a robot send into a room survives every flip', async () => {
