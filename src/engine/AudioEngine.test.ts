@@ -2424,6 +2424,77 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(returnOf(lastInstance(Tone.FeedbackDelay)).gain.value).toBe(0.25);
   });
 
+  // Dark-Effect Bypass T4 (docs/specs/DARK_EFFECT_BYPASS.md section 1.2): only a lit effect is wired in by the first
+  // apply, and a second apply of the same settings (every Mix re-sent) touches no cell: no connect, no timer, no write.
+  describe('the bypass cells', () => {
+    const CELL_CARRIED = ['Distortion', 'Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato', 'FrequencyShifter'];
+    const TWO_LIT = {
+      ...FIXTURE_GLOBAL_AUDIO,
+      distortion: { amount: 0.3, wet: 0.5 },
+      frequencyShifter: { shift: 0, wet: 0.4 },
+    };
+    type Node = { connect: AnyMock; disconnect: AnyMock; gain?: { value: number } };
+
+    async function startWith(globalAudio: typeof FIXTURE_GLOBAL_AUDIO) {
+      const Tone = await import('tone');
+      const ctors = Tone as unknown as Record<string, AnyMock>;
+      for (const name of CELL_CARRIED) ctors[name].mockClear();
+      vi.mocked(Tone.Gain).mockClear();
+      const { AudioEngine } = await import('./AudioEngine');
+      const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
+      useAudioStore.setState({ globalAudio: globalAudio as any });
+      await AudioEngine.start();
+      const effects = Object.fromEntries(CELL_CARRIED.map((name) => [name, lastInstance(ctors[name]) as Node]));
+      const reapply = () => applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, useAudioStore.getState().bpm);
+      return { Tone, effects, reapply };
+    }
+    const timersArmed = (Tone: typeof import('tone')) =>
+      (Tone.getContext as unknown as AnyMock).mock.results.reduce(
+        (n: number, r) => n + (r.value as { setTimeout: AnyMock }).setTimeout.mock.calls.length,
+        0,
+      );
+
+    it('wires in exactly the two lit effects; the five dark ones stay out of the signal path', async () => {
+      const { effects } = await startWith(TWO_LIT);
+      expect(effects.Distortion.connect).toHaveBeenCalledTimes(1);
+      expect(effects.FrequencyShifter.connect).toHaveBeenCalledTimes(1);
+      for (const name of ['Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato']) {
+        expect(effects[name].connect).not.toHaveBeenCalled();
+      }
+    });
+
+    it('wires in none of them when every Mix is 0', async () => {
+      const { effects } = await startWith(FIXTURE_GLOBAL_AUDIO);
+      for (const name of CELL_CARRIED) expect(effects[name].connect).not.toHaveBeenCalled();
+    });
+
+    it('touches no cell when the same settings are applied again: no connect, no timer, no gain write', async () => {
+      const { Tone, effects, reapply } = await startWith(TWO_LIT);
+      const gains = (Tone.Gain as unknown as AnyMock).mock.results.map((r) => r.value as Node);
+      const litCells = [effects.Distortion, effects.FrequencyShifter].map((effect) => {
+        const wet = effect.connect.mock.calls[0][0] as Node;
+        const input = gains.find((g: Node) => g.connect.mock.calls.some(([target]: unknown[]) => target === effect))!;
+        const dry = input.connect.mock.calls.find(([target]: unknown[]) => target !== effect)![0] as Node;
+        return { dry, wet };
+      });
+      for (const { dry, wet } of litCells) {
+        dry.gain!.value = 0.123;
+        wet.gain!.value = 0.456;
+      }
+      for (const name of CELL_CARRIED) effects[name].connect.mockClear();
+      const armed = timersArmed(Tone);
+
+      reapply();
+
+      for (const name of CELL_CARRIED) expect(effects[name].connect).not.toHaveBeenCalled();
+      expect(timersArmed(Tone)).toBe(armed);
+      for (const { dry, wet } of litCells) {
+        expect(dry.gain!.value).toBe(0.123);
+        expect(wet.gain!.value).toBe(0.456);
+      }
+    });
+  });
+
   // docs/specs/FREE_SYNC_TOGGLE.md §1.3, Task 11: the node only ever receives seconds. A synced Delay
   // is resolved at the store's tempo when start() re-applies the seeded state.
   describe('Delay time', () => {
@@ -2526,7 +2597,9 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     AudioEngine.setGlobalAutoWah({ baseFrequency: 321, wet: 1 });
 
     expect(last(Tone.AutoWah).baseFrequency).toBe(321);
-    expect(last(Tone.AutoWah).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
+    // Dark-Effect Bypass T4: the Mix lights the AutoWah's cell, which wires it in; its own wet stays pinned.
+    expect(last(Tone.AutoWah).connect).toHaveBeenCalledTimes(1);
+    expect(last(Tone.AutoWah).wet.rampTo).not.toHaveBeenCalled();
   });
 
   // start() builds the chain (one Phaser, at the default ten stages) and then pushes the seeded settings. A seeded Phaser

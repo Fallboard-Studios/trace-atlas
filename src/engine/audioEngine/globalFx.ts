@@ -135,8 +135,16 @@ export type Cell = {
 const _cells: Partial<Record<BypassKey, Cell>> = {};
 
 /** The effects whose setters write their Mix through their cell (writeCellMix): built pinned at wet 1 in a dark cell.
- *  Dark-Effect Bypass T3 starts with the Vibrato; the other nine are still built transparent. */
-const BUILT_DARK: ReadonlySet<BypassKey> = new Set<BypassKey>(['vibrato']);
+ *  The Chorus, the Tremolo and the StereoWidener are still built transparent (Dark-Effect Bypass T5, T6). */
+const BUILT_DARK: ReadonlySet<BypassKey> = new Set<BypassKey>([
+  'distortion',
+  'chebyshev',
+  'bitCrusher',
+  'autoWah',
+  'phaser',
+  'vibrato',
+  'frequencyShifter',
+]);
 
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
  *  a cell at cellGains(w) sounds exactly as the bare effect at wet w. Tone 15's CrossFade (component/channel/CrossFade.js)
@@ -167,8 +175,8 @@ function defaultPhaserLive(): PhaserLive {
   return { rate, octaves, baseFrequency, Q, wet };
 }
 
-/** Constructs a Phaser at `stages` with the given non-stage values, its Mix already tapered, so a rebuilt node
- *  comes up at exactly the sound the old one had. */
+/** Constructs a Phaser at `stages` with the given non-stage values, so a rebuilt node comes up at exactly the sound the
+ *  old one had. Pinned fully wet: its bypass cell carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). */
 function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages: number, live: PhaserLive): Tone.Phaser {
   return new PhaserCtor({
     frequency: live.rate,
@@ -176,7 +184,7 @@ function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages
     stages,
     Q: live.Q,
     baseFrequency: live.baseFrequency,
-    wet: colourWetGain(live.wet),
+    wet: 1,
   });
 }
 
@@ -352,7 +360,8 @@ function writeCellMix(key: BypassKey, mix: number): void {
   cell.darken = context.setTimeout(
     () => {
       cell.darken = null;
-      if (cell.mix === 0 && cell.connected) disconnectEffect(key, cell, effect);
+      // The cell's effect at the fire, not at the arm: a Phaser Stages change in between puts a new node in the cell.
+      if (cell.mix === 0 && cell.connected && cell.effect) disconnectEffect(key, cell, cell.effect);
     },
     context.lookAhead + COLOUR_RAMP_SECONDS + BYPASS_DISCONNECT_MARGIN_SECONDS,
   );
@@ -433,30 +442,31 @@ export function buildGlobalFxChain(): void {
   if (LimiterCtor) {
     _globalLimiter = new LimiterCtor({ threshold: -12 });
   }
-  // Built dry (wet 0); the store pushes the seeded values once the chain exists. `oversample` is 'none' on both
-  // shapers and is never read from state (docs/specs/GLOBAL_COLOUR.md §1.3).
+  // Built pinned fully wet in a dark cell, which carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9); the
+  // store pushes the seeded values once the chain exists. `oversample` is 'none' on both shapers and is never read from
+  // state (docs/specs/GLOBAL_COLOUR.md §1.3).
   if (DistortionCtor) {
-    _globalDistortion = new DistortionCtor({ distortion: 0.3, oversample: 'none', wet: 0 });
+    _globalDistortion = new DistortionCtor({ distortion: 0.3, oversample: 'none', wet: 1 });
   }
   if (ChebyshevCtor) {
-    _globalChebyshev = new ChebyshevCtor({ order: 2, oversample: 'none', wet: 0 });
+    _globalChebyshev = new ChebyshevCtor({ order: 2, oversample: 'none', wet: 1 });
   }
   // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
-  // promise, so at wet 0 nothing changes and at wet > 0 the crushed share is briefly absent at boot. If the browser
-  // refuses worklets the constructor throws, and the slot is simply skipped.
+  // promise, so while its cell is dark nothing changes and once lit the crushed share is briefly absent at boot. If the
+  // browser refuses worklets the constructor throws, and the slot is simply skipped.
   _globalBitCrusher = null;
   if (BitCrusherCtor) {
     try {
-      _globalBitCrusher = new BitCrusherCtor({ bits: 8, wet: 0 });
+      _globalBitCrusher = new BitCrusherCtor({ bits: 8, wet: 1 });
     } catch (err) {
       devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
       _globalBitCrusher = null;
     }
   }
-  // Built dry (wet 0) at the stored defaults, like the colour nodes; the store pushes the seeded values once the
-  // chain exists. A missing constructor (headless) leaves the slot empty and the chain whole.
+  // Built pinned fully wet at the stored defaults in a dark cell, like the colour nodes; the store pushes the seeded
+  // values once the chain exists. A missing constructor (headless) leaves the slot empty and the chain whole.
   if (AutoWahCtor) {
-    _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 0 });
+    _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 1 });
   }
   // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
   // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
@@ -513,9 +523,10 @@ export function buildGlobalFxChain(): void {
   _globalFrequencyShifter = null;
   if (FrequencyShifterCtor) {
     try {
+      // Pinned fully wet: its bypass cell carries the Mix.
       _globalFrequencyShifter = new FrequencyShifterCtor({
         frequency: DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter.shift,
-        wet: 0,
+        wet: 1,
       });
     } catch (err) {
       devWarn('[AudioEngine] FrequencyShifter could not be constructed; the pedal slot runs without it', err);
@@ -991,7 +1002,7 @@ export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
     const amount = params.amount === undefined ? undefined : clampColour('distortion.amount', params.amount);
     const wet = params.wet === undefined ? undefined : clampColour('distortion.wet', params.wet);
     if (amount !== undefined) distortion.distortion = amount;
-    if (wet !== undefined) rampOrSet(distortion.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('distortion', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalDistortion failed', err);
   }
@@ -1004,7 +1015,7 @@ export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
     const order = params.order === undefined ? undefined : clampColour('chebyshev.order', Math.round(params.order));
     const wet = params.wet === undefined ? undefined : clampColour('chebyshev.wet', params.wet);
     if (order !== undefined) chebyshev.order = order;
-    if (wet !== undefined) rampOrSet(chebyshev.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('chebyshev', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChebyshev failed', err);
   }
@@ -1017,14 +1028,15 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
     const bits = params.bits === undefined ? undefined : clampColour('bitCrusher.bits', params.bits);
     const wet = params.wet === undefined ? undefined : clampColour('bitCrusher.wet', params.wet);
     if (bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(crusher.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('bitCrusher', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
   }
 }
 
 /** Auto Wah (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The sweep range, sensitivity and follower smoothing are
- *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's (colourWetGain). */
+ *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's and written through the bypass
+ *  cell (writeCellMix). */
 export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
   const wah = _globalAutoWah;
   if (!wah) return;
@@ -1042,7 +1054,7 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
     if (follower !== undefined) wah.follower = follower;
     if (Q !== undefined) rampOrSet(wah.Q, Q, COLOUR_RAMP_SECONDS);
     if (gain !== undefined) rampOrSet(wah.gain, gain, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(wah.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('autoWah', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalAutoWah failed', err);
   }
@@ -1078,7 +1090,8 @@ function rebuildPhaser(stages: number): boolean {
 
 /** Phaser (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here
  *  is always Hz and `sync` never arrives. Rate and Q are Signals, octaves and baseFrequency plain setters, and the Mix is
- *  tapered like Colour's; `stages` is constructor-only, so a changed count rebuilds the node. */
+ *  tapered like Colour's and written through the bypass cell (writeCellMix); `stages` is constructor-only, so a changed
+ *  count rebuilds the node. */
 export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): void {
   const phaser = _globalPhaser;
   if (!phaser) return;
@@ -1096,6 +1109,9 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     if (baseFrequency !== undefined) _phaserLive.baseFrequency = baseFrequency;
     if (Q !== undefined) _phaserLive.Q = Q;
     if (wet !== undefined) _phaserLive.wet = wet;
+    // The Mix lives in the cell, not the node, so it is written before a rebuild can return early; the rebuild then
+    // puts the new node into the cell as lit or dark as this left it.
+    if (wet !== undefined) writeCellMix('phaser', wet);
 
     // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
     if (stages !== undefined && stages !== _phaserStages && rebuildPhaser(stages)) return;
@@ -1104,7 +1120,6 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     if (octaves !== undefined) phaser.octaves = octaves;
     if (baseFrequency !== undefined) phaser.baseFrequency = baseFrequency;
     if (Q !== undefined) rampOrSet(phaser.Q, Q, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(phaser.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalPhaser failed', err);
   }
@@ -1285,8 +1300,9 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
 }
 
 /** Frequency Shifter (docs/specs/GLOBAL_PEDALS.md §1.3). `shift` is Tone's signed `frequency` Signal, clamped into
- *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's. Half mono: Tone negates the sine
- *  branch into `Add.addend`, an AudioParam, which the browser downmixes, while the cosine branch stays stereo. A centred
+ *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's and written through the bypass cell
+ *  (writeCellMix). Half mono: Tone negates the sine branch into `Add.addend`, an AudioParam, which the browser
+ *  downmixes, while the cosine branch stays stereo. A centred
  *  voice shifts cleanly; a hard-panned one leaks the other sideband at a third of the wanted one and puts both, at a
  *  quarter level, in the far channel (measured, docs/specs/GLOBAL_PEDALS.md §8). */
 export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettings>): void {
@@ -1296,7 +1312,7 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
     const shift = clampIfGiven('frequencyShifter.shift', params.shift);
     const wet = clampIfGiven('frequencyShifter.wet', params.wet);
     if (shift !== undefined) rampOrSet(shifter.frequency, shift, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(shifter.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('frequencyShifter', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);
   }
