@@ -579,13 +579,26 @@ time; a Decay flip's main-thread time; one Mix crossing's (light and darken) mai
 task around the slider write over CDP.
 
 **Acceptance criteria:**
-- [ ] Power-on no slower than T0's figure; a Decay flip ≤ T0's; one crossing ≤ 2 ms; recorded beside T0's paragraph.
-- [ ] If a figure is worse than T0's, it is stated with the number and the suspected cause (the per-cell cut is the
-  first candidate for a slower flip; a slower power-on points at the ten extra Delay constructions).
+- [x] Power-on no slower than T0's figure; a Decay flip ≤ T0's; one crossing ≤ 2 ms; recorded beside T0's paragraph.
+- [x] If a figure is worse than T0's, it is stated with the number and the suspected cause (the per-cell cut is the
+  first candidate for a slower flip; a slower power-on points at the ten extra Delay constructions). *(None worse.)*
 
 **Verification:** the paragraph.
 
 **Dependencies:** T7. **Files:** `docs/todo/scratchy-audio-phones.md`. **Scope:** XS (measurement).
+
+**As built (2026-10-20): PASS on all three.** The new T13 section of `scratchy-audio-phones.md` has the tables. Branch
+`75f1a5d1`, three interleaved rounds against T0's build `47ce45d3` re-run in the same sitting, using T0's probe and
+two-lit world. Power-on 815–1 144 ms (mean 952) against 899–1 375 (mean 1 096) in the same sitting and 1 166–1 385 at
+T0, 0 ms unresponsive. Decay flip 1.8–2.1 ms against 1.6–2.5 and T0's 2–3. The crossing (Vibrato 0 → 0.3 → 0): light
+write task ≤ 0.75 ms (pre-cell 0.31–0.43), darken write ≤ 0.43 ms, and the disconnect callback ≤ 0.5 ms of its own,
+firing 167–198 ms after the write; `fx in` 2 → 3 → 2. **Beyond the plan:** (1) the "before" was re-run in the same
+sitting from a scratchpad worktree, rather than compared across sessions with T0's table; (2) the crossing is measured
+from a CDP trace, with each Tone context timer labelled by the write that armed it, so the disconnect is timed on its
+own. The ticker task it runs in (up to 7.94 ms) is the ticker's own work: a window with no write has 8.8–9.7 ms tasks.
+The plan's "longest task around the slider write" is therefore background noise on this page (3.9–60.3 ms in either
+build), and the gate is read on the write's task and the callback. The dark Phaser's Stages change was 16.4–19.7 ms
+against 18.1–22.8 (not gated).
 
 ---
 

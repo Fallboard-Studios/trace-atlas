@@ -792,3 +792,68 @@ This session's files, in its scratchpad
 `dark/probe.js` (the cell probe; serve with `npx vite <dark> --port 5199` from the repo), `drive.mjs`, `dark-5r.json`,
 `site/` (the side-by-side build), `perf.sh` (one world per call), `r1`–`r3-branch|main.json` and `.log`. No server was
 left running.
+
+## Dark-Effect Bypass, main thread after — T13, 2026-10-20
+
+Task 13 of docs/tasks/DARK_EFFECT_BYPASS.md: power-on, a Decay flip and one Mix crossing on the main thread, against
+T0's (b) above. **Code measured:** branch `feature/pedals` at `75f1a5d1` (the cells, T1–T12; clean product tree) and,
+in the same sitting, T0's own build `47ce45d3` (a detached worktree in the scratchpad). Re-running the "before" in
+this session replaced the cross-session comparison that T0 warned about. Both ran as `vite` dev servers, the branch
+on port 5199 and `47ce45d3` on 5198. The worktree's server allowed the repo's `node_modules` (its junction target), so
+it loads the same fonts. The probe and world are T0's: the hang probe on Chrome port 9377, and T0's `two-lit.txt`
+payload (the baseline world plus the Chorus and Tremolo at Mix 1) with `&debug`. Every run read Chorus 1, Tremolo 1,
+Vibrato 0, Phaser 0 (10 stages) and Natural Decay back from the store. The HUD read `fx in 2/10` on the branch. One
+warm-up load per server was discarded, then three interleaved rounds (branch first, `47ce45d3` first, branch first),
+one probe per foreground call, nothing else running. The orphaned headless-Chrome count was 0 before and after every
+call. **Every figure is within its bar.**
+
+**The crossing.** With a CDP trace running (the `toplevel` and `devtools.timeline` categories) and Tone's context
+`setTimeout` wrapped, each callback stamps the trace with the label of the write that armed it and times itself.
+The Vibrato goes Mix 0 → 0.3 (light), then 1 s later 0.3 → 0 (darken). The write's task is the trace's `RunTask`
+that encloses its `console.timeStamp`. The darken's disconnect is the one context-timer callback the darken write arms.
+`getConnectedEffectCount()` read 2 → 3 → 2 in every branch run, so each graph change happened.
+
+| Run | Light: write task | Darken: write task | Disconnect: own time | Disconnect: enclosing task | Disconnect fired after the write | Quiet window's longest task |
+|---|---|---|---|---|---|---|
+| Branch 1 | 0.49 ms | 0.43 ms | 0.1 ms | 7.94 ms | 198 ms | 8.80 ms |
+| Branch 2 | 0.57 ms | 0.41 ms | 0.4 ms | 1.88 ms | 167 ms | 8.95 ms |
+| Branch 3 | 0.75 ms | 0.34 ms | 0.5 ms | 0.88 ms | 182 ms | 9.69 ms |
+| `47ce45d3` 1 | 0.31 ms | 0.21 ms | — | — | — | 9.92 ms |
+| `47ce45d3` 2 | 0.37 ms | 0.44 ms | — | — | — | 11.59 ms |
+| `47ce45d3` 3 | 0.43 ms | 0.21 ms | — | — | — | 56.05 ms |
+
+**Gate: one crossing ≤ 2 ms — PASS.** The light write is at most 0.75 ms. That is about 0.2–0.3 ms more than the
+pre-cell write, which only ramped `wet`. That fits `connectEffect`'s two native connects, but it was not profiled
+further. The darken write is
+at most 0.43 ms, and the disconnect callback itself at most 0.5 ms. The disconnect fires 167–198 ms after the write,
+where the code arms it at lookAhead 0.1 + ramp 0.05 + margin 0.01 = 160 ms, and Tone's ticker adds the rest. The
+ticker task it runs in was up to 7.94 ms. That task is the ticker's own scheduling work: tasks of 8.8–9.7 ms occur in
+a 400 ms window with no write at all. The longest task in the 400 ms after each write was 7.9–12.5 ms on the branch
+and 3.9–60.3 ms on `47ce45d3`, which is that background, not the write. The 56–60 ms in `47ce45d3`'s round 3 was in its
+quiet window too.
+
+**Power-on and the rewires** (same runs; times in the page by `performance.now()`, as T0, now to 0.1 ms):
+
+| Run | Power-on | Unresponsive | Decay flip | Phaser Stages (dark) | Seven LFO links |
+|---|---|---|---|---|---|
+| Branch 1 | 897 ms | 0 ms | 1.8 ms | 16.6 ms | 0.8 ms |
+| Branch 2 | 815 ms | 0 ms | 2.1 ms | 16.4 ms | 0.9 ms |
+| Branch 3 | 1 144 ms | 0 ms | 1.8 ms | 19.7 ms | 1.4 ms |
+| `47ce45d3` 1 | 1 014 ms | 0 ms | 2.5 ms | 20.9 ms | 0.8 ms |
+| `47ce45d3` 2 | 899 ms | 0 ms | 2.1 ms | 18.1 ms | 0.7 ms |
+| `47ce45d3` 3 | 1 375 ms | 0 ms | 1.6 ms | 22.8 ms | 1.3 ms |
+| T0 (2026-10-19, `47ce45d3`) | 1 166–1 385 ms | 0 ms | 2–3 ms | 26–31 ms | 1 ms |
+
+**Gate: power-on no slower than T0 — PASS** (branch 815–1 144 ms, mean 952, against 899–1 375, mean 1 096, in the same
+sitting and 1 166–1 385 at T0). The probe's poll resolves power-on to about 0.1–0.2 s, so the builds are level within
+that; the ten extra cut Delays the plan named as a risk do not show. **Gate: a Decay flip ≤ T0 — PASS** (branch
+1.8–2.1 ms against 1.6–2.5 in the same sitting and 2–3 at T0), so the per-cell cut does not show either. The Phaser
+Stages change is not gated. It is dark in this world, so it rebuilds at once, and on the branch the rebuild touches
+only its cell (T7): 16.4–19.7 ms against 18.1–22.8. Both builds' rewires armed 14 context-timer callbacks of at most
+0.2 ms each.
+
+This session's files, in its scratchpad
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/2bd86fab-5629-4ca0-b2e3-10ff790a83f3/scratchpad/t13/`:
+`probe.mjs` (T0's probe plus the traced crossing), `run.sh` (one run per call, with the Chrome count),
+`r1`–`r3-branch|before.json`, `two-lit.txt` / `session.enc` (T0's payload), and `vite.t13.config.mjs` (the
+worktree's config, copied out). Both servers were stopped and the worktree removed after the runs.
