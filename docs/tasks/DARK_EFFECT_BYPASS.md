@@ -13,7 +13,8 @@ the phone gate is the `?debug` HUD on the Pixel (spec §5).
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo convention
 `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status (2026-10-19):** spec approved (cell), plan written; nothing built. Next = Crawford's review of this plan, then T0.
+> **Status (2026-10-20):** T0–T13 built and committed on `feature/pedals`; Checkpoints A and B passed (Crawford,
+> Checkpoint B: "ok, everything passed"). Next = T14, the phone round 3 on Crawford's Pixel (STOP), then T15.
 
 ## Overview
 
@@ -606,15 +607,18 @@ against 18.1–22.8 (not gated).
 
 Spec §5's manual list, on `npm run dev` with `?debug` so the `fx in` token is visible:
 
-- [ ] Each of the ten dragged from dark up and back down, slowly and quickly, with a sustained chord sounding,
+- [x] Each of the ten dragged from dark up and back down, slowly and quickly, with a sustained chord sounding,
   including a wiggle across 0: no click, gap or level jump; `fx in` follows.
-- [ ] Width 0.5 → 0 → 1 → 0.5 under Controlled Decay with a lit Delay: the fold still takes the rooms' tails; the
+- [x] Width 0.5 → 0 → 1 → 0.5 under Controlled Decay with a lit Delay: the fold still takes the rooms' tails; the
   return to 0.5 is clean.
-- [ ] A Natural ↔ Controlled flip with Width dark and with Width lit; a Phaser Stages change while lit and while dark.
-- [ ] A Spread drag on a lit Chorus still goes dry for ~0.25 s and returns (unchanged, recorded).
-- [ ] Save, reload and a share link with two lit pedals: `fx in` matches before and after; an old `?session=` link
+- [x] A Natural ↔ Controlled flip with Width dark and with Width lit; a Phaser Stages change while lit and while dark.
+- [x] A Spread drag on a lit Chorus still goes dry for ~0.25 s and returns (unchanged, recorded).
+- [x] Save, reload and a share link with two lit pedals: `fx in` matches before and after; an old `?session=` link
   loads with `fx in 0/10` or `1/10` (Width).
-- [ ] Crawford's words recorded in this plan's status line; a complaint routes to a fix task before T14.
+- [x] Crawford's words recorded in this plan's status line; a complaint routes to a fix task before T14.
+
+**Passed (2026-10-20):** Crawford ran the list on the desktop: "ok, everything passed". No complaint, so no fix task.
+This covers the lit Phaser's ~0.15 s dry duck per Stages change (the T11 follow-up), which was on the Stages item.
 
 ---
 
