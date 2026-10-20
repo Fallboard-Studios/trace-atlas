@@ -507,17 +507,29 @@ ten, light from dark (Mix 0.3; Width 0.7) and darken back, three runs each; metr
 bare `connect` of a full-level path (expect a clear click, proving the metric sees one).
 
 **Acceptance criteria:**
-- [ ] Every effect, both directions, every run: **≤ ×1.6**, and no run of ≥ 64 consecutive samples under −80 dBFS
+- [x] Every effect, both directions, every run: **≤ ×1.6**, and no run of ≥ 64 consecutive samples under −80 dBFS
   while the tone sounds (no gap); the controls behave as expected.
-- [ ] The per-effect, per-direction table (three runs) is written into spec §8 with the recipe.
-- [ ] **A miss stops the plan:** the report names the effect and direction, the measured ratio, and the options
+- [x] The per-effect, per-direction table (three runs) is written into spec §8 with the recipe.
+- [x] **A miss stops the plan:** the report names the effect and direction, the measured ratio, and the options
   (a longer margin; a disconnect of the input edge only, leaving the output edge; a different ramp) with a
-  recommendation. No constant is retuned to pass without Crawford's call.
+  recommendation. No constant is retuned to pass without Crawford's call. *(No miss.)*
 
 **Verification:** the table; the two controls.
 
 **Dependencies:** T4, T5, T6. **Files:** `docs/specs/DARK_EFFECT_BYPASS.md` (§8); the probe in the scratchpad.
 **Scope:** S (measurement).
+
+**As built (2026-10-20): PASS.** Spec §8.2 has the recipe, the probe's absolute path and the table. Worst of 90
+gated rows (ten effects × light / darken / wiggle × three runs) is ×1.19, the Phaser's darken; no gap; no constant
+touched. **Beyond the plan:** (1) the probe drives the repo's real `globalFx.ts` through Vite, not a copy of the
+protocol, so the measured code is the shipped code; (2) an AudioWorklet recorder stamped with `currentFrame` replaces
+the `ScriptProcessor`, and the context's `setTimeout` is wrapped to stamp each disconnect, so the windows are placed
+exactly; (3) **edge case added:** a wiggle across 0 (0.1, 0, 0.1, 0 at 20 ms steps), which must arm exactly one
+disconnect after the last step (it did, every run); (4) `getConnectedEffectCount()` read after every event proves
+each graph change happened (1 lit / 0 dark, all runs). Controls: the lit ramps ×0.52–1.00; the bare full-level
+connect ×13–25 (×4–27 over two sessions). **Finding, not gated:** a **lit** Phaser's Stages change clicks
+(×2.0–54.7, typically ×6–8). It is the one connect at lit gains (T7's same-Mix swap). The pre-cell whole-chain rewire
+was not measured. A Spread-style duck is the obvious fix; that is Crawford's call, and it is not built.
 
 ---
 

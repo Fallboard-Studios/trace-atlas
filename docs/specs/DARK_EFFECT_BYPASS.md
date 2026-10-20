@@ -566,3 +566,60 @@ Each row matches the prediction `(1.535e-3 − sin(w·π/2)) × the effect's ful
 is 2.3e-3 against a 0.75-peak tone: 50 dB under the signal, a wet residue that is now gone rather than a change to
 anything heard. So assumption 2's "Tone's `CrossFade` law exactly" (§1.1) holds from Mix 0.04 up. Below that, the
 cell follows the formula Tone's law approximates.
+
+### 8.2 Crossings are inaudible, in a real-time context (T11, 2026-10-20) — PASS
+
+**Recipe.** The repo's own `src/engine/audioEngine/globalFx.ts`, imported by the probe page through Vite (the `@` alias
+and `server.fs.allow` on the repo; one Tone instance, because the site's `node_modules` junction resolves to the
+repo's), so the code measured is the shipped protocol: `buildGlobalFxChain`, the setters, `writeCellMix`'s `rampTo`
+calls and its `Tone.getContext().setTimeout` disconnect. Tone runs on a native `AudioContext` (48 kHz, `baseLatency`
+0.01) via `Tone.setContext(new Tone.Context(raw))`, `lookAhead` 0.1, in headless Chrome with
+`--autoplay-policy=no-user-gesture-required`. Source: a sustained 440 Hz + 1 kHz stereo pair (L 0.065 / 0.035,
+R 0.035 / 0.065, about −20 dBFS peak, under the Compressor's −18 dB threshold) into `getGlobalChainEntry()`, so it
+passes the whole chain. The FrequencyShifter's shift is 120 Hz, as in §8.1. **Recorder:** an `AudioWorkletNode` on
+Tone's Destination, posting 4 096-frame chunks stamped with `currentFrame`, so every sample sits on the context's own
+timeline. This replaces the Spread probe's `ScriptProcessor`, whose chunks carry only an approximate time. The
+context's `setTimeout` is wrapped to stamp each fire with `currentTime`, so the disconnect is located exactly.
+**Metric** (the Spread-duck recipe): the peak |second difference| over both channels in the transition window,
+divided by the steady state's. The window runs from 20 ms before the call (a light connects at the call) to 150 ms
+after the later of the ramp's end (call + lookAhead + 50 ms) and the disconnect's fire. The steady state is the
+larger of the 400 ms before the call and the 400 ms after the window, because a lit effect has its own, larger,
+second difference. **Gap:** a run of ≥ 64 consecutive samples under −80 dBFS on either channel while the tone sounds.
+Per effect and run: light (Mix 0.3; Width 0.7), a lit ramp up to 0.6 and back (controls: the same ramps with no graph
+change), darken (0; Width 0.5), and a **wiggle** across 0 (0.1, 0, 0.1, 0 at 20 ms steps, a fast drag). Events are
+1.2 s apart (the wiggle 1.4 s), three runs in one 212 s recording. After each event the probe reads
+`getConnectedEffectCount()`: 1 after every light and 0 after every darken and wiggle, in all three runs, so each graph
+change happened. Probe files:
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/5bf05dc0-cd58-45f6-9633-c813096c5fe6/scratchpad/t11/`
+(`site/probe.js`, `site/recorder-worklet.js`, `site/vite.config.mjs`, `drive.mjs`, `summary.cjs`, `final.json`; serve
+with `npx vite <site> --port 5199` from the repo, then `node drive.mjs http://localhost:5199/ 3 out.json`).
+
+| Effect | Light (runs 1 / 2 / 3) | Darken | Wiggle across 0 | Control: lit ramps |
+|---|---|---|---|---|
+| Distortion | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.01 / 1.01 / 1.01 | ×1.00 |
+| Chebyshev | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 |
+| BitCrusher | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.14 / 1.12 / 1.15 | ×1.00 |
+| AutoWah | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 |
+| Phaser | ×1.15 / 1.00 / 1.00 | ×1.00 / 1.19 / 1.19 | ×1.00 / 1.00 / 1.00 | ×0.52–0.99 |
+| Chorus | ×0.99 / 0.99 / 0.99 | ×0.99 / 1.00 / 0.99 | ×1.01 / 1.01 / 1.00 | ×0.96–1.00 |
+| Tremolo | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 |
+| Vibrato | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 |
+| FrequencyShifter | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.01 / 1.01 / 1.01 | ×1.00 |
+| Width | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 / 1.00 / 1.00 | ×1.00 |
+
+Worst of the 90 gated rows: **×1.19** (the Phaser's darken, runs 2 and 3), against the ×1.6 bar. No gap anywhere in
+the recording. The darken's disconnect fired 160–219 ms after the call, after the ramp had ended on the audio thread
+(call + 150 ms). Every wiggle armed exactly one disconnect, after its last step. The Phaser's light/darken spread
+(×1.00–1.19) and its lit-ramp control dipping to ×0.52 are its own sweep moving the steady-state reference between
+windows, not the crossing. **Control, a bare connect of a full-level path** (the two-tone straight to the
+Destination): ×13.2 / 25.0 / 13.8 on connect and ×12.6 / 23.7 / 13.2 on disconnect. An earlier identical run gave
+×3.98–26.8, depending on the sine's phase at the switch. So the metric sees a real click, and the cell's crossings
+show none.
+
+**Finding, not gated (T7's path):** a **lit** Phaser's Stages change clicks. It is the one connect made at the lit
+gains (the same-Mix node swap; see Checkpoint A's inspection): 10 → 4 measured ×2.0–54.7 and 4 → 10 ×6.4–8.0 over six
+changes each across two sessions, typically ×6–8. A dark Phaser's Stages change touches no edge. (Each Stages change
+also fires 14 of Tone's own context timers, from disposing the old node.) The pre-cell build rewired the whole chain
+on this change instead, which was not measured here. The fix, if wanted, is the Spread duck's pattern: ramp the cell to
+dry, swap after lookAhead + the ramp + a margin, then ramp back. That pattern measured ×1.3 / ×1.6 (GLOBAL_PEDALS.md
+§8).
