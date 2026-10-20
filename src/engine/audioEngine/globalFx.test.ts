@@ -1807,6 +1807,82 @@ describe('globalFx', () => {
       });
 
       // The pending disconnect was armed on the old node; the rebuild put a new one in the cell, which is what must go.
+      describe('a lit rebuild whose new node cannot be connected (Checkpoint A follow-up)', () => {
+        // The mock's rampTo does not move .value, so a lit cell's wet gain is set by hand to where the ramp would be.
+        async function litAt(mix = 0.5) {
+          const { globalFx, phaser: old } = await built();
+          const cell = cellOf(old);
+          globalFx.setGlobalPhaser({ wet: mix });
+          cell.wet.gain.value = 0.7;
+          cell.dry.gain.rampTo.mockClear();
+          cell.wet.gain.rampTo.mockClear();
+          return { globalFx, old, cell };
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        function refuseNextConnect(cell: any) {
+          cell.in.connect.mockImplementationOnce(() => {
+            throw new Error('connect failed');
+          });
+        }
+
+        it('sets the input-less wet gain to 0 at once and ramps the dry gain to 1, so the cell is fully dry', async () => {
+          const { globalFx, cell } = await litAt();
+          refuseNextConnect(cell);
+          expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+          expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('phaser'), expect.any(Error));
+          expect(cell.wet.gain.value).toBe(0);
+          expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+          expect(cell.dry.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+          expect(globalFx.getConnectedEffectCount()).toBe(0);
+        });
+
+        it('lets the same Mix sent again light the new node from wet 0, ramping up to the law', async () => {
+          const { globalFx, cell } = await litAt(0.5);
+          refuseNextConnect(cell);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          let wetAtConnect: number | undefined;
+          cell.in.connect.mockImplementationOnce(function (this: unknown) {
+            wetAtConnect = cell.wet.gain.value;
+            return this;
+          });
+          globalFx.setGlobalPhaser({ wet: 0.5 });
+          expect(wetAtConnect).toBe(0);
+          expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.05);
+          expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawDry(0.25), 9), 0.05);
+          expect(globalFx.getConnectedEffectCount()).toBe(1);
+        });
+
+        it('treats a Mix of 0 sent after the drop as a no-op: the cell is already dark, so no ramp and no timer', async () => {
+          const { globalFx, cell } = await litAt();
+          refuseNextConnect(cell);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          cell.dry.gain.rampTo.mockClear();
+          globalFx.setGlobalPhaser({ wet: 0 });
+          expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+          expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+          expect(toneFlags.timeouts).toHaveLength(0);
+        });
+
+        it('leaves the gains alone when the new node connects', async () => {
+          const { globalFx, cell } = await litAt();
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(cell.wet.gain.value).toBe(0.7);
+          expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+          expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        });
+
+        it('leaves a dark cell alone on a rebuild: nothing to connect, nothing to drop', async () => {
+          const { globalFx, phaser: old } = await built();
+          const cell = cellOf(old);
+          cell.dry.gain.rampTo.mockClear();
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+          expect(devWarn).not.toHaveBeenCalled();
+        });
+      });
+
       it('disconnects the new node, not the replaced one, when a Stages change lands while a darken is pending', async () => {
         const { globalFx, phaser: old } = await built();
         const cell = cellOf(old);
@@ -1928,7 +2004,7 @@ describe('globalFx', () => {
         expect(fresh.connect).not.toHaveBeenCalled();
         expect(old.disconnect).toHaveBeenLastCalledWith(cell.wet);
         expect(old.dispose).toHaveBeenCalledTimes(1);
-        // The same Mix re-sent is not a no-op while the lit cell has lost its effect: it connects the new node.
+        // The same Mix re-sent is not a no-op once the cell has dropped to dry: it connects the new node.
         globalFx.setGlobalPhaser({ wet: 0.5 });
         expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
         expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);

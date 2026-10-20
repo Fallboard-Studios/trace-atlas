@@ -1075,11 +1075,17 @@ function rebuildPhaser(stages: number): boolean {
   if (cell) {
     const lit = cell.connected;
     if (lit && old) disconnectEffect('phaser', cell, old);
-    // The old node is about to be released, so its edges count as gone even if dropping them failed. A failed connect
-    // of the new one leaves the cell dry and unconnected, and the next Mix write connects it.
+    // The old node is about to be released, so its edges count as gone even if dropping them failed.
     cell.connected = false;
     cell.effect = fresh;
-    if (lit) connectEffect('phaser', cell, fresh);
+    if (lit && !connectEffect('phaser', cell, fresh)) {
+      // The new node is out, so the cell goes fully dry: the wet gain has no input left and is set to 0 at once
+      // (silent), the dry gain ramps up to 1, and the Mix is 0, so the next Mix write lights it from wet 0 like any
+      // other dark cell. A pending darken stays armed; its fire finds the cell unconnected and does nothing.
+      cell.wet.gain.value = 0;
+      rampOrSet(cell.dry.gain, 1, COLOUR_RAMP_SECONDS);
+      cell.mix = 0;
+    }
   }
   _globalPhaser = fresh;
   _phaserStages = stages;
