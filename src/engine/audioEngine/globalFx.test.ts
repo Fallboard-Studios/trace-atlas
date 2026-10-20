@@ -1699,6 +1699,45 @@ describe('globalFx', () => {
 
     describe('stages (constructor-only in Tone, so a change rebuilds the node)', () => {
       const ctorOptions = (n = -1) => toneFlags.phaserCtor.mock.calls.at(n)?.[0];
+      /** Every node any build made, both Phasers of a rebuild included: what a rebuild may or may not touch. */
+      const everyNode = () =>
+        [
+          Tone.Distortion,
+          Tone.Chebyshev,
+          Tone.Compressor,
+          Tone.Reverb,
+          Tone.FeedbackDelay,
+          Tone.EQ3,
+          Tone.Filter,
+          toneFlags.crusherCtor,
+          toneFlags.wahCtor,
+          toneFlags.phaserCtor,
+          toneFlags.chorusCtor,
+          toneFlags.tremoloCtor,
+          toneFlags.vibratoCtor,
+          toneFlags.shifterCtor,
+          toneFlags.widenerCtor,
+          toneFlags.gainCtor,
+          toneFlags.cutCtor,
+          toneFlags.limiterCtor,
+        ].flatMap((ctor) =>
+          (ctor as unknown as Mock).mock.results
+            .filter((r) => r.type === 'return')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((r) => r.value as any),
+        );
+      const clearEdges = () => {
+        for (const node of everyNode()) {
+          node.connect.mockClear();
+          node.disconnect.mockClear();
+        }
+      };
+      /** Every connect and disconnect since clearEdges, as [verb, node, target]. */
+      const edgesTouched = () =>
+        everyNode().flatMap((node) => [
+          ...node.connect.mock.calls.map(([target]: unknown[]) => ['connect', node, target]),
+          ...node.disconnect.mock.calls.map(([target]: unknown[]) => ['disconnect', node, target]),
+        ]);
 
       it('builds a new node with the new stage count and disposes the old one', async () => {
         const { globalFx, phaser: old } = await built();
@@ -1792,15 +1831,126 @@ describe('globalFx', () => {
       it('still wires the new node, and does not throw, when disposing the old one throws', async () => {
         const { globalFx, phaser: old } = await built();
         globalFx.setGlobalPhaser({ wet: 0.5 });
+        const cell = cellOf(old);
         old.dispose.mockImplementation(() => {
           throw new Error('already gone');
         });
         expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('disposing'), expect.any(Error));
         const fresh = lastInstance(toneFlags.phaserCtor);
-        expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(fresh));
-        expect(fresh.connect.mock.calls).toEqual([[cellOf(fresh).wet]]);
-        expect(cutOf(fresh).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
+        expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.in.disconnect).toHaveBeenLastCalledWith(old);
+        expect(old.disconnect).toHaveBeenLastCalledWith(cell.wet);
+      });
+
+      // Dark-Effect Bypass T7: the old node's edges go before the new node's are made (the wet gain keeps its value
+      // throughout), and the old node is released only once it is out of the cell.
+      it('swaps the node inside its lit cell and touches no other node: old edges out, new edges in, old released', async () => {
+        const { globalFx, phaser: old } = await built();
+        globalFx.setGlobalAutoWah({ wet: 0.5 });
+        globalFx.setGlobalChorus({ wet: 0.5 });
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        const cell = cellOf(old);
+        clearEdges();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        const touched = edgesTouched();
+        expect(touched).toHaveLength(4);
+        expect(touched).toContainEqual(['disconnect', cell.in, old]);
+        expect(touched).toContainEqual(['disconnect', old, cell.wet]);
+        expect(touched).toContainEqual(['connect', cell.in, fresh]);
+        expect(touched).toContainEqual(['connect', fresh, cell.wet]);
+        const order = (spy: Mock) => spy.mock.invocationCallOrder[0];
+        expect(order(cell.in.disconnect)).toBeLessThan(order(cell.in.connect));
+        expect(order(old.disconnect)).toBeLessThan(order(cell.in.connect));
+        expect(order(old.disconnect)).toBeLessThan(order(old.dispose));
+        expect(old.dispose).toHaveBeenCalledTimes(1);
+        expect(cell.dry.gain.rampTo).toHaveBeenCalledTimes(1);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(1);
+      });
+
+      it('builds the new node on a dark Phaser and touches no edge at all', async () => {
+        const { globalFx, phaser: old } = await built();
+        clearEdges();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        expect(fresh).not.toBe(old);
+        expect(edgesTouched()).toEqual([]);
+        expect(old.dispose).toHaveBeenCalledTimes(1);
+        // ...and it is the new node that a later light wires in.
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        expect(fresh.connect).toHaveBeenCalledTimes(1);
+        expect(old.connect).not.toHaveBeenCalled();
+      });
+
+      it('builds the new node on a Phaser darkened and already disconnected, and touches no edge', async () => {
+        const { globalFx, phaser: old } = await built();
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        globalFx.setGlobalPhaser({ wet: 0 });
+        fireTimeouts();
+        clearEdges();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(edgesTouched()).toEqual([]);
+        expect(old.dispose).toHaveBeenCalledTimes(1);
+      });
+
+      it('still swaps in the new node and releases the old one when dropping the old edges fails', async () => {
+        const { globalFx, phaser: old } = await built();
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        const cell = cellOf(old);
+        cell.in.disconnect.mockImplementationOnce(() => {
+          throw new Error('not connected');
+        });
+        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('could not be disconnected'), expect.any(Error));
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(old.dispose).toHaveBeenCalledTimes(1);
+        // The cell counts the new node as connected: a darken takes it out.
+        globalFx.setGlobalPhaser({ wet: 0 });
+        fireTimeouts();
+        expect(cell.in.disconnect).toHaveBeenLastCalledWith(fresh);
+        expect(fresh.disconnect).toHaveBeenLastCalledWith(cell.wet);
+      });
+
+      it('leaves the cell dry and unconnected, with a warning, when the new node cannot be connected, and connects it on the next Mix write', async () => {
+        const { globalFx, phaser: old } = await built();
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        const cell = cellOf(old);
+        cell.in.connect.mockImplementationOnce(() => {
+          throw new Error('refused');
+        });
+        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('could not be connected'), expect.any(Error));
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        expect(fresh.connect).not.toHaveBeenCalled();
+        expect(old.disconnect).toHaveBeenLastCalledWith(cell.wet);
+        expect(old.dispose).toHaveBeenCalledTimes(1);
+        // The same Mix re-sent is not a no-op while the lit cell has lost its effect: it connects the new node.
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+      });
+
+      it('counts the cell unconnected when both dropping the old edges and making the new ones fail, so the next Mix write connects', async () => {
+        const { globalFx, phaser: old } = await built();
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        const cell = cellOf(old);
+        cell.in.disconnect.mockImplementationOnce(() => {
+          throw new Error('not connected');
+        });
+        cell.in.connect.mockImplementationOnce(() => {
+          throw new Error('refused');
+        });
+        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        expect(fresh.connect).not.toHaveBeenCalled();
+        expect(old.dispose).toHaveBeenCalledTimes(1);
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
       });
 
       it('treats a fresh build as ten stages again: rebuilding at 6, building the chain anew, then asking for 6 rebuilds', async () => {
@@ -1857,64 +2007,68 @@ describe('globalFx', () => {
         expect(lastInstance(toneFlags.phaserCtor).dispose).not.toHaveBeenCalled();
       });
 
-      // Dark-Effect Bypass T2: the new node goes into the Phaser's existing cell; the cell itself is not rebuilt.
-      it('re-wires the chain so the new node sits in the Phaser cell, between the AutoWah and the Chorus (Natural Decay)', async () => {
-        const { globalFx, phaser: old } = await built();
-        const wah = lastInstance(toneFlags.wahCtor);
-        const cell = cellOf(old);
-        globalFx.setGlobalPhaser({ wet: 0.5 });
-        globalFx.setGlobalPhaser({ stages: 6 });
-        const fresh = lastInstance(toneFlags.phaserCtor);
-        expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
-        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
-        expect(cutOf(wah).connect).toHaveBeenLastCalledWith(cell.in);
-        expect(cell.cut.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
-      });
-
-      it('re-wires in the Decay Mode last passed to wireGlobalFxChain: Controlled keeps the returns at the widener', async () => {
+      // Dark-Effect Bypass T7: the rebuild is local to the Phaser's cell. The chain around it, the rooms' returns and
+      // their join are left exactly as the last wire put them, in either Decay Mode.
+      it('touches neither return under Controlled Decay, Width dark or lit: the join stays at the Width cell', async () => {
         const { globalFx } = await built();
         globalFx.wireGlobalFxChain(true);
+        globalFx.setGlobalPhaser({ wet: 0.5 });
         const reverbReturn = returnOf(lastInstance(Tone.Reverb));
         const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
         const widener = lastInstance(toneFlags.widenerCtor);
-
-        globalFx.setGlobalPhaser({ stages: 6 });
-
         expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
-        expect(delayReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
-        expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
+
+        for (const [width, stages] of [
+          [0.5, 6],
+          [0.7, 8],
+        ]) {
+          globalFx.setGlobalStereoWidener({ width });
+          clearEdges();
+          globalFx.setGlobalPhaser({ stages });
+          for (const node of [reverbReturn, delayReturn, lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)]) {
+            expect(node.connect).not.toHaveBeenCalled();
+            expect(node.disconnect).not.toHaveBeenCalled();
+          }
+          expect(edgesTouched()).toHaveLength(4);
+        }
       });
 
-      it('re-wires Natural after a flip back from Controlled', async () => {
+      it('touches neither return under Natural Decay after a flip back from Controlled', async () => {
         const { globalFx } = await built();
         globalFx.wireGlobalFxChain(true);
         globalFx.wireGlobalFxChain(false);
         const reverbReturn = returnOf(lastInstance(Tone.Reverb));
-
-        globalFx.setGlobalPhaser({ stages: 6 });
-
         expect(reverbReturn.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
+        clearEdges();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(edgesTouched()).toEqual([]);
       });
 
-      it('connects the new node exactly once and leaves the AutoWah and Compressor wired once each', async () => {
-        const { globalFx } = await built();
-        const wah = lastInstance(toneFlags.wahCtor);
-        globalFx.setGlobalAutoWah({ wet: 0.5 });
+      it('leaves a Decay flip after the rebuild wiring the new node, lit, and not the replaced one', async () => {
+        const { globalFx, phaser: old } = await built();
         globalFx.setGlobalPhaser({ wet: 0.5 });
-        wah.connect.mockClear();
+        const cell = cellOf(old);
         globalFx.setGlobalPhaser({ stages: 6 });
-        expect(wah.connect).toHaveBeenCalledTimes(1);
-        expect(lastInstance(toneFlags.phaserCtor).connect).toHaveBeenCalledTimes(1);
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        clearEdges();
+        globalFx.wireGlobalFxChain(true);
+        expect(cell.in.connect).toHaveBeenCalledWith(fresh);
+        expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.in.connect).not.toHaveBeenCalledWith(old);
+        expect(old.connect).not.toHaveBeenCalled();
+        expect(old.disconnect).not.toHaveBeenCalled();
       });
 
-      it('keeps the output taps connected through a rebuild', async () => {
+      it('keeps the output taps connected through a rebuild without touching them', async () => {
         const { globalFx } = await built();
+        globalFx.setGlobalPhaser({ wet: 0.5 });
         globalFx.attachOutputTaps();
-        const eq = lastInstance(Tone.EQ3);
         const preTap = createAnalyser.mock.results[0].value;
-        eq.connect.mockClear();
+        const masterTap = createAnalyser.mock.results[1].value;
+        clearEdges();
         globalFx.setGlobalPhaser({ stages: 6 });
-        expect(eq.connect.mock.calls.filter((c: unknown[]) => c[0] === preTap)).toHaveLength(1);
+        expect(edgesTouched().filter(([, , target]) => target === preTap || target === masterTap)).toEqual([]);
+        expect(lastInstance(Tone.EQ3).disconnect).not.toHaveBeenCalled();
       });
 
       it('keeps the old node, undisposed and wired, when the new one cannot be built, and tries again next time', async () => {
@@ -1923,11 +2077,11 @@ describe('globalFx', () => {
         toneFlags.phaserCtor.mockImplementationOnce(() => {
           throw new Error('no memory');
         });
+        clearEdges();
         expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
         expect(old.dispose).not.toHaveBeenCalled();
-        expect(old.connect).toHaveBeenLastCalledWith(cellOf(old).wet);
-        expect(cutOf(old).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
+        expect(edgesTouched()).toEqual([]);
 
         globalFx.setGlobalPhaser({ stages: 6 });
         expect(ctorOptions()).toMatchObject({ stages: 6 });

@@ -59,8 +59,6 @@ let _globalStereoWidener: Tone.StereoWidener | null = null;
 // The cycle-search cuts: zero-delay DelayNodes at the chain entry and after the High-Pass Filter (see CHAIN_CUT_OPTIONS).
 let _entryCut: Tone.Delay | null = null;
 let _filterCut: Tone.Delay | null = null;
-// The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
-let _lastControlledDecay = false;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
 // gains, never Effect.wet: the rooms stay fully wet and each robot's send decides how much enters
 // (docs/specs/ROBOT_SENDS.md §1.3).
@@ -670,7 +668,6 @@ function disconnectAllFxNodes(): void {
  * Decay" toggle flips (src/stores/audioStore.ts's setCompressorBeforeDelay).
  */
 export function wireGlobalFxChain(controlledDecay: boolean): void {
-  _lastControlledDecay = controlledDecay;
   disconnectAllFxNodes();
 
   const chainNodes = [
@@ -702,7 +699,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     for (let i = 0; i < chainNodes.length - 1; i++) {
       chainNodes[i].tail.connect(chainNodes[i + 1].head);
     }
-    // Each cell's own edges, after the chain: the effect's two only if it was lit, so a Decay flip or a rebuild
+    // Each cell's own edges, after the chain: the effect's two only if it was lit, so a Decay flip
     // restores exactly what was connected.
     for (const cell of Object.values(_cells)) wireCell(cell);
     const last = chainNodes[chainNodes.length - 1].tail;
@@ -1050,8 +1047,10 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
 }
 
 /**
- * Replaces the Phaser with one built at `stages` from the last-written values (spec §1.3), then re-wires the chain in
- * the Decay Mode it was last wired in. The new node is built FIRST: if the constructor fails the old node is kept,
+ * Replaces the Phaser with one built at `stages` from the last-written values (spec §1.3), inside its bypass cell and
+ * nowhere else (docs/specs/DARK_EFFECT_BYPASS.md assumption 7): while the cell is connected the old node's two edges go
+ * and the new node's are made, the wet gain keeping its value throughout; a dark cell connects nothing. The chain, the
+ * returns and their join are not touched. The new node is built FIRST: if the constructor fails the old node is kept,
  * undisposed and still wired, and the caller carries on with it; the next Stages edit tries again. True on success.
  */
 function rebuildPhaser(stages: number): boolean {
@@ -1065,15 +1064,23 @@ function rebuildPhaser(stages: number): boolean {
     return false;
   }
   const old = _globalPhaser;
+  const cell = _cells.phaser;
+  if (cell) {
+    const lit = cell.connected;
+    if (lit && old) disconnectEffect('phaser', cell, old);
+    // The old node is about to be released, so its edges count as gone even if dropping them failed. A failed connect
+    // of the new one leaves the cell dry and unconnected, and the next Mix write connects it.
+    cell.connected = false;
+    cell.effect = fresh;
+    if (lit) connectEffect('phaser', cell, fresh);
+  }
   _globalPhaser = fresh;
-  if (_cells.phaser) _cells.phaser.effect = fresh;
   _phaserStages = stages;
   try {
     old?.dispose();
   } catch (err) {
     devWarn('[AudioEngine] disposing the replaced Phaser failed', err);
   }
-  wireGlobalFxChain(_lastControlledDecay);
   return true;
 }
 

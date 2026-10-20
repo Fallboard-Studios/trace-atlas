@@ -2597,8 +2597,8 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     AudioEngine.setGlobalAutoWah({ baseFrequency: 321, wet: 1 });
 
     expect(last(Tone.AutoWah).baseFrequency).toBe(321);
-    // Dark-Effect Bypass T4: the Mix lights the AutoWah's cell, which wires it in (into its cell's wet gain only; a
-    // seeded Phaser Stages rebuild in start() rewires a lit AutoWah again, so the count depends on the world seed); its
+    // Dark-Effect Bypass T4: the Mix lights the AutoWah's cell, which wires it in (into its cell's wet gain only; the
+    // count of connects is not pinned, as what start() lights and wires depends on the random world seed); its
     // own wet stays pinned.
     const wahTargets = new Set(last(Tone.AutoWah).connect.mock.calls.map((call: unknown[]) => call[0]));
     expect(wahTargets.size).toBe(1);
@@ -2647,6 +2647,27 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     AudioEngine.setGlobalPhaser({ stages: target });
     expect(Tone.Phaser).toHaveBeenCalledTimes(before + 1);
     expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: target, octaves: 4, frequency: 2 });
+  });
+
+  // Dark-Effect Bypass T7: the rebuild swaps the node inside its cell, so a lit Phaser ends with exactly one node
+  // wired in: every node it replaced was taken out of the cell Gain it fed.
+  it('leaves exactly one Phaser wired into its cell after a Stages change on a lit Phaser', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Phaser).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalPhaser({ wet: 1 });
+    const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
+    AudioEngine.setGlobalPhaser({ stages: liveStages === 5 ? 6 : 5 });
+
+    type PhaserMock = { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
+    const phasers = vi.mocked(Tone.Phaser).mock.results.map((r) => r.value as unknown as PhaserMock);
+    const fresh = phasers.at(-1)!;
+    expect(fresh.connect).toHaveBeenCalledTimes(1);
+    for (const old of phasers.slice(0, -1)) {
+      for (const [target] of old.connect.mock.calls) expect(old.disconnect).toHaveBeenCalledWith(target);
+    }
+    expect(phasers.slice(0, -1).some((old) => old.connect.mock.calls.length > 0)).toBe(true);
   });
 });
 
