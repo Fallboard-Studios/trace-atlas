@@ -5,7 +5,14 @@ import gsap from 'gsap';
 import * as Tone from 'tone';
 
 import { AudioEngine } from './AudioEngine';
-import { attachOutputTaps, detachOutputTaps, getMasterVolume, readOutputTaps } from './audioEngine/globalFx';
+import {
+  attachOutputTaps,
+  detachOutputTaps,
+  getConnectedEffectCount,
+  getGlobalChainEntry,
+  getMasterVolume,
+  readOutputTaps,
+} from './audioEngine/globalFx';
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
@@ -54,6 +61,9 @@ export interface DiagInfo {
   soundingRobots: number;
   /** The robot cap robotLoad allows (`robotLoadToLimits(robotLoad).maxAudibleRobots`). */
   maxAudibleRobots: number;
+  /** How many of the ten global effects are in the signal path (docs/specs/DARK_EFFECT_BYPASS.md assumption 13).
+   *  NaN before the global chain exists. */
+  fxConnected: number;
   /** Level of what the voices hand the FX chain (EQ3's output) in the last sample; null when that tap is not attached or has nothing to read. */
   outputPre?: LevelReading | null;
   /** Level of what the destination receives (masterGain's output) in the last sample; null likewise. */
@@ -108,6 +118,7 @@ function emptyInfo(): DiagInfo {
     effectsLoad: NaN,
     soundingRobots: NaN,
     maxAudibleRobots: NaN,
+    fxConnected: NaN,
     outputPre: null,
     outputMaster: null,
     playback: null,
@@ -198,6 +209,7 @@ function readInfo(): DiagInfo {
     effectsLoad: audio.effectsLoad,
     soundingRobots: audio.soundingRobotIds.length,
     maxAudibleRobots: robotLoadToLimits(audio.robotLoad).maxAudibleRobots,
+    fxConnected: getGlobalChainEntry() ? getConnectedEffectCount() : NaN,
     outputPre: outputLevels.pre,
     outputMaster: outputLevels.master,
     playback: playbackReading,

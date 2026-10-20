@@ -3164,6 +3164,148 @@ describe('globalFx', () => {
     );
   });
 
+  describe('getConnectedEffectCount (Dark-Effect Bypass T9)', () => {
+    // Every one of the ten lit at once, each through its own setter.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function lightAll(globalFx: any) {
+      globalFx.setGlobalDistortion({ wet: 0.3 });
+      globalFx.setGlobalChebyshev({ wet: 0.3 });
+      globalFx.setGlobalBitCrusher({ wet: 0.3 });
+      globalFx.setGlobalAutoWah({ wet: 0.3 });
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      globalFx.setGlobalChorus({ wet: 0.3 });
+      globalFx.setGlobalTremolo({ wet: 0.3 });
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalFrequencyShifter({ wet: 0.3 });
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+    }
+
+    it('is 0 before buildGlobalFxChain() has run', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('is 0 after a build: every cell is built dark', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('is 2 after lighting two, and a re-sent Mix does not count one twice', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalDistortion({ wet: 0.5 });
+      expect(globalFx.getConnectedEffectCount()).toBe(2);
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalVibrato({ wet: 0.6 });
+      expect(globalFx.getConnectedEffectCount()).toBe(2);
+    });
+
+    it('still counts a darkening effect until its timer fires, then 1', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalDistortion({ wet: 0.5 });
+      globalFx.setGlobalVibrato({ wet: 0 });
+      expect(globalFx.getConnectedEffectCount()).toBe(2);
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(1);
+    });
+
+    it('stays at 1 when an effect is lit again before its darken timer fires', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalVibrato({ wet: 0 });
+      globalFx.setGlobalVibrato({ wet: 0.4 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(1);
+    });
+
+    it('counts Width by its own law: lit off 0.5, out again once 0.5 has settled', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      expect(globalFx.getConnectedEffectCount()).toBe(1);
+      globalFx.setGlobalStereoWidener({ width: 0.5 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('is 10 with all ten lit, and 0 again once all ten are dark and their timers have fired', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightAll(globalFx);
+      expect(globalFx.getConnectedEffectCount()).toBe(10);
+      for (const setter of [
+        'setGlobalDistortion',
+        'setGlobalChebyshev',
+        'setGlobalBitCrusher',
+        'setGlobalAutoWah',
+        'setGlobalPhaser',
+        'setGlobalChorus',
+        'setGlobalTremolo',
+        'setGlobalVibrato',
+        'setGlobalFrequencyShifter',
+      ] as const) {
+        (globalFx[setter] as unknown as (params: { wet: number }) => void)({ wet: 0 });
+      }
+      globalFx.setGlobalStereoWidener({ width: 0.5 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('counts only the cells that exist: an absent Vibrato leaves nine to light', async () => {
+      toneFlags.vibratoAbsent = true;
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightAll(globalFx);
+      expect(globalFx.getConnectedEffectCount()).toBe(9);
+    });
+
+    it('does not count a light whose connect threw', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const cell = cellOf(lastInstance(toneFlags.vibratoCtor));
+      cell.in.connect.mockImplementationOnce(() => {
+        throw new Error('connect failed');
+      });
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('keeps counting a lit Phaser across a Stages rebuild', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      globalFx.setGlobalPhaser({ stages: 12 });
+      expect(globalFx.getConnectedEffectCount()).toBe(1);
+    });
+
+    it('drops a darkening Phaser whose Stages rebuild could not connect, before its timer fires', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      globalFx.setGlobalPhaser({ wet: 0 });
+      const cell = cellOf(lastInstance(toneFlags.phaserCtor));
+      cell.in.connect.mockImplementationOnce(() => {
+        throw new Error('connect failed');
+      });
+      globalFx.setGlobalPhaser({ stages: 12 });
+      expect(toneFlags.timeouts).toHaveLength(1);
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('is 0 again after a rebuild of the chain, whatever was lit before it', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightAll(globalFx);
+      globalFx.buildGlobalFxChain();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+  });
+
   describe('setGlobalFrequencyShifter (Global Pedals)', () => {
     async function built() {
       const globalFx = await import('./globalFx');

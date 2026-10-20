@@ -36,6 +36,7 @@ import {
   getGlobalChainEntry,
   getGlobalReverbRoom,
   getGlobalDelayRoom,
+  getConnectedEffectCount,
   waitForGlobalReverbReady,
   setMasterVolume,
   getMasterVolume,
@@ -1457,6 +1458,7 @@ export const AudioEngine = {
   // ========================================
   setMasterVolume,
   getMasterVolume,
+  getConnectedEffectCount,
   setGlobalReverb,
   setGlobalDelay,
   setGlobalFilterLPF,

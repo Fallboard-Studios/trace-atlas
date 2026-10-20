@@ -39,11 +39,15 @@ export function hudStatus({ timing }: DiagSnapshot): 'ok' | 'bad' {
   return 'ok';
 }
 
-/** The Audio Load budget in one line: both dials, robots sounding out of the cap, robots standing by, and notes used out of the live ceiling. */
-function budgetLine({ robotLoad, effectsLoad, soundingRobots, maxAudibleRobots, audibleRobots, voices, maxVoices }: DiagInfo): string {
+/** The ten global effects that can be in the signal path (docs/specs/DARK_EFFECT_BYPASS.md). */
+const BYPASS_EFFECT_COUNT = 10;
+
+/** The Audio Load budget in one line: both dials, robots sounding out of the cap, robots standing by, notes used out of
+ *  the live ceiling, and how many of the ten global effects are in the signal path. */
+function budgetLine({ robotLoad, effectsLoad, soundingRobots, maxAudibleRobots, audibleRobots, voices, maxVoices, fxConnected }: DiagInfo): string {
   const pct = (load: number): string => (isKnown(load) ? `${Math.round(load * 100)}%` : DASH);
   const standingBy = isKnown(audibleRobots) && isKnown(soundingRobots) ? String(Math.max(0, audibleRobots - soundingRobots)) : DASH;
-  return `load ${pct(robotLoad)}·fx ${pct(effectsLoad)} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)}`;
+  return `load ${pct(robotLoad)}·fx ${pct(effectsLoad)} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)} · fx in ${count(fxConnected)}/${BYPASS_EFFECT_COUNT}`;
 }
 
 /** The LFO Bank in one line (docs/tasks/LFO_BANK.md): how many of the 4 shared lanes are

@@ -2072,6 +2072,16 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
       expect(AudioEngine.getMasterVolume()).toBe(1);
     });
   });
+
+  // Dark-Effect Bypass T9: on the public surface, for the console and the desktop probes.
+  describe('getConnectedEffectCount()', () => {
+    it('is globalFx.getConnectedEffectCount itself', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      const globalFx = await import('./audioEngine/globalFx');
+      expect(typeof globalFx.getConnectedEffectCount).toBe('function');
+      expect(AudioEngine.getConnectedEffectCount).toBe(globalFx.getConnectedEffectCount);
+    });
+  });
 });
 
 describe('AudioEngine - getRobotModulationTarget', () => {

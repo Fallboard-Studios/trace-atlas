@@ -758,6 +758,13 @@ export function getGlobalDelayRoom(): Tone.FeedbackDelay | null {
   return _globalDelay;
 }
 
+/** How many of the ten effects are connected into their bypass cells, i.e. in the signal path: a darkening effect
+ *  counts until its disconnect fires. 0 before buildGlobalFxChain() has run. Read by the `?debug` HUD's ` · fx in n/10`
+ *  token (docs/specs/DARK_EFFECT_BYPASS.md assumption 13). */
+export function getConnectedEffectCount(): number {
+  return Object.values(_cells).filter((cell) => cell.connected).length;
+}
+
 // ========================================
 // OUTPUT TAPS (read-only diagnostics)
 // ========================================

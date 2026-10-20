@@ -115,7 +115,12 @@ const tapSpies = {
   read: vi.fn((): TapBuffers => ({ pre: null, master: null })),
   volume: vi.fn(() => 1), // the master volume (0 = muted)
 };
+// Dark-Effect Bypass T9: the bypass cells' connected count, and whether the chain exists at all.
+let fakeFxConnected = 2;
+let fakeChainBuilt = true;
 vi.mock('./audioEngine/globalFx', () => ({
+  getConnectedEffectCount: () => fakeFxConnected,
+  getGlobalChainEntry: () => (fakeChainBuilt ? {} : null),
   getMasterVolume: () => tapSpies.volume(),
   attachOutputTaps: () => tapSpies.attach(),
   detachOutputTaps: () => tapSpies.detach(),
@@ -169,6 +174,8 @@ describe('audioDiagnostics runtime', () => {
       'hpf.Q': { lane: null, depth: 0 },
     };
     fakeLfoBank = { a: { rate: 0.2 }, b: { rate: 0.8 }, c: { rate: 0 }, d: { rate: 0 } };
+    fakeFxConnected = 2;
+    fakeChainBuilt = true;
     tapSpies.volume.mockReset();
     tapSpies.attach.mockClear();
     tapSpies.detach.mockClear();
@@ -306,6 +313,44 @@ describe('audioDiagnostics runtime', () => {
       fakeRobotLoad = 1;
       fakeEffectsLoad = 0.2;
       expect(budget()).toEqual({ robotLoad: 1, effectsLoad: 0.2, soundingRobots: 0, maxAudibleRobots: 12 });
+    });
+  });
+
+  describe('global effects in the signal path (Dark-Effect Bypass T9)', () => {
+    const fxConnected = () => {
+      advance();
+      return diag.getDiagnosticsSnapshot().info.fxConnected;
+    };
+
+    it('reads how many of the ten effects are connected into their cells', () => {
+      expect(fxConnected()).toBe(2);
+    });
+
+    it('follows a live change within one sample, down to 0', () => {
+      fakeFxConnected = 7;
+      expect(fxConnected()).toBe(7);
+      fakeFxConnected = 0;
+      expect(fxConnected()).toBe(0);
+    });
+
+    it('is NaN, not 0, before the chain exists', () => {
+      fakeChainBuilt = false;
+      fakeFxConnected = 0;
+      expect(fxConnected()).toBeNaN();
+    });
+
+    it('is NaN in the snapshot published before the first sample', async () => {
+      vi.resetModules();
+      const fresh = await import('./audioDiagnostics');
+      expect(fresh.getDiagnosticsSnapshot().info.fxConnected).toBeNaN();
+    });
+
+    it('reads the count again once the chain is built', () => {
+      fakeChainBuilt = false;
+      expect(fxConnected()).toBeNaN();
+      fakeChainBuilt = true;
+      fakeFxConnected = 1;
+      expect(fxConnected()).toBe(1);
     });
   });
 
