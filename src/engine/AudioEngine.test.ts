@@ -2597,8 +2597,11 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     AudioEngine.setGlobalAutoWah({ baseFrequency: 321, wet: 1 });
 
     expect(last(Tone.AutoWah).baseFrequency).toBe(321);
-    // Dark-Effect Bypass T4: the Mix lights the AutoWah's cell, which wires it in; its own wet stays pinned.
-    expect(last(Tone.AutoWah).connect).toHaveBeenCalledTimes(1);
+    // Dark-Effect Bypass T4: the Mix lights the AutoWah's cell, which wires it in (into its cell's wet gain only; a
+    // seeded Phaser Stages rebuild in start() rewires a lit AutoWah again, so the count depends on the world seed); its
+    // own wet stays pinned.
+    const wahTargets = new Set(last(Tone.AutoWah).connect.mock.calls.map((call: unknown[]) => call[0]));
+    expect(wahTargets.size).toBe(1);
     expect(last(Tone.AutoWah).wet.rampTo).not.toHaveBeenCalled();
   });
 
