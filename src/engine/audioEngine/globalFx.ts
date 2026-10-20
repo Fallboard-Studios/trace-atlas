@@ -134,20 +134,6 @@ export type Cell = {
  *  constructor is missing, its cell could not be built, or the Gain / Delay constructors are missing altogether. */
 const _cells: Partial<Record<BypassKey, Cell>> = {};
 
-/** The effects whose setters write their Mix through their cell (writeCellMix): built pinned at wet 1 in a dark cell.
- *  The StereoWidener is still built transparent (Dark-Effect Bypass T6). */
-const BUILT_DARK: ReadonlySet<BypassKey> = new Set<BypassKey>([
-  'distortion',
-  'chebyshev',
-  'bitCrusher',
-  'autoWah',
-  'phaser',
-  'chorus',
-  'tremolo',
-  'vibrato',
-  'frequencyShifter',
-]);
-
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
  *  a cell at cellGains(w) sounds exactly as the bare effect at wet w. Tone 15's CrossFade (component/channel/CrossFade.js)
  *  feeds a constant 1 through a mono StereoPanner at pan 2·fade − 1 and splits it into the two gains, which is the
@@ -226,9 +212,8 @@ function disposeQuietly(node: Tone.ToneAudioNode | null): void {
 /**
  * Builds `key`'s bypass cell around `effect` (docs/specs/DARK_EFFECT_BYPASS.md section 1.1): `in` -> `dry` -> `cut` and
  * `in` -> effect -> `wet` -> `cut`. Each cell ends in its own zero-delay cut, so a connect's cycle search never walks
- * further than one cell (see CHAIN_CUT_OPTIONS). An effect in BUILT_DARK is pinned at wet 1 and its cell built dark
- * (dry 1 / wet 0, unconnected), so the cell carries its Mix; the rest are built transparent for now (the effect connected,
- * the cell at dry 0 / wet 1, the effect's own `wet` carrying its Mix). An effect whose constructor threw (null) gets an
+ * further than one cell (see CHAIN_CUT_OPTIONS). The effect is pinned fully wet (the widener at unity width) and its cell
+ * built dark (dry 1 / wet 0, unconnected), so the cell carries its Mix. An effect whose constructor threw (null) gets an
  * empty cell wired dry. If the cell itself cannot be built, the effect is released and left out of the chain.
  */
 function buildCell(
@@ -237,16 +222,15 @@ function buildCell(
   GainCtor: new (...args: unknown[]) => Tone.Gain,
   DelayCtor: new (...args: unknown[]) => Tone.Delay,
 ): void {
-  const transparent = effect !== null && !BUILT_DARK.has(key);
   try {
     _cells[key] = {
       in: new GainCtor(1),
-      dry: new GainCtor(transparent ? 0 : 1),
-      wet: new GainCtor(transparent ? 1 : 0),
+      dry: new GainCtor(1),
+      wet: new GainCtor(0),
       cut: new DelayCtor({ ...CHAIN_CUT_OPTIONS }),
       effect,
-      connected: transparent,
-      mix: transparent ? 1 : 0,
+      connected: false,
+      mix: 0,
       darken: null,
     };
   } catch (err) {
@@ -293,9 +277,9 @@ function wireCell(cell: Cell): void {
   }
 }
 
-/** Ramp a cell's two gains to the law at `w` (cellGains). */
-function rampCell(cell: Cell, w: number, seconds: number): void {
-  const { dry, wet } = cellGains(w);
+/** Ramp `key`'s cell's two gains to its law at `w`: widthCellGains for the widener, cellGains for a Mix effect. */
+function rampCell(key: BypassKey, cell: Cell, w: number, seconds: number): void {
+  const { dry, wet } = key === 'stereoWidener' ? widthCellGains(w) : cellGains(w);
   rampOrSet(cell.dry.gain, dry, seconds);
   rampOrSet(cell.wet.gain, wet, seconds);
 }
@@ -334,7 +318,8 @@ function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode
 
 /**
  * A Mix write through `key`'s cell (docs/specs/DARK_EFFECT_BYPASS.md section 1.2, assumption 4). `mix` is the stored,
- * clamped Mix; the cell runs the tapered `w = colourWetGain(mix)`. Light (w > 0): cancel a pending disconnect, connect the
+ * clamped Mix; the cell runs the tapered `w = colourWetGain(mix)`, or for the widener `mix` is its width and `w` its fade
+ * (0 at exactly 0.5, where the widener is unity; 1 anywhere else). Light (w > 0): cancel a pending disconnect, connect the
  * effect if it is not (the wet gain is 0, so the path appears silently), then ramp the cell to the law. Darken (w = 0):
  * ramp to dry and arm the one disconnect for when the ramp has run on the audio thread (lookAhead + the ramp + a margin),
  * where it goes only if the cell is still dark. A re-sent value with nothing left to do writes nothing, so a whole-block
@@ -345,7 +330,7 @@ function writeCellMix(key: BypassKey, mix: number, ramp = true): void {
   const cell = _cells[key];
   const effect = cell?.effect;
   if (!cell || !effect) return;
-  const w = colourWetGain(mix);
+  const w = key === 'stereoWidener' ? (mix === 0.5 ? 0 : 1) : colourWetGain(mix);
   if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
   const context = Tone.getContext();
   if (w > 0) {
@@ -355,11 +340,11 @@ function writeCellMix(key: BypassKey, mix: number, ramp = true): void {
     }
     if (!cell.connected && !connectEffect(key, cell, effect)) return;
     cell.mix = w;
-    if (ramp) rampCell(cell, w, COLOUR_RAMP_SECONDS);
+    if (ramp) rampCell(key, cell, w, COLOUR_RAMP_SECONDS);
     return;
   }
   cell.mix = 0;
-  if (ramp) rampCell(cell, 0, COLOUR_RAMP_SECONDS);
+  if (ramp) rampCell(key, cell, 0, COLOUR_RAMP_SECONDS);
   cell.darken = context.setTimeout(
     () => {
       cell.darken = null;
@@ -537,7 +522,7 @@ export function buildGlobalFxChain(): void {
       _globalFrequencyShifter = null;
     }
   }
-  // Width: built at unity (0.5) and held fully wet - Width itself is the control; there is no Mix and no dark state.
+  // Width: built at unity (0.5) and held fully wet - Width itself is the control, and exactly 0.5 is its dark state.
   _globalStereoWidener = null;
   if (StereoWidenerCtor) {
     try {
@@ -1219,7 +1204,7 @@ function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void
   }
   const context = Tone.getContext();
   if (pending) context.clearTimeout(pending.timer);
-  else rampCell(cell, 0, SPREAD_DUCK_SECONDS);
+  else rampCell(pedal, cell, 0, SPREAD_DUCK_SECONDS);
   const timer = context.setTimeout(
     () => finishSpreadDuck(pedal, node),
     context.lookAhead + SPREAD_DUCK_SECONDS + SPREAD_WRITE_MARGIN_SECONDS,
@@ -1236,7 +1221,7 @@ function finishSpreadDuck(pedal: SpreadPedal, node: SpreadNode): void {
   try {
     node.spread = pending.spread;
     const cell = _cells[pedal];
-    if (cell) rampCell(cell, cell.mix, SPREAD_DUCK_SECONDS);
+    if (cell) rampCell(pedal, cell, cell.mix, SPREAD_DUCK_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] a ducked Spread write failed', err);
   }
@@ -1329,13 +1314,18 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
 }
 
 /** Width (docs/specs/GLOBAL_PEDALS.md §1.3). Tone's `width` Signal, clamped 0 - 1 and NEVER tapered: 0.5 is unity
- *  (as recorded), 0 folds everything after the rooms' join to mono, 1 is all side. The node's own `wet` stays 1. */
+ *  (as recorded), 0 folds everything after the rooms' join to mono, 1 is all side. The node's own `wet` stays 1. Exactly
+ *  0.5 is dark: the cell fades linearly to dry and the widener leaves the signal path, its `width` ramping to 0.5 as it
+ *  goes; anything else lights it, the cell first (so a reconnect is silent), the width ramp concurrent
+ *  (docs/specs/DARK_EFFECT_BYPASS.md assumption 5). */
 export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): void {
   const widener = _globalStereoWidener;
   if (!widener) return;
   try {
     const width = clampIfGiven('stereoWidener.width', params.width);
-    if (width !== undefined) rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
+    if (width === undefined) return;
+    writeCellMix('stereoWidener', width);
+    rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalStereoWidener failed', err);
   }

@@ -550,8 +550,7 @@ describe('globalFx', () => {
   // ========================================
   // Dark-Effect Bypass T2 (docs/specs/DARK_EFFECT_BYPASS.md sections 1.1 and 1.3): each of the ten global effects sits
   // in a fixed four-node cell, in -> dry -> cut and in -> effect -> wet -> cut, and the chain runs through the cells.
-  // Built TRANSPARENT here: the effect connected, the cell at dry 0 / wet 1, the effect still carrying its own Mix, so
-  // the sound is unchanged until T3 moves the Mix law onto the cell.
+  // T2 built them transparent; T3-T6 moved each effect's Mix onto its cell, so every cell is now built dark.
   // ========================================
   describe('bypass cells (Dark-Effect Bypass T2)', () => {
     const EFFECT_NAMES = [
@@ -566,10 +565,6 @@ describe('globalFx', () => {
       'FrequencyShifter',
       'StereoWidener',
     ];
-    /** The effects a fresh build leaves dark (T3 onward): dry 1 / wet 0, the effect pinned at wet 1 and unconnected. */
-    const BUILT_DARK = new Set(['Distortion', 'Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Chorus', 'Tremolo', 'Vibrato', 'FrequencyShifter']);
-    const isBuiltDark = (index: number) => BUILT_DARK.has(EFFECT_NAMES[index]);
-
     it('builds ten cells: twelve zero-delay Delays in all, and three Gains per cell besides the returns and master', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
@@ -578,7 +573,7 @@ describe('globalFx', () => {
       expect(toneFlags.gainCtor).toHaveBeenCalledTimes(30 + 3);
     });
 
-    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const).filter(([name]) => BUILT_DARK.has(name)))(
+    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const))(
       'builds the %s dark: pinned at wet 1, unconnected, its cell in -> dry -> cut and wet -> cut at dry 1, wet 0',
       async (_name, index) => {
         const globalFx = await import('./globalFx');
@@ -591,6 +586,7 @@ describe('globalFx', () => {
         expect(gains).toContain(cell.in);
         expect(gains).toContain(cell.dry);
         expect(gains).toContain(cell.wet);
+        expect(delaysBuilt().slice(2)).toContain(cell.cut);
         expect(new Set([cell.in, cell.dry, cell.wet, cell.cut]).size).toBe(4);
         expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
         expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
@@ -603,31 +599,6 @@ describe('globalFx', () => {
         globalFx.wireGlobalFxChain(true);
         expect(cell.in.connect).not.toHaveBeenCalledWith(effect);
         expect(effect.connect).not.toHaveBeenCalled();
-      },
-    );
-
-    it.each(EFFECT_NAMES.map((name, i) => [name, i] as const).filter(([name]) => !BUILT_DARK.has(name)))(
-      'puts the %s in a transparent cell: in -> effect -> wet -> cut, in -> dry -> cut, dry 0, wet 1',
-      async (_name, index) => {
-        const globalFx = await import('./globalFx');
-        globalFx.buildGlobalFxChain();
-        const effect = tenEffects()[index];
-        const cell = cellOf(effect);
-        const gains = toneFlags.gainCtor.mock.results.map((r) => r.value);
-
-        expect(gains).toContain(cell.in);
-        expect(gains).toContain(cell.dry);
-        expect(gains).toContain(cell.wet);
-        expect(delaysBuilt().slice(2)).toContain(cell.cut);
-        expect(new Set([cell.in, cell.dry, cell.wet, cell.cut]).size).toBe(4);
-
-        expect(cell.in.connect.mock.calls).toEqual(expect.arrayContaining([[cell.dry], [effect]]));
-        expect(cell.in.connect).not.toHaveBeenCalledWith(cell.cut);
-        expect(effect.connect.mock.calls).toEqual([[cell.wet]]);
-        expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
-        expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
-        expect(cell.dry.gain.value).toBe(0);
-        expect(cell.wet.gain.value).toBe(1);
       },
     );
 
@@ -707,6 +678,10 @@ describe('globalFx', () => {
     it('disconnects every cell node and its effect exactly once per Decay flip, and re-makes each edge exactly once', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      // Two lit (one Mix law, one Width), eight dark: a flip re-makes the lit effects' edges and only theirs.
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalStereoWidener({ width: 0.7 });
+      const isLit = (index: number) => ['Vibrato', 'StereoWidener'].includes(EFFECT_NAMES[index]);
       const effects = tenEffects();
       const cells = effects.map(cellOf);
       const nodes = [...effects, ...cells.flatMap((c) => [c.in, c.dry, c.wet, c.cut])];
@@ -718,13 +693,13 @@ describe('globalFx', () => {
         globalFx.wireGlobalFxChain(flip);
         for (const node of nodes) expect(node.disconnect).toHaveBeenCalledTimes(1);
         cells.forEach((cell, i) => {
-          if (isBuiltDark(i)) {
-            expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
-            expect(effects[i].connect).not.toHaveBeenCalled();
-          } else {
+          if (isLit(i)) {
             expect(cell.in.connect.mock.calls).toHaveLength(2);
             expect(cell.in.connect.mock.calls).toEqual(expect.arrayContaining([[cell.dry], [effects[i]]]));
             expect(effects[i].connect.mock.calls).toEqual([[cell.wet]]);
+          } else {
+            expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+            expect(effects[i].connect).not.toHaveBeenCalled();
           }
           expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
           expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
@@ -2200,10 +2175,12 @@ describe('globalFx', () => {
       expect(toneFlags.widenerCtor).toHaveBeenCalledWith({ width: 0.5, wet: 1 });
     });
 
-    // Dark-Effect Bypass T2: Width sits in its own cell, entered at the cell's in and left at its cut.
-    it.each([false, true])('wires Compressor -> StereoWidener cell -> Limiter with controlledDecay=%s', async (controlled) => {
+    // Dark-Effect Bypass T2: Width sits in its own cell, entered at the cell's in and left at its cut. T6: lit here
+    // (dark, the widener is not wired at all: the bypass-cells block).
+    it.each([false, true])('wires Compressor -> lit StereoWidener cell -> Limiter with controlledDecay=%s', async (controlled) => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      globalFx.setGlobalStereoWidener({ width: 0.7 });
       const comp = lastInstance(Tone.Compressor);
       const widener = lastInstance(toneFlags.widenerCtor);
       const limiter = lastInstance(Tone.Limiter);
@@ -2342,6 +2319,250 @@ describe('globalFx', () => {
       });
       expect(() => globalFx.setGlobalStereoWidener({ width: 0.3 })).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith('[AudioEngine] setGlobalStereoWidener failed', expect.any(Error));
+    });
+  });
+
+  // ========================================
+  // Dark-Effect Bypass T6 (docs/specs/DARK_EFFECT_BYPASS.md assumptions 5 and 6): Width is dark at exactly 0.5, where
+  // the widener is unity. Its cell fades linearly (widthCellGains) between f 0 and f 1, so the two identical signals
+  // never sum above unity mid-crossing, and the widener's own `width` ramps concurrently. The Controlled-Decay join
+  // stays at the cell's in, lit or dark.
+  // ========================================
+  describe('Width rides its cell (Dark-Effect Bypass T6)', () => {
+    async function dark() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const widener = lastInstance(toneFlags.widenerCtor);
+      return { globalFx, widener, cell: cellOf(widener) };
+    }
+    async function lit(width = 0.7) {
+      const built = await dark();
+      built.globalFx.setGlobalStereoWidener({ width });
+      return built;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function clearCalls(widener: any, cell: any) {
+      for (const node of [widener, cell.in, cell.dry, cell.wet, cell.cut]) {
+        node.connect.mockClear();
+        node.disconnect.mockClear();
+      }
+      cell.dry.gain.rampTo.mockClear();
+      cell.wet.gain.rampTo.mockClear();
+      widener.width.rampTo.mockClear();
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const edgesFromIn = (cell: any, widener: any) =>
+      cell.in.connect.mock.calls.filter(([target]: unknown[]) => target === widener);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cutsFromIn = (cell: any, widener: any) =>
+      cell.in.disconnect.mock.calls.filter(([target]: unknown[]) => target === widener);
+
+    it('builds the widener dark: at width 0.5, wet 1, unconnected, its cell at dry 1, wet 0', async () => {
+      const { widener, cell } = await dark();
+      expect(widener.width.value).toBe(0.5);
+      expect(widener.wet.value).toBe(1);
+      expect(widener.connect).not.toHaveBeenCalled();
+      expect(cell.in.connect).not.toHaveBeenCalledWith(widener);
+      expect(cell.dry.gain.value).toBe(1);
+      expect(cell.wet.gain.value).toBe(0);
+    });
+
+    describe('lighting', () => {
+      it('0.5 -> 0.7: connects once, then ramps dry to 0, wet to 1 and the width to 0.7 together over 50 ms', async () => {
+        const { widener, cell } = await lit(0.7);
+        expect(edgesFromIn(cell, widener)).toHaveLength(1);
+        expect(widener.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.dry.gain.rampTo.mock.calls).toEqual([[0, 0.05]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+        expect(widener.width.rampTo.mock.calls).toEqual([[0.7, 0.05]]);
+        const first = (spy: { mock: { invocationCallOrder: number[] } }) => spy.mock.invocationCallOrder[0];
+        expect(first(widener.connect)).toBeLessThan(first(cell.dry.gain.rampTo));
+        expect(first(widener.connect)).toBeLessThan(first(cell.wet.gain.rampTo));
+        expect(first(widener.connect)).toBeLessThan(first(widener.width.rampTo));
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
+
+      it.each([0.499, 0.501, 0, 1])('lights at a width of %s: the cell goes fully to the widener', async (width) => {
+        const { widener, cell } = await lit(width);
+        expect(widener.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.dry.gain.rampTo.mock.calls).toEqual([[0, 0.05]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+        expect(widener.width.rampTo).toHaveBeenLastCalledWith(width, 0.05);
+      });
+
+      it.each([
+        [-0.4, 0],
+        [1.7, 1],
+      ])('clamps a width of %s to %s, which lights', async (width, clamped) => {
+        const { widener, cell } = await lit(width);
+        expect(widener.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+        expect(widener.width.rampTo).toHaveBeenLastCalledWith(clamped, 0.05);
+      });
+
+      it('0.7 -> 0.9 on a lit widener ramps the width only: no connect, no cell ramp, no timer', async () => {
+        const { globalFx, widener, cell } = await lit(0.7);
+        clearCalls(widener, cell);
+        globalFx.setGlobalStereoWidener({ width: 0.9 });
+        expect(widener.width.rampTo.mock.calls).toEqual([[0.9, 0.05]]);
+        expect(cell.in.connect).not.toHaveBeenCalled();
+        expect(widener.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(0);
+      });
+
+      it('never writes the widener own wet, lit or dark', async () => {
+        const { globalFx, widener } = await lit(0.7);
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        fireTimeouts();
+        globalFx.setGlobalStereoWidener({ width: 0.2 });
+        expect(widener.wet.rampTo).not.toHaveBeenCalled();
+        expect(widener.wet.value).toBe(1);
+      });
+
+      it('warns and keeps the cell dry when the connect throws; the next light retries', async () => {
+        const { globalFx, widener, cell } = await dark();
+        cell.in.connect.mockImplementationOnce(() => {
+          throw new Error('connect failed');
+        });
+        expect(() => globalFx.setGlobalStereoWidener({ width: 0.7 })).not.toThrow();
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('stereoWidener'), expect.any(Error));
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+
+        globalFx.setGlobalStereoWidener({ width: 0.7 });
+        expect(widener.connect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+      });
+
+      it('keeps the widener wired through a Decay flip once lit', async () => {
+        const { globalFx, widener, cell } = await lit(0.7);
+        clearCalls(widener, cell);
+        globalFx.wireGlobalFxChain(true);
+        expect(cell.in.connect).toHaveBeenCalledWith(widener);
+        expect(widener.connect.mock.calls).toEqual([[cell.wet]]);
+      });
+    });
+
+    describe('darkening', () => {
+      it('0.7 -> 0.5: ramps dry to 1, wet to 0 and the width to 0.5, and arms one disconnect, disconnecting nothing yet', async () => {
+        const { globalFx, widener, cell } = await lit(0.7);
+        clearCalls(widener, cell);
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        expect(cell.dry.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.05]]);
+        expect(widener.width.rampTo.mock.calls).toEqual([[0.5, 0.05]]);
+        expect(toneFlags.timeouts).toHaveLength(1);
+        expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.1 + 0.05 + 0.01, 9);
+        expect(cutsFromIn(cell, widener)).toHaveLength(0);
+        expect(widener.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('disconnects in -> widener and widener -> wet once each when the timer fires', async () => {
+        const { globalFx, widener, cell } = await lit(0.7);
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        clearCalls(widener, cell);
+        fireTimeouts();
+        expect(cutsFromIn(cell, widener)).toHaveLength(1);
+        expect(widener.disconnect.mock.calls).toEqual([[cell.wet]]);
+        expect(cell.dry.disconnect).not.toHaveBeenCalled();
+        expect(cell.wet.disconnect).not.toHaveBeenCalled();
+        expect(cell.cut.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('does nothing for a re-sent 0.5, dark from the build or darkening', async () => {
+        const { globalFx, widener, cell } = await dark();
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        expect(cell.in.connect).not.toHaveBeenCalledWith(widener);
+        expect(widener.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(0);
+
+        globalFx.setGlobalStereoWidener({ width: 0.7 });
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        clearCalls(widener, cell);
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        expect(toneFlags.timeouts).toHaveLength(1);
+      });
+
+      it('re-lit before the timer fires: cancels it, ramps back to the widener without a second connect', async () => {
+        const { globalFx, widener, cell } = await lit(0.7);
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        clearCalls(widener, cell);
+        globalFx.setGlobalStereoWidener({ width: 0.6 });
+        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(widener.connect).not.toHaveBeenCalled();
+        expect(cell.dry.gain.rampTo.mock.calls).toEqual([[0, 0.05]]);
+        expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+        expect(widener.width.rampTo.mock.calls).toEqual([[0.6, 0.05]]);
+        fireTimeouts();
+        expect(widener.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('leaves a darkened widener out of a Decay flip', async () => {
+        const { globalFx, widener, cell } = await lit(0.7);
+        globalFx.setGlobalStereoWidener({ width: 0.5 });
+        fireTimeouts();
+        clearCalls(widener, cell);
+        globalFx.wireGlobalFxChain(true);
+        expect(cell.in.connect).not.toHaveBeenCalledWith(widener);
+        expect(widener.connect).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('the Controlled-Decay join', () => {
+      const returns = () => [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)].map(returnOf);
+
+      it.each([
+        ['dark', 0.5],
+        ['lit', 0.7],
+      ])('joins both returns at the Width cell in, and only there, with Width %s', async (_label, width) => {
+        const { globalFx, widener, cell } = await dark();
+        globalFx.setGlobalStereoWidener({ width });
+        const rets = returns();
+        for (const ret of rets) ret.connect.mockClear();
+        globalFx.wireGlobalFxChain(true);
+        for (const ret of rets) {
+          expect(ret.connect.mock.calls).toEqual([[cell.in]]);
+          expect(ret.connect).not.toHaveBeenCalledWith(widener);
+        }
+      });
+
+      it.each([true, false])(
+        'touches neither return on a Width crossing (controlledDecay=%s)',
+        async (controlled) => {
+          const { globalFx } = await dark();
+          globalFx.wireGlobalFxChain(controlled);
+          const rets = returns();
+          for (const ret of rets) {
+            ret.connect.mockClear();
+            ret.disconnect.mockClear();
+          }
+          globalFx.setGlobalStereoWidener({ width: 0.7 });
+          globalFx.setGlobalStereoWidener({ width: 0.5 });
+          fireTimeouts();
+          globalFx.setGlobalStereoWidener({ width: 0.2 });
+          for (const ret of rets) {
+            expect(ret.connect).not.toHaveBeenCalled();
+            expect(ret.disconnect).not.toHaveBeenCalled();
+          }
+        },
+      );
+
+      it('joins both returns at the Compressor under Natural Decay with Width lit', async () => {
+        const { globalFx, cell } = await lit(0.7);
+        const rets = returns();
+        for (const ret of rets) ret.connect.mockClear();
+        globalFx.wireGlobalFxChain(false);
+        for (const ret of rets) {
+          expect(ret.connect.mock.calls).toEqual([[lastInstance(Tone.Compressor)]]);
+          expect(ret.connect).not.toHaveBeenCalledWith(cell.in);
+        }
+      });
     });
   });
 

@@ -2744,6 +2744,20 @@ describe('AudioEngine.start — the StereoWidener (Global Pedals T6)', () => {
     AudioEngine.setGlobalStereoWidener({ width: 0.3 });
     expect(last(Tone.StereoWidener).width.rampTo).toHaveBeenLastCalledWith(0.3, 0.05);
   });
+
+  // Dark-Effect Bypass T6: a width off 0.5 lights the widener into its cell's wet Gain (start()'s seed may already
+  // have lit it, so this does not count connects); its own wet is never written.
+  it('wires a lit widener into its bypass cell and leaves its own wet at 1', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalStereoWidener({ width: 0.3 });
+    const widener = last(Tone.StereoWidener);
+    const gains = (Tone.Gain as unknown as ReturnType<typeof vi.fn>).mock.results.map((r) => r.value);
+    expect(gains).toContain(widener.connect.mock.calls.at(-1)?.[0]);
+    expect(widener.wet.rampTo).not.toHaveBeenCalled();
+    expect(widener.wet.value).toBe(1);
+  });
 });
 
 describe('AudioEngine.start — primes robot LFO links via the bank roster helper (docs/tasks/LFO_BANK.md Task 10)', () => {
