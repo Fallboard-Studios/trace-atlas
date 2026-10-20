@@ -646,3 +646,17 @@ seed-dependent ones in `AudioEngine.test.ts`, which fire only the timers the Sta
 because an unconsumed one-shot constructor throw leaked from an un-fired lit case; they pass unchanged. **Mutation gate:**
 17 mutants, all killed. M2 ("a pending duck does not keep the duck path") first survived. An 18th case killed it: a
 darken firing inside the duck, then a second Stages change, must keep one duck, so the last count wins.
+
+### 8.3 Dark cost and render capacity (T12, 2026-10-20) — PASS
+
+Full tables, recipe and files in `docs/todo/scratchy-audio-phones.md`, "Dark-Effect Bypass, desktop after — T12".
+**(a)** The 2026-10-19 offline dark-cost probe, extended with the cell exactly as `buildGlobalFxChain` builds it:
+all ten dark in cells **38.3 ‰** (rounds 35.1–39.6) against assumption 14's ≤ 70. Same-sitting references: the old
+build's ten inline 150.6 and the ten disconnected 32.4. The sitting ran about 0.7× the 2026-10-19 one (213 / 48), so
+about 54 ‰ on that scale, still a pass. Each effect dark in its cell costs 1.0 (Distortion, Chebyshev) to 5.4 ‰
+(BitCrusher), about what disconnecting alone cost. One empty cell costs 0.5 ‰ and ten cost 4.8, so assumption 14's
+"40 trivial nodes should add under ~20" holds with room to spare. The rest is the effects' running LFOs, signals and
+worklet; only assumption 10's teardown would reach it. **(b)** `npm run perf:audio`, T0's link and recipe, three
+interleaved rounds: branch `1421c023` mean **0.431** / peak window **0.502** against `main` `d29ac778` **0.460** /
+**0.580**. That is below `main` in every round on both, where T0's branch was 0.624 / 0.752. `main` reproduced T0
+(0.455 / 0.570). The branch now beats `main` because `main`'s own five dark effects still run inline at wet 0.

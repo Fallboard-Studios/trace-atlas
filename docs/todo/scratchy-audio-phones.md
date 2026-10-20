@@ -725,3 +725,70 @@ This session's files, in its scratchpad
 `site/` (the side-by-side build), `round1.json`–`round3.json`, `baseline.txt` and `two-lit.txt` (the payloads,
 written by `payloads.mjs`), and `probe.mjs` (the hang probe, plus `HUD=1` and a restored-values read-out). No server
 was left running.
+
+## Dark-Effect Bypass, desktop after — T12, 2026-10-20
+
+Task 12 of docs/tasks/DARK_EFFECT_BYPASS.md: the dark cost with every effect in its bypass cell, against T0 above.
+**Code measured:** branch `feature/pedals` at `1421c023` (the cells, T1–T11 and the Phaser Stages duck; clean product
+tree) and `main` at `d29ac778` (T0's build, reused unchanged). **Both gates pass.**
+
+**(a) The dark cost, per effect.** The 2026-10-19 probe (raw Tone 15.1.22 in headless Chrome, a 30 s OfflineContext
+render of a sawtooth/square stereo source, timed against a source-only render; extra render ms per audio second, i.e.
+‰ of one desktop core; 5 interleaved rounds, medians), extended with the cell exactly as `buildGlobalFxChain` builds
+it. That is `in` → `dry` → `cut` and `wet` (0) → `cut`, with a zero-delay `Tone.Delay` at `CHAIN_CUT_OPTIONS`, and the
+effect pinned at `wet 1` (the widener at width 0.5), built and started but not connected. Two reference rows were
+re-run in the same sitting, the old build's ten inline at their dark settings and the ten built but disconnected, to
+show the probe still sees the cost. The first two columns are the 2026-10-19 table from
+[docs/intent/dark-effect-bypass.md](../intent/dark-effect-bypass.md).
+
+| Effect | 2026-10-19: dark, in the chain | 2026-10-19: dark, disconnected | **2026-10-20: dark, in its cell** |
+|---|---|---|---|
+| Phaser (10 stages) | 57 | 5.5 | **5.2** |
+| AutoWah | 32 | 3.8 | **2.7** |
+| FrequencyShifter | 23 | 4.5 | **3.8** |
+| Chorus | 19 | 5.0 | **5.1** |
+| Tremolo | 17 | 7.6 | **5.2** |
+| StereoWidener (0.5) | 14 | 4.4 | **4.0** |
+| BitCrusher | 13 | 6.4 | **5.4** |
+| Vibrato | 11 | 3.3 | **3.0** |
+| Chebyshev | 7 | 0.7 | **1.0** |
+| Distortion | 6 | 0 | **1.0** |
+| One empty cell | — | — | **0.5** |
+| Ten empty cells | — | — | **4.8** |
+| **All ten** | **213** | **48** | **38.3** (rounds 35.1–39.6) |
+
+Same-sitting references: the ten inline **150.6** (149.5–157.6) and the ten disconnected **32.4** (30.1–33.0); baseline
+render 138 ms (134–191). **Gate (assumption 14): all ten dark in cells ≤ 70 ‰ — PASS at 38.3.** This sitting ran
+about 0.7× the 2026-10-19 one (150.6 / 213 = 0.71, 32.4 / 48 = 0.68). Scaled to that sitting, the cells would be
+about 54 ‰, which still passes. The cells save 75 % against the inline build in the same sitting (38.3 against
+150.6). Ten cells cost what disconnecting costs plus ten empty cells (32.4 + 4.8 = 37.2 against 38.3 measured), so
+the topology itself is about 0.5 ‰ per effect. What remains is the effects' own LFOs, constant signals and the
+BitCrusher's worklet, which only disposing them would reach (spec assumption 10). Orphaned headless Chrome: 0 after.
+
+**(b) Render capacity, `npm run perf:audio`.** T0's recipe and world: the seed-`alpha` baseline payload (every new
+pedal dark), `load=full`, pinned with `alpha:0:50?load=full&session=…` and `alpha:0:50@main.html?load=full&session=…`
+on one `vite preview` (port 4173) serving the branch's fresh build as `index.html` and T0's `main` build as `main.html`.
+240 s series, 15 s buckets, 8 s warm-up. Three interleaved rounds, start order rotated as in T0 (branch, main, branch
+first). One world per foreground call (T0 ran two per call); nothing else running. Orphaned-Chrome count 0 before and
+after every call.
+
+| Round | Branch mean | Branch peak window | `main` mean | `main` peak window | Branch − `main` (mean) |
+|---|---|---|---|---|---|
+| 1 | 0.430 | 0.506 | 0.451 | 0.514 | −0.021 |
+| 2 | 0.435 | 0.502 | 0.451 | 0.538 | −0.016 |
+| 3 | 0.428 | 0.500 | 0.478 | 0.687 | −0.049 |
+| **Average** | **0.431** | **0.502** | **0.460** | **0.580** | **−0.029** |
+| T0 (2026-10-19) | 0.624 | 0.752 | 0.455 | 0.570 | +0.169 |
+
+**Gate (spec §5 step 3): branch ≤ `main` on mean and peak window — PASS, in every round.** `main` reproduced T0
+(0.460 / 0.580 against 0.455 / 0.570). The branch fell from 0.624 to 0.431, now below `main`: `main`'s own five dark
+effects (Distortion, Chebyshev, BitCrusher, AutoWah, Phaser) are inline at wet 0, while the branch's are in cells. The
+branch is also the steadier of the two (means 0.428–0.435 against 0.451–0.478). The overall max was the usual
+single-poll spike: 0.99 on every branch run and on `main`'s round 3 (0.84 on its rounds 1 and 2). Buckets with a max
+above 0.8 were scattered across both builds: branch 2 / 2 / 1, `main` 2 / 1 / 5.
+
+This session's files, in its scratchpad
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/5bf05dc0-cd58-45f6-9633-c813096c5fe6/scratchpad/t12/`:
+`dark/probe.js` (the cell probe; serve with `npx vite <dark> --port 5199` from the repo), `drive.mjs`, `dark-5r.json`,
+`site/` (the side-by-side build), `perf.sh` (one world per call), `r1`–`r3-branch|main.json` and `.log`. No server was
+left running.

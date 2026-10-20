@@ -548,17 +548,27 @@ interleaved rounds, medians, ‰ of one core. (b) `npm run perf:audio` on the se
 the branch side by side as in T0, 240 s each, interleaved once more.
 
 **Acceptance criteria:**
-- [ ] All ten dark in cells **≤ 70 ‰** (assumption 14); the empty cell's own price and each effect's dark-in-cell
+- [x] All ten dark in cells **≤ 70 ‰** (assumption 14); the empty cell's own price and each effect's dark-in-cell
   price recorded beside the existing 213 / 48 table in `scratchy-audio-phones.md`.
-- [ ] `perf:audio`: the branch's render-capacity mean and peak ≤ `main`'s on the same link, same sitting (T0's
+- [x] `perf:audio`: the branch's render-capacity mean and peak ≤ `main`'s on the same link, same sitting (T0's
   before-numbers alongside).
-- [ ] **A miss stops the plan** with the per-node breakdown and options (drop the per-cell cut, accepting a longer
-  walk per crossing; or accept and record), recommendation included.
+- [x] **A miss stops the plan** with the per-node breakdown and options (drop the per-cell cut, accepting a longer
+  walk per crossing; or accept and record), recommendation included. *(No miss.)*
 
 **Verification:** the tables; measurement hygiene stated as in T0.
 
 **Dependencies:** T6 (all ten in cells). **Files:** `docs/todo/scratchy-audio-phones.md`,
 `docs/specs/DARK_EFFECT_BYPASS.md` (§8). **Scope:** S (measurement).
+
+**As built (2026-10-20): PASS on both gates.** Details in spec §8.3 and the new T12 section of
+`scratchy-audio-phones.md`. (a) All ten dark in cells **38.3 ‰** (≤ 70). Per effect 1.0–5.4 ‰, one empty cell 0.5,
+ten empty cells 4.8. The same-sitting reference rows (ten inline 150.6, ten disconnected 32.4) show the probe still
+sees the cost. This sitting ran about 0.7× the 2026-10-19 one, so about 54 ‰ on that scale, still a pass. (b)
+`perf:audio`, three interleaved rounds on T0's link: branch `1421c023` **0.431 / 0.502** (mean / peak window) against
+`main` **0.460 / 0.580**, branch lower in every round; T0's branch was 0.624 / 0.752. **Deviations:** the 213 / 48
+table lives in `docs/intent/dark-effect-bypass.md`, not in `scratchy-audio-phones.md`, so the new section repeats it
+beside the cell column. `perf:audio` ran one world per foreground call (T0 ran two) to stay under the tool's 10-minute
+limit, and reused T0's `main` build (`main` is still `d29ac778`). Orphaned Chrome 0 before and after every call.
 
 ---
 
