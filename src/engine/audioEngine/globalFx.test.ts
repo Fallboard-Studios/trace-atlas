@@ -567,7 +567,7 @@ describe('globalFx', () => {
       'StereoWidener',
     ];
     /** The effects a fresh build leaves dark (T3 onward): dry 1 / wet 0, the effect pinned at wet 1 and unconnected. */
-    const BUILT_DARK = new Set(['Distortion', 'Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato', 'FrequencyShifter']);
+    const BUILT_DARK = new Set(['Distortion', 'Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Chorus', 'Tremolo', 'Vibrato', 'FrequencyShifter']);
     const isBuiltDark = (index: number) => BUILT_DARK.has(EFFECT_NAMES[index]);
 
     it('builds ten cells: twelve zero-delay Delays in all, and three Gains per cell besides the returns and master', async () => {
@@ -1991,7 +1991,7 @@ describe('globalFx', () => {
   // Global Pedals T4 (docs/specs/GLOBAL_PEDALS.md §1.3): the Chorus and the Tremolo after the Phaser.
   // ========================================
   describe('buildGlobalFxChain - the Chorus and the Tremolo (Global Pedals)', () => {
-    it('constructs exactly one of each, dry (wet 0) at Tone defaults', async () => {
+    it('constructs exactly one of each, pinned fully wet (their dark cells carry the Mix) at Tone defaults', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       expect(toneFlags.chorusCtor).toHaveBeenCalledTimes(1);
@@ -2001,10 +2001,10 @@ describe('globalFx', () => {
         depth: 0.7,
         spread: 180,
         feedback: 0,
-        wet: 0,
+        wet: 1,
       });
       expect(toneFlags.tremoloCtor).toHaveBeenCalledTimes(1);
-      expect(toneFlags.tremoloCtor).toHaveBeenCalledWith({ frequency: 10, depth: 0.5, spread: 180, wet: 0 });
+      expect(toneFlags.tremoloCtor).toHaveBeenCalledWith({ frequency: 10, depth: 0.5, spread: 180, wet: 1 });
     });
 
     // Tone's Chorus and Tremolo do not start their LFOs in the constructor: an unstarted one is a fixed delay / a fixed
@@ -2041,12 +2041,8 @@ describe('globalFx', () => {
 
       globalFx.wireGlobalFxChain(controlled);
 
-      // Dark-Effect Bypass T2: each pedal feeds only its own cell's wet gain, and the cells chain cut to in. T3/T4: the
-      // Phaser, the Vibrato and the shifter are built dark, so they feed nothing.
-      const builtDark = [phaser, vibrato, shifter];
-      pedals.forEach((pedal, i) =>
-        expect(pedal.connect.mock.calls).toEqual(builtDark.includes(pedal) ? [] : [[cells[i].wet]]),
-      );
+      // Dark-Effect Bypass T2: the cells chain cut to in. T3-T5: all five pedals are built dark, so they feed nothing.
+      for (const pedal of pedals) expect(pedal.connect).not.toHaveBeenCalled();
       expect(cells[0].cut.connect.mock.calls).toEqual([[inOf(chorus)]]);
       expect(cells[1].cut.connect.mock.calls).toEqual([[inOf(tremolo)]]);
       expect(cells[2].cut.connect.mock.calls).toEqual([[inOf(vibrato)]]);
@@ -2955,12 +2951,13 @@ describe('globalFx', () => {
       });
     });
 
-    it('ramps the tapered (squared) wet over 50 ms', async () => {
+    it('ramps the cell to the tapered (squared) Mix over 50 ms, never the pinned wet', async () => {
       const { globalFx, chorus } = await built();
       globalFx.setGlobalChorus({ wet: 0.5 });
-      expect(chorus.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      expect(mixRampsOf(chorus)).toEqual([[expect.closeTo(0.25, 6), 0.05]]);
       globalFx.setGlobalChorus({ wet: 1 });
-      expect(chorus.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      expect(mixRampsOf(chorus).at(-1)).toEqual([expect.closeTo(1, 9), 0.05]);
+      expect(chorus.wet.rampTo).not.toHaveBeenCalled();
     });
 
     it('writes only the fields given', async () => {
@@ -2970,7 +2967,7 @@ describe('globalFx', () => {
       expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([3.5, 0.7, 180]);
       expect(chorus.frequency.rampTo).not.toHaveBeenCalled();
       expect(chorus.feedback.rampTo).not.toHaveBeenCalled();
-      expect(chorus.wet.rampTo).toHaveBeenCalledTimes(1);
+      expect(mixRampsOf(chorus)).toHaveLength(1);
     });
 
     it('clamps every field into its full range at both ends', async () => {
@@ -2979,14 +2976,15 @@ describe('globalFx', () => {
       expect(chorus.frequency.rampTo).toHaveBeenLastCalledWith(0.05, 0.05);
       expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([1, 0, 0]);
       expect(chorus.feedback.rampTo).toHaveBeenLastCalledWith(0, 0.05);
-      expect(chorus.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      // A Mix of -1 is 0: already dark, so nothing to write.
+      expect(mixRampsOf(chorus)).toEqual([]);
 
       globalFx.setGlobalChorus({ rate: 99, delayTime: 99, depth: 9, spread: 999, feedback: 5, wet: 3 });
       expect(chorus.frequency.rampTo).toHaveBeenLastCalledWith(10, 0.05);
       expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([20, 1, 180]);
       // Above 0.9 a feedback loop runs away; the full range stops there.
       expect(chorus.feedback.rampTo).toHaveBeenLastCalledWith(0.9, 0.05);
-      expect(chorus.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      expect(mixRampsOf(chorus).at(-1)).toEqual([expect.closeTo(1, 9), 0.05]);
     });
 
     it('ignores a non-finite value and still writes the finite fields beside it', async () => {
@@ -3002,18 +3000,20 @@ describe('globalFx', () => {
       expect(chorus.frequency.rampTo).not.toHaveBeenCalled();
       expect(chorus.feedback.rampTo).not.toHaveBeenCalled();
       expect([chorus.delayTime, chorus.depth, chorus.spread]).toEqual([3.5, 0.7, 180]);
-      expect(chorus.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.36, 6), 0.05);
+      expect(mixRampsOf(chorus)).toEqual([[expect.closeTo(0.36, 6), 0.05]]);
     });
 
-    it('falls back to a direct value write when the Signals have no rampTo', async () => {
+    it('falls back to a direct value write when the Signals and the cell gains have no rampTo', async () => {
       const { globalFx, chorus } = await built();
+      const cell = cellOf(chorus);
       chorus.frequency = { value: 1.5 };
       chorus.feedback = { value: 0 };
-      chorus.wet = { value: 0 };
+      delete cell.dry.gain.rampTo;
+      delete cell.wet.gain.rampTo;
       globalFx.setGlobalChorus({ rate: 3, feedback: 0.2, wet: 0.7 });
       expect(chorus.frequency.value).toBe(3);
       expect(chorus.feedback.value).toBe(0.2);
-      expect(chorus.wet.value).toBeCloseTo(0.49, 6);
+      expect(cell.wet.gain.value).toBeCloseTo(lawWet(0.49), 9);
     });
 
     it('warns and does not throw when the node throws', async () => {
@@ -3047,10 +3047,11 @@ describe('globalFx', () => {
       expect(tremolo.spread).toBe(45);
     });
 
-    it('ramps the tapered (squared) wet over 50 ms', async () => {
+    it('ramps the cell to the tapered (squared) Mix over 50 ms, never the pinned wet', async () => {
       const { globalFx, tremolo } = await built();
       globalFx.setGlobalTremolo({ wet: 0.5 });
-      expect(tremolo.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.25, 6), 0.05);
+      expect(mixRampsOf(tremolo)).toEqual([[expect.closeTo(0.25, 6), 0.05]]);
+      expect(tremolo.wet.rampTo).not.toHaveBeenCalled();
     });
 
     it('writes only the fields given', async () => {
@@ -3067,12 +3068,13 @@ describe('globalFx', () => {
       expect(tremolo.frequency.rampTo).toHaveBeenLastCalledWith(0.05, 0.05);
       expect(tremolo.depth.rampTo).toHaveBeenLastCalledWith(0, 0.05);
       expect(tremolo.spread).toBe(0);
-      expect(tremolo.wet.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      // A Mix of -1 is 0: already dark, so nothing to write.
+      expect(mixRampsOf(tremolo)).toEqual([]);
       globalFx.setGlobalTremolo({ rate: 50, depth: 2, spread: 400, wet: 2 });
       expect(tremolo.frequency.rampTo).toHaveBeenLastCalledWith(10, 0.05);
       expect(tremolo.depth.rampTo).toHaveBeenLastCalledWith(1, 0.05);
       expect(tremolo.spread).toBe(180);
-      expect(tremolo.wet.rampTo).toHaveBeenLastCalledWith(1, 0.05);
+      expect(mixRampsOf(tremolo).at(-1)).toEqual([expect.closeTo(1, 9), 0.05]);
     });
 
     it('ignores a non-finite value and still writes the finite fields beside it', async () => {
@@ -3081,7 +3083,7 @@ describe('globalFx', () => {
       expect(tremolo.frequency.rampTo).not.toHaveBeenCalled();
       expect(tremolo.depth.rampTo).not.toHaveBeenCalled();
       expect(tremolo.spread).toBe(180);
-      expect(tremolo.wet.rampTo).toHaveBeenCalledWith(expect.closeTo(0.16, 6), 0.05);
+      expect(mixRampsOf(tremolo)).toEqual([[expect.closeTo(0.16, 6), 0.05]]);
     });
 
     it('warns and does not throw when the node throws', async () => {
@@ -3111,40 +3113,111 @@ describe('globalFx', () => {
       node: () => lastInstance(toneFlags.tremoloCtor),
     },
   ])('the $pedal Spread de-click', ({ set, node }) => {
+    // Dark-Effect Bypass T5 (docs/specs/DARK_EFFECT_BYPASS.md assumption 8): the duck rides the pedal's bypass cell. It
+    // ramps the cell's gains to dry and back (the effect's own wet is pinned at 1), with its timing unchanged, and never
+    // disconnects. A Mix write inside a duck runs the cell protocol (connect, darken timer) but leaves the gains to the
+    // duck, which returns to the cell's Mix.
     async function lit(mix = 0.5) {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       set(globalFx, { wet: mix });
-      return { globalFx, n: node() };
+      const n = node();
+      return { globalFx, n, cell: cellOf(n) };
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ducksOf = (cell: any) => cell.wet.gain.rampTo.mock.calls.filter(([v, t]: number[]) => v === 0 && t === 0.02);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mixRampsSince = (cell: any, from: number) =>
+      cell.wet.gain.rampTo.mock.calls.slice(from).filter(([, t]: number[]) => t === 0.05);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const edgeCuts = (n: any, cell: any) => [
+      ...cell.in.disconnect.mock.calls.filter(([target]: unknown[]) => target === n),
+      ...n.disconnect.mock.calls.filter((call: unknown[]) => call.length > 0),
+    ];
+    /** Run the one pending timer whose wait is `seconds` (the darken's 0.16 or the duck's 0.13), leaving the others. */
+    function fireOnly(seconds: number) {
+      const due = toneFlags.timeouts.find((t) => Math.abs(t.seconds - seconds) < 1e-9)!;
+      toneFlags.timeouts = toneFlags.timeouts.filter((t) => t !== due);
+      due.fn();
     }
 
-    it('writes Spread at once on a dry pedal: nothing to hear, so no duck and no timer', async () => {
+    it('lights at 0.3, does nothing for a re-sent 0.3, darkens at 0 and disconnects when the timer fires', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const n = node();
-      set(globalFx, { spread: 90 });
-      expect(n.spread).toBe(90);
-      expect(toneFlags.timeouts).toHaveLength(0);
+      const cell = cellOf(n);
+      expect(n.wet.value).toBe(1);
+      expect(n.connect).not.toHaveBeenCalled();
+      set(globalFx, { wet: 0.3 });
+      expect(n.connect.mock.calls).toEqual([[cell.wet]]);
+      expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.09), 9), 0.05]]);
+      set(globalFx, { wet: 0.3 });
+      expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(1);
+      set(globalFx, { wet: 0 });
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([expect.closeTo(0.16, 9)]);
+      fireTimeouts();
+      expect(edgeCuts(n, cell)).toEqual([[n], [cell.wet]]);
       expect(n.wet.rampTo).not.toHaveBeenCalled();
     });
 
-    it('on a lit pedal ducks to dry over 20 ms, writes Spread only when the timer fires, then ramps back to its Mix', async () => {
-      const { globalFx, n } = await lit(0.5);
+    it('writes Spread at once on a dry pedal: nothing to hear, so no duck, no timer and no connect', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const n = node();
+      const cell = cellOf(n);
       set(globalFx, { spread: 90 });
-      expect(n.wet.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(n.spread).toBe(90);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+      expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
+      expect(n.connect).not.toHaveBeenCalled();
+    });
+
+    it('writes Spread at once on a pedal darkened and disconnected, without connecting it', async () => {
+      const { globalFx, n, cell } = await lit(0.5);
+      set(globalFx, { wet: 0 });
+      fireTimeouts();
+      n.connect.mockClear();
+      cell.wet.gain.rampTo.mockClear();
+      set(globalFx, { spread: 90 });
+      expect(n.spread).toBe(90);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+      expect(n.connect).not.toHaveBeenCalled();
+    });
+
+    it('on a lit pedal ducks the cell to dry over 20 ms, writes Spread only when the timer fires, then ramps back to its Mix', async () => {
+      const { globalFx, n, cell } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(1, 0.02);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
       expect(n.spread).toBe(180);
       expect(toneFlags.timeouts).toHaveLength(1);
       expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.1 + 0.02 + 0.01, 9);
       fireTimeouts();
       expect(n.spread).toBe(90);
-      expect(n.wet.rampTo).toHaveBeenLastCalledWith(expect.closeTo(0.25, 9), 0.02);
+      expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawDry(0.25), 9), 0.02);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+      expect(n.wet.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('never disconnects in a duck: the cell stays connected through the dip and the write', async () => {
+      const { globalFx, n, cell } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      set(globalFx, { spread: 80 });
+      fireTimeouts();
+      expect(edgeCuts(n, cell)).toEqual([]);
+      n.connect.mockClear();
+      globalFx.wireGlobalFxChain(true);
+      expect(n.connect.mock.calls).toEqual([[cell.wet]]);
     });
 
     it('treats a write of the Spread the node already has as a no-op: a whole-block re-apply never ducks a lit pedal', async () => {
-      const { globalFx, n } = await lit(0.5);
+      const { globalFx, cell } = await lit(0.5);
       set(globalFx, { spread: 180 });
       expect(toneFlags.timeouts).toHaveLength(0);
-      expect(n.wet.rampTo.mock.calls.filter(([v]: unknown[]) => v === 0)).toHaveLength(0);
+      expect(ducksOf(cell)).toHaveLength(0);
       set(globalFx, { spread: 90 });
       fireTimeouts();
       set(globalFx, { spread: 90 });
@@ -3169,32 +3242,93 @@ describe('globalFx', () => {
     });
 
     it('folds a drag into one write: one duck, the timer re-armed on every step, the last Spread written', async () => {
-      const { globalFx, n } = await lit(0.5);
+      const { globalFx, n, cell } = await lit(0.5);
       set(globalFx, { spread: 170 });
       set(globalFx, { spread: 160 });
       set(globalFx, { spread: 150 });
-      expect(n.wet.rampTo.mock.calls.filter(([v]: unknown[]) => v === 0)).toHaveLength(1);
+      expect(ducksOf(cell)).toHaveLength(1);
       expect(toneFlags.timeouts).toHaveLength(1);
       fireTimeouts();
       expect(n.spread).toBe(150);
     });
 
     it('a Mix edit during the duck moves where it returns to, without ramping up early', async () => {
-      const { globalFx, n } = await lit(0.5);
+      const { globalFx, cell } = await lit(0.5);
       set(globalFx, { spread: 90 });
+      const before = cell.wet.gain.rampTo.mock.calls.length;
       set(globalFx, { wet: 0.8 });
-      expect(n.wet.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(before);
       fireTimeouts();
-      expect(n.wet.rampTo).toHaveBeenLastCalledWith(expect.closeTo(0.64, 9), 0.02);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.64), 9), 0.02);
     });
 
-    it('a Mix of 0 during the duck leaves the pedal dry after the write', async () => {
-      const { globalFx, n } = await lit(0.5);
+    it('a Mix of 0 during the duck: the duck returns to dry, the darken timer is armed, and after both fire the effect is disconnected once with the last Spread written', async () => {
+      const { globalFx, n, cell } = await lit(0.3);
+      set(globalFx, { spread: 170 });
+      set(globalFx, { spread: 150 });
+      const before = cell.wet.gain.rampTo.mock.calls.length;
+      set(globalFx, { wet: 0 });
+      expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(before);
+      expect(toneFlags.timeouts.map((t) => t.seconds).sort()).toEqual([expect.closeTo(0.13, 9), expect.closeTo(0.16, 9)]);
+      fireTimeouts();
+      expect(n.spread).toBe(150);
+      expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(1, 0.02);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(edgeCuts(n, cell)).toEqual([[n], [cell.wet]]);
+    });
+
+    it('a Mix of 0 during the duck ends dry and disconnected whichever timer fires first', async () => {
+      const { globalFx, n, cell } = await lit(0.3);
       set(globalFx, { spread: 90 });
       set(globalFx, { wet: 0 });
+      fireOnly(0.16);
+      expect(edgeCuts(n, cell)).toEqual([[n], [cell.wet]]);
+      fireOnly(0.13);
+      expect(n.spread).toBe(90);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(edgeCuts(n, cell)).toHaveLength(2);
+    });
+
+    it('a Mix of 0 then a Mix of 0.5 during the duck cancels the darken and returns to 0.5, connected', async () => {
+      const { globalFx, n, cell } = await lit(0.3);
+      set(globalFx, { spread: 90 });
+      const before = cell.wet.gain.rampTo.mock.calls.length;
+      set(globalFx, { wet: 0 });
+      set(globalFx, { wet: 0.5 });
+      expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(before);
+      expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([expect.closeTo(0.13, 9)]);
+      fireTimeouts();
+      expect(edgeCuts(n, cell)).toEqual([]);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+    });
+
+    it('re-lit during a duck after the darken already disconnected: reconnects while the duck holds it dry, then returns to its Mix', async () => {
+      const { globalFx, n, cell } = await lit(0.3);
+      set(globalFx, { spread: 90 });
+      set(globalFx, { wet: 0 });
+      fireOnly(0.16);
+      set(globalFx, { spread: 80 });
+      n.connect.mockClear();
+      const before = cell.wet.gain.rampTo.mock.calls.length;
+      set(globalFx, { wet: 0.5 });
+      expect(n.connect.mock.calls).toEqual([[cell.wet]]);
+      expect(mixRampsSince(cell, before)).toEqual([]);
+      fireTimeouts();
+      expect(n.spread).toBe(80);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+    });
+
+    // Dark (Mix 0) but still connected while its 50 ms darken ramp runs: a Spread swap now could still be heard.
+    it('ducks a pedal that is darkening but still connected, rather than writing mid-ramp', async () => {
+      const { globalFx, n, cell } = await lit(0.5);
+      set(globalFx, { wet: 0 });
+      set(globalFx, { spread: 90 });
+      expect(n.spread).toBe(180);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
       fireTimeouts();
       expect(n.spread).toBe(90);
-      expect(n.wet.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+      expect(edgeCuts(n, cell)).toEqual([[n], [cell.wet]]);
     });
 
     it('a chain rebuilt during the duck drops the pending write and starts the new node dry', async () => {
@@ -3210,10 +3344,23 @@ describe('globalFx', () => {
       expect(fresh.spread).toBe(90);
     });
 
-    it('warns and does not throw when the deferred write throws', async () => {
+    // The old duck's timer must die with the old chain: left to fire, it would take the new duck's Spread to the old node.
+    it('a duck on the rebuilt pedal is not taken by the old duck timer', async () => {
       const { globalFx, n } = await lit(0.5);
       set(globalFx, { spread: 90 });
-      n.wet.rampTo.mockImplementation(() => {
+      globalFx.buildGlobalFxChain();
+      const fresh = node();
+      set(globalFx, { wet: 0.5 });
+      set(globalFx, { spread: 70 });
+      fireTimeouts();
+      expect(fresh.spread).toBe(70);
+      expect(n.spread).toBe(180);
+    });
+
+    it('warns and does not throw when the deferred write throws', async () => {
+      const { globalFx, cell } = await lit(0.5);
+      set(globalFx, { spread: 90 });
+      cell.wet.gain.rampTo.mockImplementation(() => {
         throw new Error('boom');
       });
       expect(() => fireTimeouts()).not.toThrow();

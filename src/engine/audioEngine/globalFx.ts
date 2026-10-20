@@ -135,13 +135,15 @@ export type Cell = {
 const _cells: Partial<Record<BypassKey, Cell>> = {};
 
 /** The effects whose setters write their Mix through their cell (writeCellMix): built pinned at wet 1 in a dark cell.
- *  The Chorus, the Tremolo and the StereoWidener are still built transparent (Dark-Effect Bypass T5, T6). */
+ *  The StereoWidener is still built transparent (Dark-Effect Bypass T6). */
 const BUILT_DARK: ReadonlySet<BypassKey> = new Set<BypassKey>([
   'distortion',
   'chebyshev',
   'bitCrusher',
   'autoWah',
   'phaser',
+  'chorus',
+  'tremolo',
   'vibrato',
   'frequencyShifter',
 ]);
@@ -336,9 +338,10 @@ function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode
  * effect if it is not (the wet gain is 0, so the path appears silently), then ramp the cell to the law. Darken (w = 0):
  * ramp to dry and arm the one disconnect for when the ramp has run on the audio thread (lookAhead + the ramp + a margin),
  * where it goes only if the cell is still dark. A re-sent value with nothing left to do writes nothing, so a whole-block
- * apply does not re-ramp or re-arm.
+ * apply does not re-ramp or re-arm. With `ramp` false (a Spread duck holds the gains at dry) the cell is lit or darkened
+ * all the same but its gains are left alone: the duck returns them to the new Mix.
  */
-function writeCellMix(key: BypassKey, mix: number): void {
+function writeCellMix(key: BypassKey, mix: number, ramp = true): void {
   const cell = _cells[key];
   const effect = cell?.effect;
   if (!cell || !effect) return;
@@ -352,11 +355,11 @@ function writeCellMix(key: BypassKey, mix: number): void {
     }
     if (!cell.connected && !connectEffect(key, cell, effect)) return;
     cell.mix = w;
-    rampCell(cell, w, COLOUR_RAMP_SECONDS);
+    if (ramp) rampCell(cell, w, COLOUR_RAMP_SECONDS);
     return;
   }
   cell.mix = 0;
-  rampCell(cell, 0, COLOUR_RAMP_SECONDS);
+  if (ramp) rampCell(cell, 0, COLOUR_RAMP_SECONDS);
   cell.darken = context.setTimeout(
     () => {
       cell.darken = null;
@@ -481,7 +484,8 @@ export function buildGlobalFxChain(): void {
       _globalPhaser = null;
     }
   }
-  // Global Pedals: built dry (wet 0) at the stored defaults. Tone's Chorus and Tremolo do NOT start their LFOs in the
+  // Global Pedals: built pinned fully wet at the stored defaults, in dark cells that carry the Mix
+  // (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). Tone's Chorus and Tremolo do NOT start their LFOs in the
   // constructor, so each is started once here and runs for the chain's life: a dark pedal is Mix 0, not a stopped LFO
   // (docs/specs/GLOBAL_PEDALS.md assumption 4). A failed construction leaves the slot empty and the chain whole.
   resetSpreadDucks();
@@ -489,7 +493,7 @@ export function buildGlobalFxChain(): void {
   if (ChorusCtor) {
     try {
       const { rate, delayTime, depth, spread, feedback } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus;
-      _globalChorus = new ChorusCtor({ frequency: rate, delayTime, depth, spread, feedback, wet: 0 });
+      _globalChorus = new ChorusCtor({ frequency: rate, delayTime, depth, spread, feedback, wet: 1 });
       _globalChorus.start();
     } catch (err) {
       devWarn('[AudioEngine] Chorus could not be constructed; the pedal slot runs without it', err);
@@ -500,7 +504,7 @@ export function buildGlobalFxChain(): void {
   if (TremoloCtor) {
     try {
       const { rate, depth, spread } = DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo;
-      _globalTremolo = new TremoloCtor({ frequency: rate, depth, spread, wet: 0 });
+      _globalTremolo = new TremoloCtor({ frequency: rate, depth, spread, wet: 1 });
       _globalTremolo.start();
     } catch (err) {
       devWarn('[AudioEngine] Tremolo could not be constructed; the pedal slot runs without it', err);
@@ -1166,11 +1170,12 @@ function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, d
 /**
  * The Spread de-click (docs/specs/GLOBAL_PEDALS.md §8). Tone's Chorus and Tremolo `spread` setters swap both LFOs'
  * waveform at once, on the audio thread's current time, so the sweep jumps: in a real-time context one 5° step clicked
- * x49-79 on a lit Chorus and x7 on a lit Tremolo. A lit pedal is ducked instead: its Mix ramps to dry, the Spread is
- * written from Tone's audio-clock timer (as scheduleVoiceRelease uses it) once that ramp has run, and the Mix ramps
- * back; measured x1.3 / x1.6. Ramps start lookAhead ahead of the audio thread and the swap does not, so the write waits
- * lookAhead + the ramp + a margin. Every step of a drag re-arms the one timer, so the pedal stays dry until the drag
- * stops and only the last Spread is written. A dry pedal is written at once: there is nothing to hear.
+ * x49-79 on a lit Chorus and x7 on a lit Tremolo. A lit pedal is ducked instead: its cell ramps to dry, the Spread is
+ * written from Tone's audio-clock timer (as scheduleVoiceRelease uses it) once that ramp has run, and the cell ramps
+ * back to its Mix; measured x1.3 / x1.6. Ramps start lookAhead ahead of the audio thread and the swap does not, so the
+ * write waits lookAhead + the ramp + a margin. Every step of a drag re-arms the one timer, so the pedal stays dry until
+ * the drag stops and only the last Spread is written. A pedal out of the signal path is written at once: there is
+ * nothing to hear.
  */
 const SPREAD_DUCK_SECONDS = 0.02;
 const SPREAD_WRITE_MARGIN_SECONDS = 0.01;
@@ -1178,9 +1183,7 @@ const SPREAD_WRITE_MARGIN_SECONDS = 0.01;
  *  reached zero on the audio thread first (the Spread write's margin, for the same reason). Dark-Effect Bypass §1.2. */
 export const BYPASS_DISCONNECT_MARGIN_SECONDS = 0.01;
 type SpreadPedal = 'chorus' | 'tremolo';
-type SpreadNode = { spread: number; wet: { rampTo?: (value: number, rampTime: number) => void; value: unknown } };
-/** The Mix gain (already tapered) each Spread pedal's node was last given: what a duck ramps back to. 0 = dry. */
-const _spreadWetGain: Record<SpreadPedal, number> = { chorus: 0, tremolo: 0 };
+type SpreadNode = { spread: number };
 /** A duck in progress: the Spread to write and the timer that writes it. */
 const _spreadDuck: Partial<Record<SpreadPedal, { spread: number; timer: number }>> = {};
 /** The Spread each node has, or is about to get from a duck. Every whole-block apply re-sends it, and a lit pedal must
@@ -1190,29 +1193,33 @@ const _spreadTarget: Record<SpreadPedal, number> = {
   tremolo: DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo.spread,
 };
 
-/** Drop every pending duck and forget the Mix gains: the nodes are being rebuilt dry, at the default Spread. */
+/** Drop every pending duck: the nodes are being rebuilt in dark cells, at the default Spread. */
 function resetSpreadDucks(): void {
   for (const pedal of ['chorus', 'tremolo'] as const) {
     const pending = _spreadDuck[pedal];
     if (pending) Tone.getContext().clearTimeout(pending.timer);
     delete _spreadDuck[pedal];
-    _spreadWetGain[pedal] = 0;
     _spreadTarget[pedal] = DEFAULT_GLOBAL_AUDIO_SETTINGS[pedal].spread;
   }
 }
 
-/** A Spread write: nothing if the node has (or is getting) it, at once on a dry pedal, ducked on a lit one. */
+/**
+ * A Spread write: nothing if the node has (or is getting) it, at once while the pedal is out of the signal path, ducked
+ * while it is in it. The duck rides the pedal's bypass cell (docs/specs/DARK_EFFECT_BYPASS.md assumption 8): it ramps
+ * the cell to dry and back, never disconnects, and a pedal still connected while it darkens is ducked too.
+ */
 function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void {
   if (spread === _spreadTarget[pedal]) return;
   _spreadTarget[pedal] = spread;
+  const cell = _cells[pedal];
   const pending = _spreadDuck[pedal];
-  if (!pending && _spreadWetGain[pedal] === 0) {
+  if (!cell || (!pending && !cell.connected)) {
     node.spread = spread;
     return;
   }
   const context = Tone.getContext();
   if (pending) context.clearTimeout(pending.timer);
-  else rampOrSet(node.wet, 0, SPREAD_DUCK_SECONDS);
+  else rampCell(cell, 0, SPREAD_DUCK_SECONDS);
   const timer = context.setTimeout(
     () => finishSpreadDuck(pedal, node),
     context.lookAhead + SPREAD_DUCK_SECONDS + SPREAD_WRITE_MARGIN_SECONDS,
@@ -1220,28 +1227,30 @@ function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void
   _spreadDuck[pedal] = { spread, timer };
 }
 
-/** The bottom of a duck: write the Spread and ramp the Mix back. (A rebuild cancels the timer: resetSpreadDucks.) */
+/** The bottom of a duck: write the Spread and ramp the cell back to its Mix, which a Mix write during the duck may have
+ *  moved (to dry, for a darken). (A rebuild cancels the timer: resetSpreadDucks.) */
 function finishSpreadDuck(pedal: SpreadPedal, node: SpreadNode): void {
   const pending = _spreadDuck[pedal];
   delete _spreadDuck[pedal];
   if (!pending) return;
   try {
     node.spread = pending.spread;
-    rampOrSet(node.wet, _spreadWetGain[pedal], SPREAD_DUCK_SECONDS);
+    const cell = _cells[pedal];
+    if (cell) rampCell(cell, cell.mix, SPREAD_DUCK_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] a ducked Spread write failed', err);
   }
 }
 
-/** A Mix write on a Spread pedal: remembered as the duck's return level, and ramped now unless a duck holds it dry. */
-function writeSpreadPedalWet(pedal: SpreadPedal, node: SpreadNode, wet: number): void {
-  _spreadWetGain[pedal] = colourWetGain(wet);
-  if (!_spreadDuck[pedal]) rampOrSet(node.wet, _spreadWetGain[pedal], COLOUR_RAMP_SECONDS);
+/** A Mix write on a Spread pedal: the cell's protocol, with its ramp left to the duck while one holds the cell dry. */
+function writeSpreadPedalWet(pedal: SpreadPedal, wet: number): void {
+  writeCellMix(pedal, wet, !_spreadDuck[pedal]);
 }
 
 /** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
  *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms) and depth are ramped
- *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread); the Mix is tapered like Colour's. */
+ *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread); the Mix is tapered like Colour's
+ *  and written through the bypass cell (writeSpreadPedalWet). */
 export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
   const chorus = _globalChorus;
   if (!chorus) return;
@@ -1256,14 +1265,15 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
     if (spread !== undefined) writeSpread('chorus', chorus, spread);
     if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeSpreadPedalWet('chorus', chorus, wet);
+    if (wet !== undefined) writeSpreadPedalWet('chorus', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChorus failed', err);
   }
 }
 
 /** Tremolo (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are Signals fanned to both LFOs;
- *  spread is ducked when lit (writeSpread); the Mix is tapered like Colour's. `rate` arrives already resolved to Hz. */
+ *  spread is ducked when lit (writeSpread); the Mix is tapered like Colour's and written through the bypass cell
+ *  (writeSpreadPedalWet). `rate` arrives already resolved to Hz. */
 export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>): void {
   const tremolo = _globalTremolo;
   if (!tremolo) return;
@@ -1275,7 +1285,7 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
     if (rate !== undefined) rampOrSet(tremolo.frequency, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
     if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
-    if (wet !== undefined) writeSpreadPedalWet('tremolo', tremolo, wet);
+    if (wet !== undefined) writeSpreadPedalWet('tremolo', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalTremolo failed', err);
   }

@@ -2682,14 +2682,18 @@ describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', 
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     AudioEngine.setGlobalChorus({ delayTime: 7, rate: 1.25 });
-    // Dry first: start() may leave the seeded Tremolo lit, and a lit pedal's Spread waits for the de-click duck's timer
-    // (globalFx.ts writeSpread), which this file's context mock never fires.
-    AudioEngine.setGlobalTremolo({ wet: 0 });
     AudioEngine.setGlobalTremolo({ spread: 30, wet: 1 });
+    // start() may leave the seeded Tremolo lit, and a lit pedal's Spread waits for the de-click duck's audio-clock timer
+    // (globalFx.ts writeSpread), which this file's context mock never fires by itself: run the pending ones.
+    for (const result of (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results) {
+      for (const [callback] of result.value.setTimeout.mock.calls) (callback as () => void)();
+    }
     expect(last(Tone.Chorus).delayTime).toBe(7);
     expect(last(Tone.Chorus).frequency.rampTo).toHaveBeenCalledWith(1.25, 0.05);
     expect(last(Tone.Tremolo).spread).toBe(30);
-    expect(last(Tone.Tremolo).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
+    // Dark-Effect Bypass T5: the Mix lights the Tremolo's cell, which wires it in; its own wet stays pinned.
+    expect(last(Tone.Tremolo).connect).toHaveBeenCalled();
+    expect(last(Tone.Tremolo).wet.rampTo).not.toHaveBeenCalled();
   });
 });
 
