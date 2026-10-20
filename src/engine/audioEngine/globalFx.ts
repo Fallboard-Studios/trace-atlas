@@ -47,6 +47,8 @@ let _globalPhaser: Tone.Phaser | null = null;
 type PhaserLive = Omit<PhaserSettings, 'sync' | 'stages'>;
 let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
 let _phaserLive: PhaserLive = defaultPhaserLive();
+/** A lit Phaser's pending Stages swap: the count to build and the timer that builds it (writePhaserStages). */
+let _phaserDuck: { stages: number; timer: number } | null = null;
 // The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
 let _globalChorus: Tone.Chorus | null = null;
 let _globalTremolo: Tone.Tremolo | null = null;
@@ -457,6 +459,7 @@ export function buildGlobalFxChain(): void {
   // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
   // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
   _globalPhaser = null;
+  resetPhaserDuck();
   _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
   _phaserLive = defaultPhaserLive();
   if (PhaserCtor) {
@@ -1056,7 +1059,8 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
 /**
  * Replaces the Phaser with one built at `stages` from the last-written values (spec §1.3), inside its bypass cell and
  * nowhere else (docs/specs/DARK_EFFECT_BYPASS.md assumption 7): while the cell is connected the old node's two edges go
- * and the new node's are made, the wet gain keeping its value throughout; a dark cell connects nothing. The chain, the
+ * and the new node's are made, the wet gain keeping its value throughout (writePhaserStages calls this for a connected
+ * cell only at the bottom of a duck, with that value at 0); a dark cell connects nothing. The chain, the
  * returns and their join are not touched. The new node is built FIRST: if the constructor fails the old node is kept,
  * undisposed and still wired, and the caller carries on with it; the next Stages edit tries again. True on success.
  */
@@ -1097,6 +1101,50 @@ function rebuildPhaser(stages: number): boolean {
   return true;
 }
 
+/** Drop a pending Stages swap: the Phaser is being rebuilt in a dark cell, at the default count. */
+function resetPhaserDuck(): void {
+  if (_phaserDuck) Tone.getContext().clearTimeout(_phaserDuck.timer);
+  _phaserDuck = null;
+}
+
+/**
+ * A Stages change (docs/specs/DARK_EFFECT_BYPASS.md §8.2). The rebuild swaps the node inside its cell, and while the
+ * Phaser is in the signal path that swap is a connect at the lit gains: it clicked x2-55 in a real-time context. So a
+ * connected Phaser is ducked, as a lit Chorus is for its Spread: the cell ramps to dry, the swap runs from Tone's
+ * audio-clock timer once that ramp has run on the audio thread (lookAhead + the Spread duck's ramp and margin), and the
+ * cell ramps back to its Mix. Every step of a drag re-arms the one timer, so only the last count is built. A Phaser out
+ * of the signal path is rebuilt at once. True when the node was rebuilt now, so the edit is complete; false when the
+ * live node stays for now and takes the rest of the edit.
+ */
+function writePhaserStages(stages: number): boolean {
+  const cell = _cells.phaser;
+  if (!cell || (!_phaserDuck && !cell.connected)) return rebuildPhaser(stages);
+  const context = Tone.getContext();
+  if (_phaserDuck) context.clearTimeout(_phaserDuck.timer);
+  else rampCell('phaser', cell, 0, SPREAD_DUCK_SECONDS);
+  const timer = context.setTimeout(
+    finishPhaserDuck,
+    context.lookAhead + SPREAD_DUCK_SECONDS + SPREAD_WRITE_MARGIN_SECONDS,
+  );
+  _phaserDuck = { stages, timer };
+  return false;
+}
+
+/** The bottom of a Stages duck: build the pending count, unless a drag came back to the live one, while the wet gain is
+ *  at 0, then ramp the cell back to its Mix, which a Mix write during the duck may have moved (to dry, for a darken). */
+function finishPhaserDuck(): void {
+  const pending = _phaserDuck;
+  _phaserDuck = null;
+  if (!pending) return;
+  try {
+    if (pending.stages !== _phaserStages) rebuildPhaser(pending.stages);
+    const cell = _cells.phaser;
+    if (cell) rampCell('phaser', cell, cell.mix, SPREAD_DUCK_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] a ducked Phaser Stages change failed', err);
+  }
+}
+
 /** Phaser (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here
  *  is always Hz and `sync` never arrives. Rate and Q are Signals, octaves and baseFrequency plain setters, and the Mix is
  *  tapered like Colour's and written through the bypass cell (writeCellMix); `stages` is constructor-only, so a changed
@@ -1118,12 +1166,15 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     if (baseFrequency !== undefined) _phaserLive.baseFrequency = baseFrequency;
     if (Q !== undefined) _phaserLive.Q = Q;
     if (wet !== undefined) _phaserLive.wet = wet;
-    // The Mix lives in the cell, not the node, so it is written before a rebuild can return early; the rebuild then
-    // puts the new node into the cell as lit or dark as this left it.
-    if (wet !== undefined) writeCellMix('phaser', wet);
+    // Stages first: a dark Phaser is rebuilt now, so the Mix below lights the new node; a lit one starts (or re-arms)
+    // its duck, and the Mix below is then recorded for the duck to return to. A count the node has, or a duck is
+    // already heading for, does nothing (a whole-block apply re-sends it).
+    const rebuilt =
+      stages !== undefined && stages !== (_phaserDuck?.stages ?? _phaserStages) && writePhaserStages(stages);
+    if (wet !== undefined) writeCellMix('phaser', wet, !_phaserDuck);
 
     // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
-    if (stages !== undefined && stages !== _phaserStages && rebuildPhaser(stages)) return;
+    if (rebuilt) return;
 
     if (rate !== undefined) rampOrSet(phaser.frequency, rate, COLOUR_RAMP_SECONDS);
     if (octaves !== undefined) phaser.octaves = octaves;

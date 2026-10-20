@@ -1738,6 +1738,15 @@ describe('globalFx', () => {
           ...node.connect.mock.calls.map(([target]: unknown[]) => ['connect', node, target]),
           ...node.disconnect.mock.calls.map(([target]: unknown[]) => ['disconnect', node, target]),
         ]);
+      /** A lit Phaser's Stages change is ducked: its swap waits on this timer (lookAhead + 20 ms + 10 ms). */
+      const DUCK_WAIT = 0.1 + 0.02 + 0.01;
+      const DARKEN_WAIT = 0.1 + 0.05 + 0.01;
+      /** Run the one pending timer whose wait is `seconds`, leaving the others. */
+      function fireOnly(seconds: number) {
+        const due = toneFlags.timeouts.find((t) => Math.abs(t.seconds - seconds) < 1e-9)!;
+        toneFlags.timeouts = toneFlags.timeouts.filter((t) => t !== due);
+        due.fn();
+      }
 
       it('builds a new node with the new stage count and disposes the old one', async () => {
         const { globalFx, phaser: old } = await built();
@@ -1752,10 +1761,11 @@ describe('globalFx', () => {
         const { globalFx, phaser: old } = await built();
         const cell = cellOf(old);
         globalFx.setGlobalPhaser({ rate: 2, octaves: 4, baseFrequency: 500, Q: 5, wet: 0.5 });
-        cell.wet.gain.rampTo.mockClear();
         globalFx.setGlobalPhaser({ stages: 6 });
+        fireTimeouts();
         expect(ctorOptions()).toStrictEqual({ frequency: 2, octaves: 4, stages: 6, Q: 5, baseFrequency: 500, wet: 1 });
-        expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+        // The duck returns the cell to the same Mix.
+        expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
       });
 
       it('wires the new node into the cell only while the Phaser is lit', async () => {
@@ -1769,6 +1779,7 @@ describe('globalFx', () => {
 
         globalFx.setGlobalPhaser({ wet: 1 });
         globalFx.setGlobalPhaser({ stages: 8 });
+        fireTimeouts();
         const litFresh = lastInstance(toneFlags.phaserCtor);
         expect(ctorOptions()).toMatchObject({ wet: 1, stages: 8 });
         expect(cell.in.connect).toHaveBeenLastCalledWith(litFresh);
@@ -1796,13 +1807,13 @@ describe('globalFx', () => {
         const cell = cellOf(old);
         globalFx.setGlobalPhaser({ wet: 0.5 });
         globalFx.setGlobalPhaser({ stages: 6, wet: 0 });
-        const fresh = lastInstance(toneFlags.phaserCtor);
-        expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.05);
-        expect(toneFlags.timeouts).toHaveLength(1);
+        // Lit at the call, so the Stages change ducks (20 ms to dry) and the darken arms its disconnect without a ramp.
+        expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+        expect(toneFlags.timeouts).toHaveLength(2);
         cell.in.disconnect.mockClear();
-        fresh.disconnect.mockClear();
         fireTimeouts();
-        expect(cell.in.disconnect.mock.calls).toEqual([[fresh]]);
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        expect(cell.in.disconnect.mock.calls).toEqual([[old], [fresh]]);
         expect(fresh.disconnect.mock.calls).toEqual([[cell.wet]]);
       });
 
@@ -1828,11 +1839,20 @@ describe('globalFx', () => {
         it('sets the input-less wet gain to 0 at once and ramps the dry gain to 1, so the cell is fully dry', async () => {
           const { globalFx, cell } = await litAt();
           refuseNextConnect(cell);
-          expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(() => fireTimeouts()).not.toThrow();
           expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('phaser'), expect.any(Error));
           expect(cell.wet.gain.value).toBe(0);
-          expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
-          expect(cell.dry.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+          // The duck down, the drop's own dry ramp, and the duck's return to the Mix the drop left (0): dry throughout.
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([
+            [0, 0.02],
+            [0, 0.02],
+          ]);
+          expect(cell.dry.gain.rampTo.mock.calls).toEqual([
+            [1, 0.02],
+            [1, 0.05],
+            [1, 0.02],
+          ]);
           expect(globalFx.getConnectedEffectCount()).toBe(0);
         });
 
@@ -1840,6 +1860,7 @@ describe('globalFx', () => {
           const { globalFx, cell } = await litAt(0.5);
           refuseNextConnect(cell);
           globalFx.setGlobalPhaser({ stages: 6 });
+          fireTimeouts();
           const fresh = lastInstance(toneFlags.phaserCtor);
           let wetAtConnect: number | undefined;
           cell.in.connect.mockImplementationOnce(function (this: unknown) {
@@ -1858,19 +1879,28 @@ describe('globalFx', () => {
           const { globalFx, cell } = await litAt();
           refuseNextConnect(cell);
           globalFx.setGlobalPhaser({ stages: 6 });
+          fireTimeouts();
           cell.dry.gain.rampTo.mockClear();
+          cell.wet.gain.rampTo.mockClear();
           globalFx.setGlobalPhaser({ wet: 0 });
           expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
           expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
           expect(toneFlags.timeouts).toHaveLength(0);
         });
 
-        it('leaves the gains alone when the new node connects', async () => {
+        it('leaves the gains to the duck when the new node connects: no drop, down to dry and back to the Mix', async () => {
           const { globalFx, cell } = await litAt();
           globalFx.setGlobalPhaser({ stages: 6 });
+          fireTimeouts();
           expect(cell.wet.gain.value).toBe(0.7);
-          expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
-          expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
+          expect(cell.dry.gain.rampTo.mock.calls).toEqual([
+            [1, 0.02],
+            [expect.closeTo(lawDry(0.25), 9), 0.02],
+          ]);
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([
+            [0, 0.02],
+            [expect.closeTo(lawWet(0.25), 9), 0.02],
+          ]);
         });
 
         it('leaves a dark cell alone on a rebuild: nothing to connect, nothing to drop', async () => {
@@ -1888,15 +1918,16 @@ describe('globalFx', () => {
         const cell = cellOf(old);
         globalFx.setGlobalPhaser({ wet: 0.5 });
         globalFx.setGlobalPhaser({ wet: 0 });
+        // Still connected while darkening, so the Stages change is ducked; the swap runs first here, then the darken.
         globalFx.setGlobalPhaser({ stages: 6 });
-        const fresh = lastInstance(toneFlags.phaserCtor);
         cell.in.disconnect.mockClear();
-        fresh.disconnect.mockClear();
         old.disconnect.mockClear();
-        fireTimeouts();
-        expect(cell.in.disconnect.mock.calls).toEqual([[fresh]]);
+        fireOnly(DUCK_WAIT);
+        const fresh = lastInstance(toneFlags.phaserCtor);
+        fireOnly(DARKEN_WAIT);
+        expect(cell.in.disconnect.mock.calls).toEqual([[old], [fresh]]);
         expect(fresh.disconnect.mock.calls).toEqual([[cell.wet]]);
-        expect(old.disconnect).not.toHaveBeenCalled();
+        expect(old.disconnect.mock.calls).toEqual([[cell.wet]]);
         expect(devWarn).not.toHaveBeenCalled();
         // Disconnected: a Decay flip leaves the new node out.
         fresh.connect.mockClear();
@@ -1911,7 +1942,8 @@ describe('globalFx', () => {
         old.dispose.mockImplementation(() => {
           throw new Error('already gone');
         });
-        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(() => fireTimeouts()).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('disposing'), expect.any(Error));
         const fresh = lastInstance(toneFlags.phaserCtor);
         expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
@@ -1930,6 +1962,7 @@ describe('globalFx', () => {
         const cell = cellOf(old);
         clearEdges();
         globalFx.setGlobalPhaser({ stages: 6 });
+        fireTimeouts();
         const fresh = lastInstance(toneFlags.phaserCtor);
         const touched = edgesTouched();
         expect(touched).toHaveLength(4);
@@ -1942,8 +1975,9 @@ describe('globalFx', () => {
         expect(order(old.disconnect)).toBeLessThan(order(cell.in.connect));
         expect(order(old.disconnect)).toBeLessThan(order(old.dispose));
         expect(old.dispose).toHaveBeenCalledTimes(1);
-        expect(cell.dry.gain.rampTo).toHaveBeenCalledTimes(1);
-        expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(1);
+        // The light, then the duck down and back; the swap itself writes no gain.
+        expect(cell.dry.gain.rampTo).toHaveBeenCalledTimes(3);
+        expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(3);
       });
 
       it('builds the new node on a dark Phaser and touches no edge at all', async () => {
@@ -1978,7 +2012,8 @@ describe('globalFx', () => {
         cell.in.disconnect.mockImplementationOnce(() => {
           throw new Error('not connected');
         });
-        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(() => fireTimeouts()).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('could not be disconnected'), expect.any(Error));
         const fresh = lastInstance(toneFlags.phaserCtor);
         expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
@@ -1998,7 +2033,8 @@ describe('globalFx', () => {
         cell.in.connect.mockImplementationOnce(() => {
           throw new Error('refused');
         });
-        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(() => fireTimeouts()).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('could not be connected'), expect.any(Error));
         const fresh = lastInstance(toneFlags.phaserCtor);
         expect(fresh.connect).not.toHaveBeenCalled();
@@ -2020,7 +2056,8 @@ describe('globalFx', () => {
         cell.in.connect.mockImplementationOnce(() => {
           throw new Error('refused');
         });
-        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(() => fireTimeouts()).not.toThrow();
         const fresh = lastInstance(toneFlags.phaserCtor);
         expect(fresh.connect).not.toHaveBeenCalled();
         expect(old.dispose).toHaveBeenCalledTimes(1);
@@ -2101,6 +2138,7 @@ describe('globalFx', () => {
           globalFx.setGlobalStereoWidener({ width });
           clearEdges();
           globalFx.setGlobalPhaser({ stages });
+          fireTimeouts();
           for (const node of [reverbReturn, delayReturn, lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)]) {
             expect(node.connect).not.toHaveBeenCalled();
             expect(node.disconnect).not.toHaveBeenCalled();
@@ -2125,6 +2163,7 @@ describe('globalFx', () => {
         globalFx.setGlobalPhaser({ wet: 0.5 });
         const cell = cellOf(old);
         globalFx.setGlobalPhaser({ stages: 6 });
+        fireTimeouts();
         const fresh = lastInstance(toneFlags.phaserCtor);
         clearEdges();
         globalFx.wireGlobalFxChain(true);
@@ -2154,12 +2193,14 @@ describe('globalFx', () => {
           throw new Error('no memory');
         });
         clearEdges();
-        expect(() => globalFx.setGlobalPhaser({ stages: 6 })).not.toThrow();
+        globalFx.setGlobalPhaser({ stages: 6 });
+        expect(() => fireTimeouts()).not.toThrow();
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
         expect(old.dispose).not.toHaveBeenCalled();
         expect(edgesTouched()).toEqual([]);
 
         globalFx.setGlobalPhaser({ stages: 6 });
+        fireTimeouts();
         expect(ctorOptions()).toMatchObject({ stages: 6 });
         expect(old.dispose).toHaveBeenCalledTimes(1);
       });
@@ -2188,6 +2229,266 @@ describe('globalFx', () => {
         globalFx.buildGlobalFxChain();
         globalFx.setGlobalPhaser({ stages: 8 });
         expect(ctorOptions()).toStrictEqual({ frequency: 0.5, octaves: 3, stages: 8, Q: 10, baseFrequency: 350, wet: 1 });
+      });
+
+      // The Stages duck (docs/specs/DARK_EFFECT_BYPASS.md §8.2, the T11 finding): a lit Phaser's swap was the one connect
+      // made at lit gains and clicked x2-55 in a real-time context. A lit Stages change now ramps the cell to dry,
+      // swaps the node once that ramp has run on the audio thread (lookAhead + 20 ms + 10 ms, the Spread duck's
+      // timings) and ramps back to the cell's Mix. A dark Phaser still rebuilds at once.
+      describe('a lit Stages change is ducked', () => {
+        async function lit(mix = 0.5) {
+          const { globalFx, phaser: old } = await built();
+          globalFx.setGlobalPhaser({ wet: mix });
+          const cell = cellOf(old);
+          cell.dry.gain.rampTo.mockClear();
+          cell.wet.gain.rampTo.mockClear();
+          clearEdges();
+          return { globalFx, old, cell };
+        }
+
+        it('ramps the cell to dry over 20 ms and arms one swap at lookAhead + 20 ms + 10 ms, building and touching nothing yet', async () => {
+          const { globalFx, old, cell } = await lit();
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(cell.dry.gain.rampTo.mock.calls).toEqual([[1, 0.02]]);
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.02]]);
+          expect(toneFlags.timeouts).toHaveLength(1);
+          expect(toneFlags.timeouts[0].seconds).toBeCloseTo(DUCK_WAIT, 9);
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+          expect(edgesTouched()).toEqual([]);
+          expect(old.dispose).not.toHaveBeenCalled();
+          expect(globalFx.getConnectedEffectCount()).toBe(1);
+        });
+
+        it("waits out the context's lookAhead as it is at the call", async () => {
+          const { globalFx } = await lit();
+          toneFlags.lookAhead = 0.03;
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.03 + 0.02 + 0.01, 9);
+        });
+
+        it('swaps the node at the bottom of the duck, old edges out and new in, then ramps back to the Mix over 20 ms', async () => {
+          const { globalFx, old, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          fireTimeouts();
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          expect(ctorOptions()).toMatchObject({ stages: 6, wet: 1 });
+          const touched = edgesTouched();
+          expect(touched).toHaveLength(4);
+          expect(touched).toContainEqual(['disconnect', cell.in, old]);
+          expect(touched).toContainEqual(['disconnect', old, cell.wet]);
+          expect(touched).toContainEqual(['connect', cell.in, fresh]);
+          expect(touched).toContainEqual(['connect', fresh, cell.wet]);
+          expect(old.dispose).toHaveBeenCalledTimes(1);
+          // The swap happens after the duck's ramp to 0 was issued and before the ramp back.
+          const swapAt = cell.in.connect.mock.invocationCallOrder.at(-1);
+          expect(cell.wet.gain.rampTo.mock.invocationCallOrder[0]).toBeLessThan(swapAt);
+          expect(cell.wet.gain.rampTo.mock.invocationCallOrder[1]).toBeGreaterThan(swapAt);
+          expect(cell.dry.gain.rampTo.mock.calls).toEqual([
+            [1, 0.02],
+            [expect.closeTo(lawDry(0.25), 9), 0.02],
+          ]);
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([
+            [0, 0.02],
+            [expect.closeTo(lawWet(0.25), 9), 0.02],
+          ]);
+          expect(toneFlags.timeouts).toHaveLength(0);
+          expect(globalFx.getConnectedEffectCount()).toBe(1);
+        });
+
+        it('builds only the last count of a drag: one ramp to dry, one pending swap, one construction', async () => {
+          const { globalFx, cell } = await lit();
+          for (const stages of [8, 6, 4]) globalFx.setGlobalPhaser({ stages });
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.02]]);
+          expect(toneFlags.timeouts).toHaveLength(1);
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+          fireTimeouts();
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(2);
+          expect(ctorOptions()).toMatchObject({ stages: 4 });
+        });
+
+        it('re-arms the swap on each step of a drag, so it waits from the last step', async () => {
+          const { globalFx } = await lit();
+          globalFx.setGlobalPhaser({ stages: 8 });
+          const first = toneFlags.timeouts[0].id;
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(toneFlags.timeouts).toHaveLength(1);
+          expect(toneFlags.timeouts[0].id).not.toBe(first);
+        });
+
+        it('does nothing for the count it is already heading for: no re-arm, no ramp', async () => {
+          const { globalFx, cell } = await lit();
+          globalFx.setGlobalPhaser({ stages: 6 });
+          const pending = toneFlags.timeouts[0].id;
+          globalFx.setGlobalPhaser({ stages: 6 });
+          globalFx.setGlobalPhaser({ stages: 6.2 });
+          expect(toneFlags.timeouts.map((t) => t.id)).toEqual([pending]);
+          expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(1);
+        });
+
+        it('builds nothing when a drag ends back at the live count, and still ramps back to the Mix', async () => {
+          const { globalFx, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          globalFx.setGlobalPhaser({ stages: 10 });
+          fireTimeouts();
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+          expect(edgesTouched()).toEqual([]);
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+        });
+
+        it('holds the cell dry through a Mix change during the duck and returns to the new Mix', async () => {
+          const { globalFx, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          globalFx.setGlobalPhaser({ wet: 0.8 });
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.02]]);
+          fireTimeouts();
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.64), 9), 0.02);
+          expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawDry(0.64), 9), 0.02);
+        });
+
+        it('ducks a Stages change and a Mix change sent in the same call, returning to the new Mix', async () => {
+          const { globalFx, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ stages: 6, wet: 0.8 });
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.02]]);
+          expect(toneFlags.timeouts).toHaveLength(1);
+          fireTimeouts();
+          expect(ctorOptions()).toMatchObject({ stages: 6 });
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.64), 9), 0.02);
+        });
+
+        it('writes the other fields of the edit to the live node now, and builds the new node with them', async () => {
+          const { globalFx, old } = await lit();
+          globalFx.setGlobalPhaser({ stages: 6, rate: 3, octaves: 5 });
+          expect(old.frequency.rampTo).toHaveBeenCalledWith(3, 0.05);
+          expect(old.octaves).toBe(5);
+          globalFx.setGlobalPhaser({ Q: 7 });
+          expect(old.Q.rampTo).toHaveBeenCalledWith(7, 0.05);
+          fireTimeouts();
+          expect(ctorOptions()).toMatchObject({ stages: 6, frequency: 3, octaves: 5, Q: 7 });
+        });
+
+        it('darkened during the duck, swap first: the new node goes in at wet 0, the cell returns dry, the darken takes it out', async () => {
+          const { globalFx, old, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          globalFx.setGlobalPhaser({ wet: 0 });
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([[0, 0.02]]);
+          fireOnly(DUCK_WAIT);
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+          expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(1, 0.02);
+          fireOnly(DARKEN_WAIT);
+          expect(cell.in.disconnect).toHaveBeenLastCalledWith(fresh);
+          expect(fresh.disconnect).toHaveBeenLastCalledWith(cell.wet);
+          expect(old.dispose).toHaveBeenCalledTimes(1);
+          expect(globalFx.getConnectedEffectCount()).toBe(0);
+        });
+
+        it('darkened during the duck, darken first: the old node goes out, the new one is built and never connected', async () => {
+          const { globalFx, old, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ wet: 0 });
+          globalFx.setGlobalPhaser({ stages: 6 });
+          fireOnly(DARKEN_WAIT);
+          expect(cell.in.disconnect).toHaveBeenLastCalledWith(old);
+          fireOnly(DUCK_WAIT);
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          expect(fresh).not.toBe(old);
+          expect(fresh.connect).not.toHaveBeenCalled();
+          expect(cell.in.connect).not.toHaveBeenCalledWith(fresh);
+          expect(old.dispose).toHaveBeenCalledTimes(1);
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+          expect(globalFx.getConnectedEffectCount()).toBe(0);
+          expect(devWarn).not.toHaveBeenCalled();
+        });
+
+        it('keeps one duck once the darken has fired inside it: a later Stages change re-arms it, and the last count wins', async () => {
+          const { globalFx } = await lit(0.5);
+          globalFx.setGlobalPhaser({ wet: 0 });
+          globalFx.setGlobalPhaser({ stages: 6 });
+          fireOnly(DARKEN_WAIT);
+          expect(globalFx.getConnectedEffectCount()).toBe(0);
+          globalFx.setGlobalPhaser({ stages: 4 });
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+          expect(toneFlags.timeouts).toHaveLength(1);
+          fireTimeouts();
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(2);
+          expect(ctorOptions()).toMatchObject({ stages: 4 });
+          // The live count is 4: asking for 4 again builds nothing.
+          globalFx.setGlobalPhaser({ stages: 4 });
+          expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(2);
+        });
+
+        it('re-lit during the duck after the darken fired: the swap connects the new node and returns to the Mix', async () => {
+          const { globalFx, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ wet: 0 });
+          globalFx.setGlobalPhaser({ stages: 6 });
+          fireOnly(DARKEN_WAIT);
+          globalFx.setGlobalPhaser({ wet: 0.5 });
+          fireOnly(DUCK_WAIT);
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+          expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+          expect(globalFx.getConnectedEffectCount()).toBe(1);
+        });
+
+        it('rebuilds at once, with no timer, a Phaser that is dark when a Stages and a light arrive in the same call', async () => {
+          const { globalFx, phaser: old } = await built();
+          const cell = cellOf(old);
+          globalFx.setGlobalPhaser({ stages: 6, wet: 0.5 });
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          expect(fresh).not.toBe(old);
+          expect(toneFlags.timeouts).toHaveLength(0);
+          expect(cell.in.connect).toHaveBeenLastCalledWith(fresh);
+          expect(cell.in.connect).not.toHaveBeenCalledWith(old);
+          expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.25), 9), 0.05]]);
+        });
+
+        it('keeps the old node lit when the new one cannot be built at the bottom, ramps back, and tries again next time', async () => {
+          const { globalFx, old, cell } = await lit(0.5);
+          toneFlags.phaserCtor.mockImplementationOnce(() => {
+            throw new Error('no memory');
+          });
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(() => fireTimeouts()).not.toThrow();
+          expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
+          expect(old.dispose).not.toHaveBeenCalled();
+          expect(edgesTouched()).toEqual([]);
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(toneFlags.timeouts).toHaveLength(1);
+          fireTimeouts();
+          expect(ctorOptions()).toMatchObject({ stages: 6 });
+          expect(old.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('a new node that cannot be connected at the bottom leaves the cell dry at Mix 0, and the ramp back keeps it dry', async () => {
+          const { globalFx, cell } = await lit(0.5);
+          globalFx.setGlobalPhaser({ stages: 6 });
+          cell.in.connect.mockImplementationOnce(() => {
+            throw new Error('refused');
+          });
+          fireTimeouts();
+          expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('could not be connected'), expect.any(Error));
+          expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
+          expect(cell.dry.gain.rampTo).toHaveBeenLastCalledWith(1, 0.02);
+          expect(globalFx.getConnectedEffectCount()).toBe(0);
+          // The same Mix re-sent lights the new node from wet 0.
+          const fresh = lastInstance(toneFlags.phaserCtor);
+          globalFx.setGlobalPhaser({ wet: 0.5 });
+          expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
+        });
+
+        it('is cancelled by a chain rebuild: the pending swap never runs on the new chain', async () => {
+          const { globalFx } = await lit();
+          globalFx.setGlobalPhaser({ stages: 6 });
+          globalFx.buildGlobalFxChain();
+          const constructed = toneFlags.phaserCtor.mock.calls.length;
+          expect(toneFlags.timeouts).toHaveLength(0);
+          // The new chain is at ten stages with no duck pending: a dark Stages change rebuilds at once.
+          globalFx.setGlobalPhaser({ stages: 6 });
+          expect(toneFlags.phaserCtor.mock.calls.length).toBe(constructed + 1);
+          expect(toneFlags.timeouts).toHaveLength(0);
+        });
       });
     });
   });
@@ -3369,6 +3670,10 @@ describe('globalFx', () => {
         throw new Error('connect failed');
       });
       globalFx.setGlobalPhaser({ stages: 12 });
+      // Still connected while darkening, so the Stages change is ducked; its swap (0.13 s) runs before the darken.
+      const duck = toneFlags.timeouts.find((t) => Math.abs(t.seconds - 0.13) < 1e-9)!;
+      toneFlags.timeouts = toneFlags.timeouts.filter((t) => t !== duck);
+      duck.fn();
       expect(toneFlags.timeouts).toHaveLength(1);
       expect(globalFx.getConnectedEffectCount()).toBe(0);
     });

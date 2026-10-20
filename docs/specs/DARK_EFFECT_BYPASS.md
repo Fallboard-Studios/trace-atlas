@@ -623,3 +623,26 @@ also fires 14 of Tone's own context timers, from disposing the old node.) The pr
 on this change instead, which was not measured here. The fix, if wanted, is the Spread duck's pattern: ramp the cell to
 dry, swap after lookAhead + the ramp + a margin, then ramp back. That pattern measured ×1.3 / ×1.6 (GLOBAL_PEDALS.md
 §8).
+
+**Fixed (Crawford: "fix the phaser stage click first", 2026-10-20): the Stages duck.** `writePhaserStages` in
+`globalFx.ts`: while the Phaser's cell is connected, or a duck is already pending, a Stages change ramps the cell to
+dry over `SPREAD_DUCK_SECONDS` (20 ms). It then arms one `Tone.getContext().setTimeout` at lookAhead + 20 ms +
+`SPREAD_WRITE_MARGIN_SECONDS` (the Spread duck's timings and reasoning) and returns. `finishPhaserDuck` builds the
+pending count at the bottom of the duck, with the wet gain at 0, so the T7 swap is now silent like every other
+connect. It skips the build when a drag came back to the live count, then ramps the cell back to `cell.mix` over
+20 ms. Every step of a drag re-arms the one timer, so only the last count is built. A Mix write during the duck is
+recorded, not ramped (`writeCellMix(…, !_phaserDuck)`), and the duck returns to it. Other fields go to the live node
+at once and into the mirror the new node is built from. A dark Phaser is still rebuilt at once. `setGlobalPhaser` now
+handles Stages *before* the Mix, so a dark Phaser lit in the same call lights the new node rather than ducking the
+old one. A re-sent count the duck is already heading for does nothing, and `buildGlobalFxChain` cancels a pending
+duck (`resetPhaserDuck`). **Cost:** a lit Phaser goes dry for about 0.15 s on a Stages change (lookAhead + 20 ms +
+10 ms, then 20 ms back), and stays dry through a Stages drag until it stops, as the Spread does. **Re-measured** on the
+same probe (`t11/duck.json`, 3 runs): lit 10 → 4 **×0.82 / 0.91 / 0.90**, 4 → 10 **×0.92 / 0.93 / 0.93**. No gap. The
+90 gated crossings are unchanged (worst ×1.16), and the bare-connect control clicked at ×14.9–37.0 in the same
+recording. **Tests:** 17 new unit cases written first: 16 RED, plus the chain-rebuild cancel, which was green by
+construction until a duck existed. 19 existing cases that changed Stages on a lit Phaser were re-pinned to fire the
+duck's timer, and their gain assertions now include the duck's two ramps: 17 in `globalFx.test.ts`, two
+seed-dependent ones in `AudioEngine.test.ts`, which fire only the timers the Stages call arms. Two more failed only
+because an unconsumed one-shot constructor throw leaked from an un-fired lit case; they pass unchanged. **Mutation gate:**
+17 mutants, all killed. M2 ("a pending duck does not keep the duck path") first survived. An 18th case killed it: a
+darken firing inside the duck, then a second Stages change, must keep one duck, so the last count wins.

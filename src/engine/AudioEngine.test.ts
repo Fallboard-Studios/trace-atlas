@@ -2585,6 +2585,24 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     vi.resetModules();
   });
 
+  /** Run `act`, then fire only the context timers it armed: a lit Phaser's Stages change waits on one (the Stages duck,
+   *  docs/specs/DARK_EFFECT_BYPASS.md §8.2), and whether the seeded world left the Phaser lit is the seed's call. The
+   *  mock's clearTimeout does nothing, so earlier timers are dropped from the record rather than fired. */
+  async function withContextTimers(act: () => void) {
+    const Tone = await import('tone');
+    const contexts = () =>
+      (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results as Array<{
+        value: { setTimeout: ReturnType<typeof vi.fn> };
+      }>;
+    for (const result of contexts()) result.value.setTimeout.mockClear();
+    act();
+    for (const result of contexts()) {
+      const calls = result.value.setTimeout.mock.calls;
+      result.value.setTimeout.mockClear();
+      calls.forEach((call: unknown[]) => (call[0] as () => void)());
+    }
+  }
+
   it('constructs exactly one AutoWah', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.AutoWah).mockClear();
@@ -2654,7 +2672,7 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
     const target = liveStages === 5 ? 6 : 5;
     const before = vi.mocked(Tone.Phaser).mock.calls.length;
-    AudioEngine.setGlobalPhaser({ stages: target });
+    await withContextTimers(() => AudioEngine.setGlobalPhaser({ stages: target }));
     expect(Tone.Phaser).toHaveBeenCalledTimes(before + 1);
     expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: target, octaves: 4, frequency: 2 });
   });
@@ -2668,7 +2686,7 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     await AudioEngine.start();
     AudioEngine.setGlobalPhaser({ wet: 1 });
     const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
-    AudioEngine.setGlobalPhaser({ stages: liveStages === 5 ? 6 : 5 });
+    await withContextTimers(() => AudioEngine.setGlobalPhaser({ stages: liveStages === 5 ? 6 : 5 }));
 
     type PhaserMock = { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
     const phasers = vi.mocked(Tone.Phaser).mock.results.map((r) => r.value as unknown as PhaserMock);

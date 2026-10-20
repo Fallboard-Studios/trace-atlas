@@ -531,6 +531,13 @@ connect ×13–25 (×4–27 over two sessions). **Finding, not gated:** a **lit*
 (×2.0–54.7, typically ×6–8). It is the one connect at lit gains (T7's same-Mix swap). The pre-cell whole-chain rewire
 was not measured. A Spread-style duck is the obvious fix; that is Crawford's call, and it is not built.
 
+**T11 follow-up, the Stages duck (Crawford: "fix the phaser stage click first", 2026-10-20):** built in
+`globalFx.ts` (`writePhaserStages` / `finishPhaserDuck` / `resetPhaserDuck`). A lit Stages change ramps the cell to
+dry, swaps at the bottom of the duck with the wet gain at 0, and ramps back; a dark one rebuilds at once. Real-time
+re-measure: lit Stages changes ×0.82–0.93 (were ×2.0–54.7); crossings unchanged (worst ×1.16). Cost: a lit Phaser is
+dry for about 0.15 s per Stages change, and through a Stages drag. 17 new cases plus 1 from the gate; 19 existing
+lit-Stages cases re-pinned to fire the duck's timer; 17 mutants killed. Details in spec §8.2.
+
 ---
 
 ### Task 12: Dark cost ≤ 70 ‰ and the `perf:audio` A/B — **STOP on a miss**
