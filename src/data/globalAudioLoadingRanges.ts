@@ -11,6 +11,11 @@
  * "Loading Range" column — that doc is the source of truth; this file
  * mirrors it, it doesn't decide it. If a value here and the grid ever
  * disagree, the grid is right and this file has drifted.
+ *
+ * Retuned in one pass, the Classic Band Retune (docs/tasks/CLASSIC_BAND_RETUNE.md, 2026-10-21): every row below that
+ * carries a "Retuned" or "Widened" comment moved then, with the reason beside it. The common one is that a Mix is stored
+ * as a slider position and squared at the node (the bypass cell's wet layer is sin(pi/2 * mix^2)), so the bottom third of
+ * a Mix slider is near silence: -48 dB at 0.05, -29 dB at 0.15, -20 dB at 0.25, -14 dB at 0.35, -8 dB at 0.5.
  */
 import type { GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
 
@@ -83,7 +88,7 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   // (colourWetGain), so a seeded Mix of 0.35 to 0.5 (wah) or 0.3 to 0.4 (phaser) is a node gain of 0.12 to 0.25 or 0.09
   // to 0.16 (the ceilings are the T16 listen's; the floors rose at Classic Band Retune T1, 2026-10-21, because the bottom
   // third of a squared slider is near silence: a wet layer of -48 dB at 0.05, -20 dB at 0.25). The Phaser's stages reach
-  // 12, the ceiling the Pixel gate ran. Colour's own ceiling is untouched.
+  // 12, the ceiling the Pixel gate ran. Colour's own ceiling is the separate constant COLOUR_LOAD_MIX_MAX.
   'autoWah.baseFrequency': { min: 50, max: 250 },
   'autoWah.octaves': { min: 2.5, max: 5 },
   // Retuned at Classic Band Retune T1: Tone boosts the follower by -sensitivity dB, so at -40 on a fleet near 0 dBFS

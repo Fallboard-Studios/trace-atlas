@@ -1,7 +1,8 @@
 # Implementation Plan: Classic Band Retune — the seed bands a fresh world rolls within, before Robot Effect Sends
 
-> **Status (2026-10-21):** T0–T5 built and committed; **T6 measured and stopped for Crawford's go on §7's numbers**; T7 and
-> Checkpoint A wait on it. The three decisions in §3 are answered (1 = B, 2 = not deliberate, 3 = keep 4–12).
+> **Status (2026-10-21):** T0–T7 built and committed (T6: measured, then retuned as proposed on Crawford's answer) and
+> **Checkpoint A is green**; Checkpoint B, Crawford's listen, is the open gate. The three decisions in §3 are answered
+> (1 = B, 2 = not deliberate, 3 = keep 4–12).
 > Building on `feature/classic-band-retune`, branched off `main` at `a12ee21c`; the plan was
 > written against `0b087fec` (the Global Pedals merge, PR #565), and `main` has since gained only docs. The listen
 > (Checkpoint B) is Crawford's; stop there.
@@ -419,3 +420,19 @@ same draws reproduce −47, 17, −51 and 14. Docs: grid rows 64–65, the inven
 carried the stale HPF 500, Pre-Delay 1 and the old send band, fixed in the same pass). No new mutation gate (a band value).
 
 Verification: `npm test` 379 files / 13 426 tests, types clean, lint 0 errors.
+
+**T7 (2026-10-21), the docs sweep.** Done after the T6 answer, so it is written once. The three specs each take one
+dated "Retuned" line at the end of their as-built notes (`GLOBAL_COLOUR.md`, `GLOBAL_MODULATION_COLOUR.md`,
+`GLOBAL_PEDALS.md`; their assumptions are not rewritten). `themes.md:27`, `SESSION_STORAGE.md:138` and `AUDIO_SYSTEM.md:271`
+quote the new pedal Mix bands; the inventory's section 1 law note now states the wet-layer figures (−48 / −29 / −20 / −14 /
+−8 dB at 0.05 / 0.15 / 0.25 / 0.35 / 0.5); the loading table's header gains a paragraph naming the pass and the squared-slider
+reason, and its pedal comment no longer says Colour's ceiling is untouched; `docs/todo/roadmap.md` has a one-paragraph
+entry at the end of the Audio Palette series header (before 50.1). The acceptance grep (`0.05–0.15`, `0.2–0.5`, `0.15–0.4`,
+`2–8 ms`, `20–500`, `−40 to −10`, preDelay `0–1 s`) finds only history now: the specs' and tasks' own as-built text, the
+roadmap's 50.3/50.4 records and the seed test's dated oracle-derivation notes. Nothing under `docs/reference`, `AUDIO_SYSTEM.md`,
+`SESSION_STORAGE.md`, `themes.md` or `src/` (outside those notes and dated "was" comments) states an old band as current.
+
+**Checkpoint A (2026-10-21): green.** `npm test` 379 files / 13 426 tests, `npm run build:types`, `npm run lint` (0 errors;
+4 existing warnings in `gemShape.tsx`), `npm run build` (the usual chunk-size notice only), one commit per task (T0 `cd4c7584`,
+T1 `8124fdd6`, T2 `7b6e2163`, T3 `bf96978f`, T4 `2ada000b`, T5 `bde8bf97`, T6 `827f3452` + `cc7bd465`, then this one).
+Checkpoint B, Crawford's listen, is next.

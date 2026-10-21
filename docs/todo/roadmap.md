@@ -1498,6 +1498,17 @@ app does not use yet.
 - **New oscillator types** (`fat`, `am`, `fm`, partials) — "aside from changing up the oscillators",
   Crawford's own exclusion; a separate conversation.
 
+**Classic Band Retune (2026-10-21, on eature/classic-band-retune).** One tuning pass over the seed bands a fresh world rolls
+within, after 50.1–50.6 and before Robot Effect Sends (proposed 50.7), whose room bands are written against it. Plan, decisions and
+measurements: [CLASSIC_BAND_RETUNE.md](tasks/CLASSIC_BAND_RETUNE.md). A Mix is stored as a slider position and squared at the node,
+so the bottom third of every Mix slider is near silence (a wet layer of −48 dB at 0.05, −20 dB at 0.25); the floors rose, the
+ceilings from the listens stayed, and the colour ceiling went from 0.25 to 0.35. Also: Vibrato at near-full wet and a small depth,
+AutoWah sensitivity −20 to −5 dB, Chorus delay 6–15 ms, high-pass cutoff 20–120 Hz, Tremolo Sync odds 0.75 (PEDAL_SYNC_ODDS is
+per pedal), Reverb pre-delay 0–0.25 s with a clamp in setGlobalReverb, the per-robot Reverb send 0.1–0.6, and the Compressor
+−36 to −18 dB at 2–6:1 (the Web Audio compressor adds automatic makeup gain, so the old deep band swung fleet loudness by about
+11 dB between seeds). Defaults are untouched and only fresh worlds change. **Status:** built and committed; Crawford's listen
+(Checkpoint B) is the open gate, and anything he vetoes reverts one row at a time.
+
 ## 50.1 Robot Articulation: Portamento, Envelope Curves, Bus Filter
 
 Zero new nodes: three per-robot attributes that are parameters on nodes every robot already has, so

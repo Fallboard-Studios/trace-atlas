@@ -18,7 +18,7 @@ Every Tone.js effect node the app builds, one row per controllable parameter, wi
 - **loading rules** — how a fresh world seeds the row: the draw kind (`bell` is one `getSeededVal` sample, `uniform` is `getUniformSeededVal`), any lit/dark roll, and anything not seeded.
 - **notes** — stored-versus-node conversions, ramps, rebuilds, LFO and swell eligibility, and Audio Load gates.
 
-Three conversions recur. Every Mix (`wet`) on Colour, Modulation and the motion pedals is stored as the slider position and reaches the node **squared** (`colourWetGain`). Robot Volume and the master gain go through a 40 dB perceptual taper (`volumePositionToGain`). Sends, pan and volume are stored 0–1 (pan −1..1) and displayed ×100.
+Three conversions recur. Every Mix (`wet`) on Colour, Modulation and the motion pedals is stored as the slider position and reaches the node **squared** (`colourWetGain`), and the bypass cell's wet layer is `sin(π/2 · mix²)`: about −48 dB at a slider of 0.05, −29 dB at 0.15, −20 dB at 0.25, −14 dB at 0.35, −8 dB at 0.5. The bottom third of every Mix slider is near silence, which is why the seed bands' floors sit at or above 0.2 (the Classic Band Retune, 2026-10-21). Robot Volume and the master gain go through a 40 dB perceptual taper (`volumePositionToGain`). Sends, pan and volume are stored 0–1 (pan −1..1) and displayed ×100.
 
 "Lit" and "dark" are the seeder's own terms: a lit node seeds its Mix inside the band; a dark node seeds Mix 0 but still draws every other field from its band, so a hand nudge of Mix hears something at once.
 
