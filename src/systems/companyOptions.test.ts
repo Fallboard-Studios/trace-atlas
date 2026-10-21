@@ -122,6 +122,33 @@ describe('resolveCompanyOptions', () => {
     });
   });
 
+  // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14 - Grit, Shimmer and Double resolve like the Reverb send. The member's three
+  // are distinct so a crossed field cannot pass by coincidence.
+  describe.each(['gritSend', 'shimmerSend', 'doubleSend'] as const)('%s', (field) => {
+    const member = () => makeRobot({ gritSend: 0.4, shimmerSend: 0.25, doubleSend: 0.15 });
+
+    it('resolves to the first member\'s own value when the snapshot has none', () => {
+      expect(resolveCompanyOptions(undefined, member())[field]).toBe(member()[field]);
+      expect(resolveCompanyOptions({}, member())[field]).toBe(member()[field]);
+    });
+
+    it('falls back to 0 for a member that carries no such field', () => {
+      expect(resolveCompanyOptions(undefined, makeRobot())[field]).toBe(0);
+    });
+
+    it('a recorded value wins over the first member, and a recorded 0 is a real value', () => {
+      expect(resolveCompanyOptions({ [field]: 0.9 }, member())[field]).toBe(0.9);
+      expect(resolveCompanyOptions({ [field]: 0 }, member())[field]).toBe(0);
+    });
+
+    it('records independently: a recorded value leaves every other send on the member', () => {
+      const resolved = resolveCompanyOptions({ [field]: 0.9 }, member());
+      for (const other of ['gritSend', 'shimmerSend', 'doubleSend'] as const) {
+        if (other !== field) expect(resolved[other], other).toBe(member()[other]);
+      }
+    });
+  });
+
   it('lfoLinks resolves from the first member\'s current value, falling back to an empty object when unset', () => {
     const withLinks = makeRobot({ lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
     expect(resolveCompanyOptions(undefined, withLinks).lfoLinks).toEqual({ 'layer0.gain': { lane: 'a', depth: 40 } });

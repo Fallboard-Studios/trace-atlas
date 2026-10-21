@@ -647,6 +647,7 @@ describe('AudioSettingSection', () => {
       const handlers = {
         onAudioModeChange: vi.fn(), onVolumeChange: vi.fn(), onPanChange: vi.fn(), onPanAutoChange: vi.fn(),
         onReverbSendChange: vi.fn(), onDelaySendChange: vi.fn(), onDynamicsChange: vi.fn(),
+        onGritSendChange: vi.fn(), onShimmerSendChange: vi.fn(), onDoubleSendChange: vi.fn(),
       };
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...handlers} />);
 
@@ -931,6 +932,7 @@ describe('AudioSettingSection', () => {
       const handlers = {
         onAudioModeChange: vi.fn(), onVolumeChange: vi.fn(), onPanChange: vi.fn(), onPanAutoChange: vi.fn(),
         onReverbSendChange: vi.fn(), onDelaySendChange: vi.fn(), onDynamicsChange: vi.fn(),
+        onGritSendChange: vi.fn(), onShimmerSendChange: vi.fn(), onDoubleSendChange: vi.fn(),
       };
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...handlers} />);
 
@@ -1006,13 +1008,11 @@ describe('AudioSettingSection', () => {
   });
 
   // docs/specs/ROBOT_EFFECT_SENDS.md §1.6 (docs/tasks/ROBOT_EFFECT_SENDS.md Task 11) - three more send rows after Delay, on the
-  // Reverb row's shape: Volume, Pan, Reverb, Delay, Grit, Shimmer, Double, then Dynamics. Each row renders only when its
-  // handler and its value are both given (the company screen passes neither until Task 14).
+  // Reverb row's shape: Volume, Pan, Reverb, Delay, Grit, Shimmer, Double, then Dynamics. Both screens pass all three (Task 14).
   describe('Grit, Shimmer and Double rows (Robot Effect Sends Task 11)', () => {
     const nameOf = (key: 'probe.reverbSend' | 'probe.delaySend' | 'probe.gritSend' | 'probe.shimmerSend' | 'probe.doubleSend') =>
       new RegExp(`^${CONTENT[key].human}`, 'i');
     const sliderFor = (key: Parameters<typeof nameOf>[0]) => screen.getByRole('slider', { name: nameOf(key) });
-    const querySliderFor = (key: Parameters<typeof nameOf>[0]) => screen.queryByRole('slider', { name: nameOf(key) });
     const baseProps = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, ...LEVEL_NOOPS };
     const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
     const rerenderedIds = () => (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
@@ -1068,6 +1068,19 @@ describe('AudioSettingSection', () => {
         expect(called, row.name).toEqual([row.handler]);
         view.unmount();
       }
+    });
+
+    // Task 14 made the three values and handlers required, so neither screen can leave a row out. `npm run build:types`
+    // checks the directives: each goes unused (an error) if the prop it names turns optional again.
+    it('the three values and the three handlers are required props', () => {
+      const { onGritSendChange: _grit, onShimmerSendChange: _shimmer, onDoubleSendChange: _double, ...withoutNewHandlers } = LEVEL_NOOPS;
+      const { gritSend: _g, shimmerSend: _s, doubleSend: _d, ...withoutNewValues } = makeValue();
+      const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS };
+      // @ts-expect-error onGritSendChange, onShimmerSendChange and onDoubleSendChange are required
+      const missingHandlers = <AudioSettingSection value={makeValue()} {...props} {...withoutNewHandlers} />;
+      // @ts-expect-error value.gritSend, shimmerSend and doubleSend are required
+      const missingValues = <AudioSettingSection value={withoutNewValues} {...props} {...LEVEL_NOOPS} />;
+      expect([missingHandlers, missingValues]).toHaveLength(2);
     });
 
     it('a Reverb or Delay step never calls a new send handler', () => {
@@ -1164,23 +1177,6 @@ describe('AudioSettingSection', () => {
         const body = getCssRuleBody(css, `.${wrapper}`);
         if (body !== null) expect(body).not.toMatch(/display\s*:\s*(inline-)?flex/);
         expect(css).not.toMatch(new RegExp(`${wrapper}[^{]*\\{[^}]*display\\s*:\\s*(inline-)?flex`));
-      });
-
-      it('is absent when its handler is omitted (the company screen until Task 14); the other rows stay', () => {
-        const props: Record<string, unknown> = { ...baseProps };
-        delete props[handler];
-        render(<AudioSettingSection value={makeValue()} {...(props as typeof baseProps)} />);
-        expect(querySliderFor(key)).toBeNull();
-        expect(sliderFor('probe.reverbSend')).toBeTruthy();
-        expect(sliderFor('probe.delaySend')).toBeTruthy();
-        ROWS.filter((r) => r.key !== key).forEach((r) => expect(sliderFor(r.key)).toBeTruthy());
-      });
-
-      it('is absent when its value is missing, even with a handler (never shown as a made-up 0)', () => {
-        const value: Record<string, unknown> = makeValue();
-        delete value[field];
-        render(<AudioSettingSection value={value as ReturnType<typeof makeValue>} {...baseProps} />);
-        expect(querySliderFor(key)).toBeNull();
       });
 
       it('editing it re-renders no other slider, and editing Reverb or Volume does not re-render it', () => {

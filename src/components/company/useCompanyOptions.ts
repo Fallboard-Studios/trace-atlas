@@ -8,7 +8,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
-  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyGritSend, applyShimmerSend, applyDoubleSend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyDynamics, applyRests, applyAccents,
@@ -38,6 +38,9 @@ const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   panAuto: true,
   reverbSend: 0,
   delaySend: 0,
+  gritSend: 0,
+  shimmerSend: 0,
+  doubleSend: 0,
   dynamics: 0,
 };
 
@@ -109,6 +112,10 @@ export interface CompanyOptions {
   /** The first member's reverbSend / delaySend are being swelled (a company-wide swell shares the flag across members). */
   reverbSendSwelling: boolean;
   delaySendSwelling: boolean;
+  /** The same for Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6). */
+  gritSendSwelling: boolean;
+  shimmerSendSwelling: boolean;
+  doubleSendSwelling: boolean;
   adsrSwelling: AdsrSwelling | undefined;
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
   onAudioModeChange: (mode: Robot['audioMode']) => void;
@@ -117,6 +124,9 @@ export interface CompanyOptions {
   onPanAutoChange: (auto: boolean) => void;
   onReverbSendChange: (pct: number) => void;
   onDelaySendChange: (pct: number) => void;
+  onGritSendChange: (pct: number) => void;
+  onShimmerSendChange: (pct: number) => void;
+  onDoubleSendChange: (pct: number) => void;
   onDynamicsChange: (value: number) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
@@ -207,6 +217,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const volumeSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'volume');
   const reverbSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'reverbSend');
   const delaySendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'delaySend');
+  const gritSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'gritSend');
+  const shimmerSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'shimmerSend');
+  const doubleSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'doubleSend');
   // The flags recompute when the field a swell tick writes changes (useSwellingFlags).
   const adsrSwelling = useAdsrSwellingFlags(firstMemberId, resolved?.adsr);
   const layer0Swelling = useLayerSwellingFlags(firstMemberId, 0, resolved?.layers[0]);
@@ -231,15 +244,22 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   const resolvedPanAuto = resolved?.panAuto;
   const resolvedReverbSend = resolved?.reverbSend;
   const resolvedDelaySend = resolved?.delaySend;
+  const resolvedGritSend = resolved?.gritSend;
+  const resolvedShimmerSend = resolved?.shimmerSend;
+  const resolvedDoubleSend = resolved?.doubleSend;
   const resolvedDynamics = resolved?.dynamics;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
       ? {
         audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, pan: resolvedPan!, panAuto: resolvedPanAuto!,
-        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!, dynamics: resolvedDynamics!,
+        reverbSend: resolvedReverbSend!, delaySend: resolvedDelaySend!, gritSend: resolvedGritSend!, shimmerSend: resolvedShimmerSend!,
+        doubleSend: resolvedDoubleSend!, dynamics: resolvedDynamics!,
       }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend, resolvedDynamics]);
+  ), [
+    active, resolvedAudioMode, resolvedMasterVolume, resolvedPan, resolvedPanAuto, resolvedReverbSend, resolvedDelaySend,
+    resolvedGritSend, resolvedShimmerSend, resolvedDoubleSend, resolvedDynamics,
+  ]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -373,6 +393,34 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
       applyDelaySend(m, localeId, pct);
     });
     if (latest.current.members.length > 0) patchSnapshot({ delaySend: clampSend(pct / SEND_DISPLAY_SCALE) });
+  }, [localeId, patchSnapshot]);
+
+  // Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6): onReverbSendChange's shape, three more times.
+  const onGritSendChange = useCallback((pct: number) => {
+    if (Number.isNaN(pct)) return;
+    latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, 'gritSend');
+      applyGritSend(m, localeId, pct);
+    });
+    if (latest.current.members.length > 0) patchSnapshot({ gritSend: clampSend(pct / SEND_DISPLAY_SCALE) });
+  }, [localeId, patchSnapshot]);
+
+  const onShimmerSendChange = useCallback((pct: number) => {
+    if (Number.isNaN(pct)) return;
+    latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, 'shimmerSend');
+      applyShimmerSend(m, localeId, pct);
+    });
+    if (latest.current.members.length > 0) patchSnapshot({ shimmerSend: clampSend(pct / SEND_DISPLAY_SCALE) });
+  }, [localeId, patchSnapshot]);
+
+  const onDoubleSendChange = useCallback((pct: number) => {
+    if (Number.isNaN(pct)) return;
+    latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, 'doubleSend');
+      applyDoubleSend(m, localeId, pct);
+    });
+    if (latest.current.members.length > 0) patchSnapshot({ doubleSend: clampSend(pct / SEND_DISPLAY_SCALE) });
   }, [localeId, patchSnapshot]);
 
   const onDensityChange = useCallback((v: number) => {
@@ -516,6 +564,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     volumeSwelling,
     reverbSendSwelling,
     delaySendSwelling,
+    gritSendSwelling,
+    shimmerSendSwelling,
+    doubleSendSwelling,
     adsrSwelling,
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
     onAudioModeChange,
@@ -524,6 +575,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onPanAutoChange,
     onReverbSendChange,
     onDelaySendChange,
+    onGritSendChange,
+    onShimmerSendChange,
+    onDoubleSendChange,
     onDynamicsChange,
     onRestsChange,
     onAccentsChange,
@@ -542,8 +596,10 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onLayerLfoFieldChange,
   }), [
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
-    volumeSwelling, reverbSendSwelling, delaySendSwelling, adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
+    volumeSwelling, reverbSendSwelling, delaySendSwelling, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling,
+    adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
+    onGritSendChange, onShimmerSendChange, onDoubleSendChange,
     onDynamicsChange, onRestsChange, onAccentsChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,

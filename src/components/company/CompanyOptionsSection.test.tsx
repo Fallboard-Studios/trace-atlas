@@ -19,15 +19,21 @@ const renderCounts = {
 
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number; reverbSend: number; delaySend: number };
+    value: { audioMode: string; masterVolume: number; reverbSend: number; delaySend: number; gritSend?: number; shimmerSend?: number; doubleSend?: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
     onReverbSendChange: (pct: number) => void;
     onDelaySendChange: (pct: number) => void;
+    onGritSendChange?: (pct: number) => void;
+    onShimmerSendChange?: (pct: number) => void;
+    onDoubleSendChange?: (pct: number) => void;
     onVolumeLfoChange?: unknown;
     volumeSwelling?: boolean;
     reverbSendSwelling?: boolean;
     delaySendSwelling?: boolean;
+    gritSendSwelling?: boolean;
+    shimmerSendSwelling?: boolean;
+    doubleSendSwelling?: boolean;
     disabled?: boolean;
   }) => {
     renderCounts.audioSettingSection();
@@ -41,12 +47,21 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-swelling={props.volumeSwelling ? '' : undefined}
         data-reverb-swelling={props.reverbSendSwelling ? '' : undefined}
         data-delay-swelling={props.delaySendSwelling ? '' : undefined}
+        data-grit-send={props.value.gritSend}
+        data-shimmer-send={props.value.shimmerSend}
+        data-double-send={props.value.doubleSend}
+        data-grit-swelling={props.gritSendSwelling ? '' : undefined}
+        data-shimmer-swelling={props.shimmerSendSwelling ? '' : undefined}
+        data-double-swelling={props.doubleSendSwelling ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
         <button onClick={() => props.onReverbSendChange(40)}>probe-reverb-send</button>
         <button onClick={() => props.onDelaySendChange(40)}>probe-delay-send</button>
+        <button onClick={() => props.onGritSendChange?.(40)}>probe-grit-send</button>
+        <button onClick={() => props.onShimmerSendChange?.(40)}>probe-shimmer-send</button>
+        <button onClick={() => props.onDoubleSendChange?.(40)}>probe-double-send</button>
         {props.onVolumeLfoChange ? <button>probe-volume-lfo</button> : null}
       </div>
     );
@@ -357,6 +372,31 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(stub.getAttribute('data-swelling')).toBeNull();
     });
 
+    // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14: the company screen shows the three rows, from the first member.
+    it('Levels: the first member\'s Grit, Shimmer and Double reach the panel', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', gritSend: 0.45, shimmerSend: 0.3, doubleSend: 0.15 }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1', gritSend: 0.9, shimmerSend: 0.9, doubleSend: 0.9 }));
+      addCompany('c1', ['r1', 'r2']);
+      render(<Sections target="c1" ids={['audioSettings']} />);
+
+      const stub = screen.getByTestId('audio-setting-section-stub');
+      expect(stub.getAttribute('data-grit-send')).toBe('0.45');
+      expect(stub.getAttribute('data-shimmer-send')).toBe('0.3');
+      expect(stub.getAttribute('data-double-send')).toBe('0.15');
+    });
+
+    it.each(['grit', 'shimmer', 'double'] as const)('Levels: a company-wide swell on %sSend shows swelling on that slider only', (name) => {
+      activeCompany();
+      vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === `${name}Send`);
+      render(<Sections target="c1" ids={['audioSettings']} />);
+
+      const stub = screen.getByTestId('audio-setting-section-stub');
+      for (const other of ['grit', 'shimmer', 'double', 'reverb', 'delay'] as const) {
+        expect(stub.getAttribute(`data-${other}-swelling`), other).toBe(other === name ? '' : null);
+      }
+      expect(stub.getAttribute('data-swelling')).toBeNull();
+    });
+
     it('Levels: a swell on delaySend shows swelling on the Delay slider only', () => {
       activeCompany();
       vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === 'delaySend');
@@ -412,6 +452,21 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(spy.mock.calls[0][2]).toBe(40);
       expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ delaySend: 0.4 });
+    });
+
+    // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14: the three new sends reach the members the same way.
+    it.each([
+      ['Grit', 'probe-grit-send', 'applyGritSend', 'gritSend'],
+      ['Shimmer', 'probe-shimmer-send', 'applyShimmerSend', 'shimmerSend'],
+      ['Double', 'probe-double-send', 'applyDoubleSend', 'doubleSend'],
+    ] as const)('Levels: %s — its action once per member, and only its field recorded in the snapshot', (_name, probe, action, field) => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      click(probe);
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls[0][2]).toBe(40);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ [field]: 0.4 });
     });
 
     it.each([

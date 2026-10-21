@@ -46,11 +46,10 @@ export interface AudioSettingValue {
   /** 0..1, Robot.delaySend's own domain - the Delay twin of `reverbSend`. */
   delaySend: number;
   /** 0..1, Robot.gritSend / shimmerSend / doubleSend - the sends into the Colour, Shifter and Chorus rooms, on
-   *  `reverbSend`'s display contract (docs/specs/ROBOT_EFFECT_SENDS.md §1.6). Optional until the company screen
-   *  resolves them (docs/tasks/ROBOT_EFFECT_SENDS.md Task 14): a row renders only when its value and handler are both given. */
-  gritSend?: number;
-  shimmerSend?: number;
-  doubleSend?: number;
+   *  `reverbSend`'s display contract (docs/specs/ROBOT_EFFECT_SENDS.md §1.6). */
+  gritSend: number;
+  shimmerSend: number;
+  doubleSend: number;
   /** 0..100 as stored (Robot.dynamics): how much this robot's note velocities swing. No conversion - the slider shows it as is.
    *  docs/specs/ROBOT_PERFORMANCE.md §1.6. */
   dynamics: number;
@@ -66,10 +65,10 @@ interface AudioSettingSectionProps {
   /** 0..100, the same display-domain contract as onVolumeChange. */
   onReverbSendChange: (pct: number) => void;
   onDelaySendChange: (pct: number) => void;
-  /** 0..100, the same contract as onReverbSendChange. Optional until Task 14 (see `AudioSettingValue.gritSend`). */
-  onGritSendChange?: (pct: number) => void;
-  onShimmerSendChange?: (pct: number) => void;
-  onDoubleSendChange?: (pct: number) => void;
+  /** 0..100, the same contract as onReverbSendChange. */
+  onGritSendChange: (pct: number) => void;
+  onShimmerSendChange: (pct: number) => void;
+  onDoubleSendChange: (pct: number) => void;
   /** 0..100, emitted as the whole number the slider shows (Robot.dynamics stores it unconverted). */
   onDynamicsChange: (value: number) => void;
   /** The engine's live Auto value (-0.5..0.5) for the robot screen; undefined on the company screen and
@@ -86,7 +85,7 @@ interface AudioSettingSectionProps {
    *  docs/tasks/ROBOT_SENDS.md Task 13. */
   reverbSendSwelling?: boolean;
   delaySendSwelling?: boolean;
-  /** The same for Grit, Shimmer and Double (docs/tasks/ROBOT_EFFECT_SENDS.md Task 13 passes them). */
+  /** The same for Grit, Shimmer and Double (docs/tasks/ROBOT_EFFECT_SENDS.md Tasks 13-14). */
   gritSendSwelling?: boolean;
   shimmerSendSwelling?: boolean;
   doubleSendSwelling?: boolean;
@@ -184,22 +183,16 @@ function AudioSettingSectionInner({
             <SliderLinear schema={DELAY_SEND_SCHEMA} value={toSendDisplay(value.delaySend)} onChange={onDelaySendChange} disabled={disabled} swelling={delaySendSwelling} />
           </div>
           {/* Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6): the sends into the three rooms, after Delay, each
-              in its own block wrapper for the same reason. A row renders only when its value and handler are both given. */}
-          {value.gritSend !== undefined && onGritSendChange && (
-            <div className="audio-setting-section__grit-row">
-              <SliderLinear schema={GRIT_SEND_SCHEMA} value={toSendDisplay(value.gritSend)} onChange={onGritSendChange} disabled={disabled} swelling={gritSendSwelling} />
-            </div>
-          )}
-          {value.shimmerSend !== undefined && onShimmerSendChange && (
-            <div className="audio-setting-section__shimmer-row">
-              <SliderLinear schema={SHIMMER_SEND_SCHEMA} value={toSendDisplay(value.shimmerSend)} onChange={onShimmerSendChange} disabled={disabled} swelling={shimmerSendSwelling} />
-            </div>
-          )}
-          {value.doubleSend !== undefined && onDoubleSendChange && (
-            <div className="audio-setting-section__double-row">
-              <SliderLinear schema={DOUBLE_SEND_SCHEMA} value={toSendDisplay(value.doubleSend)} onChange={onDoubleSendChange} disabled={disabled} swelling={doubleSendSwelling} />
-            </div>
-          )}
+              in its own block wrapper for the same reason. */}
+          <div className="audio-setting-section__grit-row">
+            <SliderLinear schema={GRIT_SEND_SCHEMA} value={toSendDisplay(value.gritSend)} onChange={onGritSendChange} disabled={disabled} swelling={gritSendSwelling} />
+          </div>
+          <div className="audio-setting-section__shimmer-row">
+            <SliderLinear schema={SHIMMER_SEND_SCHEMA} value={toSendDisplay(value.shimmerSend)} onChange={onShimmerSendChange} disabled={disabled} swelling={shimmerSendSwelling} />
+          </div>
+          <div className="audio-setting-section__double-row">
+            <SliderLinear schema={DOUBLE_SEND_SCHEMA} value={toSendDisplay(value.doubleSend)} onChange={onDoubleSendChange} disabled={disabled} swelling={doubleSendSwelling} />
+          </div>
           {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6): the last row, after the sends, in a wrapper with no display rule for
               the Volume row's reason. No `swelling`: Dynamics is not a swell attribute. */}
           <div className="audio-setting-section__dynamics-row">
