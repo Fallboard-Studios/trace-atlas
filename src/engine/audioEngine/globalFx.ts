@@ -730,10 +730,14 @@ export function setGlobalReverb(params: Partial<ReverbSettings>): void {
   } catch (err) {
     devWarn('[AudioEngine] setGlobalReverb failed', err);
   }
-  if (params.decay === undefined && params.preDelay === undefined) return;
+  // A share link or a saved session is untrusted input: clamp into the field's full range, and write nothing for a
+  // non-finite value (the colour and pedal setters' rule, clampColour). Decay 0.1-10 s, preDelay 0-0.25 s.
+  const decay = clampIfGiven('reverb.decay', params.decay);
+  const preDelay = clampIfGiven('reverb.preDelay', params.preDelay);
+  if (decay === undefined && preDelay === undefined) return;
   _pendingReverbIr = { ..._pendingReverbIr };
-  if (params.decay !== undefined) _pendingReverbIr.decay = params.decay;
-  if (params.preDelay !== undefined) _pendingReverbIr.preDelay = params.preDelay;
+  if (decay !== undefined) _pendingReverbIr.decay = decay;
+  if (preDelay !== undefined) _pendingReverbIr.preDelay = preDelay;
   if (_reverbIrTimer !== null) clearTimeout(_reverbIrTimer);
   _reverbIrTimer = setTimeout(flushReverbIr, REVERB_IR_COALESCE_MS);
 }

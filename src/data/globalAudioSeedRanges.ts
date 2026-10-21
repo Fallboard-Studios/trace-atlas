@@ -108,7 +108,8 @@ export const GLOBAL_AUDIO_SEED_RANGES: Record<GlobalAudioSeedFieldKey, SeedRange
   'delay.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   'reverb.decay': { min: 0.1, max: 10, scale: 'log' },
-  'reverb.preDelay': { min: 0, max: 1, scale: 'linear', step: 0.01 },
+  // 0-0.25 s (Classic Band Retune row 14): the grid said 0-0.5 and this said 0-1; a 1 s pre-delay is a slapback.
+  'reverb.preDelay': { min: 0, max: 0.25, scale: 'linear', step: 0.01 },
   'reverb.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   // Global Colour (docs/specs/GLOBAL_COLOUR.md assumption 6). `order` is capped at 8 although Tone allows 100:

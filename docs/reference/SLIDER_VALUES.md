@@ -62,7 +62,7 @@ pass, for unrelated reasons noted at each row.
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Frequency | Log | Hz | 20 | 20000 | — | 20 | 500 |
+| Frequency | Log | Hz | 20 | 20000 | — | 20 | 120 |
 | Resonance (Q) | Log | — | 0.1 | 20 | — | 0.1 | 5 |
 
 ### Delay
@@ -91,18 +91,19 @@ row, and kept underneath.
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
 | Decay | Log | s | 0.1 | 10 | — | 0.5 | 4 |
-| Pre-Delay | Linear | s | 0 | 1 | 0.01 | 0 | 0.1 |
+| Pre-Delay | Linear | s | 0 | 0.25 | 0.01 | 0 | 0.1 |
 | Amount²² | Linear | — | 0 | 1 | 0.01 | — | — |
 
 ²² Amount (`reverb.wet`, labelled "Reverb Amount") is the Reverb room's **return level**, as Delay's above: not
-seeded (every world loads `1`), no load range. The old `[0.1, 0.4]` band now seeds each robot's own Reverb send.
+seeded (every world loads `1`), no load range. The old band, now `[0.1, 0.6]` (widened from `[0.1, 0.4]` by the Classic
+Band Retune), seeds each robot's own Reverb send.
 
 ### Compressor
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Threshold | Linear | dB | -60 | 0 | 1² | -55 | -45 |
-| Ratio | Linear | — | 1 | 20 | 1 | 10 | 20 |
+| Threshold | Linear | dB | -60 | 0 | 1² | -36 | -18 |
+| Ratio | Linear | — | 1 | 20 | 1 | 2 | 6 |
 | Attack | Log | s | 0.001 | 0.2 | — | 0.003 | 0.05 |
 | Release | Log | s | 0.01 | 1 | — | 0.05 | 0.3 |
 | Knee | Linear | dB | 0 | 40 | 1² | 1 | 15 |

@@ -6,7 +6,6 @@ import type { NoiseFunction2D } from 'simplex-noise';
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
-import { pickLane } from './lfoLaneDraw';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { pickSeedNoteValue } from './tempoSync';
@@ -166,12 +165,20 @@ export type MotionPedal = (typeof MOTION_PEDALS)[number];
 export const MAX_LIT_PEDALS = 2;
 
 /**
- * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free: each one's sync roll
- * falls under this (docs/specs/GLOBAL_PEDALS.md assumption 8, the Phaser's from docs/specs/GLOBAL_MODULATION_COLOUR.md
- * assumption 8). A dark pedal never seeds Sync. Measured 50.20 % of 6 660 lit Phasers, and 49.82 / 50.88 / 49.73 % of lit
- * Chorus / Tremolo / Vibrato worlds, over 20 000 styles; the rolls are uniform.
+ * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free, one entry per pedal:
+ * each one's sync roll falls under its own entry (docs/specs/GLOBAL_PEDALS.md assumption 8, the Phaser's from
+ * docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 8). A dark pedal never seeds Sync. Half for the Phaser, Chorus and
+ * Vibrato, three quarters for the Tremolo (Classic Band Retune row 13, 2026-10-21): a Free tremolo beats against the 16th
+ * grid, and the others don't care. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-21, after the retune): lit
+ * Phaser / Chorus / Tremolo / Vibrato worlds synced 50.62 / 49.82 / 75.14 / 49.73 %, and no dark pedal ever; before it the
+ * Tremolo's was 50.88 %. The rolls are uniform, so an entry is the realised share.
  */
-export const PEDAL_SYNC_ODDS = 0.5;
+export const PEDAL_SYNC_ODDS: Record<SyncedRateKey, number> = {
+  phaser: 0.5,
+  chorus: 0.5,
+  tremolo: 0.75,
+  vibrato: 0.5,
+};
 
 /**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
@@ -196,7 +203,7 @@ export const PEDAL_SYNC_ODDS = 0.5;
  *
  * The two modulation pedals are the same kind of exception, each on its own roll (PEDAL_LIT_EDGE): about a third of
  * worlds light each, independently. A dark pedal seeds `wet` 0 and still draws every other field from its band; a lit
- * Phaser seeds Sync in about half of worlds (PEDAL_SYNC_ODDS), with the note drawn from the lit rate band.
+ * Phaser seeds Sync in about half of worlds (PEDAL_SYNC_ODDS.phaser), with the note drawn from the lit rate band.
  *
  * The four Global Pedals motion pedals roll after them in chain order under a two-lit cap (MAX_LIT_PEDALS), each with
  * the same dark-pedal rule; a lit Chorus, Tremolo or Vibrato seeds Sync about half the time, the shifter's sign is its own
@@ -249,7 +256,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     const modeT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncMode`);
     const noteT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncNote`);
     rateSync[key] =
-      rateLit[key] && modeT < PEDAL_SYNC_ODDS
+      rateLit[key] && modeT < PEDAL_SYNC_ODDS[key]
         ? pickSeedNoteValue(noteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES[`${key}.rate`]], 'hz')
         : undefined;
   }
@@ -626,12 +633,24 @@ export function generateLfoBankSettings(
 }
 
 /**
+ * The share of a lit global target's lane draw that asks for the Companion (lane b) rather than the Core (lane a), while
+ * no target has taken it yet. Crawford, 2026-10-21: the EQ, LPF and HPF links may only reach the Core or Companion LFO on
+ * load, usually the Core, with the Companion "maybe once per session on those attributes". So the Companion is capped at
+ * one link per world and each lit target asks for it with this probability until one has: about 4.6 targets are lit per
+ * world, so roughly 1 - 0.9^4.6 = 38 % of worlds carry one Companion link and the rest are all Core. The draw is uniform
+ * (getUniformSeededVal), so the edge is the realised share (measured in the docs/tasks/CLASSIC_BAND_RETUNE.md §7 entry).
+ */
+export const GLOBAL_LFO_COMPANION_EDGE = 0.1;
+
+/**
  * Generate deterministic global-chain LFO links for an Attenuation Style — replaces
  * generateGlobalLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
  * LFO_QUIET_THRESHOLD (0.34) unchanged; depth now draws from one of three per-group loading
- * windows (globalLfoDepthSeedRangeForTarget above) rather than one flat window. The lane draw is
- * weighted by a running tally across only the 7 global targets — they seed before any robot
- * exists, so there is no roster to tally against (spec assumption 7).
+ * windows (globalLfoDepthSeedRangeForTarget above) rather than one flat window.
+ *
+ * A lit target links the Core LFO (lane a) or, at most once per world, the Companion (lane b) — never the Accent or
+ * Overtone lane (GLOBAL_LFO_COMPANION_EDGE). This governs a fresh world only: a saved session or share link restores
+ * whatever lane was hand-set. The robot-level links keep the four-lane weighted draw (pickLane).
  */
 export function generateGlobalLfoLinks(
   attenuationStyleId: string,
@@ -639,7 +658,7 @@ export function generateGlobalLfoLinks(
 ): Record<GlobalLfoTargetId, LfoLink> {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const result = {} as Record<GlobalLfoTargetId, LfoLink>;
-  const counts: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
+  let companionTaken = false;
 
   for (const target of GLOBAL_LFO_TARGET_IDS) {
     const quietT = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1);
@@ -648,9 +667,10 @@ export function generateGlobalLfoLinks(
       continue;
     }
 
-    const laneT = getSeededVal(noiseMap, `globalLfo.${target}.lane`, 0, 0, 1);
-    const lane = pickLane(laneT, counts);
-    counts[lane]++;
+    // A uniform draw: one getSeededVal sample is bell-curved and coarse, which would make the Companion's share a guess.
+    const laneT = getUniformSeededVal(noiseMap, `globalLfo.${target}.lane`);
+    const lane: LfoLaneId = !companionTaken && laneT < GLOBAL_LFO_COMPANION_EDGE ? 'b' : 'a';
+    if (lane === 'b') companionTaken = true;
 
     const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
     const depth = quantizeToStep(

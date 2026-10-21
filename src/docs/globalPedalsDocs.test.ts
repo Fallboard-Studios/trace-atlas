@@ -136,7 +136,7 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ['syncedRateToFree', 'src/utils/tempoSync.ts', /export function syncedRateToFree<T extends SyncedRate>\(field: T, bpm: number, range: RateRange, step: number\): T/],
     ['MOTION_PEDALS, in chain order', 'src/utils/globalAudioSeed.ts', /export const MOTION_PEDALS = \['chorus', 'tremolo', 'vibrato', 'frequencyShifter'\] as const;/],
     ['MAX_LIT_PEDALS', 'src/utils/globalAudioSeed.ts', /export const MAX_LIT_PEDALS = 2;/],
-    ['PEDAL_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /export const PEDAL_SYNC_ODDS = /],
+    ['PEDAL_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /export const PEDAL_SYNC_ODDS: Record<SyncedRateKey, number> = /],
     ['PEDAL_LIT_EDGE covers the motion pedals', 'src/utils/globalAudioSeed.ts', /export const PEDAL_LIT_EDGE: Record<'autoWah' \| 'phaser' \| MotionPedal, number>/],
     ['the Chorus node', 'src/engine/audioEngine/globalFx.ts', /let _globalChorus: Tone\.Chorus \| null/],
     ['the Tremolo node', 'src/engine/audioEngine/globalFx.ts', /let _globalTremolo: Tone\.Tremolo \| null/],
@@ -200,7 +200,7 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     for (const [description, from] of [
       ['PEDAL_RATE_RANGE_HZ', 'PEDAL_RATE_RANGE_HZ ='],
       ['MAX_LIT_PEDALS', 'MAX_LIT_PEDALS ='],
-      ['PEDAL_SYNC_ODDS', 'PEDAL_SYNC_ODDS ='],
+      ['PEDAL_SYNC_ODDS', 'PEDAL_SYNC_ODDS:'],
       ['resolveSyncedRateHz', 'function resolveSyncedRateHz('],
       ['setGlobalChorus', 'function setGlobalChorus('],
       ['setGlobalTremolo', 'function setGlobalTremolo('],

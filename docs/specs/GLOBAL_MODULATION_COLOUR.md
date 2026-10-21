@@ -598,3 +598,4 @@ The roadmap's 50.4 "As built" ([roadmap.md](../todo/roadmap.md)) is the full rec
   the thirteen range rows and grid rows, and the three living-doc cases that were red until Task 17.
 - **Docs:** `AUDIO_SYSTEM.md` (the chain, the two setters, a Modulation paragraph), `SESSION_STORAGE.md`, `FREE_SYNC_TOGGLE.md`,
   `themes.md` and `GLOBAL_CHAIN_GRID.md` (rows and footnote).
+- **Retuned (Classic Band Retune, 2026-10-21):** AutoWah Mix 0.35–0.5 and sensitivity −20 to −5, Phaser Mix 0.3–0.4 (the ceilings from the T16 listen are kept; the floors rose because the bottom third of a squared slider is near silence, and Tone boosts the follower by −sensitivity dB, so −40 on a fleet near 0 dBFS never sweeps). The seed oracles moved by hand. See [CLASSIC_BAND_RETUNE.md](../tasks/CLASSIC_BAND_RETUNE.md); the assumptions above are not rewritten.

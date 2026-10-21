@@ -48,15 +48,16 @@ import {
   LFO_BANK_RATE_BANDS,
   LFO_BANK_DRIFT_SEED_RANGE,
   LFO_BANK_SYNC_BAND_ORDER,
+  GLOBAL_LFO_COMPANION_EDGE,
 } from './globalAudioSeed';
-import { evictAttenuationStyleNoiseMap } from './noiseMaps';
+import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { allowedRateNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
-import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId } from '@/types/lfo';
 import { PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
@@ -273,7 +274,7 @@ describe('generateGlobalAudioSettings', () => {
     });
 
     it('keeps the two wet loading rows at the per-robot send bands, untouched by the seeder', () => {
-      expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']).toEqual({ min: 0.1, max: 0.4 });
+      expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']).toEqual({ min: 0.1, max: 0.6 });
       expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet']).toEqual({ min: 0, max: 0.3 });
     });
   });
@@ -456,8 +457,9 @@ describe('the colour character (Global Colour)', () => {
         for (const node of NODE_KEYS) {
           const lit = COLOUR_CHARACTER_NODES[character!].includes(node);
           if (lit) {
-            expect(s[node].wet, `${node} style ${i}`).toBeGreaterThanOrEqual(wetBand[node].min);
-            expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(wetBand[node].max);
+            // To within float noise at the top edge: a seed on the 0.35 edge is 35 * 0.01 = 0.35000000000000003.
+            expect(s[node].wet, `${node} style ${i}`).toBeGreaterThanOrEqual(wetBand[node].min - 1e-9);
+            expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(wetBand[node].max + 1e-9);
           } else {
             expect(s[node].wet, `${node} style ${i}`).toBe(0);
           }
@@ -469,19 +471,29 @@ describe('the colour character (Global Colour)', () => {
     // table, so a future change to the draw or the quantiser cannot slip a loud Mix past a correct band.
     // These three loops generate 3 000 whole worlds each; Global Pedals T8 doubled a world's draw count (about 1 s -> 2 s
     // alone), which crossed vitest's 5 s default under the parallel full suite, so each carries its own timeout.
-    it('never seeds a colour Mix above 0.25, lit or not, over 3000 styles', () => {
+    // Classic Band Retune T2 raised the ceiling to 0.35 (Decision 1 = B); Crawford's listen (Checkpoint B, 2026-10-21, "much
+    // more subtle") put every colour Mix in one band, 0.1 to 0.2, under the original 0.25 ceiling. Literal numbers: these hold
+    // the seeder to that, not to the table.
+    it('never seeds a colour Mix above 0.2, and a lit one never below 0.1, over 3000 styles', () => {
+      const floors = { distortion: 0.1, chebyshev: 0.1, bitCrusher: 0.1 } as const;
       let litSeen = 0;
       let highest = 0;
+      let lowestLit = 1;
       for (let i = 0; i < 3000; i++) {
         const s = generateGlobalAudioSettings(`colour-ceiling-${i}`, `ColourCeiling${i}`);
         for (const node of NODE_KEYS) {
           highest = Math.max(highest, s[node].wet);
-          expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(0.25);
-          if (s[node].wet > 0) litSeen += 1;
+          expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(0.2 + 1e-9);
+          if (s[node].wet > 0) {
+            litSeen += 1;
+            lowestLit = Math.min(lowestLit, s[node].wet);
+            expect(s[node].wet, `${node} style ${i} lit floor`).toBeGreaterThanOrEqual(floors[node] - 1e-9);
+          }
         }
       }
       expect(litSeen, 'the sample really contained lit nodes').toBeGreaterThan(1000);
-      expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.2);
+      expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.18);
+      expect(lowestLit, 'the bottom of the band is reachable').toBeLessThan(0.12);
     }, 30000);
 
     it('lights at most one node in any world, over 3000 styles (never two, never three)', () => {
@@ -596,11 +608,16 @@ describe('the modulation pedals (Global Modulation)', () => {
     // against products of 24.95 % / 25.12 % - independent of each other and of Colour's character draw. The plain
     // getSeededVal draw was tried first and rejected: it takes 24 distinct values for autoWah.lit across 20 000 styles
     // and put a lit wah in 55.9 % of clean-Colour worlds against 26.8 % of coloured ones.
-    it('puts both lit edges at one third and the sync odds at one half', () => {
+    it('puts both lit edges at one third', () => {
       // Global Pedals T8 widened the record to six pedals; these two edges are unchanged.
       expect(PEDAL_LIT_EDGE.autoWah).toBe(1 / 3);
       expect(PEDAL_LIT_EDGE.phaser).toBe(1 / 3);
-      expect(PEDAL_SYNC_ODDS).toBe(0.5);
+    });
+
+    // Classic Band Retune T3 (row 13): the odds are per pedal. A Free tremolo beats against the 16th grid, so it seeds Sync
+    // in three worlds of four; the Phaser, Chorus and Vibrato don't care and stay at half.
+    it('keeps the sync odds per pedal: three quarters for the Tremolo, one half for the Phaser, Chorus and Vibrato', () => {
+      expect(PEDAL_SYNC_ODDS).toStrictEqual({ phaser: 0.5, chorus: 0.5, tremolo: 0.75, vibrato: 0.5 });
     });
   });
 
@@ -766,17 +783,18 @@ describe('the modulation pedals (Global Modulation)', () => {
 
     it('reaches both the bottom and the top of the Mix band, so the band is not accidentally collapsed', () => {
       const wets = samples.filter(({ s }) => wahLit(s)).map(({ s }) => s.autoWah.wet);
-      expect(Math.min(...wets)).toBeLessThan(0.24);
-      expect(Math.max(...wets)).toBeGreaterThan(0.46);
+      expect(Math.min(...wets)).toBeLessThan(0.38);
+      expect(Math.max(...wets)).toBeGreaterThan(0.47);
     });
   });
 
   describe('the Phaser Sync roll', () => {
-    it('syncs about PEDAL_SYNC_ODDS of lit Phasers, within 5 points', () => {
+    it('syncs about PEDAL_SYNC_ODDS.phaser (one half) of lit Phasers, within 5 points', () => {
       const lit = samples.filter(({ s }) => phaserLit(s));
       const synced = lit.filter(({ s }) => 'sync' in s.phaser).length;
       expect(lit.length).toBeGreaterThan(500);
-      expect(Math.abs(synced / lit.length - PEDAL_SYNC_ODDS) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced / lit.length - PEDAL_SYNC_ODDS.phaser) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced / lit.length - 0.5) * 100, 'against the literal one half').toBeLessThanOrEqual(5);
     });
 
     it('seeds only real notes that sit inside the lit rate band at the style tempo, drawn from the allowed list', () => {
@@ -980,7 +998,8 @@ describe('the Global Pedals (Global Pedals T8)', () => {
 
     it('caps a world at two lit Modulation pedals and syncs about half of lit LFO pedals', () => {
       expect(MAX_LIT_PEDALS).toBe(2);
-      expect(PEDAL_SYNC_ODDS).toBe(0.5);
+      expect(PEDAL_SYNC_ODDS.chorus).toBe(0.5);
+      expect(PEDAL_SYNC_ODDS.vibrato).toBe(0.5);
     });
 
     it('rolls the motion pedals in chain order', () => {
@@ -993,7 +1012,8 @@ describe('the Global Pedals (Global Pedals T8)', () => {
   // that fewer than two are lit before it. Expected: Chorus 0.25 * 8/9 = 22.2 %, Tremolo 0.25 * 7/9 = 19.4 %, Vibrato
   // 0.25 * 2/3 = 16.7 %, shifter 0.15 * 9/16 = 8.4 %. MEASURED over 20 000 styles ('PedalsCalibration<n>', 2026-10-18):
   // Chorus 22.68, Tremolo 19.33, Vibrato 16.75, shifter 8.20 %, two lit in 49.38 % of worlds and never more; lit LFO
-  // pedals synced 49.82 / 50.88 / 49.73 %; negative shifts 49.97 %. The held-out set here measured 22.33 / 19.87 / 16.77
+  // pedals synced 49.82 / 50.88 / 49.73 % (re-measured 2026-10-21 after the per-pedal Sync odds: Chorus 49.82, Tremolo 75.14,
+  // Vibrato 49.73 %, the Phaser 50.62 %); negative shifts 49.97 %. The held-out set here measured 22.33 / 19.87 / 16.77
   // / 9.63 % and must land within 3 points of the calibration figures.
   const MEASURED = { chorus: 0.2268, tremolo: 0.1933, vibrato: 0.1675, frequencyShifter: 0.082 } as const;
 
@@ -1040,11 +1060,34 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       }
     });
 
-    it.each(LFO_PEDALS)('syncs about PEDAL_SYNC_ODDS of lit %s worlds, within 5 points, and never a dark one', (pedal) => {
+    it.each(LFO_PEDALS)('syncs about PEDAL_SYNC_ODDS[%s] of lit worlds, within 5 points, and never a dark one', (pedal) => {
       const litOnes = samples.filter((s) => lit(s)[pedal]);
       const synced = litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
-      expect(Math.abs(synced - PEDAL_SYNC_ODDS) * 100).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced - PEDAL_SYNC_ODDS[pedal]) * 100).toBeLessThanOrEqual(5);
       for (const s of samples.filter((x) => !lit(x)[pedal])) expect('sync' in s[pedal]).toBe(false);
+    });
+
+    // Literal numbers, so the test holds the seeder to the plan (Classic Band Retune row 13) and not to the constant: a
+    // swapped Tremolo entry, or one pedal's odds indexed for another, moves one of these shares by 25 points.
+    it.each([
+      ['chorus', 0.5],
+      ['tremolo', 0.75],
+      ['vibrato', 0.5],
+    ] as const)('seeds Sync in the planned share of lit %s worlds (%s), within 5 points', (pedal, planned) => {
+      const litOnes = samples.filter((s) => lit(s)[pedal]);
+      const synced = litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
+      expect(litOnes.length, `${pedal} lit worlds`).toBeGreaterThan(400);
+      expect(Math.abs(synced - planned) * 100, `${pedal}: realised ${(synced * 100).toFixed(1)} %`).toBeLessThanOrEqual(5);
+    });
+
+    it('lets the Tremolo sync more often than any other pedal, by at least 15 points', () => {
+      const shareOf = (pedal: (typeof LFO_PEDALS)[number]) => {
+        const litOnes = samples.filter((s) => lit(s)[pedal]);
+        return litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
+      };
+      for (const other of ['chorus', 'vibrato'] as const) {
+        expect(shareOf('tremolo') - shareOf(other), `tremolo vs ${other}`).toBeGreaterThanOrEqual(0.15);
+      }
     });
 
     it('seeds only real notes inside the lit rate band at the style tempo', () => {
@@ -1072,6 +1115,64 @@ describe('the Global Pedals (Global Pedals T8)', () => {
 
     it('seeds Width inside 0.4 - 0.65 on every style, never near the mono fold', () => {
       for (const s of samples) expect(inBand(s.stereoWidener.width, 'stereoWidener.width'), `${s.stereoWidener.width}`).toBe(true);
+    });
+
+    // Classic Band Retune T1 (docs/tasks/CLASSIC_BAND_RETUNE.md §2, acceptance criteria). Literal numbers on purpose:
+    // these hold the seeder to the plan's figures, not to whatever the table currently says.
+    it('seeds every lit Vibrato at Mix 0.85 - 1 and depth 0.03 - 0.12 (a vibrato, not a chorus or a siren), and every dark one at 0', () => {
+      const litVibratos = samples.filter((s) => lit(s).vibrato);
+      expect(litVibratos.length).toBeGreaterThan(300);
+      for (const s of litVibratos) {
+        expect(s.vibrato.wet).toBeGreaterThanOrEqual(0.85);
+        expect(s.vibrato.wet).toBeLessThanOrEqual(1 + 1e-9);
+      }
+      for (const s of samples) {
+        expect(s.vibrato.depth).toBeGreaterThanOrEqual(0.03 - 1e-9);
+        expect(s.vibrato.depth).toBeLessThanOrEqual(0.12 + 1e-9);
+        if (!lit(s).vibrato) expect(s.vibrato.wet).toBe(0);
+      }
+    });
+
+    it('seeds every lit AutoWah Mix at 0.35 or above, every lit Phaser/Chorus at 0.3 or above, every lit Tremolo 0.35 or above, every lit shifter 0.25 or above', () => {
+      const floors = { autoWah: 0.35, phaser: 0.3, chorus: 0.3, tremolo: 0.35, frequencyShifter: 0.25 } as const;
+      for (const s of samples) {
+        for (const pedal of Object.keys(floors) as Array<keyof typeof floors>) {
+          if (!lit(s)[pedal]) continue;
+          expect(s[pedal].wet, pedal).toBeGreaterThanOrEqual(floors[pedal] - 1e-9);
+        }
+      }
+    });
+
+    // Classic Band Retune T6 (Crawford, 2026-10-21): the Compressor seeds shallow, -36 to -18 dB at 2-6:1, whole numbers.
+    it('seeds every Compressor threshold in -36 to -18 dB and every ratio in 2 - 6, on whole numbers, reaching both ends of each', () => {
+      for (const s of samples) {
+        expect(Number.isInteger(s.compressor.threshold), `threshold ${s.compressor.threshold}`).toBe(true);
+        expect(Number.isInteger(s.compressor.ratio), `ratio ${s.compressor.ratio}`).toBe(true);
+        expect(s.compressor.threshold).toBeGreaterThanOrEqual(-36);
+        expect(s.compressor.threshold).toBeLessThanOrEqual(-18);
+        expect(s.compressor.ratio).toBeGreaterThanOrEqual(2);
+        expect(s.compressor.ratio).toBeLessThanOrEqual(6);
+      }
+      const thresholds = samples.map((s) => s.compressor.threshold);
+      const ratios = samples.map((s) => s.compressor.ratio);
+      expect(Math.min(...thresholds), 'threshold bottom reachable').toBeLessThanOrEqual(-32);
+      expect(Math.max(...thresholds), 'threshold top reachable').toBeGreaterThanOrEqual(-22);
+      expect(Math.min(...ratios), 'ratio bottom reachable').toBeLessThanOrEqual(3);
+      expect(Math.max(...ratios), 'ratio top reachable').toBeGreaterThanOrEqual(5);
+    });
+
+    it('seeds every high-pass cutoff at or below 120 Hz, so no robot below octave 5 loses its fundamental', () => {
+      for (const s of samples) expect(s.filterHPF.frequency).toBeLessThanOrEqual(120 + 1e-9);
+      expect(samples.some((s) => s.filterHPF.frequency < 40), 'the band still reaches its low end').toBe(true);
+    });
+
+    it('seeds every AutoWah sensitivity in -20 to -5 dB and every Chorus delay time in 6 - 15 ms', () => {
+      for (const s of samples) {
+        expect(s.autoWah.sensitivity).toBeGreaterThanOrEqual(-20);
+        expect(s.autoWah.sensitivity).toBeLessThanOrEqual(-5);
+        expect(s.chorus.delayTime).toBeGreaterThanOrEqual(6);
+        expect(s.chorus.delayTime).toBeLessThanOrEqual(15);
+      }
     });
 
     it('keeps every shape field inside its band and on its grid, lit or dark', () => {
@@ -1328,6 +1429,118 @@ describe('generateGlobalLfoLinks', () => {
     const litRate = litCount / totalCount;
     expect(litRate, `${litCount}/${totalCount} lit`).toBeGreaterThanOrEqual(0.55);
     expect(litRate, `${litCount}/${totalCount} lit`).toBeLessThanOrEqual(0.80);
+  });
+
+  // Crawford, 2026-10-21: "EQs, LPF, and HPF should only be allowed to access the core or companion LFOs on load (and if an
+  // LFO is chosen it should usually be the core one, companion should appear maybe once per session on those attributes)".
+  // Core is lane a, Companion lane b. The seven global targets are exactly the EQ, LPF and HPF fields. Literal numbers
+  // below hold the seeder to that sentence, not to the constants.
+  describe('lane access on load: Core (a) usually, Companion (b) at most once per world', () => {
+    const STYLES = 3000;
+    let worlds: Array<Record<GlobalLfoTargetId, { lane: string | null; depth: number }>> = [];
+
+    beforeAll(() => {
+      worlds = [];
+      for (let i = 0; i < STYLES; i++) {
+        const id = `lane-access-${i}`;
+        worlds.push(generateGlobalLfoLinks(id, `LaneAccess${i}`));
+        evictAttenuationStyleNoiseMap(id);
+      }
+    }, 120000);
+
+    const laneList = (world: (typeof worlds)[number]) => GLOBAL_LFO_TARGET_IDS.map((t) => world[t].lane).filter((l) => l !== null);
+
+    it('only ever links a global target to the Core (a) or Companion (b) lane: never c or d, over 3 000 styles', () => {
+      let lit = 0;
+      for (const world of worlds) {
+        for (const lane of laneList(world)) {
+          lit++;
+          expect(['a', 'b'], `lane ${lane}`).toContain(lane);
+        }
+      }
+      expect(lit, 'the sample really contained lit links').toBeGreaterThan(8000);
+    });
+
+    it('links the Companion at most once in any world, and does so in some worlds (about 0.3 to 0.5 of them)', () => {
+      let withCompanion = 0;
+      for (const world of worlds) {
+        const companions = laneList(world).filter((l) => l === 'b').length;
+        expect(companions).toBeLessThanOrEqual(1);
+        if (companions === 1) withCompanion++;
+      }
+      const share = withCompanion / worlds.length;
+      expect(share, `${withCompanion}/${worlds.length} worlds`).toBeGreaterThanOrEqual(0.3);
+      expect(share, `${withCompanion}/${worlds.length} worlds`).toBeLessThanOrEqual(0.5);
+    });
+
+    it('makes the Core the usual choice: at least 88 % of lit links are lane a, and the Companion still appears', () => {
+      let core = 0;
+      let companion = 0;
+      for (const world of worlds) {
+        for (const lane of laneList(world)) {
+          if (lane === 'a') core++;
+          if (lane === 'b') companion++;
+        }
+      }
+      expect(core / (core + companion), `${core} core / ${companion} companion`).toBeGreaterThanOrEqual(0.88);
+      expect(companion).toBeGreaterThan(500);
+    });
+
+    it('names the Companion edge as 0.1: a lane draw just under it picks the Companion, exactly on it picks the Core', () => {
+      expect(GLOBAL_LFO_COMPANION_EDGE).toBe(0.1);
+      const forceLane = (t: number) => {
+        const original = vi.mocked(getUniformSeededVal).getMockImplementation()!;
+        vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset) =>
+          dataId.startsWith('globalLfo.') && dataId.endsWith('.lane') ? t : original(noiseMap, dataId, offset));
+        try {
+          return generateGlobalLfoLinks('lane-forced', 'LaneForced');
+        } finally {
+          vi.mocked(getUniformSeededVal).mockImplementation(original);
+          evictAttenuationStyleNoiseMap('lane-forced');
+        }
+      };
+      const lanes = (links: ReturnType<typeof generateGlobalLfoLinks>) => GLOBAL_LFO_TARGET_IDS.map((t) => links[t].lane).filter((l) => l !== null);
+      expect(lanes(forceLane(0.1 - 1e-9)).filter((l) => l === 'b')).toHaveLength(1);
+      expect(lanes(forceLane(0.1)).filter((l) => l === 'b')).toHaveLength(0);
+      expect(lanes(forceLane(0.999)).filter((l) => l === 'b')).toHaveLength(0);
+    });
+
+    it('gives the one Companion to the first lit target when every lane draw asks for it, and the Core to every later one', () => {
+      const original = vi.mocked(getUniformSeededVal).getMockImplementation()!;
+      vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset) =>
+        dataId.startsWith('globalLfo.') && dataId.endsWith('.lane') ? 0 : original(noiseMap, dataId, offset));
+      try {
+        const links = generateGlobalLfoLinks('lane-first', 'LaneFirst');
+        const litTargets = GLOBAL_LFO_TARGET_IDS.filter((t) => links[t].lane !== null);
+        expect(litTargets.length).toBeGreaterThan(1);
+        expect(links[litTargets[0]].lane).toBe('b');
+        for (const t of litTargets.slice(1)) expect(links[t].lane, t).toBe('a');
+      } finally {
+        vi.mocked(getUniformSeededVal).mockImplementation(original);
+        evictAttenuationStyleNoiseMap('lane-first');
+      }
+    });
+
+    it('leaves the quiet roll and every depth where they were: a target is quiet exactly when its own quiet draw is under 0.34', () => {
+      for (let i = 0; i < 200; i++) {
+        const id = `lane-quiet-${i}`;
+        const noiseMap = getAttenuationStyleNoiseMap(id, `LaneQuiet${i}`);
+        const links = generateGlobalLfoLinks(id, `LaneQuiet${i}`);
+        for (const target of GLOBAL_LFO_TARGET_IDS) {
+          const quiet = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1) < 0.34;
+          expect(links[target].lane === null, `${target} style ${i}`).toBe(quiet);
+          if (quiet) expect(links[target].depth).toBe(0);
+        }
+        evictAttenuationStyleNoiseMap(id);
+      }
+    });
+
+    it('never links a quiet target, and is deterministic for a style', () => {
+      const first = generateGlobalLfoLinks('lane-determinism', 'LaneDeterminism');
+      evictAttenuationStyleNoiseMap('lane-determinism');
+      expect(generateGlobalLfoLinks('lane-determinism', 'LaneDeterminism')).toStrictEqual(first);
+      evictAttenuationStyleNoiseMap('lane-determinism');
+    });
   });
 
   it('queries getSeededVal only with .quiet/.lane/.depth dataId suffixes under globalLfo.* — no .rate/.shape draws', () => {
@@ -1890,6 +2103,35 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // 3.85, depth t 0.3046 -> 0.1261 -> 0.13 (its syncMode 0.0153 is under 0.5, but a dark pedal is Free); shift sign t 0.5761
 // (positive), magnitude t 0.6487 -> 13.68 -> 14; width t 0.4577 -> 0.5144 -> 0.51. Every dark pedal's wet is 0. The float
 // tails (0.7000000000000001 and so on) are fullMin + n * step in IEEE arithmetic, as the Phaser's 1.7500000000000002 is.
+//
+// AMENDED BY HAND, Classic Band Retune T1 (docs/tasks/CLASSIC_BAND_RETUNE.md §2, 2026-10-21): ten loading bands moved, so
+// the values drawn through them moved; the raw draws did not. Derived from the same raw draws (HPF is the plain draw, the
+// rest uniform), the band formula (log: 20 * 6^t; linear: min + (max - min) * t) and quantisation onto the full range's
+// grid, and checked by running the OLD bands over the same draws, which reproduces every old value above. Alpha: HPF
+// t 0.9139 -> 20 * 6^t = 102.85 (was 379.02 on 20-500); AutoWah sensitivity t 0.6903 -> -9.65 -> -10 (band -20 to -5; was
+// -19); phaser.wet t 0.3222 -> 0.3 + 0.1 * t = 0.3322 -> 0.33 (was 0.23); chorus delayTime t 0.7021 -> 6 + 9 * t = 12.32 ->
+// 12.5 (was 6); chorus.wet t 0.0362 -> 0.3036 -> 0.30 (was 0.16); vibrato depth t 0.1808 -> 0.03 + 0.09 * t = 0.0463 ->
+// 0.05 (was 0.10). Theta: HPF t 0.6400 -> 62.96 (was 156.94); sensitivity t 0.1961 -> -17.06 -> -17 (was -34);
+// autoWah.wet t 0.9720 -> 0.35 + 0.15 * t = 0.4958 -> 0.50 (was 0.49); chorus delayTime t 0.7723 -> 12.95 -> 13 (was 6.5);
+// tremolo.wet t 0.3262 -> 0.35 + 0.15 * t = 0.3989 -> 0.40 (was 0.30); vibrato depth t 0.3046 -> 0.0574 -> 0.06 (was
+// 0.13). The vibrato, shifter, wah (alpha) and phaser (theta) wets are dark in these styles and stay 0. Every other value
+// is untouched: no roll, sync draw or other band moved.
+//
+// AMENDED BY HAND, Classic Band Retune T2 (Decision 1 = B, 2026-10-21): the lit colour Mix bands moved (Chebyshev and Bit
+// Crusher to 0.25-0.35, Distortion to 0.2-0.3), so the two lit colour wets moved, from the same raw draws (read as above;
+// the Distortion wet is dark in both styles): alpha bitCrusher.wet t 0.8067 -> 0.25 + 0.10 * t = 0.3307 -> 0.33 (was 0.13);
+// theta chebyshev.wet t 0.2596 -> 0.25 + 0.10 * t = 0.2760 -> 0.28 (was 0.08). The old band 0.05 + 0.10 * t reproduces
+// 0.1307 and 0.0760, which is the check. Nothing else moved.
+//
+// AMENDED BY HAND AGAIN, Classic Band Retune after Crawford's listen (Checkpoint B, 2026-10-21, "much more subtle"): all three
+// colour Mix bands became one shared 0.10-0.20, so the same two lit wets moved from the same raw draws: alpha bitCrusher.wet
+// t 0.8067 -> 0.10 + 0.10 * t = 0.1807 -> 0.18 (was 0.33); theta chebyshev.wet t 0.2596 -> 0.1260 -> 0.13 (was 0.28).
+//
+// AMENDED BY HAND, Classic Band Retune T6 (Crawford: "retune as proposed", 2026-10-21): the Compressor's threshold and ratio
+// bands moved to -36 to -18 dB and 2 to 6 (plain draws, whole-number grids anchored at the full range's -60 and 1). From the
+// same raw draws: alpha threshold t 0.7558 -> -36 + 18 * t = -22.40 -> -22 (was -47), ratio t 0.7303 -> 2 + 4 * t = 4.92 -> 5
+// (was 17); theta threshold t 0.4466 -> -27.96 -> -28 (was -51), ratio t 0.4236 -> 3.69 -> 4 (was 14). The old bands
+// -55 + 10 * t and 10 + 10 * t reproduce -47, 17, -51 and 14, which is the check. Attack, release and knee did not move.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1900,34 +2142,34 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
-        threshold: -47,
-        ratio: 17,
+        threshold: -22,
+        ratio: 5,
         attack: 0.02815783553749843,
         release: 0.2207947804737712,
         knee: 10,
       },
       eq3: { low: 3.5, mid: 3.5, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
-      filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
+      filterHPF: { type: 'highpass', frequency: 102.8526501063134, Q: 3.033962391581509 },
       // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
-      bitCrusher: { bits: 9, wet: 0.13 },
+      bitCrusher: { bits: 9, wet: 0.18 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
-      autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -19, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
+      autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
         rate: 2.05,
         octaves: 3.5,
         baseFrequency: 692.0599193838607,
         stages: 10,
         Q: 3.291005415199408,
-        wet: 0.23,
+        wet: 0.33,
         sync: { division: '1/8', modifier: 'dotted' },
       },
       // Global Pedals T8: the Phaser is lit, the Chorus lights (synced), so the shifter's lit roll is capped dark.
-      chorus: { rate: 0.7000000000000001, delayTime: 6, depth: 0.43, spread: 95, feedback: 0.19, wet: 0.16, sync: { division: '1/2', modifier: 'straight' } },
+      chorus: { rate: 0.7000000000000001, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 0.3, sync: { division: '1/2', modifier: 'straight' } },
       tremolo: { rate: 5.7, depth: 0.35000000000000003, spread: 90, wet: 0 },
-      vibrato: { rate: 6.8500000000000005, depth: 0.1, wet: 0 },
+      vibrato: { rate: 6.8500000000000005, depth: 0.05, wet: 0 },
       frequencyShifter: { shift: -11, wet: 0 },
       stereoWidener: { width: 0.64 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
@@ -1940,26 +2182,26 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
-        threshold: -51,
-        ratio: 14,
+        threshold: -28,
+        ratio: 4,
         attack: 0.005351539547536516,
         release: 0.12726233469418596,
         knee: 6,
       },
       eq3: { low: -3.5, mid: -3.5, high: -3.5 },
       filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
-      filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
+      filterHPF: { type: 'highpass', frequency: 62.95985983853713, Q: 0.893615040856134 },
       // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
       distortion: { amount: 0.26, wet: 0 },
-      chebyshev: { order: 3, wet: 0.08 },
+      chebyshev: { order: 3, wet: 0.13 },
       bitCrusher: { bits: 8, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
-      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.49 },
+      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
       // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the other three motion pedals roll dark.
-      chorus: { rate: 1.5000000000000002, delayTime: 6.5, depth: 0.4, spread: 145, feedback: 0.09, wet: 0 },
-      tremolo: { rate: 1.7500000000000002, depth: 0.35000000000000003, spread: 130, wet: 0.3, sync: { division: '1/16', modifier: 'dotted' } },
-      vibrato: { rate: 3.85, depth: 0.13, wet: 0 },
+      chorus: { rate: 1.5000000000000002, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 0 },
+      tremolo: { rate: 1.7500000000000002, depth: 0.35000000000000003, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
+      vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
       frequencyShifter: { shift: 14, wet: 0 },
       stereoWidener: { width: 0.51 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.

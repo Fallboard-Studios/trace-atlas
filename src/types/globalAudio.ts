@@ -8,7 +8,7 @@ import type { NoteValue } from '@/data/noteValues';
 export interface ReverbSettings {
   /** seconds (0.1 - 10) */
   decay: number;
-  /** seconds (0 - 1) */
+  /** seconds (0 - 0.25) */
   preDelay: number;
   /** 0 - 1. The room's RETURN level, not a wet/dry mix: the room itself is always fully wet and each
    *  robot's own send decides how much of that robot goes into it (docs/specs/ROBOT_SENDS.md §1.3). */

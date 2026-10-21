@@ -803,3 +803,4 @@ footnote ⁵; `docs/todo/roadmap.md` 50.6.)*
     15's own docs warn may be slower, not cheaper. No pedal was withdrawn, so nothing went under "tried, no".
   - The roadmap's 50.6 entry was inserted after 50.5; the series header's "Five sub-phases" line was left as it was
     (append-only), and the 50.6 entry says so.
+- **Retuned (Classic Band Retune, 2026-10-21):** Chorus Mix 0.3–0.4 and delay 6–15 ms (under 5 ms with feedback is a flanger), Tremolo Mix 0.35–0.5, Vibrato Mix 0.85–1 and depth 0.03–0.12 (a vibrato below full wet is a chorus), shifter Mix 0.25–0.35; and `PEDAL_SYNC_ODDS` became a per-pedal record, Tremolo 0.75 and the Phaser, Chorus and Vibrato 0.5 (measured 75.14 / 50.62 / 49.82 / 49.73 % over 20 000 styles). The T16 listen's "no band moved" is history; the grid's Loading Range column and the table moved together. See [CLASSIC_BAND_RETUNE.md](../tasks/CLASSIC_BAND_RETUNE.md); the assumptions above are not rewritten.

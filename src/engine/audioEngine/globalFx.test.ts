@@ -5102,5 +5102,103 @@ describe('globalFx', () => {
         expect(preDelaySet).not.toHaveBeenCalled();
       });
     });
+
+    // Classic Band Retune T4 (row 14). A share link or a saved session is untrusted input, so a value outside the field's
+    // full range (decay 0.1-10 s, preDelay 0-0.25 s) must not reach the IR render, and a non-finite one is not written at
+    // all, as the colour and pedal setters do (clampColour). A 1 s preDelay is a slapback and a huge decay a multi-second
+    // OfflineContext render. The numbers below are literal so the test holds the setter to the plan, not to the table.
+    describe('clamps decay and preDelay into the full range, and ignores a non-finite value', () => {
+      function spyOnField(node: Record<string, unknown>, field: string) {
+        let current = node[field];
+        const setter = vi.fn((v: unknown) => { current = v; });
+        Object.defineProperty(node, field, { configurable: true, get: () => current, set: setter });
+        return setter;
+      }
+
+      /** Send `params`, let the coalescing timer fire, and report what reached the node (undefined = not written). */
+      async function flush(params: { decay?: number; preDelay?: number }, first?: { decay?: number; preDelay?: number }) {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const reverbNode = lastInstance(Tone.Reverb) as Record<string, unknown>;
+        const decaySet = spyOnField(reverbNode, 'decay');
+        const preDelaySet = spyOnField(reverbNode, 'preDelay');
+        if (first) globalFx.setGlobalReverb(first);
+        const timersBefore = vi.getTimerCount();
+        globalFx.setGlobalReverb(params);
+        const timersQueued = vi.getTimerCount() - timersBefore;
+        vi.advanceTimersByTime(globalFx.REVERB_IR_COALESCE_MS);
+        const written = (setter: ReturnType<typeof vi.fn>) => (setter.mock.calls.length ? setter.mock.calls[setter.mock.calls.length - 1][0] : undefined);
+        return { decay: written(decaySet), preDelay: written(preDelaySet), decayCalls: decaySet.mock.calls.length, preDelayCalls: preDelaySet.mock.calls.length, timersQueued, globalFx };
+      }
+
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('clamps a preDelay above 0.25 s to 0.25', async () => {
+        expect((await flush({ preDelay: 0.9 })).preDelay).toBe(0.25);
+      });
+
+      it('clamps a decay above 10 s to 10', async () => {
+        expect((await flush({ decay: 50 })).decay).toBe(10);
+      });
+
+      it('clamps a preDelay below 0 to 0, and a decay below 0.1 s to 0.1', async () => {
+        const result = await flush({ preDelay: -1, decay: 0 });
+        expect(result.preDelay).toBe(0);
+        expect(result.decay).toBe(0.1);
+        expect((await flush({ decay: -5 })).decay).toBe(0.1);
+      });
+
+      it('passes a value exactly on an edge through unchanged: 0.25 and 0 for preDelay, 10 and 0.1 for decay', async () => {
+        expect((await flush({ preDelay: 0.25 })).preDelay).toBe(0.25);
+        expect((await flush({ preDelay: 0 })).preDelay).toBe(0);
+        expect((await flush({ decay: 10 })).decay).toBe(10);
+        expect((await flush({ decay: 0.1 })).decay).toBe(0.1);
+      });
+
+      it('passes an in-range value through untouched', async () => {
+        const result = await flush({ preDelay: 0.07, decay: 2.5 });
+        expect(result.preDelay).toBe(0.07);
+        expect(result.decay).toBe(2.5);
+      });
+
+      it('leaves the pending IR unchanged for a NaN preDelay: the value sent before it still lands', async () => {
+        const result = await flush({ preDelay: Number.NaN }, { preDelay: 0.1 });
+        expect(result.preDelay).toBe(0.1);
+      });
+
+      it('ignores a non-finite value rather than clamping it: NaN, Infinity and -Infinity write nothing and queue no timer', async () => {
+        for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+          const result = await flush({ preDelay: bad, decay: bad });
+          expect(result.preDelayCalls, `preDelay ${bad}`).toBe(0);
+          expect(result.decayCalls, `decay ${bad}`).toBe(0);
+          expect(result.timersQueued, `timer for ${bad}`).toBe(0);
+        }
+      });
+
+      it('applies a valid decay when the preDelay in the same call is NaN, and still writes no preDelay', async () => {
+        const result = await flush({ decay: 3, preDelay: Number.NaN });
+        expect(result.decay).toBe(3);
+        expect(result.preDelayCalls).toBe(0);
+      });
+
+      it('a saved session carrying preDelay 0.6 sounds at 0.25, and its other reverb fields and immediate wet are untouched', async () => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const reverbNode = lastInstance(Tone.Reverb) as Record<string, unknown>;
+        const decaySet = spyOnField(reverbNode, 'decay');
+        const preDelaySet = spyOnField(reverbNode, 'preDelay');
+        globalFx.setGlobalReverb({ decay: 2, preDelay: 0.6, wet: 0.5 });
+        expect(returnOf(reverbNode).gain.value).toBe(0.5);
+        vi.advanceTimersByTime(globalFx.REVERB_IR_COALESCE_MS);
+        expect(preDelaySet).toHaveBeenCalledTimes(1);
+        expect(preDelaySet).toHaveBeenCalledWith(0.25);
+        expect(decaySet).toHaveBeenCalledWith(2);
+      });
+    });
   });
 });
