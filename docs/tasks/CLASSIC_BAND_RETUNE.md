@@ -1,8 +1,9 @@
 # Implementation Plan: Classic Band Retune — the seed bands a fresh world rolls within, before Robot Effect Sends
 
-> **Status (2026-10-21):** written, not started. Decisions 1 and 2 below are **open and gate T2 and T6**; T1, T3, T4 and
-> T5 need no decision and can start at once. Build on a new branch off `main` at `0b087fec` (the Global Pedals merge, PR
-> #565); Crawford names branches. The listen (Checkpoint B) is his; stop there.
+> **Status (2026-10-21):** T0 done — the three decisions in §3 are answered (1 = B, 2 = not deliberate, 3 = keep 4–12), so
+> every task is unblocked. Building on `feature/classic-band-retune`, branched off `main` at `a12ee21c`; the plan was
+> written against `0b087fec` (the Global Pedals merge, PR #565), and `main` has since gained only docs. The listen
+> (Checkpoint B) is Crawford's; stop there.
 
 **No spec of its own.** This is a tuning pass over existing fields: the rows table in §2 is the whole change. It
 precedes Robot Effect Sends ([intent](../intent/robot-effect-sends.md), proposed roadmap 50.7), whose room bands will be
@@ -71,14 +72,18 @@ Record the answer in this file, then build. If an answer is blank, stop and ask;
 color mixes to exceed .25 on load"; `globalAudioLoadingRanges.ts:26`, pinned at `globalAudioLoadingRanges.test.ts:143`).
 Rows 3–4 either stop at it (A) or it rises to 0.35 (B). Recommendation: **B**. The sends phase re-homes these three
 Mixes inside the Colour room, where only the robots with a Grit send hear them, so the ceiling that protected the whole
-fleet on the Pixel is about to stop meaning that. Answer: ______
+fleet on the Pixel is about to stop meaning that. Answer: **B** (Crawford, 2026-10-21) — `COLOUR_LOAD_MIX_MAX` rises to 0.35;
+rows 3–4 take their B values.
 
 **Decision 2 — the Compressor band.** Was −55 to −45 dB at 10–20:1 a deliberate pumping-pad choice when the loading
 ranges were set, or did it land there? If deliberate, row 16 is dropped. If not, or if he does not remember, T6 measures
 first (an offline render, the DARK_EFFECT_BYPASS.md §8.1 method: the same seeded world with the band's values against
-threshold 0 dB, compared by RMS and peak), records the numbers here, and he decides on them. Answer: ______
+threshold 0 dB, compared by RMS and peak), records the numbers here, and he decides on them. Answer: **Not deliberate**
+(Crawford, 2026-10-21) — row 16 stays in. T6 still measures first and stops for his go on the numbers before moving the
+bands to −36 to −18 dB / 2–6:1.
 
-**Decision 3 — Phaser stages.** Withdrawn above unless he wants fewer stages for the sound. Answer: ______
+**Decision 3 — Phaser stages.** Withdrawn above unless he wants fewer stages for the sound. Answer: **Keep 4–12** (Crawford, 2026-10-21) — the
+withdrawal stands; no row added.
 
 ## 4. What the rows touch
 
