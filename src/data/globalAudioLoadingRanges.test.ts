@@ -33,13 +33,14 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'compressor.release': { min: 0.05, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
   'limiter.threshold': { min: -3, max: -1 },
-  // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14.
+  // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14;
+  // the three Mix bands retuned by Classic Band Retune T2 (Decision 1 = B, 2026-10-21).
   'distortion.amount': { min: 0.1, max: 0.35 },
-  'distortion.wet': { min: 0.1, max: 0.25 },
+  'distortion.wet': { min: 0.2, max: 0.3 },
   'chebyshev.order': { min: 2, max: 5 },
-  'chebyshev.wet': { min: 0.05, max: 0.15 },
+  'chebyshev.wet': { min: 0.25, max: 0.35 },
   'bitCrusher.bits': { min: 6, max: 10 },
-  'bitCrusher.wet': { min: 0.05, max: 0.15 },
+  'bitCrusher.wet': { min: 0.25, max: 0.35 },
   // Global Modulation T2 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the lit bands, retuned by Crawford's recommended ranges at T16 (2026-10-15).
   'autoWah.baseFrequency': { min: 50, max: 250 },
   'autoWah.octaves': { min: 2.5, max: 5 },
@@ -113,37 +114,49 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     }
   });
 
-  // Crawford, T14 (2026-10-15): "don't allow any of the new color mixes to exceed .25 on load". A fresh world
-  // seeds the Mix as a slider position, so the ceiling is on the band the seed draws from. Saved sessions and
-  // share links carry whatever was hand-set and are not clamped to it.
-  it('never lets a seeded colour Mix exceed 0.25: every colour wet band tops out at or below it', () => {
+  // Crawford, Global Colour T14 (2026-10-15): "don't allow any of the new color mixes to exceed .25 on load"; raised to
+  // 0.35 by Classic Band Retune Decision 1 = B (2026-10-21), because the sends phase re-homes these three Mixes inside the
+  // Colour room, so the fleet-wide Pixel protection the 0.25 gave stops applying. A fresh world seeds the Mix as a slider
+  // position, so the ceiling is on the band the seed draws from. Saved sessions and share links carry whatever was
+  // hand-set and are not clamped to it.
+  it('holds the colour Mix ceiling at 0.35 and never lets a colour wet band top out above it', () => {
+    expect(COLOUR_LOAD_MIX_MAX).toBe(0.35);
     for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
-      expect(GLOBAL_AUDIO_LOADING_RANGES[key].max, key).toBeLessThanOrEqual(0.25);
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key].max, key).toBeLessThanOrEqual(COLOUR_LOAD_MIX_MAX);
     }
   });
 
-  // Crawford, T14 (2026-10-15): "keep those ones lower". Chebyshev and Bit Crusher were always seeded gentler than
-  // Distortion, and stay that way under the ceiling: both sit wholly below Distortion's top, and neither starts above
-  // Distortion's bottom.
-  it('keeps Chebyshev and Bit Crusher seeded gentler than Distortion: lower top, and no higher bottom', () => {
-    const distortion = GLOBAL_AUDIO_LOADING_RANGES['distortion.wet'];
-    for (const key of ['chebyshev.wet', 'bitCrusher.wet'] as const) {
-      const band = GLOBAL_AUDIO_LOADING_RANGES[key];
-      expect(band.max, `${key} top`).toBeLessThan(distortion.max);
-      expect(band.min, `${key} bottom`).toBeLessThanOrEqual(distortion.min);
+  // The floors rose for the squared-slider reason (docs/tasks/CLASSIC_BAND_RETUNE.md §1): the wet layer is
+  // sin(pi/2 * mix^2), so 0.05 was -48 dB, 0.1 was -36 dB and 0.15 -29 dB. No lit colour floor is below -24.5 dB now.
+  it('keeps every lit colour Mix floor audible: the wet layer at the band floor is no quieter than -24.5 dB', () => {
+    const wetLayerDb = (mix: number) => 20 * Math.log10(Math.sin((Math.PI / 2) * mix * mix));
+    for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
+      expect(wetLayerDb(GLOBAL_AUDIO_LOADING_RANGES[key].min), key).toBeGreaterThanOrEqual(-24.5);
     }
   });
 
-  it('keeps the colour wet bands off the ceiling check only for the three Mix fields (the ceiling does not leak onto other wet bands)', () => {
-    expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max).toBeGreaterThan(0.25);
+  // Reverses Global Colour T14's "keep those ones lower" (Crawford, 2026-10-15): Classic Band Retune row 4 seeds Chebyshev
+  // and Bit Crusher at 0.25-0.35 because two of the four characters otherwise seeded an effect nobody could hear, and
+  // Distortion 0.2-0.3 (row 3). Chebyshev and Bit Crusher share one band; neither is narrower than a 0.05 spread.
+  it('seeds Chebyshev and Bit Crusher from one shared band, and every colour band is a real band at least 0.05 wide', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['chebyshev.wet']).toStrictEqual(GLOBAL_AUDIO_LOADING_RANGES['bitCrusher.wet']);
+    for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
+      const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+      expect(max - min, key).toBeGreaterThanOrEqual(0.05 - 1e-9);
+    }
+  });
+
+  it('keeps the colour ceiling off the other wet bands (it does not leak onto the room send bands)', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max).toBeGreaterThan(COLOUR_LOAD_MIX_MAX);
     expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max).toBeGreaterThan(0);
   });
 
-  // Global Modulation T16 (Crawford, 2026-10-15): the pedals no longer share Colour's 0.25 Mix ceiling (spec assumption 9 said the bands and the ceiling may rise after the listen). Their recommended Mix bands (0.3-0.7, 0.25-0.6) were brought down a third (0.2-0.5, 0.15-0.4) after he heard them; Colour's ceiling is untouched.
-  it('seeds the pedal Mix from its own bands, topping out above the colour ceiling, which stays at 0.25 for the colour effects', () => {
+  // Global Modulation T16 (Crawford, 2026-10-15): the pedals no longer share Colour's Mix ceiling (spec assumption 9 said the bands and the ceiling may rise after the listen). Their recommended Mix bands (0.3-0.7, 0.25-0.6) were brought down a third after he heard them; the floors rose at Classic Band Retune T1.
+  it('seeds the pedal Mix from its own bands, topping out above the colour ceiling', () => {
     expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet']).toStrictEqual({ min: 0.35, max: 0.5 });
     expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet']).toStrictEqual({ min: 0.3, max: 0.4 });
-    expect(COLOUR_LOAD_MIX_MAX).toBe(0.25);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet'].max).toBeGreaterThan(COLOUR_LOAD_MIX_MAX);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet'].max).toBeGreaterThan(COLOUR_LOAD_MIX_MAX);
   });
 
   it('keeps both pedal Mix bands above zero, so a lit pedal is always audible', () => {

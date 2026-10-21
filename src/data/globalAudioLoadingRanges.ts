@@ -19,11 +19,13 @@ export interface LoadingRange {
   max: number;
 }
 
-/** The most a fresh world may seed any colour Mix to, as a slider position (Crawford, Global Colour T14, 2026-10-15:
- *  "don't allow any of the new color mixes to exceed .25 on load"). The Mix is tapered at the node (squared), so a seeded
- *  Mix of this size is a wet of at most 0.0625. Saved sessions and share links carry whatever was hand-set and are not
- *  clamped to it. */
-export const COLOUR_LOAD_MIX_MAX = 0.25;
+/** The most a fresh world may seed any colour Mix to, as a slider position. Crawford set it at 0.25 (Global Colour T14,
+ *  2026-10-15: "don't allow any of the new color mixes to exceed .25 on load") to protect the whole fleet on the Pixel; the
+ *  Classic Band Retune raised it to 0.35 (Decision 1 = B, 2026-10-21) because the sends phase re-homes these three Mixes
+ *  inside the Colour room, where only the robots with a Grit send hear them. The Mix is tapered at the node (squared), so
+ *  a seeded Mix of this size is a wet of at most 0.1225. Saved sessions and share links carry whatever was hand-set and
+ *  are not clamped to it. */
+export const COLOUR_LOAD_MIX_MAX = 0.35;
 
 // The two `wet` rows ('delay.wet', 'reverb.wet') are no longer sampled for the global rooms - those are a
 // fixed full return now (docs/specs/ROBOT_SENDS.md §1.2). The rows keep their keys and values because they are
@@ -57,15 +59,17 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   'limiter.threshold': { min: -3, max: -1 },
 
   // Global Colour (docs/specs/GLOBAL_COLOUR.md assumption 7): the bands a LIT node draws from; an unlit node
-  // keeps its shape value from the same band and a `wet` of 0. The three `wet` bands were set at T14: Distortion 0.10
-  // to COLOUR_LOAD_MIX_MAX (0.25), and Chebyshev and Bit Crusher gentler, 0.05 to 0.15 (they always seeded below
-  // Distortion; Crawford, "keep those ones lower").
+  // keeps its shape value from the same band and a `wet` of 0. The three `wet` bands were set at T14 (Distortion 0.10 to
+  // 0.25, Chebyshev and Bit Crusher "kept lower" at 0.05 to 0.15) and retuned at Classic Band Retune T2 (Decision 1 = B,
+  // 2026-10-21): Distortion 0.2 to 0.3, Chebyshev and Bit Crusher 0.25 to 0.35. The old floors sat in the bottom third of
+  // a squared slider (a wet layer of -48 dB at 0.05, -36 dB at 0.1), so two of the four Colour characters seeded an effect
+  // nobody could hear; the floors now sit at -24 dB (0.2) and -20 dB (0.25). No band tops out above COLOUR_LOAD_MIX_MAX.
   'distortion.amount': { min: 0.1, max: 0.35 },
-  'distortion.wet': { min: 0.1, max: COLOUR_LOAD_MIX_MAX },
+  'distortion.wet': { min: 0.2, max: 0.3 },
   'chebyshev.order': { min: 2, max: 5 },
-  'chebyshev.wet': { min: 0.05, max: 0.15 },
+  'chebyshev.wet': { min: 0.25, max: COLOUR_LOAD_MIX_MAX },
   'bitCrusher.bits': { min: 6, max: 10 },
-  'bitCrusher.wet': { min: 0.05, max: 0.15 },
+  'bitCrusher.wet': { min: 0.25, max: COLOUR_LOAD_MIX_MAX },
 
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the bands a LIT pedal draws from; a dark
   // pedal keeps its shape values from the same bands and a `wet` of 0. Retuned at T16 (Crawford, 2026-10-15) to his

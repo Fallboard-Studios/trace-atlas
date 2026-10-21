@@ -283,3 +283,19 @@ Two departures from the plan as written:
 
 Verification: `npm test` 379 files / 13 404 tests, `npm run build:types`, `npm run lint` (0 errors; 4 existing warnings in
 `gemShape.tsx`).
+
+**T2 (2026-10-21), colour bands, Decision 1 = B.** `COLOUR_LOAD_MIX_MAX` 0.25 → 0.35; `distortion.wet` 0.2–0.3,
+`chebyshev.wet` and `bitCrusher.wet` 0.25–0.35 (the last two are written as the constant, so the ceiling and their tops
+cannot drift apart; the table test pins them by literal value). Tests: the ceiling is held at 0.35 by value and no band
+tops out above it; no lit colour floor is below −24.5 dB; Chebyshev and Bit Crusher share one band; the seeder sweep
+(3 000 styles) holds every colour Mix to ≤ 0.35 and every lit one to its floor. Docs: grid rows 25/27/29 and footnote ³,
+the inventory's three cells and the ceiling note, `AUDIO_SYSTEM.md:264`, `themes.md:26`, the table's comments. The two
+seed oracles moved by hand again (alpha `bitCrusher.wet` 0.13 → 0.33, theta `chebyshev.wet` 0.08 → 0.28), derived in a
+dated note above them.
+- **A reversal to flag:** Global Colour T14 had Crawford's "keep those ones lower" (Chebyshev and Bit Crusher below
+  Distortion). Row 4 as accepted puts them *above* Distortion (0.25–0.35 against 0.2–0.3), so the old "gentler than
+  Distortion" test was replaced, not kept. Say so at the listen if it should be the other way round.
+- **Float noise at the top edge.** A seed on the 0.35 edge is `35 * 0.01 = 0.35000000000000003`, one ulp over the
+  ceiling; the in-band assertions take `+ 1e-9`, as the pedal ones already do. The seeder's arithmetic is unchanged.
+
+Verification: `npm test` 379 files / 13 405 tests, types clean, lint 0 errors.
