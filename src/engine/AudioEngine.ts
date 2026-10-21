@@ -342,7 +342,9 @@ async function loadInstruments(): Promise<void> {
             // The engine keeps no pan state across a reservation; the store does (Robot Pan §1.3).
             if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
             // Likewise the sends: a new voice starts dry, and unlike a manual pan every robot is primed (Robot Sends §1.4).
-            AudioEngine.updateRobotSends(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+            AudioEngine.updateRobotSends(robot.id, {
+              reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
+            });
           }
         } catch (err) {
           devWarn('[AudioEngine] Failed post-load reservation for robot', robot.id, err);
@@ -994,7 +996,9 @@ export const AudioEngine = {
       // Done here, not by the caller, so every reReserveVoice caller is covered.
       if (robot.panAuto === false) AudioEngine.updateRobotPan(robotId, robot.pan);
       // And the rebuilt voice's send gains start at 0, so hand them back too (Robot Sends §1.4).
-      AudioEngine.updateRobotSends(robotId, { reverb: robot.reverbSend, delay: robot.delaySend });
+      AudioEngine.updateRobotSends(robotId, {
+        reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
+      });
       return reserved;
     } catch (err) {
       devWarn('[AudioEngine] reReserveVoice failed', err);

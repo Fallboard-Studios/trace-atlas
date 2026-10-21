@@ -4391,13 +4391,24 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
         .map((r: { value: unknown }) => r.value as { gain: { value: number }; connect: AnyMock })
         .filter((g) => g.connect.mock.calls.some(([target]: unknown[]) => rooms.has(target)));
     };
+    /** Robot Effect Sends T6: every effect room send built so far, in reservation order (grit, shimmer, double per
+     *  robot) - the Gains at 0 that feed an effect room's in. Read after start(), when the rooms exist. */
+    const fx = await import('./audioEngine/globalFx');
+    const roomSendGains = () => {
+      const gainMock = (Tone.Gain as unknown as AnyMock).mock;
+      const ins = new Set((['grit', 'shimmer', 'double'] as const).map((key) => fx.getGlobalRoomInput(key)).filter(Boolean));
+      return gainMock.results
+        .filter((_: unknown, i: number) => gainMock.calls[i][0] === 0)
+        .map((r: { value: unknown }) => r.value as { gain: { value: number }; connect: AnyMock })
+        .filter((g) => g.connect.mock.calls.some(([target]: unknown[]) => ins.has(target as never)));
+    };
     const edit = (id: string, patch: Record<string, unknown>) =>
       storeMod.useLocaleStore.getState().updateRobot(localeId, id, patch as any);
     const teardown = () => {
       robots.forEach((r) => AudioEngine.releaseVoice(r.id as string));
       AudioEngine.killAll();
     };
-    return { AudioEngine, primeSpy, sendGains, edit, teardown };
+    return { AudioEngine, primeSpy, sendGains, roomSendGains, edit, teardown };
   }
 
   describe('loadInstruments post-load pass (audio started after the world spawned)', () => {
@@ -4410,10 +4421,23 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
       await AudioEngine.start();
 
       expect(primeSpy.mock.calls).toEqual([
-        ['m1', { reverb: 0.3, delay: 0.1 }],
-        ['m2', { reverb: 0.05, delay: 0.6 }],
+        ['m1', { reverb: 0.3, delay: 0.1, grit: 0, shimmer: 0, double: 0 }],
+        ['m2', { reverb: 0.05, delay: 0.6, grit: 0, shimmer: 0, double: 0 }],
       ]);
       expect(sendGains().map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.3, 0.1, 0.05, 0.6]);
+      teardown();
+    });
+
+    // Robot Effect Sends T6: the three effect room sends are primed beside the first two, and land on their own gains.
+    it('primes the three effect room sends from the store too, and they land on the room send gains', async () => {
+      const { AudioEngine, primeSpy, roomSendGains, teardown } = await prepare([
+        storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1, gritSend: 0.55, shimmerSend: 0.2, doubleSend: 0.35 }),
+      ]);
+
+      await AudioEngine.start();
+
+      expect(primeSpy.mock.calls).toEqual([['m1', { reverb: 0.3, delay: 0.1, grit: 0.55, shimmer: 0.2, double: 0.35 }]]);
+      expect(roomSendGains().map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.55, 0.2, 0.35]);
       teardown();
     });
 
@@ -4422,7 +4446,7 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
 
       await AudioEngine.start();
 
-      expect(primeSpy.mock.calls).toEqual([['a1', { reverb: 0, delay: 0 }]]);
+      expect(primeSpy.mock.calls).toEqual([['a1', { reverb: 0, delay: 0, grit: 0, shimmer: 0, double: 0 }]]);
       teardown();
     });
 
@@ -4456,8 +4480,8 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
       await AudioEngine.start();
 
       expect(primeSpy.mock.calls).toEqual([
-        ['m1', { reverb: 0.3, delay: 0.1 }],
-        ['m2', { reverb: 0.05, delay: 0.6 }],
+        ['m1', { reverb: 0.3, delay: 0.1, grit: 0, shimmer: 0, double: 0 }],
+        ['m2', { reverb: 0.05, delay: 0.6, grit: 0, shimmer: 0, double: 0 }],
       ]);
       expect(AudioEngine.getVoiceForRobot('m2')).not.toBeNull();
       expect(sendGains().slice(2).map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.05, 0.6]);
@@ -4480,6 +4504,21 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
       teardown();
     });
 
+    it('hands all three effect room sends to the rebuilt voice as well, on three new gains', async () => {
+      const { AudioEngine, roomSendGains, teardown } = await prepare([
+        storeRobot('m1', { gritSend: 0.6, shimmerSend: 0.25, doubleSend: 0.4 }),
+      ]);
+      await AudioEngine.start();
+      expect(roomSendGains()).toHaveLength(3);
+
+      expect(AudioEngine.reReserveVoice('m1')).toBe(true);
+
+      const after = roomSendGains();
+      expect(after).toHaveLength(6);
+      expect(after.slice(3).map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.6, 0.25, 0.4]);
+      teardown();
+    });
+
     it('re-primes from the store, so a send edited after the voice was built is the one that survives', async () => {
       const { AudioEngine, sendGains, edit, teardown } = await prepare([storeRobot('m1', { reverbSend: 0.3, delaySend: 0.1 })]);
       await AudioEngine.start();
@@ -4499,7 +4538,7 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
 
       AudioEngine.reReserveVoice('m1');
 
-      expect(primeSpy.mock.calls).toEqual([['m1', { reverb: 0, delay: 0 }]]);
+      expect(primeSpy.mock.calls).toEqual([['m1', { reverb: 0, delay: 0, grit: 0, shimmer: 0, double: 0 }]]);
       teardown();
     });
 
@@ -4527,7 +4566,7 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
 
       AudioEngine.reReserveVoice('m2');
 
-      expect(primeSpy.mock.calls).toEqual([['m2', { reverb: 0.05, delay: 0.6 }]]);
+      expect(primeSpy.mock.calls).toEqual([['m2', { reverb: 0.05, delay: 0.6, grit: 0, shimmer: 0, double: 0 }]]);
       teardown();
     });
 

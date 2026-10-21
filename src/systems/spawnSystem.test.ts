@@ -995,7 +995,9 @@ describe('spawnSystem', () => {
 
         const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
         expect(sendsSpy).toHaveBeenCalledTimes(1);
-        expect(sendsSpy).toHaveBeenCalledWith(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+        expect(sendsSpy).toHaveBeenCalledWith(robot.id, {
+          reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
+        });
       });
 
       it('primes after the reservation, not before - the gains do not exist until reserveVoice builds them', () => {
@@ -1178,7 +1180,9 @@ describe('spawnSystem', () => {
 
         const robot = useLocaleStore.getState().getLocaleById('sends-prime-locale')!.robots[0];
         expect(robot.reverbSend).toBeGreaterThan(0); // reverb band starts at 0.1: a placeholder 0 cannot pass
-        expect(sendsSpy).toHaveBeenCalledWith(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+        expect(sendsSpy).toHaveBeenCalledWith(robot.id, {
+          reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
+        });
       });
     });
 
@@ -1909,26 +1913,27 @@ describe('spawnSystem', () => {
         vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
         return reserveSpy;
       };
-      const setSends = (robotId: string, reverbSend: number, delaySend: number) =>
-        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robotId, { reverbSend, delaySend });
+      // Robot Effect Sends T6: the three effect room sends are re-primed too, with values no robot seeds by default.
+      const setSends = (robotId: string, reverbSend: number, delaySend: number, gritSend = 0, shimmerSend = 0, doubleSend = 0) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robotId, { reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
 
-      it('calls updateRobotSends once per robot, each with its own stored sends - a 0/0 robot included', () => {
+      it('calls updateRobotSends once per robot, each with its own stored five sends - an all-0 robot included', () => {
         stubEngine();
         spawnRobot(DEFAULT_LOCALE_ID);
         spawnRobot(DEFAULT_LOCALE_ID);
         spawnRobot(DEFAULT_LOCALE_ID);
         const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
-        setSends(robots[0].id, 0.3, 0.1);
+        setSends(robots[0].id, 0.3, 0.1, 0.55);
         setSends(robots[1].id, 0, 0);
-        setSends(robots[2].id, 1, 0.45);
+        setSends(robots[2].id, 1, 0.45, 0, 0.35, 0.42);
         const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
 
         reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
 
         expect(sendsSpy.mock.calls).toEqual([
-          [robots[0].id, { reverb: 0.3, delay: 0.1 }],
-          [robots[1].id, { reverb: 0, delay: 0 }],
-          [robots[2].id, { reverb: 1, delay: 0.45 }],
+          [robots[0].id, { reverb: 0.3, delay: 0.1, grit: 0.55, shimmer: 0, double: 0 }],
+          [robots[1].id, { reverb: 0, delay: 0, grit: 0, shimmer: 0, double: 0 }],
+          [robots[2].id, { reverb: 1, delay: 0.45, grit: 0, shimmer: 0.35, double: 0.42 }],
         ]);
       });
 
@@ -1985,8 +1990,8 @@ describe('spawnSystem', () => {
         expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
 
         expect(sendsSpy.mock.calls).toEqual([
-          [robots[0].id, { reverb: 0.3, delay: 0.1 }],
-          [robots[1].id, { reverb: 0.05, delay: 0.6 }],
+          [robots[0].id, { reverb: 0.3, delay: 0.1, grit: 0, shimmer: 0, double: 0 }],
+          [robots[1].id, { reverb: 0.05, delay: 0.6, grit: 0, shimmer: 0, double: 0 }],
         ]);
         expect(registerSpy).toHaveBeenCalledTimes(2);
       });

@@ -949,7 +949,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       // `panAuto: true` (above), so there is nothing to hand the engine (docs/specs/ROBOT_PAN.md §1.3).
       const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq, robotArticulation(robot));
       // The new voice's send gains start at 0; hand them the robot's own sends (docs/specs/ROBOT_SENDS.md §1.4).
-      AudioEngine.updateRobotSends(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+      AudioEngine.updateRobotSends(robot.id, {
+        reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
+      });
       // Prime this robot's seeded lane links into the bank engine now that it has a live voice to
       // connect against (docs/specs/LFO_BANK.md) — without this, seeded links sit in state, shown
       // in the UI, but never actually run until a user happens to edit one.
@@ -1108,7 +1110,9 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
         // so a manual robot is handed back (docs/specs/ROBOT_PAN.md §1.3).
         if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
         // Same for the sends: the rebuilt voice starts dry, every robot is handed its own back (docs/specs/ROBOT_SENDS.md §1.4).
-        AudioEngine.updateRobotSends(robot.id, { reverb: robot.reverbSend, delay: robot.delaySend });
+        AudioEngine.updateRobotSends(robot.id, {
+          reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
+        });
       }
     } catch (err) {
       if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: reserveVoice failed for', robot.id, err);

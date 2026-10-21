@@ -44,6 +44,15 @@ import { isAudioContextRunning } from '../engine/lfoShared';
 // FUNCTIONS
 // ========================================
 
+/** Each stored robot send and the updateRobotSends key that primes it (Robot Sends §1.4, Robot Effect Sends §1.4). */
+const SEND_PRIME_KEYS = [
+  ['reverbSend', 'reverb'],
+  ['delaySend', 'delay'],
+  ['gritSend', 'grit'],
+  ['shimmerSend', 'shimmer'],
+  ['doubleSend', 'double'],
+] as const;
+
 /** Structural equality over plain JSON-shaped values (numbers, strings, booleans, arrays, plain
  *  objects) — every field this module compares is one of those. Not a general-purpose deep-equal
  *  (no Date/Map/Set handling), since nothing in Robot/RobotAudioBaseline's audio-relevant fields
@@ -647,12 +656,11 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
       if (updates.panAuto === false) AudioEngine.updateRobotPan(updatedRobot.id, updatedRobot.pan);
       // Robot Sends: primes from the STORED values, and only the sends this diff carried (validated above).
       // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
-      if (updates.reverbSend !== undefined || updates.delaySend !== undefined) {
-        AudioEngine.updateRobotSends(updatedRobot.id, {
-          ...(updates.reverbSend !== undefined ? { reverb: updatedRobot.reverbSend } : {}),
-          ...(updates.delaySend !== undefined ? { delay: updatedRobot.delaySend } : {}),
-        });
-      }
+      // Robot Effect Sends T6: the five sends by one table, so a carried Grit, Shimmer or Double send is primed the same way.
+      const primes = Object.fromEntries(
+        SEND_PRIME_KEYS.filter(([field]) => updates[field] !== undefined).map(([field, key]) => [key, updatedRobot[field]]),
+      );
+      if (Object.keys(primes).length > 0) AudioEngine.updateRobotSends(updatedRobot.id, primes);
       // Robot Articulation: primes only the keys this diff carried and validated, from the stored robot.
       // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
       const { portamento, filterQ, filterType } = validArticulation(diff);
