@@ -36,6 +36,9 @@ const makeRobot = (id: string): Robot => ({
   panAuto: true,
   reverbSend: 0,
   delaySend: 0,
+  gritSend: 0,
+  shimmerSend: 0,
+  doubleSend: 0,
   docking: DockingState.Active,
   activity: 'exiting',
   batteryLevel: 100,
@@ -415,8 +418,9 @@ describe('localeStore', () => {
       });
     });
 
-    // Robot Sends T1 (docs/specs/ROBOT_SENDS.md section 1.1): both sends are stored 0..1 and fractional.
-    describe.each(['reverbSend', 'delaySend'] as const)('%s clamping (stored 0..1, fractional)', (field) => {
+    // Robot Sends T1 (docs/specs/ROBOT_SENDS.md section 1.1): both sends are stored 0..1 and fractional. Robot Effect Sends
+    // T5: so are the three effect room sends.
+    describe.each(['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const)('%s clamping (stored 0..1, fractional)', (field) => {
       const other = field === 'reverbSend' ? 'delaySend' : 'reverbSend';
       const robot0 = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
       const stored = () => robot0()[field];

@@ -92,7 +92,8 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['SEND_RAMP_SECONDS', 'src/engine/AudioEngine.ts', /const SEND_RAMP_SECONDS = /],
     ['the compositeVoices entry carries the reverb send node', 'src/engine/audioEngine/voiceEntry.ts', /\breverbSend: Tone\.Gain;/],
     ['the compositeVoices entry carries the delay send node', 'src/engine/audioEngine/voiceEntry.ts', /\bdelaySend: Tone\.Gain;/],
-    ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(robotId: string, sends: \{ reverb\?: number; delay\?: number \}\): void/],
+    // Robot Effect Sends T5 widened it with grit / shimmer / double (docs/specs/ROBOT_EFFECT_SENDS.md §1.4).
+    ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: \{ reverb\?: number; delay\?: number; grit\?: number; shimmer\?: number; double\?: number \},?\s*\): void/],
     ['the reverb return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalReverbReturn: Tone\.Gain \| null/],
     ['the delay return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalDelayReturn: Tone\.Gain \| null/],
     ['getGlobalReverbRoom', 'src/engine/audioEngine/globalFx.ts', /export function getGlobalReverbRoom\(\): Tone\.Reverb \| null/],

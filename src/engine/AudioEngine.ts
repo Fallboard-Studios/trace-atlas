@@ -31,11 +31,13 @@ import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
+import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
 import {
   buildGlobalFxChain,
   getGlobalChainEntry,
   getGlobalReverbRoom,
   getGlobalDelayRoom,
+  getGlobalRoomInput,
   waitForGlobalReverbReady,
   setMasterVolume,
   getMasterVolume,
@@ -187,8 +189,34 @@ const compositeVoices: Map<string, VoiceEntry> = new Map();
 /** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
 function storeVoice(robotId: string, entry: VoiceEntry): void {
   const previous = compositeVoices.get(robotId);
-  if (previous) disposeVoiceNodes(previous);
+  if (previous) {
+    disposeVoiceNodes(previous);
+    // The new voice's sends start at 0, so the robot feeds nothing until it is primed again.
+    unfeedRooms(robotId);
+  }
   compositeVoices.set(robotId, entry);
+}
+
+/**
+ * Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4, assumption 3): the reserved robots whose send into each
+ * effect room is above 0. A room is told (setRoomFed) only when its set becomes empty or non-empty, so a second feeder
+ * or a level change within the room costs no crossing. Runtime-only module state, never in a store.
+ */
+const roomFeeders: Record<RoomKey, Set<string>> = { grit: new Set(), shimmer: new Set(), double: new Set() };
+
+/** Add or remove `robotId` as a feeder of `key`'s room, telling the room when that flips whether anyone feeds it. */
+function setRoomFeeder(key: RoomKey, robotId: string, feeding: boolean): void {
+  const feeders = roomFeeders[key];
+  const was = feeders.size > 0;
+  if (feeding) feeders.add(robotId);
+  else feeders.delete(robotId);
+  const now = feeders.size > 0;
+  if (was !== now) setRoomFed(key, now);
+}
+
+/** A released (or replaced) voice feeds no room any more. */
+function unfeedRooms(robotId: string): void {
+  for (const key of ROOM_KEYS) setRoomFeeder(key, robotId, false);
 }
 
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
@@ -782,6 +810,10 @@ export const AudioEngine = {
       // The sends start at 0 (dry); every reservation site primes them from the store afterwards.
       const reverbSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
       const delaySend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
+      // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): one more send per effect room, in ROOM_KEYS order.
+      const gritSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
+      const shimmerSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
+      const doubleSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
       const busFilter = FilterCtor ? new FilterCtor({
         frequency: busCutoff,
         Q: resolveBusFilterQ(articulation?.filterQ),
@@ -813,11 +845,17 @@ export const AudioEngine = {
         if (reverbRoom) reverbSend.connect(reverbRoom);
         const delayRoom = getGlobalDelayRoom();
         if (delayRoom) delaySend.connect(delayRoom);
+        const roomSends: Record<RoomKey, Tone.Gain> = { grit: gritSend, shimmer: shimmerSend, double: doubleSend };
+        for (const key of ROOM_KEYS) {
+          busFilterOut.connect?.(roomSends[key]);
+          const input = getGlobalRoomInput(key);
+          if (input) roomSends[key].connect(input);
+        }
       } catch (e) {
         devWarn('[AudioEngine] send connection failed', e);
       }
 
-      storeVoice(robotId, { composite, panner, busGain, busFilter, reverbSend, delaySend });
+      storeVoice(robotId, { composite, panner, busGain, busFilter, reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -852,7 +890,10 @@ export const AudioEngine = {
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
       const reverbSend = makeStubGain(0) as unknown as Tone.Gain;
       const delaySend = makeStubGain(0) as unknown as Tone.Gain;
-      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, reverbSend, delaySend });
+      const gritSend = makeStubGain(0) as unknown as Tone.Gain;
+      const shimmerSend = makeStubGain(0) as unknown as Tone.Gain;
+      const doubleSend = makeStubGain(0) as unknown as Tone.Gain;
+      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
       return false;
     }
   },
@@ -863,6 +904,7 @@ export const AudioEngine = {
     if (!comp) return;
     disposeVoiceNodes(comp);
     compositeVoices.delete(robotId);
+    unfeedRooms(robotId);
     robotNoteIndex.delete(robotId);
     lastPanByRobot.delete(robotId);
     manualPanByRobot.delete(robotId);
@@ -1095,8 +1137,13 @@ export const AudioEngine = {
    * no sensible clamp), so one bad key never blocks the other. Ramps over SEND_RAMP_SECONDS on `rampTo` when the
    * live param supports it, else sets `.value` (headless). A safe no-op (devWarn, as updateRobotMasterVolume)
    * when no composite is reserved: the store already holds the value and every reservation site re-primes it.
+   * Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): `grit`, `shimmer` and `double` ramp the effect room
+   * sends the same way, and each also moves the robot in or out of its room's feeder set (roomFeeders).
    */
-  updateRobotSends(robotId: string, sends: { reverb?: number; delay?: number }): void {
+  updateRobotSends(
+    robotId: string,
+    sends: { reverb?: number; delay?: number; grit?: number; shimmer?: number; double?: number },
+  ): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
       devWarn(`[AudioEngine] updateRobotSends: no composite reserved for ${robotId}`);
@@ -1106,9 +1153,16 @@ export const AudioEngine = {
       if (requested === undefined || Number.isNaN(requested)) return;
       rampOrSet(send.gain as unknown as RampableParam, clampSend(requested), SEND_RAMP_SECONDS);
     };
+    const roomSends: Record<RoomKey, Tone.Gain> = { grit: entry.gritSend, shimmer: entry.shimmerSend, double: entry.doubleSend };
     try {
       write(entry.reverbSend, sends.reverb);
       write(entry.delaySend, sends.delay);
+      for (const key of ROOM_KEYS) {
+        const requested = sends[key];
+        if (requested === undefined || Number.isNaN(requested)) continue;
+        write(roomSends[key], requested);
+        setRoomFeeder(key, robotId, clampSend(requested) > 0);
+      }
     } catch (err) {
       devWarn('[AudioEngine] updateRobotSends failed', err);
     }

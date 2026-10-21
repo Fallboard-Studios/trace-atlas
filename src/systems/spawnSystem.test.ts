@@ -1072,6 +1072,18 @@ describe('spawnSystem', () => {
         }
       });
 
+      // Robot Effect Sends T5: the three effect room sends exist on every robot from spawn. They seed 0 until the seeded
+      // spread lands (plan T7), which replaces this expectation.
+      it('gives every spawned robot the three effect room sends, at 0 until the seeded spread lands', () => {
+        freshLocale('effect-sends-placeholder-locale');
+        for (let i = 0; i < 6; i++) spawnRobot('effect-sends-placeholder-locale');
+        const robots = useLocaleStore.getState().getLocaleById('effect-sends-placeholder-locale')!.robots;
+        expect(robots).toHaveLength(6);
+        for (const robot of robots) {
+          expect([robot.gritSend, robot.shimmerSend, robot.doubleSend], robot.id).toEqual([0, 0, 0]);
+        }
+      });
+
       it('gives robot N exactly what generateRobotSends draws at offset N - the stored value is the helper\'s, not a re-roll', () => {
         freshLocale('sends-offset-locale');
         for (let i = 0; i < 6; i++) spawnRobot('sends-offset-locale');

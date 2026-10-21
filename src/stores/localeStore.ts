@@ -211,7 +211,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           normalized.pan = Math.max(PAN_MIN, Math.min(PAN_MAX, normalized.pan));
         }
       }
-      for (const sendKey of ['reverbSend', 'delaySend'] as const) {
+      for (const sendKey of ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const) {
         const send = normalized[sendKey];
         if (typeof send === 'number') {
           // Fractional like pan, so no trunc; NaN is dropped and the stored value kept.

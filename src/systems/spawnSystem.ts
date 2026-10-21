@@ -919,6 +919,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     panAuto: true,
     // Robot Sends (docs/specs/ROBOT_SENDS.md §1.2): always its own draw, even on the copy branch.
     ...(noiseMap ? generateRobotSends(noiseMap, spawnCount) : generateRobotSendsFallback(localeId, spawnCount)),
+    // Robot Effect Sends: a placeholder at 0 until the seeded spread lands (docs/tasks/ROBOT_EFFECT_SENDS.md T7).
+    gritSend: 0,
+    shimmerSend: 0,
+    doubleSend: 0,
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',

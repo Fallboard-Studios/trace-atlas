@@ -1161,6 +1161,9 @@ describe('AudioEngine - Motif Group Accent', () => {
       panAuto: true,
       reverbSend: 0,
       delaySend: 0,
+      gritSend: 0,
+      shimmerSend: 0,
+      doubleSend: 0,
       melody: [],
       octaveRange: [3, 4] as [number, number],
       position: { x: 0, y: 0 },
@@ -1344,6 +1347,9 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       panAuto: true,
       reverbSend: 0,
       delaySend: 0,
+      gritSend: 0,
+      shimmerSend: 0,
+      doubleSend: 0,
       melody: [],
       octaveRange: overrides.octaveRange ?? ([3, 4] as [number, number]),
       position: { x: 0, y: 0 },
@@ -1441,9 +1447,10 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
   });
 });
 
-// reserveVoice builds its Gains in a fixed order: the layers' own, the bus gain, then the reverb and delay send
-// gains. The mocked Tone.Gain has no names, so these tests find the bus gain by its place from the end of that list.
-const BUS_GAIN_FROM_END = 3;
+// reserveVoice builds its Gains in a fixed order: the layers' own, the bus gain, then the reverb and delay send gains and the
+// three effect room sends (Robot Effect Sends T5). The mocked Tone.Gain has no names, so these tests find the bus gain by its
+// place from the end of that list.
+const BUS_GAIN_FROM_END = 6;
 
 describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per-note velocity', () => {
   beforeEach(() => {
@@ -1649,7 +1656,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
       robots: [{
         id: 'pan-recompute-robot', compositionSeed: 0.5, identityColor: '#428d95', gemSeed: 1, audioMode: 'none',
         audioAttributes: { adsr: TEST_ADSR, waveform: 'sine' as const, filterFreq: 100 },
-        masterVolume: 0.8, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0, melody: [], octaveRange: [3, 4] as [number, number],
+        masterVolume: 0.8, pan: 0, panAuto: true, reverbSend: 0, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the
         // Panner mock's own default pan.value of 0, so an unwanted write is detectable.
         position: { x: 0, y: 0 }, name: '',
@@ -3327,6 +3334,9 @@ describe('AudioEngine - reservation re-primes a manual pan from the store (Robot
     panAuto: true,
     reverbSend: 0,
     delaySend: 0,
+    gritSend: 0,
+    shimmerSend: 0,
+    doubleSend: 0,
     audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: LAYERS },
     ...extra,
   });
@@ -3836,9 +3846,9 @@ describe('AudioEngine.reserveVoice - the articulation traits add no Tone nodes',
   };
 
   // The baseline without the articulation traits: one Filter, one Panner and one Synth per audible layer; Gains are
-  // the composite output, one per audible layer, the bus gain, and the two send gains (Robot Sends T3, always built,
-  // at 0, whether or not the global rooms exist). The articulation traits add none of these.
-  const expectedFor = (layers: number) => ({ filter: 1, panner: 1, synth: layers, gain: layers + 4 });
+  // the composite output, one per audible layer, the bus gain, and the five send gains (Robot Sends T3 and Robot Effect Sends
+  // T5, always built, at 0, whether or not the global rooms exist). The articulation traits add none of these.
+  const expectedFor = (layers: number) => ({ filter: 1, panner: 1, synth: layers, gain: layers + 7 });
 
   it('builds today node counts for a plain two-layer reservation (the pinned baseline)', async () => {
     const { AudioEngine, constructions } = await load();
@@ -3916,8 +3926,9 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
     const { AudioEngine } = await import('./AudioEngine');
     if (options.start !== false) await AudioEngine.start();
 
-    /** Reserve a voice and pick out the two send gains it built: the Gains constructed at 0 (the mock ignores
-     *  its constructor argument, so the argument is the only honest marker), reverb first, then delay. */
+    /** Reserve a voice and pick out the send gains it built: the Gains constructed at 0 (the mock ignores its
+     *  constructor argument, so the argument is the only honest marker), in the order reverb, delay, then the three
+     *  effect room sends grit, shimmer, double (Robot Effect Sends T5). */
     const reserve = (id: string) => {
       const gainMock = (Tone.Gain as unknown as AnyMock).mock;
       const from = gainMock.calls.length;
@@ -3926,16 +3937,16 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
         .slice(from)
         .map((r: { value: unknown }) => r.value as FakeGain)
         .filter((_: FakeGain, i: number) => gainMock.calls[from + i][0] === 0);
-      return { reverb: sends[0], delay: sends[1], count: sends.length };
+      return { reverb: sends[0], delay: sends[1], grit: sends[2], shimmer: sends[3], double: sends[4], count: sends.length };
     };
     return { Tone, AudioEngine, reserve };
   }
 
   describe('reserveVoice', () => {
-    it('builds exactly two send gains, both constructed at 0 so a new robot starts dry', async () => {
+    it('builds exactly five send gains, all constructed at 0 so a new robot starts dry (Robot Effect Sends T5)', async () => {
       const { reserve } = await setup();
       const sends = reserve('r1');
-      expect(sends.count).toBe(2);
+      expect(sends.count).toBe(5);
       expect(sends.reverb).not.toBe(sends.delay);
     });
 
@@ -3974,13 +3985,13 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       const { AudioEngine, reserve } = await setup({ start: false });
       let sends!: ReturnType<typeof reserve>;
       expect(() => { sends = reserve('r1'); }).not.toThrow();
-      expect(sends.count).toBe(2);
+      expect(sends.count).toBe(5);
       expect(sends.reverb.connect).not.toHaveBeenCalled();
       expect(sends.delay.connect).not.toHaveBeenCalled();
       expect(() => AudioEngine.updateRobotSends('r1', { reverb: 0.5, delay: 0.5 })).not.toThrow();
     });
 
-    it('gives the stub-fallback voice two stub send gains at 0 when composite construction throws', async () => {
+    it('gives the stub-fallback voice five stub send gains at 0 when composite construction throws', async () => {
       const { AudioEngine } = await setup();
       const helpers = await import('./audioEngine/toneHelpers');
       const stubGain = vi.spyOn(helpers, 'makeStubGain');
@@ -3988,7 +3999,7 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
 
       expect(AudioEngine.reserveVoice('stubbed', LAYERS as any, TEST_ADSR)).toBe(false);
 
-      expect(stubGain.mock.calls.filter((c) => c[0] === 0)).toHaveLength(2);
+      expect(stubGain.mock.calls.filter((c) => c[0] === 0)).toHaveLength(5);
       expect(() => AudioEngine.updateRobotSends('stubbed', { reverb: 0.4, delay: 0.2 })).not.toThrow();
       expect(() => AudioEngine.releaseVoice('stubbed')).not.toThrow();
     });
@@ -4089,6 +4100,171 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
     });
   });
 
+  // Robot Effect Sends T5 (docs/specs/ROBOT_EFFECT_SENDS.md §1.4, assumption 3): three more send gains per voice, into the
+  // three effect rooms, and the engine's word on whether anyone feeds each room. setRoomFed is spied on (wrapping the real
+  // one, so the rooms still light) to count the calls: the engine tells a room only when its set of feeding robots goes
+  // from empty to non-empty or back.
+  describe('the effect room sends (Robot Effect Sends T5)', () => {
+    afterEach(() => {
+      vi.doUnmock('./audioEngine/bypassCell');
+    });
+
+    async function withFedSpy() {
+      vi.doMock('./audioEngine/bypassCell', async (importOriginal) => {
+        const actual = await importOriginal<typeof import('./audioEngine/bypassCell')>();
+        return { ...actual, setRoomFed: vi.fn(actual.setRoomFed) };
+      });
+      const ctx = await setup();
+      const cells = await import('./audioEngine/bypassCell');
+      const fed = vi.mocked(cells.setRoomFed);
+      fed.mockClear();
+      return { ...ctx, cells, fed };
+    }
+
+    it('builds five send gains at 0 and connects the three new ones to their rooms, the dry link to the chain kept', async () => {
+      const { Tone, reserve, cells } = await withFedSpy();
+      const sends = reserve('r1');
+      const busFilter = lastInstance(Tone.Filter);
+      expect(sends.count).toBe(5);
+      expect(new Set([sends.reverb, sends.delay, sends.grit, sends.shimmer, sends.double]).size).toBe(5);
+      for (const key of ['grit', 'shimmer', 'double'] as const) {
+        expect(busFilter.connect).toHaveBeenCalledWith(sends[key]);
+        expect(sends[key].connect).toHaveBeenCalledTimes(1);
+        expect(sends[key].connect).toHaveBeenCalledWith(cells.getRoom(key)!.in);
+      }
+      expect(busFilter.connect).toHaveBeenCalledWith(vi.mocked(Tone.Delay).mock.results.at(-10)?.value);
+    });
+
+    it('a robot with every send at 0 has no path into any room but through its five send gains', async () => {
+      const { Tone, reserve, cells } = await withFedSpy();
+      const a = reserve('a');
+      const everyNode = [Tone.Gain, Tone.Filter, Tone.Panner, Tone.Synth]
+        .flatMap((ctor) => (ctor as unknown as AnyMock).mock.results.map((r: { value: unknown }) => r.value as FakeGain));
+      const feeding = (room: unknown) => everyNode.filter((n) => n.connect.mock.calls.some((c: unknown[]) => c[0] === room));
+      expect(feeding(cells.getRoom('grit')!.in)).toEqual([a.grit]);
+      expect(feeding(cells.getRoom('shimmer')!.in)).toEqual([a.shimmer]);
+      expect(feeding(cells.getRoom('double')!.in)).toEqual([a.double]);
+    });
+
+    it('with the rooms absent (engine not started) connects none of the three and does not throw', async () => {
+      vi.doMock('./audioEngine/bypassCell', async (importOriginal) => importOriginal());
+      const { AudioEngine, reserve } = await setup({ start: false });
+      const sends = reserve('r1');
+      expect(sends.count).toBe(5);
+      for (const key of ['grit', 'shimmer', 'double'] as const) expect(sends[key].connect).not.toHaveBeenCalled();
+      expect(() => AudioEngine.updateRobotSends('r1', { grit: 0.5, shimmer: 0.5, double: 0.5 })).not.toThrow();
+    });
+
+    it('ramps only the grit gain for { grit } and feeds the Colour room once', async () => {
+      const { AudioEngine, reserve, fed } = await withFedSpy();
+      const sends = reserve('r1');
+      for (const key of ['reverb', 'delay', 'grit', 'shimmer', 'double'] as const) sends[key].gain.rampTo = vi.fn();
+      AudioEngine.updateRobotSends('r1', { grit: 0.3 });
+      expect(sends.grit.gain.rampTo).toHaveBeenCalledWith(0.3, 0.05);
+      for (const key of ['reverb', 'delay', 'shimmer', 'double'] as const) expect(sends[key].gain.rampTo).not.toHaveBeenCalled();
+      expect(fed.mock.calls).toEqual([['grit', true]]);
+    });
+
+    it('lights a Colour branch at its depth once a robot feeds the room, and darkens it when the last feeder stops', async () => {
+      const { AudioEngine, reserve, cells } = await withFedSpy();
+      const { setGlobalDistortion } = await import('./audioEngine/globalFx');
+      reserve('r1');
+      setGlobalDistortion({ wet: 0.5 });
+      expect(cells.getCell('distortion')!.connected).toBe(false);
+      AudioEngine.updateRobotSends('r1', { grit: 0.3 });
+      expect(cells.getRoom('grit')!.fed).toBe(true);
+      expect(cells.getCell('distortion')!.connected).toBe(true);
+      AudioEngine.updateRobotSends('r1', { grit: 0 });
+      expect(cells.getRoom('grit')!.fed).toBe(false);
+    });
+
+    it('a second robot feeding the same room adds no call; both back to 0 un-feed it once', async () => {
+      const { AudioEngine, reserve, fed } = await withFedSpy();
+      reserve('a');
+      reserve('b');
+      AudioEngine.updateRobotSends('a', { grit: 0.3 });
+      AudioEngine.updateRobotSends('b', { grit: 0.6 });
+      AudioEngine.updateRobotSends('a', { grit: 0.4 });
+      expect(fed.mock.calls).toEqual([['grit', true]]);
+      AudioEngine.updateRobotSends('a', { grit: 0 });
+      expect(fed.mock.calls).toEqual([['grit', true]]);
+      AudioEngine.updateRobotSends('b', { grit: 0 });
+      expect(fed.mock.calls).toEqual([['grit', true], ['grit', false]]);
+      AudioEngine.updateRobotSends('b', { grit: 0 });
+      expect(fed).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps one feeder set per room: Shimmer and Double are fed independently of Grit', async () => {
+      const { AudioEngine, reserve, fed } = await withFedSpy();
+      reserve('a');
+      AudioEngine.updateRobotSends('a', { shimmer: 0.2, double: 0.4 });
+      expect(fed.mock.calls).toEqual([['shimmer', true], ['double', true]]);
+      AudioEngine.updateRobotSends('a', { shimmer: 0 });
+      expect(fed.mock.calls.at(-1)).toEqual(['shimmer', false]);
+      expect(fed).toHaveBeenCalledTimes(3);
+    });
+
+    it('a Reverb or Delay send feeds no effect room', async () => {
+      const { AudioEngine, reserve, fed } = await withFedSpy();
+      reserve('a');
+      AudioEngine.updateRobotSends('a', { reverb: 0.5, delay: 0.5 });
+      expect(fed).not.toHaveBeenCalled();
+    });
+
+    it('clamps 7 to 1 and -2 to 0 on the new gains; a NaN is ignored and changes no feeder set', async () => {
+      const { AudioEngine, reserve, fed } = await withFedSpy();
+      const sends = reserve('a');
+      sends.grit.gain.rampTo = vi.fn();
+      sends.shimmer.gain.rampTo = vi.fn();
+      sends.double.gain.rampTo = vi.fn();
+      AudioEngine.updateRobotSends('a', { grit: 7, shimmer: -2, double: NaN });
+      expect(sends.grit.gain.rampTo).toHaveBeenCalledWith(1, 0.05);
+      expect(sends.shimmer.gain.rampTo).toHaveBeenCalledWith(0, 0.05);
+      expect(sends.double.gain.rampTo).not.toHaveBeenCalled();
+      expect(fed.mock.calls).toEqual([['grit', true]]);
+    });
+
+    it('with no composite reserved feeds nothing and does not throw', async () => {
+      const { AudioEngine, fed, cells } = await withFedSpy();
+      expect(() => AudioEngine.updateRobotSends('never-reserved', { grit: 0.5 })).not.toThrow();
+      expect(fed).not.toHaveBeenCalled();
+      expect(cells.getRoom('grit')!.fed).toBe(false);
+    });
+
+    it('releaseVoice disposes all five sends and un-feeds every room the robot was the last feeder of', async () => {
+      const { AudioEngine, reserve, fed } = await withFedSpy();
+      const a = reserve('a');
+      reserve('b');
+      for (const key of ['reverb', 'delay', 'grit', 'shimmer', 'double'] as const) a[key].dispose = vi.fn();
+      AudioEngine.updateRobotSends('a', { grit: 0.3, double: 0.2 });
+      AudioEngine.updateRobotSends('b', { double: 0.5 });
+      fed.mockClear();
+
+      AudioEngine.releaseVoice('a');
+
+      for (const key of ['reverb', 'delay', 'grit', 'shimmer', 'double'] as const) {
+        expect(a[key].disconnect, key).toHaveBeenCalled();
+        expect(a[key].dispose, key).toHaveBeenCalled();
+      }
+      expect(fed.mock.calls).toEqual([['grit', false]]);
+      AudioEngine.releaseVoice('b');
+      expect(fed.mock.calls).toEqual([['grit', false], ['double', false]]);
+    });
+
+    // A robot reserved and primed before the engine starts is re-reserved by the post-load pass once the rooms exist. The
+    // replaced voice must leave the feeder sets, or the fresh room (built unfed) never hears the set go non-empty.
+    it('re-reserving a feeding robot un-feeds it first, so its re-prime feeds the room again', async () => {
+      const { AudioEngine, reserve, fed, cells } = await withFedSpy();
+      reserve('a');
+      AudioEngine.updateRobotSends('a', { grit: 0.3 });
+      reserve('a');
+      expect(fed.mock.calls).toEqual([['grit', true], ['grit', false]]);
+      expect(cells.getRoom('grit')!.fed).toBe(false);
+      AudioEngine.updateRobotSends('a', { grit: 0.3 });
+      expect(cells.getRoom('grit')!.fed).toBe(true);
+    });
+  });
+
   describe('release and re-reservation', () => {
     it('releaseVoice disconnects and disposes both send gains', async () => {
       const { AudioEngine, reserve } = await setup();
@@ -4182,6 +4358,9 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
     panAuto: true,
     reverbSend: 0,
     delaySend: 0,
+    gritSend: 0,
+    shimmerSend: 0,
+    doubleSend: 0,
     audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100, layers: LAYERS },
     ...extra,
   });
