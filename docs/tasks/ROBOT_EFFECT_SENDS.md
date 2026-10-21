@@ -17,6 +17,10 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > Return > 0; Q6 Chorus/Shifter stay under Modulation, Colour gains a Room sub-tab; Q7 accept as specced (Q2 and Q5 were
 > answered at the spec). The build branch is **`feature/robot-effect-sends`** (Crawford's, off `main` at `2dc5b4a2`),
 > not the proposed `feature/palette-effect-sends` named above.
+>
+> **Status, 2026-10-21: Phase 1 (T1–T8) BUILT** on `feature/robot-effect-sends`, one commit per task (`a2991039` to
+> `0de3fc06`). Types, lint and the full suite are clean. **Next: Checkpoint A** — the dev-server and by-ear checks and Crawford's
+> review, before Phase 2. Deviations from the plan are recorded under "Phase 1 as shipped" after Checkpoint A.
 
 ## Overview
 
@@ -314,11 +318,38 @@ Tremolo and Vibrato measured shares (expected 22.2 % / 19.4 %); `transmissionPre
 **Scope:** M.
 
 ### Checkpoint A: Engine and data
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `0de3fc06`: 13 548 tests, lint 0 errors).
 - [ ] A fresh world in the dev server: the `?debug` HUD's `fx in` counts lit branches; a world with a Grit robot shows
   the Distortion (or whichever node the character lit) connected, a world with none shows it out; the dry chain is seven
   stages (read from `wireGlobalFxChain`'s connections in the test, and by ear: the Vibrato and Tremolo still work).
 - [ ] Reviewed with Crawford before Phase 2.
+
+#### Phase 1 as shipped (2026-10-21)
+
+Every task RED first, one commit each, with a mutation check (every named gate killed; extra mutants listed in each
+commit message). The deviations and findings, task by task:
+
+- **T1.** `SEND_DELAY_QUIET_THRESHOLD` is deleted, so `robotSendsDocs.test.ts` now lists it among the names a doc may cite
+  that are not in source (`AUDIO_SYSTEM.md`, `ROBOT_DATA_GRID.md`, `SLIDER_VALUES.md` still cite it; T22 rewrites them).
+  The parity test pins two twelve-robot rosters (`effect-sends-parity-a` / `-b`) recorded on `ad1b37c1`.
+- **T2.** The stub `setGlobalColourRoom` writes nothing, so its clamp is unobservable until T4; the 7 → 1 and NaN cases
+  are pinned there. `globalAudio.test.ts`'s key-order test now has `colourRoom` between `bitCrusher` and `autoWah`.
+- **T3.** A branch whose effect is null (constructor threw) is not built (a room has no dry path to keep); `cellSpan` is
+  null for a branch; `wireCells` also makes each room's `cut → return`.
+- **T4.** The build makes **ten** zero-delay Delays (two cuts, three rooms, five chain cells), not the fifteen spec §5
+  states (an arithmetic slip). `globalFx.test.ts` finds cells through the live `bypassCell` module instead of by Gain
+  build order; the Chorus Spread de-click suite drives the Double room (Return and feed); the "duck splits into chords"
+  case moved to the Tremolo, since a branch's linear law is one ramp (a new case pins that).
+- **T5.** Found and fixed: a voice **replaced** by a re-reservation must leave the feeder sets like a released one, or a
+  robot primed before the engine starts (no room yet) never feeds the room built at start. Pinned by a test.
+- **T6.** The restore primes by one `SEND_PRIME_KEYS` table, but the session diff carries Grit, Shimmer and Double only
+  from T15, so until then a restore primes Reverb and Delay only.
+- **T7.** Fallback `alea` keys are `sendGritLit` / `sendGrit` / … (the spec's `sendColour…`). Calibration measured on the
+  150 test worlds: Grit 2.50, Shimmer 1.62, Double 1.55 per fleet, no Grit in 7.3 % of fleets (2 000 other worlds: 2.53 /
+  1.52 / 1.51, 6.0 %). Nominal is 2.52 / 1.52 / 1.51; assumption 7's "Double 1.4" was a slip.
+- **T8.** The oracles moved by the four `wet`s only (Chorus and shifter → 1): oracle-alpha's Chorus already had its Sync,
+  oracle-theta's Chorus Sync roll is over its odds, and no Tremolo / Vibrato lighting moved. Measured over 20 000 styles:
+  Tremolo 22.04 %, Vibrato 19.55 %, two lit in 33.20 % of worlds and never more, the Chorus synced in 49.51 % of all worlds.
 
 ## Phase 2: The robot-screen slice
 
@@ -369,7 +400,7 @@ handlers through the actions (the swell cancel is added in T13).
 `src/components/panels/screen/screens/RobotScreen.tsx` (+ test). **Scope:** M.
 
 ### Checkpoint B: One robot, end to end
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `0de3fc06`: 13 548 tests, lint 0 errors).
 - [ ] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
   robot brings the shifter in with no click; Delay-side behaviour unchanged.
 - [ ] Reviewed with Crawford before Phase 3.
