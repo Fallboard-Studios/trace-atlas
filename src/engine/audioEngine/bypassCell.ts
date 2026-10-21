@@ -25,18 +25,21 @@ export function colourWetGain(mix: number): number {
   return mix * mix;
 }
 
-/** The ten global effects that sit in a bypass cell and leave the signal path while dark. */
-export type BypassKey =
-  | 'distortion'
-  | 'chebyshev'
-  | 'bitCrusher'
-  | 'autoWah'
-  | 'phaser'
-  | 'chorus'
-  | 'tremolo'
-  | 'vibrato'
-  | 'frequencyShifter'
-  | 'stereoWidener';
+/** The ten global effects that sit in a bypass cell and leave the signal path while dark, in chain order. The `?debug`
+ *  HUD's ` · fx in n/10` token takes its denominator from here. */
+export const BYPASS_KEYS = [
+  'distortion',
+  'chebyshev',
+  'bitCrusher',
+  'autoWah',
+  'phaser',
+  'chorus',
+  'tremolo',
+  'vibrato',
+  'frequencyShifter',
+  'stereoWidener',
+] as const;
+export type BypassKey = (typeof BYPASS_KEYS)[number];
 
 /** One effect's bypass cell: `in` -> `dry` -> `cut`, and `in` -> effect -> `wet` -> `cut`. The effect's two edges
  *  exist only while it is lit, and are made and broken only while `wet` is at zero. */

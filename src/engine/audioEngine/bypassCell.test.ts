@@ -6,6 +6,22 @@ vi.mock('tone', () => ({}));
 vi.mock('@/utils/helpers', () => ({ devWarn: vi.fn() }));
 
 describe('bypassCell', () => {
+  it('lists the ten bypass effects once each, in chain order', async () => {
+    const { BYPASS_KEYS } = await import('./bypassCell');
+    expect([...BYPASS_KEYS]).toStrictEqual([
+      'distortion',
+      'chebyshev',
+      'bitCrusher',
+      'autoWah',
+      'phaser',
+      'chorus',
+      'tremolo',
+      'vibrato',
+      'frequencyShifter',
+      'stereoWidener',
+    ]);
+  });
+
   // Mix is tapered (docs/specs/GLOBAL_COLOUR.md, as built after the Pixel listen, 2026-10-15): the three
   // saturators were far too strong across most of the slider, so the stored 0-1 Mix reaches the node squared.
   describe('Mix taper (colourWetGain)', () => {

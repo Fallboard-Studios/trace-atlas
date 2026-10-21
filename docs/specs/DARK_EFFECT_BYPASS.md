@@ -551,7 +551,7 @@ All of it is in `src/engine/audioEngine/globalFx.ts`.
   `connectEffect` fresh, only if lit) and no longer calls `wireGlobalFxChain`. A lit Stages change is ducked
   (`writePhaserStages` / `finishPhaserDuck` / `resetPhaserDuck`, §8.2).
 - **The HUD token.** `getConnectedEffectCount()`, read straight from `globalFx` (its unused `AudioEngine` re-export went at the branch review), feeds the diagnostics snapshot's
-  `fxConnected`, shown as ` · fx in n/10` on the budget line (`BYPASS_EFFECT_COUNT` in `hudLines.ts`).
+  `fxConnected`, shown as ` · fx in n/10` on the budget line (`BYPASS_EFFECT_COUNT` in `hudLines.ts`; since the branch review `BYPASS_KEYS.length`, from `bypassCell.ts`).
 - **Failure paths.**
   - An absent effect constructor gets no cell. A throwing one gets an empty dry cell. A failed cell releases its
     effect.
@@ -837,3 +837,6 @@ The branch review (main...68aecb8b) asked for these; behaviour is unchanged exce
   against Tone 15's `Param.js`: `rampTo` runs `setRampPoint`, a `cancelAndHoldAtTime` at its start, so a ramp cut short
   by the next one stays continuous and drops the chords still scheduled. Seven mutants, all killed. **Not re-measured
   in a real-time context:** T11's crossing probe was not re-run, and nobody has listened to it yet.
+- **Item 6, the HUD's `/10`.** `bypassCell.ts` exports `BYPASS_KEYS`, the ten in chain order, and `BypassKey` is
+  derived from it; the HUD's ` · fx in n/10` takes its denominator from `BYPASS_KEYS.length` (`BYPASS_EFFECT_COUNT`
+  is gone), and a test holds that `buildGlobalFxChain` builds a cell for every entry.

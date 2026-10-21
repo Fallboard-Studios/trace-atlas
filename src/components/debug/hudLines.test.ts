@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { buildHudLines, hudStatus } from './hudLines';
+import { BYPASS_KEYS } from '../../engine/audioEngine/bypassCell';
 import { initDiagState, type DiagState } from '../../utils/audioHealth';
 import type { DiagInfo, DiagSnapshot } from '../../engine/audioDiagnostics';
 
@@ -221,6 +222,11 @@ describe('buildHudLines', () => {
           expect(line).toMatch(/ · fx in -\/10$/);
           expect(line).not.toMatch(/NaN|null|undefined|Infinity/);
         }
+      });
+
+      it('takes its denominator from BYPASS_KEYS, the list the engine builds its cells from', () => {
+        expect(BYPASS_KEYS).toHaveLength(10);
+        expect(capsLine({ fxConnected: 1 })).toMatch(new RegExp(` · fx in 1/${BYPASS_KEYS.length}$`));
       });
 
       it('moves nothing else on the line', () => {

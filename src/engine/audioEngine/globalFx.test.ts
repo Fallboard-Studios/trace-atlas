@@ -607,6 +607,13 @@ describe('globalFx', () => {
       },
     );
 
+    it('builds a cell for every BYPASS_KEYS entry, so the HUD denominator counts the cells there are', async () => {
+      const globalFx = await import('./globalFx');
+      const { BYPASS_KEYS, getCell } = await import('./bypassCell');
+      globalFx.buildGlobalFxChain();
+      for (const key of BYPASS_KEYS) expect(getCell(key)?.effect, key).toBeTruthy();
+    });
+
     it('gives each effect its own cell', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
