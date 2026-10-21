@@ -36,11 +36,11 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | High-Pass Filter (Tone.Filter, highpass) | frequency (Hz) | global | dry stage | 20 | 20 | 20000 | 20 | 120 | slider log | | bell draw | LFO link + swell target; ramps 50 ms; same gate |
 | High-Pass Filter | Q | global | dry stage | 1 | 0.1 | 20 | 0.1 | 5 | slider log | | bell draw | LFO link + swell target; same gate |
 | Distortion (Tone.Distortion) | amount, Tone `distortion` | global | dry stage | 0.3 | 0 | 1 | 0.1 | 0.35 | slider, step 0.01 | | always drawn | direct write (rebuilds the shaper map); `oversample` fixed at `'none'` |
-| Distortion | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.2 | 0.3 | slider, step 0.01 | | one Colour character draw: clean / drive / fold / crush, ≈25 % each (`COLOUR_CHARACTER_BANDS`); at most one colour lit; dark seeds 0 | node gets wet²; ramps 50 ms; seeded ceiling `COLOUR_LOAD_MIX_MAX` 0.35 |
+| Distortion | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | one Colour character draw: clean / drive / fold / crush, ≈25 % each (`COLOUR_CHARACTER_BANDS`); at most one colour lit; dark seeds 0 | node gets wet²; ramps 50 ms; seeded ceiling `COLOUR_LOAD_MIX_MAX` 0.25 |
 | Chebyshev (Tone.Chebyshev) | order | global | dry stage | 2 | 1 | 8 | 2 | 5 | slider, step 1 | | always drawn | direct write; 1 passes unchanged; Tone allows 100, capped at 8 |
-| Chebyshev | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.25 | 0.35 | slider, step 0.01 | | lit only when the character is `fold` | node gets wet²; ramps 50 ms |
+| Chebyshev | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | lit only when the character is `fold` | node gets wet²; ramps 50 ms |
 | BitCrusher (Tone.BitCrusher, AudioWorklet) | bits | global | dry stage | 8 | 1 | 16 | 6 | 10 | slider, step 1 | | always drawn | ramps 50 ms; if the browser refuses the worklet the slot is skipped |
-| BitCrusher | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.25 | 0.35 | slider, step 0.01 | | lit only when the character is `crush` | node gets wet²; ramps 50 ms |
+| BitCrusher | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | lit only when the character is `crush` | node gets wet²; ramps 50 ms |
 | AutoWah (Tone.AutoWah) | baseFrequency (Hz) | global | dry stage | 100 | 50 | 1000 | 50 | 250 | slider log | | always drawn, uniform | plain property in Tone 15 |
 | AutoWah | octaves | global | dry stage | 6 | 1 | 8 | 2.5 | 5 | slider, step 0.5 | | uniform | plain property |
 | AutoWah | sensitivity (dB) | global | dry stage | 0 | −40 | 0 | −20 | −5 | slider, step 1 | | uniform | plain property |

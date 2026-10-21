@@ -38,13 +38,14 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'compressor.knee': { min: 1, max: 15 },
   'limiter.threshold': { min: -3, max: -1 },
   // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14;
-  // the three Mix bands retuned by Classic Band Retune T2 (Decision 1 = B, 2026-10-21).
+  // the three Mix bands retuned by Classic Band Retune T2 (0.2-0.3 / 0.25-0.35) and then, after Crawford's listen
+  // (Checkpoint B, 2026-10-21: "much more subtle"), to one shared 0.1-0.2.
   'distortion.amount': { min: 0.1, max: 0.35 },
-  'distortion.wet': { min: 0.2, max: 0.3 },
+  'distortion.wet': { min: 0.1, max: 0.2 },
   'chebyshev.order': { min: 2, max: 5 },
-  'chebyshev.wet': { min: 0.25, max: 0.35 },
+  'chebyshev.wet': { min: 0.1, max: 0.2 },
   'bitCrusher.bits': { min: 6, max: 10 },
-  'bitCrusher.wet': { min: 0.25, max: 0.35 },
+  'bitCrusher.wet': { min: 0.1, max: 0.2 },
   // Global Modulation T2 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the lit bands, retuned by Crawford's recommended ranges at T16 (2026-10-15).
   'autoWah.baseFrequency': { min: 50, max: 250 },
   'autoWah.octaves': { min: 2.5, max: 5 },
@@ -123,26 +124,28 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   // Colour room, so the fleet-wide Pixel protection the 0.25 gave stops applying. A fresh world seeds the Mix as a slider
   // position, so the ceiling is on the band the seed draws from. Saved sessions and share links carry whatever was
   // hand-set and are not clamped to it.
-  it('holds the colour Mix ceiling at 0.35 and never lets a colour wet band top out above it', () => {
-    expect(COLOUR_LOAD_MIX_MAX).toBe(0.35);
+  it('holds the colour Mix ceiling back at 0.25 and never lets a colour wet band top out above it', () => {
+    expect(COLOUR_LOAD_MIX_MAX).toBe(0.25);
     for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
       expect(GLOBAL_AUDIO_LOADING_RANGES[key].max, key).toBeLessThanOrEqual(COLOUR_LOAD_MIX_MAX);
     }
   });
 
-  // The floors rose for the squared-slider reason (docs/tasks/CLASSIC_BAND_RETUNE.md §1): the wet layer is
-  // sin(pi/2 * mix^2), so 0.05 was -48 dB, 0.1 was -36 dB and 0.15 -29 dB. No lit colour floor is below -24.5 dB now.
-  it('keeps every lit colour Mix floor audible: the wet layer at the band floor is no quieter than -24.5 dB', () => {
+  // Crawford's listen (Checkpoint B, 2026-10-21): the 0.2-0.35 bands were far too strong, "much more subtle". The wet layer
+  // is sin(pi/2 * mix^2) (docs/tasks/CLASSIC_BAND_RETUNE.md §1): 0.1 is -36 dB, 0.15 -29 dB, 0.2 -24 dB, 0.3 -17 dB, 0.35 -14 dB.
+  // So no lit colour effect may seed a wet layer above -23.5 dB, and none below -36.5 dB (a lit effect is still there).
+  it('keeps every lit colour Mix subtle: the wet layer is between -36.5 dB at the floor and -23.5 dB at the ceiling', () => {
     const wetLayerDb = (mix: number) => 20 * Math.log10(Math.sin((Math.PI / 2) * mix * mix));
     for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
-      expect(wetLayerDb(GLOBAL_AUDIO_LOADING_RANGES[key].min), key).toBeGreaterThanOrEqual(-24.5);
+      expect(wetLayerDb(GLOBAL_AUDIO_LOADING_RANGES[key].min), `${key} floor`).toBeGreaterThanOrEqual(-36.5);
+      expect(wetLayerDb(GLOBAL_AUDIO_LOADING_RANGES[key].max), `${key} ceiling`).toBeLessThanOrEqual(-23.5);
     }
   });
 
-  // Reverses Global Colour T14's "keep those ones lower" (Crawford, 2026-10-15): Classic Band Retune row 4 seeds Chebyshev
-  // and Bit Crusher at 0.25-0.35 because two of the four characters otherwise seeded an effect nobody could hear, and
-  // Distortion 0.2-0.3 (row 3). Chebyshev and Bit Crusher share one band; neither is narrower than a 0.05 spread.
-  it('seeds Chebyshev and Bit Crusher from one shared band, and every colour band is a real band at least 0.05 wide', () => {
+  // One band for all three (Crawford, 2026-10-21): the first retune split them, Distortion lower, with Chebyshev and Bit
+  // Crusher above it, and he found every one too loud. Each band is a real band at least 0.05 wide.
+  it('seeds all three colour Mixes from one shared band, and every colour band is a real band at least 0.05 wide', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['distortion.wet']).toStrictEqual(GLOBAL_AUDIO_LOADING_RANGES['chebyshev.wet']);
     expect(GLOBAL_AUDIO_LOADING_RANGES['chebyshev.wet']).toStrictEqual(GLOBAL_AUDIO_LOADING_RANGES['bitCrusher.wet']);
     for (const key of ['distortion.wet', 'chebyshev.wet', 'bitCrusher.wet'] as const) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];

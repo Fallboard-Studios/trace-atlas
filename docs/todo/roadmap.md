@@ -1502,7 +1502,7 @@ app does not use yet.
 within, after 50.1–50.6 and before Robot Effect Sends (proposed 50.7), whose room bands are written against it. Plan, decisions and
 measurements: [CLASSIC_BAND_RETUNE.md](tasks/CLASSIC_BAND_RETUNE.md). A Mix is stored as a slider position and squared at the node,
 so the bottom third of every Mix slider is near silence (a wet layer of −48 dB at 0.05, −20 dB at 0.25); the floors rose, the
-ceilings from the listens stayed, and the colour ceiling went from 0.25 to 0.35. Also: Vibrato at near-full wet and a small depth,
+ceilings from the listens stayed, and the three colour Mixes, after a first raise to 0.2–0.35, ended at one shared 0.1–0.2 under the original 0.25 ceiling (Crawford's listen: "much more subtle"). Also: Vibrato at near-full wet and a small depth,
 AutoWah sensitivity −20 to −5 dB, Chorus delay 6–15 ms, high-pass cutoff 20–120 Hz, Tremolo Sync odds 0.75 (PEDAL_SYNC_ODDS is
 per pedal), Reverb pre-delay 0–0.25 s with a clamp in setGlobalReverb, the per-robot Reverb send 0.1–0.6, and the Compressor
 −36 to −18 dB at 2–6:1 (the Web Audio compressor adds automatic makeup gain, so the old deep band swung fleet loudness by about

@@ -471,10 +471,11 @@ describe('the colour character (Global Colour)', () => {
     // table, so a future change to the draw or the quantiser cannot slip a loud Mix past a correct band.
     // These three loops generate 3 000 whole worlds each; Global Pedals T8 doubled a world's draw count (about 1 s -> 2 s
     // alone), which crossed vitest's 5 s default under the parallel full suite, so each carries its own timeout.
-    // Classic Band Retune T2 (Decision 1 = B, 2026-10-21): the ceiling is 0.35 now, and a lit node's floor is 0.2 (Distortion)
-    // or 0.25 (Chebyshev, Bit Crusher). Literal numbers: these hold the seeder to the plan, not to the table.
-    it('never seeds a colour Mix above 0.35, and a lit one never below its floor (0.2 Distortion, 0.25 Chebyshev and Bit Crusher), over 3000 styles', () => {
-      const floors = { distortion: 0.2, chebyshev: 0.25, bitCrusher: 0.25 } as const;
+    // Classic Band Retune T2 raised the ceiling to 0.35 (Decision 1 = B); Crawford's listen (Checkpoint B, 2026-10-21, "much
+    // more subtle") put every colour Mix in one band, 0.1 to 0.2, under the original 0.25 ceiling. Literal numbers: these hold
+    // the seeder to that, not to the table.
+    it('never seeds a colour Mix above 0.2, and a lit one never below 0.1, over 3000 styles', () => {
+      const floors = { distortion: 0.1, chebyshev: 0.1, bitCrusher: 0.1 } as const;
       let litSeen = 0;
       let highest = 0;
       let lowestLit = 1;
@@ -482,7 +483,7 @@ describe('the colour character (Global Colour)', () => {
         const s = generateGlobalAudioSettings(`colour-ceiling-${i}`, `ColourCeiling${i}`);
         for (const node of NODE_KEYS) {
           highest = Math.max(highest, s[node].wet);
-          expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(0.35 + 1e-9);
+          expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(0.2 + 1e-9);
           if (s[node].wet > 0) {
             litSeen += 1;
             lowestLit = Math.min(lowestLit, s[node].wet);
@@ -491,8 +492,8 @@ describe('the colour character (Global Colour)', () => {
         }
       }
       expect(litSeen, 'the sample really contained lit nodes').toBeGreaterThan(1000);
-      expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.3);
-      expect(lowestLit, 'the bottom of the band is reachable').toBeLessThan(0.3);
+      expect(highest, 'the top of the band is reachable, not an accidental cap at zero').toBeGreaterThan(0.18);
+      expect(lowestLit, 'the bottom of the band is reachable').toBeLessThan(0.12);
     }, 30000);
 
     it('lights at most one node in any world, over 3000 styles (never two, never three)', () => {
@@ -2122,6 +2123,10 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // theta chebyshev.wet t 0.2596 -> 0.25 + 0.10 * t = 0.2760 -> 0.28 (was 0.08). The old band 0.05 + 0.10 * t reproduces
 // 0.1307 and 0.0760, which is the check. Nothing else moved.
 //
+// AMENDED BY HAND AGAIN, Classic Band Retune after Crawford's listen (Checkpoint B, 2026-10-21, "much more subtle"): all three
+// colour Mix bands became one shared 0.10-0.20, so the same two lit wets moved from the same raw draws: alpha bitCrusher.wet
+// t 0.8067 -> 0.10 + 0.10 * t = 0.1807 -> 0.18 (was 0.33); theta chebyshev.wet t 0.2596 -> 0.1260 -> 0.13 (was 0.28).
+//
 // AMENDED BY HAND, Classic Band Retune T6 (Crawford: "retune as proposed", 2026-10-21): the Compressor's threshold and ratio
 // bands moved to -36 to -18 dB and 2 to 6 (plain draws, whole-number grids anchored at the full range's -60 and 1). From the
 // same raw draws: alpha threshold t 0.7558 -> -36 + 18 * t = -22.40 -> -22 (was -47), ratio t 0.7303 -> 2 + 4 * t = 4.92 -> 5
@@ -2149,7 +2154,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
-      bitCrusher: { bits: 9, wet: 0.33 },
+      bitCrusher: { bits: 9, wet: 0.18 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
       autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
@@ -2188,7 +2193,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       filterHPF: { type: 'highpass', frequency: 62.95985983853713, Q: 0.893615040856134 },
       // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
       distortion: { amount: 0.26, wet: 0 },
-      chebyshev: { order: 3, wet: 0.28 },
+      chebyshev: { order: 3, wet: 0.13 },
       bitCrusher: { bits: 8, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
