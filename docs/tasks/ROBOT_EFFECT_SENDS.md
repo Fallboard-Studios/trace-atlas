@@ -21,6 +21,12 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > **Status, 2026-10-21: Phase 1 (T1–T8) BUILT** on `feature/robot-effect-sends`, one commit per task (`a2991039` to
 > `0de3fc06`). Types, lint and the full suite are clean. **Next: Checkpoint A** — the dev-server and by-ear checks and Crawford's
 > review, before Phase 2. Deviations from the plan are recorded under "Phase 1 as shipped" after Checkpoint A.
+> Checkpoint A passed (Crawford, 2026-10-21).
+>
+> **Status, 2026-10-21: Phase 2 (T9–T11) BUILT**, one commit per task (`0bc261ce`, `67941c69`, `483d7730`). Types and
+> lint are clean; the full suite is 13 708 green plus the documented `sceneToOrbiterLocal` 5 s timeout. **Next:
+> Checkpoint B** — the dev-server by-ear checks and Crawford's review, before Phase 3. Deviations are under "Phase 2 as
+> shipped" after Checkpoint B.
 
 ## Overview
 
@@ -319,10 +325,10 @@ Tremolo and Vibrato measured shares (expected 22.2 % / 19.4 %); `transmissionPre
 
 ### Checkpoint A: Engine and data
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `0de3fc06`: 13 548 tests, lint 0 errors).
-- [ ] A fresh world in the dev server: the `?debug` HUD's `fx in` counts lit branches; a world with a Grit robot shows
+- [x] A fresh world in the dev server: the `?debug` HUD's `fx in` counts lit branches; a world with a Grit robot shows
   the Distortion (or whichever node the character lit) connected, a world with none shows it out; the dry chain is seven
   stages (read from `wireGlobalFxChain`'s connections in the test, and by ear: the Vibrato and Tremolo still work).
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] Reviewed with Crawford before Phase 2.
 
 #### Phase 1 as shipped (2026-10-21)
 
@@ -400,10 +406,30 @@ handlers through the actions (the swell cancel is added in T13).
 `src/components/panels/screen/screens/RobotScreen.tsx` (+ test). **Scope:** M.
 
 ### Checkpoint B: One robot, end to end
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `483d7730`: 13 708 tests plus the documented
+  `sceneToOrbiterLocal` timeout, which passes alone; lint 0 errors).
 - [ ] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
   robot brings the shifter in with no click; Delay-side behaviour unchanged.
 - [ ] Reviewed with Crawford before Phase 3.
+
+#### Phase 2 as shipped (2026-10-21)
+
+Every task RED first, one commit each, with a mutation check (the mutants are listed in each commit message, all
+caught).
+
+- **T9.** As planned: six actions on the `applyReverbSend` pair. The send action tests now run over all five sends, with
+  every field seeded at a distinct value, and assert that a write touches only its own field and engine key.
+- **T10.** `fleet.colourRoom` and `fleet.colourRoom.amount` are **not** added here. Nothing reads them until T17's
+  `colourRoom` block, so the content guard would need an `AWAITING_CONSUMER` exemption, and T10's criterion says no
+  exemptions. **T17 adds both keys with their reader.** The Chorus and Shifter rows read "Return" (spec assumption 14);
+  the pedals copy test's shared-name sets split into four Mixes and two Returns. Not changed, and still out of date: the
+  three Colour Mix help strings ("blended in with the clean sound") describe a stage, not a branch of a room. That is
+  outside spec §1.8; left for the copy pass or T22.
+- **T11.** The three values and handlers are **optional** on `AudioSettingSection`, and a row renders only when its value
+  and its handler are both given. The company screen renders the same section and is wired in T14 (whose criterion is
+  "the company screen shows the three rows"), so until then it shows none. **T14 can make the six props required.** The
+  three swelling props exist and are tested (snap vs ease); `RobotScreen` passes them in T13. Dynamics stays the last row,
+  after Double.
 
 ## Phase 3: Swells, companies, persistence
 
