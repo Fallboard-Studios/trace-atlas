@@ -857,3 +857,36 @@ This session's files, in its scratchpad
 `probe.mjs` (T0's probe plus the traced crossing), `run.sh` (one run per call, with the Chrome count),
 `r1`–`r3-branch|before.json`, `two-lit.txt` / `session.enc` (T0's payload), and `vite.t13.config.mjs` (the
 worktree's config, copied out). Both servers were stopped and the worktree removed after the runs.
+
+## Dark-Effect Bypass on the Pixel — round 3 (T14), Crawford's runs, 2026-10-20
+
+T14 of docs/tasks/DARK_EFFECT_BYPASS.md. `main` at `d29ac778` was served on port 4173 (the round-2 worktree,
+rebuilt). The branch `feature/pedals` at `2ef8a4e8` was served on port 4174; its product code is the same as at
+`75f1a5d1`, the T13 build. Both were Vite preview builds on the LAN, on the Pixel 8 with `?debug`. The links page
+`phone-gate.html` gave a fresh page per run, hands off to 3:00, then watched to 4:00. The worlds:
+- The seed-`alpha` baseline payload of rounds 1 and 2, every new pedal dark.
+- A fresh seeded world, found by cycling seeds.
+- The round-1 worst-case payload (all six Modulation pedals at Mix 1, Phaser 12 stages, Shifter +10 Hz, Width 1), loaded from a link rather than set by hand.
+
+Before the runs, each branch link was loaded headlessly on the desktop and read `fx in` 0/10 (baseline, Full and
+Standard), 2/10 (the unused fallback) and 7/10 (worst case). The run order is the table's order, as reported.
+
+| # | Build | Tier | World | `fx in` | `underruns` start → 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|---|
+| main 1 | `main d29ac778` | Full | baseline | — | 0 → **48** → **75** | "Sounded good throughout." |
+| 1 | branch | Full | baseline | 0/10 | 0 → **31** → **54** | "Second attempt. First one, the phone was still hot and at 2:30 the underruns took off, never to stop growing (like from 2K or so underruns at 3:00, 11642 at 4:00). This time, things sounded good throughout." |
+| 2 | branch | Full | fresh seed | 4/10 | 0 → **259** → **1 600** | "got some scratching right at 30 seconds. Barely acceptable run, i'd say. At 3:30 underruns shot up, there was only about 300 then suddenly there was a ton." |
+| 3 | branch | Full | worst case | 7/10 | 0 → **172** → **957** | "occasional scratch, but sounds pretty good. Got a little scratch around 3:30, then the underruns started taking off. 300ish underruns at 3:30" |
+| 4 | branch | Standard | baseline | 0/10 | 0 → **48** → **67** | "Sounded ok, just a little bit scratchy throughout." |
+
+**Reading against the gate. T14 misses.**
+- **(1) passes on its second attempt.** It read 31 at 3:00 against `main`'s 48 (−35 %, within 25 %) and rose by 23 from 3:00 to 4:00, against `main`'s 27. By a literal reading both builds rose faster in the fourth minute than their three-minute average (`main` 16 → 27 a minute, the branch 10 → 23), so "not accelerating" is read against `main`. Round 2's run A, the same world before the cells, read 380 at 3:00 and collapsed: the cells fixed the dark-pedal runaway that round 2 found, on a cool phone. **The first attempt ran away** on what Crawford calls a still-hot phone: it took off at 2:30, reached about 2 000 at 3:00 and 11 642 at 4:00.
+- **(2) misses:** 259 at 3:00 is 5.4× `main`, and it took off at 3:30, from about 300 to 1 600 by 4:00. The seed lit 4 effects, not the plan's 2 or 3. Which four was not recorded.
+- **(3) misses on its one criterion** (does not run away): 172 at 3:00 is not gated, but it took off at about 3:30, from about 300 to 957 by 4:00.
+- (4), Standard on the baseline, is recorded: 48 → 67. That is more than Full's 31 in the same sitting, as in round 1.
+
+**What round 3 shows, on single runs.**
+- With every effect dark, the branch is now at or below `main` on a cool phone, matching the desktop (T12).
+- With effects lit, it is not. Four lit gave 8× the dark count at 3:00 and a runaway at 3:30; seven lit ran away at the same time. Rounds 1 and 2 had suggested lighting costs little (C1 with the Chorus matched A), but that was measured with every effect still inline. With the dark ones gone, the lit ones' own cost is what shows. The bypass only removes dark effects, so a teardown of dark effects (spec assumption 10, the plan's named lever) would not reach runs 2 and 3.
+- `main` ran first, on the coolest phone, and has not run away in any round. Round 2's B stayed clean after A's collapse, but that is one run.
+- No run here separates heat from load. The first run 1 ran away on a hot phone with nothing lit.

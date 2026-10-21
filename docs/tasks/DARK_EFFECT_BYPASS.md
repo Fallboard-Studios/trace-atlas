@@ -14,7 +14,8 @@ the phone gate is the `?debug` HUD on the Pixel (spec §5).
 `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
 > **Status (2026-10-20):** T0–T13 built and committed on `feature/pedals`; Checkpoints A and B passed (Crawford,
-> Checkpoint B: "ok, everything passed"). Next = T14, the phone round 3 on Crawford's Pixel (STOP), then T15.
+> Checkpoint B: "ok, everything passed"). T14 (phone round 3) MISSED on the lit runs (2) and (3); the dark run passed.
+> Next = Crawford's call on the miss, then T15.
 
 ## Overview
 
@@ -634,7 +635,7 @@ new pedal dark, `fx in 0/10`); (2) an ordinary seeded world with two pedals lit 
 a Standard run of (1). A `main` run of (1) in the same sitting is the comparison.
 
 **Acceptance criteria:**
-- [ ] A dated "round 3" section in `scratchy-audio-phones.md`: both hashes, every run's start → end count, the
+- [x] A dated "round 3" section in `scratchy-audio-phones.md`: both hashes, every run's start → end count, the
   `fx in` reading, the 4:00 count, Crawford's words.
 - [ ] **Pass:** (1) and (2) each within 25 % of the same-sitting `main` count at 3:00 and not accelerating between
   3:00 and 4:00; (3) does not run away hands-off (its count is recorded, not gated).
@@ -644,6 +645,17 @@ a Standard run of (1). A `main` run of (1) in the same sitting is the comparison
 **Verification:** Crawford's runs.
 
 **Dependencies:** Checkpoint B. **Files:** `docs/todo/scratchy-audio-phones.md`. **Scope:** XS (device).
+
+**As run (2026-10-20): MISS, awaiting Crawford's call.** Round 3 is in `scratchy-audio-phones.md`. Counts at 3:00 /
+4:00:
+- `main` 48 / 75.
+- (1) 31 / 54: pass, on its second attempt. The first attempt, on a hot phone, ran away from 2:30 (about 2 000 at 3:00, 11 642 at 4:00).
+- (2) 259 / 1 600 with `fx in` 4/10: miss, 5.4× `main`, took off at 3:30.
+- (3) 172 / 957 with 7/10: miss, ran away from about 3:30.
+- (4) Standard 48 / 67.
+
+The dark case is fixed; the lit effects' own cost is what is left. Assumption 10's teardown removes only dark effects, so
+it does not reach (2) or (3).
 
 ---
 
