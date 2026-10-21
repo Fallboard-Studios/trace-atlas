@@ -59,6 +59,7 @@ vi.mock('./VoxelTrack', () => ({
 import gsap from 'gsap';
 import { SliderCenteredZero } from './SliderCenteredZero';
 import { resolveAccessibleName } from './accessibleName';
+import { signedLogValueToT } from './sliderLogMath';
 import {
   computeFittedBoxCount,
   computeVoxelTrackLength,
@@ -588,5 +589,84 @@ describe('SliderCenteredZero component', () => {
 
       expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterMount);
     });
+  });
+});
+
+// Branch review item 7: the Frequency Shifter's Shift is +-1000 Hz but seeds land in +-2-20 Hz, under 2 % of a linear
+// track. `logKnee` makes each half logarithmic (sliderLogMath.ts's signedLogValueToT); without it nothing changes.
+describe('SliderCenteredZero with a signed-log taper (logKnee)', () => {
+  const shiftSchema: SliderCenteredZeroSchema = {
+    id: 'shift',
+    type: 'sliderCenteredZero',
+    min: -1000,
+    max: 1000,
+    step: 1,
+    logKnee: 1,
+    humanLabel: 'Shift',
+    unit: 'Hz',
+    orientation: 'horizontal',
+  };
+  const tOf = (v: number) => signedLogValueToT(v, -1000, 1000, 1);
+
+  it('runs the thumb on the track position: -1 to 1, now at the value\'s t', () => {
+    render(<SliderCenteredZero schema={shiftSchema} value={7} onChange={() => {}} />);
+    const thumb = screen.getByRole('slider');
+    expect(thumb.getAttribute('aria-valuemin')).toBe('-1');
+    expect(thumb.getAttribute('aria-valuemax')).toBe('1');
+    expect(Number(thumb.getAttribute('aria-valuenow'))).toBeCloseTo(tOf(7), 3);
+  });
+
+  it('announces the value in Hz, as the readout shows it, since aria-valuenow is the track position', () => {
+    const { container } = render(<SliderCenteredZero schema={shiftSchema} value={-12} onChange={() => {}} />);
+    expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('-12Hz');
+    expect(container.querySelector('.sc-slider-centered-zero__value')?.textContent).toBe('-12Hz');
+  });
+
+  it('fills the boxes by track position, not by value', () => {
+    render(<SliderCenteredZero schema={shiftSchema} value={10} onChange={() => {}} />);
+    const states = JSON.parse(screen.getByTestId('voxel-track').getAttribute('data-states')!);
+    expect(states).toEqual(computeVoxelBoxStatesCenteredZero(tOf(10), -1, 1, VOXEL_TRACK_MIN_BOX_COUNT_EVEN));
+  });
+
+  it('moves one Hz per arrow press from 0, either way, rather than a track step that rounds back to 0', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<SliderCenteredZero schema={shiftSchema} value={0} onChange={onChange} />);
+    const thumb = screen.getByRole('slider');
+    thumb.focus();
+    fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenLastCalledWith(1);
+    rerender(<SliderCenteredZero schema={shiftSchema} value={0} onChange={onChange} />);
+    fireEvent.keyDown(thumb, { key: 'ArrowLeft' });
+    expect(onChange).toHaveBeenLastCalledWith(-1);
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('takes a bigger step on PageUp, and Home / End still reach the bounds', () => {
+    const onChange = vi.fn();
+    render(<SliderCenteredZero schema={shiftSchema} value={100} onChange={onChange} />);
+    const thumb = screen.getByRole('slider');
+    thumb.focus();
+    fireEvent.keyDown(thumb, { key: 'PageUp' });
+    expect(onChange.mock.calls.at(-1)![0]).toBeGreaterThan(150);
+    fireEvent.keyDown(thumb, { key: 'End' });
+    expect(onChange).toHaveBeenLastCalledWith(1000);
+    fireEvent.keyDown(thumb, { key: 'Home' });
+    expect(onChange).toHaveBeenLastCalledWith(-1000);
+  });
+
+  it('does not step a disabled slider', () => {
+    const onChange = vi.fn();
+    render(<SliderCenteredZero schema={shiftSchema} value={0} onChange={onChange} disabled />);
+    const thumb = screen.getByRole('slider');
+    thumb.focus();
+    fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('leaves a schema without logKnee on its literal value track, with no aria-valuetext', () => {
+    render(<SliderCenteredZero schema={detuneSchema} value={10} onChange={() => {}} />);
+    const thumb = screen.getByRole('slider');
+    expect(thumb.getAttribute('aria-valuemax')).toBe('50');
+    expect(thumb.hasAttribute('aria-valuetext')).toBe(false);
   });
 });

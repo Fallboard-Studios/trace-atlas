@@ -738,3 +738,9 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
     byte before and after).
   - The join line is now `controlledDecay ? getCell('stereoWidener')?.in : _globalCompressor`: the cells moved to
     `bypassCell.ts` (docs/specs/DARK_EFFECT_BYPASS.md §8.7).
+  - **The Shift slider (item 7, Crawford chose the signed-log option).** The Shift row was a linear ±1 000 Hz track
+    with the seeded ±2–20 Hz band under 2 % of its travel. `SliderCenteredZero` gained an optional signed-log taper
+    (`logKnee`, docs/COMPONENT_LIBRARY.md), and the Shift row sets `logKnee: 1`: the band is now 28 % of each half.
+    The range, the step (1 Hz), the seeds and the stored values are unchanged; only where a value sits on the track
+    moved. Not yet tried by hand on a phone.
+  - The HUD's `/10` is now `BYPASS_KEYS.length` (docs/specs/DARK_EFFECT_BYPASS.md §8.7).

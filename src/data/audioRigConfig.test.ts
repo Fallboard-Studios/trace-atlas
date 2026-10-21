@@ -476,6 +476,14 @@ describe('AUDIO_RIG_CONFIG', () => {
       expect(shift.max).toBeGreaterThan(0);
     });
 
+    // Branch review item 7: the seeded +-2-20 Hz band was under 2 % of a linear +-1000 Hz track.
+    it('Shift runs on a signed-log track with its knee at 1 Hz, and no other pedal slider does', () => {
+      for (const { key, param } of pedalParams()) {
+        const knee = (param.schema as { logKnee?: number }).logKnee;
+        expect(knee, `${key}.${param.field}`).toBe(`${key}.${param.field}` === 'frequencyShifter.shift' ? 1 : undefined);
+      }
+    });
+
     it.each(['chorus', 'tremolo', 'vibrato'] as const)(
       'the %s Rate is a linear slider over PEDAL_RATE_RANGE_HZ at PEDAL_RATE_STEP_HZ, the shape TempoSyncSlider takes',
       (key) => {

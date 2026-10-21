@@ -60,3 +60,62 @@ export function stepsTToValue(t: number, steps: readonly number[]): number {
   const index = Math.min(steps.length - 1, Math.max(0, Math.round(t * (steps.length - 1))));
   return steps[index];
 }
+
+/**
+ * Signed-log variant, for a zero-centred slider whose useful values crowd near zero (the Frequency Shifter's Shift:
+ * +-1000 Hz, seeded in +-2-20 Hz; branch review item 7). Track position t runs -1..1 with 0 at the centre, and each
+ * half maps |value| = knee * ((bound / knee + 1)^|t| - 1) against its own bound (`max` above zero, `-min` below), so
+ * t = 0 is exactly 0, t = +-1 is exactly the bound, the curve is near linear below about `knee` and logarithmic above
+ * it.
+ */
+
+function signedLogBound(sign: number, min: number, max: number): number {
+  return sign > 0 ? max : -min;
+}
+
+/** value -> t (-1..1). A value past a bound maps to that end. */
+export function signedLogValueToT(value: number, min: number, max: number, knee: number): number {
+  if (value === 0) return 0;
+  const sign = Math.sign(value);
+  const bound = signedLogBound(sign, min, max);
+  const magnitude = Math.min(Math.abs(value), bound);
+  return (sign * Math.log1p(magnitude / knee)) / Math.log1p(bound / knee);
+}
+
+/** t (-1..1) -> value. A t past +-1 maps to the bound. */
+export function signedLogTToValue(t: number, min: number, max: number, knee: number): number {
+  if (t === 0) return 0;
+  const sign = Math.sign(t);
+  const bound = signedLogBound(sign, min, max);
+  const magnitude = knee * Math.expm1(Math.min(Math.abs(t), 1) * Math.log1p(bound / knee));
+  return sign * Math.min(magnitude, bound);
+}
+
+/** `value` on the `step` grid, inside the bounds, with -0 written as 0. */
+export function signedLogSnap(value: number, min: number, max: number, step: number): number {
+  return Math.min(max, Math.max(min, Math.round(value / step) * step)) + 0;
+}
+
+/** A keyboard step on the signed-log track: a hundredth of the track (`page`: a tenth), but never less than one `step`
+ *  of value, so an arrow press near zero still moves, snapped to `step` and clamped to the bounds. `direction` is +1 or
+ *  -1. */
+export function signedLogKeyStep(
+  value: number,
+  direction: 1 | -1,
+  page: boolean,
+  min: number,
+  max: number,
+  knee: number,
+  step: number,
+): number {
+  const units = page ? 10 : 1;
+  const byTrack = signedLogTToValue(signedLogValueToT(value, min, max, knee) + direction * 0.01 * units, min, max, knee);
+  const byValue = value + direction * step * units;
+  const next = direction > 0 ? Math.max(byTrack, byValue) : Math.min(byTrack, byValue);
+  return signedLogSnap(next, min, max, step);
+}
+
+/** A pointer position on the signed-log track (t, -1..1) as the value it sets: on the `step` grid, inside the bounds. */
+export function signedLogTrackValue(t: number, min: number, max: number, knee: number, step: number): number {
+  return signedLogSnap(signedLogTToValue(t, min, max, knee), min, max, step);
+}

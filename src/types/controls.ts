@@ -112,6 +112,12 @@ export interface SliderCenteredZeroSchema extends ControlSchemaBase, SliderVerti
   step?: number;
   unit?: string;
   orientation: SliderOrientation;
+  /** Optional signed-log taper: each half of the track is logarithmic, near linear below about this |value|
+   *  (sliderLogMath.ts's signedLogValueToT). For a range whose useful values crowd near zero, as the Frequency
+   *  Shifter's Shift does (+-1000 Hz, seeded in +-2-20 Hz). The thumb then runs on the track position (-1..1), the
+   *  value is snapped to `step`, an arrow press moves at least one `step`, and the thumb announces the readout through
+   *  aria-valuetext. Optional so every existing schema keeps its literal value track. */
+  logKnee?: number;
 }
 
 export interface RadioButtonSchema extends ControlSchemaBase {

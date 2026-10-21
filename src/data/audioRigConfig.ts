@@ -217,7 +217,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     key: 'frequencyShifter',
     panel: panelSchema('frequencyShifter', 'fleet.frequencyShifter', 'column'),
     params: [
-      { field: 'shift', schema: { id: 'frequencyShifter.shift', type: 'sliderCenteredZero', ...labels('fleet.frequencyShifter.shift'), min: -1000, max: 1000, step: 1, orientation: 'horizontal' } },
+      { field: 'shift', schema: { id: 'frequencyShifter.shift', type: 'sliderCenteredZero', ...labels('fleet.frequencyShifter.shift'), min: -1000, max: 1000, step: 1, logKnee: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'frequencyShifter.wet', type: 'sliderLinear', ...labels('fleet.frequencyShifter.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
