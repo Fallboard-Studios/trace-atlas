@@ -24,19 +24,25 @@ import {
   delayToSync,
   laneToFree,
   laneToSync,
-  phaserToFree,
-  phaserToSync,
   resolveDelayTimeSeconds,
   resolveLaneForEngine,
   resolveLaneRateHz,
-  resolvePhaserRateHz,
+  resolveSyncedRateHz,
+  syncedRateToFree,
+  syncedRateToSync,
 } from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 
-import type { DelaySettings, GlobalAudioSettings, PhaserSettings } from '../types/globalAudio';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
+import type { DelaySettings, GlobalAudioSettings } from '../types/globalAudio';
+import {
+  DEFAULT_GLOBAL_AUDIO_SETTINGS,
+  PEDAL_RATE_RANGE_HZ,
+  PEDAL_RATE_STEP_HZ,
+  SYNCED_RATE_KEYS,
+  type SyncedRateKey,
+} from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
   LFO_LANE_IDS,
@@ -71,20 +77,44 @@ function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
   AudioEngine.setGlobalDelay({ ...rest, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
 }
 
+/** What a synced-rate block's engine setter takes: Hz only, never a `sync`. */
+type EngineRateBlock<K extends SyncedRateKey> = Partial<Omit<GlobalAudioSettings[K], 'sync'>>;
+
+/** The engine setter of a synced-rate block. Looked up at call time, unlike GLOBAL_SETTER's direct entries, so a
+ *  vi.spyOn on one of these setters after import still sees the store's pushes (AudioRigEffectPanel.test.tsx). */
+function engineRateSetter<K extends SyncedRateKey>(key: K): (params: EngineRateBlock<K>) => void {
+  const setters: { [P in SyncedRateKey]: (params: EngineRateBlock<P>) => void } = {
+    phaser: AudioEngine.setGlobalPhaser,
+    chorus: AudioEngine.setGlobalChorus,
+    tremolo: AudioEngine.setGlobalTremolo,
+    vibrato: AudioEngine.setGlobalVibrato,
+  };
+  return setters[key];
+}
+
+/** The engine-facing copy of a whole synced-rate block: `sync` stripped, `rate` resolved to Hz at `bpm`. */
+function resolvedRateBlock<K extends SyncedRateKey>(block: GlobalAudioSettings[K], bpm: number): EngineRateBlock<K> {
+  const { sync: _sync, ...rest } = block;
+  return { ...rest, rate: resolveSyncedRateHz(block, bpm, PEDAL_RATE_RANGE_HZ) } as EngineRateBlock<K>;
+}
+
 /**
- * The Phaser's counterpart of setGlobalDelayResolved (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.4): the engine hears
- * Hz only, so a partial that carries `rate` or `sync` is pushed with its rate RESOLVED from the stored Phaser at
- * `bpm` and `sync` never reaches the engine. Any other edit (Mix, Q, Octaves, Base Freq, Stages) is forwarded exactly
- * as given, so a synced Phaser's rate is not re-pushed on every unrelated edit. Reads the store lazily, as the Delay's does.
+ * The synced-rate counterpart of setGlobalDelayResolved, one per block (docs/specs/GLOBAL_PEDALS.md §1.4, generalised
+ * from the Phaser's, docs/specs/GLOBAL_MODULATION_COLOUR.md §1.4): the engine hears Hz only, so a partial that carries
+ * `rate` or `sync` is pushed with its rate RESOLVED from the stored block at `bpm` and `sync` never reaches the engine.
+ * Any other edit is forwarded exactly as given, so a synced rate is not re-pushed on every unrelated edit. Reads the
+ * store lazily, as the Delay's does.
  */
-function setGlobalPhaserResolved(params: Partial<PhaserSettings>): void {
-  if (!('rate' in params) && !('sync' in params)) {
-    AudioEngine.setGlobalPhaser(params);
-    return;
-  }
-  const { sync: _sync, ...rest } = params;
-  const { globalAudio, bpm } = useAudioStore.getState();
-  AudioEngine.setGlobalPhaser({ ...rest, rate: resolvePhaserRateHz(globalAudio.phaser, bpm) });
+function setGlobalRateResolved<K extends SyncedRateKey>(key: K): (params: Partial<GlobalAudioSettings[K]>) => void {
+  return (params) => {
+    if (!('rate' in params) && !('sync' in params)) {
+      engineRateSetter(key)(params as EngineRateBlock<K>);
+      return;
+    }
+    const { sync: _sync, ...rest } = params;
+    const { globalAudio, bpm } = useAudioStore.getState();
+    engineRateSetter(key)({ ...rest, rate: resolveSyncedRateHz(globalAudio[key], bpm, PEDAL_RATE_RANGE_HZ) } as EngineRateBlock<K>);
+  };
 }
 
 /**
@@ -111,7 +141,12 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   chebyshev: AudioEngine.setGlobalChebyshev,
   bitCrusher: AudioEngine.setGlobalBitCrusher,
   autoWah: AudioEngine.setGlobalAutoWah,
-  phaser: setGlobalPhaserResolved,
+  phaser: setGlobalRateResolved('phaser'),
+  chorus: setGlobalRateResolved('chorus'),
+  tremolo: setGlobalRateResolved('tremolo'),
+  vibrato: setGlobalRateResolved('vibrato'),
+  frequencyShifter: AudioEngine.setGlobalFrequencyShifter,
+  stereoWidener: AudioEngine.setGlobalStereoWidener,
 };
 
 /**
@@ -130,7 +165,6 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
  */
 export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: number): void {
   const { sync: _sync, ...delay } = globalAudio.delay;
-  const { sync: _phaserSync, ...phaser } = globalAudio.phaser;
   AudioEngine.setGlobalCompressor(globalAudio.compressor);
   AudioEngine.setGlobalEQ(globalAudio.eq3);
   AudioEngine.setGlobalFilterLPF(globalAudio.filterLPF);
@@ -142,7 +176,14 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: 
   // The modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.4). The Phaser goes in
   // as Hz with `stages` included, so a restore into a different count rebuilds the node once.
   AudioEngine.setGlobalAutoWah(globalAudio.autoWah);
-  AudioEngine.setGlobalPhaser({ ...phaser, rate: resolvePhaserRateHz(globalAudio.phaser, bpm) });
+  AudioEngine.setGlobalPhaser(resolvedRateBlock<'phaser'>(globalAudio.phaser, bpm));
+  // Global Pedals, in chain order after the Phaser (docs/specs/GLOBAL_PEDALS.md §1.4): the three LFO pedals as Hz, then
+  // the shifter, then the Width stage (which sits after the Compressor, before the Limiter).
+  AudioEngine.setGlobalChorus(resolvedRateBlock<'chorus'>(globalAudio.chorus, bpm));
+  AudioEngine.setGlobalTremolo(resolvedRateBlock<'tremolo'>(globalAudio.tremolo, bpm));
+  AudioEngine.setGlobalVibrato(resolvedRateBlock<'vibrato'>(globalAudio.vibrato, bpm));
+  AudioEngine.setGlobalFrequencyShifter(globalAudio.frequencyShifter);
+  AudioEngine.setGlobalStereoWidener(globalAudio.stereoWidener);
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
   AudioEngine.setGlobalDelay({ ...delay, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
   AudioEngine.setGlobalReverb(globalAudio.reverb);
@@ -159,9 +200,15 @@ function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank' | 'g
     const settings = state.lfoBank[lane];
     if (isNoteValue(settings.sync)) lfoEngine.setBankRate(lane, resolveLaneRateHz(settings, state.bpm));
   }
-  const { delay, phaser } = state.globalAudio;
+  const { delay } = state.globalAudio;
   if (isNoteValue(delay.sync)) AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, state.bpm) });
-  if (isNoteValue(phaser.sync)) AudioEngine.setGlobalPhaser({ rate: resolvePhaserRateHz(phaser, state.bpm) });
+  // The Phaser and the three LFO pedals (docs/specs/GLOBAL_PEDALS.md §1.4): one push each for a synced block, none for a Free one.
+  for (const key of SYNCED_RATE_KEYS) {
+    const block = state.globalAudio[key];
+    if (isNoteValue(block.sync)) {
+      engineRateSetter(key)({ rate: resolveSyncedRateHz(block, state.bpm, PEDAL_RATE_RANGE_HZ) });
+    }
+  }
 }
 
 /** Initial lfoBank — DEFAULT_BANK_LFO per lane (inert: rate 0, no drift) until the AS-sync below seeds real values. */
@@ -304,12 +351,14 @@ export interface AudioStore {
    */
   setDelaySyncMode: (synced: boolean) => void;
   /**
-   * Flips the Phaser's Rate between Free and Sync (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5), the Delay's
-   * shape in Hz: Free -> Sync snaps `rate` to the nearest allowed note at the current tempo, Sync -> Free keeps the
-   * Hz the user was hearing, on the 0.05 Hz grid. A whole-object replacement of `globalAudio.phaser`, so the Free
-   * result carries no `sync` key; pushes the resolved rate to the engine.
+   * Flips a synced-rate block's Rate between Free and Sync (docs/specs/GLOBAL_PEDALS.md §1.4, generalised from the
+   * Phaser's, docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5): the Phaser's, the Chorus's, the Tremolo's or the
+   * Vibrato's, the Delay's shape in Hz. Free -> Sync snaps `rate` to the nearest allowed note at the current tempo;
+   * Sync -> Free keeps the Hz the user was hearing, on the 0.05 Hz pedal grid over PEDAL_RATE_RANGE_HZ. A
+   * whole-object replacement of the block, so a Free result carries no `sync` key; then the resolved rate is pushed
+   * to that block's engine setter.
    */
-  setPhaserSyncMode: (synced: boolean) => void;
+  setPedalSyncMode: (key: SyncedRateKey, synced: boolean) => void;
   /** Sets isMuted and pushes the resulting gain to AudioEngine — 0 when muted,
    *  volumePositionToGain(volume) (the live slider position) when not. Owns its own
    *  AudioEngine call, matching every other audioStore setter's shape (setBPM, etc.) —
@@ -461,11 +510,13 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, bpm) });
   },
 
-  setPhaserSyncMode: (synced) => {
+  setPedalSyncMode: (key, synced) => {
     const { globalAudio, bpm } = get();
-    const phaser = synced ? phaserToSync(globalAudio.phaser, bpm) : phaserToFree(globalAudio.phaser, bpm);
-    set({ globalAudio: { ...globalAudio, phaser } });
-    AudioEngine.setGlobalPhaser({ rate: resolvePhaserRateHz(phaser, bpm) });
+    const block: GlobalAudioSettings[typeof key] = synced
+      ? syncedRateToSync(globalAudio[key], bpm, PEDAL_RATE_RANGE_HZ)
+      : syncedRateToFree(globalAudio[key], bpm, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ);
+    set({ globalAudio: { ...globalAudio, [key]: block } });
+    engineRateSetter(key)({ rate: resolveSyncedRateHz(block, bpm, PEDAL_RATE_RANGE_HZ) });
   },
 
   setCompressorBeforeDelay: (value) => {

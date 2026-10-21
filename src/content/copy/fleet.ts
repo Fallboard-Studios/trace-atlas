@@ -286,8 +286,12 @@ export const fleet = {
       humanDescription: '<ul>'
         + '<li><strong>Auto Wah</strong>: a filter that opens and closes with the loudness of the fleet, so louder moments sound brighter and quieter ones duller.</li>'
         + '<li><strong>Phaser</strong>: a slow, swirling sweep that moves through the sound, like a soft whoosh or a jet passing by.</li>'
+        + '<li><strong>Chorus</strong>: a doubled, slightly wavering copy of the sound beside the original, so the fleet shimmers and sounds wider.</li>'
+        + '<li><strong>Tremolo</strong>: the volume pulses up and down, swinging between the left and right speakers.</li>'
+        + '<li><strong>Vibrato</strong>: the pitch wobbles gently up and down, like a singer holding a note.</li>'
+        + '<li><strong>Shifter</strong>: moves every frequency up or down by the same few hertz, so the notes ring and beat strangely against each other.</li>'
         + '</ul>'
-        + '<p>Each pedal has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. The Phaser’s <strong>Rate</strong> can run Free, in hertz, or in Sync, as a note length that follows the Tempo. They act on the fleet’s direct sound; Reverb and Delay echoes stay clean. Every new world starts with a little of one pedal, both, or neither.</p>',
+        + '<p>Each pedal has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. The <strong>Rate</strong> of the Phaser, Chorus, Tremolo and Vibrato can run Free, in hertz, or in Sync, as a note length that follows the Tempo. They act on the fleet’s direct sound; Reverb and Delay echoes stay clean. Every new world starts with a little of up to two pedals, or none.</p>',
     },
   },
   'fleet.autoWah': { human: 'Auto Wah', lore: 'Pressure Sweep', heading: 'PRESSURE SWEEP STAGE' },
@@ -366,6 +370,94 @@ export const fleet = {
     help: { human: 'How much of the swirling sound is blended in with the original. At 0 the sound is unchanged; raise it to hear the sweep.' },
   },
 
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.7): placeholders for the copy pass (spec assumption 16).
+  'fleet.chorus': { human: 'Chorus', lore: 'Twin Current', heading: 'TWIN CURRENT STAGE' },
+  'fleet.chorus.rate': {
+    human: 'Rate',
+    lore: 'Current Cycle',
+    unit: 'Hz',
+    help: { human: 'How fast the chorus copy drifts in and out of tune with the original. In Free it is set in hertz, cycles per second; in Sync it is a note length that follows the Tempo.' },
+  },
+  'fleet.chorus.delay': {
+    human: 'Delay',
+    lore: 'Current Offset',
+    unit: ' ms',
+    help: { human: 'How far behind the original the chorus copy sits, in milliseconds. Short values give a tight shimmer; longer values give a looser, doubled sound.' },
+  },
+  'fleet.chorus.depth': {
+    human: 'Depth',
+    lore: 'Current Depth',
+    help: { human: 'How far the chorus copy wavers. Low values give a faint shimmer; high values give a wide, seasick wobble.' },
+  },
+  'fleet.chorus.spread': {
+    human: 'Spread',
+    lore: 'Current Spread',
+    unit: '°',
+    help: { human: 'How differently the left and right copies waver, in degrees. At 0 both move together; at 180 they move in opposite directions and the sound feels widest.' },
+  },
+  'fleet.chorus.feedback': {
+    human: 'Feedback',
+    lore: 'Current Return',
+    help: { human: 'How much of the chorus copy is fed back into itself. At 0 it is a plain chorus; raise it for a metallic, jet-like flange.' },
+  },
+  'fleet.chorus.mix': {
+    human: 'Mix',
+    lore: 'Current Ratio',
+    help: { human: 'How much of the chorus copy is blended in with the original. At 0 the sound is unchanged; raise it to hear the shimmer.' },
+  },
+  'fleet.tremolo': { human: 'Tremolo', lore: 'Pulse Fade', heading: 'PULSE FADE STAGE' },
+  'fleet.tremolo.rate': {
+    human: 'Rate',
+    lore: 'Pulse Cycle',
+    unit: 'Hz',
+    help: { human: 'How fast the volume pulses. In Free it is set in hertz, pulses per second; in Sync it is a note length that follows the Tempo.' },
+  },
+  'fleet.tremolo.depth': {
+    human: 'Depth',
+    lore: 'Pulse Depth',
+    help: { human: 'How far the volume dips on each pulse. Low values give a gentle throb; at 1 the sound fades all the way out between pulses.' },
+  },
+  'fleet.tremolo.spread': {
+    human: 'Spread',
+    lore: 'Pulse Spread',
+    unit: '°',
+    help: { human: 'How far apart the left and right pulses are, in degrees. At 0 both speakers pulse together; at 180 the sound swings from one side to the other.' },
+  },
+  'fleet.tremolo.mix': {
+    human: 'Mix',
+    lore: 'Pulse Ratio',
+    help: { human: 'How much of the pulsing sound is blended in with the steady original. At 0 the volume holds still; raise it to hear the pulse.' },
+  },
+  'fleet.vibrato': { human: 'Vibrato', lore: 'Line Waver', heading: 'LINE WAVER STAGE' },
+  'fleet.vibrato.rate': {
+    human: 'Rate',
+    lore: 'Waver Cycle',
+    unit: 'Hz',
+    help: { human: 'How fast the pitch wobbles. In Free it is set in hertz, wobbles per second; in Sync it is a note length that follows the Tempo.' },
+  },
+  'fleet.vibrato.depth': {
+    human: 'Depth',
+    lore: 'Waver Depth',
+    help: { human: 'How far the pitch wobbles away from the note. Low values give a subtle warble; high values bend the notes clearly out of tune.' },
+  },
+  'fleet.vibrato.mix': {
+    human: 'Mix',
+    lore: 'Waver Ratio',
+    help: { human: 'How much of the wobbling sound is blended in with the original. At 0 the pitch holds steady; raise it to hear the wobble.' },
+  },
+  'fleet.frequencyShifter': { human: 'Shifter', lore: 'Band Slip', heading: 'BAND SLIP STAGE' },
+  'fleet.frequencyShifter.shift': {
+    human: 'Shift',
+    lore: 'Slip Offset',
+    unit: 'Hz',
+    help: { human: 'How many hertz every frequency is moved. At 0 nothing moves; above 0 everything slides up, below 0 everything slides down. A few hertz gives a slow, beating ring; hundreds give a clangy, metallic sound.' },
+  },
+  'fleet.frequencyShifter.mix': {
+    human: 'Mix',
+    lore: 'Slip Ratio',
+    help: { human: 'How much of the shifted sound is blended in with the original. At 0 the sound is unchanged; raise it to hear the ring.' },
+  },
+
   // ---------------------------------------------------------------- Output
   'fleet.output': {
     human: 'Output',
@@ -380,8 +472,9 @@ export const fleet = {
         + '<li><strong>Attack Time</strong>: how quickly the compressor reacts once a sound crosses the threshold.</li>'
         + '<li><strong>Release Time</strong>: how quickly the compressor lets go once the sound drops back below the threshold.</li>'
         + '<li><strong>Knee</strong>: how gradually the compressor eases into effect, rather than snapping on abruptly.</li>'
-        + '<li><strong>Decay Mode</strong>: Natural Decay runs Reverb’s and Delay’s echoes through the Compressor along with the original sound, evening everything out together. Controlled Decay sends the echoes around it, so they ring out uncompressed with only the Limiter above them.</li>'
+        + '<li><strong>Decay Mode</strong>: Natural Decay runs Reverb’s and Delay’s echoes through the Compressor along with the original sound, evening everything out together. Controlled Decay sends the echoes around it, so they ring out uncompressed with only Width and the Limiter above them.</li>'
         + '</ul>'
+        + '<p><strong>Width</strong>: how wide the whole fleet sounds between the left and right speakers, echoes included. 0.5 is the sound as recorded; 0 folds it to mono; 1 pushes it out to the sides.</p>'
         + '<p><strong>Limiter</strong>: a hard ceiling that keeps the loudest sounds from ever going too loud. <strong>Ceiling</strong> sets the maximum volume nothing is allowed to pass.</p>',
     },
   },
@@ -423,6 +516,12 @@ export const fleet = {
       controlled: { human: 'Controlled Decay', lore: 'Clamped' },
     },
     help: { human: 'Whether the compressor also evens out the echoes. Natural Decay runs Reverb’s and Delay’s echoes through the compressor; Controlled Decay sends them around it, so they ring out uncompressed.' },
+  },
+  'fleet.stereoWidener': { human: 'Width', lore: 'Spread', heading: 'STEREO SPREAD STAGE' },
+  'fleet.stereoWidener.width': {
+    human: 'Width',
+    lore: 'Spread Field',
+    help: { human: 'How wide the fleet sounds between the left and right speakers, echoes included. 0.5 is the sound as recorded; 0 folds it to mono, which can sound fuller on a single phone speaker; 1 pushes everything out to the sides.' },
   },
   'fleet.limiter': { human: 'Limiter', lore: 'Reduction', heading: 'TERMINAL CEILING GATE' },
   'fleet.limiter.ceiling': {

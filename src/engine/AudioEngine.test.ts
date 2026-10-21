@@ -167,6 +167,61 @@ vi.mock('tone', () => ({
     Q: { value: 10, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Global Pedals T4: the Chorus and the Tremolo after the Phaser; both need start() (Tone does not start their LFOs).
+  Chorus: vi.fn((opts: { frequency?: number; delayTime?: number; depth?: number; spread?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    delayTime: opts.delayTime ?? 3.5,
+    depth: opts.depth ?? 0.7,
+    spread: opts.spread ?? 180,
+    frequency: { value: opts.frequency ?? 1.5, rampTo: vi.fn() },
+    feedback: { value: 0, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  Tremolo: vi.fn((opts: { frequency?: number; spread?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    spread: opts.spread ?? 180,
+    frequency: { value: opts.frequency ?? 10, rampTo: vi.fn() },
+    depth: { value: 0.5, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  // Global Pedals T5: the two plain Effects. The Vibrato starts itself (its `start` must stay uncalled).
+  Vibrato: vi.fn((opts: { frequency?: number; depth?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    start: vi.fn(),
+    frequency: { value: opts.frequency ?? 5, rampTo: vi.fn() },
+    depth: { value: opts.depth ?? 0.1, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  FrequencyShifter: vi.fn((opts: { frequency?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
+  // The cycle-search cuts: zero-delay Delay nodes at the chain entry and after the High-Pass Filter.
+  Delay: vi.fn((opts: { delayTime?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    delayTime: { value: opts.delayTime ?? 0 },
+  })),
+  // Global Pedals T6: the Width stage between the Compressor and the Limiter.
+  StereoWidener: vi.fn((opts: { width?: number; wet?: number } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    width: { value: opts.width ?? 0.5, rampTo: vi.fn() },
+    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+  })),
 }));
 
 // Mock harmony system
@@ -1785,18 +1840,21 @@ describe('AudioEngine - Global FX Chain', () => {
   });
 
   describe('reserveVoice — bus wiring', () => {
-    it('connects each robot bus into getGlobalChainEntry()\'s node (EQ3), not a compressor-specific accessor', async () => {
+    it('connects each robot bus into getGlobalChainEntry()\'s node (the entry cut in front of the EQ3), not a compressor-specific accessor', async () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      const eqNode = lastInstance(Tone.EQ3) ?? { connect: vi.fn() };
+      // The entry cycle-search cut, the first of the twelve Delay nodes each build makes: the two cuts, then one per bypass
+      // cell (globalFx.ts CHAIN_CUT_OPTIONS, docs/specs/DARK_EFFECT_BYPASS.md).
+      const entryNode = vi.mocked(Tone.Delay).mock.results.at(-12)?.value ?? { connect: vi.fn() };
       const layered = { base: 'sine', layers: [{ type: 'sine', gain: 0.8 }] } as any;
       AudioEngine.reserveVoice('bus-wiring-test', layered, TEST_ADSR);
       // busFilter is a Tone.Filter instance — it's the third Filter construction
       // per reserveVoice call site (after LPF/HPF from loadInstruments), so grab
       // the freshest one and confirm it was connected into the chain entry.
       const busFilterNode = lastInstance(Tone.Filter);
-      expect(busFilterNode.connect).toHaveBeenCalledWith(eqNode);
+      expect(busFilterNode.connect).toHaveBeenCalledWith(entryNode);
+      expect(busFilterNode.connect).not.toHaveBeenCalledWith(lastInstance(Tone.EQ3));
     });
   });
 
@@ -2312,6 +2370,11 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     bitCrusher: { bits: 8, wet: 0 },
     autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
     phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
+    chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },
+    tremolo: { rate: 10, depth: 0.5, spread: 180, wet: 0 },
+    vibrato: { rate: 5, depth: 0.1, wet: 0 },
+    frequencyShifter: { shift: 0, wet: 0 },
+    stereoWidener: { width: 0.5 },
     delay: { delayTime: 0.4, feedback: 0.3, wet: 0.25 },
     reverb: { decay: 3, preDelay: 0.05, wet: 0.35 },
     limiter: { threshold: -2 },
@@ -2359,6 +2422,77 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(returnOf(lastInstance(Tone.Reverb)).gain.value).toBe(0.35);
     expect(lastInstance(Tone.Limiter).threshold.value).toBe(-2);
     expect(returnOf(lastInstance(Tone.FeedbackDelay)).gain.value).toBe(0.25);
+  });
+
+  // Dark-Effect Bypass T4 (docs/specs/DARK_EFFECT_BYPASS.md section 1.2): only a lit effect is wired in by the first
+  // apply, and a second apply of the same settings (every Mix re-sent) touches no cell: no connect, no timer, no write.
+  describe('the bypass cells', () => {
+    const CELL_CARRIED = ['Distortion', 'Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato', 'FrequencyShifter'];
+    const TWO_LIT = {
+      ...FIXTURE_GLOBAL_AUDIO,
+      distortion: { amount: 0.3, wet: 0.5 },
+      frequencyShifter: { shift: 0, wet: 0.4 },
+    };
+    type Node = { connect: AnyMock; disconnect: AnyMock; gain?: { value: number } };
+
+    async function startWith(globalAudio: typeof FIXTURE_GLOBAL_AUDIO) {
+      const Tone = await import('tone');
+      const ctors = Tone as unknown as Record<string, AnyMock>;
+      for (const name of CELL_CARRIED) ctors[name].mockClear();
+      vi.mocked(Tone.Gain).mockClear();
+      const { AudioEngine } = await import('./AudioEngine');
+      const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
+      useAudioStore.setState({ globalAudio: globalAudio as any });
+      await AudioEngine.start();
+      const effects = Object.fromEntries(CELL_CARRIED.map((name) => [name, lastInstance(ctors[name]) as Node]));
+      const reapply = () => applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, useAudioStore.getState().bpm);
+      return { Tone, effects, reapply };
+    }
+    const timersArmed = (Tone: typeof import('tone')) =>
+      (Tone.getContext as unknown as AnyMock).mock.results.reduce(
+        (n: number, r) => n + (r.value as { setTimeout: AnyMock }).setTimeout.mock.calls.length,
+        0,
+      );
+
+    it('wires in exactly the two lit effects; the five dark ones stay out of the signal path', async () => {
+      const { effects } = await startWith(TWO_LIT);
+      expect(effects.Distortion.connect).toHaveBeenCalledTimes(1);
+      expect(effects.FrequencyShifter.connect).toHaveBeenCalledTimes(1);
+      for (const name of ['Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato']) {
+        expect(effects[name].connect).not.toHaveBeenCalled();
+      }
+    });
+
+    it('wires in none of them when every Mix is 0', async () => {
+      const { effects } = await startWith(FIXTURE_GLOBAL_AUDIO);
+      for (const name of CELL_CARRIED) expect(effects[name].connect).not.toHaveBeenCalled();
+    });
+
+    it('touches no cell when the same settings are applied again: no connect, no timer, no gain write', async () => {
+      const { Tone, effects, reapply } = await startWith(TWO_LIT);
+      const gains = (Tone.Gain as unknown as AnyMock).mock.results.map((r) => r.value as Node);
+      const litCells = [effects.Distortion, effects.FrequencyShifter].map((effect) => {
+        const wet = effect.connect.mock.calls[0][0] as Node;
+        const input = gains.find((g: Node) => g.connect.mock.calls.some(([target]: unknown[]) => target === effect))!;
+        const dry = input.connect.mock.calls.find(([target]: unknown[]) => target !== effect)![0] as Node;
+        return { dry, wet };
+      });
+      for (const { dry, wet } of litCells) {
+        dry.gain!.value = 0.123;
+        wet.gain!.value = 0.456;
+      }
+      for (const name of CELL_CARRIED) effects[name].connect.mockClear();
+      const armed = timersArmed(Tone);
+
+      reapply();
+
+      for (const name of CELL_CARRIED) expect(effects[name].connect).not.toHaveBeenCalled();
+      expect(timersArmed(Tone)).toBe(armed);
+      for (const { dry, wet } of litCells) {
+        expect(dry.gain!.value).toBe(0.123);
+        expect(wet.gain!.value).toBe(0.456);
+      }
+    });
   });
 
   // docs/specs/FREE_SYNC_TOGGLE.md §1.3, Task 11: the node only ever receives seconds. A synced Delay
@@ -2441,6 +2575,24 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     vi.resetModules();
   });
 
+  /** Run `act`, then fire only the context timers it armed: a lit Phaser's Stages change waits on one (the Stages duck,
+   *  docs/specs/DARK_EFFECT_BYPASS.md §8.2), and whether the seeded world left the Phaser lit is the seed's call. The
+   *  mock's clearTimeout does nothing, so earlier timers are dropped from the record rather than fired. */
+  async function withContextTimers(act: () => void) {
+    const Tone = await import('tone');
+    const contexts = () =>
+      (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results as Array<{
+        value: { setTimeout: ReturnType<typeof vi.fn> };
+      }>;
+    for (const result of contexts()) result.value.setTimeout.mockClear();
+    act();
+    for (const result of contexts()) {
+      const calls = result.value.setTimeout.mock.calls;
+      result.value.setTimeout.mockClear();
+      calls.forEach((call: unknown[]) => (call[0] as () => void)());
+    }
+  }
+
   it('constructs exactly one AutoWah', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.AutoWah).mockClear();
@@ -2463,7 +2615,12 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     AudioEngine.setGlobalAutoWah({ baseFrequency: 321, wet: 1 });
 
     expect(last(Tone.AutoWah).baseFrequency).toBe(321);
-    expect(last(Tone.AutoWah).wet.rampTo).toHaveBeenCalledWith(1, 0.05);
+    // Dark-Effect Bypass T4: the Mix lights the AutoWah's cell, which wires it in (into its cell's wet gain only; the
+    // count of connects is not pinned, as what start() lights and wires depends on the random world seed); its
+    // own wet stays pinned.
+    const wahTargets = new Set(last(Tone.AutoWah).connect.mock.calls.map((call: unknown[]) => call[0]));
+    expect(wahTargets.size).toBe(1);
+    expect(last(Tone.AutoWah).wet.rampTo).not.toHaveBeenCalled();
   });
 
   // start() builds the chain (one Phaser, at the default ten stages) and then pushes the seeded settings. A seeded Phaser
@@ -2505,9 +2662,140 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
     const target = liveStages === 5 ? 6 : 5;
     const before = vi.mocked(Tone.Phaser).mock.calls.length;
-    AudioEngine.setGlobalPhaser({ stages: target });
+    await withContextTimers(() => AudioEngine.setGlobalPhaser({ stages: target }));
     expect(Tone.Phaser).toHaveBeenCalledTimes(before + 1);
     expect(vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0]).toMatchObject({ stages: target, octaves: 4, frequency: 2 });
+  });
+
+  // Dark-Effect Bypass T7: the rebuild swaps the node inside its cell, so a lit Phaser ends with exactly one node
+  // wired in: every node it replaced was taken out of the cell Gain it fed.
+  it('leaves exactly one Phaser wired into its cell after a Stages change on a lit Phaser', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Phaser).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalPhaser({ wet: 1 });
+    const liveStages = (vi.mocked(Tone.Phaser).mock.calls.at(-1)?.[0] as unknown as { stages: number }).stages;
+    await withContextTimers(() => AudioEngine.setGlobalPhaser({ stages: liveStages === 5 ? 6 : 5 }));
+
+    type PhaserMock = { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
+    const phasers = vi.mocked(Tone.Phaser).mock.results.map((r) => r.value as unknown as PhaserMock);
+    const fresh = phasers.at(-1)!;
+    expect(fresh.connect).toHaveBeenCalledTimes(1);
+    for (const old of phasers.slice(0, -1)) {
+      for (const [target] of old.connect.mock.calls) expect(old.disconnect).toHaveBeenCalledWith(target);
+    }
+    expect(phasers.slice(0, -1).some((old) => old.connect.mock.calls.length > 0)).toBe(true);
+  });
+});
+
+// Global Pedals T4 (docs/specs/GLOBAL_PEDALS.md §1.3): start() builds one Chorus and one Tremolo and starts their LFOs;
+// their setters are on the public AudioEngine surface beside setGlobalPhaser.
+describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+  it('constructs exactly one of each and starts each LFO once', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Chorus).mockClear();
+    vi.mocked(Tone.Tremolo).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.Chorus).toHaveBeenCalledTimes(1);
+    expect(Tone.Tremolo).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Chorus).start).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Tremolo).start).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes setGlobalChorus and setGlobalTremolo', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    expect(typeof AudioEngine.setGlobalChorus).toBe('function');
+    expect(typeof AudioEngine.setGlobalTremolo).toBe('function');
+  });
+
+  it('routes each public setter to its live node', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalChorus({ delayTime: 7, rate: 1.25 });
+    AudioEngine.setGlobalTremolo({ spread: 30, wet: 1 });
+    // start() may leave the seeded Tremolo lit, and a lit pedal's Spread waits for the de-click duck's audio-clock timer
+    // (globalFx.ts writeSpread), which this file's context mock never fires by itself: run the pending ones.
+    for (const result of (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results) {
+      for (const [callback] of result.value.setTimeout.mock.calls) (callback as () => void)();
+    }
+    expect(last(Tone.Chorus).delayTime).toBe(7);
+    expect(last(Tone.Chorus).frequency.rampTo).toHaveBeenCalledWith(1.25, 0.05);
+    expect(last(Tone.Tremolo).spread).toBe(30);
+    // Dark-Effect Bypass T5: the Mix lights the Tremolo's cell, which wires it in; its own wet stays pinned.
+    expect(last(Tone.Tremolo).connect).toHaveBeenCalled();
+    expect(last(Tone.Tremolo).wet.rampTo).not.toHaveBeenCalled();
+  });
+});
+
+// Global Pedals T5: start() builds one Vibrato (never start()ed: it starts itself) and one FrequencyShifter.
+describe('AudioEngine.start — the Vibrato and the FrequencyShifter (Global Pedals T5)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+  it('constructs exactly one of each, and never starts the Vibrato', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.Vibrato).mockClear();
+    vi.mocked(Tone.FrequencyShifter).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.Vibrato).toHaveBeenCalledTimes(1);
+    expect(Tone.FrequencyShifter).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Vibrato).start).not.toHaveBeenCalled();
+  });
+
+  it('exposes and routes setGlobalVibrato and setGlobalFrequencyShifter', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalVibrato({ depth: 0.2 });
+    AudioEngine.setGlobalFrequencyShifter({ shift: -9 });
+    expect(last(Tone.Vibrato).depth.rampTo).toHaveBeenCalledWith(0.2, 0.05);
+    expect(last(Tone.FrequencyShifter).frequency.rampTo).toHaveBeenCalledWith(-9, 0.05);
+  });
+});
+
+// Global Pedals T6: start() builds one StereoWidener; its setter is on the public surface.
+describe('AudioEngine.start — the StereoWidener (Global Pedals T6)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+
+  it('constructs exactly one and routes setGlobalStereoWidener to it, untapered', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.StereoWidener).mockClear();
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(Tone.StereoWidener).toHaveBeenCalledTimes(1);
+    AudioEngine.setGlobalStereoWidener({ width: 0.3 });
+    expect(last(Tone.StereoWidener).width.rampTo).toHaveBeenLastCalledWith(0.3, 0.05);
+  });
+
+  // Dark-Effect Bypass T6: a width off 0.5 lights the widener into its cell's wet Gain (start()'s seed may already
+  // have lit it, so this does not count connects); its own wet is never written.
+  it('wires a lit widener into its bypass cell and leaves its own wet at 1', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setGlobalStereoWidener({ width: 0.3 });
+    const widener = last(Tone.StereoWidener);
+    const gains = (Tone.Gain as unknown as ReturnType<typeof vi.fn>).mock.results.map((r) => r.value);
+    expect(gains).toContain(widener.connect.mock.calls.at(-1)?.[0]);
+    expect(widener.wet.rampTo).not.toHaveBeenCalled();
+    expect(widener.wet.value).toBe(1);
   });
 });
 
@@ -3651,7 +3939,7 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       const busFilter = lastInstance(Tone.Filter);
       const reverbRoom = lastInstance(Tone.Reverb);
       const delayRoom = lastInstance(Tone.FeedbackDelay);
-      const chainEntry = lastInstance(Tone.EQ3);
+      const chainEntry = vi.mocked(Tone.Delay).mock.results.at(-12)?.value; // the entry cycle-search cut, first of a build's twelve
 
       expect(busFilter.connect).toHaveBeenCalledWith(sends.reverb);
       expect(busFilter.connect).toHaveBeenCalledWith(sends.delay);
@@ -3906,11 +4194,17 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
     const primeSpy = vi.spyOn(AudioEngine, 'updateRobotSends');
     /** Every send gain built so far, in reservation order: the Gains constructed at 0 (the mock ignores its
      *  constructor argument, so the argument is the only honest marker), reverb then delay for each robot. */
+    // A send is a Gain built at 0 that feeds a room. The room test matters since Dark-Effect Bypass T2: each bypass cell's
+    // dry Gain is built at 0 too, but feeds its cell's cut.
     const sendGains = () => {
       const gainMock = (Tone.Gain as unknown as AnyMock).mock;
+      const rooms = new Set(
+        [Tone.Reverb, Tone.FeedbackDelay].flatMap((ctor) => (ctor as unknown as AnyMock).mock.results.map((r) => r.value)),
+      );
       return gainMock.results
         .filter((_: unknown, i: number) => gainMock.calls[i][0] === 0)
-        .map((r: { value: unknown }) => r.value as { gain: { value: number } });
+        .map((r: { value: unknown }) => r.value as { gain: { value: number }; connect: AnyMock })
+        .filter((g) => g.connect.mock.calls.some(([target]: unknown[]) => rooms.has(target)));
     };
     const edit = (id: string, patch: Record<string, unknown>) =>
       storeMod.useLocaleStore.getState().updateRobot(localeId, id, patch as any);

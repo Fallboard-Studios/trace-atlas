@@ -1,6 +1,6 @@
 import { Profiler } from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, within, fireEvent, act } from '@testing-library/react';
+import { render, screen, within, fireEvent, act, cleanup } from '@testing-library/react';
 
 // Real lfoEngine would construct a real Tone.LFO on first setter call (getOrCreateLfo -> new
 // Tone.LFO(...)), which throws without a real AudioContext.
@@ -47,12 +47,12 @@ import { useAudioStore } from '@/stores/audioStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { CONTENT } from '@/content';
 import { noteValueEquals, noteValueSeconds, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
-import { allowedDelayNoteValues, allowedPhaserNoteValues } from '@/utils/tempoSync';
+import { allowedDelayNoteValues, allowedRateNoteValues } from '@/utils/tempoSync';
 import { formatNoteValue } from '@/utils/formatNoteValue';
 import { facadeCurrentLabels } from '@/testUtils/toggleFacade';
 import * as audioSwells from '@/systems/audioSwells';
 import { ACCENT_COLORS } from '@/constants/accentColors';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { GLOBAL_LFO_TARGET_IDS, type GlobalLfoTargetId } from '@/types/lfo';
 import type { LfoLinkValue } from '@/types/controls';
@@ -922,6 +922,108 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.6, docs/tasks/GLOBAL_PEDALS.md Task 10): the four motion pedals
+  // and Width render through the same panel as every other effect — one slider per field, the motion pedals in
+  // the spectral trait and Width in the output trait, no LFO link. Task 11 swaps the three LFO pedals' Rate row
+  // for the Free | Sync slider; the slider count below holds either way.
+  describe('Global Pedals panels (Chorus, Tremolo, Vibrato, Shifter, Width)', () => {
+    const PANELS = [
+      { key: 'chorus', heading: 'fleet.chorus', sliders: ['rate', 'delay', 'depth', 'spread', 'feedback', 'mix'], trait: 'spectral' },
+      { key: 'tremolo', heading: 'fleet.tremolo', sliders: ['rate', 'depth', 'spread', 'mix'], trait: 'spectral' },
+      { key: 'vibrato', heading: 'fleet.vibrato', sliders: ['rate', 'depth', 'mix'], trait: 'spectral' },
+      { key: 'frequencyShifter', heading: 'fleet.frequencyShifter', sliders: ['shift', 'mix'], trait: 'spectral' },
+      { key: 'stereoWidener', heading: 'fleet.stereoWidener', sliders: ['width'], trait: 'output' },
+    ] as const;
+    const TRAIT_ACCENTS = {
+      spectral: [ACCENT_COLORS.cyan, ACCENT_COLORS.indigo],
+      output: [ACCENT_COLORS.burntOrange, ACCENT_COLORS.orange],
+    } as const;
+
+    it.each(PANELS)('$key shows its heading and one slider per parameter, named from content', ({ key, heading, sliders }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const block = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(within(block).getByText(CONTENT[heading].heading)).toBeTruthy();
+      expect(within(block).getAllByRole('slider')).toHaveLength(sliders.length);
+      for (const slider of sliders) {
+        const entry = CONTENT[`${heading}.${slider}` as keyof typeof CONTENT];
+        expect(within(block).getByRole('slider', { name: entry.human }), `${heading}.${slider}`).toBeTruthy();
+      }
+    });
+
+    it.each(PANELS)('$key is scoped to the $trait trait, as literals', ({ key, trait }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const el = container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+      expect(el.style.getPropertyValue('--color-accent-a')).toBe(TRAIT_ACCENTS[trait][0]);
+      expect(el.style.getPropertyValue('--color-accent-b')).toBe(TRAIT_ACCENTS[trait][1]);
+      expect(el.style.getPropertyValue('--color-accent')).not.toContain('var(');
+    });
+
+    it.each(PANELS)('$key has no LFO link rows', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelector('.sc-lfo-link')).toBeNull();
+    });
+
+    it.each(['frequencyShifter', 'stereoWidener'] as const)('the %s panel has no Free | Sync toggle — it has no rate', (key) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelector('[role="switch"], [aria-pressed]')).toBeNull();
+    });
+
+    it('moving Chorus Mix writes only wet — the other five fields keep their values', () => {
+      const before = { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0.1, wet: 0.2 };
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, chorus: before } }));
+      render(<AudioRigEffectPanel effectKey="chorus" />);
+      const mix = screen.getByRole('slider', { name: CONTENT['fleet.chorus.mix'].human });
+      mix.focus();
+      fireEvent.keyDown(mix, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.chorus).toEqual({ ...before, wet: 0.21 });
+    });
+
+    it('the Chorus Delay slider writes delayTime, in half-millisecond steps', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, chorus: { ...s.globalAudio.chorus, delayTime: 3.5 } } }));
+      render(<AudioRigEffectPanel effectKey="chorus" />);
+      const delay = screen.getByRole('slider', { name: CONTENT['fleet.chorus.delay'].human });
+      delay.focus();
+      fireEvent.keyDown(delay, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.chorus.delayTime).toBe(4);
+    });
+
+    it.each([
+      { from: 0, key: 'ArrowLeft', to: -1 },
+      { from: 0, key: 'ArrowRight', to: 1 },
+      { from: -1000, key: 'ArrowLeft', to: -1000 },
+      { from: 1000, key: 'ArrowRight', to: 1000 },
+    ])('Shift at $from after $key reads $to — signed, one hertz a press, holding at both ends', ({ from, key, to }) => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, frequencyShifter: { shift: from, wet: 0.2 } } }));
+      render(<AudioRigEffectPanel effectKey="frequencyShifter" />);
+      const shift = screen.getByRole('slider', { name: CONTENT['fleet.frequencyShifter.shift'].human });
+      shift.focus();
+      fireEvent.keyDown(shift, { key });
+      expect(useAudioStore.getState().globalAudio.frequencyShifter).toEqual({ shift: to, wet: 0.2 });
+    });
+
+    it.each([
+      { from: 0.5, key: 'ArrowRight', to: 0.51 },
+      { from: 0, key: 'ArrowLeft', to: 0 },
+      { from: 1, key: 'ArrowRight', to: 1 },
+    ])('Width at $from after $key reads $to — the whole 0 to 1, mono to all side', ({ from, key, to }) => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, stereoWidener: { width: from } } }));
+      render(<AudioRigEffectPanel effectKey="stereoWidener" />);
+      const width = screen.getByRole('slider', { name: CONTENT['fleet.stereoWidener.width'].human });
+      width.focus();
+      fireEvent.keyDown(width, { key });
+      expect(useAudioStore.getState().globalAudio.stereoWidener.width).toBe(to);
+    });
+
+    it('a real user edit asks the swell system to cancel its own (effect, field) pair, like every other effect panel', () => {
+      const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
+      render(<AudioRigEffectPanel effectKey="tremolo" />);
+      const depth = screen.getByRole('slider', { name: CONTENT['fleet.tremolo.depth'].human });
+      depth.focus();
+      fireEvent.keyDown(depth, { key: 'ArrowRight' });
+      expect(spy).toHaveBeenCalledWith('tremolo', 'depth');
+    });
+  });
+
   describe('re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
     it("a setGlobalAudio update to ONE field (Delay's delayTime, simulating an audio-swell tick) does not re-execute a SIBLING field's own control (Delay's Mix/wet) — only the changed field's own control re-renders", () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
@@ -1456,8 +1558,10 @@ describe('AudioRigEffectPanel', () => {
         });
       });
 
-      it('no other pedal or colour block renders a Tempo Sync composition or switch', () => {
-        for (const key of ['autoWah', 'distortion', 'chebyshev', 'bitCrusher', 'reverb', 'eq3'] as const) {
+      it('no block without a synced rate renders a Tempo Sync composition or switch', () => {
+        for (const key of [
+          'autoWah', 'distortion', 'chebyshev', 'bitCrusher', 'reverb', 'eq3', 'frequencyShifter', 'compressor', 'stereoWidener', 'limiter',
+        ] as const) {
           const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
           expect(container.querySelector('.sc-tempo-sync'), key).toBeNull();
           expect(screen.queryByRole('switch', { name: TOGGLE_NAME }), key).toBeNull();
@@ -1506,7 +1610,7 @@ describe('AudioRigEffectPanel', () => {
       it('shows a checked switch with the Anchored facade and the note\'s index on the thumb, announced by name', () => {
         setPhaser({ rate: 7, sync: nv('1/8', 'dotted') });
         render(<AudioRigEffectPanel effectKey="phaser" />);
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
         expect(facadeCurrentLabels(tempoToggle())).toEqual(SYNC);
         expect(rateThumb().getAttribute('aria-valuenow')).toBe(String(indexOf(list, nv('1/8', 'dotted'))));
@@ -1524,7 +1628,7 @@ describe('AudioRigEffectPanel', () => {
         const push = spyOnPhaserPush();
         setPhaser({ rate: 0.3, sync: nv('1/4') });
         render(<AudioRigEffectPanel effectKey="phaser" />);
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         const next = list[indexOf(list, nv('1/4')) + 1];
         rateThumb().focus();
         fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
@@ -1539,7 +1643,7 @@ describe('AudioRigEffectPanel', () => {
       it('the notes run slowest to fastest, so a step toward the slow end moves to the previous note', () => {
         setPhaser({ rate: 0.3, sync: nv('1/4') });
         render(<AudioRigEffectPanel effectKey="phaser" />);
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         const hz = (n: NoteValue) => 1 / noteValueSeconds(n, 60);
         expect(hz(list[0])).toBeLessThan(hz(list[list.length - 1]));
         const previous = list[indexOf(list, nv('1/4')) - 1];
@@ -1557,7 +1661,7 @@ describe('AudioRigEffectPanel', () => {
       });
 
       it('stepping at either end stays on the end note — no out-of-range note is ever written', () => {
-        const list = allowedPhaserNoteValues(60);
+        const list = allowedRateNoteValues(60, PEDAL_RATE_RANGE_HZ);
         setPhaser({ sync: list[list.length - 1] });
         const { unmount } = render(<AudioRigEffectPanel effectKey="phaser" />);
         rateThumb().focus();
@@ -1579,7 +1683,7 @@ describe('AudioRigEffectPanel', () => {
 
         act(() => useAudioStore.setState({ bpm: 120 }));
         await act(async () => { await Promise.resolve(); }); // the slider eases a non-drag change
-        const fast = allowedPhaserNoteValues(120);
+        const fast = allowedRateNoteValues(120, PEDAL_RATE_RANGE_HZ);
         expect(rateThumb().getAttribute('aria-valuemax')).toBe(String(fast.length - 1));
         expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(fast[fast.length - 1]));
         expect(storedPhaser().sync).toEqual(nv('1/32')); // display-only: nothing written
@@ -1599,7 +1703,7 @@ describe('AudioRigEffectPanel', () => {
     });
 
     describe('the toggle', () => {
-      it('Float -> Anchored writes the nearest note at the current tempo, via setPhaserSyncMode', () => {
+      it('Float -> Anchored writes the nearest note at the current tempo, via setPedalSyncMode for the Phaser', () => {
         setPhaser({ rate: 1 }); // 1 Hz at 60 BPM is exactly a quarter note
         render(<AudioRigEffectPanel effectKey="phaser" />);
         fireEvent.click(tempoToggle());
@@ -1731,7 +1835,7 @@ describe('AudioRigEffectPanel', () => {
       it('a Phaser sync change does not re-render the Delay panel', () => {
         const commits = renderCountingCommits('delay');
         const before = commits();
-        act(() => { useAudioStore.getState().setPhaserSyncMode(true); });
+        act(() => { useAudioStore.getState().setPedalSyncMode('phaser', true); });
         act(() => { useAudioStore.getState().setGlobalAudio('phaser', { sync: nv('1/2') }); });
         expect(commits()).toBe(before);
       });
@@ -1741,6 +1845,223 @@ describe('AudioRigEffectPanel', () => {
         const before = commits();
         act(() => { useAudioStore.getState().setDelaySyncMode(true); });
         expect(commits()).toBe(before);
+      });
+    });
+  });
+
+  // docs/specs/GLOBAL_PEDALS.md §1.6, docs/tasks/GLOBAL_PEDALS.md Task 11: the Chorus, Tremolo and Vibrato Rate rows
+  // take the Phaser's Free | Sync rail through one generalised branch (isSyncedRateKey), all four on the shared
+  // PEDAL_RATE_RANGE_HZ. Tested against the REAL store, as the Phaser's is, so a wrong key shows up as wrong state.
+  describe.each([
+    {
+      key: 'chorus', setter: 'setGlobalChorus', plain: ['delay', 'depth', 'spread', 'feedback', 'mix'],
+      others: { delayTime: 6, depth: 0.4, spread: 120, feedback: 0.15, wet: 0.33 },
+    },
+    { key: 'tremolo', setter: 'setGlobalTremolo', plain: ['depth', 'spread', 'mix'], others: { depth: 0.6, spread: 90, wet: 0.27 } },
+    { key: 'vibrato', setter: 'setGlobalVibrato', plain: ['depth', 'mix'], others: { depth: 0.2, wet: 0.31 } },
+  ] as const)('$key Rate Tempo Sync (Global Pedals T11)', ({ key, setter, plain, others }) => {
+    const TOGGLE_NAME = CONTENT['ui.tempoSync'].human;
+    const nv = (division: NoteDivision, modifier: NoteModifier = 'straight'): NoteValue => ({ division, modifier });
+    const OTHER_SYNCED = (['phaser', 'chorus', 'tremolo', 'vibrato'] as const).filter((k) => k !== key);
+
+    /** Replaces the whole stored block (so a patch without `sync` really is Free), at the given tempo. */
+    function setPedal(patch: Record<string, unknown>, bpm = 60) {
+      useAudioStore.setState((s) => ({
+        bpm,
+        globalAudio: { ...s.globalAudio, [key]: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS[key], ...patch } as never },
+      }));
+    }
+    const stored = () => useAudioStore.getState().globalAudio[key] as unknown as { rate: number; sync?: NoteValue } & Record<string, unknown>;
+    const rateThumb = () => screen.getByRole('slider', { name: CONTENT[`fleet.${key}.rate`].human });
+    const tempoToggle = () => screen.getByRole('switch', { name: TOGGLE_NAME });
+    const allowedAt = (bpm: number) => allowedRateNoteValues(bpm, PEDAL_RATE_RANGE_HZ);
+    const indexOf = (list: readonly NoteValue[], note: NoteValue) => list.findIndex((n) => noteValueEquals(n, note));
+    function renderCountingCommits(effectKey: 'phaser' | 'chorus' | 'tremolo' | 'vibrato') {
+      let commits = 0;
+      render(
+        <Profiler id="panel" onRender={() => { commits += 1; }}>
+          <AudioRigEffectPanel effectKey={effectKey} />
+        </Profiler>,
+      );
+      return () => commits;
+    }
+
+    const restores: Array<() => void> = [];
+    function spyOnPush() {
+      const spy = vi.spyOn(AudioEngine, setter);
+      restores.push(() => spy.mockRestore());
+      return spy as unknown as ReturnType<typeof vi.fn>;
+    }
+    /** Wraps the store's real setPedalSyncMode in a spy, restored after the test. */
+    function spyOnSyncMode() {
+      const real = useAudioStore.getState().setPedalSyncMode;
+      const spy = vi.fn(real);
+      useAudioStore.setState({ setPedalSyncMode: spy });
+      restores.push(() => useAudioStore.setState({ setPedalSyncMode: real }));
+      return spy;
+    }
+
+    beforeEach(() => {
+      setPedal({ rate: 0.5, ...others }, 60);
+    });
+    afterEach(() => {
+      while (restores.length > 0) restores.pop()!();
+    });
+
+    describe('layout', () => {
+      it('holds exactly one Tempo Sync slider+switch, on the Rate row, first; every other row is a plain slider', () => {
+        const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+        expect(container.querySelectorAll('.sc-tempo-sync')).toHaveLength(1);
+        expect(screen.getAllByRole('switch', { name: TOGGLE_NAME })).toHaveLength(1);
+        expect(screen.getAllByRole('slider')).toHaveLength(1 + plain.length);
+        const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
+        expect(rows).toHaveLength(1 + plain.length);
+        expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
+        expect(rows[0].contains(rateThumb())).toBe(true);
+        expect(rows[0].contains(tempoToggle())).toBe(true);
+        plain.forEach((field, i) => {
+          const row = rows[i + 1] as HTMLElement;
+          expect(row.querySelector('[role="switch"]'), field).toBeNull();
+          expect(within(row).getByRole('slider', { name: CONTENT[`fleet.${key}.${field}` as keyof typeof CONTENT].human }), field).toBeTruthy();
+        });
+      });
+
+      it('the Free slider spans the shared pedal range', () => {
+        render(<AudioRigEffectPanel effectKey={key} />);
+        expect(Number(rateThumb().getAttribute('aria-valuemin'))).toBeCloseTo(PEDAL_RATE_RANGE_HZ.min, 5);
+        expect(Number(rateThumb().getAttribute('aria-valuemax'))).toBe(PEDAL_RATE_RANGE_HZ.max);
+      });
+    });
+
+    describe('Free (no sync stored)', () => {
+      it('shows an unchecked switch beside the unchanged Free slider', () => {
+        render(<AudioRigEffectPanel effectKey={key} />);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+        expect(rateThumb().getAttribute('aria-valuenow')).toBe('0.5');
+        expect(rateThumb().hasAttribute('aria-valuetext')).toBe(false);
+      });
+
+      it('a Free edit writes rate, leaves no sync key, and reaches the engine as that number', () => {
+        const push = spyOnPush();
+        render(<AudioRigEffectPanel effectKey={key} />);
+        rateThumb().focus();
+        fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
+        expect(stored().rate).toBeCloseTo(0.55, 5);
+        expect('sync' in stored()).toBe(false);
+        expect(push).toHaveBeenLastCalledWith({ rate: stored().rate });
+      });
+    });
+
+    describe('Sync (a note stored)', () => {
+      it('shows a checked switch and the note on the thumb, indexed in the shared pedal list', () => {
+        setPedal({ rate: 7, sync: nv('1/8', 'dotted'), ...others });
+        render(<AudioRigEffectPanel effectKey={key} />);
+        const list = allowedAt(60);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
+        expect(rateThumb().getAttribute('aria-valuenow')).toBe(String(indexOf(list, nv('1/8', 'dotted'))));
+        expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/8', 'dotted')));
+        expect(rateThumb().getAttribute('aria-valuemax')).toBe(String(list.length - 1));
+      });
+
+      it('picking the next note writes { sync } on this block only, keeps its Free rate, and pushes that note\'s Hz', () => {
+        const push = spyOnPush();
+        setPedal({ rate: 0.3, sync: nv('1/4'), ...others });
+        const before = Object.fromEntries(OTHER_SYNCED.map((k) => [k, useAudioStore.getState().globalAudio[k]]));
+        render(<AudioRigEffectPanel effectKey={key} />);
+        const list = allowedAt(60);
+        const next = list[indexOf(list, nv('1/4')) + 1];
+        rateThumb().focus();
+        fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
+        expect(stored().sync).toEqual(next);
+        expect(stored().rate).toBe(0.3);
+        for (const k of OTHER_SYNCED) expect(useAudioStore.getState().globalAudio[k], k).toBe(before[k]);
+        const pushed = push.mock.calls.at(-1)![0] as { rate: number };
+        expect(pushed.rate).toBeCloseTo(1 / noteValueSeconds(next, 60), 5);
+        expect('sync' in pushed).toBe(false);
+      });
+
+      it('stepping at either end stays on the end note', () => {
+        const list = allowedAt(60);
+        setPedal({ sync: list[list.length - 1], ...others });
+        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        rateThumb().focus();
+        fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
+        expect(stored().sync).toEqual(list[list.length - 1]);
+        unmount();
+        setPedal({ sync: list[0], ...others });
+        render(<AudioRigEffectPanel effectKey={key} />);
+        rateThumb().focus();
+        fireEvent.keyDown(rateThumb(), { key: 'ArrowLeft' });
+        expect(stored().sync).toEqual(list[0]);
+      });
+
+      it('an unrecognised stored sync reads as Free, matching what the resolver does to the audio', () => {
+        setPedal({ rate: 0.6, sync: { division: '1/3', modifier: 'straight' }, ...others });
+        render(<AudioRigEffectPanel effectKey={key} />);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+        expect(rateThumb().getAttribute('aria-valuenow')).toBe('0.6');
+      });
+    });
+
+    describe('the toggle', () => {
+      it(`Float -> Anchored calls setPedalSyncMode('${key}', true) and writes the nearest note at the current tempo`, () => {
+        const syncMode = spyOnSyncMode();
+        setPedal({ rate: 1, ...others }); // 1 Hz at 60 BPM is exactly a quarter note
+        render(<AudioRigEffectPanel effectKey={key} />);
+        fireEvent.click(tempoToggle());
+        expect(syncMode).toHaveBeenCalledTimes(1);
+        expect(syncMode).toHaveBeenCalledWith(key, true);
+        expect(stored().sync).toEqual(nv('1/4'));
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
+      });
+
+      it('Anchored -> Float calls it with false, removes the sync key and keeps what was heard, on the 0.05 Hz grid', () => {
+        const syncMode = spyOnSyncMode();
+        setPedal({ rate: 7, sync: nv('1/8', 'dotted'), ...others }); // 0.75 s at 60 BPM, 1.333 Hz
+        render(<AudioRigEffectPanel effectKey={key} />);
+        fireEvent.click(tempoToggle());
+        expect(syncMode).toHaveBeenCalledWith(key, false);
+        expect('sync' in stored()).toBe(false);
+        expect(stored().rate).toBeCloseTo(1.35, 5);
+      });
+
+      it('flipping leaves this block\'s other fields alone, and the Phaser and the other pedals untouched', () => {
+        const before = Object.fromEntries(OTHER_SYNCED.map((k) => [k, useAudioStore.getState().globalAudio[k]]));
+        render(<AudioRigEffectPanel effectKey={key} />);
+        fireEvent.click(tempoToggle());
+        expect(stored()).toMatchObject(others);
+        for (const k of OTHER_SYNCED) expect(useAudioStore.getState().globalAudio[k], k).toBe(before[k]);
+      });
+    });
+
+    describe('re-render isolation (the allowed list is memoised on the tempo)', () => {
+      it('a Mix change does not re-execute the synced Rate control', () => {
+        setPedal({ sync: nv('1/4'), ...others });
+        render(<AudioRigEffectPanel effectKey={key} />);
+        const before = callsFor(`${key}.rate.sync`);
+        expect(before).toBeGreaterThan(0);
+        act(() => { useAudioStore.getState().setGlobalAudio(key, { wet: 0.41 }); });
+        expect(callsFor(`${key}.rate.sync`)).toBe(before);
+      });
+
+      it('positive control: a tempo change DOES re-execute it (so the check above can fail)', () => {
+        setPedal({ sync: nv('1/4'), ...others });
+        render(<AudioRigEffectPanel effectKey={key} />);
+        const before = callsFor(`${key}.rate.sync`);
+        act(() => { useAudioStore.getState().setBPM(120); });
+        expect(callsFor(`${key}.rate.sync`)).toBeGreaterThan(before);
+      });
+
+      it('a Phaser sync change does not re-render this panel, and this pedal\'s does not re-render the Phaser\'s', () => {
+        const commits = renderCountingCommits(key);
+        const before = commits();
+        act(() => { useAudioStore.getState().setPedalSyncMode('phaser', true); });
+        expect(commits()).toBe(before);
+        cleanup();
+        const phaserCommits = renderCountingCommits('phaser');
+        const phaserBefore = phaserCommits();
+        act(() => { useAudioStore.getState().setPedalSyncMode(key, true); });
+        expect(phaserCommits()).toBe(phaserBefore);
       });
     });
   });

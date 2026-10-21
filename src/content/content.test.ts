@@ -546,3 +546,126 @@ describe('global modulation copy', () => {
     expect(labels('fleet.modulation').humanLabel).toBe('Modulation');
   });
 });
+
+// ----------------------------------------
+// GLOBAL PEDALS COPY (docs/specs/GLOBAL_PEDALS.md §1.7; docs/tasks/GLOBAL_PEDALS.md Task 9)
+// ----------------------------------------
+// The five new pedals' words: four Modulation sub-tabs and the Output tab's Width. Placeholders for the copy
+// pass (spec assumption 16), so these pin the structure — names, lore, help, units, intros that cover every
+// pedal — never the wording.
+
+const PEDAL_HEADINGS = [
+  'fleet.chorus', 'fleet.tremolo', 'fleet.vibrato', 'fleet.frequencyShifter', 'fleet.stereoWidener',
+] as const;
+const PEDAL_PARAM_UNITS = {
+  'fleet.chorus.rate': 'Hz', 'fleet.chorus.delay': 'ms', 'fleet.chorus.depth': undefined,
+  'fleet.chorus.spread': '°', 'fleet.chorus.feedback': undefined, 'fleet.chorus.mix': undefined,
+  'fleet.tremolo.rate': 'Hz', 'fleet.tremolo.depth': undefined, 'fleet.tremolo.spread': '°',
+  'fleet.tremolo.mix': undefined,
+  'fleet.vibrato.rate': 'Hz', 'fleet.vibrato.depth': undefined, 'fleet.vibrato.mix': undefined,
+  'fleet.frequencyShifter.shift': 'Hz', 'fleet.frequencyShifter.mix': undefined,
+  'fleet.stereoWidener.width': undefined,
+} as const;
+const PEDAL_PARAMS = Object.keys(PEDAL_PARAM_UNITS) as (keyof typeof PEDAL_PARAM_UNITS)[];
+const ALL_MODULATION_PEDALS = [...MODULATION_PEDALS, 'fleet.chorus', 'fleet.tremolo', 'fleet.vibrato', 'fleet.frequencyShifter'] as const;
+
+/** Every pair (or set) of sliders that share a name: each keeps its own lore word and its own help. */
+const SHARED_NAME_SETS = [
+  ['fleet.phaser.rate', 'fleet.chorus.rate', 'fleet.tremolo.rate', 'fleet.vibrato.rate'],
+  ['fleet.chorus.depth', 'fleet.tremolo.depth', 'fleet.vibrato.depth'],
+  ['fleet.chorus.spread', 'fleet.tremolo.spread'],
+  ['fleet.autoWah.mix', 'fleet.phaser.mix', 'fleet.chorus.mix', 'fleet.tremolo.mix', 'fleet.vibrato.mix', 'fleet.frequencyShifter.mix'],
+] as const;
+
+describe('global pedals copy', () => {
+  it('the five headings and the sixteen parameters all exist', () => {
+    expect(PEDAL_PARAMS).toHaveLength(16);
+    for (const k of [...PEDAL_HEADINGS, ...PEDAL_PARAMS]) {
+      expect(CONTENT[k as ContentKey], k).toBeDefined();
+    }
+  });
+
+  it.each(PEDAL_HEADINGS)('%s has a name, a lore word and a panel heading', (key) => {
+    const entry = CONTENT[key as ContentKey] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    expect(entry.heading?.trim()).toBeTruthy();
+    expect(entry.heading, `${key} heading is in capitals, the grid style`).toBe(entry.heading?.toUpperCase());
+  });
+
+  it.each(PEDAL_PARAMS)('%s has a name, a lore word and help, so its slider can carry a "?"', (key) => {
+    const entry = CONTENT[key as ContentKey] as ContentEntry;
+    expect(entry.human.trim()).toBeTruthy();
+    expect(entry.lore?.trim()).toBeTruthy();
+    expect(entry.help?.human.trim()).toBeTruthy();
+  });
+
+  it('the six Modulation pedals and Width carry distinct names, lore words and headings', () => {
+    const entries = [...ALL_MODULATION_PEDALS, 'fleet.stereoWidener'].map((k) => CONTENT[k as ContentKey] as ContentEntry);
+    expect(new Set(entries.map((e) => e.human)).size).toBe(7);
+    expect(new Set(entries.map((e) => e.lore)).size).toBe(7);
+    expect(new Set(entries.map((e) => e.heading)).size).toBe(7);
+  });
+
+  it.each(SHARED_NAME_SETS.map((s) => [s.join(' / '), s] as const))(
+    'the shared-name sliders %s keep one name but their own lore and help (never one shared description)',
+    (_label, set) => {
+      const entries = set.map((k) => CONTENT[k as ContentKey] as ContentEntry);
+      expect(new Set(entries.map((e) => e.human)).size).toBe(1);
+      expect(new Set(entries.map((e) => e.lore)).size).toBe(set.length);
+      expect(new Set(entries.map((e) => e.help?.human)).size).toBe(set.length);
+    },
+  );
+
+  it('the unit-bearing sliders read in their unit, and the unitless ones carry none', () => {
+    for (const k of PEDAL_PARAMS) {
+      expect((CONTENT[k as ContentKey] as ContentEntry).unit?.trim(), k).toBe(PEDAL_PARAM_UNITS[k]);
+    }
+  });
+
+  it('the spec names: Mix, Rate, Delay, Shift and Width', () => {
+    for (const k of PEDAL_PARAMS.filter((p) => p.endsWith('.mix'))) expect(CONTENT[k as ContentKey].human, k).toBe('Mix');
+    for (const k of PEDAL_PARAMS.filter((p) => p.endsWith('.rate'))) expect(CONTENT[k as ContentKey].human, k).toBe('Rate');
+    expect(CONTENT['fleet.chorus.delay' as ContentKey].human).toBe('Delay');
+    expect(CONTENT['fleet.frequencyShifter.shift' as ContentKey].human).toBe('Shift');
+    expect(CONTENT['fleet.stereoWidener.width' as ContentKey].human).toBe('Width');
+  });
+
+  it.each(['fleet.chorus.rate', 'fleet.tremolo.rate', 'fleet.vibrato.rate'])(
+    'the %s help explains both Free and Sync, like the Phaser Rate help',
+    (key) => {
+      const help = (CONTENT[key as ContentKey] as ContentEntry).help?.human ?? '';
+      expect(help).toMatch(/\bFree\b/);
+      expect(help).toMatch(/\bSync\b/);
+      expect(help).toMatch(/Tempo/);
+    },
+  );
+
+  it('the Shift help says it can go either way, below and above 0', () => {
+    const help = (CONTENT['fleet.frequencyShifter.shift' as ContentKey] as ContentEntry).help?.human ?? '';
+    expect(help).toMatch(/\b0\b/);
+    expect(help).toMatch(/negative|below/i);
+  });
+
+  it('the Width help says 0 is mono for a phone speaker and 0.5 is the sound as recorded', () => {
+    const help = (CONTENT['fleet.stereoWidener.width' as ContentKey] as ContentEntry).help?.human ?? '';
+    expect(help).toMatch(/\b0\b/);
+    expect(help).toMatch(/mono/i);
+    expect(help).toMatch(/phone/i);
+    expect(help).toMatch(/0\.5/);
+  });
+
+  it('the Modulation intro names all six pedals, and no longer says a world lights "one pedal, both, or neither"', () => {
+    const props = introProps('fleet.modulation');
+    for (const k of ALL_MODULATION_PEDALS) {
+      expect(props.humanDescription, k).toContain(`<strong>${CONTENT[k as ContentKey].human}</strong>`);
+    }
+    expect(props.humanDescription).not.toMatch(/both, or neither/);
+  });
+
+  it('the Output intro names Width, and no longer says only the Limiter sits above Controlled echoes', () => {
+    const props = introProps('fleet.output');
+    expect(props.humanDescription).toContain(`<strong>${CONTENT['fleet.stereoWidener' as ContentKey].human}</strong>`);
+    expect(props.humanDescription).not.toMatch(/only the Limiter above/);
+  });
+});

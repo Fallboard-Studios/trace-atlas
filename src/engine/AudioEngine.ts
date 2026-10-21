@@ -51,6 +51,11 @@ import {
   setGlobalBitCrusher,
   setGlobalAutoWah,
   setGlobalPhaser,
+  setGlobalChorus,
+  setGlobalTremolo,
+  setGlobalVibrato,
+  setGlobalFrequencyShifter,
+  setGlobalStereoWidener,
   getGlobalModulationTarget,
 } from './audioEngine/globalFx';
 
@@ -1464,4 +1469,9 @@ export const AudioEngine = {
   setGlobalBitCrusher,
   setGlobalAutoWah,
   setGlobalPhaser,
+  setGlobalChorus,
+  setGlobalTremolo,
+  setGlobalVibrato,
+  setGlobalFrequencyShifter,
+  setGlobalStereoWidener,
 };

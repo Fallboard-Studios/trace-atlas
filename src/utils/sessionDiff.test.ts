@@ -15,7 +15,7 @@ import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload,
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { SessionPayload } from '../types/session';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '../types/globalAudio';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { generateAttenuationStyleBpm } from './bpmSeed';
@@ -33,7 +33,7 @@ import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { noteValueHz } from '../data/noteValues';
-import { resolveLaneRateHz, resolveDelayTimeSeconds, resolvePhaserRateHz } from './tempoSync';
+import { resolveLaneRateHz, resolveDelayTimeSeconds, resolveSyncedRateHz } from './tempoSync';
 import { lfoEngine } from '../engine/lfoEngine';
 import { AudioEngine } from '../engine/AudioEngine';
 
@@ -2030,8 +2030,123 @@ describe('applySessionPayload', () => {
           applySessionPayload(buildPhaserPayload(FREE_PHASER, bpm), { skipLocaleRebuild: true });
           const { phaser } = useAudioStore.getState().globalAudio;
           expect('sync' in phaser, `${bpm} BPM`).toBe(false);
-          expect(resolvePhaserRateHz(phaser, bpm), `${bpm} BPM`).toBe(FREE_PHASER.rate);
+          expect(resolveSyncedRateHz(phaser, bpm, PEDAL_RATE_RANGE_HZ), `${bpm} BPM`).toBe(FREE_PHASER.rate);
         }
+      });
+    });
+
+    // docs/tasks/GLOBAL_PEDALS.md Task 12: the Chorus, Tremolo and Vibrato Rates are synced fields too, and
+    // sanitizeSyncedRate drops a bad `sync` on all four synced blocks at the same boundary.
+    describe('the three LFO pedals', () => {
+      // Non-default values throughout, so a block restored from the defaults can never pass by coincidence.
+      const FREE_PEDALS = {
+        chorus: { rate: 2.2, delayTime: 4, depth: 0.6, spread: 90, feedback: 0.2, wet: 0.35 },
+        tremolo: { rate: 6, depth: 0.4, spread: 120, wet: 0.25 },
+        vibrato: { rate: 3.5, depth: 0.3, wet: 0.15 },
+      } as const;
+      const FREE_PHASER = { rate: 0.8, octaves: 4, baseFrequency: 420, stages: 7, Q: 6, wet: 0.3 } as const;
+      type LfoPedal = keyof typeof FREE_PEDALS;
+      const LFO_PEDALS = Object.keys(FREE_PEDALS) as LfoPedal[];
+      const SETTER = { chorus: 'setGlobalChorus', tremolo: 'setGlobalTremolo', vibrato: 'setGlobalVibrato' } as const;
+
+      /** A payload whose three LFO pedals are the Free blocks above, with the caller's overrides on top. */
+      function buildPedalPayload(overrides: Partial<Record<LfoPedal | 'phaser', Record<string, unknown>>>, bpm?: number): SessionPayload {
+        const payload = buildPayload(freeLanes(), FREE_DELAY, bpm);
+        return { ...payload, globalAudio: { ...payload.globalAudio, ...FREE_PEDALS, phaser: FREE_PHASER, ...overrides } as never };
+      }
+
+      describe.each(LFO_PEDALS)('the %s', (key) => {
+        it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine hears the stored rate', async (_label, bad) => {
+          const payload = buildPedalPayload({ [key]: { ...FREE_PEDALS[key], sync: bad } }, 120);
+          const pushSpy = vi.spyOn(AudioEngine, SETTER[key]);
+
+          applySessionPayload(payload, { skipLocaleRebuild: true });
+
+          const block = useAudioStore.getState().globalAudio[key];
+          expect('sync' in block).toBe(false);
+          expect(block).toStrictEqual(FREE_PEDALS[key]);
+          expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual(FREE_PEDALS[key]);
+          pushSpy.mockRestore();
+        });
+
+        it('keeps a valid `sync` exactly as it came, and the engine hears that note\'s Hz at the payload tempo, never a sync key', async () => {
+          const payload = buildPedalPayload({ [key]: { ...FREE_PEDALS[key], sync: QUARTER } }, 120);
+          const pushSpy = vi.spyOn(AudioEngine, SETTER[key]);
+
+          applySessionPayload(payload, { skipLocaleRebuild: true });
+
+          expect(useAudioStore.getState().globalAudio[key]).toStrictEqual({ ...FREE_PEDALS[key], sync: QUARTER });
+          const pushed = pushSpy.mock.calls.at(-1)![0] as { rate: number };
+          expect(pushed).not.toHaveProperty('sync');
+          expect(pushed.rate).toBe(noteValueHz(QUARTER, 120));
+          expect(pushed.rate).not.toBe(FREE_PEDALS[key].rate);
+          pushSpy.mockRestore();
+        });
+
+        it('leaves every other effect untouched while it drops the bad `sync`', async () => {
+          const payload = buildPedalPayload({ [key]: { ...FREE_PEDALS[key], sync: 'off' } }, 120);
+
+          applySessionPayload(payload, { skipLocaleRebuild: true });
+
+          const { [key]: _a, ...restApplied } = useAudioStore.getState().globalAudio;
+          const { [key]: _p, ...restPayload } = payload.globalAudio;
+          expect(restApplied).toStrictEqual(restPayload);
+        });
+
+        it('does not mutate the payload it was given', async () => {
+          const payload = buildPedalPayload({ [key]: { ...FREE_PEDALS[key], sync: 'off' } }, 120);
+
+          applySessionPayload(payload, { skipLocaleRebuild: true });
+
+          expect(payload.globalAudio[key]).toStrictEqual({ ...FREE_PEDALS[key], sync: 'off' });
+        });
+
+        it('a block with no `sync` key is returned as the very object the payload carried', async () => {
+          const payload = buildPedalPayload({}, 120);
+
+          applySessionPayload(payload, { skipLocaleRebuild: true });
+
+          expect(useAudioStore.getState().globalAudio[key]).toBe(payload.globalAudio[key]);
+        });
+      });
+
+      it('sanitises the four synced blocks independently: a bad Tremolo never costs the others a valid `sync`', async () => {
+        const QUARTER_DOTTED = { division: '1/4', modifier: 'dotted' } as const;
+        const payload = buildPedalPayload(
+          {
+            phaser: { ...FREE_PHASER, sync: QUARTER },
+            chorus: { ...FREE_PEDALS.chorus, sync: QUARTER_DOTTED },
+            tremolo: { ...FREE_PEDALS.tremolo, sync: 'nope' },
+            vibrato: { ...FREE_PEDALS.vibrato, sync: QUARTER },
+          },
+          120,
+        );
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { globalAudio } = useAudioStore.getState();
+        expect(globalAudio.phaser).toStrictEqual({ ...FREE_PHASER, sync: QUARTER });
+        expect(globalAudio.chorus).toStrictEqual({ ...FREE_PEDALS.chorus, sync: QUARTER_DOTTED });
+        expect('sync' in globalAudio.tremolo).toBe(false);
+        expect(globalAudio.tremolo).toStrictEqual(FREE_PEDALS.tremolo);
+        expect(globalAudio.vibrato).toStrictEqual({ ...FREE_PEDALS.vibrato, sync: QUARTER });
+      });
+
+      it('a bad `sync` on all four synced blocks at once leaves none of them with a `sync` key', async () => {
+        const payload = buildPedalPayload(
+          {
+            phaser: { ...FREE_PHASER, sync: 'off' },
+            chorus: { ...FREE_PEDALS.chorus, sync: null },
+            tremolo: { ...FREE_PEDALS.tremolo, sync: 7 },
+            vibrato: { ...FREE_PEDALS.vibrato, sync: { division: '1/3', modifier: 'straight' } },
+          },
+          120,
+        );
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { globalAudio } = useAudioStore.getState();
+        for (const key of ['phaser', ...LFO_PEDALS] as const) expect('sync' in globalAudio[key], key).toBe(false);
       });
     });
 
@@ -2479,5 +2594,153 @@ describe('applySessionPayload — pedal defaults (Global Modulation T12)', () =>
     applySessionPayload(prePedalPayload(), { skipLocaleRebuild: true });
     expect(useAudioStore.getState().globalAudio.autoWah).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
     expect(useAudioStore.getState().globalAudio.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+  });
+});
+
+// ----------------------------------------
+// GLOBAL PEDALS DEFAULTS ON RESTORE (docs/specs/GLOBAL_PEDALS.md; docs/tasks/GLOBAL_PEDALS.md Task 12)
+// ----------------------------------------
+// A version-2 session saved before the Chorus, Tremolo, Vibrato, Frequency Shifter and Width existed has none of
+// the five blocks. Restoring it fills all five from the defaults (four dry, Width at its 0.5 unity) and pushes them
+// to the engine; a payload that carries them restores them as given, a synced Chorus included.
+
+describe('applySessionPayload — Global Pedals defaults (T12)', () => {
+  const NEW_KEYS = ['chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'stereoWidener'] as const;
+  let newPedalLocaleCounter = 0;
+  function setupNewPedalWorld() {
+    const localeId = `apply-session-new-pedal-locale-${newPedalLocaleCounter++}`;
+    useAttenuationStyleStore.setState({
+      attenuationStyles: [{ ...DEFAULT_PELAGOS, currentLocaleId: localeId }],
+      currentAttenuationStyleId: DEFAULT_PELAGOS.id,
+    });
+    useLocaleStore.setState({ locales: { [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } } });
+    spawnInitialRoster(localeId);
+  }
+
+  // Non-default on every field, so a defaulted block can never pass for a restored one.
+  const LIT = {
+    chorus: { rate: 2.2, delayTime: 4, depth: 0.6, spread: 90, feedback: 0.2, wet: 0.35, sync: { division: '1/4', modifier: 'dotted' } },
+    tremolo: { rate: 6, depth: 0.4, spread: 120, wet: 0.25 },
+    vibrato: { rate: 3.5, depth: 0.3, wet: 0.15 },
+    frequencyShifter: { shift: -7, wet: 0.2 },
+    stereoWidener: { width: 0.2 },
+  } as const;
+
+  /** A version-2 payload as the build before the five blocks wrote it: none of them at all. */
+  function preNewPedalPayload(): SessionPayload {
+    const payload = buildSessionPayload();
+    const { chorus: _c, tremolo: _t, vibrato: _v, frequencyShifter: _f, stereoWidener: _w, ...old } = payload.globalAudio;
+    return { ...payload, version: 2, globalAudio: old as unknown as SessionPayload['globalAudio'] };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('the fixture really lacks the five blocks and is version 2 (the fixture proves what it claims)', () => {
+    setupNewPedalWorld();
+    const payload = preNewPedalPayload();
+    expect(payload.version).toBe(2);
+    for (const key of NEW_KEYS) expect(key in payload.globalAudio, key).toBe(false);
+  });
+
+  it('a payload without the five blocks restores them at the defaults without throwing, and leaves every other block as saved', () => {
+    setupNewPedalWorld();
+    const payload = preNewPedalPayload();
+    expect(() => applySessionPayload(payload)).not.toThrow();
+    const restored = useAudioStore.getState().globalAudio;
+    for (const key of NEW_KEYS) expect(restored[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    expect([restored.chorus.wet, restored.tremolo.wet, restored.vibrato.wet, restored.frequencyShifter.wet]).toEqual([0, 0, 0, 0]);
+    expect(restored.stereoWidener.width).toBe(0.5);
+    for (const key of ['chorus', 'tremolo', 'vibrato'] as const) expect('sync' in restored[key], key).toBe(false);
+    for (const [key, value] of Object.entries(payload.globalAudio)) {
+      expect(restored[key as keyof typeof restored], key).toEqual(value);
+    }
+  });
+
+  it('a crafted payload whose synced blocks are numbers restores the defaults instead of throwing in the sanitiser', () => {
+    setupNewPedalWorld();
+    const payload = buildSessionPayload();
+    const crafted = { ...payload, globalAudio: { ...payload.globalAudio, chorus: 1, tremolo: 1, vibrato: 1, phaser: 1, delay: 1 } };
+    expect(() => applySessionPayload(crafted as unknown as SessionPayload)).not.toThrow();
+    const restored = useAudioStore.getState().globalAudio;
+    for (const key of ['chorus', 'tremolo', 'vibrato', 'phaser', 'delay'] as const) {
+      expect(restored[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    }
+  });
+
+  it('the engine is pushed all five full default blocks, never undefined', () => {
+    setupNewPedalWorld();
+    const spies = {
+      chorus: vi.spyOn(AudioEngine, 'setGlobalChorus').mockImplementation(() => {}),
+      tremolo: vi.spyOn(AudioEngine, 'setGlobalTremolo').mockImplementation(() => {}),
+      vibrato: vi.spyOn(AudioEngine, 'setGlobalVibrato').mockImplementation(() => {}),
+      frequencyShifter: vi.spyOn(AudioEngine, 'setGlobalFrequencyShifter').mockImplementation(() => {}),
+      stereoWidener: vi.spyOn(AudioEngine, 'setGlobalStereoWidener').mockImplementation(() => {}),
+    };
+    applySessionPayload(preNewPedalPayload());
+    for (const key of NEW_KEYS) {
+      expect(spies[key], key).toHaveBeenCalledWith(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+      expect(spies[key].mock.calls.every((c) => c[0] !== undefined), key).toBe(true);
+    }
+  });
+
+  it('a payload that carries the five blocks restores them as given, the synced Chorus at the engine as its note\'s Hz', () => {
+    setupNewPedalWorld();
+    const chorusSpy = vi.spyOn(AudioEngine, 'setGlobalChorus').mockImplementation(() => {});
+    const widthSpy = vi.spyOn(AudioEngine, 'setGlobalStereoWidener').mockImplementation(() => {});
+    const payload = { ...buildSessionPayload(), bpm: 120, globalAudio: { ...buildSessionPayload().globalAudio, ...LIT } };
+    applySessionPayload(payload);
+    const restored = useAudioStore.getState().globalAudio;
+    for (const key of NEW_KEYS) expect(restored[key], key).toEqual(LIT[key]);
+    const { sync, ...chorusNoSync } = LIT.chorus;
+    expect(chorusSpy).toHaveBeenCalledWith({ ...chorusNoSync, rate: noteValueHz(sync, 120) });
+    expect(widthSpy).toHaveBeenCalledWith({ width: 0.2 });
+  });
+
+  it('save then restore is exact for a synced Chorus and Width 0.2: the next save carries the same five blocks', () => {
+    setupNewPedalWorld();
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, ...LIT } }));
+    const saved = buildSessionPayload();
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, ...DEFAULT_GLOBAL_AUDIO_SETTINGS } }));
+    applySessionPayload(saved);
+    const again = buildSessionPayload();
+    for (const key of NEW_KEYS) expect(again.globalAudio[key], key).toEqual(LIT[key]);
+  });
+
+  it('a present block is kept whole, never deep-merged: a Chorus with only a wet stays without its other fields', () => {
+    setupNewPedalWorld();
+    const globalAudio = { ...buildSessionPayload().globalAudio, chorus: { wet: 0.5 } } as unknown as SessionPayload['globalAudio'];
+    applySessionPayload({ ...buildSessionPayload(), globalAudio });
+    expect(useAudioStore.getState().globalAudio.chorus).toStrictEqual({ wet: 0.5 });
+  });
+
+  it('a payload with only some of the five keeps those byte for byte and defaults the rest', () => {
+    setupNewPedalWorld();
+    const { chorus: _c, vibrato: _v, stereoWidener: _w, ...rest } = buildSessionPayload().globalAudio;
+    const globalAudio = { ...rest, tremolo: LIT.tremolo, frequencyShifter: LIT.frequencyShifter } as unknown as SessionPayload['globalAudio'];
+    applySessionPayload({ ...buildSessionPayload(), globalAudio });
+    const restored = useAudioStore.getState().globalAudio;
+    expect(restored.tremolo).toEqual(LIT.tremolo);
+    expect(restored.frequencyShifter).toEqual(LIT.frequencyShifter);
+    for (const key of ['chorus', 'vibrato', 'stereoWidener'] as const) expect(restored[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+  });
+
+  it('a null block is a missing one: it takes the default and nothing throws', () => {
+    setupNewPedalWorld();
+    const nulled = { ...buildSessionPayload().globalAudio, chorus: null, stereoWidener: null } as unknown as SessionPayload['globalAudio'];
+    expect(() => applySessionPayload({ ...buildSessionPayload(), globalAudio: nulled })).not.toThrow();
+    expect(useAudioStore.getState().globalAudio.chorus).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus);
+    expect(useAudioStore.getState().globalAudio.stereoWidener).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener);
+  });
+
+  it('restoring never mutates the payload, and the stored defaults are copies, not the shared constants', () => {
+    setupNewPedalWorld();
+    const payload = preNewPedalPayload();
+    const before = JSON.stringify(payload);
+    applySessionPayload(payload);
+    expect(JSON.stringify(payload)).toBe(before);
+    const restored = useAudioStore.getState().globalAudio;
+    for (const key of NEW_KEYS) expect(restored[key], key).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
   });
 });

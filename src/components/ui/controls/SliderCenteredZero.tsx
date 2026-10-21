@@ -1,16 +1,22 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, type KeyboardEvent } from 'react';
 import * as Slider from '@radix-ui/react-slider';
 
 import { DualLabel } from './DualLabel';
 import { VoxelTrack } from './VoxelTrack';
 import { resolveAccessibleName } from './accessibleName';
 import { formatDisplayValue } from './formatDisplayValue';
+import { signedLogKeyStep, signedLogTrackValue, signedLogValueToT } from './sliderLogMath';
 import { useAutoSliderOrientation } from './useAutoSliderOrientation';
 import { useVoxelTrackSlider } from './useVoxelTrackSlider';
 import { useEasedControlValue } from './useEasedControlValue';
 import { computeVoxelBoxStatesCenteredZero } from '@/utils/voxelTrackMath';
 import type { SliderCenteredZeroSchema } from '@/types/controls';
 import './SliderCenteredZero.css';
+
+/** A signed-log track's Radix step, for pointer drags: fine enough that every `step` of value is reachable. */
+const LOG_TRACK_STEP = 0.001;
+const LOG_FORWARD_KEYS = ['ArrowRight', 'ArrowUp', 'PageUp'];
+const LOG_BACK_KEYS = ['ArrowLeft', 'ArrowDown', 'PageDown'];
 
 interface SliderCenteredZeroProps {
   schema: SliderCenteredZeroSchema;
@@ -58,17 +64,36 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
 
   const { displayValue, handleValueChange } = useEasedControlValue(value, swelling);
 
+  // A signed-log schema (logKnee) runs the thumb and the fill on the track position t (-1..1) instead of the value.
+  const { min, max, logKnee } = schema;
+  const step = schema.step ?? 1;
+  const trackValue = logKnee === undefined ? displayValue : signedLogValueToT(displayValue, min, max, logKnee);
+  const [trackMin, trackMax] = logKnee === undefined ? [min, max] : [-1, 1];
+
   // Memoized so VoxelTrack's own React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
   // can bail on an unchanged states reference — computeVoxelBoxStatesCenteredZero is a pure
   // function that otherwise returns a fresh array every render.
   const states = useMemo(
-    () => computeVoxelBoxStatesCenteredZero(displayValue, schema.min, schema.max, boxCount),
-    [displayValue, schema.min, schema.max, boxCount],
+    () => computeVoxelBoxStatesCenteredZero(trackValue, trackMin, trackMax, boxCount),
+    [trackValue, trackMin, trackMax, boxCount],
   );
 
-  const valueLabel = (
-    <span className="sc-slider-centered-zero__value">{formatDisplayValue(displayValue)}{schema.unit}</span>
-  );
+  const valueText = `${formatDisplayValue(displayValue)}${schema.unit ?? ''}`;
+  const valueLabel = <span className="sc-slider-centered-zero__value">{valueText}</span>;
+
+  // On a signed-log track Radix's own step is a sliver of track, which near zero rounds back to the value it left, so
+  // the arrow and page keys are stepped here instead (Radix skips its own handler once this one prevents the default).
+  // Home and End stay Radix's: the track ends are the bounds.
+  const handleLogKeyDown =
+    logKnee === undefined
+      ? undefined
+      : (event: KeyboardEvent) => {
+          const direction = LOG_FORWARD_KEYS.includes(event.key) ? 1 : LOG_BACK_KEYS.includes(event.key) ? -1 : 0;
+          if (direction === 0 || disabled) return;
+          event.preventDefault();
+          const page = event.key === 'PageUp' || event.key === 'PageDown' || event.shiftKey;
+          handleValueChange(signedLogKeyStep(value, direction, page, min, max, logKnee, step), onChange);
+        };
 
   // Every hook above runs in both branches, so toggling readOnly never changes the hook order and the
   // eased displayValue carries across. Mirrors SliderLinear.tsx's readOnly branch (roadmap 15.1).
@@ -100,11 +125,17 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
       <Slider.Root
         className="sc-slider-centered-zero__root"
         orientation={orientation}
-        min={schema.min}
-        max={schema.max}
-        step={schema.step ?? 1}
-        value={[displayValue]}
-        onValueChange={(values) => handleValueChange(values[0], onChange)}
+        min={trackMin}
+        max={trackMax}
+        step={logKnee === undefined ? step : LOG_TRACK_STEP}
+        value={[trackValue]}
+        onValueChange={(values) =>
+          handleValueChange(
+            logKnee === undefined ? values[0] : signedLogTrackValue(values[0], min, max, logKnee, step),
+            onChange,
+          )
+        }
+        onKeyDown={handleLogKeyDown}
         disabled={disabled}
         style={rootStyle}
       >
@@ -118,7 +149,12 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
             timelineKeyPrefix={`cabinet-voxel-${schema.id}`}
           />
         </Slider.Track>
-        <Slider.Thumb className="sc-slider-centered-zero__thumb" aria-label={resolveAccessibleName(schema)} />
+        {/* aria-valuetext only on a signed-log track, where aria-valuenow is the track position, not the value. */}
+        <Slider.Thumb
+          className="sc-slider-centered-zero__thumb"
+          aria-label={resolveAccessibleName(schema)}
+          aria-valuetext={logKnee === undefined ? undefined : valueText}
+        />
       </Slider.Root>
       {!isVertical && valueLabel}
     </div>

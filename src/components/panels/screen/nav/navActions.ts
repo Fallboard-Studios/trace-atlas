@@ -94,13 +94,20 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'chebyshev', content: 'fleet.chebyshev' },
     { id: 'bitCrusher', content: 'fleet.bitCrusher' },
   ],
-  // Chain order (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 3, wah first): the two modulation pedals.
+  // Chain order (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 3, wah first; docs/specs/GLOBAL_PEDALS.md
+  // assumption 11, the four motion pedals after the Phaser): the six modulation pedals.
   modulation: [
     { id: 'autoWah', content: 'fleet.autoWah' },
     { id: 'phaser', content: 'fleet.phaser' },
+    { id: 'chorus', content: 'fleet.chorus' },
+    { id: 'tremolo', content: 'fleet.tremolo' },
+    { id: 'vibrato', content: 'fleet.vibrato' },
+    { id: 'frequencyShifter', content: 'fleet.frequencyShifter' },
   ],
+  // Chain order: Width sits between the Compressor and the Limiter (docs/specs/GLOBAL_PEDALS.md assumption 11).
   output: [
     { id: 'compressor', content: 'fleet.compressor' },
+    { id: 'stereoWidener', content: 'fleet.stereoWidener' },
     { id: 'limiter', content: 'fleet.limiter' },
   ],
 };

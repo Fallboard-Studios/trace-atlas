@@ -79,12 +79,15 @@ every citation below was read, not recalled):
   start the LFOs.** Defaults `{ frequency: 1.5, delayTime: 3.5, depth: 0.7, type: 'sine', spread: 180,
   feedback: 0 }`. `Tremolo extends StereoEffect`: two LFOs on two amplitude Gains, phase inverted per
   channel; `frequency` and `depth` are Signals fanned to both LFOs; `spread`, `type` plain setters; **`start()`
-  required.** Defaults `{ frequency: 10, depth: 0.5, spread: 180 }`. `Vibrato extends Effect` (mono): one
-  LFO on one `Delay` with `maxDelay` constructor-only (default 0.005 s — the Depth ceiling); `frequency`
-  and `depth` are the LFO's frequency and amplitude Signals; **the constructor starts the LFO.** Defaults
-  `{ frequency: 5, depth: 0.1 }`. `FrequencyShifter extends Effect` (mono): `frequency` a Signal, signed,
-  ±sampleRate/2, default 0; single-sideband ring modulation, aliases towards the top (the global LPF is
-  upstream). `StereoWidener extends MidSideEffect`: `width` a Signal 0–1, default 0.5 = unity
+  required.** Defaults `{ frequency: 10, depth: 0.5, spread: 180 }`. `Vibrato extends Effect`, which is
+  **not** mono: `Effect` is gains and a crossfade, and the one LFO moves one `Delay` that delays left and right
+  alike, so the stereo image passes through. `maxDelay` is constructor-only (default 0.005 s — the Depth
+  ceiling); `frequency` and `depth` are the LFO's frequency and amplitude Signals; **the constructor starts
+  the LFO.** Defaults `{ frequency: 5, depth: 0.1 }`. `FrequencyShifter extends Effect`: `frequency` a
+  Signal, signed, ±sampleRate/2, default 0; single-sideband ring modulation, aliases towards the top (the
+  global LPF is upstream). It is **half mono**: its sine branch reaches the output through `Add.addend`, an
+  AudioParam, which the browser downmixes, while its cosine branch stays stereo. A centred voice shifts
+  cleanly; a panned one leaks the other sideband and a copy into the far channel (measured in §8). `StereoWidener extends MidSideEffect`: `width` a Signal 0–1, default 0.5 = unity
   (`Mid *= 2(1−width)`, `Side *= 2·width`); it has a `wet` like every Effect, held at 1.
 
 ASSUMPTIONS I'm making beyond the intent's decisions (correct now or I'll proceed with these):
@@ -102,12 +105,14 @@ ASSUMPTIONS I'm making beyond the intent's decisions (correct now or I'll procee
    join at the Compressor and flow through the widener anyway. So the widener is the one node that hears
    the rooms in both modes, and Width 0 folds everything.
 3. **Order inside the motion slot: Chorus → Tremolo → Vibrato → FrequencyShifter.** Chorus first because it
-   is the only stereo-feedback node and the Phaser hands it a stereo signal; the shifter last because it is
-   mono and ring-modulating a tremolo'd, chorused signal is the "strange" the backlog wants, while a chorus
-   of a ring-modulated signal just smears aliasing. A listening item in §7. Note the Vibrato and the shifter
-   are mono `Effect`s: each sums the stereo chain to mono and the widener restores side content only from
-   what the Compressor passes. **Veto point:** if the mono collapse at the Vibrato is audible on a lit
-   Chorus world, swap to Vibrato → Chorus → Tremolo → Shifter (mono nodes first) — one line.
+   is the only stereo-feedback node and the Phaser hands it a stereo signal; the shifter last because
+   ring-modulating a tremolo'd, chorused signal is the "strange" the backlog wants, while a chorus of a
+   ring-modulated signal just smears aliasing. A listening item in §7. *(Corrected 2026-10-18, review: this
+   assumption first said the Vibrato and the shifter were mono `Effect`s that sum the chain. The Vibrato is
+   fully stereo; only the shifter's sine branch is downmixed — see §1 above and §8.)* **Veto point:** if the
+   shifter's sideband leak on panned voices (Robot Pan) sounds wrong rather than strange on a lit world,
+   the choices are a lower lit share for the shifter or a centred-only band — not a slot swap, since the
+   leak is in the node, wherever it sits.
 4. **The LFOs run always.** Chorus and Tremolo are `start()`ed once at construction (the Phaser's LFOs
    already run always; Vibrato starts itself). A dark pedal is Mix 0, not a stopped LFO. Simplest, no
    start/stop state; the cost of three idle LFOs is the gate's to measure. Never `sync()` a pedal LFO to the
@@ -492,7 +497,7 @@ export function resolvePhaserRateHz(phaser: PhaserSettings, bpm: number): number
   seed keys `block.field`; content keys `fleet.<block>.<param>`; constants `PEDAL_*` in the module that owns
   them.
 - Comments cite this spec by section where a choice is not obvious from the code (the widener join, the
-  always-running LFOs, the sequential cap, the hand-amended oracle, the mono nodes in a stereo chain).
+  always-running LFOs, the sequential cap, the hand-amended oracle, the shifter's downmixed sine branch).
 - Tests colocated; TDD per task; one commit per task; the mutation harness run on each pure module.
 
 ---
@@ -553,8 +558,8 @@ clean. Mutation harness on `tempoSync.ts`, `globalAudioSeed.ts`, `globalAudio.ts
 neither world, found by cycling seeds with the HUD's seed readout; each pedal from 0 to full by hand with no
 click; **Width dragged 0.5 → 0 → 1 while a lit Delay plays — the fold must take the delay's stereo tail with
 it**; each synced Rate Free → Sync → Free, then a Tempo change with Sync on; a Natural ↔ Controlled flip
-keeps every pedal and the Width fold in both modes; the shifter at ±5 Hz and at ±500 Hz; a lit Chorus world
-with the Vibrato at full (assumption 3's mono-collapse veto); save, reload and share-link round trips
+keeps every pedal and the Width fold in both modes; the shifter at ±5 Hz and at ±500 Hz, on a world with
+hard-panned robots as well as a centred one (assumption 3's sideband-leak veto); save, reload and share-link round trips
 including a synced Chorus; an old `?session=` link loads with all five at defaults; keyboard and every "?".
 
 **Phone gate (the series' "without distortion", done in full this time):**
@@ -563,7 +568,7 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
    50.5 chain), Pixel 8, `?debug`, Full 3:00 and Standard 3:00, HUD `underruns` at start and end recorded in
    `scratchy-audio-phones.md`. 50.3's and 50.4's T0 never ran, so this is the first measured baseline since
    Sends.
-2. **One worst-case run on the branch**, same world, same lengths: all seven Modulation pedals at full Mix,
+2. **One worst-case run on the branch**, same world, same lengths: all six Modulation pedals at full Mix,
    the Phaser at 12 stages, Width at 1. Underrun counts at Full and at Standard, plus the desktop
    `npm run perf` before and after.
 3. **Pass:** zero underruns at Full and no more than the re-baseline at Standard. **Bisect only on a miss:**
@@ -589,26 +594,212 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
 
 ## 7. Open Questions & Risks
 
-1. **Slot order (assumption 3):** Chorus → Tremolo → Vibrato → Shifter, or mono nodes first? The Vibrato
-   and the shifter are mono `Effect`s inside a chain that has been stereo since the Phaser; each sums left
-   and right. The desktop listen on a lit Chorus world decides; the swap is one line.
+1. **The shifter on panned voices (assumption 3):** the Vibrato keeps the stereo image (it was first
+   written down as mono; corrected 2026-10-18), so the slot order no longer has a mono question. The open
+   item is the shifter: on a hard-panned voice it leaks its other sideband at a third of the wanted one and
+   puts a quarter-level copy in the far channel. The desktop listen on a panned world decides whether that
+   is the backlog's "strange" or a fault; the levers are its lit share and its band. **Answered at T16
+   (Crawford, 2026-10-20: "i'm happy with passing T16, it sounds fine"): not a fault. The shifter's lit share
+   and band stay as built.** His reply did not itemise the panned and centred worlds.
 2. **The cap (assumption 7):** sequential in chain order (AutoWah and Phaser keep first claim, oracles
-   untouched) or a pick of up to two from six (equal standing, oracles move)? Sequential is proposed.
+   untouched) or a pick of up to two from six (equal standing, oracles move)? Sequential is proposed. **Answered:
+   sequential, built at T8 (`MAX_LIT_PEDALS`); the AutoWah and Phaser oracles did not move. Not objected to at any
+   checkpoint.**
 3. **Odds (assumption 7):** 0.25 / 0.25 / 0.25 / 0.15 nominal, measured lower under the cap. The
-   calibration test pins whatever the measurement gives; a theme is the lever afterwards.
+   calibration test pins whatever the measurement gives; a theme is the lever afterwards. **Answered: the nominal
+   edges stand. Measured over 20 000 styles: Chorus 22.68 %, Tremolo 19.33 %, Vibrato 16.75 %, shifter 8.20 %, two
+   lit in 49.38 % of worlds and never three. The T16 listen moved nothing.**
 4. **Lit bands (assumption 6)** are placeholders for the listen, as 50.4's were. The shifter's ±2–20 Hz
-   is the one most likely to move: a few Hz is a slow beating, twenty is already inharmonic.
+   is the one most likely to move: a few Hz is a slow beating, twenty is already inharmonic. **Answered at T16
+   (Crawford, 2026-10-20, "it sounds fine"): no band moved.** The lit bands in `GLOBAL_AUDIO_LOADING_RANGES` and
+   the grid stand as built, the shifter's ±2–20 Hz included, so the oracles and T8's calibration targets are
+   unchanged.
 5. **Always-running LFOs (assumption 4):** three idle LFOs cost something; if the worst-case run misses and
    the bisect blames an idle LFO, the alternative is `stop()` at Mix 0 and `start()` on the first non-zero
-   Mix, inside the setter.
+   Mix, inside the setter. **Answered by the Dark-Effect Bypass, not by stopping LFOs.** The phone run missed, and
+   round 2 blamed the effects' presence, not their LFOs: a dark effect still processed its wet path. The bypass takes
+   a dark effect out of the signal path and leaves its LFOs running (§8). What they still cost is part of the 38.3 ‰
+   that all ten dark effects cost on the desktop; a stop at Mix 0 was not built.
 6. **Widener join (assumption 2):** moving the Controlled-Decay join from the Limiter to the widener is the
-   one change to existing wiring. The AudioEngine chain-order test pins it in both modes.
+   one change to existing wiring. The AudioEngine chain-order test pins it in both modes. **Answered: built at T6; since
+   the bypass the returns join at the Width cell's input, lit or dark (`getCell('stereoWidener')?.in`), still falling
+   back to the Limiter when there is no Width cell. Checkpoint B's Width-under-Controlled-Decay listen passed.**
 7. **`sliderCenteredZero` for `shift`:** the primitive exists for the robot's detune; its first global use.
-   If it needs a different step at the extremes, a `sliderLinear` with a signed range is the fallback.
-8. **Presets (assumption 10):** clean, unless Crawford wants a preset with a pedal.
-9. **Lore words (assumption 16)** are placeholders until Crawford's copy pass.
+   If it needs a different step at the extremes, a `sliderLinear` with a signed range is the fallback. **Answered:
+   kept, with a signed-log track (`logKnee: 1`) added in the branch review, which Crawford chose over the fallback; the
+   seeded ±2–20 Hz band went from under 2 % of the track to 28 % of each half. He tried it on the phone (2026-10-21,
+   "it all sounds good on desktop and the phone").**
+8. **Presets (assumption 10):** clean, unless Crawford wants a preset with a pedal. **Answered: clean, as built (T1).**
+9. **Lore words (assumption 16)** are placeholders until Crawford's copy pass. **Still open: the copy pass has not
+   happened.**
 10. **Phone cost:** two LFOs and two delay lines with feedback for the Chorus; two LFOs and two Gains for
     the Tremolo; one LFO and one delay for the Vibrato; a sine/cosine pair, two multipliers and a Hilbert
-    approximation for the shifter; four Gains for the widener. Cheap by inspection; the gate decides.
+    approximation for the shifter; four Gains for the widener. Cheap by inspection; the gate decides. **Answered: not
+    cheap enough as inline nodes. The first phone run missed, and the fix was the Dark-Effect Bypass (§8). With it, a
+    world with every effect dark reads at or below `main`. T14 passed with a caveat by Crawford's call: late in a
+    sitting both builds collapse, `main` included (backlog 27). What a lit effect costs on the phone is still open.**
 11. **Roadmap number (assumption 17):** 50.6, under the series umbrella, rather than a new top-level entry.
     The file's last top-level entry is 52 on this branch and 53 is the per-mover layers phase, so a top-level entry would be 54.
+    **Answered: 50.6, written at T17 after 50.5 in `docs/todo/roadmap.md`, with the Dark-Effect Bypass inside it.**
+
+---
+
+## 8. As built
+
+*(Started 2026-10-18 during Phase 1; completed by the docs task, T17, on 2026-10-21. The living docs describe the result:
+`docs/AUDIO_SYSTEM.md` Signal Graph, "Global Pedals" and "The bypass cells"; `docs/reference/GLOBAL_CHAIN_GRID.md`
+footnote ⁵; `docs/todo/roadmap.md` 50.6.)*
+
+- **The cycle-search cuts (a fix found at Checkpoint A, approved by Crawford 2026-10-18).** After T8 the app hung on
+  power-on: the Power button kept flashing and the main thread never returned. Cause: Tone's `standardized-audio-context`
+  runs `detectCycles` on every `connect` and `disconnect`, enumerating every simple path downstream of the destination
+  (no memoising) and stopping only at a node with a `delayTime`. Each Tone effect has a dry and a wet path and the
+  stereo and mid/side ones split again, so the path count multiplies per stage. Measured in headless Chrome over CDP
+  (power-on, then a Decay flip, a Phaser Stages change and linking all seven global LFOs): `main`'s chain powered on in
+  2.8-4.8 s with 1.5-3 s unresponsive; each new node alone multiplied that (Chorus x2, Tremolo x3, Vibrato x2, shifter
+  x2, widener x12), so all five came to an estimated ~14 minutes. **Fix, in `globalFx.ts`:** two zero-delay `Tone.Delay`
+  nodes (`CHAIN_CUT_OPTIONS`, `maxDelay` 0.01 s) in the dry chain, one at its entry (`getGlobalChainEntry()` returns it;
+  every robot bus connects into it) and one between the High-Pass Filter and the Distortion (where the global LFO targets
+  end), and `disconnectAllFxNodes` walks the chain downstream-first. Neither cut is in a cycle, so a delay of 0 passes the
+  sound unchanged. Result with all five pedals: power-on about 2 s with no unresponsive time, a Decay flip 3-4 ms, a Phaser
+  Stages change about 40 ms, linking all seven global LFOs 1 ms (an entry cut alone left a Decay flip at 2.6 s and the
+  seven links at 8.1 s). The chain-order line is therefore entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion ->
+  ...; with no `Delay` constructor (headless) the chain enters at the EQ3 as before. The two nodes are on T14's phone
+  gate like everything else.
+- **The Vibrato is stereo; the shifter is half mono (found in the 2026-10-18 review, measured the same day).** §1 and
+  assumption 3 first said both were mono `Effect`s that sum the chain. Tone's `Effect` is gains and a crossfade, and the
+  Vibrato is one LFO on one `Delay`, so it delays left and right alike. The shifter's sine branch is negated into
+  `Add.addend`, an AudioParam, so that branch is downmixed to mono (`0.5·(L+R)`) while the cosine branch stays stereo.
+  Measured with an offline Tone render in headless Chrome (a 440 Hz sine on the LEFT channel only, each node at wet 1,
+  amplitude per tone by Goertzel): Chorus, Tremolo and Vibrato leave the right channel at exactly 0; the shifter at
+  +100 Hz gives left 540 Hz 0.75 and 340 Hz 0.25 (the sideband it should cancel), right 540 Hz 0.25 and 340 Hz 0.25.
+  With the same sine on both channels it is clean: 540 Hz 1.0, 340 Hz 0.003. So a centred voice shifts as designed and
+  a panned one (Robot Pan) leaks; the veto in assumption 3 and §7 Q1 was rewritten around that. No code changed.
+- **The Phaser's wrappers are gone (2026-10-18 review).** §1.4, §1.5 and T3/T7/T8 kept `resolvePhaserRateHz`,
+  `allowedPhaserNoteValues`, `phaserToSync`, `phaserToFree`, `setPhaserSyncMode` and the `PHASER_SYNC_ODDS` alias as
+  one-line wrappers so the Phaser's existing tests could prove the generic rail faithful. With that proved and no caller
+  left outside tests, all six were deleted: the Phaser calls `resolveSyncedRateHz` / `allowedRateNoteValues` /
+  `syncedRateToSync` / `syncedRateToFree` over `PEDAL_RATE_RANGE_HZ` like the other three, the drawer and the tests call
+  `setPedalSyncMode('phaser', …)`, and the seeder's Phaser roll reads `PEDAL_SYNC_ODDS`. The Phaser's own test cases were
+  kept and now drive the generic helpers on a `PhaserSettings` object.
+- **One name for the shared rate range (2026-10-18 review).** Assumption 5 made `PEDAL_RATE_RANGE_HZ` /
+  `PEDAL_RATE_STEP_HZ` re-exports of the Phaser's `PHASER_RATE_RANGE_HZ` / `PHASER_RATE_STEP_HZ`, so the same constant
+  had two names and the Phaser's rig row used the old one beside three rows using the new. The values (0.05–10 Hz,
+  step 0.05) are now declared once as `PEDAL_RATE_*` in `src/types/globalAudio.ts` and the `PHASER_RATE_*` names are
+  gone from `src`.
+- **The Chorus's Delay and Depth ramp; they no longer click (2026-10-18 review, measured 2026-10-19).** §1.3 wrote
+  `delayTime` and `depth` through Tone's plain setters. Those write each LFO's range as an instant Signal step
+  (`Scale._setRange`), which jumps the delay's read position. Offline render, a 440 Hz sine through a wet Chorus, metric
+  = the peak second difference in the 150 ms after a change divided by the steady state's (1 = smooth): one 0.5 ms Delay
+  step x217, one 0.01 Depth step x13, a 5° Spread step x65-81 at every timing tried; the ramped Rate and Tremolo Depth
+  (controls) x1; Tremolo Spread x1 at four of five timings and x8.9 at one offline, but x7 every time in real time (next
+  entry: offline renders do not place an unscheduled native call where real time does). `rampChorusSweep` in `globalFx.ts` now ramps
+  the same range (centre d, deviation d·depth) on both LFOs' Scale Signals (`_add`, `_mult`) over `COLOUR_RAMP_SECONDS`,
+  measured x1 for both the Delay and the Depth step, and keeps Tone's stored fields in step; when those Tone internals
+  are missing it falls back to Tone's setters. Tone floors the range at 0; Depth is clamped to 0–1 first, so the floor
+  could never bite and was left out (an equivalent mutant). The Spreads are the next entry.
+- **A tripwire for the cuts (2026-10-18 review).** The cuts depend on two facts about `standardized-audio-context`
+  (25.3.77 under Tone 15.1.22): `detectCycles` walks every path with no memo, and stops at any node with a `delayTime`.
+  `src/engine/audioEngine/chainCycleSearch.test.ts` drives the library's real `createDetectCycles` over fake
+  split-and-rejoin graphs and pins both (ten stages cost over 2^10 expansions; a connect into a delay node expands
+  none; a mid-chain cut bounds the walk), so an upgrade that changes either fails the suite instead of hanging power-on.
+  Mutation-checked by breaking the library's delay guard (two cases fail). If it fails, re-measure power-on before
+  keeping or removing the cuts.
+- **A lit Chorus or Tremolo ducks to write its Spread (Crawford's choice, 2026-10-19).** Tone's `spread` setter sets each
+  LFO's `phase`, and `Oscillator.phase` swaps the waveform on the native node at once (`setPeriodicWave`, on the audio
+  thread's current time), so the sweep jumps; it cannot be ramped. Measured in a REAL-TIME context in headless Chrome (a
+  native `AudioContext` under Tone, the output recorded, lookAhead 0.1, three runs each, same metric): one 5° step on a
+  lit node, plain x49-79 Chorus / x7.1-7.5 Tremolo; a Mix duck that ramps from Tone's `now()` and writes 25 ms later
+  x28-81 / x1.9-4.9; the same ramping from `immediate()` x74-82 / x1.7-5.9; a duck that writes after `lookAhead` + the
+  ramp + 10 ms **x1.3 / x1.6 on every run**. Tone ramps start lookAhead ahead of the audio thread and the waveform swap
+  does not, so the write has to wait the lookAhead out. Built that way in `globalFx.ts` (`writeSpread`,
+  `finishSpreadDuck`, `SPREAD_DUCK_SECONDS` 0.02, `SPREAD_WRITE_MARGIN_SECONDS` 0.01; since the branch review the one per-cell
+  duck, `duckCell` in `bypassCell.ts`, docs/specs/DARK_EFFECT_BYPASS.md §8.7): a lit pedal's Mix ramps to dry,
+  the Spread is written from `Tone.getContext().setTimeout` (the audio-clock timer `scheduleVoiceRelease` already
+  uses; a parameter de-click, not musical timing, so CLAUDE.md's timing rule is not engaged) and the Mix ramps back to
+  the last value written. Every step of a drag re-arms the one timer, so the pedal stays dry (about 0.25 s at
+  lookAhead 0.1) until the drag stops and only the last Spread lands; a Mix edit during the duck moves the return level
+  without ramping up early; a dry pedal (every seeded apply at load) is written at once; a chain rebuild cancels the
+  timer. A write of the Spread the node already has, or a duck is already heading for, does nothing (`_spreadTarget`):
+  `applyGlobalAudioToEngine` re-sends every block whole, and without that every re-apply would drop a lit pedal to dry
+  (found by a full-suite run, where a second seeded apply ducked a lit Tremolo). Offline renders were misleading here and
+  are not evidence for this path. 20 tests (both pedals), RED first; 11 mutants, 10 killed, the eleventh (a check that
+  the node was not rebuilt) was unreachable behind the cancel and deleted.
+- **The Dark-Effect Bypass (T14 missed 2026-10-19; built 2026-10-19 to 2026-10-20, inside 50.6).** Round 2 on the
+  Pixel traced T14's miss to the effects' *presence*: a Tone `Effect` processes its wet path at any Mix. So each of the
+  ten global effects now sits in a four-node bypass cell (`in` → `dry` → `cut`, `in` → effect → `wet` → `cut`), and
+  the effect's two edges exist only while it is lit.
+  - **The cell's gains carry the Mix law.** Equal power, as Tone's `CrossFade`; Width's is linear. Every connect and
+    disconnect happens on a zero gain.
+  - **The Spread duck and the Phaser rebuild** ride the cell, and a lit Phaser Stages change is now ducked too.
+  - **The `?debug` HUD** reads ` · fx in n/10`.
+  - **The desktop proofs:**
+    - Lit sound identical (≤ 1.8e-7).
+    - Crossings inaudible (worst ×1.19).
+    - All ten dark at 38.3 ‰, against 213 inline.
+    - `perf:audio` below `main`.
+    - Power-on and a Decay flip no slower.
+  - **The phone re-run (T14)** passed with a caveat, by Crawford's call: late-sitting collapses also hit `main` (backlog
+    27).
+  - **Full account:** [DARK_EFFECT_BYPASS.md](DARK_EFFECT_BYPASS.md) §8 and its plan,
+    [docs/tasks/DARK_EFFECT_BYPASS.md](../tasks/DARK_EFFECT_BYPASS.md).
+  - **What it changed here:**
+    - The `chainNodes` and `join` lines `globalPedalsDocs.test.ts` pins are now the cell lines.
+    - The join is `controlledDecay ? _cells.stereoWidener?.in : _globalCompressor`.
+    - `_lastControlledDecay`, named in this spec's survey, is deleted, and so is the Spread duck's `_spreadWetGain`.
+- **Branch review follow-ups (2026-10-20):**
+  - **A crafted share link.** `withGlobalAudioDefaults` kept any non-null block, so `?session=` with `g.chorus: 1`
+    reached `sanitizeSyncedRate` and threw (`'sync' in 1`) in `applySessionPayload`. A value of the wrong kind now
+    counts as missing and takes the default. `main` had the same gap for the Phaser and the Delay.
+  - **One list of synced-rate keys.** `SYNCED_RATE_KEYS`, `SyncedRateKey` and `isSyncedRateKey` moved from
+    `audioStore.ts` to `src/types/globalAudio.ts`, and the seeder loops over them: its own `LFO_PEDALS` copy and the
+    hand-written Phaser sync draw are gone. The draws are keyed by name, so no seed moved (500 styles compared byte for
+    byte before and after).
+  - The join line is now `controlledDecay ? getCell('stereoWidener')?.in : _globalCompressor`: the cells moved to
+    `bypassCell.ts` (docs/specs/DARK_EFFECT_BYPASS.md §8.7).
+  - **The Shift slider (item 7, Crawford chose the signed-log option).** The Shift row was a linear ±1 000 Hz track
+    with the seeded ±2–20 Hz band under 2 % of its travel. `SliderCenteredZero` gained an optional signed-log taper
+    (`logKnee`, docs/COMPONENT_LIBRARY.md), and the Shift row sets `logKnee: 1`: the band is now 28 % of each half.
+    The range, the step (1 Hz), the seeds and the stored values are unchanged; only where a value sits on the track
+    moved. Not yet tried by hand on a phone.
+  - The HUD's `/10` is now `BYPASS_KEYS.length` (docs/specs/DARK_EFFECT_BYPASS.md §8.7).
+  - **Crawford's check of the follow-ups (2026-10-21):** "it all sounds good on desktop and the phone". That covers the
+    two items that needed his ear or hand: the Mix ramp split into chords of π/8 (item 3, which was not re-measured in a
+    real-time context) and the Shift slider's signed-log track on the phone (item 7).
+- **Smaller deviations from the plan (T1–T12), recorded at T17:**
+  - **The V2 Chorus.** The V2 chain rework had removed a Chorus ("the effect isn't correct for this music"), and five tests
+    guarded its absence (in `globalAudio.test.ts`, `globalAudioSeed.test.ts`, `globalAudioSeedRanges.test.ts`,
+    `globalFx.test.ts` and `audioRigConfig.test.ts`'s "has no chorus block"). The intent never mentioned the removal; each
+    guard was inverted when its task reached it (T1 to T10).
+  - **`syncedRateToFree` has no `Math.max(range.min)` floor** (§1.5 asked for one). The resolver already clamps into the
+    range and the quantising grid starts at `range.min`, so the floor was an unkillable mutant and was left out; the
+    function's comment says why.
+  - **T7's tests live in `audioStore.tempoSync.test.ts`**, beside the Phaser's, not in `audioStore.test.ts`.
+  - **T8 doubled the seed draws per world**, and three 3 000-style Colour calibration loops crossed Vitest's 5 s default
+    under the parallel suite; they were given 30 s timeouts.
+  - **The copy says more than §1.7.** The Modulation intro ends "up to two pedals, or none"; the Output intro gained a
+    Width paragraph, and its Decay Mode line says Controlled Decay's echoes have "only Width and the Limiter above them".
+  - The pedal panel tests are in `AudioRigEffectPanel.test.tsx` (50.4's pattern), not `AudioRigDrawer.test.tsx`.
+- **A fresh world can seed Width at exactly 0.5 (measured at T17, 2026-10-21).** Assumption 6 gives Width the band
+  0.4–0.65, and the field's 0.01 step puts 0.5 on the grid, so 218 of 5 000 styles (4.36 %) seed exactly 0.5. That is
+  unity, so those worlds start with the widener dark, out of the signal path. Nothing sounds different (unity either way)
+  and it saves the widener's lit cost. docs/specs/DARK_EFFECT_BYPASS.md §7 Q4 had said a fresh seed never lands on 0.5;
+  it is corrected there. No code changed; whether a fresh world should ever seed a dark Width is a seeding question.
+- **What T17 wrote, and how.**
+  - The four living-docs cases of `src/docs/globalPedalsDocs.test.ts` are green (171 of 171), and the test's "RED until
+    Task 17" wording is gone. A planted removal of `MAX_LIT_PEDALS`' backticks in `themes.md` failed its case.
+  - `docs/AUDIO_SYSTEM.md`: the API block gains the five setters; the Signal Graph diagram shows the cuts and the cells;
+    the Colour and Modulation paragraphs no longer say the Mix reaches the node or that the Phaser rebuild re-wires the
+    chain (`_lastControlledDecay` is gone); new "Global Pedals" and "The bypass cells" paragraphs; the HUD example line.
+  - `docs/SESSION_STORAGE.md` (a new section; `sanitizePhaserSync` renamed), `docs/specs/FREE_SYNC_TOGGLE.md` (one update
+    paragraph), `docs/ideas/themes.md` (one bullet), `docs/reference/GLOBAL_CHAIN_GRID.md` (the chain line, the Controlled
+    Decay line, footnotes ³ ⁴ ⁵), and `docs/PERFORMANCE.md`'s HUD table (` · fx in n/10`), which the plan did not list.
+    A first draft of the grid's chain line bracketed each cell's effect and broke the guard's chain-order case (it pins the
+    plain names); the line keeps the plain names and the sentence after it names the cells.
+  - **Backlog 22 was not rewritten in place.** The plan asked for a rewrite and for every pre-existing line of both todo
+    files to stay byte-identical, which cannot both hold. T17 kept the lines and appended an update inside item 22, as item
+    27's update was written: the five pedals shipped as 50.6, only the two room type radios remain, the `globalFx.ts:144`
+    cite is stale (the rooms are off-chain since 50.2), and Freeverb and JCReverb are AudioWorklet comb filters that Tone
+    15's own docs warn may be slower, not cheaper. No pedal was withdrawn, so nothing went under "tried, no".
+  - The roadmap's 50.6 entry was inserted after 50.5; the series header's "Five sub-phases" line was left as it was
+    (append-only), and the 50.6 entry says so.

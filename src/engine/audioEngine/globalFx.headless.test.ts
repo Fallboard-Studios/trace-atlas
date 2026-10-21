@@ -24,6 +24,16 @@ vi.mock('tone', () => ({
   // Global Modulation T4: the modulation slot is skipped the same way.
   AutoWah: undefined,
   Phaser: undefined,
+  // Global Pedals T4: the Chorus and the Tremolo are skipped the same way.
+  Chorus: undefined,
+  Tremolo: undefined,
+  // Global Pedals T5.
+  Vibrato: undefined,
+  FrequencyShifter: undefined,
+  // Global Pedals T6.
+  StereoWidener: undefined,
+  // The cycle-search cuts are skipped the same way.
+  Delay: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({
@@ -66,12 +76,47 @@ describe('globalFx without the room constructors', () => {
     ).not.toThrow();
   });
 
+  it('sets every Chorus and Tremolo field without throwing when neither node exists', async () => {
+    const globalFx = await import('./globalFx');
+    globalFx.buildGlobalFxChain();
+    expect(() =>
+      globalFx.setGlobalChorus({ rate: 2, delayTime: 5, depth: 0.5, spread: 90, feedback: 0.2, wet: 0.5 }),
+    ).not.toThrow();
+    expect(() => globalFx.setGlobalTremolo({ rate: 2, depth: 0.5, spread: 90, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalVibrato({ rate: 3, depth: 0.2, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalFrequencyShifter({ shift: -12, wet: 0.5 })).not.toThrow();
+    expect(() => globalFx.setGlobalStereoWidener({ width: 0 })).not.toThrow();
+  });
+
   it('sets every AutoWah field without throwing when no AutoWah exists', async () => {
     const globalFx = await import('./globalFx');
     globalFx.buildGlobalFxChain();
     expect(() =>
       globalFx.setGlobalAutoWah({ baseFrequency: 200, octaves: 4, sensitivity: -12, Q: 3, gain: 6, follower: 0.2, wet: 0.5 }),
     ).not.toThrow();
+  });
+
+  // Dark-Effect Bypass T2: with no Gain and no Delay constructor no bypass cell can exist, and with no effect constructor
+  // either there is nothing to leave out, so nothing warns about the cells and every effect setter no-ops.
+  it('builds no bypass cell, warns about none, and no-ops every effect setter', async () => {
+    const { devWarn } = await import('@/utils/helpers');
+    const globalFx = await import('./globalFx');
+    vi.mocked(devWarn).mockClear();
+    globalFx.buildGlobalFxChain();
+    expect(vi.mocked(devWarn).mock.calls.filter(([message]) => String(message).includes('bypass'))).toHaveLength(0);
+    expect(() => {
+      globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 });
+      globalFx.setGlobalChebyshev({ order: 4, wet: 0.5 });
+      globalFx.setGlobalBitCrusher({ bits: 4, wet: 0.5 });
+      globalFx.setGlobalAutoWah({ Q: 3, wet: 0.5 });
+      globalFx.setGlobalPhaser({ stages: 4, wet: 0.5 });
+      globalFx.setGlobalChorus({ spread: 90, wet: 0.5 });
+      globalFx.setGlobalTremolo({ spread: 90, wet: 0.5 });
+      globalFx.setGlobalVibrato({ depth: 0.2, wet: 0.5 });
+      globalFx.setGlobalFrequencyShifter({ shift: -12, wet: 0.5 });
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      globalFx.wireGlobalFxChain(true);
+    }).not.toThrow();
   });
 
   it('reports no rooms, so reserveVoice connects no send to anything', async () => {

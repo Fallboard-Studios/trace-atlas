@@ -5,15 +5,30 @@ import { describe, it, expect } from 'vitest';
 
 import {
   DEFAULT_GLOBAL_AUDIO_SETTINGS,
-  PHASER_RATE_RANGE_HZ,
-  PHASER_RATE_STEP_HZ,
+  PEDAL_RATE_RANGE_HZ,
+  PEDAL_RATE_STEP_HZ,
+  SYNCED_RATE_KEYS,
+  isSyncedRateKey,
   withGlobalAudioDefaults,
 } from './globalAudio';
-import type { GlobalAudioSettings, PhaserSettings } from './globalAudio';
+import type { ChorusSettings, GlobalAudioSettings, PhaserSettings, TremoloSettings } from './globalAudio';
 
 // ========================================
 // TESTS
 // ========================================
+
+describe('SYNCED_RATE_KEYS', () => {
+  it('lists the four synced-rate blocks, the Phaser first, in chain order', () => {
+    expect([...SYNCED_RATE_KEYS]).toStrictEqual(['phaser', 'chorus', 'tremolo', 'vibrato']);
+  });
+
+  it('isSyncedRateKey is true for exactly those four keys, and false for every other effect key and for junk', () => {
+    for (const key of SYNCED_RATE_KEYS) expect(isSyncedRateKey(key), key).toBe(true);
+    for (const key of ['autoWah', 'frequencyShifter', 'stereoWidener', 'delay', 'reverb', 'eq3', 'limiter', '', 'Phaser', 'rate']) {
+      expect(isSyncedRateKey(key), key).toBe(false);
+    }
+  });
+});
 
 describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
   // Robot Sends T6 (docs/specs/ROBOT_SENDS.md §1.1): the rooms are fed by each robot's own send, so the
@@ -56,9 +71,11 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
     expect(() => JSON.stringify(DEFAULT_GLOBAL_AUDIO_SETTINGS)).not.toThrow();
   });
 
-  it('no longer has a chorus field', () => {
-    // V2: Chorus removed entirely — "the effect isn't correct for this music."
-    expect('chorus' in DEFAULT_GLOBAL_AUDIO_SETTINGS).toBe(false);
+  // V2 removed a Chorus ("the effect isn't correct for this music"); Global Pedals (docs/specs/GLOBAL_PEDALS.md,
+  // backlog 22) brings one back as a dry-by-default pedal after the Phaser, so the old absence guard is inverted.
+  it('has a chorus field again, dry by default (Global Pedals)', () => {
+    expect('chorus' in DEFAULT_GLOBAL_AUDIO_SETTINGS).toBe(true);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(0);
   });
 
   it('reverb no longer has a dampening field', () => {
@@ -152,27 +169,77 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS modulation blocks', () => {
     expect(stages).toBeLessThanOrEqual(12);
   });
 
-  it('puts the two pedals between bitCrusher and limiter in key order', () => {
+  it('puts the two pedals between bitCrusher and the Global Pedals blocks in key order', () => {
     const keys = Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS);
     expect(keys.indexOf('autoWah')).toBe(keys.indexOf('bitCrusher') + 1);
     expect(keys.indexOf('phaser')).toBe(keys.indexOf('autoWah') + 1);
-    expect(keys.indexOf('limiter')).toBe(keys.indexOf('phaser') + 1);
+    expect(keys.indexOf('chorus')).toBe(keys.indexOf('phaser') + 1);
   });
 });
 
-describe('PHASER_RATE_RANGE_HZ', () => {
+// Global Pedals T1 (docs/specs/GLOBAL_PEDALS.md §1.1, assumption 10): five blocks at Tone's defaults, every Mix 0 and
+// Width 0.5 (unity), so a default world sounds as it did; no `sync` key on the three LFO pedals (Free).
+describe('DEFAULT_GLOBAL_AUDIO_SETTINGS Global Pedals blocks', () => {
+  it('carries the four motion pedals and the widener at Tone\'s defaults', () => {
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus).toStrictEqual({
+      rate: 1.5,
+      delayTime: 3.5,
+      depth: 0.7,
+      spread: 180,
+      feedback: 0,
+      wet: 0,
+    });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo).toStrictEqual({ rate: 10, depth: 0.5, spread: 180, wet: 0 });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato).toStrictEqual({ rate: 5, depth: 0.1, wet: 0 });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter).toStrictEqual({ shift: 0, wet: 0 });
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener).toStrictEqual({ width: 0.5 });
+  });
+
+  it('keeps every motion pedal dry and the widener at unity, so a default world is clean', () => {
+    for (const key of ['chorus', 'tremolo', 'vibrato', 'frequencyShifter'] as const) {
+      expect(DEFAULT_GLOBAL_AUDIO_SETTINGS[key].wet, key).toBe(0);
+    }
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width).toBe(0.5);
+  });
+
+  it('defaults the three LFO pedals to Free: no sync key at all, not even undefined', () => {
+    for (const key of ['chorus', 'tremolo', 'vibrato'] as const) {
+      expect('sync' in DEFAULT_GLOBAL_AUDIO_SETTINGS[key], key).toBe(false);
+    }
+  });
+
+  it('keeps every default rate inside PEDAL_RATE_RANGE_HZ', () => {
+    for (const key of ['chorus', 'tremolo', 'vibrato'] as const) {
+      expect(DEFAULT_GLOBAL_AUDIO_SETTINGS[key].rate, key).toBeGreaterThanOrEqual(PEDAL_RATE_RANGE_HZ.min);
+      expect(DEFAULT_GLOBAL_AUDIO_SETTINGS[key].rate, key).toBeLessThanOrEqual(PEDAL_RATE_RANGE_HZ.max);
+    }
+  });
+
+  it('orders the keys as the chain: Phaser, the four motion pedals, the widener, then the Limiter', () => {
+    const keys = Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS);
+    const at = (key: string) => keys.indexOf(key);
+    expect(at('chorus')).toBe(at('phaser') + 1);
+    expect(at('tremolo')).toBe(at('chorus') + 1);
+    expect(at('vibrato')).toBe(at('tremolo') + 1);
+    expect(at('frequencyShifter')).toBe(at('vibrato') + 1);
+    expect(at('stereoWidener')).toBe(at('frequencyShifter') + 1);
+    expect(at('limiter')).toBe(at('stereoWidener') + 1);
+  });
+});
+
+describe('PEDAL_RATE_RANGE_HZ', () => {
   it('spans 0.05 - 10 Hz: zero is excluded because a stopped phaser is a fixed notch, not off', () => {
-    expect(PHASER_RATE_RANGE_HZ).toStrictEqual({ min: 0.05, max: 10 });
+    expect(PEDAL_RATE_RANGE_HZ).toStrictEqual({ min: 0.05, max: 10 });
   });
 
   it('steps the Rate slider by 0.05 Hz, the lane Rate slider step, so a Sync to Free conversion lands on its grid', () => {
-    expect(PHASER_RATE_STEP_HZ).toBe(0.05);
-    expect(PHASER_RATE_STEP_HZ).toBe(PHASER_RATE_RANGE_HZ.min);
+    expect(PEDAL_RATE_STEP_HZ).toBe(0.05);
+    expect(PEDAL_RATE_STEP_HZ).toBe(PEDAL_RATE_RANGE_HZ.min);
   });
 
   it('contains the default rate', () => {
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeGreaterThanOrEqual(PHASER_RATE_RANGE_HZ.min);
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeLessThanOrEqual(PHASER_RATE_RANGE_HZ.max);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeGreaterThanOrEqual(PEDAL_RATE_RANGE_HZ.min);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.rate).toBeLessThanOrEqual(PEDAL_RATE_RANGE_HZ.max);
   });
 });
 
@@ -228,6 +295,26 @@ describe('withGlobalAudioDefaults', () => {
     expect(withGlobalAudioDefaults(given).chebyshev).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
   });
 
+  it.each([
+    ['a number', 1],
+    ['a string', 'chorus'],
+    ['a boolean', true],
+    ['an array', [0.5]],
+  ])('treats a block that is %s as absent, so a crafted payload cannot reach the sanitisers', (_label, value) => {
+    const given = { chorus: value, phaser: value, delay: value, limiter: value } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(given);
+    expect(result.chorus).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus);
+    expect(result.phaser).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(result.delay).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay);
+    expect(result.limiter).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.limiter);
+  });
+
+  it('keeps a boolean compressorBeforeDelay and defaults one of the wrong type', () => {
+    expect(withGlobalAudioDefaults({ compressorBeforeDelay: true }).compressorBeforeDelay).toBe(true);
+    const crafted = { compressorBeforeDelay: { on: true } } as unknown as Partial<GlobalAudioSettings>;
+    expect(withGlobalAudioDefaults(crafted).compressorBeforeDelay).toBe(false);
+  });
+
   it('does not share nested state between two calls', () => {
     const a = withGlobalAudioDefaults({});
     const b = withGlobalAudioDefaults({});
@@ -270,6 +357,31 @@ describe('withGlobalAudioDefaults', () => {
     const result = withGlobalAudioDefaults(given);
     expect(result.phaser).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
     expect(result.autoWah).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah);
+  });
+
+  it('fills all five Global Pedals blocks for an empty payload (an old save loads dry, at unity width)', () => {
+    const result = withGlobalAudioDefaults({});
+    for (const key of ['chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'stereoWidener'] as const) {
+      expect(result[key], key).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+      expect(result[key], key).not.toBe(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    }
+  });
+
+  it('keeps a present Global Pedals block whole (sync included) and never deep-merges a partial one', () => {
+    const chorus: ChorusSettings = {
+      rate: 2,
+      delayTime: 6,
+      depth: 0.4,
+      spread: 90,
+      feedback: 0.3,
+      wet: 0.5,
+      sync: { division: '1/4', modifier: 'straight' },
+    };
+    const partialTremolo = { wet: 0.4 } as unknown as TremoloSettings;
+    const result = withGlobalAudioDefaults({ chorus: structuredClone(chorus), tremolo: partialTremolo });
+    expect(result.chorus).toStrictEqual(chorus);
+    expect(result.tremolo).toStrictEqual({ wet: 0.4 });
+    expect(result.vibrato).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato);
   });
 
   it('stays JSON-serialisable', () => {

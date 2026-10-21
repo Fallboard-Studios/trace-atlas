@@ -473,7 +473,13 @@ describe('breadcrumbPath', () => {
     ['colour', 'bitCrusher', [CONTENT['fleet.colour'].human, CONTENT['fleet.bitCrusher'].human]],
     ['modulation', null, [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
     ['modulation', 'phaser', [CONTENT['fleet.modulation'].human, CONTENT['fleet.phaser'].human]],
+    ['modulation', 'chorus', [CONTENT['fleet.modulation'].human, CONTENT['fleet.chorus'].human]],
+    ['modulation', 'frequencyShifter', [CONTENT['fleet.modulation'].human, CONTENT['fleet.frequencyShifter'].human]],
     ['output', 'limiter', [CONTENT['fleet.output'].human, CONTENT['fleet.limiter'].human]],
+    ['output', 'stereoWidener', [CONTENT['fleet.output'].human, CONTENT['fleet.stereoWidener'].human]],
+    // A Width left over on Modulation, or a pedal left over on Output, reads as the group's first.
+    ['modulation', 'stereoWidener', [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
+    ['output', 'tremolo', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
     // A colour sub-tab left over on another group reads as that group's first, and vice versa.
     ['eqFilters', 'chebyshev', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
     ['colour', 'delay', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
@@ -673,8 +679,8 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(ids('eqFilters')).toEqual(['eq3', 'filterHPF', 'filterLPF']);
     expect(ids('timeSpace')).toEqual(['reverb', 'delay']);
     expect(ids('colour')).toEqual(['distortion', 'chebyshev', 'bitCrusher']);
-    expect(ids('modulation')).toEqual(['autoWah', 'phaser']);
-    expect(ids('output')).toEqual(['compressor', 'limiter']);
+    expect(ids('modulation')).toEqual(['autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter']);
+    expect(ids('output')).toEqual(['compressor', 'stereoWidener', 'limiter']);
   });
 
   it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output', () => {
@@ -736,7 +742,12 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['modulation', null, 'autoWah'],
     ['modulation', 'phaser', 'phaser'],
     ['modulation', 'distortion', 'autoWah'],
+    ['modulation', 'vibrato', 'vibrato'],
+    ['modulation', 'frequencyShifter', 'frequencyShifter'],
+    ['modulation', 'stereoWidener', 'autoWah'],
     ['output', 'limiter', 'limiter'],
+    ['output', 'stereoWidener', 'stereoWidener'],
+    ['output', 'chorus', 'compressor'],
     // Not this group's: its first, as SectionTabs falls back for a stale value.
     ['output', 'laneC', 'compressor'],
     ['lfoBank', 'reverb', 'laneA'],

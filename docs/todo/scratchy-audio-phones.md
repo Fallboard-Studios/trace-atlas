@@ -609,3 +609,410 @@ underruns" at Full does not meet the first half as written, and with no baseline
 raised the count: run (c) is the worst case the plan names, so a clean ear on it is encouraging, not a pass. Nothing is
 changed on this evidence: the Stages ceiling stays at 12 and `LOAD_PEDAL_MIN` (T15b) is not built. What would settle it
 is the same world run on `main` (T0) and the HUD's count from this branch's run, both at Full 3:00.
+
+## Global Pedals (roadmap 50.6) on the Pixel — T0 and T14, Crawford's runs, 2026-10-19
+
+T0 and T14 of docs/tasks/GLOBAL_PEDALS.md, run back to back in one sitting. T0 is `main` at `d29ac778`, served on port
+4173. T14 is `feature/pedals` at `f0ddc8eb`, served on port 4174. Both are local Vite preview builds on the LAN, on the
+Pixel 8 with `?debug`. Each link opens a fresh page, so each run starts from a new AudioContext. The world is the
+seed-`alpha` baseline payload above. The worst case adds, on top of it: all six Modulation pedals at Mix 1 (AutoWah,
+Phaser, Chorus, Tremolo, Vibrato, Shifter), Tone's default parameters except Phaser stages 12, Shifter +10 Hz and Width 1.
+The tier is chosen with `&load=full` or `&load=standard`. The start count was 0 wherever Crawford wrote none, as agreed.
+
+| # | Build | Tier | World | Length | `underruns` start → end | By ear (Crawford's words) |
+|---|---|---|---|---|---|---|
+| 1 | main `d29ac778` | Full | baseline | 3:00 | 0 → **36** | "sounded great" |
+| 2 | main `d29ac778` | Standard | baseline | 3:00 | 0 → **59** | "some stutter in the first minute, it got a little better in minute 2 but never GREAT. one stutter happened during a solo robot melody." |
+| 3 | branch `f0ddc8eb` | Full | worst case | 3:00 | 0 → **92** | "just a little bit stutter throughout, but not nearly as much as i would expect from the volume of underruns." Pedals confirmed lit in the drawer. |
+| 4 | branch `f0ddc8eb` | Standard | worst case | 3:00 | 0 → **193** | "some stutter throughout. going through tabs didn't seem to cause an increase in underruns this time." |
+
+**Run 3 kept going past 3:00, in Crawford's words:** "around 3:30 i started looking at the drawers to make sure
+everything was lit, and underruns with distortion took off, around 1600 by 4:15. once they started piling up they don't
+seem to ever slow down again, even if i go back to the deck view. at 6:00 we're at 3058. around 6:20 I turned the power
+off and back on, and it was still very distorted. 4730 at 7:00."
+
+**Reading against the gate.** As written, the gate is zero underruns at Full and no more than T0's count at Standard.
+`main` itself no longer meets the first half: 36 at Full, where the 2026-10-13 baseline on `ca2b6868` read 0. So the
+branch is read against `main`. Full went from 36 to 92 (about 2.6×) and Standard from 59 to 193 (about 3.3×). **T14
+misses.** Each figure is a single run, with no repeat to show the spread. On both builds Standard counted more than Full
+in this sitting.
+
+**The runaway after 3:30 on run 3 is a separate finding.** The count went from about 1 600 to 4 730 over about three
+minutes. It did not recover in the deck view, nor after a power-off and power-on (power-off does not close the
+AudioContext, and the global chain keeps processing). Nothing here says whether `main` does the same when the drawers
+are browsed, or whether the cause is the pedals, the drawer render or heat. Run 4 browsed tabs without a rise.
+
+**Not yet recorded:** the bisect, the idle cost of the dark pedals, a drawer-browsing control on `main`, and the desktop
+`npm run perf` before and after.
+
+**Round 2, the same sitting.** The plan's bisect was replaced by three runs that separate the causes. A is the branch with
+the baseline link, so every new pedal is dark. B is `main` with the baseline link, hands off to 3:00, then browsing the
+drawers. C1 is the branch with the Chorus alone at Mix 1. All three are Full. Crawford stopped after C1, since A already
+answered the question (C2–C4 were not run).
+
+| # | Build | World | `underruns` at 3:00 | After 3:00 (Crawford's words, shortened only where marked …) |
+|---|---|---|---|---|
+| A | branch `f0ddc8eb` | baseline, every new pedal dark, hands off | 0 → **380** | "some stutter, but overall not TOO bad. barely acceptable. unerruns DOUBLED in the last 10 seconds. by 3:20 there were at 900. i didn't touch anything. lots of distortion, it's bad. at 3:45 we're at 1845. at 4:00 we're at 2502. at 4:05 it started completely dropping out. at 4:20 it turned silent. log says "4:42 main thread stalled -746ms" i still haven't touched aything. around 5:15 music started playing again, still pretty distorted." |
+| B | main `d29ac778` | baseline, drawers browsed after 3:00 | 0 → **94** | "barely any stutter. looking through tabs was completely fine, no underrun spikes or anything. at 4:00 we're at 112." |
+| C1 | branch `f0ddc8eb` | baseline + Chorus alone at Mix 1, hands off | 0 → **360** | "some stutter, but overall not TOO bad. acceptable. unerruns DOUBLED in the last 10 seconds again. by 3:20 there were at 880. … at 3:45 we're at 1800. at 4:00 we're at 3200. at 3:50 it started completely dropping out. at 4:00 it turned silent. log says "4:06 audio clock stalle (x0.47)" and "4:07 audio clock recovered after .6x" and "4:33 main thread stalled -770ms" and then several more main thread stalled notes, about every 5 seconds. i still haven't touched aything. 6:15 in and the music still hasn't started back up." |
+
+**What round 2 shows.** The runaway is the branch's, not the drawers' and not the phone's. B ran between A and C1 in the
+same sitting and stayed clean through drawer browsing. A and C1 collapsed hands-off at about 2:50. Lighting a pedal adds
+little: C1 matches A, and the worst case read 92 at 3:00. On these single runs, the cost is the pedals' presence, not
+their Mix. That agrees with Tone 15's `Effect`: the effect path keeps running behind the CrossFade at any `wet`, and the
+browser does not skip a node whose output is faded to zero. Once the phone tipped over, it did not recover: the same
+one-way collapse seen on `bravo` at Full (2026-09-21). **Outcome:** T15b, a Mix threshold, would not help, since Mix 0
+already costs the full price. Crawford chose (2026-10-19) to take a dark effect out of the signal path for all ten
+effects (the five pedals, plus the AutoWah, Phaser and three Colour effects already on `main`). A desktop measurement
+of each effect's dark cost comes first.
+
+## Dark-Effect Bypass, desktop baselines — T0, 2026-10-19
+
+Task 0 of docs/tasks/DARK_EFFECT_BYPASS.md: the "before" numbers that spec §5 steps 3 and 4 compare the cells against.
+Nothing in the product was changed to take them. **Code measured:** branch `feature/pedals` at `47ce45d3` (clean product
+tree; only untracked docs) and `main` at `d29ac778` (the clean worktree from round 2). Both were production builds
+(`vite build --outDir` into this session's scratchpad). They were served side by side by one `vite preview` on port 4173,
+with `main` as `main.html` beside the branch's `index.html`. Only the main script chunk differed; every other asset was
+byte-identical. The stale previews on ports 4173 and 4174 were stopped first.
+
+**(a) Render capacity, `npm run perf:audio`.** The world is round 2's run A link: the seed-`alpha` baseline payload,
+so every new pedal is dark, with `load=full`. One deviation from the recipe: the script's `name:x:y` writes `?seed=`,
+which the app no longer reads, so the world was pinned by a `session=` query appended to each spec
+(`alpha:0:50?load=full&session=…` and `alpha:0:50@main.html?load=full&session=…`). The HUD read `0,50` on both pages,
+which confirms the payload's locale. Its seed field reads `random` because it shows the retired `?seed=` override, not
+the session's world. Three interleaved rounds, start order rotated (branch, main, branch first), 240 s series, 15 s
+buckets, 8 s warm-up, two runs per foreground call, nothing else running. The orphaned-Chrome count was 0 before and
+after every call.
+
+| Round | Branch mean | Branch peak window | `main` mean | `main` peak window | Branch − `main` (mean) |
+|---|---|---|---|---|---|
+| 1 | 0.716 | 0.844 | 0.448 | 0.528 | +0.268 |
+| 2 | 0.553 | 0.708 | 0.468 | 0.574 | +0.085 |
+| 3 | 0.602 | 0.704 | 0.449 | 0.609 | +0.153 |
+| **Average** | **0.624** | **0.752** | **0.455** | **0.570** | **+0.169** |
+
+The overall max was 0.991–0.997 on every run, the usual single-poll spikes. `main` is steady (means 0.448–0.468).
+The branch is higher in every round and much less steady (0.553–0.716). So on the desktop, too, five more dark effects
+cost the audio thread about 37 % more on average (0.624 against 0.455), with nothing lit. Spec §5 step 3's gate for after the cells is
+branch ≤ `main` on this same A/B.
+
+**(b) Main thread, the hang probe over CDP.** The recipe from GLOBAL_PEDALS.md §8 (Checkpoint A fix): `vite` dev
+server on port 5199, headless Chrome on port 9377, click Power on, poll the page with a 1.5 s timeout. Then, through
+the store: a Decay flip (`setCompressorBeforeDelay(true)`), a Phaser Stages change, and all seven global LFO targets
+unlinked and relinked. The world is the baseline payload plus the Chorus and Tremolo blocks from the 2026-10-19
+single-pedal links, both at Mix 1. The probe read both back from the store as Mix 1 after power-on (Vibrato 0,
+Natural Decay). One warm-up load was discarded, then three runs:
+
+| Run | Power-on | Unresponsive | Decay flip | Phaser Stages | Seven LFO links |
+|---|---|---|---|---|---|
+| 1 | 1 375 ms | 0 ms | 3 ms | 31 ms | 1 ms |
+| 2 | 1 385 ms | 0 ms | 2 ms | 28 ms | 1 ms |
+| 3 | 1 166 ms | 0 ms | 2 ms | 26 ms | 1 ms |
+
+The power-on time resolves to about 0.1–0.2 s, since that is the probe's poll interval. These sit under the
+2026-10-18 figures in GLOBAL_PEDALS.md §8 (about 2 s, 3–4 ms, about 40 ms, 1 ms), measured in another session.
+T13 should compare against this table, or re-run this baseline in its own session if the numbers look drifted.
+Aside, from the single plumbing check on the production builds (baseline link, one run each, not a measurement): the
+branch powered on in 1.1 s with 0 ms unresponsive, and `main` in 2.5 s with 1.5 s unresponsive. That fits `main`
+lacking the cycle-search cuts.
+
+**(c) The dark-cost probe folder still exists** at the path in spec §5 (`dark-cost/` with `index.html`, `probe.js`
+and the `node_modules` junction, plus `dark-cost-drive.mjs` and `dark-cost-5r.json`). T12 can re-run it rather than
+rebuild it.
+
+This session's files, in its scratchpad
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/ead4402b-820a-4dd2-bbbf-db766ff79614/scratchpad/t0/`:
+`site/` (the side-by-side build), `round1.json`–`round3.json`, `baseline.txt` and `two-lit.txt` (the payloads,
+written by `payloads.mjs`), and `probe.mjs` (the hang probe, plus `HUD=1` and a restored-values read-out). No server
+was left running.
+
+## Dark-Effect Bypass, desktop after — T12, 2026-10-20
+
+Task 12 of docs/tasks/DARK_EFFECT_BYPASS.md: the dark cost with every effect in its bypass cell, against T0 above.
+**Code measured:** branch `feature/pedals` at `1421c023` (the cells, T1–T11 and the Phaser Stages duck; clean product
+tree) and `main` at `d29ac778` (T0's build, reused unchanged). **Both gates pass.**
+
+**(a) The dark cost, per effect.** The 2026-10-19 probe (raw Tone 15.1.22 in headless Chrome, a 30 s OfflineContext
+render of a sawtooth/square stereo source, timed against a source-only render; extra render ms per audio second, i.e.
+‰ of one desktop core; 5 interleaved rounds, medians), extended with the cell exactly as `buildGlobalFxChain` builds
+it. That is `in` → `dry` → `cut` and `wet` (0) → `cut`, with a zero-delay `Tone.Delay` at `CHAIN_CUT_OPTIONS`, and the
+effect pinned at `wet 1` (the widener at width 0.5), built and started but not connected. Two reference rows were
+re-run in the same sitting, the old build's ten inline at their dark settings and the ten built but disconnected, to
+show the probe still sees the cost. The first two columns are the 2026-10-19 table from
+[docs/intent/dark-effect-bypass.md](../intent/dark-effect-bypass.md).
+
+| Effect | 2026-10-19: dark, in the chain | 2026-10-19: dark, disconnected | **2026-10-20: dark, in its cell** |
+|---|---|---|---|
+| Phaser (10 stages) | 57 | 5.5 | **5.2** |
+| AutoWah | 32 | 3.8 | **2.7** |
+| FrequencyShifter | 23 | 4.5 | **3.8** |
+| Chorus | 19 | 5.0 | **5.1** |
+| Tremolo | 17 | 7.6 | **5.2** |
+| StereoWidener (0.5) | 14 | 4.4 | **4.0** |
+| BitCrusher | 13 | 6.4 | **5.4** |
+| Vibrato | 11 | 3.3 | **3.0** |
+| Chebyshev | 7 | 0.7 | **1.0** |
+| Distortion | 6 | 0 | **1.0** |
+| One empty cell | — | — | **0.5** |
+| Ten empty cells | — | — | **4.8** |
+| **All ten** | **213** | **48** | **38.3** (rounds 35.1–39.6) |
+
+Same-sitting references: the ten inline **150.6** (149.5–157.6) and the ten disconnected **32.4** (30.1–33.0); baseline
+render 138 ms (134–191). **Gate (assumption 14): all ten dark in cells ≤ 70 ‰ — PASS at 38.3.** This sitting ran
+about 0.7× the 2026-10-19 one (150.6 / 213 = 0.71, 32.4 / 48 = 0.68). Scaled to that sitting, the cells would be
+about 54 ‰, which still passes. The cells save 75 % against the inline build in the same sitting (38.3 against
+150.6). Ten cells cost what disconnecting costs plus ten empty cells (32.4 + 4.8 = 37.2 against 38.3 measured), so
+the topology itself is about 0.5 ‰ per effect. What remains is the effects' own LFOs, constant signals and the
+BitCrusher's worklet, which only disposing them would reach (spec assumption 10). Orphaned headless Chrome: 0 after.
+
+**(b) Render capacity, `npm run perf:audio`.** T0's recipe and world: the seed-`alpha` baseline payload (every new
+pedal dark), `load=full`, pinned with `alpha:0:50?load=full&session=…` and `alpha:0:50@main.html?load=full&session=…`
+on one `vite preview` (port 4173) serving the branch's fresh build as `index.html` and T0's `main` build as `main.html`.
+240 s series, 15 s buckets, 8 s warm-up. Three interleaved rounds, start order rotated as in T0 (branch, main, branch
+first). One world per foreground call (T0 ran two per call); nothing else running. Orphaned-Chrome count 0 before and
+after every call.
+
+| Round | Branch mean | Branch peak window | `main` mean | `main` peak window | Branch − `main` (mean) |
+|---|---|---|---|---|---|
+| 1 | 0.430 | 0.506 | 0.451 | 0.514 | −0.021 |
+| 2 | 0.435 | 0.502 | 0.451 | 0.538 | −0.016 |
+| 3 | 0.428 | 0.500 | 0.478 | 0.687 | −0.049 |
+| **Average** | **0.431** | **0.502** | **0.460** | **0.580** | **−0.029** |
+| T0 (2026-10-19) | 0.624 | 0.752 | 0.455 | 0.570 | +0.169 |
+
+**Gate (spec §5 step 3): branch ≤ `main` on mean and peak window — PASS, in every round.** `main` reproduced T0
+(0.460 / 0.580 against 0.455 / 0.570). The branch fell from 0.624 to 0.431, now below `main`: `main`'s own five dark
+effects (Distortion, Chebyshev, BitCrusher, AutoWah, Phaser) are inline at wet 0, while the branch's are in cells. The
+branch is also the steadier of the two (means 0.428–0.435 against 0.451–0.478). The overall max was the usual
+single-poll spike: 0.99 on every branch run and on `main`'s round 3 (0.84 on its rounds 1 and 2). Buckets with a max
+above 0.8 were scattered across both builds: branch 2 / 2 / 1, `main` 2 / 1 / 5.
+
+This session's files, in its scratchpad
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/5bf05dc0-cd58-45f6-9633-c813096c5fe6/scratchpad/t12/`:
+`dark/probe.js` (the cell probe; serve with `npx vite <dark> --port 5199` from the repo), `drive.mjs`, `dark-5r.json`,
+`site/` (the side-by-side build), `perf.sh` (one world per call), `r1`–`r3-branch|main.json` and `.log`. No server was
+left running.
+
+## Dark-Effect Bypass, main thread after — T13, 2026-10-20
+
+Task 13 of docs/tasks/DARK_EFFECT_BYPASS.md: power-on, a Decay flip and one Mix crossing on the main thread, against
+T0's (b) above. **Code measured:** branch `feature/pedals` at `75f1a5d1` (the cells, T1–T12; clean product tree) and,
+in the same sitting, T0's own build `47ce45d3` (a detached worktree in the scratchpad). Re-running the "before" in
+this session replaced the cross-session comparison that T0 warned about. Both ran as `vite` dev servers, the branch
+on port 5199 and `47ce45d3` on 5198. The worktree's server allowed the repo's `node_modules` (its junction target), so
+it loads the same fonts. The probe and world are T0's: the hang probe on Chrome port 9377, and T0's `two-lit.txt`
+payload (the baseline world plus the Chorus and Tremolo at Mix 1) with `&debug`. Every run read Chorus 1, Tremolo 1,
+Vibrato 0, Phaser 0 (10 stages) and Natural Decay back from the store. The HUD read `fx in 2/10` on the branch. One
+warm-up load per server was discarded, then three interleaved rounds (branch first, `47ce45d3` first, branch first),
+one probe per foreground call, nothing else running. The orphaned headless-Chrome count was 0 before and after every
+call. **Every figure is within its bar.**
+
+**The crossing.** With a CDP trace running (the `toplevel` and `devtools.timeline` categories) and Tone's context
+`setTimeout` wrapped, each callback stamps the trace with the label of the write that armed it and times itself.
+The Vibrato goes Mix 0 → 0.3 (light), then 1 s later 0.3 → 0 (darken). The write's task is the trace's `RunTask`
+that encloses its `console.timeStamp`. The darken's disconnect is the one context-timer callback the darken write arms.
+`getConnectedEffectCount()` read 2 → 3 → 2 in every branch run, so each graph change happened.
+
+| Run | Light: write task | Darken: write task | Disconnect: own time | Disconnect: enclosing task | Disconnect fired after the write | Quiet window's longest task |
+|---|---|---|---|---|---|---|
+| Branch 1 | 0.49 ms | 0.43 ms | 0.1 ms | 7.94 ms | 198 ms | 8.80 ms |
+| Branch 2 | 0.57 ms | 0.41 ms | 0.4 ms | 1.88 ms | 167 ms | 8.95 ms |
+| Branch 3 | 0.75 ms | 0.34 ms | 0.5 ms | 0.88 ms | 182 ms | 9.69 ms |
+| `47ce45d3` 1 | 0.31 ms | 0.21 ms | — | — | — | 9.92 ms |
+| `47ce45d3` 2 | 0.37 ms | 0.44 ms | — | — | — | 11.59 ms |
+| `47ce45d3` 3 | 0.43 ms | 0.21 ms | — | — | — | 56.05 ms |
+
+**Gate: one crossing ≤ 2 ms — PASS.** The light write is at most 0.75 ms. That is about 0.2–0.3 ms more than the
+pre-cell write, which only ramped `wet`. That fits `connectEffect`'s two native connects, but it was not profiled
+further. The darken write is
+at most 0.43 ms, and the disconnect callback itself at most 0.5 ms. The disconnect fires 167–198 ms after the write,
+where the code arms it at lookAhead 0.1 + ramp 0.05 + margin 0.01 = 160 ms, and Tone's ticker adds the rest. The
+ticker task it runs in was up to 7.94 ms. That task is the ticker's own scheduling work: tasks of 8.8–9.7 ms occur in
+a 400 ms window with no write at all. The longest task in the 400 ms after each write was 7.9–12.5 ms on the branch
+and 3.9–60.3 ms on `47ce45d3`, which is that background, not the write. The 56–60 ms in `47ce45d3`'s round 3 was in its
+quiet window too.
+
+**Power-on and the rewires** (same runs; times in the page by `performance.now()`, as T0, now to 0.1 ms):
+
+| Run | Power-on | Unresponsive | Decay flip | Phaser Stages (dark) | Seven LFO links |
+|---|---|---|---|---|---|
+| Branch 1 | 897 ms | 0 ms | 1.8 ms | 16.6 ms | 0.8 ms |
+| Branch 2 | 815 ms | 0 ms | 2.1 ms | 16.4 ms | 0.9 ms |
+| Branch 3 | 1 144 ms | 0 ms | 1.8 ms | 19.7 ms | 1.4 ms |
+| `47ce45d3` 1 | 1 014 ms | 0 ms | 2.5 ms | 20.9 ms | 0.8 ms |
+| `47ce45d3` 2 | 899 ms | 0 ms | 2.1 ms | 18.1 ms | 0.7 ms |
+| `47ce45d3` 3 | 1 375 ms | 0 ms | 1.6 ms | 22.8 ms | 1.3 ms |
+| T0 (2026-10-19, `47ce45d3`) | 1 166–1 385 ms | 0 ms | 2–3 ms | 26–31 ms | 1 ms |
+
+**Gate: power-on no slower than T0 — PASS** (branch 815–1 144 ms, mean 952, against 899–1 375, mean 1 096, in the same
+sitting and 1 166–1 385 at T0). The probe's poll resolves power-on to about 0.1–0.2 s, so the builds are level within
+that; the ten extra cut Delays the plan named as a risk do not show. **Gate: a Decay flip ≤ T0 — PASS** (branch
+1.8–2.1 ms against 1.6–2.5 in the same sitting and 2–3 at T0), so the per-cell cut does not show either. The Phaser
+Stages change is not gated. It is dark in this world, so it rebuilds at once, and on the branch the rebuild touches
+only its cell (T7): 16.4–19.7 ms against 18.1–22.8. Both builds' rewires armed 14 context-timer callbacks of at most
+0.2 ms each.
+
+This session's files, in its scratchpad
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/2bd86fab-5629-4ca0-b2e3-10ff790a83f3/scratchpad/t13/`:
+`probe.mjs` (T0's probe plus the traced crossing), `run.sh` (one run per call, with the Chrome count),
+`r1`–`r3-branch|before.json`, `two-lit.txt` / `session.enc` (T0's payload), and `vite.t13.config.mjs` (the
+worktree's config, copied out). Both servers were stopped and the worktree removed after the runs.
+
+## Dark-Effect Bypass on the Pixel — round 3 (T14), Crawford's runs, 2026-10-20
+
+T14 of docs/tasks/DARK_EFFECT_BYPASS.md. `main` at `d29ac778` was served on port 4173 (the round-2 worktree,
+rebuilt). The branch `feature/pedals` at `2ef8a4e8` was served on port 4174; its product code is the same as at
+`75f1a5d1`, the T13 build. Both were Vite preview builds on the LAN, on the Pixel 8 with `?debug`. The links page
+`phone-gate.html` gave a fresh page per run, hands off to 3:00, then watched to 4:00. The worlds:
+- The seed-`alpha` baseline payload of rounds 1 and 2, every new pedal dark.
+- A fresh seeded world, found by cycling seeds.
+- The round-1 worst-case payload (all six Modulation pedals at Mix 1, Phaser 12 stages, Shifter +10 Hz, Width 1), loaded from a link rather than set by hand.
+
+Before the runs, each branch link was loaded headlessly on the desktop and read `fx in` 0/10 (baseline, Full and
+Standard), 2/10 (the unused fallback) and 7/10 (worst case). The run order is the table's order, as reported.
+
+| # | Build | Tier | World | `fx in` | `underruns` start → 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|---|
+| main 1 | `main d29ac778` | Full | baseline | — | 0 → **48** → **75** | "Sounded good throughout." |
+| 1 | branch | Full | baseline | 0/10 | 0 → **31** → **54** | "Second attempt. First one, the phone was still hot and at 2:30 the underruns took off, never to stop growing (like from 2K or so underruns at 3:00, 11642 at 4:00). This time, things sounded good throughout." |
+| 2 | branch | Full | fresh seed | 4/10 | 0 → **259** → **1 600** | "got some scratching right at 30 seconds. Barely acceptable run, i'd say. At 3:30 underruns shot up, there was only about 300 then suddenly there was a ton." |
+| 3 | branch | Full | worst case | 7/10 | 0 → **172** → **957** | "occasional scratch, but sounds pretty good. Got a little scratch around 3:30, then the underruns started taking off. 300ish underruns at 3:30" |
+| 4 | branch | Standard | baseline | 0/10 | 0 → **48** → **67** | "Sounded ok, just a little bit scratchy throughout." |
+
+**Reading against the gate. T14 misses.**
+- **(1) passes on its second attempt.** It read 31 at 3:00 against `main`'s 48 (−35 %, within 25 %) and rose by 23 from 3:00 to 4:00, against `main`'s 27. By a literal reading both builds rose faster in the fourth minute than their three-minute average (`main` 16 → 27 a minute, the branch 10 → 23), so "not accelerating" is read against `main`. Round 2's run A, the same world before the cells, read 380 at 3:00 and collapsed: the cells fixed the dark-pedal runaway that round 2 found, on a cool phone. **The first attempt ran away** on what Crawford calls a still-hot phone: it took off at 2:30, reached about 2 000 at 3:00 and 11 642 at 4:00.
+- **(2) misses:** 259 at 3:00 is 5.4× `main`, and it took off at 3:30, from about 300 to 1 600 by 4:00. The seed lit 4 effects, not the plan's 2 or 3. Which four was not recorded.
+- **(3) misses on its one criterion** (does not run away): 172 at 3:00 is not gated, but it took off at about 3:30, from about 300 to 957 by 4:00.
+- (4), Standard on the baseline, is recorded: 48 → 67. That is more than Full's 31 in the same sitting, as in round 1.
+
+**What round 3 shows, on single runs.**
+- With every effect dark, the branch is now at or below `main` on a cool phone, matching the desktop (T12).
+- With effects lit, it is not. Four lit gave 8× the dark count at 3:00 and a runaway at 3:30; seven lit ran away at the same time. Rounds 1 and 2 had suggested lighting costs little (C1 with the Chorus matched A), but that was measured with every effect still inline. With the dark ones gone, the lit ones' own cost is what shows. The bypass only removes dark effects, so a teardown of dark effects (spec assumption 10, the plan's named lever) would not reach runs 2 and 3.
+- `main` ran first, on the coolest phone, and has not run away in any round. Round 2's B stayed clean after A's collapse, but that is one run.
+- No run here separates heat from load. The first run 1 ran away on a hot phone with nothing lit.
+
+## What a lit effect costs, and the cheaper versions — desktop, 2026-10-20 (after round 3)
+
+Crawford asked whether, short of capping how many effects can be lit, cheaper versions of the effects exist. This
+desktop probe prices them; nothing in the product changed. **Method:** T12's dark-cost probe, with each effect
+**lit**: raw Tone 15.1.22 in headless Chrome, a 30 s `OfflineContext` render of the sawtooth/square stereo source, timed
+against a source-only render. The figure is extra render ms per audio second, i.e. ‰ of one desktop core, the median
+of 5 interleaved rounds (min–max in brackets). Each effect sits in a lit cell as `buildGlobalFxChain` builds one (`in`
+→ `dry` → `cut`, `in` → effect (wet 1) → `wet` → `cut`, at Mix 0.5's gains), at `DEFAULT_GLOBAL_AUDIO_SETTINGS`, the
+widener at 0.7. The orphaned headless-Chrome count was 0 before and after; the phone preview servers sat idle.
+
+**Every effect lit:**
+
+| Effect | Lit, ‰ |
+|---|---|
+| Phaser (10 stages) | **45.8** (43.9–46.1) |
+| AutoWah | **24.9** (24.4–31.4) |
+| Chorus | 16.7 (16.0–17.3) |
+| Tremolo | 16.1 (14.7–16.4) |
+| FrequencyShifter | 15.8 (15.2–16.2) |
+| StereoWidener (0.7) | 11.8 (10.4–12.1) |
+| BitCrusher | 9.8 (9.6–10.0) |
+| Vibrato | 9.8 (9.3–10.0) |
+| Chebyshev | 5.9 (5.8–6.4) |
+| Distortion | 4.7 (4.5–5.0) |
+
+These sit close to the 2026-10-19 "dark, in the chain" column, as expected: an inline Tone effect does the same work at
+any `wet`. So the phone's lit worlds pay the old dark price, but only for the effects that are lit. The Phaser alone
+costs about what the four lean pedals cost together.
+
+**Cheaper versions inside Tone** (same sitting):
+
+| Variant | ‰ | Against the default |
+|---|---|---|
+| Phaser 4 stages | 27.8 (26.5–28.5) | −39 % |
+| Phaser 6 stages | 34.0 (32.0–34.3) | −26 % |
+| Phaser 8 stages | 39.6 (38.0–39.9) | −13 % |
+| Phaser 10 stages (default) | 45.8 | — |
+| Phaser 12 stages (the seed's ceiling) | 52.1 (51.7–53.5) | +14 % |
+| AutoWah, bandpass −24 dB (2 biquads) | 21.7 (21.5–22.0) | −13 % |
+| AutoWah, bandpass −12 dB (1 biquad) | 18.2 (18.0–18.3) | −27 % |
+| AutoWah, Tone's −48 dB (4 biquads) | 24.9 | — |
+
+The Phaser costs about 3.1 ‰ per stage on top of about 15.5 ‰ that does not depend on the stage count. The fixed part
+is its two Tone LFOs, their scaling and the Q fan-out. Fresh seeds roll 4–12 stages (`globalAudioLoadingRanges.ts`).
+The AutoWah's rolloff is fixed at −48 in Tone's constructor; the probe changed it through the private `_bandpass`.
+
+**k-rate filter frequency.** Chrome recomputes a biquad's coefficients every sample while its frequency is driven at
+audio rate, as both these effects drive it. With `automationRate = 'k-rate'` it does so once per 128-frame quantum
+(2.7 ms at 48 kHz). The app cannot reach this today: Tone builds on standardized-audio-context, whose `AudioParam`
+wrapper does not pass `automationRate` through, and the native param sits in a module-private `WeakMap` inside Tone's
+bundled deps. So it was priced on plain native nodes shaped like Tone's (a sweep of 350 × 2^(0..3) Hz at 0.5 Hz, Q 10),
+against their own source-only render:
+
+| Native shape (both channels) | a-rate ‰ | k-rate ‰ | Saving |
+|---|---|---|---|
+| Phaser, 4 stages (8 biquads) | 11.2 | 4.6 | −59 % |
+| Phaser, 10 stages (20 biquads) | 27.6 | 10.5 | −62 % |
+| Phaser, 12 stages (24 biquads) | 33.4 | 12.7 | −62 % |
+| AutoWah, 5 biquads | 14.2 | 5.6 | −61 % |
+| Phaser, 10 stages, Q driven too: both a-rate / frequency k-rate only / both k-rate | 28.4 | 11.2 / 11.5 | −61 % |
+
+A driven Q does not keep the per-sample path alive, so k-rate on the frequency alone gets the whole saving.
+`automationRate` read back as set every time. **Estimates, not measured:** removing the biquads' share and adding the
+k-rate price back gives a Tone Phaser at 10 stages of about 29 ‰ (−37 %), and 4 stages + k-rate about 21 ‰ (−54 %). It
+gives an AutoWah of about 16 ‰ with k-rate (−35 %), and about 15 ‰ with −12 dB as well (2 of its 5 biquads left).
+
+**What this does not answer:**
+- **Whether k-rate is audible.** At the Phaser's seeded 2.5 Hz ceiling the sweep moves up to about 51 Hz per quantum
+  near its middle (about 3 % of 1 575 Hz), on Q-10 notches. The AutoWah's follower can sweep 6 octaves fast. Zipper
+  noise is possible on both, and only a listen or a measurement of the stepped output can say.
+- **Reaching k-rate from the app** would mean patching standardized-audio-context (a new dependency such as
+  `patch-package`, which CLAUDE.md says to ask about) or building these two effects outside Tone's wrappers.
+- **The phone.** These are desktop ‰. Round 3's runaway world had 4 effects lit, and which ones was not recorded.
+
+## Phaser stages on the Pixel — round 4, Crawford's runs, 2026-10-20
+
+The cheapest option from the pricing above, tried on the phone with no code change: stages ride the session payload.
+**Builds:** as round 3, `main d29ac778` on 4173 and the branch (`2ef8a4e8`, product code as `75f1a5d1`) on 4174, Pixel 8,
+`?debug`, Full, a fresh page per run, hands off to 3:00, watched to 4:00. **World:** the seed-`alpha` baseline plus four
+lit, like round 3's run 2: Phaser, Chorus and Tremolo at Mix 1 and Width 0.7. The runs differ only in Phaser stages, 10
+(the default) or 4. The Phaser, Chorus and Tremolo parameters are the worst-case payload's. Order 10, 4, 4, 10 so heat
+and order fall evenly, then `main`'s baseline last as the heat control. Before the round, every branch link was loaded
+headlessly: `fx in 4/10`, and on a dev server the store read stages 10 or 4, the three pedals at Mix 1 and Width 0.7.
+Whether the phone was rested between runs was not reported.
+
+| # | Build | Phaser stages | `fx in` | `underruns` start → 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|
+| R4-1 | branch | 10 | 4/10 | 0 → **59** → **69** | "Sounded fine." |
+| R4-2 | branch | 4 | 4/10 | 0 → **53** → **110** | "Sounded fine." |
+| R4-3 | branch | 4 | 4/10 | 0 → **135** → **3 978** | "got more and more distorted at about the 3:00 mark, out completely at 3:45." |
+| R4-4 | branch | 10 | 4/10 | 0 → **54** → **1 132** | "got more and more distorted at about the 3:15 mark, out completely at 4:05." |
+| R4-5 | `main` | — (baseline, every new pedal dark) | — | 0 → **26** → **205** | "Sounded fine until 3:50 when underruns started spiking, completely dropped out at 4:13 with 2k+ underruns" |
+
+**What round 4 shows, on single runs.**
+- **`main` runs away too.** Run as the last of five, `main`'s baseline collapsed at 3:50 and dropped out at 4:13 (2 000+).
+  That overturns round 2's reading ("the runaway is the branch's, not the phone's"), which rested on one clean `main`
+  run (B). The collapse follows the run's place in the sitting, not the build: runs 1 and 2 were fine, and runs 3, 4
+  and 5 all collapsed between about 3:00 and 3:50, whichever build or stage count they carried.
+- **On a fresh phone, four lit read like `main`.** R4-1 and R4-2 read 59 and 53 at 3:00, against `main`'s 48 when it
+  ran first in round 3 (another sitting, so this is not a same-sitting gate). Round 3's run 2 (4/10, 259 and a
+  runaway) ran fourth in its sitting, after a hot-phone runaway.
+- **Stage count: no signal.** 10 stages read 59 and 54 at 3:00; 4 stages 53 and 135. Each pair holds one fine run and
+  one collapse, decided by order. The desktop's −39 % for the Phaser (about a fifth of this world's lit cost) is lost
+  in the run-to-run spread.
+- **What carries over from run to run is not known.** Heat is the obvious candidate, but no run here separates it from
+  Chrome's or the phone's state building up across page loads. Every collapse matches the one-way collapse seen on
+  `bravo` (2026-09-21) and in rounds 1–3: once it starts, it does not recover.
+
+**After round 4, on the still-hot phone (Crawford, same day).**
+- **Restarting Chrome didn't help.** He let a collapse run until the music dropped out, closed every app, restarted
+  Chrome and opened the same page: still no sound, underruns rising about 10 000 a minute. So the state that carries
+  over is not the Chrome process's.
+- **The plain sine was clean.** Straight after, a sine-only page (no app, no Tone: one 220 Hz sine on a plain
+  `AudioContext`, the same `playbackStats` counter, a button adding 50 sawtooth oscillators at a time) played clean
+  with 0 a minute. Adding load: 3 underruns at 250 oscillators, none at 300, a slow climb from 700 (settling near 24 a
+  minute), more from 800, and the first audible distortion at 1 000.
+- **So the phone's audio path still worked.** The app sits near the Pixel's limit even when the phone is cool (`main`
+  logs underruns within 3 minutes on a fresh phone), so a throttled phone that still runs 700 plain oscillators can
+  still be too slow for it.
+- **Not run:** the same app link in an Incognito tab (empty storage), and the sine ramp on a cool phone (the
+  capacity heat costs). Both were left for backlog 27's own branch, by Crawford's call.
+- **Storage is an unlikely cause.** The app stores only named sessions (`trace-atlas.sessions.v1`), and only the
+  Sessions panel reads them.
+- **The day clock is ruled out.** It restarts at each page load (`dayStartTimestamp = Date.now() − …`), so it cannot
+  carry over between runs.

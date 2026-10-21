@@ -18,7 +18,7 @@ import { LFO_BANK_LANE_CONTENT } from './lfoConfig';
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
-import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PHASER_RATE_RANGE_HZ, PHASER_RATE_STEP_HZ } from '@/types/globalAudio';
+import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 import { HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '@/constants';
@@ -28,7 +28,8 @@ import { HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '@/constants';
 // ========================================
 
 export type AudioRigEffectKey =
-  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'autoWah' | 'phaser' | 'delay' | 'reverb' | 'compressor' | 'limiter';
+  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'autoWah' | 'phaser'
+  | 'chorus' | 'tremolo' | 'vibrato' | 'frequencyShifter' | 'delay' | 'reverb' | 'compressor' | 'stereoWidener' | 'limiter';
 
 export interface AudioRigParamSchema {
   /** Matches the field path on GlobalAudioSettings[block.key], e.g. 'threshold', 'low', 'frequency'. */
@@ -169,12 +170,55 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     key: 'phaser',
     panel: panelSchema('phaser', 'fleet.phaser', 'column'),
     params: [
-      { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PHASER_RATE_RANGE_HZ.min, max: PHASER_RATE_RANGE_HZ.max, step: PHASER_RATE_STEP_HZ, orientation: 'horizontal' } },
+      { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'phaser.octaves', type: 'sliderLinear', ...labels('fleet.phaser.octaves'), min: 0.5, max: 6, step: 0.5, orientation: 'horizontal' } },
       { field: 'baseFrequency', schema: { id: 'phaser.baseFrequency', type: 'sliderLog', ...labels('fleet.phaser.baseFrequency'), min: 50, max: 2000, orientation: 'horizontal' } },
       { field: 'stages', schema: { id: 'phaser.stages', type: 'sliderLinear', ...labels('fleet.phaser.stages'), min: 1, max: 12, step: 1, orientation: 'horizontal' } },
       { field: 'Q', schema: { id: 'phaser.Q', type: 'sliderLog', ...labels('fleet.phaser.q'), min: 0.5, max: 20, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'phaser.wet', type: 'sliderLinear', ...labels('fleet.phaser.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.6, assumption 5): four motion pedals after the Phaser, in chain
+  // order, every field a horizontal slider over its full seed range (globalAudioSeedRanges.ts; a test pins the
+  // match). No lfoTarget. The three LFO pedals' Rate rows share PEDAL_RATE_RANGE_HZ and are sliderLinear because
+  // TempoSyncSlider takes a linear schema; Shift is signed, so it is a centred-zero slider.
+  {
+    key: 'chorus',
+    panel: panelSchema('chorus', 'fleet.chorus', 'column'),
+    params: [
+      { field: 'rate', schema: { id: 'chorus.rate', type: 'sliderLinear', ...labels('fleet.chorus.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
+      { field: 'delayTime', schema: { id: 'chorus.delayTime', type: 'sliderLinear', ...labels('fleet.chorus.delay'), min: 1, max: 20, step: 0.5, orientation: 'horizontal' } },
+      { field: 'depth', schema: { id: 'chorus.depth', type: 'sliderLinear', ...labels('fleet.chorus.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'spread', schema: { id: 'chorus.spread', type: 'sliderLinear', ...labels('fleet.chorus.spread'), min: 0, max: 180, step: 5, orientation: 'horizontal' } },
+      { field: 'feedback', schema: { id: 'chorus.feedback', type: 'sliderLinear', ...labels('fleet.chorus.feedback'), min: 0, max: 0.9, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'chorus.wet', type: 'sliderLinear', ...labels('fleet.chorus.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  {
+    key: 'tremolo',
+    panel: panelSchema('tremolo', 'fleet.tremolo', 'column'),
+    params: [
+      { field: 'rate', schema: { id: 'tremolo.rate', type: 'sliderLinear', ...labels('fleet.tremolo.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
+      { field: 'depth', schema: { id: 'tremolo.depth', type: 'sliderLinear', ...labels('fleet.tremolo.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'spread', schema: { id: 'tremolo.spread', type: 'sliderLinear', ...labels('fleet.tremolo.spread'), min: 0, max: 180, step: 5, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'tremolo.wet', type: 'sliderLinear', ...labels('fleet.tremolo.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  {
+    key: 'vibrato',
+    panel: panelSchema('vibrato', 'fleet.vibrato', 'column'),
+    params: [
+      { field: 'rate', schema: { id: 'vibrato.rate', type: 'sliderLinear', ...labels('fleet.vibrato.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
+      { field: 'depth', schema: { id: 'vibrato.depth', type: 'sliderLinear', ...labels('fleet.vibrato.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'vibrato.wet', type: 'sliderLinear', ...labels('fleet.vibrato.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+    ],
+  },
+  {
+    key: 'frequencyShifter',
+    panel: panelSchema('frequencyShifter', 'fleet.frequencyShifter', 'column'),
+    params: [
+      { field: 'shift', schema: { id: 'frequencyShifter.shift', type: 'sliderCenteredZero', ...labels('fleet.frequencyShifter.shift'), min: -1000, max: 1000, step: 1, logKnee: 1, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'frequencyShifter.wet', type: 'sliderLinear', ...labels('fleet.frequencyShifter.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   {
@@ -209,6 +253,15 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'attack', schema: { id: 'compressor.attack', type: 'sliderLog', ...labels('fleet.compressor.attack'), min: 0.001, max: 0.2, orientation: 'horizontal' } },
       { field: 'release', schema: { id: 'compressor.release', type: 'sliderLog', ...labels('fleet.compressor.release'), min: 0.01, max: 1, orientation: 'horizontal' } },
       { field: 'knee', schema: { id: 'compressor.knee', type: 'sliderLinear', ...labels('fleet.compressor.knee'), min: 0, max: 40, orientation: 'horizontal' } },
+    ],
+  },
+  // Width (docs/specs/GLOBAL_PEDALS.md §1.6): the one-slider stage between the Compressor and the Limiter. 0.5 is
+  // the sound as recorded, 0 mono, 1 all side; no Mix (the node is held fully wet) and no lfoTarget.
+  {
+    key: 'stereoWidener',
+    panel: panelSchema('stereoWidener', 'fleet.stereoWidener', 'column'),
+    params: [
+      { field: 'width', schema: { id: 'stereoWidener.width', type: 'sliderLinear', ...labels('fleet.stereoWidener.width'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   {

@@ -31,10 +31,7 @@ import {
 import {
   DELAY_TIME_RANGE_SECONDS,
   DELAY_TIME_STEP_SECONDS,
-  PHASER_RATE_RANGE_HZ,
-  PHASER_RATE_STEP_HZ,
   type DelaySettings,
-  type PhaserSettings,
 } from '@/types/globalAudio';
 import { quantizeToStep, roundToDecimals } from '@/utils/math';
 
@@ -50,6 +47,16 @@ export const RATE_DRIFT_APPLIES_TO_SYNCED = true;
 // ========================================
 // HELPERS
 // ========================================
+
+/** The shape every Free | Sync rate field shares (the Phaser's and the Global Pedals LFOs'): `rate` is the Free Hz,
+ *  `sync` present = Sync (never `sync: undefined`). Docs/specs/GLOBAL_PEDALS.md §1.5. */
+export interface SyncedRate {
+  rate: number;
+  sync?: NoteValue;
+}
+
+/** A synced rate's Hz range: the Sync clamp and the Free slider's ends. */
+export type RateRange = { readonly min: number; readonly max: number };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -112,11 +119,11 @@ export function resolveDelayTimeSeconds(delay: DelaySettings, bpm: number): numb
   );
 }
 
-/** Hz the Phaser's LFO should use (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.5). Free (or an invalid
- *  sync): `rate`. Sync: the note's rate at `bpm`, clamped into the Phaser's range. */
-export function resolvePhaserRateHz(phaser: PhaserSettings, bpm: number): number {
-  if (!isNoteValue(phaser.sync)) return phaser.rate;
-  return clamp(noteValueHz(phaser.sync, bpm), PHASER_RATE_RANGE_HZ.min, PHASER_RATE_RANGE_HZ.max);
+/** Hz a synced-rate field (the Phaser's, or a Global Pedals LFO's) should run at (docs/specs/GLOBAL_PEDALS.md
+ *  §1.5). Free (or an invalid sync): `rate`. Sync: the note's rate at `bpm`, clamped into `range`. */
+export function resolveSyncedRateHz(field: SyncedRate, bpm: number, range: RateRange): number {
+  if (!isNoteValue(field.sync)) return field.rate;
+  return clamp(noteValueHz(field.sync, bpm), range.min, range.max);
 }
 
 // ========================================
@@ -134,10 +141,10 @@ export function allowedDelayNoteValues(bpm: number): NoteValue[] {
   return allowedNoteValues(bpm, DELAY_TIME_RANGE_SECONDS, 'seconds');
 }
 
-/** Notes the Phaser may sync to at `bpm`, slowest -> fastest in Hz (the Free slider's direction, as for
- *  the lanes). NOTE_VALUES is ascending by duration, i.e. fastest first in Hz, hence the reverse. */
-export function allowedPhaserNoteValues(bpm: number): NoteValue[] {
-  return allowedNoteValues(bpm, PHASER_RATE_RANGE_HZ, 'hz').reverse();
+/** Notes a synced-rate field may sync to at `bpm` inside `range`, slowest -> fastest in Hz (the Free slider's
+ *  direction, as for the lanes). NOTE_VALUES is ascending by duration, i.e. fastest first in Hz, hence the reverse. */
+export function allowedRateNoteValues(bpm: number, range: RateRange): NoteValue[] {
+  return allowedNoteValues(bpm, range, 'hz').reverse();
 }
 
 // ========================================
@@ -196,26 +203,25 @@ export function delayToFree(delay: DelaySettings, bpm: number): DelaySettings {
   };
 }
 
-/** Free -> Sync for the Phaser's Rate; same shape and fallbacks as laneToSync, in Hz over the Phaser range. */
-export function phaserToSync(phaser: PhaserSettings, bpm: number): PhaserSettings {
-  if (isNoteValue(phaser.sync)) return { ...phaser };
-  const allowed = allowedPhaserNoteValues(bpm);
+/** Free -> Sync for a synced-rate field; same shape and fallbacks as laneToSync, in Hz over `range`. Every other
+ *  field of the object is kept. */
+export function syncedRateToSync<T extends SyncedRate>(field: T, bpm: number, range: RateRange): T {
+  if (isNoteValue(field.sync)) return { ...field };
+  const allowed = allowedRateNoteValues(bpm, range);
   return {
-    ...phaser,
-    sync: nearestNoteValue(phaser.rate, bpm, allowed.length > 0 ? allowed : NOTE_VALUES, 'hz'),
+    ...field,
+    sync: nearestNoteValue(field.rate, bpm, allowed.length > 0 ? allowed : NOTE_VALUES, 'hz'),
   };
 }
 
-/** Sync -> Free for the Phaser's Rate: the resolved Hz, quantised to the slider step. The resolver has
- *  already clamped into the range, so the result is never below the minimum (never 0, which would stop
- *  the sweep) and never above the maximum. */
-export function phaserToFree(phaser: PhaserSettings, bpm: number): PhaserSettings {
-  const { sync, ...rest } = phaser;
-  if (!isNoteValue(sync)) return rest;
-  return {
-    ...rest,
-    rate: quantizeClean(resolvePhaserRateHz(phaser, bpm), PHASER_RATE_RANGE_HZ.min, PHASER_RATE_STEP_HZ),
-  };
+/** Sync -> Free for a synced-rate field: the resolved Hz, quantised onto `step` counted from `range.min`. The resolver
+ *  has already clamped into the range and the grid starts at `range.min`, so the result is never below the minimum
+ *  (never 0, which would stop the sweep) and never above the maximum: no separate floor is needed. A Free result
+ *  carries no `sync` key at all. */
+export function syncedRateToFree<T extends SyncedRate>(field: T, bpm: number, range: RateRange, step: number): T {
+  const { sync, ...rest } = field;
+  if (!isNoteValue(sync)) return rest as T;
+  return { ...rest, rate: quantizeClean(resolveSyncedRateHz(field, bpm, range), range.min, step) } as T;
 }
 
 // ========================================

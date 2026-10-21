@@ -4,7 +4,11 @@
 import { describe, it, expect } from 'vitest';
 
 import { GLOBAL_AUDIO_SEED_RANGES } from './globalAudioSeedRanges';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PHASER_RATE_RANGE_HZ } from '@/types/globalAudio';
+import {
+  DEFAULT_GLOBAL_AUDIO_SETTINGS,
+  PEDAL_RATE_RANGE_HZ,
+  PEDAL_RATE_STEP_HZ,
+} from '@/types/globalAudio';
 
 // ========================================
 // TESTS
@@ -28,6 +32,12 @@ const EXPECTED_KEYS = [
   'bitCrusher.bits', 'bitCrusher.wet',
   'autoWah.baseFrequency', 'autoWah.octaves', 'autoWah.sensitivity', 'autoWah.Q', 'autoWah.gain', 'autoWah.follower', 'autoWah.wet',
   'phaser.rate', 'phaser.octaves', 'phaser.baseFrequency', 'phaser.stages', 'phaser.Q', 'phaser.wet',
+  // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md §1.1): sixteen fields across the five new blocks.
+  'chorus.rate', 'chorus.delayTime', 'chorus.depth', 'chorus.spread', 'chorus.feedback', 'chorus.wet',
+  'tremolo.rate', 'tremolo.depth', 'tremolo.spread', 'tremolo.wet',
+  'vibrato.rate', 'vibrato.depth', 'vibrato.wet',
+  'frequencyShifter.shift', 'frequencyShifter.wet',
+  'stereoWidener.width',
   'limiter.threshold',
 ] as const;
 
@@ -49,11 +59,50 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(Object.keys(GLOBAL_AUDIO_SEED_RANGES).sort()).toEqual([...EXPECTED_KEYS].sort());
   });
 
-  it('has no chorus.* key and no reverb.dampening key', () => {
-    for (const key of Object.keys(GLOBAL_AUDIO_SEED_RANGES)) {
-      expect(key.startsWith('chorus.')).toBe(false);
-    }
+  // V2 removed the old Chorus keys; Global Pedals brings back exactly the six of its new block (none of the V2 set
+  // beyond those names), so the guard now pins the set rather than its absence.
+  it('has exactly the six Global Pedals chorus.* keys and no reverb.dampening key', () => {
+    const chorusKeys = Object.keys(GLOBAL_AUDIO_SEED_RANGES).filter((key) => key.startsWith('chorus.')).sort();
+    expect(chorusKeys).toEqual(
+      ['chorus.rate', 'chorus.delayTime', 'chorus.depth', 'chorus.spread', 'chorus.feedback', 'chorus.wet'].sort(),
+    );
     expect('reverb.dampening' in GLOBAL_AUDIO_SEED_RANGES).toBe(false);
+  });
+
+  // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md assumption 5): the full / UI ranges, all linear.
+  it('declares the Chorus fields at their spec ranges', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.rate']).toStrictEqual({ min: 0.05, max: 10, scale: 'linear', step: 0.05 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.delayTime']).toStrictEqual({ min: 1, max: 20, scale: 'linear', step: 0.5 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.depth']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.spread']).toStrictEqual({ min: 0, max: 180, scale: 'linear', step: 5 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.feedback']).toStrictEqual({ min: 0, max: 0.9, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+  });
+
+  it('declares the Tremolo and Vibrato fields at their spec ranges', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['tremolo.rate']).toStrictEqual({ min: 0.05, max: 10, scale: 'linear', step: 0.05 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['tremolo.depth']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['tremolo.spread']).toStrictEqual({ min: 0, max: 180, scale: 'linear', step: 5 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['tremolo.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['vibrato.rate']).toStrictEqual({ min: 0.05, max: 10, scale: 'linear', step: 0.05 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['vibrato.depth']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['vibrato.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+  });
+
+  it('declares the shifter signed around zero and the widener 0 - 1', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['frequencyShifter.shift']).toStrictEqual({ min: -1000, max: 1000, scale: 'linear', step: 1 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['frequencyShifter.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['stereoWidener.width']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+  });
+
+  it('keeps every synced pedal rate equal to PEDAL_RATE_RANGE_HZ and its step, so the Free slider and the Sync clamp agree', () => {
+    for (const key of ['chorus.rate', 'tremolo.rate', 'vibrato.rate'] as const) {
+      expect(GLOBAL_AUDIO_SEED_RANGES[key], key).toMatchObject({
+        min: PEDAL_RATE_RANGE_HZ.min,
+        max: PEDAL_RATE_RANGE_HZ.max,
+        step: PEDAL_RATE_STEP_HZ,
+      });
+    }
   });
 
   it('matches the documented ranges in src/types/globalAudio.ts and GLOBAL_CHAIN_GRID.md', () => {
@@ -143,9 +192,9 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['phaser.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
   });
 
-  it('keeps the Phaser rate range equal to PHASER_RATE_RANGE_HZ, so the Free slider and the Sync clamp agree', () => {
-    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].min).toBe(PHASER_RATE_RANGE_HZ.min);
-    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].max).toBe(PHASER_RATE_RANGE_HZ.max);
+  it('keeps the Phaser rate range equal to PEDAL_RATE_RANGE_HZ, so the Free slider and the Sync clamp agree', () => {
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].min).toBe(PEDAL_RATE_RANGE_HZ.min);
+    expect(GLOBAL_AUDIO_SEED_RANGES['phaser.rate'].max).toBe(PEDAL_RATE_RANGE_HZ.max);
   });
 
   it('keeps phaser.stages a whole-number field: Tone builds that many allpass stages', () => {
@@ -215,6 +264,22 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
       'phaser.stages': defaults.phaser.stages,
       'phaser.Q': defaults.phaser.Q,
       'phaser.wet': defaults.phaser.wet,
+      'chorus.rate': defaults.chorus.rate,
+      'chorus.delayTime': defaults.chorus.delayTime,
+      'chorus.depth': defaults.chorus.depth,
+      'chorus.spread': defaults.chorus.spread,
+      'chorus.feedback': defaults.chorus.feedback,
+      'chorus.wet': defaults.chorus.wet,
+      'tremolo.rate': defaults.tremolo.rate,
+      'tremolo.depth': defaults.tremolo.depth,
+      'tremolo.spread': defaults.tremolo.spread,
+      'tremolo.wet': defaults.tremolo.wet,
+      'vibrato.rate': defaults.vibrato.rate,
+      'vibrato.depth': defaults.vibrato.depth,
+      'vibrato.wet': defaults.vibrato.wet,
+      'frequencyShifter.shift': defaults.frequencyShifter.shift,
+      'frequencyShifter.wet': defaults.frequencyShifter.wet,
+      'stereoWidener.width': defaults.stereoWidener.width,
       'limiter.threshold': defaults.limiter.threshold,
     };
     for (const key of EXPECTED_KEYS) {

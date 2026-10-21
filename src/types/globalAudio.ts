@@ -90,11 +90,13 @@ export interface BitCrusherSettings {
   wet: number;
 }
 
-/** The Phaser Rate control's full range (Hz), which is also the Free | Sync clamp. Zero is excluded: a
- *  stopped phaser is a fixed notch, not "off" - Mix 0 is off. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
-export const PHASER_RATE_RANGE_HZ = { min: 0.05, max: 10 } as const;
-/** The Phaser Rate slider's draggable step; also the grid a Sync -> Free conversion quantises onto. */
-export const PHASER_RATE_STEP_HZ = 0.05;
+/** The Rate range every synced pedal (Phaser, Chorus, Tremolo, Vibrato) shares, which is also each one's Free | Sync
+ *  clamp. Zero is excluded: a stopped sweep is a fixed notch or a still delay, not "off" - Mix 0 is off. The Phaser's
+ *  range first (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1), shared by the Global Pedals under this one name
+ *  (docs/specs/GLOBAL_PEDALS.md assumption 5). */
+export const PEDAL_RATE_RANGE_HZ = { min: 0.05, max: 10 } as const;
+/** The pedal Rate sliders' draggable step; also the grid a Sync -> Free conversion quantises onto. */
+export const PEDAL_RATE_STEP_HZ = 0.05;
 
 /** Auto Wah: Tone.AutoWah, an envelope follower sweeping a bandpass. Docs/specs/GLOBAL_MODULATION_COLOUR.md §1.1. */
 export interface AutoWahSettings {
@@ -116,8 +118,8 @@ export interface AutoWahSettings {
 
 /** Phaser: Tone.Phaser, a stack of allpass notches swept by its own wall-clock LFO. */
 export interface PhaserSettings {
-  /** Hz, PHASER_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
-   *  resolvePhaserRateHz() (utils/tempoSync.ts), never directly. */
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
+   *  resolveSyncedRateHz() (utils/tempoSync.ts), never directly. */
   rate: number;
   /** 0.5 - 6 */
   octaves: number;
@@ -132,6 +134,67 @@ export interface PhaserSettings {
   /** Present = Sync: `rate` is ignored and the LFO runs at this note value's Hz at the current tempo.
    *  Absent = Free. Never `sync: undefined`. Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
   sync?: NoteValue;
+}
+
+
+/** Chorus: Tone.Chorus, two LFO-swept delay lines (a flanger with feedback). Docs/specs/GLOBAL_PEDALS.md §1.1. */
+export interface ChorusSettings {
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`. The Free value - read the effective rate through
+   *  resolveSyncedRateHz() (utils/tempoSync.ts), never directly. */
+  rate: number;
+  /** ms (1 - 20) - the delay lines' centre */
+  delayTime: number;
+  /** 0 - 1 - how far the LFOs move the delay */
+  depth: number;
+  /** degrees (0 - 180) - the right LFO's phase offset from the left */
+  spread: number;
+  /** 0 - 0.9 - Tone's `feedback` Signal; above 0 the chorus is a flanger */
+  feedback: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet), not wet itself. */
+  wet: number;
+  /** Present = Sync, absent = Free. Never `sync: undefined`. Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
+  sync?: NoteValue;
+}
+
+/** Tremolo: Tone.Tremolo, LFO-swept amplitude inverted per channel. */
+export interface TremoloSettings {
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`; the Free value, read through resolveSyncedRateHz(). */
+  rate: number;
+  /** 0 - 1 */
+  depth: number;
+  /** degrees (0 - 180) */
+  spread: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  wet: number;
+  /** Present = Sync, absent = Free. Never `sync: undefined`. */
+  sync?: NoteValue;
+}
+
+/** Vibrato: Tone.Vibrato, an LFO-swept short delay (pitch wobble). Stereo: one delay moves left and right alike. */
+export interface VibratoSettings {
+  /** Hz, PEDAL_RATE_RANGE_HZ. Tone's `frequency`; the Free value, read through resolveSyncedRateHz(). */
+  rate: number;
+  /** 0 - 1, of Tone's default maxDelay (0.005 s) */
+  depth: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  wet: number;
+  /** Present = Sync, absent = Free. Never `sync: undefined`. */
+  sync?: NoteValue;
+}
+
+/** Frequency Shifter: Tone.FrequencyShifter, single-sideband ring modulation. Clean on a centred voice; a panned one
+ *  leaks the other sideband, because Tone downmixes the sine branch (docs/specs/GLOBAL_PEDALS.md §8). */
+export interface FrequencyShifterSettings {
+  /** Hz (-1000 - 1000), signed. Tone's `frequency`: every partial moves by the same Hz. */
+  shift: number;
+  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  wet: number;
+}
+
+/** Width: Tone.StereoWidener, a mid/side stage between the Compressor and the Limiter. */
+export interface StereoWidenerSettings {
+  /** 0 - 1. Tone's `width` Signal: 0.5 is unity (as recorded), 0 is mono, 1 is all side. Never tapered. */
+  width: number;
 }
 
 export interface LimiterSettings {
@@ -162,7 +225,27 @@ export interface GlobalAudioSettings {
   /** Modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). */
   autoWah: AutoWahSettings;
   phaser: PhaserSettings;
+  /** Motion pedals, in chain order after the Phaser (docs/specs/GLOBAL_PEDALS.md §1.3). */
+  chorus: ChorusSettings;
+  tremolo: TremoloSettings;
+  vibrato: VibratoSettings;
+  frequencyShifter: FrequencyShifterSettings;
+  /** Width stage between the Compressor and the Limiter, after the rooms' join (docs/specs/GLOBAL_PEDALS.md §1.3). */
+  stereoWidener: StereoWidenerSettings;
   limiter: LimiterSettings;
+}
+
+/**
+ * The blocks whose `rate` is a Free | Sync field on the generic rail (docs/specs/GLOBAL_PEDALS.md §1.4), in chain
+ * order: the Phaser (Global Modulation) and the three LFO pedals. They share one range, PEDAL_RATE_RANGE_HZ. The store,
+ * the restore path and the seeder all loop over this one list.
+ */
+export const SYNCED_RATE_KEYS = ['phaser', 'chorus', 'tremolo', 'vibrato'] as const;
+export type SyncedRateKey = (typeof SYNCED_RATE_KEYS)[number];
+
+/** Whether `key` names a synced-rate block, narrowing it to SyncedRateKey (the drawer's Rate-row branch). */
+export function isSyncedRateKey(key: string): key is SyncedRateKey {
+  return (SYNCED_RATE_KEYS as readonly string[]).includes(key);
 }
 
 export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
@@ -181,19 +264,35 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   // Modulation is dry by default too, at Tone's own parameter defaults (spec assumption 10). No `sync` key: Free.
   autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
   phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
+  // Global Pedals: Tone's defaults, every Mix 0 and Width at unity, so a default world is unchanged
+  // (docs/specs/GLOBAL_PEDALS.md assumption 10). No `sync` key: Free.
+  chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },
+  tremolo: { rate: 10, depth: 0.5, spread: 180, wet: 0 },
+  vibrato: { rate: 5, depth: 0.1, wet: 0 },
+  frequencyShifter: { shift: 0, wet: 0 },
+  stereoWidener: { width: 0.5 },
   limiter: { threshold: -12 },
 };
+
+/** True when `value` is a plain object where `fallback` is one, or a primitive of `fallback`'s type. */
+function isSameKind(value: unknown, fallback: unknown): boolean {
+  if (typeof fallback !== 'object') return typeof value === typeof fallback;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
  * Fills any effect block a payload lacks from DEFAULT_GLOBAL_AUDIO_SETTINGS and drops keys it does not
  * know. A session or share link saved before a block existed therefore loads with that block at its
  * default (dry, for colour) instead of crashing `applyGlobalAudioToEngine`. Blocks are whole: a block that
  * is present is kept as given and never deep-merged (docs/specs/GLOBAL_COLOUR.md §1.1, assumption 11).
+ * A value of the wrong kind (a number where a block belongs, say, from a crafted `?session=`) counts as
+ * missing, so the restore path's sanitisers only ever see objects.
  */
 export function withGlobalAudioDefaults(partial: Partial<GlobalAudioSettings>): GlobalAudioSettings {
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS) as (keyof GlobalAudioSettings)[]) {
-    result[key] = partial[key] ?? structuredClone(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    const fallback = DEFAULT_GLOBAL_AUDIO_SETTINGS[key];
+    result[key] = isSameKind(partial[key], fallback) ? partial[key] : structuredClone(fallback);
   }
   return result as unknown as GlobalAudioSettings;
 }

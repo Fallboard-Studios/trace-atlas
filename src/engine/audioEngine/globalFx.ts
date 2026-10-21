@@ -1,6 +1,25 @@
 import * as Tone from 'tone';
 
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
+import {
+  CHAIN_CUT_OPTIONS,
+  COLOUR_RAMP_SECONDS,
+  buildCell,
+  cellEffect,
+  cellNodes,
+  cellSpan,
+  clearCells,
+  connectEffect,
+  disconnectEffect,
+  disposeQuietly,
+  duckCell,
+  getCell,
+  needsDuck,
+  wireCells,
+  writeCellMix,
+  type BypassKey,
+  type ChainSpan,
+} from './bypassCell';
 import { devWarn } from '@/utils/helpers';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -16,6 +35,11 @@ import type {
   BitCrusherSettings,
   AutoWahSettings,
   PhaserSettings,
+  ChorusSettings,
+  TremoloSettings,
+  VibratoSettings,
+  FrequencyShifterSettings,
+  StereoWidenerSettings,
 } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 
@@ -42,8 +66,20 @@ let _globalPhaser: Tone.Phaser | null = null;
 type PhaserLive = Omit<PhaserSettings, 'sync' | 'stages'>;
 let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
 let _phaserLive: PhaserLive = defaultPhaserLive();
-// The Decay Mode wireGlobalFxChain was last called with. A Phaser rebuild re-wires, and nothing else remembers the mode.
-let _lastControlledDecay = false;
+/** The count a ducked Stages swap will build at the bottom of the duck, or null when none is pending (writePhaserStages). */
+let _phaserDuckStages: number | null = null;
+// The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
+let _globalChorus: Tone.Chorus | null = null;
+let _globalTremolo: Tone.Tremolo | null = null;
+// Plain Tone `Effect`s, not `StereoEffect`s, but neither is mono: the Vibrato's delay moves left and right alike, and
+// only the shifter's sine branch is downmixed (see setGlobalFrequencyShifter).
+let _globalVibrato: Tone.Vibrato | null = null;
+let _globalFrequencyShifter: Tone.FrequencyShifter | null = null;
+// The Width stage, between the Compressor and the Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
+let _globalStereoWidener: Tone.StereoWidener | null = null;
+// The cycle-search cuts: zero-delay DelayNodes at the chain entry and after the High-Pass Filter (see CHAIN_CUT_OPTIONS).
+let _entryCut: Tone.Delay | null = null;
+let _filterCut: Tone.Delay | null = null;
 // Where each room's output rejoins the signal path. The global Reverb / Delay `wet` sliders drive these
 // gains, never Effect.wet: the rooms stay fully wet and each robot's send decides how much enters
 // (docs/specs/ROBOT_SENDS.md §1.3).
@@ -66,20 +102,6 @@ let _masterTap: OutputTap | null = null;
  *  this fix. */
 const FILTER_FREQUENCY_RAMP_SECONDS = 0.05;
 
-/** Ramp for a live colour `wet` or BitCrusher `bits` change - the same declick rationale as the filter ramp.
- *  `amount` and `order` are plain setters that rebuild a 1024-point shaper map and are written directly. */
-const COLOUR_RAMP_SECONDS = 0.05;
-
-/** The stored colour Mix (0-1, the slider position and what the seed draws) as the `wet` the node gets: squared.
- *  On the Pixel the three saturators were far too strong across most of a linear Mix slider (Crawford, 2026-10-15:
- *  "all three need to be super low mixes"), so the curve spends most of the slider on the subtle end, as the
- *  Sends' return levels do. 0 stays fully dry and 1 stays fully wet; only the middle moves. Applied where the
- *  setters write the node, so a seed, a restore and a slider drag all take the same path and the stored value,
- *  the seed bands and the share codes keep meaning "slider position". */
-export function colourWetGain(mix: number): number {
-  return mix * mix;
-}
-
 /** `value` clamped into the field's full range, or undefined when it is not a finite number. A saved session or a
  *  share link is untrusted input: an out-of-range colour value must not reach a node (an order of 1e9 would stall
  *  the shaper-map build) and NaN must not be written at all. */
@@ -94,8 +116,8 @@ function defaultPhaserLive(): PhaserLive {
   return { rate, octaves, baseFrequency, Q, wet };
 }
 
-/** Constructs a Phaser at `stages` with the given non-stage values, its Mix already tapered, so a rebuilt node
- *  comes up at exactly the sound the old one had. */
+/** Constructs a Phaser at `stages` with the given non-stage values, so a rebuilt node comes up at exactly the sound the
+ *  old one had. Pinned fully wet: its bypass cell carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). */
 function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages: number, live: PhaserLive): Tone.Phaser {
   return new PhaserCtor({
     frequency: live.rate,
@@ -103,8 +125,23 @@ function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages
     stages,
     Q: live.Q,
     baseFrequency: live.baseFrequency,
-    wet: colourWetGain(live.wet),
+    wet: 1,
   });
+}
+
+/** One of the two cycle-search cuts in the dry chain (see CHAIN_CUT_OPTIONS in bypassCell.ts). */
+function buildChainCut(DelayCtor: (new (...args: unknown[]) => Tone.Delay) | undefined, where: string): Tone.Delay | null {
+  if (!DelayCtor) return null;
+  try {
+    return new DelayCtor({ ...CHAIN_CUT_OPTIONS });
+  } catch (err) {
+    devWarn('[AudioEngine] the ' + where + ' cycle-search cut could not be constructed; the chain runs without it', err);
+    return null;
+  }
+}
+
+function nodeSpan(node: Tone.ToneAudioNode | null): ChainSpan | null {
+  return node ? { head: node, tail: node } : null;
 }
 
 /** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
@@ -148,6 +185,15 @@ export function buildGlobalFxChain(): void {
   const BitCrusherCtor = getToneCtor<Tone.BitCrusher>('BitCrusher');
   const AutoWahCtor = getToneCtor<Tone.AutoWah>('AutoWah');
   const PhaserCtor = getToneCtor<Tone.Phaser>('Phaser');
+  const ChorusCtor = getToneCtor<Tone.Chorus>('Chorus');
+  const TremoloCtor = getToneCtor<Tone.Tremolo>('Tremolo');
+  const VibratoCtor = getToneCtor<Tone.Vibrato>('Vibrato');
+  const FrequencyShifterCtor = getToneCtor<Tone.FrequencyShifter>('FrequencyShifter');
+  const StereoWidenerCtor = getToneCtor<Tone.StereoWidener>('StereoWidener');
+  const ChainCutCtor = getToneCtor<Tone.Delay>('Delay');
+
+  _entryCut = buildChainCut(ChainCutCtor, 'entry');
+  _filterCut = buildChainCut(ChainCutCtor, 'post-filter');
 
   if (ReverbCtor) {
     // wet 1: a room is all room. How much of a robot enters it is that robot's send.
@@ -173,34 +219,36 @@ export function buildGlobalFxChain(): void {
   if (LimiterCtor) {
     _globalLimiter = new LimiterCtor({ threshold: -12 });
   }
-  // Built dry (wet 0); the store pushes the seeded values once the chain exists. `oversample` is 'none' on both
-  // shapers and is never read from state (docs/specs/GLOBAL_COLOUR.md §1.3).
+  // Built pinned fully wet in a dark cell, which carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9); the
+  // store pushes the seeded values once the chain exists. `oversample` is 'none' on both shapers and is never read from
+  // state (docs/specs/GLOBAL_COLOUR.md §1.3).
   if (DistortionCtor) {
-    _globalDistortion = new DistortionCtor({ distortion: 0.3, oversample: 'none', wet: 0 });
+    _globalDistortion = new DistortionCtor({ distortion: 0.3, oversample: 'none', wet: 1 });
   }
   if (ChebyshevCtor) {
-    _globalChebyshev = new ChebyshevCtor({ order: 2, oversample: 'none', wet: 0 });
+    _globalChebyshev = new ChebyshevCtor({ order: 2, oversample: 'none', wet: 1 });
   }
   // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
-  // promise, so at wet 0 nothing changes and at wet > 0 the crushed share is briefly absent at boot. If the browser
-  // refuses worklets the constructor throws, and the slot is simply skipped.
+  // promise, so while its cell is dark nothing changes and once lit the crushed share is briefly absent at boot. If the
+  // browser refuses worklets the constructor throws, and the slot is simply skipped.
   _globalBitCrusher = null;
   if (BitCrusherCtor) {
     try {
-      _globalBitCrusher = new BitCrusherCtor({ bits: 8, wet: 0 });
+      _globalBitCrusher = new BitCrusherCtor({ bits: 8, wet: 1 });
     } catch (err) {
       devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
       _globalBitCrusher = null;
     }
   }
-  // Built dry (wet 0) at the stored defaults, like the colour nodes; the store pushes the seeded values once the
-  // chain exists. A missing constructor (headless) leaves the slot empty and the chain whole.
+  // Built pinned fully wet at the stored defaults in a dark cell, like the colour nodes; the store pushes the seeded
+  // values once the chain exists. A missing constructor (headless) leaves the slot empty and the chain whole.
   if (AutoWahCtor) {
-    _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 0 });
+    _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 1 });
   }
   // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
   // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
   _globalPhaser = null;
+  _phaserDuckStages = null;
   _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
   _phaserLive = defaultPhaserLive();
   if (PhaserCtor) {
@@ -211,6 +259,108 @@ export function buildGlobalFxChain(): void {
       _globalPhaser = null;
     }
   }
+  // Global Pedals: built pinned fully wet at the stored defaults, in dark cells that carry the Mix
+  // (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). Tone's Chorus and Tremolo do NOT start their LFOs in the
+  // constructor, so each is started once here and runs for the chain's life: a dark pedal is Mix 0, not a stopped LFO
+  // (docs/specs/GLOBAL_PEDALS.md assumption 4). A failed construction leaves the slot empty and the chain whole.
+  resetSpreadTargets();
+  _globalChorus = null;
+  if (ChorusCtor) {
+    try {
+      const { rate, delayTime, depth, spread, feedback } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus;
+      _globalChorus = new ChorusCtor({ frequency: rate, delayTime, depth, spread, feedback, wet: 1 });
+      _globalChorus.start();
+    } catch (err) {
+      devWarn('[AudioEngine] Chorus could not be constructed; the pedal slot runs without it', err);
+      _globalChorus = null;
+    }
+  }
+  _globalTremolo = null;
+  if (TremoloCtor) {
+    try {
+      const { rate, depth, spread } = DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo;
+      _globalTremolo = new TremoloCtor({ frequency: rate, depth, spread, wet: 1 });
+      _globalTremolo.start();
+    } catch (err) {
+      devWarn('[AudioEngine] Tremolo could not be constructed; the pedal slot runs without it', err);
+      _globalTremolo = null;
+    }
+  }
+  // The Vibrato starts its own LFO in its constructor, so it is never start()ed here. Its `maxDelay` (constructor-only,
+  // the Depth ceiling) is left at Tone's 0.005 s default, which the full Depth range is written against.
+  _globalVibrato = null;
+  if (VibratoCtor) {
+    try {
+      const { rate, depth } = DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato;
+      // Pinned fully wet: its bypass cell carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9).
+      _globalVibrato = new VibratoCtor({ frequency: rate, depth, wet: 1 });
+    } catch (err) {
+      devWarn('[AudioEngine] Vibrato could not be constructed; the pedal slot runs without it', err);
+      _globalVibrato = null;
+    }
+  }
+  _globalFrequencyShifter = null;
+  if (FrequencyShifterCtor) {
+    try {
+      // Pinned fully wet: its bypass cell carries the Mix.
+      _globalFrequencyShifter = new FrequencyShifterCtor({
+        frequency: DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter.shift,
+        wet: 1,
+      });
+    } catch (err) {
+      devWarn('[AudioEngine] FrequencyShifter could not be constructed; the pedal slot runs without it', err);
+      _globalFrequencyShifter = null;
+    }
+  }
+  // Width: built at unity (0.5) and held fully wet - Width itself is the control, and exactly 0.5 is its dark state.
+  _globalStereoWidener = null;
+  if (StereoWidenerCtor) {
+    try {
+      _globalStereoWidener = new StereoWidenerCtor({ width: DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width, wet: 1 });
+    } catch (err) {
+      devWarn('[AudioEngine] StereoWidener could not be constructed; the chain runs without the Width stage', err);
+      _globalStereoWidener = null;
+    }
+  }
+  // The bypass cells (docs/specs/DARK_EFFECT_BYPASS.md section 1.3), one per effect whose constructor exists, built
+  // before the returns and the master so the master stays the last Gain made. Without a Gain or a Delay constructor no
+  // cell can exist, and the ten effects are released and left out of the chain.
+  // A pending disconnect or duck belongs to the cell it was armed on: cancel it with the cell.
+  clearCells();
+  const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
+    ['distortion', DistortionCtor, _globalDistortion],
+    ['chebyshev', ChebyshevCtor, _globalChebyshev],
+    ['bitCrusher', BitCrusherCtor, _globalBitCrusher],
+    ['autoWah', AutoWahCtor, _globalAutoWah],
+    ['phaser', PhaserCtor, _globalPhaser],
+    ['chorus', ChorusCtor, _globalChorus],
+    ['tremolo', TremoloCtor, _globalTremolo],
+    ['vibrato', VibratoCtor, _globalVibrato],
+    ['frequencyShifter', FrequencyShifterCtor, _globalFrequencyShifter],
+    ['stereoWidener', StereoWidenerCtor, _globalStereoWidener],
+  ];
+  if (GainCtorFX && ChainCutCtor) {
+    for (const [key, ctor, effect] of effects) {
+      if (ctor) buildCell(key, effect, GainCtorFX, ChainCutCtor);
+    }
+  } else if (effects.some(([, , effect]) => effect)) {
+    devWarn(
+      '[AudioEngine] no Gain or Delay constructor for the bypass cells; the ten global effects are left out of the chain',
+    );
+    for (const [, , effect] of effects) disposeQuietly(effect);
+  }
+  // The `_global<Effect>` names stay as aliases of the cells' effects, so a left-out effect's setter no-ops.
+  _globalDistortion = cellEffect<Tone.Distortion>('distortion');
+  _globalChebyshev = cellEffect<Tone.Chebyshev>('chebyshev');
+  _globalBitCrusher = cellEffect<Tone.BitCrusher>('bitCrusher');
+  _globalAutoWah = cellEffect<Tone.AutoWah>('autoWah');
+  _globalPhaser = cellEffect<Tone.Phaser>('phaser');
+  _globalChorus = cellEffect<Tone.Chorus>('chorus');
+  _globalTremolo = cellEffect<Tone.Tremolo>('tremolo');
+  _globalVibrato = cellEffect<Tone.Vibrato>('vibrato');
+  _globalFrequencyShifter = cellEffect<Tone.FrequencyShifter>('frequencyShifter');
+  _globalStereoWidener = cellEffect<Tone.StereoWidener>('stereoWidener');
+
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
     // that room unreturned rather than breaking the build.
@@ -239,24 +389,35 @@ export function buildGlobalFxChain(): void {
  * track exact prior edges — safe to call even if nothing was ever connected.
  */
 function disconnectAllFxNodes(): void {
+  // Signal order, upstream to downstream (the rooms feed their returns, which feed the join), walked BACKWARDS: every
+  // disconnect runs Tone's cycle search from the nodes it drops, so dropping the downstream ones first leaves each later
+  // search a node with no outputs (see CHAIN_CUT_OPTIONS; front-to-back took a Decay flip 2.6 s with the pedals). Each
+  // cell's effect is dropped too, so a rewire re-makes every edge from nothing.
   const nodes = [
+    _entryCut,
     _globalEQ,
     _globalLPF,
     _globalHPF,
-    _globalDistortion,
-    _globalChebyshev,
-    _globalBitCrusher,
-    _globalAutoWah,
-    _globalPhaser,
+    _filterCut,
+    ...cellNodes('distortion'),
+    ...cellNodes('chebyshev'),
+    ...cellNodes('bitCrusher'),
+    ...cellNodes('autoWah'),
+    ...cellNodes('phaser'),
+    ...cellNodes('chorus'),
+    ...cellNodes('tremolo'),
+    ...cellNodes('vibrato'),
+    ...cellNodes('frequencyShifter'),
     _globalDelay,
     _globalReverb,
-    _globalCompressor,
-    _globalLimiter,
     _globalReverbReturn,
     _globalDelayReturn,
+    _globalCompressor,
+    ...cellNodes('stereoWidener'),
+    _globalLimiter,
     _masterGain,
   ].filter(Boolean) as Array<{ disconnect: () => void }>;
-  for (const node of nodes) {
+  for (const node of nodes.reverse()) {
     try {
       node.disconnect();
     } catch (err) {
@@ -268,11 +429,14 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Compressor →
+ * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Vibrato →
+ * FrequencyShifter → Compressor → StereoWidener →
  * Limiter → masterGain → Destination (or straight to Destination if masterGain
- * wasn't constructed). An absent colour or modulation node (headless, or a worklet
- * that failed to construct) is skipped by the filter below, so the chain
- * never breaks.
+ * wasn't constructed). Each of those ten effects is a bypass cell, entered at its
+ * `in` and left at its `cut` (docs/specs/DARK_EFFECT_BYPASS.md section 1.3); an
+ * absent cell (headless, or no Gain / Delay constructor) is skipped by the filter
+ * below, and an effect that failed to construct leaves an empty cell wired dry,
+ * so the chain never breaks.
  *
  * Reverb and Delay are two parallel rooms OFF that chain, not stages in it.
  * Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
@@ -282,8 +446,10 @@ function disconnectAllFxNodes(): void {
  *
  * - Natural Decay (controlledDecay=false, default): both returns join at the
  *   Compressor input, so the echoes are compressed with the dry signal.
- * - Controlled Decay (controlledDecay=true): both returns join at the Limiter
- *   input, past the Compressor, so the echoes are not squeezed by it.
+ * - Controlled Decay (controlledDecay=true): both returns join at the
+ *   Width cell's input, past the Compressor, so the echoes are not squeezed
+ *   by it but are still folded or spread by Width (docs/specs/GLOBAL_PEDALS.md
+ *   assumption 2). Without a Width cell the join falls back to the Limiter.
  *
  * A room's own input is never disconnected here, so the robots' sends stay
  * connected across every flip. Called once from
@@ -291,24 +457,27 @@ function disconnectAllFxNodes(): void {
  * Decay" toggle flips (src/stores/audioStore.ts's setCompressorBeforeDelay).
  */
 export function wireGlobalFxChain(controlledDecay: boolean): void {
-  _lastControlledDecay = controlledDecay;
   disconnectAllFxNodes();
 
   const chainNodes = [
-    _globalEQ,
-    _globalLPF,
-    _globalHPF,
-    _globalDistortion,
-    _globalChebyshev,
-    _globalBitCrusher,
-    _globalAutoWah,
-    _globalPhaser,
-    _globalCompressor,
-    _globalLimiter,
-  ].filter(Boolean) as Array<{
-    connect: (t: unknown) => unknown;
-    toDestination?: () => void;
-  }>;
+    nodeSpan(_entryCut),
+    nodeSpan(_globalEQ),
+    nodeSpan(_globalLPF),
+    nodeSpan(_globalHPF),
+    nodeSpan(_filterCut),
+    cellSpan('distortion'),
+    cellSpan('chebyshev'),
+    cellSpan('bitCrusher'),
+    cellSpan('autoWah'),
+    cellSpan('phaser'),
+    cellSpan('chorus'),
+    cellSpan('tremolo'),
+    cellSpan('vibrato'),
+    cellSpan('frequencyShifter'),
+    nodeSpan(_globalCompressor),
+    cellSpan('stereoWidener'),
+    nodeSpan(_globalLimiter),
+  ].filter((span): span is ChainSpan => span !== null);
 
   if (chainNodes.length === 0) {
     // No FX nodes available at all (fully headless env) — nothing to wire.
@@ -317,9 +486,12 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
 
   try {
     for (let i = 0; i < chainNodes.length - 1; i++) {
-      chainNodes[i].connect(chainNodes[i + 1]);
+      chainNodes[i].tail.connect(chainNodes[i + 1].head);
     }
-    const last = chainNodes[chainNodes.length - 1];
+    // Each cell's own edges, after the chain: the effect's two only if it was lit, so a Decay flip
+    // restores exactly what was connected.
+    wireCells();
+    const last = chainNodes[chainNodes.length - 1].tail;
     if (_masterGain) {
       last.connect(_masterGain);
       try {
@@ -335,8 +507,10 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
       }
     }
 
-    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped.
-    const join = (controlledDecay ? _globalLimiter : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
+    // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped. Controlled joins at the
+    // Width cell's `in`, lit or dark (docs/specs/DARK_EFFECT_BYPASS.md assumption 6); without a Width cell it falls
+    // through to the Limiter, as it was before the widener existed.
+    const join = (controlledDecay ? getCell('stereoWidener')?.in : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
     if (join) {
       _globalReverb?.connect(_globalReverbReturn ?? join);
       _globalReverbReturn?.connect(join);
@@ -353,14 +527,13 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
   connectTapsIfWanted();
 }
 
-/** The live chain-entry node — EQ3, first in both Natural and Controlled
- *  Decay topologies — read by AudioEngine.ts's reserveVoice() to connect each
- *  robot's per-voice bus into the global chain. Null until
- *  buildGlobalFxChain() has run. Replaces the old getMasterCompressor(),
- *  which stopped being accurate once the V2 reorder moved Compressor off the
- *  front of the chain. */
-export function getGlobalChainEntry(): Tone.EQ3 | null {
-  return _globalEQ;
+/** The live chain-entry node — the entry cycle-search cut, which feeds the EQ3 (first in both Natural and Controlled
+ *  Decay topologies), or the EQ3 itself when no Delay node could be built — read by AudioEngine.ts's reserveVoice() to
+ *  connect each robot's per-voice bus into the global chain. Entering at a delay node keeps every bus connect's cycle
+ *  search to one node (see CHAIN_CUT_OPTIONS). Null until buildGlobalFxChain() has run. Replaces the old
+ *  getMasterCompressor(), which stopped being accurate once the V2 reorder moved Compressor off the front of the chain. */
+export function getGlobalChainEntry(): Tone.ToneAudioNode | null {
+  return _entryCut ?? _globalEQ;
 }
 
 /** The Reverb room, read by AudioEngine.ts's reserveVoice() to connect each robot's reverb send into it.
@@ -373,6 +546,9 @@ export function getGlobalReverbRoom(): Tone.Reverb | null {
 export function getGlobalDelayRoom(): Tone.FeedbackDelay | null {
   return _globalDelay;
 }
+
+/** The bypass cells' count for the diagnostics, which read the global chain through this module. */
+export { getConnectedEffectCount } from './bypassCell';
 
 // ========================================
 // OUTPUT TAPS (read-only diagnostics)
@@ -604,7 +780,7 @@ export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
     const amount = params.amount === undefined ? undefined : clampColour('distortion.amount', params.amount);
     const wet = params.wet === undefined ? undefined : clampColour('distortion.wet', params.wet);
     if (amount !== undefined) distortion.distortion = amount;
-    if (wet !== undefined) rampOrSet(distortion.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('distortion', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalDistortion failed', err);
   }
@@ -617,7 +793,7 @@ export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
     const order = params.order === undefined ? undefined : clampColour('chebyshev.order', Math.round(params.order));
     const wet = params.wet === undefined ? undefined : clampColour('chebyshev.wet', params.wet);
     if (order !== undefined) chebyshev.order = order;
-    if (wet !== undefined) rampOrSet(chebyshev.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('chebyshev', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChebyshev failed', err);
   }
@@ -630,14 +806,15 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
     const bits = params.bits === undefined ? undefined : clampColour('bitCrusher.bits', params.bits);
     const wet = params.wet === undefined ? undefined : clampColour('bitCrusher.wet', params.wet);
     if (bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(crusher.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('bitCrusher', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
   }
 }
 
 /** Auto Wah (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The sweep range, sensitivity and follower smoothing are
- *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's (colourWetGain). */
+ *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's and written through the bypass
+ *  cell (writeCellMix). */
 export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
   const wah = _globalAutoWah;
   if (!wah) return;
@@ -655,15 +832,18 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
     if (follower !== undefined) wah.follower = follower;
     if (Q !== undefined) rampOrSet(wah.Q, Q, COLOUR_RAMP_SECONDS);
     if (gain !== undefined) rampOrSet(wah.gain, gain, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(wah.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('autoWah', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalAutoWah failed', err);
   }
 }
 
 /**
- * Replaces the Phaser with one built at `stages` from the last-written values (spec §1.3), then re-wires the chain in
- * the Decay Mode it was last wired in. The new node is built FIRST: if the constructor fails the old node is kept,
+ * Replaces the Phaser with one built at `stages` from the last-written values (spec §1.3), inside its bypass cell and
+ * nowhere else (docs/specs/DARK_EFFECT_BYPASS.md assumption 7): while the cell is connected the old node's two edges go
+ * and the new node's are made, the wet gain keeping its value throughout (writePhaserStages calls this for a connected
+ * cell only at the bottom of a duck, with that value at 0); a dark cell connects nothing. The chain, the
+ * returns and their join are not touched. The new node is built FIRST: if the constructor fails the old node is kept,
  * undisposed and still wired, and the caller carries on with it; the next Stages edit tries again. True on success.
  */
 function rebuildPhaser(stages: number): boolean {
@@ -677,6 +857,22 @@ function rebuildPhaser(stages: number): boolean {
     return false;
   }
   const old = _globalPhaser;
+  const cell = getCell('phaser');
+  if (cell) {
+    const lit = cell.connected;
+    if (lit && old) disconnectEffect('phaser', cell, old);
+    // The old node is about to be released, so its edges count as gone even if dropping them failed.
+    cell.connected = false;
+    cell.effect = fresh;
+    if (lit && !connectEffect('phaser', cell, fresh)) {
+      // The new node is out, so the cell goes fully dry: the wet gain has no input left and is set to 0 at once
+      // (silent), the dry gain ramps up to 1, and the Mix is 0, so the next Mix write lights it from wet 0 like any
+      // other dark cell. A pending darken stays armed; its fire finds the cell unconnected and does nothing.
+      cell.wet.gain.value = 0;
+      rampOrSet(cell.dry.gain, 1, COLOUR_RAMP_SECONDS);
+      cell.mix = 0;
+    }
+  }
   _globalPhaser = fresh;
   _phaserStages = stages;
   try {
@@ -684,13 +880,30 @@ function rebuildPhaser(stages: number): boolean {
   } catch (err) {
     devWarn('[AudioEngine] disposing the replaced Phaser failed', err);
   }
-  wireGlobalFxChain(_lastControlledDecay);
   return true;
+}
+
+/**
+ * A Stages change (docs/specs/DARK_EFFECT_BYPASS.md §8.2). The rebuild swaps the node inside its cell, and while the
+ * Phaser is in the signal path that swap is a connect at the lit gains: it clicked x2-55 in a real-time context. So it
+ * goes through the cell's duck (duckCell), which builds only the last count of a drag, and not even that if the drag came
+ * back to the live one. A Phaser out of the signal path is rebuilt at once. True when the node was rebuilt now, so the
+ * edit is complete; false when the live node stays for now and takes the rest of the edit.
+ */
+function writePhaserStages(stages: number): boolean {
+  if (!needsDuck('phaser')) return rebuildPhaser(stages);
+  _phaserDuckStages = stages;
+  duckCell('phaser', () => {
+    _phaserDuckStages = null;
+    if (stages !== _phaserStages) rebuildPhaser(stages);
+  });
+  return false;
 }
 
 /** Phaser (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here
  *  is always Hz and `sync` never arrives. Rate and Q are Signals, octaves and baseFrequency plain setters, and the Mix is
- *  tapered like Colour's; `stages` is constructor-only, so a changed count rebuilds the node. */
+ *  tapered like Colour's and written through the bypass cell (writeCellMix); `stages` is constructor-only, so a changed
+ *  count rebuilds the node. */
 export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): void {
   const phaser = _globalPhaser;
   if (!phaser) return;
@@ -708,17 +921,196 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     if (baseFrequency !== undefined) _phaserLive.baseFrequency = baseFrequency;
     if (Q !== undefined) _phaserLive.Q = Q;
     if (wet !== undefined) _phaserLive.wet = wet;
+    // Stages first: a dark Phaser is rebuilt now, so the Mix below lights the new node; a lit one starts (or re-arms)
+    // its duck, and the Mix below is then recorded for the duck to return to. A count the node has, or a duck is
+    // already heading for, does nothing (a whole-block apply re-sends it).
+    const rebuilt =
+      stages !== undefined && stages !== (_phaserDuckStages ?? _phaserStages) && writePhaserStages(stages);
+    if (wet !== undefined) writeCellMix('phaser', wet);
 
     // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
-    if (stages !== undefined && stages !== _phaserStages && rebuildPhaser(stages)) return;
+    if (rebuilt) return;
 
     if (rate !== undefined) rampOrSet(phaser.frequency, rate, COLOUR_RAMP_SECONDS);
     if (octaves !== undefined) phaser.octaves = octaves;
     if (baseFrequency !== undefined) phaser.baseFrequency = baseFrequency;
     if (Q !== undefined) rampOrSet(phaser.Q, Q, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) rampOrSet(phaser.wet, colourWetGain(wet), COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalPhaser failed', err);
+  }
+}
+
+/** The Tone 15 Chorus internals a ramped Delay / Depth change writes: the stored centre (SECONDS) and depth, and each
+ *  LFO's Scale, whose `_add` (the range's floor) and `_mult` (its span) are Signals. */
+type ChorusScale = { _min: number; _max: number; _add: { rampTo?: (value: number, rampTime: number) => void; value: unknown }; _mult: { rampTo?: (value: number, rampTime: number) => void; value: unknown } };
+type ChorusSweep = { _delayTime: number; _depth: number; _lfoL?: { _scaler?: ChorusScale }; _lfoR?: { _scaler?: ChorusScale } };
+
+/**
+ * A Chorus Delay (ms) and / or Depth change, ramped (docs/specs/GLOBAL_PEDALS.md §8). Tone's own `delayTime` / `depth`
+ * setters write each LFO's range as an instant Signal step (Scale._setRange), which jumps the delay's read position: in
+ * an offline render one 0.5 ms Delay step measured x217 the steady waveform's peak second difference, one 0.01 Depth step
+ * x13, the same changes ramped like this x1. So this computes the range as Tone's setter does (centre d, deviation
+ * d * depth, floor d - deviation) and ramps the two Signals of both LFOs over COLOUR_RAMP_SECONDS, keeping
+ * Tone's stored fields in step so its getters and any later setter agree. When the internals are not the shape this
+ * was written against (a Tone upgrade, a test stub), it falls back to Tone's setters, which step.
+ */
+function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, depth: number | undefined): void {
+  const sweep = chorus as unknown as Partial<ChorusSweep>;
+  const scales = [sweep._lfoL?._scaler, sweep._lfoR?._scaler];
+  if (typeof sweep._delayTime !== 'number' || typeof sweep._depth !== 'number' || !scales.every((s) => s?._add && s._mult)) {
+    if (delayTimeMs !== undefined) chorus.delayTime = delayTimeMs;
+    if (depth !== undefined) chorus.depth = depth;
+    return;
+  }
+  const centre = delayTimeMs === undefined ? sweep._delayTime : delayTimeMs / 1000;
+  const newDepth = depth === undefined ? sweep._depth : depth;
+  const deviation = centre * newDepth;
+  // Tone floors this at 0; Depth arrives clamped to 0 - 1, so the floor can never bite here.
+  const min = centre - deviation;
+  const max = centre + deviation;
+  sweep._delayTime = centre;
+  sweep._depth = newDepth;
+  for (const scale of scales as ChorusScale[]) {
+    scale._min = min;
+    scale._max = max;
+    rampOrSet(scale._add, min, COLOUR_RAMP_SECONDS);
+    rampOrSet(scale._mult, max - min, COLOUR_RAMP_SECONDS);
+  }
+}
+
+/**
+ * The Spread de-click (docs/specs/GLOBAL_PEDALS.md §8). Tone's Chorus and Tremolo `spread` setters swap both LFOs'
+ * waveform at once, on the audio thread's current time, so the sweep jumps: in a real-time context one 5° step clicked
+ * x49-79 on a lit Chorus and x7 on a lit Tremolo. So a lit pedal's Spread goes through its cell's duck (duckCell), which
+ * writes only the last Spread of a drag; measured x1.3 / x1.6. A pedal out of the signal path is written at once: there
+ * is nothing to hear.
+ */
+type SpreadPedal = 'chorus' | 'tremolo';
+type SpreadNode = { spread: number };
+/** The Spread each node has, or is about to get from a duck. Every whole-block apply re-sends it, and a lit pedal must
+ *  not drop to dry for a value it already has. */
+const _spreadTarget: Record<SpreadPedal, number> = {
+  chorus: DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.spread,
+  tremolo: DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo.spread,
+};
+
+/** The nodes are being rebuilt in dark cells, at the default Spread (clearCells drops their ducks). */
+function resetSpreadTargets(): void {
+  for (const pedal of ['chorus', 'tremolo'] as const) {
+    _spreadTarget[pedal] = DEFAULT_GLOBAL_AUDIO_SETTINGS[pedal].spread;
+  }
+}
+
+/** A Spread write: nothing if the node has (or is getting) it, at once while the pedal is out of the signal path, ducked
+ *  while it is in it. */
+function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void {
+  if (spread === _spreadTarget[pedal]) return;
+  _spreadTarget[pedal] = spread;
+  if (!needsDuck(pedal)) {
+    node.spread = spread;
+    return;
+  }
+  duckCell(pedal, () => {
+    node.spread = spread;
+  });
+}
+
+/** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
+ *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms) and depth are ramped
+ *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread); the Mix is tapered like Colour's
+ *  and written through the bypass cell (writeCellMix). */
+export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
+  const chorus = _globalChorus;
+  if (!chorus) return;
+  try {
+    const rate = clampIfGiven('chorus.rate', params.rate);
+    const delayTime = clampIfGiven('chorus.delayTime', params.delayTime);
+    const depth = clampIfGiven('chorus.depth', params.depth);
+    const spread = clampIfGiven('chorus.spread', params.spread);
+    const feedback = clampIfGiven('chorus.feedback', params.feedback);
+    const wet = clampIfGiven('chorus.wet', params.wet);
+    if (rate !== undefined) rampOrSet(chorus.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
+    if (spread !== undefined) writeSpread('chorus', chorus, spread);
+    if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('chorus', wet);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalChorus failed', err);
+  }
+}
+
+/** Tremolo (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are Signals fanned to both LFOs;
+ *  spread is ducked when lit (writeSpread); the Mix is tapered like Colour's and written through the bypass cell
+ *  (writeCellMix). `rate` arrives already resolved to Hz. */
+export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>): void {
+  const tremolo = _globalTremolo;
+  if (!tremolo) return;
+  try {
+    const rate = clampIfGiven('tremolo.rate', params.rate);
+    const depth = clampIfGiven('tremolo.depth', params.depth);
+    const spread = clampIfGiven('tremolo.spread', params.spread);
+    const wet = clampIfGiven('tremolo.wet', params.wet);
+    if (rate !== undefined) rampOrSet(tremolo.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
+    if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
+    if (wet !== undefined) writeCellMix('tremolo', wet);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalTremolo failed', err);
+  }
+}
+
+/** Vibrato (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are the LFO's Signals; the Mix is
+ *  tapered like Colour's and written through the bypass cell (writeCellMix), which takes the node out of the signal path
+ *  while it is dark. `rate` arrives already resolved to Hz. Stereo: one LFO moves one delay for both channels. */
+export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>): void {
+  const vibrato = _globalVibrato;
+  if (!vibrato) return;
+  try {
+    const rate = clampIfGiven('vibrato.rate', params.rate);
+    const depth = clampIfGiven('vibrato.depth', params.depth);
+    const wet = clampIfGiven('vibrato.wet', params.wet);
+    if (rate !== undefined) rampOrSet(vibrato.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('vibrato', wet);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalVibrato failed', err);
+  }
+}
+
+/** Frequency Shifter (docs/specs/GLOBAL_PEDALS.md §1.3). `shift` is Tone's signed `frequency` Signal, clamped into
+ *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's and written through the bypass cell
+ *  (writeCellMix). Half mono: Tone negates the sine branch into `Add.addend`, an AudioParam, which the browser
+ *  downmixes, while the cosine branch stays stereo. A centred
+ *  voice shifts cleanly; a hard-panned one leaks the other sideband at a third of the wanted one and puts both, at a
+ *  quarter level, in the far channel (measured, docs/specs/GLOBAL_PEDALS.md §8). */
+export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettings>): void {
+  const shifter = _globalFrequencyShifter;
+  if (!shifter) return;
+  try {
+    const shift = clampIfGiven('frequencyShifter.shift', params.shift);
+    const wet = clampIfGiven('frequencyShifter.wet', params.wet);
+    if (shift !== undefined) rampOrSet(shifter.frequency, shift, COLOUR_RAMP_SECONDS);
+    if (wet !== undefined) writeCellMix('frequencyShifter', wet);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);
+  }
+}
+
+/** Width (docs/specs/GLOBAL_PEDALS.md §1.3). Tone's `width` Signal, clamped 0 - 1 and NEVER tapered: 0.5 is unity
+ *  (as recorded), 0 folds everything after the rooms' join to mono, 1 is all side. The node's own `wet` stays 1. Exactly
+ *  0.5 is dark: the cell fades linearly to dry and the widener leaves the signal path, its `width` ramping to 0.5 as it
+ *  goes; anything else lights it, the cell first (so a reconnect is silent), the width ramp concurrent
+ *  (docs/specs/DARK_EFFECT_BYPASS.md assumption 5). */
+export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): void {
+  const widener = _globalStereoWidener;
+  if (!widener) return;
+  try {
+    const width = clampIfGiven('stereoWidener.width', params.width);
+    if (width === undefined) return;
+    writeCellMix('stereoWidener', width);
+    rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalStereoWidener failed', err);
   }
 }
 
