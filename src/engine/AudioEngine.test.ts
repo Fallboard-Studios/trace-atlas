@@ -1844,9 +1844,9 @@ describe('AudioEngine - Global FX Chain', () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      // The entry cycle-search cut, the first of the twelve Delay nodes each build makes: the two cuts, then one per bypass
-      // cell (globalFx.ts CHAIN_CUT_OPTIONS, docs/specs/DARK_EFFECT_BYPASS.md).
-      const entryNode = vi.mocked(Tone.Delay).mock.results.at(-12)?.value ?? { connect: vi.fn() };
+      // The entry cycle-search cut, the first of the ten Delay nodes each build makes: the two cuts, the three effect rooms' cuts,
+      // then one per chain bypass cell (globalFx.ts CHAIN_CUT_OPTIONS, docs/specs/ROBOT_EFFECT_SENDS.md §1.3).
+      const entryNode = vi.mocked(Tone.Delay).mock.results.at(-10)?.value ?? { connect: vi.fn() };
       const layered = { base: 'sine', layers: [{ type: 'sine', gain: 0.8 }] } as any;
       AudioEngine.reserveVoice('bus-wiring-test', layered, TEST_ADSR);
       // busFilter is a Tone.Filter instance — it's the third Filter construction
@@ -2429,8 +2429,13 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
   // apply, and a second apply of the same settings (every Mix re-sent) touches no cell: no connect, no timer, no write.
   describe('the bypass cells', () => {
     const CELL_CARRIED = ['Distortion', 'Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato', 'FrequencyShifter'];
+    // Robot Effect Sends T4: the AutoWah and the Vibrato are chain cells, lit by their Mix alone; the Distortion (a Colour
+    // room branch at a depth of 0.5) and the FrequencyShifter (its room's Return at 0.4) stay dark, since no robot feeds
+    // their rooms at start.
     const TWO_LIT = {
       ...FIXTURE_GLOBAL_AUDIO,
+      autoWah: { ...FIXTURE_GLOBAL_AUDIO.autoWah, wet: 0.5 },
+      vibrato: { ...FIXTURE_GLOBAL_AUDIO.vibrato, wet: 0.4 },
       distortion: { amount: 0.3, wet: 0.5 },
       frequencyShifter: { shift: 0, wet: 0.4 },
     };
@@ -2455,11 +2460,11 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
         0,
       );
 
-    it('wires in exactly the two lit effects; the five dark ones stay out of the signal path', async () => {
+    it('wires in exactly the two lit chain effects; the five others, unfed room branches included, stay out of the signal path', async () => {
       const { effects } = await startWith(TWO_LIT);
-      expect(effects.Distortion.connect).toHaveBeenCalledTimes(1);
-      expect(effects.FrequencyShifter.connect).toHaveBeenCalledTimes(1);
-      for (const name of ['Chebyshev', 'BitCrusher', 'AutoWah', 'Phaser', 'Vibrato']) {
+      expect(effects.AutoWah.connect).toHaveBeenCalledTimes(1);
+      expect(effects.Vibrato.connect).toHaveBeenCalledTimes(1);
+      for (const name of ['Distortion', 'Chebyshev', 'BitCrusher', 'Phaser', 'FrequencyShifter']) {
         expect(effects[name].connect).not.toHaveBeenCalled();
       }
     });
@@ -2472,7 +2477,7 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     it('touches no cell when the same settings are applied again: no connect, no timer, no gain write', async () => {
       const { Tone, effects, reapply } = await startWith(TWO_LIT);
       const gains = (Tone.Gain as unknown as AnyMock).mock.results.map((r) => r.value as Node);
-      const litCells = [effects.Distortion, effects.FrequencyShifter].map((effect) => {
+      const litCells = [effects.AutoWah, effects.Vibrato].map((effect) => {
         const wet = effect.connect.mock.calls[0][0] as Node;
         const input = gains.find((g: Node) => g.connect.mock.calls.some(([target]: unknown[]) => target === effect))!;
         const dry = input.connect.mock.calls.find(([target]: unknown[]) => target !== effect)![0] as Node;
@@ -3940,7 +3945,7 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       const busFilter = lastInstance(Tone.Filter);
       const reverbRoom = lastInstance(Tone.Reverb);
       const delayRoom = lastInstance(Tone.FeedbackDelay);
-      const chainEntry = vi.mocked(Tone.Delay).mock.results.at(-12)?.value; // the entry cycle-search cut, first of a build's twelve
+      const chainEntry = vi.mocked(Tone.Delay).mock.results.at(-10)?.value; // the entry cycle-search cut, first of a build's ten
 
       expect(busFilter.connect).toHaveBeenCalledWith(sends.reverb);
       expect(busFilter.connect).toHaveBeenCalledWith(sends.delay);

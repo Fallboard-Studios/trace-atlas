@@ -4,7 +4,11 @@ import { getToneCtor, type ModulationTarget } from './toneHelpers';
 import {
   CHAIN_CUT_OPTIONS,
   COLOUR_RAMP_SECONDS,
+  ROOM_BRANCHES,
+  ROOM_KEYS,
+  buildBranch,
   buildCell,
+  buildRoom,
   cellEffect,
   cellNodes,
   cellSpan,
@@ -14,11 +18,15 @@ import {
   disposeQuietly,
   duckCell,
   getCell,
+  getRoom,
   needsDuck,
+  roomNodes,
+  setRoomReturn,
   wireCells,
   writeCellMix,
   type BypassKey,
   type ChainSpan,
+  type RoomKey,
 } from './bypassCell';
 import { devWarn } from '@/utils/helpers';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
@@ -158,6 +166,11 @@ function rampOrSet(param: { rampTo?: (value: number, rampTime: number) => void; 
   } else {
     param.value = target;
   }
+}
+
+/** The room `key` is a branch of, or null for a chain cell (ROOM_BRANCHES). */
+function roomOfBranch(key: BypassKey): RoomKey | null {
+  return ROOM_KEYS.find((room) => ROOM_BRANCHES[room].includes(key)) ?? null;
 }
 
 /**
@@ -341,9 +354,18 @@ export function buildGlobalFxChain(): void {
     ['stereoWidener', StereoWidenerCtor, _globalStereoWidener],
   ];
   if (GainCtorFX && ChainCutCtor) {
+    // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): the three rooms first, then each effect as a branch of
+    // its room (the Colour trio, the Shifter, the Chorus) or as a cell of the dry chain (the other five). The Shimmer and
+    // Double branches are pinned at depth 1, so their Return is their only level; the colour depths are the Mixes.
+    for (const room of ROOM_KEYS) buildRoom(room, GainCtorFX, ChainCutCtor);
     for (const [key, ctor, effect] of effects) {
-      if (ctor) buildCell(key, effect, GainCtorFX, ChainCutCtor);
+      if (!ctor) continue;
+      const room = roomOfBranch(key);
+      if (room) buildBranch(key, room, effect, GainCtorFX);
+      else buildCell(key, effect, GainCtorFX, ChainCutCtor);
     }
+    writeCellMix('frequencyShifter', 1);
+    writeCellMix('chorus', 1);
   } else if (effects.some(([, , effect]) => effect)) {
     devWarn(
       '[AudioEngine] no Gain or Delay constructor for the bypass cells; the ten global effects are left out of the chain',
@@ -400,17 +422,15 @@ function disconnectAllFxNodes(): void {
     _globalLPF,
     _globalHPF,
     _filterCut,
-    ...cellNodes('distortion'),
-    ...cellNodes('chebyshev'),
-    ...cellNodes('bitCrusher'),
     ...cellNodes('autoWah'),
     ...cellNodes('phaser'),
-    ...cellNodes('chorus'),
     ...cellNodes('tremolo'),
     ...cellNodes('vibrato'),
-    ...cellNodes('frequencyShifter'),
     _globalDelay,
     _globalReverb,
+    ...roomNodes('grit'),
+    ...roomNodes('shimmer'),
+    ...roomNodes('double'),
     _globalReverbReturn,
     _globalDelayReturn,
     _globalCompressor,
@@ -430,30 +450,32 @@ function disconnectAllFxNodes(): void {
 /**
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
- * Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Vibrato →
- * FrequencyShifter → Compressor → StereoWidener →
+ * AutoWah → Phaser → Tremolo → Vibrato → Compressor → StereoWidener →
  * Limiter → masterGain → Destination (or straight to Destination if masterGain
- * wasn't constructed). Each of those ten effects is a bypass cell, entered at its
+ * wasn't constructed). Each of those five effects is a bypass cell, entered at its
  * `in` and left at its `cut` (docs/specs/DARK_EFFECT_BYPASS.md section 1.3); an
  * absent cell (headless, or no Gain / Delay constructor) is skipped by the filter
  * below, and an effect that failed to construct leaves an empty cell wired dry,
  * so the chain never breaks.
  *
- * Reverb and Delay are two parallel rooms OFF that chain, not stages in it.
- * Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
- * the room's output runs through a return gain (what the Fleet Params wet
+ * Five rooms sit OFF that chain, not stages in it: the Reverb and the Delay, and
+ * (Robot Effect Sends, docs/specs/ROBOT_EFFECT_SENDS.md §1.3) the Colour room
+ * (Distortion, Chebyshev, BitCrusher in parallel), the Shimmer room (the
+ * FrequencyShifter) and the Double room (the Chorus), whose branches bypassCell.ts
+ * owns. Each robot feeds a room through its own send gain (AudioEngine.reserveVoice);
+ * the room's output runs through a return gain (what the Fleet Params Return
  * sliders set) to a join node, and the join node is the only thing the two
  * modes change (docs/specs/ROBOT_SENDS.md §1.3):
  *
- * - Natural Decay (controlledDecay=false, default): both returns join at the
- *   Compressor input, so the echoes are compressed with the dry signal.
- * - Controlled Decay (controlledDecay=true): both returns join at the
- *   Width cell's input, past the Compressor, so the echoes are not squeezed
+ * - Natural Decay (controlledDecay=false, default): every return joins at the
+ *   Compressor input, so the rooms are compressed with the dry signal.
+ * - Controlled Decay (controlledDecay=true): every return joins at the
+ *   Width cell's input, past the Compressor, so the rooms are not squeezed
  *   by it but are still folded or spread by Width (docs/specs/GLOBAL_PEDALS.md
  *   assumption 2). Without a Width cell the join falls back to the Limiter.
  *
- * A room's own input is never disconnected here, so the robots' sends stay
- * connected across every flip. Called once from
+ * A room's own input is never disconnected here (an effect room's `in` drops only
+ * its outputs), so the robots' sends stay connected across every flip. Called once from
  * buildGlobalFxChain() and again whenever the "Natural Decay" / "Controlled
  * Decay" toggle flips (src/stores/audioStore.ts's setCompressorBeforeDelay).
  */
@@ -466,15 +488,10 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     nodeSpan(_globalLPF),
     nodeSpan(_globalHPF),
     nodeSpan(_filterCut),
-    cellSpan('distortion'),
-    cellSpan('chebyshev'),
-    cellSpan('bitCrusher'),
     cellSpan('autoWah'),
     cellSpan('phaser'),
-    cellSpan('chorus'),
     cellSpan('tremolo'),
     cellSpan('vibrato'),
-    cellSpan('frequencyShifter'),
     nodeSpan(_globalCompressor),
     cellSpan('stereoWidener'),
     nodeSpan(_globalLimiter),
@@ -517,6 +534,8 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
       _globalReverbReturn?.connect(join);
       _globalDelay?.connect(_globalDelayReturn ?? join);
       _globalDelayReturn?.connect(join);
+      // The three effect rooms' returns rejoin where the Reverb's and Delay's do (Robot Effect Sends §1.3).
+      for (const room of ROOM_KEYS) getRoom(room)?.return.connect(join);
     }
   } catch (err) {
     devWarn('[AudioEngine] wireGlobalFxChain failed', err);
@@ -546,6 +565,12 @@ export function getGlobalReverbRoom(): Tone.Reverb | null {
 /** The Delay room — as getGlobalReverbRoom, for each robot's delay send. */
 export function getGlobalDelayRoom(): Tone.FeedbackDelay | null {
   return _globalDelay;
+}
+
+/** An effect room's input (Robot Effect Sends §1.3), read by AudioEngine.ts's reserveVoice() to connect each robot's
+ *  Grit, Shimmer or Double send into it. Null until buildGlobalFxChain() has run, and for a room left out. */
+export function getGlobalRoomInput(key: RoomKey): Tone.Gain | null {
+  return getRoom(key)?.in ?? null;
 }
 
 /** The bypass cells' count for the diagnostics, which read the global chain through this module. */
@@ -818,12 +843,17 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
 }
 
 /**
- * The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4). Clamped like every colour field, and written
- * nowhere yet: no Colour room exists until the rooms are built (plan T4), which points this at the room's return gain.
+ * The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): how loud the room is as heard from every
+ * robot. Clamped like every colour field and ramped onto the room's return gain; a Return of 0 takes the room's effects
+ * out of the signal path (setRoomReturn). The three colour Mixes above are the depths inside the room.
  */
 export function setGlobalColourRoom(params: Partial<ColourRoomSettings>): void {
-  const wet = clampIfGiven('colourRoom.wet', params.wet);
-  if (wet === undefined) return;
+  try {
+    const wet = clampIfGiven('colourRoom.wet', params.wet);
+    if (wet !== undefined) setRoomReturn('grit', wet);
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalColourRoom failed', err);
+  }
 }
 
 /** Auto Wah (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The sweep range, sensitivity and follower smoothing are
@@ -1032,8 +1062,8 @@ function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void
 
 /** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
  *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms) and depth are ramped
- *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread); the Mix is tapered like Colour's
- *  and written through the bypass cell (writeCellMix). */
+ *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread). The Chorus is the Double room's one
+ *  branch (Robot Effect Sends §1.3), pinned at depth 1, so `wet` is the room's RETURN level (setRoomReturn). */
 export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
   const chorus = _globalChorus;
   if (!chorus) return;
@@ -1048,7 +1078,7 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
     if (spread !== undefined) writeSpread('chorus', chorus, spread);
     if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeCellMix('chorus', wet);
+    if (wet !== undefined) setRoomReturn('double', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChorus failed', err);
   }
@@ -1093,8 +1123,8 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
 }
 
 /** Frequency Shifter (docs/specs/GLOBAL_PEDALS.md §1.3). `shift` is Tone's signed `frequency` Signal, clamped into
- *  -1000..1000 by its sign (never by magnitude); the Mix is tapered like Colour's and written through the bypass cell
- *  (writeCellMix). Half mono: Tone negates the sine branch into `Add.addend`, an AudioParam, which the browser
+ *  -1000..1000 by its sign (never by magnitude). The shifter is the Shimmer room's one branch (Robot Effect Sends §1.3),
+ *  pinned at depth 1, so `wet` is the room's RETURN level (setRoomReturn). Half mono: Tone negates the sine branch into `Add.addend`, an AudioParam, which the browser
  *  downmixes, while the cosine branch stays stereo. A centred
  *  voice shifts cleanly; a hard-panned one leaks the other sideband at a third of the wanted one and puts both, at a
  *  quarter level, in the far channel (measured, docs/specs/GLOBAL_PEDALS.md §8). */
@@ -1105,7 +1135,7 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
     const shift = clampIfGiven('frequencyShifter.shift', params.shift);
     const wet = clampIfGiven('frequencyShifter.wet', params.wet);
     if (shift !== undefined) rampOrSet(shifter.frequency, shift, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeCellMix('frequencyShifter', wet);
+    if (wet !== undefined) setRoomReturn('shimmer', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);
   }

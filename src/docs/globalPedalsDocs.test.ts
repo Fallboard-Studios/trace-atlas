@@ -149,8 +149,9 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ['setGlobalFrequencyShifter', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalFrequencyShifter\(params: Partial<FrequencyShifterSettings>\): void/],
     ['setGlobalStereoWidener', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalStereoWidener\(params: Partial<StereoWidenerSettings>\): void/],
     // Dark-Effect Bypass T2 (docs/specs/DARK_EFFECT_BYPASS.md section 1.3, assumption 17): each pedal is a bypass cell
-    // in the chain, and the Controlled-Decay join is the Width cell's `in`.
-    ['the dry chain: the motion pedals after the Phaser, Width between the Compressor and the Limiter', 'src/engine/audioEngine/globalFx.ts', /const chainNodes = \[[^\]]*cellSpan\('phaser'\),\s*cellSpan\('chorus'\),\s*cellSpan\('tremolo'\),\s*cellSpan\('vibrato'\),\s*cellSpan\('frequencyShifter'\),\s*nodeSpan\(_globalCompressor\),\s*cellSpan\('stereoWidener'\),\s*nodeSpan\(_globalLimiter\),/],
+    // in the chain, and the Controlled-Decay join is the Width cell's `in`. Robot Effect Sends T4
+    // (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): the Chorus and the FrequencyShifter left the chain for their rooms.
+    ['the dry chain: the two motion pedals after the Phaser, Width between the Compressor and the Limiter', 'src/engine/audioEngine/globalFx.ts', /const chainNodes = \[[^\]]*cellSpan\('phaser'\),\s*cellSpan\('tremolo'\),\s*cellSpan\('vibrato'\),\s*nodeSpan\(_globalCompressor\),\s*cellSpan\('stereoWidener'\),\s*nodeSpan\(_globalLimiter\),/],
     ['the Controlled-Decay join is the Width cell, the Limiter its fallback', 'src/engine/audioEngine/globalFx.ts', /const join = \(controlledDecay \? getCell\('stereoWidener'\)\?\.in : _globalCompressor\) \?\? _globalLimiter \?\? _globalCompressor;/],
     ...PEDALS.map((key): [string, string, RegExp] => [
       `AudioEngine exposes ${SETTER[key][1]}`,

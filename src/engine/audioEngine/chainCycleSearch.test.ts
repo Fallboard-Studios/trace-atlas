@@ -91,6 +91,26 @@ function bypassCell(prefix: string, lit: boolean, withCut: boolean): FakeCell {
   return { in: input, effect: effect.first, wet, cut };
 }
 
+type FakeRoom = { in: FakeNode; cut: FakeNode; return: FakeNode };
+
+/** One effect room as bypassCell.ts builds it (Robot Effect Sends T3): a shared `in`, `branches` lit branches in parallel
+ *  (`in` -> effect -> `wet` -> `cut`, each effect one split-and-rejoin stage, no dry path), then `cut` -> `return`. Its
+ *  `cut` is a zero-delay Delay when `withCut`. */
+function effectRoom(prefix: string, branches: number, withCut: boolean): FakeRoom {
+  const input = node(`${prefix}in`);
+  const cut = node(`${prefix}cut`, withCut);
+  const ret = node(`${prefix}return`);
+  for (let b = 0; b < branches; b++) {
+    const effect = diamonds(1, `${prefix}fx${b}`);
+    const wet = node(`${prefix}wet${b}`);
+    connect(input, effect.first);
+    connect(effect.last, wet);
+    connect(wet, cut);
+  }
+  connect(cut, ret);
+  return { in: input, cut, return: ret };
+}
+
 /** `count` cells in series, each cell's `cut` feeding the next cell's `in`, the last feeding a destination node. */
 function cellChain(count: number, lit: boolean, withCut: boolean): FakeCell[] {
   const cells = Array.from({ length: count }, (_, i) => bypassCell(`c${i}`, lit, withCut));
@@ -200,6 +220,41 @@ describe("standardized-audio-context's detectCycles (the behaviour the chain cut
       probe.run([node('source')], cells[0].in);
       // in, dry and the uncut cut of each cell, then the destination.
       expect(probe.visits()).toBe(31);
+    });
+  });
+
+  // Robot Effect Sends T4 (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): every robot's send connects into an effect room's `in`
+  // for the voice's life. Each room ends in its own zero-delay cut, so that connect walks the room's lit branches and
+  // stops, whatever is lit on the chain its return joins.
+  describe('an effect room with three lit branches (Robot Effect Sends T4)', () => {
+    // in, then per branch the effect's four nodes and the wet gain once per effect path (7): 1 + 3 x 7.
+    it.each([true, false])('walks that room and stops at its cut when a send connects into its in, chain lit=%s', (chainLit) => {
+      const room = effectRoom('grit', 3, true);
+      const cells = cellChain(10, chainLit, true);
+      connect(room.return, cells[0].in);
+      const probe = search();
+      expect(probe.run([node('robot send')], room.in)).toEqual([]);
+      expect(probe.visits()).toBe(22);
+    });
+
+    it('without its cut the same connect walks on through the return into the chain', () => {
+      const room = effectRoom('grit', 3, false);
+      const cells = cellChain(10, true, true);
+      connect(room.return, cells[0].in);
+      const probe = search();
+      probe.run([node('robot send')], room.in);
+      expect(probe.visits()).toBeGreaterThan(22);
+    });
+
+    it('a room never feeds another room: a connect into one walks nothing of the other', () => {
+      const grit = effectRoom('grit', 3, true);
+      const shimmer = effectRoom('shimmer', 1, true);
+      const join = node('join');
+      connect(grit.return, join);
+      connect(shimmer.return, join);
+      const probe = search();
+      probe.run([node('robot send')], shimmer.in);
+      expect(probe.visits()).toBe(1 + 7);
     });
   });
 
