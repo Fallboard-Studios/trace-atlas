@@ -550,7 +550,7 @@ All of it is in `src/engine/audioEngine/globalFx.ts`.
 - **The Phaser rebuild is local.** `rebuildPhaser` swaps the node inside its cell (`disconnectEffect` old,
   `connectEffect` fresh, only if lit) and no longer calls `wireGlobalFxChain`. A lit Stages change is ducked
   (`writePhaserStages` / `finishPhaserDuck` / `resetPhaserDuck`, §8.2).
-- **The HUD token.** `getConnectedEffectCount()` (re-exported on `AudioEngine`) feeds the diagnostics snapshot's
+- **The HUD token.** `getConnectedEffectCount()`, read straight from `globalFx` (its unused `AudioEngine` re-export went at the branch review), feeds the diagnostics snapshot's
   `fxConnected`, shown as ` · fx in n/10` on the budget line (`BYPASS_EFFECT_COUNT` in `hudLines.ts`).
 - **Failure paths.**
   - An absent effect constructor gets no cell. A throwing one gets an empty dry cell. A failed cell releases its
@@ -586,8 +586,8 @@ All of it is in `src/engine/audioEngine/globalFx.ts`.
     not dropped.
 11. **A lit Phaser Stages change is ducked**, beyond §1: T11 measured the T7 same-Mix swap clicking at ×2.0–54.7, and
     the duck brought it to ×0.82–0.93 (§8.2).
-12. **"Tone's `CrossFade` law exactly"** (assumption 2) holds from Mix 0.04 up (§8.1). The `cellGains` comment's
-    "sounds exactly" carries the same qualifier, unchanged in code.
+12. **"Tone's `CrossFade` law exactly"** (assumption 2) holds from Mix 0.04 up (§8.1). The `cellGains` comment
+    said "sounds exactly" without it until the branch review; it now names the Mix 0.04 floor too.
 
 ### 8.1 Lit sound unchanged, by offline render (T10, 2026-10-20) — PASS
 

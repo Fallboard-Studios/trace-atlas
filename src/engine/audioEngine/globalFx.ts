@@ -135,7 +135,8 @@ export type Cell = {
 const _cells: Partial<Record<BypassKey, Cell>> = {};
 
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
- *  a cell at cellGains(w) sounds exactly as the bare effect at wet w. Tone 15's CrossFade (component/channel/CrossFade.js)
+ *  a cell at cellGains(w) sounds as the bare effect at wet w from Mix 0.04 up (below that Tone's law keeps a −56 dB wet
+ *  floor the cell does not; docs/specs/DARK_EFFECT_BYPASS.md §8.1). Tone 15's CrossFade (component/channel/CrossFade.js)
  *  feeds a constant 1 through a mono StereoPanner at pan 2·fade − 1 and splits it into the two gains, which is the
  *  Web Audio equal-power pan: cos(fade·π/2) for the dry input and sin(fade·π/2) for the wet. Spec assumption 2. */
 export function cellGains(w: number): { dry: number; wet: number } {
@@ -186,7 +187,8 @@ function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages
  * chain: one at its entry (every robot bus connects into it) and one after the High-Pass Filter (where the global LFO
  * targets end). Neither is in a cycle, so a delayTime of 0 adds no latency: the sound passes through unchanged. The
  * buffer is tiny because the delay never moves. Measured with both cuts and the downstream-first disconnect: power-on
- * 1.4 s with no unresponsive time, a Decay flip 3 ms, linking all seven global LFOs 1 ms.
+ * 1.4 s with no unresponsive time, a Decay flip 3 ms, linking all seven global LFOs 1 ms. The Dark-Effect Bypass then
+ * gave each of the ten bypass cells a cut of its own (see buildCell), so the chain holds twelve.
  */
 const CHAIN_CUT_OPTIONS = { delayTime: 0, maxDelay: 0.01 } as const;
 
@@ -214,7 +216,8 @@ function disposeQuietly(node: Tone.ToneAudioNode | null): void {
  * `in` -> effect -> `wet` -> `cut`. Each cell ends in its own zero-delay cut, so a connect's cycle search never walks
  * further than one cell (see CHAIN_CUT_OPTIONS). The effect is pinned fully wet (the widener at unity width) and its cell
  * built dark (dry 1 / wet 0, unconnected), so the cell carries its Mix. An effect whose constructor threw (null) gets an
- * empty cell wired dry. If the cell itself cannot be built, the effect is released and left out of the chain.
+ * empty cell wired dry. If the cell itself cannot be built, the effect and the cell nodes already made are released and
+ * the effect is left out of the chain.
  */
 function buildCell(
   key: BypassKey,
@@ -222,12 +225,17 @@ function buildCell(
   GainCtor: new (...args: unknown[]) => Tone.Gain,
   DelayCtor: new (...args: unknown[]) => Tone.Delay,
 ): void {
+  const made: Tone.ToneAudioNode[] = [];
+  const build = <T extends Tone.ToneAudioNode>(node: T): T => {
+    made.push(node);
+    return node;
+  };
   try {
     _cells[key] = {
-      in: new GainCtor(1),
-      dry: new GainCtor(1),
-      wet: new GainCtor(0),
-      cut: new DelayCtor({ ...CHAIN_CUT_OPTIONS }),
+      in: build(new GainCtor(1)),
+      dry: build(new GainCtor(1)),
+      wet: build(new GainCtor(0)),
+      cut: build(new DelayCtor({ ...CHAIN_CUT_OPTIONS })),
       effect,
       connected: false,
       mix: 0,
@@ -238,6 +246,7 @@ function buildCell(
       '[AudioEngine] the ' + key + ' bypass cell could not be constructed; the chain runs without the ' + key,
       err,
     );
+    for (const node of made) disposeQuietly(node);
     disposeQuietly(effect);
   }
 }

@@ -81,8 +81,8 @@ export type GlobalAudioSeedFieldKey =
   | 'stereoWidener.width'
   | 'limiter.threshold';
 
-// V2: Chorus (rate/depth/delayTime/feedback/wet) removed entirely — the
-// effect doesn't suit this music. reverb.dampening removed — Tone.Reverb has
+// The Chorus, removed in V2, is back with the Global Pedals
+// (docs/specs/GLOBAL_PEDALS.md). reverb.dampening removed — Tone.Reverb has
 // no such property; it was a dead cast in globalFx.ts since Phase 0.
 // limiter.threshold added — Tone.Limiter's only controllable param.
 // See docs/reference/GLOBAL_CHAIN_GRID.md, the source of truth for every

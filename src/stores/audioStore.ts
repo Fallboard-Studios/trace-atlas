@@ -86,8 +86,8 @@ export function isSyncedRateKey(key: string): key is SyncedRateKey {
 /** What a synced-rate block's engine setter takes: Hz only, never a `sync`. */
 type EngineRateBlock<K extends SyncedRateKey> = Partial<Omit<GlobalAudioSettings[K], 'sync'>>;
 
-/** The engine setter of a synced-rate block. Looked up at call time, so the module never touches AudioEngine's setters
- *  during import. */
+/** The engine setter of a synced-rate block. Looked up at call time, unlike GLOBAL_SETTER's direct entries, so a
+ *  vi.spyOn on one of these setters after import still sees the store's pushes (AudioRigEffectPanel.test.tsx). */
 function engineRateSetter<K extends SyncedRateKey>(key: K): (params: EngineRateBlock<K>) => void {
   const setters: { [P in SyncedRateKey]: (params: EngineRateBlock<P>) => void } = {
     phaser: AudioEngine.setGlobalPhaser,

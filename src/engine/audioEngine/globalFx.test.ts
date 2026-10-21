@@ -142,6 +142,7 @@ const toneFlags = vi.hoisted(() => ({
   gainCtor: vi.fn((value?: unknown) => ({
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
+    dispose: vi.fn(),
     toDestination: vi.fn(),
     gain: { value: typeof value === 'number' ? value : 1, rampTo: vi.fn() },
   })),
@@ -830,6 +831,23 @@ describe('globalFx', () => {
         expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.chorusCtor)));
         globalFx.setGlobalPhaser({ stages: 4, wet: 0.5 });
         expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+      });
+
+      it('releases the Gains a half-built cell already made, so a failed cut leaks none of its nodes', async () => {
+        const real = toneFlags.cutCtor.getMockImplementation()!;
+        let built: { dispose: ReturnType<typeof vi.fn> }[] = [];
+        for (let i = 0; i < 6; i++) toneFlags.cutCtor.mockImplementationOnce(real);
+        toneFlags.cutCtor.mockImplementationOnce(() => {
+          // The Phaser cell's in, dry and wet are the three Gains made just before its cut.
+          built = toneFlags.gainCtor.mock.results.slice(-3).map((r) => r.value);
+          throw new Error('no delay for the Phaser cell');
+        });
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        expect(built).toHaveLength(3);
+        for (const gain of built) expect(gain.dispose).toHaveBeenCalledTimes(1);
+        // The neighbouring cells' Gains are kept.
+        expect(inOf(lastInstance(toneFlags.chorusCtor)).dispose).not.toHaveBeenCalled();
       });
 
       it('wires an empty cell dry when an effect constructor throws: in -> dry -> cut at dry 1, wet 0', async () => {
