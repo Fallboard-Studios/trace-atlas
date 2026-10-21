@@ -890,3 +890,77 @@ Standard), 2/10 (the unused fallback) and 7/10 (worst case). The run order is th
 - With effects lit, it is not. Four lit gave 8× the dark count at 3:00 and a runaway at 3:30; seven lit ran away at the same time. Rounds 1 and 2 had suggested lighting costs little (C1 with the Chorus matched A), but that was measured with every effect still inline. With the dark ones gone, the lit ones' own cost is what shows. The bypass only removes dark effects, so a teardown of dark effects (spec assumption 10, the plan's named lever) would not reach runs 2 and 3.
 - `main` ran first, on the coolest phone, and has not run away in any round. Round 2's B stayed clean after A's collapse, but that is one run.
 - No run here separates heat from load. The first run 1 ran away on a hot phone with nothing lit.
+
+## What a lit effect costs, and the cheaper versions — desktop, 2026-10-20 (after round 3)
+
+Crawford asked whether, short of capping how many effects can be lit, cheaper versions of the effects exist. This
+desktop probe prices them; nothing in the product changed. **Method:** T12's dark-cost probe, with each effect
+**lit**: raw Tone 15.1.22 in headless Chrome, a 30 s `OfflineContext` render of the sawtooth/square stereo source, timed
+against a source-only render. The figure is extra render ms per audio second, i.e. ‰ of one desktop core, the median
+of 5 interleaved rounds (min–max in brackets). Each effect sits in a lit cell as `buildGlobalFxChain` builds one (`in`
+→ `dry` → `cut`, `in` → effect (wet 1) → `wet` → `cut`, at Mix 0.5's gains), at `DEFAULT_GLOBAL_AUDIO_SETTINGS`, the
+widener at 0.7. The orphaned headless-Chrome count was 0 before and after; the phone preview servers sat idle.
+
+**Every effect lit:**
+
+| Effect | Lit, ‰ |
+|---|---|
+| Phaser (10 stages) | **45.8** (43.9–46.1) |
+| AutoWah | **24.9** (24.4–31.4) |
+| Chorus | 16.7 (16.0–17.3) |
+| Tremolo | 16.1 (14.7–16.4) |
+| FrequencyShifter | 15.8 (15.2–16.2) |
+| StereoWidener (0.7) | 11.8 (10.4–12.1) |
+| BitCrusher | 9.8 (9.6–10.0) |
+| Vibrato | 9.8 (9.3–10.0) |
+| Chebyshev | 5.9 (5.8–6.4) |
+| Distortion | 4.7 (4.5–5.0) |
+
+These sit close to the 2026-10-19 "dark, in the chain" column, as expected: an inline Tone effect does the same work at
+any `wet`. So the phone's lit worlds pay the old dark price, but only for the effects that are lit. The Phaser alone
+costs about what the four lean pedals cost together.
+
+**Cheaper versions inside Tone** (same sitting):
+
+| Variant | ‰ | Against the default |
+|---|---|---|
+| Phaser 4 stages | 27.8 (26.5–28.5) | −39 % |
+| Phaser 6 stages | 34.0 (32.0–34.3) | −26 % |
+| Phaser 8 stages | 39.6 (38.0–39.9) | −13 % |
+| Phaser 10 stages (default) | 45.8 | — |
+| Phaser 12 stages (the seed's ceiling) | 52.1 (51.7–53.5) | +14 % |
+| AutoWah, bandpass −24 dB (2 biquads) | 21.7 (21.5–22.0) | −13 % |
+| AutoWah, bandpass −12 dB (1 biquad) | 18.2 (18.0–18.3) | −27 % |
+| AutoWah, Tone's −48 dB (4 biquads) | 24.9 | — |
+
+The Phaser costs about 3.1 ‰ per stage on top of about 15.5 ‰ that does not depend on the stage count. The fixed part
+is its two Tone LFOs, their scaling and the Q fan-out. Fresh seeds roll 4–12 stages (`globalAudioLoadingRanges.ts`).
+The AutoWah's rolloff is fixed at −48 in Tone's constructor; the probe changed it through the private `_bandpass`.
+
+**k-rate filter frequency.** Chrome recomputes a biquad's coefficients every sample while its frequency is driven at
+audio rate, as both these effects drive it. With `automationRate = 'k-rate'` it does so once per 128-frame quantum
+(2.7 ms at 48 kHz). The app cannot reach this today: Tone builds on standardized-audio-context, whose `AudioParam`
+wrapper does not pass `automationRate` through, and the native param sits in a module-private `WeakMap` inside Tone's
+bundled deps. So it was priced on plain native nodes shaped like Tone's (a sweep of 350 × 2^(0..3) Hz at 0.5 Hz, Q 10),
+against their own source-only render:
+
+| Native shape (both channels) | a-rate ‰ | k-rate ‰ | Saving |
+|---|---|---|---|
+| Phaser, 4 stages (8 biquads) | 11.2 | 4.6 | −59 % |
+| Phaser, 10 stages (20 biquads) | 27.6 | 10.5 | −62 % |
+| Phaser, 12 stages (24 biquads) | 33.4 | 12.7 | −62 % |
+| AutoWah, 5 biquads | 14.2 | 5.6 | −61 % |
+| Phaser, 10 stages, Q driven too: both a-rate / frequency k-rate only / both k-rate | 28.4 | 11.2 / 11.5 | −61 % |
+
+A driven Q does not keep the per-sample path alive, so k-rate on the frequency alone gets the whole saving.
+`automationRate` read back as set every time. **Estimates, not measured:** removing the biquads' share and adding the
+k-rate price back gives a Tone Phaser at 10 stages of about 29 ‰ (−37 %), and 4 stages + k-rate about 21 ‰ (−54 %). It
+gives an AutoWah of about 16 ‰ with k-rate (−35 %), and about 12 ‰ with −12 dB as well.
+
+**What this does not answer:**
+- **Whether k-rate is audible.** At the Phaser's seeded 2.5 Hz ceiling the sweep moves up to about 51 Hz per quantum
+  near its middle (about 3 % of 1 575 Hz), on Q-10 notches. The AutoWah's follower can sweep 6 octaves fast. Zipper
+  noise is possible on both, and only a listen or a measurement of the stepped output can say.
+- **Reaching k-rate from the app** would mean patching standardized-audio-context (a new dependency such as
+  `patch-package`, which CLAUDE.md says to ask about) or building these two effects outside Tone's wrappers.
+- **The phone.** These are desktop ‰. Round 3's runaway world had 4 effects lit, and which ones was not recorded.
