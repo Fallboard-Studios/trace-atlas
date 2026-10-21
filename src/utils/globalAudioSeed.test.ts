@@ -48,15 +48,16 @@ import {
   LFO_BANK_RATE_BANDS,
   LFO_BANK_DRIFT_SEED_RANGE,
   LFO_BANK_SYNC_BAND_ORDER,
+  GLOBAL_LFO_COMPANION_EDGE,
 } from './globalAudioSeed';
-import { evictAttenuationStyleNoiseMap } from './noiseMaps';
+import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { allowedRateNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
-import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId } from '@/types/lfo';
 import { PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
@@ -1427,6 +1428,118 @@ describe('generateGlobalLfoLinks', () => {
     const litRate = litCount / totalCount;
     expect(litRate, `${litCount}/${totalCount} lit`).toBeGreaterThanOrEqual(0.55);
     expect(litRate, `${litCount}/${totalCount} lit`).toBeLessThanOrEqual(0.80);
+  });
+
+  // Crawford, 2026-10-21: "EQs, LPF, and HPF should only be allowed to access the core or companion LFOs on load (and if an
+  // LFO is chosen it should usually be the core one, companion should appear maybe once per session on those attributes)".
+  // Core is lane a, Companion lane b. The seven global targets are exactly the EQ, LPF and HPF fields. Literal numbers
+  // below hold the seeder to that sentence, not to the constants.
+  describe('lane access on load: Core (a) usually, Companion (b) at most once per world', () => {
+    const STYLES = 3000;
+    let worlds: Array<Record<GlobalLfoTargetId, { lane: string | null; depth: number }>> = [];
+
+    beforeAll(() => {
+      worlds = [];
+      for (let i = 0; i < STYLES; i++) {
+        const id = `lane-access-${i}`;
+        worlds.push(generateGlobalLfoLinks(id, `LaneAccess${i}`));
+        evictAttenuationStyleNoiseMap(id);
+      }
+    }, 120000);
+
+    const laneList = (world: (typeof worlds)[number]) => GLOBAL_LFO_TARGET_IDS.map((t) => world[t].lane).filter((l) => l !== null);
+
+    it('only ever links a global target to the Core (a) or Companion (b) lane: never c or d, over 3 000 styles', () => {
+      let lit = 0;
+      for (const world of worlds) {
+        for (const lane of laneList(world)) {
+          lit++;
+          expect(['a', 'b'], `lane ${lane}`).toContain(lane);
+        }
+      }
+      expect(lit, 'the sample really contained lit links').toBeGreaterThan(8000);
+    });
+
+    it('links the Companion at most once in any world, and does so in some worlds (about 0.3 to 0.5 of them)', () => {
+      let withCompanion = 0;
+      for (const world of worlds) {
+        const companions = laneList(world).filter((l) => l === 'b').length;
+        expect(companions).toBeLessThanOrEqual(1);
+        if (companions === 1) withCompanion++;
+      }
+      const share = withCompanion / worlds.length;
+      expect(share, `${withCompanion}/${worlds.length} worlds`).toBeGreaterThanOrEqual(0.3);
+      expect(share, `${withCompanion}/${worlds.length} worlds`).toBeLessThanOrEqual(0.5);
+    });
+
+    it('makes the Core the usual choice: at least 88 % of lit links are lane a, and the Companion still appears', () => {
+      let core = 0;
+      let companion = 0;
+      for (const world of worlds) {
+        for (const lane of laneList(world)) {
+          if (lane === 'a') core++;
+          if (lane === 'b') companion++;
+        }
+      }
+      expect(core / (core + companion), `${core} core / ${companion} companion`).toBeGreaterThanOrEqual(0.88);
+      expect(companion).toBeGreaterThan(500);
+    });
+
+    it('names the Companion edge as 0.1: a lane draw just under it picks the Companion, exactly on it picks the Core', () => {
+      expect(GLOBAL_LFO_COMPANION_EDGE).toBe(0.1);
+      const forceLane = (t: number) => {
+        const original = vi.mocked(getUniformSeededVal).getMockImplementation()!;
+        vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset) =>
+          dataId.startsWith('globalLfo.') && dataId.endsWith('.lane') ? t : original(noiseMap, dataId, offset));
+        try {
+          return generateGlobalLfoLinks('lane-forced', 'LaneForced');
+        } finally {
+          vi.mocked(getUniformSeededVal).mockImplementation(original);
+          evictAttenuationStyleNoiseMap('lane-forced');
+        }
+      };
+      const lanes = (links: ReturnType<typeof generateGlobalLfoLinks>) => GLOBAL_LFO_TARGET_IDS.map((t) => links[t].lane).filter((l) => l !== null);
+      expect(lanes(forceLane(0.1 - 1e-9)).filter((l) => l === 'b')).toHaveLength(1);
+      expect(lanes(forceLane(0.1)).filter((l) => l === 'b')).toHaveLength(0);
+      expect(lanes(forceLane(0.999)).filter((l) => l === 'b')).toHaveLength(0);
+    });
+
+    it('gives the one Companion to the first lit target when every lane draw asks for it, and the Core to every later one', () => {
+      const original = vi.mocked(getUniformSeededVal).getMockImplementation()!;
+      vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset) =>
+        dataId.startsWith('globalLfo.') && dataId.endsWith('.lane') ? 0 : original(noiseMap, dataId, offset));
+      try {
+        const links = generateGlobalLfoLinks('lane-first', 'LaneFirst');
+        const litTargets = GLOBAL_LFO_TARGET_IDS.filter((t) => links[t].lane !== null);
+        expect(litTargets.length).toBeGreaterThan(1);
+        expect(links[litTargets[0]].lane).toBe('b');
+        for (const t of litTargets.slice(1)) expect(links[t].lane, t).toBe('a');
+      } finally {
+        vi.mocked(getUniformSeededVal).mockImplementation(original);
+        evictAttenuationStyleNoiseMap('lane-first');
+      }
+    });
+
+    it('leaves the quiet roll and every depth where they were: a target is quiet exactly when its own quiet draw is under 0.34', () => {
+      for (let i = 0; i < 200; i++) {
+        const id = `lane-quiet-${i}`;
+        const noiseMap = getAttenuationStyleNoiseMap(id, `LaneQuiet${i}`);
+        const links = generateGlobalLfoLinks(id, `LaneQuiet${i}`);
+        for (const target of GLOBAL_LFO_TARGET_IDS) {
+          const quiet = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1) < 0.34;
+          expect(links[target].lane === null, `${target} style ${i}`).toBe(quiet);
+          if (quiet) expect(links[target].depth).toBe(0);
+        }
+        evictAttenuationStyleNoiseMap(id);
+      }
+    });
+
+    it('never links a quiet target, and is deterministic for a style', () => {
+      const first = generateGlobalLfoLinks('lane-determinism', 'LaneDeterminism');
+      evictAttenuationStyleNoiseMap('lane-determinism');
+      expect(generateGlobalLfoLinks('lane-determinism', 'LaneDeterminism')).toStrictEqual(first);
+      evictAttenuationStyleNoiseMap('lane-determinism');
+    });
   });
 
   it('queries getSeededVal only with .quiet/.lane/.depth dataId suffixes under globalLfo.* — no .rate/.shape draws', () => {

@@ -243,7 +243,7 @@ bands were retuned on this date and pointing at this file. The sends intent alre
 Desktop, then the Pixel if he wants: a handful of fresh Attenuation Styles, listening for (a) a lit Chebyshev or
 BitCrusher world that is now audible, (b) a lit Vibrato that reads as vibrato and not chorus, (c) the AutoWah sweeping
 rather than sitting open, (d) the Chorus reading as chorus, (e) a bass robot keeping its low end with the new HPF band,
-(f) the Shifter's narrow band, (g) if retuned, the Compressor. Anything he vetoes reverts in one commit per row, with the
+(f) the Shifter's narrow band, (g) if retuned, the Compressor, (h) the EQ / LPF / HPF LFO links (added 2026-10-21): usually the Core LFO, a Companion link in about two worlds in five. Anything he vetoes reverts in one commit per row, with the
 grid and the table moved together. Record his words in §7.
 
 ### Checkpoint: Complete
@@ -436,3 +436,30 @@ roadmap's 50.3/50.4 records and the seed test's dated oracle-derivation notes. N
 4 existing warnings in `gemShape.tsx`), `npm run build` (the usual chunk-size notice only), one commit per task (T0 `cd4c7584`,
 T1 `8124fdd6`, T2 `7b6e2163`, T3 `bf96978f`, T4 `2ada000b`, T5 `bde8bf97`, T6 `827f3452` + `cc7bd465`, then this one).
 Checkpoint B, Crawford's listen, is next.
+
+**Added to the branch, not in the plan: global LFO lane access (Crawford, 2026-10-21).** "EQs, LPF, and HPF should only be
+allowed to access the core or companion LFOs on load (and if an LFO is chosen it should usually be the core one, companion
+should appear maybe once per session on those attributes)." Core is lane a and Companion lane b; the seven global targets are
+exactly the EQ, LPF and HPF fields. `generateGlobalLfoLinks` no longer uses the four-lane weighted `pickLane`: a lit target's
+lane is Core, except that its uniform lane draw falling under `GLOBAL_LFO_COMPANION_EDGE` = 0.1 picks the Companion while no
+target has taken it, so a world carries at most one Companion link and never an Accent or Overtone one. The quiet roll and every
+depth draw are untouched (a test derives the quiet pattern from the raw draws). Robot-level links keep `pickLane`; saved
+sessions and share links restore whatever was hand-set.
+- **My reading of "maybe once per session", and the one number I chose:** at most one Companion link per world, offered with
+  probability 0.1 to each lit target in turn. **Measured over 20 000 styles ('LaneCalibration<n>', a throwaway test file, deleted):**
+  5.06 lit targets per world, 40.5 % of worlds carry one Companion link, 8.0 % of lit links are Companion (8 100 of 101 227),
+  maximum 1 per world, 0 Accent or Overtone. By target the Companion lands on eq3.low 1 403, hpf.Q 1 324, eq3.high 1 238,
+  eq3.mid 1 220, lpf.frequency 1 063, lpf.Q 967, hpf.frequency 885 (a mild lean to the first lit targets, from the sequential
+  cap). If 40 % of worlds is too many (or too few), `GLOBAL_LFO_COMPANION_EDGE` is the one knob; the test holds 0.3–0.5.
+- **The change in behaviour is large:** in the RED run over 3 000 styles the old weighted draw (which leans toward whichever
+  lane is least used so far) gave 5 473 Companion links against 3 226 Core ones, alongside Accent and Overtone links, and two
+  Companion links in one world was ordinary. (Only those two counts were taken; the Accent and Overtone totals were not.)
+- Tests (in `globalAudioSeed.test.ts`, RED first: 5 failed): only a or b over 3 000 styles; Companion at most once per world, in
+  0.3–0.5 of worlds; Core ≥ 88 % of lit links with the Companion still appearing; the edge named 0.1 with a forced draw just
+  under it (Companion), exactly on it (Core) and near 1 (Core); every lane draw forced to 0 gives the one Companion to the first
+  lit target and Core to the rest; the quiet pattern equals the raw quiet draw; determinism. Mutation gate by hand (cap
+  removed, `<` to `<=`, lanes swapped, the rare lane c, edge 0.5, flag never set): all six caught (2, 1, 4, 5, 3, 2 tests).
+- Docs: `AUDIO_SYSTEM.md:384` and an amendment line at the end of `LFO_BANK.md`. `lfoLaneDraw.ts` is unchanged (robots still
+  use it); the seeder's `pickLane` import is gone.
+- Full suite: 379 files, 13 432 of 13 433 tests passed; the one failure was `sceneToOrbiterLocal.test.tsx`'s 50-gem round-trip
+  timing out at 5.3 s under the parallel run (it passes alone in 1.4 s and has nothing to do with this change); not chased.

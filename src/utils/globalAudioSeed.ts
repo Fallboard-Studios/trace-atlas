@@ -6,7 +6,6 @@ import type { NoiseFunction2D } from 'simplex-noise';
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
-import { pickLane } from './lfoLaneDraw';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { pickSeedNoteValue } from './tempoSync';
@@ -634,12 +633,24 @@ export function generateLfoBankSettings(
 }
 
 /**
+ * The share of a lit global target's lane draw that asks for the Companion (lane b) rather than the Core (lane a), while
+ * no target has taken it yet. Crawford, 2026-10-21: the EQ, LPF and HPF links may only reach the Core or Companion LFO on
+ * load, usually the Core, with the Companion "maybe once per session on those attributes". So the Companion is capped at
+ * one link per world and each lit target asks for it with this probability until one has: about 4.6 targets are lit per
+ * world, so roughly 1 - 0.9^4.6 = 38 % of worlds carry one Companion link and the rest are all Core. The draw is uniform
+ * (getUniformSeededVal), so the edge is the realised share (measured in the docs/tasks/CLASSIC_BAND_RETUNE.md §7 entry).
+ */
+export const GLOBAL_LFO_COMPANION_EDGE = 0.1;
+
+/**
  * Generate deterministic global-chain LFO links for an Attenuation Style — replaces
  * generateGlobalLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
  * LFO_QUIET_THRESHOLD (0.34) unchanged; depth now draws from one of three per-group loading
- * windows (globalLfoDepthSeedRangeForTarget above) rather than one flat window. The lane draw is
- * weighted by a running tally across only the 7 global targets — they seed before any robot
- * exists, so there is no roster to tally against (spec assumption 7).
+ * windows (globalLfoDepthSeedRangeForTarget above) rather than one flat window.
+ *
+ * A lit target links the Core LFO (lane a) or, at most once per world, the Companion (lane b) — never the Accent or
+ * Overtone lane (GLOBAL_LFO_COMPANION_EDGE). This governs a fresh world only: a saved session or share link restores
+ * whatever lane was hand-set. The robot-level links keep the four-lane weighted draw (pickLane).
  */
 export function generateGlobalLfoLinks(
   attenuationStyleId: string,
@@ -647,7 +658,7 @@ export function generateGlobalLfoLinks(
 ): Record<GlobalLfoTargetId, LfoLink> {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const result = {} as Record<GlobalLfoTargetId, LfoLink>;
-  const counts: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
+  let companionTaken = false;
 
   for (const target of GLOBAL_LFO_TARGET_IDS) {
     const quietT = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1);
@@ -656,9 +667,10 @@ export function generateGlobalLfoLinks(
       continue;
     }
 
-    const laneT = getSeededVal(noiseMap, `globalLfo.${target}.lane`, 0, 0, 1);
-    const lane = pickLane(laneT, counts);
-    counts[lane]++;
+    // A uniform draw: one getSeededVal sample is bell-curved and coarse, which would make the Companion's share a guess.
+    const laneT = getUniformSeededVal(noiseMap, `globalLfo.${target}.lane`);
+    const lane: LfoLaneId = !companionTaken && laneT < GLOBAL_LFO_COMPANION_EDGE ? 'b' : 'a';
+    if (lane === 'b') companionTaken = true;
 
     const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
     const depth = quantizeToStep(
