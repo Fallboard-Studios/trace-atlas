@@ -505,6 +505,21 @@ gate, auditioned one at a time on the Pixel:
 
 Keep what passes the gate and earns a lore name; the rest stays here as "tried, no".
 
+**Update 2026-10-21: the five pedals shipped as roadmap 50.6; this item now holds only the two room type radios.**
+Chorus, Tremolo, Vibrato, FrequencyShifter and StereoWidener were built on `feature/pedals` (roadmap 50.6,
+[docs/specs/GLOBAL_PEDALS.md](../specs/GLOBAL_PEDALS.md)), with Free | Sync on the three LFO rates. None was withdrawn,
+so nothing moves to "tried, no". Two corrections to the text above, for whoever picks this up:
+- **The cite is stale.** `globalFx.ts:144` was the old serial chain. Delay and Reverb are no longer chain stages
+  (Robot Sends, roadmap 50.2): they are two rooms that `buildGlobalFxChain` constructs beside the chain, fed by each
+  robot's send and joined back through a return gain (`docs/AUDIO_SYSTEM.md`, Signal Graph). A type radio would swap
+  the room node behind the sends and the return, not add a slot in `wireGlobalFxChain`.
+- **Freeverb and JCReverb are not cheaper.** Tone 15 (15.1.22) builds both from AudioWorklet comb filters (Freeverb
+  eight, JCReverb four, each its own worklet node) and its own docs warn that each "is now implemented with an
+  AudioWorkletNode which may result on performance degradation on some platforms. Consider using Reverb." The
+  BitCrusher is the app's only worklet today, and the phone is near its limit (backlog 27). So the reverb radio is
+  a phone-gate question first. `PingPongDelay` is plain Web Audio nodes (a cross-feedback stereo delay), with no
+  worklet.
+
 ### 23. Audio Palette Trials: Dynamics Processing and Ducking
 
 `Tone.MultibandCompressor` (low / mid / high compressors with two crossovers) as a richer Output stage

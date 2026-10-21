@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { GLOBAL_LFO_TARGET_IDS } from '@/types/lfo';
 import { SWELL_GLOBAL_TARGET_IDS, SWELL_ROBOT_ATTRIBUTE_IDS } from '@/types/audioSwell';
 
-// Proposed roadmap 50.6 (Global Pedals), docs/tasks/GLOBAL_PEDALS.md Task 13. A docs task has no behaviour to test, so
+// Roadmap 50.6 (Global Pedals), docs/tasks/GLOBAL_PEDALS.md Task 13. A docs task has no behaviour to test, so
 // this makes its acceptance criteria executable (globalModulationDocs.test.ts is the pattern):
 //   (1) the source-scan guardrail: nothing on the robot body reads a pedal (Visual Mapping is unchanged, and the
 //       pedals are one global chain, never per robot);
@@ -15,8 +15,8 @@ import { SWELL_GLOBAL_TARGET_IDS, SWELL_ROBOT_ATTRIBUTE_IDS } from '@/types/audi
 //   (3) every symbol the spec names is declared where it says, so a rename cannot leave a stale doc;
 //   (4) the sixteen range-table fields and the sixteen grid rows are all there, in chain order;
 //   (5) the living docs name the pedals.
-// Groups (1) to (4) are green from the moment they land. Group (5)'s cases are written against the text Task 17
-// produces and are RED until it lands; their titles say so.
+// Groups (1) to (4) were green from the moment they landed. Group (5)'s cases were written against the text Task 17
+// produces and were RED until it landed; they are green now.
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8').replace(/\r\n/g, '\n');
@@ -295,7 +295,7 @@ describe('both range tables and the grid cover all sixteen pedal fields', () => 
 });
 
 // ========================================
-// (5) THE LIVING DOCS NAME THE PEDALS   (RED until Task 17 writes them)
+// (5) THE LIVING DOCS NAME THE PEDALS   (the grid's rows landed at Task 2; the other four docs at Task 17)
 // ========================================
 
 describe('the living docs name the pedals', () => {
@@ -314,7 +314,7 @@ describe('the living docs name the pedals', () => {
     ['docs/ideas/themes.md', ['PEDAL_LIT_EDGE', 'MAX_LIT_PEDALS']],
   ];
 
-  it.each(docs)('%s names what Task 17 adds (RED until Task 17)', (doc, names) => {
+  it.each(docs)('%s names what Task 17 added', (doc, names) => {
     expect(missing(read(doc), names), `${doc} does not name`).toEqual([]);
   });
 });

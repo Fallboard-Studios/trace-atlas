@@ -488,7 +488,10 @@ an old `?session=` link.
    so every seeded world keeps the widener connected (14 ‰ dark today, its lit price after this). Run A's link is a
    `main` payload and restores Width at `0.5`, so it does not show this. Whether a fresh seed should land on exactly
    `0.5` some share of the time is a seeding question for another spec; recorded here so the phone numbers are read
-   with it in mind.
+   with it in mind. **Corrected 2026-10-21 (GLOBAL_PEDALS T17): a fresh seed does land on exactly 0.5.** The 0.01 step
+   puts 0.5 on the grid of the 0.4–0.65 band, and 218 of 5 000 styles (4.36 %) seed it, so about 4 % of fresh worlds
+   start with the widener dark. Unity either way, so nothing sounds different; those worlds skip the widener's lit
+   cost. Measured with `generateGlobalAudioSettings` over `WidthProbe0`–`WidthProbe4999`.
 5. **The AutoWah starts cold when lit.** Its envelope follower sees nothing while disconnected, so the first tens of
    milliseconds after lighting sweep from the base frequency. The Mix ramps from 0 over the same time, so it should be
    inaudible; the real-time probe includes the AutoWah.

@@ -602,9 +602,13 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
    (Crawford, 2026-10-20: "i'm happy with passing T16, it sounds fine"): not a fault. The shifter's lit share
    and band stay as built.** His reply did not itemise the panned and centred worlds.
 2. **The cap (assumption 7):** sequential in chain order (AutoWah and Phaser keep first claim, oracles
-   untouched) or a pick of up to two from six (equal standing, oracles move)? Sequential is proposed.
+   untouched) or a pick of up to two from six (equal standing, oracles move)? Sequential is proposed. **Answered:
+   sequential, built at T8 (`MAX_LIT_PEDALS`); the AutoWah and Phaser oracles did not move. Not objected to at any
+   checkpoint.**
 3. **Odds (assumption 7):** 0.25 / 0.25 / 0.25 / 0.15 nominal, measured lower under the cap. The
-   calibration test pins whatever the measurement gives; a theme is the lever afterwards.
+   calibration test pins whatever the measurement gives; a theme is the lever afterwards. **Answered: the nominal
+   edges stand. Measured over 20 000 styles: Chorus 22.68 %, Tremolo 19.33 %, Vibrato 16.75 %, shifter 8.20 %, two
+   lit in 49.38 % of worlds and never three. The T16 listen moved nothing.**
 4. **Lit bands (assumption 6)** are placeholders for the listen, as 50.4's were. The shifter's ±2–20 Hz
    is the one most likely to move: a few Hz is a slow beating, twenty is already inharmonic. **Answered at T16
    (Crawford, 2026-10-20, "it sounds fine"): no band moved.** The lit bands in `GLOBAL_AUDIO_LOADING_RANGES` and
@@ -612,24 +616,39 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
    unchanged.
 5. **Always-running LFOs (assumption 4):** three idle LFOs cost something; if the worst-case run misses and
    the bisect blames an idle LFO, the alternative is `stop()` at Mix 0 and `start()` on the first non-zero
-   Mix, inside the setter.
+   Mix, inside the setter. **Answered by the Dark-Effect Bypass, not by stopping LFOs.** The phone run missed, and
+   round 2 blamed the effects' presence, not their LFOs: a dark effect still processed its wet path. The bypass takes
+   a dark effect out of the signal path and leaves its LFOs running (§8). What they still cost is part of the 38.3 ‰
+   that all ten dark effects cost on the desktop; a stop at Mix 0 was not built.
 6. **Widener join (assumption 2):** moving the Controlled-Decay join from the Limiter to the widener is the
-   one change to existing wiring. The AudioEngine chain-order test pins it in both modes.
+   one change to existing wiring. The AudioEngine chain-order test pins it in both modes. **Answered: built at T6; since
+   the bypass the returns join at the Width cell's input, lit or dark (`getCell('stereoWidener')?.in`), still falling
+   back to the Limiter when there is no Width cell. Checkpoint B's Width-under-Controlled-Decay listen passed.**
 7. **`sliderCenteredZero` for `shift`:** the primitive exists for the robot's detune; its first global use.
-   If it needs a different step at the extremes, a `sliderLinear` with a signed range is the fallback.
-8. **Presets (assumption 10):** clean, unless Crawford wants a preset with a pedal.
-9. **Lore words (assumption 16)** are placeholders until Crawford's copy pass.
+   If it needs a different step at the extremes, a `sliderLinear` with a signed range is the fallback. **Answered:
+   kept, with a signed-log track (`logKnee: 1`) added in the branch review, which Crawford chose over the fallback; the
+   seeded ±2–20 Hz band went from under 2 % of the track to 28 % of each half. He tried it on the phone (2026-10-21,
+   "it all sounds good on desktop and the phone").**
+8. **Presets (assumption 10):** clean, unless Crawford wants a preset with a pedal. **Answered: clean, as built (T1).**
+9. **Lore words (assumption 16)** are placeholders until Crawford's copy pass. **Still open: the copy pass has not
+   happened.**
 10. **Phone cost:** two LFOs and two delay lines with feedback for the Chorus; two LFOs and two Gains for
     the Tremolo; one LFO and one delay for the Vibrato; a sine/cosine pair, two multipliers and a Hilbert
-    approximation for the shifter; four Gains for the widener. Cheap by inspection; the gate decides.
+    approximation for the shifter; four Gains for the widener. Cheap by inspection; the gate decides. **Answered: not
+    cheap enough as inline nodes. The first phone run missed, and the fix was the Dark-Effect Bypass (§8). With it, a
+    world with every effect dark reads at or below `main`. T14 passed with a caveat by Crawford's call: late in a
+    sitting both builds collapse, `main` included (backlog 27). What a lit effect costs on the phone is still open.**
 11. **Roadmap number (assumption 17):** 50.6, under the series umbrella, rather than a new top-level entry.
     The file's last top-level entry is 52 on this branch and 53 is the per-mover layers phase, so a top-level entry would be 54.
+    **Answered: 50.6, written at T17 after 50.5 in `docs/todo/roadmap.md`, with the Dark-Effect Bypass inside it.**
 
 ---
 
 ## 8. As built
 
-*(Started 2026-10-18 during Phase 1; the docs task, T17, completes this section.)*
+*(Started 2026-10-18 during Phase 1; completed by the docs task, T17, on 2026-10-21. The living docs describe the result:
+`docs/AUDIO_SYSTEM.md` Signal Graph, "Global Pedals" and "The bypass cells"; `docs/reference/GLOBAL_CHAIN_GRID.md`
+footnote ⁵; `docs/todo/roadmap.md` 50.6.)*
 
 - **The cycle-search cuts (a fix found at Checkpoint A, approved by Crawford 2026-10-18).** After T8 the app hung on
   power-on: the Power button kept flashing and the main thread never returned. Cause: Tone's `standardized-audio-context`
@@ -744,3 +763,43 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
     The range, the step (1 Hz), the seeds and the stored values are unchanged; only where a value sits on the track
     moved. Not yet tried by hand on a phone.
   - The HUD's `/10` is now `BYPASS_KEYS.length` (docs/specs/DARK_EFFECT_BYPASS.md §8.7).
+  - **Crawford's check of the follow-ups (2026-10-21):** "it all sounds good on desktop and the phone". That covers the
+    two items that needed his ear or hand: the Mix ramp split into chords of π/8 (item 3, which was not re-measured in a
+    real-time context) and the Shift slider's signed-log track on the phone (item 7).
+- **Smaller deviations from the plan (T1–T12), recorded at T17:**
+  - **The V2 Chorus.** The V2 chain rework had removed a Chorus ("the effect isn't correct for this music"), and five tests
+    guarded its absence (in `globalAudio.test.ts`, `globalAudioSeed.test.ts`, `globalAudioSeedRanges.test.ts`,
+    `globalFx.test.ts` and `audioRigConfig.test.ts`'s "has no chorus block"). The intent never mentioned the removal; each
+    guard was inverted when its task reached it (T1 to T10).
+  - **`syncedRateToFree` has no `Math.max(range.min)` floor** (§1.5 asked for one). The resolver already clamps into the
+    range and the quantising grid starts at `range.min`, so the floor was an unkillable mutant and was left out; the
+    function's comment says why.
+  - **T7's tests live in `audioStore.tempoSync.test.ts`**, beside the Phaser's, not in `audioStore.test.ts`.
+  - **T8 doubled the seed draws per world**, and three 3 000-style Colour calibration loops crossed Vitest's 5 s default
+    under the parallel suite; they were given 30 s timeouts.
+  - **The copy says more than §1.7.** The Modulation intro ends "up to two pedals, or none"; the Output intro gained a
+    Width paragraph, and its Decay Mode line says Controlled Decay's echoes have "only Width and the Limiter above them".
+  - The pedal panel tests are in `AudioRigEffectPanel.test.tsx` (50.4's pattern), not `AudioRigDrawer.test.tsx`.
+- **A fresh world can seed Width at exactly 0.5 (measured at T17, 2026-10-21).** Assumption 6 gives Width the band
+  0.4–0.65, and the field's 0.01 step puts 0.5 on the grid, so 218 of 5 000 styles (4.36 %) seed exactly 0.5. That is
+  unity, so those worlds start with the widener dark, out of the signal path. Nothing sounds different (unity either way)
+  and it saves the widener's lit cost. docs/specs/DARK_EFFECT_BYPASS.md §7 Q4 had said a fresh seed never lands on 0.5;
+  it is corrected there. No code changed; whether a fresh world should ever seed a dark Width is a seeding question.
+- **What T17 wrote, and how.**
+  - The four living-docs cases of `src/docs/globalPedalsDocs.test.ts` are green (171 of 171), and the test's "RED until
+    Task 17" wording is gone. A planted removal of `MAX_LIT_PEDALS`' backticks in `themes.md` failed its case.
+  - `docs/AUDIO_SYSTEM.md`: the API block gains the five setters; the Signal Graph diagram shows the cuts and the cells;
+    the Colour and Modulation paragraphs no longer say the Mix reaches the node or that the Phaser rebuild re-wires the
+    chain (`_lastControlledDecay` is gone); new "Global Pedals" and "The bypass cells" paragraphs; the HUD example line.
+  - `docs/SESSION_STORAGE.md` (a new section; `sanitizePhaserSync` renamed), `docs/specs/FREE_SYNC_TOGGLE.md` (one update
+    paragraph), `docs/ideas/themes.md` (one bullet), `docs/reference/GLOBAL_CHAIN_GRID.md` (the chain line, the Controlled
+    Decay line, footnotes ³ ⁴ ⁵), and `docs/PERFORMANCE.md`'s HUD table (` · fx in n/10`), which the plan did not list.
+    A first draft of the grid's chain line bracketed each cell's effect and broke the guard's chain-order case (it pins the
+    plain names); the line keeps the plain names and the sentence after it names the cells.
+  - **Backlog 22 was not rewritten in place.** The plan asked for a rewrite and for every pre-existing line of both todo
+    files to stay byte-identical, which cannot both hold. T17 kept the lines and appended an update inside item 22, as item
+    27's update was written: the five pedals shipped as 50.6, only the two room type radios remain, the `globalFx.ts:144`
+    cite is stale (the rooms are off-chain since 50.2), and Freeverb and JCReverb are AudioWorklet comb filters that Tone
+    15's own docs warn may be slower, not cheaper. No pedal was withdrawn, so nothing went under "tried, no".
+  - The roadmap's 50.6 entry was inserted after 50.5; the series header's "Five sub-phases" line was left as it was
+    (append-only), and the 50.6 entry says so.

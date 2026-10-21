@@ -26,7 +26,11 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > [spec §8](../specs/DARK_EFFECT_BYPASS.md)). Checkpoint B, Crawford's desktop listen, passed. T14 was re-run on it
 > (phone rounds 3 and 4) and **passed with a caveat** by Crawford's call. The caveat: a run late in a sitting collapses
 > on the Pixel whatever the build, `main` included, which is backlog 27. ~~Next: T16 (Crawford's listen), then T17.~~
-> **T16 passed (2026-10-20, "it sounds fine"; nothing moved). Next: T17.**
+> **T16 passed (2026-10-20, "it sounds fine"; nothing moved). ~~Next: T17.~~**
+>
+> **Update (2026-10-21): T17 done; the plan is complete.** The branch review's follow-ups passed Crawford's check on
+> desktop and phone ("it all sounds good on desktop and the phone"). The docs are written (spec §8, "What T17 wrote") and
+> `src/docs/globalPedalsDocs.test.ts` is green. Left: Crawford opens the PR from `feature/pedals`.
 >
 > *(Original status, 2026-10-17:)* The spec is written and awaiting Crawford's approval; its veto points
 > (spec §7) are the slot order (since answered: the Vibrato is stereo, so only the shifter's sideband leak on
@@ -598,10 +602,15 @@ Reverb row), with the `globalFx.ts:144` cite corrected and the "cheaper per samp
 append-only in their own endings (backlog CRLF, roadmap LF). Spec §8 "As built" written.
 
 **Acceptance criteria:**
-- [ ] `src/docs/globalPedalsDocs.test.ts` is fully green (the living-docs cases turn).
-- [ ] The roadmap entry and the backlog rewrite are present, and `git diff` shows every pre-existing line of
-  both todo files byte-identical.
-- [ ] Spec §7 carries its answers and §8 its deltas; this plan's status line is updated.
+- [x] `src/docs/globalPedalsDocs.test.ts` is fully green (the living-docs cases turn).
+- [x] The roadmap entry and the backlog rewrite are present, and `git diff` shows every pre-existing line of
+  both todo files byte-identical. (The backlog "rewrite" is an update appended inside item 22, since a rewrite
+  in place would change pre-existing lines; spec §8, "What T17 wrote".)
+- [x] Spec §7 carries its answers and §8 its deltas; this plan's status line is updated.
+
+**As built (2026-10-21):** `globalPedalsDocs.test.ts` 171/171; `git diff --stat docs/todo` 110 insertions, 0 deletions.
+Full suite 13 392 pass / 1 fail, the known `sceneToOrbiterLocal` timeout; `build:types` clean, lint 0 errors (the 4 old
+warnings), `npm run build` clean. Finding: a fresh seed lands Width on exactly 0.5 in 4.36 % of worlds (spec §8).
 
 **Verification:** `npx vitest run src/docs/globalPedalsDocs.test.ts`; `git diff --stat docs/todo`.
 
@@ -610,8 +619,9 @@ append-only in their own endings (backlog CRLF, roadmap LF). Spec §8 "As built"
 ---
 
 ### Checkpoint: Complete
-- [ ] All acceptance criteria met; `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Phone counts and the listen recorded, not paraphrased.
+- [x] All acceptance criteria met; `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean
+  (`npm test` apart from the known `sceneToOrbiterLocal` timeout).
+- [x] Phone counts and the listen recorded, not paraphrased.
 - [ ] Crawford opens the PR from `feature/pedals` (the branch as built; this plan proposed `feature/palette-pedals`).
 
 ## Risks and Mitigations
