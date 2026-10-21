@@ -694,7 +694,8 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   x28-81 / x1.9-4.9; the same ramping from `immediate()` x74-82 / x1.7-5.9; a duck that writes after `lookAhead` + the
   ramp + 10 ms **x1.3 / x1.6 on every run**. Tone ramps start lookAhead ahead of the audio thread and the waveform swap
   does not, so the write has to wait the lookAhead out. Built that way in `globalFx.ts` (`writeSpread`,
-  `finishSpreadDuck`, `SPREAD_DUCK_SECONDS` 0.02, `SPREAD_WRITE_MARGIN_SECONDS` 0.01): a lit pedal's Mix ramps to dry,
+  `finishSpreadDuck`, `SPREAD_DUCK_SECONDS` 0.02, `SPREAD_WRITE_MARGIN_SECONDS` 0.01; since the branch review the one per-cell
+  duck, `duckCell` in `bypassCell.ts`, docs/specs/DARK_EFFECT_BYPASS.md §8.7): a lit pedal's Mix ramps to dry,
   the Spread is written from `Tone.getContext().setTimeout` (the audio-clock timer `scheduleVoiceRelease` already
   uses; a parameter de-click, not musical timing, so CLAUDE.md's timing rule is not engaged) and the Mix ramps back to
   the last value written. Every step of a drag re-arms the one timer, so the pedal stays dry (about 0.25 s at

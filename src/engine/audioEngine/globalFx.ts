@@ -1,6 +1,25 @@
 import * as Tone from 'tone';
 
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
+import {
+  CHAIN_CUT_OPTIONS,
+  COLOUR_RAMP_SECONDS,
+  buildCell,
+  cellEffect,
+  cellNodes,
+  cellSpan,
+  clearCells,
+  connectEffect,
+  disconnectEffect,
+  disposeQuietly,
+  duckCell,
+  getCell,
+  needsDuck,
+  wireCells,
+  writeCellMix,
+  type BypassKey,
+  type ChainSpan,
+} from './bypassCell';
 import { devWarn } from '@/utils/helpers';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -47,8 +66,8 @@ let _globalPhaser: Tone.Phaser | null = null;
 type PhaserLive = Omit<PhaserSettings, 'sync' | 'stages'>;
 let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
 let _phaserLive: PhaserLive = defaultPhaserLive();
-/** A lit Phaser's pending Stages swap: the count to build and the timer that builds it (writePhaserStages). */
-let _phaserDuck: { stages: number; timer: number } | null = null;
+/** The count a ducked Stages swap will build at the bottom of the duck, or null when none is pending (writePhaserStages). */
+let _phaserDuckStages: number | null = null;
 // The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
 let _globalChorus: Tone.Chorus | null = null;
 let _globalTremolo: Tone.Tremolo | null = null;
@@ -83,73 +102,6 @@ let _masterTap: OutputTap | null = null;
  *  this fix. */
 const FILTER_FREQUENCY_RAMP_SECONDS = 0.05;
 
-/** Ramp for a live colour `wet` or BitCrusher `bits` change - the same declick rationale as the filter ramp.
- *  `amount` and `order` are plain setters that rebuild a 1024-point shaper map and are written directly. */
-const COLOUR_RAMP_SECONDS = 0.05;
-
-/** The stored colour Mix (0-1, the slider position and what the seed draws) as the `wet` the node gets: squared.
- *  On the Pixel the three saturators were far too strong across most of a linear Mix slider (Crawford, 2026-10-15:
- *  "all three need to be super low mixes"), so the curve spends most of the slider on the subtle end, as the
- *  Sends' return levels do. 0 stays fully dry and 1 stays fully wet; only the middle moves. Applied where the
- *  setters write the node, so a seed, a restore and a slider drag all take the same path and the stored value,
- *  the seed bands and the share codes keep meaning "slider position". */
-export function colourWetGain(mix: number): number {
-  return mix * mix;
-}
-
-// ========================================
-// BYPASS CELLS (docs/specs/DARK_EFFECT_BYPASS.md section 1.1)
-// ========================================
-/** The ten global effects that sit in a bypass cell and leave the signal path while dark. */
-export type BypassKey =
-  | 'distortion'
-  | 'chebyshev'
-  | 'bitCrusher'
-  | 'autoWah'
-  | 'phaser'
-  | 'chorus'
-  | 'tremolo'
-  | 'vibrato'
-  | 'frequencyShifter'
-  | 'stereoWidener';
-
-/** One effect's bypass cell: `in` -> `dry` -> `cut`, and `in` -> effect -> `wet` -> `cut`. The effect's two edges
- *  exist only while it is lit, and are made and broken only while `wet` is at zero. */
-export type Cell = {
-  in: Tone.Gain;
-  dry: Tone.Gain;
-  wet: Tone.Gain;
-  cut: Tone.Delay;
-  /** The Phaser's is replaced by its rebuild. */
-  effect: Tone.ToneAudioNode | null;
-  /** The two effect edges are present. */
-  connected: boolean;
-  /** The law's input: colourWetGain(wet), or Width's f (0 or 1). */
-  mix: number;
-  /** The pending Tone.getContext().setTimeout id of a darken's disconnect. */
-  darken: number | null;
-};
-
-/** The live cells, rebuilt by every buildGlobalFxChain. An absent key is an effect left out of the chain: its
- *  constructor is missing, its cell could not be built, or the Gain / Delay constructors are missing altogether. */
-const _cells: Partial<Record<BypassKey, Cell>> = {};
-
-/** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
- *  a cell at cellGains(w) sounds as the bare effect at wet w from Mix 0.04 up (below that Tone's law keeps a −56 dB wet
- *  floor the cell does not; docs/specs/DARK_EFFECT_BYPASS.md §8.1). Tone 15's CrossFade (component/channel/CrossFade.js)
- *  feeds a constant 1 through a mono StereoPanner at pan 2·fade − 1 and splits it into the two gains, which is the
- *  Web Audio equal-power pan: cos(fade·π/2) for the dry input and sin(fade·π/2) for the wet. Spec assumption 2. */
-export function cellGains(w: number): { dry: number; wet: number } {
-  return { dry: Math.cos((w * Math.PI) / 2), wet: Math.sin((w * Math.PI) / 2) };
-}
-
-/** The StereoWidener's cell gains for its fade `f` (0-1). At width 0.5 the widener passes its input unchanged, so both
- *  paths carry the same signal and a linear fade keeps the sum constant; an equal-power fade would swell it by up to
- *  √2 mid-crossing. Spec assumption 5. */
-export function widthCellGains(f: number): { dry: number; wet: number } {
-  return { dry: 1 - f, wet: f };
-}
-
 /** `value` clamped into the field's full range, or undefined when it is not a finite number. A saved session or a
  *  share link is untrusted input: an out-of-range colour value must not reach a node (an order of 1e9 would stall
  *  the shaper-map build) and NaN must not be written at all. */
@@ -177,21 +129,7 @@ function buildPhaser(PhaserCtor: new (...args: unknown[]) => Tone.Phaser, stages
   });
 }
 
-/**
- * The cycle-search cuts (docs/specs/GLOBAL_PEDALS.md, as-built). Tone's standardized-audio-context runs `detectCycles`
- * on every connect and disconnect: it enumerates EVERY simple path downstream of the destination, without memoising, and
- * stops only at a node that has a `delayTime`. Each Tone effect has a dry and a wet path and the stereo and mid/side
- * ones split again, so the path count multiplies stage by stage. With the five Global Pedals a power-on (every robot
- * voice connecting into the front of the chain) took an estimated ~14 minutes of main thread, measured in headless
- * Chrome on 2026-10-18; even `main`'s chain spent ~1.5 s unresponsive. So two zero-delay DelayNodes sit in the dry
- * chain: one at its entry (every robot bus connects into it) and one after the High-Pass Filter (where the global LFO
- * targets end). Neither is in a cycle, so a delayTime of 0 adds no latency: the sound passes through unchanged. The
- * buffer is tiny because the delay never moves. Measured with both cuts and the downstream-first disconnect: power-on
- * 1.4 s with no unresponsive time, a Decay flip 3 ms, linking all seven global LFOs 1 ms. The Dark-Effect Bypass then
- * gave each of the ten bypass cells a cut of its own (see buildCell), so the chain holds twelve.
- */
-const CHAIN_CUT_OPTIONS = { delayTime: 0, maxDelay: 0.01 } as const;
-
+/** One of the two cycle-search cuts in the dry chain (see CHAIN_CUT_OPTIONS in bypassCell.ts). */
 function buildChainCut(DelayCtor: (new (...args: unknown[]) => Tone.Delay) | undefined, where: string): Tone.Delay | null {
   if (!DelayCtor) return null;
   try {
@@ -202,166 +140,8 @@ function buildChainCut(DelayCtor: (new (...args: unknown[]) => Tone.Delay) | und
   }
 }
 
-/** Release a node that will never be wired, so an effect left out of the chain does not run its LFOs unheard. */
-function disposeQuietly(node: Tone.ToneAudioNode | null): void {
-  try {
-    node?.dispose();
-  } catch {
-    // Nothing to do: the node is unwired either way.
-  }
-}
-
-/**
- * Builds `key`'s bypass cell around `effect` (docs/specs/DARK_EFFECT_BYPASS.md section 1.1): `in` -> `dry` -> `cut` and
- * `in` -> effect -> `wet` -> `cut`. Each cell ends in its own zero-delay cut, so a connect's cycle search never walks
- * further than one cell (see CHAIN_CUT_OPTIONS). The effect is pinned fully wet (the widener at unity width) and its cell
- * built dark (dry 1 / wet 0, unconnected), so the cell carries its Mix. An effect whose constructor threw (null) gets an
- * empty cell wired dry. If the cell itself cannot be built, the effect and the cell nodes already made are released and
- * the effect is left out of the chain.
- */
-function buildCell(
-  key: BypassKey,
-  effect: Tone.ToneAudioNode | null,
-  GainCtor: new (...args: unknown[]) => Tone.Gain,
-  DelayCtor: new (...args: unknown[]) => Tone.Delay,
-): void {
-  const made: Tone.ToneAudioNode[] = [];
-  const build = <T extends Tone.ToneAudioNode>(node: T): T => {
-    made.push(node);
-    return node;
-  };
-  try {
-    _cells[key] = {
-      in: build(new GainCtor(1)),
-      dry: build(new GainCtor(1)),
-      wet: build(new GainCtor(0)),
-      cut: build(new DelayCtor({ ...CHAIN_CUT_OPTIONS })),
-      effect,
-      connected: false,
-      mix: 0,
-      darken: null,
-    };
-  } catch (err) {
-    devWarn(
-      '[AudioEngine] the ' + key + ' bypass cell could not be constructed; the chain runs without the ' + key,
-      err,
-    );
-    for (const node of made) disposeQuietly(node);
-    disposeQuietly(effect);
-  }
-}
-
-/** The effect in `key`'s cell, or null when the cell is absent or empty: what the `_global<Effect>` aliases hold. */
-function cellEffect<T extends Tone.ToneAudioNode>(key: BypassKey): T | null {
-  return (_cells[key]?.effect as T | null | undefined) ?? null;
-}
-
-/** One stage of the dry chain: where the previous stage connects in, and where this one connects on. */
-type ChainSpan = { head: Tone.ToneAudioNode; tail: Tone.ToneAudioNode };
-
 function nodeSpan(node: Tone.ToneAudioNode | null): ChainSpan | null {
   return node ? { head: node, tail: node } : null;
-}
-
-/** A cell as a chain stage: entered at its `in`, left at its `cut`. Null for an absent cell. */
-function cellSpan(key: BypassKey): ChainSpan | null {
-  const cell = _cells[key];
-  return cell ? { head: cell.in, tail: cell.cut } : null;
-}
-
-/** A cell's nodes in signal order, upstream first, for disconnectAllFxNodes. Empty for an absent cell. */
-function cellNodes(key: BypassKey): Array<Tone.ToneAudioNode | null> {
-  const cell = _cells[key];
-  return cell ? [cell.in, cell.dry, cell.effect, cell.wet, cell.cut] : [];
-}
-
-/** A cell's own edges: the dry path always, the effect's two edges only while `connected`. */
-function wireCell(cell: Cell): void {
-  cell.in.connect(cell.dry);
-  cell.dry.connect(cell.cut);
-  cell.wet.connect(cell.cut);
-  if (cell.connected && cell.effect) {
-    cell.in.connect(cell.effect);
-    cell.effect.connect(cell.wet);
-  }
-}
-
-/** Ramp `key`'s cell's two gains to its law at `w`: widthCellGains for the widener, cellGains for a Mix effect. */
-function rampCell(key: BypassKey, cell: Cell, w: number, seconds: number): void {
-  const { dry, wet } = key === 'stereoWidener' ? widthCellGains(w) : cellGains(w);
-  rampOrSet(cell.dry.gain, dry, seconds);
-  rampOrSet(cell.wet.gain, wet, seconds);
-}
-
-/** Make the effect's two edges. Only ever called while the cell's wet gain is 0, so the new path is silent. False, with
- *  a warning, if Tone refused: the cell stays dry and unconnected, and the next light tries again. */
-function connectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): boolean {
-  try {
-    cell.in.connect(effect);
-    effect.connect(cell.wet);
-    cell.connected = true;
-    return true;
-  } catch (err) {
-    devWarn(
-      '[AudioEngine] the ' + key + ' effect could not be connected into its bypass cell; it stays dry',
-      err,
-    );
-    return false;
-  }
-}
-
-/** Break the effect's two edges, once the wet gain has reached 0 on the audio thread. On a failure the cell keeps
- *  `connected`, so a later light only ramps (the edges that are still there carry it) and a rewire re-makes them. */
-function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): void {
-  try {
-    cell.in.disconnect(effect);
-    effect.disconnect(cell.wet);
-    cell.connected = false;
-  } catch (err) {
-    devWarn(
-      '[AudioEngine] the ' + key + ' effect could not be disconnected from its bypass cell',
-      err,
-    );
-  }
-}
-
-/**
- * A Mix write through `key`'s cell (docs/specs/DARK_EFFECT_BYPASS.md section 1.2, assumption 4). `mix` is the stored,
- * clamped Mix; the cell runs the tapered `w = colourWetGain(mix)`, or for the widener `mix` is its width and `w` its fade
- * (0 at exactly 0.5, where the widener is unity; 1 anywhere else). Light (w > 0): cancel a pending disconnect, connect the
- * effect if it is not (the wet gain is 0, so the path appears silently), then ramp the cell to the law. Darken (w = 0):
- * ramp to dry and arm the one disconnect for when the ramp has run on the audio thread (lookAhead + the ramp + a margin),
- * where it goes only if the cell is still dark. A re-sent value with nothing left to do writes nothing, so a whole-block
- * apply does not re-ramp or re-arm. With `ramp` false (a Spread duck holds the gains at dry) the cell is lit or darkened
- * all the same but its gains are left alone: the duck returns them to the new Mix.
- */
-function writeCellMix(key: BypassKey, mix: number, ramp = true): void {
-  const cell = _cells[key];
-  const effect = cell?.effect;
-  if (!cell || !effect) return;
-  const w = key === 'stereoWidener' ? (mix === 0.5 ? 0 : 1) : colourWetGain(mix);
-  if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
-  const context = Tone.getContext();
-  if (w > 0) {
-    if (cell.darken !== null) {
-      context.clearTimeout(cell.darken);
-      cell.darken = null;
-    }
-    if (!cell.connected && !connectEffect(key, cell, effect)) return;
-    cell.mix = w;
-    if (ramp) rampCell(key, cell, w, COLOUR_RAMP_SECONDS);
-    return;
-  }
-  cell.mix = 0;
-  if (ramp) rampCell(key, cell, 0, COLOUR_RAMP_SECONDS);
-  cell.darken = context.setTimeout(
-    () => {
-      cell.darken = null;
-      // The cell's effect at the fire, not at the arm: a Phaser Stages change in between puts a new node in the cell.
-      if (cell.mix === 0 && cell.connected && cell.effect) disconnectEffect(key, cell, cell.effect);
-    },
-    context.lookAhead + COLOUR_RAMP_SECONDS + BYPASS_DISCONNECT_MARGIN_SECONDS,
-  );
 }
 
 /** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
@@ -468,7 +248,7 @@ export function buildGlobalFxChain(): void {
   // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
   // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
   _globalPhaser = null;
-  resetPhaserDuck();
+  _phaserDuckStages = null;
   _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
   _phaserLive = defaultPhaserLive();
   if (PhaserCtor) {
@@ -483,7 +263,7 @@ export function buildGlobalFxChain(): void {
   // (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). Tone's Chorus and Tremolo do NOT start their LFOs in the
   // constructor, so each is started once here and runs for the chain's life: a dark pedal is Mix 0, not a stopped LFO
   // (docs/specs/GLOBAL_PEDALS.md assumption 4). A failed construction leaves the slot empty and the chain whole.
-  resetSpreadDucks();
+  resetSpreadTargets();
   _globalChorus = null;
   if (ChorusCtor) {
     try {
@@ -545,11 +325,8 @@ export function buildGlobalFxChain(): void {
   // The bypass cells (docs/specs/DARK_EFFECT_BYPASS.md section 1.3), one per effect whose constructor exists, built
   // before the returns and the master so the master stays the last Gain made. Without a Gain or a Delay constructor no
   // cell can exist, and the ten effects are released and left out of the chain.
-  // A pending disconnect belongs to the cell it was armed on: cancel it with the cell.
-  for (const cell of Object.values(_cells)) {
-    if (cell.darken !== null) Tone.getContext().clearTimeout(cell.darken);
-  }
-  for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
+  // A pending disconnect or duck belongs to the cell it was armed on: cancel it with the cell.
+  clearCells();
   const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
     ['distortion', DistortionCtor, _globalDistortion],
     ['chebyshev', ChebyshevCtor, _globalChebyshev],
@@ -713,7 +490,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     }
     // Each cell's own edges, after the chain: the effect's two only if it was lit, so a Decay flip
     // restores exactly what was connected.
-    for (const cell of Object.values(_cells)) wireCell(cell);
+    wireCells();
     const last = chainNodes[chainNodes.length - 1].tail;
     if (_masterGain) {
       last.connect(_masterGain);
@@ -733,7 +510,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     // Each room → its return → the join node. Absent rooms, returns or join nodes are skipped. Controlled joins at the
     // Width cell's `in`, lit or dark (docs/specs/DARK_EFFECT_BYPASS.md assumption 6); without a Width cell it falls
     // through to the Limiter, as it was before the widener existed.
-    const join = (controlledDecay ? _cells.stereoWidener?.in : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
+    const join = (controlledDecay ? getCell('stereoWidener')?.in : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
     if (join) {
       _globalReverb?.connect(_globalReverbReturn ?? join);
       _globalReverbReturn?.connect(join);
@@ -770,12 +547,8 @@ export function getGlobalDelayRoom(): Tone.FeedbackDelay | null {
   return _globalDelay;
 }
 
-/** How many of the ten effects are connected into their bypass cells, i.e. in the signal path: a darkening effect
- *  counts until its disconnect fires. 0 before buildGlobalFxChain() has run. Read by the `?debug` HUD's ` · fx in n/10`
- *  token (docs/specs/DARK_EFFECT_BYPASS.md assumption 13). */
-export function getConnectedEffectCount(): number {
-  return Object.values(_cells).filter((cell) => cell.connected).length;
-}
+/** The bypass cells' count for the diagnostics, which read the global chain through this module. */
+export { getConnectedEffectCount } from './bypassCell';
 
 // ========================================
 // OUTPUT TAPS (read-only diagnostics)
@@ -1084,7 +857,7 @@ function rebuildPhaser(stages: number): boolean {
     return false;
   }
   const old = _globalPhaser;
-  const cell = _cells.phaser;
+  const cell = getCell('phaser');
   if (cell) {
     const lit = cell.connected;
     if (lit && old) disconnectEffect('phaser', cell, old);
@@ -1110,48 +883,21 @@ function rebuildPhaser(stages: number): boolean {
   return true;
 }
 
-/** Drop a pending Stages swap: the Phaser is being rebuilt in a dark cell, at the default count. */
-function resetPhaserDuck(): void {
-  if (_phaserDuck) Tone.getContext().clearTimeout(_phaserDuck.timer);
-  _phaserDuck = null;
-}
-
 /**
  * A Stages change (docs/specs/DARK_EFFECT_BYPASS.md §8.2). The rebuild swaps the node inside its cell, and while the
- * Phaser is in the signal path that swap is a connect at the lit gains: it clicked x2-55 in a real-time context. So a
- * connected Phaser is ducked, as a lit Chorus is for its Spread: the cell ramps to dry, the swap runs from Tone's
- * audio-clock timer once that ramp has run on the audio thread (lookAhead + the Spread duck's ramp and margin), and the
- * cell ramps back to its Mix. Every step of a drag re-arms the one timer, so only the last count is built. A Phaser out
- * of the signal path is rebuilt at once. True when the node was rebuilt now, so the edit is complete; false when the
- * live node stays for now and takes the rest of the edit.
+ * Phaser is in the signal path that swap is a connect at the lit gains: it clicked x2-55 in a real-time context. So it
+ * goes through the cell's duck (duckCell), which builds only the last count of a drag, and not even that if the drag came
+ * back to the live one. A Phaser out of the signal path is rebuilt at once. True when the node was rebuilt now, so the
+ * edit is complete; false when the live node stays for now and takes the rest of the edit.
  */
 function writePhaserStages(stages: number): boolean {
-  const cell = _cells.phaser;
-  if (!cell || (!_phaserDuck && !cell.connected)) return rebuildPhaser(stages);
-  const context = Tone.getContext();
-  if (_phaserDuck) context.clearTimeout(_phaserDuck.timer);
-  else rampCell('phaser', cell, 0, SPREAD_DUCK_SECONDS);
-  const timer = context.setTimeout(
-    finishPhaserDuck,
-    context.lookAhead + SPREAD_DUCK_SECONDS + SPREAD_WRITE_MARGIN_SECONDS,
-  );
-  _phaserDuck = { stages, timer };
+  if (!needsDuck('phaser')) return rebuildPhaser(stages);
+  _phaserDuckStages = stages;
+  duckCell('phaser', () => {
+    _phaserDuckStages = null;
+    if (stages !== _phaserStages) rebuildPhaser(stages);
+  });
   return false;
-}
-
-/** The bottom of a Stages duck: build the pending count, unless a drag came back to the live one, while the wet gain is
- *  at 0, then ramp the cell back to its Mix, which a Mix write during the duck may have moved (to dry, for a darken). */
-function finishPhaserDuck(): void {
-  const pending = _phaserDuck;
-  _phaserDuck = null;
-  if (!pending) return;
-  try {
-    if (pending.stages !== _phaserStages) rebuildPhaser(pending.stages);
-    const cell = _cells.phaser;
-    if (cell) rampCell('phaser', cell, cell.mix, SPREAD_DUCK_SECONDS);
-  } catch (err) {
-    devWarn('[AudioEngine] a ducked Phaser Stages change failed', err);
-  }
 }
 
 /** Phaser (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here
@@ -1179,8 +925,8 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     // its duck, and the Mix below is then recorded for the duck to return to. A count the node has, or a duck is
     // already heading for, does nothing (a whole-block apply re-sends it).
     const rebuilt =
-      stages !== undefined && stages !== (_phaserDuck?.stages ?? _phaserStages) && writePhaserStages(stages);
-    if (wet !== undefined) writeCellMix('phaser', wet, !_phaserDuck);
+      stages !== undefined && stages !== (_phaserDuckStages ?? _phaserStages) && writePhaserStages(stages);
+    if (wet !== undefined) writeCellMix('phaser', wet);
 
     // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
     if (rebuilt) return;
@@ -1235,22 +981,12 @@ function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, d
 /**
  * The Spread de-click (docs/specs/GLOBAL_PEDALS.md §8). Tone's Chorus and Tremolo `spread` setters swap both LFOs'
  * waveform at once, on the audio thread's current time, so the sweep jumps: in a real-time context one 5° step clicked
- * x49-79 on a lit Chorus and x7 on a lit Tremolo. A lit pedal is ducked instead: its cell ramps to dry, the Spread is
- * written from Tone's audio-clock timer (as scheduleVoiceRelease uses it) once that ramp has run, and the cell ramps
- * back to its Mix; measured x1.3 / x1.6. Ramps start lookAhead ahead of the audio thread and the swap does not, so the
- * write waits lookAhead + the ramp + a margin. Every step of a drag re-arms the one timer, so the pedal stays dry until
- * the drag stops and only the last Spread is written. A pedal out of the signal path is written at once: there is
- * nothing to hear.
+ * x49-79 on a lit Chorus and x7 on a lit Tremolo. So a lit pedal's Spread goes through its cell's duck (duckCell), which
+ * writes only the last Spread of a drag; measured x1.3 / x1.6. A pedal out of the signal path is written at once: there
+ * is nothing to hear.
  */
-const SPREAD_DUCK_SECONDS = 0.02;
-const SPREAD_WRITE_MARGIN_SECONDS = 0.01;
-/** A darkening cell disconnects its effect once lookAhead + the Mix ramp + this margin has passed, so the wet gain has
- *  reached zero on the audio thread first (the Spread write's margin, for the same reason). Dark-Effect Bypass §1.2. */
-export const BYPASS_DISCONNECT_MARGIN_SECONDS = 0.01;
 type SpreadPedal = 'chorus' | 'tremolo';
 type SpreadNode = { spread: number };
-/** A duck in progress: the Spread to write and the timer that writes it. */
-const _spreadDuck: Partial<Record<SpreadPedal, { spread: number; timer: number }>> = {};
 /** The Spread each node has, or is about to get from a duck. Every whole-block apply re-sends it, and a lit pedal must
  *  not drop to dry for a value it already has. */
 const _spreadTarget: Record<SpreadPedal, number> = {
@@ -1258,64 +994,31 @@ const _spreadTarget: Record<SpreadPedal, number> = {
   tremolo: DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo.spread,
 };
 
-/** Drop every pending duck: the nodes are being rebuilt in dark cells, at the default Spread. */
-function resetSpreadDucks(): void {
+/** The nodes are being rebuilt in dark cells, at the default Spread (clearCells drops their ducks). */
+function resetSpreadTargets(): void {
   for (const pedal of ['chorus', 'tremolo'] as const) {
-    const pending = _spreadDuck[pedal];
-    if (pending) Tone.getContext().clearTimeout(pending.timer);
-    delete _spreadDuck[pedal];
     _spreadTarget[pedal] = DEFAULT_GLOBAL_AUDIO_SETTINGS[pedal].spread;
   }
 }
 
-/**
- * A Spread write: nothing if the node has (or is getting) it, at once while the pedal is out of the signal path, ducked
- * while it is in it. The duck rides the pedal's bypass cell (docs/specs/DARK_EFFECT_BYPASS.md assumption 8): it ramps
- * the cell to dry and back, never disconnects, and a pedal still connected while it darkens is ducked too.
- */
+/** A Spread write: nothing if the node has (or is getting) it, at once while the pedal is out of the signal path, ducked
+ *  while it is in it. */
 function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void {
   if (spread === _spreadTarget[pedal]) return;
   _spreadTarget[pedal] = spread;
-  const cell = _cells[pedal];
-  const pending = _spreadDuck[pedal];
-  if (!cell || (!pending && !cell.connected)) {
+  if (!needsDuck(pedal)) {
     node.spread = spread;
     return;
   }
-  const context = Tone.getContext();
-  if (pending) context.clearTimeout(pending.timer);
-  else rampCell(pedal, cell, 0, SPREAD_DUCK_SECONDS);
-  const timer = context.setTimeout(
-    () => finishSpreadDuck(pedal, node),
-    context.lookAhead + SPREAD_DUCK_SECONDS + SPREAD_WRITE_MARGIN_SECONDS,
-  );
-  _spreadDuck[pedal] = { spread, timer };
-}
-
-/** The bottom of a duck: write the Spread and ramp the cell back to its Mix, which a Mix write during the duck may have
- *  moved (to dry, for a darken). (A rebuild cancels the timer: resetSpreadDucks.) */
-function finishSpreadDuck(pedal: SpreadPedal, node: SpreadNode): void {
-  const pending = _spreadDuck[pedal];
-  delete _spreadDuck[pedal];
-  if (!pending) return;
-  try {
-    node.spread = pending.spread;
-    const cell = _cells[pedal];
-    if (cell) rampCell(pedal, cell, cell.mix, SPREAD_DUCK_SECONDS);
-  } catch (err) {
-    devWarn('[AudioEngine] a ducked Spread write failed', err);
-  }
-}
-
-/** A Mix write on a Spread pedal: the cell's protocol, with its ramp left to the duck while one holds the cell dry. */
-function writeSpreadPedalWet(pedal: SpreadPedal, wet: number): void {
-  writeCellMix(pedal, wet, !_spreadDuck[pedal]);
+  duckCell(pedal, () => {
+    node.spread = spread;
+  });
 }
 
 /** Chorus (docs/specs/GLOBAL_PEDALS.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here is always Hz
  *  and `sync` never arrives. Rate (Tone's `frequency`) and feedback are Signals; delayTime (ms) and depth are ramped
  *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread); the Mix is tapered like Colour's
- *  and written through the bypass cell (writeSpreadPedalWet). */
+ *  and written through the bypass cell (writeCellMix). */
 export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
   const chorus = _globalChorus;
   if (!chorus) return;
@@ -1330,7 +1033,7 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
     if (spread !== undefined) writeSpread('chorus', chorus, spread);
     if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeSpreadPedalWet('chorus', wet);
+    if (wet !== undefined) writeCellMix('chorus', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChorus failed', err);
   }
@@ -1338,7 +1041,7 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
 
 /** Tremolo (docs/specs/GLOBAL_PEDALS.md §1.3). Rate (Tone's `frequency`) and depth are Signals fanned to both LFOs;
  *  spread is ducked when lit (writeSpread); the Mix is tapered like Colour's and written through the bypass cell
- *  (writeSpreadPedalWet). `rate` arrives already resolved to Hz. */
+ *  (writeCellMix). `rate` arrives already resolved to Hz. */
 export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>): void {
   const tremolo = _globalTremolo;
   if (!tremolo) return;
@@ -1350,7 +1053,7 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
     if (rate !== undefined) rampOrSet(tremolo.frequency, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
     if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
-    if (wet !== undefined) writeSpreadPedalWet('tremolo', wet);
+    if (wet !== undefined) writeCellMix('tremolo', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalTremolo failed', err);
   }

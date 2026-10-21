@@ -803,3 +803,26 @@ the repo.
 | Lit-effect pricing | `2bd86fab-5629-4ca0-b2e3-10ff790a83f3/scratchpad/price/` | `probe.js`, `drive.mjs`, `price-5r.json` |
 
 The 2026-10-19 dark-cost probe is in `bb9d9e9b-9766-49d7-acec-219284e93504/scratchpad/` (§5).
+
+### 8.7 Branch review follow-ups (2026-10-20)
+
+The branch review (main...68aecb8b) asked for these; behaviour is unchanged except where a line says otherwise.
+
+- **The cell module.** The cell model moved out of `globalFx.ts` (1 481 lines, now 1 184) into
+  `src/engine/audioEngine/bypassCell.ts`: `BypassKey`, `Cell`, `colourWetGain`, `cellGains`, `widthCellGains`,
+  `CHAIN_CUT_OPTIONS`, `COLOUR_RAMP_SECONDS`, `BYPASS_DISCONNECT_MARGIN_SECONDS`, `buildCell`, `writeCellMix`,
+  `connectEffect` / `disconnectEffect`, `getConnectedEffectCount` (re-exported by `globalFx.ts` for the diagnostics),
+  and the new `getCell`, `clearCells` and `wireCells`. The pure law tests moved to `bypassCell.test.ts`.
+- **One duck.** The Spread duck and the Stages duck were the same protocol written twice. They are now one per-cell
+  duck in `bypassCell.ts`: `duckCell(key, apply)` ramps the cell to dry over `DUCK_SECONDS` (0.02), runs `apply` from
+  `Tone.getContext().setTimeout` after lookAhead + 0.02 s + `DUCK_WRITE_MARGIN_SECONDS` (0.01), and ramps back to
+  `cell.mix`; `needsDuck(key)` is the old "connected, or a duck is in progress" test; `clearCells` cancels every duck
+  with the cells. `writeCellMix` checks `isDucked(key)` itself, so its `ramp` flag and `writeSpreadPedalWet` are gone.
+  The old names map as: `SPREAD_DUCK_SECONDS` / `SPREAD_WRITE_MARGIN_SECONDS` → `DUCK_SECONDS` /
+  `DUCK_WRITE_MARGIN_SECONDS`; `finishSpreadDuck` / `finishPhaserDuck` → `finishDuck`; `resetSpreadDucks` /
+  `resetPhaserDuck` → `clearCells` (plus `resetSpreadTargets` and `_phaserDuckStages = null` in
+  `buildGlobalFxChain`); `_spreadDuck` / `_phaserDuck` → `_ducks`. A failed apply now warns
+  `a ducked <key> change failed`. Seven mutants on the new seams, all killed.
+- **A half-built cell.** `buildCell` releases the Gains and cut it already made when a later constructor throws
+  (they leaked before; reachable only when a constructor fails).
+- **Comments.** `cellGains` now names the Mix 0.04 floor (item 12 of §8.0); `CHAIN_CUT_OPTIONS` counts twelve cuts.
