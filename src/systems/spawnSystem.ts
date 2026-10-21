@@ -28,11 +28,17 @@ import {
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ENVELOPE_TIME_MAX_SECONDS,
   SEND_STEP_PERCENT,
 } from '../constants';
-import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
+import {
+  EXCLUSIVE_SEND_FIELDS,
+  ROBOT_SEND_LOADING_RANGES,
+  SEND_FIELD_ROOM,
+  type ExclusiveSendField,
+  type RobotSendField,
+} from '../data/robotSendLoadingRanges';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
@@ -547,32 +553,67 @@ function composeSends(reverbRaw: number, delayRaw: number, quietRoll: number): {
 }
 
 /**
- * A robot's seeded reverb and delay depth (docs/specs/ROBOT_SENDS.md §1.2). Draws from the reverbSend and delaySend
- * rows of ROBOT_SEND_LOADING_RANGES (the old global Reverb / Delay `wet` loading rows, moved there by Robot Effect Sends
- * T1 without moving a value), under three dataIds of their own at `offset` = spawn count. About a quarter of the fleet draws no delay.
- * One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in both, so a
- * copied robot shares its sibling's voice but not its depth, and the two cannot drift.
+ * The three effect room sends from their uniform draws (docs/specs/ROBOT_EFFECT_SENDS.md assumption 7): in the order
+ * Grit -> Shimmer -> Double, a send lands when its roll is under its row's `lit`, unless an earlier one of the three
+ * already landed; a landed send is its value draw mapped into its band, on the 1 % grid. The rest are exactly 0. Both
+ * draws of every send are taken by the caller before this runs, so the draw set never depends on what lands.
  */
-export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): { reverbSend: number; delaySend: number } {
+function composeExclusiveSends(draw: Record<ExclusiveSendField, { roll: number; t: number }>): Record<ExclusiveSendField, number> {
+  const sends = { gritSend: 0, shimmerSend: 0, doubleSend: 0 };
+  let taken = false;
+  for (const field of EXCLUSIVE_SEND_FIELDS) {
+    const band = ROBOT_SEND_LOADING_RANGES[field];
+    if (draw[field].roll < band.lit && !taken) {
+      sends[field] = quantizeSend(band.min + draw[field].t * (band.max - band.min));
+      taken = true;
+    }
+  }
+  return sends;
+}
+
+/**
+ * A robot's five seeded sends (docs/specs/ROBOT_SENDS.md §1.2, docs/specs/ROBOT_EFFECT_SENDS.md §1.2), from
+ * ROBOT_SEND_LOADING_RANGES at `offset` = spawn count. Reverb and Delay keep the bell draws and the three dataIds Robot
+ * Sends shipped (the old global Reverb / Delay `wet` loading rows, moved to the send table by Robot Effect Sends T1
+ * without moving a value); about a quarter of the fleet draws no delay. The Grit, Shimmer and Double sends are uniform
+ * per-robot rolls, `robot.send.<room>.lit` and `robot.send.<room>`, every one read on every robot, at most one landing
+ * (composeExclusiveSends). One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in
+ * both, so a copied robot shares its sibling's voice but not its depths, and the two cannot drift.
+ */
+export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): Record<RobotSendField, number> {
   const reverb = ROBOT_SEND_LOADING_RANGES.reverbSend;
   const delay = ROBOT_SEND_LOADING_RANGES.delaySend;
-  return composeSends(
+  const firstTwo = composeSends(
     getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
     getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
     getSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
   );
+  const draw = (field: ExclusiveSendField) => {
+    const room = SEND_FIELD_ROOM[field];
+    return {
+      roll: getUniformSeededVal(noiseMap, `robot.send.${room}.lit`, offset),
+      t: getUniformSeededVal(noiseMap, `robot.send.${room}`, offset),
+    };
+  };
+  return { ...firstTwo, ...composeExclusiveSends({ gritSend: draw('gritSend'), shimmerSend: draw('shimmerSend'), doubleSend: draw('doubleSend') }) };
 }
 
 /** spawnRobot's no-noise-map path (a locale that does not exist yet): the same bands, drawn from alea as
- *  Volume's fallback is. Three draws, since the quiet roll needs its own. */
-function generateRobotSendsFallback(localeId: string, spawnCount: number): { reverbSend: number; delaySend: number } {
+ *  Volume's fallback is. Three draws for Reverb and Delay, since the quiet roll needs its own, then a roll and a value
+ *  for each effect room send (`sendGritLit`, `sendGrit`, ...). */
+function generateRobotSendsFallback(localeId: string, spawnCount: number): Record<RobotSendField, number> {
   const reverb = ROBOT_SEND_LOADING_RANGES.reverbSend;
   const delay = ROBOT_SEND_LOADING_RANGES.delaySend;
-  return composeSends(
+  const firstTwo = composeSends(
     reverb.min + alea(`${localeId}:${spawnCount}:sendReverb`)() * (reverb.max - reverb.min),
     delay.min + alea(`${localeId}:${spawnCount}:sendDelay`)() * (delay.max - delay.min),
     alea(`${localeId}:${spawnCount}:sendQuiet`)(),
   );
+  const draw = (name: string) => ({
+    roll: alea(`${localeId}:${spawnCount}:send${name}Lit`)(),
+    t: alea(`${localeId}:${spawnCount}:send${name}`)(),
+  });
+  return { ...firstTwo, ...composeExclusiveSends({ gritSend: draw('Grit'), shimmerSend: draw('Shimmer'), doubleSend: draw('Double') }) };
 }
 
 /**
@@ -601,6 +642,10 @@ export interface RobotAudioBaseline {
   /** Unconditional, like `name` — NOT inherited on the copy branch (a copied robot draws its own depth). */
   reverbSend: number;
   delaySend: number;
+  /** Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.1): unconditional too, at most one of the three above 0. */
+  gritSend: number;
+  shimmerSend: number;
+  doubleSend: number;
 }
 
 /**
@@ -917,12 +962,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     // draw, so a world's existing seeded values and its sound are unchanged.
     pan: 0,
     panAuto: true,
-    // Robot Sends (docs/specs/ROBOT_SENDS.md §1.2): always its own draw, even on the copy branch.
+    // Robot Sends (docs/specs/ROBOT_SENDS.md §1.2) and Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.2): all five,
+    // always their own draw, even on the copy branch.
     ...(noiseMap ? generateRobotSends(noiseMap, spawnCount) : generateRobotSendsFallback(localeId, spawnCount)),
-    // Robot Effect Sends: a placeholder at 0 until the seeded spread lands (docs/tasks/ROBOT_EFFECT_SENDS.md T7).
-    gritSend: 0,
-    shimmerSend: 0,
-    doubleSend: 0,
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',

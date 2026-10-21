@@ -34,10 +34,12 @@ import { chargingColorsKey, parseColorsKey } from '../components/stations/statio
 // other seeded draw the rest of this file's many tests depend on.
 vi.mock('../utils/getSeededVal', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/getSeededVal')>();
-  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal) };
+  // Robot Effect Sends T7: the uniform draw is wrapped too, so the effect room sends' rolls can be counted and forced.
+  // Its own inner getSeededVal samples are the real module's, so they never show up on the getSeededVal spy above.
+  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal), getUniformSeededVal: vi.fn(actual.getUniformSeededVal) };
 });
 
-import { getSeededVal } from '../utils/getSeededVal';
+import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 
 // Real stations by default; the port-vs-centre and overfill tests swap in their own.
 vi.mock('./stations', async (importOriginal) => {
@@ -50,6 +52,15 @@ const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
 
 /** Deterministic mock: always returns -1, mapping every getSeededVal call to its min value. */
 const deterministicNoiseMap: NoiseFunction2D = () => -1;
+
+/** The Reverb and Delay pair of a robot's sends (the two Robot Sends shipped; Robot Effect Sends adds three more). */
+const reverbAndDelay = (sends: { reverbSend: number; delaySend: number }) => ({ reverbSend: sends.reverbSend, delaySend: sends.delaySend });
+/** The three effect room sends of a robot or a generateRobotSends result (Robot Effect Sends T7). */
+const effectSends = (sends: { gritSend: number; shimmerSend: number; doubleSend: number }) => ({
+  gritSend: sends.gritSend,
+  shimmerSend: sends.shimmerSend,
+  doubleSend: sends.doubleSend,
+});
 
 // ========================================
 // TESTS
@@ -758,8 +769,8 @@ describe('spawnSystem', () => {
     });
 
     it('hits the band edges exactly: the lowest noise gives reverb 0.1 and a quiet delay, the highest gives reverb 0.6 and delay 0.3', () => {
-      expect(generateRobotSends(() => -1, 0)).toEqual({ reverbSend: 0.1, delaySend: 0 });
-      expect(generateRobotSends(() => 1, 0)).toEqual({ reverbSend: 0.6, delaySend: 0.3 });
+      expect(reverbAndDelay(generateRobotSends(() => -1, 0))).toEqual({ reverbSend: 0.1, delaySend: 0 });
+      expect(reverbAndDelay(generateRobotSends(() => 1, 0))).toEqual({ reverbSend: 0.6, delaySend: 0.3 });
     });
 
     // Classic Band Retune T5 (row 15): the reverb send band widened from 0.1-0.4 to 0.1-0.6 for more contrast between a dry
@@ -787,14 +798,14 @@ describe('spawnSystem', () => {
 
     it('a quiet delay never touches the reverb draw', async () => {
       await forceDraws({ reverb: 0.37, delay: 0.2, quiet: 0 });
-      expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.37, delaySend: 0 });
+      expect(reverbAndDelay(generateRobotSends(realNoise, 0))).toEqual({ reverbSend: 0.37, delaySend: 0 });
     });
 
     it('quantizes in percent space to the nearest whole percent', async () => {
       await forceDraws({ reverb: 0.3449, delay: 0.1051, quiet: 1 });
-      expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.34, delaySend: 0.11 });
+      expect(reverbAndDelay(generateRobotSends(realNoise, 0))).toEqual({ reverbSend: 0.34, delaySend: 0.11 });
       await forceDraws({ reverb: 0.3451, delay: 0.1049, quiet: 1 });
-      expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.35, delaySend: 0.1 });
+      expect(reverbAndDelay(generateRobotSends(realNoise, 0))).toEqual({ reverbSend: 0.35, delaySend: 0.1 });
     });
 
     it('reads the robot send table - the reverbSend and delaySend rows - for its bands', () => {
@@ -854,6 +865,156 @@ describe('spawnSystem', () => {
       expect(quiet / total).toBeGreaterThan(0.1);
       expect(quiet / total).toBeLessThan(0.3);
     });
+  });
+
+  // Robot Effect Sends T7 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 7, §1.2): the three effect room sends are uniform
+  // per-robot rolls in the order Grit -> Shimmer -> Double, at most one landing; every roll and value key is read on every
+  // robot, so the draw set never depends on the outcome.
+  describe('generateRobotSends - the three effect room sends (Robot Effect Sends T7)', () => {
+    const realNoise = createNoise2D(alea('effect-sends-test-seed'));
+    const onGrid = (x: number) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
+    const BANDS = ROBOT_SEND_LOADING_RANGES;
+    const EXCLUSIVE = ['gritSend', 'shimmerSend', 'doubleSend'] as const;
+
+    afterEach(async () => {
+      const { getUniformSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getUniformSeededVal).mockImplementation(real);
+    });
+
+    /** Force each uniform roll / value draw by dataId; any other uniform draw stays real. */
+    async function forceUniform(draws: Record<string, number>) {
+      const { getUniformSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset) =>
+        dataId in draws ? draws[dataId] : real(noiseMap, dataId, offset),
+      );
+    }
+
+    it('returns all five sends', () => {
+      expect(Object.keys(generateRobotSends(realNoise, 3)).sort()).toEqual(['delaySend', 'doubleSend', 'gritSend', 'reverbSend', 'shimmerSend']);
+    });
+
+    it('seeds each of the three at exactly 0 or inside its band on the 1 % grid, and never two on one robot, over 400 offsets', () => {
+      const landed = { gritSend: 0, shimmerSend: 0, doubleSend: 0 };
+      for (let offset = 0; offset < 400; offset++) {
+        const sends = generateRobotSends(realNoise, offset);
+        const carried = EXCLUSIVE.filter((field) => sends[field] !== 0);
+        expect(carried.length, `offset ${offset}`).toBeLessThanOrEqual(1);
+        for (const field of carried) {
+          landed[field] += 1;
+          expect(sends[field], `${field} at ${offset}`).toBeGreaterThanOrEqual(BANDS[field].min);
+          expect(sends[field], `${field} at ${offset}`).toBeLessThanOrEqual(BANDS[field].max);
+          expect(onGrid(sends[field]), `${field} ${sends[field]}`).toBe(true);
+        }
+      }
+      // All three reachable (a loose bound; the calibration below pins the shares).
+      for (const field of EXCLUSIVE) expect(landed[field], field).toBeGreaterThan(20);
+    });
+
+    it('is deterministic for a noise map and offset', () => {
+      for (let offset = 0; offset < 30; offset++) {
+        expect(generateRobotSends(realNoise, offset)).toEqual(generateRobotSends(realNoise, offset));
+      }
+    });
+
+    it('reads every roll and value key at the offset on every robot, whatever lands', () => {
+      const KEYS = ['robot.send.grit.lit', 'robot.send.grit', 'robot.send.shimmer.lit', 'robot.send.shimmer', 'robot.send.double.lit', 'robot.send.double'];
+      for (let offset = 0; offset < 60; offset++) {
+        vi.mocked(getUniformSeededVal).mockClear();
+        generateRobotSends(realNoise, offset);
+        const calls = vi.mocked(getUniformSeededVal).mock.calls;
+        expect(calls.map((c) => c[1]).sort(), `offset ${offset}`).toEqual([...KEYS].sort());
+        expect(calls.every((c) => c[2] === offset), `offset ${offset}`).toBe(true);
+      }
+    });
+
+    it('lands the first roll under its edge, Grit before Shimmer, and caps the rest: a later landing roll is dropped', async () => {
+      await forceUniform({
+        'robot.send.grit.lit': 0.1, 'robot.send.grit': 0.5,
+        'robot.send.shimmer.lit': 0.05, 'robot.send.shimmer': 0.5,
+        'robot.send.double.lit': 0.01, 'robot.send.double': 0.5,
+      });
+      expect(effectSends(generateRobotSends(realNoise, 0))).toEqual({ gritSend: 0.6, shimmerSend: 0, doubleSend: 0 });
+    });
+
+    it('a Grit roll at or over its edge lets the Shimmer land, and the Shimmer then caps the Double', async () => {
+      await forceUniform({
+        'robot.send.grit.lit': BANDS.gritSend.lit, 'robot.send.grit': 0.5,
+        'robot.send.shimmer.lit': 0.05, 'robot.send.shimmer': 0,
+        'robot.send.double.lit': 0.01, 'robot.send.double': 0.5,
+      });
+      expect(effectSends(generateRobotSends(realNoise, 0))).toEqual({ gritSend: 0, shimmerSend: 0.2, doubleSend: 0 });
+    });
+
+    it('lands the Double alone when only its roll is under its edge, at the top of its band', async () => {
+      await forceUniform({
+        'robot.send.grit.lit': 0.9, 'robot.send.grit': 0.5,
+        'robot.send.shimmer.lit': 0.9, 'robot.send.shimmer': 0.5,
+        'robot.send.double.lit': 0.18, 'robot.send.double': 0.9999,
+      });
+      expect(effectSends(generateRobotSends(realNoise, 0))).toEqual({ gritSend: 0, shimmerSend: 0, doubleSend: 0.6 });
+    });
+
+    it('lands nothing when every roll is over its edge', async () => {
+      await forceUniform({ 'robot.send.grit.lit': 0.99, 'robot.send.shimmer.lit': 0.99, 'robot.send.double.lit': 0.99 });
+      expect(effectSends(generateRobotSends(realNoise, 0))).toEqual({ gritSend: 0, shimmerSend: 0, doubleSend: 0 });
+    });
+
+    it('maps a value draw linearly into its band and quantises to the nearest whole percent', async () => {
+      for (const [t, expected] of [[0, 0.4], [0.25, 0.5], [0.4937, 0.6], [0.4938, 0.6], [0.5063, 0.6], [0.5063 + 0.0126, 0.61]] as const) {
+        await forceUniform({ 'robot.send.grit.lit': 0, 'robot.send.grit': t });
+        expect(generateRobotSends(realNoise, 0).gritSend, `t ${t}`).toBeCloseTo(expected, 12);
+      }
+    });
+
+    it('takes its edges and bands from the robot send table', async () => {
+      const original = { ...BANDS.shimmerSend };
+      try {
+        BANDS.shimmerSend.lit = 0.9;
+        BANDS.shimmerSend.min = 0.1;
+        BANDS.shimmerSend.max = 0.3;
+        await forceUniform({ 'robot.send.grit.lit': 0.99, 'robot.send.shimmer.lit': 0.85, 'robot.send.shimmer': 1 });
+        expect(generateRobotSends(realNoise, 0).shimmerSend).toBeCloseTo(0.3, 12);
+      } finally {
+        Object.assign(BANDS.shimmerSend, original);
+      }
+    });
+
+    it('keeps the Reverb and Delay draws exactly as they were (the T1 parity test pins their values)', () => {
+      vi.mocked(getSeededVal).mockClear();
+      generateRobotSends(realNoise, 5);
+      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb']);
+    });
+
+    // Calibration (spec §5, plan T7): 150 worlds x 12 robots. The nominal shares, with the one-of-three cap taking
+    // robots from the later rolls, are Grit 0.21, Shimmer 0.79 x 0.16 = 0.1264, Double 0.79 x 0.84 x 0.19 = 0.1261, so
+    // 2.52 / 1.52 / 1.51 per fleet of twelve (the spec's 1.4 for the Double was a slip). Measured 2026-10-21 on these 150
+    // worlds: Grit 2.50, Shimmer 1.62, Double 1.55 per fleet, no Grit robot at all in 7.3 % of fleets; on 2 000 other
+    // worlds ('effect-sends-big-<n>'): 2.53 / 1.52 / 1.51 and 6.0 % (binomial 0.79^12 = 5.9 %). The pins are the
+    // test-set figures, held to within 0.4.
+    it('lands about the nominal count of each per fleet of twelve, over 150 worlds', () => {
+      const WORLDS = 150;
+      const FLEET = 12;
+      const totals = { gritSend: 0, shimmerSend: 0, doubleSend: 0 };
+      let noGrit = 0;
+      for (let w = 0; w < WORLDS; w++) {
+        const noiseMap = createNoise2D(alea(`effect-sends-calibration-${w}`));
+        let grit = 0;
+        for (let i = 0; i < FLEET; i++) {
+          const sends = generateRobotSends(noiseMap, i);
+          for (const field of EXCLUSIVE) if (sends[field] > 0) totals[field] += 1;
+          if (sends.gritSend > 0) grit += 1;
+        }
+        if (grit === 0) noGrit += 1;
+      }
+      const mean = (field: (typeof EXCLUSIVE)[number]) => totals[field] / WORLDS;
+      expect(Math.abs(mean('gritSend') - CALIBRATED_MEANS.gritSend)).toBeLessThanOrEqual(0.4);
+      expect(Math.abs(mean('shimmerSend') - CALIBRATED_MEANS.shimmerSend)).toBeLessThanOrEqual(0.4);
+      expect(Math.abs(mean('doubleSend') - CALIBRATED_MEANS.doubleSend)).toBeLessThanOrEqual(0.4);
+      // The share of fleets with no Grit robot at all: recorded above (7.3 %), held loosely here.
+      expect(noGrit / WORLDS).toBeGreaterThan(0.02);
+      expect(noGrit / WORLDS).toBeLessThan(0.15);
+    });
+    const CALIBRATED_MEANS = { gritSend: 2.5, shimmerSend: 1.62, doubleSend: 1.55 };
   });
 
   describe('spawnRobot', () => {
@@ -1074,16 +1235,83 @@ describe('spawnSystem', () => {
         }
       });
 
-      // Robot Effect Sends T5: the three effect room sends exist on every robot from spawn. They seed 0 until the seeded
-      // spread lands (plan T7), which replaces this expectation.
-      it('gives every spawned robot the three effect room sends, at 0 until the seeded spread lands', () => {
-        freshLocale('effect-sends-placeholder-locale');
-        for (let i = 0; i < 6; i++) spawnRobot('effect-sends-placeholder-locale');
-        const robots = useLocaleStore.getState().getLocaleById('effect-sends-placeholder-locale')!.robots;
-        expect(robots).toHaveLength(6);
-        for (const robot of robots) {
-          expect([robot.gritSend, robot.shimmerSend, robot.doubleSend], robot.id).toEqual([0, 0, 0]);
+      // Robot Effect Sends T7 (spec §1.2): the three effect room sends are seeded at spawn from the same helper, outside
+      // the copy branch; at most one lands on a robot.
+      it('gives robot N the three effect room sends generateRobotSends draws at offset N, never two on one robot', () => {
+        freshLocale('effect-sends-spawn-locale');
+        for (let i = 0; i < 60; i++) spawnRobot('effect-sends-spawn-locale');
+        const noiseMap = noiseFor('effect-sends-spawn-locale');
+        const robots = useLocaleStore.getState().getLocaleById('effect-sends-spawn-locale')!.robots;
+        robots.forEach((robot, i) => {
+          expect(effectSends(robot), `robot ${i}`).toEqual(effectSends(generateRobotSends(noiseMap, i)));
+          expect([robot.gritSend, robot.shimmerSend, robot.doubleSend].filter((s) => s > 0).length, `robot ${i}`).toBeLessThanOrEqual(1);
+        });
+        expect(robots.some((r) => r.gritSend > 0 || r.shimmerSend > 0 || r.doubleSend > 0)).toBe(true);
+      });
+
+      it('spawns the same effect room sends twice for the same locale', () => {
+        const coords = { x: 3.25, y: -11.5 };
+        freshLocale('effect-sends-det-a', coords);
+        freshLocale('effect-sends-det-b', coords);
+        for (let i = 0; i < 24; i++) {
+          spawnRobot('effect-sends-det-a');
+          spawnRobot('effect-sends-det-b');
         }
+        const pick = (id: string) => useLocaleStore.getState().getLocaleById(id)!.robots.map(effectSends);
+        expect(pick('effect-sends-det-a')).toEqual(pick('effect-sends-det-b'));
+      });
+
+      it('equals the baseline for every robot of a real roster, copied siblings included, all five sends', () => {
+        freshLocale('effect-sends-baseline-locale');
+        spawnInitialRoster('effect-sends-baseline-locale');
+        const robots = useLocaleStore.getState().getLocaleById('effect-sends-baseline-locale')!.robots;
+        const baselines = generateRobotRosterBaseline(noiseFor('effect-sends-baseline-locale'), robots.length);
+        expect(robots.length).toBeGreaterThan(0);
+        robots.forEach((robot, i) => {
+          expect({ ...reverbAndDelay(baselines[i]), ...effectSends(baselines[i]) }, `robot ${i}`).toEqual({
+            ...reverbAndDelay(robot),
+            ...effectSends(robot),
+          });
+        });
+      });
+
+      it('draws its own effect room sends on the copy branch, as the baseline does', async () => {
+        freshLocale('effect-sends-copy-locale');
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) =>
+          dataId === 'robot.copyChance' ? 0 : realGetSeededVal(noiseMap, dataId, offset, min, max));
+        try {
+          for (let i = 0; i < 30; i++) spawnRobot('effect-sends-copy-locale');
+        } finally {
+          mocked.mockImplementation(realGetSeededVal);
+        }
+        const noiseMap = noiseFor('effect-sends-copy-locale');
+        const robots = useLocaleStore.getState().getLocaleById('effect-sends-copy-locale')!.robots;
+        const baselines = generateRobotRosterBaseline(noiseMap, robots.length);
+        robots.forEach((robot, i) => {
+          expect(effectSends(robot), `robot ${i}`).toEqual(effectSends(generateRobotSends(noiseMap, i)));
+        });
+        expect(new Set(robots.map((r) => `${r.gritSend}/${r.shimmerSend}/${r.doubleSend}`)).size).toBeGreaterThan(1);
+        expect(baselines).toHaveLength(robots.length);
+      });
+
+      it('with no locale (no noise map) falls back to alea: each effect send 0 or in its band, never two on one robot', () => {
+        const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+        for (let i = 0; i < 200; i++) spawnRobot(`effect-sends-no-locale-${i}`);
+        const sent = sendsSpy.mock.calls.map((c) => c[1] as Record<'grit' | 'shimmer' | 'double', number>);
+        expect(sent).toHaveLength(200);
+        const bands = { grit: ROBOT_SEND_LOADING_RANGES.gritSend, shimmer: ROBOT_SEND_LOADING_RANGES.shimmerSend, double: ROBOT_SEND_LOADING_RANGES.doubleSend };
+        for (const s of sent) {
+          const carried = (['grit', 'shimmer', 'double'] as const).filter((k) => s[k] > 0);
+          expect(carried.length).toBeLessThanOrEqual(1);
+          for (const k of carried) {
+            expect(s[k]).toBeGreaterThanOrEqual(bands[k].min);
+            expect(s[k]).toBeLessThanOrEqual(bands[k].max);
+            expect(onGrid(s[k])).toBe(true);
+          }
+        }
+        for (const k of ['grit', 'shimmer', 'double'] as const) expect(sent.some((s) => s[k] > 0), k).toBe(true);
       });
 
       it('gives robot N exactly what generateRobotSends draws at offset N - the stored value is the helper\'s, not a re-roll', () => {
@@ -1093,7 +1321,7 @@ describe('spawnSystem', () => {
         const noiseMap = noiseFor('sends-offset-locale');
         const robots = useLocaleStore.getState().getLocaleById('sends-offset-locale')!.robots;
         robots.forEach((robot, i) => {
-          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(generateRobotSends(noiseMap, i));
+          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(reverbAndDelay(generateRobotSends(noiseMap, i)));
         });
       });
 
@@ -1137,7 +1365,7 @@ describe('spawnSystem', () => {
         // A copy really happened: every later robot reuses an earlier robot's audioAttributes by reference.
         expect(robots.slice(1).every((r) => robots.some((o) => o !== r && o.audioAttributes === r.audioAttributes))).toBe(true);
         robots.forEach((robot, i) => {
-          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(generateRobotSends(noiseMap, i));
+          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(reverbAndDelay(generateRobotSends(noiseMap, i)));
         });
         // ...and they are not simply the first robot's sends repeated.
         expect(new Set(robots.map((r) => `${r.reverbSend}/${r.delaySend}`)).size).toBeGreaterThan(1);
@@ -2891,7 +3119,11 @@ describe('spawnSystem', () => {
     // Robot Sends T5 (docs/specs/ROBOT_SENDS.md section 1.2): the baseline gains the two sends, drawn by the
     // same helper as spawnRobot and OUTSIDE the copy branch, so "live differs from seed" is exact.
     describe('sends (Robot Sends T5)', () => {
-      const sendsOf = (x: { reverbSend: number; delaySend: number }) => ({ reverbSend: x.reverbSend, delaySend: x.delaySend });
+      // Robot Effect Sends T7: all five sends.
+      const sendsOf = (x: { reverbSend: number; delaySend: number; gritSend: number; shimmerSend: number; doubleSend: number }) => ({
+        ...reverbAndDelay(x),
+        ...effectSends(x),
+      });
       const freshLocale = (localeId: string) =>
         useLocaleStore.setState((state) => ({
           locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
