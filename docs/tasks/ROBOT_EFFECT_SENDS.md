@@ -26,7 +26,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > **Status, 2026-10-21: Phase 2 (T9–T11) BUILT**, one commit per task (`0bc261ce`, `67941c69`, `483d7730`). Types and
 > lint are clean; the full suite is 13 708 green plus the documented `sceneToOrbiterLocal` 5 s timeout. **Next:
 > Checkpoint B** — the dev-server by-ear checks and Crawford's review, before Phase 3. Deviations are under "Phase 2 as
-> shipped" after Checkpoint B.
+> shipped" after Checkpoint B. Checkpoint B passed (Crawford, 2026-10-21); next is Phase 3, T12.
 
 ## Overview
 
@@ -408,9 +408,9 @@ handlers through the actions (the swell cancel is added in T13).
 ### Checkpoint B: One robot, end to end
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `483d7730`: 13 708 tests plus the documented
   `sceneToOrbiterLocal` timeout, which passes alone; lint 0 errors).
-- [ ] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
+- [x] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
   robot brings the shifter in with no click; Delay-side behaviour unchanged.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3 (looked and listened, approved 2026-10-21).
 
 #### Phase 2 as shipped (2026-10-21)
 
