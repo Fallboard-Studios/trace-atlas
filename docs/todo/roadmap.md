@@ -2122,3 +2122,46 @@ readout. As built, in [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#scene-stack--
   strips against the one sheet they replaced) is untested by the gate.
 - **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
   is unverified.
+
+## 54. Output Headroom: No Clipping Out of the Box
+
+Raised by Crawford at Robot Effect Sends Checkpoint A, 2026-10-21: a world "is distorting a lot - not dropping out, the gain
+is too high. i think we need to compress things more out of the box." Promoted straight to the roadmap rather than the
+backlog ("quality is paramount"). **Status: not started.** It starts with an interview (intent), then spec and plan.
+
+### About
+
+Measured on `feature/robot-effect-sends` (Phase 1, `0de3fc06`), world `56c2t2t8` at (-116, -2) loaded fresh (no session
+edits), headless Chrome on the desktop, reading the `?debug` HUD's output line (`out` = master peak and RMS, `pre` = the
+peak after the EQ, before the Compressor and before any room):
+
+- **The master output clips.** `out` peaks reached +2.2 to +3.4 dB and sat above 0 dBFS in 11-22 % of readings (150 per
+  side, eight alternating 5 s windows). Above 0 dBFS the browser hard-clips, which is the crunch.
+- **The fleet's summed dry signal is already hot before any effect.** `pre` peaked at +12 to +13 dB and averaged +1.6 to
+  +2.3 dB, with the EQ boosting all three bands (+3.5 / +3.5 / +1.9 dB in this world) and twelve robots at Volume 0.70-0.81.
+- **Robot Effect Sends is not the cause.** With the three new room Returns at 0 the output clipped as often (33 of 151
+  readings against 17 of 152 with them on; the difference is within the music's own drift). The `pre` tap sits upstream of
+  everything 50.7 changed. Not yet measured on `main`, so whether the level moved with the Classic Band Retune (EQ and
+  Compressor bands) is open.
+
+Why "compress more" alone may not fix it: the Web Audio compressor applies automatic makeup gain (the Classic Band Retune
+found the old deep, high-ratio band swung fleet loudness by about 11 dB), so a deeper threshold can raise the average level
+instead of lowering it. Tone's `Limiter` is the same compressor at 20:1 with a 3 ms attack and 10 ms release, makeup gain
+included, so it is not a hard ceiling: peaks pass it, and at a deep threshold (Crawford's session had -17 dB, against a
+seeded -3 to -1) it works on everything, and a 10 ms release on low notes adds grit of its own.
+
+Options on the table for the interview (the first is the recommendation from the measurement):
+
+1. **Headroom plus a real ceiling.** A fixed trim into the chain so the summed fleet sits below 0 dBFS (about 10-12 dB, from
+   the `pre` peaks), and a true safety ceiling at the end: compensate the Limiter's makeup gain, or a gentle final clipper.
+2. **More compression out of the box** (Crawford's first suggestion): deeper seeded Compressor threshold and ratio. Cheap,
+   but makeup gain may keep the output clipping.
+3. **Lower seeded robot Volumes.** Fewer moving parts; leaves the leaky ceiling as it is.
+
+### Open
+
+- Whether this preempts Robot Effect Sends Phase 2 (T9 onward) or follows the 50.7 merge.
+- Whether the session's Limiter at -17 dB was set by hand.
+- A `main` measurement in the same sitting, to say whether the level is new.
+- The probe used (a CDP script driving the HUD, alternating settings live through the app's store) lived in a session
+  scratchpad; worth adding under `scripts/perf/` when this item starts, beside `audio-load.mjs`.
