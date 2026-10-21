@@ -236,7 +236,7 @@ export const fleet = {
         + '<li><strong>Chebyshev</strong>: adds extra overtones on top of the sound, from a faint shimmer to a bright, buzzy edge.</li>'
         + '<li><strong>Bit Crusher</strong>: throws away detail from the sound, making it grainy and lo-fi, like an old digital recording.</li>'
         + '</ul>'
-        + '<p>Each effect has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. They act on the fleet’s direct sound; Reverb and Delay echoes stay clean. Every new world starts with a little of one effect, or none.</p>',
+        + '<p>The three effects share one room that a probe sends into, rather than a stage every probe passes through: each probe’s own <strong>Grit</strong> slider decides how much of its sound goes in, and a probe at 0% stays clean. Each effect has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect the room carries. Reverb and Delay echoes stay clean. Every new world starts with a little of one effect, or none, and gives a few probes some Grit.</p>',
     },
   },
   'fleet.distortion': { human: 'Distortion', lore: 'Carrier Bleed', heading: 'CARRIER BLEED STAGE' },
@@ -291,7 +291,7 @@ export const fleet = {
         + '<li><strong>Vibrato</strong>: the pitch wobbles gently up and down, like a singer holding a note.</li>'
         + '<li><strong>Shifter</strong>: moves every frequency up or down by the same few hertz, so the notes ring and beat strangely against each other.</li>'
         + '</ul>'
-        + '<p>Each pedal has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. The <strong>Rate</strong> of the Phaser, Chorus, Tremolo and Vibrato can run Free, in hertz, or in Sync, as a note length that follows the Tempo. They act on the fleet’s direct sound; Reverb and Delay echoes stay clean. Every new world starts with a little of up to two pedals, or none.</p>',
+        + '<p>The Auto Wah, Phaser, Tremolo and Vibrato act on the fleet’s direct sound, and each has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect you hear. The Chorus and Shifter are rooms a probe sends into rather than stages every probe passes through: each probe’s own <strong>Double</strong> and <strong>Shimmer</strong> sliders decide how much of its sound goes in, and each room’s <strong>Return</strong> slider sets how loud it is as heard from every probe. The <strong>Rate</strong> of the Phaser, Chorus, Tremolo and Vibrato can run Free, in hertz, or in Sync, as a note length that follows the Tempo. Reverb and Delay echoes stay clean. Every new world starts with a little of up to two pedals, or none, and gives a few probes some Shimmer or Double.</p>',
     },
   },
   'fleet.autoWah': { human: 'Auto Wah', lore: 'Pressure Sweep', heading: 'PRESSURE SWEEP STAGE' },
@@ -400,10 +400,11 @@ export const fleet = {
     lore: 'Current Return',
     help: { human: 'How much of the chorus copy is fed back into itself. At 0 it is a plain chorus; raise it for a metallic, jet-like flange.' },
   },
+  // The Chorus is a room now (docs/specs/ROBOT_EFFECT_SENDS.md assumptions 4 and 14): this row is its Return.
   'fleet.chorus.mix': {
-    human: 'Mix',
+    human: 'Return',
     lore: 'Current Ratio',
-    help: { human: 'How much of the chorus copy is blended in with the original. At 0 the sound is unchanged; raise it to hear the shimmer.' },
+    help: { human: 'How loud the whole Chorus is, as heard from every probe. Each probe’s own Double slider decides how much of it that probe sends in. 0 silences the room.' },
   },
   'fleet.tremolo': { human: 'Tremolo', lore: 'Pulse Fade', heading: 'PULSE FADE STAGE' },
   'fleet.tremolo.rate': {
@@ -452,10 +453,11 @@ export const fleet = {
     unit: 'Hz',
     help: { human: 'How many hertz every frequency is moved. At 0 nothing moves; above 0 everything slides up, below 0 everything slides down. A few hertz gives a slow, beating ring; hundreds give a clangy, metallic sound.' },
   },
+  // The Shifter is a room now (docs/specs/ROBOT_EFFECT_SENDS.md assumptions 4 and 14): this row is its Return.
   'fleet.frequencyShifter.mix': {
-    human: 'Mix',
+    human: 'Return',
     lore: 'Slip Ratio',
-    help: { human: 'How much of the shifted sound is blended in with the original. At 0 the sound is unchanged; raise it to hear the ring.' },
+    help: { human: 'How loud the whole Shifter is, as heard from every probe. Each probe’s own Shimmer slider decides how much of it that probe sends in. 0 silences the room.' },
   },
 
   // ---------------------------------------------------------------- Output

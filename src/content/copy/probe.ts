@@ -153,7 +153,7 @@ export const probe = {
     intro: {
       lore: 'Levels — this probe’s signal strength.',
       loreDescription: 'Fine-tune how loudly this probe transmits, or silence it from the mesh entirely.',
-      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats. Dynamics sets how much louder and softer this probe’s notes swing from one to the next — 0% plays every note at the same level.',
+      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats. Grit, Shimmer and Double send it into the shared Colour, Shifter and Chorus — 0% keeps it out of them, higher settings give it more fuzz, ring and doubling. Dynamics sets how much louder and softer this probe’s notes swing from one to the next — 0% plays every note at the same level.',
     },
   },
   'probe.monitorMode': {
@@ -196,6 +196,25 @@ export const probe = {
     lore: 'Retrace Depth',
     unit: '%',
     help: { human: 'How much of this probe’s sound is sent into the shared Delay. 0% gives it no repeats at all; higher settings give it louder, longer-trailing repeats.' },
+  },
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_EFFECT_SENDS.md assumption 15).
+  'probe.gritSend': {
+    human: 'Grit',
+    lore: 'Carrier Bleed Send',
+    unit: '%',
+    help: { human: 'How much of this probe’s sound is sent into the shared Colour room, where the Distortion, Chebyshev and Bit Crusher wear it down. 0% keeps the probe out of the room entirely; higher settings give it more fuzz and grain.' },
+  },
+  'probe.shimmerSend': {
+    human: 'Shimmer',
+    lore: 'Band Slip Send',
+    unit: '%',
+    help: { human: 'How much of this probe’s sound is sent into the shared Shifter, which moves every frequency by the same few hertz so the notes ring and beat. 0% keeps the probe out of the Shifter entirely; higher settings give it more of the ring.' },
+  },
+  'probe.doubleSend': {
+    human: 'Double',
+    lore: 'Twin Current Send',
+    unit: '%',
+    help: { human: 'How much of this probe’s sound is sent into the shared Chorus, a doubled, slightly wavering copy that makes it sound wider. 0% keeps the probe out of the Chorus entirely; higher settings double it more strongly.' },
   },
   // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14). The human
   // word clashes with the nav row above ('probe.dynamics', "Dynamics / Output") — one key to rename (spec §7).

@@ -229,8 +229,10 @@ describe('help coverage — probe and company controls', () => {
 
 const OLD_BLEND_PHRASE = /blended in with the original sound/i;
 
+const SEND_KEYS = ['probe.reverbSend', 'probe.delaySend', 'probe.gritSend', 'probe.shimmerSend', 'probe.doubleSend'] as const;
+
 describe('robot sends copy', () => {
-  it.each(['probe.reverbSend', 'probe.delaySend'] as const)('%s exists with a name, a lore word, a percent unit and help, and is read by a schema', (key) => {
+  it.each(SEND_KEYS)('%s exists with a name, a lore word, a percent unit and help, and is read by a schema', (key) => {
     const entry = CONTENT[key] as ContentEntry;
     expect(entry.human.trim()).toBeTruthy();
     expect(entry.lore?.trim()).toBeTruthy();
@@ -239,9 +241,46 @@ describe('robot sends copy', () => {
     expect(isReferenced(key)).toBe(true);
   });
 
-  it('the two sends carry distinct names and distinct help (never one shared description)', () => {
-    expect(CONTENT['probe.reverbSend'].human).not.toBe(CONTENT['probe.delaySend'].human);
-    expect(CONTENT['probe.reverbSend'].help?.human).not.toBe(CONTENT['probe.delaySend'].help?.human);
+  it('the five sends carry distinct names, lore words and help (never one shared description)', () => {
+    expect(new Set(SEND_KEYS.map((k) => CONTENT[k].human)).size).toBe(5);
+    expect(new Set(SEND_KEYS.map((k) => CONTENT[k].lore)).size).toBe(5);
+    expect(new Set(SEND_KEYS.map((k) => CONTENT[k].help?.human)).size).toBe(5);
+  });
+
+  // docs/specs/ROBOT_EFFECT_SENDS.md assumptions 4 and 14: the Chorus and Shifter Mix rows are Returns now - how loud
+  // the room is as heard from every probe - so they say what the Reverb and Delay Amounts say, and name the probe
+  // send that decides how much goes in.
+  it.each([
+    { key: 'fleet.chorus.mix', send: 'probe.doubleSend' },
+    { key: 'fleet.frequencyShifter.mix', send: 'probe.shimmerSend' },
+  ] as const)('$key keeps its key and reads as the room return, not a blend', ({ key, send }) => {
+    const entry = CONTENT[key] as ContentEntry;
+    const help = entry.help?.human ?? '';
+    expect(entry.human).toBe('Return');
+    expect(help).not.toMatch(/blended in with the original/i);
+    expect(help.toLowerCase()).toContain('every probe');
+    expect(help).toContain(CONTENT[send].human);
+    expect(help).toMatch(/\b0\b/);
+    expect(help.toLowerCase()).toMatch(/silence/);
+  });
+
+  it('the two Returns share a name but keep their own lore and help', () => {
+    const returns = ['fleet.chorus.mix', 'fleet.frequencyShifter.mix'] as const;
+    expect(CONTENT[returns[0]].lore).not.toBe(CONTENT[returns[1]].lore);
+    expect(CONTENT[returns[0]].help?.human).not.toBe(CONTENT[returns[1]].help?.human);
+  });
+
+  it('the Colour intro says the trio is a room a probe sends into with its Grit, not a stage on the direct sound', () => {
+    const description = introProps('fleet.colour').humanDescription;
+    expect(description).toContain(`<strong>${CONTENT['probe.gritSend'].human}</strong>`);
+    expect(description).not.toMatch(/act on the fleet’s direct sound/);
+  });
+
+  it('the Modulation intro says the Chorus and Shifter are rooms fed by Double and Shimmer, with a Return each', () => {
+    const description = introProps('fleet.modulation').humanDescription;
+    expect(description).toContain(`<strong>${CONTENT['probe.doubleSend'].human}</strong>`);
+    expect(description).toContain(`<strong>${CONTENT['probe.shimmerSend'].human}</strong>`);
+    expect(description).toContain(`<strong>${CONTENT['fleet.chorus.mix'].human}</strong>`);
   });
 
   it.each(['fleet.reverb.amount', 'fleet.delay.amount'] as const)('%s keeps its key and reads as the master return, not a blend', (key) => {
@@ -574,8 +613,11 @@ const SHARED_NAME_SETS = [
   ['fleet.phaser.rate', 'fleet.chorus.rate', 'fleet.tremolo.rate', 'fleet.vibrato.rate'],
   ['fleet.chorus.depth', 'fleet.tremolo.depth', 'fleet.vibrato.depth'],
   ['fleet.chorus.spread', 'fleet.tremolo.spread'],
-  ['fleet.autoWah.mix', 'fleet.phaser.mix', 'fleet.chorus.mix', 'fleet.tremolo.mix', 'fleet.vibrato.mix', 'fleet.frequencyShifter.mix'],
+  ['fleet.autoWah.mix', 'fleet.phaser.mix', 'fleet.tremolo.mix', 'fleet.vibrato.mix'],
+  // The two rooms' Returns (docs/specs/ROBOT_EFFECT_SENDS.md assumption 14).
+  ['fleet.chorus.mix', 'fleet.frequencyShifter.mix'],
 ] as const;
+const ROOM_RETURNS: readonly string[] = ['fleet.chorus.mix', 'fleet.frequencyShifter.mix'];
 
 describe('global pedals copy', () => {
   it('the five headings and the sixteen parameters all exist', () => {
@@ -623,8 +665,10 @@ describe('global pedals copy', () => {
     }
   });
 
-  it('the spec names: Mix, Rate, Delay, Shift and Width', () => {
-    for (const k of PEDAL_PARAMS.filter((p) => p.endsWith('.mix'))) expect(CONTENT[k as ContentKey].human, k).toBe('Mix');
+  it('the spec names: Mix (Return on the two rooms), Rate, Delay, Shift and Width', () => {
+    for (const k of PEDAL_PARAMS.filter((p) => p.endsWith('.mix'))) {
+      expect(CONTENT[k as ContentKey].human, k).toBe(ROOM_RETURNS.includes(k) ? 'Return' : 'Mix');
+    }
     for (const k of PEDAL_PARAMS.filter((p) => p.endsWith('.rate'))) expect(CONTENT[k as ContentKey].human, k).toBe('Rate');
     expect(CONTENT['fleet.chorus.delay' as ContentKey].human).toBe('Delay');
     expect(CONTENT['fleet.frequencyShifter.shift' as ContentKey].human).toBe('Shift');

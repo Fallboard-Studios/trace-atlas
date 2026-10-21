@@ -155,6 +155,39 @@ export const DELAY_SEND_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
+/** The Grit send (Robot.gritSend) into the Colour room (docs/specs/ROBOT_EFFECT_SENDS.md §1.6), on the Reverb send's split. */
+export const GRIT_SEND_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.gritSend',
+  type: 'sliderLinear',
+  ...labels('probe.gritSend'),
+  min: SEND_MIN * SEND_DISPLAY_SCALE,
+  max: SEND_MAX * SEND_DISPLAY_SCALE,
+  step: SEND_STEP_PERCENT,
+  orientation: 'horizontal',
+};
+
+/** The Shimmer send (Robot.shimmerSend) into the Shifter room. */
+export const SHIMMER_SEND_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.shimmerSend',
+  type: 'sliderLinear',
+  ...labels('probe.shimmerSend'),
+  min: SEND_MIN * SEND_DISPLAY_SCALE,
+  max: SEND_MAX * SEND_DISPLAY_SCALE,
+  step: SEND_STEP_PERCENT,
+  orientation: 'horizontal',
+};
+
+/** The Double send (Robot.doubleSend) into the Chorus room. */
+export const DOUBLE_SEND_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.doubleSend',
+  type: 'sliderLinear',
+  ...labels('probe.doubleSend'),
+  min: SEND_MIN * SEND_DISPLAY_SCALE,
+  max: SEND_MAX * SEND_DISPLAY_SCALE,
+  step: SEND_STEP_PERCENT,
+  orientation: 'horizontal',
+};
+
 /**
  * Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.6): how much this robot's note velocities swing.
  * Stored and displayed alike, 0-100 (Robot.dynamics, no conversion at the component boundary); the bounds
