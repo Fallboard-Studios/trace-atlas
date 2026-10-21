@@ -26,7 +26,9 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'delay.wet': { min: 0, max: 0.3 },
   'reverb.decay': { min: 0.5, max: 4 },
   'reverb.preDelay': { min: 0, max: 0.1 },
-  'reverb.wet': { min: 0.1, max: 0.4 },
+  // Classic Band Retune T5 (row 15): the per-robot Reverb SEND band (the global room's return is a fixed 1), widened from
+  // 0.1-0.4 for more contrast between a dry probe and a wet one.
+  'reverb.wet': { min: 0.1, max: 0.6 },
   'compressor.threshold': { min: -55, max: -45 },
   'compressor.ratio': { min: 10, max: 20 },
   'compressor.attack': { min: 0.003, max: 0.05 },

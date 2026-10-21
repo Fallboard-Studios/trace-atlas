@@ -339,3 +339,15 @@ colour setters) and the ceiling at 0.26 (3): all caught. (There is no `>=`/`>` b
   the store should be normalised on load too.
 
 Verification: `npm test` 379 files / 13 420 tests, types clean, lint 0 errors.
+
+**T5 (2026-10-21), the per-robot Reverb send band.** The `'reverb.wet'` loading row is 0.1–0.6 (it is the band
+`generateRobotSends` reads for each robot's `reverbSend`; the global room's return stays a fixed 1). Tests: the table
+pin, the seed test's "wet rows stay at the send bands" pin, `spawnSystem.test.ts`'s three band tests (the real-noise
+sweep, the spawned-robot sweep and the no-locale fallback) and its `() => 1` oracle now `reverbSend: 0.6` (the `() => -1`
+oracle stays 0.1), plus two new tests: the real seeded draw reaches above 0.45 and below 0.2 over 400 offsets and never
+leaves 0.1–0.6 (so a band written right but read from the wrong row, or a clamp left at 0.4, cannot pass), and the Delay
+band is untouched (0.3 at the top). Docs: the AUDIO_SYSTEM "Sends and returns" paragraph, the grid's footnote ², the
+inventory's send row, `ROBOT_DATA_GRID.md`'s Reverb row and `themes.md:25`. No mutation gate (a band value has no logic);
+the sends stay on the 1 % grid, which the existing grid assertions keep.
+
+Verification: `npm test` 379 files / 13 422 tests, types clean, lint 0 errors.

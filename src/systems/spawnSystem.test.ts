@@ -739,11 +739,11 @@ describe('spawnSystem', () => {
       });
     }
 
-    it('stays inside the bands - reverb 0.1 to 0.4, delay 0 to 0.3 - and on the 0.01 grid, over many offsets', () => {
+    it('stays inside the bands - reverb 0.1 to 0.6, delay 0 to 0.3 - and on the 0.01 grid, over many offsets', () => {
       for (let offset = 0; offset < 300; offset++) {
         const { reverbSend, delaySend } = generateRobotSends(realNoise, offset);
         expect(reverbSend, `offset ${offset}`).toBeGreaterThanOrEqual(0.1);
-        expect(reverbSend, `offset ${offset}`).toBeLessThanOrEqual(0.4);
+        expect(reverbSend, `offset ${offset}`).toBeLessThanOrEqual(0.6);
         expect(onGrid(reverbSend), `offset ${offset} reverb ${reverbSend}`).toBe(true);
         expect(delaySend, `offset ${offset}`).toBeGreaterThanOrEqual(0);
         expect(delaySend, `offset ${offset}`).toBeLessThanOrEqual(0.3);
@@ -757,9 +757,25 @@ describe('spawnSystem', () => {
       expect(reverbs.size).toBeGreaterThan(8);
     });
 
-    it('hits the band edges exactly: the lowest noise gives reverb 0.1 and a quiet delay, the highest gives reverb 0.4 and delay 0.3', () => {
+    it('hits the band edges exactly: the lowest noise gives reverb 0.1 and a quiet delay, the highest gives reverb 0.6 and delay 0.3', () => {
       expect(generateRobotSends(() => -1, 0)).toEqual({ reverbSend: 0.1, delaySend: 0 });
-      expect(generateRobotSends(() => 1, 0)).toEqual({ reverbSend: 0.4, delaySend: 0.3 });
+      expect(generateRobotSends(() => 1, 0)).toEqual({ reverbSend: 0.6, delaySend: 0.3 });
+    });
+
+    // Classic Band Retune T5 (row 15): the reverb send band widened from 0.1-0.4 to 0.1-0.6 for more contrast between a dry
+    // probe and a wet one. The delay band is untouched. The reach test is on the real seeded draw, so a band written
+    // correctly but read from the wrong row (or a clamp left behind at 0.4) cannot pass.
+    it('reaches the widened reverb band on the real draw: some robots above 0.45, some under 0.2, none above 0.6, over 400 offsets', () => {
+      const reverbs = Array.from({ length: 400 }, (_, offset) => generateRobotSends(realNoise, offset).reverbSend);
+      expect(Math.max(...reverbs), 'the top is reachable beyond the old 0.4 ceiling').toBeGreaterThan(0.45);
+      expect(Math.max(...reverbs)).toBeLessThanOrEqual(0.6);
+      expect(Math.min(...reverbs), 'the bottom is reachable').toBeLessThan(0.2);
+      expect(Math.min(...reverbs)).toBeGreaterThanOrEqual(0.1);
+    });
+
+    it('leaves the delay band alone: the highest noise still gives 0.3, never more', () => {
+      expect(generateRobotSends(() => 1, 0).delaySend).toBe(0.3);
+      for (let offset = 0; offset < 300; offset++) expect(generateRobotSends(realNoise, offset).delaySend).toBeLessThanOrEqual(0.3);
     });
 
     it('goes quiet on a delay roll just under 0.25 and not on exactly 0.25', async () => {
@@ -1004,7 +1020,7 @@ describe('spawnSystem', () => {
         return getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
       };
 
-      it('puts every spawned robot inside the send bands - reverb 0.1 to 0.4, delay 0 to 0.3 - on the 0.01 grid, Active or Docked', () => {
+      it('puts every spawned robot inside the send bands - reverb 0.1 to 0.6, delay 0 to 0.3 - on the 0.01 grid, Active or Docked', () => {
         freshLocale('sends-bands-locale');
         for (let i = 0; i < 40; i++) {
           spawnRobot('sends-bands-locale', i % 2 ? { docking: DockingState.Docked, batteryLevel: 40 } : undefined);
@@ -1014,7 +1030,7 @@ describe('spawnSystem', () => {
         expect(robots).toHaveLength(40);
         for (const robot of robots) {
           expect(robot.reverbSend, `robot ${robot.id} reverb`).toBeGreaterThanOrEqual(0.1);
-          expect(robot.reverbSend, `robot ${robot.id} reverb`).toBeLessThanOrEqual(0.4);
+          expect(robot.reverbSend, `robot ${robot.id} reverb`).toBeLessThanOrEqual(0.6);
           expect(onGrid(robot.reverbSend), `robot ${robot.id} reverb ${robot.reverbSend}`).toBe(true);
           expect(robot.delaySend, `robot ${robot.id} delay`).toBeGreaterThanOrEqual(0);
           expect(robot.delaySend, `robot ${robot.id} delay`).toBeLessThanOrEqual(0.3);
@@ -1098,7 +1114,7 @@ describe('spawnSystem', () => {
         expect(sent).toHaveLength(40);
         for (const { reverb, delay } of sent) {
           expect(reverb).toBeGreaterThanOrEqual(0.1);
-          expect(reverb).toBeLessThanOrEqual(0.4);
+          expect(reverb).toBeLessThanOrEqual(0.6);
           expect(onGrid(reverb)).toBe(true);
           expect(delay).toBeGreaterThanOrEqual(0);
           expect(delay).toBeLessThanOrEqual(0.3);

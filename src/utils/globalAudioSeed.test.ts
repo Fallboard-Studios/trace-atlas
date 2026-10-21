@@ -273,7 +273,7 @@ describe('generateGlobalAudioSettings', () => {
     });
 
     it('keeps the two wet loading rows at the per-robot send bands, untouched by the seeder', () => {
-      expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']).toEqual({ min: 0.1, max: 0.4 });
+      expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']).toEqual({ min: 0.1, max: 0.6 });
       expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet']).toEqual({ min: 0, max: 0.3 });
     });
   });
