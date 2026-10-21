@@ -85,6 +85,9 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     volumeSwelling?: boolean;
     reverbSendSwelling?: boolean;
     delaySendSwelling?: boolean;
+    gritSendSwelling?: boolean;
+    shimmerSendSwelling?: boolean;
+    doubleSendSwelling?: boolean;
   }) => {
     levelsStub.record({
       onPanChange: props.onPanChange, onPanAutoChange: props.onPanAutoChange, onVolumeChange: props.onVolumeChange,
@@ -110,6 +113,9 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-volume-swelling={String(props.volumeSwelling)}
         data-reverb-swelling={String(props.reverbSendSwelling)}
         data-delay-swelling={String(props.delaySendSwelling)}
+        data-grit-swelling={String(props.gritSendSwelling)}
+        data-shimmer-swelling={String(props.shimmerSendSwelling)}
+        data-double-swelling={String(props.doubleSendSwelling)}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
@@ -887,6 +893,107 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.3 }));
           expect(levelsStub.last!.onReverbSendChange).toBe(first.onReverbSendChange);
           expect(levelsStub.last!.onDelaySendChange).toBe(first.onDelaySendChange);
+        });
+      });
+
+      // docs/tasks/ROBOT_EFFECT_SENDS.md Task 13: Grit, Shimmer and Double get the same swell flag and hand-edit cancel.
+      describe.each([
+        { field: 'gritSend', flag: 'grit', probe: 'probe-grit-send', action: 'applyGritSend', handler: 'onGritSendChange', key: 'grit' },
+        { field: 'shimmerSend', flag: 'shimmer', probe: 'probe-shimmer-send', action: 'applyShimmerSend', handler: 'onShimmerSendChange', key: 'shimmer' },
+        { field: 'doubleSend', flag: 'double', probe: 'probe-double-send', action: 'applyDoubleSend', handler: 'onDoubleSendChange', key: 'double' },
+      ] as const)('$field swell flag and the hand-edit cancel (Robot Effect Sends T13)', ({ field, flag, probe, action, handler, key }) => {
+        const SEND_FLAGS = ['volume', 'reverb', 'delay', 'grit', 'shimmer', 'double'] as const;
+        const swellingOnly = (...attributes: string[]) =>
+          vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r1' && attributes.includes(attribute));
+        const flags = () => {
+          const stub = screen.getByTestId('audio-setting-section-stub');
+          return Object.fromEntries(SEND_FLAGS.map((f) => [f, stub.getAttribute(`data-${f}-swelling`)]));
+        };
+        const onlyFlag = (on: string | null) => Object.fromEntries(SEND_FLAGS.map((f) => [f, String(f === on)]));
+        const storedField = () => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')![field];
+
+        it(`with a swell on ${field} the section gets ${flag} true and every other flag false`, () => {
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          swellingOnly(field);
+          render(<RobotScreen />);
+          expect(flags()).toEqual(onlyFlag(flag));
+        });
+
+        it('with no swell the flag is false, and a swell on another robot reads as no swell here', () => {
+          useLocaleStore.getState().addRobot(localeId, makeRobot('r2', { [field]: 0.2 }));
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r2' && attribute === field);
+          render(<RobotScreen />);
+          expect(flags()).toEqual(onlyFlag(null));
+        });
+
+        it('the flag follows the swell as the tick writes the send: false, then true, then false', () => {
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          const spy = swellingOnly();
+          render(<RobotScreen />);
+          expect(flags()[flag]).toBe('false');
+
+          spy.mockImplementation((id, attribute) => id === 'r1' && attribute === field);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.3 })); // a swell tick's write
+          expect(flags()[flag]).toBe('true');
+
+          spy.mockImplementation(() => false);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.2 })); // the exact return to base
+          expect(flags()[flag]).toBe('false');
+        });
+
+        it('a flag that flips while the screen re-renders for an unrelated field still reaches the section', () => {
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          const spy = swellingOnly();
+          render(<RobotScreen />);
+          expect(flags()[flag]).toBe('false');
+
+          spy.mockImplementation((id, attribute) => id === 'r1' && attribute === field);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 5 })); // no send field changes
+          expect(flags()).toEqual(onlyFlag(flag));
+        });
+
+        it(`a drag cancels the ${field} swell on this robot, and only that one, before ${action} runs`, () => {
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          const order: string[] = [];
+          const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((_id, attribute) => { order.push(`cancel:${attribute}`); });
+          vi.spyOn(robotOptionsActions, action).mockImplementation(() => { order.push('apply'); });
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText(probe));
+          expect(cancel).toHaveBeenCalledTimes(1);
+          expect(cancel).toHaveBeenCalledWith('r1', field);
+          expect(order).toEqual([`cancel:${field}`, 'apply']);
+        });
+
+        it('mid-swell, a drag leaves the typed value in the store and the engine, not the swell value', () => {
+          selectRobot(makeRobot('r1', { [field]: 0.55 }), 'volume'); // 0.55 stands in for a value a swell tick just wrote
+          const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+          render(<RobotScreen />);
+          fireEvent.click(screen.getByText(probe));
+          expect(storedField()).toBe(0.4);
+          expect(engine).toHaveBeenLastCalledWith('r1', { [key]: 0.4 });
+        });
+
+        it('the cancel reads the latest robot, after the store has moved on', () => {
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          const apply = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+          const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+          render(<RobotScreen />);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.7 }));
+          fireEvent.click(screen.getByText(probe));
+          expect(cancel).toHaveBeenCalledWith('r1', field);
+          expect(apply.mock.calls[0][0]).toMatchObject({ id: 'r1', [field]: 0.7 });
+        });
+
+        it('the handler keeps its identity when only the swell flag changes', () => {
+          selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
+          const spy = swellingOnly();
+          render(<RobotScreen />);
+          const first = levelsStub.last![handler];
+          spy.mockImplementation((id, attribute) => id === 'r1' && attribute === field);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.3 }));
+          expect(flags()[flag]).toBe('true');
+          expect(levelsStub.last![handler]).toBe(first);
         });
       });
 
