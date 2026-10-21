@@ -964,3 +964,37 @@ gives an AutoWah of about 16 ‰ with k-rate (−35 %), and about 15 ‰ with �
 - **Reaching k-rate from the app** would mean patching standardized-audio-context (a new dependency such as
   `patch-package`, which CLAUDE.md says to ask about) or building these two effects outside Tone's wrappers.
 - **The phone.** These are desktop ‰. Round 3's runaway world had 4 effects lit, and which ones was not recorded.
+
+## Phaser stages on the Pixel — round 4, Crawford's runs, 2026-10-20
+
+The cheapest option from the pricing above, tried on the phone with no code change: stages ride the session payload.
+**Builds:** as round 3, `main d29ac778` on 4173 and the branch (`2ef8a4e8`, product code as `75f1a5d1`) on 4174, Pixel 8,
+`?debug`, Full, a fresh page per run, hands off to 3:00, watched to 4:00. **World:** the seed-`alpha` baseline plus four
+lit, like round 3's run 2: Phaser, Chorus and Tremolo at Mix 1 and Width 0.7. The runs differ only in Phaser stages, 10
+(the default) or 4. The Phaser, Chorus and Tremolo parameters are the worst-case payload's. Order 10, 4, 4, 10 so heat
+and order fall evenly, then `main`'s baseline last as the heat control. Before the round, every branch link was loaded
+headlessly: `fx in 4/10`, and on a dev server the store read stages 10 or 4, the three pedals at Mix 1 and Width 0.7.
+Whether the phone was rested between runs was not reported.
+
+| # | Build | Phaser stages | `fx in` | `underruns` start → 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|
+| R4-1 | branch | 10 | 4/10 | 0 → **59** → **69** | "Sounded fine." |
+| R4-2 | branch | 4 | 4/10 | 0 → **53** → **110** | "Sounded fine." |
+| R4-3 | branch | 4 | 4/10 | 0 → **135** → **3 978** | "got more and more distorted at about the 3:00 mark, out completely at 3:45." |
+| R4-4 | branch | 10 | 4/10 | 0 → **54** → **1 132** | "got more and more distorted at about the 3:15 mark, out completely at 4:05." |
+| R4-5 | `main` | — (baseline, every new pedal dark) | — | 0 → **26** → **205** | "Sounded fine until 3:50 when underruns started spiking, completely dropped out at 4:13 with 2k+ underruns" |
+
+**What round 4 shows, on single runs.**
+- **`main` runs away too.** Run as the last of five, `main`'s baseline collapsed at 3:50 and dropped out at 4:13 (2 000+).
+  That overturns round 2's reading ("the runaway is the branch's, not the phone's"), which rested on one clean `main`
+  run (B). The collapse follows the run's place in the sitting, not the build: runs 1 and 2 were fine, and runs 3, 4
+  and 5 all collapsed between about 3:00 and 3:50, whichever build or stage count they carried.
+- **On a fresh phone, four lit read like `main`.** R4-1 and R4-2 read 59 and 53 at 3:00, against `main`'s 48 when it
+  ran first in round 3 (another sitting, so this is not a same-sitting gate). Round 3's run 2 (4/10, 259 and a
+  runaway) ran fourth in its sitting, after a hot-phone runaway.
+- **Stage count: no signal.** 10 stages read 59 and 54 at 3:00; 4 stages 53 and 135. Each pair holds one fine run and
+  one collapse, decided by order. The desktop's −39 % for the Phaser (about a fifth of this world's lit cost) is lost
+  in the run-to-run spread.
+- **What carries over from run to run is not known.** Heat is the obvious candidate, but no run here separates it from
+  Chrome's or the phone's state building up across page loads. Every collapse matches the one-way collapse seen on
+  `bravo` (2026-09-21) and in rounds 1–3: once it starts, it does not recover.

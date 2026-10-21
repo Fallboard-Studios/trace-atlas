@@ -657,6 +657,13 @@ a Standard run of (1). A `main` run of (1) in the same sitting is the comparison
 The dark case is fixed; the lit effects' own cost is what is left. Assumption 10's teardown removes only dark effects, so
 it does not reach (2) or (3).
 
+**Round 4 (same day) changes that reading.** A desktop pricing of lit effects came first, then a phone A/B of Phaser
+stages 10 against 4 in a four-lit world. In the order 10, 4, 4, 10, then `main`'s baseline last, the first two runs
+were fine (59 and 53 at 3:00). The last three all collapsed between about 3:00 and 3:50, **`main` included** (26 at
+3:00, out at 4:13). The runaways follow a run's place in the sitting, not the build, so round 3's misses on (2) and (3)
+cannot be pinned on the lit effects. Stage count showed no signal. Both rounds are in `scratchy-audio-phones.md`. How
+to read T14 now is Crawford's call.
+
 ---
 
 ## Phase 4: This phase's docs
