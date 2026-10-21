@@ -998,3 +998,21 @@ Whether the phone was rested between runs was not reported.
 - **What carries over from run to run is not known.** Heat is the obvious candidate, but no run here separates it from
   Chrome's or the phone's state building up across page loads. Every collapse matches the one-way collapse seen on
   `bravo` (2026-09-21) and in rounds 1–3: once it starts, it does not recover.
+
+**After round 4, on the still-hot phone (Crawford, same day).**
+- **Restarting Chrome didn't help.** He let a collapse run until the music dropped out, closed every app, restarted
+  Chrome and opened the same page: still no sound, underruns rising about 10 000 a minute. So the state that carries
+  over is not the Chrome process's.
+- **The plain sine was clean.** Straight after, a sine-only page (no app, no Tone: one 220 Hz sine on a plain
+  `AudioContext`, the same `playbackStats` counter, a button adding 50 sawtooth oscillators at a time) played clean
+  with 0 a minute. Adding load: 3 underruns at 250 oscillators, none at 300, a slow climb from 700 (settling near 24 a
+  minute), more from 800, and the first audible distortion at 1 000.
+- **So the phone's audio path still worked.** The app sits near the Pixel's limit even when the phone is cool (`main`
+  logs underruns within 3 minutes on a fresh phone), so a throttled phone that still runs 700 plain oscillators can
+  still be too slow for it.
+- **Not run:** the same app link in an Incognito tab (empty storage), and the sine ramp on a cool phone (the
+  capacity heat costs). Both were left for backlog 27's own branch, by Crawford's call.
+- **Storage is an unlikely cause.** The app stores only named sessions (`trace-atlas.sessions.v1`), and only the
+  Sessions panel reads them.
+- **The day clock is ruled out.** It restarts at each page load (`dayStartTimestamp = Date.now() − …`), so it cannot
+  carry over between runs.

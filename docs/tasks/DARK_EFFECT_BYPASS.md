@@ -637,10 +637,12 @@ a Standard run of (1). A `main` run of (1) in the same sitting is the comparison
 **Acceptance criteria:**
 - [x] A dated "round 3" section in `scratchy-audio-phones.md`: both hashes, every run's start → end count, the
   `fx in` reading, the 4:00 count, Crawford's words.
-- [ ] **Pass:** (1) and (2) each within 25 % of the same-sitting `main` count at 3:00 and not accelerating between
-  3:00 and 4:00; (3) does not run away hands-off (its count is recorded, not gated).
-- [ ] **A miss** names the run, the count and the next lever (assumption 10's teardown, as its own intent), by
-  Crawford's call. Nothing is claimed that was not counted.
+- [x] **Pass:** (1) and (2) each within 25 % of the same-sitting `main` count at 3:00 and not accelerating between
+  3:00 and 4:00; (3) does not run away hands-off (its count is recorded, not gated). *(Passed with a caveat, by
+  Crawford's call; see below.)*
+- [x] **A miss** names the run, the count and the next lever (assumption 10's teardown, as its own intent), by
+  Crawford's call. Nothing is claimed that was not counted. *(Round 3's misses are named below; round 4 moved them
+  off this phase.)*
 
 **Verification:** Crawford's runs.
 
@@ -663,6 +665,14 @@ were fine (59 and 53 at 3:00). The last three all collapsed between about 3:00 a
 3:00, out at 4:13). The runaways follow a run's place in the sitting, not the build, so round 3's misses on (2) and (3)
 cannot be pinned on the lit effects. Stage count showed no signal. Both rounds are in `scratchy-audio-phones.md`. How
 to read T14 now is Crawford's call.
+
+**Decision (Crawford, 2026-10-20): T14 PASSES with a caveat.** On every fresh-phone run the bypass builds read about
+`main`'s level: the dark baseline 31 at 3:00 against `main`'s 48 in round 3, and four lit 59 and 53 in round 4.
+**The caveat:** a run late in a sitting collapses on the Pixel whatever the build, `main` included, and once it starts
+it does not recover. That is backlog 27's open subject, not this phase's. A sine-only page carried 700 oscillators
+on the same hot phone before underruns climbed, so the phone's audio path still worked. Heat against accumulated state
+is not yet separated. The next step is recorded in backlog 27: a desktop long run, looking for load that grows during
+a run. The Phaser stages seed range stays as it is.
 
 ---
 
