@@ -27,6 +27,11 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > lint are clean; the full suite is 13 708 green plus the documented `sceneToOrbiterLocal` 5 s timeout. **Next:
 > Checkpoint B** — the dev-server by-ear checks and Crawford's review, before Phase 3. Deviations are under "Phase 2 as
 > shipped" after Checkpoint B. Checkpoint B passed (Crawford, 2026-10-21); next is Phase 3, T12.
+>
+> **Status, 2026-10-21: Phase 3 (T12–T16) BUILT**, one commit per task (`0b80fc01`, `885d9738`, `f49d6a98`,
+> `6ed1f89a`, `c506fbb2`). Types, lint (0 errors) and `npm run build` are clean; the full suite is 13 925 green plus the
+> documented `sceneToOrbiterLocal` 5 s timeout, which passes alone. **Next: Checkpoint C** — the dev-server checks and
+> Crawford's review, before Phase 4. Deviations are under "Phase 3 as shipped" after Checkpoint C.
 
 ## Overview
 
@@ -509,10 +514,35 @@ for the sends the diff carried). No payload upgrade (spec assumption 13).
 **Dependencies:** T15. **Files:** `src/utils/sessionShareUtils.ts` (+ test). **Scope:** XS.
 
 ### Checkpoint C: The whole feature, automated
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-10-21, at `c506fbb2`: 13 925
+  tests plus the documented `sceneToOrbiterLocal` timeout, which passes alone; lint 0 errors).
 - [ ] Dev server: save a session with one moved Grit robot, reload, it is where you left it and every untouched robot
   is back at its seed; share link the same; a company move puts every member at one value; a swell on a send crawls out
   and back on the card.
+
+#### Phase 3 as shipped (2026-10-21)
+
+Every task RED first, one commit each, with a mutation check (the mutants are listed in each commit message, all
+caught).
+
+- **T12.** The **save side of the session diff moved here from T15**: `RobotAudioOverrideDiff` gains the three fields and
+  `computeRobotAudioOverrideDiff`'s send loop runs over all five, because T12's own criterion ("a mid-swell save stores
+  the base") needs the diff to carry them. The existing forced-start integration test ("a session saved mid-swell stores
+  the base send") now lands on a **Shimmer** send in its world, where its `toBeUndefined()` would pass vacuously for a
+  field the diff drops; a companion case hand-edits the send first and requires the edited base back. The
+  company-attribute draws in `audioSwells.test.ts` are re-pointed at `/22` indices. The send writes go through a
+  `switch`, not a lookup table of functions: a table captured at module load would bypass the tests' `vi.spyOn`.
+- **T13.** As planned. One mutant survived the first pass (the Shimmer flag missing from the panel memo's deps, since a
+  flag flipping with a send write recomputes the memo through the value anyway); a "flag flips during an unrelated
+  re-render" case was added per send and kills it.
+- **T14.** As the T11 note allowed, `AudioSettingSection`'s three values and three handlers are now **required**: both
+  screens pass them, the rows render unconditionally, and the two "row absent without its handler / value" cases are
+  replaced by a `@ts-expect-error` case that `npm run build:types` enforces (mutated under `build:types`).
+- **T15.** Restore and prime only (the save side is T12's). The criterion's "`7` primes 1" is the store clamp
+  (`localeStore.updateRobot`, T5): through a payload a 7 is out of range and **ignored whole**, per spec §1.7, and the
+  tests pin that. The old-payload case (no `colourRoom`, Chorus 0.35 / shifter 0.2) restores `colourRoom.wet` 1 and both
+  wets as stored; it passed on first run, since nothing rewrites them, and stands as the guard.
+- **T16.** As planned.
 
 ## Phase 4: The drawer
 
