@@ -19,7 +19,7 @@
 | EQ (3-band) | `setGlobalEQ()` | high | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | APICAL-BAND DENSITY | SLIDER (Center-Zero) | X | X |
 | Low-Pass Filter | `setGlobalFilterLPF()` | frequency | Hz, 20–20000 | 2000–20000 | HIGH-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | X |
 | Low-Pass Filter | `setGlobalFilterLPF()` | Q | 0.1–20 | 0.1–5 | HIGH-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
-| High-Pass Filter | `setGlobalFilterHPF()` | frequency | Hz, 20–20000 | 20–500 | LOW-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | X |
+| High-Pass Filter | `setGlobalFilterHPF()` | frequency | Hz, 20–20000 | 20–120 | LOW-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | X |
 | High-Pass Filter | `setGlobalFilterHPF()` | Q | 0.1–20 | 0.1–5 | LOW-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
 | Distortion | `setGlobalDistortion()` | amount (Tone `distortion`) | 0–1 | 0.1–0.35 | CARRIER BLEED | DRIVE | SLIDER | – | – |
 | Distortion | `setGlobalDistortion()` | wet ³ | 0–1 | 0.1–0.25 | CARRIER BLEED | MIX | SLIDER | – | – |
@@ -29,32 +29,32 @@
 | BitCrusher | `setGlobalBitCrusher()` | wet ³ | 0–1 | 0.05–0.15 | QUANTISE LOSS | MIX | SLIDER | – | – |
 | AutoWah | `setGlobalAutoWah()` | baseFrequency | Hz, 50–1000 | 50–250 | PRESSURE SWEEP | BASE FREQUENCY | SLIDER (Logarithmic) | – | – |
 | AutoWah | `setGlobalAutoWah()` | octaves | 1–8 | 2.5–5 | PRESSURE SWEEP | OCTAVES | SLIDER (step 0.5) | – | – |
-| AutoWah | `setGlobalAutoWah()` | sensitivity | dB, −40 to 0 | −40 to −10 | PRESSURE SWEEP | SENSITIVITY | SLIDER (step 1) | – | – |
+| AutoWah | `setGlobalAutoWah()` | sensitivity | dB, −40 to 0 | −20 to −5 | PRESSURE SWEEP | SENSITIVITY | SLIDER (step 1) | – | – |
 | AutoWah | `setGlobalAutoWah()` | Q | 0.5–10 | 2–6 | PRESSURE SWEEP | Q | SLIDER (Logarithmic) | – | – |
 | AutoWah | `setGlobalAutoWah()` | gain | dB, 0–20 | 2–6 | PRESSURE SWEEP | PEAK | SLIDER (step 0.5) | – | – |
 | AutoWah | `setGlobalAutoWah()` | follower | seconds, 0.01–1 | 0.1–0.4 | PRESSURE SWEEP | FOLLOW | SLIDER (Logarithmic) | – | – |
-| AutoWah | `setGlobalAutoWah()` | wet ⁴ | 0–1 | 0.2–0.5 | PRESSURE SWEEP | MIX | SLIDER | – | – |
+| AutoWah | `setGlobalAutoWah()` | wet ⁴ | 0–1 | 0.35–0.5 | PRESSURE SWEEP | MIX | SLIDER | – | – |
 | Phaser | `setGlobalPhaser()` | rate (Tone `frequency`) ⁴ | Hz, 0.05–10 | 0.1–2.5 | PHASE LAG | RATE | SLIDER (Free \| Sync) | – | – |
 | Phaser | `setGlobalPhaser()` | octaves | 0.5–6 | 2–5 | PHASE LAG | OCTAVES | SLIDER (step 0.5) | – | – |
 | Phaser | `setGlobalPhaser()` | baseFrequency | Hz, 50–2000 | 200–800 | PHASE LAG | BASE FREQUENCY | SLIDER (Logarithmic) | – | – |
 | Phaser | `setGlobalPhaser()` | stages ⁴ | integer, 1–12 | 4–12 | PHASE LAG | STAGES | SLIDER (step 1) | – | – |
 | Phaser | `setGlobalPhaser()` | Q | 0.5–20 | 1–10 | PHASE LAG | Q | SLIDER (Logarithmic) | – | – |
-| Phaser | `setGlobalPhaser()` | wet ⁴ | 0–1 | 0.15–0.4 | PHASE LAG | MIX | SLIDER | – | – |
+| Phaser | `setGlobalPhaser()` | wet ⁴ | 0–1 | 0.3–0.4 | PHASE LAG | MIX | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 0.2–2 | TWIN CURRENT | RATE | SLIDER (Free \| Sync) | – | – |
-| Chorus | `setGlobalChorus()` | delayTime | ms, 1–20 | 2–8 | TWIN CURRENT | DELAY | SLIDER (step 0.5) | – | – |
+| Chorus | `setGlobalChorus()` | delayTime | ms, 1–20 | 6–15 | TWIN CURRENT | DELAY | SLIDER (step 0.5) | – | – |
 | Chorus | `setGlobalChorus()` | depth | 0–1 | 0.3–0.7 | TWIN CURRENT | DEPTH | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | spread | degrees, 0–180 | 90–180 | TWIN CURRENT | SPREAD | SLIDER (step 5) | – | – |
 | Chorus | `setGlobalChorus()` | feedback | 0–0.9 | 0–0.2 | TWIN CURRENT | FEEDBACK | SLIDER | – | – |
-| Chorus | `setGlobalChorus()` | wet ⁵ | 0–1 | 0.15–0.4 | TWIN CURRENT | MIX | SLIDER | – | – |
+| Chorus | `setGlobalChorus()` | wet ⁵ | 0–1 | 0.3–0.4 | TWIN CURRENT | MIX | SLIDER | – | – |
 | Tremolo | `setGlobalTremolo()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 0.5–6 | PULSE FADE | RATE | SLIDER (Free \| Sync) | – | – |
 | Tremolo | `setGlobalTremolo()` | depth | 0–1 | 0.3–0.7 | PULSE FADE | DEPTH | SLIDER | – | – |
 | Tremolo | `setGlobalTremolo()` | spread | degrees, 0–180 | 90–180 | PULSE FADE | SPREAD | SLIDER (step 5) | – | – |
-| Tremolo | `setGlobalTremolo()` | wet ⁵ | 0–1 | 0.2–0.5 | PULSE FADE | MIX | SLIDER | – | – |
+| Tremolo | `setGlobalTremolo()` | wet ⁵ | 0–1 | 0.35–0.5 | PULSE FADE | MIX | SLIDER | – | – |
 | Vibrato | `setGlobalVibrato()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 2–7 | LINE WAVER | RATE | SLIDER (Free \| Sync) | – | – |
-| Vibrato | `setGlobalVibrato()` | depth | 0–1 (of `maxDelay` 0.005 s) | 0.05–0.3 | LINE WAVER | DEPTH | SLIDER | – | – |
-| Vibrato | `setGlobalVibrato()` | wet ⁵ | 0–1 | 0.2–0.5 | LINE WAVER | MIX | SLIDER | – | – |
+| Vibrato | `setGlobalVibrato()` | depth | 0–1 (of `maxDelay` 0.005 s) | 0.03–0.12 | LINE WAVER | DEPTH | SLIDER | – | – |
+| Vibrato | `setGlobalVibrato()` | wet ⁵ | 0–1 | 0.85–1 | LINE WAVER | MIX | SLIDER | – | – |
 | FrequencyShifter | `setGlobalFrequencyShifter()` | shift (Tone `frequency`) ⁵ | Hz, −1000 to 1000 (signed) | ±(2–20), sign drawn separately | BAND SLIP | SHIFT | SLIDER (Center-Zero) | – | – |
-| FrequencyShifter | `setGlobalFrequencyShifter()` | wet ⁵ | 0–1 | 0.1–0.3 | BAND SLIP | MIX | SLIDER | – | – |
+| FrequencyShifter | `setGlobalFrequencyShifter()` | wet ⁵ | 0–1 | 0.25–0.35 | BAND SLIP | MIX | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | delayTime | seconds, 0–10 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER (Free \| Sync¹) | – | – |
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | wet | 0–1 (return level²) | – (fixed `1`) | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | – |
@@ -75,7 +75,7 @@
 
 ³ **Colour (`distortion`, `chebyshev`, `bitCrusher`) sits on the dry chain between the High-Pass Filter and the Compressor: one node each, nothing per robot, and none is an LFO or swell target** (Global Colour, roadmap 50.3; `docs/specs/GLOBAL_COLOUR.md`). The Mix (`wet`) is stored as the slider position and reaches the effect **squared** (`colourWetGain`; since roadmap 50.6 it sets the effect's bypass cell rather than the node's own `wet`), so the Unit / Range and Loading Range columns for these rows are slider positions, not node `wet` values. A fresh world draws one character (`COLOUR_CHARACTER_BANDS`): clean, or exactly one of the three effects, about 25 % each. The lit effect's Mix lands in its Loading Range, and the other two seed Mix 0 while still drawing their shape value (`amount`, `order`, `bits`) from their own band. No seeded Mix is above 0.25 (`COLOUR_LOAD_MIX_MAX`); a saved session or share link restores what was hand-set. The Effect Label and Param Label columns for these rows are placeholders for the copy pass; the shipped copy is in `src/content/copy/fleet.ts`.
 
-⁴ **Modulation (`autoWah`, `phaser`) sits on the dry chain between Colour and the Compressor, wah first: one node each, nothing per robot, and neither is an LFO or swell target** (Global Modulation, roadmap 50.4; `docs/specs/GLOBAL_MODULATION_COLOUR.md`). Every parameter of each Tone node is a slider. The Mix (`wet`) is a slider position squared (`colourWetGain`), as for Colour, at the pedal's bypass cell since roadmap 50.6, and its seeded band is the pedal's own, above Colour's ceiling (`COLOUR_LOAD_MIX_MAX`, 0.25, which still holds for the colour effects): 0.2–0.5 for the AutoWah, 0.15–0.4 for the Phaser (Crawford's recommended 0.3–0.7 and 0.25–0.6, brought down by a third after he heard them; roadmap 50.4 T16). Each pedal is lit in about a third of fresh worlds, independently of the other and of Colour's character draw (`PEDAL_LIT_EDGE`); a dark pedal seeds Mix 0 and still draws every other field from its band. The Phaser's Rate is the third Free \| Sync field (`PhaserSettings.sync?`, `resolveSyncedRateHz`, `src/utils/tempoSync.ts`); about half of lit Phasers seed Sync (`PEDAL_SYNC_ODDS`). `stages` is constructor-only in Tone, so changing it rebuilds the node. The Effect Label and Param Label columns are placeholders for the copy pass.
+⁴ **Modulation (`autoWah`, `phaser`) sits on the dry chain between Colour and the Compressor, wah first: one node each, nothing per robot, and neither is an LFO or swell target** (Global Modulation, roadmap 50.4; `docs/specs/GLOBAL_MODULATION_COLOUR.md`). Every parameter of each Tone node is a slider. The Mix (`wet`) is a slider position squared (`colourWetGain`), as for Colour, at the pedal's bypass cell since roadmap 50.6, and its seeded band is the pedal's own, above Colour's ceiling (`COLOUR_LOAD_MIX_MAX`, 0.25, which still holds for the colour effects): 0.35–0.5 for the AutoWah, 0.3–0.4 for the Phaser (the ceilings are Crawford's, from the roadmap 50.4 T16 listen, where his recommended 0.3–0.7 and 0.25–0.6 were brought down by a third; the floors rose at the Classic Band Retune, 2026-10-21, because the bottom third of a squared slider is near silence: the wet layer is about −14 dB at 0.35 and −17 dB at 0.3, against −29 dB at 0.15). The AutoWah's sensitivity band is −20 to −5 dB, since Tone boosts the follower by −sensitivity dB and at −40 on a fleet near 0 dBFS the filter sits open and never sweeps. Each pedal is lit in about a third of fresh worlds, independently of the other and of Colour's character draw (`PEDAL_LIT_EDGE`); a dark pedal seeds Mix 0 and still draws every other field from its band. The Phaser's Rate is the third Free \| Sync field (`PhaserSettings.sync?`, `resolveSyncedRateHz`, `src/utils/tempoSync.ts`); about half of lit Phasers seed Sync (`PEDAL_SYNC_ODDS`). `stages` is constructor-only in Tone, so changing it rebuilds the node. The Effect Label and Param Label columns are placeholders for the copy pass.
 
 ⁵ **Global Pedals (`chorus`, `tremolo`, `vibrato`, `frequencyShifter`, `stereoWidener`; roadmap 50.6, `docs/specs/GLOBAL_PEDALS.md`).** The four motion pedals sit on the dry chain after the Phaser and before the Compressor, in that order, so the rooms' returns rejoin after them in both Decay Modes; every one keeps left and right apart except the shifter, whose sine branch is downmixed to mono (it enters an AudioParam), so a panned voice leaks the shifter's other sideband and a copy into the far channel (measured, spec §8). The widener (Width) sits between the Compressor and the Limiter: under Controlled Decay the returns join at its input instead of the Limiter's, so it hears the rooms in both modes and Width 0 folds everything to mono. One node each, nothing per robot, none an LFO or swell target. Each Mix (`wet`) is a slider position squared at the pedal's bypass cell (`colourWetGain`); Width is never tapered (0.5 is unity, and exactly 0.5 is the widener's dark state). The three LFO rates (`rate`, Tone's `frequency`) are Free \| Sync fields on the generic rail (`resolveSyncedRateHz`) over the Phaser's range, `PEDAL_RATE_RANGE_HZ`; the shift is signed, and a fresh world seeds it as a ±(2–20) Hz magnitude band with the sign drawn separately. Each motion pedal rolls its own lit edge (`PEDAL_LIT_EDGE`), in chain order after the AutoWah and Phaser rolls, and is forced dark once two Modulation pedals are lit (`MAX_LIT_PEDALS`); a dark pedal seeds Mix 0 and still draws its other fields. The widener has no lit roll: every fresh world seeds it 0.4–0.65, and about 4 % of worlds land on exactly 0.5, unity, where its cell is dark (4.36 % of 5 000 styles, measured 2026-10-21). Crawford's listen (T16, 2026-10-20) kept every Loading Range band as built, the shifter's ±(2–20) Hz included; the Effect / Param labels are placeholders for the copy pass.
 

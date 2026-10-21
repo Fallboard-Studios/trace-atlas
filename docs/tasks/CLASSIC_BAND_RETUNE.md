@@ -261,4 +261,25 @@ the merged tables.
 
 ## 7. As built
 
-(empty until T1)
+**T1 (2026-10-21), the undisputed band moves.** Ten seed bands moved (rows 1, 2 and 5–12 are ten fields, not the
+"twelve" the T1 description says): `vibrato.wet` 0.85–1, `vibrato.depth` 0.03–0.12, `autoWah.wet` 0.35–0.5, `phaser.wet`
+0.3–0.4, `chorus.wet` 0.3–0.4, `tremolo.wet` 0.35–0.5, `frequencyShifter.wet` 0.25–0.35, `filterHPF.frequency` 20–120,
+`autoWah.sensitivity` −20 to −5, `chorus.delayTime` 6–15. Changed: the table and its header comments, its test (the
+by-value pins plus the audible-floor, vibrato, HPF-below-C4, sensitivity, chorus-length and shifter-band tests), the
+seed test's literal-number sweeps (3 000 styles), `GLOBAL_CHAIN_GRID.md` (ten rows and footnote ⁴) and the inventory's
+ten seedMin/seedMax cells.
+
+Two departures from the plan as written:
+- **The seed oracles do pin moved fields.** §4 said no test pins an exact seeded value of a field this plan moves; the
+  two `seed oracle` cases in `globalAudioSeed.test.ts` do (HPF frequency, AutoWah sensitivity, Phaser, AutoWah, Chorus and
+  Tremolo wets, Chorus delayTime, Vibrato depth), so the T1 criterion "`globalAudioSeed.test.ts` passes unchanged" did not
+  hold. They were amended by hand, not re-recorded, as that file's own header describes: the raw draws read, the new band
+  formula applied and the value quantised onto the grid; the old bands run over the same draws reproduced every old oracle
+  value, which is the check. The derivation is a dated note above the oracle `describe`. **T2 and T4 will move more
+  oracle values** (the colour wets, and none for T4), and T3 moves none (Sync odds draw from keys the oracle already
+  holds, but check Tremolo: its `syncMode` t 0.0794 stays under both 0.5 and 0.75).
+- **The "reaches both ends of the band" wah test** asserted `< 0.24` and `> 0.46`; it now asserts `< 0.38` and `> 0.47`
+  for the 0.35–0.5 band.
+
+Verification: `npm test` 379 files / 13 404 tests, `npm run build:types`, `npm run lint` (0 errors; 4 existing warnings in
+`gemShape.tsx`).

@@ -766,8 +766,8 @@ describe('the modulation pedals (Global Modulation)', () => {
 
     it('reaches both the bottom and the top of the Mix band, so the band is not accidentally collapsed', () => {
       const wets = samples.filter(({ s }) => wahLit(s)).map(({ s }) => s.autoWah.wet);
-      expect(Math.min(...wets)).toBeLessThan(0.24);
-      expect(Math.max(...wets)).toBeGreaterThan(0.46);
+      expect(Math.min(...wets)).toBeLessThan(0.38);
+      expect(Math.max(...wets)).toBeGreaterThan(0.47);
     });
   });
 
@@ -1072,6 +1072,46 @@ describe('the Global Pedals (Global Pedals T8)', () => {
 
     it('seeds Width inside 0.4 - 0.65 on every style, never near the mono fold', () => {
       for (const s of samples) expect(inBand(s.stereoWidener.width, 'stereoWidener.width'), `${s.stereoWidener.width}`).toBe(true);
+    });
+
+    // Classic Band Retune T1 (docs/tasks/CLASSIC_BAND_RETUNE.md §2, acceptance criteria). Literal numbers on purpose:
+    // these hold the seeder to the plan's figures, not to whatever the table currently says.
+    it('seeds every lit Vibrato at Mix 0.85 - 1 and depth 0.03 - 0.12 (a vibrato, not a chorus or a siren), and every dark one at 0', () => {
+      const litVibratos = samples.filter((s) => lit(s).vibrato);
+      expect(litVibratos.length).toBeGreaterThan(300);
+      for (const s of litVibratos) {
+        expect(s.vibrato.wet).toBeGreaterThanOrEqual(0.85);
+        expect(s.vibrato.wet).toBeLessThanOrEqual(1 + 1e-9);
+      }
+      for (const s of samples) {
+        expect(s.vibrato.depth).toBeGreaterThanOrEqual(0.03 - 1e-9);
+        expect(s.vibrato.depth).toBeLessThanOrEqual(0.12 + 1e-9);
+        if (!lit(s).vibrato) expect(s.vibrato.wet).toBe(0);
+      }
+    });
+
+    it('seeds every lit AutoWah Mix at 0.35 or above, every lit Phaser/Chorus at 0.3 or above, every lit Tremolo 0.35 or above, every lit shifter 0.25 or above', () => {
+      const floors = { autoWah: 0.35, phaser: 0.3, chorus: 0.3, tremolo: 0.35, frequencyShifter: 0.25 } as const;
+      for (const s of samples) {
+        for (const pedal of Object.keys(floors) as Array<keyof typeof floors>) {
+          if (!lit(s)[pedal]) continue;
+          expect(s[pedal].wet, pedal).toBeGreaterThanOrEqual(floors[pedal] - 1e-9);
+        }
+      }
+    });
+
+    it('seeds every high-pass cutoff at or below 120 Hz, so no robot below octave 5 loses its fundamental', () => {
+      for (const s of samples) expect(s.filterHPF.frequency).toBeLessThanOrEqual(120 + 1e-9);
+      expect(samples.some((s) => s.filterHPF.frequency < 40), 'the band still reaches its low end').toBe(true);
+    });
+
+    it('seeds every AutoWah sensitivity in -20 to -5 dB and every Chorus delay time in 6 - 15 ms', () => {
+      for (const s of samples) {
+        expect(s.autoWah.sensitivity).toBeGreaterThanOrEqual(-20);
+        expect(s.autoWah.sensitivity).toBeLessThanOrEqual(-5);
+        expect(s.chorus.delayTime).toBeGreaterThanOrEqual(6);
+        expect(s.chorus.delayTime).toBeLessThanOrEqual(15);
+      }
     });
 
     it('keeps every shape field inside its band and on its grid, lit or dark', () => {
@@ -1890,6 +1930,19 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // 3.85, depth t 0.3046 -> 0.1261 -> 0.13 (its syncMode 0.0153 is under 0.5, but a dark pedal is Free); shift sign t 0.5761
 // (positive), magnitude t 0.6487 -> 13.68 -> 14; width t 0.4577 -> 0.5144 -> 0.51. Every dark pedal's wet is 0. The float
 // tails (0.7000000000000001 and so on) are fullMin + n * step in IEEE arithmetic, as the Phaser's 1.7500000000000002 is.
+//
+// AMENDED BY HAND, Classic Band Retune T1 (docs/tasks/CLASSIC_BAND_RETUNE.md §2, 2026-10-21): ten loading bands moved, so
+// the values drawn through them moved; the raw draws did not. Derived from the same raw draws (HPF is the plain draw, the
+// rest uniform), the band formula (log: 20 * 6^t; linear: min + (max - min) * t) and quantisation onto the full range's
+// grid, and checked by running the OLD bands over the same draws, which reproduces every old value above. Alpha: HPF
+// t 0.9139 -> 20 * 6^t = 102.85 (was 379.02 on 20-500); AutoWah sensitivity t 0.6903 -> -9.65 -> -10 (band -20 to -5; was
+// -19); phaser.wet t 0.3222 -> 0.3 + 0.1 * t = 0.3322 -> 0.33 (was 0.23); chorus delayTime t 0.7021 -> 6 + 9 * t = 12.32 ->
+// 12.5 (was 6); chorus.wet t 0.0362 -> 0.3036 -> 0.30 (was 0.16); vibrato depth t 0.1808 -> 0.03 + 0.09 * t = 0.0463 ->
+// 0.05 (was 0.10). Theta: HPF t 0.6400 -> 62.96 (was 156.94); sensitivity t 0.1961 -> -17.06 -> -17 (was -34);
+// autoWah.wet t 0.9720 -> 0.35 + 0.15 * t = 0.4958 -> 0.50 (was 0.49); chorus delayTime t 0.7723 -> 12.95 -> 13 (was 6.5);
+// tremolo.wet t 0.3262 -> 0.35 + 0.15 * t = 0.3989 -> 0.40 (was 0.30); vibrato depth t 0.3046 -> 0.0574 -> 0.06 (was
+// 0.13). The vibrato, shifter, wah (alpha) and phaser (theta) wets are dark in these styles and stay 0. Every other value
+// is untouched: no roll, sync draw or other band moved.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -1908,26 +1961,26 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       },
       eq3: { low: 3.5, mid: 3.5, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
-      filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
+      filterHPF: { type: 'highpass', frequency: 102.8526501063134, Q: 3.033962391581509 },
       // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.13 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
-      autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -19, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
+      autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
         rate: 2.05,
         octaves: 3.5,
         baseFrequency: 692.0599193838607,
         stages: 10,
         Q: 3.291005415199408,
-        wet: 0.23,
+        wet: 0.33,
         sync: { division: '1/8', modifier: 'dotted' },
       },
       // Global Pedals T8: the Phaser is lit, the Chorus lights (synced), so the shifter's lit roll is capped dark.
-      chorus: { rate: 0.7000000000000001, delayTime: 6, depth: 0.43, spread: 95, feedback: 0.19, wet: 0.16, sync: { division: '1/2', modifier: 'straight' } },
+      chorus: { rate: 0.7000000000000001, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 0.3, sync: { division: '1/2', modifier: 'straight' } },
       tremolo: { rate: 5.7, depth: 0.35000000000000003, spread: 90, wet: 0 },
-      vibrato: { rate: 6.8500000000000005, depth: 0.1, wet: 0 },
+      vibrato: { rate: 6.8500000000000005, depth: 0.05, wet: 0 },
       frequencyShifter: { shift: -11, wet: 0 },
       stereoWidener: { width: 0.64 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
@@ -1948,18 +2001,18 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       },
       eq3: { low: -3.5, mid: -3.5, high: -3.5 },
       filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
-      filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
+      filterHPF: { type: 'highpass', frequency: 62.95985983853713, Q: 0.893615040856134 },
       // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0.08 },
       bitCrusher: { bits: 8, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
-      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -34, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.49 },
+      autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
       // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the other three motion pedals roll dark.
-      chorus: { rate: 1.5000000000000002, delayTime: 6.5, depth: 0.4, spread: 145, feedback: 0.09, wet: 0 },
-      tremolo: { rate: 1.7500000000000002, depth: 0.35000000000000003, spread: 130, wet: 0.3, sync: { division: '1/16', modifier: 'dotted' } },
-      vibrato: { rate: 3.85, depth: 0.13, wet: 0 },
+      chorus: { rate: 1.5000000000000002, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 0 },
+      tremolo: { rate: 1.7500000000000002, depth: 0.35000000000000003, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
+      vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
       frequencyShifter: { shift: 14, wet: 0 },
       stereoWidener: { width: 0.51 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.

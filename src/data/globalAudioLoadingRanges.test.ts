@@ -19,7 +19,7 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'eq3.high': { min: -6, max: 6 },
   'filterLPF.frequency': { min: 2000, max: 20000 },
   'filterLPF.Q': { min: 0.1, max: 5 },
-  'filterHPF.frequency': { min: 20, max: 500 },
+  'filterHPF.frequency': { min: 20, max: 120 },
   'filterHPF.Q': { min: 0.1, max: 5 },
   'delay.delayTime': { min: 0.05, max: 0.5 },
   'delay.feedback': { min: 0, max: 0.4 },
@@ -43,33 +43,36 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   // Global Modulation T2 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the lit bands, retuned by Crawford's recommended ranges at T16 (2026-10-15).
   'autoWah.baseFrequency': { min: 50, max: 250 },
   'autoWah.octaves': { min: 2.5, max: 5 },
-  'autoWah.sensitivity': { min: -40, max: -10 },
+  // Classic Band Retune T1 (docs/tasks/CLASSIC_BAND_RETUNE.md §2 rows 5, 11): the AutoWah's Mix floor rises and its
+  // sensitivity band narrows (a follower boosted by -sensitivity dB saturates at -40 on a fleet near 0 dBFS).
+  'autoWah.sensitivity': { min: -20, max: -5 },
   'autoWah.Q': { min: 2, max: 6 },
   'autoWah.gain': { min: 2, max: 6 },
   'autoWah.follower': { min: 0.1, max: 0.4 },
-  'autoWah.wet': { min: 0.2, max: 0.5 },
+  'autoWah.wet': { min: 0.35, max: 0.5 },
   'phaser.rate': { min: 0.1, max: 2.5 },
   'phaser.octaves': { min: 2, max: 5 },
   'phaser.baseFrequency': { min: 200, max: 800 },
   'phaser.stages': { min: 4, max: 12 },
   'phaser.Q': { min: 1, max: 10 },
-  'phaser.wet': { min: 0.15, max: 0.4 },
-  // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md assumption 6): the lit bands, placeholders tuned by ear at T16.
+  'phaser.wet': { min: 0.3, max: 0.4 },
+  // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md assumption 6): the lit bands, placeholders tuned by ear at T16;
+  // retuned by Classic Band Retune T1 (rows 1, 2, 7-9, 12).
   'chorus.rate': { min: 0.2, max: 2 },
-  'chorus.delayTime': { min: 2, max: 8 },
+  'chorus.delayTime': { min: 6, max: 15 },
   'chorus.depth': { min: 0.3, max: 0.7 },
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
-  'chorus.wet': { min: 0.15, max: 0.4 },
+  'chorus.wet': { min: 0.3, max: 0.4 },
   'tremolo.rate': { min: 0.5, max: 6 },
   'tremolo.depth': { min: 0.3, max: 0.7 },
   'tremolo.spread': { min: 90, max: 180 },
-  'tremolo.wet': { min: 0.2, max: 0.5 },
+  'tremolo.wet': { min: 0.35, max: 0.5 },
   'vibrato.rate': { min: 2, max: 7 },
-  'vibrato.depth': { min: 0.05, max: 0.3 },
-  'vibrato.wet': { min: 0.2, max: 0.5 },
+  'vibrato.depth': { min: 0.03, max: 0.12 },
+  'vibrato.wet': { min: 0.85, max: 1 },
   'frequencyShifter.shift': { min: 2, max: 20 },
-  'frequencyShifter.wet': { min: 0.1, max: 0.3 },
+  'frequencyShifter.wet': { min: 0.25, max: 0.35 },
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 };
 
@@ -138,8 +141,8 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
 
   // Global Modulation T16 (Crawford, 2026-10-15): the pedals no longer share Colour's 0.25 Mix ceiling (spec assumption 9 said the bands and the ceiling may rise after the listen). Their recommended Mix bands (0.3-0.7, 0.25-0.6) were brought down a third (0.2-0.5, 0.15-0.4) after he heard them; Colour's ceiling is untouched.
   it('seeds the pedal Mix from its own bands, topping out above the colour ceiling, which stays at 0.25 for the colour effects', () => {
-    expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet']).toStrictEqual({ min: 0.2, max: 0.5 });
-    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet']).toStrictEqual({ min: 0.15, max: 0.4 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet']).toStrictEqual({ min: 0.35, max: 0.5 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['phaser.wet']).toStrictEqual({ min: 0.3, max: 0.4 });
     expect(COLOUR_LOAD_MIX_MAX).toBe(0.25);
   });
 
@@ -220,6 +223,50 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(max / min, key).toBeGreaterThan(1.5);
     }
+  });
+
+  // Classic Band Retune T1 (docs/tasks/CLASSIC_BAND_RETUNE.md §1). A Mix is stored as its slider position and squared at
+  // the node; the bypass cell's wet layer is sin(pi/2 * mix^2) (DARK_EFFECT_BYPASS.md §1.1). The floors rose so a lit
+  // pedal is never seeded at an inaudible wet layer: no lit motion pedal's floor sits below -20.5 dB.
+  it('keeps every lit pedal Mix floor audible: the wet layer at the band floor is no quieter than -20.5 dB', () => {
+    const wetLayerDb = (mix: number) => 20 * Math.log10(Math.sin((Math.PI / 2) * mix * mix));
+    for (const key of ['autoWah.wet', 'phaser.wet', 'chorus.wet', 'tremolo.wet', 'vibrato.wet', 'frequencyShifter.wet'] as const) {
+      expect(wetLayerDb(GLOBAL_AUDIO_LOADING_RANGES[key].min), key).toBeGreaterThanOrEqual(-20.5);
+    }
+  });
+
+  it('seeds a Vibrato at (nearly) full wet, never a chorus: the Mix band sits at 0.85 or above and reaches 1', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['vibrato.wet'].min).toBeGreaterThanOrEqual(0.85);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['vibrato.wet'].max).toBe(1);
+  });
+
+  it('keeps the Vibrato depth small enough that a full-wet pedal is a vibrato, not a siren: at most 0.12', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['vibrato.depth'].max).toBeLessThanOrEqual(0.12);
+  });
+
+  it('seeds the high-pass cutoff below the lowest note any robot plays: C4 (261.63 Hz) and every octave-1..3 robot keep their fundamental', () => {
+    const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['filterHPF.frequency'];
+    expect(max).toBeLessThan(261.63);
+    // The band is still a real band, and the full range (which the LFO swing and the slider use) is untouched.
+    expect(max / min).toBeGreaterThan(3);
+    expect(GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency']).toMatchObject({ min: 20, max: 20000 });
+  });
+
+  it('keeps the AutoWah sensitivity out of the saturating zone: no lower than -20 dB, and the band still sweeps (5 dB or more wide)', () => {
+    const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['autoWah.sensitivity'];
+    expect(min).toBeGreaterThanOrEqual(-20);
+    expect(max - min).toBeGreaterThanOrEqual(5);
+  });
+
+  it('seeds the Chorus delay time at a chorus length, not a flanger length: no lower than 5 ms, while the full range still reaches 1 - 20 ms', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['chorus.delayTime'].min).toBeGreaterThanOrEqual(5);
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.delayTime']).toMatchObject({ min: 1, max: 20 });
+  });
+
+  it('keeps the Frequency Shifter Mix a real band, not a point: the ceiling moved by only 0.05 from 0.3', () => {
+    const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['frequencyShifter.wet'];
+    expect(max).toBeGreaterThan(min);
+    expect(max - min).toBeCloseTo(0.1, 9);
   });
 
   it('never has min >= max for any field', () => {
