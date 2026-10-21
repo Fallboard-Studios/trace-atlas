@@ -527,6 +527,20 @@ describe('buildSessionPayload', () => {
     expect(payload.lfoBank!.b.depthDrift).toBe(-0.99);
   });
 
+  // Robot Effect Sends T2: the Colour room's Return is quantised at two decimals beside the Reverb and Delay returns.
+  it('quantizes the Colour room Return (colourRoom.wet) to 2 decimal places, beside the room returns', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState((state) => ({
+      globalAudio: { ...state.globalAudio, colourRoom: { wet: 0.456789 }, reverb: { ...state.globalAudio.reverb, wet: 0.333333 } },
+    }));
+
+    const payload = buildSessionPayload();
+
+    expect(payload.globalAudio.colourRoom).toStrictEqual({ wet: 0.46 });
+    expect(payload.globalAudio.reverb.wet).toBe(0.33);
+  });
+
   it('includes only the one robot\'s changed lfoLinks target, keyed under lfoLinks', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);

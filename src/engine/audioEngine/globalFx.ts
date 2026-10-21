@@ -33,6 +33,7 @@ import type {
   DistortionSettings,
   ChebyshevSettings,
   BitCrusherSettings,
+  ColourRoomSettings,
   AutoWahSettings,
   PhaserSettings,
   ChorusSettings,
@@ -814,6 +815,15 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
   }
+}
+
+/**
+ * The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4). Clamped like every colour field, and written
+ * nowhere yet: no Colour room exists until the rooms are built (plan T4), which points this at the room's return gain.
+ */
+export function setGlobalColourRoom(params: Partial<ColourRoomSettings>): void {
+  const wet = clampIfGiven('colourRoom.wet', params.wet);
+  if (wet === undefined) return;
 }
 
 /** Auto Wah (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The sweep range, sensitivity and follower smoothing are

@@ -261,6 +261,19 @@ describe('generateGlobalAudioSettings', () => {
       evictAttenuationStyleNoiseMap('oracle-theta');
     });
 
+    // Robot Effect Sends T2 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Colour room's Return is never seeded.
+    it('emits the Colour room Return from the defaults (1) for every style, and never draws it', () => {
+      vi.mocked(getSeededVal).mockClear();
+      vi.mocked(getUniformSeededVal).mockClear();
+      for (let i = 0; i < 8; i++) {
+        expect(generateGlobalAudioSettings(`colour-room-${i}`, `ColourRoom${i}`).colourRoom, `style ${i}`).toStrictEqual({ wet: 1 });
+        evictAttenuationStyleNoiseMap(`colour-room-${i}`);
+      }
+      const dataIds = [...vi.mocked(getSeededVal).mock.calls, ...vi.mocked(getUniformSeededVal).mock.calls].map(([, dataId]) => dataId);
+      expect(dataIds.length).toBeGreaterThan(0);
+      expect(dataIds.filter((id) => String(id).includes('colourRoom'))).toEqual([]);
+    });
+
     it('no longer draws the wet fields or the delay quiet roll from the noise map', () => {
       vi.mocked(getSeededVal).mockClear();
 
@@ -2159,6 +2172,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.18 },
+      // Robot Effect Sends T2: the Colour room Return, from the defaults (amended by hand; nothing else moved).
+      colourRoom: { wet: 1 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
       autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
@@ -2199,6 +2214,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0.13 },
       bitCrusher: { bits: 8, wet: 0 },
+      // Robot Effect Sends T2: the Colour room Return, from the defaults (amended by hand; nothing else moved).
+      colourRoom: { wet: 1 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },

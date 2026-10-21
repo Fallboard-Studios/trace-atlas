@@ -140,6 +140,7 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   distortion: AudioEngine.setGlobalDistortion,
   chebyshev: AudioEngine.setGlobalChebyshev,
   bitCrusher: AudioEngine.setGlobalBitCrusher,
+  colourRoom: AudioEngine.setGlobalColourRoom,
   autoWah: AudioEngine.setGlobalAutoWah,
   phaser: setGlobalRateResolved('phaser'),
   chorus: setGlobalRateResolved('chorus'),
@@ -173,6 +174,8 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: 
   AudioEngine.setGlobalDistortion(globalAudio.distortion);
   AudioEngine.setGlobalChebyshev(globalAudio.chebyshev);
   AudioEngine.setGlobalBitCrusher(globalAudio.bitCrusher);
+  // The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4), after its three depths.
+  AudioEngine.setGlobalColourRoom(globalAudio.colourRoom);
   // The modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.4). The Phaser goes in
   // as Hz with `stages` included, so a restore into a different count rebuilds the node once.
   AudioEngine.setGlobalAutoWah(globalAudio.autoWah);

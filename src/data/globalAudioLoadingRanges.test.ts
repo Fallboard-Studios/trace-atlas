@@ -97,7 +97,7 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
 
   // Robot Effect Sends T1 (spec assumption 5): a Return is never seeded, by type.
   it('has no Reverb or Delay wet row, and a Return row is a compile error, while the full ranges keep both keys', () => {
-    expect(RETURN_FIELD_KEYS).toEqual(['reverb.wet', 'delay.wet']);
+    expect(RETURN_FIELD_KEYS).toEqual(['reverb.wet', 'delay.wet', 'colourRoom.wet']);
     expect('reverb.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
     expect('delay.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
     // @ts-expect-error - a Return key is not a LoadingRangeKey

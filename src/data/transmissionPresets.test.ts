@@ -146,6 +146,12 @@ describe('TRANSMISSION_PRESETS', () => {
       }
     });
 
+    // Robot Effect Sends T2 (docs/specs/ROBOT_EFFECT_SENDS.md §1.2): the Colour room's Return block, carried explicitly
+    // at full like the Reverb and Delay returns.
+    it('carries the colourRoom block at a full Return, 1', () => {
+      expect(payload.globalAudio?.colourRoom).toStrictEqual({ wet: 1 });
+    });
+
     it('carries every LFO lane and every global LFO link, never a partial set', () => {
       expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
       expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());

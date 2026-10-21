@@ -25,6 +25,7 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalDistortion: vi.fn(),
     setGlobalChebyshev: vi.fn(),
     setGlobalBitCrusher: vi.fn(),
+    setGlobalColourRoom: vi.fn(),
     setGlobalAutoWah: vi.fn(),
     setGlobalPhaser: vi.fn(),
     setGlobalChorus: vi.fn(),

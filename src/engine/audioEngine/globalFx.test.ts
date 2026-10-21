@@ -1112,6 +1112,24 @@ describe('globalFx', () => {
       expect(typeof globalFx.setGlobalBitCrusher).toBe('function');
     });
 
+    // Robot Effect Sends T2: the Colour room's Return setter exists before its room (T4 points it at the room's return).
+    // Until then it clamps and writes nothing: no colour node's Mix moves and nothing lights, for any input.
+    it('setGlobalColourRoom is exported and writes nothing yet, before or after the build, for any Return', async () => {
+      const unbuilt = await import('./globalFx');
+      expect(typeof unbuilt.setGlobalColourRoom).toBe('function');
+      expect(() => unbuilt.setGlobalColourRoom({ wet: 0.5 })).not.toThrow();
+
+      const { globalFx, dist, cheb, crush } = await built();
+      globalFx.setGlobalDistortion({ wet: 0.4 });
+      const before = [dist, cheb, crush].map((effect) => mixRampsOf(effect).length);
+      const lit = globalFx.getConnectedEffectCount();
+      for (const params of [{ wet: 0.5 }, { wet: 7 }, { wet: -1 }, { wet: Number.NaN }, {}]) {
+        expect(() => globalFx.setGlobalColourRoom(params), JSON.stringify(params)).not.toThrow();
+      }
+      expect([dist, cheb, crush].map((effect) => mixRampsOf(effect).length)).toEqual(before);
+      expect(globalFx.getConnectedEffectCount()).toBe(lit);
+    });
+
     it('no-ops without throwing before the chain is built', async () => {
       const globalFx = await import('./globalFx');
       expect(() => globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 })).not.toThrow();

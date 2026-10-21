@@ -2368,6 +2368,7 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     distortion: { amount: 0.3, wet: 0 },
     chebyshev: { order: 2, wet: 0 },
     bitCrusher: { bits: 8, wet: 0 },
+    colourRoom: { wet: 1 },
     autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
     phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
     chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },

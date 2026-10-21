@@ -21,6 +21,7 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalDistortion: vi.fn(),
     setGlobalChebyshev: vi.fn(),
     setGlobalBitCrusher: vi.fn(),
+    setGlobalColourRoom: vi.fn(),
     setGlobalAutoWah: vi.fn(),
     setGlobalPhaser: vi.fn(),
     setGlobalChorus: vi.fn(),
@@ -318,6 +319,50 @@ describe('useAudioStore - setGlobalAudio pushes to AudioEngine', () => {
       expect(order(AudioEngine.setGlobalFilterHPF)).toBeLessThan(order(AudioEngine.setGlobalDistortion));
       expect(order(AudioEngine.setGlobalDistortion)).toBeLessThan(order(AudioEngine.setGlobalChebyshev));
       expect(order(AudioEngine.setGlobalChebyshev)).toBeLessThan(order(AudioEngine.setGlobalBitCrusher));
+    });
+  });
+
+  // Robot Effect Sends T2 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Colour room's Return block.
+  describe('the colourRoom block', () => {
+    it('routes setGlobalAudio(colourRoom, { wet }) to setGlobalColourRoom only, and updates state', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setGlobalAudio('colourRoom', { wet: 0.5 });
+
+      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledWith({ wet: 0.5 });
+      expect(AudioEngine.setGlobalDistortion).not.toHaveBeenCalled();
+      expect(AudioEngine.setGlobalBitCrusher).not.toHaveBeenCalled();
+      expect(useAudioStore.getState().globalAudio.colourRoom).toStrictEqual({ wet: 0.5 });
+    });
+
+    it('treats an undefined-valued wet as no edit: no state write and no engine push', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      const before = useAudioStore.getState().globalAudio.colourRoom;
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setGlobalAudio('colourRoom', { wet: undefined });
+
+      expect(AudioEngine.setGlobalColourRoom).not.toHaveBeenCalled();
+      expect(useAudioStore.getState().globalAudio.colourRoom).toStrictEqual(before);
+    });
+
+    it('applyGlobalAudioToEngine pushes the block once, whole, straight after the Bit Crusher', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      const globalAudio = { ...useAudioStore.getState().globalAudio, colourRoom: { wet: 0.37 } };
+      vi.clearAllMocks();
+
+      applyGlobalAudioToEngine(globalAudio, 120);
+
+      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledWith({ wet: 0.37 });
+      const order = (fn: unknown) => (fn as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+      expect(order(AudioEngine.setGlobalBitCrusher)).toBeLessThan(order(AudioEngine.setGlobalColourRoom));
+      expect(order(AudioEngine.setGlobalColourRoom)).toBeLessThan(order(AudioEngine.setGlobalAutoWah));
     });
   });
 });
