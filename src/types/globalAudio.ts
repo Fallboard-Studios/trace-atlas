@@ -159,7 +159,8 @@ export interface ChorusSettings {
   spread: number;
   /** 0 - 0.9 - Tone's `feedback` Signal; above 0 the chorus is a flanger */
   feedback: number;
-  /** 0 - 1, a slider position: the node is given colourWetGain(wet), not wet itself. */
+  /** 0 - 1, the Double room's RETURN level (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4), see ReverbSettings.wet: the
+   *  Chorus is the room's one branch, pinned at depth 1. Not seeded; starts at 1. */
   wet: number;
   /** Present = Sync, absent = Free. Never `sync: undefined`. Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
   sync?: NoteValue;
@@ -196,7 +197,8 @@ export interface VibratoSettings {
 export interface FrequencyShifterSettings {
   /** Hz (-1000 - 1000), signed. Tone's `frequency`: every partial moves by the same Hz. */
   shift: number;
-  /** 0 - 1, a slider position: the node is given colourWetGain(wet). */
+  /** 0 - 1, the Shimmer room's RETURN level (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4), see ReverbSettings.wet: the
+   *  shifter is the room's one branch, pinned at depth 1. Not seeded; starts at 1. */
   wet: number;
 }
 
@@ -278,11 +280,12 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
   phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },
   // Global Pedals: Tone's defaults, every Mix 0 and Width at unity, so a default world is unchanged
-  // (docs/specs/GLOBAL_PEDALS.md assumption 10). No `sync` key: Free.
-  chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 0 },
+  // (docs/specs/GLOBAL_PEDALS.md assumption 10). No `sync` key: Free. Robot Effect Sends T8: the Chorus and the shifter
+  // are rooms, their `wet` the room's Return, full (1) like the Reverb and Delay returns; a robot's send sets the depth.
+  chorus: { rate: 1.5, delayTime: 3.5, depth: 0.7, spread: 180, feedback: 0, wet: 1 },
   tremolo: { rate: 10, depth: 0.5, spread: 180, wet: 0 },
   vibrato: { rate: 5, depth: 0.1, wet: 0 },
-  frequencyShifter: { shift: 0, wet: 0 },
+  frequencyShifter: { shift: 0, wet: 1 },
   stereoWidener: { width: 0.5 },
   limiter: { threshold: -12 },
 };

@@ -1305,9 +1305,9 @@ describe('Global Pedals defaults and synced Rates on the wire (Global Pedals T12
     const first = decodeSessionPayload(pre506Link())!;
     first.globalAudio.chorus.wet = 0.9;
     first.globalAudio.stereoWidener.width = 1;
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(1); // the Double room Return (Robot Effect Sends T8)
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width).toBe(0.5);
     const second = decodeSessionPayload(pre506Link())!;
-    expect([second.globalAudio.chorus.wet, second.globalAudio.stereoWidener.width]).toEqual([0, 0.5]);
+    expect([second.globalAudio.chorus.wet, second.globalAudio.stereoWidener.width]).toEqual([1, 0.5]);
   });
 });

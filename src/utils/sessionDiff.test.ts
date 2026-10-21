@@ -2664,7 +2664,8 @@ describe('applySessionPayload — Global Pedals defaults (T12)', () => {
     expect(() => applySessionPayload(payload)).not.toThrow();
     const restored = useAudioStore.getState().globalAudio;
     for (const key of NEW_KEYS) expect(restored[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
-    expect([restored.chorus.wet, restored.tremolo.wet, restored.vibrato.wet, restored.frequencyShifter.wet]).toEqual([0, 0, 0, 0]);
+    // Robot Effect Sends T8: the Chorus and shifter wets default to a full Return (1); the Tremolo and Vibrato stay dry.
+    expect([restored.chorus.wet, restored.tremolo.wet, restored.vibrato.wet, restored.frequencyShifter.wet]).toEqual([1, 0, 0, 1]);
     expect(restored.stereoWidener.width).toBe(0.5);
     for (const key of ['chorus', 'tremolo', 'vibrato'] as const) expect('sync' in restored[key], key).toBe(false);
     for (const [key, value] of Object.entries(payload.globalAudio)) {

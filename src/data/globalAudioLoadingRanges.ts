@@ -109,12 +109,14 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<LoadingRangeKey, LoadingRange> 
   // (docs/tasks/CLASSIC_BAND_RETUNE.md §2, 2026-10-21): Mix floors up (the taper note above), the Chorus delay at a
   // chorus length (under 5 ms with feedback is a flanger; the full range 1-20 ms still reaches one by hand), and the
   // Vibrato at near-full wet and a small depth (a vibrato below full wet is a chorus; at full wet the old depths are a siren).
+  // Robot Effect Sends T8 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Chorus and the Frequency Shifter became
+  // rooms, their `wet` a Return of 1 that is never seeded, so their Mix rows (the retune's rows 7 and 9: 0.3-0.4 and
+  // 0.25-0.35) are history. Their shape rows below still seed every world.
   'chorus.rate': { min: 0.2, max: 2 },
   'chorus.delayTime': { min: 6, max: 15 },
   'chorus.depth': { min: 0.3, max: 0.7 },
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
-  'chorus.wet': { min: 0.3, max: 0.4 },
   'tremolo.rate': { min: 0.5, max: 6 },
   'tremolo.depth': { min: 0.3, max: 0.7 },
   'tremolo.spread': { min: 90, max: 180 },
@@ -125,8 +127,6 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<LoadingRangeKey, LoadingRange> 
   // A MAGNITUDE band: the seeder draws the sign separately (`globalAudio.frequencyShifter.sign`), so a seeded shift is
   // ±(2 - 20) Hz and never inside ±2 Hz.
   'frequencyShifter.shift': { min: 2, max: 20 },
-  // The ceiling moved by only 0.05 (to 0.35), so the band is not a point.
-  'frequencyShifter.wet': { min: 0.25, max: 0.35 },
   // Never near 0: the mono fold is a hand setting only. The widener has no dark state.
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 };

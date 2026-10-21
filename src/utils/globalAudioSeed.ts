@@ -141,14 +141,15 @@ export const PEDAL_LIT_EDGE: Record<'autoWah' | 'phaser' | MotionPedal, number> 
   phaser: 1 / 3,
   // Global Pedals (docs/specs/GLOBAL_PEDALS.md assumption 7): nominal edges, rolled after the two above in chain order
   // and capped by MAX_LIT_PEDALS, so each realises less than its edge (see MAX_LIT_PEDALS for the measured shares).
-  chorus: 0.25,
+  // Robot Effect Sends T8 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 9): the Chorus (0.25) and the shifter (0.15) left
+  // with their move into rooms; a room has no lit roll, its robots' sends light it.
   tremolo: 0.25,
   vibrato: 0.25,
-  frequencyShifter: 0.15,
 };
 
-/** The Global Pedals' four motion pedals in chain order (docs/specs/GLOBAL_PEDALS.md §1.2), the order they roll in. */
-export const MOTION_PEDALS = ['chorus', 'tremolo', 'vibrato', 'frequencyShifter'] as const;
+/** The Global Pedals' motion pedals still in the dry chain, in chain order (docs/specs/GLOBAL_PEDALS.md §1.2), the order
+ *  they roll in. The Chorus and the Frequency Shifter left at Robot Effect Sends T8, for the Double and Shimmer rooms. */
+export const MOTION_PEDALS = ['tremolo', 'vibrato'] as const;
 export type MotionPedal = (typeof MOTION_PEDALS)[number];
 
 /**
@@ -156,11 +157,12 @@ export type MotionPedal = (typeof MOTION_PEDALS)[number];
  * assumption 7). A SEQUENTIAL cap: the AutoWah and Phaser roll first and untouched, then each motion pedal in chain order
  * rolls its own uniform draw and is forced dark if two are already lit. Every roll key is read on every style, so the
  * draw set never depends on the outcome. The rolls are uniform and independent, so the realised shares follow from the
- * edges exactly - the 50.4 pedals leave 0 / 1 / 2 lit in 4/9 / 4/9 / 1/9 of worlds - giving Chorus 22.2 %, Tremolo
- * 19.4 %, Vibrato 16.7 % and the shifter 8.4 %. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-18): Chorus
- * 22.68 %, Tremolo 19.33 %, Vibrato 16.75 %, shifter 8.20 %, two pedals lit in 49.38 % of worlds and never more. The
- * test holds a different set ('PedalsShare<n>', 3 000 styles) to within 3 points of those. A theme that wants more lit
- * moves the edges or this cap. By hand any number of pedals can be lit.
+ * edges exactly - the 50.4 pedals leave 0 / 1 / 2 lit in 4/9 / 4/9 / 1/9 of worlds. Since Robot Effect Sends T8 the cap
+ * counts four pedals (the Chorus and the shifter became rooms, lit by their robots' sends), giving Tremolo 22.2 % and
+ * Vibrato 19.4 %. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-21): Tremolo 22.04 %, Vibrato 19.55 %, two
+ * pedals lit in 33.20 % of worlds and never more. The test holds a different set ('PedalsShare<n>', 3 000 styles) to
+ * within 3 points of those. A theme that wants more lit moves the edges or this cap. By hand any number of pedals can be
+ * lit.
  */
 export const MAX_LIT_PEDALS = 2;
 
@@ -205,9 +207,11 @@ export const PEDAL_SYNC_ODDS: Record<SyncedRateKey, number> = {
  * worlds light each, independently. A dark pedal seeds `wet` 0 and still draws every other field from its band; a lit
  * Phaser seeds Sync in about half of worlds (PEDAL_SYNC_ODDS.phaser), with the note drawn from the lit rate band.
  *
- * The four Global Pedals motion pedals roll after them in chain order under a two-lit cap (MAX_LIT_PEDALS), each with
- * the same dark-pedal rule; a lit Chorus, Tremolo or Vibrato seeds Sync about half the time, the shifter's sign is its own
- * draw, and Width always seeds from its band (docs/specs/GLOBAL_PEDALS.md §1.2).
+ * The Tremolo and the Vibrato roll after them in chain order under a two-lit cap (MAX_LIT_PEDALS), each with the same
+ * dark-pedal rule and its own Sync odds (PEDAL_SYNC_ODDS). The Chorus and the Frequency Shifter are rooms (Robot Effect
+ * Sends, docs/specs/ROBOT_EFFECT_SENDS.md assumptions 4 and 9): their `wet` is the room's Return, 1 from the defaults, and
+ * they have no lit roll; the Chorus rolls Sync in every world, the shifter's sign is its own draw, and every shape value
+ * still seeds from its band. Width always seeds from its band (docs/specs/GLOBAL_PEDALS.md §1.2).
  */
 export function generateGlobalAudioSettings(attenuationStyleId: string, attenuationStyleName: string): GlobalAudioSettings {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
@@ -250,7 +254,9 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // A sync pair per synced-rate block (the Phaser and the three LFO pedals), read on every style; Sync only when lit and
   // under the odds, the note from the lit band. A dark one is Free (no `sync` key), like a Free lane; an empty band
   // leaves a lit one Free too.
-  const rateLit: Record<SyncedRateKey, boolean> = { phaser: phaserLit, ...pedalLit };
+  // Robot Effect Sends T8 (spec assumption 9): the Chorus is the Double room, heard whenever any robot sends into it, so
+  // it rolls Sync in every world under its odds.
+  const rateLit: Record<SyncedRateKey, boolean> = { phaser: phaserLit, chorus: true, ...pedalLit };
   const rateSync = {} as Record<SyncedRateKey, NoteValue | undefined>;
   for (const key of SYNCED_RATE_KEYS) {
     const modeT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncMode`);
@@ -346,7 +352,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
         depth: sampleField(noiseMap, 'chorus.depth', true),
         spread: sampleField(noiseMap, 'chorus.spread', true),
         feedback: sampleField(noiseMap, 'chorus.feedback', true),
-        wet: pedalWet('chorus'),
+        // The Double room's Return (Robot Effect Sends T8): never seeded, from the defaults.
+        wet: defaults.chorus.wet,
       },
       rateSync.chorus,
     ),
@@ -369,7 +376,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     ),
     frequencyShifter: {
       shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift', true),
-      wet: pedalWet('frequencyShifter'),
+      // The Shimmer room's Return (Robot Effect Sends T8): never seeded, from the defaults.
+      wet: defaults.frequencyShifter.wet,
     },
     // Width has no dark state: always a value from its band, never near the mono fold.
     stereoWidener: { width: sampleField(noiseMap, 'stereoWidener.width', true) },

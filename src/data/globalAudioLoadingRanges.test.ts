@@ -72,7 +72,6 @@ const EXPECTED: Record<LoadingRangeKey, { min: number; max: number }> = {
   'chorus.depth': { min: 0.3, max: 0.7 },
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
-  'chorus.wet': { min: 0.3, max: 0.4 },
   'tremolo.rate': { min: 0.5, max: 6 },
   'tremolo.depth': { min: 0.3, max: 0.7 },
   'tremolo.spread': { min: 90, max: 180 },
@@ -81,7 +80,6 @@ const EXPECTED: Record<LoadingRangeKey, { min: number; max: number }> = {
   'vibrato.depth': { min: 0.03, max: 0.12 },
   'vibrato.wet': { min: 0.85, max: 1 },
   'frequencyShifter.shift': { min: 2, max: 20 },
-  'frequencyShifter.wet': { min: 0.25, max: 0.35 },
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 };
 
@@ -97,7 +95,7 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
 
   // Robot Effect Sends T1 (spec assumption 5): a Return is never seeded, by type.
   it('has no Reverb or Delay wet row, and a Return row is a compile error, while the full ranges keep both keys', () => {
-    expect(RETURN_FIELD_KEYS).toEqual(['reverb.wet', 'delay.wet', 'colourRoom.wet']);
+    expect(RETURN_FIELD_KEYS).toEqual(['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet', 'colourRoom.wet']);
     expect('reverb.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
     expect('delay.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
     // @ts-expect-error - a Return key is not a LoadingRangeKey
@@ -218,7 +216,8 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
 
   // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md assumption 6).
   it('keeps every motion pedal Mix band above zero, so a lit pedal is always audible', () => {
-    for (const key of ['chorus.wet', 'tremolo.wet', 'vibrato.wet', 'frequencyShifter.wet'] as const) {
+    // Robot Effect Sends T8: the Chorus and shifter Mixes are Returns with no loading row; the two in-chain pedals remain.
+    for (const key of ['tremolo.wet', 'vibrato.wet'] as const) {
       expect(GLOBAL_AUDIO_LOADING_RANGES[key].min, key).toBeGreaterThan(0);
     }
   });
@@ -244,7 +243,8 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     const keys = (Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as LoadingRangeKey[]).filter(
       (key) => MOTION_PEDAL_PREFIXES.some((prefix) => key.startsWith(prefix)) || key.startsWith('stereoWidener.'),
     );
-    expect(keys).toHaveLength(16);
+    // Robot Effect Sends T8: sixteen fields less the two Mixes that became Returns (chorus.wet, frequencyShifter.wet).
+    expect(keys).toHaveLength(14);
     for (const key of keys) {
       const { min: fullMin, step } = GLOBAL_AUDIO_SEED_RANGES[key];
       expect(step, key + ' step').toBeDefined();
@@ -267,7 +267,7 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   // pedal is never seeded at an inaudible wet layer: no lit motion pedal's floor sits below -20.5 dB.
   it('keeps every lit pedal Mix floor audible: the wet layer at the band floor is no quieter than -20.5 dB', () => {
     const wetLayerDb = (mix: number) => 20 * Math.log10(Math.sin((Math.PI / 2) * mix * mix));
-    for (const key of ['autoWah.wet', 'phaser.wet', 'chorus.wet', 'tremolo.wet', 'vibrato.wet', 'frequencyShifter.wet'] as const) {
+    for (const key of ['autoWah.wet', 'phaser.wet', 'tremolo.wet', 'vibrato.wet'] as const) {
       expect(wetLayerDb(GLOBAL_AUDIO_LOADING_RANGES[key].min), key).toBeGreaterThanOrEqual(-20.5);
     }
   });
@@ -300,10 +300,13 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['chorus.delayTime']).toMatchObject({ min: 1, max: 20 });
   });
 
-  it('keeps the Frequency Shifter Mix a real band, not a point: the ceiling moved by only 0.05 from 0.3', () => {
-    const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['frequencyShifter.wet'];
-    expect(max).toBeGreaterThan(min);
-    expect(max - min).toBeCloseTo(0.1, 9);
+  // Robot Effect Sends T8 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Chorus and Frequency Shifter Mixes became
+  // their rooms' Returns, never seeded, so their loading rows (Classic Band Retune rows 7 and 9) are history.
+  it('has no Chorus or Frequency Shifter Mix row: both are Returns now, while the full ranges keep both keys', () => {
+    expect('chorus.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
+    expect('frequencyShifter.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
+    expect(GLOBAL_AUDIO_SEED_RANGES['chorus.wet']).toMatchObject({ min: 0, max: 1 });
+    expect(GLOBAL_AUDIO_SEED_RANGES['frequencyShifter.wet']).toMatchObject({ min: 0, max: 1 });
   });
 
   // Classic Band Retune T6 (docs/tasks/CLASSIC_BAND_RETUNE.md §7, the 2026-10-21 measurement). The Web Audio compressor

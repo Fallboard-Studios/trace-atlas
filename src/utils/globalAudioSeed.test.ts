@@ -205,10 +205,11 @@ describe('generateGlobalAudioSettings', () => {
     // Global Modulation: the two pedal Mix rows are absent for the same reason - a dark pedal seeds wet 0 (they are
     // pinned by the pedal tests below). The eleven pedal shape rows are in valueByKey above.
     const PEDAL_WET_ROWS = 2;
-    // Global Pedals T2: the four motion-pedal Mix rows are absent for the same reason (a dark pedal seeds wet 0), and
-    // the shift row because it is a MAGNITUDE band - the seeded shift is signed, so half of all worlds sit outside it
-    // (pinned by the T8 shifter tests instead).
-    const MOTION_WET_ROWS = 4;
+    // Global Pedals T2: the motion-pedal Mix rows are absent for the same reason (a dark pedal seeds wet 0) - two since
+    // Robot Effect Sends T8 made the Chorus and shifter Mixes Returns with no loading row - and the shift row because it
+    // is a MAGNITUDE band - the seeded shift is signed, so half of all worlds sit outside it (pinned by the T8 shifter
+    // tests instead).
+    const MOTION_WET_ROWS = 2;
     const SHIFT_MAGNITUDE_ROW = 1;
     expect(sampledKeys.length).toBe(
       Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length -
@@ -972,14 +973,15 @@ describe('the Global Pedals (Global Pedals T8)', () => {
   const SAMPLES = 3000;
   const sampleId = (i: number) => `PedalsShare${i}`;
   let samples: Seeded[] = [];
-  const LFO_PEDALS = ['chorus', 'tremolo', 'vibrato'] as const;
+  // Robot Effect Sends T8 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 9): the Chorus and the shifter are rooms now, their
+  // `wet` a Return of 1 in every world, so they are not lit or dark and leave the cap. The cap counts four pedals.
+  const LFO_PEDALS = ['tremolo', 'vibrato'] as const;
+  const SYNCED_PEDALS = ['chorus', 'tremolo', 'vibrato'] as const;
   const lit = (s: Seeded) => ({
     autoWah: s.autoWah.wet > 0,
     phaser: s.phaser.wet > 0,
-    chorus: s.chorus.wet > 0,
     tremolo: s.tremolo.wet > 0,
     vibrato: s.vibrato.wet > 0,
-    frequencyShifter: s.frequencyShifter.wet > 0,
   });
   const litCount = (s: Seeded) => Object.values(lit(s)).filter(Boolean).length;
   const share = (pick: (s: Seeded) => boolean) => samples.filter(pick).length / samples.length;
@@ -1002,14 +1004,14 @@ describe('the Global Pedals (Global Pedals T8)', () => {
   }, 120000);
 
   describe('the constants', () => {
-    it('keeps the AutoWah and Phaser edges, and gives the four motion pedals 0.25 / 0.25 / 0.25 / 0.15 nominal', () => {
+    // Robot Effect Sends T8: the Chorus and the shifter left the cap (spec assumption 9); the Tremolo and the Vibrato keep
+    // their edges and now roll straight after the AutoWah and the Phaser.
+    it('keeps the AutoWah, Phaser, Tremolo and Vibrato edges, and has none for the Chorus or the shifter', () => {
       expect(PEDAL_LIT_EDGE).toStrictEqual({
         autoWah: 1 / 3,
         phaser: 1 / 3,
-        chorus: 0.25,
         tremolo: 0.25,
         vibrato: 0.25,
-        frequencyShifter: 0.15,
       });
     });
 
@@ -1019,20 +1021,21 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       expect(PEDAL_SYNC_ODDS.vibrato).toBe(0.5);
     });
 
-    it('rolls the motion pedals in chain order', () => {
-      expect([...MOTION_PEDALS]).toStrictEqual(['chorus', 'tremolo', 'vibrato', 'frequencyShifter']);
+    it('rolls the two motion pedals still in the chain, in chain order', () => {
+      expect([...MOTION_PEDALS]).toStrictEqual(['tremolo', 'vibrato']);
     });
   });
 
   // The rolls are uniform and independent, so the shares follow from the edges and the sequential cap exactly: the 50.4
   // pedals leave 0 / 1 / 2 lit in 4/9 / 4/9 / 1/9 of worlds, and each later pedal lights at its edge times the chance
-  // that fewer than two are lit before it. Expected: Chorus 0.25 * 8/9 = 22.2 %, Tremolo 0.25 * 7/9 = 19.4 %, Vibrato
-  // 0.25 * 2/3 = 16.7 %, shifter 0.15 * 9/16 = 8.4 %. MEASURED over 20 000 styles ('PedalsCalibration<n>', 2026-10-18):
-  // Chorus 22.68, Tremolo 19.33, Vibrato 16.75, shifter 8.20 %, two lit in 49.38 % of worlds and never more; lit LFO
-  // pedals synced 49.82 / 50.88 / 49.73 % (re-measured 2026-10-21 after the per-pedal Sync odds: Chorus 49.82, Tremolo 75.14,
-  // Vibrato 49.73 %, the Phaser 50.62 %); negative shifts 49.97 %. The held-out set here measured 22.33 / 19.87 / 16.77
-  // / 9.63 % and must land within 3 points of the calibration figures.
-  const MEASURED = { chorus: 0.2268, tremolo: 0.1933, vibrato: 0.1675, frequencyShifter: 0.082 } as const;
+  // that fewer than two are lit before it. Robot Effect Sends T8 took the Chorus and the shifter out of the cap, so the
+  // Tremolo rolls first: Tremolo 0.25 * 8/9 = 22.2 %; after it two are lit in 1/9 + 4/9 * 1/4 = 2/9 of worlds, so the
+  // Vibrato lights in 0.25 * 7/9 = 19.4 %. Before
+  // (Global Pedals, 20 000 styles 'PedalsCalibration<n>', 2026-10-18) the Chorus took 22.68 % and the Tremolo and Vibrato
+  // 19.33 / 16.75 %. Re-measured at Robot Effect Sends T8 over the same 20 000 styles (2026-10-21): Tremolo 22.04 %,
+  // Vibrato 19.55 %, two lit in 33.20 % of worlds and never more; the Chorus synced in 49.51 % of ALL worlds, lit Tremolo
+  // and Vibrato worlds 75.04 / 50.09 %. The held-out set must land within 3 points of these.
+  const MEASURED = { tremolo: 0.2204, vibrato: 0.1955 } as const;
 
   describe('lit shares under the cap (3 000 held-out styles)', () => {
     it('leaves the AutoWah and Phaser shares at 33 %, within 3 points (their rolls come first and are untouched)', () => {
@@ -1050,10 +1053,12 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       expect(samples.some((s) => litCount(s) === 2)).toBe(true);
     });
 
-    it('lights the shifter least often of the four motion pedals', () => {
-      const shifter = share((s) => lit(s).frequencyShifter);
-      for (const pedal of ['chorus', 'tremolo', 'vibrato'] as const) {
-        expect(shifter, pedal).toBeLessThan(share((s) => lit(s)[pedal]));
+    // Robot Effect Sends T8 (spec assumption 4): the Chorus and the shifter are rooms; their `wet` is the room's Return, a
+    // fixed 1 from the defaults in every world, never seeded and never 0.
+    it('seeds the Chorus and the shifter Mix as a full Return, 1, in every world', () => {
+      for (const s of samples) {
+        expect(s.chorus.wet).toBe(1);
+        expect(s.frequencyShifter.wet).toBe(1);
       }
     });
 
@@ -1087,7 +1092,6 @@ describe('the Global Pedals (Global Pedals T8)', () => {
     // Literal numbers, so the test holds the seeder to the plan (Classic Band Retune row 13) and not to the constant: a
     // swapped Tremolo entry, or one pedal's odds indexed for another, moves one of these shares by 25 points.
     it.each([
-      ['chorus', 0.5],
       ['tremolo', 0.75],
       ['vibrato', 0.5],
     ] as const)('seeds Sync in the planned share of lit %s worlds (%s), within 5 points', (pedal, planned) => {
@@ -1097,19 +1101,25 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       expect(Math.abs(synced - planned) * 100, `${pedal}: realised ${(synced * 100).toFixed(1)} %`).toBeLessThanOrEqual(5);
     });
 
+    // Robot Effect Sends T8 (spec assumption 9): the Double room's rate is heard whenever any robot sends into it, so the
+    // Chorus rolls Sync in EVERY world under its odds, not only in lit ones (there is no lit Chorus any more).
+    it('seeds the Chorus Sync in about half of all worlds (PEDAL_SYNC_ODDS.chorus), within 5 points', () => {
+      const synced = share((s) => s.chorus.sync !== undefined);
+      expect(Math.abs(synced - 0.5) * 100, `realised ${(synced * 100).toFixed(1)} %`).toBeLessThanOrEqual(5);
+    });
+
     it('lets the Tremolo sync more often than any other pedal, by at least 15 points', () => {
       const shareOf = (pedal: (typeof LFO_PEDALS)[number]) => {
         const litOnes = samples.filter((s) => lit(s)[pedal]);
         return litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
       };
-      for (const other of ['chorus', 'vibrato'] as const) {
-        expect(shareOf('tremolo') - shareOf(other), `tremolo vs ${other}`).toBeGreaterThanOrEqual(0.15);
-      }
+      expect(shareOf('tremolo') - shareOf('vibrato'), 'tremolo vs vibrato').toBeGreaterThanOrEqual(0.15);
+      expect(shareOf('tremolo') - share((s) => s.chorus.sync !== undefined), 'tremolo vs chorus').toBeGreaterThanOrEqual(0.15);
     });
 
     it('seeds only real notes inside the lit rate band at the style tempo', () => {
       for (let i = 0; i < samples.length; i++) {
-        for (const pedal of LFO_PEDALS) {
+        for (const pedal of SYNCED_PEDALS) {
           const sync = samples[i][pedal].sync;
           if (sync === undefined) continue;
           expect(isNoteValue(sync)).toBe(true);
@@ -1150,8 +1160,9 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       }
     });
 
-    it('seeds every lit AutoWah Mix at 0.35 or above, every lit Phaser/Chorus at 0.3 or above, every lit Tremolo 0.35 or above, every lit shifter 0.25 or above', () => {
-      const floors = { autoWah: 0.35, phaser: 0.3, chorus: 0.3, tremolo: 0.35, frequencyShifter: 0.25 } as const;
+    // Robot Effect Sends T8: the Chorus and the shifter have no Mix band any more (their wet is a Return of 1).
+    it('seeds every lit AutoWah Mix at 0.35 or above, every lit Phaser at 0.3 or above, every lit Tremolo 0.35 or above', () => {
+      const floors = { autoWah: 0.35, phaser: 0.3, tremolo: 0.35 } as const;
       for (const s of samples) {
         for (const pedal of Object.keys(floors) as Array<keyof typeof floors>) {
           if (!lit(s)[pedal]) continue;
@@ -1236,15 +1247,17 @@ describe('the Global Pedals (Global Pedals T8)', () => {
 
     // oracle-alpha: the Chorus lit and the shifter CAPPED; oracle-theta: the Tremolo lit. The draw set must be the same
     // whatever the outcome, so a capped pedal still reads its roll key.
-    it('reads its twenty-seven keys, each once, as uniform draws on every style: four lit rolls, three sync pairs, the sign and sixteen values', () => {
+    // Robot Effect Sends T8: the Chorus and shifter lit rolls and Mix values are no longer read (each is its own key, so
+    // no other draw moves); the Chorus's sync pair still is, on every style.
+    it('reads its twenty-three keys, each once, as uniform draws on every style: two lit rolls, three sync pairs, the sign and fourteen values', () => {
       const expected = [
-        'chorus.lit', 'tremolo.lit', 'vibrato.lit', 'frequencyShifter.lit',
+        'tremolo.lit', 'vibrato.lit',
         'chorus.syncMode', 'chorus.syncNote', 'tremolo.syncMode', 'tremolo.syncNote', 'vibrato.syncMode', 'vibrato.syncNote',
         'frequencyShifter.sign',
-        'chorus.rate', 'chorus.delayTime', 'chorus.depth', 'chorus.spread', 'chorus.feedback', 'chorus.wet',
+        'chorus.rate', 'chorus.delayTime', 'chorus.depth', 'chorus.spread', 'chorus.feedback',
         'tremolo.rate', 'tremolo.depth', 'tremolo.spread', 'tremolo.wet',
         'vibrato.rate', 'vibrato.depth', 'vibrato.wet',
-        'frequencyShifter.shift', 'frequencyShifter.wet', 'stereoWidener.width',
+        'frequencyShifter.shift', 'stereoWidener.width',
       ].map((k) => `globalAudio.${k}`).sort();
       const prefixes = ['chorus.', 'tremolo.', 'vibrato.', 'frequencyShifter.', 'stereoWidener.'].map((p) => `globalAudio.${p}`);
       for (const id of ['oracle-alpha', 'oracle-theta', 'pedals-keys']) {
@@ -2185,11 +2198,13 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         wet: 0.33,
         sync: { division: '1/8', modifier: 'dotted' },
       },
-      // Global Pedals T8: the Phaser is lit, the Chorus lights (synced), so the shifter's lit roll is capped dark.
-      chorus: { rate: 0.7000000000000001, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 0.3, sync: { division: '1/2', modifier: 'straight' } },
+      // Global Pedals T8: the Phaser is lit, the Chorus lit (synced), the shifter capped dark. Robot Effect Sends T8 (amended
+      // by hand): the Chorus and shifter wets are their rooms' Returns, 1, and the Chorus keeps the Sync it already drew; the
+      // Tremolo and Vibrato rolls are over their edges, so the smaller cap moved nothing else.
+      chorus: { rate: 0.7000000000000001, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
       tremolo: { rate: 5.7, depth: 0.35000000000000003, spread: 90, wet: 0 },
       vibrato: { rate: 6.8500000000000005, depth: 0.05, wet: 0 },
-      frequencyShifter: { shift: -11, wet: 0 },
+      frequencyShifter: { shift: -11, wet: 1 },
       stereoWidener: { width: 0.64 },
       delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
@@ -2219,11 +2234,13 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
-      // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the other three motion pedals roll dark.
-      chorus: { rate: 1.5000000000000002, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 0 },
+      // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the Vibrato rolls dark. Robot Effect Sends T8
+      // (amended by hand): the Chorus and shifter wets are their rooms' Returns, 1; this style's Chorus Sync roll is over its
+      // odds, so it stays Free; nothing else moved.
+      chorus: { rate: 1.5000000000000002, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
       tremolo: { rate: 1.7500000000000002, depth: 0.35000000000000003, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
-      frequencyShifter: { shift: 14, wet: 0 },
+      frequencyShifter: { shift: 14, wet: 1 },
       stereoWidener: { width: 0.51 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
       delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
