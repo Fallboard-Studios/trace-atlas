@@ -59,7 +59,7 @@
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | wet | 0–1 (return level²) | – (fixed `1`) | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | – |
 | Reverb | `setGlobalReverb()` | decay | seconds, 0.1–10 | 0.5–4 | SPATIAL DIFFUSION MATRIX | DISSIPATION DURATION | SLIDER (Logarithmic) | – | – |
-| Reverb | `setGlobalReverb()` | preDelay | seconds, 0–0.5 | 0–0.1 | SPATIAL DIFFUSION MATRIX | INITIAL LAG | SLIDER | – | – |
+| Reverb | `setGlobalReverb()` | preDelay | seconds, 0–0.25 | 0–0.1 | SPATIAL DIFFUSION MATRIX | INITIAL LAG | SLIDER | – | – |
 | Reverb | `setGlobalReverb()` | wet | 0–1 (return level²) | – (fixed `1`) | SPATIAL DIFFUSION MATRIX | DIFFUSED SIGNAL BALANCE | SLIDER | – | – |
 | Compressor | `setGlobalCompressor()` | threshold | dB, −60 to 0 | −55 to −45 | DYNAMIC RANGE CONDENSER | ATTENUATION THRESHOLD | SLIDER | – | – |
 | Compressor | `setGlobalCompressor()` | ratio | 1–20 | 10–20 | DYNAMIC RANGE CONDENSER | COMPRESSION RATIO | SLIDER (step 1) | – | – |

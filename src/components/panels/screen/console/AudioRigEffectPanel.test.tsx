@@ -238,17 +238,30 @@ describe('AudioRigEffectPanel', () => {
 
     it('every Reverb slider is still bound to its own live value and edits its own field', () => {
       useAudioStore.setState((s) => ({
-        globalAudio: { ...s.globalAudio, reverb: { ...s.globalAudio.reverb, decay: 2.5, preDelay: 0.25, wet: 0.4 } },
+        globalAudio: { ...s.globalAudio, reverb: { ...s.globalAudio.reverb, decay: 2.5, preDelay: 0.2, wet: 0.4 } },
       }));
       render(<AudioRigEffectPanel effectKey="reverb" />);
-      expect(screen.getByRole('slider', { name: 'Pre-Delay' }).getAttribute('aria-valuenow')).toBe('0.25');
+      expect(screen.getByRole('slider', { name: 'Pre-Delay' }).getAttribute('aria-valuenow')).toBe('0.2');
       expect(screen.getByRole('slider', { name: 'Reverb Amount' }).getAttribute('aria-valuenow')).toBe('0.4');
       const preDelay = screen.getByRole('slider', { name: 'Pre-Delay' });
       preDelay.focus();
       fireEvent.keyDown(preDelay, { key: 'ArrowRight' });
-      expect(useAudioStore.getState().globalAudio.reverb.preDelay).toBeCloseTo(0.26, 10);
+      expect(useAudioStore.getState().globalAudio.reverb.preDelay).toBeCloseTo(0.21, 10);
       expect(useAudioStore.getState().globalAudio.reverb.decay).toBe(2.5);
       expect(useAudioStore.getState().globalAudio.reverb.wet).toBe(0.4);
+    });
+
+    // Classic Band Retune row 14: the Pre-Delay slider ends at 0.25 s. At the top it stays there; it never writes 0.26.
+    it('the Pre-Delay slider stops at 0.25 s: a step past the top leaves the value at the top', () => {
+      useAudioStore.setState((s) => ({
+        globalAudio: { ...s.globalAudio, reverb: { ...s.globalAudio.reverb, preDelay: 0.25 } },
+      }));
+      render(<AudioRigEffectPanel effectKey="reverb" />);
+      const preDelay = screen.getByRole('slider', { name: 'Pre-Delay' });
+      expect(preDelay.getAttribute('aria-valuemax')).toBe('0.25');
+      preDelay.focus();
+      fireEvent.keyDown(preDelay, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.reverb.preDelay).toBeLessThanOrEqual(0.25);
     });
 
     it('the nested top row renders unframed — no second Cabinetry facade inside the Reverb block', () => {

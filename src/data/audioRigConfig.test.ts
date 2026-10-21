@@ -208,9 +208,9 @@ describe('AUDIO_RIG_CONFIG', () => {
       expect(param.lfoTarget).toBeUndefined();
     });
 
-    it('preDelay is a linear slider, seconds, 0 to 1, not LFO-flagged', () => {
+    it('preDelay is a linear slider, seconds, 0 to 0.25 (Classic Band Retune row 14), not LFO-flagged', () => {
       const param = findParam('reverb', 'preDelay');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.reverb.preDelay'].lore, min: 0, max: 1, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.reverb.preDelay'].lore, min: 0, max: 0.25, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 

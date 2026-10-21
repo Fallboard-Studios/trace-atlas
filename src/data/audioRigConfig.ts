@@ -238,7 +238,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     panel: panelSchema('reverb', 'fleet.reverb', 'column'),
     params: [
       { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', ...labels('fleet.reverb.length'), min: 0.1, max: 10, orientation: 'horizontal' } },
-      { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', ...labels('fleet.reverb.preDelay'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', ...labels('fleet.reverb.preDelay'), min: 0, max: 0.25, step: 0.01, orientation: 'horizontal' } },
       // dampening removed (V2) — Tone.Reverb has no such property; the slider
       // controlled a dead cast in globalFx.ts since Phase 0.
       { field: 'wet', schema: { id: 'reverb.wet', type: 'sliderLinear', ...labels('fleet.reverb.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },

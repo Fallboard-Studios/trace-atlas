@@ -83,7 +83,7 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | name | param | global / per robot | role | default | min | max | seedMin | seedMax | input type | options | loading rules | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Reverb room (Tone.Reverb) | decay (s) | global | room | 1.5 | 0.1 | 10 | 0.5 | 4 | slider log | | bell draw | the node's own wet is pinned at 1 |
-| Reverb room | preDelay (s) | global | room | 0.02 | 0 | 1 | 0 | 0.1 | slider, step 0.01 | | bell draw | see Discrepancies: the grid says 0–0.5 |
+| Reverb room | preDelay (s) | global | room | 0.02 | 0 | 0.25 | 0 | 0.1 | slider, step 0.01 | | bell draw | full range 0–0.25 in the grid, the rig and the seed ranges since the Classic Band Retune (Discrepancies item 1); `setGlobalReverb` clamps into it |
 | Reverb return (Tone.Gain) | `reverb.wet` | global | return | 1 | 0 | 1 | | | slider, step 0.01 | | not seeded (fixed 1) | the room's return level, not a mix; 0 silences the room for every robot; no longer a swell target |
 | Delay room (Tone.FeedbackDelay, `maxDelay` 10) | delayTime (s) | global | room | 0.25 | 0 | 10 | 0.05 | 0.5 | slider Free \| Sync, step 0.001 | Sync: a note value (`DelaySettings.sync`) | ≈2/3 of styles seed Sync (`DELAY_SYNC_ODDS` 0.66), the note drawn from the band at the style's tempo; the Free value is seeded underneath | the LFO on this param was removed; `maxDelay` must stay equal to `DELAY_TIME_RANGE_SECONDS.max` |
 | Delay room | feedback | global | room | 0.2 | 0 | 0.95 | 0 | 0.4 | slider, step 0.01 | | bell draw | capped under 1 against runaway |
@@ -131,6 +131,6 @@ The Effects Load dial holds off exactly three things: the LPF/HPF LFO links belo
 
 ## Discrepancies found while compiling (2026-10-19)
 
-1. **Reverb preDelay range.** `GLOBAL_CHAIN_GRID.md` says 0–0.5 s. `audioRigConfig.ts` and `globalAudioSeedRanges.ts` both say 0–1 s. One of them should move.
+1. **Reverb preDelay range.** *Resolved 2026-10-21 (Classic Band Retune T4).* `GLOBAL_CHAIN_GRID.md` said 0–0.5 s while `audioRigConfig.ts` and `globalAudioSeedRanges.ts` both said 0–1 s; all three now say 0–0.25 s (a 1 s pre-delay is a slapback), and `setGlobalReverb` clamps `decay` into 0.1–10 s and `preDelay` into 0–0.25 s, ignoring a non-finite value.
 2. **The Signal Graph diagram in `docs/AUDIO_SYSTEM.md`** still reads AutoWah → Phaser → Compressor → Limiter. It omits Chorus through FrequencyShifter and the Width stage, which the code wires (`wireGlobalFxChain`'s `chainNodes`). The prose above the diagram already names the rooms correctly.
 3. **The Compressor is built at values that are not its defaults** (`buildGlobalFxChain`: threshold −18, ratio 6, release 0.15, versus −24, 2, 0.25 in `DEFAULT_GLOBAL_AUDIO_SETTINGS`). The store overwrites them at boot, so nothing is audible, but a reader of the constructor is misled.

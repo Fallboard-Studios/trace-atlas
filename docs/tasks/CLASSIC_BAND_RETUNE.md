@@ -318,3 +318,24 @@ are recorded in the `PEDAL_SYNC_ODDS` comment, the seed test's calibration comme
 `AUDIO_SYSTEM.md` and the inventory's Tremolo cell.
 
 Verification: `npm test` 379 files / 13 410 tests, types clean, lint 0 errors.
+
+**T4 (2026-10-21), Reverb preDelay full range and the setter clamp.** `GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay']` and
+the rig schema are both 0–0.25 (step 0.01, so the top is on the grid); the `ReverbSettings` comment follows; the grid row
+(was "0–0.5") and the inventory row say 0–0.25, and the inventory's Discrepancies item 1 is marked resolved (kept, with
+its history). `setGlobalReverb` now clamps `decay` into 0.1–10 s and `preDelay` into 0–0.25 s through the existing
+`clampIfGiven` (the range table is the single source), and writes nothing, and queues no coalescing timer, for a
+non-finite value. Tests (literal numbers, not the table): 0.9 → 0.25, 50 → 10, −1 → 0, 0 / −5 → 0.1, both edges pass
+through unchanged, an in-range value untouched, NaN / ±Infinity write nothing and queue no timer, a NaN preDelay leaves a
+pending 0.1 to land, a NaN preDelay beside a valid decay still applies the decay, and a whole saved-session-shaped call
+(`decay 2, preDelay 0.6, wet 0.5`) reaches the node as 0.25 with the wet immediate. The rig and range tests pin 0–0.25;
+a Pre-Delay slider test holds the top at 0.25. Mutation gate, run by hand and restored: preDelay clamp dropped (6 tests
+fail), decay clamp dropped (3), the preDelay range min/max swapped (11), the finite check removed (14, shared with the
+colour setters) and the ceiling at 0.26 (3): all caught. (There is no `>=`/`>` boundary in the clamp to mutate; it is
+`Math.min`/`Math.max`, and the edge-passes-through test covers the equivalent.)
+- **One existing test moved:** the Audio Rig panel's "every Reverb slider is still bound to its own live value" test
+  started Pre-Delay at 0.25 and stepped it to 0.26, which the new ceiling forbids; it starts at 0.2 and steps to 0.21.
+- **A saved `preDelay` of 0.6 is clamped at the node, not in the store.** The sound is 0.25 s; the stored value stays
+  0.6 until the slider is touched, and the slider (max 0.25) draws at its end. This is the plan's "accepted" case; say so if
+  the store should be normalised on load too.
+
+Verification: `npm test` 379 files / 13 420 tests, types clean, lint 0 errors.
