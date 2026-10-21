@@ -1,8 +1,9 @@
 # Implementation Plan: Classic Band Retune — the seed bands a fresh world rolls within, before Robot Effect Sends
 
 > **Status (2026-10-21):** T0–T7 built and committed (T6: measured, then retuned as proposed on Crawford's answer) and
-> **Checkpoint A is green**; Checkpoint B, Crawford's listen, is the open gate. The three decisions in §3 are answered
-> (1 = B, 2 = not deliberate, 3 = keep 4–12).
+> **Checkpoint A is green and Checkpoint B passed** (Crawford's listen, 2026-10-21: one change, the colour effects made
+> much subtler, now 0.1–0.2; "i'm happy with everything" after it). The branch is ready for his PR. The three decisions in §3
+> are answered (1 = B, later superseded by the subtler colour bands; 2 = not deliberate; 3 = keep 4–12).
 > Building on `feature/classic-band-retune`, branched off `main` at `a12ee21c`; the plan was
 > written against `0b087fec` (the Global Pedals merge, PR #565), and `main` has since gained only docs. The listen
 > (Checkpoint B) is Crawford's; stop there.
