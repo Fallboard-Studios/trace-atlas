@@ -14,6 +14,8 @@ const toneFlags = vi.hoisted(() => ({
   // §8). A test fires a pending callback by hand with fireTimeouts(); `lookAhead` is the context's, read at call time.
   lookAhead: 0.1,
   timeouts: [] as Array<{ id: number; fn: () => void; seconds: number }>,
+  // The context's now(): where a segmented law ramp starts (branch review item 3).
+  now: 7,
   nextTimeoutId: 0,
   // Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): AutoWah is hoisted for the same two
   // reasons - one constructor with one call history, and a switch to hide it. Q, gain and wet are Signals; the
@@ -256,6 +258,7 @@ vi.mock('tone', () => ({
   getContext: vi.fn(() => ({
     rawContext: { createAnalyser: () => createAnalyser() },
     lookAhead: toneFlags.lookAhead,
+    now: () => toneFlags.now,
     setTimeout: (fn: () => void, seconds: number) => {
       toneFlags.nextTimeoutId += 1;
       toneFlags.timeouts.push({ id: toneFlags.nextTimeoutId, fn, seconds });
@@ -3477,6 +3480,114 @@ describe('globalFx', () => {
         expect(empty.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(toneFlags.timeouts).toHaveLength(0);
       });
+    });
+  });
+
+  // Branch review item 3: Tone ramps a Gain linearly, so one ramp moves the cell's two gains along a chord of the
+  // cos / sin law, and an uncorrelated signal dips by cos(arc / 2) at the chord's midpoint: -3 dB for a jump to Mix 1.
+  // A Mix-law ramp is split into chords of at most pi / 8 of arc (under 0.17 dB): the first a rampTo, which holds the
+  // value the gain is at, the rest linear ramps appended after it. The mocks' gains get linearRampToValueAtTime here.
+  describe('a Mix ramp follows the law in chords of at most pi / 8 (branch review item 3)', () => {
+    const NOW = 7;
+    const DIP_FLOOR = Math.cos(Math.PI / 16);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function segmented(cell: any) {
+      for (const gain of [cell.dry.gain, cell.wet.gain]) {
+        gain.linearRampToValueAtTime = vi.fn();
+        gain.rampTo.mockClear();
+      }
+    }
+    async function vibratoAt(mix: number) {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      if (mix > 0) globalFx.setGlobalVibrato({ wet: mix });
+      segmented(cellOf(vibrato));
+      return { globalFx, vibrato, cell: cellOf(vibrato) };
+    }
+    /** The points one gain was scheduled through, as [value, end time], the rampTo first. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function scheduled(gain: any): Array<[number, number]> {
+      const [[first, seconds, start]] = gain.rampTo.mock.calls;
+      return [[first, start + seconds], ...gain.linearRampToValueAtTime.mock.calls];
+    }
+    /** The lowest power any chord's midpoint carries, starting from the cell's law at `from`. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function worstChordMidpoint(cell: any, from: number): number {
+      const dry = [lawDry(from), ...scheduled(cell.dry.gain).map(([v]) => v)];
+      const wet = [lawWet(from), ...scheduled(cell.wet.gain).map(([v]) => v)];
+      let worst = Infinity;
+      for (let i = 1; i < dry.length; i++) {
+        worst = Math.min(worst, Math.hypot((dry[i - 1] + dry[i]) / 2, (wet[i - 1] + wet[i]) / 2));
+      }
+      return worst;
+    }
+
+    it('lights 0 -> Mix 1 in four chords, a quarter of the arc and of the 50 ms each, from the context\'s now', async () => {
+      const { globalFx, cell } = await vibratoAt(0);
+      globalFx.setGlobalVibrato({ wet: 1 });
+      expect(cell.dry.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawDry(0.25), 9), 0.0125, NOW]]);
+      expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.25), 9), 0.0125, NOW]]);
+      const rest = (law: (w: number) => number) =>
+        [0.5, 0.75, 1].map((w, i) => [expect.closeTo(law(w), 9), expect.closeTo(NOW + 0.0125 * (i + 2), 9)]);
+      expect(cell.dry.gain.linearRampToValueAtTime.mock.calls).toEqual(rest(lawDry));
+      expect(cell.wet.gain.linearRampToValueAtTime.mock.calls).toEqual(rest(lawWet));
+    });
+
+    it.each([
+      ['lighting to Mix 1', 0, 1],
+      ['darkening from Mix 1', 1, 0],
+      ['moving Mix 0.3 -> 0.95', 0.3, 0.95],
+      ['moving Mix 0.9 -> 0.6', 0.9, 0.6],
+    ])('keeps every chord within 0.17 dB of the law when %s', async (_label, from, to) => {
+      const { globalFx, cell } = await vibratoAt(from);
+      globalFx.setGlobalVibrato({ wet: to });
+      expect(worstChordMidpoint(cell, from * from)).toBeGreaterThanOrEqual(DIP_FLOOR - 1e-12);
+      expect(scheduled(cell.wet.gain).at(-1)).toEqual([expect.closeTo(lawWet(to * to), 9), expect.closeTo(NOW + 0.05, 9)]);
+    });
+
+    it('keeps a move within pi / 8 of arc one plain ramp, as before', async () => {
+      const { globalFx, cell } = await vibratoAt(0);
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      expect(cell.dry.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawDry(0.09), 9), 0.05]]);
+      expect(cell.wet.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    });
+
+    it('splits a duck the same way: a lit Chorus at Mix 1 goes to dry in four chords over the 20 ms', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const chorus = lastInstance(toneFlags.chorusCtor);
+      globalFx.setGlobalChorus({ wet: 1 });
+      const cell = cellOf(chorus);
+      segmented(cell);
+      globalFx.setGlobalChorus({ spread: 90 });
+      expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.75), 9), 0.005, NOW]]);
+      expect(cell.wet.gain.linearRampToValueAtTime).toHaveBeenCalledTimes(3);
+      expect(worstChordMidpoint(cell, 1)).toBeGreaterThanOrEqual(DIP_FLOOR - 1e-12);
+      // ... and back up from dry the same way at the bottom of the duck.
+      segmented(cell);
+      fireTimeouts();
+      expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.25), 9), 0.005, NOW]]);
+      expect(worstChordMidpoint(cell, 0)).toBeGreaterThanOrEqual(DIP_FLOOR - 1e-12);
+    });
+
+    it('leaves Width one ramp at any jump: its law is linear, so the chord is the law', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const cell = cellOf(lastInstance(toneFlags.widenerCtor));
+      segmented(cell);
+      globalFx.setGlobalStereoWidener({ width: 1 });
+      expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
+      expect(cell.wet.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    });
+
+    it('falls back to one ramp to the target on a gain that cannot schedule a linear ramp (a headless stub)', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      globalFx.setGlobalVibrato({ wet: 1 });
+      expect(cellOf(vibrato).wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(1, 9), 0.05]]);
     });
   });
 

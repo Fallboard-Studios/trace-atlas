@@ -197,11 +197,45 @@ export function getConnectedEffectCount(): number {
   return Object.values(_cells).filter((cell) => cell.connected).length;
 }
 
-/** Ramp `key`'s cell's two gains to its law at `w`: widthCellGains for the widener, cellGains for a Mix effect. */
-function rampCell(key: BypassKey, cell: Cell, w: number, seconds: number): void {
-  const { dry, wet } = key === 'stereoWidener' ? widthCellGains(w) : cellGains(w);
-  rampOrSet(cell.dry.gain, dry, seconds);
-  rampOrSet(cell.wet.gain, wet, seconds);
+/** The widest step of a Mix effect's law input one linear ramp may take: a quarter, π/8 of the cos / sin arc. Tone ramps
+ *  a Gain linearly, so one ramp moves the two gains along a chord of the law, and an uncorrelated signal dips by
+ *  cos(arc / 2) at the chord's midpoint: 3 dB for one ramp from dry to Mix 1, under 0.17 dB at π/8 (branch review
+ *  item 3). */
+const MAX_LAW_STEP = 0.25;
+
+/** A gain that can append a linear ramp after its rampTo; a headless stub cannot, and gets one plain ramp. */
+type SegmentableGain = Tone.Param<'gain'> & { linearRampToValueAtTime?: (value: number, endTime: number) => unknown };
+
+/**
+ * Ramp `key`'s cell's two gains from its law at `from` to its law at `to` over `seconds`: widthCellGains for the
+ * widener, whose linear law a single ramp follows exactly, cellGains for a Mix effect. A Mix ramp wider than
+ * MAX_LAW_STEP is split into equal chords of the law over equal shares of the time: the first is a rampTo from the
+ * context's now (which holds wherever the gain is, so a ramp cut short by the next one stays continuous and cancels what
+ * was still scheduled), the rest are linear ramps appended after it.
+ */
+function rampCell(key: BypassKey, cell: Cell, from: number, to: number, seconds: number): void {
+  const law = key === 'stereoWidener' ? widthCellGains : cellGains;
+  const dryGain = cell.dry.gain as SegmentableGain;
+  const wetGain = cell.wet.gain as SegmentableGain;
+  const chords = key === 'stereoWidener' ? 1 : Math.ceil(Math.abs(to - from) / MAX_LAW_STEP);
+  if (chords <= 1 || typeof dryGain.linearRampToValueAtTime !== 'function' || typeof wetGain.linearRampToValueAtTime !== 'function') {
+    const { dry, wet } = law(to);
+    rampOrSet(dryGain, dry, seconds);
+    rampOrSet(wetGain, wet, seconds);
+    return;
+  }
+  const step = seconds / chords;
+  const start = Tone.getContext().now();
+  for (let k = 1; k <= chords; k++) {
+    const { dry, wet } = law(from + ((to - from) * k) / chords);
+    if (k === 1) {
+      dryGain.rampTo(dry, step, start);
+      wetGain.rampTo(wet, step, start);
+    } else {
+      dryGain.linearRampToValueAtTime(dry, start + step * k);
+      wetGain.linearRampToValueAtTime(wet, start + step * k);
+    }
+  }
 }
 
 /** Make the effect's two edges. Only ever called while the cell's wet gain is 0, so the new path is silent. False, with
@@ -257,6 +291,7 @@ export function writeCellMix(key: BypassKey, mix: number): void {
   const w = key === 'stereoWidener' ? (mix === 0.5 ? 0 : 1) : colourWetGain(mix);
   if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
   const ramp = !isDucked(key);
+  const from = cell.mix;
   const context = Tone.getContext();
   if (w > 0) {
     if (cell.darken !== null) {
@@ -265,11 +300,11 @@ export function writeCellMix(key: BypassKey, mix: number): void {
     }
     if (!cell.connected && !connectEffect(key, cell, effect)) return;
     cell.mix = w;
-    if (ramp) rampCell(key, cell, w, COLOUR_RAMP_SECONDS);
+    if (ramp) rampCell(key, cell, from, w, COLOUR_RAMP_SECONDS);
     return;
   }
   cell.mix = 0;
-  if (ramp) rampCell(key, cell, 0, COLOUR_RAMP_SECONDS);
+  if (ramp) rampCell(key, cell, from, 0, COLOUR_RAMP_SECONDS);
   cell.darken = context.setTimeout(
     () => {
       cell.darken = null;
@@ -318,7 +353,7 @@ export function duckCell(key: BypassKey, apply: () => void): void {
   const context = Tone.getContext();
   const pending = _ducks[key];
   if (pending) context.clearTimeout(pending.timer);
-  else rampCell(key, cell, 0, DUCK_SECONDS);
+  else rampCell(key, cell, cell.mix, 0, DUCK_SECONDS);
   const timer = context.setTimeout(
     () => finishDuck(key),
     context.lookAhead + DUCK_SECONDS + DUCK_WRITE_MARGIN_SECONDS,
@@ -335,7 +370,7 @@ function finishDuck(key: BypassKey): void {
   try {
     pending.apply();
     const cell = _cells[key];
-    if (cell) rampCell(key, cell, cell.mix, DUCK_SECONDS);
+    if (cell) rampCell(key, cell, 0, cell.mix, DUCK_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] a ducked ' + key + ' change failed', err);
   }

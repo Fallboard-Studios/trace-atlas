@@ -826,3 +826,14 @@ The branch review (main...68aecb8b) asked for these; behaviour is unchanged exce
 - **A half-built cell.** `buildCell` releases the Gains and cut it already made when a later constructor throws
   (they leaked before; reachable only when a constructor fails).
 - **Comments.** `cellGains` now names the Mix 0.04 floor (item 12 of §8.0); `CHAIN_CUT_OPTIONS` counts twelve cuts.
+- **Item 3, the chord dip.** Tone ramps a Gain linearly, so one ramp took the two gains along a chord of the cos / sin
+  law: at the chord's midpoint an uncorrelated signal dipped −0.17 dB going to Mix 0.5, −0.66 dB to 0.7 and −3 dB to
+  Mix 1 (the new tests read 0.7071 on the old code). `rampCell` now splits a Mix-law ramp into equal chords of at most
+  a quarter of the law input (`MAX_LAW_STEP`, π/8 of arc), each over an equal share of the ramp time: the first a
+  `rampTo` from the context's `now()`, the rest `linearRampToValueAtTime` appended after it. The worst chord now dips
+  0.17 dB (cos π/16). A 0 → 1 jump is four chords; a seeded Mix (≤ 0.5, a law step ≤ 0.25) and every move within a
+  quarter stay one plain ramp, so most writes are unchanged. The ducks ride the same path. Width's law is linear, so
+  it stays one ramp. A gain without `linearRampToValueAtTime` (a headless stub) keeps one ramp to the target. Checked
+  against Tone 15's `Param.js`: `rampTo` runs `setRampPoint`, a `cancelAndHoldAtTime` at its start, so a ramp cut short
+  by the next one stays continuous and drops the chords still scheduled. Seven mutants, all killed. **Not re-measured
+  in a real-time context:** T11's crossing probe was not re-run, and nobody has listened to it yet.
