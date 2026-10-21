@@ -2658,6 +2658,17 @@ describe('applySessionPayload — Global Pedals defaults (T12)', () => {
     }
   });
 
+  it('a crafted payload whose synced blocks are numbers restores the defaults instead of throwing in the sanitiser', () => {
+    setupNewPedalWorld();
+    const payload = buildSessionPayload();
+    const crafted = { ...payload, globalAudio: { ...payload.globalAudio, chorus: 1, tremolo: 1, vibrato: 1, phaser: 1, delay: 1 } };
+    expect(() => applySessionPayload(crafted as unknown as SessionPayload)).not.toThrow();
+    const restored = useAudioStore.getState().globalAudio;
+    for (const key of ['chorus', 'tremolo', 'vibrato', 'phaser', 'delay'] as const) {
+      expect(restored[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    }
+  });
+
   it('the engine is pushed all five full default blocks, never undefined', () => {
     setupNewPedalWorld();
     const spies = {

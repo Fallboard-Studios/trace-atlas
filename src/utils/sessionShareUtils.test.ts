@@ -1293,6 +1293,14 @@ describe('Global Pedals defaults and synced Rates on the wire (Global Pedals T12
     expect(decoded.globalAudio.stereoWidener).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener);
   });
 
+  it('a block that is not an object is a missing one: g.chorus: 1 decodes to the default instead of throwing', () => {
+    const link = encodeRaw({ v: 2, n: 'alpha', c: { x: 0, y: 0 }, g: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS, chorus: 1, phaser: 'x', delay: true } });
+    const decoded = decodeSessionPayload(link)!;
+    expect(decoded.globalAudio.chorus).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus);
+    expect(decoded.globalAudio.phaser).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(decoded.globalAudio.delay).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay);
+  });
+
   it('the decoded defaults are copies: editing one decode never changes the shared defaults or the next decode', () => {
     const first = decodeSessionPayload(pre506Link())!;
     first.globalAudio.chorus.wet = 0.9;

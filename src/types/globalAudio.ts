@@ -261,16 +261,25 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   limiter: { threshold: -12 },
 };
 
+/** True when `value` is a plain object where `fallback` is one, or a primitive of `fallback`'s type. */
+function isSameKind(value: unknown, fallback: unknown): boolean {
+  if (typeof fallback !== 'object') return typeof value === typeof fallback;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Fills any effect block a payload lacks from DEFAULT_GLOBAL_AUDIO_SETTINGS and drops keys it does not
  * know. A session or share link saved before a block existed therefore loads with that block at its
  * default (dry, for colour) instead of crashing `applyGlobalAudioToEngine`. Blocks are whole: a block that
  * is present is kept as given and never deep-merged (docs/specs/GLOBAL_COLOUR.md §1.1, assumption 11).
+ * A value of the wrong kind (a number where a block belongs, say, from a crafted `?session=`) counts as
+ * missing, so the restore path's sanitisers only ever see objects.
  */
 export function withGlobalAudioDefaults(partial: Partial<GlobalAudioSettings>): GlobalAudioSettings {
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS) as (keyof GlobalAudioSettings)[]) {
-    result[key] = partial[key] ?? structuredClone(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
+    const fallback = DEFAULT_GLOBAL_AUDIO_SETTINGS[key];
+    result[key] = isSameKind(partial[key], fallback) ? partial[key] : structuredClone(fallback);
   }
   return result as unknown as GlobalAudioSettings;
 }

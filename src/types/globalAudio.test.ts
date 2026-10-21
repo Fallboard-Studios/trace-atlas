@@ -280,6 +280,26 @@ describe('withGlobalAudioDefaults', () => {
     expect(withGlobalAudioDefaults(given).chebyshev).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
   });
 
+  it.each([
+    ['a number', 1],
+    ['a string', 'chorus'],
+    ['a boolean', true],
+    ['an array', [0.5]],
+  ])('treats a block that is %s as absent, so a crafted payload cannot reach the sanitisers', (_label, value) => {
+    const given = { chorus: value, phaser: value, delay: value, limiter: value } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(given);
+    expect(result.chorus).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus);
+    expect(result.phaser).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser);
+    expect(result.delay).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay);
+    expect(result.limiter).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.limiter);
+  });
+
+  it('keeps a boolean compressorBeforeDelay and defaults one of the wrong type', () => {
+    expect(withGlobalAudioDefaults({ compressorBeforeDelay: true }).compressorBeforeDelay).toBe(true);
+    const crafted = { compressorBeforeDelay: { on: true } } as unknown as Partial<GlobalAudioSettings>;
+    expect(withGlobalAudioDefaults(crafted).compressorBeforeDelay).toBe(false);
+  });
+
   it('does not share nested state between two calls', () => {
     const a = withGlobalAudioDefaults({});
     const b = withGlobalAudioDefaults({});
