@@ -48,6 +48,9 @@ function makeDefaultLfoLinks(): Record<RobotLfoTargetId, LfoLink> {
   return Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((t) => [t, { lane: null, depth: 0 }])) as Record<RobotLfoTargetId, LfoLink>;
 }
 
+/** The five per-robot sends a session diff carries (Robot Sends, Robot Effect Sends). */
+const SEND_FIELDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
+
 function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBaseline {
   return {
     name: 'Iron Drifter',
@@ -66,6 +69,9 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     lfoLinks: makeDefaultLfoLinks(),
     reverbSend: 0.3,
     delaySend: 0.1,
+    gritSend: 0.4,
+    shimmerSend: 0.25,
+    doubleSend: 0.15,
     ...overrides,
   } as RobotAudioBaseline;
 }
@@ -90,6 +96,9 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     pitchRepeat: baseline.pitchRepeat,
     reverbSend: baseline.reverbSend,
     delaySend: baseline.delaySend,
+    gritSend: baseline.gritSend,
+    shimmerSend: baseline.shimmerSend,
+    doubleSend: baseline.doubleSend,
     audioMode: 'none',
     ...overrides,
   } as Robot;
@@ -300,6 +309,72 @@ describe('computeRobotAudioOverrideDiff', () => {
         swellOn('reverbSend', 'r1', 0.123456);
         expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.8 }), baseline)).toEqual({ reverbSend: 0.12 });
       });
+    });
+  });
+
+  // docs/tasks/ROBOT_EFFECT_SENDS.md Task 12: the save side of the three new sends, so a swell on one saves its base.
+  // The fixture seeds Grit 0.4 / Shimmer 0.25 / Double 0.15, distinct, so a crossed field cannot pass by coincidence.
+  describe.each(['gritSend', 'shimmerSend', 'doubleSend'] as const)('%s, the save side (Robot Effect Sends T12)', (field) => {
+    const others = SEND_FIELDS.filter((f) => f !== field);
+    const swellOn = (attribute: string, robotId: string, baseValue: number) =>
+      vi.spyOn(audioSwells, 'getActiveSwellSnapshot').mockImplementation((pool) =>
+        pool === 'robot'
+          ? [{ pool: 'robot', robotAttribute: attribute, members: [{ robotId, baseValue, peakDelta: 0.4 }], phase: 'rising', startMeasure: 0, risingMeasures: 4, fallingMeasures: 4 } as never]
+          : [],
+      );
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('an untouched robot diffs to {}', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline)).toEqual({});
+    });
+
+    it('a robot moved one step diffs to that send alone, at two decimals', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.45 }), baseline)).toEqual({ [field]: 0.45 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.123456 }), baseline)).toEqual({ [field]: 0.12 });
+    });
+
+    it('a send back on its seed after float noise, or within half a step of it, diffs to nothing', () => {
+      const baseline = makeBaseline({ [field]: 0.3 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.1 + 0.2 }), baseline)).toEqual({});
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.304 }), baseline)).toEqual({});
+    });
+
+    it('0 against a seeded send is a change, 0 against a seeded 0 is not, and 1 is kept', () => {
+      const seeded = makeBaseline({ [field]: 0.3 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(seeded, { [field]: 0 }), seeded)).toEqual({ [field]: 0 });
+      const dry = makeBaseline({ [field]: 0 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(dry), dry)).toEqual({});
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(dry, { [field]: 1 }), dry)).toEqual({ [field]: 1 });
+    });
+
+    it('an untouched robot mid-swell still diffs to {} (the base is the seed, the live value is mid-ramp)', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r1', baseline[field]);
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.9 }), baseline)).toEqual({});
+    });
+
+    it('a swell that began from a hand-edited value saves that base, rounded, not the interpolated value', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r1', 0.123456);
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.8 }), baseline)).toEqual({ [field]: 0.12 });
+    });
+
+    it('a swell on this send leaves every other send reading its live value', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r1', baseline[field]);
+      const moved = Object.fromEntries(others.map((f) => [f, 0.66]));
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { ...moved, [field]: 0.9 }), baseline)).toEqual(moved);
+    });
+
+    it('a swell on another robot leaves this robot reading its live value', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r2', baseline[field]);
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.9 }), baseline)).toEqual({ [field]: 0.9 });
     });
   });
 
@@ -1336,10 +1411,10 @@ describe('applySessionPayload', () => {
       const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
       try {
         tickAudioSwells(localeId, 0);
-        const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'reverbSend' || s.robotAttribute === 'delaySend')!;
+        const swell = getActiveSwellSnapshot('robot').find((s) => (SEND_FIELDS as readonly string[]).includes(s.robotAttribute!))!;
         expect(swell, 'the forced start landed on a send').toBeDefined();
         const member = swell.members![0];
-        const field = swell.robotAttribute as 'reverbSend' | 'delaySend';
+        const field = swell.robotAttribute as (typeof SEND_FIELDS)[number];
         tickAudioSwells(localeId, 2);
         const liveValue = stored(member.robotId)[field];
         expect(Math.abs(liveValue - member.baseValue)).toBeGreaterThan(0.01); // precondition: it really is mid-ramp
@@ -1348,6 +1423,42 @@ describe('applySessionPayload', () => {
         const payload = buildSessionPayload();
 
         expect(payload.robotOverrides[member.robotId]?.[field]).toBeUndefined(); // base = seed, so nothing is saved
+      } finally {
+        noise.mockRestore();
+      }
+    });
+
+    // Robot Effect Sends T12: the same forced start lands on one of the three new sends in this world, so a hand edit
+    // before the swell must come back as the saved base (the case above passes vacuously for a field the diff drops).
+    it('a session saved mid-swell on a hand-edited send stores that edited base, not the seed or the ramp', () => {
+      const { localeId } = seededWorld();
+      useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
+      const byX = new Map<number, number>([
+        [precomputeDataX('audioSwell.trigger.robot'), -1],
+        [precomputeDataX('audioSwell.company.chance'), 1],
+        [precomputeDataX('audioSwell.target.robot'), 1],
+        [precomputeDataX('audioSwell.trigger.global'), 1],
+      ]);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      try {
+        // Find the pair the forced start picks, then hand-edit it off its seed and start the swell for real.
+        tickAudioSwells(localeId, 0);
+        const probe = getActiveSwellSnapshot('robot')[0];
+        const field = probe.robotAttribute as (typeof SEND_FIELDS)[number];
+        expect(['gritSend', 'shimmerSend', 'doubleSend']).toContain(field);
+        const robotId = probe.members![0].robotId;
+        stopAudioSwells();
+        const edited = probe.members![0].baseValue === 0.61 ? 0.62 : 0.61;
+        useLocaleStore.getState().updateRobot(localeId, robotId, { [field]: edited });
+
+        tickAudioSwells(localeId, 0);
+        const swell = getActiveSwellSnapshot('robot')[0];
+        expect(swell.robotAttribute).toBe(field);
+        expect(swell.members![0]).toMatchObject({ robotId, baseValue: edited });
+        tickAudioSwells(localeId, 2);
+        expect(Math.abs(stored(robotId)[field] - edited)).toBeGreaterThan(0.01); // precondition: mid-ramp
+
+        expect(buildSessionPayload().robotOverrides[robotId]?.[field]).toBe(edited);
       } finally {
         noise.mockRestore();
       }
