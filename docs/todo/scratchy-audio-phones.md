@@ -955,7 +955,7 @@ against their own source-only render:
 A driven Q does not keep the per-sample path alive, so k-rate on the frequency alone gets the whole saving.
 `automationRate` read back as set every time. **Estimates, not measured:** removing the biquads' share and adding the
 k-rate price back gives a Tone Phaser at 10 stages of about 29 ‰ (−37 %), and 4 stages + k-rate about 21 ‰ (−54 %). It
-gives an AutoWah of about 16 ‰ with k-rate (−35 %), and about 12 ‰ with −12 dB as well.
+gives an AutoWah of about 16 ‰ with k-rate (−35 %), and about 15 ‰ with −12 dB as well (2 of its 5 biquads left).
 
 **What this does not answer:**
 - **Whether k-rate is audible.** At the Phaser's seeded 2.5 Hz ceiling the sweep moves up to about 51 Hz per quantum
