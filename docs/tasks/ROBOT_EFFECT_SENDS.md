@@ -400,7 +400,7 @@ handlers through the actions (the swell cancel is added in T13).
 `src/components/panels/screen/screens/RobotScreen.tsx` (+ test). **Scope:** M.
 
 ### Checkpoint B: One robot, end to end
-- [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `0de3fc06`: 13 548 tests, lint 0 errors).
+- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [ ] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
   robot brings the shifter in with no click; Delay-side behaviour unchanged.
 - [ ] Reviewed with Crawford before Phase 3.
