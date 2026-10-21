@@ -1,7 +1,8 @@
 # Implementation Plan: Classic Band Retune — the seed bands a fresh world rolls within, before Robot Effect Sends
 
-> **Status (2026-10-21):** T0 done — the three decisions in §3 are answered (1 = B, 2 = not deliberate, 3 = keep 4–12), so
-> every task is unblocked. Building on `feature/classic-band-retune`, branched off `main` at `a12ee21c`; the plan was
+> **Status (2026-10-21):** T0–T5 built and committed; **T6 measured and stopped for Crawford's go on §7's numbers**; T7 and
+> Checkpoint A wait on it. The three decisions in §3 are answered (1 = B, 2 = not deliberate, 3 = keep 4–12).
+> Building on `feature/classic-band-retune`, branched off `main` at `a12ee21c`; the plan was
 > written against `0b087fec` (the Global Pedals merge, PR #565), and `main` has since gained only docs. The listen
 > (Checkpoint B) is Crawford's; stop there.
 
@@ -351,3 +352,59 @@ inventory's send row, `ROBOT_DATA_GRID.md`'s Reverb row and `themes.md:25`. No m
 the sends stay on the 1 % grid, which the existing grid assertions keep.
 
 Verification: `npm test` 379 files / 13 422 tests, types clean, lint 0 errors.
+
+**T6 (2026-10-21), Compressor: MEASURED, STOPPED for Crawford.** No code moved. The question was what the band
+(−55 to −45 dB, 10–20:1) does to a lit, busy fleet, against threshold 0 dB.
+
+*Method (a variation on §8.1, because the point is the real signal level).* The app itself, headless Chrome, the dev
+server: power on, wait 9 s, hook `Tone.Compressor.prototype.connect` before power-on to capture the live instance, light the
+AutoWah if the world's is dark, then record 12 s of the **real signal at the Compressor's input** with an
+`AudioWorkletNode` on `comp.input`. That signal does not depend on the Compressor's own settings, so it is replayed offline
+(`Tone.Offline`, 48 kHz stereo, the same `Tone.Compressor` then `Tone.Limiter(-3)`) through eight settings, each measured
+after the first 1.5 s: RMS and peak in dBFS, and the spread (p90 − p10) of 100 ms levels. Three fresh random worlds, 3–4
+audible robots of 12 (HUD `audible 3/12`, `4/12`), AutoWah lit (0.48 / 0.38 / 0.40), a colour effect lit in all three,
+Distortion at 0.25 / 0.25 / 0.28 (the T2 band). The world is a random locale (`random @ 152,76`, `@ -197,-190`, `@ -141,-91`),
+not a `?session=` payload: `?seed=` is gone (backlog 19), so the three worlds are described, not pinnable. Probe (not in the
+repo): `…/8d712881-6f4f-4d77-a4bc-b64a7f9fc12b/scratchpad/t6/` (`probe.mjs`, `summarize.cjs`, `run1-3.json`); `npx vite --port 5199
+--strictPort`, then `node probe.mjs "http://localhost:5199/trace-atlas/?debug" 12 run1.json 1`. The seeded Compressors of
+those worlds were −53 dB 12:1, −46 dB 19:1 and −53 dB 12:1, the Limiter −3, −1 and −3.
+
+*The plan's mechanism is wrong, and the numbers say why.* Row 16 reasons "no makeup gain: a −50 dB threshold at 15:1 pins the
+fleet's sustained level near −47 dBFS". Chrome's `DynamicsCompressorNode` applies **automatic makeup gain** (it scales the
+output so the curve's gain at 0 dBFS is partly undone), so nothing is pinned near −47. What the band does is swing the
+fleet's loudness by about 10 dB between seeds. Level against threshold 0 dB, same input, three worlds:
+
+| Setting | RMS vs ref (dB) | Peak vs ref (dB) | Peak after Compressor (dBFS) | Spread p90 − p10 (dB) |
+|---|---|---|---|---|
+| input, no Compressor | −22.1 / −21.3 / −19.6 dBFS | −7.0 / −8.9 / −4.9 dBFS | | 2.8 / 3.0 / 2.3 |
+| band worst: −55, 20:1, 3 ms, 0.3 s, knee 1 | −6.2 / −6.3 / −7.3 | −5.4 / −6.5 / −7.7 | −12.4 / −15.4 / −12.5 | 2.6 / 1.9 / 3.4 |
+| band middle: −50, 15:1, 26.5 ms, 0.175 s, knee 8 | −0.9 / −1.5 / −2.0 | −0.3 / −2.0 / −2.1 | −7.3 / −10.9 / −7.0 | 1.8 / 1.9 / 1.6 |
+| band mildest: −45, 10:1, 50 ms, 0.05 s, knee 15 | +3.5 / +2.8 / +2.8 | +3.9 / +2.7 / +3.3 | −3.1 / −6.2 / −1.6 | 2.2 / 2.1 / 1.8 |
+| proposed worst: −36, 6:1, 3 ms, 0.3 s, knee 1 | +0.1 / +0.2 / −0.7 | −0.4 / −1.2 / −2.7 | −7.4 / −10.0 / −7.6 | 3.3 / 2.2 / 4.0 |
+| proposed middle: −27, 4:1, 26.5 ms, 0.175 s, knee 8 | +4.2 / +4.3 / +3.7 | +3.4 / +3.2 / +1.7 | −3.6 / −5.7 / −3.2 | 3.5 / 2.3 / 3.9 |
+| proposed mildest: −18, 2:1, 50 ms, 0.05 s, knee 15 | +2.7 / +2.8 / +2.6 | +2.3 / +2.5 / +2.1 | −4.7 / −6.4 / −2.8 | 2.8 / 3.0 / 2.4 |
+
+(Also measured, not tabled: −55 dB, 20:1 with a 50 ms attack and knee 15 reads −1.3 / −2.0 / −2.4 dB RMS, so the band's
+−6 to −7 dB worst case is the 3 ms attack and 1 dB knee, not the threshold alone.)
+
+*What it means.*
+- **The existing band is a loudness lottery, not a pinned pad.** Across the band's corners the fleet is −7 dB to +3.5 dB
+  against uncompressed, an 11 dB swing from the Compressor alone, and its 100 ms level spread is about the same or *smaller*
+  than the input's (1.6–3.4 dB against 2.3–3.0): mild flattening, not pumping. Only the worst corner (3 ms attack, knee 1)
+  is both quiet and transient-lopsided.
+- **The proposed band halves the swing and raises the level.** Its corners span −0.7 to +4.3 dB (about 5 dB), but the
+  middle and mildest settings are +2.6 to +4.3 dB *louder* than uncompressed (the makeup gain again), with Compressor-output
+  peaks at −1.6 to −3.2 dBFS in the worst world. Its spread (2.2–4.0 dB) is at or above the input's: it compresses less.
+- **The Limiter does nothing in either case.** `Tone.Limiter(-3)`'s output sits 0.03–0.05 dB *above* its input in every row,
+  even where the Compressor's output peaks reach −1.6 dBFS: in Tone it is a compressor with its own makeup gain, not a
+  brick wall (limiter gain reduction: none measurable). So "the Limiter at −3 dB never acts" is true, but it also means a hot
+  Compressor output is not caught downstream.
+- Caveat: three worlds with 3–4 audible robots each (the Audio Load Budget's cap), at the app's real levels; an offline
+  replay of a 12 s recording, not a listen.
+
+**Question for Crawford (T6 gate).** Retune row 16 to −36 to −18 dB / 2–6:1, as the plan proposes? On the numbers: it
+narrows a ~10 dB seed-to-seed loudness swing to ~5 dB and removes the −6 to −7 dB quiet corner, at the cost of being about
+3 dB louder on average with peaks near −2 dBFS, which the Limiter will not catch. Other options the numbers support:
+leave the band (it is a wide but not pinned range), or keep it and only soften the worst corner (a 50 ms attack with a 15 dB
+knee takes it from −6 to −2 dB RMS), or retune to a threshold nearer −36 with a higher ratio so the
+makeup gain stays small. T7 and the rest of Checkpoint A wait on this answer so the docs sweep is written once.
