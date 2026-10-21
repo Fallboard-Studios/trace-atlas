@@ -1592,6 +1592,141 @@ describe('applySessionPayload', () => {
       expect(() => applySessionPayload({ ...buildSessionPayload(), robotOverrides: { 'no-such-robot': { reverbSend: 0.5 } } }, { skipLocaleRebuild: true })).not.toThrow();
       expect(prime).not.toHaveBeenCalled();
     });
+
+    // docs/tasks/ROBOT_EFFECT_SENDS.md Task 15: the restore side of Grit, Shimmer and Double (the save side is T12's).
+    describe.each([
+      { field: 'gritSend', key: 'grit' },
+      { field: 'shimmerSend', key: 'shimmer' },
+      { field: 'doubleSend', key: 'double' },
+    ] as const)('$field across a session restore (Robot Effect Sends T15)', ({ field, key }) => {
+      const OTHER_FIELDS = SEND_FIELDS.filter((f) => f !== field);
+
+      it('one step on one robot captures that send alone, and an untouched world captures nothing', () => {
+        const { localeId, robot } = seededWorld();
+        expect(buildSessionPayload().robotOverrides).toEqual({});
+        const target = robot[field] === 0.45 ? 0.46 : 0.45;
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: target });
+        expect(buildSessionPayload().robotOverrides).toEqual({ [robot.id]: { [field]: target } });
+      });
+
+      it('a send moved off its seed and back again captures nothing', () => {
+        const { localeId, robot } = seededWorld();
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: robot[field] === 0.45 ? 0.46 : 0.45 });
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: robot[field] });
+        expect(buildSessionPayload().robotOverrides).toEqual({});
+      });
+
+      it(`restores a moved send after a full save/wipe/load round trip, priming { ${key} } last and only once`, () => {
+        const { localeId, robot, robots } = seededWorld();
+        const seeds = Object.fromEntries(robots.map((r) => [r.id, SEND_FIELDS.map((f) => r[f])]));
+        const target = robot[field] === 0.45 ? 0.46 : 0.45;
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: target });
+        const payload = buildSessionPayload();
+        const prime = spyPrime();
+
+        applySessionPayload(shifted(payload));
+        prime.mockClear();
+        applySessionPayload(payload);
+
+        expect(stored(robot.id)[field]).toBe(target);
+        for (const other of OTHER_FIELDS) expect(stored(robot.id)[other], other).toBe(robot[other]);
+        for (const r of currentLocale()!.robots) {
+          if (r.id !== robot.id) expect(SEND_FIELDS.map((f) => r[f]), r.id).toEqual(seeds[r.id]);
+        }
+        const mine = prime.mock.calls.filter((c) => c[0] === robot.id);
+        expect(mine[mine.length - 1]).toEqual([robot.id, { [key]: target }]);
+        expect(mine.filter((c) => Object.keys(c[1]).length === 1)).toHaveLength(1);
+      });
+
+      it(`restoring { ${field}: 0 } sets the field and primes { ${key}: 0 }`, () => {
+        const { localeId, robot } = seededWorld();
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: 0.4 });
+        const prime = spyPrime();
+
+        applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: 0 } } }, { skipLocaleRebuild: true });
+
+        expect(stored(robot.id)[field]).toBe(0);
+        expect(prime.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { [key]: 0 }]]);
+      });
+
+      it('restoring 1 (the top of the range) is accepted and primed', () => {
+        const { robot } = seededWorld();
+        const prime = spyPrime();
+
+        applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: 1 } } }, { skipLocaleRebuild: true });
+
+        expect(stored(robot.id)[field]).toBe(1);
+        expect(prime).toHaveBeenCalledWith(robot.id, { [key]: 1 });
+      });
+
+      // Out of [0, 1] is ignored whole, 7 included (spec §1.7: in-range or ignored whole). A stored 7 cannot happen:
+      // localeStore.updateRobot clamps every send (Task 5), so the prime, which reads the stored value, never sees one.
+      it.each([
+        ['NaN', Number.NaN],
+        ['Infinity', Number.POSITIVE_INFINITY],
+        ['a string', '0.5'],
+        ['null', null],
+        ['below the range', -0.1],
+        ['above the range', 1.5],
+        ['far above the range', 7],
+      ])('a hand-edited value that is %s is ignored whole: the seeded value stays and nothing is primed', (_name, wild) => {
+        const { robot } = seededWorld();
+        const prime = spyPrime();
+
+        applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: wild as number } } }, { skipLocaleRebuild: true });
+
+        expect(stored(robot.id)[field]).toBe(robot[field]);
+        expect(prime).not.toHaveBeenCalled();
+      });
+
+      it('a bad value does not cost a valid send or another field beside it', () => {
+        const { robot } = seededWorld();
+        const prime = spyPrime();
+
+        applySessionPayload(
+          { ...buildSessionPayload(), robotOverrides: { [robot.id]: { reverbSend: 0.25, [field]: 9, rhythmicDensity: 21 } } },
+          { skipLocaleRebuild: true },
+        );
+
+        expect(stored(robot.id)).toMatchObject({ reverbSend: 0.25, [field]: robot[field], rhythmicDensity: 21 });
+        expect(prime.mock.calls).toEqual([[robot.id, { reverb: 0.25 }]]);
+      });
+    });
+
+    it('all five sends carried in one diff are stored and prime together in one call (Robot Effect Sends T15)', () => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+      const diff = { reverbSend: 0.2, delaySend: 0.6, gritSend: 0.3, shimmerSend: 0.1, doubleSend: 0.7 };
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: diff } }, { skipLocaleRebuild: true });
+
+      expect(stored(robot.id)).toMatchObject(diff);
+      expect(prime.mock.calls.filter((c) => c[0] === robot.id)).toEqual([
+        [robot.id, { reverb: 0.2, delay: 0.6, grit: 0.3, shimmer: 0.1, double: 0.7 }],
+      ]);
+    });
+
+    // Spec assumption 13: no payload upgrade. A version-2 payload from before the Colour room fills colourRoom at its
+    // default (a full Return) and loads its Chorus and shifter wets exactly as stored, as the Returns they now are.
+    it('a version-2 payload without colourRoom restores colourRoom.wet 1 and its chorus / shifter wets exactly as stored', () => {
+      seededWorld();
+      const payload = buildSessionPayload();
+      const { colourRoom: _cr, ...old } = payload.globalAudio;
+      const legacy = {
+        ...payload,
+        version: 2,
+        globalAudio: { ...old, chorus: { ...old.chorus, wet: 0.35 }, frequencyShifter: { ...old.frequencyShifter, wet: 0.2 } },
+      } as unknown as SessionPayload;
+      expect('colourRoom' in legacy.globalAudio).toBe(false); // the fixture proves what it claims
+      useAudioStore.getState().setGlobalAudio('colourRoom', { wet: 0.4 }); // so a skipped fill would show
+
+      applySessionPayload(legacy);
+
+      const restored = useAudioStore.getState().globalAudio;
+      expect(restored.colourRoom).toStrictEqual({ wet: 1 });
+      expect(restored.chorus.wet).toBe(0.35);
+      expect(restored.frequencyShifter.wet).toBe(0.2);
+    });
   });
 
   describe('articulation across a session restore (Robot Articulation T11)', () => {

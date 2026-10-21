@@ -481,7 +481,7 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   }
   // A send is a number inside [SEND_MIN, SEND_MAX] or it is ignored whole, key by key (a payload is untrusted here):
   // one bad send never costs the other, or any field beside it. The range test alone rejects NaN and the infinities.
-  for (const field of ['reverbSend', 'delaySend'] as const) {
+  for (const [field] of SEND_PRIME_KEYS) {
     const send = diff[field];
     if (typeof send === 'number' && send >= SEND_MIN && send <= SEND_MAX) updates[field] = send;
   }
