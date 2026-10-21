@@ -606,11 +606,16 @@ describe('the modulation pedals (Global Modulation)', () => {
     // against products of 24.95 % / 25.12 % - independent of each other and of Colour's character draw. The plain
     // getSeededVal draw was tried first and rejected: it takes 24 distinct values for autoWah.lit across 20 000 styles
     // and put a lit wah in 55.9 % of clean-Colour worlds against 26.8 % of coloured ones.
-    it('puts both lit edges at one third and the sync odds at one half', () => {
+    it('puts both lit edges at one third', () => {
       // Global Pedals T8 widened the record to six pedals; these two edges are unchanged.
       expect(PEDAL_LIT_EDGE.autoWah).toBe(1 / 3);
       expect(PEDAL_LIT_EDGE.phaser).toBe(1 / 3);
-      expect(PEDAL_SYNC_ODDS).toBe(0.5);
+    });
+
+    // Classic Band Retune T3 (row 13): the odds are per pedal. A Free tremolo beats against the 16th grid, so it seeds Sync
+    // in three worlds of four; the Phaser, Chorus and Vibrato don't care and stay at half.
+    it('keeps the sync odds per pedal: three quarters for the Tremolo, one half for the Phaser, Chorus and Vibrato', () => {
+      expect(PEDAL_SYNC_ODDS).toStrictEqual({ phaser: 0.5, chorus: 0.5, tremolo: 0.75, vibrato: 0.5 });
     });
   });
 
@@ -782,11 +787,12 @@ describe('the modulation pedals (Global Modulation)', () => {
   });
 
   describe('the Phaser Sync roll', () => {
-    it('syncs about PEDAL_SYNC_ODDS of lit Phasers, within 5 points', () => {
+    it('syncs about PEDAL_SYNC_ODDS.phaser (one half) of lit Phasers, within 5 points', () => {
       const lit = samples.filter(({ s }) => phaserLit(s));
       const synced = lit.filter(({ s }) => 'sync' in s.phaser).length;
       expect(lit.length).toBeGreaterThan(500);
-      expect(Math.abs(synced / lit.length - PEDAL_SYNC_ODDS) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced / lit.length - PEDAL_SYNC_ODDS.phaser) * 100, `${synced}/${lit.length}`).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced / lit.length - 0.5) * 100, 'against the literal one half').toBeLessThanOrEqual(5);
     });
 
     it('seeds only real notes that sit inside the lit rate band at the style tempo, drawn from the allowed list', () => {
@@ -990,7 +996,8 @@ describe('the Global Pedals (Global Pedals T8)', () => {
 
     it('caps a world at two lit Modulation pedals and syncs about half of lit LFO pedals', () => {
       expect(MAX_LIT_PEDALS).toBe(2);
-      expect(PEDAL_SYNC_ODDS).toBe(0.5);
+      expect(PEDAL_SYNC_ODDS.chorus).toBe(0.5);
+      expect(PEDAL_SYNC_ODDS.vibrato).toBe(0.5);
     });
 
     it('rolls the motion pedals in chain order', () => {
@@ -1003,7 +1010,8 @@ describe('the Global Pedals (Global Pedals T8)', () => {
   // that fewer than two are lit before it. Expected: Chorus 0.25 * 8/9 = 22.2 %, Tremolo 0.25 * 7/9 = 19.4 %, Vibrato
   // 0.25 * 2/3 = 16.7 %, shifter 0.15 * 9/16 = 8.4 %. MEASURED over 20 000 styles ('PedalsCalibration<n>', 2026-10-18):
   // Chorus 22.68, Tremolo 19.33, Vibrato 16.75, shifter 8.20 %, two lit in 49.38 % of worlds and never more; lit LFO
-  // pedals synced 49.82 / 50.88 / 49.73 %; negative shifts 49.97 %. The held-out set here measured 22.33 / 19.87 / 16.77
+  // pedals synced 49.82 / 50.88 / 49.73 % (re-measured 2026-10-21 after the per-pedal Sync odds: Chorus 49.82, Tremolo 75.14,
+  // Vibrato 49.73 %, the Phaser 50.62 %); negative shifts 49.97 %. The held-out set here measured 22.33 / 19.87 / 16.77
   // / 9.63 % and must land within 3 points of the calibration figures.
   const MEASURED = { chorus: 0.2268, tremolo: 0.1933, vibrato: 0.1675, frequencyShifter: 0.082 } as const;
 
@@ -1050,11 +1058,34 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       }
     });
 
-    it.each(LFO_PEDALS)('syncs about PEDAL_SYNC_ODDS of lit %s worlds, within 5 points, and never a dark one', (pedal) => {
+    it.each(LFO_PEDALS)('syncs about PEDAL_SYNC_ODDS[%s] of lit worlds, within 5 points, and never a dark one', (pedal) => {
       const litOnes = samples.filter((s) => lit(s)[pedal]);
       const synced = litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
-      expect(Math.abs(synced - PEDAL_SYNC_ODDS) * 100).toBeLessThanOrEqual(5);
+      expect(Math.abs(synced - PEDAL_SYNC_ODDS[pedal]) * 100).toBeLessThanOrEqual(5);
       for (const s of samples.filter((x) => !lit(x)[pedal])) expect('sync' in s[pedal]).toBe(false);
+    });
+
+    // Literal numbers, so the test holds the seeder to the plan (Classic Band Retune row 13) and not to the constant: a
+    // swapped Tremolo entry, or one pedal's odds indexed for another, moves one of these shares by 25 points.
+    it.each([
+      ['chorus', 0.5],
+      ['tremolo', 0.75],
+      ['vibrato', 0.5],
+    ] as const)('seeds Sync in the planned share of lit %s worlds (%s), within 5 points', (pedal, planned) => {
+      const litOnes = samples.filter((s) => lit(s)[pedal]);
+      const synced = litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
+      expect(litOnes.length, `${pedal} lit worlds`).toBeGreaterThan(400);
+      expect(Math.abs(synced - planned) * 100, `${pedal}: realised ${(synced * 100).toFixed(1)} %`).toBeLessThanOrEqual(5);
+    });
+
+    it('lets the Tremolo sync more often than any other pedal, by at least 15 points', () => {
+      const shareOf = (pedal: (typeof LFO_PEDALS)[number]) => {
+        const litOnes = samples.filter((s) => lit(s)[pedal]);
+        return litOnes.filter((s) => s[pedal].sync !== undefined).length / litOnes.length;
+      };
+      for (const other of ['chorus', 'vibrato'] as const) {
+        expect(shareOf('tremolo') - shareOf(other), `tremolo vs ${other}`).toBeGreaterThanOrEqual(0.15);
+      }
     });
 
     it('seeds only real notes inside the lit rate band at the style tempo', () => {

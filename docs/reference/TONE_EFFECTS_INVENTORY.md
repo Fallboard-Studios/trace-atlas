@@ -48,7 +48,7 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | AutoWah | gain (dB) | global | dry stage | 2 | 0 | 20 | 2 | 6 | slider, step 0.5 | | uniform | Signal; ramps 50 ms |
 | AutoWah | follower (s) | global | dry stage | 0.2 | 0.01 | 1 | 0.1 | 0.4 | slider log | | uniform | plain property |
 | AutoWah | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.35 | 0.5 | slider, step 0.01 | | lit in ≈1/3 of worlds (`PEDAL_LIT_EDGE`, uniform draw, independent of Colour and of the Phaser); dark seeds 0 | node gets wet²; ramps 50 ms |
-| Phaser (Tone.Phaser) | rate, Tone `frequency` (Hz) | global | dry stage | 0.5 | 0.05 | 10 | 0.1 | 2.5 | slider Free \| Sync, step 0.05 | Sync: a note value (`PhaserSettings.sync`) | a lit Phaser seeds Sync ≈50 % (`PEDAL_SYNC_ODDS`); a dark one is always Free | wall-clock LFO; ramps 50 ms; range is `PEDAL_RATE_RANGE_HZ` |
+| Phaser (Tone.Phaser) | rate, Tone `frequency` (Hz) | global | dry stage | 0.5 | 0.05 | 10 | 0.1 | 2.5 | slider Free \| Sync, step 0.05 | Sync: a note value (`PhaserSettings.sync`) | a lit Phaser seeds Sync ≈50 % (`PEDAL_SYNC_ODDS.phaser`); a dark one is always Free | wall-clock LFO; ramps 50 ms; range is `PEDAL_RATE_RANGE_HZ` |
 | Phaser | octaves | global | dry stage | 3 | 0.5 | 6 | 2 | 5 | slider, step 0.5 | | uniform | |
 | Phaser | baseFrequency (Hz) | global | dry stage | 350 | 50 | 2000 | 200 | 800 | slider log | | uniform | |
 | Phaser | stages | global | dry stage | 10 | 1 | 12 | 4 | 12 | slider, step 1 | | uniform | constructor-only in Tone: a change rebuilds the node from the last-written values and re-wires the chain in the last Decay Mode |
@@ -60,7 +60,7 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | Chorus | spread (°) | global | dry stage | 180 | 0 | 180 | 90 | 180 | slider, step 5 | | uniform | plain property; a lit pedal ducks its Mix for 20 ms to write it, a re-sent Spread never ducks |
 | Chorus | feedback | global | dry stage | 0 | 0 | 0.9 | 0 | 0.2 | slider, step 0.01 | | uniform | Signal; above 0 the chorus is a flanger |
 | Chorus | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.3 | 0.4 | slider, step 0.01 | | the four motion pedals each roll ≈1/3 (`PEDAL_LIT_EDGE`) in chain order after the AutoWah and Phaser rolls, and are forced dark once two of the six Modulation pedals are lit (`MAX_LIT_PEDALS`) | node gets wet²; ramps 50 ms |
-| Tremolo (Tone.Tremolo) | rate, Tone `frequency` (Hz) | global | dry stage | 10 | 0.05 | 10 | 0.5 | 6 | slider Free \| Sync, step 0.05 | Sync: a note value | a lit Tremolo seeds Sync ≈50 % | LFO started once at build |
+| Tremolo (Tone.Tremolo) | rate, Tone `frequency` (Hz) | global | dry stage | 10 | 0.05 | 10 | 0.5 | 6 | slider Free \| Sync, step 0.05 | Sync: a note value | a lit Tremolo seeds Sync ≈75 % (`PEDAL_SYNC_ODDS.tremolo`: a Free tremolo beats against the 16th grid) | LFO started once at build |
 | Tremolo | depth | global | dry stage | 0.5 | 0 | 1 | 0.3 | 0.7 | slider, step 0.01 | | uniform | ramps 50 ms |
 | Tremolo | spread (°) | global | dry stage | 180 | 0 | 180 | 90 | 180 | slider, step 5 | | uniform | ducked write, as Chorus |
 | Tremolo | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.35 | 0.5 | slider, step 0.01 | | same cap rule as Chorus | node gets wet²; ramps 50 ms |

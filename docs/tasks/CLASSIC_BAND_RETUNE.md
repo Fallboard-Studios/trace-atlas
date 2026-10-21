@@ -299,3 +299,22 @@ dated note above them.
   ceiling; the in-band assertions take `+ 1e-9`, as the pedal ones already do. The seeder's arithmetic is unchanged.
 
 Verification: `npm test` 379 files / 13 405 tests, types clean, lint 0 errors.
+
+**T3 (2026-10-21), Tremolo Sync odds.** `PEDAL_SYNC_ODDS` is `Record<SyncedRateKey, number>` = Phaser 0.5, Chorus 0.5,
+Tremolo 0.75, Vibrato 0.5, and the seeder's one loop indexes it by key (`modeT < PEDAL_SYNC_ODDS[key]`). Tests: the record
+by value; per-pedal share tests (`PEDAL_SYNC_ODDS[pedal]`) plus literal-number ones that do not read the constant (Chorus
+0.5, Tremolo 0.75, Vibrato 0.5, each within 5 points of 3 000 styles); a "Tremolo syncs at least 15 points more than
+Chorus or Vibrato" test; the two docs-guard regexes follow the declaration (`: Record<SyncedRateKey, number> =` and
+`modeT < PEDAL_SYNC_ODDS\[key\]`). Mutation gate, run by hand on the seeder and restored: Tremolo's entry swapped for the
+Phaser's (3 tests fail), the loop indexing the Phaser entry for every pedal (3), and indexing the Tremolo entry for every
+pedal (6): all caught. The seed oracles did not move: the only lit synced pedal in them is theta's Tremolo, whose
+`syncMode` 0.0794 is under both 0.5 and 0.75.
+
+**Re-measured over 20 000 styles** ('PedalsCalibration<n>', a throwaway test file in `src/utils/`, deleted, never
+committed): lit pedals synced Phaser 3 329 / 6 577 = 50.62 %, Chorus 2 260 / 4 536 = 49.82 %, Tremolo 2 905 / 3 866 =
+75.14 %, Vibrato 1 666 / 3 350 = 49.73 %, and 0 dark pedals synced. Chorus and Vibrato are unchanged to the digit from the
+50.6 calibration; the Tremolo moved from 50.88 % to 75.14 %, inside a point of the plan's 0.75 as §6 expected. The figures
+are recorded in the `PEDAL_SYNC_ODDS` comment, the seed test's calibration comment, the grid's footnote ⁵,
+`AUDIO_SYSTEM.md` and the inventory's Tremolo cell.
+
+Verification: `npm test` 379 files / 13 410 tests, types clean, lint 0 errors.

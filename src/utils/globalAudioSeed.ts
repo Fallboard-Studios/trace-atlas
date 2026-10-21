@@ -166,12 +166,20 @@ export type MotionPedal = (typeof MOTION_PEDALS)[number];
 export const MAX_LIT_PEDALS = 2;
 
 /**
- * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free: each one's sync roll
- * falls under this (docs/specs/GLOBAL_PEDALS.md assumption 8, the Phaser's from docs/specs/GLOBAL_MODULATION_COLOUR.md
- * assumption 8). A dark pedal never seeds Sync. Measured 50.20 % of 6 660 lit Phasers, and 49.82 / 50.88 / 49.73 % of lit
- * Chorus / Tremolo / Vibrato worlds, over 20 000 styles; the rolls are uniform.
+ * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free, one entry per pedal:
+ * each one's sync roll falls under its own entry (docs/specs/GLOBAL_PEDALS.md assumption 8, the Phaser's from
+ * docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 8). A dark pedal never seeds Sync. Half for the Phaser, Chorus and
+ * Vibrato, three quarters for the Tremolo (Classic Band Retune row 13, 2026-10-21): a Free tremolo beats against the 16th
+ * grid, and the others don't care. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-21, after the retune): lit
+ * Phaser / Chorus / Tremolo / Vibrato worlds synced 50.62 / 49.82 / 75.14 / 49.73 %, and no dark pedal ever; before it the
+ * Tremolo's was 50.88 %. The rolls are uniform, so an entry is the realised share.
  */
-export const PEDAL_SYNC_ODDS = 0.5;
+export const PEDAL_SYNC_ODDS: Record<SyncedRateKey, number> = {
+  phaser: 0.5,
+  chorus: 0.5,
+  tremolo: 0.75,
+  vibrato: 0.5,
+};
 
 /**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
@@ -196,7 +204,7 @@ export const PEDAL_SYNC_ODDS = 0.5;
  *
  * The two modulation pedals are the same kind of exception, each on its own roll (PEDAL_LIT_EDGE): about a third of
  * worlds light each, independently. A dark pedal seeds `wet` 0 and still draws every other field from its band; a lit
- * Phaser seeds Sync in about half of worlds (PEDAL_SYNC_ODDS), with the note drawn from the lit rate band.
+ * Phaser seeds Sync in about half of worlds (PEDAL_SYNC_ODDS.phaser), with the note drawn from the lit rate band.
  *
  * The four Global Pedals motion pedals roll after them in chain order under a two-lit cap (MAX_LIT_PEDALS), each with
  * the same dark-pedal rule; a lit Chorus, Tremolo or Vibrato seeds Sync about half the time, the shifter's sign is its own
@@ -249,7 +257,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     const modeT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncMode`);
     const noteT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncNote`);
     rateSync[key] =
-      rateLit[key] && modeT < PEDAL_SYNC_ODDS
+      rateLit[key] && modeT < PEDAL_SYNC_ODDS[key]
         ? pickSeedNoteValue(noteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES[`${key}.rate`]], 'hz')
         : undefined;
   }
