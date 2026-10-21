@@ -15,10 +15,13 @@ slot **50.7**, the seventh sub-phase of the Audio Palette series, after Global P
 Robot Sends (50.2, [ROBOT_SENDS.md](ROBOT_SENDS.md)): the same send/return model applied to three effects that are
 dry-chain bypass cells today. Grit, Shimmer and Double are working titles; the lore pass settles the words. **The number
 retune the intent puts first is its own task and listen, before this phase's T1** (§6): its plan is
-[docs/tasks/CLASSIC_BAND_RETUNE.md](../tasks/CLASSIC_BAND_RETUNE.md) (written 2026-10-21, untracked, not started; sixteen
-rows, two decisions open). The bands in this spec are placeholders written against the chain as it stands at `0b087fec`;
-once the retune merges, assumption 6's table takes the retuned Reverb band (its row 15) and the room depths start from
-its rows 3–4, in a one-commit amendment before the plan for this phase is written.
+[docs/tasks/CLASSIC_BAND_RETUNE.md](../tasks/CLASSIC_BAND_RETUNE.md) (written 2026-10-21, sixteen rows). The bands in
+this spec were first written against the chain at `0b087fec`. **Amended 2026-10-21 (plan T0) against the retune's merge,
+`2dc5b4a2` (PR #567):** assumption 6 and §1.1 carry the merged Reverb band, 0.1–0.6 (the retune's row 15; Delay is
+unchanged at 0–0.3); the room depths start from the merged colour Mix, **one shared band of 0.1–0.2 under
+`COLOUR_LOAD_MIX_MAX` 0.25** (`src/data/globalAudioLoadingRanges.ts:33`, `:80`–`:84`), not the retune's Decision 1 B
+ceiling of 0.35, which its Checkpoint B listen reversed ("much more subtle", `277eb4a9`). The Chorus and Shifter Mixes
+merged at 0.3–0.4 and 0.25–0.35 (`:120`, `:132`); this phase makes both unseeded Returns at 1 (assumption 4).
 
 Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was read, not recalled):
 
@@ -132,7 +135,8 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    cell's crossfade law is wrong — a dark or lightly lit node's `dry` path would carry the robot's **dry** signal into
    the return, so a Grit send would mostly make a robot louder; the fix for series (a second law, wet-only when lit,
    dry-pass when dark) costs more than parallel buys, and with the seeder lighting at most one colour node the two are
-   identical in every fresh world. By hand, two lit nodes sum rather than stack. **Veto point.**
+   identical in every fresh world. By hand, two lit nodes sum rather than stack. **Veto point.** **Answered 2026-10-21
+   (plan T0): Crawford, parallel.**
 3. **Room liveness has two drivers: fed and returned.** A branch is wanted lit when `room.fed && room.returnLevel > 0
    && branchMix > 0`. `fed` is true while at least one **reserved** robot's send into the room is above 0 (the engine
    keeps a set of feeding robot ids per room and tells the room when the set becomes empty or non-empty);
@@ -140,7 +144,7 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    (a lighting connects while the branch's `wet` is 0, then ramps; a darkening ramps to 0, arms the one timer,
    disconnects). A reserved robot that is silent (standing by, or between notes) with a send above 0 keeps its room
    lit — today's rule for the Reverb and Delay rooms, recorded in §7. *Alternative:* sends alone drive the crossing and a
-   Return of 0 merely silences a lit room.
+   Return of 0 merely silences a lit room. **Answered 2026-10-21 (plan T0): Crawford, fed AND Return > 0.**
 4. **The moved Mixes become Returns; the Colour room gets a new block.** `ChorusSettings.wet` and
    `FrequencyShifterSettings.wet` keep their names and ranges, default `1`, are not seeded, and drive
    `room.return` (`rampOrSet` over `COLOUR_RAMP_SECONDS`, unlike the Reverb and Delay returns, which keep their direct
@@ -157,10 +161,10 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
 6. **One per-robot send band table, in `src/data/robotSendLoadingRanges.ts`.** `ROBOT_SEND_FIELDS = ['reverbSend',
    'delaySend', 'gritSend', 'shimmerSend', 'doubleSend']`; `ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, { min,
    max, lit }>` where `lit` is the nominal share of fresh robots that carry the send at all (the rest seed exactly 0).
-   Reverb `{ 0.1, 0.4, lit: 1 }` (0.1–0.6 once the retune's row 15 lands; the table takes the merged value) and Delay
+   Reverb `{ 0.1, 0.6, lit: 1 }` (the retune's row 15, merged at `2dc5b4a2`; it was 0.1–0.4 at `0b087fec`) and Delay
    `{ 0, 0.3, lit: 0.75 }` reproduce today's draws exactly (the Delay's quiet roll
    is `quietRoll < 1 − lit`, which is `< 0.25`, the same bell draw under the same dataId; a parity test pins both to the
-   values `main` seeds). The three new rows are **placeholders for the listen**: Grit `{ 0.4, 0.8, lit: 0.21 }`, Shimmer
+   values `main` at `2dc5b4a2` seeds). The three new rows are **placeholders for the listen**: Grit `{ 0.4, 0.8, lit: 0.21 }`, Shimmer
    `{ 0.2, 0.5, lit: 0.16 }`, Double `{ 0.3, 0.6, lit: 0.19 }`. `SEND_DELAY_QUIET_THRESHOLD` is deleted (its value lives
    in the Delay row). A theme overrides this table and nothing else about the sends.
 7. **The new rolls and values are uniform draws, per robot, in a fixed order with a one-of-three cap.** For each robot,
@@ -171,7 +175,8 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    (each later edge is lifted for the robots the earlier ones took); the calibration test pins the **measured** means and
    records the share of fleets with no Grit at all. Independent per-robot rolls give a binomial spread (some fleets 0,
    some 5); a roster-aware cap (the `priorLaneCounts` precedent) is the follow-up if the listen wants tighter counts,
-   not this phase. Reverb and Delay keep their bell draws and dataIds untouched.
+   not this phase. Reverb and Delay keep their bell draws and dataIds untouched. **Answered 2026-10-21 (plan T0):
+   Crawford, accept as specced (independent rolls, one-of-three cap; a roster-aware count stays the follow-up).**
 8. **The sends are drawn unconditionally, outside the copy branch** (as the existing two): one `generateRobotSends`
    returning all five, used by `spawnRobot` and `generateRobotAudioBaseline`, with the `alea` fallback mirrored; a copied
    robot gets its own depths.
@@ -181,7 +186,7 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    read (each key is its own noise row, so no other draw moves). The Tremolo's and Vibrato's realised shares rise
    (expected 22.2 % and 19.4 %); the calibration test re-pins them. **The Chorus rolls Sync in every world** under
    `PEDAL_SYNC_ODDS`, since a room's rate is heard whenever any robot sends into it; the shifter's shift keeps its
-   magnitude-plus-sign draw in every world.
+   magnitude-plus-sign draw in every world. **Answered 2026-10-21 (plan T0): Crawford, accept as specced.**
 10. **Seeded as minority traits; the seeded shares are the theme knob.** The three `lit` shares and bands in assumption
     6 are what a theme swaps. Nothing else changes in the global seeder.
 11. **Sends tap where the existing two tap** (post-Volume, post-bus-filter, post-pan) and the rooms' returns rejoin where
@@ -198,7 +203,8 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
 14. **UI placement: the Chorus and Shifter blocks stay sub-tabs of Modulation, their Mix row relabelled Return; the
     Colour section gains a first sub-tab, Room, with one slider**, the Colour room's Return (`colourRoom.wet`), on the
     Width-block precedent of a one-row block. No new section tab, no new primitive. *Alternative:* move the two rooms
-    under Time & Space beside Reverb and Delay — a layout call.
+    under Time & Space beside Reverb and Delay — a layout call. **Answered 2026-10-21 (plan T0): Crawford, stay put
+    with a Colour Room sub-tab.**
 15. **Lore words are placeholders** until the copy pass: `probe.gritSend` { Grit / **Carrier Bleed Send** },
     `probe.shimmerSend` { Shimmer / **Band Slip Send** }, `probe.doubleSend` { Double / **Twin Current Send** };
     `fleet.colourRoom` { Room / **Bleed Return** }. Keys and human words are fixed.
@@ -275,7 +281,7 @@ export interface SendLoadingRange {
   lit: number;
 }
 export const ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, SendLoadingRange> = {
-  reverbSend:  { min: 0.1, max: 0.4, lit: 1 },      // the old GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'] row
+  reverbSend:  { min: 0.1, max: 0.6, lit: 1 },      // the old GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'] row (retune row 15)
   delaySend:   { min: 0,   max: 0.3, lit: 0.75 },   // the old 'delay.wet' row; 1 − lit is the old quiet threshold (0.25)
   gritSend:  { min: 0.4, max: 0.8, lit: 0.21 },   // placeholders, assumption 6; tuned at the listen task (§5)
   shimmerSend: { min: 0.2, max: 0.5, lit: 0.16 },
@@ -675,8 +681,8 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
 - **Spawn (`spawnSystem.test.ts`):** every robot's `gritSend` / `shimmerSend` / `doubleSend` is 0 or inside its band on
   the 1 % grid; **no robot carries two of the three**; the same locale spawns the same sends twice; the baseline equals
   the spawned robot's five sends for every index, copy-branch robots included. **Parity:** for a fixed roster,
-  `reverbSend` and `delaySend` equal, value for value, the numbers `main` at `0b087fec` seeds (recorded in the test from
-  a run on `main`, with a non-default fixture — the memory rule on parity fixtures). **Calibration** over 150 worlds ×
+  `reverbSend` and `delaySend` equal, value for value, the numbers `main` at `2dc5b4a2` seeds (recorded in the test from
+  a run on that base, with a non-default fixture — the memory rule on parity fixtures). **Calibration** over 150 worlds ×
   12: the measured mean count of each of the three per fleet pinned within ±0.4 of the figure recorded in the test's
   comment (derived once, at the task), and the share of fleets with zero Grit recorded.
 - **Seeder (`globalAudioSeed.test.ts`):** the two oracles amended by hand and `toStrictEqual`; `chorus.wet` and
@@ -770,19 +776,24 @@ with one moved send; keyboard reaches every slider; every "?" reads right.
    Mixes this phase turns into unseeded Returns at 1; they are worth the retune's listen against the inserts only if the
    retune ships well ahead of this phase, otherwise they are moot. **Answered in part 2026-10-21: Crawford intends to
    complete the retune plan before this phase**, so rows 7 and 9 do get their listen against the inserts and the
-   amendment in §6 step 2 starts from the merged tables. Still open: whether the room-depth second look is the retune's
-   Decision 1 or this phase's tuning task (the spec assumes this phase's, since only this phase can hear a depth inside
-   a room).
+   amendment in §6 step 2 starts from the merged tables. **Answered in full 2026-10-21 (plan T0): the room-depth second
+   look is this phase's tuning task (plan T20)**, send bands first, the room's Mix bands second, dropping the taper
+   last and only after asking. The retune merged with the colour Mix at one shared 0.1–0.2 band (its Checkpoint B
+   reversed Decision 1 B), so a seeded room depth is a branch gain of 0.01–0.04, which times a send of 0.6 is 0.6–2.4 %
+   of the robot: Risk 1 is sharper than this question first said.
 2. **Assumption 1 (field names).** **Answered 2026-10-21: the intent's names.**
 3. **Assumption 2 (parallel Colour room, wet-only branches).** The intent's Outcome says "in series"; the series form
-   re-adds the robot's dry signal through the cells' crossfade law, which is why this spec picks parallel.
-4. **Assumption 3 (fed and Return both drive liveness).** The simpler alternative is sends only.
+   re-adds the robot's dry signal through the cells' crossfade law, which is why this spec picks parallel. **Answered
+   2026-10-21 (plan T0): parallel.**
+4. **Assumption 3 (fed and Return both drive liveness).** The simpler alternative is sends only. **Answered 2026-10-21
+   (plan T0): fed AND Return > 0.**
 5. **Assumption 13 (old payloads).** **Answered 2026-10-21: no real saved sessions exist; load the number, no
    upgrade.**
 6. **Assumption 14 (drawer placement).** Chorus and Shifter stay under Modulation with a Return row; Colour gets a Room
-   sub-tab. Or the rooms move beside Reverb and Delay.
+   sub-tab. Or the rooms move beside Reverb and Delay. **Answered 2026-10-21 (plan T0): stay put, Colour gains the Room
+   sub-tab.**
 7. **Assumptions 9 and 7 (the cap stays 2 over four; the Chorus rolls Sync in every world; independent per-robot rolls
-   with a one-of-three order rather than a roster-aware count).**
+   with a one-of-three order rather than a roster-aware count).** **Answered 2026-10-21 (plan T0): accept as specced.**
 
 **Risks:**
 

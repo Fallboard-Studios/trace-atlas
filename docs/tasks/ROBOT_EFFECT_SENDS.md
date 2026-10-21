@@ -11,10 +11,12 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo convention
 `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status: NOT STARTED (2026-10-21).** Blocked twice: on the retune merging (T0 part A re-states the spec's bands
-> against it) and on Crawford's answers to the spec's open questions 1, 3, 4, 6 and 7 (T0 part B). Questions 2 and 5 are
-> answered (field names are the intent's; old saves are not a concern). T1 and T2 need neither; everything from T3 on
-> needs at least one answer (each task names which).
+> **Status: T0 DONE (2026-10-21); next T1.** Unblocked. The retune merged at `2dc5b4a2` (PR #567) and the spec's
+> assumption 6 and §1.1 carry its Reverb band (0.1–0.6); the colour Mix it merged with is one shared 0.1–0.2 band under a
+> 0.25 ceiling. All seven spec §7 questions are answered: Q1 the room-depth second look is T20's; Q3 parallel; Q4 fed AND
+> Return > 0; Q6 Chorus/Shifter stay under Modulation, Colour gains a Room sub-tab; Q7 accept as specced (Q2 and Q5 were
+> answered at the spec). The build branch is **`feature/robot-effect-sends`** (Crawford's, off `main` at `2dc5b4a2`),
+> not the proposed `feature/palette-effect-sends` named above.
 
 ## Overview
 
