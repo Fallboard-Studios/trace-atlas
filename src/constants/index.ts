@@ -162,8 +162,6 @@ export const SEND_MIN = 0;
 export const SEND_MAX = 1;
 export const SEND_DISPLAY_SCALE = 100;
 export const SEND_STEP_PERCENT = 1;
-/** Chance a robot's own Delay send seeds to exactly 0 (the global Delay's old quiet roll, same 0.25). */
-export const SEND_DELAY_QUIET_THRESHOLD = 0.25;
 
 /**
  * Robot Systems Engine (Roadmap Phase 7) — Battery/Docking/Job lifecycle constants.

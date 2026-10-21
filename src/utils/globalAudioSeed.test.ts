@@ -56,7 +56,8 @@ import { allowedRateNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
-import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
+import { ROBOT_SEND_LOADING_RANGES } from '@/data/robotSendLoadingRanges';
+import { type GlobalAudioSeedFieldKey, type LoadingRangeKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId } from '@/types/lfo';
 import { PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
@@ -148,7 +149,7 @@ describe('generateGlobalAudioSettings', () => {
     const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
     // reverb.wet and delay.wet are absent on purpose: they are the fixed full return now, not sampled, and their
     // loading rows are the per-robot send bands (Robot Sends T6) - the test below pins them to 1.
-    const valueByKey: Partial<Record<GlobalAudioSeedFieldKey, number>> = {
+    const valueByKey: Partial<Record<LoadingRangeKey, number>> = {
       'compressor.threshold': settings.compressor.threshold,
       'compressor.ratio': settings.compressor.ratio,
       'compressor.attack': settings.compressor.attack,
@@ -195,8 +196,9 @@ describe('generateGlobalAudioSettings', () => {
       'vibrato.depth': settings.vibrato.depth,
       'stereoWidener.width': settings.stereoWidener.width,
     };
-    const sampledKeys = Object.keys(valueByKey) as GlobalAudioSeedFieldKey[];
-    // Sanity: every loading row except the five wet rows is checked, so a newly added row cannot slip past.
+    const sampledKeys = Object.keys(valueByKey) as LoadingRangeKey[];
+    // Sanity: every loading row except the wet rows is checked, so a newly added row cannot slip past. (The Reverb and
+    // Delay wet rows left the loading table at Robot Effect Sends T1: those keys are Returns, never seeded.)
     // The three colour wets are absent on purpose too: an unlit node seeds wet 0, which is outside its lit band
     // (they are pinned by the colour tests below).
     const COLOUR_WET_ROWS = 3;
@@ -210,7 +212,6 @@ describe('generateGlobalAudioSettings', () => {
     const SHIFT_MAGNITUDE_ROW = 1;
     expect(sampledKeys.length).toBe(
       Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length -
-        2 -
         COLOUR_WET_ROWS -
         PEDAL_WET_ROWS -
         MOTION_WET_ROWS -
@@ -273,9 +274,12 @@ describe('generateGlobalAudioSettings', () => {
       expect(dataIds).not.toContain('globalAudio.reverb.wet');
     });
 
-    it('keeps the two wet loading rows at the per-robot send bands, untouched by the seeder', () => {
-      expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']).toEqual({ min: 0.1, max: 0.6 });
-      expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet']).toEqual({ min: 0, max: 0.3 });
+    // Robot Effect Sends T1: the per-robot send bands moved to the robot send table; the loading table has no Return row.
+    it('keeps the per-robot send bands in the robot send table and no Return row in the loading table', () => {
+      expect(ROBOT_SEND_LOADING_RANGES.reverbSend).toEqual({ min: 0.1, max: 0.6, lit: 1 });
+      expect(ROBOT_SEND_LOADING_RANGES.delaySend).toEqual({ min: 0, max: 0.3, lit: 0.75 });
+      expect(Object.keys(GLOBAL_AUDIO_LOADING_RANGES)).not.toContain('reverb.wet');
+      expect(Object.keys(GLOBAL_AUDIO_LOADING_RANGES)).not.toContain('delay.wet');
     });
   });
 
@@ -685,7 +689,7 @@ describe('the modulation pedals (Global Modulation)', () => {
 
   describe('every pedal field, lit or dark', () => {
     it('stays inside its loading band on every style', () => {
-      const fields: Array<[GlobalAudioSeedFieldKey, (s: Seeded) => number]> = [
+      const fields: Array<[LoadingRangeKey, (s: Seeded) => number]> = [
         ['autoWah.baseFrequency', (s) => s.autoWah.baseFrequency],
         ['autoWah.octaves', (s) => s.autoWah.octaves],
         ['autoWah.sensitivity', (s) => s.autoWah.sensitivity],
@@ -731,7 +735,7 @@ describe('the modulation pedals (Global Modulation)', () => {
     // autoWah.wet), which would make every lit wah sound alike. These fields are uniform draws; this holds them to it.
     it('fills every band: each field takes many distinct values and reaches near both ends, so none is stuck at a few points', () => {
       const lit = (pick: (s: Seeded) => boolean) => samples.filter(({ s }) => pick(s));
-      const rows: Array<[GlobalAudioSeedFieldKey, number[]]> = [
+      const rows: Array<[LoadingRangeKey, number[]]> = [
         ['autoWah.baseFrequency', samples.map(({ s }) => s.autoWah.baseFrequency)],
         ['autoWah.octaves', samples.map(({ s }) => s.autoWah.octaves)],
         ['autoWah.sensitivity', samples.map(({ s }) => s.autoWah.sensitivity)],
@@ -966,8 +970,8 @@ describe('the Global Pedals (Global Pedals T8)', () => {
   });
   const litCount = (s: Seeded) => Object.values(lit(s)).filter(Boolean).length;
   const share = (pick: (s: Seeded) => boolean) => samples.filter(pick).length / samples.length;
-  const band = (key: GlobalAudioSeedFieldKey) => GLOBAL_AUDIO_LOADING_RANGES[key];
-  const inBand = (value: number, key: GlobalAudioSeedFieldKey) =>
+  const band = (key: LoadingRangeKey) => GLOBAL_AUDIO_LOADING_RANGES[key];
+  const inBand = (value: number, key: LoadingRangeKey) =>
     value >= band(key).min - 1e-9 && value <= band(key).max + 1e-9;
   const onGrid = (value: number, key: GlobalAudioSeedFieldKey): boolean => {
     const { min, step } = GLOBAL_AUDIO_SEED_RANGES[key];

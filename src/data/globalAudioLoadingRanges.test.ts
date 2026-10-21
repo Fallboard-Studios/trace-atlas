@@ -3,8 +3,13 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { COLOUR_LOAD_MIX_MAX, GLOBAL_AUDIO_LOADING_RANGES } from './globalAudioLoadingRanges';
-import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './globalAudioSeedRanges';
+import { COLOUR_LOAD_MIX_MAX, GLOBAL_AUDIO_LOADING_RANGES, type LoadingRange } from './globalAudioLoadingRanges';
+import {
+  GLOBAL_AUDIO_SEED_RANGES,
+  RETURN_FIELD_KEYS,
+  type LoadingRangeKey,
+} from './globalAudioSeedRanges';
+import { ROBOT_SEND_LOADING_RANGES } from './robotSendLoadingRanges';
 
 // ========================================
 // TESTS
@@ -13,7 +18,9 @@ import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from './global
 // Direct transcription of docs/reference/GLOBAL_CHAIN_GRID.md's "Loading
 // Range" column — confirmed with the user effect-by-effect. The grid is the
 // source of truth; this table (and this test) mirror it.
-const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = {
+// The Reverb and Delay `wet` rows left at Robot Effect Sends T1: those keys are Returns, never seeded, and the per-robot
+// send bands they used to carry live in src/data/robotSendLoadingRanges.ts.
+const EXPECTED: Record<LoadingRangeKey, { min: number; max: number }> = {
   'eq3.low': { min: -6, max: 6 },
   'eq3.mid': { min: -6, max: 6 },
   'eq3.high': { min: -6, max: 6 },
@@ -23,12 +30,8 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'filterHPF.Q': { min: 0.1, max: 5 },
   'delay.delayTime': { min: 0.05, max: 0.5 },
   'delay.feedback': { min: 0, max: 0.4 },
-  'delay.wet': { min: 0, max: 0.3 },
   'reverb.decay': { min: 0.5, max: 4 },
   'reverb.preDelay': { min: 0, max: 0.1 },
-  // Classic Band Retune T5 (row 15): the per-robot Reverb SEND band (the global room's return is a fixed 1), widened from
-  // 0.1-0.4 for more contrast between a dry probe and a wet one.
-  'reverb.wet': { min: 0.1, max: 0.6 },
   // Classic Band Retune T6 (row 16, Crawford: "retune as proposed", 2026-10-21): -36 to -18 dB at 2-6:1. Attack, release and
   // knee are unchanged.
   'compressor.threshold': { min: -36, max: -18 },
@@ -85,20 +88,34 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
 const MOTION_PEDAL_PREFIXES = ['chorus.', 'tremolo.', 'vibrato.', 'frequencyShifter.'] as const;
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
-  it('has exactly the same key set as GLOBAL_AUDIO_SEED_RANGES — no more, no fewer', () => {
+  it('has exactly the key set of GLOBAL_AUDIO_SEED_RANGES less the Return keys — no more, no fewer', () => {
+    const returns: readonly string[] = RETURN_FIELD_KEYS;
     expect(Object.keys(GLOBAL_AUDIO_LOADING_RANGES).sort()).toEqual(
-      Object.keys(GLOBAL_AUDIO_SEED_RANGES).sort()
+      Object.keys(GLOBAL_AUDIO_SEED_RANGES).filter((key) => !returns.includes(key)).sort()
     );
   });
 
+  // Robot Effect Sends T1 (spec assumption 5): a Return is never seeded, by type.
+  it('has no Reverb or Delay wet row, and a Return row is a compile error, while the full ranges keep both keys', () => {
+    expect(RETURN_FIELD_KEYS).toEqual(['reverb.wet', 'delay.wet']);
+    expect('reverb.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
+    expect('delay.wet' in GLOBAL_AUDIO_LOADING_RANGES).toBe(false);
+    // @ts-expect-error - a Return key is not a LoadingRangeKey
+    const row: Partial<Record<LoadingRangeKey, LoadingRange>> = { 'reverb.wet': { min: 0, max: 1 } };
+    expect(row).toBeDefined();
+    for (const key of RETURN_FIELD_KEYS) {
+      expect(GLOBAL_AUDIO_SEED_RANGES[key], key).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    }
+  });
+
   it('matches docs/reference/GLOBAL_CHAIN_GRID.md\'s "Loading Range" column exactly, field by field', () => {
-    for (const key of Object.keys(EXPECTED) as GlobalAudioSeedFieldKey[]) {
+    for (const key of Object.keys(EXPECTED) as LoadingRangeKey[]) {
       expect(GLOBAL_AUDIO_LOADING_RANGES[key], key).toEqual(EXPECTED[key]);
     }
   });
 
   it('every loading range is a genuine subset of its field\'s full range', () => {
-    for (const key of Object.keys(GLOBAL_AUDIO_SEED_RANGES) as GlobalAudioSeedFieldKey[]) {
+    for (const key of Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as LoadingRangeKey[]) {
       const full = GLOBAL_AUDIO_SEED_RANGES[key];
       const loading = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(loading.min, `${key}: loading min should be >= full min`).toBeGreaterThanOrEqual(full.min);
@@ -153,9 +170,9 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     }
   });
 
-  it('keeps the colour ceiling off the other wet bands (it does not leak onto the room send bands)', () => {
-    expect(GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max).toBeGreaterThan(COLOUR_LOAD_MIX_MAX);
-    expect(GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max).toBeGreaterThan(0);
+  it('keeps the colour ceiling off the send bands (it does not leak onto the robot send table)', () => {
+    expect(ROBOT_SEND_LOADING_RANGES.reverbSend.max).toBeGreaterThan(COLOUR_LOAD_MIX_MAX);
+    expect(ROBOT_SEND_LOADING_RANGES.delaySend.max).toBeGreaterThan(0);
   });
 
   // Global Modulation T16 (Crawford, 2026-10-15): the pedals no longer share Colour's Mix ceiling (spec assumption 9 said the bands and the ceiling may rise after the listen). Their recommended Mix bands (0.3-0.7, 0.25-0.6) were brought down a third after he heard them; the floors rose at Classic Band Retune T1.
@@ -178,7 +195,7 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   });
 
   it('puts both loading edges of every stepped pedal field on its full range grid, so a draw can land on either edge', () => {
-    const pedalKeys = (Object.keys(GLOBAL_AUDIO_SEED_RANGES) as GlobalAudioSeedFieldKey[]).filter(
+    const pedalKeys = (Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as LoadingRangeKey[]).filter(
       (key) => key.startsWith('autoWah.') || key.startsWith('phaser.'),
     );
     expect(pedalKeys).toHaveLength(13);
@@ -224,7 +241,7 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   });
 
   it('puts both loading edges of every stepped Global Pedals field on its full range grid', () => {
-    const keys = (Object.keys(GLOBAL_AUDIO_SEED_RANGES) as GlobalAudioSeedFieldKey[]).filter(
+    const keys = (Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as LoadingRangeKey[]).filter(
       (key) => MOTION_PEDAL_PREFIXES.some((prefix) => key.startsWith(prefix)) || key.startsWith('stereoWidener.'),
     );
     expect(keys).toHaveLength(16);
@@ -316,7 +333,7 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
   });
 
   it('never has min >= max for any field', () => {
-    for (const key of Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as GlobalAudioSeedFieldKey[]) {
+    for (const key of Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as LoadingRangeKey[]) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
       expect(min, `${key}: min should be < max`).toBeLessThan(max);
     }

@@ -81,6 +81,16 @@ export type GlobalAudioSeedFieldKey =
   | 'stereoWidener.width'
   | 'limiter.threshold';
 
+/**
+ * The keys that are a room's RETURN level, never seeded (docs/specs/ROBOT_EFFECT_SENDS.md assumption 5). They stay seed
+ * field keys, because the drawer bounds, the clamp and the session quantiser read their full range below; they have no
+ * row in GLOBAL_AUDIO_LOADING_RANGES, which is keyed by LoadingRangeKey, so a Return can never be seeded, by type.
+ * The list grows with the phase: the Chorus and Frequency Shifter Mixes and the Colour room's Return join it later.
+ */
+export const RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet'] as const;
+export type ReturnFieldKey = (typeof RETURN_FIELD_KEYS)[number];
+export type LoadingRangeKey = Exclude<GlobalAudioSeedFieldKey, ReturnFieldKey>;
+
 // The Chorus, removed in V2, is back with the Global Pedals
 // (docs/specs/GLOBAL_PEDALS.md). reverb.dampening removed — Tone.Reverb has
 // no such property; it was a dead cast in globalFx.ts since Phase 0.

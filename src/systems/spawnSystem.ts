@@ -26,9 +26,9 @@ import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ENVELOPE_TIME_MAX_SECONDS,
-  SEND_STEP_PERCENT, SEND_DELAY_QUIET_THRESHOLD,
+  SEND_STEP_PERCENT,
 } from '../constants';
-import { GLOBAL_AUDIO_LOADING_RANGES } from '../data/globalAudioLoadingRanges';
+import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -537,25 +537,25 @@ function quantizeSend(raw: number): number {
   return quantizeToStep(raw * 100, 0, SEND_STEP_PERCENT) / 100;
 }
 
-/** Turn the three raw draws into the two stored sends: a delay roll under SEND_DELAY_QUIET_THRESHOLD leaves
+/** Turn the three raw draws into the two stored sends: a delay roll under 1 - the Delay row's `lit` (0.25) leaves
  *  the robot with no delay at all. Shared by the noise-map draw and spawnRobot's alea fallback. */
 function composeSends(reverbRaw: number, delayRaw: number, quietRoll: number): { reverbSend: number; delaySend: number } {
   return {
     reverbSend: quantizeSend(reverbRaw),
-    delaySend: quietRoll < SEND_DELAY_QUIET_THRESHOLD ? 0 : quantizeSend(delayRaw),
+    delaySend: quietRoll < 1 - ROBOT_SEND_LOADING_RANGES.delaySend.lit ? 0 : quantizeSend(delayRaw),
   };
 }
 
 /**
- * A robot's seeded reverb and delay depth (docs/specs/ROBOT_SENDS.md §1.2). Draws from the same bands the
- * global Reverb / Delay `wet` rows carry in GLOBAL_AUDIO_LOADING_RANGES (those rows are now the per-robot send
- * bands), under three dataIds of their own at `offset` = spawn count. About a quarter of the fleet draws no delay.
+ * A robot's seeded reverb and delay depth (docs/specs/ROBOT_SENDS.md §1.2). Draws from the reverbSend and delaySend
+ * rows of ROBOT_SEND_LOADING_RANGES (the old global Reverb / Delay `wet` loading rows, moved there by Robot Effect Sends
+ * T1 without moving a value), under three dataIds of their own at `offset` = spawn count. About a quarter of the fleet draws no delay.
  * One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in both, so a
  * copied robot shares its sibling's voice but not its depth, and the two cannot drift.
  */
 export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): { reverbSend: number; delaySend: number } {
-  const reverb = GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'];
-  const delay = GLOBAL_AUDIO_LOADING_RANGES['delay.wet'];
+  const reverb = ROBOT_SEND_LOADING_RANGES.reverbSend;
+  const delay = ROBOT_SEND_LOADING_RANGES.delaySend;
   return composeSends(
     getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
     getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
@@ -566,8 +566,8 @@ export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): {
 /** spawnRobot's no-noise-map path (a locale that does not exist yet): the same bands, drawn from alea as
  *  Volume's fallback is. Three draws, since the quiet roll needs its own. */
 function generateRobotSendsFallback(localeId: string, spawnCount: number): { reverbSend: number; delaySend: number } {
-  const reverb = GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'];
-  const delay = GLOBAL_AUDIO_LOADING_RANGES['delay.wet'];
+  const reverb = ROBOT_SEND_LOADING_RANGES.reverbSend;
+  const delay = ROBOT_SEND_LOADING_RANGES.delaySend;
   return composeSends(
     reverb.min + alea(`${localeId}:${spawnCount}:sendReverb`)() * (reverb.max - reverb.min),
     delay.min + alea(`${localeId}:${spawnCount}:sendDelay`)() * (delay.max - delay.min),

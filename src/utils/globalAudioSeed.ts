@@ -16,7 +16,7 @@ import type { NoteValue } from '@/data/noteValues';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, SYNCED_RATE_KEYS, type SyncedRateKey } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
-import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey, type SeedRange } from '@/data/globalAudioSeedRanges';
+import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey, type SeedRange } from '@/data/globalAudioSeedRanges';
 import {
   GLOBAL_LFO_TARGET_IDS,
   LFO_LANE_IDS,
@@ -54,7 +54,7 @@ export function scaleUnitValue(t: number, range: SeedRange): number {
  * field that must FILL its band uses the uniform draw (Global Modulation T7: autoWah.gain and autoWah.wet took 3 distinct
  * values over 3 000 styles, phaser.wet 24). Every pre-existing field keeps the plain draw, so no existing value moves.
  */
-function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey, uniform = false): number {
+function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey, uniform = false): number {
   // Sample within the narrower LOADING range (initial-seed sub-window), but
   // honor the full range's log/linear scale — GLOBAL_AUDIO_LOADING_RANGES
   // doesn't carry its own `scale`, it's purely a narrower min/max over the

@@ -21,7 +21,7 @@ import {
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
-import { GLOBAL_AUDIO_LOADING_RANGES } from '../data/globalAudioLoadingRanges';
+import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
 import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { getStations, type Station } from './stations';
@@ -797,16 +797,50 @@ describe('spawnSystem', () => {
       expect(generateRobotSends(realNoise, 0)).toEqual({ reverbSend: 0.35, delaySend: 0.1 });
     });
 
-    it('reads the existing global rows - the loading ranges for reverb.wet and delay.wet - for its bands', () => {
+    it('reads the robot send table - the reverbSend and delaySend rows - for its bands', () => {
       vi.mocked(getSeededVal).mockClear();
 
       generateRobotSends(realNoise, 3);
 
       const calls = vi.mocked(getSeededVal).mock.calls.map((c) => [c[1], c[2], c[3], c[4]]);
-      expect(calls).toContainEqual(['robot.send.reverb', 3, GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].min, GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'].max]);
-      expect(calls).toContainEqual(['robot.send.delay', 3, GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].min, GLOBAL_AUDIO_LOADING_RANGES['delay.wet'].max]);
+      const { reverbSend, delaySend } = ROBOT_SEND_LOADING_RANGES;
+      expect(calls).toContainEqual(['robot.send.reverb', 3, reverbSend.min, reverbSend.max]);
+      expect(calls).toContainEqual(['robot.send.delay', 3, delaySend.min, delaySend.max]);
       expect(calls).toContainEqual(['robot.send.delay.quiet', 3, 0, 1]);
       expect(calls).toHaveLength(3);
+    });
+
+    it('takes the quiet threshold from the Delay row: a roll under 1 - lit is quiet', async () => {
+      const original = ROBOT_SEND_LOADING_RANGES.delaySend.lit;
+      try {
+        ROBOT_SEND_LOADING_RANGES.delaySend.lit = 0.4; // quiet below 0.6
+        await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.59 });
+        expect(generateRobotSends(realNoise, 0).delaySend).toBe(0);
+        await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.6 });
+        expect(generateRobotSends(realNoise, 0).delaySend).toBe(0.2);
+      } finally {
+        ROBOT_SEND_LOADING_RANGES.delaySend.lit = original;
+      }
+    });
+
+    // Robot Effect Sends T1 (plan acceptance "Parity"): moving the Reverb and Delay bands into the robot send table must not
+    // move a single seeded send. These are the values the branch base (ad1b37c1, Classic Band Retune merged at 2dc5b4a2)
+    // seeds for two twelve-robot rosters, recorded from a run on the base before the change. Never re-record them.
+    it('seeds, value for value, the Reverb and Delay sends the branch base seeds for two fixed rosters', () => {
+      const BASE: Record<string, Array<[number, number]>> = {
+        'effect-sends-parity-a': [
+          [0.2, 0], [0.18, 0], [0.24, 0.17], [0.24, 0.2], [0.48, 0.08], [0.29, 0.16],
+          [0.4, 0.2], [0.22, 0.11], [0.17, 0], [0.36, 0.23], [0.57, 0.17], [0.34, 0.26],
+        ],
+        'effect-sends-parity-b': [
+          [0.32, 0.22], [0.48, 0.02], [0.23, 0.09], [0.49, 0.23], [0.48, 0.08], [0.5, 0.09],
+          [0.4, 0.13], [0.14, 0], [0.34, 0.09], [0.38, 0.28], [0.57, 0.17], [0.47, 0.08],
+        ],
+      };
+      for (const [seed, expected] of Object.entries(BASE)) {
+        const roster = generateRobotRosterBaseline(createNoise2D(alea(seed)), 12);
+        expect(roster.map((b) => [b.reverbSend, b.delaySend]), seed).toEqual(expected);
+      }
     });
 
     it('leaves a sizeable share of a large fleet with no delay at all (a loose statistical bound)', () => {
