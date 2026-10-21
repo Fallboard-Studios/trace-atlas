@@ -63,6 +63,20 @@ export function applyDelaySend(robot: Robot, localeId: string, pct: number): voi
   applyDelaySendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
 }
 
+// Grit, Shimmer and Double send into the Colour, Shifter and Chorus rooms (docs/specs/ROBOT_EFFECT_SENDS.md §1.5):
+// the same pair as Reverb and Delay, with the same caller-side swell cancel and NaN rule.
+export function applyGritSend(robot: Robot, localeId: string, pct: number): void {
+  applyGritSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
+export function applyShimmerSend(robot: Robot, localeId: string, pct: number): void {
+  applyShimmerSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
+export function applyDoubleSend(robot: Robot, localeId: string, pct: number): void {
+  applyDoubleSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+}
+
 // The stored-fraction form, for the swell tick (docs/tasks/ROBOT_SENDS.md Task 12). A display percent does not
 // round-trip every double (0.007 * 100 / 100 is not 0.007), and a swell must land on its base exactly, so the
 // tick hands the 0..1 fraction over directly. A NaN is dropped whole, as above.
@@ -78,6 +92,27 @@ export function applyDelaySendValue(robot: Robot, localeId: string, fraction: nu
   const value = clampSend(fraction);
   useLocaleStore.getState().updateRobot(localeId, robot.id, { delaySend: value });
   AudioEngine.updateRobotSends(robot.id, { delay: value });
+}
+
+export function applyGritSendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { gritSend: value });
+  AudioEngine.updateRobotSends(robot.id, { grit: value });
+}
+
+export function applyShimmerSendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { shimmerSend: value });
+  AudioEngine.updateRobotSends(robot.id, { shimmer: value });
+}
+
+export function applyDoubleSendValue(robot: Robot, localeId: string, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { doubleSend: value });
+  AudioEngine.updateRobotSends(robot.id, { double: value });
 }
 
 // Auto off: hold the SOUND where the robot is now — the engine's live auto value becomes `pan` in the same

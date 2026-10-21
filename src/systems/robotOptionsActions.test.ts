@@ -7,7 +7,8 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento, applyBusFilter,
+  applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento,
+  applyGritSend, applyShimmerSend, applyDoubleSend, applyGritSendValue, applyShimmerSendValue, applyDoubleSendValue, applyBusFilter,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -200,15 +201,22 @@ describe('robotOptionsActions', () => {
     });
   });
 
-  // docs/tasks/ROBOT_SENDS.md Task 12 - the stored-fraction form of the two send actions. The swell tick writes
-  // through these: a display percent (x * 100 / 100) does not round-trip every double, and a swell must land
-  // on its base exactly.
+  // Every send field at a distinct non-default value, so a write to the wrong field cannot pass by coincidence.
+  const STORED_SENDS = { reverbSend: 0.2, delaySend: 0.1, gritSend: 0.3, shimmerSend: 0.4, doubleSend: 0.6 } as const;
+  const SEND_FIELDS = Object.keys(STORED_SENDS) as (keyof typeof STORED_SENDS)[];
+
+  // docs/tasks/ROBOT_SENDS.md Task 12 - the stored-fraction form of the send actions (the three new rooms'
+  // from docs/tasks/ROBOT_EFFECT_SENDS.md Task 9). The swell tick writes through these: a display percent
+  // (x * 100 / 100) does not round-trip every double, and a swell must land on its base exactly.
   describe.each([
     { name: 'applyReverbSendValue', apply: applyReverbSendValue, field: 'reverbSend', engineKey: 'reverb' },
     { name: 'applyDelaySendValue', apply: applyDelaySendValue, field: 'delaySend', engineKey: 'delay' },
+    { name: 'applyGritSendValue', apply: applyGritSendValue, field: 'gritSend', engineKey: 'grit' },
+    { name: 'applyShimmerSendValue', apply: applyShimmerSendValue, field: 'shimmerSend', engineKey: 'shimmer' },
+    { name: 'applyDoubleSendValue', apply: applyDoubleSendValue, field: 'doubleSend', engineKey: 'double' },
   ] as const)('$name', ({ apply, field, engineKey }) => {
     function storedRobot(): Robot {
-      const robot = makeRobot({ reverbSend: 0.2, delaySend: 0.1 });
+      const robot = makeRobot({ ...STORED_SENDS });
       useLocaleStore.getState().addRobot(localeId, robot);
       return robot;
     }
@@ -246,16 +254,32 @@ describe('robotOptionsActions', () => {
       expect(updateSpy).not.toHaveBeenCalled();
       expect(sendsSpy).not.toHaveBeenCalled();
     });
+
+    it('writes only its own field and its own engine key', () => {
+      const robot = storedRobot();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      apply(robot, localeId, 0.55);
+
+      expect(Object.keys(updateSpy.mock.calls[0][2])).toEqual([field]);
+      expect(Object.keys(sendsSpy.mock.calls[0][1])).toEqual([engineKey]);
+    });
   });
 
-  // docs/specs/ROBOT_SENDS.md §1.5 - the Reverb and Delay slider actions, on applyVolume's shape. They never
-  // cancel a swell (the callers do): the swell tick itself writes through them.
+  // docs/specs/ROBOT_SENDS.md §1.5 - the send slider actions, on applyVolume's shape (Grit, Shimmer and Double from
+  // docs/specs/ROBOT_EFFECT_SENDS.md §1.5). They never cancel a swell (the callers do): the swell tick itself writes
+  // through them.
   describe.each([
-    { name: 'applyReverbSend', apply: applyReverbSend, field: 'reverbSend', engineKey: 'reverb', other: 'delaySend' },
-    { name: 'applyDelaySend', apply: applyDelaySend, field: 'delaySend', engineKey: 'delay', other: 'reverbSend' },
-  ] as const)('$name', ({ apply, field, engineKey, other }) => {
+    { name: 'applyReverbSend', apply: applyReverbSend, field: 'reverbSend', engineKey: 'reverb' },
+    { name: 'applyDelaySend', apply: applyDelaySend, field: 'delaySend', engineKey: 'delay' },
+    { name: 'applyGritSend', apply: applyGritSend, field: 'gritSend', engineKey: 'grit' },
+    { name: 'applyShimmerSend', apply: applyShimmerSend, field: 'shimmerSend', engineKey: 'shimmer' },
+    { name: 'applyDoubleSend', apply: applyDoubleSend, field: 'doubleSend', engineKey: 'double' },
+  ] as const)('$name', ({ apply, field, engineKey }) => {
+    const others = SEND_FIELDS.filter((f) => f !== field);
     function storedRobot(overrides: Partial<Robot> = {}): Robot {
-      const robot = makeRobot({ reverbSend: 0.2, delaySend: 0.1, ...overrides });
+      const robot = makeRobot({ ...STORED_SENDS, ...overrides });
       useLocaleStore.getState().addRobot(localeId, robot);
       return robot;
     }
@@ -321,16 +345,16 @@ describe('robotOptionsActions', () => {
       expect(stored(robot.id)?.[field]).toBe(0.125);
     });
 
-    it('touches only its own send: the other field and the other gain are left alone', () => {
+    it('touches only its own send: the other four fields and gains are left alone', () => {
       const robot = storedRobot();
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
       const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
 
-      apply(robot, localeId, 60);
+      apply(robot, localeId, 70);
 
-      expect(updateSpy.mock.calls[0][2]).not.toHaveProperty(other);
+      expect(Object.keys(updateSpy.mock.calls[0][2])).toEqual([field]);
       expect(Object.keys(sendsSpy.mock.calls[0][1])).toEqual([engineKey]);
-      expect(stored(robot.id)?.[other]).toBe(other === 'delaySend' ? 0.1 : 0.2);
+      for (const other of others) expect(stored(robot.id)?.[other]).toBe(STORED_SENDS[other]);
     });
 
     it('ignores a NaN display number whole: no store write, no engine call, the stored send survives', () => {
