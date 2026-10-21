@@ -659,3 +659,34 @@ wired is an audio-architecture change (CLAUDE.md: ask first).
 against out of it (a scratch build), on the desktop with `npm run perf:audio` and on the Pixel through Chrome's remote
 DevTools WebAudio panel over USB, which reads a continuous load figure rather than counting failures. The phone's
 underrun count alone proved too noisy to separate two builds (the A/B above). Then Crawford's call.
+
+**Update 2026-10-20: the first candidate is built; the item stays open.** On `feature/pedals`, every dark global effect
+now leaves the signal path (the Dark-Effect Bypass, [docs/specs/DARK_EFFECT_BYPASS.md](../specs/DARK_EFFECT_BYPASS.md)
+§8; numbers in [scratchy-audio-phones.md](scratchy-audio-phones.md), T12 and rounds 3 and 4).
+
+**Measured.**
+- **Desktop:** all ten dark cost 38.3 ‰ in their cells, against 150.6 inline in the same sitting. `perf:audio`: branch
+  0.431 / 0.502, `main` 0.460 / 0.580.
+- **Pixel 8, Full, at 3:00 / 4:00:** a dark world 31 / 54 against `main`'s 48 / 75; four lit 59 / 69 and 53 / 110 on
+  a fresh phone.
+
+**Still open: a run late in a sitting collapses on both builds.**
+- In round 4, `main`'s baseline ran fifth: 26 at 3:00, then out at 4:13 with 2 000+ underruns. The branch's third and
+  fourth runs collapsed the same way.
+- A collapse survives a Chrome restart.
+- A sine-only page on the same hot phone still carried 700 oscillators before underruns climbed. So the audio path
+  works, and the app sits near the phone's limit.
+- In every round the collapses come 2:50–4:00 into a run.
+- Not yet separated: heat against state accumulating across runs.
+
+**Next.**
+1. A desktop long run: 15 minutes headless, logging render capacity, live node count, Transport events, voices and
+   memory, looking for load that grows during a run.
+2. On the phone, the same link in an Incognito tab right after a collapse, and the sine ramp on a cool phone, to price
+   what heat costs.
+
+### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
+
+Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
+EQ3, the LPF and the HPF stay in at neutral, being cheap built-ins and global LFO targets that would flap through
+neutral, and are revisited only if a phone measurement points at them.

@@ -700,3 +700,25 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
   (found by a full-suite run, where a second seeded apply ducked a lit Tremolo). Offline renders were misleading here and
   are not evidence for this path. 20 tests (both pedals), RED first; 11 mutants, 10 killed, the eleventh (a check that
   the node was not rebuilt) was unreachable behind the cancel and deleted.
+- **The Dark-Effect Bypass (T14 missed 2026-10-19; built 2026-10-19 to 2026-10-20, inside 50.6).** Round 2 on the
+  Pixel traced T14's miss to the effects' *presence*: a Tone `Effect` processes its wet path at any Mix. So each of the
+  ten global effects now sits in a four-node bypass cell (`in` → `dry` → `cut`, `in` → effect → `wet` → `cut`), and
+  the effect's two edges exist only while it is lit.
+  - **The cell's gains carry the Mix law.** Equal power, as Tone's `CrossFade`; Width's is linear. Every connect and
+    disconnect happens on a zero gain.
+  - **The Spread duck and the Phaser rebuild** ride the cell, and a lit Phaser Stages change is now ducked too.
+  - **The `?debug` HUD** reads ` · fx in n/10`.
+  - **The desktop proofs:**
+    - Lit sound identical (≤ 1.8e-7).
+    - Crossings inaudible (worst ×1.19).
+    - All ten dark at 38.3 ‰, against 213 inline.
+    - `perf:audio` below `main`.
+    - Power-on and a Decay flip no slower.
+  - **The phone re-run (T14)** passed with a caveat, by Crawford's call: late-sitting collapses also hit `main` (backlog
+    27).
+  - **Full account:** [DARK_EFFECT_BYPASS.md](DARK_EFFECT_BYPASS.md) §8 and its plan,
+    [docs/tasks/DARK_EFFECT_BYPASS.md](../tasks/DARK_EFFECT_BYPASS.md).
+  - **What it changed here:**
+    - The `chainNodes` and `join` lines `globalPedalsDocs.test.ts` pins are now the cell lines.
+    - The join is `controlledDecay ? _cells.stereoWidener?.in : _globalCompressor`.
+    - `_lastControlledDecay`, named in this spec's survey, is deleted, and so is the Spread duck's `_spreadWetGain`.

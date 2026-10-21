@@ -22,6 +22,11 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > [docs/intent/dark-effect-bypass.md](../intent/dark-effect-bypass.md); its spec and tasks come next. It lands before
 > T16 and T17, and T14 is re-run on it.
 >
+> **Update (2026-10-20): the Dark-Effect Bypass is BUILT** ([plan](DARK_EFFECT_BYPASS.md), T0–T15;
+> [spec §8](../specs/DARK_EFFECT_BYPASS.md)). Checkpoint B, Crawford's desktop listen, passed. T14 was re-run on it
+> (phone rounds 3 and 4) and **passed with a caveat** by Crawford's call. The caveat: a run late in a sitting collapses
+> on the Pixel whatever the build, `main` included, which is backlog 27. **Next: T16 (Crawford's listen), then T17.**
+>
 > *(Original status, 2026-10-17:)* The spec is written and awaiting Crawford's approval; its veto points
 > (spec §7) are the slot order (since answered: the Vibrato is stereo, so only the shifter's sideband leak on
 > panned voices is open), the cap mechanism (sequential or pick-two), the

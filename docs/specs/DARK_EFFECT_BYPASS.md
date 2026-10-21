@@ -482,7 +482,8 @@ an old `?session=` link.
    accepting a bigger walk per crossing instead.
 3. **The join no longer moves (assumption 6).** The intent's "rooms join at the Limiter while Width is out" becomes
    "rooms join at the dark Width cell, which is unity". Same sound, less code, one wording change for Crawford to
-   confirm.
+   confirm. **Built that way (T2, T6) under Crawford's "Cell for sure" (2026-10-19). Not objected to since, and
+   Checkpoint B's Width-under-Controlled-Decay listen passed (§8.0).**
 4. **A fresh world always lights Width.** The seeder draws Width in 0.4–0.65 and never `0.5` (`globalAudioSeed.ts:372`),
    so every seeded world keeps the widener connected (14 ‰ dark today, its lit price after this). Run A's link is a
    `main` payload and restores Width at `0.5`, so it does not show this. Whether a fresh seed should land on exactly
@@ -497,14 +498,96 @@ an old `?session=` link.
    a second; a disconnect that lands late only delays the saving, never clicks (the path is already silent). No risk
    to sound, a small one to the measurement if the phone is thrashing.
 8. **Backlog 27** ("Phone Playback Underruns at Light Load, `main` Included") named the five `main` effects' presence
-   as its first candidate. This phase is that fix; T17 closes the item with the counts.
+   as its first candidate. This phase is that fix; T17 closes the item with the counts. **Updated at T15
+   (2026-10-20): the item stays open.** The dark-effect cost it named is gone on this branch (§8.3, §8.5). Its
+   subject, `main` underrunning on the phone, is not resolved: round 4 showed `main` collapsing late in a sitting too.
+   T15 appended that, with the counts and the next step, rather than closing the item.
 
 ---
 
 ## 8. As built
 
-*(The plan's docs task, T15, completes this section, and GLOBAL_PEDALS.md §8 gets a pointer here. The desktop proofs
-below are written as each one runs.)*
+Built on `feature/pedals`, 2026-10-19 to 2026-10-20: T0 `4fc79dd6` to T15, one commit per task, plus follow-ups. Each
+task's As-built note in [the plan](../tasks/DARK_EFFECT_BYPASS.md) has its tests and mutation gate. Checkpoint A
+passed 2026-10-20, Checkpoint B (Crawford's desktop listen: "ok, everything passed") the same day, and T14 passed
+with a caveat by Crawford's call (§8.5). GLOBAL_PEDALS.md §8 points here.
+
+### 8.0 The cell as built (T1–T9)
+
+All of it is in `src/engine/audioEngine/globalFx.ts`.
+
+- **Four nodes per effect.** `buildCell(key, effect)` builds `in` (Gain 1), `dry` and `wet` (Gains) and `cut`, a
+  zero-delay `Tone.Delay` from `CHAIN_CUT_OPTIONS` built in `buildCell`'s own `try`. The fixed edges are
+  `in → dry → cut` and `wet → cut`.
+- **The effect.** Each is built at its own `wet: 1`; the widener at `width: 0.5`, with its own `wet` 1 as before.
+- **Its two edges.** `in → effect` and `effect → wet` exist only while `cell.connected`.
+- **Every cell is built dark:** `dry` 1, `wet` 0, `mix` 0, unconnected. `AudioEngine.start`'s whole-block apply then
+  lights the seeded ones.
+- **The law.** `cellGains(w)` is `{ dry: cos(w·π/2), wet: sin(w·π/2) }` with `w = colourWetGain(mix)`. It was read
+  from Tone 15.1.22's `component/channel/CrossFade.js`: a constant 1 through a `StereoPanner` at `pan = 2·fade − 1`.
+  - Width uses `widthCellGains(f)`, `{ dry: 1 − f, wet: f }`, with `f = width === 0.5 ? 0 : 1`.
+  - §8.1 proves the lit sound identical from Mix 0.04 up. Below that, Tone's own law had a −56 dB wet floor the cell
+    does not have.
+- **The per-cell cut** bounds every cycle search to one cell. `chainCycleSearch.test.ts` pins the counts:
+  - A lit cell costs exactly 9 expansions, wherever it sits in the chain.
+  - A crossing's two edges cost 7 and 1, and ten dark cells cost 2.
+  - Without the cuts, ten lit cells cost more than 3¹⁰.
+- **The chain** is a list of `{ head, tail }` spans (`nodeSpan` / `cellSpan`), so the loop connects
+  `prev.tail → next.head` and never shorts a cell. `disconnectAllFxNodes` drops five nodes per cell (`in`, `dry`, the
+  effect, `wet`, `cut`), downstream first, so every rewire re-makes every edge from nothing.
+- **The join**, unchanged since T2:
+  `const join = (controlledDecay ? _cells.stereoWidener?.in : _globalCompressor) ?? _globalLimiter ?? _globalCompressor`.
+  Controlled Decay joins at the Width cell's `in` whether Width is lit or dark (assumption 6; §7 Q3). A dark Width
+  cell passes the rooms' returns through `dry` at unity.
+- **The crossing.** `writeCellMix(key, mix, ramp = true)` is the one write.
+  - *Light* cancels a pending darken, connects the effect while its `wet` gain is 0 (`connectEffect`), then ramps the
+    cell (`rampCell`, the key's law, `COLOUR_RAMP_SECONDS`).
+  - *Darken* ramps to dry. It then arms one `Tone.getContext().setTimeout` at `lookAhead + COLOUR_RAMP_SECONDS +
+    BYPASS_DISCONNECT_MARGIN_SECONDS` (0.01 s), and the fire disconnects `cell.effect` (read at the fire) if the cell
+    is still dark.
+- **The Spread duck rides the cell.** `writeSpreadPedalWet` is `writeCellMix(pedal, wet, !_spreadDuck[pedal])`.
+  `writeSpread` ramps the cell to dry and `finishSpreadDuck` ramps it back to `cell.mix`. A duck never disconnects.
+- **The Phaser rebuild is local.** `rebuildPhaser` swaps the node inside its cell (`disconnectEffect` old,
+  `connectEffect` fresh, only if lit) and no longer calls `wireGlobalFxChain`. A lit Stages change is ducked
+  (`writePhaserStages` / `finishPhaserDuck` / `resetPhaserDuck`, §8.2).
+- **The HUD token.** `getConnectedEffectCount()` (re-exported on `AudioEngine`) feeds the diagnostics snapshot's
+  `fxConnected`, shown as ` · fx in n/10` on the budget line (`BYPASS_EFFECT_COUNT` in `hudLines.ts`).
+- **Failure paths.**
+  - An absent effect constructor gets no cell. A throwing one gets an empty dry cell. A failed cell releases its
+    effect.
+  - With no `Gain` or no `Delay` constructor, the ten are built, released and left out, with one `devWarn`.
+  - A failed connect leaves the cell dry and unconnected, and the next light retries. A failed disconnect keeps
+    `connected`, so a re-sent 0 retries.
+  - A failed connect in a lit Phaser rebuild drops the cell to dry at once: `wet` 0, `dry` ramped to 1, Mix 0
+    (`2c7bf1f6`).
+
+**Deviations from §1**, each recorded in the plan's As-built note for the task named:
+
+1. **The re-sent rule** is `w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)`. So a re-sent 0
+   while the disconnect is pending does nothing; §1.2 re-ramped and re-armed it (T3).
+2. **A light whose connect throws** returns before ramping, and `cell.mix` is set only after a successful connect.
+   §1.2 ramped anyway, which would have pulled `dry` down with nothing on the wet path (T3).
+3. **A failed disconnect** keeps `connected`, so a later light only ramps and a re-sent 0 retries (T3).
+4. **Added:** `buildGlobalFxChain` cancels every old cell's pending disconnect before building new cells (T3), and any
+   pending Stages duck (`resetPhaserDuck`, T11 follow-up).
+5. **The cut** is built in `buildCell` from `CHAIN_CUT_OPTIONS`, not by `buildChainCut`, whose warning names a
+   cycle-search cut. `disconnectAllFxNodes` drops five nodes per cell, not four, and the chain list is spans (T2).
+6. **The `_global<Effect>` aliases stay**, re-assigned from `cellEffect(key)` after the cells are built, so a left-out
+   effect's setter no-ops (T2, T4; spec §4's one-way choice).
+7. **`_spreadWetGain` is deleted, not repurposed:** it would have duplicated `cell.mix`. `writeCellMix` gained its
+   `ramp` argument so the protocol runs inside a duck with the gains left to the duck. "Write the Spread at once" now
+   tests `!cell.connected`, so a pedal still connected during its darken ramp is ducked (T5).
+8. **A re-sent Width 0.5** does nothing to the cell, but still re-ramps the `width` Signal to 0.5, which is harmless
+   (T6).
+9. **`_lastControlledDecay` is deleted.** The rebuild was its only reader, and `noUnusedLocals` fails an unread module
+   `let` (T7).
+10. **`setGlobalPhaser` writes Stages before the Mix**, so a dark Phaser lit in the same call lights the new node
+    (T11 follow-up). Earlier, in T4, the Mix had moved above the rebuild's early return so a Mix in a Stages call was
+    not dropped.
+11. **A lit Phaser Stages change is ducked**, beyond §1: T11 measured the T7 same-Mix swap clicking at ×2.0–54.7, and
+    the duck brought it to ×0.82–0.93 (§8.2).
+12. **"Tone's `CrossFade` law exactly"** (assumption 2) holds from Mix 0.04 up (§8.1). The `cellGains` comment's
+    "sounds exactly" carries the same qualifier, unchanged in code.
 
 ### 8.1 Lit sound unchanged, by offline render (T10, 2026-10-20) — PASS
 
@@ -660,3 +743,63 @@ worklet; only assumption 10's teardown would reach it. **(b)** `npm run perf:aud
 interleaved rounds: branch `1421c023` mean **0.431** / peak window **0.502** against `main` `d29ac778` **0.460** /
 **0.580**. That is below `main` in every round on both, where T0's branch was 0.624 / 0.752. `main` reproduced T0
 (0.455 / 0.570). The branch now beats `main` because `main`'s own five dark effects still run inline at wet 0.
+
+### 8.4 Main thread: power-on, a Decay flip, one crossing (T13, 2026-10-20) — PASS
+
+Full tables in `docs/todo/scratchy-audio-phones.md`, "Dark-Effect Bypass, main thread after — T13". The world and probe
+are T0's: the two-lit payload, and the hang probe over CDP plus a traced crossing. Branch `75f1a5d1` ran against T0's
+build `47ce45d3`, re-run in the same sitting from a scratchpad worktree, three interleaved rounds.
+
+| | Branch | `47ce45d3`, same sitting | T0 |
+|---|---|---|---|
+| Power-on | 815–1 144 ms (mean 952), 0 unresponsive | 899–1 375 ms (mean 1 096) | 1 166–1 385 ms |
+| Decay flip | 1.8–2.1 ms | 1.6–2.5 ms | 2–3 ms |
+
+**One crossing** (Vibrato 0 → 0.3 → 0), against the ≤ 2 ms bar:
+- **Writes:** the light write's task ≤ 0.75 ms (the pre-cell write 0.31–0.43), the darken write's ≤ 0.43 ms.
+- **The disconnect:** its callback takes ≤ 0.5 ms on its own and fires 167–198 ms after the write.
+- **`fx in`** read 2 → 3 → 2 in every run.
+- **How it was measured:** "the longest task around the write" turned out to be the page's background (8.8–9.7 ms
+  tasks in a window with no write), so the crossing was timed from a CDP trace. Each Tone context timer was labelled
+  by the write that armed it.
+
+The ten extra Delays and the per-cell cut showed in neither power-on nor the flip.
+
+### 8.5 The phone (T14, 2026-10-20) — passed with a caveat
+
+Rounds 3 and 4 and the tests after them are in `docs/todo/scratchy-audio-phones.md` (Pixel 8, `?debug`, Full,
+3:00 / 4:00).
+
+- **Round 3.** `main` 48 / 75. The branch's dark baseline (`fx in 0/10`) 31 / 54, which passes. That was its second
+  attempt; the first, on a hot phone, ran away from 2:30. A seeded world at 4/10: 259 / 1 600, running away from
+  3:30. The worst case at 7/10: 172 / 957, running away from 3:30. Standard baseline 48 / 67.
+- **A desktop pricing of lit effects followed.** The Phaser is 45.8 ‰ lit and the AutoWah 24.9. Cheaper versions:
+  fewer Phaser stages, a gentler AutoWah bandpass, and k-rate filter frequency, which standardized-audio-context
+  hides.
+- **Round 4** tried Phaser stages 10 against 4 in a four-lit world, in the order 10, 4, 4, 10, then `main` last.
+  - The first two runs were fine: 59 / 69 and 53 / 110.
+  - The last three all collapsed between about 3:00 and 3:50, **`main` included** (26 at 3:00, out at 4:13).
+  - Stage count showed no signal, so the seed range is unchanged.
+- **After round 4.** A collapse survived a Chrome restart. A sine-only page on the same hot phone still carried 700
+  oscillators before underruns climbed.
+- **Crawford's decision: pass with a caveat.**
+  - On fresh-phone runs, the dark and four-lit worlds read about `main`'s level.
+  - The late-sitting collapse is the phone problem `main` shares. Round 2's "the runaway is the branch's" rested on one
+    clean `main` run, and round 4 overturned it.
+  - Backlog 27 carries it, with a desktop long run (load that grows during a run) as the next step.
+
+### 8.6 Probe files
+
+The scratchpad is per session, so the paths are absolute, under
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/`. No probe code is in
+the repo.
+
+| Probe | Folder | Files |
+|---|---|---|
+| T0 | `ead4402b-820a-4dd2-bbbf-db766ff79614/scratchpad/t0/` | the hang probe and the payloads |
+| T10, T11, T12 | `5bf05dc0-cd58-45f6-9633-c813096c5fe6/scratchpad/` (`t10/`, `t11/`, `t12/`) | as §8.1–8.3 name them |
+| T13 | `2bd86fab-5629-4ca0-b2e3-10ff790a83f3/scratchpad/t13/` | `probe.mjs`, `run.sh`, `r1`–`r3-*.json` |
+| Phone rounds 3 and 4 | `2bd86fab-5629-4ca0-b2e3-10ff790a83f3/scratchpad/t14/` | `links.mjs`, `links-r4.mjs`, `fxcheck.mjs`, `sinecheck.mjs`, `urls*.txt` |
+| Lit-effect pricing | `2bd86fab-5629-4ca0-b2e3-10ff790a83f3/scratchpad/price/` | `probe.js`, `drive.mjs`, `price-5r.json` |
+
+The 2026-10-19 dark-cost probe is in `bb9d9e9b-9766-49d7-acec-219284e93504/scratchpad/` (§5).

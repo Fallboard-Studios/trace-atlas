@@ -13,9 +13,10 @@ the phone gate is the `?debug` HUD on the Pixel (spec §5).
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo convention
 `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status (2026-10-20):** T0–T13 built and committed on `feature/pedals`; Checkpoints A and B passed (Crawford,
-> Checkpoint B: "ok, everything passed"). T14 (phone round 3) MISSED on the lit runs (2) and (3); the dark run passed.
-> Next = Crawford's call on the miss, then T15.
+> **Status (2026-10-20): COMPLETE.** T0–T15 committed on `feature/pedals`. Checkpoints A and B passed (Crawford,
+> Checkpoint B: "ok, everything passed"). T14 **passed with a caveat** by Crawford's call: fresh-phone runs read about
+> `main`'s level, and the late-sitting collapse also hits `main` (backlog 27, still open). Back to
+> [GLOBAL_PEDALS.md](GLOBAL_PEDALS.md) T16 (Crawford's listen) and T17 (the docs for all of 50.6, describing the cells).
 
 ## Overview
 
@@ -690,25 +691,38 @@ AUDIO_SYSTEM's Signal Graph, the grid's chain-order line and the roadmap 50.6 en
 GLOBAL_PEDALS.md T17's and now describe the cells.
 
 **Acceptance criteria:**
-- [ ] Spec §8 names: the cell's four nodes and the pinned `wet`, the law and where Tone's was read, the per-cell cut,
+- [x] Spec §8 names: the cell's four nodes and the pinned `wet`, the law and where Tone's was read, the per-cell cut,
   the join at the dark Width cell, the Spread duck on the cell, the local Phaser rebuild, the HUD token, and each
   proof's numbers; §7 Q1 carries "cell, Crawford 2026-10-19".
-- [ ] `git diff docs/todo/backlog.md` shows every pre-existing line byte-identical (append-only, CRLF).
-- [ ] `src/docs/globalPedalsDocs.test.ts` unchanged in outcome (its four living-docs cases remain T17's).
+- [x] `git diff docs/todo/backlog.md` shows every pre-existing line byte-identical (append-only, CRLF).
+- [x] `src/docs/globalPedalsDocs.test.ts` unchanged in outcome (its four living-docs cases remain T17's).
 
 **Verification:** `git diff --stat docs`; a read-through against the code (verify-roadmap-against-code).
 
 **Dependencies:** T14. **Files:** `docs/specs/DARK_EFFECT_BYPASS.md`, `docs/specs/GLOBAL_PEDALS.md`,
 `docs/tasks/GLOBAL_PEDALS.md`, `docs/tasks/DARK_EFFECT_BYPASS.md`, `docs/todo/backlog.md`. **Scope:** S (docs only).
 
+**As built (2026-10-20).** Spec §8 now runs §8.0 (the cell as built, plus twelve numbered deviations from §1, each
+traced to the task that recorded it), §8.1–8.3 as written, §8.4 (T13), §8.5 (the phone, passed with a caveat) and
+§8.6 (every probe's absolute path). §7 Q3 and Q8 carry their answers; Q1 already did. GLOBAL_PEDALS.md (the spec) §8
+gains the bypass entry, and its plan gains a status update. Every function and variable named was checked against
+`globalFx.ts`, `hudLines.ts` and `audioDiagnostics.ts`, and the three deleted names (`BUILT_DARK`, `_spreadWetGain`,
+`_lastControlledDecay`) are absent from `src/`. The backlog is 31 lines added, none changed, CRLF. `src/docs` is
+1557 pass / 4 fail, the four T17 cases, unchanged.
+
+**Deviation:** backlog 27 is **not closed**. The bypass removed the dark-effect cost it named, but its subject, `main`
+underrunning on the phone, stands, and round 4 added the late-sitting collapse. So the appended update records the
+counts and the next step (a desktop long run for load that grows during a run), and the item stays open. Backlog 28 is
+the EQ3 and filters note.
+
 ---
 
 ### Checkpoint: Complete
 
-- [ ] T1–T15 committed, one per task, on `feature/pedals`; Checkpoints A and B passed; T14 recorded as pass or
-  routed.
-- [ ] Spec §5's criteria each met with a number, or a miss recorded with Crawford's decision.
-- [ ] Hand back to GLOBAL_PEDALS.md T16 (Crawford's listen, now including this plan's Checkpoint B list) and T17
+- [x] T1–T15 committed, one per task, on `feature/pedals`; Checkpoints A and B passed; T14 recorded as pass or
+  routed. *(T14 passed with a caveat.)*
+- [x] Spec §5's criteria each met with a number, or a miss recorded with Crawford's decision.
+- [x] Hand back to GLOBAL_PEDALS.md T16 (Crawford's listen, now including this plan's Checkpoint B list) and T17
   (docs for all of 50.6, describing the cells).
 
 ---
