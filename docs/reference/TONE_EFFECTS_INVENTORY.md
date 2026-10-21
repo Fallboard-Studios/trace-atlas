@@ -69,8 +69,8 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | Vibrato | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.85 | 1 | slider, step 0.01 | | same cap rule as Chorus | node gets wet²; ramps 50 ms |
 | FrequencyShifter (Tone.FrequencyShifter) | shift, Tone `frequency` (Hz) | global | dry stage | 0 | −1000 | 1000 | ±2 | ±20 | slider centred-zero, step 1 | | a magnitude band plus a separate sign draw (`globalAudio.frequencyShifter.sign`), so a seeded shift is never inside ±2 Hz | the sine branch is downmixed to mono, so a panned voice leaks the other sideband into the far channel |
 | FrequencyShifter | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.25 | 0.35 | slider, step 0.01 | | same cap rule as Chorus | node gets wet²; ramps 50 ms |
-| Compressor (Tone.Compressor) | threshold (dB) | global | dry stage | −24 | −60 | 0 | −55 | −45 | slider, step 1 | | bell draw | the node is built at −18 / ratio 6 / attack 0.003 / release 0.15, then the store pushes the defaults or the seed |
-| Compressor | ratio | global | dry stage | 2 | 1 | 20 | 10 | 20 | slider, step 1 | | bell draw | |
+| Compressor (Tone.Compressor) | threshold (dB) | global | dry stage | −24 | −60 | 0 | −36 | −18 | slider, step 1 | | bell draw; retuned from −55 to −45 at the Classic Band Retune: the Web Audio compressor adds automatic makeup gain, so the old deep band swung fleet loudness by about 11 dB between seeds | the node is built at −18 / ratio 6 / attack 0.003 / release 0.15, then the store pushes the defaults or the seed |
+| Compressor | ratio | global | dry stage | 2 | 1 | 20 | 2 | 6 | slider, step 1 | | bell draw | |
 | Compressor | attack (s) | global | dry stage | 0.003 | 0.001 | 0.2 | 0.003 | 0.05 | slider log | | bell draw | |
 | Compressor | release (s) | global | dry stage | 0.25 | 0.01 | 1 | 0.05 | 0.3 | slider log | | bell draw | |
 | Compressor | knee (dB) | global | dry stage | 6 | 0 | 40 | 1 | 15 | slider, step 1 | | bell draw | |

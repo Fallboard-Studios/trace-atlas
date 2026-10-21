@@ -29,8 +29,10 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   // Classic Band Retune T5 (row 15): the per-robot Reverb SEND band (the global room's return is a fixed 1), widened from
   // 0.1-0.4 for more contrast between a dry probe and a wet one.
   'reverb.wet': { min: 0.1, max: 0.6 },
-  'compressor.threshold': { min: -55, max: -45 },
-  'compressor.ratio': { min: 10, max: 20 },
+  // Classic Band Retune T6 (row 16, Crawford: "retune as proposed", 2026-10-21): -36 to -18 dB at 2-6:1. Attack, release and
+  // knee are unchanged.
+  'compressor.threshold': { min: -36, max: -18 },
+  'compressor.ratio': { min: 2, max: 6 },
   'compressor.attack': { min: 0.003, max: 0.05 },
   'compressor.release': { min: 0.05, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
@@ -282,6 +284,32 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
     const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['frequencyShifter.wet'];
     expect(max).toBeGreaterThan(min);
     expect(max - min).toBeCloseTo(0.1, 9);
+  });
+
+  // Classic Band Retune T6 (docs/tasks/CLASSIC_BAND_RETUNE.md §7, the 2026-10-21 measurement). The Web Audio compressor
+  // applies automatic makeup gain, so a deep threshold at a high ratio is a loudness lottery: the old band (-55 to -45 dB,
+  // 10-20:1) swung fleet level by about 11 dB between seeds. The retuned band keeps a seeded Compressor shallow.
+  it('seeds a shallow Compressor: threshold -36 to -18 dB, ratio 2-6:1, and attack, release and knee untouched', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.threshold']).toStrictEqual({ min: -36, max: -18 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.ratio']).toStrictEqual({ min: 2, max: 6 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.attack']).toStrictEqual({ min: 0.003, max: 0.05 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.release']).toStrictEqual({ min: 0.05, max: 0.3 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.knee']).toStrictEqual({ min: 1, max: 15 });
+  });
+
+  it('keeps the Compressor threshold and ratio edges on whole numbers, so a draw can land on either edge', () => {
+    for (const key of ['compressor.threshold', 'compressor.ratio'] as const) {
+      expect(Number.isInteger(GLOBAL_AUDIO_LOADING_RANGES[key].min), key + ' min').toBe(true);
+      expect(Number.isInteger(GLOBAL_AUDIO_LOADING_RANGES[key].max), key + ' max').toBe(true);
+    }
+  });
+
+  it('keeps the Compressor band out of the deep, high-ratio corner: threshold never below -36 dB, ratio never above 6', () => {
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.threshold'].min).toBeGreaterThanOrEqual(-36);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.ratio'].max).toBeLessThanOrEqual(6);
+    // and still compresses something: the ratio floor is above 1 (unity) and the threshold ceiling is under 0 dB.
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.ratio'].min).toBeGreaterThan(1);
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.threshold'].max).toBeLessThan(0);
   });
 
   it('never has min >= max for any field', () => {

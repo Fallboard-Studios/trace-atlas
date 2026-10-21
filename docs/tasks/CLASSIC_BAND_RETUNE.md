@@ -408,3 +408,14 @@ narrows a ~10 dB seed-to-seed loudness swing to ~5 dB and removes the −6 to �
 leave the band (it is a wide but not pinned range), or keep it and only soften the worst corner (a 50 ms attack with a 15 dB
 knee takes it from −6 to −2 dB RMS), or retune to a threshold nearer −36 with a higher ratio so the
 makeup gain stays small. T7 and the rest of Checkpoint A wait on this answer so the docs sweep is written once.
+
+**Crawford's answer (2026-10-21): "retune as proposed."** Applied in a second T6 commit. `compressor.threshold` is −36 to −18
+and `compressor.ratio` 2–6 (whole numbers on their grids); attack, release and knee are unchanged. Tests: both bands by
+value and by the loading table's by-value pin, the edges on whole numbers, "no deep or high-ratio corner" (threshold ≥ −36,
+ratio ≤ 6, still compressing: ratio floor above 1, threshold ceiling under 0 dB), and a 3 000-style sweep that every seeded
+threshold is an integer in −36…−18 and every ratio an integer in 2…6, reaching both ends. The two oracles moved by hand
+(alpha −47 dB / 17 → −22 / 5, theta −51 / 14 → −28 / 4), derived in a dated note from the raw draws; the old bands over the
+same draws reproduce −47, 17, −51 and 14. Docs: grid rows 64–65, the inventory's two rows, `SLIDER_VALUES.md` (which also
+carried the stale HPF 500, Pre-Delay 1 and the old send band, fixed in the same pass). No new mutation gate (a band value).
+
+Verification: `npm test` 379 files / 13 426 tests, types clean, lint 0 errors.

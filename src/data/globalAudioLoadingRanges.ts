@@ -51,8 +51,13 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   // Widened from 0.1-0.4 at Classic Band Retune T5 (row 15, 2026-10-21): more contrast between a dry probe and a wet one.
   'reverb.wet': { min: 0.1, max: 0.6 },
 
-  'compressor.threshold': { min: -55, max: -45 },
-  'compressor.ratio': { min: 10, max: 20 },
+  // Retuned at Classic Band Retune T6 (row 16, Crawford: "retune as proposed", 2026-10-21) from -55 to -45 dB at 10-20:1.
+  // The Web Audio compressor applies automatic makeup gain, so that deep, high-ratio band did not pin the fleet near
+  // -47 dBFS as first thought; it swung fleet loudness by about 11 dB between seeds (-7 to +3.5 dB against uncompressed,
+  // measured on the real signal, docs/tasks/CLASSIC_BAND_RETUNE.md §7). -36 to -18 dB at 2-6:1 halves the swing to about
+  // 5 dB. Attack, release and knee are unchanged.
+  'compressor.threshold': { min: -36, max: -18 },
+  'compressor.ratio': { min: 2, max: 6 },
   'compressor.attack': { min: 0.003, max: 0.05 },
   'compressor.release': { min: 0.05, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },

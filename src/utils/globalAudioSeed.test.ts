@@ -1141,6 +1141,24 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       }
     });
 
+    // Classic Band Retune T6 (Crawford, 2026-10-21): the Compressor seeds shallow, -36 to -18 dB at 2-6:1, whole numbers.
+    it('seeds every Compressor threshold in -36 to -18 dB and every ratio in 2 - 6, on whole numbers, reaching both ends of each', () => {
+      for (const s of samples) {
+        expect(Number.isInteger(s.compressor.threshold), `threshold ${s.compressor.threshold}`).toBe(true);
+        expect(Number.isInteger(s.compressor.ratio), `ratio ${s.compressor.ratio}`).toBe(true);
+        expect(s.compressor.threshold).toBeGreaterThanOrEqual(-36);
+        expect(s.compressor.threshold).toBeLessThanOrEqual(-18);
+        expect(s.compressor.ratio).toBeGreaterThanOrEqual(2);
+        expect(s.compressor.ratio).toBeLessThanOrEqual(6);
+      }
+      const thresholds = samples.map((s) => s.compressor.threshold);
+      const ratios = samples.map((s) => s.compressor.ratio);
+      expect(Math.min(...thresholds), 'threshold bottom reachable').toBeLessThanOrEqual(-32);
+      expect(Math.max(...thresholds), 'threshold top reachable').toBeGreaterThanOrEqual(-22);
+      expect(Math.min(...ratios), 'ratio bottom reachable').toBeLessThanOrEqual(3);
+      expect(Math.max(...ratios), 'ratio top reachable').toBeGreaterThanOrEqual(5);
+    });
+
     it('seeds every high-pass cutoff at or below 120 Hz, so no robot below octave 5 loses its fundamental', () => {
       for (const s of samples) expect(s.filterHPF.frequency).toBeLessThanOrEqual(120 + 1e-9);
       expect(samples.some((s) => s.filterHPF.frequency < 40), 'the band still reaches its low end').toBe(true);
@@ -1990,6 +2008,12 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // the Distortion wet is dark in both styles): alpha bitCrusher.wet t 0.8067 -> 0.25 + 0.10 * t = 0.3307 -> 0.33 (was 0.13);
 // theta chebyshev.wet t 0.2596 -> 0.25 + 0.10 * t = 0.2760 -> 0.28 (was 0.08). The old band 0.05 + 0.10 * t reproduces
 // 0.1307 and 0.0760, which is the check. Nothing else moved.
+//
+// AMENDED BY HAND, Classic Band Retune T6 (Crawford: "retune as proposed", 2026-10-21): the Compressor's threshold and ratio
+// bands moved to -36 to -18 dB and 2 to 6 (plain draws, whole-number grids anchored at the full range's -60 and 1). From the
+// same raw draws: alpha threshold t 0.7558 -> -36 + 18 * t = -22.40 -> -22 (was -47), ratio t 0.7303 -> 2 + 4 * t = 4.92 -> 5
+// (was 17); theta threshold t 0.4466 -> -27.96 -> -28 (was -51), ratio t 0.4236 -> 3.69 -> 4 (was 14). The old bands
+// -55 + 10 * t and 10 + 10 * t reproduce -47, 17, -51 and 14, which is the check. Attack, release and knee did not move.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2000,8 +2024,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
-        threshold: -47,
-        ratio: 17,
+        threshold: -22,
+        ratio: 5,
         attack: 0.02815783553749843,
         release: 0.2207947804737712,
         knee: 10,
@@ -2040,8 +2064,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
-        threshold: -51,
-        ratio: 14,
+        threshold: -28,
+        ratio: 4,
         attack: 0.005351539547536516,
         release: 0.12726233469418596,
         knee: 6,
