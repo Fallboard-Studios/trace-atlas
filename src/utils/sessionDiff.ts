@@ -16,12 +16,18 @@ import {
   type LfoLink,
   type BankLfoSettings,
 } from '../types/lfo';
-import { withGlobalAudioDefaults, type DelaySettings, type GlobalAudioSettings } from '../types/globalAudio';
+import {
+  SYNCED_RATE_KEYS,
+  withGlobalAudioDefaults,
+  type DelaySettings,
+  type GlobalAudioSettings,
+  type SyncedRateKey,
+} from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
-import { useAudioStore, applyGlobalAudioToEngine, SYNCED_RATE_KEYS, type SyncedRateKey } from '../stores/audioStore';
+import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { quantizeToStep, roundToDecimals } from './math';

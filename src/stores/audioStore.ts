@@ -36,7 +36,13 @@ import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 
 import type { DelaySettings, GlobalAudioSettings } from '../types/globalAudio';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '../types/globalAudio';
+import {
+  DEFAULT_GLOBAL_AUDIO_SETTINGS,
+  PEDAL_RATE_RANGE_HZ,
+  PEDAL_RATE_STEP_HZ,
+  SYNCED_RATE_KEYS,
+  type SyncedRateKey,
+} from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
   LFO_LANE_IDS,
@@ -69,18 +75,6 @@ function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
   const { sync: _sync, ...rest } = params;
   const { globalAudio, bpm } = useAudioStore.getState();
   AudioEngine.setGlobalDelay({ ...rest, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
-}
-
-/**
- * The blocks whose `rate` is a Free | Sync field on the generic rail (docs/specs/GLOBAL_PEDALS.md §1.4), in chain
- * order: the Phaser (Global Modulation) and the three LFO pedals. They share one range, PEDAL_RATE_RANGE_HZ.
- */
-export const SYNCED_RATE_KEYS = ['phaser', 'chorus', 'tremolo', 'vibrato'] as const;
-export type SyncedRateKey = (typeof SYNCED_RATE_KEYS)[number];
-
-/** Whether `key` names a synced-rate block, narrowing it to SyncedRateKey (the drawer's Rate-row branch). */
-export function isSyncedRateKey(key: string): key is SyncedRateKey {
-  return (SYNCED_RATE_KEYS as readonly string[]).includes(key);
 }
 
 /** What a synced-rate block's engine setter takes: Hz only, never a `sync`. */

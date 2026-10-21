@@ -235,6 +235,19 @@ export interface GlobalAudioSettings {
   limiter: LimiterSettings;
 }
 
+/**
+ * The blocks whose `rate` is a Free | Sync field on the generic rail (docs/specs/GLOBAL_PEDALS.md §1.4), in chain
+ * order: the Phaser (Global Modulation) and the three LFO pedals. They share one range, PEDAL_RATE_RANGE_HZ. The store,
+ * the restore path and the seeder all loop over this one list.
+ */
+export const SYNCED_RATE_KEYS = ['phaser', 'chorus', 'tremolo', 'vibrato'] as const;
+export type SyncedRateKey = (typeof SYNCED_RATE_KEYS)[number];
+
+/** Whether `key` names a synced-rate block, narrowing it to SyncedRateKey (the drawer's Rate-row branch). */
+export function isSyncedRateKey(key: string): key is SyncedRateKey {
+  return (SYNCED_RATE_KEYS as readonly string[]).includes(key);
+}
+
 export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   compressorBeforeDelay: false,
   // `wet` is each room's return level and defaults to full (1): a robot's own send sets how much goes in.

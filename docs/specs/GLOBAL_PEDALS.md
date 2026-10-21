@@ -728,3 +728,13 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
     - The `chainNodes` and `join` lines `globalPedalsDocs.test.ts` pins are now the cell lines.
     - The join is `controlledDecay ? _cells.stereoWidener?.in : _globalCompressor`.
     - `_lastControlledDecay`, named in this spec's survey, is deleted, and so is the Spread duck's `_spreadWetGain`.
+- **Branch review follow-ups (2026-10-20):**
+  - **A crafted share link.** `withGlobalAudioDefaults` kept any non-null block, so `?session=` with `g.chorus: 1`
+    reached `sanitizeSyncedRate` and threw (`'sync' in 1`) in `applySessionPayload`. A value of the wrong kind now
+    counts as missing and takes the default. `main` had the same gap for the Phaser and the Delay.
+  - **One list of synced-rate keys.** `SYNCED_RATE_KEYS`, `SyncedRateKey` and `isSyncedRateKey` moved from
+    `audioStore.ts` to `src/types/globalAudio.ts`, and the seeder loops over them: its own `LFO_PEDALS` copy and the
+    hand-written Phaser sync draw are gone. The draws are keyed by name, so no seed moved (500 styles compared byte for
+    byte before and after).
+  - The join line is now `controlledDecay ? getCell('stereoWidener')?.in : _globalCompressor`: the cells moved to
+    `bypassCell.ts` (docs/specs/DARK_EFFECT_BYPASS.md §8.7).

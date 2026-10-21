@@ -1469,7 +1469,7 @@ describe('useAudioStore - Global Pedals sync (Global Pedals T7)', () => {
 
   /** A fresh store with every LFO pedal Free (then the given overrides), the Phaser Free, bpm pinned, mocks cleared. */
   async function setup(over: Partial<Record<Pedal, Record<string, unknown>>> = {}, bpm = 60) {
-    const { useAudioStore, applyGlobalAudioToEngine, SYNCED_RATE_KEYS } = await import('./audioStore');
+    const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
     const { AudioEngine } = await import('../engine/AudioEngine');
     const { lfoEngine } = await import('../engine/lfoEngine');
     const current = useAudioStore.getState().globalAudio;
@@ -1486,25 +1486,12 @@ describe('useAudioStore - Global Pedals sync (Global Pedals T7)', () => {
       },
     });
     vi.clearAllMocks();
-    return { useAudioStore, applyGlobalAudioToEngine, SYNCED_RATE_KEYS, AudioEngine, lfoEngine };
+    return { useAudioStore, applyGlobalAudioToEngine, AudioEngine, lfoEngine };
   }
 
   function lastPush(AudioEngine: Record<string, unknown>, pedal: Pedal): Record<string, unknown> {
     return vi.mocked(AudioEngine[SETTER[pedal]] as (p: unknown) => void).mock.calls.at(-1)![0] as Record<string, unknown>;
   }
-
-  it('lists the four synced-rate blocks, the Phaser first, in chain order', async () => {
-    const { SYNCED_RATE_KEYS } = await setup();
-    expect([...SYNCED_RATE_KEYS]).toStrictEqual(['phaser', 'chorus', 'tremolo', 'vibrato']);
-  });
-
-  it('isSyncedRateKey is true for exactly those four keys, and false for every other effect key and for junk', async () => {
-    const { isSyncedRateKey, SYNCED_RATE_KEYS } = await import('./audioStore');
-    for (const key of SYNCED_RATE_KEYS) expect(isSyncedRateKey(key), key).toBe(true);
-    for (const key of ['autoWah', 'frequencyShifter', 'stereoWidener', 'delay', 'reverb', 'eq3', 'limiter', '', 'Phaser', 'rate']) {
-      expect(isSyncedRateKey(key), key).toBe(false);
-    }
-  });
 
   describe.each(PEDALS)('setGlobalAudio(%s, ...)', (pedal) => {
     it('a sync partial pushes the resolved Hz - 1/4 is 1 Hz at 60 BPM - with no sync key, and stores the note', async () => {

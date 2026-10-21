@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { isSyncedRateKey, useAudioStore } from '@/stores/audioStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -23,7 +23,7 @@ import { getTraitColorStyle } from '@/utils/traitColors';
 import { cancelSwellForGlobalField, isGlobalTargetSwelling } from '@/systems/audioSwells';
 import type { Trait } from '@/types/traits';
 import type { DirectionalPanelSchema, LfoLinkSchema, LfoLinkValue, SliderLinearSchema } from '@/types/controls';
-import { PEDAL_RATE_RANGE_HZ, type GlobalAudioSettings } from '@/types/globalAudio';
+import { PEDAL_RATE_RANGE_HZ, isSyncedRateKey, type GlobalAudioSettings } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 import './AudioRigDrawer.css';
 

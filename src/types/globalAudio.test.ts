@@ -7,6 +7,8 @@ import {
   DEFAULT_GLOBAL_AUDIO_SETTINGS,
   PEDAL_RATE_RANGE_HZ,
   PEDAL_RATE_STEP_HZ,
+  SYNCED_RATE_KEYS,
+  isSyncedRateKey,
   withGlobalAudioDefaults,
 } from './globalAudio';
 import type { ChorusSettings, GlobalAudioSettings, PhaserSettings, TremoloSettings } from './globalAudio';
@@ -14,6 +16,19 @@ import type { ChorusSettings, GlobalAudioSettings, PhaserSettings, TremoloSettin
 // ========================================
 // TESTS
 // ========================================
+
+describe('SYNCED_RATE_KEYS', () => {
+  it('lists the four synced-rate blocks, the Phaser first, in chain order', () => {
+    expect([...SYNCED_RATE_KEYS]).toStrictEqual(['phaser', 'chorus', 'tremolo', 'vibrato']);
+  });
+
+  it('isSyncedRateKey is true for exactly those four keys, and false for every other effect key and for junk', () => {
+    for (const key of SYNCED_RATE_KEYS) expect(isSyncedRateKey(key), key).toBe(true);
+    for (const key of ['autoWah', 'frequencyShifter', 'stereoWidener', 'delay', 'reverb', 'eq3', 'limiter', '', 'Phaser', 'rate']) {
+      expect(isSyncedRateKey(key), key).toBe(false);
+    }
+  });
+});
 
 describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
   // Robot Sends T6 (docs/specs/ROBOT_SENDS.md §1.1): the rooms are fed by each robot's own send, so the

@@ -157,7 +157,7 @@ describe('the named Global Pedals symbols are declared where the spec says they 
       'src/engine/AudioEngine.ts',
       new RegExp(`\\b${SETTER[key][1]},`),
     ]),
-    ['SYNCED_RATE_KEYS', 'src/stores/audioStore.ts', /export const SYNCED_RATE_KEYS = \['phaser', 'chorus', 'tremolo', 'vibrato'\] as const;/],
+    ['SYNCED_RATE_KEYS', 'src/types/globalAudio.ts', /export const SYNCED_RATE_KEYS = \['phaser', 'chorus', 'tremolo', 'vibrato'\] as const;/],
     ['setPedalSyncMode on the store', 'src/stores/audioStore.ts', /setPedalSyncMode: \(key: SyncedRateKey, synced: boolean\) => void;/],
     ...(['chorus', 'tremolo', 'vibrato'] as const).flatMap((key): [string, string, RegExp][] => [
       [`the store routes ${key} through the resolver`, 'src/stores/audioStore.ts', new RegExp(`\\b${key}: setGlobalRateResolved\\('${key}'\\),`)],
@@ -184,7 +184,7 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ]),
     ['no new trait: stereoWidener wears output', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const AUDIO_RIG_EFFECT_TRAIT[^=]*=\s*\{[^}]*\bstereoWidener: 'output',/],
     // The 2026-10-18 review replaced the drawer's own SYNCED_RATE_BLOCKS set (and its cast) with the store's guard.
-    ['isSyncedRateKey on the store', 'src/stores/audioStore.ts', /export function isSyncedRateKey\(key: string\): key is SyncedRateKey/],
+    ['isSyncedRateKey beside the keys', 'src/types/globalAudio.ts', /export function isSyncedRateKey\(key: string\): key is SyncedRateKey/],
     ['the drawer branches on isSyncedRateKey', 'src/components/panels/screen/console/AudioRigDrawer.tsx', /const syncedRateKey = isSyncedRateKey\(effectKey\) \? effectKey : null;/],
     ['FLEET_PARAMS_SUBSECTIONS.modulation, the six pedals in chain order', 'src/components/panels/screen/nav/navActions.ts', /\bmodulation: \[[^\]]*'autoWah'[^\]]*'phaser'[^\]]*'chorus'[^\]]*'tremolo'[^\]]*'vibrato'[^\]]*'frequencyShifter'/],
     ['FLEET_PARAMS_SUBSECTIONS.output, Width between the Compressor and the Limiter', 'src/components/panels/screen/nav/navActions.ts', /\boutput: \[[^\]]*'compressor'[^\]]*'stereoWidener'[^\]]*'limiter'/],

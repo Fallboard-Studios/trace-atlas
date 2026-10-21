@@ -15,7 +15,7 @@ import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA, HUMANIZE_SCHEMA } from '@
 
 import type { NoteValue } from '@/data/noteValues';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, SYNCED_RATE_KEYS, type SyncedRateKey } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey, type SeedRange } from '@/data/globalAudioSeedRanges';
 import {
@@ -151,8 +151,6 @@ export const PEDAL_LIT_EDGE: Record<'autoWah' | 'phaser' | MotionPedal, number> 
 /** The Global Pedals' four motion pedals in chain order (docs/specs/GLOBAL_PEDALS.md §1.2), the order they roll in. */
 export const MOTION_PEDALS = ['chorus', 'tremolo', 'vibrato', 'frequencyShifter'] as const;
 export type MotionPedal = (typeof MOTION_PEDALS)[number];
-/** The three motion pedals whose rate is a Free | Sync field. */
-const LFO_PEDALS = ['chorus', 'tremolo', 'vibrato'] as const;
 
 /**
  * The most Modulation pedals a fresh world lights, counting the AutoWah and the Phaser (docs/specs/GLOBAL_PEDALS.md
@@ -230,15 +228,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why).
   const autoWahLit = getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah;
   const phaserLit = getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser;
-  const phaserSyncModeT = getUniformSeededVal(noiseMap, 'globalAudio.phaser.syncMode');
-  const phaserSyncNoteT = getUniformSeededVal(noiseMap, 'globalAudio.phaser.syncNote');
   const autoWahWet = sampleField(noiseMap, 'autoWah.wet', true);
   const phaserWet = sampleField(noiseMap, 'phaser.wet', true);
-  // A dark Phaser is Free (no `sync` key), like a Free lane; an empty band leaves a lit one Free too.
-  const phaserSync =
-    phaserLit && phaserSyncModeT < PEDAL_SYNC_ODDS
-      ? pickSeedNoteValue(phaserSyncNoteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES['phaser.rate']], 'hz')
-      : undefined;
 
   // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.2): the sequential cap. Each motion pedal's roll is read whether or not
   // the cap would allow it, so the draw set is total; the AutoWah and Phaser results above count towards the cap.
@@ -249,14 +240,17 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     pedalLit[pedal] = wants && litCount < MAX_LIT_PEDALS;
     if (pedalLit[pedal]) litCount += 1;
   }
-  // A sync pair per LFO pedal, read on every style; Sync only when lit and under the odds, the note from the lit band.
-  const pedalSync = {} as Record<(typeof LFO_PEDALS)[number], NoteValue | undefined>;
-  for (const pedal of LFO_PEDALS) {
-    const modeT = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.syncMode`);
-    const noteT = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.syncNote`);
-    pedalSync[pedal] =
-      pedalLit[pedal] && modeT < PEDAL_SYNC_ODDS
-        ? pickSeedNoteValue(noteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES[`${pedal}.rate`]], 'hz')
+  // A sync pair per synced-rate block (the Phaser and the three LFO pedals), read on every style; Sync only when lit and
+  // under the odds, the note from the lit band. A dark one is Free (no `sync` key), like a Free lane; an empty band
+  // leaves a lit one Free too.
+  const rateLit: Record<SyncedRateKey, boolean> = { phaser: phaserLit, ...pedalLit };
+  const rateSync = {} as Record<SyncedRateKey, NoteValue | undefined>;
+  for (const key of SYNCED_RATE_KEYS) {
+    const modeT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncMode`);
+    const noteT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncNote`);
+    rateSync[key] =
+      rateLit[key] && modeT < PEDAL_SYNC_ODDS
+        ? pickSeedNoteValue(noteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES[`${key}.rate`]], 'hz')
         : undefined;
   }
   // The shift is a magnitude band with its own sign draw, so a seeded shift is never inside ±2 Hz.
@@ -333,7 +327,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       stages: sampleField(noiseMap, 'phaser.stages', true),
       Q: sampleField(noiseMap, 'phaser.Q', true),
       wet: phaserLit ? phaserWet : 0,
-      ...(phaserSync !== undefined && { sync: phaserSync }),
+      ...(rateSync.phaser !== undefined && { sync: rateSync.phaser }),
     },
     // Global Pedals: every value a uniform draw from its band, lit or dark; a dark pedal has Mix 0 and no sync key.
     chorus: withSync(
@@ -345,7 +339,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
         feedback: sampleField(noiseMap, 'chorus.feedback', true),
         wet: pedalWet('chorus'),
       },
-      pedalSync.chorus,
+      rateSync.chorus,
     ),
     tremolo: withSync(
       {
@@ -354,7 +348,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
         spread: sampleField(noiseMap, 'tremolo.spread', true),
         wet: pedalWet('tremolo'),
       },
-      pedalSync.tremolo,
+      rateSync.tremolo,
     ),
     vibrato: withSync(
       {
@@ -362,7 +356,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
         depth: sampleField(noiseMap, 'vibrato.depth', true),
         wet: pedalWet('vibrato'),
       },
-      pedalSync.vibrato,
+      rateSync.vibrato,
     ),
     frequencyShifter: {
       shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift', true),

@@ -120,8 +120,8 @@ describe('the named Global Modulation symbols are declared where the spec says t
     ['PEDAL_LIT_EDGE', 'src/utils/globalAudioSeed.ts', /export const PEDAL_LIT_EDGE: Record<'autoWah' \| 'phaser' \| MotionPedal, number>/],
     // The Global Pedals review folded PHASER_SYNC_ODDS and the Phaser's four rate helpers into the generic rail
     // (docs/specs/GLOBAL_PEDALS.md §8); the generic symbols are pinned in globalPedalsDocs.test.ts. Here: the Phaser
-    // still rolls its sync on the shared odds.
-    ['the Phaser sync roll reads PEDAL_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /phaserLit && phaserSyncModeT < PEDAL_SYNC_ODDS/],
+    // still rolls its sync on the shared odds, in the one loop over SYNCED_RATE_KEYS (branch review item 5).
+    ['the Phaser sync roll reads PEDAL_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /phaser: phaserLit[\s\S]*for \(const key of SYNCED_RATE_KEYS\) \{[\s\S]*?rateLit\[key\] && modeT < PEDAL_SYNC_ODDS/],
     ['the AutoWah node', 'src/engine/audioEngine/globalFx.ts', /let _globalAutoWah: Tone\.AutoWah \| null/],
     ['the Phaser node', 'src/engine/audioEngine/globalFx.ts', /let _globalPhaser: Tone\.Phaser \| null/],
     ['setGlobalAutoWah', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalAutoWah\(params: Partial<AutoWahSettings>\): void/],
