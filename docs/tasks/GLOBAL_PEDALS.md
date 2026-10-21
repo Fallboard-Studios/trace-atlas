@@ -25,7 +25,8 @@ convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 > **Update (2026-10-20): the Dark-Effect Bypass is BUILT** ([plan](DARK_EFFECT_BYPASS.md), T0–T15;
 > [spec §8](../specs/DARK_EFFECT_BYPASS.md)). Checkpoint B, Crawford's desktop listen, passed. T14 was re-run on it
 > (phone rounds 3 and 4) and **passed with a caveat** by Crawford's call. The caveat: a run late in a sitting collapses
-> on the Pixel whatever the build, `main` included, which is backlog 27. **Next: T16 (Crawford's listen), then T17.**
+> on the Pixel whatever the build, `main` included, which is backlog 27. ~~Next: T16 (Crawford's listen), then T17.~~
+> **T16 passed (2026-10-20, "it sounds fine"; nothing moved). Next: T17.**
 >
 > *(Original status, 2026-10-17:)* The spec is written and awaiting Crawford's approval; its veto points
 > (spec §7) are the slot order (since answered: the Vibrato is stereo, so only the shifter's sideband leak on
@@ -562,10 +563,15 @@ each pedal's lit Mix band judged for "a hint, not a wash". Whatever Crawford set
 hand for any band that moved.
 
 **Acceptance criteria:**
-- [ ] The shifter-on-panned-voices question is answered; if the edge or band moved, it is in the files below.
-- [ ] Every band Crawford moved is in both range files, the grid and the calibration test, and the oracles
-  pass with the re-derived values.
-- [ ] The findings are recorded in the spec's §7 as answers, with the numbers.
+- [x] The shifter-on-panned-voices question is answered; if the edge or band moved, it is in the files below.
+- [x] Every band Crawford moved is in both range files, the grid and the calibration test, and the oracles
+  pass with the re-derived values. *(None moved.)*
+- [x] The findings are recorded in the spec's §7 as answers, with the numbers.
+
+**Passed (2026-10-20):** Crawford: "i'm happy with passing T16, it sounds fine." No band, edge or share moved, so no
+code, range file, grid row or calibration target changed. Spec §7 Q1 (the shifter on panned voices: not a fault)
+and Q4 (the lit bands stand) carry the answer. His reply did not itemise the listen list. This plan's Checkpoint B
+list had already passed under the Dark-Effect Bypass ("ok, everything passed").
 
 **Verification:** `npm test`; Crawford's ears.
 

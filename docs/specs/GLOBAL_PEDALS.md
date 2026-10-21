@@ -598,13 +598,18 @@ including a synced Chorus; an old `?session=` link loads with all five at defaul
    written down as mono; corrected 2026-10-18), so the slot order no longer has a mono question. The open
    item is the shifter: on a hard-panned voice it leaks its other sideband at a third of the wanted one and
    puts a quarter-level copy in the far channel. The desktop listen on a panned world decides whether that
-   is the backlog's "strange" or a fault; the levers are its lit share and its band.
+   is the backlog's "strange" or a fault; the levers are its lit share and its band. **Answered at T16
+   (Crawford, 2026-10-20: "i'm happy with passing T16, it sounds fine"): not a fault. The shifter's lit share
+   and band stay as built.** His reply did not itemise the panned and centred worlds.
 2. **The cap (assumption 7):** sequential in chain order (AutoWah and Phaser keep first claim, oracles
    untouched) or a pick of up to two from six (equal standing, oracles move)? Sequential is proposed.
 3. **Odds (assumption 7):** 0.25 / 0.25 / 0.25 / 0.15 nominal, measured lower under the cap. The
    calibration test pins whatever the measurement gives; a theme is the lever afterwards.
 4. **Lit bands (assumption 6)** are placeholders for the listen, as 50.4's were. The shifter's ±2–20 Hz
-   is the one most likely to move: a few Hz is a slow beating, twenty is already inharmonic.
+   is the one most likely to move: a few Hz is a slow beating, twenty is already inharmonic. **Answered at T16
+   (Crawford, 2026-10-20, "it sounds fine"): no band moved.** The lit bands in `GLOBAL_AUDIO_LOADING_RANGES` and
+   the grid stand as built, the shifter's ±2–20 Hz included, so the oracles and T8's calibration targets are
+   unchanged.
 5. **Always-running LFOs (assumption 4):** three idle LFOs cost something; if the worst-case run misses and
    the bisect blames an idle LFO, the alternative is `stop()` at Mix 0 and `start()` on the first non-zero
    Mix, inside the setter.
