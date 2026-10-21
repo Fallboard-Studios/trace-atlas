@@ -883,7 +883,8 @@ function rebuildPhaser(stages: number): boolean {
       // (silent), the dry gain ramps up to 1, and the Mix is 0, so the next Mix write lights it from wet 0 like any
       // other dark cell. A pending darken stays armed; its fire finds the cell unconnected and does nothing.
       cell.wet.gain.value = 0;
-      rampOrSet(cell.dry.gain, 1, COLOUR_RAMP_SECONDS);
+      // The Phaser is a chain cell, so it always has a dry gain (only a room's branch has none).
+      if (cell.dry) rampOrSet(cell.dry.gain, 1, COLOUR_RAMP_SECONDS);
       cell.mix = 0;
     }
   }
