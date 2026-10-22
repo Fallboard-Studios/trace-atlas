@@ -34,7 +34,7 @@ import type { ControlSchema } from '@/types/controls';
 // ========================================
 
 // Effect key order matches the new V2 chain order (docs/reference/GLOBAL_CHAIN_GRID.md).
-const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'delay', 'reverb', 'compressor', 'stereoWidener', 'limiter'] as const;
+const EFFECT_KEYS = ['eq3', 'filterLPF', 'filterHPF', 'distortion', 'chebyshev', 'bitCrusher', 'colourRoom', 'autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'delay', 'reverb', 'compressor', 'stereoWidener', 'limiter'] as const;
 
 function findBlock(key: (typeof EFFECT_KEYS)[number]) {
   const block = AUDIO_RIG_CONFIG.find((b) => b.key === key);
@@ -294,6 +294,54 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
   });
 
+  // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.6, assumption 14; docs/tasks/ROBOT_EFFECT_SENDS.md
+  // Task 17): the Colour room's Return, a one-row block on the Width precedent. Not LFO-able, not seeded.
+  describe('Colour Room block (the Colour room Return)', () => {
+    it('sits straight after Bit Crusher, the last of its three branches', () => {
+      const keys = AUDIO_RIG_CONFIG.map((b) => b.key as string);
+      expect(keys[keys.indexOf('bitCrusher') + 1]).toBe('colourRoom');
+    });
+
+    it('has exactly one param, wet', () => {
+      expect(findBlock('colourRoom').params.map((p) => p.field)).toEqual(['wet']);
+    });
+
+    it('its panel reads its heading from fleet.colourRoom, in a column', () => {
+      expect(findBlock('colourRoom').panel).toMatchObject({
+        id: 'audioRig.colourRoom', type: 'directionalPanel', orientation: 'column',
+        loreLabel: CONTENT['fleet.colourRoom'].heading, humanLabel: CONTENT['fleet.colourRoom'].human,
+      });
+    });
+
+    it('the Return is a horizontal linear slider, 0 to 1, step 0.01, read from fleet.colourRoom.amount', () => {
+      const schema = findParam('colourRoom', 'wet').schema;
+      expect(schema).toMatchObject({ id: 'colourRoom.wet', type: 'sliderLinear', min: 0, max: 1, step: 0.01, orientation: 'horizontal', ...labels('fleet.colourRoom.amount') });
+    });
+
+    it('the Return spans exactly its seed range, so the UI can never reach a value the engine clamps away', () => {
+      const range = GLOBAL_AUDIO_SEED_RANGES['colourRoom.wet'];
+      expect(findParam('colourRoom', 'wet').schema).toMatchObject({ min: range.min, max: range.max, step: range.step });
+    });
+
+    it('the Return is not LFO-flagged', () => {
+      expect(findParam('colourRoom', 'wet').lfoTarget).toBeUndefined();
+    });
+
+    it('the three room Returns (Colour, Chorus, Shifter) share one name, distinct from a branch Mix', () => {
+      const names = (['colourRoom', 'chorus', 'frequencyShifter'] as const).map((key) => findParam(key, 'wet').schema.humanLabel);
+      expect(new Set(names).size).toBe(1);
+      expect(names[0]).toBe(CONTENT['fleet.colourRoom.amount'].human);
+      expect(names[0]).not.toBe(findParam('bitCrusher', 'wet').schema.humanLabel);
+    });
+
+    it('each room Return carries help that names it a room heard from every probe', () => {
+      for (const key of ['fleet.colourRoom.amount', 'fleet.chorus.mix', 'fleet.frequencyShifter.mix'] as const) {
+        expect(CONTENT[key].help?.human, key).toMatch(/as heard from every probe/);
+        expect(CONTENT[key].help?.human, key).toMatch(/0 silences the room/);
+      }
+    });
+  });
+
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6, assumption 5; docs/tasks/GLOBAL_MODULATION_COLOUR.md
   // Task 9): two dry-chain pedals between Bit Crusher and the rooms. Every parameter of each Tone node is a
   // slider; none is LFO-able or swellable.
@@ -307,11 +355,11 @@ describe('AUDIO_RIG_CONFIG', () => {
     const contentKeyOf = (block: 'autoWah' | 'phaser', field: string): `fleet.${string}` =>
       `fleet.${block}.${field === 'wet' ? 'mix' : field === 'Q' ? 'q' : field}`;
 
-    it('there are seventeen blocks, and AutoWah then Phaser sit straight after Bit Crusher, ahead of the four Global Pedals and Delay', () => {
+    it('there are eighteen blocks, and AutoWah then Phaser sit straight after the Colour room, ahead of the four Global Pedals and Delay', () => {
       const keys = AUDIO_RIG_CONFIG.map((b) => b.key as string);
-      expect(keys).toHaveLength(17);
+      expect(keys).toHaveLength(18);
       expect(keys.slice(keys.indexOf('bitCrusher'), keys.indexOf('delay'))).toEqual(
-        ['bitCrusher', 'autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter'],
+        ['bitCrusher', 'colourRoom', 'autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter'],
       );
     });
 
@@ -891,6 +939,7 @@ const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: 
   distortion: labels('fleet.distortion', { surface: 'heading' }),
   chebyshev: labels('fleet.chebyshev', { surface: 'heading' }),
   bitCrusher: labels('fleet.bitCrusher', { surface: 'heading' }),
+  colourRoom: labels('fleet.colourRoom', { surface: 'heading' }),
   autoWah: labels('fleet.autoWah', { surface: 'heading' }),
   phaser: labels('fleet.phaser', { surface: 'heading' }),
   chorus: labels('fleet.chorus', { surface: 'heading' }),

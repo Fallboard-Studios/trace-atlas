@@ -469,8 +469,12 @@ describe('breadcrumbPath', () => {
     ['eqFilters', null, [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
     ['eqFilters', 'filterHPF', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.hpf'].human]],
     ['timeSpace', 'delay', [CONTENT['fleet.timeSpace'].human, CONTENT['fleet.delay'].human]],
-    ['colour', null, [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
+    ['colour', null, [CONTENT['fleet.colour'].human, CONTENT['fleet.colourRoom'].human]],
     ['colour', 'bitCrusher', [CONTENT['fleet.colour'].human, CONTENT['fleet.bitCrusher'].human]],
+    ['colour', 'colourRoom', [CONTENT['fleet.colour'].human, CONTENT['fleet.colourRoom'].human]],
+    ['colour', 'distortion', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
+    // The Room left over on another group reads as that group's first.
+    ['modulation', 'colourRoom', [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
     ['modulation', null, [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
     ['modulation', 'phaser', [CONTENT['fleet.modulation'].human, CONTENT['fleet.phaser'].human]],
     ['modulation', 'chorus', [CONTENT['fleet.modulation'].human, CONTENT['fleet.chorus'].human]],
@@ -482,9 +486,9 @@ describe('breadcrumbPath', () => {
     ['output', 'tremolo', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
     // A colour sub-tab left over on another group reads as that group's first, and vice versa.
     ['eqFilters', 'chebyshev', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
-    ['colour', 'delay', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
+    ['colour', 'delay', [CONTENT['fleet.colour'].human, CONTENT['fleet.colourRoom'].human]],
     ['modulation', 'bitCrusher', [CONTENT['fleet.modulation'].human, CONTENT['fleet.autoWah'].human]],
-    ['colour', 'phaser', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
+    ['colour', 'phaser', [CONTENT['fleet.colour'].human, CONTENT['fleet.colourRoom'].human]],
     // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
     ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
   ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
@@ -678,7 +682,7 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(ids('lfoBank')).toEqual(['laneA', 'laneB', 'laneC', 'laneD']);
     expect(ids('eqFilters')).toEqual(['eq3', 'filterHPF', 'filterLPF']);
     expect(ids('timeSpace')).toEqual(['reverb', 'delay']);
-    expect(ids('colour')).toEqual(['distortion', 'chebyshev', 'bitCrusher']);
+    expect(ids('colour')).toEqual(['colourRoom', 'distortion', 'chebyshev', 'bitCrusher']);
     expect(ids('modulation')).toEqual(['autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter']);
     expect(ids('output')).toEqual(['compressor', 'stereoWidener', 'limiter']);
   });
@@ -736,9 +740,12 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['eqFilters', null, 'eq3'],
     ['eqFilters', 'filterLPF', 'filterLPF'],
     ['timeSpace', 'delay', 'delay'],
-    ['colour', null, 'distortion'],
+    ['colour', null, 'colourRoom'],
     ['colour', 'bitCrusher', 'bitCrusher'],
-    ['colour', 'laneC', 'distortion'],
+    ['colour', 'laneC', 'colourRoom'],
+    ['colour', 'colourRoom', 'colourRoom'],
+    ['colour', 'distortion', 'distortion'],
+    ['timeSpace', 'colourRoom', 'reverb'],
     ['modulation', null, 'autoWah'],
     ['modulation', 'phaser', 'phaser'],
     ['modulation', 'distortion', 'autoWah'],

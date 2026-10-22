@@ -208,10 +208,10 @@ describe('FleetParamsScreen — switching tabs', () => {
   it.each<[FleetParamsGroup, SelectedFleetParamsEffect, string]>([
     ['output', 'laneC', 'compressor'],
     ['timeSpace', 'filterLPF', 'reverb'],
-    ['colour', 'limiter', 'distortion'],
+    ['colour', 'limiter', 'colourRoom'],
     ['eqFilters', 'bitCrusher', 'eq3'],
     ['modulation', 'distortion', 'autoWah'],
-    ['colour', 'phaser', 'distortion'],
+    ['colour', 'phaser', 'colourRoom'],
   ])('a sub-tab left from another group (%s with %s) shows the group\'s first, without a store write', (group, stale, shown) => {
     useUIStore.setState({ fleetParamsSection: group, fleetParamsSubsection: stale });
     render(<FleetParamsScreen />);
@@ -529,7 +529,7 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
     expect(crumb()).toBe(path(human('fleet.output'), human('fleet.stereoWidener')));
   });
 
-  it('reads Colour and its effect: picking the tab, then Bit Crusher', () => {
+  it('reads Colour and its tab: picking the tab (Colour / Room), then Bit Crusher, then Room again', () => {
     render(
       <>
         <FleetParamsScreen />
@@ -537,25 +537,29 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
       </>,
     );
     pick(human('fleet.colour'));
-    expect(crumb()).toBe(path(human('fleet.colour'), human('fleet.distortion')));
+    expect(crumb()).toBe(path(human('fleet.colour'), human('fleet.colourRoom')));
     pick(human('fleet.bitCrusher'));
     expect(crumb()).toBe(path(human('fleet.colour'), human('fleet.bitCrusher')));
+    pick(human('fleet.colourRoom'));
+    expect(crumb()).toBe(path(human('fleet.colour'), human('fleet.colourRoom')));
   });
 });
 
-describe('FleetParamsScreen — the Colour section (Global Colour T9)', () => {
-  it('shows the three effects as its sub-tabs, in chain order, opening on Distortion', () => {
+describe('FleetParamsScreen — the Colour section (Global Colour T9; the Room tab, Robot Effect Sends T17)', () => {
+  const COLOUR_TABS = () => [human('fleet.colourRoom'), human('fleet.distortion'), human('fleet.chebyshev'), human('fleet.bitCrusher')];
+
+  it('shows the Room then the three effects as its sub-tabs, in chain order, opening on Room', () => {
     useUIStore.setState({ fleetParamsSection: 'colour', fleetParamsSubsection: null });
     render(<FleetParamsScreen />);
-    expect(tabNames(subRow('fleet.colour'))).toEqual([human('fleet.distortion'), human('fleet.chebyshev'), human('fleet.bitCrusher')]);
-    expect(selectedTab(subRow('fleet.colour')).textContent).toBe(human('fleet.distortion'));
-    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['distortion']);
+    expect(tabNames(subRow('fleet.colour'))).toEqual(COLOUR_TABS());
+    expect(selectedTab(subRow('fleet.colour')).textContent).toBe(human('fleet.colourRoom'));
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['colourRoom']);
   });
 
   it('each sub-tab mounts exactly its own effect panel, and nothing else', () => {
     render(<FleetParamsScreen />);
     pick(human('fleet.colour'));
-    for (const [name, key] of [['fleet.chebyshev', 'chebyshev'], ['fleet.bitCrusher', 'bitCrusher'], ['fleet.distortion', 'distortion']] as const) {
+    for (const [name, key] of [['fleet.chebyshev', 'chebyshev'], ['fleet.bitCrusher', 'bitCrusher'], ['fleet.colourRoom', 'colourRoom'], ['fleet.distortion', 'distortion']] as const) {
       pick(human(name));
       expect(useUIStore.getState().fleetParamsSubsection).toBe(key);
       expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual([key]);
@@ -572,12 +576,20 @@ describe('FleetParamsScreen — the Colour section (Global Colour T9)', () => {
     }
   });
 
-  it('on the phone shell the sixth tab is there too, with the same three sub-tabs', () => {
+  it('on the phone shell the Colour tab is there too, with the same four sub-tabs, Room first and open', () => {
     shell.set('phone');
     useUIStore.setState({ fleetParamsSection: 'colour', fleetParamsSubsection: null });
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toContain(human('fleet.colour'));
-    expect(tabNames(subRow('fleet.colour'))).toHaveLength(3);
+    expect(tabNames(subRow('fleet.colour'))).toEqual(COLOUR_TABS());
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['colourRoom']);
+  });
+
+  it('a Room left over from Colour shows the other group first, without a store write', () => {
+    useUIStore.setState({ fleetParamsSection: 'modulation', fleetParamsSubsection: 'colourRoom' });
+    render(<FleetParamsScreen />);
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['autoWah']);
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('colourRoom');
   });
 });
 

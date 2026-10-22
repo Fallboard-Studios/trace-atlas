@@ -236,7 +236,7 @@ export const fleet = {
         + '<li><strong>Chebyshev</strong>: adds extra overtones on top of the sound, from a faint shimmer to a bright, buzzy edge.</li>'
         + '<li><strong>Bit Crusher</strong>: throws away detail from the sound, making it grainy and lo-fi, like an old digital recording.</li>'
         + '</ul>'
-        + '<p>The three effects share one room that a probe sends into, rather than a stage every probe passes through: each probe’s own <strong>Grit</strong> slider decides how much of its sound goes in, and a probe at 0% stays clean. Each effect has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect the room carries. Reverb and Delay echoes stay clean. Every new world starts with a little of one effect, or none, and gives a few probes some Grit.</p>',
+        + '<p>The three effects share one room that a probe sends into, rather than a stage every probe passes through: each probe’s own <strong>Grit</strong> slider decides how much of its sound goes in, and a probe at 0% stays clean. Each effect has its own <strong>Mix</strong> slider: at 0 it does nothing, and the further you raise it, the more of the effect the room carries. The <strong>Room</strong> tab’s <strong>Return</strong> sets how loud the whole room is, as heard from every probe. Reverb and Delay echoes stay clean. Every new world starts with a little of one effect, or none, and gives a few probes some Grit.</p>',
     },
   },
   'fleet.distortion': { human: 'Distortion', lore: 'Carrier Bleed', heading: 'CARRIER BLEED STAGE' },
@@ -272,6 +272,14 @@ export const fleet = {
     human: 'Mix',
     lore: 'Loss Ratio',
     help: { human: 'How much of the crushed sound is blended in with the clean sound. At 0 the sound stays clean; raise it to hear the grain.' },
+  },
+  // The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumptions 4, 14, 15): the Room sub-tab, first under
+  // Colour. The lore words are placeholders for the copy pass; the keys and human words are fixed.
+  'fleet.colourRoom': { human: 'Room', lore: 'Bleed Return', heading: 'CARRIER BLEED RETURN' },
+  'fleet.colourRoom.amount': {
+    human: 'Return',
+    lore: 'Bleed Ratio',
+    help: { human: 'How loud the whole Colour room is, as heard from every probe. Each probe’s own Grit slider decides how much of it that probe sends in. 0 silences the room.' },
   },
 
   // ---------------------------------------------------------------- Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.7)

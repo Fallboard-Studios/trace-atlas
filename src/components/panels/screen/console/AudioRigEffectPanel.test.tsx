@@ -841,6 +841,80 @@ describe('AudioRigEffectPanel', () => {
 
   });
 
+  // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.6, assumption 14; docs/tasks/ROBOT_EFFECT_SENDS.md Task 17):
+  // the Colour room's Return, one slider in the colour trait, on the Width precedent of a one-row block.
+  describe('Colour Room panel (the Colour room Return)', () => {
+    const roomBlock = (container: HTMLElement) => container.querySelector('.audio-rig-drawer__effect-block') as HTMLElement;
+    const returnSlider = () => screen.getByRole('slider', { name: CONTENT['fleet.colourRoom.amount'].human });
+
+    it('shows its heading and exactly one slider, the Return', () => {
+      const { container } = render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      const block = roomBlock(container);
+      expect(within(block).getByText(CONTENT['fleet.colourRoom'].heading!)).toBeTruthy();
+      expect(within(block).getAllByRole('slider')).toHaveLength(1);
+      expect(within(block).getByRole('slider', { name: CONTENT['fleet.colourRoom.amount'].human })).toBeTruthy();
+    });
+
+    it('is scoped to the colour trait (red/tangerine), as literals', () => {
+      const { container } = render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      const el = roomBlock(container);
+      expect(el.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.red);
+      expect(el.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.tangerine);
+    });
+
+    it('has no LFO link and no Tempo Sync', () => {
+      const { container } = render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      expect(container.querySelector('.sc-lfo-link')).toBeNull();
+      expect(container.querySelector('.sc-tempo-sync')).toBeNull();
+    });
+
+    it('shows the stored Return', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, colourRoom: { wet: 0.37 } } }));
+      render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      expect(returnSlider().getAttribute('aria-valuenow')).toBe('0.37');
+    });
+
+    // The store routes the write to AudioEngine.setGlobalColourRoom (audioStore.test.ts, the colourRoom block).
+    it('a key press writes colourRoom.wet one step down', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, colourRoom: { wet: 0.5 } } }));
+      render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      returnSlider().focus();
+      fireEvent.keyDown(returnSlider(), { key: 'ArrowLeft' });
+      expect(useAudioStore.getState().globalAudio.colourRoom).toEqual({ wet: 0.49 });
+    });
+
+    it('a real user edit asks the swell system to cancel its own (colourRoom, wet) pair, like every other effect panel', () => {
+      const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
+      render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      returnSlider().focus();
+      fireEvent.keyDown(returnSlider(), { key: 'ArrowLeft' });
+      expect(spy).toHaveBeenCalledWith('colourRoom', 'wet');
+    });
+
+    it('the ends hold: the Return stays at 0 past the bottom (the room silent) and at 1 past the top', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, colourRoom: { wet: 0 } } }));
+      const { unmount } = render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      returnSlider().focus();
+      fireEvent.keyDown(returnSlider(), { key: 'ArrowLeft' });
+      expect(useAudioStore.getState().globalAudio.colourRoom.wet).toBe(0);
+      unmount();
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, colourRoom: { wet: 1 } } }));
+      render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      returnSlider().focus();
+      fireEvent.keyDown(returnSlider(), { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.colourRoom.wet).toBe(1);
+    });
+
+    it('moving the Return leaves the three branch Mixes as they were', () => {
+      useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, distortion: { amount: 0.3, wet: 0.15 }, chebyshev: { order: 2, wet: 0.12 }, bitCrusher: { bits: 6, wet: 0.18 } } }));
+      render(<AudioRigEffectPanel effectKey="colourRoom" />);
+      returnSlider().focus();
+      fireEvent.keyDown(returnSlider(), { key: 'ArrowLeft' });
+      const { distortion, chebyshev, bitCrusher } = useAudioStore.getState().globalAudio;
+      expect({ distortion, chebyshev, bitCrusher }).toEqual({ distortion: { amount: 0.3, wet: 0.15 }, chebyshev: { order: 2, wet: 0.12 }, bitCrusher: { bits: 6, wet: 0.18 } });
+    });
+  });
+
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6, docs/tasks/GLOBAL_MODULATION_COLOUR.md
   // Task 9): AutoWah and Phaser render through the same panel as every other effect — one slider per Tone
   // parameter, the spectral trait's accent, and no LFO link (neither pedal is LFO-able). Task 11 swaps the
@@ -1573,7 +1647,7 @@ describe('AudioRigEffectPanel', () => {
 
       it('no block without a synced rate renders a Tempo Sync composition or switch', () => {
         for (const key of [
-          'autoWah', 'distortion', 'chebyshev', 'bitCrusher', 'reverb', 'eq3', 'frequencyShifter', 'compressor', 'stereoWidener', 'limiter',
+          'autoWah', 'distortion', 'chebyshev', 'bitCrusher', 'colourRoom', 'reverb', 'eq3', 'frequencyShifter', 'compressor', 'stereoWidener', 'limiter',
         ] as const) {
           const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
           expect(container.querySelector('.sc-tempo-sync'), key).toBeNull();

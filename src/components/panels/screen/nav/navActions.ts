@@ -88,8 +88,10 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'reverb', content: 'fleet.reverb' },
     { id: 'delay', content: 'fleet.delay' },
   ],
-  // Chain order (docs/specs/GLOBAL_COLOUR.md assumption 10): the three dry-chain colour effects.
+  // The Room (the Colour room's Return, docs/specs/ROBOT_EFFECT_SENDS.md assumption 14) first, then the room's three
+  // branches in chain order (docs/specs/GLOBAL_COLOUR.md assumption 10).
   colour: [
+    { id: 'colourRoom', content: 'fleet.colourRoom' },
     { id: 'distortion', content: 'fleet.distortion' },
     { id: 'chebyshev', content: 'fleet.chebyshev' },
     { id: 'bitCrusher', content: 'fleet.bitCrusher' },
