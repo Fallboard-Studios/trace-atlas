@@ -726,7 +726,8 @@ the probe's command lines.
 
 ### Task 20: Crawford's listen and the tuning — **STOP**
 
-**Description:** The spec §5 manual listen on the desktop, then the tuning: the three send bands and `lit` shares in
+**Description:** The spec §5 manual listen on the desktop (since T19 it includes a Shimmer room lit and darkened several
+times on a sustained sound, on real speakers, listening for a tick; backlog 29), then the tuning: the three send bands and `lit` shares in
 `ROBOT_SEND_LOADING_RANGES`, and the room-depth second look at the colour Mix bands (spec §7 Q1, if his), moved with
 their grid rows and T7's calibration figures re-measured. Anything he vetoes reverts in one commit per row. Record his
 words in the status line.

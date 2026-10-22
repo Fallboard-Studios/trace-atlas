@@ -747,7 +747,9 @@ Counts, `fx in` readings and Crawford's words go in `scratchy-audio-phones.md` a
 **Manual listen (Crawford, desktop, after the retune's listen):** a fresh Classic world has two or three gritty robots and
 one or two shimmering and doubled ones among clean ones, no robot both; a robot at every send 0 is unchanged beside a
 Grit neighbour; dragging a Grit send from 0 up and back with a chord sounding, slowly and quickly, with a wiggle across
-0; each colour Mix from its value to 0 and back inside a fed room (the colour goes, no click); the Shimmer room on a
+0; each colour Mix from its value to 0 and back inside a fed room (the colour goes, no click); a Shimmer room lit and
+darkened several times on a sustained sound, on real speakers, listening for a tick at the lighting (T19 found a
+connect sometimes loses a render quantum in headless Chrome, `main` included; backlog 29); the Shimmer room on a
 hard-panned robot (the sideband leak, accepted or not); the Double room's Rate Free → Sync → Free; a Natural ↔ Controlled
 flip with a fed room; a swell on a Grit send (a roar, wanted) landing exactly on its base; save, reload and a share link
 with one moved send; keyboard reaches every slider; every "?" reads right.

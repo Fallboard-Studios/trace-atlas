@@ -1016,3 +1016,43 @@ Whether the phone was rested between runs was not reported.
   Sessions panel reads them.
 - **The day clock is ruled out.** It restarts at each page load (`dayStartTimestamp = Date.now() − …`), so it cannot
   carry over between runs.
+
+## Robot Effect Sends (roadmap 50.7), desktop — T19, 2026-10-21
+
+Branch `feature/robot-effect-sends` at `923174b0`. Spec §5's three desktop checks (docs/specs/ROBOT_EFFECT_SENDS.md;
+plan docs/tasks/ROBOT_EFFECT_SENDS.md T19). The probes live in the session scratchpad and are not committed.
+
+### 1. Crossings — the rooms pass; a connect sometimes loses a render quantum (`main` too)
+
+**Probe.** Headless Chrome, a native real-time `AudioContext` under Tone (lookAhead 0.1), the real chain from
+`buildGlobalFxChain`, a 220 Hz sine fed dry into the chain entry and through a 0.5 send gain into one room. The master
+is recorded by an AudioWorklet that posts every 128-frame block with its `currentFrame`, on a same-origin page that does
+not start the app. Each event makes the engine's own calls: a send ramp 0.5 → 0 with `setRoomFed(false)` and back; the
+Shimmer and Double Returns 1 → 0 → 1; the Grit branch Mix 0.5 → 0 → 0.5 (the Colour room has no Return since the
+2026-10-21 amendment). Controls: the same send ramp with the room kept fed. **Metric:** peak |second difference| in the
+0.5 s after an event, over the larger steady peak (the 0.5 s before, or 1.0–1.45 s after once settled); near-zero runs;
+missing blocks. **Self-check:** the room's Return gain jumped with no ramp reads ×10 to ×536.
+
+Getting a metric that works took four tries. A sawtooth source hid every click (its reset is the biggest second
+difference, so the unramped jump read ×1). Dividing by the window before the event alone read a dark-to-lit change of
+timbre as a click. A ScriptProcessor recorder on the app's own page threw random ×50–×1 000 spikes on the controls.
+
+**Three full runs:** every darkening, every control and every Grit event read ×0.84–×1.29, with no gap (the longest
+near-zero run was 1 sample). Dark branches are disconnected once unfed, at Return 0 or at Mix 0. Lightings: 16 of 18
+read ×0.84–×1.03. Two spiked: run 2's Double send up ×574 and run 3's Shimmer Return up ×448.
+
+**Every spike** sits 0–2.7 ms after the lighting call, with one missing 128-frame block just after it. The audio thread
+lost a render quantum at the connect. The same recorder caught it on two controls:
+
+| Connect | Lightings that lost a quantum |
+|---|---|
+| Shimmer and Double room branches | 5 of 34 |
+| the Tremolo's dry-chain bypass cell (roadmap 50.6, on `main`) | 1 of 4 (×97) |
+| a FrequencyShifter outside the chain, into a muted `Gain(0)`, with no audible path | 1 of 4 (×54) |
+
+No darkening lost one (0 of 42); disconnects run on the audio clock's timer.
+
+**Reading:** the room crossings are smooth. The ×400–×600 spikes are an intermittent lost render quantum at a
+connect, shared by 50.6's cells and by an unrelated effect connect, so not a T3/T4 wiring bug. Headless only so far:
+whether it happens on a real output device or on the Pixel is not known. **Crawford's call (2026-10-22): record it
+and carry on.** Backlog 29 holds the investigation; T20's listen adds a tick check on real speakers.
