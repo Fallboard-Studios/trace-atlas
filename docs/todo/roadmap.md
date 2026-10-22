@@ -1984,7 +1984,8 @@ think everything sounds fine"; no tuning) and the T21 phone gate.
   run: at 3:00 the branch read 76 / 62 / 59 against the base's 48 / 68 / 95. One branch run collapsed after 3:30 and its
   repeat did not, and a world with all seven effects lit held (backlog 27).
 - **Still open:** the lore words; the room-depth second look at the colour Mix bands (spec §7 Q1, not taken at the
-  listen); backlogs 27 and 29; per-robot delay time (its own phase); themes, which now have the send table to override.
+  listen); backlogs 27 and 29; per-robot delay time (its own phase); themes, which now have the send table to override;
+  the five sends written out field by field across the code ([55](#55-robot-sends-one-table-for-the-five-sends), next up).
 
 ## 51. Guide: A Read-Only Branch That Teaches the Whole App
 
@@ -2216,3 +2217,54 @@ Options on the table for the interview (the first is the recommendation from the
 - A `main` measurement in the same sitting, to say whether the level is new.
 - The probe used (a CDP script driving the HUD, alternating settings live through the app's store) lived in a session
   scratchpad; worth adding under `scripts/perf/` when this item starts, beside `audio-load.mjs`.
+
+## 55. Robot Sends: One Table for the Five Sends
+
+Raised at the Robot Effect Sends ([50.7](#507-robot-effect-sends-grit-shimmer-and-double)) code review, 2026-10-22, and put
+next on the roadmap by Crawford the same day. A refactor with no change in behaviour: the five per-robot sends (Reverb,
+Delay, Grit, Shimmer, Double) are written out one field at a time in about fifteen places, so a sixth send, or a change to
+how a send is primed, means finding every copy by hand. **Status: not started; next up, once 50.7's PR merges** (the
+three new sends exist only on `feature/robot-effect-sends` until then). This entry stands in for the intent; spec and plan
+next.
+
+### About
+
+Where the copies are (checked against the code at `b96304f5`):
+
+- **The prime, four times.** `{ reverb: robot.reverbSend, delay: …, grit: …, shimmer: …, double: robot.doubleSend }` is
+  spelled out at every reservation site: `loadInstruments`' post-load pass and `reReserveVoice` (`AudioEngine.ts`),
+  `spawnRobot` and `reRegisterAllRobotsAudio` (`spawnSystem.ts`). Only a regex source scan
+  (`src/engine/reservationSendsPrime.test.ts`) stops a site from missing a key.
+- **The field list, four times.** `ROBOT_SEND_FIELDS` (`robotSendLoadingRanges.ts`) exists but only its type is read;
+  `localeStore.ts`'s clamp loop, `audioSwells.ts`'s `SEND_ATTRIBUTES` and `sessionDiff.ts`'s `SEND_PRIME_KEYS` (field to
+  `updateRobotSends` key) each carry their own copy.
+- **The actions, ten functions.** `applyReverbSend` … `applyDoubleSend` and their five `*Value` forms
+  (`robotOptionsActions.ts`) differ only in the field and the engine key; `audioSwells.ts`'s `writeRobotSend` is a five-way
+  switch over them.
+- **The screens, ten handlers.** Five `handle*SendChange` in `RobotScreen.tsx` and five `on*SendChange` in
+  `useCompanyOptions.ts`, each beside its own swelling flag. `AudioSettingSection` takes five value / handler / swelling
+  sets and renders five rows from five near-identical schemas (`REVERB_SEND_SCHEMA` … `DOUBLE_SEND_SCHEMA`,
+  `robotOptionsConfig.ts`), and `CompanyOptionsSection.tsx` passes them all through.
+- **The engine.** `reserveVoice` builds the five send gains one by one, twice (the live voice and the stub fallback), and
+  `updateRobotSends` writes Reverb and Delay one way and the three room sends in a loop.
+- **The share codec.** `sessionShareUtils.ts` maps `rs` / `ds` / `gr` / `sm` / `db` in and out, five lines each way.
+
+The shape the review proposed, to be settled at the spec: one table beside `ROBOT_SEND_FIELDS` mapping each field to its
+engine key (and perhaps its share code, schema and content key); a `robotSendLevels(robot)` helper that the four
+reservation sites call, which leaves the regex scan nothing to guard; and one `applySendValue(robot, localeId, field,
+fraction)` that the actions, the swell tick and both screens go through.
+
+### Not Doing (and why)
+
+- **Any change in behaviour.** No seeded value, saved diff, share code, slider, swell pick or sound moves; the existing
+  suite is the parity check.
+
+### Open
+
+- Whether the named actions (`applyGritSend` and the rest) stay as one-line wrappers or go. About 70 test references in
+  seven test files spy on them by name, and the two docs guards (`robotSendsDocs`, `robotEffectSendsDocs`) pin them in the
+  living docs.
+- Whether `AudioSettingSection` takes one list of send rows in place of the five value / handler / swelling sets, or keeps
+  its props and only the handlers are shared.
+- Whether `Robot`, `RobotAudioBaseline`, `RobotAudioOverrideDiff` and `CompanyOptionsSnapshot` keep five named fields (the
+  session format and the company snapshot read them by name); likely yes.
