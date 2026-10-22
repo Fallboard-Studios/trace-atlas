@@ -1101,3 +1101,42 @@ is the longest gap between answers to a 25 ms `Runtime.evaluate` poll after the 
 Every branch crossing was checked to have connected its branch (`connected` true after the call). All three gates pass.
 The branch's longest unresponsive gap reached 0.42 and 0.44 s in two of nine runs, against the base's 0.30 at most in
 three; recorded, not gated.
+
+## Robot Effect Sends (roadmap 50.7) on the Pixel — T21, Crawford's runs, 2026-10-22
+
+Spec §5's phone gate (docs/specs/ROBOT_EFFECT_SENDS.md; plan docs/tasks/ROBOT_EFFECT_SENDS.md T21). **Builds:** T19's
+two `vite build`s, served side by side on the LAN: the branch `feature/robot-effect-sends` on **4173** (product
+code as `e0216160`; nothing under `src/` changed up to `59954360`) and its base `2dc5b4a2` (`main` after the retune) on
+**4174**. Pixel 8, `?debug`, a fresh tab per run from a links page (`phone-gate.html`, session scratchpad), hands off to
+3:00, watched to 4:00. **Rest:** the phone was switched off for at least 20 minutes before every run, a first for these
+rounds. **Worlds:**
+- **Seeded:** T19's world (−48, −5, `pelagos-default`) as the branch seeds it: Grit on three robots (silent, since no
+  colour effect is lit), Shimmer on two, Double on one, Returns at 1. On the base the same link plays the Chorus and
+  Shifter as fully wet chain pedals; both builds read `fx in 4/10`, so they carry the same number of lit effects.
+- **Hand:** the same world with every robot's Grit, Shimmer and Double at 1, the three colour Mixes at 1 and the Chorus
+  and Shifter Returns at 1. Branch only, recorded, not gated.
+
+Before the round every link was loaded headlessly over the LAN address on its build: seeded `fx in 4/10` on both builds
+at Full and Standard, hand `fx in 7/10` (two lit chain cells plus five room branches). The phone read the same.
+
+| # | Build | Tier | World | `fx in` | `underruns` 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|---|
+| 1 | base `2dc5b4a2` | Full | seeded | 4/10 | 0 → **48** → **100** | "everything sounded fine" |
+| 2 | branch | Full | seeded | 4/10 | 0 → **76** → **508** | "at 3:30 it started spiking, but was perfectly fine til then. Around 4:20 it completely cut out w/ ~ 2K underruns." |
+| 3 | branch | Standard | seeded | 4/10 | 0 → **62** → 106 at **6:00** | "everything sounded great, even 6 minutes in" (pulled away, so no 4:00 reading) |
+| 4 | base `2dc5b4a2` | Standard | seeded | 4/10 | 0 → **68** → **95** | "sounded fine." |
+| 5 | branch | Full | hand | 7/10 | 0 → **98** → **122** | "clipping wise it was great. super distorted, but loud distortion, not underrun clipping." |
+
+**Reading against the gate** (the branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in`
+reads lit branches plus lit chain cells). Single runs throughout.
+- **`fx in`: passes.** 4/10 is two chain cells plus the Shimmer and Double branches; 7/10 adds the three Grit branches.
+- **Standard: passes.** The branch read 62 at 3:00 against the base's 68, and was still clean at 6:00 (106).
+- **Full: does not pass cleanly.** The branch read 76 at 3:00 against the base's 48. The base's spread in this sitting
+  is 48–68, across both tiers, so 76 sits 8 above it. Nothing ran away by 3:00, but run 2 ran away after it: spiking at
+  3:30, out at about 4:20 with about 2 000 underruns. That is the 2:50–4:00 collapse of backlog 27, which spec §16 says
+  does not fail the gate when `main` shares it. In this sitting the base did not collapse by 4:00 (run 1 rose 48 → 100).
+- **The collapse does not follow the lit load.** Run 5, the same build and tier with 7 lit instead of 4, read 98 at 3:00
+  and 122 at 4:00 with no collapse. So run 2's collapse is not the rooms' cost growing.
+
+**New for backlog 27:** run 2 collapsed second in the sitting, after 20 minutes off. That is the first collapse on a
+phone rested this way, so heat or state left over from an earlier run explains it less well than it explained round 4.
