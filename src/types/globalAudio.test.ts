@@ -38,11 +38,13 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay.wet).toBe(1);
   });
 
-  // Robot Effect Sends T2 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Colour room's Return, full by default.
-  it('defaults the Colour room Return to full (1), as its own block straight after the Bit Crusher', () => {
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.colourRoom).toStrictEqual({ wet: 1 });
-    const keys = Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS);
-    expect(keys.indexOf('colourRoom')).toBe(keys.indexOf('bitCrusher') + 1);
+  // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return, so no
+  // settings block; each colour Mix is its effect's return level.
+  it('has no Colour room block, in the defaults or the type', () => {
+    expect('colourRoom' in DEFAULT_GLOBAL_AUDIO_SETTINGS).toBe(false);
+    // @ts-expect-error - GlobalAudioSettings has no colourRoom key (npm run build:types enforces this line).
+    const stray: GlobalAudioSettings['colourRoom'] = { wet: 1 };
+    expect(stray).toBeDefined();
   });
 
   it('leaves the rest of the Reverb and Delay defaults as they were', () => {
@@ -180,9 +182,7 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS modulation blocks', () => {
 
   it('puts the two pedals between bitCrusher and the Global Pedals blocks in key order', () => {
     const keys = Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS);
-    // Robot Effect Sends T2: the Colour room's Return block sits between the colour slot and the pedals.
-    expect(keys.indexOf('autoWah')).toBe(keys.indexOf('colourRoom') + 1);
-    expect(keys.indexOf('colourRoom')).toBe(keys.indexOf('bitCrusher') + 1);
+    expect(keys.indexOf('autoWah')).toBe(keys.indexOf('bitCrusher') + 1);
     expect(keys.indexOf('phaser')).toBe(keys.indexOf('autoWah') + 1);
     expect(keys.indexOf('chorus')).toBe(keys.indexOf('phaser') + 1);
   });
@@ -279,12 +279,14 @@ describe('withGlobalAudioDefaults', () => {
     expect(result.chebyshev).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
   });
 
-  // Robot Effect Sends T2 (spec assumption 13): a pre-50.7 payload has no colourRoom block and loads it at full.
-  it('fills a missing colourRoom block at a Return of 1, and keeps a given one', () => {
-    expect(withGlobalAudioDefaults({}).colourRoom.wet).toBe(1);
-    expect(withGlobalAudioDefaults({ reverb: { decay: 2, preDelay: 0.01, wet: 0.3 } }).colourRoom).toStrictEqual({ wet: 1 });
-    expect(withGlobalAudioDefaults({ colourRoom: { wet: 0.4 } }).colourRoom).toStrictEqual({ wet: 0.4 });
-    expect(withGlobalAudioDefaults({ colourRoom: 0.4 } as unknown as Partial<GlobalAudioSettings>).colourRoom).toStrictEqual({ wet: 1 });
+  // Spec assumption 13 as amended (T17.2): a payload saved between T2 and the amendment may carry a Colour room block;
+  // it is dropped on the way in, never an error.
+  it('drops a stray colourRoom block from an old payload, keeping every other block', () => {
+    const stale = { colourRoom: { wet: 0.4 }, reverb: { decay: 2, preDelay: 0.01, wet: 0.3 } } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(stale);
+    expect('colourRoom' in result).toBe(false);
+    expect(result.reverb).toStrictEqual({ decay: 2, preDelay: 0.01, wet: 0.3 });
+    expect(Object.keys(result)).toEqual(Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS));
   });
 
   it('keeps a nested partial block as given: blocks are whole, never deep-merged', () => {

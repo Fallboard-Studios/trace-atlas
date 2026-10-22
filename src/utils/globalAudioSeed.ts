@@ -324,8 +324,6 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       bits: sampleField(noiseMap, 'bitCrusher.bits'),
       wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
     },
-    // The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): never seeded, from the defaults.
-    colourRoom: { wet: defaults.colourRoom.wet },
     autoWah: {
       baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency', true),
       octaves: sampleField(noiseMap, 'autoWah.octaves', true),

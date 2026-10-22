@@ -377,22 +377,23 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
       });
     });
 
-    // Spec assumption 13: no upgrade. An old link has neither the three codes nor colourRoom; it decodes with the
-    // Colour room Return at its default and every saved value (its Chorus and shifter wets included) untouched.
-    it('a link from before the three sends and colourRoom decodes with colourRoom filled and nothing rewritten', () => {
-      const { colourRoom: _cr, ...oldG } = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+    // Spec assumption 13 (as amended, T17.2): no upgrade. An old link has none of the three codes and decodes with every
+    // saved value (its Chorus and shifter wets included) untouched. One made between T2 and the amendment still carries a
+    // Colour room block in `g`: it decodes without error and the block is dropped.
+    it('a link from before the three sends decodes with nothing rewritten, and a stray colourRoom block is dropped', () => {
+      const oldG = DEFAULT_GLOBAL_AUDIO_SETTINGS;
       const g = { ...oldG, chorus: { ...oldG.chorus, wet: 0.35 }, frequencyShifter: { ...oldG.frequencyShifter, wet: 0.2 } };
       const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { reverbSend: 0.25 } } }))) as Record<string, unknown>;
-      const olderWire = { ...wire, v: 2, g, r: { 'robot-1': { rs: 0.25 } } };
-      expect('colourRoom' in g).toBe(false); // the fixture proves what it claims
+      const olderWire = { ...wire, v: 2, g: { ...g, colourRoom: { wet: 0.4 } }, r: { 'robot-1': { rs: 0.25 } } };
 
       const decoded = decodeSessionPayload(encodeWire(olderWire))!;
 
       expect(decoded.version).toBe(2);
       expect(decoded.robotOverrides['robot-1']).toEqual({ reverbSend: 0.25 });
-      expect(decoded.globalAudio.colourRoom).toStrictEqual({ wet: 1 });
+      expect('colourRoom' in decoded.globalAudio).toBe(false);
       expect(decoded.globalAudio.chorus.wet).toBe(0.35);
       expect(decoded.globalAudio.frequencyShifter.wet).toBe(0.2);
+      expect(Object.keys(decoded.globalAudio)).toEqual(Object.keys(g));
       for (const [key, value] of Object.entries(g)) {
         expect(decoded.globalAudio[key as keyof typeof decoded.globalAudio], key).toEqual(value);
       }

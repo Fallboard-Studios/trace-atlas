@@ -41,7 +41,6 @@ import type {
   DistortionSettings,
   ChebyshevSettings,
   BitCrusherSettings,
-  ColourRoomSettings,
   AutoWahSettings,
   PhaserSettings,
   ChorusSettings,
@@ -842,19 +841,8 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
   }
 }
 
-/**
- * The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): how loud the room is as heard from every
- * robot. Clamped like every colour field and ramped onto the room's return gain; a Return of 0 takes the room's effects
- * out of the signal path (setRoomReturn). The three colour Mixes above are the depths inside the room.
- */
-export function setGlobalColourRoom(params: Partial<ColourRoomSettings>): void {
-  try {
-    const wet = clampIfGiven('colourRoom.wet', params.wet);
-    if (wet !== undefined) setRoomReturn('grit', wet);
-  } catch (err) {
-    devWarn('[AudioEngine] setGlobalColourRoom failed', err);
-  }
-}
+// Nothing writes the Colour room's Return: it stays at the 1 buildRoom gives it, so each colour Mix above is that
+// effect's return level, as the Reverb and Delay Amounts are (docs/specs/ROBOT_EFFECT_SENDS.md, the 2026-10-21 amendment).
 
 /** Auto Wah (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The sweep range, sensitivity and follower smoothing are
  *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's and written through the bypass

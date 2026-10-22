@@ -82,15 +82,6 @@ export interface ChebyshevSettings {
   wet: number;
 }
 
-/**
- * The Colour room's RETURN level (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): how loud the room is as heard from
- * every robot. The three colour Mixes are depths inside the room. Not seeded; starts at 1.
- */
-export interface ColourRoomSettings {
-  /** 0 - 1, the room's return level; see ReverbSettings.wet. */
-  wet: number;
-}
-
 /** Bit Crush: Tone.BitCrusher (an AudioWorklet). */
 export interface BitCrusherSettings {
   /** integer 1 - 16 */
@@ -233,8 +224,6 @@ export interface GlobalAudioSettings {
   distortion: DistortionSettings;
   chebyshev: ChebyshevSettings;
   bitCrusher: BitCrusherSettings;
-  /** The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4); the three blocks above are its depths. */
-  colourRoom: ColourRoomSettings;
   /** Modulation slot, in chain order after Colour (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). */
   autoWah: AutoWahSettings;
   phaser: PhaserSettings;
@@ -274,8 +263,6 @@ export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   distortion: { amount: 0.3, wet: 0 },
   chebyshev: { order: 2, wet: 0 },
   bitCrusher: { bits: 8, wet: 0 },
-  // The Colour room's Return, full like the Reverb and Delay returns; never seeded.
-  colourRoom: { wet: 1 },
   // Modulation is dry by default too, at Tone's own parameter defaults (spec assumption 10). No `sync` key: Free.
   autoWah: { baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0 },
   phaser: { rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0 },

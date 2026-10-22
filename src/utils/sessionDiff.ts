@@ -259,10 +259,6 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
     preDelay: roundToDecimals(quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01), 2),
     wet: roundToDecimals(quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01), 2),
   };
-  // The Colour room's Return (Robot Effect Sends), quantised beside the two room returns.
-  toCapture.colourRoom = {
-    wet: roundToDecimals(quantizeToStep(toCapture.colourRoom.wet, GLOBAL_AUDIO_SEED_RANGES['colourRoom.wet'].min, 0.01), 2),
-  };
   toCapture.limiter = {
     threshold: roundToDecimals(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
   };

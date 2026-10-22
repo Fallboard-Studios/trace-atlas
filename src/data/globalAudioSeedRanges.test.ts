@@ -30,8 +30,6 @@ const EXPECTED_KEYS = [
   'distortion.amount', 'distortion.wet',
   'chebyshev.order', 'chebyshev.wet',
   'bitCrusher.bits', 'bitCrusher.wet',
-  // Robot Effect Sends T2: the Colour room's Return (a RETURN_FIELD_KEY: a full range, no loading row).
-  'colourRoom.wet',
   'autoWah.baseFrequency', 'autoWah.octaves', 'autoWah.sensitivity', 'autoWah.Q', 'autoWah.gain', 'autoWah.follower', 'autoWah.wet',
   'phaser.rate', 'phaser.octaves', 'phaser.baseFrequency', 'phaser.stages', 'phaser.Q', 'phaser.wet',
   // Global Pedals T2 (docs/specs/GLOBAL_PEDALS.md §1.1): sixteen fields across the five new blocks.
@@ -164,7 +162,7 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
     expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits']).toStrictEqual({ min: 1, max: 16, scale: 'linear', step: 1 });
     expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
-    expect(GLOBAL_AUDIO_SEED_RANGES['colourRoom.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect('colourRoom.wet' in GLOBAL_AUDIO_SEED_RANGES).toBe(false); // T17.2: no Colour room Return, so no key
   });
 
   it('steps order and bits by whole integers, since a harmonic order and a bit depth are integers by concept', () => {
@@ -255,7 +253,6 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
       'chebyshev.wet': defaults.chebyshev.wet,
       'bitCrusher.bits': defaults.bitCrusher.bits,
       'bitCrusher.wet': defaults.bitCrusher.wet,
-      'colourRoom.wet': defaults.colourRoom.wet,
       'autoWah.baseFrequency': defaults.autoWah.baseFrequency,
       'autoWah.octaves': defaults.autoWah.octaves,
       'autoWah.sensitivity': defaults.autoWah.sensitivity,

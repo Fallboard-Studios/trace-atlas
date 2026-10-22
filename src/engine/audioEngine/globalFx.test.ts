@@ -932,7 +932,6 @@ describe('globalFx', () => {
         globalFx.setGlobalVibrato({ wet: 0.5 });
         globalFx.setGlobalFrequencyShifter({ wet: 0.5 });
         globalFx.setGlobalStereoWidener({ width: 0.8 });
-        globalFx.setGlobalColourRoom({ wet: 0.5 });
         for (const effect of tenEffects().slice(0, 9)) expect(effect.wet.rampTo).not.toHaveBeenCalled();
         expect(lastInstance(toneFlags.widenerCtor).width.rampTo).not.toHaveBeenCalled();
         // Robot Effect Sends T4: the three effect rooms are left out with the cells (they need the same constructors).
@@ -1004,7 +1003,6 @@ describe('globalFx', () => {
         expect(live.getRoom('shimmer')).toBeDefined();
         expect(filterCutOf().connect).toHaveBeenLastCalledWith(cellOf(lastInstance(toneFlags.wahCtor)).in);
         expect(() => globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 })).not.toThrow();
-        expect(() => globalFx.setGlobalColourRoom({ wet: 0.5 })).not.toThrow();
       });
 
       it('releases the effect whose cell could not be built', async () => {
@@ -1273,36 +1271,31 @@ describe('globalFx', () => {
       expect(typeof globalFx.setGlobalBitCrusher).toBe('function');
     });
 
-    // Robot Effect Sends T4 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): setGlobalColourRoom is the Colour room's
-    // Return. It ramps the room's return gain; at 0 it takes the lit branches out, above 0 it brings them back; the Mixes
-    // (depths) are untouched.
-    it('setGlobalColourRoom ramps the Colour room Return, clamped, and a Return of 0 darkens the lit branches', async () => {
-      const unbuilt = await import('./globalFx');
-      expect(() => unbuilt.setGlobalColourRoom({ wet: 0.5 })).not.toThrow();
-
-      const { globalFx, dist } = await built();
+    // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return. Its
+    // return gain keeps the 1 buildRoom gives it and nothing writes it; each branch's Mix is that effect's return level.
+    it('has no Colour room setter, and the Colour room Return stays at its built 1 through every colour edit', async () => {
+      const { globalFx } = await built();
+      expect('setGlobalColourRoom' in globalFx).toBe(false);
       const room = live.getRoom('grit')!;
-      globalFx.setGlobalDistortion({ wet: 0.4 });
-      expect(globalFx.getConnectedEffectCount()).toBe(1);
-
-      globalFx.setGlobalColourRoom({ wet: 0.3 });
-      expect(fake(room.return).gain.rampTo).toHaveBeenLastCalledWith(0.3, 0.05);
-      expect(room.returnLevel).toBe(0.3);
-      globalFx.setGlobalColourRoom({ wet: 7 });
-      expect(room.returnLevel).toBe(1);
-      globalFx.setGlobalColourRoom({ wet: Number.NaN });
-      globalFx.setGlobalColourRoom({});
-      expect(room.returnLevel).toBe(1);
-
-      globalFx.setGlobalColourRoom({ wet: -1 });
-      expect(room.returnLevel).toBe(0);
-      expect(mixRampsOf(dist).at(-1)).toEqual([0, 0.05]);
+      globalFx.setGlobalDistortion({ amount: 0.6, wet: 0.4 });
+      globalFx.setGlobalChebyshev({ order: 3, wet: 0 });
+      globalFx.setGlobalBitCrusher({ bits: 4, wet: 0.7 });
+      globalFx.setGlobalDistortion({ wet: 0 });
       fireTimeouts();
-      expect(globalFx.getConnectedEffectCount()).toBe(0);
-      expect(live.getCell('distortion')!.depth).toBe(0.4);
-      globalFx.setGlobalColourRoom({ wet: 0.6 });
-      expect(globalFx.getConnectedEffectCount()).toBe(1);
+      expect(room.returnLevel).toBe(1);
+      expect(fake(room.return).gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('a fed Colour room lights each branch whose Mix is above 0 at its built Return, and keeps a Mix of 0 dark', async () => {
+      const { globalFx, dist, cheb, crush } = await built();
+      globalFx.setGlobalDistortion({ wet: 0.4 });
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      expect(globalFx.getConnectedEffectCount()).toBe(2);
+      expect(dist.connect).toHaveBeenCalledTimes(1);
+      expect(crush.connect).toHaveBeenCalledTimes(1);
+      expect(cheb.connect).not.toHaveBeenCalled();
       expect(mixRampsOf(dist).at(-1)).toEqual([expect.closeTo(0.16, 9), 0.05]);
+      expect(live.getRoom('grit')!.returnLevel).toBe(1);
     });
 
     it('a colour Mix on an unfed Colour room records the depth and lights nothing until a robot feeds it', async () => {

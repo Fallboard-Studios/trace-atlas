@@ -130,11 +130,10 @@ describe('globalFx without the room constructors', () => {
     expect(globalFx.getGlobalRoomInput('double')).toBeNull();
   });
 
-  it('no-ops the three effect room Returns without throwing when no room exists', async () => {
+  it('no-ops the two effect room Returns (Shimmer, Double) without throwing when no room exists', async () => {
     const globalFx = await import('./globalFx');
     globalFx.buildGlobalFxChain();
     expect(() => {
-      globalFx.setGlobalColourRoom({ wet: 0.5 });
       globalFx.setGlobalChorus({ wet: 0 });
       globalFx.setGlobalFrequencyShifter({ wet: 1 });
     }).not.toThrow();

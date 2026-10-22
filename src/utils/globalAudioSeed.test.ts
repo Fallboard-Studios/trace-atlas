@@ -59,7 +59,7 @@ import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { ROBOT_SEND_LOADING_RANGES } from '@/data/robotSendLoadingRanges';
 import { type GlobalAudioSeedFieldKey, type LoadingRangeKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId } from '@/types/lfo';
-import { PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
+import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
 
@@ -262,12 +262,16 @@ describe('generateGlobalAudioSettings', () => {
       evictAttenuationStyleNoiseMap('oracle-theta');
     });
 
-    // Robot Effect Sends T2 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Colour room's Return is never seeded.
-    it('emits the Colour room Return from the defaults (1) for every style, and never draws it', () => {
+    // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return, so no
+    // style emits a block for it or draws anything named for it.
+    it('emits no Colour room block for any style, and never draws one', () => {
       vi.mocked(getSeededVal).mockClear();
       vi.mocked(getUniformSeededVal).mockClear();
       for (let i = 0; i < 8; i++) {
-        expect(generateGlobalAudioSettings(`colour-room-${i}`, `ColourRoom${i}`).colourRoom, `style ${i}`).toStrictEqual({ wet: 1 });
+        const settings = generateGlobalAudioSettings(`colour-room-${i}`, `ColourRoom${i}`);
+        expect('colourRoom' in settings, `style ${i}`).toBe(false);
+        // The same key set as the defaults (the seeder emits them in its own order).
+        expect(Object.keys(settings).sort(), `style ${i}`).toEqual(Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS).sort());
         evictAttenuationStyleNoiseMap(`colour-room-${i}`);
       }
       const dataIds = [...vi.mocked(getSeededVal).mock.calls, ...vi.mocked(getUniformSeededVal).mock.calls].map(([, dataId]) => dataId);
@@ -2185,8 +2189,6 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.32, wet: 0 },
       chebyshev: { order: 4, wet: 0 },
       bitCrusher: { bits: 9, wet: 0.18 },
-      // Robot Effect Sends T2: the Colour room Return, from the defaults (amended by hand; nothing else moved).
-      colourRoom: { wet: 1 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
       autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
@@ -2229,8 +2231,6 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       distortion: { amount: 0.26, wet: 0 },
       chebyshev: { order: 3, wet: 0.13 },
       bitCrusher: { bits: 8, wet: 0 },
-      // Robot Effect Sends T2: the Colour room Return, from the defaults (amended by hand; nothing else moved).
-      colourRoom: { wet: 1 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
       phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },

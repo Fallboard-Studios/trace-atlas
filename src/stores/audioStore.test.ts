@@ -21,7 +21,6 @@ vi.mock('../engine/AudioEngine', () => ({
     setGlobalDistortion: vi.fn(),
     setGlobalChebyshev: vi.fn(),
     setGlobalBitCrusher: vi.fn(),
-    setGlobalColourRoom: vi.fn(),
     setGlobalAutoWah: vi.fn(),
     setGlobalPhaser: vi.fn(),
     setGlobalChorus: vi.fn(),
@@ -322,47 +321,25 @@ describe('useAudioStore - setGlobalAudio pushes to AudioEngine', () => {
     });
   });
 
-  // Robot Effect Sends T2 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Colour room's Return block.
-  describe('the colourRoom block', () => {
-    it('routes setGlobalAudio(colourRoom, { wet }) to setGlobalColourRoom only, and updates state', async () => {
+  // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return, so the
+  // store has no block, setter or push for it. The AudioEngine mock above lists no setGlobalColourRoom, so a push that
+  // came back would throw here.
+  describe('no Colour room block', () => {
+    it('the store state has no colourRoom key', async () => {
       const { useAudioStore } = await import('./audioStore');
-      const { AudioEngine } = await import('../engine/AudioEngine');
-      vi.clearAllMocks();
-
-      useAudioStore.getState().setGlobalAudio('colourRoom', { wet: 0.5 });
-
-      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledTimes(1);
-      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledWith({ wet: 0.5 });
-      expect(AudioEngine.setGlobalDistortion).not.toHaveBeenCalled();
-      expect(AudioEngine.setGlobalBitCrusher).not.toHaveBeenCalled();
-      expect(useAudioStore.getState().globalAudio.colourRoom).toStrictEqual({ wet: 0.5 });
+      expect('colourRoom' in useAudioStore.getState().globalAudio).toBe(false);
     });
 
-    it('treats an undefined-valued wet as no edit: no state write and no engine push', async () => {
-      const { useAudioStore } = await import('./audioStore');
-      const { AudioEngine } = await import('../engine/AudioEngine');
-      const before = useAudioStore.getState().globalAudio.colourRoom;
-      vi.clearAllMocks();
-
-      useAudioStore.getState().setGlobalAudio('colourRoom', { wet: undefined });
-
-      expect(AudioEngine.setGlobalColourRoom).not.toHaveBeenCalled();
-      expect(useAudioStore.getState().globalAudio.colourRoom).toStrictEqual(before);
-    });
-
-    it('applyGlobalAudioToEngine pushes the block once, whole, straight after the Bit Crusher', async () => {
+    it('applyGlobalAudioToEngine goes from the Bit Crusher straight to the AutoWah, even given a stray block', async () => {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
       const { AudioEngine } = await import('../engine/AudioEngine');
       const globalAudio = { ...useAudioStore.getState().globalAudio, colourRoom: { wet: 0.37 } };
       vi.clearAllMocks();
 
-      applyGlobalAudioToEngine(globalAudio, 120);
+      expect(() => applyGlobalAudioToEngine(globalAudio, 120)).not.toThrow();
 
-      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledTimes(1);
-      expect(AudioEngine.setGlobalColourRoom).toHaveBeenCalledWith({ wet: 0.37 });
       const order = (fn: unknown) => (fn as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
-      expect(order(AudioEngine.setGlobalBitCrusher)).toBeLessThan(order(AudioEngine.setGlobalColourRoom));
-      expect(order(AudioEngine.setGlobalColourRoom)).toBeLessThan(order(AudioEngine.setGlobalAutoWah));
+      expect(order(AudioEngine.setGlobalBitCrusher)).toBeLessThan(order(AudioEngine.setGlobalAutoWah));
     });
   });
 });

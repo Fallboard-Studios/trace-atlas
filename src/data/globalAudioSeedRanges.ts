@@ -50,7 +50,6 @@ export type GlobalAudioSeedFieldKey =
   | 'chebyshev.wet'
   | 'bitCrusher.bits'
   | 'bitCrusher.wet'
-  | 'colourRoom.wet'
   | 'autoWah.baseFrequency'
   | 'autoWah.octaves'
   | 'autoWah.sensitivity'
@@ -88,7 +87,7 @@ export type GlobalAudioSeedFieldKey =
  * row in GLOBAL_AUDIO_LOADING_RANGES, which is keyed by LoadingRangeKey, so a Return can never be seeded, by type.
  * The Chorus and Frequency Shifter Mixes joined at Robot Effect Sends T8, when their effects became rooms.
  */
-export const RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet', 'colourRoom.wet'] as const;
+export const RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet'] as const;
 export type ReturnFieldKey = (typeof RETURN_FIELD_KEYS)[number];
 export type LoadingRangeKey = Exclude<GlobalAudioSeedFieldKey, ReturnFieldKey>;
 
@@ -132,8 +131,6 @@ export const GLOBAL_AUDIO_SEED_RANGES: Record<GlobalAudioSeedFieldKey, SeedRange
   'chebyshev.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
   'bitCrusher.bits': { min: 1, max: 16, scale: 'linear', step: 1 },
   'bitCrusher.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
-  // Robot Effect Sends: the Colour room's Return (a RETURN_FIELD_KEY, never seeded; the drawer, clamp and quantiser read it).
-  'colourRoom.wet': { min: 0, max: 1, scale: 'linear', step: 0.01 },
 
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 5). `phaser.rate` mirrors
   // PEDAL_RATE_RANGE_HZ (src/types/globalAudio.ts) and is linear because TempoSyncSlider takes a linear schema.

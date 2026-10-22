@@ -602,18 +602,19 @@ describe('buildSessionPayload', () => {
     expect(payload.lfoBank!.b.depthDrift).toBe(-0.99);
   });
 
-  // Robot Effect Sends T2: the Colour room's Return is quantised at two decimals beside the Reverb and Delay returns.
-  it('quantizes the Colour room Return (colourRoom.wet) to 2 decimal places, beside the room returns', () => {
+  // The room returns are quantised at two decimals. (Robot Effect Sends T2 added a Colour room Return here; the T17.2
+  // amendment removed it, so only the Reverb half of this case remains.)
+  it('quantizes the Reverb Return (reverb.wet) to 2 decimal places', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     useAudioStore.setState((state) => ({
-      globalAudio: { ...state.globalAudio, colourRoom: { wet: 0.456789 }, reverb: { ...state.globalAudio.reverb, wet: 0.333333 } },
+      globalAudio: { ...state.globalAudio, reverb: { ...state.globalAudio.reverb, wet: 0.333333 } },
     }));
 
     const payload = buildSessionPayload();
 
-    expect(payload.globalAudio.colourRoom).toStrictEqual({ wet: 0.46 });
     expect(payload.globalAudio.reverb.wet).toBe(0.33);
+    expect('colourRoom' in payload.globalAudio).toBe(false);
   });
 
   it('includes only the one robot\'s changed lfoLinks target, keyed under lfoLinks', () => {
@@ -1706,26 +1707,30 @@ describe('applySessionPayload', () => {
       ]);
     });
 
-    // Spec assumption 13: no payload upgrade. A version-2 payload from before the Colour room fills colourRoom at its
-    // default (a full Return) and loads its Chorus and shifter wets exactly as stored, as the Returns they now are.
-    it('a version-2 payload without colourRoom restores colourRoom.wet 1 and its chorus / shifter wets exactly as stored', () => {
+    // Spec assumption 13 (as amended, T17.2): no payload upgrade. A version-2 payload loads its Chorus and shifter wets
+    // exactly as stored, as the Returns they now are. One saved between T2 and the amendment still carries a Colour room
+    // block: it loads without error, the store never holds it, and a re-save carries none.
+    it('a version-2 payload restores its chorus / shifter wets exactly as stored and drops a stray colourRoom block', () => {
       seededWorld();
       const payload = buildSessionPayload();
-      const { colourRoom: _cr, ...old } = payload.globalAudio;
       const legacy = {
         ...payload,
         version: 2,
-        globalAudio: { ...old, chorus: { ...old.chorus, wet: 0.35 }, frequencyShifter: { ...old.frequencyShifter, wet: 0.2 } },
+        globalAudio: {
+          ...payload.globalAudio,
+          colourRoom: { wet: 0.4 },
+          chorus: { ...payload.globalAudio.chorus, wet: 0.35 },
+          frequencyShifter: { ...payload.globalAudio.frequencyShifter, wet: 0.2 },
+        },
       } as unknown as SessionPayload;
-      expect('colourRoom' in legacy.globalAudio).toBe(false); // the fixture proves what it claims
-      useAudioStore.getState().setGlobalAudio('colourRoom', { wet: 0.4 }); // so a skipped fill would show
 
-      applySessionPayload(legacy);
+      expect(() => applySessionPayload(legacy)).not.toThrow();
 
       const restored = useAudioStore.getState().globalAudio;
-      expect(restored.colourRoom).toStrictEqual({ wet: 1 });
+      expect('colourRoom' in restored).toBe(false);
       expect(restored.chorus.wet).toBe(0.35);
       expect(restored.frequencyShifter.wet).toBe(0.2);
+      expect('colourRoom' in buildSessionPayload().globalAudio).toBe(false);
     });
   });
 
