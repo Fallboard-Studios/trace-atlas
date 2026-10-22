@@ -34,7 +34,7 @@ export const EXCLUSIVE_SEND_FIELDS = ['gritSend', 'shimmerSend', 'doubleSend'] a
 export type ExclusiveSendField = (typeof EXCLUSIVE_SEND_FIELDS)[number];
 
 /** The room each exclusive send feeds: the Colour room (Grit), the Frequency Shifter (Shimmer), the Chorus (Double). These
- *  are the engine's room keys (bypassCell.ts) and the seeder's dataId segment (`robot.send.<room>`). */
+ *  are the seeder's dataId segment (`robot.send.<room>`), and the engine's RoomKey is this type (bypassCell.ts). */
 export type SendRoomKey = 'grit' | 'shimmer' | 'double';
 export const SEND_FIELD_ROOM: Record<ExclusiveSendField, SendRoomKey> = {
   gritSend: 'grit',
