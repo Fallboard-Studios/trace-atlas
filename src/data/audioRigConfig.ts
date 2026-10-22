@@ -28,7 +28,7 @@ import { HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '@/constants';
 // ========================================
 
 export type AudioRigEffectKey =
-  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'colourRoom' | 'autoWah' | 'phaser'
+  | 'eq3' | 'filterLPF' | 'filterHPF' | 'distortion' | 'chebyshev' | 'bitCrusher' | 'autoWah' | 'phaser'
   | 'chorus' | 'tremolo' | 'vibrato' | 'frequencyShifter' | 'delay' | 'reverb' | 'compressor' | 'stereoWidener' | 'limiter';
 
 export interface AudioRigParamSchema {
@@ -147,16 +147,6 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       { field: 'bits', schema: { id: 'bitCrusher.bits', type: 'sliderLinear', ...labels('fleet.bitCrusher.bits'), min: 1, max: 16, step: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'bitCrusher.wet', type: 'sliderLinear', ...labels('fleet.bitCrusher.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
-    ],
-  },
-  // The Colour room's Return (docs/specs/ROBOT_EFFECT_SENDS.md §1.6, assumption 14): the three blocks above are its
-  // branch depths. One row on the Width precedent; shown first under Colour (navActions.ts), listed here after its
-  // branches as GlobalAudioSettings orders it. Not seeded, not LFO-able; a test pins the slider to the seed range.
-  {
-    key: 'colourRoom',
-    panel: panelSchema('colourRoom', 'fleet.colourRoom', 'column'),
-    params: [
-      { field: 'wet', schema: { id: 'colourRoom.wet', type: 'sliderLinear', ...labels('fleet.colourRoom.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6): two dry-chain pedals after Colour, every

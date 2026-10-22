@@ -253,8 +253,6 @@ describe('robot sends copy', () => {
   it.each([
     { key: 'fleet.chorus.mix', send: 'probe.doubleSend' },
     { key: 'fleet.frequencyShifter.mix', send: 'probe.shimmerSend' },
-    // Task 17: the Colour room's own Return, on the Colour Room sub-tab.
-    { key: 'fleet.colourRoom.amount', send: 'probe.gritSend' },
   ] as const)('$key keeps its key and reads as the room return, not a blend', ({ key, send }) => {
     const entry = CONTENT[key] as ContentEntry;
     const help = entry.help?.human ?? '';
@@ -266,32 +264,28 @@ describe('robot sends copy', () => {
     expect(help.toLowerCase()).toMatch(/silence/);
   });
 
-  it('the three Returns share a name but keep their own lore and help', () => {
-    const returns = ['fleet.chorus.mix', 'fleet.frequencyShifter.mix', 'fleet.colourRoom.amount'] as const;
-    expect(new Set(returns.map((k) => CONTENT[k].human)).size).toBe(1);
-    expect(new Set(returns.map((k) => CONTENT[k].lore)).size).toBe(3);
-    expect(new Set(returns.map((k) => CONTENT[k].help?.human)).size).toBe(3);
+  // Spec amendment 2026-10-21 (plan T17.1): the Colour room has no master Return, so each colour Mix is its effect's
+  // return level, as the Reverb and Delay Amounts are; Grit decides how much goes in.
+  it.each(['fleet.distortion.mix', 'fleet.chebyshev.mix', 'fleet.bitCrusher.mix'] as const)(
+    '%s reads as the effect return level, not a blend',
+    (key) => {
+      const help = CONTENT[key].help?.human ?? '';
+      expect(help).not.toMatch(/blend/i);
+      expect(help.toLowerCase()).toContain('as heard from every probe');
+      expect(help).toContain(CONTENT['probe.gritSend'].human);
+      expect(help).toMatch(/\b0\b/);
+      expect(help.toLowerCase()).toMatch(/silence/);
+    },
+  );
+
+  it('the Colour room has no master Return: no content key names it', () => {
+    expect(Object.keys(CONTENT).filter((k) => k.startsWith('fleet.colourRoom'))).toEqual([]);
   });
 
-  it('the Colour Room tab has a name, a lore word and a capitalised panel heading, and is read by a schema', () => {
-    const entry = CONTENT['fleet.colourRoom'] as ContentEntry;
-    expect(entry.human).toBe('Room');
-    expect(entry.lore?.trim()).toBeTruthy();
-    expect(entry.heading?.trim()).toBeTruthy();
-    expect(entry.heading).toBe(entry.heading?.toUpperCase());
-    expect(isReferenced('fleet.colourRoom')).toBe(true);
-    expect(isReferenced('fleet.colourRoom.amount')).toBe(true);
-  });
-
-  it('the Colour Room heading is distinct from the three effects it holds', () => {
-    const headings = ['fleet.colourRoom', 'fleet.distortion', 'fleet.chebyshev', 'fleet.bitCrusher'].map((k) => (CONTENT[k as ContentKey] as ContentEntry).heading);
-    expect(new Set(headings).size).toBe(4);
-  });
-
-  it('the Colour intro names the Room tab and its Return', () => {
-    const description = introProps('fleet.colour').humanDescription;
-    expect(description).toContain(`<strong>${CONTENT['fleet.colourRoom'].human}</strong>`);
-    expect(description).toContain(`<strong>${CONTENT['fleet.colourRoom.amount'].human}</strong>`);
+  it('the two Returns share a name but keep their own lore and help', () => {
+    const returns = ['fleet.chorus.mix', 'fleet.frequencyShifter.mix'] as const;
+    expect(CONTENT[returns[0]].lore).not.toBe(CONTENT[returns[1]].lore);
+    expect(CONTENT[returns[0]].help?.human).not.toBe(CONTENT[returns[1]].help?.human);
   });
 
   it('the Colour intro says the trio is a room a probe sends into with its Grit, not a stage on the direct sound', () => {
