@@ -543,6 +543,14 @@ caught).
   tests pin that. The old-payload case (no `colourRoom`, Chorus 0.35 / shifter 0.2) restores `colourRoom.wet` 1 and both
   wets as stored; it passed on first run, since nothing rewrites them, and stands as the guard.
 - **T16.** As planned.
+- **Checkpoint C finding, fixed (`bd8c2ae6`).** Crawford: after opening a share link the three sends showed the right
+  levels but were inaudible; a saved session was fine. Root cause was in T5, not the codec: a room is told it is fed only
+  when its feeder set flips, robots are primed at spawn before any room exists, and the post-load pass re-reserves them
+  one at a time, so with two or more feeders the set never empties and the rooms (built unfed) were never told. Any
+  world with two feeders of a room started with that room silent; a session load masked it by releasing every voice
+  first. `loadInstruments` now tells each room its feeder state right after `buildGlobalFxChain`. Confirmed in headless
+  Chrome (the room `fed: false` with a 0.8 Grit primed, then `fed: true` with the branch connected, for all three rooms,
+  from a live edit and from a link); five regression tests in `AudioEngine.test.ts`, four red without the fix.
 
 ## Phase 4: The drawer
 
