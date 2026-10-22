@@ -717,12 +717,25 @@ a send crossing over CDP (the hang-probe recipe). Numbers go in `scratchy-audio-
 the probe's command lines.
 
 **Acceptance criteria:**
-- [ ] Every crossing ≤ ×1.6 with no gap; the all-dark `perf:audio` run ≤ base; power-on ≤ ~2 s, a flip ≤ 4 ms, a
-  crossing ≤ 2 ms. A miss on (1) is a wiring bug in T3/T4 to find before T20.
+- [x] Every crossing ≤ ×1.6 with no gap; the all-dark `perf:audio` run ≤ base; power-on ≤ ~2 s, a flip ≤ 4 ms, a
+  crossing ≤ 2 ms. A miss on (1) is a wiring bug in T3/T4 to find before T20. **Passed with a caveat (Crawford's call,
+  2026-10-22):** see below.
 
 **Verification:** the recorded numbers and the files they came from.
 
 **Dependencies:** T18. **Files:** `docs/todo/scratchy-audio-phones.md` (append-only). **Scope:** M (probe work).
+
+> **T19 as shipped (2026-10-21/22).** Numbers in [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), "Robot
+> Effect Sends (roadmap 50.7), desktop — T19"; the probes stay in the session scratchpad.
+> - **(1) Crossings:** every room crossing ×0.84–×1.29, no gap. The Grit room's crossing is its branch Mix 0.5 → 0 → 0.5,
+>   since the amendment took its Return away. Two of 18 lightings spiked (×448, ×574): a render quantum lost at the
+>   connect, also caught on a 50.6 cell (on `main`) and on an effect connected outside the chain with no audible path,
+>   so not a T3/T4 wiring bug. Crawford: record it and carry on. It is backlog 29, plus a tick check in T20's listen.
+>   The probe took four tries to give a working metric; the log says why.
+> - **(2) `perf:audio`, all dark:** the branch 0.466 mean / 0.547 peak window against the base's 0.467 / 0.561, two
+>   rounds in reversed order: passed. Seeded (branch only, recorded): 0.494 / 0.607.
+> - **(3) Main thread:** power-on 0.38–0.49 s (the base 0.38–0.45), a flip 0.7–1.7 ms, a send crossing that connects a
+>   branch 0–0.1 ms: passed.
 
 ### Task 20: Crawford's listen and the tuning — **STOP**
 

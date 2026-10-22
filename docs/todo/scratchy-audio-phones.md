@@ -1056,3 +1056,48 @@ No darkening lost one (0 of 42); disconnects run on the audio clock's timer.
 connect, shared by 50.6's cells and by an unrelated effect connect, so not a T3/T4 wiring bug. Headless only so far:
 whether it happens on a real output device or on the Pixel is not known. **Crawford's call (2026-10-22): record it
 and carry on.** Backlog 29 holds the investigation; T20's listen adds a tick check on real speakers.
+
+### 2. A dark room costs a dark effect — `npm run perf:audio`, 2026-10-22
+
+**Builds,** served side by side: the branch at `e0216160` on 4173 and its base `2dc5b4a2` (main after the retune) on
+4174, both `vite build` into the session scratchpad. **World:** one fresh world (−48, −5, `pelagos-default`) turned into
+two share links on the branch. **Dark:** every robot's Grit, Shimmer and Double at 0, the three colour Mixes at 0, and the
+Chorus and Shifter wets at 0. That makes the five effects dark on both builds: on the base they are chain pedals, on the
+branch rooms with no feeder. **Seeded:** the world as seeded: four Grit robots (but no colour effect lit, so Grit is
+silent), two Shimmer, one Double, Returns at 1. Both links load on both builds. The HUD read `fx in 2/10` dark on both,
+and `fx in 4/10` seeded on both: on the branch the extra two are the lit Shimmer and Double branches, on the base the
+Chorus and Shifter as fully wet chain pedals. That is why the seeded world is recorded on the branch only. 240 s, 15 s
+buckets, warm-up 8 s, desktop, one run at a time, no stray Chrome.
+
+| Run | Build | World | Mean | Peak window | Max |
+|---|---|---|---|---|---|
+| 1a | base | dark | 0.467 | 0.544 | 0.991 |
+| 1b | branch | dark | 0.473 | 0.546 | 0.991 |
+| 2a | branch | dark | 0.458 | 0.548 | 0.989 |
+| 2b | base | dark | 0.466 | 0.578 | 0.989 |
+| 3 | branch | seeded | 0.494 | 0.607 | 0.991 |
+
+**Gate (spec §5 check 2: branch ≤ base, dark):** passed. The branch averages 0.466 mean / 0.547 peak window against the
+base's 0.467 / 0.561, with the order reversed between rounds. **Seeded, recorded:** +0.028 mean and +0.060 peak window
+over the branch's dark runs: the cost of two lit rooms, priced by 50.6.
+
+An unplanned first pair, run by mistake with an empty query (so the default world as seeded, not either link): base
+0.614 / 0.710, branch 0.697 / 0.784. Not like for like (the base's Chorus and Shifter run as chain pedals at their seeded
+Mix), not a gate, and kept only so the slip is on record.
+
+### 3. Main thread — power-on, a Decay flip, a send crossing 0, 2026-10-22
+
+Dev servers of both builds (the base on 5198, the branch on 5199), the seeded link, headless Chrome over CDP; three page
+loads per build (the branch nine, over three passes of the probe). "Powered" is when the FX chain exists; "unresponsive"
+is the longest gap between answers to a 25 ms `Runtime.evaluate` poll after the click.
+
+| | base | branch | gate |
+|---|---|---|---|
+| power-on (chain built) | 0.38–0.45 s | 0.38–0.49 s | about 2 s, no slower |
+| longest unresponsive | 0.26–0.30 s | 0.27–0.44 s | — |
+| Decay flip (`setCompressorBeforeDelay`) | 0.8–1.5 ms | 0.7–1.7 ms | ≤ 4 ms |
+| a send crossing 0 (`updateRobotSends`, the branch connecting: Shimmer, Double, and Grit with Distortion lit at 0.3) | — | 0–0.1 ms | ≤ 2 ms |
+
+Every branch crossing was checked to have connected its branch (`connected` true after the call). All three gates pass.
+The branch's longest unresponsive gap reached 0.42 and 0.44 s in two of nine runs, against the base's 0.30 at most in
+three; recorded, not gated.
