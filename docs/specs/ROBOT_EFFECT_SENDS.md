@@ -328,7 +328,8 @@ export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): R
 }
 ```
 
-`generateRobotSendsFallback` mirrors it with `alea` keys `sendColourLit`, `sendColour`, … The robot literal spreads all
+`generateRobotSendsFallback` mirrors it with `alea` keys `send<Name>Lit` and `send<Name>` for Grit, Shimmer and Double
+(the draft named them for the colour room; corrected at T18 to the shipped keys). The robot literal spreads all
 five; `generateRobotAudioBaseline` returns `{ ...priorBaselines[srcIdx], name, ...sends }` on the copy path, as today.
 `localeStore.updateRobot` clamps the three new fields where it clamps the first two.
 

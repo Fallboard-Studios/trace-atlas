@@ -690,13 +690,22 @@ reserve-site scan reads five fields; the living-doc cases (the grid's room rows,
 `globalColourDocs.test.ts:144` re-pinned from "chain order after the HPF rows" to the room rows (also red until T22).
 
 **Acceptance criteria:**
-- [ ] Every self-test (an empty scan, a renamed symbol, a comment-only read) fails as it should; the living-doc cases
+- [x] Every self-test (an empty scan, a renamed symbol, a comment-only read) fails as it should; the living-doc cases
   are the only red ones and are listed in the test header.
 
 **Verification:** `npx vitest run src/docs`.
 
 **Dependencies:** Checkpoint C. **Files:** `src/docs/robotEffectSendsDocs.test.ts`, `src/docs/globalColourDocs.test.ts`.
 **Scope:** S.
+
+> **T18 as shipped (2026-10-21).** Groups (1) and (2) green, 94 cases, including two the plan did not list: the three
+> names the amendment removed (`setGlobalColourRoom`, `ColourRoomSettings`, `colourRoom`) must not be identifiers in
+> `src/`, and the reserve-site scan's `PRIME_KEYS` must still be the five. Nineteen living-doc cases are red until T22: 18
+> here (the grid's chain-order line, five room rows and footnote ², AUDIO_SYSTEM.md's three rooms and five names,
+> SESSION_STORAGE.md's three sends) plus the re-pinned `globalColourDocs.test.ts` grid case. The spec scan found one
+> real slip, fixed in the spec: the fallback's alea keys were named for the colour room, but the code builds
+> `send<Name>Lit` / `send<Name>`. Mutation check: a gem file reading `gritSend`, a spec symbol renamed, and
+> `setGlobalColourRoom` back in source each added exactly one failure.
 
 ### Task 19: Desktop probes
 
