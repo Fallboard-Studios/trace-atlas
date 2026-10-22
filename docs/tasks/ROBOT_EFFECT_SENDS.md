@@ -41,7 +41,9 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > **Amended 2026-10-21, after T17: T17 is SUPERSEDED.** Crawford chose to drop the Colour room's master Return
 > altogether (spec, the amendment under the header, and §7 Q6): each colour Mix is its effect's return level, as the
 > Reverb and Delay Amounts are. **T17.1** reverts the Room sub-tab and rewords the three colour Mixes; **T17.2** removes
-> the Colour room settings block that T2 and T4 built. Phase 5 starts after both.
+> the Colour room settings block that T2 and T4 built. Phase 5 starts after both. **Both BUILT 2026-10-21**
+> (`3f1a3981`, `da67cde0`; full suite 13 936 green, types, lint and build clean). Notes are under "T17.1 and T17.2 as
+> shipped". **Next:** Checkpoint C's open dev-server boxes, then T18.
 
 ## Overview
 
@@ -616,12 +618,12 @@ much goes in, 0 silencing the effect. The T10 leftover ("blended in with the cle
 revert to Distortion-first; its tests that still hold for every block (one name per Return, help on every Mix) are kept.
 
 **Acceptance criteria:**
-- [ ] Colour has three sub-tabs, opening on Distortion on both shells; the breadcrumb reads "Colour / Distortion"; a
+- [x] Colour has three sub-tabs, opening on Distortion on both shells; the breadcrumb reads "Colour / Distortion"; a
   stored `'colourRoom'` string (from an open tab before the change) falls back to Distortion.
-- [ ] `AUDIO_RIG_CONFIG` has seventeen blocks and none is `colourRoom`; no content key starts `fleet.colourRoom`.
-- [ ] Each colour Mix's help says "as heard from every probe", names Grit and says 0 silences it; none says "blended";
+- [x] `AUDIO_RIG_CONFIG` has seventeen blocks and none is `colourRoom`; no content key starts `fleet.colourRoom`.
+- [x] Each colour Mix's help says "as heard from every probe", names Grit and says 0 silences it; none says "blended";
   the three keep their own lore and help. The Chorus and Shifter Returns are unchanged.
-- [ ] **Mutation check:** the old "blended" wording back in one Mix; Room re-added to the tab row.
+- [x] **Mutation check:** the old "blended" wording back in one Mix; Room re-added to the tab row.
 
 **Verification:** the T17 suites (`audioRigConfig`, `nav`, `FleetParamsScreen`, `AudioRigEffectPanel`, `content`).
 
@@ -638,15 +640,15 @@ Return of 1 that `buildRoom` gives it and nothing writes it. Tests that set or a
 skipped.
 
 **Acceptance criteria:**
-- [ ] `GlobalAudioSettings` has no `colourRoom` key (a `@ts-expect-error` case under `npm run build:types`);
+- [x] `GlobalAudioSettings` has no `colourRoom` key (a `@ts-expect-error` case under `npm run build:types`);
   `DEFAULT_GLOBAL_AUDIO_SETTINGS`, every transmission preset and every seeded world (several styles) carry none;
   `RETURN_FIELD_KEYS` is the four.
-- [ ] A session payload and a share link that still carry `colourRoom: { wet: 0.4 }` load without error, the store has no
+- [x] A session payload and a share link that still carry `colourRoom: { wet: 0.4 }` load without error, the store has no
   `colourRoom` after the load, and a re-save carries none.
-- [ ] Engine: with a fed Grit robot, a colour branch whose Mix is above 0 is connected and its room's `return` gain is 1;
+- [x] Engine: with a fed Grit robot, a colour branch whose Mix is above 0 is connected and its room's `return` gain is 1;
   a Mix of 0 keeps that branch dark; nothing calls `setRoomReturn('grit', …)`; the Shimmer and Double rooms behave as
   before (their Return tests unchanged).
-- [ ] **Mutation check:** the default block put back (the `@ts-expect-error` and the no-key cases go red); a stray
+- [x] **Mutation check:** the default block put back (the `@ts-expect-error` and the no-key cases go red); a stray
   `setRoomReturn('grit', 0)` at build (the fed-branch case goes red).
 
 **Verification:** `npm run build:types`; `npx vitest run src/types src/data src/utils src/stores src/engine`; full suite.
@@ -656,6 +658,25 @@ skipped.
 (+ test), `src/utils/globalAudioSeed.ts` (+ test), `src/utils/sessionDiff.ts` (+ test), `src/utils/sessionShareUtils.test.ts`,
 `src/stores/audioStore.ts` (+ tests), `src/engine/audioEngine/globalFx.ts` (+ tests), `src/engine/AudioEngine.ts` (+ test).
 **Scope:** M.
+
+#### T17.1 and T17.2 as shipped (2026-10-21)
+
+RED first, one commit each (`3f1a3981`, `da67cde0`), after the spec and plan amendment (`68a3ce91`). Mutation-checked
+(T17.1: two mutants; T17.2: four, one under `npm run build:types`; all caught, listed in the commit messages). Types,
+lint (0 errors) and `npm run build` are clean; the full suite is 13 936 green.
+
+- **T17.1.** T17's source and test edits were reversed whole, then the new cases added. The three colour Mix help
+  strings now follow the Reverb Amount shape; the insert pedals (AutoWah, Phaser, Tremolo, Vibrato) keep "blended",
+  since they are still inserts.
+- **T17.2.** No old-payload helper was needed: `withGlobalAudioDefaults` builds its result from the default keys only,
+  so a stray Colour room block is dropped once the default goes; the tests pin that for a session restore, a re-save and
+  a share link. The Reverb half of the old Colour-plus-Reverb quantise case was kept (it was the only Reverb quantise
+  case). The store's two `AudioEngine` mocks no longer list the setter, so a push that came back would throw.
+  `bypassCell.test.ts`'s `setRoomReturn('grit', …)` cases stay: they exercise the generic room machinery, which still
+  serves Shimmer and Double. One test of mine was too strict (key order of a seeded world vs the defaults); it now
+  compares key sets.
+- **Not done:** the by-ear check (each colour Mix to 0 and back under a Grit robot, no click), now in the spec's §5
+  listen list. **Next: Checkpoint C's open dev-server boxes, then Phase 5 (T18).**
 
 ## Phase 5: Guard, probes, listen, phone gate
 
