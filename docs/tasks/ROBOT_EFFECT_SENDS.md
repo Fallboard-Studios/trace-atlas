@@ -528,9 +528,10 @@ for the sends the diff carried). No payload upgrade (spec assumption 13).
 ### Checkpoint C: The whole feature, automated
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-10-21, at `c506fbb2`: 13 925
   tests plus the documented `sceneToOrbiterLocal` timeout, which passes alone; lint 0 errors).
-- [ ] Dev server: save a session with one moved Grit robot, reload, it is where you left it and every untouched robot
+- [x] Dev server: save a session with one moved Grit robot, reload, it is where you left it and every untouched robot
   is back at its seed; share link the same; a company move puts every member at one value; a swell on a send crawls out
-  and back on the card.
+  and back on the card. (Crawford, 2026-10-21: the session save and the share link confirmed by ear after the
+  `bd8c2ae6` fix; the whole box "good I think". The colour heard after a hard reload, following T17.2.)
 
 #### Phase 3 as shipped (2026-10-21)
 
