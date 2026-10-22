@@ -120,6 +120,10 @@ interface CompactRobotOverrideDiff {
   /** Reverb and Delay sends, 0…1 (RobotAudioOverrideDiff.reverbSend / delaySend); a 0 is a real value, the send switched off. */
   rs?: number;
   ds?: number;
+  /** Grit, Shimmer and Double sends, 0…1 (RobotAudioOverrideDiff.gritSend / shimmerSend / doubleSend), as rs / ds. */
+  gr?: number;
+  sm?: number;
+  db?: number;
   /** Dynamics, Rests and Accents, 0…100 (RobotAudioOverrideDiff.dynamics / rests / accents); a 0 is a real value. */
   dy?: number;
   rt?: number;
@@ -263,6 +267,9 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.pan !== undefined) compact.p = diff.pan;
   if (diff.reverbSend !== undefined) compact.rs = diff.reverbSend;
   if (diff.delaySend !== undefined) compact.ds = diff.delaySend;
+  if (diff.gritSend !== undefined) compact.gr = diff.gritSend;
+  if (diff.shimmerSend !== undefined) compact.sm = diff.shimmerSend;
+  if (diff.doubleSend !== undefined) compact.db = diff.doubleSend;
   if (diff.dynamics !== undefined) compact.dy = diff.dynamics;
   if (diff.rests !== undefined) compact.rt = diff.rests;
   if (diff.accents !== undefined) compact.ax = diff.accents;
@@ -294,6 +301,10 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   // its seeded send -- never misread as a send of 0 or 1.
   if (isSendFraction(compact.rs)) diff.reverbSend = compact.rs;
   if (isSendFraction(compact.ds)) diff.delaySend = compact.ds;
+  // Robot Effect Sends: gr / sm / db on the same rule.
+  if (isSendFraction(compact.gr)) diff.gritSend = compact.gr;
+  if (isSendFraction(compact.sm)) diff.shimmerSend = compact.sm;
+  if (isSendFraction(compact.db)) diff.doubleSend = compact.db;
   // Robot Performance: a non-numeric or non-finite `dy` / `rt` / `ax` is dropped one by one (JSON writes a NaN as null),
   // so the robot keeps its seeded value; the store clamps the range on restore.
   if (isFiniteNumber(compact.dy)) diff.dynamics = compact.dy;

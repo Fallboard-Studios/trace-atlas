@@ -134,7 +134,8 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ['allowedRateNoteValues', 'src/utils/tempoSync.ts', /export function allowedRateNoteValues\(bpm: number, range: RateRange\): NoteValue\[\]/],
     ['syncedRateToSync', 'src/utils/tempoSync.ts', /export function syncedRateToSync<T extends SyncedRate>\(field: T, bpm: number, range: RateRange\): T/],
     ['syncedRateToFree', 'src/utils/tempoSync.ts', /export function syncedRateToFree<T extends SyncedRate>\(field: T, bpm: number, range: RateRange, step: number\): T/],
-    ['MOTION_PEDALS, in chain order', 'src/utils/globalAudioSeed.ts', /export const MOTION_PEDALS = \['chorus', 'tremolo', 'vibrato', 'frequencyShifter'\] as const;/],
+    // Robot Effect Sends T8: the Chorus and the shifter left the cap for their rooms.
+    ['MOTION_PEDALS, in chain order', 'src/utils/globalAudioSeed.ts', /export const MOTION_PEDALS = \['tremolo', 'vibrato'\] as const;/],
     ['MAX_LIT_PEDALS', 'src/utils/globalAudioSeed.ts', /export const MAX_LIT_PEDALS = 2;/],
     ['PEDAL_SYNC_ODDS', 'src/utils/globalAudioSeed.ts', /export const PEDAL_SYNC_ODDS: Record<SyncedRateKey, number> = /],
     ['PEDAL_LIT_EDGE covers the motion pedals', 'src/utils/globalAudioSeed.ts', /export const PEDAL_LIT_EDGE: Record<'autoWah' \| 'phaser' \| MotionPedal, number>/],
@@ -149,8 +150,9 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ['setGlobalFrequencyShifter', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalFrequencyShifter\(params: Partial<FrequencyShifterSettings>\): void/],
     ['setGlobalStereoWidener', 'src/engine/audioEngine/globalFx.ts', /export function setGlobalStereoWidener\(params: Partial<StereoWidenerSettings>\): void/],
     // Dark-Effect Bypass T2 (docs/specs/DARK_EFFECT_BYPASS.md section 1.3, assumption 17): each pedal is a bypass cell
-    // in the chain, and the Controlled-Decay join is the Width cell's `in`.
-    ['the dry chain: the motion pedals after the Phaser, Width between the Compressor and the Limiter', 'src/engine/audioEngine/globalFx.ts', /const chainNodes = \[[^\]]*cellSpan\('phaser'\),\s*cellSpan\('chorus'\),\s*cellSpan\('tremolo'\),\s*cellSpan\('vibrato'\),\s*cellSpan\('frequencyShifter'\),\s*nodeSpan\(_globalCompressor\),\s*cellSpan\('stereoWidener'\),\s*nodeSpan\(_globalLimiter\),/],
+    // in the chain, and the Controlled-Decay join is the Width cell's `in`. Robot Effect Sends T4
+    // (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): the Chorus and the FrequencyShifter left the chain for their rooms.
+    ['the dry chain: the two motion pedals after the Phaser, Width between the Compressor and the Limiter', 'src/engine/audioEngine/globalFx.ts', /const chainNodes = \[[^\]]*cellSpan\('phaser'\),\s*cellSpan\('tremolo'\),\s*cellSpan\('vibrato'\),\s*nodeSpan\(_globalCompressor\),\s*cellSpan\('stereoWidener'\),\s*nodeSpan\(_globalLimiter\),/],
     ['the Controlled-Decay join is the Width cell, the Limiter its fallback', 'src/engine/audioEngine/globalFx.ts', /const join = \(controlledDecay \? getCell\('stereoWidener'\)\?\.in : _globalCompressor\) \?\? _globalLimiter \?\? _globalCompressor;/],
     ...PEDALS.map((key): [string, string, RegExp] => [
       `AudioEngine exposes ${SETTER[key][1]}`,
@@ -171,9 +173,12 @@ describe('the named Global Pedals symbols are declared where the spec says they 
     ['the restore path sanitises every synced block', 'src/utils/sessionDiff.ts', /for \(const key of SYNCED_RATE_KEYS\) \{[^}]*sanitizeSyncedRate\(globalAudio\[key\]\)[\s\S]*\.\.\.sanitizeSyncedRateBlocks\(filled\)/],
     ['the restore path defaults globalAudio', 'src/utils/sessionDiff.ts', /withGlobalAudioDefaults\(payload\.globalAudio\)/],
     ['the share decoder defaults globalAudio', 'src/utils/sessionShareUtils.ts', /withGlobalAudioDefaults\(compact\.g\)/],
+    // Robot Effect Sends T8: the Chorus and shifter Mixes are Returns, so they have a seed range and no loading row.
     ...PEDAL_FIELDS.flatMap((field): [string, string, RegExp][] => [
       [`seed range ${field}`, 'src/data/globalAudioSeedRanges.ts', new RegExp(`^\\s*'${field.replace('.', '\\.')}': \\{`, 'm')],
-      [`loading range ${field}`, 'src/data/globalAudioLoadingRanges.ts', new RegExp(`^\\s*'${field.replace('.', '\\.')}': \\{`, 'm')],
+      ...(['chorus.wet', 'frequencyShifter.wet'].includes(field)
+        ? []
+        : [[`loading range ${field}`, 'src/data/globalAudioLoadingRanges.ts', new RegExp(`^\\s*'${field.replace('.', '\\.')}': \\{`, 'm')] as [string, string, RegExp]]),
     ]),
     ['the five keys in AudioRigEffectKey', 'src/data/audioRigConfig.ts', /export type AudioRigEffectKey =[^;]*'chorus'[^;]*'tremolo'[^;]*'vibrato'[^;]*'frequencyShifter'[^;]*'stereoWidener'/],
     ['the shift is a centred-zero slider', 'src/data/audioRigConfig.ts', /id: 'frequencyShifter\.shift', type: 'sliderCenteredZero'/],
@@ -231,9 +236,11 @@ describe('both range tables and the grid cover all sixteen pedal fields', () => 
     expect(PEDALS.map((key) => PEDAL_FIELDS.filter((f) => f.startsWith(`${key}.`)).length)).toEqual([6, 4, 3, 2, 1]);
   });
 
-  it.each(PEDAL_FIELDS)('%s has a row in the seed table and in the loading table', (field) => {
+  // Robot Effect Sends T8: the Chorus and shifter Mixes are Returns (RETURN_FIELD_KEYS), never seeded, so no loading row.
+  const RETURNS: readonly string[] = ['chorus.wet', 'frequencyShifter.wet'];
+  it.each(PEDAL_FIELDS)('%s has a row in the seed table, and in the loading table unless it is a Return', (field) => {
     expect(hasRow(seedKeys, field), `seed ${field}`).toBe(true);
-    expect(hasRow(loadingKeys, field), `loading ${field}`).toBe(true);
+    expect(hasRow(loadingKeys, field), `loading ${field}`).toBe(!RETURNS.includes(field));
   });
 
   it('finds a missing row (the check itself)', () => {
@@ -287,9 +294,13 @@ describe('both range tables and the grid cover all sixteen pedal fields', () => 
       expect(rowLine(moved, 'chorus.rate')).toBeLessThan(Math.max(...moved.flatMap((l, i) => (l.startsWith('| Phaser |') ? [i] : []))));
     });
 
+    // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md, plan T22): the Chorus and the shifter left the chain for the
+    // Double and Shimmer rooms, so the line names them as rooms beside it, not as stages.
     it('names the five pedals in the chain-order line', () => {
       const chainLine = lines.find((l) => l.startsWith('**Global chain order'))!;
-      expect(chainLine).toMatch(/Phaser → Chorus → Tremolo → Vibrato → FrequencyShifter → Compressor → StereoWidener → Limiter/);
+      expect(chainLine).toMatch(/Phaser → Tremolo → Vibrato → Compressor → StereoWidener → Limiter/);
+      expect(chainLine).toMatch(/\*\*Double room\*\* \(the Chorus/);
+      expect(chainLine).toMatch(/\*\*Shimmer room\*\* \(the FrequencyShifter/);
     });
   });
 });

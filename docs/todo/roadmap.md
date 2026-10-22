@@ -1431,7 +1431,7 @@ Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "what other audio at
 changing up the oscillators, could we use without adding more libs … global effects, plugins, wah
 pedals, portamento", then "if we can organize it and make it happen without distortion, then i want to
 at least try it … let's get your suggested ones into the roadmap, and add the rest as backlogs for us
-to try and see what works." Five sub-phases below, in build order (50.1 → 50.5; 50.5 is the former backlog item 21,
+to try and see what works." Seven sub-phases below, in build order (50.1 → 50.7; 50.6 and 50.7 were added later; 50.5 is the former backlog item 21,
 built 2026-10-16); the rest of the menu is backlog items 22–24 ([backlog.md](backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)).
 Not yet interviewed or specced — each sub-phase gets its own `/interview-me` → spec → plan, each small
 enough to land in a sitting. Build after the layout rework's Phase 2 (section tabs), so every new
@@ -1499,7 +1499,7 @@ app does not use yet.
   Crawford's own exclusion; a separate conversation.
 
 **Classic Band Retune (2026-10-21, on eature/classic-band-retune).** One tuning pass over the seed bands a fresh world rolls
-within, after 50.1–50.6 and before Robot Effect Sends (proposed 50.7), whose room bands are written against it. Plan, decisions and
+within, after 50.1–50.6 and before Robot Effect Sends ([50.7](#507-robot-effect-sends-grit-shimmer-and-double)), whose room bands are written against it. Plan, decisions and
 measurements: [CLASSIC_BAND_RETUNE.md](tasks/CLASSIC_BAND_RETUNE.md). A Mix is stored as a slider position and squared at the node,
 so the bottom third of every Mix slider is near silence (a wet layer of −48 dB at 0.05, −20 dB at 0.25); the floors rose, the
 ceilings from the listens stayed, and the three colour Mixes, after a first raise to 0.2–0.35, ended at one shared 0.1–0.2 under the original 0.25 ceiling (Crawford's listen: "much more subtle"). Also: Vibrato at near-full wet and a small depth,
@@ -1849,7 +1849,7 @@ feedback it is a flanger), `Tremolo`, `Vibrato` and `FrequencyShifter` ("strange
 dry chain after the Phaser. `StereoWidener` is a Width control whose 0 is a mono fold for a phone speaker. The three with an
 internal oscillator are wall-clock (backlog 17's accepted class) and take Free | Sync on their rate
 ([33](#33-free--sync-toggle)). The backlog's two room *type* radios (PingPongDelay on the Delay row, Freeverb / JCReverb on
-the Reverb row) stay in backlog 22. This is a sixth sub-phase; the series header above still says five.
+the Reverb row) stay in backlog 22. This is a sixth sub-phase; the series header above now says seven, with Robot Effect Sends (50.7).
 
 **Interviewed 2026-10-17**, intent at [global-pedals.md](../intent/global-pedals.md): six questions, one guess overturned
 ("all eight in one pass" became these five now and the two room radios later). Every parameter on screen; the four motion
@@ -1934,6 +1934,57 @@ call (below). The paragraph above is the starting point, not what shipped: read 
     pricing is in scratchy-audio-phones.md; a Phaser at 4 stages showed no signal on the phone.
   - Whether a fresh world should ever seed Width at exactly 0.5 (harmless today: unity either way).
   - Every phone figure above is a single run.
+
+## 50.7 Robot Effect Sends: Grit, Shimmer and Double
+
+Extends Robot Sends ([50.2](#502-robot-sends-per-robot-reverb-and-delay-depth)) to three of the global effects 50.3 and 50.6
+put on the chain. Each robot gets three more sends: Grit into a Colour room (Distortion, Chebyshev, BitCrusher), Shimmer into
+the Frequency Shifter and Double into the Chorus, so a few robots are coloured, ringing or doubled instead of the whole
+fleet. It grew from the Tone.js effects inventory ([TONE_EFFECTS_INVENTORY.md](../reference/TONE_EFFECTS_INVENTORY.md),
+2026-10-19): which global effects should the robots send into, and which should stay inserts. The names are working
+titles until the copy pass.
+
+**Interviewed 2026-10-21**, intent at [robot-effect-sends.md](../intent/robot-effect-sends.md): six questions, five guesses
+confirmed, per-robot delay time deferred to a phase of its own. **The Classic Band Retune came first** (above), as its own
+task and listen before T1, since the room bands are written against its merged numbers (PR #567, `2dc5b4a2`).
+
+**Status: built 2026-10-21 to 2026-10-22 on `feature/robot-effect-sends`, PR pending** (Crawford opens it; spec
+[ROBOT_EFFECT_SENDS.md](../specs/ROBOT_EFFECT_SENDS.md), plan [ROBOT_EFFECT_SENDS.md](../tasks/ROBOT_EFFECT_SENDS.md); guard
+test `src/docs/robotEffectSendsDocs.test.ts`). Tasks T0–T22 done. Crawford passed Checkpoints A, B and C, the T20 listen ("i
+think everything sounds fine"; no tuning) and the T21 phone gate.
+
+### As built (deltas from the paragraphs above)
+
+- **Three rooms beside the chain, no new effect nodes.** Each is the 50.6 bypass cell without its dry path: a shared `in`
+  that every robot's send feeds, one wet-only branch per effect, a zero-delay cut and a return gain, joining where the Reverb
+  and Delay returns join. The dry chain shrinks to seven stages after the filters (AutoWah, Phaser, Tremolo, Vibrato,
+  Compressor, Width, Limiter); the Vibrato stays an insert. A branch is in the signal path only while some reserved robot
+  sends into its room, the room's Return is above 0 and the branch's own level is above 0, through the 50.6 crossing, so a
+  dark room costs what a dark effect costs. The HUD's ` · fx in n/10` counts chain cells and room branches alike.
+- **No Colour master Return** (Crawford, 2026-10-21, after seeing it built as a Room sub-tab at T17). Each colour Mix is
+  already a wet-only level on its own branch, so it acts like the Reverb or Delay Amount; the Room tab, its settings block
+  and its setter were removed (T17.1, T17.2). The Chorus and Shifter Mixes became their rooms' Returns: they read
+  "Return", default to 1 and are not seeded.
+- **Per robot:** three more 0–100 % sliders after Delay in the Levels block on the robot and company screens, three more
+  seeded fields that save, share (`gr` / `sm` / `db`) and bulk-edit like Reverb and Delay, and three more swell attributes
+  (22 in the pool). Nothing on the body reads them.
+- **Seeding.** The five send bands moved into one table, `ROBOT_SEND_LOADING_RANGES`, that a theme can override; Reverb
+  and Delay seed byte for byte as before. A fresh robot carries at most one of Grit (0.4–0.8, lit 0.21), Shimmer (0.2–0.5,
+  0.16) and Double (0.3–0.6, 0.19): about 2.5, 1.6 and 1.6 robots per fleet of twelve. The Chorus and the shifter lost
+  their lit rolls, so the two-pedal cap now counts four (Tremolo 22.04 %, Vibrato 19.55 %), and the Chorus rolls Sync in
+  every world. A Grit send is heard only in a world whose Colour character lit an effect.
+- **Found and fixed on the way.** A voice replaced by a re-reservation must leave the feeder sets (T5). A share link's
+  sends were inaudible: the rooms were built unfed after robots had already joined the sets, so `loadInstruments` now
+  tells each new room where its set stands (Checkpoint C, `bd8c2ae6`). The build makes ten zero-delay cuts, not the
+  spec's fifteen.
+- **Measured** ([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-effect-sends-roadmap-507-desktop--t19-2026-10-21)
+  and the section after it). Every room crossing ×0.84–×1.29; an all-dark `perf:audio` 0.466 / 0.547 against the base's
+  0.467 / 0.561; power-on, a Decay flip and a send crossing no slower. A connect sometimes loses one render quantum in
+  headless Chrome, 50.6's cells included (backlog 29); Crawford heard no tick. Pixel 8, off for 20 minutes before every
+  run: at 3:00 the branch read 76 / 62 / 59 against the base's 48 / 68 / 95. One branch run collapsed after 3:30 and its
+  repeat did not, and a world with all seven effects lit held (backlog 27).
+- **Still open:** the lore words; the room-depth second look at the colour Mix bands (spec §7 Q1, not taken at the
+  listen); backlogs 27 and 29; per-robot delay time (its own phase); themes, which now have the send table to override.
 
 ## 51. Guide: A Read-Only Branch That Teaches the Whole App
 
@@ -2122,3 +2173,46 @@ readout. As built, in [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#scene-stack--
   strips against the one sheet they replaced) is untested by the gate.
 - **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
   is unverified.
+
+## 54. Output Headroom: No Clipping Out of the Box
+
+Raised by Crawford at Robot Effect Sends Checkpoint A, 2026-10-21: a world "is distorting a lot - not dropping out, the gain
+is too high. i think we need to compress things more out of the box." Promoted straight to the roadmap rather than the
+backlog ("quality is paramount"). **Status: not started.** It starts with an interview (intent), then spec and plan.
+
+### About
+
+Measured on `feature/robot-effect-sends` (Phase 1, `0de3fc06`), world `56c2t2t8` at (-116, -2) loaded fresh (no session
+edits), headless Chrome on the desktop, reading the `?debug` HUD's output line (`out` = master peak and RMS, `pre` = the
+peak after the EQ, before the Compressor and before any room):
+
+- **The master output clips.** `out` peaks reached +2.2 to +3.4 dB and sat above 0 dBFS in 11-22 % of readings (150 per
+  side, eight alternating 5 s windows). Above 0 dBFS the browser hard-clips, which is the crunch.
+- **The fleet's summed dry signal is already hot before any effect.** `pre` peaked at +12 to +13 dB and averaged +1.6 to
+  +2.3 dB, with the EQ boosting all three bands (+3.5 / +3.5 / +1.9 dB in this world) and twelve robots at Volume 0.70-0.81.
+- **Robot Effect Sends is not the cause.** With the three new room Returns at 0 the output clipped as often (33 of 151
+  readings against 17 of 152 with them on; the difference is within the music's own drift). The `pre` tap sits upstream of
+  everything 50.7 changed. Not yet measured on `main`, so whether the level moved with the Classic Band Retune (EQ and
+  Compressor bands) is open.
+
+Why "compress more" alone may not fix it: the Web Audio compressor applies automatic makeup gain (the Classic Band Retune
+found the old deep, high-ratio band swung fleet loudness by about 11 dB), so a deeper threshold can raise the average level
+instead of lowering it. Tone's `Limiter` is the same compressor at 20:1 with a 3 ms attack and 10 ms release, makeup gain
+included, so it is not a hard ceiling: peaks pass it, and at a deep threshold (Crawford's session had -17 dB, against a
+seeded -3 to -1) it works on everything, and a 10 ms release on low notes adds grit of its own.
+
+Options on the table for the interview (the first is the recommendation from the measurement):
+
+1. **Headroom plus a real ceiling.** A fixed trim into the chain so the summed fleet sits below 0 dBFS (about 10-12 dB, from
+   the `pre` peaks), and a true safety ceiling at the end: compensate the Limiter's makeup gain, or a gentle final clipper.
+2. **More compression out of the box** (Crawford's first suggestion): deeper seeded Compressor threshold and ratio. Cheap,
+   but makeup gain may keep the output clipping.
+3. **Lower seeded robot Volumes.** Fewer moving parts; leaves the leaky ceiling as it is.
+
+### Open
+
+- Whether this preempts Robot Effect Sends Phase 2 (T9 onward) or follows the 50.7 merge.
+- Whether the session's Limiter at -17 dB was set by hand.
+- A `main` measurement in the same sitting, to say whether the level is new.
+- The probe used (a CDP script driving the HUD, alternating settings live through the app's store) lived in a session
+  scratchpad; worth adding under `scripts/perf/` when this item starts, beside `audio-load.mjs`.

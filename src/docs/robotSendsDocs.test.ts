@@ -87,11 +87,13 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['SEND_MAX', 'src/constants/index.ts', /export const SEND_MAX = 1;/],
     ['SEND_DISPLAY_SCALE', 'src/constants/index.ts', /export const SEND_DISPLAY_SCALE = 100;/],
     ['SEND_STEP_PERCENT', 'src/constants/index.ts', /export const SEND_STEP_PERCENT = 1;/],
-    ['SEND_DELAY_QUIET_THRESHOLD', 'src/constants/index.ts', /export const SEND_DELAY_QUIET_THRESHOLD = 0\.25;/],
+    // Robot Effect Sends T1: SEND_DELAY_QUIET_THRESHOLD is deleted; its 0.25 is the Delay row's 1 - lit.
+    ['the Delay send row (the old quiet threshold as 1 - lit)', 'src/data/robotSendLoadingRanges.ts', /delaySend: \{ min: 0, max: 0\.3, lit: 0\.75 \}/],
     ['SEND_RAMP_SECONDS', 'src/engine/AudioEngine.ts', /const SEND_RAMP_SECONDS = /],
     ['the compositeVoices entry carries the reverb send node', 'src/engine/audioEngine/voiceEntry.ts', /\breverbSend: Tone\.Gain;/],
     ['the compositeVoices entry carries the delay send node', 'src/engine/audioEngine/voiceEntry.ts', /\bdelaySend: Tone\.Gain;/],
-    ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(robotId: string, sends: \{ reverb\?: number; delay\?: number \}\): void/],
+    // Robot Effect Sends T5 widened it with grit / shimmer / double (docs/specs/ROBOT_EFFECT_SENDS.md §1.4).
+    ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: \{ reverb\?: number; delay\?: number; grit\?: number; shimmer\?: number; double\?: number \},?\s*\): void/],
     ['the reverb return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalReverbReturn: Tone\.Gain \| null/],
     ['the delay return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalDelayReturn: Tone\.Gain \| null/],
     ['getGlobalReverbRoom', 'src/engine/audioEngine/globalFx.ts', /export function getGlobalReverbRoom\(\): Tone\.Reverb \| null/],
@@ -138,6 +140,8 @@ const isInSource = (symbol: string) => sourceIdentifiers.has(symbol);
 const NOT_REPO_SYMBOLS = new Set<string>([
   // Names the spec records as deleted (§1.2, §1.9) or as not built in this phase (§1.9's follow-up)
   'DELAY_QUIET_THRESHOLD', 'isGlobalTargetAtOffEquivalent', 'SEND_SWELL_UPWARD_CEILING',
+  // Deleted by Robot Effect Sends T1 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6): the Delay row's 1 - lit
+  'SEND_DELAY_QUIET_THRESHOLD',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);

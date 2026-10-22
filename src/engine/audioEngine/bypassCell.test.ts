@@ -1,8 +1,37 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type * as Tone from 'tone';
 
-// The cell model is pure arithmetic here; its Tone and helper imports are only reached by the cell protocol, which
-// globalFx.test.ts drives through the chain.
-vi.mock('tone', () => ({}));
+// The cell laws are pure arithmetic here, and the chain cells' protocol is driven through the chain by globalFx.test.ts.
+// The rooms (Robot Effect Sends T3) are driven here directly, so Tone is only the context's audio-clock timer: a test
+// fires a pending callback by hand with context.fireAll().
+const context = vi.hoisted(() => {
+  const c = {
+    lookAhead: 0.1,
+    timeouts: [] as Array<{ id: number; fn: () => void; seconds: number }>,
+    cleared: [] as number[],
+    nextId: 0,
+    now: () => 0,
+    setTimeout(fn: () => void, seconds: number): number {
+      const id = ++c.nextId;
+      c.timeouts.push({ id, fn, seconds });
+      return id;
+    },
+    clearTimeout(id: number): void {
+      c.cleared.push(id);
+      c.timeouts = c.timeouts.filter((t) => t.id !== id);
+    },
+    fireAll(): void {
+      const due = c.timeouts;
+      c.timeouts = [];
+      for (const t of due) t.fn();
+    },
+  };
+  return c;
+});
+vi.mock('tone', () => ({ getContext: () => context }));
+
+/** The colour taper, as the spec states it (colourWetGain): the stored Mix squared. */
+const colourWetGainOf = (mix: number) => mix * mix;
 vi.mock('@/utils/helpers', () => ({ devWarn: vi.fn() }));
 
 describe('bypassCell', () => {
@@ -149,6 +178,350 @@ describe('bypassCell', () => {
     it('exports the disconnect margin, 10 ms past lookAhead plus the ramp', async () => {
       const { BYPASS_DISCONNECT_MARGIN_SECONDS } = await import('./bypassCell');
       expect(BYPASS_DISCONNECT_MARGIN_SECONDS).toBe(0.01);
+    });
+  });
+
+  // Robot Effect Sends T3 (docs/specs/ROBOT_EFFECT_SENDS.md assumptions 2-3, §1.3, §4): a room is the cell machinery
+  // with the dry branch removed. The branch is the crossing unit; the room is live while some robot feeds it AND its
+  // Return is above 0. Pure here: fake Gain / Delay constructors and a hand-driven context timer.
+  describe('rooms (Robot Effect Sends T3)', () => {
+    type FakeNode = {
+      kind: string;
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      dispose: ReturnType<typeof vi.fn>;
+      gain: { value: number; rampTo: ReturnType<typeof vi.fn> };
+    };
+    const made: FakeNode[] = [];
+    function fakeNode(kind: string, value = 0): FakeNode {
+      const node: FakeNode = {
+        kind,
+        connect: vi.fn().mockReturnThis(),
+        disconnect: vi.fn(),
+        dispose: vi.fn(),
+        gain: { value, rampTo: vi.fn() },
+      };
+      made.push(node);
+      return node;
+    }
+    const GainCtor = vi.fn(function (value?: number) {
+      return fakeNode('gain', value ?? 1);
+    }) as unknown as new (...args: unknown[]) => Tone.Gain;
+    const DelayCtor = vi.fn(function () {
+      return fakeNode('delay');
+    }) as unknown as new (...args: unknown[]) => Tone.Delay;
+    const effect = (name: string) => fakeNode(name) as unknown as Tone.ToneAudioNode;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fake = (node: unknown) => node as any;
+
+    beforeEach(() => {
+      vi.resetModules();
+      made.length = 0;
+      context.timeouts = [];
+      context.lookAhead = 0.1;
+      context.cleared = [];
+    });
+
+    async function grit() {
+      const cells = await import('./bypassCell');
+      cells.buildRoom('grit', GainCtor, DelayCtor);
+      const dist = effect('distortion');
+      const cheb = effect('chebyshev');
+      cells.buildBranch('distortion', 'grit', dist, GainCtor);
+      cells.buildBranch('chebyshev', 'grit', cheb, GainCtor);
+      cells.wireCells();
+      return { cells, room: cells.getRoom('grit')!, dist, cheb };
+    }
+    const wetRamps = (cell: { wet: unknown }) => fake(cell.wet).gain.rampTo.mock.calls.map((c: unknown[]) => c[0]);
+    const edgesFrom = (node: unknown) => fake(node).connect.mock.calls.map((c: unknown[]) => c[0]);
+
+    it('names the three rooms and which bypass effects are branches of each', async () => {
+      const { ROOM_KEYS, ROOM_BRANCHES } = await import('./bypassCell');
+      expect([...ROOM_KEYS]).toStrictEqual(['grit', 'shimmer', 'double']);
+      expect(ROOM_BRANCHES).toStrictEqual({
+        grit: ['distortion', 'chebyshev', 'bitCrusher'],
+        shimmer: ['frequencyShifter'],
+        double: ['chorus'],
+      });
+    });
+
+    it('branchGains is wet-only: no dry at any depth, the wet the input itself', async () => {
+      const { branchGains } = await import('./bypassCell');
+      for (const w of [0, 0.04, 0.25, 0.5, 1]) expect(branchGains(w)).toStrictEqual({ dry: 0, wet: w });
+    });
+
+    it('builds a room as in (1), a zero-delay cut and a return (1), unfed, at a Return of 1', async () => {
+      const cells = await import('./bypassCell');
+      cells.buildRoom('shimmer', GainCtor, DelayCtor);
+      const room = cells.getRoom('shimmer')!;
+      expect(room.fed).toBe(false);
+      expect(room.returnLevel).toBe(1);
+      expect(fake(room.in).gain.value).toBe(1);
+      expect(fake(room.return).gain.value).toBe(1);
+      expect(fake(room.cut).kind).toBe('delay');
+      expect(vi.mocked(DelayCtor as unknown as ReturnType<typeof vi.fn>)).toHaveBeenLastCalledWith({ delayTime: 0, maxDelay: 0.01 });
+      expect(cells.getRoom('grit')).toBeUndefined();
+    });
+
+    it('leaves the room out, releasing what it made, when a constructor throws', async () => {
+      const cells = await import('./bypassCell');
+      let calls = 0;
+      const Flaky = vi.fn(function () {
+        calls++;
+        if (calls === 2) throw new Error('no gain');
+        return fakeNode('gain', 1);
+      }) as unknown as new (...args: unknown[]) => Tone.Gain;
+      cells.buildRoom('grit', Flaky, DelayCtor);
+      expect(cells.getRoom('grit')).toBeUndefined();
+      expect(made[0].dispose).toHaveBeenCalled();
+    });
+
+    it('builds a branch dark: sharing the room in and cut, no dry gain, a wet gain at 0, the effect unconnected', async () => {
+      const { cells, room, dist } = await grit();
+      const branch = cells.getCell('distortion')!;
+      expect(branch.room).toBe('grit');
+      expect(branch.in).toBe(room.in);
+      expect(branch.cut).toBe(room.cut);
+      expect(branch.dry).toBeNull();
+      expect(fake(branch.wet).gain.value).toBe(0);
+      expect(branch.connected).toBe(false);
+      expect(branch.depth).toBe(0);
+      expect(edgesFrom(room.in)).not.toContain(dist);
+      expect(edgesFrom(dist)).toEqual([]);
+    });
+
+    it('a branch without its room, or without an effect, is not built and its effect is released', async () => {
+      const cells = await import('./bypassCell');
+      const orphan = effect('chorus');
+      cells.buildBranch('chorus', 'double', orphan, GainCtor);
+      expect(cells.getCell('chorus')).toBeUndefined();
+      expect(fake(orphan).dispose).toHaveBeenCalled();
+      cells.buildRoom('double', GainCtor, DelayCtor);
+      cells.buildBranch('chorus', 'double', null, GainCtor);
+      expect(cells.getCell('chorus')).toBeUndefined();
+    });
+
+    it('wires a branch wet -> cut and the room cut -> return, with no dry edge and no effect edge while dark', async () => {
+      const { cells, room, dist } = await grit();
+      const branch = cells.getCell('distortion')!;
+      expect(edgesFrom(branch.wet)).toEqual([room.cut]);
+      expect(edgesFrom(room.cut)).toEqual([room.return]);
+      expect(edgesFrom(room.in)).toEqual([]);
+      expect(edgesFrom(dist)).toEqual([]);
+    });
+
+    it('a Mix write on an unfed room records the depth and connects nothing, writes no gain, arms no timer', async () => {
+      const { cells, room, dist } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      const branch = cells.getCell('distortion')!;
+      expect(branch.depth).toBe(0.3);
+      expect(branch.connected).toBe(false);
+      expect(edgesFrom(room.in)).not.toContain(dist);
+      expect(wetRamps(branch)).toEqual([]);
+      expect(context.timeouts).toEqual([]);
+    });
+
+    it('feeding the room lights the branch at its depth: connects in -> effect -> wet once, ramps only the wet', async () => {
+      const { cells, room, dist } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      const branch = cells.getCell('distortion')!;
+      expect(branch.connected).toBe(true);
+      expect(edgesFrom(room.in).filter((n: unknown) => n === dist)).toHaveLength(1);
+      expect(edgesFrom(dist)).toEqual([branch.wet]);
+      expect(wetRamps(branch)).toEqual([expect.closeTo(colourWetGainOf(0.3), 12)]);
+      expect(fake(branch.wet).gain.rampTo.mock.calls[0][1]).toBe(0.05);
+    });
+
+    it('feeding the room re-targets every branch, lit ones lit and a branch at depth 0 left dark', async () => {
+      const { cells, dist, cheb } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.writeCellMix('chebyshev', 0.5);
+      cells.setRoomFed('grit', true);
+      expect(cells.getCell('distortion')!.connected).toBe(true);
+      expect(cells.getCell('chebyshev')!.connected).toBe(true);
+      expect(edgesFrom(dist)).toHaveLength(1);
+      expect(edgesFrom(cheb)).toHaveLength(1);
+      expect(cells.getConnectedEffectCount()).toBe(2);
+
+      cells.writeCellMix('chebyshev', 0);
+      context.fireAll();
+      expect(cells.getConnectedEffectCount()).toBe(1);
+    });
+
+    it('un-feeding darkens: ramps the wet to 0, arms one timer at lookAhead + ramp + margin, disconnects at the fire', async () => {
+      const { cells, room, dist } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      const branch = cells.getCell('distortion')!;
+      cells.setRoomFed('grit', false);
+      expect(wetRamps(branch).at(-1)).toBe(0);
+      expect(context.timeouts).toHaveLength(1);
+      expect(context.timeouts[0].seconds).toBeCloseTo(0.1 + 0.05 + 0.01, 12);
+      expect(branch.connected).toBe(true);
+      context.fireAll();
+      expect(branch.connected).toBe(false);
+      expect(fake(room.in).disconnect).toHaveBeenCalledWith(dist);
+      expect(fake(dist).disconnect).toHaveBeenCalledWith(branch.wet);
+      expect(branch.depth).toBe(0.3);
+    });
+
+    it('a re-feed before the darken fires cancels the disconnect and re-lights without a second connect', async () => {
+      const { cells, room, dist } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      cells.setRoomFed('grit', false);
+      const timer = context.timeouts[0];
+      cells.setRoomFed('grit', true);
+      expect(context.cleared).toContain(timer.id);
+      context.fireAll();
+      const branch = cells.getCell('distortion')!;
+      expect(branch.connected).toBe(true);
+      expect(edgesFrom(room.in).filter((n: unknown) => n === dist)).toHaveLength(1);
+      expect(wetRamps(branch).at(-1)).toBeCloseTo(colourWetGainOf(0.3), 12);
+    });
+
+    it('a Return of 0 on a fed room darkens it, and a Return of 0.4 re-lights it; the return gain ramps each time', async () => {
+      const { cells, room } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      const branch = cells.getCell('distortion')!;
+
+      cells.setRoomReturn('grit', 0);
+      expect(room.returnLevel).toBe(0);
+      expect(fake(room.return).gain.rampTo).toHaveBeenLastCalledWith(0, 0.05);
+      expect(wetRamps(branch).at(-1)).toBe(0);
+      context.fireAll();
+      expect(branch.connected).toBe(false);
+
+      cells.setRoomReturn('grit', 0.4);
+      expect(fake(room.return).gain.rampTo).toHaveBeenLastCalledWith(0.4, 0.05);
+      expect(branch.connected).toBe(true);
+      expect(wetRamps(branch).at(-1)).toBeCloseTo(colourWetGainOf(0.3), 12);
+    });
+
+    it('a Return moving between two levels above 0 ramps the return only and re-targets no branch', async () => {
+      const { cells } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      const branch = cells.getCell('distortion')!;
+      const before = wetRamps(branch).length;
+      cells.setRoomReturn('grit', 0.6);
+      expect(wetRamps(branch)).toHaveLength(before);
+      expect(context.timeouts).toEqual([]);
+    });
+
+    it('a Return of 0 on an unfed room, then a feed, keeps the room dark; the Return coming up then lights it', async () => {
+      const { cells } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomReturn('grit', 0);
+      cells.setRoomFed('grit', true);
+      expect(cells.getCell('distortion')!.connected).toBe(false);
+      cells.setRoomReturn('grit', 1);
+      expect(cells.getCell('distortion')!.connected).toBe(true);
+    });
+
+    it('ignores a non-finite Return, and re-sent equal fed and Return states write nothing', async () => {
+      const { cells, room } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      const branch = cells.getCell('distortion')!;
+      const returnRamps = fake(room.return).gain.rampTo.mock.calls.length;
+      const before = wetRamps(branch).length;
+      cells.setRoomReturn('grit', Number.NaN);
+      cells.setRoomReturn('grit', 1);
+      cells.setRoomFed('grit', true);
+      cells.writeCellMix('distortion', 0.3);
+      expect(room.returnLevel).toBe(1);
+      expect(fake(room.return).gain.rampTo.mock.calls).toHaveLength(returnRamps);
+      expect(wetRamps(branch)).toHaveLength(before);
+      expect(context.timeouts).toEqual([]);
+    });
+
+    it('a pinned-1 branch (Shimmer) lights at a wet of 1 once fed', async () => {
+      const cells = await import('./bypassCell');
+      cells.buildRoom('shimmer', GainCtor, DelayCtor);
+      const shifter = effect('frequencyShifter');
+      cells.buildBranch('frequencyShifter', 'shimmer', shifter, GainCtor);
+      cells.wireCells();
+      cells.writeCellMix('frequencyShifter', 1);
+      expect(cells.getCell('frequencyShifter')!.connected).toBe(false);
+      cells.setRoomFed('shimmer', true);
+      expect(wetRamps(cells.getCell('frequencyShifter')!)).toEqual([1]);
+      expect(cells.getConnectedEffectCount()).toBe(1);
+    });
+
+    it('a depth change on a live room ramps the branch to the new depth; depth 0 darkens it', async () => {
+      const { cells } = await grit();
+      cells.setRoomFed('grit', true);
+      cells.writeCellMix('distortion', 0.3);
+      const branch = cells.getCell('distortion')!;
+      cells.writeCellMix('distortion', 0.5);
+      expect(wetRamps(branch).at(-1)).toBeCloseTo(0.25, 12);
+      cells.writeCellMix('distortion', 0);
+      expect(wetRamps(branch).at(-1)).toBe(0);
+      context.fireAll();
+      expect(branch.connected).toBe(false);
+      expect(branch.depth).toBe(0);
+    });
+
+    it('a duck on a lit branch ramps its wet to 0 and back, never touching a dry gain (needsDuck reads connected)', async () => {
+      const cells = await import('./bypassCell');
+      cells.buildRoom('double', GainCtor, DelayCtor);
+      cells.buildBranch('chorus', 'double', effect('chorus'), GainCtor);
+      cells.wireCells();
+      expect(cells.needsDuck('chorus')).toBe(false);
+      cells.writeCellMix('chorus', 1);
+      cells.setRoomFed('double', true);
+      expect(cells.needsDuck('chorus')).toBe(true);
+      const apply = vi.fn();
+      cells.duckCell('chorus', apply);
+      const branch = cells.getCell('chorus')!;
+      expect(wetRamps(branch).at(-1)).toBe(0);
+      context.fireAll();
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(wetRamps(branch).at(-1)).toBe(1);
+    });
+
+    it('lists a room as in, each branch effect + wet, cut, return; a branch is not a chain stage', async () => {
+      const { cells, room, dist, cheb } = await grit();
+      expect(cells.roomNodes('grit')).toEqual([
+        room.in,
+        dist,
+        cells.getCell('distortion')!.wet,
+        cheb,
+        cells.getCell('chebyshev')!.wet,
+        room.cut,
+        room.return,
+      ]);
+      expect(cells.roomNodes('double')).toEqual([]);
+      expect(cells.cellSpan('distortion')).toBeNull();
+      expect(cells.cellNodes('distortion')).toEqual([dist, cells.getCell('distortion')!.wet]);
+    });
+
+    it('clearCells drops the rooms with the cells, and a pending branch darken', async () => {
+      const { cells } = await grit();
+      cells.writeCellMix('distortion', 0.3);
+      cells.setRoomFed('grit', true);
+      cells.setRoomFed('grit', false);
+      const timer = context.timeouts[0];
+      cells.clearCells();
+      expect(cells.getRoom('grit')).toBeUndefined();
+      expect(cells.getCell('distortion')).toBeUndefined();
+      expect(context.cleared).toContain(timer.id);
+      expect(() => cells.setRoomFed('grit', true)).not.toThrow();
+      expect(() => cells.setRoomReturn('grit', 0.5)).not.toThrow();
+    });
+
+    it('chain cells are untouched by the rooms: a chain cell still has its dry gain and its dry edge', async () => {
+      const cells = await import('./bypassCell');
+      cells.buildCell('tremolo', effect('tremolo'), GainCtor, DelayCtor);
+      cells.wireCells();
+      const cell = cells.getCell('tremolo')!;
+      expect(cell.room).toBeNull();
+      expect(cell.dry).not.toBeNull();
+      expect(edgesFrom(cell.in)).toEqual([cell.dry]);
+      expect(edgesFrom(cell.dry)).toEqual([cell.cut]);
     });
   });
 });

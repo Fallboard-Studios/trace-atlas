@@ -7,6 +7,9 @@ import {
   PAN_ROW_PANEL_SCHEMA,
   REVERB_SEND_SCHEMA,
   DELAY_SEND_SCHEMA,
+  GRIT_SEND_SCHEMA,
+  SHIMMER_SEND_SCHEMA,
+  DOUBLE_SEND_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -66,6 +69,9 @@ const ALL_TOP_LEVEL_SCHEMAS = [
   PAN_AUTO_SCHEMA,
   REVERB_SEND_SCHEMA,
   DELAY_SEND_SCHEMA,
+  GRIT_SEND_SCHEMA,
+  SHIMMER_SEND_SCHEMA,
+  DOUBLE_SEND_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -219,11 +225,17 @@ describe('robotOptionsConfig', () => {
     });
   });
 
-  // docs/specs/ROBOT_SENDS.md §1.6 - the Reverb and Delay send sliders, on Volume's display-vs-storage split.
+  const SEND_SCHEMAS = [REVERB_SEND_SCHEMA, DELAY_SEND_SCHEMA, GRIT_SEND_SCHEMA, SHIMMER_SEND_SCHEMA, DOUBLE_SEND_SCHEMA];
+
+  // docs/specs/ROBOT_SENDS.md §1.6 - the send sliders, on Volume's display-vs-storage split (Grit, Shimmer and
+  // Double from docs/specs/ROBOT_EFFECT_SENDS.md §1.6).
   describe.each([
-    { name: 'REVERB_SEND_SCHEMA', schema: REVERB_SEND_SCHEMA, id: 'robotOptions.reverbSend', key: 'probe.reverbSend', other: 'Delay' },
-    { name: 'DELAY_SEND_SCHEMA', schema: DELAY_SEND_SCHEMA, id: 'robotOptions.delaySend', key: 'probe.delaySend', other: 'Reverb' },
-  ] as const)('$name', ({ schema, id, key, other }) => {
+    { name: 'REVERB_SEND_SCHEMA', schema: REVERB_SEND_SCHEMA, id: 'robotOptions.reverbSend', key: 'probe.reverbSend' },
+    { name: 'DELAY_SEND_SCHEMA', schema: DELAY_SEND_SCHEMA, id: 'robotOptions.delaySend', key: 'probe.delaySend' },
+    { name: 'GRIT_SEND_SCHEMA', schema: GRIT_SEND_SCHEMA, id: 'robotOptions.gritSend', key: 'probe.gritSend' },
+    { name: 'SHIMMER_SEND_SCHEMA', schema: SHIMMER_SEND_SCHEMA, id: 'robotOptions.shimmerSend', key: 'probe.shimmerSend' },
+    { name: 'DOUBLE_SEND_SCHEMA', schema: DOUBLE_SEND_SCHEMA, id: 'robotOptions.doubleSend', key: 'probe.doubleSend' },
+  ] as const)('$name', ({ schema, id, key }) => {
     it('is a horizontal sliderLinear displaying 0-100 % in steps of 1', () => {
       expect(schema.type).toBe('sliderLinear');
       expect(schema.id).toBe(id);
@@ -249,10 +261,10 @@ describe('robotOptionsConfig', () => {
       expect(schema.help).toEqual(entry.help);
     });
 
-    it('is told apart from Volume, Pan and the other send by its accessible name', () => {
-      const names = [VOLUME_SCHEMA, PAN_SCHEMA, REVERB_SEND_SCHEMA, DELAY_SEND_SCHEMA].map((s) => s.humanLabel);
+    it('is told apart from Volume, Pan and the other sends by its accessible name', () => {
+      const names = [VOLUME_SCHEMA, PAN_SCHEMA, ...SEND_SCHEMAS].map((s) => s.humanLabel);
       expect(new Set(names).size).toBe(names.length);
-      expect(schema.humanLabel).not.toBe(other);
+      expect(names.filter((n) => n === schema.humanLabel)).toHaveLength(1);
     });
 
     it('is JSON-serializable', () => {
@@ -260,17 +272,38 @@ describe('robotOptionsConfig', () => {
     });
   });
 
-  describe('Reverb and Delay sends - shared', () => {
-    it('the two send ids are unique robotOptions.* ids, none colliding with Volume or Pan', () => {
-      const ids = [REVERB_SEND_SCHEMA.id, DELAY_SEND_SCHEMA.id, VOLUME_SCHEMA.id, PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id];
+  describe('the five sends - shared', () => {
+    it('the five send ids are unique robotOptions.* ids, none colliding with Volume or Pan', () => {
+      const ids = [...SEND_SCHEMAS.map((s) => s.id), VOLUME_SCHEMA.id, PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id];
       ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
       expect(new Set(ids).size).toBe(ids.length);
     });
 
-    it('the Levels section intro names Reverb and Delay, so the sentence the user reads covers the new rows', () => {
-      const description = CONTENT['probe.levels'].intro?.humanDescription ?? '';
-      expect(description).toContain(CONTENT['probe.reverbSend'].human);
-      expect(description).toContain(CONTENT['probe.delaySend'].human);
+    it.each(['probe.reverbSend', 'probe.delaySend', 'probe.gritSend', 'probe.shimmerSend', 'probe.doubleSend'] as const)(
+      'the Levels section intro names %s, so the sentence the user reads covers every send row',
+      (key) => {
+        const description = CONTENT['probe.levels'].intro?.humanDescription ?? '';
+        expect(description).toContain(CONTENT[key].human);
+      },
+    );
+
+    it('the Grit, Shimmer and Double help says 0 % keeps the probe out of the room entirely', () => {
+      for (const key of ['probe.gritSend', 'probe.shimmerSend', 'probe.doubleSend'] as const) {
+        const help = CONTENT[key].help?.human ?? '';
+        expect(help, key).toMatch(/0\s?%/);
+        expect(help.toLowerCase(), key).toContain('out of');
+      }
+    });
+
+    it('the Grit, Shimmer and Double help names the room each feeds (Colour, Shifter, Chorus)', () => {
+      expect(CONTENT['probe.gritSend'].help?.human).toContain(CONTENT['fleet.colour'].human);
+      expect(CONTENT['probe.shimmerSend'].help?.human).toContain(CONTENT['fleet.frequencyShifter'].human);
+      expect(CONTENT['probe.doubleSend'].help?.human).toContain(CONTENT['fleet.chorus'].human);
+    });
+
+    it('the five sends carry five distinct help descriptions (never one shared description)', () => {
+      const helps = SEND_SCHEMAS.map((s) => s.help?.human);
+      expect(new Set(helps).size).toBe(5);
     });
 
     it('the Levels intro still names the earlier rows (Volume, Pan, Auto) - the new sentence is added, not swapped in', () => {

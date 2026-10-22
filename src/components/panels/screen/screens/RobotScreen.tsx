@@ -36,7 +36,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyDynamics, applyRests, applyAccents,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyGritSend, applyShimmerSend, applyDoubleSend, applyDynamics, applyRests, applyAccents,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -204,6 +204,9 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
   const reverbSendSwelling = isRobotAttributeSwelling(robot.id, 'reverbSend');
   const delaySendSwelling = isRobotAttributeSwelling(robot.id, 'delaySend');
+  const gritSendSwelling = isRobotAttributeSwelling(robot.id, 'gritSend');
+  const shimmerSendSwelling = isRobotAttributeSwelling(robot.id, 'shimmerSend');
+  const doubleSendSwelling = isRobotAttributeSwelling(robot.id, 'doubleSend');
   // Absent means no glide, today's sound (docs/specs/ROBOT_ARTICULATION.md assumption 1). A number, so the memo deps compare by value.
   const portamento = robot.audioAttributes.portamento ?? 0;
   const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
@@ -218,8 +221,14 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     panAuto: robot.panAuto,
     reverbSend: robot.reverbSend,
     delaySend: robot.delaySend,
+    gritSend: robot.gritSend,
+    shimmerSend: robot.shimmerSend,
+    doubleSend: robot.doubleSend,
     dynamics: robot.dynamics ?? DEFAULT_DYNAMICS,
-  }), [robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto, robot.reverbSend, robot.delaySend, robot.dynamics]);
+  }), [
+    robot.audioMode, robot.masterVolume, robot.pan, robot.panAuto, robot.reverbSend, robot.delaySend,
+    robot.gritSend, robot.shimmerSend, robot.doubleSend, robot.dynamics,
+  ]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -268,6 +277,19 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   const handleDelaySendChange = useCallback((pct: number) => {
     cancelSwellForRobotAttribute(latestRobot.current.id, 'delaySend');
     applyDelaySend(latestRobot.current, localeId, pct);
+  }, [localeId]);
+  // Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6, §1.9): swell attributes too, so the same cancel first.
+  const handleGritSendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'gritSend');
+    applyGritSend(latestRobot.current, localeId, pct);
+  }, [localeId]);
+  const handleShimmerSendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'shimmerSend');
+    applyShimmerSend(latestRobot.current, localeId, pct);
+  }, [localeId]);
+  const handleDoubleSendChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'doubleSend');
+    applyDoubleSend(latestRobot.current, localeId, pct);
   }, [localeId]);
 
   // Dynamics is read at trigger time and is not a swell attribute: no cancel, no melody regeneration (spec §1.5).
@@ -335,10 +357,16 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onPanAutoChange={handlePanAutoChange}
             onReverbSendChange={handleReverbSendChange}
             onDelaySendChange={handleDelaySendChange}
+            onGritSendChange={handleGritSendChange}
+            onShimmerSendChange={handleShimmerSendChange}
+            onDoubleSendChange={handleDoubleSendChange}
             onDynamicsChange={handleDynamicsChange}
             volumeSwelling={volumeSwelling}
             reverbSendSwelling={reverbSendSwelling}
             delaySendSwelling={delaySendSwelling}
+            gritSendSwelling={gritSendSwelling}
+            shimmerSendSwelling={shimmerSendSwelling}
+            doubleSendSwelling={doubleSendSwelling}
           />
         );
       case 'rhythm':
@@ -401,6 +429,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   }, [
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
     handleReverbSendChange, handleDelaySendChange, handleDynamicsChange, reverbSendSwelling, delaySendSwelling,
+    handleGritSendChange, handleShimmerSendChange, handleDoubleSendChange, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleRestsChange, handleAccentsChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,

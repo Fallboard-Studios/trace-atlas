@@ -9,7 +9,7 @@ Every Tone.js effect node the app builds, one row per controllable parameter, wi
 - **name** — the effect as the UI names it, with the Tone class in brackets.
 - **param** — the stored field, with Tone's own name where it differs, and the unit.
 - **global / per robot** — one node for the fleet, or one per reserved robot.
-- **role** — `dry stage` (in the global chain), `room`, `return`, `send`, `bus` (per-robot sub-bus), `master`, `routing`, `modulator`.
+- **role** — `dry stage` (in the global chain), `room`, `room branch` (an effect inside one of the three effect rooms, roadmap 50.7), `return`, `send`, `bus` (per-robot sub-bus), `master`, `routing`, `modulator`.
 - **default** — `DEFAULT_GLOBAL_AUDIO_SETTINGS` or the spawn default. `seeded` means every fresh value comes from the seed band.
 - **min / max** — the full range: what the slider exposes and what the app supports.
 - **seedMin / seedMax** — the band a fresh seed may land in. Blank means the field is not seeded.
@@ -24,7 +24,7 @@ Three conversions recur. Every Mix (`wet`) on Colour, Modulation and the motion 
 
 ## Global dry chain, in chain order
 
-EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → Phaser → Chorus → Tremolo → Vibrato → FrequencyShifter → Compressor → Width → Limiter → master gain → Destination. The Reverb and Delay rooms sit beside the chain; their returns rejoin at the Compressor's input (Natural Decay) or at Width's input (Controlled Decay).
+EQ → LPF → HPF → AutoWah → Phaser → Tremolo → Vibrato → Compressor → Width → Limiter → master gain → Destination. Five rooms sit beside the chain: the Reverb and Delay rooms, and since Robot Effect Sends (roadmap 50.7, `docs/specs/ROBOT_EFFECT_SENDS.md`) the Colour room (Distortion, Chebyshev, BitCrusher), the Shimmer room (FrequencyShifter) and the Double room (Chorus). Their returns rejoin at the Compressor's input (Natural Decay) or at Width's input (Controlled Decay). The five room effects' rows stay in this table in their old chain place, with the role `room branch`; their sends and returns are under **Rooms and returns** and **Per-robot bus**.
 
 | name | param | global / per robot | role | default | min | max | seedMin | seedMax | input type | options | loading rules | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -35,12 +35,12 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | Low-Pass Filter | Q | global | dry stage | 1 | 0.1 | 20 | 0.1 | 5 | slider log | | bell draw | LFO link + swell target; same gate |
 | High-Pass Filter (Tone.Filter, highpass) | frequency (Hz) | global | dry stage | 20 | 20 | 20000 | 20 | 120 | slider log | | bell draw | LFO link + swell target; ramps 50 ms; same gate |
 | High-Pass Filter | Q | global | dry stage | 1 | 0.1 | 20 | 0.1 | 5 | slider log | | bell draw | LFO link + swell target; same gate |
-| Distortion (Tone.Distortion) | amount, Tone `distortion` | global | dry stage | 0.3 | 0 | 1 | 0.1 | 0.35 | slider, step 0.01 | | always drawn | direct write (rebuilds the shaper map); `oversample` fixed at `'none'` |
-| Distortion | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | one Colour character draw: clean / drive / fold / crush, ≈25 % each (`COLOUR_CHARACTER_BANDS`); at most one colour lit; dark seeds 0 | node gets wet²; ramps 50 ms; seeded ceiling `COLOUR_LOAD_MIX_MAX` 0.25 |
-| Chebyshev (Tone.Chebyshev) | order | global | dry stage | 2 | 1 | 8 | 2 | 5 | slider, step 1 | | always drawn | direct write; 1 passes unchanged; Tone allows 100, capped at 8 |
-| Chebyshev | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | lit only when the character is `fold` | node gets wet²; ramps 50 ms |
-| BitCrusher (Tone.BitCrusher, AudioWorklet) | bits | global | dry stage | 8 | 1 | 16 | 6 | 10 | slider, step 1 | | always drawn | ramps 50 ms; if the browser refuses the worklet the slot is skipped |
-| BitCrusher | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | lit only when the character is `crush` | node gets wet²; ramps 50 ms |
+| Distortion (Tone.Distortion) | amount, Tone `distortion` | global | room branch (Colour) | 0.3 | 0 | 1 | 0.1 | 0.35 | slider, step 0.01 | | always drawn | direct write (rebuilds the shaper map); `oversample` fixed at `'none'` |
+| Distortion | wet (Mix) | global | room branch (Colour) | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | one Colour character draw: clean / drive / fold / crush, ≈25 % each (`COLOUR_CHARACTER_BANDS`); at most one colour lit; dark seeds 0 | the branch's wet-only gain gets wet² (the effect's level as heard from every robot; 0 silences it); heard only from robots whose Grit send is above 0; ramps 50 ms; seeded ceiling `COLOUR_LOAD_MIX_MAX` 0.25 |
+| Chebyshev (Tone.Chebyshev) | order | global | room branch (Colour) | 2 | 1 | 8 | 2 | 5 | slider, step 1 | | always drawn | direct write; 1 passes unchanged; Tone allows 100, capped at 8 |
+| Chebyshev | wet (Mix) | global | room branch (Colour) | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | lit only when the character is `fold` | as the Distortion's Mix |
+| BitCrusher (Tone.BitCrusher, AudioWorklet) | bits | global | room branch (Colour) | 8 | 1 | 16 | 6 | 10 | slider, step 1 | | always drawn | ramps 50 ms; if the browser refuses the worklet the slot is skipped |
+| BitCrusher | wet (Mix) | global | room branch (Colour) | 0 | 0 | 1 | 0.1 | 0.2 | slider, step 0.01 | | lit only when the character is `crush` | as the Distortion's Mix |
 | AutoWah (Tone.AutoWah) | baseFrequency (Hz) | global | dry stage | 100 | 50 | 1000 | 50 | 250 | slider log | | always drawn, uniform | plain property in Tone 15 |
 | AutoWah | octaves | global | dry stage | 6 | 1 | 8 | 2.5 | 5 | slider, step 0.5 | | uniform | plain property |
 | AutoWah | sensitivity (dB) | global | dry stage | 0 | −40 | 0 | −20 | −5 | slider, step 1 | | uniform | plain property |
@@ -54,21 +54,21 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | Phaser | stages | global | dry stage | 10 | 1 | 12 | 4 | 12 | slider, step 1 | | uniform | constructor-only in Tone: a change rebuilds the node from the last-written values and re-wires the chain in the last Decay Mode |
 | Phaser | Q | global | dry stage | 10 | 0.5 | 20 | 1 | 10 | slider log | | uniform | ramps 50 ms |
 | Phaser | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.3 | 0.4 | slider, step 0.01 | | lit ≈1/3, independent of the AutoWah | node gets wet²; ramps 50 ms |
-| Chorus (Tone.Chorus) | rate, Tone `frequency` (Hz) | global | dry stage | 1.5 | 0.05 | 10 | 0.2 | 2 | slider Free \| Sync, step 0.05 | Sync: a note value | a lit Chorus seeds Sync ≈50 % | LFO started once at build and never stopped: a dark pedal is Mix 0, not a stopped LFO |
-| Chorus | delayTime (ms) | global | dry stage | 3.5 | 1 | 20 | 6 | 15 | slider, step 0.5 | | uniform | ramped together with depth over 50 ms, not stepped |
-| Chorus | depth | global | dry stage | 0.7 | 0 | 1 | 0.3 | 0.7 | slider, step 0.01 | | uniform | ramped with delayTime |
-| Chorus | spread (°) | global | dry stage | 180 | 0 | 180 | 90 | 180 | slider, step 5 | | uniform | plain property; a lit pedal ducks its Mix for 20 ms to write it, a re-sent Spread never ducks |
-| Chorus | feedback | global | dry stage | 0 | 0 | 0.9 | 0 | 0.2 | slider, step 0.01 | | uniform | Signal; above 0 the chorus is a flanger |
-| Chorus | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.3 | 0.4 | slider, step 0.01 | | the four motion pedals each roll ≈1/3 (`PEDAL_LIT_EDGE`) in chain order after the AutoWah and Phaser rolls, and are forced dark once two of the six Modulation pedals are lit (`MAX_LIT_PEDALS`) | node gets wet²; ramps 50 ms |
+| Chorus (Tone.Chorus) | rate, Tone `frequency` (Hz) | global | room branch (Double) | 1.5 | 0.05 | 10 | 0.2 | 2 | slider Free \| Sync, step 0.05 | Sync: a note value | Sync rolled in every world since roadmap 50.7, ≈50 % (measured 49.51 %) | LFO started once at build and never stopped: a dark room is unfed or at Return 0, not a stopped LFO |
+| Chorus | delayTime (ms) | global | room branch (Double) | 3.5 | 1 | 20 | 6 | 15 | slider, step 0.5 | | uniform | ramped together with depth over 50 ms, not stepped |
+| Chorus | depth | global | room branch (Double) | 0.7 | 0 | 1 | 0.3 | 0.7 | slider, step 0.01 | | uniform | ramped with delayTime |
+| Chorus | spread (°) | global | room branch (Double) | 180 | 0 | 180 | 90 | 180 | slider, step 5 | | uniform | plain property; a lit pedal ducks its Mix for 20 ms to write it, a re-sent Spread never ducks |
+| Chorus | feedback | global | room branch (Double) | 0 | 0 | 0.9 | 0 | 0.2 | slider, step 0.01 | | uniform | Signal; above 0 the chorus is a flanger |
+| Chorus | wet (Return) | global | return (Double room) | 1 | 0 | 1 | | | slider, step 0.01 | | not seeded (fixed 1) since roadmap 50.7; the room has no lit roll, its robots' Double sends light it | the Double room's return level, linear (`setRoomReturn`), ramps 50 ms; 0 silences the room for every robot; the branch itself is written 1 |
 | Tremolo (Tone.Tremolo) | rate, Tone `frequency` (Hz) | global | dry stage | 10 | 0.05 | 10 | 0.5 | 6 | slider Free \| Sync, step 0.05 | Sync: a note value | a lit Tremolo seeds Sync ≈75 % (`PEDAL_SYNC_ODDS.tremolo`: a Free tremolo beats against the 16th grid) | LFO started once at build |
 | Tremolo | depth | global | dry stage | 0.5 | 0 | 1 | 0.3 | 0.7 | slider, step 0.01 | | uniform | ramps 50 ms |
 | Tremolo | spread (°) | global | dry stage | 180 | 0 | 180 | 90 | 180 | slider, step 5 | | uniform | ducked write, as Chorus |
-| Tremolo | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.35 | 0.5 | slider, step 0.01 | | same cap rule as Chorus | node gets wet²; ramps 50 ms |
+| Tremolo | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.35 | 0.5 | slider, step 0.01 | | the Tremolo and the Vibrato each roll 0.25 (`PEDAL_LIT_EDGE`) in chain order after the AutoWah and Phaser rolls, and are forced dark once two of the four Modulation pedals are lit (`MAX_LIT_PEDALS`; measured 22.04 % and 19.55 %) | node gets wet²; ramps 50 ms |
 | Vibrato (Tone.Vibrato) | rate, Tone `frequency` (Hz) | global | dry stage | 5 | 0.05 | 10 | 2 | 7 | slider Free \| Sync, step 0.05 | Sync: a note value | a lit Vibrato seeds Sync ≈50 % | starts its own LFO in the constructor; one delay moves both channels |
 | Vibrato | depth | global | dry stage | 0.1 | 0 | 1 | 0.03 | 0.12 | slider, step 0.01 | | uniform | a fraction of `maxDelay` 0.005 s, which is constructor-only and left at Tone's default |
-| Vibrato | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.85 | 1 | slider, step 0.01 | | same cap rule as Chorus | node gets wet²; ramps 50 ms |
-| FrequencyShifter (Tone.FrequencyShifter) | shift, Tone `frequency` (Hz) | global | dry stage | 0 | −1000 | 1000 | ±2 | ±20 | slider centred-zero, step 1 | | a magnitude band plus a separate sign draw (`globalAudio.frequencyShifter.sign`), so a seeded shift is never inside ±2 Hz | the sine branch is downmixed to mono, so a panned voice leaks the other sideband into the far channel |
-| FrequencyShifter | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.25 | 0.35 | slider, step 0.01 | | same cap rule as Chorus | node gets wet²; ramps 50 ms |
+| Vibrato | wet (Mix) | global | dry stage | 0 | 0 | 1 | 0.85 | 1 | slider, step 0.01 | | same cap rule as the Tremolo | node gets wet²; ramps 50 ms |
+| FrequencyShifter (Tone.FrequencyShifter) | shift, Tone `frequency` (Hz) | global | room branch (Shimmer) | 0 | −1000 | 1000 | ±2 | ±20 | slider centred-zero, step 1 | | a magnitude band plus a separate sign draw (`globalAudio.frequencyShifter.sign`), so a seeded shift is never inside ±2 Hz | the sine branch is downmixed to mono, so a panned voice leaks the other sideband into the far channel |
+| FrequencyShifter | wet (Return) | global | return (Shimmer room) | 1 | 0 | 1 | | | slider, step 0.01 | | not seeded (fixed 1) since roadmap 50.7; the room has no lit roll, its robots' Shimmer sends light it | the Shimmer room's return level, as the Chorus's |
 | Compressor (Tone.Compressor) | threshold (dB) | global | dry stage | −24 | −60 | 0 | −36 | −18 | slider, step 1 | | bell draw; retuned from −55 to −45 at the Classic Band Retune: the Web Audio compressor adds automatic makeup gain, so the old deep band swung fleet loudness by about 11 dB between seeds | the node is built at −18 / ratio 6 / attack 0.003 / release 0.15, then the store pushes the defaults or the seed |
 | Compressor | ratio | global | dry stage | 2 | 1 | 20 | 2 | 6 | slider, step 1 | | bell draw | |
 | Compressor | attack (s) | global | dry stage | 0.003 | 0.001 | 0.2 | 0.003 | 0.05 | slider log | | bell draw | |
@@ -88,7 +88,9 @@ EQ → LPF → HPF → Distortion → Chebyshev → BitCrusher → AutoWah → P
 | Delay room (Tone.FeedbackDelay, `maxDelay` 10) | delayTime (s) | global | room | 0.25 | 0 | 10 | 0.05 | 0.5 | slider Free \| Sync, step 0.001 | Sync: a note value (`DelaySettings.sync`) | ≈2/3 of styles seed Sync (`DELAY_SYNC_ODDS` 0.66), the note drawn from the band at the style's tempo; the Free value is seeded underneath | the LFO on this param was removed; `maxDelay` must stay equal to `DELAY_TIME_RANGE_SECONDS.max` |
 | Delay room | feedback | global | room | 0.2 | 0 | 0.95 | 0 | 0.4 | slider, step 0.01 | | bell draw | capped under 1 against runaway |
 | Delay return (Tone.Gain) | `delay.wet` | global | return | 1 | 0 | 1 | | | slider, step 0.01 | | not seeded (fixed 1) | as the Reverb return |
-| Decay Mode | `compressorBeforeDelay` | global | routing | natural | | | | | radio | natural / controlled | not seeded; always starts natural | selects where both returns rejoin: the Compressor's input, or Width's input (falls back to the Limiter's without a widener) |
+| Colour room return (Tone.Gain) | — | global | return | 1 | | | | | none | | not seeded | built at 1 and never written (no Colour master Return, Crawford 2026-10-21); each colour Mix is its branch's level instead |
+| Shimmer and Double room returns (Tone.Gain) | `frequencyShifter.wet`, `chorus.wet` | global | return | 1 | 0 | 1 | | | slider, step 0.01 | | not seeded (fixed 1) | see the FrequencyShifter and Chorus `wet` rows; each room's branches are in the signal path only while some reserved robot sends into it and its Return is above 0 |
+| Decay Mode | `compressorBeforeDelay` | global | routing | natural | | | | | radio | natural / controlled | not seeded; always starts natural | selects where every return rejoins: the Compressor's input, or Width's input (falls back to the Limiter's without a widener) |
 
 ## LFO Bank and links
 
@@ -109,7 +111,10 @@ Built per `reserveVoice`: `composite.output → panner → busGain → busFilter
 | Pan (Tone.Panner) | `pan` | per robot | bus | 0 | −1 | 1 (shown ±100) | | | slider centred-zero, step 1 | | not seeded; every robot spawns on Auto at centre | Auto on: follows the robot's x in ±0.5, written once per 16th tick when it moved by more than 0.0005; Auto off: the slider, ramped over 50 ms |
 | Pan | `panAuto` | per robot | bus | on | | | | | toggle | on / off | always on at spawn | the robot keeps moving either way; only the panner is affected |
 | Reverb send (Tone.Gain) | `reverbSend` | per robot | send | seeded | 0 | 1 (shown 0–100 %) | 0.1 | 0.6 | slider, step 1 % | | bell draw in band, quantised to 1 % | tapped after the bus filter; ramps 50 ms; swell target; starts at 0 and is primed from the store on every reservation path |
-| Delay send (Tone.Gain) | `delaySend` | per robot | send | seeded | 0 | 1 (shown 0–100 %) | 0 | 0.3 | slider, step 1 % | | a quiet roll under `SEND_DELAY_QUIET_THRESHOLD` 0.25 puts exactly 0 on ≈17–18 % of the fleet (the draw is bell-curved); otherwise a bell draw in band | ramps 50 ms; swell target |
+| Delay send (Tone.Gain) | `delaySend` | per robot | send | seeded | 0 | 1 (shown 0–100 %) | 0 | 0.3 | slider, step 1 % | | a quiet roll under 1 − `lit` (0.25, `ROBOT_SEND_LOADING_RANGES`) puts exactly 0 on ≈17–18 % of the fleet (the draw is bell-curved); otherwise a bell draw in band | ramps 50 ms; swell target |
+| Grit send (Tone.Gain) | `gritSend` | per robot | send | seeded | 0 | 1 (shown 0–100 %) | 0.4 | 0.8 | slider, step 1 % | | uniform lit roll under 0.21, then a uniform draw in band; rolled before Shimmer and Double, and a robot carries at most one of the three (`EXCLUSIVE_SEND_FIELDS`); the rest seed exactly 0 | into the Colour room; ramps 50 ms; swell target; a robot above 0 joins the room's feeder set |
+| Shimmer send (Tone.Gain) | `shimmerSend` | per robot | send | seeded | 0 | 1 (shown 0–100 %) | 0.2 | 0.5 | slider, step 1 % | | as Grit, lit 0.16 | into the Shimmer room; as Grit |
+| Double send (Tone.Gain) | `doubleSend` | per robot | send | seeded | 0 | 1 (shown 0–100 %) | 0.3 | 0.6 | slider, step 1 % | | as Grit, lit 0.19 | into the Double room; as Grit |
 | Bus filter (Tone.Filter) | cutoff, `filterFreq` (Hz) | per robot | bus | seeded | 20 | 20000 | open 2000 / accent 400 | open 8000 / accent 2500 | slider log | | an accent roll under `FILTER_ACCENT_THRESHOLD` 0.27 (measured 19.9 %) picks the accent band; the rest are open | 0 means open to 20 kHz; a caller omitting it gets 1200 Hz; LFO link on `bus.frequency`, held off below Effects Load 0.8 (`LOAD_BUS_FILTER_LFOS_MIN`) and whenever the filter tier is; ramps 50 ms |
 | Bus filter | resonance, `filterQ` | per robot | bus | 1 | 0.1 | 20 | 3 | 8 | slider log | | accent robots only, step 0.1; common robots keep `ROBOT_BUS_FILTER_Q` 1 | ramps 50 ms |
 | Bus filter | type, `filterType` | per robot | bus | lowpass | | | | | radio | lowpass / bandpass / highpass | accent robots are bandpass 40 % of the time (`ACCENT_BANDPASS_SHARE`); highpass is never seeded, only hand-picked | assigned outright; a type switch on a sounding voice may click |
@@ -132,5 +137,5 @@ The Effects Load dial holds off exactly three things: the LPF/HPF LFO links belo
 ## Discrepancies found while compiling (2026-10-19)
 
 1. **Reverb preDelay range.** *Resolved 2026-10-21 (Classic Band Retune T4).* `GLOBAL_CHAIN_GRID.md` said 0–0.5 s while `audioRigConfig.ts` and `globalAudioSeedRanges.ts` both said 0–1 s; all three now say 0–0.25 s (a 1 s pre-delay is a slapback), and `setGlobalReverb` clamps `decay` into 0.1–10 s and `preDelay` into 0–0.25 s, ignoring a non-finite value.
-2. **The Signal Graph diagram in `docs/AUDIO_SYSTEM.md`** still reads AutoWah → Phaser → Compressor → Limiter. It omits Chorus through FrequencyShifter and the Width stage, which the code wires (`wireGlobalFxChain`'s `chainNodes`). The prose above the diagram already names the rooms correctly.
+2. *Resolved 2026-10-22 (Robot Effect Sends T22): the diagram now draws the seven-stage chain, Width and the five rooms.* **The Signal Graph diagram in `docs/AUDIO_SYSTEM.md`** still read AutoWah → Phaser → Compressor → Limiter. It omits Chorus through FrequencyShifter and the Width stage, which the code wires (`wireGlobalFxChain`'s `chainNodes`). The prose above the diagram already names the rooms correctly.
 3. **The Compressor is built at values that are not its defaults** (`buildGlobalFxChain`: threshold −18, ratio 6, release 0.15, versus −24, 2, 0.25 in `DEFAULT_GLOBAL_AUDIO_SETTINGS`). The store overwrites them at boot, so nothing is audible, but a reader of the constructor is misled.

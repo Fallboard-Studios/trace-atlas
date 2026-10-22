@@ -17,14 +17,18 @@ describe('ROBOT_SWELL_FIELD_RANGE', () => {
     expect(Object.keys(ROBOT_SWELL_FIELD_RANGE).sort()).toEqual([...SWELL_ROBOT_ATTRIBUTE_IDS].sort());
   });
 
-  it('has exactly 19 keys', () => {
-    expect(Object.keys(ROBOT_SWELL_FIELD_RANGE)).toHaveLength(19);
+  it('has exactly 22 keys', () => {
+    expect(Object.keys(ROBOT_SWELL_FIELD_RANGE)).toHaveLength(22);
   });
 
   it('gives each send the stored 0..1 range (SEND_MIN..SEND_MAX), not the 0-100 display range', () => {
     expect(ROBOT_SWELL_FIELD_RANGE.reverbSend).toEqual({ min: SEND_MIN, max: SEND_MAX });
     expect(ROBOT_SWELL_FIELD_RANGE.delaySend).toEqual({ min: SEND_MIN, max: SEND_MAX });
+    expect(ROBOT_SWELL_FIELD_RANGE.gritSend).toEqual({ min: SEND_MIN, max: SEND_MAX });
+    expect(ROBOT_SWELL_FIELD_RANGE.shimmerSend).toEqual({ min: SEND_MIN, max: SEND_MAX });
+    expect(ROBOT_SWELL_FIELD_RANGE.doubleSend).toEqual({ min: SEND_MIN, max: SEND_MAX });
     expect(ROBOT_SWELL_FIELD_RANGE.reverbSend.max).toBe(1);
+    expect(ROBOT_SWELL_FIELD_RANGE.gritSend.min).toBe(0);
   });
 
   it('never has min >= max for any field', () => {

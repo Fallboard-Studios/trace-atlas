@@ -15,6 +15,9 @@ import {
   PAN_ROW_PANEL_SCHEMA,
   REVERB_SEND_SCHEMA,
   DELAY_SEND_SCHEMA,
+  GRIT_SEND_SCHEMA,
+  SHIMMER_SEND_SCHEMA,
+  DOUBLE_SEND_SCHEMA,
   DYNAMICS_SCHEMA,
 } from '@/data/robotOptionsConfig';
 import { PAN_DISPLAY_SCALE, SEND_DISPLAY_SCALE } from '@/constants';
@@ -42,6 +45,11 @@ export interface AudioSettingValue {
   reverbSend: number;
   /** 0..1, Robot.delaySend's own domain - the Delay twin of `reverbSend`. */
   delaySend: number;
+  /** 0..1, Robot.gritSend / shimmerSend / doubleSend - the sends into the Colour, Shifter and Chorus rooms, on
+   *  `reverbSend`'s display contract (docs/specs/ROBOT_EFFECT_SENDS.md §1.6). */
+  gritSend: number;
+  shimmerSend: number;
+  doubleSend: number;
   /** 0..100 as stored (Robot.dynamics): how much this robot's note velocities swing. No conversion - the slider shows it as is.
    *  docs/specs/ROBOT_PERFORMANCE.md §1.6. */
   dynamics: number;
@@ -57,6 +65,10 @@ interface AudioSettingSectionProps {
   /** 0..100, the same display-domain contract as onVolumeChange. */
   onReverbSendChange: (pct: number) => void;
   onDelaySendChange: (pct: number) => void;
+  /** 0..100, the same contract as onReverbSendChange. */
+  onGritSendChange: (pct: number) => void;
+  onShimmerSendChange: (pct: number) => void;
+  onDoubleSendChange: (pct: number) => void;
   /** 0..100, emitted as the whole number the slider shows (Robot.dynamics stores it unconverted). */
   onDynamicsChange: (value: number) => void;
   /** The engine's live Auto value (-0.5..0.5) for the robot screen; undefined on the company screen and
@@ -73,6 +85,10 @@ interface AudioSettingSectionProps {
    *  docs/tasks/ROBOT_SENDS.md Task 13. */
   reverbSendSwelling?: boolean;
   delaySendSwelling?: boolean;
+  /** The same for Grit, Shimmer and Double (docs/tasks/ROBOT_EFFECT_SENDS.md Tasks 13-14). */
+  gritSendSwelling?: boolean;
+  shimmerSendSwelling?: boolean;
+  doubleSendSwelling?: boolean;
   /** Optional inline style forwarded to this section's own root — trait-color scoping
    *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
@@ -102,7 +118,11 @@ const toSendDisplay = (send: number) => roundToDecimals(send * SEND_DISPLAY_SCAL
  * No accordion wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
-function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, onDynamicsChange, livePan, disabled, volumeSwelling, reverbSendSwelling, delaySendSwelling, style }: AudioSettingSectionProps) {
+function AudioSettingSectionInner({
+  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange,
+  onGritSendChange, onShimmerSendChange, onDoubleSendChange, onDynamicsChange, livePan, disabled, volumeSwelling,
+  reverbSendSwelling, delaySendSwelling, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling, style,
+}: AudioSettingSectionProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
   // re-executing this component, which then handed the already-memoized RadioButton a new
@@ -162,7 +182,18 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
           <div className="audio-setting-section__delay-row">
             <SliderLinear schema={DELAY_SEND_SCHEMA} value={toSendDisplay(value.delaySend)} onChange={onDelaySendChange} disabled={disabled} swelling={delaySendSwelling} />
           </div>
-          {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6): the sixth row, after Delay, in a wrapper with no display rule for
+          {/* Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6): the sends into the three rooms, after Delay, each
+              in its own block wrapper for the same reason. */}
+          <div className="audio-setting-section__grit-row">
+            <SliderLinear schema={GRIT_SEND_SCHEMA} value={toSendDisplay(value.gritSend)} onChange={onGritSendChange} disabled={disabled} swelling={gritSendSwelling} />
+          </div>
+          <div className="audio-setting-section__shimmer-row">
+            <SliderLinear schema={SHIMMER_SEND_SCHEMA} value={toSendDisplay(value.shimmerSend)} onChange={onShimmerSendChange} disabled={disabled} swelling={shimmerSendSwelling} />
+          </div>
+          <div className="audio-setting-section__double-row">
+            <SliderLinear schema={DOUBLE_SEND_SCHEMA} value={toSendDisplay(value.doubleSend)} onChange={onDoubleSendChange} disabled={disabled} swelling={doubleSendSwelling} />
+          </div>
+          {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6): the last row, after the sends, in a wrapper with no display rule for
               the Volume row's reason. No `swelling`: Dynamics is not a swell attribute. */}
           <div className="audio-setting-section__dynamics-row">
             <SliderLinear schema={DYNAMICS_SCHEMA} value={value.dynamics} onChange={onDynamicsChange} disabled={disabled} />

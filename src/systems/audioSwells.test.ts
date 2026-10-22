@@ -1224,13 +1224,13 @@ describe('robot pool — reverbSend and delaySend', () => {
       tickAudioSwells(LOCALE_ID, 0);
     }
 
-    it('can pick reverbSend (index 17 of 19) and gives each live member its own base, skipping a member at 0', () => {
+    it('can pick reverbSend (index 17 of 22) and gives each live member its own base, skipping a member at 0', () => {
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', reverbSend: 0.2 }));
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', reverbSend: 0.7123456789 }));
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r3', reverbSend: 0 }));
       useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2', 'r3'] }));
 
-      startCompanySwell((17.5 / 19) * 2 - 1);
+      startCompanySwell((17.5 / 22) * 2 - 1);
 
       const swell = getActiveSwellSnapshot('robot')[0];
       expect(swell.robotAttribute).toBe('reverbSend');
@@ -1244,12 +1244,12 @@ describe('robot pool — reverbSend and delaySend', () => {
       expect(getActiveSwellSnapshot('robot')).toEqual([]);
     });
 
-    it('can pick delaySend (the last id), each member landing exactly on its own base', () => {
+    it('can pick delaySend (index 18 of 22), each member landing exactly on its own base', () => {
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', delaySend: 0.007 }));
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', delaySend: 0.83 }));
       useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
 
-      startCompanySwell(1);
+      startCompanySwell((18.5 / 22) * 2 - 1);
 
       const swell = getActiveSwellSnapshot('robot')[0];
       expect(swell.robotAttribute).toBe('delaySend');
@@ -1270,6 +1270,176 @@ describe('robot pool — reverbSend and delaySend', () => {
       startCompanySwell(1);
       expect(getActiveSwellSnapshot('robot')).toEqual([]);
     });
+  });
+});
+
+// ========================================
+// ROBOT POOL — GRIT, SHIMMER AND DOUBLE SENDS (docs/tasks/ROBOT_EFFECT_SENDS.md Task 12)
+// ========================================
+
+type EffectSendField = 'gritSend' | 'shimmerSend' | 'doubleSend';
+
+/** Each new send, its fraction-form action, its updateRobotSends key and its index in SWELL_ROBOT_ATTRIBUTE_IDS. */
+const EFFECT_SENDS = [
+  { field: 'gritSend', action: 'applyGritSendValue', key: 'grit', index: 19 },
+  { field: 'shimmerSend', action: 'applyShimmerSendValue', key: 'shimmer', index: 20 },
+  { field: 'doubleSend', action: 'applyDoubleSendValue', key: 'double', index: 21 },
+] as const;
+
+const SEND_ACTIONS = [
+  'applyReverbSendValue', 'applyDelaySendValue', 'applyGritSendValue', 'applyShimmerSendValue', 'applyDoubleSendValue',
+] as const;
+
+describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, action, key, index }) => {
+  const sendOf = (robotId: string, f: EffectSendField) => useLocaleStore.getState().getRobotById(LOCALE_ID, robotId)![f];
+
+  /** Every send at 0 except `field`, which sits at `value` (the other two new sends are set, not absent). */
+  const onlyThisSend = (value: number, overrides: Partial<Robot> = {}) =>
+    makeRobot({ reverbSend: 0, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, [field]: value, ...overrides });
+
+  function forceSingleStart(targetRaw: number) {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+      noiseMapForDataIds({ 'audioSwell.trigger.robot': -1, 'audioSwell.company.chance': 1, 'audioSwell.target.robot': targetRaw }),
+    );
+  }
+
+  function advanceOnlyTo(measure: number) {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tickAudioSwells(LOCALE_ID, measure);
+  }
+
+  function attributesPickedAcrossEveryDraw(): string[] {
+    const picked: string[] = [];
+    for (let step = 0; step <= 20; step++) {
+      stopAudioSwells();
+      forceSingleStart(-1 + step * 0.1);
+      tickAudioSwells(LOCALE_ID, 0);
+      picked.push(...getActiveSwellSnapshot('robot').map((s) => s.robotAttribute!));
+    }
+    return picked;
+  }
+
+  beforeEach(() => {
+    vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+  });
+
+  it('is never picked at 0, whatever the draw', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0));
+    const picked = attributesPickedAcrossEveryDraw();
+    expect(picked.length).toBeGreaterThan(0);
+    expect(picked).not.toContain(field);
+  });
+
+  it('is never picked on a robot that carries no such field, and does not throw', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
+    expect(() => attributesPickedAcrossEveryDraw()).not.toThrow();
+    expect(attributesPickedAcrossEveryDraw()).not.toContain(field);
+  });
+
+  it('is picked at 0.25, and no other send is (they are all 0)', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.25));
+    const picked = new Set(attributesPickedAcrossEveryDraw());
+    expect(picked.has(field)).toBe(true);
+    for (const other of ['reverbSend', 'delaySend', ...EFFECT_SENDS.map((s) => s.field)]) {
+      if (other !== field) expect(picked.has(other), other).toBe(false);
+    }
+  });
+
+  it('flags isRobotAttributeSwelling while active, and a cancel clears it', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.25));
+    forceSingleStart(1); // the only live send is the last eligible item
+    tickAudioSwells(LOCALE_ID, 0);
+    expect(isRobotAttributeSwelling('r1', field)).toBe(true);
+    for (const other of EFFECT_SENDS) if (other.field !== field) expect(isRobotAttributeSwelling('r1', other.field)).toBe(false);
+
+    cancelSwellForRobotAttribute('r1', field);
+    expect(isRobotAttributeSwelling('r1', field)).toBe(false);
+  });
+
+  it(`writes every tick through ${action} and no other send action`, () => {
+    const spies = Object.fromEntries(SEND_ACTIONS.map((name) => [name, vi.spyOn(robotOptionsActions, name)]));
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.25));
+    forceSingleStart(1);
+    tickAudioSwells(LOCALE_ID, 0);
+    advanceOnlyTo(1);
+
+    expect(spies[action]).toHaveBeenCalled();
+    expect(spies[action].mock.calls[0][0].id).toBe('r1');
+    expect(spies[action].mock.calls[0][1]).toBe(LOCALE_ID);
+    for (const name of SEND_ACTIONS) if (name !== action) expect(spies[name], name).not.toHaveBeenCalled();
+  });
+
+  it(`primes the engine with { ${key} } on every tick`, () => {
+    const engineSpy = vi.spyOn(AudioEngine, 'updateRobotSends');
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.25));
+    forceSingleStart(1);
+    tickAudioSwells(LOCALE_ID, 0);
+    advanceOnlyTo(1);
+    expect(sendOf('r1', field)).not.toBe(0.25);
+    expect(engineSpy).toHaveBeenCalledWith('r1', { [key]: sendOf('r1', field) });
+  });
+
+  it('ramps away from its base, stays inside 0..1 on every tick, and leaves every other send alone', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.9, { reverbSend: 0 }));
+    forceSingleStart(1);
+    tickAudioSwells(LOCALE_ID, 0);
+    const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === field)!;
+    const total = swell.risingMeasures + swell.fallingMeasures;
+
+    advanceOnlyTo(swell.risingMeasures);
+    expect(sendOf('r1', field)).toBeLessThan(0.9); // above the midpoint, so the swell goes down
+    for (let m = 1; m < total; m += 0.5) {
+      advanceOnlyTo(m);
+      expect(sendOf('r1', field)).toBeGreaterThanOrEqual(0);
+      expect(sendOf('r1', field)).toBeLessThanOrEqual(1);
+      for (const other of EFFECT_SENDS) if (other.field !== field) expect(sendOf('r1', other.field)).toBe(0);
+    }
+  });
+
+  it.each([0.007, 0.013, 0.29, 0.7123456789, 0.5, 1])('lands exactly on its base after a swell from %s', (base) => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(base));
+    forceSingleStart(1);
+    tickAudioSwells(LOCALE_ID, 0);
+    const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === field)!;
+    expect(swell, `${field} swell started`).toBeDefined();
+
+    advanceOnlyTo(swell.risingMeasures);
+    expect(sendOf('r1', field)).not.toBe(base);
+
+    advanceOnlyTo(swell.risingMeasures + swell.fallingMeasures + 1);
+    expect(sendOf('r1', field)).toBe(base);
+    expect(isRobotAttributeSwelling('r1', field)).toBe(false);
+  });
+
+  it(`a company-wide swell (index ${index} of 22) moves each live member from its own base and skips a member at 0`, () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.2, { id: 'r1' }));
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.7123456789, { id: 'r2' }));
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0, { id: 'r3' }));
+    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2', 'r3'] }));
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+      noiseMapForDataIds({
+        'audioSwell.trigger.robot': -1,
+        'audioSwell.company.chance': -1,
+        'audioSwell.company.attribute': ((index + 0.5) / 22) * 2 - 1,
+      }),
+    );
+    tickAudioSwells(LOCALE_ID, 0);
+
+    const swell = getActiveSwellSnapshot('robot')[0];
+    expect(swell.robotAttribute).toBe(field);
+    expect(swell.members!.map((m) => m.robotId).sort()).toEqual(['r1', 'r2']);
+    expect(swell.members!.map((m) => m.baseValue).sort()).toEqual([0.2, 0.7123456789]);
+
+    advanceOnlyTo(swell.risingMeasures);
+    expect(sendOf('r1', field)).not.toBe(0.2);
+    expect(sendOf('r2', field)).not.toBe(0.7123456789);
+    expect(sendOf('r3', field)).toBe(0);
+
+    advanceOnlyTo(swell.risingMeasures + swell.fallingMeasures + 1);
+    expect(sendOf('r1', field)).toBe(0.2);
+    expect(sendOf('r2', field)).toBe(0.7123456789);
+    expect(sendOf('r3', field)).toBe(0);
+    expect(getActiveSwellSnapshot('robot')).toEqual([]);
   });
 });
 
@@ -1354,7 +1524,7 @@ describe('robot pool — company-wide swells', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
       'audioSwell.company.chance': -1,
-      'audioSwell.company.attribute': -0.8, // index 1 of 19 -> 'layer0.gain'
+      'audioSwell.company.attribute': -0.86, // index 1 of 22 -> 'layer0.gain'
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
 
@@ -1377,7 +1547,7 @@ describe('robot pool — company-wide swells', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
       'audioSwell.company.chance': -1,
-      'audioSwell.company.attribute': -0.8, // index 1 of 19 -> 'layer0.gain', ineligible for r1
+      'audioSwell.company.attribute': -0.86, // index 1 of 22 -> 'layer0.gain', ineligible for r1
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
 

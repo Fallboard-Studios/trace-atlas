@@ -131,7 +131,9 @@ scale as before, through `bodyShapeFromAdsr`.
 The two sends (`Robot.reverbSend` / `Robot.delaySend`, the Reverb and Delay sliders; roadmap 50.2) reach the body
 through no dial either, and a send swell moves a slider, never the gem: nothing under `src/components/robot/gem/` or in
 `RobotBody.tsx` reads either field (pinned by `src/docs/robotSendsDocs.test.ts`). A robot's depth in the echo is a
-property of the audio graph only; its body is still identity and seed.
+property of the audio graph only; its body is still identity and seed. The same holds for the three Robot Effect Sends
+(`Robot.gritSend` / `Robot.shimmerSend` / `Robot.doubleSend`, the Grit, Shimmer and Double sliders; roadmap 50.7): they
+reach the body through no dial (pinned by `src/docs/robotEffectSendsDocs.test.ts`).
 
 Robot Performance (`Robot.dynamics` / `rests` / `accents`, the melody's `rest` / `mark` stamps and the global Humanize; roadmap
 50.5) reaches the body through no dial either: nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads `dynamics`,

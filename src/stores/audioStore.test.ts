@@ -320,6 +320,28 @@ describe('useAudioStore - setGlobalAudio pushes to AudioEngine', () => {
       expect(order(AudioEngine.setGlobalChebyshev)).toBeLessThan(order(AudioEngine.setGlobalBitCrusher));
     });
   });
+
+  // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return, so the
+  // store has no block, setter or push for it. The AudioEngine mock above lists no setGlobalColourRoom, so a push that
+  // came back would throw here.
+  describe('no Colour room block', () => {
+    it('the store state has no colourRoom key', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      expect('colourRoom' in useAudioStore.getState().globalAudio).toBe(false);
+    });
+
+    it('applyGlobalAudioToEngine goes from the Bit Crusher straight to the AutoWah, even given a stray block', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      const globalAudio = { ...useAudioStore.getState().globalAudio, colourRoom: { wet: 0.37 } };
+      vi.clearAllMocks();
+
+      expect(() => applyGlobalAudioToEngine(globalAudio, 120)).not.toThrow();
+
+      const order = (fn: unknown) => (fn as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+      expect(order(AudioEngine.setGlobalBitCrusher)).toBeLessThan(order(AudioEngine.setGlobalAutoWah));
+    });
+  });
 });
 
 // Global Modulation T6 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.4).

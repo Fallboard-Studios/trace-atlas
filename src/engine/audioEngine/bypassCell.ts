@@ -42,10 +42,12 @@ export const BYPASS_KEYS = [
 export type BypassKey = (typeof BYPASS_KEYS)[number];
 
 /** One effect's bypass cell: `in` -> `dry` -> `cut`, and `in` -> effect -> `wet` -> `cut`. The effect's two edges
- *  exist only while it is lit, and are made and broken only while `wet` is at zero. */
+ *  exist only while it is lit, and are made and broken only while `wet` is at zero. A room's BRANCH (Robot Effect Sends,
+ *  the ROOMS section below) is the same cell with no `dry`: its `in` and `cut` are the room's, shared by its branches. */
 export type Cell = {
   in: Tone.Gain;
-  dry: Tone.Gain;
+  /** Null for a room's branch: a room has no dry path. */
+  dry: Tone.Gain | null;
   wet: Tone.Gain;
   cut: Tone.Delay;
   /** The Phaser's is replaced by its rebuild. */
@@ -56,6 +58,10 @@ export type Cell = {
   mix: number;
   /** The pending Tone.getContext().setTimeout id of a darken's disconnect. */
   darken: number | null;
+  /** The room this cell is a branch of; null for a chain cell. */
+  room: RoomKey | null;
+  /** A branch's own Mix, the law input while its room is live (recorded on every write, lit or not). 0 on a chain cell. */
+  depth: number;
 };
 
 /** The live cells, rebuilt by every buildGlobalFxChain. An absent key is an effect left out of the chain: its
@@ -102,13 +108,15 @@ export function disposeQuietly(node: Tone.ToneAudioNode | null): void {
   }
 }
 
-/** Drop every cell, with its pending disconnect and any duck in progress: buildGlobalFxChain is building new ones. */
+/** Drop every cell and room, with its pending disconnect and any duck in progress: buildGlobalFxChain is building new
+ *  ones. */
 export function clearCells(): void {
   // The context is read only for a timer to cancel: a headless build with no context has none.
   for (const cell of Object.values(_cells)) {
     if (cell.darken !== null) Tone.getContext().clearTimeout(cell.darken);
   }
   for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
+  for (const key of Object.keys(_rooms) as RoomKey[]) delete _rooms[key];
   for (const key of Object.keys(_ducks) as BypassKey[]) {
     Tone.getContext().clearTimeout(_ducks[key]!.timer);
     delete _ducks[key];
@@ -144,6 +152,8 @@ export function buildCell(
       connected: false,
       mix: 0,
       darken: null,
+      room: null,
+      depth: 0,
     };
   } catch (err) {
     devWarn(
@@ -168,23 +178,30 @@ export function cellEffect<T extends Tone.ToneAudioNode>(key: BypassKey): T | nu
 /** One stage of the dry chain: where the previous stage connects in, and where this one connects on. */
 export type ChainSpan = { head: Tone.ToneAudioNode; tail: Tone.ToneAudioNode };
 
-/** A cell as a chain stage: entered at its `in`, left at its `cut`. Null for an absent cell. */
+/** A cell as a chain stage: entered at its `in`, left at its `cut`. Null for an absent cell, and for a room's branch,
+ *  which is no stage of the chain. */
 export function cellSpan(key: BypassKey): ChainSpan | null {
   const cell = _cells[key];
-  return cell ? { head: cell.in, tail: cell.cut } : null;
+  return cell && cell.room === null ? { head: cell.in, tail: cell.cut } : null;
 }
 
-/** A cell's nodes in signal order, upstream first, for disconnectAllFxNodes. Empty for an absent cell. */
+/** A cell's nodes in signal order, upstream first, for disconnectAllFxNodes. Empty for an absent cell. A branch lists
+ *  only its own two, its effect and wet gain: the room's `in` and `cut` are roomNodes'. */
 export function cellNodes(key: BypassKey): Array<Tone.ToneAudioNode | null> {
   const cell = _cells[key];
-  return cell ? [cell.in, cell.dry, cell.effect, cell.wet, cell.cut] : [];
+  if (!cell) return [];
+  return cell.dry ? [cell.in, cell.dry, cell.effect, cell.wet, cell.cut] : [cell.effect, cell.wet];
 }
 
-/** Every cell's own edges: the dry path always, the effect's two edges only while `connected`. */
+/** Every room's cut -> return, and every cell's own edges: the dry path always (a branch has none), the effect's two
+ *  edges only while `connected`. */
 export function wireCells(): void {
+  for (const room of Object.values(_rooms)) room.cut.connect(room.return);
   for (const cell of Object.values(_cells)) {
-    cell.in.connect(cell.dry);
-    cell.dry.connect(cell.cut);
+    if (cell.dry) {
+      cell.in.connect(cell.dry);
+      cell.dry.connect(cell.cut);
+    }
     cell.wet.connect(cell.cut);
     if (cell.connected && cell.effect) {
       cell.in.connect(cell.effect);
@@ -193,8 +210,8 @@ export function wireCells(): void {
   }
 }
 
-/** How many of the ten effects are connected into their bypass cells, i.e. in the signal path: a darkening effect
- *  counts until its disconnect fires. 0 before buildGlobalFxChain() has run. Read by the `?debug` HUD's ` · fx in n/10`
+/** How many of the ten effects are connected into their bypass cells or room branches, i.e. in the signal path: a
+ *  darkening effect counts until its disconnect fires. 0 before buildGlobalFxChain() has run. Read by the `?debug` HUD's ` · fx in n/10`
  *  token (docs/specs/DARK_EFFECT_BYPASS.md assumption 13). */
 export function getConnectedEffectCount(): number {
   return Object.values(_cells).filter((cell) => cell.connected).length;
@@ -210,13 +227,18 @@ const MAX_LAW_STEP = 0.25;
 type SegmentableGain = Tone.Param<'gain'> & { linearRampToValueAtTime?: (value: number, endTime: number) => unknown };
 
 /**
- * Ramp `key`'s cell's two gains from its law at `from` to its law at `to` over `seconds`: widthCellGains for the
- * widener, whose linear law a single ramp follows exactly, cellGains for a Mix effect. A Mix ramp wider than
+ * Ramp `key`'s cell's two gains from its law at `from` to its law at `to` over `seconds`: branchGains for a room's branch
+ * (its wet gain only: the law is linear, so one ramp follows it exactly), widthCellGains for the widener, whose linear
+ * law a single ramp follows exactly too, cellGains for a Mix effect. A Mix ramp wider than
  * MAX_LAW_STEP is split into equal chords of the law over equal shares of the time: the first is a rampTo from the
  * context's now (which holds wherever the gain is, so a ramp cut short by the next one stays continuous and cancels what
  * was still scheduled), the rest are linear ramps appended after it.
  */
 function rampCell(key: BypassKey, cell: Cell, from: number, to: number, seconds: number): void {
+  if (!cell.dry) {
+    rampOrSet(cell.wet.gain, branchGains(to).wet, seconds);
+    return;
+  }
   const law = key === 'stereoWidener' ? widthCellGains : cellGains;
   const dryGain = cell.dry.gain as SegmentableGain;
   const wetGain = cell.wet.gain as SegmentableGain;
@@ -285,13 +307,15 @@ export const BYPASS_DISCONNECT_MARGIN_SECONDS = 0.01;
  * ramp to dry and arm the one disconnect for when the ramp has run on the audio thread (lookAhead + the ramp + a margin),
  * where it goes only if the cell is still dark. A re-sent value with nothing left to do writes nothing, so a whole-block
  * apply does not re-ramp or re-arm. While a duck holds the cell at dry it is lit or darkened all the same but its gains
- * are left alone: the duck returns them to the new Mix.
+ * are left alone: the duck returns them to the new Mix. On a room's branch `mix` is recorded as the branch's depth and
+ * the target is colourWetGain(mix) only while the room is live (fed and its Return above 0), 0 otherwise.
  */
 export function writeCellMix(key: BypassKey, mix: number): void {
   const cell = _cells[key];
   const effect = cell?.effect;
   if (!cell || !effect) return;
-  const w = key === 'stereoWidener' ? (mix === 0.5 ? 0 : 1) : colourWetGain(mix);
+  if (cell.room !== null) cell.depth = mix;
+  const w = cellTarget(key, cell, mix);
   if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
   const ramp = !isDucked(key);
   const from = cell.mix;
@@ -316,6 +340,169 @@ export function writeCellMix(key: BypassKey, mix: number): void {
     },
     context.lookAhead + COLOUR_RAMP_SECONDS + BYPASS_DISCONNECT_MARGIN_SECONDS,
   );
+}
+
+/** The law input a Mix write targets: a branch's tapered depth while its room is live, else 0; the widener's fade; a
+ *  Mix effect's tapered Mix. */
+function cellTarget(key: BypassKey, cell: Cell, mix: number): number {
+  if (cell.room !== null) {
+    const room = _rooms[cell.room];
+    return room && roomLive(room) ? colourWetGain(mix) : 0;
+  }
+  return key === 'stereoWidener' ? (mix === 0.5 ? 0 : 1) : colourWetGain(mix);
+}
+
+// ========================================
+// ROOMS (docs/specs/ROBOT_EFFECT_SENDS.md assumptions 2-3, §1.3)
+// ========================================
+// Five of the ten effects are not stages of the dry chain but branches of three ROOMS beside it, fed only by the
+// robots' per-robot send gains (AudioEngine.reserveVoice), as the Reverb and Delay rooms are. A room is the cell
+// machinery with the dry path removed: a shared `in` every robot's send connects to, one branch per effect (a Cell with
+// `dry` null: `in` -> effect -> `wet` -> `cut`, the effect's two edges present only while lit, `wet` the wet-only
+// branchGains law), a zero-delay `cut` that bounds a connect's cycle search to the room, and a `return` gain the global
+// Return slider drives (globalFx.ts joins it with the Reverb and Delay returns). A branch is lit while its room is LIVE
+// (some reserved robot feeds it AND its Return is above 0) and its own depth is above 0; either driver crossing 0
+// re-targets every branch through writeCellMix's one crossing, so every graph edit is silent.
+
+export const ROOM_KEYS = ['grit', 'shimmer', 'double'] as const;
+export type RoomKey = (typeof ROOM_KEYS)[number];
+
+/** Which bypass keys are branches of which room, in chain order; the other five BYPASS_KEYS are chain cells. */
+export const ROOM_BRANCHES: Record<RoomKey, readonly BypassKey[]> = {
+  grit: ['distortion', 'chebyshev', 'bitCrusher'],
+  shimmer: ['frequencyShifter'],
+  double: ['chorus'],
+};
+
+export type Room = {
+  /** Every robot's send gain for this room connects here, for the voice's life. */
+  in: Tone.Gain;
+  /** Every branch's wet -> cut -> return; bounds the cycle search to this room (CHAIN_CUT_OPTIONS). */
+  cut: Tone.Delay;
+  /** The global Return slider's gain; globalFx.ts connects it to the rooms' join. */
+  return: Tone.Gain;
+  /** Some reserved robot's send into this room is above 0 (setRoomFed, the engine's word). */
+  fed: boolean;
+  /** The last Return written (setRoomReturn). */
+  returnLevel: number;
+};
+
+/** The live rooms, rebuilt by every buildGlobalFxChain beside the cells. An absent key is a room left out. */
+const _rooms: Partial<Record<RoomKey, Room>> = {};
+
+/** A branch's gains for a tapered wet `w`: wet-only. A room has no dry path to keep equal power against, so the wet gain
+ *  is `w` itself and there is no cos / sin. */
+export function branchGains(w: number): { dry: number; wet: number } {
+  return { dry: 0, wet: w };
+}
+
+/** Builds `key`'s room: `in` (1), a zero-delay `cut` and `return` (1), unfed, at a Return of 1, with no branch yet. If a
+ *  node cannot be built, the ones already made are released and the room is left out. */
+export function buildRoom(
+  key: RoomKey,
+  GainCtor: new (...args: unknown[]) => Tone.Gain,
+  DelayCtor: new (...args: unknown[]) => Tone.Delay,
+): void {
+  const made: Tone.ToneAudioNode[] = [];
+  const build = <T extends Tone.ToneAudioNode>(node: T): T => {
+    made.push(node);
+    return node;
+  };
+  try {
+    _rooms[key] = {
+      in: build(new GainCtor(1)),
+      cut: build(new DelayCtor({ ...CHAIN_CUT_OPTIONS })),
+      return: build(new GainCtor(1)),
+      fed: false,
+      returnLevel: 1,
+    };
+  } catch (err) {
+    devWarn('[AudioEngine] the ' + key + ' room could not be constructed; it is left out', err);
+    for (const node of made) disposeQuietly(node);
+  }
+}
+
+/** Builds `key`'s branch of `room` around `effect`: a cell sharing the room's `in` and `cut`, with no dry gain and a wet
+ *  gain at 0, built dark (unconnected, depth 0). The effect must already be pinned fully wet. Without the room, without
+ *  an effect, or if the wet gain cannot be built, there is no branch and the effect is released. */
+export function buildBranch(
+  key: BypassKey,
+  room: RoomKey,
+  effect: Tone.ToneAudioNode | null,
+  GainCtor: new (...args: unknown[]) => Tone.Gain,
+): void {
+  const host = _rooms[room];
+  if (!host || !effect) {
+    disposeQuietly(effect);
+    return;
+  }
+  try {
+    _cells[key] = {
+      in: host.in,
+      dry: null,
+      wet: new GainCtor(0),
+      cut: host.cut,
+      effect,
+      connected: false,
+      mix: 0,
+      darken: null,
+      room,
+      depth: 0,
+    };
+  } catch (err) {
+    devWarn('[AudioEngine] the ' + key + ' branch of the ' + room + ' room could not be constructed; it is left out', err);
+    disposeQuietly(effect);
+  }
+}
+
+/** `key`'s live room, or undefined when it is left out. */
+export function getRoom(key: RoomKey): Room | undefined {
+  return _rooms[key];
+}
+
+/** A room's nodes in signal order, upstream first, for disconnectAllFxNodes: `in`, each branch's effect and wet gain,
+ *  `cut`, `return`. Empty for an absent room. */
+export function roomNodes(key: RoomKey): Array<Tone.ToneAudioNode | null> {
+  const room = _rooms[key];
+  if (!room) return [];
+  const branches = ROOM_BRANCHES[key].flatMap((branch) => {
+    const cell = _cells[branch];
+    return cell?.room === key ? [cell.effect, cell.wet] : [];
+  });
+  return [room.in, ...branches, room.cut, room.return];
+}
+
+/** A room is live while some robot feeds it and its Return is above 0: the two drivers of every branch's crossing. */
+function roomLive(room: Room): boolean {
+  return room.fed && room.returnLevel > 0;
+}
+
+/** Re-run every branch's Mix write at its recorded depth, so each lights or darkens to match the room's liveness. */
+function syncRoom(key: RoomKey): void {
+  for (const branch of ROOM_BRANCHES[key]) {
+    const cell = _cells[branch];
+    if (cell?.room === key) writeCellMix(branch, cell.depth);
+  }
+}
+
+/** The engine's word on whether anyone sends into `key`'s room (spec assumption 3): AudioEngine calls it only when its
+ *  set of feeding robots becomes empty or non-empty. A change re-targets every branch. */
+export function setRoomFed(key: RoomKey, fed: boolean): void {
+  const room = _rooms[key];
+  if (!room || room.fed === fed) return;
+  room.fed = fed;
+  syncRoom(key);
+}
+
+/** The Return: ramps `key`'s return gain over COLOUR_RAMP_SECONDS and, when the level crosses 0, re-targets every branch
+ *  (a Return of 0 takes the room's effects out of the signal path). A non-finite or re-sent equal level writes nothing. */
+export function setRoomReturn(key: RoomKey, level: number): void {
+  const room = _rooms[key];
+  if (!room || !Number.isFinite(level) || level === room.returnLevel) return;
+  const wasLive = roomLive(room);
+  room.returnLevel = level;
+  rampOrSet(room.return.gain, level, COLOUR_RAMP_SECONDS);
+  if (roomLive(room) !== wasLive) syncRoom(key);
 }
 
 // ========================================

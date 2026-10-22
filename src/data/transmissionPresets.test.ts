@@ -146,6 +146,17 @@ describe('TRANSMISSION_PRESETS', () => {
       }
     });
 
+    // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return block.
+    it('carries no colourRoom block', () => {
+      expect('colourRoom' in (payload.globalAudio ?? {})).toBe(false);
+    });
+
+    // Robot Effect Sends T8: the Chorus and shifter wets are their rooms' Returns, full in every preset too.
+    it('carries the Chorus and shifter Returns at full, 1', () => {
+      expect(payload.globalAudio?.chorus.wet).toBe(1);
+      expect(payload.globalAudio?.frequencyShifter.wet).toBe(1);
+    });
+
     it('carries every LFO lane and every global LFO link, never a partial set', () => {
       expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
       expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());

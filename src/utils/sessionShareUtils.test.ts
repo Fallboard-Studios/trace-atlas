@@ -321,6 +321,85 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     });
   });
 
+  // docs/tasks/ROBOT_EFFECT_SENDS.md Task 16: Grit, Shimmer and Double ride as gr / sm / db, exactly as rs / ds do.
+  describe('the three effect sends on the wire (the `gr` / `sm` / `db` codes, Robot Effect Sends T16)', () => {
+    function encodeWire(wire: unknown): string {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
+    }
+
+    function decodeWithRobotWire(entry: Record<string, unknown>) {
+      const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } }))) as Record<string, unknown>;
+      return decodeSessionPayload(encodeWire({ ...wire, r: { 'robot-1': entry } }));
+    }
+
+    const CODES = [
+      { field: 'gritSend', code: 'gr' },
+      { field: 'shimmerSend', code: 'sm' },
+      { field: 'doubleSend', code: 'db' },
+    ] as const;
+
+    it('abbreviates all five sends and decodes them back, toEqual, each value on its own code', () => {
+      const payload = makePayload({
+        robotOverrides: { 'robot-1': { reverbSend: 0.35, delaySend: 0.6, gritSend: 0.45, shimmerSend: 0.15, doubleSend: 0.05 } },
+      });
+      const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+
+      expect(wire.r['robot-1']).toEqual({ rs: 0.35, ds: 0.6, gr: 0.45, sm: 0.15, db: 0.05 });
+      expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+    });
+
+    describe.each(CODES)('$field as $code', ({ field, code }) => {
+      it('round-trips alone, 0 and 1 included, with every other send key absent on the wire and after decoding', () => {
+        for (const send of [0, 0.3, 1]) {
+          const payload = makePayload({ robotOverrides: { 'robot-1': { [field]: send } } });
+          const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>> };
+          expect(wire.r['robot-1']).toEqual({ [code]: send });
+
+          const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+          expect(decoded).toEqual(payload);
+          expect(Object.keys(decoded!.robotOverrides['robot-1'])).toEqual([field]);
+        }
+      });
+
+      it('an entry without the key decodes without the field', () => {
+        expect(decodeWithRobotWire({ rd: 42 })?.robotOverrides['robot-1']).toEqual({ rhythmicDensity: 42 });
+      });
+
+      it('drops a value that is a string, null, a boolean, an object or out of [0, 1], keeping the rest of the entry', () => {
+        for (const bad of ['x', '0.5', null, true, {}, [], 3, -0.1, 1.0001]) {
+          expect(decodeWithRobotWire({ rd: 42, [code]: bad })?.robotOverrides['robot-1'], String(bad)).toEqual({ rhythmicDensity: 42 });
+        }
+      });
+
+      it('a bad value costs no other send: a good rs survives it, and it survives a bad rs', () => {
+        expect(decodeWithRobotWire({ rs: 0.4, [code]: 'x' })?.robotOverrides['robot-1']).toEqual({ reverbSend: 0.4 });
+        expect(decodeWithRobotWire({ rs: -0.1, [code]: 0.7 })?.robotOverrides['robot-1']).toEqual({ [field]: 0.7 });
+      });
+    });
+
+    // Spec assumption 13 (as amended, T17.2): no upgrade. An old link has none of the three codes and decodes with every
+    // saved value (its Chorus and shifter wets included) untouched. One made between T2 and the amendment still carries a
+    // Colour room block in `g`: it decodes without error and the block is dropped.
+    it('a link from before the three sends decodes with nothing rewritten, and a stray colourRoom block is dropped', () => {
+      const oldG = DEFAULT_GLOBAL_AUDIO_SETTINGS;
+      const g = { ...oldG, chorus: { ...oldG.chorus, wet: 0.35 }, frequencyShifter: { ...oldG.frequencyShifter, wet: 0.2 } };
+      const wire = decodeRawWire(encodeSessionPayload(makePayload({ robotOverrides: { 'robot-1': { reverbSend: 0.25 } } }))) as Record<string, unknown>;
+      const olderWire = { ...wire, v: 2, g: { ...g, colourRoom: { wet: 0.4 } }, r: { 'robot-1': { rs: 0.25 } } };
+
+      const decoded = decodeSessionPayload(encodeWire(olderWire))!;
+
+      expect(decoded.version).toBe(2);
+      expect(decoded.robotOverrides['robot-1']).toEqual({ reverbSend: 0.25 });
+      expect('colourRoom' in decoded.globalAudio).toBe(false);
+      expect(decoded.globalAudio.chorus.wet).toBe(0.35);
+      expect(decoded.globalAudio.frequencyShifter.wet).toBe(0.2);
+      expect(Object.keys(decoded.globalAudio)).toEqual(Object.keys(g));
+      for (const [key, value] of Object.entries(g)) {
+        expect(decoded.globalAudio[key as keyof typeof decoded.globalAudio], key).toEqual(value);
+      }
+    });
+  });
+
   // docs/tasks/ROBOT_PERFORMANCE.md Task 16: the three robot fields ride as dy / rt / ax, Humanize as the top-level hm.
   describe('performance on the wire (dy / rt / ax per robot, hm at the top level, Robot Performance T16)', () => {
     function encodeWire(wire: unknown): string {
@@ -1305,9 +1384,9 @@ describe('Global Pedals defaults and synced Rates on the wire (Global Pedals T12
     const first = decodeSessionPayload(pre506Link())!;
     first.globalAudio.chorus.wet = 0.9;
     first.globalAudio.stereoWidener.width = 1;
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(1); // the Double room Return (Robot Effect Sends T8)
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width).toBe(0.5);
     const second = decodeSessionPayload(pre506Link())!;
-    expect([second.globalAudio.chorus.wet, second.globalAudio.stereoWidener.width]).toEqual([0, 0.5]);
+    expect([second.globalAudio.chorus.wet, second.globalAudio.stereoWidener.width]).toEqual([1, 0.5]);
   });
 });

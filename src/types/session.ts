@@ -44,6 +44,10 @@ export interface RobotAudioOverrideDiff {
    *  (docs/specs/ROBOT_SENDS.md §1.8). */
   reverbSend?: number;
   delaySend?: number;
+  /** As reverbSend, for Robot.gritSend / shimmerSend / doubleSend (docs/specs/ROBOT_EFFECT_SENDS.md §1.7). */
+  gritSend?: number;
+  shimmerSend?: number;
+  doubleSend?: number;
   name?: string;
   /** Only the targets whose link differs from the spawn seed baseline (LFO Bank, docs/tasks/
    *  LFO_BANK.md Task 18) — an untouched target has no key here, same "absent means untouched"

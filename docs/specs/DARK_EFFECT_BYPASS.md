@@ -1,5 +1,7 @@
 # Phase Spec: Dark-Effect Bypass — a Dark Global Effect Leaves the Signal Path
 
+> **Superseded in part, 2026-10-22, by Robot Effect Sends (roadmap 50.7, [ROBOT_EFFECT_SENDS.md](ROBOT_EFFECT_SENDS.md)):** five of the ten cells became room branches, cells with no dry path, in the signal path only while their room is fed and its Return is above 0. The crossing, the audio-clock timer and the cuts are unchanged, and `fx in n/10` counts branches like cells.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)

@@ -30,13 +30,15 @@ export const SWELL_GLOBAL_TARGET_IDS: readonly SwellGlobalTargetId[] = [
 // ========================================
 
 /**
- * The 19 robot-scoped swell attributes: volume, every oscillator layer's
+ * The 22 robot-scoped swell attributes: volume, every oscillator layer's
  * gain/detune/phase/pulseWidth (layerN.phase included — see
  * docs/specs/AUDIO_SWELLS.md §1.3 for why phase is fine here even though it's
  * excluded from LFO/Drift), the 4 ADSR sub-fields, independently
  * eligible (confirmed via /interview-me — never one atomic "envelope" move),
  * and the robot's own reverbSend / delaySend (the swells that used to ramp the
- * global delay.wet / reverb.wet; docs/specs/ROBOT_SENDS.md assumption 13).
+ * global delay.wet / reverb.wet; docs/specs/ROBOT_SENDS.md assumption 13),
+ * then its gritSend / shimmerSend / doubleSend (docs/specs/ROBOT_EFFECT_SENDS.md
+ * assumption 12: no ceiling, a rare swell on a Grit send is a roar).
  * The sends are listed last so no earlier index-based pick shifts.
  *
  * Spelled out as its own union since 2026-09-30, no longer derived from
@@ -55,7 +57,7 @@ export type SwellRobotAttributeId =
   | 'layer1.gain' | 'layer1.detune' | 'layer1.phase' | 'layer1.pulseWidth'
   | 'layer2.gain' | 'layer2.detune' | 'layer2.phase' | 'layer2.pulseWidth'
   | 'adsr.attack' | 'adsr.decay' | 'adsr.sustain' | 'adsr.release'
-  | 'reverbSend' | 'delaySend';
+  | 'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend';
 
 export const SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId[] = [
   'volume',
@@ -63,7 +65,7 @@ export const SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId[] = [
   'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
   'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
   'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
-  'reverbSend', 'delaySend',
+  'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend',
 ];
 
 // ========================================

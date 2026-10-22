@@ -11,10 +11,39 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo convention
 `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status: NOT STARTED (2026-10-21).** Blocked twice: on the retune merging (T0 part A re-states the spec's bands
-> against it) and on Crawford's answers to the spec's open questions 1, 3, 4, 6 and 7 (T0 part B). Questions 2 and 5 are
-> answered (field names are the intent's; old saves are not a concern). T1 and T2 need neither; everything from T3 on
-> needs at least one answer (each task names which).
+> **Status: T0 DONE (2026-10-21); next T1.** Unblocked. The retune merged at `2dc5b4a2` (PR #567) and the spec's
+> assumption 6 and §1.1 carry its Reverb band (0.1–0.6); the colour Mix it merged with is one shared 0.1–0.2 band under a
+> 0.25 ceiling. All seven spec §7 questions are answered: Q1 the room-depth second look is T20's; Q3 parallel; Q4 fed AND
+> Return > 0; Q6 Chorus/Shifter stay under Modulation, Colour gains a Room sub-tab; Q7 accept as specced (Q2 and Q5 were
+> answered at the spec). The build branch is **`feature/robot-effect-sends`** (Crawford's, off `main` at `2dc5b4a2`),
+> not the proposed `feature/palette-effect-sends` named above.
+>
+> **Status, 2026-10-21: Phase 1 (T1–T8) BUILT** on `feature/robot-effect-sends`, one commit per task (`a2991039` to
+> `0de3fc06`). Types, lint and the full suite are clean. **Next: Checkpoint A** — the dev-server and by-ear checks and Crawford's
+> review, before Phase 2. Deviations from the plan are recorded under "Phase 1 as shipped" after Checkpoint A.
+> Checkpoint A passed (Crawford, 2026-10-21).
+>
+> **Status, 2026-10-21: Phase 2 (T9–T11) BUILT**, one commit per task (`0bc261ce`, `67941c69`, `483d7730`). Types and
+> lint are clean; the full suite is 13 708 green plus the documented `sceneToOrbiterLocal` 5 s timeout. **Next:
+> Checkpoint B** — the dev-server by-ear checks and Crawford's review, before Phase 3. Deviations are under "Phase 2 as
+> shipped" after Checkpoint B. Checkpoint B passed (Crawford, 2026-10-21); next is Phase 3, T12.
+>
+> **Status, 2026-10-21: Phase 3 (T12–T16) BUILT**, one commit per task (`0b80fc01`, `885d9738`, `f49d6a98`,
+> `6ed1f89a`, `c506fbb2`). Types, lint (0 errors) and `npm run build` are clean; the full suite is 13 925 green plus the
+> documented `sceneToOrbiterLocal` 5 s timeout, which passes alone. **Next: Checkpoint C** — the dev-server checks and
+> Crawford's review, before Phase 4. Deviations are under "Phase 3 as shipped" after Checkpoint C.
+>
+> **Status, 2026-10-21: Phase 4 (T17) BUILT** (`b1a0151c`). Types, lint (0 errors) and `npm run build` are clean; the
+> full suite is 13 958 green plus the documented `sceneToOrbiterLocal` 5 s timeout, which passes alone. **Next:** T17's
+> `npm run dev` by-ear check (Crawford), Checkpoint C's open dev-server boxes, then Phase 5 (T18). Notes are under
+> "Phase 4 as shipped" after T17.
+>
+> **Amended 2026-10-21, after T17: T17 is SUPERSEDED.** Crawford chose to drop the Colour room's master Return
+> altogether (spec, the amendment under the header, and §7 Q6): each colour Mix is its effect's return level, as the
+> Reverb and Delay Amounts are. **T17.1** reverts the Room sub-tab and rewords the three colour Mixes; **T17.2** removes
+> the Colour room settings block that T2 and T4 built. Phase 5 starts after both. **Both BUILT 2026-10-21**
+> (`3f1a3981`, `da67cde0`; full suite 13 936 green, types, lint and build clean). Notes are under "T17.1 and T17.2 as
+> shipped". **Next:** Checkpoint C's open dev-server boxes, then T18.
 
 ## Overview
 
@@ -312,11 +341,38 @@ Tremolo and Vibrato measured shares (expected 22.2 % / 19.4 %); `transmissionPre
 **Scope:** M.
 
 ### Checkpoint A: Engine and data
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] A fresh world in the dev server: the `?debug` HUD's `fx in` counts lit branches; a world with a Grit robot shows
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `0de3fc06`: 13 548 tests, lint 0 errors).
+- [x] A fresh world in the dev server: the `?debug` HUD's `fx in` counts lit branches; a world with a Grit robot shows
   the Distortion (or whichever node the character lit) connected, a world with none shows it out; the dry chain is seven
   stages (read from `wireGlobalFxChain`'s connections in the test, and by ear: the Vibrato and Tremolo still work).
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] Reviewed with Crawford before Phase 2.
+
+#### Phase 1 as shipped (2026-10-21)
+
+Every task RED first, one commit each, with a mutation check (every named gate killed; extra mutants listed in each
+commit message). The deviations and findings, task by task:
+
+- **T1.** `SEND_DELAY_QUIET_THRESHOLD` is deleted, so `robotSendsDocs.test.ts` now lists it among the names a doc may cite
+  that are not in source (`AUDIO_SYSTEM.md`, `ROBOT_DATA_GRID.md`, `SLIDER_VALUES.md` still cite it; T22 rewrites them).
+  The parity test pins two twelve-robot rosters (`effect-sends-parity-a` / `-b`) recorded on `ad1b37c1`.
+- **T2.** The stub `setGlobalColourRoom` writes nothing, so its clamp is unobservable until T4; the 7 → 1 and NaN cases
+  are pinned there. `globalAudio.test.ts`'s key-order test now has `colourRoom` between `bitCrusher` and `autoWah`.
+- **T3.** A branch whose effect is null (constructor threw) is not built (a room has no dry path to keep); `cellSpan` is
+  null for a branch; `wireCells` also makes each room's `cut → return`.
+- **T4.** The build makes **ten** zero-delay Delays (two cuts, three rooms, five chain cells), not the fifteen spec §5
+  states (an arithmetic slip). `globalFx.test.ts` finds cells through the live `bypassCell` module instead of by Gain
+  build order; the Chorus Spread de-click suite drives the Double room (Return and feed); the "duck splits into chords"
+  case moved to the Tremolo, since a branch's linear law is one ramp (a new case pins that).
+- **T5.** Found and fixed: a voice **replaced** by a re-reservation must leave the feeder sets like a released one, or a
+  robot primed before the engine starts (no room yet) never feeds the room built at start. Pinned by a test.
+- **T6.** The restore primes by one `SEND_PRIME_KEYS` table, but the session diff carries Grit, Shimmer and Double only
+  from T15, so until then a restore primes Reverb and Delay only.
+- **T7.** Fallback `alea` keys are `sendGritLit` / `sendGrit` / … (the spec's `sendColour…`). Calibration measured on the
+  150 test worlds: Grit 2.50, Shimmer 1.62, Double 1.55 per fleet, no Grit in 7.3 % of fleets (2 000 other worlds: 2.53 /
+  1.52 / 1.51, 6.0 %). Nominal is 2.52 / 1.52 / 1.51; assumption 7's "Double 1.4" was a slip.
+- **T8.** The oracles moved by the four `wet`s only (Chorus and shifter → 1): oracle-alpha's Chorus already had its Sync,
+  oracle-theta's Chorus Sync roll is over its odds, and no Tremolo / Vibrato lighting moved. Measured over 20 000 styles:
+  Tremolo 22.04 %, Vibrato 19.55 %, two lit in 33.20 % of worlds and never more, the Chorus synced in 49.51 % of all worlds.
 
 ## Phase 2: The robot-screen slice
 
@@ -367,10 +423,30 @@ handlers through the actions (the swell cancel is added in T13).
 `src/components/panels/screen/screens/RobotScreen.tsx` (+ test). **Scope:** M.
 
 ### Checkpoint B: One robot, end to end
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (2026-10-21, at `483d7730`: 13 708 tests plus the documented
+  `sceneToOrbiterLocal` timeout, which passes alone; lint 0 errors).
+- [x] Dev server: a fresh world's Grit robot is audibly coloured beside a clean neighbour; dragging Shimmer up on a clean
   robot brings the shifter in with no click; Delay-side behaviour unchanged.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3 (looked and listened, approved 2026-10-21).
+
+#### Phase 2 as shipped (2026-10-21)
+
+Every task RED first, one commit each, with a mutation check (the mutants are listed in each commit message, all
+caught).
+
+- **T9.** As planned: six actions on the `applyReverbSend` pair. The send action tests now run over all five sends, with
+  every field seeded at a distinct value, and assert that a write touches only its own field and engine key.
+- **T10.** `fleet.colourRoom` and `fleet.colourRoom.amount` are **not** added here. Nothing reads them until T17's
+  `colourRoom` block, so the content guard would need an `AWAITING_CONSUMER` exemption, and T10's criterion says no
+  exemptions. **T17 adds both keys with their reader.** The Chorus and Shifter rows read "Return" (spec assumption 14);
+  the pedals copy test's shared-name sets split into four Mixes and two Returns. Not changed, and still out of date: the
+  three Colour Mix help strings ("blended in with the clean sound") describe a stage, not a branch of a room. That is
+  outside spec §1.8; left for the copy pass or T22.
+- **T11.** The three values and handlers are **optional** on `AudioSettingSection`, and a row renders only when its value
+  and its handler are both given. The company screen renders the same section and is wired in T14 (whose criterion is
+  "the company screen shows the three rows"), so until then it shows none. **T14 can make the six props required.** The
+  three swelling props exist and are tested (snap vs ease); `RobotScreen` passes them in T13. Dynamics stays the last row,
+  after Double.
 
 ## Phase 3: Swells, companies, persistence
 
@@ -450,14 +526,50 @@ for the sends the diff carried). No payload upgrade (spec assumption 13).
 **Dependencies:** T15. **Files:** `src/utils/sessionShareUtils.ts` (+ test). **Scope:** XS.
 
 ### Checkpoint C: The whole feature, automated
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Dev server: save a session with one moved Grit robot, reload, it is where you left it and every untouched robot
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-10-21, at `c506fbb2`: 13 925
+  tests plus the documented `sceneToOrbiterLocal` timeout, which passes alone; lint 0 errors).
+- [x] Dev server: save a session with one moved Grit robot, reload, it is where you left it and every untouched robot
   is back at its seed; share link the same; a company move puts every member at one value; a swell on a send crawls out
-  and back on the card.
+  and back on the card. (Crawford, 2026-10-21: the session save and the share link confirmed by ear after the
+  `bd8c2ae6` fix; the whole box "good I think". The colour heard after a hard reload, following T17.2.)
+
+#### Phase 3 as shipped (2026-10-21)
+
+Every task RED first, one commit each, with a mutation check (the mutants are listed in each commit message, all
+caught).
+
+- **T12.** The **save side of the session diff moved here from T15**: `RobotAudioOverrideDiff` gains the three fields and
+  `computeRobotAudioOverrideDiff`'s send loop runs over all five, because T12's own criterion ("a mid-swell save stores
+  the base") needs the diff to carry them. The existing forced-start integration test ("a session saved mid-swell stores
+  the base send") now lands on a **Shimmer** send in its world, where its `toBeUndefined()` would pass vacuously for a
+  field the diff drops; a companion case hand-edits the send first and requires the edited base back. The
+  company-attribute draws in `audioSwells.test.ts` are re-pointed at `/22` indices. The send writes go through a
+  `switch`, not a lookup table of functions: a table captured at module load would bypass the tests' `vi.spyOn`.
+- **T13.** As planned. One mutant survived the first pass (the Shimmer flag missing from the panel memo's deps, since a
+  flag flipping with a send write recomputes the memo through the value anyway); a "flag flips during an unrelated
+  re-render" case was added per send and kills it.
+- **T14.** As the T11 note allowed, `AudioSettingSection`'s three values and three handlers are now **required**: both
+  screens pass them, the rows render unconditionally, and the two "row absent without its handler / value" cases are
+  replaced by a `@ts-expect-error` case that `npm run build:types` enforces (mutated under `build:types`).
+- **T15.** Restore and prime only (the save side is T12's). The criterion's "`7` primes 1" is the store clamp
+  (`localeStore.updateRobot`, T5): through a payload a 7 is out of range and **ignored whole**, per spec §1.7, and the
+  tests pin that. The old-payload case (no `colourRoom`, Chorus 0.35 / shifter 0.2) restores `colourRoom.wet` 1 and both
+  wets as stored; it passed on first run, since nothing rewrites them, and stands as the guard.
+- **T16.** As planned.
+- **Checkpoint C finding, fixed (`bd8c2ae6`).** Crawford: after opening a share link the three sends showed the right
+  levels but were inaudible; a saved session was fine. Root cause was in T5, not the codec: a room is told it is fed only
+  when its feeder set flips, robots are primed at spawn before any room exists, and the post-load pass re-reserves them
+  one at a time, so with two or more feeders the set never empties and the rooms (built unfed) were never told. Any
+  world with two feeders of a room started with that room silent; a session load masked it by releasing every voice
+  first. `loadInstruments` now tells each room its feeder state right after `buildGlobalFxChain`. Confirmed in headless
+  Chrome (the room `fed: false` with a 0.8 Grit primed, then `fed: true` with the branch connected, for all three rooms,
+  from a live edit and from a link); five regression tests in `AudioEngine.test.ts`, four red without the fix.
 
 ## Phase 4: The drawer
 
-### Task 17: The Colour Room sub-tab and the two Returns
+### Task 17: The Colour Room sub-tab and the two Returns — **SUPERSEDED by T17.1 and T17.2**
+
+> Built at `b1a0151c`, then reversed by Crawford's call (2026-10-21) to have no Colour master Return. Kept as the record.
 
 **Description:** `AudioRigEffectKey` + `'colourRoom'`; a `colourRoom` block in `AUDIO_RIG_CONFIG` with one row
 (`colourRoom.wet`, `sliderLinear` 0–1 step 0.01, `labels('fleet.colourRoom.amount')`); `FLEET_PARAMS_SUBSECTIONS.colour
@@ -465,7 +577,7 @@ for the sends the diff carried). No payload upgrade (spec assumption 13).
 Shifter blocks keep their rows with the reworded Mix labels from T10. `audioRigConfig.test.ts` pins eighteen blocks.
 
 **Acceptance criteria:**
-- [ ] Colour has four sub-tabs with Room first on both shells; the breadcrumb reads "Colour / Room"; the block renders
+- [x] Colour has four sub-tabs with Room first on both shells; the breadcrumb reads "Colour / Room"; the block renders
   one row; the range-parity test holds; the Chorus and Shifter Mix rows read as returns.
 
 **Verification:** `npx vitest run src/data/audioRigConfig.test.ts src/components/panels/screen/nav src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/components/panels/screen/console/AudioRigDrawer.test.tsx`;
@@ -475,24 +587,125 @@ Shifter blocks keep their rows with the reworded Mix labels from T10. `audioRigC
 `src/components/panels/screen/nav/navActions.ts` (+ test), `src/components/panels/screen/console/AudioRigDrawer.tsx` (+ test),
 `src/components/panels/screen/screens/FleetParamsScreen.test.tsx`. **Scope:** M.
 
+#### Phase 4 as shipped (2026-10-21)
+
+RED first, one commit (`b1a0151c`), mutation-checked (nine mutants, all caught; listed in the commit message). The
+automated criteria are met; the `npm run dev` by-ear check (Room Return 1 → 0 under a Grit robot, no click) is
+Crawford's and not yet done.
+
+- **Block position.** The plan did not place the block in `AUDIO_RIG_CONFIG`. It sits **after Bit Crusher**, matching
+  `GlobalAudioSettings` and the signal order (the Return follows its three branches). Only the tab row puts Room first.
+- **Content.** `fleet.colourRoom` { Room / Bleed Return, heading `CARRIER BLEED RETURN` } and `fleet.colourRoom.amount`
+  { Return / Bleed Ratio } land here with their reader (the T10 deferral). The help follows the Reverb Amount shape; the
+  lore and heading are placeholders for the copy pass. The Colour intro gains one sentence naming the Room tab's Return.
+  The Chorus and Shifter rows were already reworded in T10; a new test pins all three Returns to one name.
+- **Files beyond the plan's list.** `AudioRigEffectPanel.test.tsx` (the panel's own suite: one slider, colour trait, no
+  LFO link or Tempo Sync, the ends hold, the branch Mixes untouched, the swell cancel), `NavBreadcrumb.test.tsx` (its
+  "Colour opens on Distortion" case now opens on Room) and `content.test.ts`. `AudioRigDrawer.test.tsx` needed nothing.
+- **"Both shells".** The phone shell renders no breadcrumb, so "Colour / Room" is tested on the desk; the phone test
+  pins the four sub-tabs with Room first and open.
+- **The engine push** is not asserted from the panel: the store's `GLOBAL_SETTER` table holds
+  `AudioEngine.setGlobalColourRoom` from module load, so a spy never sees it. `audioStore.test.ts` already covers the
+  route.
+
+### Task 17.1: Colour back to three sub-tabs; the colour Mixes read as returns
+
+**Description:** Reverse T17's UI and copy. `AudioRigEffectKey` loses `'colourRoom'`; the `colourRoom` block leaves
+`AUDIO_RIG_CONFIG` (seventeen blocks); `FLEET_PARAMS_SUBSECTIONS.colour = [distortion, chebyshev, bitCrusher]`;
+`AUDIO_RIG_EFFECT_TRAIT.colourRoom` goes; `fleet.colourRoom`, `fleet.colourRoom.amount` and the Colour intro's Room
+sentence go. The three colour Mix help strings (`fleet.distortion.mix`, `fleet.chebyshev.mix`, `fleet.bitCrusher.mix`)
+are reworded as return levels (spec §1.8): the effect's level as heard from every probe, each probe's Grit deciding how
+much goes in, 0 silencing the effect. The T10 leftover ("blended in with the clean sound") goes with it. T17's tests
+revert to Distortion-first; its tests that still hold for every block (one name per Return, help on every Mix) are kept.
+
+**Acceptance criteria:**
+- [x] Colour has three sub-tabs, opening on Distortion on both shells; the breadcrumb reads "Colour / Distortion"; a
+  stored `'colourRoom'` string (from an open tab before the change) falls back to Distortion.
+- [x] `AUDIO_RIG_CONFIG` has seventeen blocks and none is `colourRoom`; no content key starts `fleet.colourRoom`.
+- [x] Each colour Mix's help says "as heard from every probe", names Grit and says 0 silences it; none says "blended";
+  the three keep their own lore and help. The Chorus and Shifter Returns are unchanged.
+- [x] **Mutation check:** the old "blended" wording back in one Mix; Room re-added to the tab row.
+
+**Verification:** the T17 suites (`audioRigConfig`, `nav`, `FleetParamsScreen`, `AudioRigEffectPanel`, `content`).
+
+**Dependencies:** None. **Files:** T17's files. **Scope:** S.
+
+### Task 17.2: The Colour room settings block goes
+
+**Description:** Remove what T2 and T4 built for the Colour room's Return: `ColourRoomSettings`,
+`GlobalAudioSettings.colourRoom` and its default; the `'colourRoom.wet'` seed-range key and its `RETURN_FIELD_KEYS`
+entry (four keys again); the three `transmissionPresets.ts` entries; the seeder's line and the two oracles' block **by
+hand**; the `sessionDiff.ts` quantise; `GLOBAL_SETTER.colourRoom` and the push in `applyGlobalAudioToEngine`;
+`globalFx.setGlobalColourRoom` and the `AudioEngine.ts` re-export. `bypassCell.ts` is untouched: the Grit room keeps the
+Return of 1 that `buildRoom` gives it and nothing writes it. Tests that set or assert the block are rewritten, not
+skipped.
+
+**Acceptance criteria:**
+- [x] `GlobalAudioSettings` has no `colourRoom` key (a `@ts-expect-error` case under `npm run build:types`);
+  `DEFAULT_GLOBAL_AUDIO_SETTINGS`, every transmission preset and every seeded world (several styles) carry none;
+  `RETURN_FIELD_KEYS` is the four.
+- [x] A session payload and a share link that still carry `colourRoom: { wet: 0.4 }` load without error, the store has no
+  `colourRoom` after the load, and a re-save carries none.
+- [x] Engine: with a fed Grit robot, a colour branch whose Mix is above 0 is connected and its room's `return` gain is 1;
+  a Mix of 0 keeps that branch dark; nothing calls `setRoomReturn('grit', …)`; the Shimmer and Double rooms behave as
+  before (their Return tests unchanged).
+- [x] **Mutation check:** the default block put back (the `@ts-expect-error` and the no-key cases go red); a stray
+  `setRoomReturn('grit', 0)` at build (the fed-branch case goes red).
+
+**Verification:** `npm run build:types`; `npx vitest run src/types src/data src/utils src/stores src/engine`; full suite.
+
+**Dependencies:** T17.1 (the drawer block reads the settings key). **Files:** `src/types/globalAudio.ts` (+ test),
+`src/data/globalAudioSeedRanges.ts` (+ test), `src/data/globalAudioLoadingRanges.test.ts`, `src/data/transmissionPresets.ts`
+(+ test), `src/utils/globalAudioSeed.ts` (+ test), `src/utils/sessionDiff.ts` (+ test), `src/utils/sessionShareUtils.test.ts`,
+`src/stores/audioStore.ts` (+ tests), `src/engine/audioEngine/globalFx.ts` (+ tests), `src/engine/AudioEngine.ts` (+ test).
+**Scope:** M.
+
+#### T17.1 and T17.2 as shipped (2026-10-21)
+
+RED first, one commit each (`3f1a3981`, `da67cde0`), after the spec and plan amendment (`68a3ce91`). Mutation-checked
+(T17.1: two mutants; T17.2: four, one under `npm run build:types`; all caught, listed in the commit messages). Types,
+lint (0 errors) and `npm run build` are clean; the full suite is 13 936 green.
+
+- **T17.1.** T17's source and test edits were reversed whole, then the new cases added. The three colour Mix help
+  strings now follow the Reverb Amount shape; the insert pedals (AutoWah, Phaser, Tremolo, Vibrato) keep "blended",
+  since they are still inserts.
+- **T17.2.** No old-payload helper was needed: `withGlobalAudioDefaults` builds its result from the default keys only,
+  so a stray Colour room block is dropped once the default goes; the tests pin that for a session restore, a re-save and
+  a share link. The Reverb half of the old Colour-plus-Reverb quantise case was kept (it was the only Reverb quantise
+  case). The store's two `AudioEngine` mocks no longer list the setter, so a push that came back would throw.
+  `bypassCell.test.ts`'s `setRoomReturn('grit', …)` cases stay: they exercise the generic room machinery, which still
+  serves Shimmer and Double. One test of mine was too strict (key order of a seeded world vs the defaults); it now
+  compares key sets.
+- **Not done:** the by-ear check (each colour Mix to 0 and back under a Grit robot, no click), now in the spec's §5
+  listen list. **Next: Checkpoint C's open dev-server boxes, then Phase 5 (T18).**
+
 ## Phase 5: Guard, probes, listen, phone gate
 
 ### Task 18: The docs / symbol guard test
 
 **Description:** `src/docs/robotEffectSendsDocs.test.ts` on `robotSendsDocs.test.ts`' shape: every backticked symbol in
 the spec's §1–§4 exists in non-test `src/`; the gem folder and `RobotBody.tsx` read none of the three identifiers; the
-reserve-site scan reads five fields; the living-doc cases (the grid's `colourRoom.wet` row and room rows,
+reserve-site scan reads five fields; the living-doc cases (the grid's room rows,
 `AUDIO_SYSTEM.md`'s five rooms, `SESSION_STORAGE.md`'s five sends) — **red until T22**, noted in the test.
 `globalColourDocs.test.ts:144` re-pinned from "chain order after the HPF rows" to the room rows (also red until T22).
 
 **Acceptance criteria:**
-- [ ] Every self-test (an empty scan, a renamed symbol, a comment-only read) fails as it should; the living-doc cases
+- [x] Every self-test (an empty scan, a renamed symbol, a comment-only read) fails as it should; the living-doc cases
   are the only red ones and are listed in the test header.
 
 **Verification:** `npx vitest run src/docs`.
 
 **Dependencies:** Checkpoint C. **Files:** `src/docs/robotEffectSendsDocs.test.ts`, `src/docs/globalColourDocs.test.ts`.
 **Scope:** S.
+
+> **T18 as shipped (2026-10-21).** Groups (1) and (2) green, 94 cases, including two the plan did not list: the three
+> names the amendment removed (`setGlobalColourRoom`, `ColourRoomSettings`, `colourRoom`) must not be identifiers in
+> `src/`, and the reserve-site scan's `PRIME_KEYS` must still be the five. Nineteen living-doc cases are red until T22: 18
+> here (the grid's chain-order line, five room rows and footnote ², AUDIO_SYSTEM.md's three rooms and five names,
+> SESSION_STORAGE.md's three sends) plus the re-pinned `globalColourDocs.test.ts` grid case. The spec scan found one
+> real slip, fixed in the spec: the fallback's alea keys were named for the colour room, but the code builds
+> `send<Name>Lit` / `send<Name>`. Mutation check: a gem file reading `gritSend`, a spec symbol renamed, and
+> `setGlobalColourRoom` back in source each added exactly one failure.
 
 ### Task 19: Desktop probes
 
@@ -504,27 +717,49 @@ a send crossing over CDP (the hang-probe recipe). Numbers go in `scratchy-audio-
 the probe's command lines.
 
 **Acceptance criteria:**
-- [ ] Every crossing ≤ ×1.6 with no gap; the all-dark `perf:audio` run ≤ base; power-on ≤ ~2 s, a flip ≤ 4 ms, a
-  crossing ≤ 2 ms. A miss on (1) is a wiring bug in T3/T4 to find before T20.
+- [x] Every crossing ≤ ×1.6 with no gap; the all-dark `perf:audio` run ≤ base; power-on ≤ ~2 s, a flip ≤ 4 ms, a
+  crossing ≤ 2 ms. A miss on (1) is a wiring bug in T3/T4 to find before T20. **Passed with a caveat (Crawford's call,
+  2026-10-22):** see below.
 
 **Verification:** the recorded numbers and the files they came from.
 
 **Dependencies:** T18. **Files:** `docs/todo/scratchy-audio-phones.md` (append-only). **Scope:** M (probe work).
 
+> **T19 as shipped (2026-10-21/22).** Numbers in [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), "Robot
+> Effect Sends (roadmap 50.7), desktop — T19"; the probes stay in the session scratchpad.
+> - **(1) Crossings:** every room crossing ×0.84–×1.29, no gap. The Grit room's crossing is its branch Mix 0.5 → 0 → 0.5,
+>   since the amendment took its Return away. Two of 18 lightings spiked (×448, ×574): a render quantum lost at the
+>   connect, also caught on a 50.6 cell (on `main`) and on an effect connected outside the chain with no audible path,
+>   so not a T3/T4 wiring bug. Crawford: record it and carry on. It is backlog 29, plus a tick check in T20's listen.
+>   The probe took four tries to give a working metric; the log says why.
+> - **(2) `perf:audio`, all dark:** the branch 0.466 mean / 0.547 peak window against the base's 0.467 / 0.561, two
+>   rounds in reversed order: passed. Seeded (branch only, recorded): 0.494 / 0.607.
+> - **(3) Main thread:** power-on 0.38–0.49 s (the base 0.38–0.45), a flip 0.7–1.7 ms, a send crossing that connects a
+>   branch 0–0.1 ms: passed.
+
 ### Task 20: Crawford's listen and the tuning — **STOP**
 
-**Description:** The spec §5 manual listen on the desktop, then the tuning: the three send bands and `lit` shares in
+**Description:** The spec §5 manual listen on the desktop (since T19 it includes a Shimmer room lit and darkened several
+times on a sustained sound, on real speakers, listening for a tick; backlog 29), then the tuning: the three send bands and `lit` shares in
 `ROBOT_SEND_LOADING_RANGES`, and the room-depth second look at the colour Mix bands (spec §7 Q1, if his), moved with
 their grid rows and T7's calibration figures re-measured. Anything he vetoes reverts in one commit per row. Record his
 words in the status line.
 
 **Acceptance criteria:**
-- [ ] Every listen item in spec §5 has a recorded outcome; the tables, the calibration test and the grid rows agree.
+- [x] Every listen item in spec §5 has a recorded outcome; the tables, the calibration test and the grid rows agree.
 
 **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/data/robotSendLoadingRanges.test.ts`; `npm test`.
 
 **Dependencies:** T19; T0 Q1. **Files:** `src/data/robotSendLoadingRanges.ts` (+ test), `src/systems/spawnSystem.test.ts`,
 possibly `src/data/globalAudioLoadingRanges.ts` (+ test). **Scope:** S, plus the listen.
+
+> **T20 as shipped (2026-10-22).** Crawford listened on the desktop after T19: **"i think everything sounds fine."** One
+> verdict covers the whole §5 listen list, the Shimmer tick check (backlog 29) included; no item was reported against,
+> and no item was reported on one by one. **No tuning:** the three send bands and `lit` shares in
+> `ROBOT_SEND_LOADING_RANGES` stay as built (Grit 0.4–0.8 at 0.21, Shimmer 0.2–0.5 at 0.16, Double 0.3–0.6 at 0.19),
+> and the spec §7 Q1 room-depth second look at the colour Mix bands was not taken, so they stay one shared 0.1–0.2 band
+> under 0.25. Nothing moved, so the tables, T7's calibration test and the grid rows still agree. No code change, no
+> commit beyond this note. **Next: T21, the phone gate (Crawford's).**
 
 ### Task 21: Phone gate — **STOP for Crawford**
 
@@ -533,28 +768,38 @@ Full and Standard, hands off to 3:00, a fresh page per run; then the hand world 
 Return at 1 (recorded, not gated). Counts, `fx in` readings and his words in `scratchy-audio-phones.md`.
 
 **Acceptance criteria:**
-- [ ] The branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in` reads lit branches plus
+- [x] The branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in` reads lit branches plus
   lit chain cells. A rise is a wiring bug to find or a reason to back out; no `LOAD_*_MIN`.
 
 **Verification:** the recorded runs.
 
 **Dependencies:** T20. **Files:** `docs/todo/scratchy-audio-phones.md`. **Scope:** S (his device).
 
+> **T21 as shipped (2026-10-22): passed.** Seven runs on the Pixel 8, the phone off for at least 20 minutes before each,
+> T19's world and builds; record in [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md),
+> "Robot Effect Sends (roadmap 50.7) on the Pixel — T21". At 3:00 the base read 48 / 68 / 95 and the branch's seeded
+> runs 76 / 62 / 59, all inside the base's spread; `fx in` read 4/10 seeded on both builds and 7/10 on the hand world.
+> No run ran away by 3:00. Branch run 2 (Full) collapsed after it (3:30, out at about 4:20); its repeat, run 7, read
+> 59 → 97 and was fine, and the base's run 6 rose 95 → 250 with clipping at 4:20: backlog 27's late collapse, shared
+> with `main`. The hand world (7 lit, Full) read 98 → 122 with no collapse, so the collapse does not follow the lit
+> load. Crawford on the hand world: "super distorted, but loud distortion, not underrun clipping." **Next: T22, the
+> docs.**
+
 ## Phase 6: Docs
 
 ### Task 22: Docs
 
 **Description:** Spec §2's docs list: `AUDIO_SYSTEM.md` (Signal Graph: five rooms, the seven-stage chain, the branch rule,
-the HUD token's meaning), `GLOBAL_CHAIN_GRID.md` (chain-order line; colour / chorus / shifter rows as room rows; the
-`colourRoom.wet` row; footnote ² → the send table), `ROBOT_DATA_GRID.md` and `SLIDER_VALUES.md` (three rows),
+the HUD token's meaning), `GLOBAL_CHAIN_GRID.md` (chain-order line; colour / chorus / shifter rows as room rows;
+footnote ² → the send table), `ROBOT_DATA_GRID.md` and `SLIDER_VALUES.md` (three rows),
 `TONE_EFFECTS_INVENTORY.md` (roles, the five send rows), `SESSION_STORAGE.md`, `COMPANIES.md`, `ROBOT_DESIGN.md` (one
 line), one "superseded in part by 50.7" line each in `GLOBAL_COLOUR.md`, `GLOBAL_PEDALS.md` and `DARK_EFFECT_BYPASS.md`,
 `ideas/themes.md`'s "what exists", `roadmap.md` (the 50.7 entry with status and as-built deltas; the series header to
 seven), the intent's shipped banner. Every named identifier spot-checked against the shipped source, not this plan.
 
 **Acceptance criteria:**
-- [ ] T18's living-doc cases and `globalColourDocs.test.ts` go green; `npm test` fully green.
-- [ ] A grep for `fx in n/10`'s old meaning, "Distortion → Chebyshev → BitCrusher" as chain stages, and `chorus.wet` as
+- [x] T18's living-doc cases and `globalColourDocs.test.ts` go green; `npm test` fully green.
+- [x] A grep for `fx in n/10`'s old meaning, "Distortion → Chebyshev → BitCrusher" as chain stages, and `chorus.wet` as
   a Mix finds only history.
 
 **Verification:** `npm test`, `npm run build:types`, `npm run lint`, `npm run build`.
@@ -562,11 +807,28 @@ seven), the intent's shipped banner. Every named identifier spot-checked against
 **Dependencies:** T21. **Files:** the docs above, `docs/intent/robot-effect-sends.md`, `docs/todo/roadmap.md`. **Scope:** M
 (docs only, many files).
 
+> **T22 as shipped (2026-10-22).** Two commits (`46414538`, then this one). Every doc on the list is updated, plus
+> `PERFORMANCE.md`'s HUD token line, which the grep criterion found still giving `fx in` its 50.6 meaning. Verification:
+> `src/docs/` 1 672 green; `npm run build:types` clean; `npm run lint` 0 errors (the 4 existing warnings); `npm run build`
+> clean; `npm test` 14 048 of 14 049, the one failure the known `sceneToOrbiterLocal.test.tsx` load-timing flake, which
+> passed 10 of 10 run alone. Deviations:
+> - **A guard test re-pinned that the plan did not list.** `globalPedalsDocs.test.ts`'s "names the five pedals in the
+>   chain-order line" pinned `Phaser → Chorus → … → FrequencyShifter` as stages, which T18's new guard forbids. It now
+>   pins `Phaser → Tremolo → Vibrato → Compressor → StereoWidener → Limiter` and the Chorus and shifter named as the
+>   Double and Shimmer rooms (the plan re-pinned only that file's source regexes, at T4).
+> - **Stale figures corrected on the way:** `SLIDER_VALUES.md`'s Reverb send band read 10–40 (the retune made it 10–60);
+>   the inventory's Discrepancy 2 (the Signal Graph diagram omitting the pedals and Width) is resolved by the new diagram.
+> - **Copy beyond the list:** the chain grid's footnote ⁵ and the inventory's Tremolo / Vibrato rows carry the four-pedal
+>   cap that used to be explained on the Chorus row.
+
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every automated acceptance criterion met; T19's numbers, T20's words and T21's counts recorded.
-- [ ] Docs reflect the shipped API, every name spot-checked.
-- [ ] Any skipped manual check flagged here, never silently.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the suite's one failure is the known
+  `sceneToOrbiterLocal` flake, green when run alone).
+- [x] Every automated acceptance criterion met; T19's numbers, T20's words and T21's counts recorded.
+- [x] Docs reflect the shipped API, every name spot-checked.
+- [x] Any skipped manual check flagged here, never silently: T20's listen is one verdict over the whole §5 list ("i think
+  everything sounds fine"), with no item reported on one by one, the colour-Mix-to-0 de-click and the Shimmer tick check
+  included. Checkpoint C's company-move and swell boxes were closed by Crawford's "good I think", not item by item.
 - [ ] The branch is Crawford's to PR.
 
 ## Risks and Mitigations

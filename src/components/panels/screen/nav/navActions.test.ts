@@ -19,7 +19,7 @@ import {
   type BreadcrumbState,
   type NavRoster,
 } from './navActions';
-import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SettingsLeaf } from '@/stores/uiStore';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SelectedFleetParamsEffect, type SettingsLeaf } from '@/stores/uiStore';
 import { AUDIO_RIG_CONFIG, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { CONTENT, labels } from '@/content';
@@ -681,6 +681,14 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(ids('colour')).toEqual(['distortion', 'chebyshev', 'bitCrusher']);
     expect(ids('modulation')).toEqual(['autoWah', 'phaser', 'chorus', 'tremolo', 'vibrato', 'frequencyShifter']);
     expect(ids('output')).toEqual(['compressor', 'stereoWidener', 'limiter']);
+  });
+
+  // Spec amendment 2026-10-21 (plan T17.1): the Room sub-tab is gone. A 'colourRoom' still in the (unpersisted) UI store
+  // from before the change reads as Colour's first tab, the stale-value rule.
+  it('a leftover Room sub-tab opens Colour on Distortion', () => {
+    const stale = 'colourRoom' as SelectedFleetParamsEffect;
+    expect(activeFleetParamsSubsection('colour', stale)).toBe('distortion');
+    expect(FLEET_PARAMS_SUBSECTIONS.colour.map((sub) => sub.id as string)).not.toContain('colourRoom');
   });
 
   it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output', () => {

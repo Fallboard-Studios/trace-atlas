@@ -48,6 +48,9 @@ function makeDefaultLfoLinks(): Record<RobotLfoTargetId, LfoLink> {
   return Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((t) => [t, { lane: null, depth: 0 }])) as Record<RobotLfoTargetId, LfoLink>;
 }
 
+/** The five per-robot sends a session diff carries (Robot Sends, Robot Effect Sends). */
+const SEND_FIELDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
+
 function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBaseline {
   return {
     name: 'Iron Drifter',
@@ -66,6 +69,9 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     lfoLinks: makeDefaultLfoLinks(),
     reverbSend: 0.3,
     delaySend: 0.1,
+    gritSend: 0.4,
+    shimmerSend: 0.25,
+    doubleSend: 0.15,
     ...overrides,
   } as RobotAudioBaseline;
 }
@@ -90,6 +96,9 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     pitchRepeat: baseline.pitchRepeat,
     reverbSend: baseline.reverbSend,
     delaySend: baseline.delaySend,
+    gritSend: baseline.gritSend,
+    shimmerSend: baseline.shimmerSend,
+    doubleSend: baseline.doubleSend,
     audioMode: 'none',
     ...overrides,
   } as Robot;
@@ -300,6 +309,72 @@ describe('computeRobotAudioOverrideDiff', () => {
         swellOn('reverbSend', 'r1', 0.123456);
         expect(computeRobotAudioOverrideDiff(live(baseline, { reverbSend: 0.8 }), baseline)).toEqual({ reverbSend: 0.12 });
       });
+    });
+  });
+
+  // docs/tasks/ROBOT_EFFECT_SENDS.md Task 12: the save side of the three new sends, so a swell on one saves its base.
+  // The fixture seeds Grit 0.4 / Shimmer 0.25 / Double 0.15, distinct, so a crossed field cannot pass by coincidence.
+  describe.each(['gritSend', 'shimmerSend', 'doubleSend'] as const)('%s, the save side (Robot Effect Sends T12)', (field) => {
+    const others = SEND_FIELDS.filter((f) => f !== field);
+    const swellOn = (attribute: string, robotId: string, baseValue: number) =>
+      vi.spyOn(audioSwells, 'getActiveSwellSnapshot').mockImplementation((pool) =>
+        pool === 'robot'
+          ? [{ pool: 'robot', robotAttribute: attribute, members: [{ robotId, baseValue, peakDelta: 0.4 }], phase: 'rising', startMeasure: 0, risingMeasures: 4, fallingMeasures: 4 } as never]
+          : [],
+      );
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('an untouched robot diffs to {}', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline), baseline)).toEqual({});
+    });
+
+    it('a robot moved one step diffs to that send alone, at two decimals', () => {
+      const baseline = makeBaseline();
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.45 }), baseline)).toEqual({ [field]: 0.45 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.123456 }), baseline)).toEqual({ [field]: 0.12 });
+    });
+
+    it('a send back on its seed after float noise, or within half a step of it, diffs to nothing', () => {
+      const baseline = makeBaseline({ [field]: 0.3 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.1 + 0.2 }), baseline)).toEqual({});
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.304 }), baseline)).toEqual({});
+    });
+
+    it('0 against a seeded send is a change, 0 against a seeded 0 is not, and 1 is kept', () => {
+      const seeded = makeBaseline({ [field]: 0.3 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(seeded, { [field]: 0 }), seeded)).toEqual({ [field]: 0 });
+      const dry = makeBaseline({ [field]: 0 });
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(dry), dry)).toEqual({});
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(dry, { [field]: 1 }), dry)).toEqual({ [field]: 1 });
+    });
+
+    it('an untouched robot mid-swell still diffs to {} (the base is the seed, the live value is mid-ramp)', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r1', baseline[field]);
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.9 }), baseline)).toEqual({});
+    });
+
+    it('a swell that began from a hand-edited value saves that base, rounded, not the interpolated value', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r1', 0.123456);
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.8 }), baseline)).toEqual({ [field]: 0.12 });
+    });
+
+    it('a swell on this send leaves every other send reading its live value', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r1', baseline[field]);
+      const moved = Object.fromEntries(others.map((f) => [f, 0.66]));
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { ...moved, [field]: 0.9 }), baseline)).toEqual(moved);
+    });
+
+    it('a swell on another robot leaves this robot reading its live value', () => {
+      const baseline = makeBaseline();
+      swellOn(field, 'r2', baseline[field]);
+      expect(computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { [field]: 0.9 }), baseline)).toEqual({ [field]: 0.9 });
     });
   });
 
@@ -525,6 +600,21 @@ describe('buildSessionPayload', () => {
 
     expect(payload.lfoBank!.b.rateDrift).toBe(0.12);
     expect(payload.lfoBank!.b.depthDrift).toBe(-0.99);
+  });
+
+  // The room returns are quantised at two decimals. (Robot Effect Sends T2 added a Colour room Return here; the T17.2
+  // amendment removed it, so only the Reverb half of this case remains.)
+  it('quantizes the Reverb Return (reverb.wet) to 2 decimal places', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState((state) => ({
+      globalAudio: { ...state.globalAudio, reverb: { ...state.globalAudio.reverb, wet: 0.333333 } },
+    }));
+
+    const payload = buildSessionPayload();
+
+    expect(payload.globalAudio.reverb.wet).toBe(0.33);
+    expect('colourRoom' in payload.globalAudio).toBe(false);
   });
 
   it('includes only the one robot\'s changed lfoLinks target, keyed under lfoLinks', () => {
@@ -1322,10 +1412,10 @@ describe('applySessionPayload', () => {
       const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
       try {
         tickAudioSwells(localeId, 0);
-        const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'reverbSend' || s.robotAttribute === 'delaySend')!;
+        const swell = getActiveSwellSnapshot('robot').find((s) => (SEND_FIELDS as readonly string[]).includes(s.robotAttribute!))!;
         expect(swell, 'the forced start landed on a send').toBeDefined();
         const member = swell.members![0];
-        const field = swell.robotAttribute as 'reverbSend' | 'delaySend';
+        const field = swell.robotAttribute as (typeof SEND_FIELDS)[number];
         tickAudioSwells(localeId, 2);
         const liveValue = stored(member.robotId)[field];
         expect(Math.abs(liveValue - member.baseValue)).toBeGreaterThan(0.01); // precondition: it really is mid-ramp
@@ -1334,6 +1424,42 @@ describe('applySessionPayload', () => {
         const payload = buildSessionPayload();
 
         expect(payload.robotOverrides[member.robotId]?.[field]).toBeUndefined(); // base = seed, so nothing is saved
+      } finally {
+        noise.mockRestore();
+      }
+    });
+
+    // Robot Effect Sends T12: the same forced start lands on one of the three new sends in this world, so a hand edit
+    // before the swell must come back as the saved base (the case above passes vacuously for a field the diff drops).
+    it('a session saved mid-swell on a hand-edited send stores that edited base, not the seed or the ramp', () => {
+      const { localeId } = seededWorld();
+      useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
+      const byX = new Map<number, number>([
+        [precomputeDataX('audioSwell.trigger.robot'), -1],
+        [precomputeDataX('audioSwell.company.chance'), 1],
+        [precomputeDataX('audioSwell.target.robot'), 1],
+        [precomputeDataX('audioSwell.trigger.global'), 1],
+      ]);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      try {
+        // Find the pair the forced start picks, then hand-edit it off its seed and start the swell for real.
+        tickAudioSwells(localeId, 0);
+        const probe = getActiveSwellSnapshot('robot')[0];
+        const field = probe.robotAttribute as (typeof SEND_FIELDS)[number];
+        expect(['gritSend', 'shimmerSend', 'doubleSend']).toContain(field);
+        const robotId = probe.members![0].robotId;
+        stopAudioSwells();
+        const edited = probe.members![0].baseValue === 0.61 ? 0.62 : 0.61;
+        useLocaleStore.getState().updateRobot(localeId, robotId, { [field]: edited });
+
+        tickAudioSwells(localeId, 0);
+        const swell = getActiveSwellSnapshot('robot')[0];
+        expect(swell.robotAttribute).toBe(field);
+        expect(swell.members![0]).toMatchObject({ robotId, baseValue: edited });
+        tickAudioSwells(localeId, 2);
+        expect(Math.abs(stored(robotId)[field] - edited)).toBeGreaterThan(0.01); // precondition: mid-ramp
+
+        expect(buildSessionPayload().robotOverrides[robotId]?.[field]).toBe(edited);
       } finally {
         noise.mockRestore();
       }
@@ -1466,6 +1592,145 @@ describe('applySessionPayload', () => {
 
       expect(() => applySessionPayload({ ...buildSessionPayload(), robotOverrides: { 'no-such-robot': { reverbSend: 0.5 } } }, { skipLocaleRebuild: true })).not.toThrow();
       expect(prime).not.toHaveBeenCalled();
+    });
+
+    // docs/tasks/ROBOT_EFFECT_SENDS.md Task 15: the restore side of Grit, Shimmer and Double (the save side is T12's).
+    describe.each([
+      { field: 'gritSend', key: 'grit' },
+      { field: 'shimmerSend', key: 'shimmer' },
+      { field: 'doubleSend', key: 'double' },
+    ] as const)('$field across a session restore (Robot Effect Sends T15)', ({ field, key }) => {
+      const OTHER_FIELDS = SEND_FIELDS.filter((f) => f !== field);
+
+      it('one step on one robot captures that send alone, and an untouched world captures nothing', () => {
+        const { localeId, robot } = seededWorld();
+        expect(buildSessionPayload().robotOverrides).toEqual({});
+        const target = robot[field] === 0.45 ? 0.46 : 0.45;
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: target });
+        expect(buildSessionPayload().robotOverrides).toEqual({ [robot.id]: { [field]: target } });
+      });
+
+      it('a send moved off its seed and back again captures nothing', () => {
+        const { localeId, robot } = seededWorld();
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: robot[field] === 0.45 ? 0.46 : 0.45 });
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: robot[field] });
+        expect(buildSessionPayload().robotOverrides).toEqual({});
+      });
+
+      it(`restores a moved send after a full save/wipe/load round trip, priming { ${key} } last and only once`, () => {
+        const { localeId, robot, robots } = seededWorld();
+        const seeds = Object.fromEntries(robots.map((r) => [r.id, SEND_FIELDS.map((f) => r[f])]));
+        const target = robot[field] === 0.45 ? 0.46 : 0.45;
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: target });
+        const payload = buildSessionPayload();
+        const prime = spyPrime();
+
+        applySessionPayload(shifted(payload));
+        prime.mockClear();
+        applySessionPayload(payload);
+
+        expect(stored(robot.id)[field]).toBe(target);
+        for (const other of OTHER_FIELDS) expect(stored(robot.id)[other], other).toBe(robot[other]);
+        for (const r of currentLocale()!.robots) {
+          if (r.id !== robot.id) expect(SEND_FIELDS.map((f) => r[f]), r.id).toEqual(seeds[r.id]);
+        }
+        const mine = prime.mock.calls.filter((c) => c[0] === robot.id);
+        expect(mine[mine.length - 1]).toEqual([robot.id, { [key]: target }]);
+        expect(mine.filter((c) => Object.keys(c[1]).length === 1)).toHaveLength(1);
+      });
+
+      it(`restoring { ${field}: 0 } sets the field and primes { ${key}: 0 }`, () => {
+        const { localeId, robot } = seededWorld();
+        useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: 0.4 });
+        const prime = spyPrime();
+
+        applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: 0 } } }, { skipLocaleRebuild: true });
+
+        expect(stored(robot.id)[field]).toBe(0);
+        expect(prime.mock.calls.filter((c) => c[0] === robot.id)).toEqual([[robot.id, { [key]: 0 }]]);
+      });
+
+      it('restoring 1 (the top of the range) is accepted and primed', () => {
+        const { robot } = seededWorld();
+        const prime = spyPrime();
+
+        applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: 1 } } }, { skipLocaleRebuild: true });
+
+        expect(stored(robot.id)[field]).toBe(1);
+        expect(prime).toHaveBeenCalledWith(robot.id, { [key]: 1 });
+      });
+
+      // Out of [0, 1] is ignored whole, 7 included (spec §1.7: in-range or ignored whole). A stored 7 cannot happen:
+      // localeStore.updateRobot clamps every send (Task 5), so the prime, which reads the stored value, never sees one.
+      it.each([
+        ['NaN', Number.NaN],
+        ['Infinity', Number.POSITIVE_INFINITY],
+        ['a string', '0.5'],
+        ['null', null],
+        ['below the range', -0.1],
+        ['above the range', 1.5],
+        ['far above the range', 7],
+      ])('a hand-edited value that is %s is ignored whole: the seeded value stays and nothing is primed', (_name, wild) => {
+        const { robot } = seededWorld();
+        const prime = spyPrime();
+
+        applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: { [field]: wild as number } } }, { skipLocaleRebuild: true });
+
+        expect(stored(robot.id)[field]).toBe(robot[field]);
+        expect(prime).not.toHaveBeenCalled();
+      });
+
+      it('a bad value does not cost a valid send or another field beside it', () => {
+        const { robot } = seededWorld();
+        const prime = spyPrime();
+
+        applySessionPayload(
+          { ...buildSessionPayload(), robotOverrides: { [robot.id]: { reverbSend: 0.25, [field]: 9, rhythmicDensity: 21 } } },
+          { skipLocaleRebuild: true },
+        );
+
+        expect(stored(robot.id)).toMatchObject({ reverbSend: 0.25, [field]: robot[field], rhythmicDensity: 21 });
+        expect(prime.mock.calls).toEqual([[robot.id, { reverb: 0.25 }]]);
+      });
+    });
+
+    it('all five sends carried in one diff are stored and prime together in one call (Robot Effect Sends T15)', () => {
+      const { robot } = seededWorld();
+      const prime = spyPrime();
+      const diff = { reverbSend: 0.2, delaySend: 0.6, gritSend: 0.3, shimmerSend: 0.1, doubleSend: 0.7 };
+
+      applySessionPayload({ ...buildSessionPayload(), robotOverrides: { [robot.id]: diff } }, { skipLocaleRebuild: true });
+
+      expect(stored(robot.id)).toMatchObject(diff);
+      expect(prime.mock.calls.filter((c) => c[0] === robot.id)).toEqual([
+        [robot.id, { reverb: 0.2, delay: 0.6, grit: 0.3, shimmer: 0.1, double: 0.7 }],
+      ]);
+    });
+
+    // Spec assumption 13 (as amended, T17.2): no payload upgrade. A version-2 payload loads its Chorus and shifter wets
+    // exactly as stored, as the Returns they now are. One saved between T2 and the amendment still carries a Colour room
+    // block: it loads without error, the store never holds it, and a re-save carries none.
+    it('a version-2 payload restores its chorus / shifter wets exactly as stored and drops a stray colourRoom block', () => {
+      seededWorld();
+      const payload = buildSessionPayload();
+      const legacy = {
+        ...payload,
+        version: 2,
+        globalAudio: {
+          ...payload.globalAudio,
+          colourRoom: { wet: 0.4 },
+          chorus: { ...payload.globalAudio.chorus, wet: 0.35 },
+          frequencyShifter: { ...payload.globalAudio.frequencyShifter, wet: 0.2 },
+        },
+      } as unknown as SessionPayload;
+
+      expect(() => applySessionPayload(legacy)).not.toThrow();
+
+      const restored = useAudioStore.getState().globalAudio;
+      expect('colourRoom' in restored).toBe(false);
+      expect(restored.chorus.wet).toBe(0.35);
+      expect(restored.frequencyShifter.wet).toBe(0.2);
+      expect('colourRoom' in buildSessionPayload().globalAudio).toBe(false);
     });
   });
 
@@ -2650,7 +2915,8 @@ describe('applySessionPayload — Global Pedals defaults (T12)', () => {
     expect(() => applySessionPayload(payload)).not.toThrow();
     const restored = useAudioStore.getState().globalAudio;
     for (const key of NEW_KEYS) expect(restored[key], key).toEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
-    expect([restored.chorus.wet, restored.tremolo.wet, restored.vibrato.wet, restored.frequencyShifter.wet]).toEqual([0, 0, 0, 0]);
+    // Robot Effect Sends T8: the Chorus and shifter wets default to a full Return (1); the Tremolo and Vibrato stay dry.
+    expect([restored.chorus.wet, restored.tremolo.wet, restored.vibrato.wet, restored.frequencyShifter.wet]).toEqual([1, 0, 0, 1]);
     expect(restored.stereoWidener.width).toBe(0.5);
     for (const key of ['chorus', 'tremolo', 'vibrato'] as const) expect('sync' in restored[key], key).toBe(false);
     for (const [key, value] of Object.entries(payload.globalAudio)) {

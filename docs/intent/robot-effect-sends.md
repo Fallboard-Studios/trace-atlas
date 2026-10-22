@@ -1,5 +1,11 @@
 # Intent: Robot Effect Sends — Grit, Shimmer and Double
 
+> **Shipped (roadmap 50.7, 2026-10-22)** on `feature/robot-effect-sends`, PR pending — spec
+> [docs/specs/ROBOT_EFFECT_SENDS.md](../specs/ROBOT_EFFECT_SENDS.md), plan
+> [docs/tasks/ROBOT_EFFECT_SENDS.md](../tasks/ROBOT_EFFECT_SENDS.md). Crawford's listen and the phone gate passed. The deltas
+> from this page are in the spec's amendments and the roadmap's 50.7 "As built", chiefly: the Colour room has no master
+> Return, since each colour Mix is already its branch's level.
+
 Confirmed via `interview-me` on 2026-10-21 (6 questions, five guesses confirmed, one scope item deferred by Crawford),
 ahead of a `spec-driven-development` pass. Proposed roadmap item **50.7**, the seventh sub-phase of the Audio Palette
 series ([docs/todo/roadmap.md](../todo/roadmap.md#50-audio-palette-new-attributes-without-new-libraries)), after Global

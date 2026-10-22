@@ -24,7 +24,16 @@
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
 
-import { applyVolume, applyLayersContinuous, applyAdsr, applyReverbSendValue, applyDelaySendValue } from './robotOptionsActions';
+import {
+  applyVolume,
+  applyLayersContinuous,
+  applyAdsr,
+  applyReverbSendValue,
+  applyDelaySendValue,
+  applyGritSendValue,
+  applyShimmerSendValue,
+  applyDoubleSendValue,
+} from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
 import { getSeededVal } from '@/utils/getSeededVal';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
@@ -172,6 +181,15 @@ function writeGlobalValue(target: SwellGlobalTargetId, value: number): void {
 const LAYER_FIELD_PATTERN = /^layer(\d)\.(gain|detune|phase|pulseWidth)$/;
 const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
 
+/** The five per-robot sends, each a stored 0..1 fraction on Robot (Robot Sends, Robot Effect Sends). */
+const SEND_ATTRIBUTES = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
+
+type SendAttribute = (typeof SEND_ATTRIBUTES)[number];
+
+function isSendAttribute(attribute: SwellRobotAttributeId): attribute is SendAttribute {
+  return (SEND_ATTRIBUTES as readonly string[]).includes(attribute);
+}
+
 /** A robot attribute's own parent-mute check (§1.5, §3): layerN.* requires
  *  that layer's own gain to be nonzero (the removed OscillatorLayer.active
  *  flag's replacement — see its own doc comment); a send requires its own
@@ -180,8 +198,7 @@ const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
  *  volume and the 4 ADSR fields have no such parent and are always
  *  structurally available. */
 function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAttributeId): boolean {
-  if (attribute === 'reverbSend') return robot.reverbSend > 0;
-  if (attribute === 'delaySend') return robot.delaySend > 0;
+  if (isSendAttribute(attribute)) return robot[attribute] > 0;
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (!layerMatch) return true; // volume, adsr.* — no parent mute
   const layerIndex = Number(layerMatch[1]);
@@ -193,8 +210,7 @@ function isRobotAttributeStructurallyLive(robot: Robot, attribute: SwellRobotAtt
 
 function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number {
   if (attribute === 'volume') return robot.masterVolume;
-  if (attribute === 'reverbSend') return robot.reverbSend;
-  if (attribute === 'delaySend') return robot.delaySend;
+  if (isSendAttribute(attribute)) return robot[attribute];
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
   if (layerMatch) {
     const layer = robot.audioAttributes.layers![Number(layerMatch[1])];
@@ -204,6 +220,17 @@ function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number 
   const adsrMatch = ADSR_FIELD_PATTERN.exec(attribute);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (robot.audioAttributes.adsr as any)[adsrMatch![1]] as number;
+}
+
+/** One send tick through the fraction-form action its slider's hand edit ends in. */
+function writeRobotSend(robot: Robot, localeId: string, attribute: SendAttribute, value: number): void {
+  switch (attribute) {
+    case 'reverbSend': applyReverbSendValue(robot, localeId, value); return;
+    case 'delaySend': applyDelaySendValue(robot, localeId, value); return;
+    case 'gritSend': applyGritSendValue(robot, localeId, value); return;
+    case 'shimmerSend': applyShimmerSendValue(robot, localeId, value); return;
+    case 'doubleSend': applyDoubleSendValue(robot, localeId, value); return;
+  }
 }
 
 /**
@@ -222,12 +249,8 @@ function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAt
   }
   // The sends' range is their stored 0..1 fraction; the fraction form of the action avoids the display-percent
   // round trip, which would miss the base by an ulp for some seeded values.
-  if (attribute === 'reverbSend') {
-    applyReverbSendValue(robot, localeId, value);
-    return;
-  }
-  if (attribute === 'delaySend') {
-    applyDelaySendValue(robot, localeId, value);
+  if (isSendAttribute(attribute)) {
+    writeRobotSend(robot, localeId, attribute, value);
     return;
   }
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);

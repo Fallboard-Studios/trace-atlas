@@ -700,8 +700,31 @@ now leaves the signal path (the Dark-Effect Bypass, [docs/specs/DARK_EFFECT_BYPA
 2. On the phone, the same link in an Incognito tab right after a collapse, and the sine ramp on a cool phone, to price
    what heat costs.
 
+**Update 2026-10-22 (Robot Effect Sends T21, [scratchy-audio-phones.md](scratchy-audio-phones.md)):** the first
+collapse on a rested phone. With the phone off for at least 20 minutes before each run, the second run of the sitting
+(the 50.7 branch, Full) spiked at 3:30 and was out at about 4:20; its repeat, run 7, was fine, and the base's run 6 rose
+95 → 250 with clipping at 4:20. A heavier world on the same build and tier (7 lit, run 5) did not collapse. So heat or
+state left over from earlier runs explains it less well than it did in round 4.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
 EQ3, the LPF and the HPF stay in at neutral, being cheap built-ins and global LFO targets that would flap through
 neutral, and are revisited only if a phone measurement points at them.
+
+### 29. Audio: A Connect Sometimes Loses a Render Quantum (`main` Included)
+
+**Found 2026-10-21** by the Robot Effect Sends T19 crossing probe ([scratchy-audio-phones.md](scratchy-audio-phones.md),
+"Robot Effect Sends (roadmap 50.7), desktop — T19"). In headless Chrome on a real-time context, about one connect in
+six, of a Tone effect into the live graph, is followed by one missing 128-frame render block (2.7 ms) and a spike in
+the master output (×50–×600 over the steady state). This happens to an effect room's branch lighting, to a 50.6 dry-chain
+bypass cell lighting (on `main`), and to a FrequencyShifter connected outside the chain into a muted gain, which has no
+audible path, so the whole graph loses the quantum. Disconnects, which run on the audio clock's timer, never did (0 of 42).
+
+**Not known:** whether it happens on a real output device (not headless) and on the Pixel, and what holds the audio
+thread up. Candidates: the graph lock while the main thread connects, or standardized-audio-context's connect path.
+
+**How to start:** run the scratchpad probe (`probe-crossing.mjs focus focus controls`, rebuilt from the recipe in the
+log if gone) in headed Chrome with a real device. Then a bare page with no Tone, connecting native nodes only, to split
+Chrome from Tone. Then the same lighting by ear on the Pixel. Only if it is audible: options are connecting at a quieter
+moment, or keeping the branch connected and paying its dark cost (which undoes 50.6's saving), Crawford's call.

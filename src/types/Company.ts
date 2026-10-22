@@ -24,6 +24,10 @@ export interface CompanyOptionsSnapshot {
   reverbSend?: number;
   /** Stored 0…1, as Robot.delaySend. */
   delaySend?: number;
+  /** Stored 0…1, as Robot.gritSend / shimmerSend / doubleSend (docs/specs/ROBOT_EFFECT_SENDS.md §1.6). */
+  gritSend?: number;
+  shimmerSend?: number;
+  doubleSend?: number;
   rhythmicDensity?: number;
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };

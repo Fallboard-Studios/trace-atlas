@@ -1016,3 +1016,133 @@ Whether the phone was rested between runs was not reported.
   Sessions panel reads them.
 - **The day clock is ruled out.** It restarts at each page load (`dayStartTimestamp = Date.now() − …`), so it cannot
   carry over between runs.
+
+## Robot Effect Sends (roadmap 50.7), desktop — T19, 2026-10-21
+
+Branch `feature/robot-effect-sends` at `923174b0`. Spec §5's three desktop checks (docs/specs/ROBOT_EFFECT_SENDS.md;
+plan docs/tasks/ROBOT_EFFECT_SENDS.md T19). The probes live in the session scratchpad and are not committed.
+
+### 1. Crossings — the rooms pass; a connect sometimes loses a render quantum (`main` too)
+
+**Probe.** Headless Chrome, a native real-time `AudioContext` under Tone (lookAhead 0.1), the real chain from
+`buildGlobalFxChain`, a 220 Hz sine fed dry into the chain entry and through a 0.5 send gain into one room. The master
+is recorded by an AudioWorklet that posts every 128-frame block with its `currentFrame`, on a same-origin page that does
+not start the app. Each event makes the engine's own calls: a send ramp 0.5 → 0 with `setRoomFed(false)` and back; the
+Shimmer and Double Returns 1 → 0 → 1; the Grit branch Mix 0.5 → 0 → 0.5 (the Colour room has no Return since the
+2026-10-21 amendment). Controls: the same send ramp with the room kept fed. **Metric:** peak |second difference| in the
+0.5 s after an event, over the larger steady peak (the 0.5 s before, or 1.0–1.45 s after once settled); near-zero runs;
+missing blocks. **Self-check:** the room's Return gain jumped with no ramp reads ×10 to ×536.
+
+Getting a metric that works took four tries. A sawtooth source hid every click (its reset is the biggest second
+difference, so the unramped jump read ×1). Dividing by the window before the event alone read a dark-to-lit change of
+timbre as a click. A ScriptProcessor recorder on the app's own page threw random ×50–×1 000 spikes on the controls.
+
+**Three full runs:** every darkening, every control and every Grit event read ×0.84–×1.29, with no gap (the longest
+near-zero run was 1 sample). Dark branches are disconnected once unfed, at Return 0 or at Mix 0. Lightings: 16 of 18
+read ×0.84–×1.03. Two spiked: run 2's Double send up ×574 and run 3's Shimmer Return up ×448.
+
+**Every spike** sits 0–2.7 ms after the lighting call, with one missing 128-frame block just after it. The audio thread
+lost a render quantum at the connect. The same recorder caught it on two controls:
+
+| Connect | Lightings that lost a quantum |
+|---|---|
+| Shimmer and Double room branches | 5 of 34 |
+| the Tremolo's dry-chain bypass cell (roadmap 50.6, on `main`) | 1 of 4 (×97) |
+| a FrequencyShifter outside the chain, into a muted `Gain(0)`, with no audible path | 1 of 4 (×54) |
+
+No darkening lost one (0 of 42); disconnects run on the audio clock's timer.
+
+**Reading:** the room crossings are smooth. The ×400–×600 spikes are an intermittent lost render quantum at a
+connect, shared by 50.6's cells and by an unrelated effect connect, so not a T3/T4 wiring bug. Headless only so far:
+whether it happens on a real output device or on the Pixel is not known. **Crawford's call (2026-10-22): record it
+and carry on.** Backlog 29 holds the investigation; T20's listen adds a tick check on real speakers.
+
+### 2. A dark room costs a dark effect — `npm run perf:audio`, 2026-10-22
+
+**Builds,** served side by side: the branch at `e0216160` on 4173 and its base `2dc5b4a2` (main after the retune) on
+4174, both `vite build` into the session scratchpad. **World:** one fresh world (−48, −5, `pelagos-default`) turned into
+two share links on the branch. **Dark:** every robot's Grit, Shimmer and Double at 0, the three colour Mixes at 0, and the
+Chorus and Shifter wets at 0. That makes the five effects dark on both builds: on the base they are chain pedals, on the
+branch rooms with no feeder. **Seeded:** the world as seeded: four Grit robots (but no colour effect lit, so Grit is
+silent), two Shimmer, one Double, Returns at 1. Both links load on both builds. The HUD read `fx in 2/10` dark on both,
+and `fx in 4/10` seeded on both: on the branch the extra two are the lit Shimmer and Double branches, on the base the
+Chorus and Shifter as fully wet chain pedals. That is why the seeded world is recorded on the branch only. 240 s, 15 s
+buckets, warm-up 8 s, desktop, one run at a time, no stray Chrome.
+
+| Run | Build | World | Mean | Peak window | Max |
+|---|---|---|---|---|---|
+| 1a | base | dark | 0.467 | 0.544 | 0.991 |
+| 1b | branch | dark | 0.473 | 0.546 | 0.991 |
+| 2a | branch | dark | 0.458 | 0.548 | 0.989 |
+| 2b | base | dark | 0.466 | 0.578 | 0.989 |
+| 3 | branch | seeded | 0.494 | 0.607 | 0.991 |
+
+**Gate (spec §5 check 2: branch ≤ base, dark):** passed. The branch averages 0.466 mean / 0.547 peak window against the
+base's 0.467 / 0.561, with the order reversed between rounds. **Seeded, recorded:** +0.028 mean and +0.060 peak window
+over the branch's dark runs: the cost of two lit rooms, priced by 50.6.
+
+An unplanned first pair, run by mistake with an empty query (so the default world as seeded, not either link): base
+0.614 / 0.710, branch 0.697 / 0.784. Not like for like (the base's Chorus and Shifter run as chain pedals at their seeded
+Mix), not a gate, and kept only so the slip is on record.
+
+### 3. Main thread — power-on, a Decay flip, a send crossing 0, 2026-10-22
+
+Dev servers of both builds (the base on 5198, the branch on 5199), the seeded link, headless Chrome over CDP; three page
+loads per build (the branch nine, over three passes of the probe). "Powered" is when the FX chain exists; "unresponsive"
+is the longest gap between answers to a 25 ms `Runtime.evaluate` poll after the click.
+
+| | base | branch | gate |
+|---|---|---|---|
+| power-on (chain built) | 0.38–0.45 s | 0.38–0.49 s | about 2 s, no slower |
+| longest unresponsive | 0.26–0.30 s | 0.27–0.44 s | — |
+| Decay flip (`setCompressorBeforeDelay`) | 0.8–1.5 ms | 0.7–1.7 ms | ≤ 4 ms |
+| a send crossing 0 (`updateRobotSends`, the branch connecting: Shimmer, Double, and Grit with Distortion lit at 0.3) | — | 0–0.1 ms | ≤ 2 ms |
+
+Every branch crossing was checked to have connected its branch (`connected` true after the call). All three gates pass.
+The branch's longest unresponsive gap reached 0.42 and 0.44 s in two of nine runs, against the base's 0.30 at most in
+three; recorded, not gated.
+
+## Robot Effect Sends (roadmap 50.7) on the Pixel — T21, Crawford's runs, 2026-10-22
+
+Spec §5's phone gate (docs/specs/ROBOT_EFFECT_SENDS.md; plan docs/tasks/ROBOT_EFFECT_SENDS.md T21). **Builds:** T19's
+two `vite build`s, served side by side on the LAN: the branch `feature/robot-effect-sends` on **4173** (product
+code as `e0216160`; nothing under `src/` changed up to `59954360`) and its base `2dc5b4a2` (`main` after the retune) on
+**4174**. Pixel 8, `?debug`, a fresh tab per run from a links page (`phone-gate.html`, session scratchpad), hands off to
+3:00, watched to 4:00. **Rest:** the phone was switched off for at least 20 minutes before every run, a first for these
+rounds. **Worlds:**
+- **Seeded:** T19's world (−48, −5, `pelagos-default`) as the branch seeds it: Grit on three robots (silent, since no
+  colour effect is lit), Shimmer on two, Double on one, Returns at 1. On the base the same link plays the Chorus and
+  Shifter as fully wet chain pedals; both builds read `fx in 4/10`, so they carry the same number of lit effects.
+- **Hand:** the same world with every robot's Grit, Shimmer and Double at 1, the three colour Mixes at 1 and the Chorus
+  and Shifter Returns at 1. Branch only, recorded, not gated.
+
+Before the round every link was loaded headlessly over the LAN address on its build: seeded `fx in 4/10` on both builds
+at Full and Standard, hand `fx in 7/10` (two lit chain cells plus five room branches). The phone read the same.
+
+| # | Build | Tier | World | `fx in` | `underruns` 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|---|
+| 1 | base `2dc5b4a2` | Full | seeded | 4/10 | 0 → **48** → **100** | "everything sounded fine" |
+| 2 | branch | Full | seeded | 4/10 | 0 → **76** → **508** | "at 3:30 it started spiking, but was perfectly fine til then. Around 4:20 it completely cut out w/ ~ 2K underruns." |
+| 3 | branch | Standard | seeded | 4/10 | 0 → **62** → 106 at **6:00** | "everything sounded great, even 6 minutes in" (pulled away, so no 4:00 reading) |
+| 4 | base `2dc5b4a2` | Standard | seeded | 4/10 | 0 → **68** → **95** | "sounded fine." |
+| 5 | branch | Full | hand | 7/10 | 0 → **98** → **122** | "clipping wise it was great. super distorted, but loud distortion, not underrun clipping." |
+| 6 | base `2dc5b4a2` | Full | seeded | 4/10 | 0 → **95** → **250** | "sounded ok, got some clipping around 4:20 but it was not the worst." |
+| 7 | branch | Full | seeded | 4/10 | 0 → **59** → **97** | "sounded fine" |
+
+Runs 6 and 7 repeat runs 1 and 2, added after run 2's result to give Full a spread, with the same 20 minutes off before
+each.
+
+**Reading against the gate** (the branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in`
+reads lit branches plus lit chain cells). **T21 passes.**
+- **`fx in`: passes.** 4/10 is two chain cells plus the Shimmer and Double branches; 7/10 adds the three Grit branches.
+- **The counts at 3:00: pass.** The base read 48, 68 and 95 (spread 48–95); the branch's seeded runs read 76, 62 and 59,
+  all inside it. At Full alone: base 48 and 95, branch 76 and 59.
+- **No runaway by 3:00 on any run.** Run 2 ran away after it: spiking at 3:30, out at about 4:20 with about 2 000
+  underruns. Run 7, the same link on the same build, read 59 → 97 and sounded fine. The base had late trouble of its
+  own: run 6 rose 95 → 250 with audible clipping at about 4:20. That is the 2:50–4:00 collapse of backlog 27, which
+  spec §16 says does not fail the gate when `main` shares it.
+- **The collapse does not follow the lit load.** Run 5, the same build and tier with 7 lit instead of 4, read 98 at 3:00
+  and 122 at 4:00 with no collapse. So run 2's collapse is not the rooms' cost growing.
+
+**New for backlog 27:** run 2 collapsed second in the sitting, after 20 minutes off. That is the first collapse on a
+phone rested this way, so heat or state left over from an earlier run explains it less well than it explained round 4.

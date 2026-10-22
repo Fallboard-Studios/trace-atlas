@@ -17,6 +17,12 @@ export interface VoiceEntry {
   reverbSend: Tone.Gain;
   /** busFilter -> delaySend -> global Delay room. */
   delaySend: Tone.Gain;
+  /** busFilter -> gritSend -> the Colour room's in (docs/specs/ROBOT_EFFECT_SENDS.md §1.4). */
+  gritSend: Tone.Gain;
+  /** busFilter -> shimmerSend -> the Shimmer room's in. */
+  shimmerSend: Tone.Gain;
+  /** busFilter -> doubleSend -> the Double room's in. */
+  doubleSend: Tone.Gain;
 }
 
 /** Run one teardown step on its own, so a node that fails to come down never stops the ones after it. */
@@ -35,6 +41,9 @@ export function disposeVoiceNodes(entry: VoiceEntry): void {
   const nodes = [
     ['reverbSend', entry.reverbSend],
     ['delaySend', entry.delaySend],
+    ['gritSend', entry.gritSend],
+    ['shimmerSend', entry.shimmerSend],
+    ['doubleSend', entry.doubleSend],
     ['panner', entry.panner],
     ['busGain', entry.busGain],
     ['busFilter', entry.busFilter],

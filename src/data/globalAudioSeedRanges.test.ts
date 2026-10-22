@@ -162,6 +162,7 @@ describe('GLOBAL_AUDIO_SEED_RANGES', () => {
     expect(GLOBAL_AUDIO_SEED_RANGES['chebyshev.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
     expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.bits']).toStrictEqual({ min: 1, max: 16, scale: 'linear', step: 1 });
     expect(GLOBAL_AUDIO_SEED_RANGES['bitCrusher.wet']).toStrictEqual({ min: 0, max: 1, scale: 'linear', step: 0.01 });
+    expect('colourRoom.wet' in GLOBAL_AUDIO_SEED_RANGES).toBe(false); // T17.2: no Colour room Return, so no key
   });
 
   it('steps order and bits by whole integers, since a harmonic order and a bit depth are integers by concept', () => {

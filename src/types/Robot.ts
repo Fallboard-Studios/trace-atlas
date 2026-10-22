@@ -205,6 +205,14 @@ export interface Robot {
   reverbSend: number;
   /** Delay send, 0…1 — as reverbSend, into the Delay room. */
   delaySend: number;
+  /** Grit send, 0…1 — how much of this robot's post-Volume signal enters the Colour room (Distortion, Chebyshev and
+   *  Bit Crusher in parallel). Seeded at spawn (ROBOT_SEND_LOADING_RANGES); the Grit slider edits it. 0 = this probe is
+   *  never coloured. docs/specs/ROBOT_EFFECT_SENDS.md §1.1. */
+  gritSend: number;
+  /** Shimmer send, 0…1 — as gritSend, into the Shimmer room (the Frequency Shifter). */
+  shimmerSend: number;
+  /** Double send, 0…1 — as gritSend, into the Double room (the Chorus). */
+  doubleSend: number;
   /** Docking state — see DockingState. Every robot has one from creation. */
   docking: DockingState;
   /**

@@ -141,26 +141,22 @@ describe('the living docs name the six colour fields', () => {
     expect(missingFields(COLOUR_FIELDS.map((f) => `\`${f}\``).join(' '))).toEqual([]);
   });
 
-  it('GLOBAL_CHAIN_GRID.md has a row for every colour field, with its setter, in chain order after the HPF rows', () => {
+  // Robot Effect Sends T18 (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): the three effects left the dry chain for the Colour
+  // room, so the grid case is re-pinned from "in chain order after the HPF rows" to the room rows. RED until that
+  // phase's Task 22 rewrites the rows.
+  it('GLOBAL_CHAIN_GRID.md has a row for every colour field, with its setter, and each wet row is a Colour room branch level', () => {
     const grid = read('docs/reference/GLOBAL_CHAIN_GRID.md');
     const rows: [effect: string, setter: string, param: RegExp][] = [
       ['Distortion', 'setGlobalDistortion', /amount/], ['Distortion', 'setGlobalDistortion', /wet/],
       ['Chebyshev', 'setGlobalChebyshev', /order/], ['Chebyshev', 'setGlobalChebyshev', /wet/],
       ['BitCrusher', 'setGlobalBitCrusher', /bits/], ['BitCrusher', 'setGlobalBitCrusher', /wet/],
     ];
-    const positions = rows.map(([effect, setter, param]) => {
-      const line = grid.split('\n').findIndex((l) => l.startsWith(`| ${effect} | \`${setter}()\` |`) && param.test(l.split('|')[3] ?? ''));
-      expect(line, `${effect} ${param}`).toBeGreaterThan(-1);
-      return line;
-    });
-    expect(positions).toEqual([...positions].sort((a, b) => a - b));
     const gridLines = grid.split('\n');
-    const hpfRows = gridLines.flatMap((l, i) => (l.startsWith('| High-Pass Filter |') ? [i] : []));
-    const lastHpf = hpfRows[hpfRows.length - 1];
-    const firstDelay = gridLines.findIndex((l) => l.startsWith('| Delay |'));
-    expect(hpfRows.length, 'the grid has HPF rows').toBeGreaterThan(0);
-    expect(positions[0]).toBeGreaterThan(lastHpf);
-    expect(positions[5]).toBeLessThan(firstDelay);
+    for (const [effect, setter, param] of rows) {
+      const line = gridLines.find((l) => l.startsWith(`| ${effect} | \`${setter}()\` |`) && param.test(l.split('|')[3] ?? ''));
+      expect(line, `${effect} ${param}`).toBeDefined();
+      if (String(param) === '/wet/') expect(line, `${effect} wet is a room row`).toMatch(/Colour room/);
+    }
   });
 
   it.each(['docs/AUDIO_SYSTEM.md', 'docs/SESSION_STORAGE.md'])('%s names all six', (doc) => {

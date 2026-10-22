@@ -38,6 +38,15 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay.wet).toBe(1);
   });
 
+  // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return, so no
+  // settings block; each colour Mix is its effect's return level.
+  it('has no Colour room block, in the defaults or the type', () => {
+    expect('colourRoom' in DEFAULT_GLOBAL_AUDIO_SETTINGS).toBe(false);
+    // @ts-expect-error - GlobalAudioSettings has no colourRoom key (npm run build:types enforces this line).
+    const stray: GlobalAudioSettings['colourRoom'] = { wet: 1 };
+    expect(stray).toBeDefined();
+  });
+
   it('leaves the rest of the Reverb and Delay defaults as they were', () => {
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.reverb).toEqual({ decay: 1.5, preDelay: 0.02, wet: 1 });
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.delay).toEqual({ delayTime: 0.25, feedback: 0.2, wet: 1 });
@@ -73,9 +82,11 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
 
   // V2 removed a Chorus ("the effect isn't correct for this music"); Global Pedals (docs/specs/GLOBAL_PEDALS.md,
   // backlog 22) brings one back as a dry-by-default pedal after the Phaser, so the old absence guard is inverted.
-  it('has a chorus field again, dry by default (Global Pedals)', () => {
+  // Robot Effect Sends T8 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): the Chorus is the Double room now, and its
+  // wet the room's Return, full by default; a robot's own Double send sets how much goes in.
+  it('has a chorus field again, its wet a full Return by default (Global Pedals, Robot Effect Sends)', () => {
     expect('chorus' in DEFAULT_GLOBAL_AUDIO_SETTINGS).toBe(true);
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(0);
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.wet).toBe(1);
   });
 
   it('reverb no longer has a dampening field', () => {
@@ -187,17 +198,23 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS Global Pedals blocks', () => {
       depth: 0.7,
       spread: 180,
       feedback: 0,
-      wet: 0,
+      wet: 1,
     });
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo).toStrictEqual({ rate: 10, depth: 0.5, spread: 180, wet: 0 });
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato).toStrictEqual({ rate: 5, depth: 0.1, wet: 0 });
-    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter).toStrictEqual({ shift: 0, wet: 0 });
+    // Robot Effect Sends T8: the shifter's wet is the Shimmer room's Return, full by default.
+    expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter).toStrictEqual({ shift: 0, wet: 1 });
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener).toStrictEqual({ width: 0.5 });
   });
 
-  it('keeps every motion pedal dry and the widener at unity, so a default world is clean', () => {
-    for (const key of ['chorus', 'tremolo', 'vibrato', 'frequencyShifter'] as const) {
+  // Robot Effect Sends T8: the Tremolo and Vibrato stay dry by default; the Chorus and shifter wets are room Returns, full
+  // by default, and a default world is still clean because no robot sends into those rooms until its seed says so.
+  it('keeps the in-chain motion pedals dry, the two room Returns full, and the widener at unity, so a default world is clean', () => {
+    for (const key of ['tremolo', 'vibrato'] as const) {
       expect(DEFAULT_GLOBAL_AUDIO_SETTINGS[key].wet, key).toBe(0);
+    }
+    for (const key of ['chorus', 'frequencyShifter'] as const) {
+      expect(DEFAULT_GLOBAL_AUDIO_SETTINGS[key].wet, key).toBe(1);
     }
     expect(DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width).toBe(0.5);
   });
@@ -260,6 +277,16 @@ describe('withGlobalAudioDefaults', () => {
     expect(result.bitCrusher).toStrictEqual({ bits: 4, wet: 0.7 });
     expect(result.distortion).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion);
     expect(result.chebyshev).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev);
+  });
+
+  // Spec assumption 13 as amended (T17.2): a payload saved between T2 and the amendment may carry a Colour room block;
+  // it is dropped on the way in, never an error.
+  it('drops a stray colourRoom block from an old payload, keeping every other block', () => {
+    const stale = { colourRoom: { wet: 0.4 }, reverb: { decay: 2, preDelay: 0.01, wet: 0.3 } } as unknown as Partial<GlobalAudioSettings>;
+    const result = withGlobalAudioDefaults(stale);
+    expect('colourRoom' in result).toBe(false);
+    expect(result.reverb).toStrictEqual({ decay: 2, preDelay: 0.01, wet: 0.3 });
+    expect(Object.keys(result)).toEqual(Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS));
   });
 
   it('keeps a nested partial block as given: blocks are whole, never deep-merged', () => {

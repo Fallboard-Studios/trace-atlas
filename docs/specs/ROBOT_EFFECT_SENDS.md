@@ -15,10 +15,22 @@ slot **50.7**, the seventh sub-phase of the Audio Palette series, after Global P
 Robot Sends (50.2, [ROBOT_SENDS.md](ROBOT_SENDS.md)): the same send/return model applied to three effects that are
 dry-chain bypass cells today. Grit, Shimmer and Double are working titles; the lore pass settles the words. **The number
 retune the intent puts first is its own task and listen, before this phase's T1** (§6): its plan is
-[docs/tasks/CLASSIC_BAND_RETUNE.md](../tasks/CLASSIC_BAND_RETUNE.md) (written 2026-10-21, untracked, not started; sixteen
-rows, two decisions open). The bands in this spec are placeholders written against the chain as it stands at `0b087fec`;
-once the retune merges, assumption 6's table takes the retuned Reverb band (its row 15) and the room depths start from
-its rows 3–4, in a one-commit amendment before the plan for this phase is written.
+[docs/tasks/CLASSIC_BAND_RETUNE.md](../tasks/CLASSIC_BAND_RETUNE.md) (written 2026-10-21, sixteen rows). The bands in
+this spec were first written against the chain at `0b087fec`. **Amended 2026-10-21 (plan T0) against the retune's merge,
+`2dc5b4a2` (PR #567):** assumption 6 and §1.1 carry the merged Reverb band, 0.1–0.6 (the retune's row 15; Delay is
+unchanged at 0–0.3); the room depths start from the merged colour Mix, **one shared band of 0.1–0.2 under
+`COLOUR_LOAD_MIX_MAX` 0.25** (`src/data/globalAudioLoadingRanges.ts:33`, `:80`–`:84`), not the retune's Decision 1 B
+ceiling of 0.35, which its Checkpoint B listen reversed ("much more subtle", `277eb4a9`). The Chorus and Shifter Mixes
+merged at 0.3–0.4 and 0.25–0.35 (`:120`, `:132`); this phase makes both unseeded Returns at 1 (assumption 4).
+
+**Amended 2026-10-21 (after T17): the Colour room has no master Return** (Crawford, choosing option 5 of five drawer
+layouts; the Room sub-tab T17 built at `b1a0151c` is removed). Each colour Mix already is a wet-only level on its own
+branch (`branchGains`), so each colour effect behaves like the Reverb or the Delay: one level, as heard from every
+probe, 0 silences it. The one difference is that one send (Grit) feeds three of them. The room keeps the Return of 1 it
+is built with; the settings block that drove it, its seed-range key, its setter, its drawer block and its two content
+keys are gone. The Colour section keeps its three sub-tabs and opens on Distortion. Assumptions 3, 4, 5, 13, 14 and 15,
+§1.1, §1.2, §1.6–§1.8, §2, §3 and §5 below are re-stated to match; the engine machinery (`setRoomReturn`,
+`returnLevel`, the liveness rule) is unchanged and still serves the Shimmer and Double rooms.
 
 Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was read, not recalled):
 
@@ -117,9 +129,8 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
 
 1. **Field names are the intent's.** `Robot.gritSend`, `Robot.shimmerSend`, `Robot.doubleSend`; the engine's room keys
    are `'grit' | 'shimmer' | 'double'`; `updateRobotSends` takes `{ reverb?, delay?, grit?, shimmer?, double? }`; the
-   share codes are `gr`, `sm`, `db` (`ds` is the Delay send's). The Colour room's settings block and drawer sub-tab keep
-   the room's name (`colourRoom`), since they sit under the Colour section and name the Return, not the send. The lore
-   pass changes words in `src/content/` only. **Answered 2026-10-21: Crawford, "intent names are fine"** (the draft
+   share codes are `gr`, `sm`, `db` (`ds` is the Delay send's). The lore pass changes words in `src/content/` only.
+   (The draft also named a Colour room settings block and sub-tab here; both were removed by the amendment above.) **Answered 2026-10-21: Crawford, "intent names are fine"** (the draft
    proposed naming the fields for the room, `colourSend` / `shifterSend` / `chorusSend`).
 2. **A room is the existing cell machinery with the dry branch removed, and the crossing unit is the branch.** A
    `Room` is three fixed nodes — `in` (Gain, every robot's send for this room connects here for the voice's life), `cut`
@@ -132,7 +143,8 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    cell's crossfade law is wrong — a dark or lightly lit node's `dry` path would carry the robot's **dry** signal into
    the return, so a Grit send would mostly make a robot louder; the fix for series (a second law, wet-only when lit,
    dry-pass when dark) costs more than parallel buys, and with the seeder lighting at most one colour node the two are
-   identical in every fresh world. By hand, two lit nodes sum rather than stack. **Veto point.**
+   identical in every fresh world. By hand, two lit nodes sum rather than stack. **Veto point.** **Answered 2026-10-21
+   (plan T0): Crawford, parallel.**
 3. **Room liveness has two drivers: fed and returned.** A branch is wanted lit when `room.fed && room.returnLevel > 0
    && branchMix > 0`. `fed` is true while at least one **reserved** robot's send into the room is above 0 (the engine
    keeps a set of feeding robot ids per room and tells the room when the set becomes empty or non-empty);
@@ -140,27 +152,28 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    (a lighting connects while the branch's `wet` is 0, then ramps; a darkening ramps to 0, arms the one timer,
    disconnects). A reserved robot that is silent (standing by, or between notes) with a send above 0 keeps its room
    lit — today's rule for the Reverb and Delay rooms, recorded in §7. *Alternative:* sends alone drive the crossing and a
-   Return of 0 merely silences a lit room.
-4. **The moved Mixes become Returns; the Colour room gets a new block.** `ChorusSettings.wet` and
+   Return of 0 merely silences a lit room. **Answered 2026-10-21 (plan T0): Crawford, fed AND Return > 0.** Since the
+   amendment the Colour room's Return is fixed at 1, so for it the rule reads fed AND that branch's Mix > 0.
+4. **The moved Mixes become Returns; the Colour room has none.** `ChorusSettings.wet` and
    `FrequencyShifterSettings.wet` keep their names and ranges, default `1`, are not seeded, and drive
    `room.return` (`rampOrSet` over `COLOUR_RAMP_SECONDS`, unlike the Reverb and Delay returns, which keep their direct
-   writes). `GlobalAudioSettings.colourRoom: { wet: number }` (`ColourRoomSettings`) is the Colour room's Return, default
-   `1`, not seeded; the three colour `wet`s keep their meaning (depth of each node, `colourWetGain` taper, `COLOUR_LOAD_MIX_MAX`
-   ceiling) and their character-draw seeding. `GlobalAudioSeedFieldKey` gains `colourRoom.wet` (0–1, step 0.01) so the
-   drawer bounds, `clampColour` and the session quantiser work as for `reverb.wet`.
+   writes). The Colour room's `return` stays at the 1 `buildRoom` gives it, with no setting; the three colour `wet`s keep
+   their meaning (the level of each branch, `colourWetGain` taper, `COLOUR_LOAD_MIX_MAX` ceiling) and their
+   character-draw seeding, so each one is its effect's return level. *Superseded:* a Colour room settings block
+   as the Colour room's master Return (built in T2/T4, removed by the amendment above).
 5. **The loading table loses its return rows by type.** `GLOBAL_AUDIO_LOADING_RANGES` becomes
    `Record<LoadingRangeKey, LoadingRange>` with `LoadingRangeKey = Exclude<GlobalAudioSeedFieldKey, ReturnFieldKey>` and
-   `RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet', 'colourRoom.wet']`;
+   `RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet']`;
    `sampleField` takes a `LoadingRangeKey`, so a return can never be seeded, by type. The intent said the keys leave
    `GlobalAudioSeedFieldKey`; they cannot, because the drawer, the clamp and the quantiser read the full range by those
    keys (survey above) — this is the correction.
 6. **One per-robot send band table, in `src/data/robotSendLoadingRanges.ts`.** `ROBOT_SEND_FIELDS = ['reverbSend',
    'delaySend', 'gritSend', 'shimmerSend', 'doubleSend']`; `ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, { min,
    max, lit }>` where `lit` is the nominal share of fresh robots that carry the send at all (the rest seed exactly 0).
-   Reverb `{ 0.1, 0.4, lit: 1 }` (0.1–0.6 once the retune's row 15 lands; the table takes the merged value) and Delay
+   Reverb `{ 0.1, 0.6, lit: 1 }` (the retune's row 15, merged at `2dc5b4a2`; it was 0.1–0.4 at `0b087fec`) and Delay
    `{ 0, 0.3, lit: 0.75 }` reproduce today's draws exactly (the Delay's quiet roll
    is `quietRoll < 1 − lit`, which is `< 0.25`, the same bell draw under the same dataId; a parity test pins both to the
-   values `main` seeds). The three new rows are **placeholders for the listen**: Grit `{ 0.4, 0.8, lit: 0.21 }`, Shimmer
+   values `main` at `2dc5b4a2` seeds). The three new rows are **placeholders for the listen**: Grit `{ 0.4, 0.8, lit: 0.21 }`, Shimmer
    `{ 0.2, 0.5, lit: 0.16 }`, Double `{ 0.3, 0.6, lit: 0.19 }`. `SEND_DELAY_QUIET_THRESHOLD` is deleted (its value lives
    in the Delay row). A theme overrides this table and nothing else about the sends.
 7. **The new rolls and values are uniform draws, per robot, in a fixed order with a one-of-three cap.** For each robot,
@@ -171,7 +184,8 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    (each later edge is lifted for the robots the earlier ones took); the calibration test pins the **measured** means and
    records the share of fleets with no Grit at all. Independent per-robot rolls give a binomial spread (some fleets 0,
    some 5); a roster-aware cap (the `priorLaneCounts` precedent) is the follow-up if the listen wants tighter counts,
-   not this phase. Reverb and Delay keep their bell draws and dataIds untouched.
+   not this phase. Reverb and Delay keep their bell draws and dataIds untouched. **Answered 2026-10-21 (plan T0):
+   Crawford, accept as specced (independent rolls, one-of-three cap; a roster-aware count stays the follow-up).**
 8. **The sends are drawn unconditionally, outside the copy branch** (as the existing two): one `generateRobotSends`
    returning all five, used by `spawnRobot` and `generateRobotAudioBaseline`, with the `alea` fallback mirrored; a copied
    robot gets its own depths.
@@ -181,7 +195,7 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
    read (each key is its own noise row, so no other draw moves). The Tremolo's and Vibrato's realised shares rise
    (expected 22.2 % and 19.4 %); the calibration test re-pins them. **The Chorus rolls Sync in every world** under
    `PEDAL_SYNC_ODDS`, since a room's rate is heard whenever any robot sends into it; the shifter's shift keeps its
-   magnitude-plus-sign draw in every world.
+   magnitude-plus-sign draw in every world. **Answered 2026-10-21 (plan T0): Crawford, accept as specced.**
 10. **Seeded as minority traits; the seeded shares are the theme knob.** The three `lit` shares and bands in assumption
     6 are what a theme swaps. Nothing else changes in the global seeder.
 11. **Sends tap where the existing two tap** (post-Volume, post-bus-filter, post-pan) and the rooms' returns rejoin where
@@ -191,17 +205,20 @@ Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was
 12. **The three sends are robot swell attributes** (`SWELL_ROBOT_ATTRIBUTE_IDS` 19 → 22, listed last), eligible only above
     0, with no ceiling: a rare swell on a Grit send is a roar, which the intent wants.
 13. **Old payloads load their numbers as they are; no upgrade path.** A pre-50.7 session or link carries `chorus.wet` and
-    `frequencyShifter.wet` as the Mixes they were (0 in most worlds), and restores them as Returns; `withGlobalAudioDefaults`
-    fills the missing `colourRoom` block at 1. **Answered 2026-10-21: Crawford — no real saved sessions exist beyond his
-    test ones, "we can write whatever we want still"**; the draft proposed resetting the two moved returns to 1 when the
-    `colourRoom` block is absent, and that helper is dropped.
+    `frequencyShifter.wet` as the Mixes they were (0 in most worlds), and restores them as Returns. A payload saved
+    between T2 and the amendment may carry a Colour room block; it is ignored on load, never an error. **Answered
+    2026-10-21: Crawford — no real saved sessions exist beyond his test ones, "we can write whatever we want still"**;
+    the draft proposed resetting the two moved returns to 1 when the Colour room block is absent, and that helper is
+    dropped.
 14. **UI placement: the Chorus and Shifter blocks stay sub-tabs of Modulation, their Mix row relabelled Return; the
-    Colour section gains a first sub-tab, Room, with one slider**, the Colour room's Return (`colourRoom.wet`), on the
-    Width-block precedent of a one-row block. No new section tab, no new primitive. *Alternative:* move the two rooms
-    under Time & Space beside Reverb and Delay — a layout call.
+    Colour section keeps its three sub-tabs**, whose Mix rows read as each effect's return level. No new section tab,
+    no new primitive. *Alternative:* move the two rooms under Time & Space beside Reverb and Delay — a layout call.
+    **Answered 2026-10-21 (plan T0): Crawford, stay put** (with a Colour Room sub-tab for a master Return; **re-answered
+    2026-10-21 after T17: Crawford, no master Return at all**, over a section-header Return, a Return row repeated in
+    each colour panel, and one Returns panel for all five rooms).
 15. **Lore words are placeholders** until the copy pass: `probe.gritSend` { Grit / **Carrier Bleed Send** },
-    `probe.shimmerSend` { Shimmer / **Band Slip Send** }, `probe.doubleSend` { Double / **Twin Current Send** };
-    `fleet.colourRoom` { Room / **Bleed Return** }. Keys and human words are fixed.
+    `probe.shimmerSend` { Shimmer / **Band Slip Send** }, `probe.doubleSend` { Double / **Twin Current Send** }. Keys and
+    human words are fixed.
 16. **The phone gate has no threshold and no Effects Load gate for sends** (intent): the `?debug` HUD on the Pixel,
     Standard and Full, the same `?session=` world, A/B against the branch base, plus `npm run perf:audio` on the desktop.
     The late-sitting collapse `main` shares (backlog 27) does not fail the gate. A dark room (no feeder, or Return 0)
@@ -250,17 +267,13 @@ export interface RobotAudioOverrideDiff { /* … */ gritSend?: number; shimmerSe
 export interface RobotAudioBaseline { /* … */ gritSend: number; shimmerSend: number; doubleSend: number; }
 
 // src/types/globalAudio.ts
-/** The Colour room's RETURN level (docs/specs/ROBOT_EFFECT_SENDS.md assumption 4): how loud the room is as heard from
- *  every robot. The three colour Mixes are depths inside the room. Not seeded; starts at 1. */
-export interface ColourRoomSettings { wet: number; }
-export interface GlobalAudioSettings { /* … after bitCrusher */ colourRoom: ColourRoomSettings; /* … */ }
-// DEFAULT_GLOBAL_AUDIO_SETTINGS: colourRoom: { wet: 1 }; chorus.wet: 1; frequencyShifter.wet: 1.
+// DEFAULT_GLOBAL_AUDIO_SETTINGS: chorus.wet: 1; frequencyShifter.wet: 1. No Colour room block (the amendment above).
 // ChorusSettings.wet / FrequencyShifterSettings.wet doc comments: "the room's RETURN level, see ReverbSettings.wet".
-// DistortionSettings.wet (and the other two): "0–1, a slider position; the branch's depth inside the Colour room".
+// DistortionSettings.wet (and the other two): "0–1, a slider position; the branch's level inside the Colour room, its
+// return level as heard from every probe".
 
 // src/data/globalAudioSeedRanges.ts
-export type GlobalAudioSeedFieldKey = /* … */ | 'colourRoom.wet';      // 0–1, linear, step 0.01
-export const RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet', 'colourRoom.wet'] as const;
+export const RETURN_FIELD_KEYS = ['reverb.wet', 'delay.wet', 'chorus.wet', 'frequencyShifter.wet'] as const;
 export type ReturnFieldKey = (typeof RETURN_FIELD_KEYS)[number];
 export type LoadingRangeKey = Exclude<GlobalAudioSeedFieldKey, ReturnFieldKey>;
 
@@ -275,7 +288,7 @@ export interface SendLoadingRange {
   lit: number;
 }
 export const ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, SendLoadingRange> = {
-  reverbSend:  { min: 0.1, max: 0.4, lit: 1 },      // the old GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'] row
+  reverbSend:  { min: 0.1, max: 0.6, lit: 1 },      // the old GLOBAL_AUDIO_LOADING_RANGES['reverb.wet'] row (retune row 15)
   delaySend:   { min: 0,   max: 0.3, lit: 0.75 },   // the old 'delay.wet' row; 1 − lit is the old quiet threshold (0.25)
   gritSend:  { min: 0.4, max: 0.8, lit: 0.21 },   // placeholders, assumption 6; tuned at the listen task (§5)
   shimmerSend: { min: 0.2, max: 0.5, lit: 0.16 },
@@ -286,8 +299,8 @@ export const EXCLUSIVE_SEND_FIELDS = ['gritSend', 'shimmerSend', 'doubleSend'] a
 ```
 
 `SEND_MIN` / `SEND_MAX` / `SEND_DISPLAY_SCALE` / `SEND_STEP_PERCENT` are reused; `SEND_DELAY_QUIET_THRESHOLD` is deleted.
-`AudioRigEffectKey` gains `'colourRoom'`. `EffectKey` picks `colourRoom` up from the settings type. Test fixtures that
-build a `Robot` by hand gain the three fields (the compiler finds them).
+`AudioRigEffectKey` is unchanged (the Colour room has no block of its own). Test fixtures that build a `Robot` by hand
+gain the three fields (the compiler finds them).
 
 ### 1.2 Seeding — `spawnSystem.ts` and `globalAudioSeed.ts`
 
@@ -315,18 +328,19 @@ export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): R
 }
 ```
 
-`generateRobotSendsFallback` mirrors it with `alea` keys `sendColourLit`, `sendColour`, … The robot literal spreads all
+`generateRobotSendsFallback` mirrors it with `alea` keys `send<Name>Lit` and `send<Name>` for Grit, Shimmer and Double
+(the draft named them for the colour room; corrected at T18 to the shipped keys). The robot literal spreads all
 five; `generateRobotAudioBaseline` returns `{ ...priorBaselines[srcIdx], name, ...sends }` on the copy path, as today.
 `localeStore.updateRobot` clamps the three new fields where it clamps the first two.
 
 Global side (`globalAudioSeed.ts`): `PEDAL_LIT_EDGE` becomes `Record<'autoWah' | 'phaser' | MotionPedal, number>` with
 `MOTION_PEDALS = ['tremolo', 'vibrato']`; the cap loop runs over the two; `rateLit` becomes `{ phaser: phaserLit, chorus:
 true, tremolo, vibrato }` so the Chorus rolls Sync in every world; `chorus.wet` and `frequencyShifter.wet` come from the
-defaults (1), `colourRoom: { wet: defaults.colourRoom.wet }` is added, and the three colour `wet`s keep the character draw.
+defaults (1), and the three colour `wet`s keep the character draw.
 `pedalWet` serves the Tremolo and Vibrato only. The two oracles are amended **by hand**: `chorus.wet` and
-`frequencyShifter.wet` → 1, `colourRoom` added, and the Chorus's `sync` key added where the existing `syncMode` /
+`frequencyShifter.wet` → 1, and the Chorus's `sync` key added where the existing `syncMode` /
 `syncNote` draws now produce one (the value the code gives, recorded with the reason); every other field byte-identical.
-`transmissionPresets.ts` gains `colourRoom: { wet: 1 }` and sets the two moved `wet`s to 1.
+`transmissionPresets.ts` sets the two moved `wet`s to 1.
 
 ### 1.3 Engine — the rooms (`bypassCell.ts`, `globalFx.ts`)
 
@@ -358,7 +372,7 @@ export const ROOM_BRANCHES: Record<RoomKey, readonly BypassKey[]> = {
 export type Room = {
   in: Tone.Gain;          // every robot's send gain for this room connects here (AudioEngine.reserveVoice)
   cut: Tone.Delay;        // every branch's wet → cut → return; bounds the cycle search to this room
-  return: Tone.Gain;      // the global Return slider; → join (wireGlobalFxChain)
+  return: Tone.Gain;      // the global Return slider (Shimmer, Double; the Colour room's stays at 1); → join (wireGlobalFxChain)
   fed: boolean;           // some reserved robot's send into this room is > 0 (setRoomFed)
   returnLevel: number;    // the last Return written (setRoomReturn)
 };
@@ -391,10 +405,10 @@ export function setRoomReturn(key: RoomKey, level: number): void;
   is dropped and re-made like a cell's, and the sends' edges into it are the sends' outputs, untouched by any flip.
 - `getGlobalRoomInput(key: RoomKey): Tone.Gain | null` beside `getGlobalReverbRoom`.
 - Setters: `setGlobalChorus` and `setGlobalFrequencyShifter` replace their `writeCellMix(key, wet)` line with
-  `setRoomReturn(room, wet)`; `setGlobalColourRoom(params: Partial<ColourRoomSettings>)` is new and does the same for
-  `'grit'`; the three colour setters are unchanged in text (their `writeCellMix` is now a branch write). The Spread
-  duck and `rampChorusSweep` ride the Chorus branch exactly as they rode its cell (`needsDuck` reads `connected`).
-  `AudioEngine.ts` re-exports `setGlobalColourRoom`.
+  `setRoomReturn(room, wet)`; nothing writes `'grit'`'s Return, which stays at the 1 `buildRoom` gives it (the
+  amendment above); the three colour setters are unchanged in text (their `writeCellMix` is now a branch write, and each
+  branch's level is its return level). The Spread duck and `rampChorusSweep` ride the Chorus branch exactly as they rode
+  its cell (`needsDuck` reads `connected`).
 
 ### 1.4 Engine — `AudioEngine.ts` (per-robot sends)
 
@@ -442,11 +456,10 @@ Double). `RobotScreen.tsx`: the memo, three handlers with the swell cancel, thre
 `onReverbSendChange`'s shape (cancel per member, apply per member, `patchSnapshot`); `resolveCompanyOptions` falls back
 to the first member's values; `CompanyOptionsSection` passes them through. Broadcast-not-link as every other field.
 
-**Drawer.** `FLEET_PARAMS_SUBSECTIONS.colour = [colourRoom, distortion, chebyshev, bitCrusher]`; a `colourRoom` block in
-`AUDIO_RIG_CONFIG` with one row (`colourRoom.wet`, `sliderLinear` 0–1 step 0.01, `labels('fleet.colourRoom.amount')`),
-`AUDIO_RIG_EFFECT_TRAIT.colourRoom` the Colour trait; `GLOBAL_SETTER.colourRoom = AudioEngine.setGlobalColourRoom`;
-`applyGlobalAudioToEngine` pushes it after the three colour blocks. The Chorus and Shifter blocks keep their rows; their
-`wet` row's labels change to the return wording (assumption 14).
+**Drawer.** `FLEET_PARAMS_SUBSECTIONS.colour` keeps its three effects, opening on Distortion; no block is added (the
+amendment above). The Chorus and Shifter blocks keep their rows; their `wet` row's labels change to the return wording
+(assumption 14). The three colour Mix rows keep their labels; their help says each is that effect's level as heard from
+every probe (§1.8).
 
 ### 1.7 Persistence and sharing
 
@@ -454,9 +467,9 @@ to the first member's values; `CompanyOptionsSection` passes them through. Broad
   decimals; in-range or ignored whole; the prime reads the stored, clamped value and runs only for sends the diff carried).
 - **Share link**: `CompactRobotOverrideDiff.gr? / sm? / db?` through `isSendFraction`, as `rs` / `ds`. Payload `version`
   stays 2.
-- **Globals**: `colourRoom` travels inside `globalAudio` as every block does; `withGlobalAudioDefaults` fills it on an old
-  payload; `sessionDiff.ts` quantises `colourRoom.wet` at two decimals beside the rooms. **Every value is saved and
-  loaded** (Crawford, 2026-10-21): the three Returns travel in `globalAudio` like every block, the three sends in the
+- **Globals**: no new block (the amendment above); a payload that still carries a Colour room block loads without it.
+  **Every value is saved and
+  loaded** (Crawford, 2026-10-21): the two Returns travel in `globalAudio` like every block, the three sends in the
   robot override diff like Reverb's and Delay's, and a save followed by a load restores each of them to the number it
   held. An old payload's `chorus.wet` and `frequencyShifter.wet` load as the Returns they now are, whatever they hold
   (assumption 13); nothing is rewritten on the way in.
@@ -466,9 +479,10 @@ to the first member's values; `CompanyOptionsSection` passes them through. Broad
 
 New: `probe.gritSend`, `probe.shimmerSend`, `probe.doubleSend` (human Grit / Shimmer / Double, lore placeholders, unit
 `%`, `help.human` saying what the room does to a probe that sends into it and that 0 % keeps it out of the room
-entirely); `fleet.colourRoom` (heading) and `fleet.colourRoom.amount` (Return: how loud the Colour room is as heard from
-every probe; each probe's own Grit decides how much goes in; 0 silences the room). Changed: `fleet.chorus.mix` and
-`fleet.frequencyShifter.mix` keep their keys and say the same as `fleet.reverb.amount`; `fleet.colour`'s and
+entirely). Changed: `fleet.chorus.mix` and
+`fleet.frequencyShifter.mix` keep their keys and say the same as `fleet.reverb.amount`; `fleet.distortion.mix`,
+`fleet.chebyshev.mix` and `fleet.bitCrusher.mix` keep their keys and say the effect's level as heard from every probe,
+Grit deciding how much goes in, 0 silencing the effect (no longer "blended in with the clean sound"); `fleet.colour`'s and
 `fleet.modulation`'s intros say the Colour trio, the Chorus and the Shifter are rooms a probe sends into, not stages
 every probe passes; `probe.levels`' intro gains a sentence on the three. Every key is read from a schema, so
 `content.test.ts` and the ESLint guard stay green with no exemptions. `ROBOT_DATA_GRID.md` and `SLIDER_VALUES.md` gain three
@@ -495,26 +509,26 @@ src/
 ├── data/
 │   ├── robotSendLoadingRanges.ts (+ test)         NEW — ROBOT_SEND_FIELDS, ROBOT_SEND_LOADING_RANGES, EXCLUSIVE_SEND_FIELDS, SEND_FIELD_ROOM
 │   ├── globalAudioLoadingRanges.ts (+ test)       Record<LoadingRangeKey, …>; the two wet rows go
-│   ├── globalAudioSeedRanges.ts (+ test)          + 'colourRoom.wet'; RETURN_FIELD_KEYS, ReturnFieldKey, LoadingRangeKey
+│   ├── globalAudioSeedRanges.ts (+ test)          RETURN_FIELD_KEYS (four), ReturnFieldKey, LoadingRangeKey
 │   ├── robotOptionsConfig.ts (+ test)             GRIT_SEND_SCHEMA, SHIMMER_SEND_SCHEMA, DOUBLE_SEND_SCHEMA
-│   ├── audioRigConfig.ts (+ test)                 AudioRigEffectKey + 'colourRoom'; the colourRoom block; 18 blocks
+│   ├── audioRigConfig.ts (+ test)                 unchanged: 17 blocks (no Colour room block, the amendment)
 │   ├── audioSwellRanges.ts (+ test)               + three 0…1 rows
-│   └── transmissionPresets.ts (+ test)            colourRoom { wet: 1 }; chorus.wet / frequencyShifter.wet 1
+│   └── transmissionPresets.ts (+ test)            chorus.wet / frequencyShifter.wet 1
 ├── types/
 │   ├── Robot.ts, Company.ts, session.ts           the three fields
-│   ├── globalAudio.ts (+ test)                    ColourRoomSettings, colourRoom, defaults, return-level doc comments
+│   ├── globalAudio.ts (+ test)                    defaults, return-level doc comments
 │   └── audioSwell.ts (+ test)                     19 → 22
 ├── engine/
 │   ├── audioEngine/bypassCell.ts (+ test)         ROOM_KEYS, ROOM_BRANCHES, Room, branchGains, buildRoom, buildBranch, getRoom,
 │   │                                              roomNodes, setRoomFed, setRoomReturn, syncRoom; Cell.dry nullable, Cell.room
 │   ├── audioEngine/globalFx.ts (+ test, headless test)   rooms built; chainNodes −5; returns to join; disconnect list; getGlobalRoomInput;
-│   │                                              setGlobalColourRoom; chorus / shifter wet → setRoomReturn
+│   │                                              chorus / shifter wet → setRoomReturn
 │   ├── audioEngine/chainCycleSearch.test.ts       one more case: a connect into a room's `in` walks that room only
 │   ├── audioEngine/voiceEntry.ts                  three gains
 │   ├── AudioEngine.ts (+ test)                    reserveVoice wiring, roomFeeders, updateRobotSends ×5, releaseVoice, re-export
 │   └── reservationSendsPrime.test.ts              five sends primed at every site
 ├── stores/
-│   ├── audioStore.ts (+ test)                     GLOBAL_SETTER.colourRoom; apply order
+│   ├── audioStore.ts (+ test)                     unchanged (no Colour room setter)
 │   └── localeStore.ts (+ test)                    updateRobot clamps the three
 ├── systems/
 │   ├── spawnSystem.ts (+ test)                    generateRobotSends ×5 + fallback; baseline; robot literal
@@ -522,15 +536,15 @@ src/
 │   ├── audioSwells.ts (+ test)                    live / read / write for the three
 │   └── companyOptions.ts (+ test)                 fallbacks
 ├── utils/
-│   ├── globalAudioSeed.ts (+ test)                PEDAL_LIT_EDGE −2, MOTION_PEDALS, cap over four, Chorus Sync always, returns from defaults, colourRoom; oracles by hand; calibration
-│   ├── sessionDiff.ts (+ test)                    diff / restore / prime loops ×5; colourRoom quantised
+│   ├── globalAudioSeed.ts (+ test)                PEDAL_LIT_EDGE −2, MOTION_PEDALS, cap over four, Chorus Sync always, returns from defaults; oracles by hand; calibration
+│   ├── sessionDiff.ts (+ test)                    diff / restore / prime loops ×5
 │   └── sessionShareUtils.ts (+ test)              gr / sm / db
 ├── content/copy/probe.ts, fleet.ts                §1.8
 ├── components/
 │   ├── robot/AudioSettingSection.tsx (+ test)     three rows, three handlers, three flags
 │   ├── panels/screen/screens/RobotScreen.tsx (+ test)
-│   ├── panels/screen/nav/navActions.ts (+ test)   FLEET_PARAMS_SUBSECTIONS.colour
-│   ├── panels/screen/console/AudioRigDrawer.tsx (+ test)   AUDIO_RIG_EFFECT_TRAIT.colourRoom
+│   ├── panels/screen/nav/navActions.ts (+ test)   unchanged (Colour keeps its three sub-tabs)
+│   ├── panels/screen/console/AudioRigDrawer.tsx (+ test)   unchanged
 │   ├── company/useCompanyOptions.ts (+ test), company/CompanyOptionsSection.tsx
 │   └── debug/hudLines.test.ts                     the token's wording only if it changes (it should not)
 └── docs/
@@ -543,7 +557,7 @@ docs/
 ├── specs/ROBOT_EFFECT_SENDS.md                    this file
 ├── tasks/ROBOT_EFFECT_SENDS.md                    the plan (next phase, after the retune task)
 ├── AUDIO_SYSTEM.md                                Signal Graph: five rooms, the seven-stage chain, the branch rule, the HUD token's meaning
-├── reference/GLOBAL_CHAIN_GRID.md                 chain-order line; colour / chorus / shifter rows as room rows; colourRoom.wet row; footnote ² → the send table
+├── reference/GLOBAL_CHAIN_GRID.md                 chain-order line; colour / chorus / shifter rows as room rows; footnote ² → the send table
 ├── reference/ROBOT_DATA_GRID.md, SLIDER_VALUES.md three send rows
 ├── reference/TONE_EFFECTS_INVENTORY.md            the moved rows' role column; the five send rows
 ├── SESSION_STORAGE.md, COMPANIES.md               §1.7
@@ -574,7 +588,7 @@ any gem / robot-body file, `reserveVoice`'s signature, `SliderLinear.tsx`, `setG
 - **Every AudioParam write and graph edit lives in `AudioEngine.ts` / `globalFx.ts` / `bypassCell.ts`**, from an action,
   the store's setters or `applyGlobalAudioToEngine`, never from a GSAP callback or a component. The darken timer is
   `Tone.getContext().setTimeout`, as today.
-- **State stays JSON-serialisable:** five numbers on `Robot`, one on `colourRoom`; gains, rooms, feeder sets and timers are
+- **State stays JSON-serialisable:** five numbers on `Robot`; gains, rooms, feeder sets and timers are
   module state.
 - **Replayability:** every new draw keys off `getUniformSeededVal(noiseMap, dataId, spawnCount)` or `getSeededVal`; no
   `Math.random`. Reverb's and Delay's draws are untouched (the parity test).
@@ -633,7 +647,7 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
 ```
 
 - Names: `Room`, `RoomKey`, `ROOM_KEYS`, `ROOM_BRANCHES`, `branchGains`, `buildRoom`, `buildBranch`, `getRoom`,
-  `roomNodes`, `setRoomFed`, `setRoomReturn`, `getGlobalRoomInput`, `setGlobalColourRoom`, `ROBOT_SEND_LOADING_RANGES`,
+  `roomNodes`, `setRoomFed`, `setRoomReturn`, `getGlobalRoomInput`, `ROBOT_SEND_LOADING_RANGES`,
   `EXCLUSIVE_SEND_FIELDS`. "Lit" / "dark" stay the words for a branch; "fed" is the room's word; "connected" is the
   graph fact.
 - Comments cite this spec by assumption number where a choice is not obvious: the wet-only branch law, the two liveness
@@ -675,32 +689,33 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
 - **Spawn (`spawnSystem.test.ts`):** every robot's `gritSend` / `shimmerSend` / `doubleSend` is 0 or inside its band on
   the 1 % grid; **no robot carries two of the three**; the same locale spawns the same sends twice; the baseline equals
   the spawned robot's five sends for every index, copy-branch robots included. **Parity:** for a fixed roster,
-  `reverbSend` and `delaySend` equal, value for value, the numbers `main` at `0b087fec` seeds (recorded in the test from
-  a run on `main`, with a non-default fixture — the memory rule on parity fixtures). **Calibration** over 150 worlds ×
+  `reverbSend` and `delaySend` equal, value for value, the numbers `main` at `2dc5b4a2` seeds (recorded in the test from
+  a run on that base, with a non-default fixture — the memory rule on parity fixtures). **Calibration** over 150 worlds ×
   12: the measured mean count of each of the three per fleet pinned within ±0.4 of the figure recorded in the test's
   comment (derived once, at the task), and the share of fleets with zero Grit recorded.
 - **Seeder (`globalAudioSeed.test.ts`):** the two oracles amended by hand and `toStrictEqual`; `chorus.wet` and
-  `frequencyShifter.wet` are 1 for several styles; `colourRoom.wet` is 1; the Chorus seeds Sync in about half of all
+  `frequencyShifter.wet` are 1 for several styles; no seeded world carries a Colour room block; the Chorus seeds Sync in about half of all
   worlds (not only lit ones); the shifter's shift is never inside ±2 Hz; the cap never lights more than two of the four
   (AutoWah, Phaser, Tremolo, Vibrato); the Tremolo and Vibrato measured shares re-pinned (expected 22.2 % / 19.4 %); the
   Colour character shares unchanged; the old chorus / shifter lit tests are rewritten, not duplicated.
 - **Ranges:** `GLOBAL_AUDIO_LOADING_RANGES` has no row for any `RETURN_FIELD_KEYS` entry and compiles as
   `Record<LoadingRangeKey, …>` (a type-level test: assigning a return key is a compile error, pinned with `// @ts-expect-error`);
-  `GLOBAL_AUDIO_SEED_RANGES['colourRoom.wet']` is 0–1 step 0.01; `ROBOT_SEND_LOADING_RANGES` has five rows, each `min ≤
+  `GLOBAL_AUDIO_SEED_RANGES` has no Colour room key; `ROBOT_SEND_LOADING_RANGES` has five rows, each `min ≤
   max` inside `[SEND_MIN, SEND_MAX]`, `lit` in `(0, 1]`; `EXCLUSIVE_SEND_FIELDS` is the three new fields in roll order.
-- **Store / settings:** `withGlobalAudioDefaults` fills a missing `colourRoom`; `setGlobalAudio('colourRoom', { wet: 0.5 })`
-  reaches `setGlobalColourRoom`; `applyGlobalAudioToEngine` pushes it; `setGlobalChorus({ wet: 0.4 })` calls
+- **Store / settings:** `setGlobalChorus({ wet: 0.4 })` calls
   `setRoomReturn('double', 0.4)` and never `writeCellMix` (mutation check); likewise the shifter; the three colour
-  setters still `writeCellMix`.
+  setters still `writeCellMix`; nothing calls `setRoomReturn('grit', …)`, and a fed Colour room lights a branch whose
+  Mix is above 0 at its built Return of 1.
 - **Actions, swells, company, session, share, UI:** the ROBOT_SENDS.md §5 cases, three more times each — `applyGritSend(robot, l, 40)`
   writes 0.4 and primes; 22 swell ids with ranges; a send of 0 is never picked and 0.25 is; a mid-swell save stores the
   base; an untouched robot diffs to `{}`; one step diffs to two decimals; a bad value is ignored whole; `gr` / `sm` / `db`
   round-trip and bad values drop; `resolveCompanyOptions` and the three broadcast handlers; the section renders seven rows
   in order with `send × 100`; `RobotScreen` and the company screen pass the fields.
-- **Pre-50.7 payloads (assumption 13):** a version-2 session or link without `colourRoom` restores with
-  `colourRoom.wet === 1` and its `chorus.wet` / `frequencyShifter.wet` exactly as stored; nothing else is rewritten.
+- **Old payloads (assumption 13):** a version-2 session or link restores its `chorus.wet` / `frequencyShifter.wet`
+  exactly as stored; nothing else is rewritten. One that still carries a Colour room block (saved between T2 and the
+  amendment) loads without error and the block does not survive into the store or a re-save.
 - **Docs guards:** `robotEffectSendsDocs.test.ts` — every backticked symbol in this spec's §1–§4 exists in non-test `src/`;
-  the gem scan finds none of the three identifiers; the grid has a row for `colourRoom.wet` and marks the three colour
+  the gem scan finds none of the three identifiers; the grid marks the three colour
   rows, `chorus.wet` and `frequencyShifter.wet` as room rows; `AUDIO_SYSTEM.md` names the five rooms;
   `SESSION_STORAGE.md` lists the five sends. `globalPedalsDocs.test.ts:153–154` re-pinned to the seven-stage `chainNodes`
   and the unchanged `join` line; `globalColourDocs.test.ts:144` re-pinned to the room rows.
@@ -732,7 +747,9 @@ Counts, `fx in` readings and Crawford's words go in `scratchy-audio-phones.md` a
 **Manual listen (Crawford, desktop, after the retune's listen):** a fresh Classic world has two or three gritty robots and
 one or two shimmering and doubled ones among clean ones, no robot both; a robot at every send 0 is unchanged beside a
 Grit neighbour; dragging a Grit send from 0 up and back with a chord sounding, slowly and quickly, with a wiggle across
-0; the Colour room's Return from 1 to 0 and back while fed; each colour Mix inside a fed room; the Shimmer room on a
+0; each colour Mix from its value to 0 and back inside a fed room (the colour goes, no click); a Shimmer room lit and
+darkened several times on a sustained sound, on real speakers, listening for a tick at the lighting (T19 found a
+connect sometimes loses a render quantum in headless Chrome, `main` included; backlog 29); the Shimmer room on a
 hard-panned robot (the sideband leak, accepted or not); the Double room's Rate Free → Sync → Free; a Natural ↔ Controlled
 flip with a fed room; a swell on a Grit send (a roar, wanted) landing exactly on its base; save, reload and a share link
 with one moved send; keyboard reaches every slider; every "?" reads right.
@@ -770,19 +787,25 @@ with one moved send; keyboard reaches every slider; every "?" reads right.
    Mixes this phase turns into unseeded Returns at 1; they are worth the retune's listen against the inserts only if the
    retune ships well ahead of this phase, otherwise they are moot. **Answered in part 2026-10-21: Crawford intends to
    complete the retune plan before this phase**, so rows 7 and 9 do get their listen against the inserts and the
-   amendment in §6 step 2 starts from the merged tables. Still open: whether the room-depth second look is the retune's
-   Decision 1 or this phase's tuning task (the spec assumes this phase's, since only this phase can hear a depth inside
-   a room).
+   amendment in §6 step 2 starts from the merged tables. **Answered in full 2026-10-21 (plan T0): the room-depth second
+   look is this phase's tuning task (plan T20)**, send bands first, the room's Mix bands second, dropping the taper
+   last and only after asking. The retune merged with the colour Mix at one shared 0.1–0.2 band (its Checkpoint B
+   reversed Decision 1 B), so a seeded room depth is a branch gain of 0.01–0.04, which times a send of 0.6 is 0.6–2.4 %
+   of the robot: Risk 1 is sharper than this question first said.
 2. **Assumption 1 (field names).** **Answered 2026-10-21: the intent's names.**
 3. **Assumption 2 (parallel Colour room, wet-only branches).** The intent's Outcome says "in series"; the series form
-   re-adds the robot's dry signal through the cells' crossfade law, which is why this spec picks parallel.
-4. **Assumption 3 (fed and Return both drive liveness).** The simpler alternative is sends only.
+   re-adds the robot's dry signal through the cells' crossfade law, which is why this spec picks parallel. **Answered
+   2026-10-21 (plan T0): parallel.**
+4. **Assumption 3 (fed and Return both drive liveness).** The simpler alternative is sends only. **Answered 2026-10-21
+   (plan T0): fed AND Return > 0.**
 5. **Assumption 13 (old payloads).** **Answered 2026-10-21: no real saved sessions exist; load the number, no
    upgrade.**
 6. **Assumption 14 (drawer placement).** Chorus and Shifter stay under Modulation with a Return row; Colour gets a Room
-   sub-tab. Or the rooms move beside Reverb and Delay.
+   sub-tab. Or the rooms move beside Reverb and Delay. **Answered 2026-10-21 (plan T0): stay put, Colour gains the Room
+   sub-tab. Re-answered 2026-10-21 after T17 (Crawford): no Colour master Return, so no Room sub-tab; each colour Mix
+   is its effect's return level, as Reverb's and Delay's Amounts are.**
 7. **Assumptions 9 and 7 (the cap stays 2 over four; the Chorus rolls Sync in every world; independent per-robot rolls
-   with a one-of-three order rather than a roster-aware count).**
+   with a one-of-three order rather than a roster-aware count).** **Answered 2026-10-21 (plan T0): accept as specced.**
 
 **Risks:**
 
