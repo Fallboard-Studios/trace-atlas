@@ -746,12 +746,20 @@ their grid rows and T7's calibration figures re-measured. Anything he vetoes rev
 words in the status line.
 
 **Acceptance criteria:**
-- [ ] Every listen item in spec §5 has a recorded outcome; the tables, the calibration test and the grid rows agree.
+- [x] Every listen item in spec §5 has a recorded outcome; the tables, the calibration test and the grid rows agree.
 
 **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/data/robotSendLoadingRanges.test.ts`; `npm test`.
 
 **Dependencies:** T19; T0 Q1. **Files:** `src/data/robotSendLoadingRanges.ts` (+ test), `src/systems/spawnSystem.test.ts`,
 possibly `src/data/globalAudioLoadingRanges.ts` (+ test). **Scope:** S, plus the listen.
+
+> **T20 as shipped (2026-10-22).** Crawford listened on the desktop after T19: **"i think everything sounds fine."** One
+> verdict covers the whole §5 listen list, the Shimmer tick check (backlog 29) included; no item was reported against,
+> and no item was reported on one by one. **No tuning:** the three send bands and `lit` shares in
+> `ROBOT_SEND_LOADING_RANGES` stay as built (Grit 0.4–0.8 at 0.21, Shimmer 0.2–0.5 at 0.16, Double 0.3–0.6 at 0.19),
+> and the spec §7 Q1 room-depth second look at the colour Mix bands was not taken, so they stay one shared 0.1–0.2 band
+> under 0.25. Nothing moved, so the tables, T7's calibration test and the grid rows still agree. No code change, no
+> commit beyond this note. **Next: T21, the phone gate (Crawford's).**
 
 ### Task 21: Phone gate — **STOP for Crawford**
 
