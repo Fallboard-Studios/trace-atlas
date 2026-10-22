@@ -1,9 +1,12 @@
 # Implementation Plan: Robot Effect Sends — Grit, Shimmer and Double
 
 Spec: [docs/specs/ROBOT_EFFECT_SENDS.md](../specs/ROBOT_EFFECT_SENDS.md). Intent:
-[docs/intent/robot-effect-sends.md](../intent/robot-effect-sends.md). Proposed roadmap **50.7**. Branch
-`feature/palette-effect-sends` (a proposed name; Crawford creates it), off `main` **after the Classic Band Retune
-merges** ([docs/tasks/CLASSIC_BAND_RETUNE.md](CLASSIC_BAND_RETUNE.md), spec §6 step 1).
+[docs/intent/robot-effect-sends.md](../intent/robot-effect-sends.md). Roadmap **50.7**. Branch
+`feature/robot-effect-sends`, off `main` at `2dc5b4a2`, after the Classic Band Retune merged
+([docs/tasks/CLASSIC_BAND_RETUNE.md](CLASSIC_BAND_RETUNE.md), spec §6 step 1).
+
+> **Status, 2026-10-22: COMPLETE — T0–T22 built** (`ad1b37c1` to `dc9ac726`), every checkpoint passed, every spec §7
+> question answered (see Open Questions). Only the PR remains (Crawford's). The status notes below are the history.
 
 Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run lint`, `npm run build`, `npm run dev`,
 `npm run perf:audio`; the phone gate is the `?debug` HUD on the Pixel (spec §5).
@@ -848,10 +851,13 @@ seven), the intent's shipped banner. Every named identifier spot-checked against
 
 ## Open Questions
 
-1. Spec §7 Q1 (who owns the room-depth second look). **Open** — Crawford; gates T20 only. The plan assumes T20.
+1. Spec §7 Q1 (who owns the room-depth second look). **Resolved** — T20's, 2026-10-21 (T0); the listen passed with no
+   tuning.
 2. Spec §7 Q2 (field names). **Resolved** — the intent's names, 2026-10-21.
-3. Spec §7 Q3 (parallel Colour room). **Open** — gates T3, T4.
-4. Spec §7 Q4 (liveness drivers). **Open** — gates T3, T5.
+3. Spec §7 Q3 (parallel Colour room). **Resolved** — parallel, 2026-10-21 (T0).
+4. Spec §7 Q4 (liveness drivers). **Resolved** — fed AND Return > 0, 2026-10-21 (T0).
 5. Spec §7 Q5 (old payloads). **Resolved** — load as-is, no upgrade, 2026-10-21.
-6. Spec §7 Q6 (drawer placement). **Open** — gates T17.
-7. Spec §7 Q7 (cap stays 2 over four; Chorus Sync every world; per-robot rolls). **Open** — gates T7, T8.
+6. Spec §7 Q6 (drawer placement). **Resolved** — Chorus and Shifter stay under Modulation, 2026-10-21 (T0); the Colour
+   Room sub-tab was then dropped with the Colour master Return (T17.1, T17.2).
+7. Spec §7 Q7 (cap stays 2 over four; Chorus Sync every world; per-robot rolls). **Resolved** — accepted as specced,
+   2026-10-21 (T0).

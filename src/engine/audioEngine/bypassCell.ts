@@ -2,6 +2,7 @@ import * as Tone from 'tone';
 
 import { rampOrSet } from './voiceEntry';
 import { devWarn } from '@/utils/helpers';
+import type { SendRoomKey } from '@/data/robotSendLoadingRanges';
 
 // ========================================
 // BYPASS CELLS (docs/specs/DARK_EFFECT_BYPASS.md section 1.1)
@@ -365,7 +366,9 @@ function cellTarget(key: BypassKey, cell: Cell, mix: number): number {
 // re-targets every branch through writeCellMix's one crossing, so every graph edit is silent.
 
 export const ROOM_KEYS = ['grit', 'shimmer', 'double'] as const;
-export type RoomKey = (typeof ROOM_KEYS)[number];
+/** The seeder's room keys (robotSendLoadingRanges.ts), one type for both: a room added there fails to compile here until
+ *  ROOM_BRANCHES (and AudioEngine's feeder sets) name it, and a key here that the seeder lacks fails at every call. */
+export type RoomKey = SendRoomKey;
 
 /** Which bypass keys are branches of which room, in chain order; the other five BYPASS_KEYS are chain cells. */
 export const ROOM_BRANCHES: Record<RoomKey, readonly BypassKey[]> = {
