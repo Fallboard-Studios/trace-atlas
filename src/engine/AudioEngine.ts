@@ -317,6 +317,9 @@ async function loadInstruments(): Promise<void> {
   // Master compressor + global FX chain construction/wiring lives in
   // src/engine/audioEngine/globalFx.ts.
   buildGlobalFxChain();
+  // The rooms are built unfed, but robots reserved and primed at spawn (before any room existed) are already in the
+  // feeder sets, and a set that never goes empty never flips: tell each new room where its set stands now.
+  for (const key of ROOM_KEYS) setRoomFed(key, roomFeeders[key].size > 0);
 
   instrumentsLoaded = true;
 

@@ -4263,6 +4263,84 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       AudioEngine.updateRobotSends('a', { grit: 0.3 });
       expect(cells.getRoom('grit')!.fed).toBe(true);
     });
+
+    // The share-link bug (2026-10-21): robots are reserved and primed at spawn, before the engine starts and so before
+    // any room exists; the post-load pass then re-reserves them one by one. With two or more feeders the set never goes
+    // empty, so a room told only on a flip was built unfed and stayed unfed: every Grit / Shimmer / Double robot silent.
+    describe('a room built while robots already feed it (the engine starting on a primed roster)', () => {
+      async function primedRosterThenStart(robots: Array<{ id: string; grit: number; shimmer: number; double: number }>) {
+        const { AudioEngine, reserve } = await setup({ start: false });
+        const cells = await import('./audioEngine/bypassCell');
+        const storeMod = await import('../stores/localeStore');
+        storeMod.useLocaleStore.getState().setLocaleData('testLocale', {
+          robots: robots.map((r) => ({
+            id: r.id, position: { x: 0, y: 0 }, audioMode: 'none', masterVolume: 0.5, panAuto: true,
+            audioAttributes: { adsr: TEST_ADSR, filterFreq: 0, waveform: 'sine', layers: LAYERS },
+            reverbSend: 0, delaySend: 0, gritSend: r.grit, shimmerSend: r.shimmer, doubleSend: r.double,
+          } as any)),
+        } as any);
+        for (const r of robots) {
+          reserve(r.id);
+          AudioEngine.updateRobotSends(r.id, { grit: r.grit, shimmer: r.shimmer, double: r.double });
+        }
+        expect(cells.getRoom('grit')).toBeUndefined(); // precondition: no room yet
+        await AudioEngine.start();
+        return { AudioEngine, cells };
+      }
+
+      it('two Grit robots primed before start: the Colour room comes up fed', async () => {
+        const { cells } = await primedRosterThenStart([
+          { id: 'a', grit: 0.5, shimmer: 0, double: 0 },
+          { id: 'b', grit: 0.7, shimmer: 0, double: 0 },
+        ]);
+        expect(cells.getRoom('grit')!.fed).toBe(true);
+        expect(cells.getRoom('shimmer')!.fed).toBe(false);
+        expect(cells.getRoom('double')!.fed).toBe(false);
+      });
+
+      it('every room comes up fed exactly when some robot feeds it, two feeders each', async () => {
+        const { cells } = await primedRosterThenStart([
+          { id: 'a', grit: 0.5, shimmer: 0, double: 0 },
+          { id: 'b', grit: 0.7, shimmer: 0, double: 0 },
+          { id: 'c', grit: 0, shimmer: 0.4, double: 0 },
+          { id: 'd', grit: 0, shimmer: 0.3, double: 0 },
+          { id: 'e', grit: 0, shimmer: 0, double: 0.6 },
+          { id: 'f', grit: 0, shimmer: 0, double: 0.2 },
+        ]);
+        for (const key of ['grit', 'shimmer', 'double'] as const) expect(cells.getRoom(key)!.fed, key).toBe(true);
+      });
+
+      it('a lit Colour branch is in the signal path once the engine has started on a primed roster', async () => {
+        const { cells } = await primedRosterThenStart([
+          { id: 'a', grit: 0.5, shimmer: 0, double: 0 },
+          { id: 'b', grit: 0.7, shimmer: 0, double: 0 },
+        ]);
+        const { setGlobalDistortion } = await import('./audioEngine/globalFx');
+        setGlobalDistortion({ wet: 0.5 });
+        expect(cells.getCell('distortion')!.connected).toBe(true);
+      });
+
+      it('after start the rooms still follow their feeders: the last of two going dry un-feeds the room', async () => {
+        const { AudioEngine, cells } = await primedRosterThenStart([
+          { id: 'a', grit: 0.5, shimmer: 0, double: 0 },
+          { id: 'b', grit: 0.7, shimmer: 0, double: 0 },
+        ]);
+        AudioEngine.updateRobotSends('a', { grit: 0 });
+        expect(cells.getRoom('grit')!.fed).toBe(true);
+        AudioEngine.updateRobotSends('b', { grit: 0 });
+        expect(cells.getRoom('grit')!.fed).toBe(false);
+        AudioEngine.updateRobotSends('b', { grit: 0.2 });
+        expect(cells.getRoom('grit')!.fed).toBe(true);
+      });
+
+      it('a roster with no feeders starts every room unfed', async () => {
+        const { cells } = await primedRosterThenStart([
+          { id: 'a', grit: 0, shimmer: 0, double: 0 },
+          { id: 'b', grit: 0, shimmer: 0, double: 0 },
+        ]);
+        for (const key of ['grit', 'shimmer', 'double'] as const) expect(cells.getRoom(key)!.fed, key).toBe(false);
+      });
+    });
   });
 
   describe('release and re-reservation', () => {
