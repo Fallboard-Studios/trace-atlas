@@ -294,9 +294,13 @@ describe('both range tables and the grid cover all sixteen pedal fields', () => 
       expect(rowLine(moved, 'chorus.rate')).toBeLessThan(Math.max(...moved.flatMap((l, i) => (l.startsWith('| Phaser |') ? [i] : []))));
     });
 
+    // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md, plan T22): the Chorus and the shifter left the chain for the
+    // Double and Shimmer rooms, so the line names them as rooms beside it, not as stages.
     it('names the five pedals in the chain-order line', () => {
       const chainLine = lines.find((l) => l.startsWith('**Global chain order'))!;
-      expect(chainLine).toMatch(/Phaser → Chorus → Tremolo → Vibrato → FrequencyShifter → Compressor → StereoWidener → Limiter/);
+      expect(chainLine).toMatch(/Phaser → Tremolo → Vibrato → Compressor → StereoWidener → Limiter/);
+      expect(chainLine).toMatch(/\*\*Double room\*\* \(the Chorus/);
+      expect(chainLine).toMatch(/\*\*Shimmer room\*\* \(the FrequencyShifter/);
     });
   });
 });
