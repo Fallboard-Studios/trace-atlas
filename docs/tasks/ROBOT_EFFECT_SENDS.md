@@ -37,6 +37,11 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > full suite is 13 958 green plus the documented `sceneToOrbiterLocal` 5 s timeout, which passes alone. **Next:** T17's
 > `npm run dev` by-ear check (Crawford), Checkpoint C's open dev-server boxes, then Phase 5 (T18). Notes are under
 > "Phase 4 as shipped" after T17.
+>
+> **Amended 2026-10-21, after T17: T17 is SUPERSEDED.** Crawford chose to drop the Colour room's master Return
+> altogether (spec, the amendment under the header, and §7 Q6): each colour Mix is its effect's return level, as the
+> Reverb and Delay Amounts are. **T17.1** reverts the Room sub-tab and rewords the three colour Mixes; **T17.2** removes
+> the Colour room settings block that T2 and T4 built. Phase 5 starts after both.
 
 ## Overview
 
@@ -559,7 +564,9 @@ caught).
 
 ## Phase 4: The drawer
 
-### Task 17: The Colour Room sub-tab and the two Returns
+### Task 17: The Colour Room sub-tab and the two Returns — **SUPERSEDED by T17.1 and T17.2**
+
+> Built at `b1a0151c`, then reversed by Crawford's call (2026-10-21) to have no Colour master Return. Kept as the record.
 
 **Description:** `AudioRigEffectKey` + `'colourRoom'`; a `colourRoom` block in `AUDIO_RIG_CONFIG` with one row
 (`colourRoom.wet`, `sliderLinear` 0–1 step 0.01, `labels('fleet.colourRoom.amount')`); `FLEET_PARAMS_SUBSECTIONS.colour
@@ -598,13 +605,65 @@ Crawford's and not yet done.
   `AudioEngine.setGlobalColourRoom` from module load, so a spy never sees it. `audioStore.test.ts` already covers the
   route.
 
+### Task 17.1: Colour back to three sub-tabs; the colour Mixes read as returns
+
+**Description:** Reverse T17's UI and copy. `AudioRigEffectKey` loses `'colourRoom'`; the `colourRoom` block leaves
+`AUDIO_RIG_CONFIG` (seventeen blocks); `FLEET_PARAMS_SUBSECTIONS.colour = [distortion, chebyshev, bitCrusher]`;
+`AUDIO_RIG_EFFECT_TRAIT.colourRoom` goes; `fleet.colourRoom`, `fleet.colourRoom.amount` and the Colour intro's Room
+sentence go. The three colour Mix help strings (`fleet.distortion.mix`, `fleet.chebyshev.mix`, `fleet.bitCrusher.mix`)
+are reworded as return levels (spec §1.8): the effect's level as heard from every probe, each probe's Grit deciding how
+much goes in, 0 silencing the effect. The T10 leftover ("blended in with the clean sound") goes with it. T17's tests
+revert to Distortion-first; its tests that still hold for every block (one name per Return, help on every Mix) are kept.
+
+**Acceptance criteria:**
+- [ ] Colour has three sub-tabs, opening on Distortion on both shells; the breadcrumb reads "Colour / Distortion"; a
+  stored `'colourRoom'` string (from an open tab before the change) falls back to Distortion.
+- [ ] `AUDIO_RIG_CONFIG` has seventeen blocks and none is `colourRoom`; no content key starts `fleet.colourRoom`.
+- [ ] Each colour Mix's help says "as heard from every probe", names Grit and says 0 silences it; none says "blended";
+  the three keep their own lore and help. The Chorus and Shifter Returns are unchanged.
+- [ ] **Mutation check:** the old "blended" wording back in one Mix; Room re-added to the tab row.
+
+**Verification:** the T17 suites (`audioRigConfig`, `nav`, `FleetParamsScreen`, `AudioRigEffectPanel`, `content`).
+
+**Dependencies:** None. **Files:** T17's files. **Scope:** S.
+
+### Task 17.2: The Colour room settings block goes
+
+**Description:** Remove what T2 and T4 built for the Colour room's Return: `ColourRoomSettings`,
+`GlobalAudioSettings.colourRoom` and its default; the `'colourRoom.wet'` seed-range key and its `RETURN_FIELD_KEYS`
+entry (four keys again); the three `transmissionPresets.ts` entries; the seeder's line and the two oracles' block **by
+hand**; the `sessionDiff.ts` quantise; `GLOBAL_SETTER.colourRoom` and the push in `applyGlobalAudioToEngine`;
+`globalFx.setGlobalColourRoom` and the `AudioEngine.ts` re-export. `bypassCell.ts` is untouched: the Grit room keeps the
+Return of 1 that `buildRoom` gives it and nothing writes it. Tests that set or assert the block are rewritten, not
+skipped.
+
+**Acceptance criteria:**
+- [ ] `GlobalAudioSettings` has no `colourRoom` key (a `@ts-expect-error` case under `npm run build:types`);
+  `DEFAULT_GLOBAL_AUDIO_SETTINGS`, every transmission preset and every seeded world (several styles) carry none;
+  `RETURN_FIELD_KEYS` is the four.
+- [ ] A session payload and a share link that still carry `colourRoom: { wet: 0.4 }` load without error, the store has no
+  `colourRoom` after the load, and a re-save carries none.
+- [ ] Engine: with a fed Grit robot, a colour branch whose Mix is above 0 is connected and its room's `return` gain is 1;
+  a Mix of 0 keeps that branch dark; nothing calls `setRoomReturn('grit', …)`; the Shimmer and Double rooms behave as
+  before (their Return tests unchanged).
+- [ ] **Mutation check:** the default block put back (the `@ts-expect-error` and the no-key cases go red); a stray
+  `setRoomReturn('grit', 0)` at build (the fed-branch case goes red).
+
+**Verification:** `npm run build:types`; `npx vitest run src/types src/data src/utils src/stores src/engine`; full suite.
+
+**Dependencies:** T17.1 (the drawer block reads the settings key). **Files:** `src/types/globalAudio.ts` (+ test),
+`src/data/globalAudioSeedRanges.ts` (+ test), `src/data/globalAudioLoadingRanges.test.ts`, `src/data/transmissionPresets.ts`
+(+ test), `src/utils/globalAudioSeed.ts` (+ test), `src/utils/sessionDiff.ts` (+ test), `src/utils/sessionShareUtils.test.ts`,
+`src/stores/audioStore.ts` (+ tests), `src/engine/audioEngine/globalFx.ts` (+ tests), `src/engine/AudioEngine.ts` (+ test).
+**Scope:** M.
+
 ## Phase 5: Guard, probes, listen, phone gate
 
 ### Task 18: The docs / symbol guard test
 
 **Description:** `src/docs/robotEffectSendsDocs.test.ts` on `robotSendsDocs.test.ts`' shape: every backticked symbol in
 the spec's §1–§4 exists in non-test `src/`; the gem folder and `RobotBody.tsx` read none of the three identifiers; the
-reserve-site scan reads five fields; the living-doc cases (the grid's `colourRoom.wet` row and room rows,
+reserve-site scan reads five fields; the living-doc cases (the grid's room rows,
 `AUDIO_SYSTEM.md`'s five rooms, `SESSION_STORAGE.md`'s five sends) — **red until T22**, noted in the test.
 `globalColourDocs.test.ts:144` re-pinned from "chain order after the HPF rows" to the room rows (also red until T22).
 
@@ -668,8 +727,8 @@ Return at 1 (recorded, not gated). Counts, `fx in` readings and his words in `sc
 ### Task 22: Docs
 
 **Description:** Spec §2's docs list: `AUDIO_SYSTEM.md` (Signal Graph: five rooms, the seven-stage chain, the branch rule,
-the HUD token's meaning), `GLOBAL_CHAIN_GRID.md` (chain-order line; colour / chorus / shifter rows as room rows; the
-`colourRoom.wet` row; footnote ² → the send table), `ROBOT_DATA_GRID.md` and `SLIDER_VALUES.md` (three rows),
+the HUD token's meaning), `GLOBAL_CHAIN_GRID.md` (chain-order line; colour / chorus / shifter rows as room rows;
+footnote ² → the send table), `ROBOT_DATA_GRID.md` and `SLIDER_VALUES.md` (three rows),
 `TONE_EFFECTS_INVENTORY.md` (roles, the five send rows), `SESSION_STORAGE.md`, `COMPANIES.md`, `ROBOT_DESIGN.md` (one
 line), one "superseded in part by 50.7" line each in `GLOBAL_COLOUR.md`, `GLOBAL_PEDALS.md` and `DARK_EFFECT_BYPASS.md`,
 `ideas/themes.md`'s "what exists", `roadmap.md` (the 50.7 entry with status and as-built deltas; the series header to
