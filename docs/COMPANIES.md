@@ -96,6 +96,10 @@ Broadcast-not-link applies as everywhere else: a member edited afterwards on its
 - **The swell flag** on each slider (`reverbSendSwelling` / `delaySendSwelling`) comes from the **first member**, as `volumeSwelling` does. A company-wide swell moves every eligible member's send in lock-step in time, not in magnitude; a member whose send is `0` is not eligible and stays put.
 - A value that is not a number (a `NaN` display figure) is dropped whole, and records nothing.
 
+### Grit, Shimmer and Double sends (Robot Effect Sends 50.7, docs/specs/ROBOT_EFFECT_SENDS.md §1.6)
+
+`CompanyOptionsSnapshot` carries three more optional fields, `gritSend`, `shimmerSend` and `doubleSend` (stored 0…1), on exactly the Reverb and Delay rules above: `resolveCompanyOptions` falls back to the first member's own values (`0` for a robot with none), and the company screen's Grit, Shimmer and Double sliders sit after Delay in the Levels block. `onGritSendChange`, `onShimmerSendChange` and `onDoubleSendChange` in `useCompanyOptions` cancel each member's swell on that send, call `applyGritSend` / `applyShimmerSend` / `applyDoubleSend` once per member, and record the clamped fraction in the snapshot; the swell flags (`gritSendSwelling` and its two siblings) come from the first member. Broadcast-not-link, as every field: a bulk edit can give the whole company Grit, so the one-of-three rule a fresh robot seeds under does not hold for hand edits.
+
 Broadcast-not-link applies as everywhere else, so members disagree until a slider is touched, after which every member sits at one value; the snapshot is not rewritten by a later single-robot edit. A company is not saved as a snapshot (only its name and membership are, see [SESSION_STORAGE.md](SESSION_STORAGE.md)), so a company move is saved as the per-robot sends it left behind.
 
 ### Dynamics, Rests and Accents (Robot Performance 50.5, docs/specs/ROBOT_PERFORMANCE.md §1.8)

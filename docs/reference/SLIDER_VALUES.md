@@ -159,8 +159,11 @@ slider's own `step: 1`.
 |---|---|---|---|---|---|---|---|
 | Volume | Linear | % | 0 | 100 | 1 | 65⁵ | 85⁵ |
 | Pan | Centered-zero | — | -100 | 100 | 1 | — | — |
-| Reverb | Linear | % | 0 | 100 | 1 | 10²³ | 40²³ |
+| Reverb | Linear | % | 0 | 100 | 1 | 10²³ | 60²³ |
 | Delay | Linear | % | 0 | 100 | 1 | 0²³ | 30²³ |
+| Grit | Linear | % | 0 | 100 | 1 | 40²³ | 80²³ |
+| Shimmer | Linear | % | 0 | 100 | 1 | 20²³ | 50²³ |
+| Double | Linear | % | 0 | 100 | 1 | 30²³ | 60²³ |
 | Dynamics | Linear | — | 0 | 100 | 1 | 25²⁵ | 75²⁵ |
 
 ²⁵ Robot Performance (roadmap 50.5): Dynamics, Rests and Accents are stored as the integer the slider shows
@@ -169,13 +172,16 @@ over `DYNAMICS_SEED_RANGE` (25–75), `RESTS_SEED_RANGE` (10–60) and `ACCENTS_
 three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the seeds
 never land on the defaults, so every fresh robot has some of each. None is a swell attribute.
 
-²³ Reverb and Delay are the robot's **sends** into the shared rooms (Robot Sends, roadmap 50.2), stored as `0..1`
-fractions (`Robot.reverbSend` / `delaySend`) and displayed ×`SEND_DISPLAY_SCALE`. Seeded by `generateRobotSends`
-(`spawnSystem.ts`) from the bands the global wet values used to be seeded from, `GLOBAL_AUDIO_LOADING_RANGES['reverb.wet']`
-(`0.1`–`0.4`) and `['delay.wet']` (`0`–`0.3`), quantized in percent-space like Volume. Delay also rolls under
-`SEND_DELAY_QUIET_THRESHOLD` (`0.25`), landing exactly `0` — a robot with no repeats at all — for about 17–18 % of
-robots, not a quarter, because the roll's noise sample is bell-curved. Both are robot swell attributes (live only while the
-send is above `0`).
+²³ Reverb, Delay, Grit, Shimmer and Double are the robot's five **sends** into the shared rooms (Robot Sends, roadmap
+50.2; Robot Effect Sends, roadmap 50.7), stored as `0..1` fractions (`Robot.reverbSend` / `delaySend` / `gritSend` /
+`shimmerSend` / `doubleSend`) and displayed ×`SEND_DISPLAY_SCALE`. Seeded by `generateRobotSends` (`spawnSystem.ts`)
+from one table, `ROBOT_SEND_LOADING_RANGES` (`src/data/robotSendLoadingRanges.ts`): a band and a `lit` share per send,
+quantized in percent-space like Volume. Reverb is `0.1`–`0.6` on every robot (widened from `0.1`–`0.4` by the Classic
+Band Retune, 2026-10-21). Delay is `0`–`0.3` and rolls under 1 − its `lit` share (`0.25`), landing exactly `0`, a robot
+with no repeats at all, for about 17–18 % of robots, not a quarter, because the roll's noise sample is bell-curved.
+Grit (`0.21`), Shimmer (`0.16`) and Double (`0.19`) are uniform rolls in that order, and a fresh robot carries at most
+one of the three (`EXCLUSIVE_SEND_FIELDS`); the rest seed exactly `0`. All five are robot swell attributes (live only
+while the send is above `0`).
 
 Pan has no seed range, so no load range: a spawned robot is Auto at `0`. It is stored as a `-1..1` fraction
 (`Robot.pan`, `PAN_MIN`/`PAN_MAX`) and displayed ×`PAN_DISPLAY_SCALE`, with no rounding step beyond the slider's

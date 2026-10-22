@@ -798,8 +798,8 @@ line), one "superseded in part by 50.7" line each in `GLOBAL_COLOUR.md`, `GLOBAL
 seven), the intent's shipped banner. Every named identifier spot-checked against the shipped source, not this plan.
 
 **Acceptance criteria:**
-- [ ] T18's living-doc cases and `globalColourDocs.test.ts` go green; `npm test` fully green.
-- [ ] A grep for `fx in n/10`'s old meaning, "Distortion → Chebyshev → BitCrusher" as chain stages, and `chorus.wet` as
+- [x] T18's living-doc cases and `globalColourDocs.test.ts` go green; `npm test` fully green.
+- [x] A grep for `fx in n/10`'s old meaning, "Distortion → Chebyshev → BitCrusher" as chain stages, and `chorus.wet` as
   a Mix finds only history.
 
 **Verification:** `npm test`, `npm run build:types`, `npm run lint`, `npm run build`.
@@ -807,11 +807,28 @@ seven), the intent's shipped banner. Every named identifier spot-checked against
 **Dependencies:** T21. **Files:** the docs above, `docs/intent/robot-effect-sends.md`, `docs/todo/roadmap.md`. **Scope:** M
 (docs only, many files).
 
+> **T22 as shipped (2026-10-22).** Two commits (`46414538`, then this one). Every doc on the list is updated, plus
+> `PERFORMANCE.md`'s HUD token line, which the grep criterion found still giving `fx in` its 50.6 meaning. Verification:
+> `src/docs/` 1 672 green; `npm run build:types` clean; `npm run lint` 0 errors (the 4 existing warnings); `npm run build`
+> clean; `npm test` 14 048 of 14 049, the one failure the known `sceneToOrbiterLocal.test.tsx` load-timing flake, which
+> passed 10 of 10 run alone. Deviations:
+> - **A guard test re-pinned that the plan did not list.** `globalPedalsDocs.test.ts`'s "names the five pedals in the
+>   chain-order line" pinned `Phaser → Chorus → … → FrequencyShifter` as stages, which T18's new guard forbids. It now
+>   pins `Phaser → Tremolo → Vibrato → Compressor → StereoWidener → Limiter` and the Chorus and shifter named as the
+>   Double and Shimmer rooms (the plan re-pinned only that file's source regexes, at T4).
+> - **Stale figures corrected on the way:** `SLIDER_VALUES.md`'s Reverb send band read 10–40 (the retune made it 10–60);
+>   the inventory's Discrepancy 2 (the Signal Graph diagram omitting the pedals and Width) is resolved by the new diagram.
+> - **Copy beyond the list:** the chain grid's footnote ⁵ and the inventory's Tremolo / Vibrato rows carry the four-pedal
+>   cap that used to be explained on the Chorus row.
+
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every automated acceptance criterion met; T19's numbers, T20's words and T21's counts recorded.
-- [ ] Docs reflect the shipped API, every name spot-checked.
-- [ ] Any skipped manual check flagged here, never silently.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the suite's one failure is the known
+  `sceneToOrbiterLocal` flake, green when run alone).
+- [x] Every automated acceptance criterion met; T19's numbers, T20's words and T21's counts recorded.
+- [x] Docs reflect the shipped API, every name spot-checked.
+- [x] Any skipped manual check flagged here, never silently: T20's listen is one verdict over the whole §5 list ("i think
+  everything sounds fine"), with no item reported on one by one, the colour-Mix-to-0 de-click and the Shimmer tick check
+  included. Checkpoint C's company-move and swell boxes were closed by Crawford's "good I think", not item by item.
 - [ ] The branch is Crawford's to PR.
 
 ## Risks and Mitigations

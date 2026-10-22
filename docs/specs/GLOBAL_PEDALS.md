@@ -1,5 +1,7 @@
 # Phase Spec: Global Pedals — Chorus, Tremolo, Vibrato, Frequency Shifter and Stereo Width on the Global Chain
 
+> **Superseded in part, 2026-10-22, by Robot Effect Sends (roadmap 50.7, [ROBOT_EFFECT_SENDS.md](ROBOT_EFFECT_SENDS.md)):** the Chorus and the Frequency Shifter left the dry chain for the Double and Shimmer rooms, fed only by each robot's Double and Shimmer sends. Their `wet` is the room's Return (default 1, unseeded), they lost their lit rolls, the two-pedal cap counts four, and the Chorus rolls Sync in every world. The Tremolo, the Vibrato and Width stand as written.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)

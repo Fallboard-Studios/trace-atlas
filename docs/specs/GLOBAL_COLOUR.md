@@ -1,5 +1,7 @@
 # Phase Spec: Global Colour — Distortion, Chebyshev and BitCrusher on the Global Chain
 
+> **Superseded in part, 2026-10-22, by Robot Effect Sends (roadmap 50.7, [ROBOT_EFFECT_SENDS.md](ROBOT_EFFECT_SENDS.md)):** the three colour effects left the dry chain for the Colour room, fed only by each robot's Grit send. Each Mix is now its branch's level as heard from every probe, not a blend with the dry signal. The fields, ranges, character draw and taper below still stand.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)
