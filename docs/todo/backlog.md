@@ -700,6 +700,12 @@ now leaves the signal path (the Dark-Effect Bypass, [docs/specs/DARK_EFFECT_BYPA
 2. On the phone, the same link in an Incognito tab right after a collapse, and the sine ramp on a cool phone, to price
    what heat costs.
 
+**Update 2026-10-22 (Robot Effect Sends T21, [scratchy-audio-phones.md](scratchy-audio-phones.md)):** the first
+collapse on a rested phone. With the phone off for at least 20 minutes before each run, the second run of the sitting
+(the 50.7 branch, Full) spiked at 3:30 and was out at about 4:20; its repeat, run 7, was fine, and the base's run 6 rose
+95 → 250 with clipping at 4:20. A heavier world on the same build and tier (7 lit, run 5) did not collapse. So heat or
+state left over from earlier runs explains it less well than it did in round 4.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;

@@ -768,12 +768,22 @@ Full and Standard, hands off to 3:00, a fresh page per run; then the hand world 
 Return at 1 (recorded, not gated). Counts, `fx in` readings and his words in `scratchy-audio-phones.md`.
 
 **Acceptance criteria:**
-- [ ] The branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in` reads lit branches plus
+- [x] The branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in` reads lit branches plus
   lit chain cells. A rise is a wiring bug to find or a reason to back out; no `LOAD_*_MIN`.
 
 **Verification:** the recorded runs.
 
 **Dependencies:** T20. **Files:** `docs/todo/scratchy-audio-phones.md`. **Scope:** S (his device).
+
+> **T21 as shipped (2026-10-22): passed.** Seven runs on the Pixel 8, the phone off for at least 20 minutes before each
+> (stated for runs 1–5), T19's world and builds; record in [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md),
+> "Robot Effect Sends (roadmap 50.7) on the Pixel — T21". At 3:00 the base read 48 / 68 / 95 and the branch's seeded
+> runs 76 / 62 / 59, all inside the base's spread; `fx in` read 4/10 seeded on both builds and 7/10 on the hand world.
+> No run ran away by 3:00. Branch run 2 (Full) collapsed after it (3:30, out at about 4:20); its repeat, run 7, read
+> 59 → 97 and was fine, and the base's run 6 rose 95 → 250 with clipping at 4:20: backlog 27's late collapse, shared
+> with `main`. The hand world (7 lit, Full) read 98 → 122 with no collapse, so the collapse does not follow the lit
+> load. Crawford on the hand world: "super distorted, but loud distortion, not underrun clipping." **Next: T22, the
+> docs.**
 
 ## Phase 6: Docs
 

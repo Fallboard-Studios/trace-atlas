@@ -1126,15 +1126,21 @@ at Full and Standard, hand `fx in 7/10` (two lit chain cells plus five room bran
 | 3 | branch | Standard | seeded | 4/10 | 0 → **62** → 106 at **6:00** | "everything sounded great, even 6 minutes in" (pulled away, so no 4:00 reading) |
 | 4 | base `2dc5b4a2` | Standard | seeded | 4/10 | 0 → **68** → **95** | "sounded fine." |
 | 5 | branch | Full | hand | 7/10 | 0 → **98** → **122** | "clipping wise it was great. super distorted, but loud distortion, not underrun clipping." |
+| 6 | base `2dc5b4a2` | Full | seeded | 4/10 | 0 → **95** → **250** | "sounded ok, got some clipping around 4:20 but it was not the worst." |
+| 7 | branch | Full | seeded | 4/10 | 0 → **59** → **97** | "sounded fine" |
+
+Runs 6 and 7 repeat runs 1 and 2, added after run 2's result to give Full a spread. The 20 minutes off was stated for
+runs 1–5; for 6 and 7 it was not restated.
 
 **Reading against the gate** (the branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in`
-reads lit branches plus lit chain cells). Single runs throughout.
+reads lit branches plus lit chain cells). **T21 passes.**
 - **`fx in`: passes.** 4/10 is two chain cells plus the Shimmer and Double branches; 7/10 adds the three Grit branches.
-- **Standard: passes.** The branch read 62 at 3:00 against the base's 68, and was still clean at 6:00 (106).
-- **Full: does not pass cleanly.** The branch read 76 at 3:00 against the base's 48. The base's spread in this sitting
-  is 48–68, across both tiers, so 76 sits 8 above it. Nothing ran away by 3:00, but run 2 ran away after it: spiking at
-  3:30, out at about 4:20 with about 2 000 underruns. That is the 2:50–4:00 collapse of backlog 27, which spec §16 says
-  does not fail the gate when `main` shares it. In this sitting the base did not collapse by 4:00 (run 1 rose 48 → 100).
+- **The counts at 3:00: pass.** The base read 48, 68 and 95 (spread 48–95); the branch's seeded runs read 76, 62 and 59,
+  all inside it. At Full alone: base 48 and 95, branch 76 and 59.
+- **No runaway by 3:00 on any run.** Run 2 ran away after it: spiking at 3:30, out at about 4:20 with about 2 000
+  underruns. Run 7, the same link on the same build, read 59 → 97 and sounded fine. The base had late trouble of its
+  own: run 6 rose 95 → 250 with audible clipping at about 4:20. That is the 2:50–4:00 collapse of backlog 27, which
+  spec §16 says does not fail the gate when `main` shares it.
 - **The collapse does not follow the lit load.** Run 5, the same build and tier with 7 lit instead of 4, read 98 at 3:00
   and 122 at 4:00 with no collapse. So run 2's collapse is not the rooms' cost growing.
 
