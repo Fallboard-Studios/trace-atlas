@@ -1129,8 +1129,8 @@ at Full and Standard, hand `fx in 7/10` (two lit chain cells plus five room bran
 | 6 | base `2dc5b4a2` | Full | seeded | 4/10 | 0 → **95** → **250** | "sounded ok, got some clipping around 4:20 but it was not the worst." |
 | 7 | branch | Full | seeded | 4/10 | 0 → **59** → **97** | "sounded fine" |
 
-Runs 6 and 7 repeat runs 1 and 2, added after run 2's result to give Full a spread. The 20 minutes off was stated for
-runs 1–5; for 6 and 7 it was not restated.
+Runs 6 and 7 repeat runs 1 and 2, added after run 2's result to give Full a spread, with the same 20 minutes off before
+each.
 
 **Reading against the gate** (the branch's count at 3:00 within the sitting's spread of the base's, no runaway; `fx in`
 reads lit branches plus lit chain cells). **T21 passes.**
