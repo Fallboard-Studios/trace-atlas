@@ -32,6 +32,11 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > `6ed1f89a`, `c506fbb2`). Types, lint (0 errors) and `npm run build` are clean; the full suite is 13 925 green plus the
 > documented `sceneToOrbiterLocal` 5 s timeout, which passes alone. **Next: Checkpoint C** — the dev-server checks and
 > Crawford's review, before Phase 4. Deviations are under "Phase 3 as shipped" after Checkpoint C.
+>
+> **Status, 2026-10-21: Phase 4 (T17) BUILT** (`b1a0151c`). Types, lint (0 errors) and `npm run build` are clean; the
+> full suite is 13 958 green plus the documented `sceneToOrbiterLocal` 5 s timeout, which passes alone. **Next:** T17's
+> `npm run dev` by-ear check (Crawford), Checkpoint C's open dev-server boxes, then Phase 5 (T18). Notes are under
+> "Phase 4 as shipped" after T17.
 
 ## Overview
 
@@ -562,7 +567,7 @@ caught).
 Shifter blocks keep their rows with the reworded Mix labels from T10. `audioRigConfig.test.ts` pins eighteen blocks.
 
 **Acceptance criteria:**
-- [ ] Colour has four sub-tabs with Room first on both shells; the breadcrumb reads "Colour / Room"; the block renders
+- [x] Colour has four sub-tabs with Room first on both shells; the breadcrumb reads "Colour / Room"; the block renders
   one row; the range-parity test holds; the Chorus and Shifter Mix rows read as returns.
 
 **Verification:** `npx vitest run src/data/audioRigConfig.test.ts src/components/panels/screen/nav src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/components/panels/screen/console/AudioRigDrawer.test.tsx`;
@@ -571,6 +576,27 @@ Shifter blocks keep their rows with the reworded Mix labels from T10. `audioRigC
 **Dependencies:** T2, T4, T10; T0 Q6. **Files:** `src/data/audioRigConfig.ts` (+ test),
 `src/components/panels/screen/nav/navActions.ts` (+ test), `src/components/panels/screen/console/AudioRigDrawer.tsx` (+ test),
 `src/components/panels/screen/screens/FleetParamsScreen.test.tsx`. **Scope:** M.
+
+#### Phase 4 as shipped (2026-10-21)
+
+RED first, one commit (`b1a0151c`), mutation-checked (nine mutants, all caught; listed in the commit message). The
+automated criteria are met; the `npm run dev` by-ear check (Room Return 1 → 0 under a Grit robot, no click) is
+Crawford's and not yet done.
+
+- **Block position.** The plan did not place the block in `AUDIO_RIG_CONFIG`. It sits **after Bit Crusher**, matching
+  `GlobalAudioSettings` and the signal order (the Return follows its three branches). Only the tab row puts Room first.
+- **Content.** `fleet.colourRoom` { Room / Bleed Return, heading `CARRIER BLEED RETURN` } and `fleet.colourRoom.amount`
+  { Return / Bleed Ratio } land here with their reader (the T10 deferral). The help follows the Reverb Amount shape; the
+  lore and heading are placeholders for the copy pass. The Colour intro gains one sentence naming the Room tab's Return.
+  The Chorus and Shifter rows were already reworded in T10; a new test pins all three Returns to one name.
+- **Files beyond the plan's list.** `AudioRigEffectPanel.test.tsx` (the panel's own suite: one slider, colour trait, no
+  LFO link or Tempo Sync, the ends hold, the branch Mixes untouched, the swell cancel), `NavBreadcrumb.test.tsx` (its
+  "Colour opens on Distortion" case now opens on Room) and `content.test.ts`. `AudioRigDrawer.test.tsx` needed nothing.
+- **"Both shells".** The phone shell renders no breadcrumb, so "Colour / Room" is tested on the desk; the phone test
+  pins the four sub-tabs with Room first and open.
+- **The engine push** is not asserted from the panel: the store's `GLOBAL_SETTER` table holds
+  `AudioEngine.setGlobalColourRoom` from module load, so a spy never sees it. `audioStore.test.ts` already covers the
+  route.
 
 ## Phase 5: Guard, probes, listen, phone gate
 
