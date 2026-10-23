@@ -614,6 +614,18 @@ underruns at 3:00, 254 at 4:00) and on the Output Headroom branch (140 → 173);
 (branch) at 3:00. The two builds swap order between the worlds, so the clicks are not that branch's; its output is
 never at full scale, so they are not clipping either. Crawford: chase them here, after roadmap 54 merges.
 
+**Next, re-ordered 2026-10-23** ([plan.md](plan.md) Stage 2: the desktop first, the Pixel once at the end). The two
+rested sittings changed the list above. T21's run 2 collapsed after 20 minutes off, and run 7, the same link on the same
+build and storage later in the sitting, did not; so heat and carried state each explain the collapse less well, and the
+Incognito tab and the cool-phone sine ramp drop to last, run only if the desktop leaves the collapse unexplained. T10
+added a second symptom the list did not have, steady clicks at Light, which no phone-side step addresses.
+1. Desktop: `npm run perf:audio` on D1 (`56c2t2t8` at (−116, −2)) against D5 (`bravo` at (−150, 90)) at Light, and a
+   read of what D1 carries. Light on D1 (190 at 3:00) read worse than Full on D5 did in T21 (48–95): the world costs
+   more than the tier saves. What is it, and why does Light not cut it?
+2. Desktop: the 15-minute long run as written above, for the late collapse.
+3. Pixel, in the sitting: 29's lighting by ear; and the Incognito tab after a collapse and the cool-phone sine ramp
+   only if 1 and 2 leave the collapse unexplained.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
@@ -641,48 +653,32 @@ moment, or keeping the branch connected and paying its dark cost (which undoes 5
 seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
 power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
 
-### 30. Tooling: One Shared CDP Helper for the Perf Scripts
+### 31. Tooling: `profile.mjs` Against the Layout Rework
 
-**Found 2026-10-23** in the Output Headroom review (roadmap 54): `scripts/perf/output-level.mjs` is the fourth copy of
-the same Chrome-driving plumbing, after `profile.mjs`, `idle-paint.mjs` and `audio-load.mjs`. The 54 plan copied it on
-purpose (`audio-load.mjs` was not to be refactored on that branch); this item is the follow-up. Crawford, 2026-10-23:
-next, once 54 has merged.
+**Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
+`npm run perf` (`scripts/perf/profile.mjs`, [PERFORMANCE.md](../PERFORMANCE.md)) threw on `main` after Fleet Params. The
+layout rework (roadmap [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen)) had moved everything
+it drives: Task 21 (`4ba12cae`) replaced the Probes list's `.robot-selection-card__top` with the roster tile; the header
+nav became the nav panel (no "back" button, no `role="radio"`, the Settings tile no longer "Nav & Comms", `.console` now
+`.console-panel`); and the accordions became section tabs, so no `.sc-accordion` exists in the app at all.
 
-**What is shared:** `findChrome` is the same in all four. `connect` is the same in three, and `output-level.mjs`'s copy
-only lacks the `onEvent` listener, so the fuller one serves all four. The temp profile and the `spawn` launch match,
-except that `profile` and `idle-paint` add `--mute-audio`. Teardown comes in three versions: `profile` kills Chrome,
-`idle-paint` sends `Browser.close` and then kills it, and `audio-load` / `output-level` use `shutdown`, which also kills
-Chrome's child processes on Windows (`taskkill /T`).
+**(A) Unbreak — built 2026-10-23 on `fix/profile-step-table`.** The robot opens through `.roster-tile__face`; "back to
+the roster" is the nav panel's Probes box (`navActions.pressBranchBox` → `selectBranch` when a robot is open); the
+capture windows return to the Deck through its box and check `.console-panel` is gone; the `TILE_*` labels are the
+`human` of the content layer's `*.root` entries. The per-section rows (`fleet › …`, `detail › …`) and `--smoothness`
+find no accordions and say so once instead of failing: dormant, not broken. PERFORMANCE.md's 17.2.x tables stay as the
+history of the accordion screens, marked so.
 
-**The task:** a `scripts/perf/cdp-lib.mjs` holding `sleep`, `findChrome`, `connect` (with `onEvent`), a launcher that
-takes extra Chrome flags, and `shutdown`; the four scripts import it. One task, one commit, size S: about 90 lines in
-the lib, about 70 out of each script. **The one decision:** `profile` and `idle-paint` move to the robust `shutdown`.
-That changes how they tear down, on purpose (it is the orphaned-Chrome fix the measurement hygiene asks for), and the
-commit says so.
+**Proof for (A), 2026-10-23** (a run, not a test: nothing imports the script): against a production build on :4173 at
+1×, the step table, `--profile` and `--smoothness` each ran to the end, exit 0; the two dormant paths printed their
+note; `--profile`'s capture windows returned to the Deck both times; the orphan check read the same `trace-atlas-perf-*`
+count before and after. The table, for the record (desktop 1280, tasks ≥ 100 ms / longest ms / cabinet boxes): power on
+2 / 325 / 12 · open Fleet Params 0 / 53 / 58 · switch to Probes 1 / 202 / 175 · open first robot 1 / 113 / 93 · back
+to the roster 1 / 177 / 175 · switch to Settings 0 / 59 / 39 · back to Fleet Params 0 / 0 / 58. A second run read the
+same within noise. Not a baseline (one run each, `main`'s desktop); PERFORMANCE.md's 17.2.x tables are the accordion
+screens' and are not comparable.
 
-**Proof:** a Look, not a RED test. No test imports the four scripts, and what moves is file-system and network
-plumbing. A short real run of each against a served build (`npm run build && npx vite preview --port 4173`), with the
-orphaned-Chrome check before and after ([PERFORMANCE.md](../PERFORMANCE.md), "Measurement hygiene").
-
-**Where:** its own branch off `main` once 54 has merged; `output-level.mjs` exists only on `feature/output-headroom`
-until then.
-
-**Status: built 2026-10-23 on `tooling/cdp-lib`, off `main` at `3e6aca8d`; awaiting Crawford's PR.**
-
-**As built.** `scripts/perf/cdp-lib.mjs` (126 lines, not the estimated 90) exports two things: `sleep`, and
-`withChrome({ chromePath, port, flags }, run)`, which launches Chrome on a `trace-atlas-perf-` temp profile, connects,
-hands `run` the page's `{ send, evaluate, onEvent }`, returns what `run` returns, and always shuts Chrome down
-(`Browser.close`, then `taskkill /T`) and removes the profile, Ctrl+C included (exit 130). `findChrome`, `connect` and
-`shutdown` stay private to the lib. Two additions to the task above, agreed with Crawford before the build: `evaluate`,
-identical in all four scripts, moved into what `connect` returns; and the launcher became one wrapper that owns the
-Ctrl+C handler, so `profile` and `idle-paint` now clean up on Ctrl+C as well. The "wait for the Power on button" loop
-stays in each script, since it is about the app, not Chrome. The four scripts lost 390 lines and gained 17.
-
-**Proof (a Look), 2026-10-23,** against a production build on :4173, one run at a time, orphaned-Chrome count 0 before
-and after each run and no new temp profile left behind: `perf:idle --throttle 1 --only none`, `perf:audio` (`charlie`,
-12 s) and `perf:level` (8 s) ran to the end. Ctrl+C was checked with a scratch probe that emits SIGINT into `withChrome`
-mid-run: exit 130, profile removed; with the profile removal deleted from the handler, the probe reported the leftover.
-
-**Found while proving it: `profile.mjs` no longer completes, on `main` too.** Its step table and `--smoothness` both
-click `.robot-selection-card__top`, which went with the Probes list in layout rework Task 21 (`4ba12cae`). The run gets
-through power-on and Fleet Params, then throws; the new teardown cleaned up after the throw. Not fixed here.
+**(B) Re-aim — open, unsequenced.** The section rows become a first click of each `.section-tabs__trigger` (Fleet
+Params' five with its sub-tab row; the robot screen's), and `--smoothness` goes with its PERFORMANCE.md section: tabs do
+not tween height, so the empty-open flash and the height snap it measured cannot happen. Then a fresh baseline table.
+Half a day with a Look; only when a main-thread question needs per-section numbers.

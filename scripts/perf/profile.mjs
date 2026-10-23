@@ -4,7 +4,7 @@
  *
  * Drives an installed Chrome/Edge over the DevTools Protocol using Node's built-in WebSocket (Node 22+/24) —
  * no new dependency. Loads a built copy of the app, powers it on, applies a CPU-throttle rate, then clicks
- * through the header's nav tiles and reports, per step, how many main-thread long tasks exceeded Tone's
+ * through the nav panel's branches and reports, per step, how many main-thread long tasks exceeded Tone's
  * 100 ms scheduling lookahead (the audible-pause threshold), the longest one, and how many cabinet boxes
  * are on the page. Optionally adds a CPU profile and a layout/paint trace summary.
  *
@@ -20,10 +20,22 @@ import { sleep, withChrome } from './cdp-lib.mjs';
 /** Tone's default `lookAhead` (Tone.Context, `interactive` latency hint), in ms — a main-thread task longer than this can starve the scheduler. */
 const LOOKAHEAD_MS = 100;
 
-/** Header nav labels (src/data/headerNavConfig.ts HEADER_NAV_SCHEMA) — clicked by visible text, so a label rename there needs the same rename here. */
+/** Nav panel branch labels — the `human` of each `*.root` entry in src/content/copy/ (`nav.home` for the Deck), clicked by
+ *  visible text, so a rename there needs the same rename here. The panel's box is the first button carrying the text, so
+ *  from a robot's page clicking TILE_PROBES is navActions.pressBranchBox → selectBranch: back to the roster. */
+const TILE_DECK = 'Deck';
 const TILE_FLEET = 'Fleet Params';
 const TILE_PROBES = 'Probes';
-const TILE_SETTINGS = 'Nav & Comms';
+const TILE_SETTINGS = 'Settings';
+
+/** The roster tile's whole-face button (RosterTile.tsx), which opens the robot; the layout rework (roadmap 45, Task 21)
+ *  replaced the Probes list's `.robot-selection-card__top` with it. */
+const ROBOT_OPEN_SELECTOR = '.roster-tile__face';
+
+/** The same rework replaced the accordions with section tabs, so no `.sc-accordion` exists in the app any more: the
+ *  per-section rows and --smoothness find nothing to open and say so once, rather than failing. Re-aiming them at
+ *  `.section-tabs__trigger` is backlog 31's option (B). */
+const NO_ACCORDIONS_NOTE = 'no accordions in this build (the layout rework replaced them with section tabs) — the per-section rows and --smoothness are dormant; see backlog 31';
 
 const HELP = `Usage: npm run perf -- [flags]
 
@@ -232,7 +244,7 @@ async function run({ send, evaluate, onEvent }) {
       const human = t.querySelector('.sc-dual-label__human');
       return ((human ?? t).textContent || '').replace(/\\s+/g, ' ').trim();
     })`);
-    console.log(`${prefix}: ${labels.length} collapsed accordion(s) found`);
+    console.log(labels.length === 0 ? `${prefix}: ${NO_ACCORDIONS_NOTE}` : `${prefix}: ${labels.length} collapsed accordion(s) found`);
     const sectionRows = [];
     for (const label of labels) {
       sectionRows.push(await measureStep(`${prefix} › ${label}`, () => evaluate(`document.querySelector('.sc-accordion__trigger[aria-expanded="false"]').click()`), 1500));
@@ -272,10 +284,14 @@ async function run({ send, evaluate, onEvent }) {
     const smoothRows = [];
     await click(TILE_FLEET);
     await sleep(2500);
+    if ((await evaluate(`document.querySelectorAll('.sc-accordion').length`)) === 0) {
+      console.log(`--smoothness: ${NO_ACCORDIONS_NOTE}`);
+      return;
+    }
     smoothRows.push(...await smoothEachAccordion('fleet'));
     await click(TILE_PROBES);
     await sleep(2500);
-    await clickSelector('.robot-selection-card__top');
+    await clickSelector(ROBOT_OPEN_SELECTOR);
     await sleep(2500);
     smoothRows.push(...await smoothEachAccordion('detail'));
     console.table(smoothRows);
@@ -288,25 +304,22 @@ async function run({ send, evaluate, onEvent }) {
   rows.push(await measureStep(`open ${TILE_FLEET}`, () => click(TILE_FLEET)));
   rows.push(...await measureEachAccordion('fleet'));
   rows.push(await measureStep(`switch to ${TILE_PROBES}`, () => click(TILE_PROBES)));
-  rows.push(await measureStep('open first robot (detail)', () => clickSelector('.robot-selection-card__top')));
+  rows.push(await measureStep('open first robot (detail)', () => clickSelector(ROBOT_OPEN_SELECTOR)));
   rows.push(...await measureEachAccordion('detail'));
-  rows.push(await measureStep('back to robot list', () => click('back')));
+  rows.push(await measureStep('back to the roster', () => click(TILE_PROBES)));
   rows.push(await measureStep(`switch to ${TILE_SETTINGS}`, () => click(TILE_SETTINGS)));
   rows.push(await measureStep(`back to ${TILE_FLEET}`, () => click(TILE_FLEET)));
   console.table(rows);
 
   if (!opts.profile && !opts.trace) return;
 
-  // Every capture starts from the same state — blank hub, no tile open — because each window's action (opening a tile) is
-  // not repeatable: re-clicking an open tile *closes* it, which would make a second capture of the same window measure a close.
-  // Re-clicking the active nav item deselects it (Header's handleNavDeselect).
+  // Every capture starts from the same state — the Deck, no tile open — because each window's action (opening a branch) is
+  // not repeatable from inside that branch. The nav panel's Deck box is navActions.goHome; with no tile active ContentPane
+  // renders nothing, so `.console-panel` gone is the check.
   const ensureBlankHub = async () => {
-    await evaluate(`(() => {
-      const active = document.querySelector('button[role="radio"][aria-checked="true"], button[role="radio"][data-state="on"]');
-      if (active) active.click();
-    })()`);
+    await click(TILE_DECK);
     await sleep(2000);
-    if (await evaluate(`!!document.querySelector('.console')`)) throw new Error('Could not return to the blank hub before a capture window.');
+    if (await evaluate(`!!document.querySelector('.console-panel')`)) throw new Error('Could not return to the Deck before a capture window.');
   };
   const captureWindows = [
     { label: 'IDLE (blank hub)', action: async () => {}, ms: 6000 },

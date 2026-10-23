@@ -9,33 +9,31 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 0 — Merge the cleanup branch
-
-- `docs/roadmap-and-test-cleanup` (the file-text tests removed, the roadmap and backlog archived and re-linked). Nothing
-  below starts on it.
-
 ## Stage 1 — Sound right first
 
-- Backlog [30](backlog.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts) **One shared CDP helper for the perf
-  scripts** — built on `tooling/cdp-lib` (2026-10-23); awaiting Crawford's PR. Delete this line when it merges.
 - Backlog [23](backlog.md#23-audio-palette-trials-dynamics-processing-and-ducking) **Dynamics processing and ducking** —
   interviewed with 54 and deferred: built only if the single Compressor sounds wrong now that it is off safety duty.
 
-## Stage 2 — The phone sitting
+## Stage 2 — The underruns: desktop first, then one phone sitting
 
-One desk session with the Pixel out. Measure before changing anything.
+Measure before changing anything. The desktop answers what it can; the Pixel comes out once, at the end, for only what
+the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-23 re-ordered this stage (backlog 27,
+"Next, re-ordered").
 
-- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **Phone underruns, the late
-  collapse** — its "Next" list: the 15-minute desktop long run looking for load that grows, then the
-  Incognito-after-collapse and cool-phone sine ramp.
+- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **Phone underruns, the
+  Light-tier clicks and the late collapse** — desktop first: D1 against D5 at Light on `perf:audio`, then the 15-minute
+  long run; the Incognito tab and the cool-phone sine ramp drop to the sitting, and only if the collapse is still
+  unexplained.
 - Backlog [29](backlog.md#29-audio-a-connect-sometimes-loses-a-render-quantum-main-included) **A connect loses a render
-  quantum** — the headed-Chrome probe on a real device, the bare page without Tone, then by ear on the Pixel.
+  quantum** — the headed-Chrome probe on a real output device, then the bare page without Tone; by ear on the Pixel in
+  the sitting.
 - Backlog [28](backlog.md#28-audio-eq3-and-the-two-filters-stay-in-the-chain-at-neutral) **EQ3 and the filters at
   neutral** — closes itself if nothing in 27 or 29 points at them.
 - Roadmap [53](roadmap.md#53-per-mover-compositor-layers) **Checkpoints B and C, Safari** — the desktop look list, never
   signed off; same verify-don't-build mood.
 - Roadmap [17.2.8](roadmap.md#1728-performance-lfo-bank) **Style switch re-primes the LFO bank** — one TDD task, the
   per-lane push the stub describes.
+- **The phone sitting**, last — 29's lighting by ear, and whatever 27 still owes.
 
 ## Stage 3 — The powered-down state
 
@@ -83,6 +81,8 @@ one is built.
   shipped, marine snow was cut.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes whenever DevTools is next open.
+- Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
+  option (B); only when a main-thread question needs per-section numbers.
 - Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
   the roof), [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen) (three notes) and
   [52](roadmap.md#52-job-decorations-six-small-animations-on-the-orbiters-work) (the spec questions shipped as proposed).
