@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 // behaviour to test, so this makes its acceptance criteria executable (robotSendsDocs.test.ts is the pattern):
 //   (1) the source-scan guardrail: nothing on the robot body reads Grit, Shimmer or Double (Visual Mapping is unchanged);
 //   (2) every symbol the spec and the updated docs cite exists in source, the names the 2026-10-21 amendment removed do
-//       not, and the reserve-site scan still reads all five sends;
+//       not, and every engine reservation site primes all five (the reserve-site scan until Robot Send Table T4);
 //   (3) the living docs say what the code now does.
 // Groups (1) and (2) are green from the moment they land. Group (3) is written against the text Task 22 produces, so
 // it is RED until Task 22 lands. That is intended. The red cases, all in group (3):
@@ -78,14 +78,17 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
       [`RobotAudioOverrideDiff.${field}`, 'src/types/session.ts', new RegExp(`\\b${field}\\?: number;`)],
       [`RobotAudioBaseline.${field}`, 'src/systems/spawnSystem.ts', new RegExp(`interface RobotAudioBaseline \\{[^}]*\\b${field}: number;`)],
       [`AudioSettingValue.${field}`, 'src/components/robot/AudioSettingSection.tsx', new RegExp(`\\b${field}: number;`)],
-      [`AudioSettingSection ${field}Swelling prop`, 'src/components/robot/AudioSettingSection.tsx', new RegExp(`\\b${field}Swelling\\?: boolean;`)],
-      [`the voice entry carries the ${field} node`, 'src/engine/audioEngine/voiceEntry.ts', new RegExp(`\\b${field}: Tone\\.Gain;`)],
-      [`the swell pool lists ${field}`, 'src/types/audioSwell.ts', new RegExp(`SWELL_ROBOT_ATTRIBUTE_IDS[\\s\\S]*?'${field}',[\\s\\S]*?\\]`)],
     ]),
+    // Re-pinned by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the three per-field flags are one record.
+    ['AudioSettingSection sendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\bsendSwelling\?: Readonly<Record<RobotSendField, boolean>>;/],
+    ['AudioSettingSection onSendChange prop', 'src/components/robot/AudioSettingSection.tsx', /\bonSendChange: \(field: RobotSendField, pct: number\) => void;/],
+    // Re-pinned by Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md assumption 4): the five send nodes are one record.
+    ['the voice entry carries the send nodes', 'src/engine/audioEngine/voiceEntry.ts', /\bsends: Readonly<Record<SendEngineKey, Tone\.Gain>>;/],
     ['CompactRobotOverrideDiff.gr', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bgr\?: number;/],
     ['CompactRobotOverrideDiff.sm', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bsm\?: number;/],
     ['CompactRobotOverrideDiff.db', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bdb\?: number;/],
-    ['ROBOT_SEND_FIELDS', 'src/data/robotSendLoadingRanges.ts', /export const ROBOT_SEND_FIELDS = \['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'\] as const;/],
+    // Re-pinned by Robot Send Table T2 (docs/specs/ROBOT_SEND_TABLE.md assumption 1): the field list is wiring, not a band.
+    ['ROBOT_SEND_FIELDS', 'src/data/robotSends.ts', /export const ROBOT_SEND_FIELDS = \['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'\] as const;/],
     ['ROBOT_SEND_LOADING_RANGES', 'src/data/robotSendLoadingRanges.ts', /export const ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, SendLoadingRange>/],
     ['EXCLUSIVE_SEND_FIELDS (the roll order)', 'src/data/robotSendLoadingRanges.ts', /export const EXCLUSIVE_SEND_FIELDS = \['gritSend', 'shimmerSend', 'doubleSend'\] as const;/],
     ['ROOM_KEYS', 'src/engine/audioEngine/bypassCell.ts', /export const ROOM_KEYS = \['grit', 'shimmer', 'double'\] as const;/],
@@ -99,16 +102,27 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     ['setRoomReturn', 'src/engine/audioEngine/bypassCell.ts', /export function setRoomReturn\(key: RoomKey, level: number\): void/],
     ['getGlobalRoomInput', 'src/engine/audioEngine/globalFx.ts', /export function getGlobalRoomInput\(key: RoomKey\): Tone\.Gain \| null/],
     ['the feeder sets', 'src/engine/AudioEngine.ts', /const roomFeeders: Record<RoomKey, Set<string>> = \{ grit: new Set\(\), shimmer: new Set\(\), double: new Set\(\) \};/],
-    ['AudioEngine.updateRobotSends takes all five', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: \{ reverb\?: number; delay\?: number; grit\?: number; shimmer\?: number; double\?: number \},?\s*\): void/],
+    // Re-pinned by Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the same five optional keys, as a type.
+    ['AudioEngine.updateRobotSends takes all five', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: Partial<Record<SendEngineKey, number>>,?\s*\): void/],
     ['generateRobotSends draws all five', 'src/systems/spawnSystem.ts', /export function generateRobotSends\(noiseMap: NoiseFunction2D, offset: number\): Record<RobotSendField, number>/],
-    ...(['Grit', 'Shimmer', 'Double'] as const).flatMap((name): [string, string, RegExp][] => [
-      [`apply${name}Send`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}Send\\(robot: Robot, localeId: string, pct: number\\): void`)],
-      [`apply${name}SendValue`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}SendValue\\(robot: Robot, localeId: string, fraction: number\\): void`)],
-      [`${name.toUpperCase()}_SEND_SCHEMA`, 'src/data/robotOptionsConfig.ts', new RegExp(`export const ${name.toUpperCase()}_SEND_SCHEMA: SliderLinearSchema`)],
-    ]),
-    ['the swell ranges carry the three new sends', 'src/data/audioSwellRanges.ts', /gritSend: \{ min: SEND_MIN, max: SEND_MAX \}, shimmerSend: \{ min: SEND_MIN, max: SEND_MAX \},\s*doubleSend: \{ min: SEND_MIN, max: SEND_MAX \}/],
+    // Re-pinned by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the six named Grit / Shimmer / Double
+    // actions are the keyed pair every send shares.
+    ['applySend', 'src/systems/robotOptionsActions.ts', /export function applySend\(robot: Robot, localeId: string, field: RobotSendField, pct: number\): void/],
+    ['applySendValue', 'src/systems/robotOptionsActions.ts', /export function applySendValue\(robot: Robot, localeId: string, field: RobotSendField, fraction: number\): void/],
+    // Re-pinned by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are one record, and
+    // the screen renders one row per table entry.
+    ['ROBOT_SEND_SCHEMAS', 'src/data/robotOptionsConfig.ts', /export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> =/],
+    ['the Levels block renders one send row per table entry', 'src/components/robot/AudioSettingSection.tsx', /\{ROBOT_SENDS\.map\(\(spec\) => \(\s*<SendRow\b/],
+    // Re-pinned by Robot Send Table T8 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the pool and the ranges read the field list,
+    // which carries the three new sends (robotSends.test.ts pins its rows; robotSendsParity.test.ts the pool's order).
+    ['the swell pool ends in the sends', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId\[\] = \[[^\]]*'adsr\.release',\s*\.\.\.ROBOT_SEND_FIELDS,?\s*\]/],
+    // Re-pinned by the review follow-up (2026-10-22): the record is built by recordByField, in table order.
+    ['the swell ranges carry every send', 'src/data/audioSwellRanges.ts', /\.\.\.recordByField\(\(\) => \(\{ min: SEND_MIN, max: SEND_MAX \}\)\)/],
     ['RETURN_FIELD_KEYS is the four (no Colour room Return, the amendment)', 'src/data/globalAudioSeedRanges.ts', /export const RETURN_FIELD_KEYS = \['reverb\.wet', 'delay\.wet', 'chorus\.wet', 'frequencyShifter\.wet'\] as const;/],
-    ['the reserve-site scan reads all five sends', 'src/engine/reservationSendsPrime.test.ts', /const PRIME_KEYS = \['reverb', 'delay', 'grit', 'shimmer', 'double'\] as const;/],
+    // The reserve-site scan's row went with the scan at Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md assumption 10):
+    // every prime is robotSendLevels(robot), and robotSendsParity.test.ts pins what each site hands the engine.
+    ['every engine reservation site primes with robotSendLevels', 'src/engine/AudioEngine.ts', /updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)[\s\S]*updateRobotSends\(robotId, robotSendLevels\(robot\)\)/],
+    ['both spawnSystem reservation sites prime with robotSendLevels (Robot Send Table T5)', 'src/systems/spawnSystem.ts', /updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)[\s\S]*updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)/],
   ];
 
   it.each(declared)('%s', (_description, file, pattern) => {
@@ -131,6 +145,23 @@ describe('the names the 2026-10-21 amendment removed (no Colour master Return) a
   });
 });
 
+/** The ten per-send actions Robot Send Table T14 deleted (docs/specs/ROBOT_SEND_TABLE.md §1.3). */
+const REMOVED_SEND_ACTIONS = [
+  'applyReverbSend', 'applyDelaySend', 'applyGritSend', 'applyShimmerSend', 'applyDoubleSend',
+  'applyReverbSendValue', 'applyDelaySendValue', 'applyGritSendValue', 'applyShimmerSendValue', 'applyDoubleSendValue',
+] as const;
+
+describe('the ten named send actions Robot Send Table removed are gone from source', () => {
+  it.each(REMOVED_SEND_ACTIONS)('%s is not an identifier in src/', (symbol) => {
+    expect(isInSource(symbol)).toBe(false);
+  });
+
+  it('the keyed pair that replaced them is (the membership check reads real source)', () => {
+    expect(isInSource('applySend')).toBe(true);
+    expect(isInSource('applySendValue')).toBe(true);
+  });
+});
+
 /** Words that are cited in backticks but are not, and should not be, names in this repo's source: third-party API
  *  members, names the spec records as deleted or not built, and file names. */
 const NOT_REPO_SYMBOLS = new Set<string>([
@@ -138,6 +169,14 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'FrequencyShifter', 'CrossFade', 'AudioParam', 'BitCrusher', 'getContext', 'setTimeout', 'rampTo',
   // Deleted by T1 (assumption 6): the Delay row's 1 - lit
   'SEND_DELAY_QUIET_THRESHOLD',
+  // Deleted by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are ROBOT_SEND_SCHEMAS
+  'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
+  // Deleted by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): AudioSettingSection's ten per-field send props
+  // and the company options' twins are one onSendChange and one sendSwelling record
+  'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
+  'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
+  // Deleted by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named actions are applySend / applySendValue
+  ...REMOVED_SEND_ACTIONS,
   // File and doc names, not symbols (chainCycleSearch is a test file, which sourceFiles skips)
   'chainCycleSearch', 'ROBOT_SENDS', 'ROBOT_EFFECT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES', 'AUDIO_SYSTEM',
   'SESSION_STORAGE', 'GLOBAL_PEDALS', 'GLOBAL_COLOUR', 'DARK_EFFECT_BYPASS', 'TONE_EFFECTS_INVENTORY', 'CLASSIC_BAND_RETUNE',
@@ -169,8 +208,8 @@ describe('every symbol the spec and the updated docs cite exists in source', () 
   });
 
   it('extracts code-shaped names and drops plain words, wildcards and listed non-symbols (the extractor itself)', () => {
-    const extracted = citedSymbols('`applyGritSend` and `robot` and `SEND_*` and `SEND_DELAY_QUIET_THRESHOLD` and `ROOM_KEYS`');
-    expect(extracted).toEqual(['ROOM_KEYS', 'applyGritSend']);
+    const extracted = citedSymbols('`applySend` and `robot` and `SEND_*` and `SEND_DELAY_QUIET_THRESHOLD` and `ROOM_KEYS`');
+    expect(extracted).toEqual(['ROOM_KEYS', 'applySend']);
   });
 
   it('does not read a fenced sketch as a claim about the source', () => {

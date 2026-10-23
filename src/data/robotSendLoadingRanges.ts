@@ -1,3 +1,5 @@
+import type { RobotSendField, SendRoomKey } from './robotSends';
+
 /**
  * The per-robot send bands (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1): what a FRESH robot may seed for each
  * of its five sends, never what the slider exposes (that is SEND_MIN..SEND_MAX). One table for all five, so a theme
@@ -6,10 +8,9 @@
  * The Reverb and Delay rows are the old `reverb.wet` / `delay.wet` rows of GLOBAL_AUDIO_LOADING_RANGES (as merged by the
  * Classic Band Retune at 2dc5b4a2); they moved here at Robot Effect Sends T1 without moving a single seeded value. The
  * Delay's `lit` is the old quiet roll: a roll under 1 - lit (0.25, the deleted SEND_DELAY_QUIET_THRESHOLD) seeds 0.
+ *
+ * The send field list and its order are wiring, and live in robotSends.ts (docs/specs/ROBOT_SEND_TABLE.md assumption 1).
  */
-
-export const ROBOT_SEND_FIELDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
-export type RobotSendField = (typeof ROBOT_SEND_FIELDS)[number];
 
 export interface SendLoadingRange {
   min: number;
@@ -33,9 +34,8 @@ export const ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, SendLoadingRange>
 export const EXCLUSIVE_SEND_FIELDS = ['gritSend', 'shimmerSend', 'doubleSend'] as const;
 export type ExclusiveSendField = (typeof EXCLUSIVE_SEND_FIELDS)[number];
 
-/** The room each exclusive send feeds: the Colour room (Grit), the Frequency Shifter (Shimmer), the Chorus (Double). These
- *  are the seeder's dataId segment (`robot.send.<room>`), and the engine's RoomKey is this type (bypassCell.ts). */
-export type SendRoomKey = 'grit' | 'shimmer' | 'double';
+/** The room each exclusive send feeds (SendRoomKey, robotSends.ts). These are the seeder's dataId segment
+ *  (`robot.send.<room>`). */
 export const SEND_FIELD_ROOM: Record<ExclusiveSendField, SendRoomKey> = {
   gritSend: 'grit',
   shimmerSend: 'shimmer',

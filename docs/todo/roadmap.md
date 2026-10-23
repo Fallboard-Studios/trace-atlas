@@ -2223,9 +2223,14 @@ Options on the table for the interview (the first is the recommendation from the
 Raised at the Robot Effect Sends ([50.7](#507-robot-effect-sends-grit-shimmer-and-double)) code review, 2026-10-22, and put
 next on the roadmap by Crawford the same day. A refactor with no change in behaviour: the five per-robot sends (Reverb,
 Delay, Grit, Shimmer, Double) are written out one field at a time in about fifteen places, so a sixth send, or a change to
-how a send is primed, means finding every copy by hand. **Status: not started; next up, once 50.7's PR merges** (the
-three new sends exist only on `feature/robot-effect-sends` until then). This entry stands in for the intent; spec and plan
-next.
+how a send is primed, means finding every copy by hand. The paragraphs below are the starting point, not what shipped:
+read "As built" first.
+
+**Status: built 2026-10-22 on `refactor/robot-send-table`, off `main` at `608c5b92` (the 50.7 merge), PR pending**
+(Crawford opens it; intent [robot-send-table.md](../intent/robot-send-table.md), spec
+[ROBOT_SEND_TABLE.md](../specs/ROBOT_SEND_TABLE.md), plan [ROBOT_SEND_TABLE.md](../tasks/ROBOT_SEND_TABLE.md); oracle
+`src/systems/robotSendsParity.test.ts`). Tasks T1–T15 done. Crawford passed Checkpoint A (a smoke listen) and Checkpoint B
+(both screens' Levels block unchanged); the closing listen, the code review and the PR remain.
 
 ### About
 
@@ -2254,17 +2259,60 @@ engine key (and perhaps its share code, schema and content key); a `robotSendLev
 reservation sites call, which leaves the regex scan nothing to guard; and one `applySendValue(robot, localeId, field,
 fraction)` that the actions, the swell tick and both screens go through.
 
+### As built (deltas from the paragraphs above)
+
+- **One table, in a new module.** `ROBOT_SENDS` in `src/data/robotSends.ts` has one row per send: the `Robot` field, the
+  key `updateRobotSends` takes, the share code (`rs` / `ds` / `gr` / `sm` / `db`) and the slider's content key, written as
+  a literal because the content guard finds a key by its quoted text. `ROBOT_SEND_FIELDS` moved here from
+  `robotSendLoadingRanges.ts`; the seeding bands stayed there, since they are tuning, not wiring. The table's order is the
+  old order (Reverb, Delay, Grit, Shimmer, Double), and every loop runs in it.
+- **Two key spaces, one mapping.** The engine speaks `SendEngineKey` (`reverb`, `delay`, `grit`, `shimmer`, `double`);
+  robots, screens, the store, the swell tick and persistence speak `RobotSendField`. `engineKeyOf` is the only translation,
+  one way (the spec's inverse, `sendFieldOf`, had no caller and was deleted at review).
+- **What iterates it.** The four reservation primes (`robotSendLevels(robot)`); the voice's send gains (`VoiceEntry`'s
+  `sends` record, built, connected and disposed in a loop); `updateRobotSends`, which now takes
+  `Partial<Record<SendEngineKey, number>>`; the swell tick; the swell ranges, the swell pool's tail, the store clamp and the
+  company fallbacks; the session diff's loops; the share codec, at the place the five lines held, so a link's string is
+  byte for byte the same; and both screens' rows.
+- **Ten actions became one pair**, `applySend` / `applySendValue(robot, localeId, field, …)`. The ten named actions were
+  deleted, not kept as wrappers (T14). The swell tick's `writeRobotSend` switch and its `SEND_ATTRIBUTES` list went at T7,
+  and `sessionDiff.ts`'s `SEND_PRIME_KEYS` at T9.
+- **Screens.** `AudioSettingSection` takes `onSendChange(field, pct)` and a `sendSwelling` record, and renders one memo'd
+  `SendRow` per table row from `ROBOT_SEND_SCHEMAS` (the five named schemas are gone). `RobotScreen` and
+  `useCompanyOptions` each have one handler and read the five flags through `useSendSwellingFlags`, which re-reads every
+  render (two `RobotScreen` cases pin that a flag flip on an unrelated render must arrive). For three commits (T10–T12) the
+  section took either the new pair or the old five handlers, as a type union, so no screen could leave a row unwired during
+  the move; T13 removed the old ones.
+- **The parity oracle.** `src/systems/robotSendsParity.test.ts` was recorded at the branch base before the first refactor
+  commit and never re-recorded (one commit). It pins two seeds' sends, every `updateRobotSends` call sequence (spawn,
+  re-registration, re-reserve, session restore, share link, a swell landing on a send), the share string, the store clamp
+  and the swell pool, with non-default fixture values. It stayed green through every task; the full suite was the second
+  check.
+- **The regex reservation scan is deleted** (`reservationSendsPrime.test.ts`), one task early, at T4 not T5: its
+  literal-argument reader went red once the engine primes stopped being literals. Guard rows pinning
+  `robotSendLevels(robot)` at all four sites replace it.
+- **The docs guards.** Each task that moved a pinned symbol re-pinned its row in `robotSendsDocs` / `robotEffectSendsDocs`,
+  and every deleted name joined their `NOT_REPO_SYMBOLS` (the `SEND_DELAY_QUIET_THRESHOLD` precedent), because the two
+  historical specs' §1–4 still cite them; those specs carry a header note instead of edits. Both guards assert the ten
+  actions are not identifiers in `src/`, and `robotSendsDocs` asserts no living doc names any deleted symbol. Two more
+  guards (`robotPanDocs`, `robotArticulationDocs`) read send names on their own scanned lines and carried temporary entries
+  from T13 and T14 until T15 rewrote those doc lines.
+- **No Pixel A/B and no `perf:audio` run**: the graph is the same nodes, connections and ramps (spec assumption 13).
+
 ### Not Doing (and why)
 
 - **Any change in behaviour.** No seeded value, saved diff, share code, slider, swell pick or sound moves; the existing
-  suite is the parity check.
+  suite is the parity check. **Held**, with a dedicated parity oracle in front of the suite (As built).
 
 ### Open
 
-- Whether the named actions (`applyGritSend` and the rest) stay as one-line wrappers or go. About 70 test references in
-  seven test files spy on them by name, and the two docs guards (`robotSendsDocs`, `robotEffectSendsDocs`) pin them in the
-  living docs.
-- Whether `AudioSettingSection` takes one list of send rows in place of the five value / handler / swelling sets, or keeps
-  its props and only the handlers are shared.
-- Whether `Robot`, `RobotAudioBaseline`, `RobotAudioOverrideDiff` and `CompanyOptionsSnapshot` keep five named fields (the
-  session format and the company snapshot read them by name); likely yes.
+- **Answered: they go.** Whether the named actions (`applyGritSend` and the rest) stay as one-line wrappers or go. About
+  70 test references in seven test files spy on them by name, and the two docs guards (`robotSendsDocs`,
+  `robotEffectSendsDocs`) pin them in the living docs. All ten were deleted; the tests assert `applySend` /
+  `applySendValue` and their `field` argument (spec assumption 5).
+- **Answered: one handler and one flag record.** Whether `AudioSettingSection` takes one list of send rows in place of the
+  five value / handler / swelling sets, or keeps its props and only the handlers are shared. It takes `onSendChange(field,
+  pct)` and `sendSwelling`, and renders the rows from the table; its value prop keeps five named fields (spec assumption 6).
+- **Answered: yes.** Whether `Robot`, `RobotAudioBaseline`, `RobotAudioOverrideDiff` and `CompanyOptionsSnapshot` keep five
+  named fields (the session format and the company snapshot read them by name); likely yes. They do, as do
+  `CompactRobotOverrideDiff` and `AudioSettingValue`; only the code that copies between them iterates (spec assumption 8).

@@ -11,6 +11,7 @@ import { getActiveLocaleId } from '../utils/localeHelpers';
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
+import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
@@ -196,6 +197,19 @@ function storeVoice(robotId: string, entry: VoiceEntry): void {
   compositeVoices.set(robotId, entry);
 }
 
+/** A voice's five send gains, all at 0 (dry): live Tone.Gains, or stubs when there is no constructor (headless, or the
+ *  fallback voice). Built in table order (docs/specs/ROBOT_SEND_TABLE.md §1.2); every reservation site primes them. */
+function buildSendGains(GainCtor: (new (...args: unknown[]) => Tone.Gain) | undefined): Record<SendEngineKey, Tone.Gain> {
+  return recordByEngineKey(() => (GainCtor ? new GainCtor(0) : makeStubGain(0) as unknown as Tone.Gain));
+}
+
+/** The room a send feeds: the Reverb and Delay rooms by their getters, an effect room by its in. Null while the room is
+ *  not built (headless, or before the FX chain), and the send then gets no downstream edge. */
+function sendTargetOf(key: SendEngineKey): Tone.ToneAudioNode | null {
+  if (isRoomSendKey(key)) return getGlobalRoomInput(key);
+  return key === 'reverb' ? getGlobalReverbRoom() : getGlobalDelayRoom();
+}
+
 /**
  * Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4, assumption 3): the reserved robots whose send into each
  * effect room is above 0. A room is told (setRoomFed) only when its set becomes empty or non-empty, so a second feeder
@@ -344,9 +358,7 @@ async function loadInstruments(): Promise<void> {
             // The engine keeps no pan state across a reservation; the store does (Robot Pan §1.3).
             if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
             // Likewise the sends: a new voice starts dry, and unlike a manual pan every robot is primed (Robot Sends §1.4).
-            AudioEngine.updateRobotSends(robot.id, {
-              reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
-            });
+            AudioEngine.updateRobotSends(robot.id, robotSendLevels(robot));
           }
         } catch (err) {
           devWarn('[AudioEngine] Failed post-load reservation for robot', robot.id, err);
@@ -812,12 +824,7 @@ export const AudioEngine = {
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
       // The sends start at 0 (dry); every reservation site primes them from the store afterwards.
-      const reverbSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      const delaySend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): one more send per effect room, in ROOM_KEYS order.
-      const gritSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      const shimmerSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      const doubleSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
+      const sends = buildSendGains(GainCtorLocal);
       const busFilter = FilterCtor ? new FilterCtor({
         frequency: busCutoff,
         Q: resolveBusFilterQ(articulation?.filterQ),
@@ -838,28 +845,21 @@ export const AudioEngine = {
       } catch (e) {
         devWarn('[AudioEngine] busFilter connection failed', e);
       }
-      // Wet path: busFilter (post-Volume, post-bus-filter) -> send -> room. The dry link above is untouched, so at
-      // send 0 the only way into a room is through these two gains. A room that does not exist (headless, or
-      // before the FX chain is built) simply gets no connection.
+      // Wet path: busFilter (post-Volume, post-bus-filter) -> send -> room, one send per ROBOT_SENDS row. The dry link
+      // above is untouched, so at send 0 the only way into a room is through these gains. A room that does not exist
+      // (headless, or before the FX chain is built) simply gets no connection.
       try {
         const busFilterOut = busFilter as unknown as { connect?: (target?: unknown) => unknown };
-        busFilterOut.connect?.(reverbSend);
-        busFilterOut.connect?.(delaySend);
-        const reverbRoom = getGlobalReverbRoom();
-        if (reverbRoom) reverbSend.connect(reverbRoom);
-        const delayRoom = getGlobalDelayRoom();
-        if (delayRoom) delaySend.connect(delayRoom);
-        const roomSends: Record<RoomKey, Tone.Gain> = { grit: gritSend, shimmer: shimmerSend, double: doubleSend };
-        for (const key of ROOM_KEYS) {
-          busFilterOut.connect?.(roomSends[key]);
-          const input = getGlobalRoomInput(key);
-          if (input) roomSends[key].connect(input);
+        for (const { engineKey } of ROBOT_SENDS) {
+          busFilterOut.connect?.(sends[engineKey]);
+          const target = sendTargetOf(engineKey);
+          if (target) sends[engineKey].connect(target);
         }
       } catch (e) {
         devWarn('[AudioEngine] send connection failed', e);
       }
 
-      storeVoice(robotId, { composite, panner, busGain, busFilter, reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
+      storeVoice(robotId, { composite, panner, busGain, busFilter, sends });
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -892,12 +892,7 @@ export const AudioEngine = {
       const panner = makeStubPanner() as unknown as Tone.Panner;
       const busGain = makeStubGain(volumePositionToGain(masterVolume ?? 1)) as unknown as Tone.Gain;
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
-      const reverbSend = makeStubGain(0) as unknown as Tone.Gain;
-      const delaySend = makeStubGain(0) as unknown as Tone.Gain;
-      const gritSend = makeStubGain(0) as unknown as Tone.Gain;
-      const shimmerSend = makeStubGain(0) as unknown as Tone.Gain;
-      const doubleSend = makeStubGain(0) as unknown as Tone.Gain;
-      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
+      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, sends: buildSendGains(undefined) });
       return false;
     }
   },
@@ -998,9 +993,7 @@ export const AudioEngine = {
       // Done here, not by the caller, so every reReserveVoice caller is covered.
       if (robot.panAuto === false) AudioEngine.updateRobotPan(robotId, robot.pan);
       // And the rebuilt voice's send gains start at 0, so hand them back too (Robot Sends §1.4).
-      AudioEngine.updateRobotSends(robotId, {
-        reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
-      });
+      AudioEngine.updateRobotSends(robotId, robotSendLevels(robot));
       return reserved;
     } catch (err) {
       devWarn('[AudioEngine] reReserveVoice failed', err);
@@ -1145,29 +1138,25 @@ export const AudioEngine = {
    * when no composite is reserved: the store already holds the value and every reservation site re-primes it.
    * Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): `grit`, `shimmer` and `double` ramp the effect room
    * sends the same way, and each also moves the robot in or out of its room's feeder set (roomFeeders).
+   * One loop in table order whatever order the caller built `sends` in (docs/specs/ROBOT_SEND_TABLE.md §1.2).
    */
   updateRobotSends(
     robotId: string,
-    sends: { reverb?: number; delay?: number; grit?: number; shimmer?: number; double?: number },
+    sends: Partial<Record<SendEngineKey, number>>,
   ): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
       devWarn(`[AudioEngine] updateRobotSends: no composite reserved for ${robotId}`);
       return;
     }
-    const write = (send: Tone.Gain, requested: number | undefined): void => {
-      if (requested === undefined || Number.isNaN(requested)) return;
-      rampOrSet(send.gain as unknown as RampableParam, clampSend(requested), SEND_RAMP_SECONDS);
-    };
-    const roomSends: Record<RoomKey, Tone.Gain> = { grit: entry.gritSend, shimmer: entry.shimmerSend, double: entry.doubleSend };
     try {
-      write(entry.reverbSend, sends.reverb);
-      write(entry.delaySend, sends.delay);
-      for (const key of ROOM_KEYS) {
+      for (const { engineKey: key } of ROBOT_SENDS) {
         const requested = sends[key];
         if (requested === undefined || Number.isNaN(requested)) continue;
-        write(roomSends[key], requested);
-        setRoomFeeder(key, robotId, clampSend(requested) > 0);
+        const level = clampSend(requested);
+        rampOrSet(entry.sends[key].gain as unknown as RampableParam, level, SEND_RAMP_SECONDS);
+        // Reverb and Delay are fixed rooms with no feeder set; the three effect rooms light only while someone feeds them.
+        if (isRoomSendKey(key)) setRoomFeeder(key, robotId, level > 0);
       }
     } catch (err) {
       devWarn('[AudioEngine] updateRobotSends failed', err);

@@ -32,6 +32,16 @@ keys are gone. The Colour section keeps its three sub-tabs and opens on Distorti
 §1.1, §1.2, §1.6–§1.8, §2, §3 and §5 below are re-stated to match; the engine machinery (`setRoomReturn`,
 `returnLevel`, the liveness rule) is unchanged and still serves the Shimmer and Double rooms.
 
+**Refactored 2026-10-22 by roadmap 55 ([ROBOT_SEND_TABLE.md](ROBOT_SEND_TABLE.md)), with no change in behaviour.** The
+five per-robot sends are one table, `ROBOT_SENDS` (`src/data/robotSends.ts`), and the code this spec describes now
+iterates it, so several names below no longer exist in `src/`: the ten named send actions (`applyGritSend` … the five
+`*Value` forms) are `applySend` / `applySendValue(robot, localeId, field, …)`; the five `*_SEND_SCHEMA`s are
+`ROBOT_SEND_SCHEMAS`; the per-send screen handlers (`on*SendChange`) and swelling flags are one `onSendChange(field, pct)`
+and one `sendSwelling` record; `VoiceEntry`'s five named send gains are one `sends` record keyed by engine key;
+`ROBOT_SEND_FIELDS` lives in `robotSends.ts`, not `robotSendLoadingRanges.ts`; and the regex reservation scan
+(`reservationSendsPrime.test.ts`) is deleted, since every site primes with `robotSendLevels(robot)`. §1 to §4 are left as
+written, the record of what this phase built; the refactor spec has the current names.
+
 Survey basis (2026-10-21, against `main` at `0b087fec`; every citation below was read, not recalled):
 
 - **The chain today.** `buildGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:169`) builds the Reverb and Delay rooms

@@ -1,3 +1,4 @@
+import { recordByField } from './robotSends';
 import { SEND_MIN, SEND_MAX } from '@/constants';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 
@@ -22,9 +23,6 @@ export const ROBOT_SWELL_FIELD_RANGE: Record<SwellRobotAttributeId, { min: numbe
   'layer0.pulseWidth': { min: 0, max: 1 }, 'layer1.pulseWidth': { min: 0, max: 1 }, 'layer2.pulseWidth': { min: 0, max: 1 },
   'adsr.attack': { min: 0, max: 10 }, 'adsr.decay': { min: 0, max: 10 },
   'adsr.sustain': { min: 0, max: 1 }, 'adsr.release': { min: 0, max: 10 },
-  // The stored 0..1 fractions (Robot.reverbSend / delaySend / gritSend / shimmerSend / doubleSend), not the sliders'
-  // 0-100 % display.
-  reverbSend: { min: SEND_MIN, max: SEND_MAX }, delaySend: { min: SEND_MIN, max: SEND_MAX },
-  gritSend: { min: SEND_MIN, max: SEND_MAX }, shimmerSend: { min: SEND_MIN, max: SEND_MAX },
-  doubleSend: { min: SEND_MIN, max: SEND_MAX },
+  // The five sends' stored 0..1 fractions, not the sliders' 0-100 % display (docs/specs/ROBOT_SEND_TABLE.md §1.5).
+  ...recordByField(() => ({ min: SEND_MIN, max: SEND_MAX })),
 };

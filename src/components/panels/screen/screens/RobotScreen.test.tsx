@@ -43,12 +43,8 @@ const levelsStub = vi.hoisted(() => {
     onPanChange: unknown;
     onPanAutoChange: unknown;
     onVolumeChange: unknown;
-    onReverbSendChange: (pct: number) => void;
-    onDelaySendChange: (pct: number) => void;
+    onSendChange: (field: string, pct: number) => void;
     onDynamicsChange: (value: number) => void;
-    onGritSendChange?: (pct: number) => void;
-    onShimmerSendChange?: (pct: number) => void;
-    onDoubleSendChange?: (pct: number) => void;
   }
   const stub = {
     renders: 0,
@@ -75,25 +71,20 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     onVolumeChange: (pct: number) => void;
     onPanChange: (display: number) => void;
     onPanAutoChange: (auto: boolean) => void;
-    onReverbSendChange: (pct: number) => void;
-    onDelaySendChange: (pct: number) => void;
+    // Robot Send Table T11 (docs/specs/ROBOT_SEND_TABLE.md §1.4): one handler and one flag record for the five sends.
+    onSendChange: (field: string, pct: number) => void;
     onDynamicsChange: (value: number) => void;
-    onGritSendChange?: (pct: number) => void;
-    onShimmerSendChange?: (pct: number) => void;
-    onDoubleSendChange?: (pct: number) => void;
     livePan?: number;
     volumeSwelling?: boolean;
-    reverbSendSwelling?: boolean;
-    delaySendSwelling?: boolean;
-    gritSendSwelling?: boolean;
-    shimmerSendSwelling?: boolean;
-    doubleSendSwelling?: boolean;
+    sendSwelling?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
+    // The five old per-field props, captured only so a case can prove the screen no longer passes them.
+    onReverbSendChange?: unknown;
+    reverbSendSwelling?: unknown;
   }) => {
     levelsStub.record({
       onPanChange: props.onPanChange, onPanAutoChange: props.onPanAutoChange, onVolumeChange: props.onVolumeChange,
-      onReverbSendChange: props.onReverbSendChange, onDelaySendChange: props.onDelaySendChange,
+      onSendChange: props.onSendChange,
       onDynamicsChange: props.onDynamicsChange,
-      onGritSendChange: props.onGritSendChange, onShimmerSendChange: props.onShimmerSendChange, onDoubleSendChange: props.onDoubleSendChange,
     });
     return (
       <div
@@ -108,26 +99,27 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-grit-send={props.value.gritSend}
         data-shimmer-send={props.value.shimmerSend}
         data-double-send={props.value.doubleSend}
-        data-has-send-handlers={String(typeof props.onReverbSendChange === 'function' && typeof props.onDelaySendChange === 'function')}
+        data-has-send-handlers={String(typeof props.onSendChange === 'function')}
+        data-has-old-send-props={String(props.onReverbSendChange !== undefined || props.reverbSendSwelling !== undefined)}
         data-live-pan={props.livePan}
         data-volume-swelling={String(props.volumeSwelling)}
-        data-reverb-swelling={String(props.reverbSendSwelling)}
-        data-delay-swelling={String(props.delaySendSwelling)}
-        data-grit-swelling={String(props.gritSendSwelling)}
-        data-shimmer-swelling={String(props.shimmerSendSwelling)}
-        data-double-swelling={String(props.doubleSendSwelling)}
+        data-reverb-swelling={String(props.sendSwelling?.reverbSend)}
+        data-delay-swelling={String(props.sendSwelling?.delaySend)}
+        data-grit-swelling={String(props.sendSwelling?.gritSend)}
+        data-shimmer-swelling={String(props.sendSwelling?.shimmerSend)}
+        data-double-swelling={String(props.sendSwelling?.doubleSend)}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
         <button onClick={() => props.onPanChange(40)}>probe-pan</button>
         <button onClick={() => props.onPanAutoChange(false)}>probe-pan-auto-off</button>
         <button onClick={() => props.onPanAutoChange(true)}>probe-pan-auto-on</button>
-        <button onClick={() => props.onReverbSendChange(40)}>probe-reverb-send</button>
-        <button onClick={() => props.onDelaySendChange(40)}>probe-delay-send</button>
+        <button onClick={() => props.onSendChange('reverbSend', 40)}>probe-reverb-send</button>
+        <button onClick={() => props.onSendChange('delaySend', 40)}>probe-delay-send</button>
         <button onClick={() => props.onDynamicsChange(65)}>probe-dynamics</button>
-        <button onClick={() => props.onGritSendChange?.(40)}>probe-grit-send</button>
-        <button onClick={() => props.onShimmerSendChange?.(40)}>probe-shimmer-send</button>
-        <button onClick={() => props.onDoubleSendChange?.(40)}>probe-double-send</button>
+        <button onClick={() => props.onSendChange('gritSend', 40)}>probe-grit-send</button>
+        <button onClick={() => props.onSendChange('shimmerSend', 40)}>probe-shimmer-send</button>
+        <button onClick={() => props.onSendChange('doubleSend', 40)}>probe-double-send</button>
       </div>
     );
   }),
@@ -610,47 +602,64 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         expect(stub.getAttribute('data-delay-send')).toBe('0.1');
       });
 
-      it('hands the section both send handlers', () => {
+      it('hands the section the one send handler and the flag record, and none of the old per-field props', () => {
         selectRobot(makeRobot('r1'), 'volume');
         render(<RobotScreen />);
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-has-send-handlers')).toBe('true');
+        const stub = screen.getByTestId('audio-setting-section-stub');
+        expect(stub.getAttribute('data-has-send-handlers')).toBe('true');
+        expect(stub.getAttribute('data-has-old-send-props')).toBe('false');
+        expect(stub.getAttribute('data-reverb-swelling')).toBe('false');
       });
 
-      it('wires onReverbSendChange to applyReverbSend with the robot and the display number, once', () => {
+      it('wires the Reverb row to applySend with the robot, reverbSend and the display number, once', () => {
         const robot = makeRobot('r1', { reverbSend: 0.2 });
         selectRobot(robot, 'volume');
-        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         render(<RobotScreen />);
         fireEvent.click(screen.getByText('probe-reverb-send'));
-        expect(reverb).toHaveBeenCalledTimes(1);
-        expect(reverb).toHaveBeenCalledWith(robot, localeId, 40);
-        expect(delay).not.toHaveBeenCalled();
+        expect(apply).toHaveBeenCalledTimes(1);
+        expect(apply).toHaveBeenCalledWith(robot, localeId, 'reverbSend', 40);
       });
 
-      it('wires onDelaySendChange to applyDelaySend with the robot and the display number, once', () => {
+      it('wires the Delay row to applySend with the robot, delaySend and the display number, once', () => {
         const robot = makeRobot('r1', { delaySend: 0.1 });
         selectRobot(robot, 'volume');
-        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         render(<RobotScreen />);
         fireEvent.click(screen.getByText('probe-delay-send'));
-        expect(delay).toHaveBeenCalledTimes(1);
-        expect(delay).toHaveBeenCalledWith(robot, localeId, 40);
-        expect(reverb).not.toHaveBeenCalled();
+        expect(apply).toHaveBeenCalledTimes(1);
+        expect(apply).toHaveBeenCalledWith(robot, localeId, 'delaySend', 40);
       });
 
-      it('the send handlers read the latest robot, not the one from the first render', () => {
+      it('the send handler reads the latest robot, not the one from the first render', () => {
         selectRobot(makeRobot('r1', { reverbSend: 0.1, delaySend: 0.1 }), 'volume');
-        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         render(<RobotScreen />);
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.7, delaySend: 0.3 }));
         fireEvent.click(screen.getByText('probe-reverb-send'));
         fireEvent.click(screen.getByText('probe-delay-send'));
-        expect(reverb.mock.calls[0][0]).toMatchObject({ id: 'r1', reverbSend: 0.7 });
-        expect(delay.mock.calls[0][0]).toMatchObject({ id: 'r1', delaySend: 0.3 });
+        expect(apply.mock.calls[0][0]).toMatchObject({ id: 'r1', reverbSend: 0.7, delaySend: 0.3 });
+        expect(apply.mock.calls.map((call) => call[2])).toEqual(['reverbSend', 'delaySend']);
       });
+
+      // docs/tasks/ROBOT_SEND_TABLE.md T11: every row goes through the one handler: cancel that field's swell on this
+      // robot, then applySend with the latest robot - once each, in that order, and nothing else.
+      it.each(['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const)(
+        'the %s row cancels that swell, then applies that field, once each and in that order',
+        (field) => {
+          selectRobot(makeRobot('r1', { [field]: 0.1 }), 'volume');
+          const order: string[] = [];
+          vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((id, attribute) => { order.push(`cancel:${id}:${attribute}`); });
+          const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation((robot, l, f, pct) => {
+            order.push(`apply:${robot.id}:${l}:${f}:${pct}`);
+          });
+          render(<RobotScreen />);
+          act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.6 }));
+          fireEvent.click(screen.getByText(`probe-${field.replace('Send', '')}-send`));
+          expect(order).toEqual([`cancel:r1:${field}`, `apply:r1:${localeId}:${field}:40`]);
+          expect(apply.mock.calls[0][0]).toMatchObject({ id: 'r1', [field]: 0.6 });
+        },
+      );
 
       // The real actions, nothing mocked but the engine: the store and the engine both receive the send.
       it('a Reverb drag reaches the store as a 0..1 fraction and the engine as a reverb-only send', () => {
@@ -693,7 +702,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         selectRobot(makeRobot('r1', { reverbSend: 0.5 }), 'volume');
         const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         render(<RobotScreen />);
-        act(() => levelsStub.last!.onReverbSendChange(display));
+        act(() => levelsStub.last!.onSendChange('reverbSend', display));
         expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.reverbSend).toBe(expected);
         expect(engine).toHaveBeenLastCalledWith('r1', { reverb: expected });
       });
@@ -702,7 +711,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         selectRobot(makeRobot('r1', { delaySend: 0.3 }), 'volume');
         vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         render(<RobotScreen />);
-        act(() => levelsStub.last!.onDelaySendChange(-20));
+        act(() => levelsStub.last!.onSendChange('delaySend', -20));
         expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.delaySend).toBe(0);
       });
 
@@ -711,8 +720,8 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         render(<RobotScreen />);
         act(() => {
-          levelsStub.last!.onReverbSendChange(NaN);
-          levelsStub.last!.onDelaySendChange(NaN);
+          levelsStub.last!.onSendChange('reverbSend', NaN);
+          levelsStub.last!.onSendChange('delaySend', NaN);
         });
         const stored = useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
         expect(stored.reverbSend).toBe(0.3);
@@ -724,7 +733,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
         vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         render(<RobotScreen />);
-        act(() => levelsStub.last!.onReverbSendChange(12.5));
+        act(() => levelsStub.last!.onSendChange('reverbSend', 12.5));
         expect(useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!.reverbSend).toBe(0.125);
       });
 
@@ -739,14 +748,13 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         expect(other.delaySend).toBe(0.8);
       });
 
-      it('the send handlers keep their identity across an unrelated robot change, and the section does not re-render', () => {
+      it('the send handler keeps its identity across an unrelated robot change, and the section does not re-render', () => {
         selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
         render(<RobotScreen />);
         const first = levelsStub.last!;
         const sectionBefore = levelsStub.renders;
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
-        expect(levelsStub.last!.onReverbSendChange).toBe(first.onReverbSendChange);
-        expect(levelsStub.last!.onDelaySendChange).toBe(first.onDelaySendChange);
+        expect(levelsStub.last!.onSendChange).toBe(first.onSendChange);
         expect(levelsStub.renders).toBe(sectionBefore);
       });
 
@@ -825,7 +833,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
 
         it('a Reverb drag cancels the reverbSend swell on this robot, and only that one', () => {
           selectRobot(makeRobot('r1'), 'volume');
-          vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+          vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
           const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
           render(<RobotScreen />);
           fireEvent.click(screen.getByText('probe-reverb-send'));
@@ -835,7 +843,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
 
         it('a Delay drag cancels the delaySend swell on this robot, and only that one', () => {
           selectRobot(makeRobot('r1'), 'volume');
-          vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+          vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
           const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
           render(<RobotScreen />);
           fireEvent.click(screen.getByText('probe-delay-send'));
@@ -847,12 +855,11 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           selectRobot(makeRobot('r1'), 'volume');
           const order: string[] = [];
           vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((_id, attribute) => { order.push(`cancel:${attribute}`); });
-          vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => { order.push('apply:reverb'); });
-          vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => { order.push('apply:delay'); });
+          vi.spyOn(robotOptionsActions, 'applySend').mockImplementation((_robot, _localeId, field) => { order.push(`apply:${field}`); });
           render(<RobotScreen />);
           fireEvent.click(screen.getByText('probe-reverb-send'));
           fireEvent.click(screen.getByText('probe-delay-send'));
-          expect(order).toEqual(['cancel:reverbSend', 'apply:reverb', 'cancel:delaySend', 'apply:delay']);
+          expect(order).toEqual(['cancel:reverbSend', 'apply:reverbSend', 'cancel:delaySend', 'apply:delaySend']);
         });
 
         it('mid-swell, a Reverb drag leaves the typed value in the store and the engine, not the swell value', () => {
@@ -876,7 +883,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
 
         it('the cancel reads the latest robot id, not the first render', () => {
           selectRobot(makeRobot('r1'), 'volume');
-          vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+          vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
           const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
           render(<RobotScreen />);
           act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.7 }));
@@ -884,24 +891,23 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           expect(cancel).toHaveBeenCalledWith('r1', 'reverbSend');
         });
 
-        it('the send handlers keep their identity when only a swell flag changes', () => {
+        it('the send handler keeps its identity when only a swell flag changes', () => {
           selectRobot(makeRobot('r1', { reverbSend: 0.2 }), 'volume');
           const spy = swellingOnly();
           render(<RobotScreen />);
           const first = levelsStub.last!;
           spy.mockImplementation((id, attribute) => id === 'r1' && attribute === 'reverbSend');
           act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.3 }));
-          expect(levelsStub.last!.onReverbSendChange).toBe(first.onReverbSendChange);
-          expect(levelsStub.last!.onDelaySendChange).toBe(first.onDelaySendChange);
+          expect(levelsStub.last!.onSendChange).toBe(first.onSendChange);
         });
       });
 
       // docs/tasks/ROBOT_EFFECT_SENDS.md Task 13: Grit, Shimmer and Double get the same swell flag and hand-edit cancel.
       describe.each([
-        { field: 'gritSend', flag: 'grit', probe: 'probe-grit-send', action: 'applyGritSend', handler: 'onGritSendChange', key: 'grit' },
-        { field: 'shimmerSend', flag: 'shimmer', probe: 'probe-shimmer-send', action: 'applyShimmerSend', handler: 'onShimmerSendChange', key: 'shimmer' },
-        { field: 'doubleSend', flag: 'double', probe: 'probe-double-send', action: 'applyDoubleSend', handler: 'onDoubleSendChange', key: 'double' },
-      ] as const)('$field swell flag and the hand-edit cancel (Robot Effect Sends T13)', ({ field, flag, probe, action, handler, key }) => {
+        { field: 'gritSend', flag: 'grit', probe: 'probe-grit-send', key: 'grit' },
+        { field: 'shimmerSend', flag: 'shimmer', probe: 'probe-shimmer-send', key: 'shimmer' },
+        { field: 'doubleSend', flag: 'double', probe: 'probe-double-send', key: 'double' },
+      ] as const)('$field swell flag and the hand-edit cancel (Robot Effect Sends T13)', ({ field, flag, probe, key }) => {
         const SEND_FLAGS = ['volume', 'reverb', 'delay', 'grit', 'shimmer', 'double'] as const;
         const swellingOnly = (...attributes: string[]) =>
           vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r1' && attributes.includes(attribute));
@@ -953,16 +959,16 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           expect(flags()).toEqual(onlyFlag(flag));
         });
 
-        it(`a drag cancels the ${field} swell on this robot, and only that one, before ${action} runs`, () => {
+        it(`a drag cancels the ${field} swell on this robot, and only that one, before applySend runs`, () => {
           selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
           const order: string[] = [];
           const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((_id, attribute) => { order.push(`cancel:${attribute}`); });
-          vi.spyOn(robotOptionsActions, action).mockImplementation(() => { order.push('apply'); });
+          vi.spyOn(robotOptionsActions, 'applySend').mockImplementation((_robot, _localeId, f) => { order.push(`apply:${f}`); });
           render(<RobotScreen />);
           fireEvent.click(screen.getByText(probe));
           expect(cancel).toHaveBeenCalledTimes(1);
           expect(cancel).toHaveBeenCalledWith('r1', field);
-          expect(order).toEqual([`cancel:${field}`, 'apply']);
+          expect(order).toEqual([`cancel:${field}`, `apply:${field}`]);
         });
 
         it('mid-swell, a drag leaves the typed value in the store and the engine, not the swell value', () => {
@@ -976,24 +982,25 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
 
         it('the cancel reads the latest robot, after the store has moved on', () => {
           selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
-          const apply = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+          const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
           const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
           render(<RobotScreen />);
           act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.7 }));
           fireEvent.click(screen.getByText(probe));
           expect(cancel).toHaveBeenCalledWith('r1', field);
           expect(apply.mock.calls[0][0]).toMatchObject({ id: 'r1', [field]: 0.7 });
+          expect(apply.mock.calls[0][2]).toBe(field);
         });
 
         it('the handler keeps its identity when only the swell flag changes', () => {
           selectRobot(makeRobot('r1', { [field]: 0.2 }), 'volume');
           const spy = swellingOnly();
           render(<RobotScreen />);
-          const first = levelsStub.last![handler];
+          const first = levelsStub.last!.onSendChange;
           spy.mockImplementation((id, attribute) => id === 'r1' && attribute === field);
           act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.3 }));
           expect(flags()[flag]).toBe('true');
-          expect(levelsStub.last![handler]).toBe(first);
+          expect(levelsStub.last!.onSendChange).toBe(first);
         });
       });
 
@@ -1012,11 +1019,10 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
     // action. The swell flags and the hand-edit cancel arrive in Task 13.
     describe('Grit, Shimmer and Double sends (Robot Effect Sends Task 11)', () => {
       const SENDS = [
-        { name: 'Grit', field: 'gritSend', attr: 'data-grit-send', button: 'probe-grit-send', action: 'applyGritSend', engineKey: 'grit', handler: 'onGritSendChange' },
-        { name: 'Shimmer', field: 'shimmerSend', attr: 'data-shimmer-send', button: 'probe-shimmer-send', action: 'applyShimmerSend', engineKey: 'shimmer', handler: 'onShimmerSendChange' },
-        { name: 'Double', field: 'doubleSend', attr: 'data-double-send', button: 'probe-double-send', action: 'applyDoubleSend', engineKey: 'double', handler: 'onDoubleSendChange' },
+        { name: 'Grit', field: 'gritSend', attr: 'data-grit-send', button: 'probe-grit-send', engineKey: 'grit' },
+        { name: 'Shimmer', field: 'shimmerSend', attr: 'data-shimmer-send', button: 'probe-shimmer-send', engineKey: 'shimmer' },
+        { name: 'Double', field: 'doubleSend', attr: 'data-double-send', button: 'probe-double-send', engineKey: 'double' },
       ] as const;
-      const ALL_SEND_ACTIONS = ['applyReverbSend', 'applyDelaySend', 'applyGritSend', 'applyShimmerSend', 'applyDoubleSend'] as const;
       const stub = () => screen.getByTestId('audio-setting-section-stub');
       const storedR1 = () => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
 
@@ -1034,13 +1040,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         SENDS.forEach(({ attr }) => expect(stub().getAttribute(attr)).toBe('0'));
       });
 
-      it('hands the section all three handlers', () => {
-        selectRobot(makeRobot('r1'), 'volume');
-        render(<RobotScreen />);
-        SENDS.forEach(({ handler }) => expect(typeof levelsStub.last![handler]).toBe('function'));
-      });
-
-      describe.each(SENDS)('$name', ({ field, attr, button, action, engineKey }) => {
+      describe.each(SENDS)('$name', ({ field, attr, button, engineKey }) => {
         it('follows the store: an edit elsewhere reaches the section on the next render, and re-renders it once', () => {
           selectRobot(makeRobot('r1', { gritSend: 0, shimmerSend: 0, doubleSend: 0 }), 'volume');
           render(<RobotScreen />);
@@ -1050,20 +1050,18 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           expect(levelsStub.renders).toBe(before + 1);
         });
 
-        it(`routes its handler to ${action} with the robot and the display number, once, and to no other send action`, () => {
+        it(`routes its row to applySend with the robot, ${field} and the display number, once`, () => {
           const robot = makeRobot('r1', { gritSend: 0.1, shimmerSend: 0.1, doubleSend: 0.1 });
           selectRobot(robot, 'volume');
-          const spies = Object.fromEntries(ALL_SEND_ACTIONS.map((a) => [a, vi.spyOn(robotOptionsActions, a).mockImplementation(() => {})]));
+          const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
           render(<RobotScreen />);
           fireEvent.click(screen.getByText(button));
-          expect(spies[action]).toHaveBeenCalledTimes(1);
-          expect(spies[action]).toHaveBeenCalledWith(robot, localeId, 40);
-          ALL_SEND_ACTIONS.filter((a) => a !== action).forEach((a) => expect(spies[a], a).not.toHaveBeenCalled());
+          expect(apply.mock.calls).toEqual([[robot, localeId, field, 40]]);
         });
 
         it('the handler reads the latest robot, not the one from the first render', () => {
           selectRobot(makeRobot('r1', { [field]: 0.1 }), 'volume');
-          const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+          const spy = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
           render(<RobotScreen />);
           act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.7 }));
           fireEvent.click(screen.getByText(button));
@@ -1092,29 +1090,19 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         selectRobot(makeRobot('r1', { gritSend: 0.3, shimmerSend: 0.3 }), 'volume');
         const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         render(<RobotScreen />);
-        act(() => levelsStub.last!.onGritSendChange!(150));
-        act(() => levelsStub.last!.onShimmerSendChange!(NaN));
+        act(() => levelsStub.last!.onSendChange('gritSend', 150));
+        act(() => levelsStub.last!.onSendChange('shimmerSend', NaN));
         expect(storedR1().gritSend).toBe(1);
         expect(storedR1().shimmerSend).toBe(0.3);
         expect(engine).toHaveBeenCalledTimes(1);
       });
 
-      it('the three handlers keep their identity across an unrelated robot change, and the section does not re-render', () => {
-        selectRobot(makeRobot('r1'), 'volume');
-        render(<RobotScreen />);
-        const first = levelsStub.last!;
-        const sectionBefore = levelsStub.renders;
-        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 10 }));
-        SENDS.forEach(({ handler }) => expect(levelsStub.last![handler]).toBe(first[handler]));
-        expect(levelsStub.renders).toBe(sectionBefore);
-      });
-
-      it('the three handlers keep their identity across a send edit (only the value changes)', () => {
+      it('the send handler keeps its identity across a send edit (only the value changes)', () => {
         selectRobot(makeRobot('r1', { gritSend: 0.1 }), 'volume');
         render(<RobotScreen />);
         const first = levelsStub.last!;
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { gritSend: 0.5 }));
-        SENDS.forEach(({ handler }) => expect(levelsStub.last![handler]).toBe(first[handler]));
+        expect(levelsStub.last!.onSendChange).toBe(first.onSendChange);
       });
 
       it('a drag on one robot leaves another robot untouched', () => {

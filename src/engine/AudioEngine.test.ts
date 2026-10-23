@@ -4002,6 +4002,23 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       expect(() => AudioEngine.updateRobotSends('stubbed', { reverb: 0.4, delay: 0.2 })).not.toThrow();
       expect(() => AudioEngine.releaseVoice('stubbed')).not.toThrow();
     });
+
+    // Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the fallback builds its five stubs keyed by engine key,
+    // in table order, so each key's write lands on its own stub.
+    it('the stub-fallback voice takes each of the five sends on its own stub gain, in table order', async () => {
+      const { AudioEngine } = await setup();
+      const helpers = await import('./audioEngine/toneHelpers');
+      const stubGain = vi.spyOn(helpers, 'makeStubGain');
+      vi.spyOn(AudioEngine, 'createCompositeVoice').mockImplementation(() => { throw new Error('boom'); });
+      AudioEngine.reserveVoice('stubbed', LAYERS as any, TEST_ADSR);
+      const stubs = stubGain.mock.results
+        .filter((_r, i) => stubGain.mock.calls[i][0] === 0)
+        .map((r) => r.value as { gain: { value: number } });
+
+      AudioEngine.updateRobotSends('stubbed', { reverb: 0.11, delay: 0.22, grit: 0.33, shimmer: 0.44, double: 0.55 });
+
+      expect(stubs.map((s) => s.gain.value)).toEqual([0.11, 0.22, 0.33, 0.44, 0.55]);
+    });
   });
 
   describe('updateRobotSends', () => {
@@ -4096,6 +4113,36 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       AudioEngine.updateRobotSends('b', { reverb: 0.9 });
       expect(b.reverb.gain.rampTo).toHaveBeenCalledWith(0.9, 0.05);
       expect(a.reverb.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    // Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2, assumption 2): one loop over the table.
+    const KEYS = ['reverb', 'delay', 'grit', 'shimmer', 'double'] as const;
+
+    it('lands all five on their own gains, each to its own value', async () => {
+      const { AudioEngine, reserve } = await setup();
+      const sends = reserve('r1');
+      for (const key of KEYS) sends[key].gain.rampTo = vi.fn();
+      AudioEngine.updateRobotSends('r1', { reverb: 0.11, delay: 0.22, grit: 0.33, shimmer: 0.44, double: 0.55 });
+      expect(KEYS.map((key) => sends[key].gain.rampTo!.mock.calls)).toEqual([
+        [[0.11, 0.05]], [[0.22, 0.05]], [[0.33, 0.05]], [[0.44, 0.05]], [[0.55, 0.05]],
+      ]);
+    });
+
+    it('writes in table order, not in the order the caller built the object', async () => {
+      const { AudioEngine, reserve } = await setup();
+      const sends = reserve('r1');
+      const writes: string[] = [];
+      for (const key of KEYS) sends[key].gain.rampTo = vi.fn(() => { writes.push(key); });
+      AudioEngine.updateRobotSends('r1', { double: 0.1, shimmer: 0.2, delay: 0.3, grit: 0.4, reverb: 0.5 });
+      expect(writes).toEqual(['reverb', 'delay', 'grit', 'shimmer', 'double']);
+    });
+
+    it('ignores a key that is not a send (a stray field writes nothing and throws nothing)', async () => {
+      const { AudioEngine, reserve } = await setup();
+      const sends = reserve('r1');
+      for (const key of KEYS) sends[key].gain.rampTo = vi.fn();
+      expect(() => AudioEngine.updateRobotSends('r1', { chorus: 0.5 } as never)).not.toThrow();
+      for (const key of KEYS) expect(sends[key].gain.rampTo, key).not.toHaveBeenCalled();
     });
   });
 
@@ -4515,6 +4562,12 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
 
       expect(primeSpy.mock.calls).toEqual([['m1', { reverb: 0.3, delay: 0.1, grit: 0.55, shimmer: 0.2, double: 0.35 }]]);
       expect(roomSendGains().map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.55, 0.2, 0.35]);
+      // Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the prime is robotSendLevels of the stored robot.
+      const { robotSendLevels } = await import('../data/robotSends');
+      expect(primeSpy.mock.calls[0][1]).toEqual(
+        robotSendLevels({ reverbSend: 0.3, delaySend: 0.1, gritSend: 0.55, shimmerSend: 0.2, doubleSend: 0.35 }),
+      );
+      expect(Object.keys(primeSpy.mock.calls[0][1])).toEqual(['reverb', 'delay', 'grit', 'shimmer', 'double']);
       teardown();
     });
 
@@ -4593,6 +4646,21 @@ describe('AudioEngine - reservation primes the sends from the store (Robot Sends
       const after = roomSendGains();
       expect(after).toHaveLength(6);
       expect(after.slice(3).map((g: { gain: { value: number } }) => g.gain.value)).toEqual([0.6, 0.25, 0.4]);
+      teardown();
+    });
+
+    // Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2): both engine primes hand over robotSendLevels(robot).
+    it('primes the rebuilt voice with robotSendLevels of the stored robot, all five, in table order', async () => {
+      const five = { reverbSend: 0.31, delaySend: 0.12, gritSend: 0.57, shimmerSend: 0.24, doubleSend: 0.43 };
+      const { AudioEngine, primeSpy, teardown } = await prepare([storeRobot('m1', five)]);
+      const { robotSendLevels } = await import('../data/robotSends');
+      await AudioEngine.start();
+      primeSpy.mockClear();
+
+      AudioEngine.reReserveVoice('m1');
+
+      expect(primeSpy.mock.calls).toEqual([['m1', robotSendLevels(five)]]);
+      expect(JSON.stringify(primeSpy.mock.calls[0][1])).toBe('{"reverb":0.31,"delay":0.12,"grit":0.57,"shimmer":0.24,"double":0.43}');
       teardown();
     });
 

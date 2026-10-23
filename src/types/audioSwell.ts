@@ -7,6 +7,7 @@
  */
 
 import type { GlobalLfoTargetId } from './lfo';
+import { ROBOT_SEND_FIELDS, type RobotSendField } from '../data/robotSends';
 
 // ========================================
 // GLOBAL POOL TARGETS
@@ -57,15 +58,16 @@ export type SwellRobotAttributeId =
   | 'layer1.gain' | 'layer1.detune' | 'layer1.phase' | 'layer1.pulseWidth'
   | 'layer2.gain' | 'layer2.detune' | 'layer2.phase' | 'layer2.pulseWidth'
   | 'adsr.attack' | 'adsr.decay' | 'adsr.sustain' | 'adsr.release'
-  | 'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend';
+  | RobotSendField;
 
+// The sends come from the one field list, in its order, and stay last (docs/specs/ROBOT_SEND_TABLE.md §1.5).
 export const SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId[] = [
   'volume',
   'layer0.gain', 'layer0.detune', 'layer0.phase', 'layer0.pulseWidth',
   'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
   'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
   'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
-  'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend',
+  ...ROBOT_SEND_FIELDS,
 ];
 
 // ========================================

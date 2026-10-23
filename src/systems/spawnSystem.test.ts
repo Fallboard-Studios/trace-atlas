@@ -22,6 +22,7 @@ import {
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
+import { robotSendLevels } from '../data/robotSends';
 import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { getStations, type Station } from './stations';
@@ -1159,6 +1160,9 @@ describe('spawnSystem', () => {
         expect(sendsSpy).toHaveBeenCalledWith(robot.id, {
           reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
         });
+        // Robot Send Table T5 (docs/specs/ROBOT_SEND_TABLE.md §1.1): the prime is robotSendLevels(robot), in table order.
+        expect(sendsSpy.mock.calls[0][1]).toEqual(robotSendLevels(robot));
+        expect(Object.keys(sendsSpy.mock.calls[0][1])).toEqual(['reverb', 'delay', 'grit', 'shimmer', 'double']);
       });
 
       it('primes after the reservation, not before - the gains do not exist until reserveVoice builds them', () => {
@@ -2163,6 +2167,10 @@ describe('spawnSystem', () => {
           [robots[1].id, { reverb: 0, delay: 0, grit: 0, shimmer: 0, double: 0 }],
           [robots[2].id, { reverb: 1, delay: 0.45, grit: 0, shimmer: 0.35, double: 0.42 }],
         ]);
+        // Robot Send Table T5: each is robotSendLevels of the stored robot, keys in table order.
+        const stored = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        expect(sendsSpy.mock.calls.map((c) => c[1])).toEqual(stored.map(robotSendLevels));
+        expect(sendsSpy.mock.calls.map((c) => JSON.stringify(c[1]))[2]).toBe('{"reverb":1,"delay":0.45,"grit":0,"shimmer":0.35,"double":0.42}');
       });
 
       it('primes each robot after that robot is reserved, not before - the release has already cleared the engine', () => {

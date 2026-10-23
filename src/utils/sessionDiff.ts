@@ -25,6 +25,7 @@ import {
 } from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
+import { ROBOT_SEND_FIELDS, engineKeyOf } from '../data/robotSends';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
@@ -43,15 +44,6 @@ import { isAudioContextRunning } from '../engine/lfoShared';
 // ========================================
 // FUNCTIONS
 // ========================================
-
-/** Each stored robot send and the updateRobotSends key that primes it (Robot Sends §1.4, Robot Effect Sends §1.4). */
-const SEND_PRIME_KEYS = [
-  ['reverbSend', 'reverb'],
-  ['delaySend', 'delay'],
-  ['gritSend', 'grit'],
-  ['shimmerSend', 'shimmer'],
-  ['doubleSend', 'double'],
-] as const;
 
 /** Structural equality over plain JSON-shaped values (numbers, strings, booleans, arrays, plain
  *  objects) — every field this module compares is one of those. Not a general-purpose deep-equal
@@ -333,7 +325,7 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
 
   // Robot Sends (docs/specs/ROBOT_SENDS.md §1.8): compared at the slider's two decimals on both sides, so float noise
   // and a seed off the grid never read as a change. A swell in flight saves its base (never the mid-ramp value).
-  for (const [field] of SEND_PRIME_KEYS) {
+  for (const field of ROBOT_SEND_FIELDS) {
     const saved = roundToDecimals(extractSwellBaseValueIfActive(live.id, field) ?? live[field], 2);
     if (saved !== roundToDecimals(baseline[field], 2)) diff[field] = saved;
   }
@@ -477,7 +469,7 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   }
   // A send is a number inside [SEND_MIN, SEND_MAX] or it is ignored whole, key by key (a payload is untrusted here):
   // one bad send never costs the other, or any field beside it. The range test alone rejects NaN and the infinities.
-  for (const [field] of SEND_PRIME_KEYS) {
+  for (const field of ROBOT_SEND_FIELDS) {
     const send = diff[field];
     if (typeof send === 'number' && send >= SEND_MIN && send <= SEND_MAX) updates[field] = send;
   }
@@ -652,9 +644,9 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
       if (updates.panAuto === false) AudioEngine.updateRobotPan(updatedRobot.id, updatedRobot.pan);
       // Robot Sends: primes from the STORED values, and only the sends this diff carried (validated above).
       // A no-op before the audio context starts; loadInstruments' reservation pass reads the store then.
-      // Robot Effect Sends T6: the five sends by one table, so a carried Grit, Shimmer or Double send is primed the same way.
+      // The five sends by one table, in its order (docs/specs/ROBOT_SEND_TABLE.md §1.5), keyed for the engine.
       const primes = Object.fromEntries(
-        SEND_PRIME_KEYS.filter(([field]) => updates[field] !== undefined).map(([field, key]) => [key, updatedRobot[field]]),
+        ROBOT_SEND_FIELDS.filter((field) => updates[field] !== undefined).map((field) => [engineKeyOf(field), updatedRobot[field]]),
       );
       if (Object.keys(primes).length > 0) AudioEngine.updateRobotSends(updatedRobot.id, primes);
       // Robot Articulation: primes only the keys this diff carried and validated, from the stored robot.

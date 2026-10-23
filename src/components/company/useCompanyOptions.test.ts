@@ -584,59 +584,57 @@ describe('useCompanyOptions', () => {
       });
     });
 
-    describe('onReverbSendChange / onDelaySendChange', () => {
-      it('onReverbSendChange(40) interrupts and applies once per member with 40, and records only { reverbSend: 0.4 }', () => {
+    describe("onSendChange('reverbSend' | 'delaySend', pct)", () => {
+      it("onSendChange('reverbSend', 40) interrupts and applies once per member with 40, and records only { reverbSend: 0.4 }", () => {
         twoMembersWithSends();
-        const apply = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onReverbSendChange(40));
+        act(() => result.current.options.onSendChange('reverbSend', 40));
 
         expect(apply).toHaveBeenCalledTimes(2);
         expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
-        expect(apply.mock.calls.every((c) => c[1] === localeId && c[2] === 40)).toBe(true);
+        expect(apply.mock.calls.every((c) => c[1] === localeId && c[2] === 'reverbSend' && c[3] === 40)).toBe(true);
         expect(cancel.mock.calls.map((c) => [c[0], c[1]]).sort()).toEqual([['r1', 'reverbSend'], ['r2', 'reverbSend']]);
         expect(lastEdited()).toEqual({ reverbSend: 0.4 });
       });
 
-      it('onDelaySendChange(40) mirrors it for delaySend', () => {
+      it("onSendChange('delaySend', 40) mirrors it for delaySend", () => {
         twoMembersWithSends();
-        const apply = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onDelaySendChange(40));
+        act(() => result.current.options.onSendChange('delaySend', 40));
 
         expect(apply).toHaveBeenCalledTimes(2);
-        expect(apply.mock.calls.every((c) => c[2] === 40)).toBe(true);
+        expect(apply.mock.calls.every((c) => c[2] === 'delaySend' && c[3] === 40)).toBe(true);
         expect(cancel.mock.calls.map((c) => [c[0], c[1]]).sort()).toEqual([['r1', 'delaySend'], ['r2', 'delaySend']]);
         expect(lastEdited()).toEqual({ delaySend: 0.4 });
       });
 
-      it('each handler leaves the other send alone: no other action, no other cancel, no other snapshot key', () => {
+      it('a Reverb edit leaves the other send alone: no other field applied, no other cancel, no other snapshot key', () => {
         twoMembersWithSends();
-        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onReverbSendChange(40));
+        act(() => result.current.options.onSendChange('reverbSend', 40));
 
-        expect(delay).not.toHaveBeenCalled();
+        expect(apply.mock.calls.map((c) => c[2])).toEqual(['reverbSend', 'reverbSend']);
         expect(cancel.mock.calls.some((c) => c[1] === 'delaySend')).toBe(false);
         expect(lastEdited()).not.toHaveProperty('delaySend');
-        expect(reverb).toHaveBeenCalledTimes(2);
       });
 
       it('interrupts each member before applying to it, so the typed value is the last write', () => {
         twoMembersWithSends();
         const order: string[] = [];
         vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((id, attr) => { order.push(`cancel:${id}:${attr}`); });
-        vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation((robot) => { order.push(`apply:${robot.id}`); });
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation((robot) => { order.push(`apply:${robot.id}`); });
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onReverbSendChange(40));
+        act(() => result.current.options.onSendChange('reverbSend', 40));
 
         expect(order).toEqual(['cancel:r1:reverbSend', 'apply:r1', 'cancel:r2:reverbSend', 'apply:r2']);
       });
@@ -649,56 +647,54 @@ describe('useCompanyOptions', () => {
         ['a fraction of a percent', 12.5, 0.125],
       ] as const)('a Reverb value %s records the clamped fraction the members store', (_name, display, expected) => {
         twoMembersWithSends();
-        vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onReverbSendChange(display));
+        act(() => result.current.options.onSendChange('reverbSend', display));
 
         expect(lastEdited()).toEqual({ reverbSend: expected });
       });
 
       it('a Delay value past either end records the clamped fraction too', () => {
         twoMembersWithSends();
-        vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onDelaySendChange(250));
+        act(() => result.current.options.onSendChange('delaySend', 250));
         expect(lastEdited()).toEqual({ delaySend: 1 });
-        act(() => result.current.options.onDelaySendChange(-3));
+        act(() => result.current.options.onSendChange('delaySend', -3));
         expect(lastEdited()).toEqual({ delaySend: 0 });
       });
 
       it('a NaN is dropped whole: no cancel, no action, no snapshot', () => {
         twoMembersWithSends();
-        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
         act(() => {
-          result.current.options.onReverbSendChange(NaN);
-          result.current.options.onDelaySendChange(NaN);
+          result.current.options.onSendChange('reverbSend', NaN);
+          result.current.options.onSendChange('delaySend', NaN);
         });
 
-        expect(reverb).not.toHaveBeenCalled();
-        expect(delay).not.toHaveBeenCalled();
+        expect(apply).not.toHaveBeenCalled();
         expect(cancel).not.toHaveBeenCalled();
         expect(lastEdited()).toBeUndefined();
       });
 
       it('with no members there is nothing to broadcast to and nothing to record', () => {
         addCompany('c1', []);
-        const reverb = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-        const delay = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
+        const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
         act(() => {
-          result.current.options.onReverbSendChange(50);
-          result.current.options.onDelaySendChange(50);
+          result.current.options.onSendChange('reverbSend', 50);
+          result.current.options.onSendChange('delaySend', 50);
         });
 
-        expect(reverb).not.toHaveBeenCalled();
-        expect(delay).not.toHaveBeenCalled();
+        expect(apply).not.toHaveBeenCalled();
+        expect(cancel).not.toHaveBeenCalled();
         expect(lastEdited()).toBeUndefined();
       });
 
@@ -706,12 +702,12 @@ describe('useCompanyOptions', () => {
         addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
         addRobot(makeRobot({ id: 'r2', companyId: undefined }));
         addCompany('c1', ['r1']);
-        const apply = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
-        const held = result.current.options.onReverbSendChange;
+        const held = result.current.options.onSendChange;
 
         act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r2', 'c1'));
-        act(() => held(50));
+        act(() => held('reverbSend', 50));
 
         expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
       });
@@ -720,10 +716,10 @@ describe('useCompanyOptions', () => {
         addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
         addRobot(makeRobot({ id: 'r2', companyId: undefined }));
         addCompany('c1', ['r1']);
-        const apply = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('all'));
 
-        act(() => result.current.options.onDelaySendChange(30));
+        act(() => result.current.options.onSendChange('delaySend', 30));
 
         expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
         expect(useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions).toEqual({ delaySend: 0.3 });
@@ -736,7 +732,7 @@ describe('useCompanyOptions', () => {
         const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onReverbSendChange(40));
+        act(() => result.current.options.onSendChange('reverbSend', 40));
 
         expect(stored('r1')).toMatchObject({ reverbSend: 0.4, delaySend: 0.2 });
         expect(stored('r2')).toMatchObject({ reverbSend: 0.4, delaySend: 0.6 });
@@ -752,7 +748,7 @@ describe('useCompanyOptions', () => {
         vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options.onReverbSendChange(10));
+        act(() => result.current.options.onSendChange('reverbSend', 10));
 
         expect(stored('r9')).toMatchObject({ reverbSend: 0.9, delaySend: 0.9 });
       });
@@ -769,20 +765,40 @@ describe('useCompanyOptions', () => {
         act(() => result.current.options.onVolumeChange(50)); // records a snapshot, so the options object is rebuilt
 
         expect(result.current.options).not.toBe(first);
-        expect(result.current.options.onReverbSendChange).toBe(first.onReverbSendChange);
-        expect(result.current.options.onDelaySendChange).toBe(first.onDelaySendChange);
+        expect(result.current.options.onSendChange).toBe(first.onSendChange);
       });
 
-      it('the handlers keep their identity across a send edit of their own', () => {
+      it('the handler keeps its identity across a send edit of its own', () => {
         twoMembersWithSends();
-        vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
         const first = result.current.options;
 
-        act(() => result.current.options.onReverbSendChange(40));
+        act(() => result.current.options.onSendChange('reverbSend', 40));
 
-        expect(result.current.options.onReverbSendChange).toBe(first.onReverbSendChange);
-        expect(result.current.options.onDelaySendChange).toBe(first.onDelaySendChange);
+        expect(result.current.options.onSendChange).toBe(first.onSendChange);
+      });
+
+      it('the options carry one send handler and one flag record, and none of the ten per-field members (Robot Send Table T12)', () => {
+        twoMembersWithSends();
+        const { options } = renderHook(() => useCompanyOptions('c1')).result.current;
+        expect(typeof options.onSendChange).toBe('function');
+        expect(Object.keys(options.sendSwelling)).toEqual(['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend']);
+        const keys = Object.keys(options);
+        for (const name of ['Reverb', 'Delay', 'Grit', 'Shimmer', 'Double']) {
+          expect(keys, name).not.toContain(`on${name}SendChange`);
+          expect(keys, name).not.toContain(`${name.toLowerCase()}SendSwelling`);
+        }
+      });
+
+      it('the flag record keeps its identity while no flag changes, so the options do not rebuild for it', () => {
+        twoMembersWithSends();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options.sendSwelling;
+
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 5 }));
+
+        expect(result.current.options.sendSwelling).toBe(first);
       });
 
       it('the options object keeps its identity through an edit that changes nothing in it (a non-first member\'s battery)', () => {
@@ -805,8 +821,8 @@ describe('useCompanyOptions', () => {
 
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        expect(result.current.options.reverbSendSwelling).toBe(true);
-        expect(result.current.options.delaySendSwelling).toBe(false); // r2 is not the first member
+        expect(result.current.options.sendSwelling.reverbSend).toBe(true);
+        expect(result.current.options.sendSwelling.delaySend).toBe(false); // r2 is not the first member
         expect(result.current.options.volumeSwelling).toBe(false);
       });
 
@@ -816,8 +832,8 @@ describe('useCompanyOptions', () => {
 
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        expect(result.current.options.reverbSendSwelling).toBe(true);
-        expect(result.current.options.delaySendSwelling).toBe(false);
+        expect(result.current.options.sendSwelling.reverbSend).toBe(true);
+        expect(result.current.options.sendSwelling.delaySend).toBe(false);
       });
 
       it.each(['reverbSend', 'delaySend'] as const)('%s\'s flag is recomputed when a swell tick writes that send (the module-scope Map is not tracked by React)', (field) => {
@@ -826,7 +842,7 @@ describe('useCompanyOptions', () => {
         let swelling = false;
         vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => swelling && attr === field);
         const { result } = renderHook(() => useCompanyOptions('c1'));
-        const flag = () => (field === 'reverbSend' ? result.current.options.reverbSendSwelling : result.current.options.delaySendSwelling);
+        const flag = () => result.current.options.sendSwelling[field];
         expect(flag()).toBe(false);
 
         swelling = true;
@@ -835,23 +851,51 @@ describe('useCompanyOptions', () => {
         expect(flag()).toBe(true);
       });
 
+      // Robot Send Table T12: the flags are read on every render (useSendSwellingFlags), so a flip on a render that changes
+      // nothing else in the options (a non-first member's battery tick) must still rebuild them.
+      it('a flag that flips while the hook re-renders for an unrelated change still reaches the options', () => {
+        twoMembersWithSends();
+        let swelling = false;
+        vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attr) => swelling && id === 'r1' && attr === 'delaySend');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.sendSwelling.delaySend).toBe(false);
+
+        swelling = true;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { batteryLevel: 5 }));
+
+        expect(result.current.options.sendSwelling.delaySend).toBe(true);
+      });
+
+      it('the send handler keeps its identity when only a swell flag changes', () => {
+        twoMembersWithSends();
+        let swelling = false;
+        vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attr) => swelling && id === 'r1' && attr === 'reverbSend');
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        const first = result.current.options.onSendChange;
+
+        swelling = true;
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.5 }));
+
+        expect(result.current.options.sendSwelling.reverbSend).toBe(true);
+        expect(result.current.options.onSendChange).toBe(first);
+      });
+
       it('are false when there is no first member', () => {
         const { result } = renderHook(() => useCompanyOptions('all'));
 
-        expect(result.current.options.reverbSendSwelling).toBe(false);
-        expect(result.current.options.delaySendSwelling).toBe(false);
+        expect(result.current.options.sendSwelling).toEqual({ reverbSend: false, delaySend: false, gritSend: false, shimmerSend: false, doubleSend: false });
       });
     });
   });
 
-  // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14: Grit, Shimmer and Double broadcast on onReverbSendChange's shape.
+  // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14: Grit, Shimmer and Double broadcast on Reverb's shape (one onSendChange for
+  // all five since docs/tasks/ROBOT_SEND_TABLE.md Task 12).
   describe.each([
-    { field: 'gritSend', action: 'applyGritSend', handler: 'onGritSendChange', flag: 'gritSendSwelling', key: 'grit' },
-    { field: 'shimmerSend', action: 'applyShimmerSend', handler: 'onShimmerSendChange', flag: 'shimmerSendSwelling', key: 'shimmer' },
-    { field: 'doubleSend', action: 'applyDoubleSend', handler: 'onDoubleSendChange', flag: 'doubleSendSwelling', key: 'double' },
-  ] as const)('$field (Robot Effect Sends Task 14)', ({ field, action, handler, flag, key }) => {
+    { field: 'gritSend', key: 'grit' },
+    { field: 'shimmerSend', key: 'shimmer' },
+    { field: 'doubleSend', key: 'double' },
+  ] as const)('$field (Robot Effect Sends Task 14)', ({ field, key }) => {
     const SEND_FIELDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
-    const SEND_ACTIONS = ['applyReverbSend', 'applyDelaySend', 'applyGritSend', 'applyShimmerSend', 'applyDoubleSend'] as const;
     const lastEdited = (id = 'c1') => useLocaleStore.getState().getCompanyById(localeId, id)?.lastEditedOptions;
     const stored = (id: string) => useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
 
@@ -897,31 +941,31 @@ describe('useCompanyOptions', () => {
       });
     });
 
-    describe(`${handler}`, () => {
-      it(`${handler}(40) interrupts and applies once per member with 40, and records only { ${field}: 0.4 }`, () => {
+    describe(`onSendChange('${field}', pct)`, () => {
+      it(`onSendChange('${field}', 40) interrupts and applies once per member with 40, and records only { ${field}: 0.4 }`, () => {
         twoMembersWithSends();
-        const apply = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](40));
+        act(() => result.current.options.onSendChange(field, 40));
 
         expect(apply).toHaveBeenCalledTimes(2);
         expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
-        expect(apply.mock.calls.every((c) => c[1] === localeId && c[2] === 40)).toBe(true);
+        expect(apply.mock.calls.every((c) => c[1] === localeId && c[2] === field && c[3] === 40)).toBe(true);
         expect(cancel.mock.calls.map((c) => [c[0], c[1]]).sort()).toEqual([['r1', field], ['r2', field]]);
         expect(lastEdited()).toEqual({ [field]: 0.4 });
       });
 
-      it('touches no other send: no other action, no other cancel, no other snapshot key', () => {
+      it('touches no other send: no other field applied, no other cancel, no other snapshot key', () => {
         twoMembersWithSends();
-        const spies = Object.fromEntries(SEND_ACTIONS.map((name) => [name, vi.spyOn(robotOptionsActions, name).mockImplementation(() => {})]));
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](40));
+        act(() => result.current.options.onSendChange(field, 40));
 
-        for (const name of SEND_ACTIONS) if (name !== action) expect(spies[name], name).not.toHaveBeenCalled();
+        expect(apply.mock.calls.map((c) => c[2])).toEqual([field, field]);
         expect(cancel.mock.calls.every((c) => c[1] === field)).toBe(true);
         expect(Object.keys(lastEdited()!)).toEqual([field]);
       });
@@ -930,10 +974,10 @@ describe('useCompanyOptions', () => {
         twoMembersWithSends();
         const order: string[] = [];
         vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute').mockImplementation((id, attr) => { order.push(`cancel:${id}:${attr}`); });
-        vi.spyOn(robotOptionsActions, action).mockImplementation((...args) => { order.push(`apply:${args[0].id}`); });
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation((...args) => { order.push(`apply:${args[0].id}`); });
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](40));
+        act(() => result.current.options.onSendChange(field, 40));
 
         expect(order).toEqual([`cancel:r1:${field}`, 'apply:r1', `cancel:r2:${field}`, 'apply:r2']);
       });
@@ -945,21 +989,21 @@ describe('useCompanyOptions', () => {
         ['a fraction of a percent', 12.5, 0.125],
       ] as const)('a value %s records the clamped fraction the members store', (_name, display, expected) => {
         twoMembersWithSends();
-        vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](display));
+        act(() => result.current.options.onSendChange(field, display));
 
         expect(lastEdited()).toEqual({ [field]: expected });
       });
 
       it('a NaN is dropped whole: no cancel, no action, no snapshot', () => {
         twoMembersWithSends();
-        const apply = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const cancel = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](NaN));
+        act(() => result.current.options.onSendChange(field, NaN));
 
         expect(apply).not.toHaveBeenCalled();
         expect(cancel).not.toHaveBeenCalled();
@@ -968,10 +1012,10 @@ describe('useCompanyOptions', () => {
 
       it('with no members there is nothing to broadcast to and nothing to record', () => {
         addCompany('c1', []);
-        const apply = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](50));
+        act(() => result.current.options.onSendChange(field, 50));
 
         expect(apply).not.toHaveBeenCalled();
         expect(lastEdited()).toBeUndefined();
@@ -981,10 +1025,10 @@ describe('useCompanyOptions', () => {
         addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
         addRobot(makeRobot({ id: 'r2', companyId: undefined }));
         addCompany('c1', ['r1']);
-        const apply = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+        const apply = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('all'));
 
-        act(() => result.current.options[handler](30));
+        act(() => result.current.options.onSendChange(field, 30));
 
         expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
         expect(useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions).toEqual({ [field]: 0.3 });
@@ -998,7 +1042,7 @@ describe('useCompanyOptions', () => {
         const engine = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
 
-        act(() => result.current.options[handler](40));
+        act(() => result.current.options.onSendChange(field, 40));
 
         for (const id of ['r1', 'r2'] as const) {
           expect(stored(id)![field]).toBe(0.4);
@@ -1015,16 +1059,16 @@ describe('useCompanyOptions', () => {
       it('the handler keeps its identity when an unrelated edit rebuilds the options, and across its own edit', () => {
         twoMembersWithSends();
         vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-        vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+        vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
         const { result } = renderHook(() => useCompanyOptions('c1'));
         const first = result.current.options;
 
         act(() => result.current.options.onVolumeChange(50));
         expect(result.current.options).not.toBe(first);
-        expect(result.current.options[handler]).toBe(first[handler]);
+        expect(result.current.options.onSendChange).toBe(first.onSendChange);
 
-        act(() => result.current.options[handler](40));
-        expect(result.current.options[handler]).toBe(first[handler]);
+        act(() => result.current.options.onSendChange(field, 40));
+        expect(result.current.options.onSendChange).toBe(first.onSendChange);
       });
     });
 
@@ -1032,12 +1076,13 @@ describe('useCompanyOptions', () => {
       it('is read from the first member only', () => {
         twoMembersWithSends();
         vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attr) => id === 'r2' && attr === field);
-        expect(renderHook(() => useCompanyOptions('c1')).result.current.options[flag]).toBe(false);
+        expect(renderHook(() => useCompanyOptions('c1')).result.current.options.sendSwelling[field]).toBe(false);
 
         vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attr) => id === 'r1' && attr === field);
         const { options } = renderHook(() => useCompanyOptions('c1')).result.current;
-        expect(options[flag]).toBe(true);
-        expect([options.volumeSwelling, options.reverbSendSwelling, options.delaySendSwelling]).toEqual([false, false, false]);
+        expect(options.sendSwelling[field]).toBe(true);
+        expect(options.volumeSwelling).toBe(false);
+        for (const other of SEND_FIELDS) if (other !== field) expect(options.sendSwelling[other], other).toBe(false);
       });
 
       it('is recomputed when a swell tick writes that send (the module-scope Map is not tracked by React)', () => {
@@ -1046,16 +1091,16 @@ describe('useCompanyOptions', () => {
         let swelling = false;
         vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => swelling && attr === field);
         const { result } = renderHook(() => useCompanyOptions('c1'));
-        expect(result.current.options[flag]).toBe(false);
+        expect(result.current.options.sendSwelling[field]).toBe(false);
 
         swelling = true;
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { [field]: 0.4 }));
 
-        expect(result.current.options[flag]).toBe(true);
+        expect(result.current.options.sendSwelling[field]).toBe(true);
       });
 
       it('is false when there is no first member', () => {
-        expect(renderHook(() => useCompanyOptions('all')).result.current.options[flag]).toBe(false);
+        expect(renderHook(() => useCompanyOptions('all')).result.current.options.sendSwelling[field]).toBe(false);
       });
     });
   });

@@ -18,6 +18,7 @@ import {
   DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS,
 } from '@/engine/melodyGenerator';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
+import { recordByField } from '@/data/robotSends';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -40,11 +41,8 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     masterVolume: firstMember.masterVolume,
     pan: firstMember.pan ?? 0,
     panAuto: firstMember.panAuto ?? true,
-    reverbSend: firstMember.reverbSend ?? 0,
-    delaySend: firstMember.delaySend ?? 0,
-    gritSend: firstMember.gritSend ?? 0,
-    shimmerSend: firstMember.shimmerSend ?? 0,
-    doubleSend: firstMember.doubleSend ?? 0,
+    // The five sends, an absent one (an older save) as 0 (docs/specs/ROBOT_SEND_TABLE.md §1.5).
+    ...recordByField((spec) => firstMember[spec.field] ?? 0),
     rhythmicDensity: firstMember.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
     rhythmicMotifLength: firstMember.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
     noteVariance: firstMember.noteVariance ?? DEFAULT_NOTE_VARIANCE,

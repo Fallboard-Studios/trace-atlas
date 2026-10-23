@@ -11,6 +11,7 @@
  * ROBOT_SELECTION_ROW_SCHEMAS/label maps directly (Phase 8) rather than duplicating them — see
  * RobotDisplaySection.tsx.
  */
+import { recordByField, type RobotSendField } from './robotSends';
 import type {
   ControlSchema,
   DirectionalPanelSchema,
@@ -130,63 +131,22 @@ export const PAN_AUTO_SCHEMA: ToggleSchema = {
 };
 
 /**
- * Display-only 0-100 % in 1 % steps; the stored value is 0..1 (Robot.reverbSend). Same display-vs-storage
- * split as Volume - the bounds come from the stored range times SEND_DISPLAY_SCALE so the two cannot drift
- * (docs/specs/ROBOT_SENDS.md §1.6). The component consuming this one converts pct/100 on write and value*100 on read.
+ * The five send sliders (docs/specs/ROBOT_SEND_TABLE.md §1.4), one per ROBOT_SENDS row and keyed by its field, so a send
+ * is named once (in the table) and a screen reads its row's schema by field. Display-only 0-100 % in 1 % steps; the
+ * stored value is 0..1 (Robot.reverbSend and the four beside it). Same display-vs-storage split as Volume - the bounds
+ * come from the stored range times SEND_DISPLAY_SCALE so the two cannot drift (docs/specs/ROBOT_SENDS.md §1.6). The
+ * component consuming these converts pct/100 on write and value*100 on read. Ids and words are unchanged from the five
+ * named schemas this replaces; the words come from each row's literal content key (spec assumption 1).
  */
-export const REVERB_SEND_SCHEMA: SliderLinearSchema = {
-  id: 'robotOptions.reverbSend',
+export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> = recordByField((spec) => ({
+  id: `robotOptions.${spec.field}`,
   type: 'sliderLinear',
-  ...labels('probe.reverbSend'),
+  ...labels(spec.contentKey),
   min: SEND_MIN * SEND_DISPLAY_SCALE,
   max: SEND_MAX * SEND_DISPLAY_SCALE,
   step: SEND_STEP_PERCENT,
   orientation: 'horizontal',
-};
-
-/** The Delay send (Robot.delaySend), the Reverb send's twin. */
-export const DELAY_SEND_SCHEMA: SliderLinearSchema = {
-  id: 'robotOptions.delaySend',
-  type: 'sliderLinear',
-  ...labels('probe.delaySend'),
-  min: SEND_MIN * SEND_DISPLAY_SCALE,
-  max: SEND_MAX * SEND_DISPLAY_SCALE,
-  step: SEND_STEP_PERCENT,
-  orientation: 'horizontal',
-};
-
-/** The Grit send (Robot.gritSend) into the Colour room (docs/specs/ROBOT_EFFECT_SENDS.md §1.6), on the Reverb send's split. */
-export const GRIT_SEND_SCHEMA: SliderLinearSchema = {
-  id: 'robotOptions.gritSend',
-  type: 'sliderLinear',
-  ...labels('probe.gritSend'),
-  min: SEND_MIN * SEND_DISPLAY_SCALE,
-  max: SEND_MAX * SEND_DISPLAY_SCALE,
-  step: SEND_STEP_PERCENT,
-  orientation: 'horizontal',
-};
-
-/** The Shimmer send (Robot.shimmerSend) into the Shifter room. */
-export const SHIMMER_SEND_SCHEMA: SliderLinearSchema = {
-  id: 'robotOptions.shimmerSend',
-  type: 'sliderLinear',
-  ...labels('probe.shimmerSend'),
-  min: SEND_MIN * SEND_DISPLAY_SCALE,
-  max: SEND_MAX * SEND_DISPLAY_SCALE,
-  step: SEND_STEP_PERCENT,
-  orientation: 'horizontal',
-};
-
-/** The Double send (Robot.doubleSend) into the Chorus room. */
-export const DOUBLE_SEND_SCHEMA: SliderLinearSchema = {
-  id: 'robotOptions.doubleSend',
-  type: 'sliderLinear',
-  ...labels('probe.doubleSend'),
-  min: SEND_MIN * SEND_DISPLAY_SCALE,
-  max: SEND_MAX * SEND_DISPLAY_SCALE,
-  step: SEND_STEP_PERCENT,
-  orientation: 'horizontal',
-};
+}));
 
 /**
  * Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.6): how much this robot's note velocities swing.

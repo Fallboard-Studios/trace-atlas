@@ -8,6 +8,7 @@ import { withGlobalAudioDefaults } from '../types/globalAudio';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { NOTE_VALUES, isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '../data/noteValues';
+import { ROBOT_SENDS } from '../data/robotSends';
 import { PAN_MIN, PAN_MAX, SEND_MIN, SEND_MAX } from '../constants';
 import { devWarn } from './helpers';
 
@@ -265,11 +266,8 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.noteVariance !== undefined) compact.nv = toCompactToggle(diff.noteVariance);
   if (diff.pitchRepeat !== undefined) compact.pr = diff.pitchRepeat;
   if (diff.pan !== undefined) compact.p = diff.pan;
-  if (diff.reverbSend !== undefined) compact.rs = diff.reverbSend;
-  if (diff.delaySend !== undefined) compact.ds = diff.delaySend;
-  if (diff.gritSend !== undefined) compact.gr = diff.gritSend;
-  if (diff.shimmerSend !== undefined) compact.sm = diff.shimmerSend;
-  if (diff.doubleSend !== undefined) compact.db = diff.doubleSend;
+  // The five sends at this one position, in table order, so a link encodes to the same string (docs/specs/ROBOT_SEND_TABLE.md assumption 9).
+  for (const spec of ROBOT_SENDS) if (diff[spec.field] !== undefined) compact[spec.shareCode] = diff[spec.field];
   if (diff.dynamics !== undefined) compact.dy = diff.dynamics;
   if (diff.rests !== undefined) compact.rt = diff.rests;
   if (diff.accents !== undefined) compact.ax = diff.accents;
@@ -297,14 +295,12 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   // A non-numeric, non-finite or out-of-range `p` is dropped, so the robot stays Auto -- never
   // misread as a manual pan (the same rule the `ll` decoder follows for an unknown target).
   if (typeof compact.p === 'number' && Number.isFinite(compact.p) && compact.p >= PAN_MIN && compact.p <= PAN_MAX) diff.pan = compact.p;
-  // Robot Sends: a non-numeric, non-finite or out-of-[0, 1] `rs` / `ds` is dropped one by one, so the robot keeps
-  // its seeded send -- never misread as a send of 0 or 1.
-  if (isSendFraction(compact.rs)) diff.reverbSend = compact.rs;
-  if (isSendFraction(compact.ds)) diff.delaySend = compact.ds;
-  // Robot Effect Sends: gr / sm / db on the same rule.
-  if (isSendFraction(compact.gr)) diff.gritSend = compact.gr;
-  if (isSendFraction(compact.sm)) diff.shimmerSend = compact.sm;
-  if (isSendFraction(compact.db)) diff.doubleSend = compact.db;
+  // Robot Sends: a non-numeric, non-finite or out-of-[0, 1] `rs` / `ds` / `gr` / `sm` / `db` is dropped one by one, so
+  // the robot keeps its seeded send -- never misread as a send of 0 or 1.
+  for (const spec of ROBOT_SENDS) {
+    const send = compact[spec.shareCode];
+    if (isSendFraction(send)) diff[spec.field] = send;
+  }
   // Robot Performance: a non-numeric or non-finite `dy` / `rt` / `ax` is dropped one by one (JSON writes a NaN as null),
   // so the robot keeps its seeded value; the store clamps the range on restore.
   if (isFiniteNumber(compact.dy)) diff.dynamics = compact.dy;
