@@ -91,8 +91,9 @@ const toSendDisplay = (send: number) => roundToDecimals(send * SEND_DISPLAY_SCAL
 
 interface SendRowProps {
   spec: RobotSendSpec;
-  /** 0..1, the row's stored send. */
-  value: number;
+  /** The 0-100 % the row's slider shows (toSendDisplay of the stored send), so the row's memo compares what is shown and
+   *  a stored change below two decimals of a percent re-renders nothing, as the hand-written rows' did. */
+  display: number;
   onSendChange: (field: RobotSendField, pct: number) => void;
   swelling?: boolean;
   disabled?: boolean;
@@ -105,12 +106,12 @@ interface SendRowProps {
  * hand-written rows did; the memo is what keeps the row's onChange closure stable (it is rebuilt only when a prop of this
  * row changes, when the slider re-renders anyway), so no useCallback. Exported for its memo test only.
  */
-export const SendRow = memo(function SendRow({ spec, value, onSendChange, swelling, disabled }: SendRowProps) {
+export const SendRow = memo(function SendRow({ spec, display, onSendChange, swelling, disabled }: SendRowProps) {
   return (
     <div className={`audio-setting-section__${spec.engineKey}-row`}>
       <SliderLinear
         schema={ROBOT_SEND_SCHEMAS[spec.field]}
-        value={toSendDisplay(value)}
+        value={display}
         onChange={(pct) => onSendChange(spec.field, pct)}
         disabled={disabled}
         swelling={swelling}
@@ -196,7 +197,7 @@ function AudioSettingSectionInner({
             <SendRow
               key={spec.field}
               spec={spec}
-              value={value[spec.field]}
+              display={toSendDisplay(value[spec.field])}
               onSendChange={onSendChange}
               swelling={sendSwelling?.[spec.field]}
               disabled={disabled}

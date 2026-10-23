@@ -1331,6 +1331,29 @@ describe('AudioSettingSection', () => {
       ROBOT_SENDS.forEach((spec) => expect(rerenderedIds(), spec.field).not.toContain(ROBOT_SEND_SCHEMAS[spec.field].id));
     });
 
+    // Review follow-up (2026-10-22): a row compares the number its slider shows, as the five hand-written rows did, so a
+    // stored change below the display's two decimals of a percent re-renders nothing (SliderLinear is memo'd too).
+    it.each([1e-7, -1e-7, 4e-5])('a send change of %s, too small to show, re-renders no send slider', (delta) => {
+      const onSendChange = vi.fn();
+      const { rerender } = render(<AudioSettingSection value={makeValue({ gritSend: 0.29 })} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={makeValue({ gritSend: 0.29 + delta })} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+
+      ROBOT_SENDS.forEach((spec) => expect(rerenderedIds(), spec.field).not.toContain(ROBOT_SEND_SCHEMAS[spec.field].id));
+      expect(shown('gritSend')).toBe('29');
+    });
+
+    it('a send change of one display step still re-renders that row (the comparison is not too coarse)', () => {
+      const onSendChange = vi.fn();
+      const { rerender } = render(<AudioSettingSection value={makeValue({ gritSend: 0.29 })} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={makeValue({ gritSend: 0.2901 })} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+
+      expect(rerenderedIds()).toContain(ROBOT_SEND_SCHEMAS.gritSend.id);
+    });
+
     it('a fresh but equal sendSwelling record re-renders no slider (the rows compare booleans, not the record)', () => {
       const onSendChange = vi.fn();
       const value = makeValue({ panAuto: false });
