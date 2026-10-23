@@ -19,7 +19,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > `17546ac4`, `12776551`) and **Checkpoint A1 passed**. **T7 stopped** on an `out` miss (H1 +2.7 dB): the ceiling had
 > no curve (Tone's `WaveShaper` reads `mapping`, not `curve`). Crawford, 2026-10-23: fix it as **T5.1**, then re-run
 > T7 in full; hold `HEADROOM_TRIM_DB` at −12 and record `pre` rather than gate it (spec assumption 3 and §7).
-> **T5.1 done** (`993217fc`); **T7 done**: every gate met on all seven variants (PERFORMANCE.md, "The branch"). T8 next.
+> **T5.1 done** (`993217fc`); **T7 done**: every gate met on all seven variants (PERFORMANCE.md, "The branch"). **T8
+> done**: the ceiling's audio-thread cost is below the method's resolution. **Checkpoint A (Crawford's listen) next.**
 
 ## Overview
 
@@ -369,8 +370,9 @@ Recorded in T3's PERFORMANCE.md section: overall mean capacity and the peak wind
 **Proof:** Read — the two builds' numbers in the section. No test file.
 
 **Acceptance criteria:**
-- [ ] The branch's overall mean is within +0.02 of `main`'s, or the excess is written down with the oversample value
-  confirmed `'none'` and the next suspect named.
+- [x] The branch's overall mean is within +0.02 of `main`'s, or the excess is written down with the oversample value
+  confirmed `'none'` and the next suspect named. — `main` 0.558, branch 0.545 (peak windows 0.687 / 0.650): the branch
+  read 0.013 lower, the run-to-run spread; one run each, as planned.
 
 **Verification:** the numbers in the section. **Dependencies:** T7. **Files:** `docs/PERFORMANCE.md`. **Scope:** XS.
 

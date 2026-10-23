@@ -2422,6 +2422,17 @@ What the trim alone showed: **on D1 at the seeded defaults the trim alone is eno
 
 **`bravo` varies between loads of the same link.** D5's `out` peak mean read −13.1 dB here and −17.0 dB in the empty-ceiling run, and H2's RMS mean −17.2 against −25.6 dB, from identical links; the ceiling cannot raise a level, so this is the world's own variation from load to load (its silent readings vary with it), not investigated (finish the branch first). A `bravo` comparison needs several runs a side; D1's runs agree within 0.3 dB of RMS.
 
+### The ceiling's audio-thread cost (T8)
+
+`npm run perf:audio` on D5's link (`bravo:-150:90?session=…`, the session value as in the table of links), 240 s series, 15 s buckets, 8 s warm-up, in one foreground call: `main` first, then the branch. Both builds served side by side from one directory on :4173 (the `@page` form): the branch's `index-DxO5fP4y.js` (`993217fc`) as `index.html`, `main`'s `index-Dhv9XsRM.js` (`abde941e`, the same bundle T3 measured, rebuilt from a `git archive` of `main`) as `main.html`, every shared asset byte-identical. Headless Chrome 155, orphan count 0 before and after. Both runs played the same world: the overlay's audible-robot series matched bucket for bucket (5.0, 7.9, 9.3, 9.8, … robots).
+
+| Build | Overall mean capacity | Peak 15 s window | Overall max |
+|---|---|---|---|
+| `main` | 0.558 | 0.687 (at 45 s) | 0.991 |
+| branch | 0.545 | 0.650 (at 180 s) | 0.991 |
+
+**Within the gate** (spec §5.3: the branch's mean within +0.02 of `main`'s): the branch read 0.013 *lower*. A build with one more node cannot be cheaper, so that is the run-to-run spread, and the WaveShaper at oversample `'none'` costs less than this method resolves.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
