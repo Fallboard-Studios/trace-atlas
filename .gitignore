@@ -12,6 +12,7 @@ dist
 dist-ssr
 assets
 *.local
+*.tsbuildinfo
 .claude/settings.local.json
 
 # Editor directories and files

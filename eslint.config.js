@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 
 export default [
   // Ignore build output and miscellaneous standalone scripts
-  { ignores: ['dist', 'scripts/convertColors.cjs', 'docs/sketches/tools/*.cjs'] },
+  { ignores: ['dist', 'docs/sketches/tools/*.cjs'] },
 
   // Base recommended configs
   js.configs.recommended,
