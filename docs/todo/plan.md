@@ -81,6 +81,8 @@ one is built.
   shipped, marine snow was cut.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes whenever DevTools is next open.
+- Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
+  option (B); only when a main-thread question needs per-section numbers.
 - Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
   the roof), [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen) (three notes) and
   [52](roadmap.md#52-job-decorations-six-small-animations-on-the-orbiters-work) (the spec questions shipped as proposed).

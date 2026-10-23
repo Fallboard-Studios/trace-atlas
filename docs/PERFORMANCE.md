@@ -23,7 +23,7 @@ Flags (`npm run perf -- --help` for the full list):
 | `--throttle <n>` | CPU slowdown multiplier; `1` = none. Default `4` (Chrome DevTools' "recommended" mobile setting). |
 | `--mobile` | 390×844 phone viewport instead of 1280×900. |
 | `--width <px>` | Viewport width (overrides `--mobile`/desktop; ≤ 480 is treated as a phone). Use 390 / 820 / 1280 for the three breakpoints. |
-| `--smoothness` | Instead of the step table, opens every accordion frame-by-frame-sampled and reports empty-open frames, the height snap at `auto`, and slow frames — see the smoothness section below. |
+| `--smoothness` | Instead of the step table, opens every accordion frame-by-frame-sampled and reports empty-open frames, the height snap at `auto`, and slow frames — see the smoothness section below. **Dormant since the layout rework (roadmap 45) replaced the accordions with section tabs: it finds none, says so and exits** ([backlog 31](todo/backlog.md#31-tooling-profilemjs-against-the-layout-rework)). |
 | `--profile` | Adds a CPU profile (top self/inclusive functions) for an idle window and for opening Fleet Params. |
 | `--trace` | Adds a layout/paint trace summary for the same two windows. |
 | `--url <url>` | Profile a different server (e.g. an unminified build). |
@@ -37,12 +37,12 @@ npx vite preview --outDir <some-temp-dir> --port 4174
 npm run perf -- --url http://localhost:4174/trace-atlas/ --profile --trace
 ```
 
-The default step sequence: power on → open Fleet Params → open each of its accordions in turn → switch to Probes → open the first robot (detail) → open each of its accordions in turn → back to the robot list → switch to Nav & Comms → back to Fleet Params. Steps are clicked by their visible header-nav labels (`TILE_*` constants at the top of the script) — a label rename in `src/data/headerNavConfig.ts` needs the same rename there. Each step reports:
+The default step sequence (since 2026-10-23, [backlog 31](todo/backlog.md#31-tooling-profilemjs-against-the-layout-rework) option A): power on → open Fleet Params → switch to Probes → open the first robot (its roster tile's face) → back to the roster (the nav panel's Probes box) → switch to Settings → back to Fleet Params. Steps are clicked by their visible nav-panel labels (`TILE_*` constants at the top of the script), which are the `human` of each `*.root` entry in `src/content/copy/` — a rename there needs the same rename here. Before the layout rework the sequence also opened each accordion of Fleet Params and of the robot's detail in turn (the `fleet › …` / `detail › …` rows the tables below carry); those rows are dormant now, see the last bullet. Each step reports:
 
 - `tasks >=100ms` / `longest (ms)` / `total in >=100ms tasks (ms)` — main-thread long tasks over Tone's lookahead (the audible-pause count).
 - `tasks >=50ms` — total long tasks Chrome reports (its own threshold), including the steady background churn after a switch.
 - `cabinetBoxes` — `.sc-cabinet-box` elements on the page. **This includes the header's 12** (present at power-on), and the Probes count drifts upward across a run as factories build robots.
-- `boxes in closed accordions` — `.sc-cabinet-box` elements inside a collapsed accordion. Before roadmap 17.2.2 this measured waste (it was 301 on Fleet Params); since the lazy mount it is **expected to be 0 for a never-opened section, so a non-zero value right after a tile opens is a regression alarm** (someone re-added an eager mount). The per-section rows (`fleet › …`, `detail › …`) are the first-open cost of each section.
+- `boxes in closed accordions` — `.sc-cabinet-box` elements inside a collapsed accordion. Before roadmap 17.2.2 this measured waste (it was 301 on Fleet Params); since the lazy mount it is **expected to be 0 for a never-opened section, so a non-zero value right after a tile opens is a regression alarm** (someone re-added an eager mount). The per-section rows (`fleet › …`, `detail › …`) are the first-open cost of each section. **Dormant since the layout rework (roadmap 45) replaced the accordions with section tabs:** no `.sc-accordion` exists in the app, so the per-section rows find nothing to open and print a note instead, and this column reads 0 for want of accordions, not because of the lazy mount. Re-aiming both at `.section-tabs__trigger` is [backlog 31](todo/backlog.md#31-tooling-profilemjs-against-the-layout-rework) option B.
 
 ## Caveats
 
@@ -235,7 +235,7 @@ The work did not disappear; it moved from opening a tile to the first time each 
 
 ## Smoothness pass for roadmap 17.2.2 — first-open animation (2026-09-18)
 
-Measured with `npm run perf -- --smoothness --width <px> --throttle <n>` (see [docs/tasks/ACCORDION_LAZY_MOUNT.md](tasks/ACCORDION_LAZY_MOUNT.md) Task 8): it opens every accordion on Fleet Params and on a robot's detail page while sampling the wrapper on every animation frame, then closes and reopens the first one. Numbers are from real headless Chrome; "tween frames" is how many frames actually rendered a mid-tween height (a 250 ms open at 60 fps would be ~15).
+**Historical: the mode is dormant since the layout rework (roadmap 45) replaced the accordions with section tabs; see [backlog 31](todo/backlog.md#31-tooling-profilemjs-against-the-layout-rework).** Measured with `npm run perf -- --smoothness --width <px> --throttle <n>` (see [docs/tasks/ACCORDION_LAZY_MOUNT.md](tasks/ACCORDION_LAZY_MOUNT.md) Task 8): it opens every accordion on Fleet Params and on a robot's detail page while sampling the wrapper on every animation frame, then closes and reopens the first one. Numbers are from real headless Chrome; "tween frames" is how many frames actually rendered a mid-tween height (a 250 ms open at 60 fps would be ~15).
 
 ### What it found, and what changed
 

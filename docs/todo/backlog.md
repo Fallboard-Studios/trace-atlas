@@ -652,3 +652,33 @@ moment, or keeping the branch connected and paying its dark cost (which undoes 5
 **Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
 seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
 power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
+
+### 31. Tooling: `profile.mjs` Against the Layout Rework
+
+**Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
+`npm run perf` (`scripts/perf/profile.mjs`, [PERFORMANCE.md](../PERFORMANCE.md)) threw on `main` after Fleet Params. The
+layout rework (roadmap [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen)) had moved everything
+it drives: Task 21 (`4ba12cae`) replaced the Probes list's `.robot-selection-card__top` with the roster tile; the header
+nav became the nav panel (no "back" button, no `role="radio"`, the Settings tile no longer "Nav & Comms", `.console` now
+`.console-panel`); and the accordions became section tabs, so no `.sc-accordion` exists in the app at all.
+
+**(A) Unbreak — built 2026-10-23 on `fix/profile-step-table`.** The robot opens through `.roster-tile__face`; "back to
+the roster" is the nav panel's Probes box (`navActions.pressBranchBox` → `selectBranch` when a robot is open); the
+capture windows return to the Deck through its box and check `.console-panel` is gone; the `TILE_*` labels are the
+`human` of the content layer's `*.root` entries. The per-section rows (`fleet › …`, `detail › …`) and `--smoothness`
+find no accordions and say so once instead of failing: dormant, not broken. PERFORMANCE.md's 17.2.x tables stay as the
+history of the accordion screens, marked so.
+
+**Proof for (A), 2026-10-23** (a run, not a test: nothing imports the script): against a production build on :4173 at
+1×, the step table, `--profile` and `--smoothness` each ran to the end, exit 0; the two dormant paths printed their
+note; `--profile`'s capture windows returned to the Deck both times; the orphan check read the same `trace-atlas-perf-*`
+count before and after. The table, for the record (desktop 1280, tasks ≥ 100 ms / longest ms / cabinet boxes): power on
+2 / 325 / 12 · open Fleet Params 0 / 53 / 58 · switch to Probes 1 / 202 / 175 · open first robot 1 / 113 / 93 · back
+to the roster 1 / 177 / 175 · switch to Settings 0 / 59 / 39 · back to Fleet Params 0 / 0 / 58. A second run read the
+same within noise. Not a baseline (one run each, `main`'s desktop); PERFORMANCE.md's 17.2.x tables are the accordion
+screens' and are not comparable.
+
+**(B) Re-aim — open, unsequenced.** The section rows become a first click of each `.section-tabs__trigger` (Fleet
+Params' five with its sub-tab row; the robot screen's), and `--smoothness` goes with its PERFORMANCE.md section: tabs do
+not tween height, so the empty-open flash and the height snap it measured cannot happen. Then a fresh baseline table.
+Half a day with a Look; only when a main-thread question needs per-section numbers.
