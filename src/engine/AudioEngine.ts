@@ -11,7 +11,7 @@ import { getActiveLocaleId } from '../utils/localeHelpers';
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
-import { ROBOT_SENDS, type SendEngineKey } from '../data/robotSends';
+import { ROBOT_SENDS, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
@@ -363,9 +363,7 @@ async function loadInstruments(): Promise<void> {
             // The engine keeps no pan state across a reservation; the store does (Robot Pan §1.3).
             if (robot.panAuto === false) AudioEngine.updateRobotPan(robot.id, robot.pan);
             // Likewise the sends: a new voice starts dry, and unlike a manual pan every robot is primed (Robot Sends §1.4).
-            AudioEngine.updateRobotSends(robot.id, {
-              reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
-            });
+            AudioEngine.updateRobotSends(robot.id, robotSendLevels(robot));
           }
         } catch (err) {
           devWarn('[AudioEngine] Failed post-load reservation for robot', robot.id, err);
@@ -1000,9 +998,7 @@ export const AudioEngine = {
       // Done here, not by the caller, so every reReserveVoice caller is covered.
       if (robot.panAuto === false) AudioEngine.updateRobotPan(robotId, robot.pan);
       // And the rebuilt voice's send gains start at 0, so hand them back too (Robot Sends §1.4).
-      AudioEngine.updateRobotSends(robotId, {
-        reverb: robot.reverbSend, delay: robot.delaySend, grit: robot.gritSend, shimmer: robot.shimmerSend, double: robot.doubleSend,
-      });
+      AudioEngine.updateRobotSends(robotId, robotSendLevels(robot));
       return reserved;
     } catch (err) {
       devWarn('[AudioEngine] reReserveVoice failed', err);
@@ -1147,28 +1143,25 @@ export const AudioEngine = {
    * when no composite is reserved: the store already holds the value and every reservation site re-primes it.
    * Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): `grit`, `shimmer` and `double` ramp the effect room
    * sends the same way, and each also moves the robot in or out of its room's feeder set (roomFeeders).
+   * One loop in table order whatever order the caller built `sends` in (docs/specs/ROBOT_SEND_TABLE.md §1.2).
    */
   updateRobotSends(
     robotId: string,
-    sends: { reverb?: number; delay?: number; grit?: number; shimmer?: number; double?: number },
+    sends: Partial<Record<SendEngineKey, number>>,
   ): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
       devWarn(`[AudioEngine] updateRobotSends: no composite reserved for ${robotId}`);
       return;
     }
-    const write = (send: Tone.Gain, requested: number | undefined): void => {
-      if (requested === undefined || Number.isNaN(requested)) return;
-      rampOrSet(send.gain as unknown as RampableParam, clampSend(requested), SEND_RAMP_SECONDS);
-    };
     try {
-      write(entry.sends.reverb, sends.reverb);
-      write(entry.sends.delay, sends.delay);
-      for (const key of ROOM_KEYS) {
+      for (const { engineKey: key } of ROBOT_SENDS) {
         const requested = sends[key];
         if (requested === undefined || Number.isNaN(requested)) continue;
-        write(entry.sends[key], requested);
-        setRoomFeeder(key, robotId, clampSend(requested) > 0);
+        const level = clampSend(requested);
+        rampOrSet(entry.sends[key].gain as unknown as RampableParam, level, SEND_RAMP_SECONDS);
+        // Reverb and Delay are fixed rooms with no feeder set; the three effect rooms light only while someone feeds them.
+        if (key !== 'reverb' && key !== 'delay') setRoomFeeder(key, robotId, level > 0);
       }
     } catch (err) {
       devWarn('[AudioEngine] updateRobotSends failed', err);

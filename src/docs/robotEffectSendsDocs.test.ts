@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 // behaviour to test, so this makes its acceptance criteria executable (robotSendsDocs.test.ts is the pattern):
 //   (1) the source-scan guardrail: nothing on the robot body reads Grit, Shimmer or Double (Visual Mapping is unchanged);
 //   (2) every symbol the spec and the updated docs cite exists in source, the names the 2026-10-21 amendment removed do
-//       not, and the reserve-site scan still reads all five sends;
+//       not, and every engine reservation site primes all five (the reserve-site scan until Robot Send Table T4);
 //   (3) the living docs say what the code now does.
 // Groups (1) and (2) are green from the moment they land. Group (3) is written against the text Task 22 produces, so
 // it is RED until Task 22 lands. That is intended. The red cases, all in group (3):
@@ -101,7 +101,8 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     ['setRoomReturn', 'src/engine/audioEngine/bypassCell.ts', /export function setRoomReturn\(key: RoomKey, level: number\): void/],
     ['getGlobalRoomInput', 'src/engine/audioEngine/globalFx.ts', /export function getGlobalRoomInput\(key: RoomKey\): Tone\.Gain \| null/],
     ['the feeder sets', 'src/engine/AudioEngine.ts', /const roomFeeders: Record<RoomKey, Set<string>> = \{ grit: new Set\(\), shimmer: new Set\(\), double: new Set\(\) \};/],
-    ['AudioEngine.updateRobotSends takes all five', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: \{ reverb\?: number; delay\?: number; grit\?: number; shimmer\?: number; double\?: number \},?\s*\): void/],
+    // Re-pinned by Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the same five optional keys, as a type.
+    ['AudioEngine.updateRobotSends takes all five', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: Partial<Record<SendEngineKey, number>>,?\s*\): void/],
     ['generateRobotSends draws all five', 'src/systems/spawnSystem.ts', /export function generateRobotSends\(noiseMap: NoiseFunction2D, offset: number\): Record<RobotSendField, number>/],
     ...(['Grit', 'Shimmer', 'Double'] as const).flatMap((name): [string, string, RegExp][] => [
       [`apply${name}Send`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}Send\\(robot: Robot, localeId: string, pct: number\\): void`)],
@@ -110,7 +111,9 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     ]),
     ['the swell ranges carry the three new sends', 'src/data/audioSwellRanges.ts', /gritSend: \{ min: SEND_MIN, max: SEND_MAX \}, shimmerSend: \{ min: SEND_MIN, max: SEND_MAX \},\s*doubleSend: \{ min: SEND_MIN, max: SEND_MAX \}/],
     ['RETURN_FIELD_KEYS is the four (no Colour room Return, the amendment)', 'src/data/globalAudioSeedRanges.ts', /export const RETURN_FIELD_KEYS = \['reverb\.wet', 'delay\.wet', 'chorus\.wet', 'frequencyShifter\.wet'\] as const;/],
-    ['the reserve-site scan reads all five sends', 'src/engine/reservationSendsPrime.test.ts', /const PRIME_KEYS = \['reverb', 'delay', 'grit', 'shimmer', 'double'\] as const;/],
+    // The reserve-site scan's row went with the scan at Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md assumption 10):
+    // every prime is robotSendLevels(robot), and robotSendsParity.test.ts pins what each site hands the engine.
+    ['every engine reservation site primes with robotSendLevels', 'src/engine/AudioEngine.ts', /updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)[\s\S]*updateRobotSends\(robotId, robotSendLevels\(robot\)\)/],
   ];
 
   it.each(declared)('%s', (_description, file, pattern) => {

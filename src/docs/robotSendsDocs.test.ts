@@ -93,7 +93,8 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     // Re-pinned by Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md assumption 4): one record of send gains.
     ['the compositeVoices entry carries the send nodes', 'src/engine/audioEngine/voiceEntry.ts', /\bsends: Readonly<Record<SendEngineKey, Tone\.Gain>>;/],
     // Robot Effect Sends T5 widened it with grit / shimmer / double (docs/specs/ROBOT_EFFECT_SENDS.md §1.4).
-    ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: \{ reverb\?: number; delay\?: number; grit\?: number; shimmer\?: number; double\?: number \},?\s*\): void/],
+    // Re-pinned by Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the same five optional keys, as a type.
+    ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: Partial<Record<SendEngineKey, number>>,?\s*\): void/],
     ['the reverb return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalReverbReturn: Tone\.Gain \| null/],
     ['the delay return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalDelayReturn: Tone\.Gain \| null/],
     ['getGlobalReverbRoom', 'src/engine/audioEngine/globalFx.ts', /export function getGlobalReverbRoom\(\): Tone\.Reverb \| null/],
