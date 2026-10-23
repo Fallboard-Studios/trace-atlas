@@ -72,7 +72,7 @@ See [CLAUDE.md](CLAUDE.md) for the full list of non-negotiable architecture cons
 - A schema-driven, hand-rolled ARIA nav tree (Settings / Fleet Params / Probes / Companies) with a shared "Oblique Cabinetry" tactile UI language (2.5D popping boxes) across all 13 Design System primitives
 - Deployed automatically to GitHub Pages on every push to `main` (`.github/workflows/deploy.yml`)
 
-**Not yet built** (see [docs/todo/roadmap.md](docs/todo/roadmap.md) Phases 19–21, 30 for specifics): backfilled unit coverage for a handful of older modules, Session Storage / URL-based save-and-share, and a few UI restructuring gaps (e.g. group-level intro panels on some Robot Options accordions).
+**Not yet built**, among others: an in-app Guide that teaches the whole app (Phase 51, not yet specced) and output headroom so the master never clips (Phase 54, not started). See [docs/todo/roadmap.md](docs/todo/roadmap.md) for the current state of every phase.
 
 ---
 
