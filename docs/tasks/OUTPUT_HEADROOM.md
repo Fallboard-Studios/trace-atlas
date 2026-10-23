@@ -22,7 +22,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > **T5.1 done** (`993217fc`); **T7 done**: every gate met on all seven variants (PERFORMANCE.md, "The branch"). **T8
 > done**: the ceiling's audio-thread cost is below the method's resolution. **Checkpoint A** heard one world crunch
 > with every robot at 100 % (`6j0mgo5z`): the seeded Compressor's 70 ms release, not the ceiling; Crawford: raise the
-> seeded release floor to 0.25 s (spec §7). **T9 next.**
+> seeded release floor to 0.25 s (spec §7). **T9 done** (`1c13470d`, the gate re-run in PERFORMANCE.md "After T9").
+> **Phase 3 complete. Next: T10, the phone (Checkpoint B, Crawford's device), after his re-listen to `6j0mgo5z`.**
 
 ## Overview
 
@@ -412,8 +413,13 @@ oracle cases in `src/utils/globalAudioSeed.test.ts` for a narrowed band, re-pinn
 knee-only change moves a constant its T4 test already follows and needs no new test.
 
 **Acceptance criteria:**
-- [ ] Exactly the decided change, nothing else; the affected tests re-pinned by value, not loosened.
-- [ ] T7's table re-run and still meeting every threshold.
+- [x] Exactly the decided change, nothing else; the affected tests re-pinned by value, not loosened. — `1c13470d`: the
+  release row 0.05–0.3 → 0.25–0.3 s; its pin, the two oracles (re-derived by hand from the same log draw, within 1e-16
+  of the seeder) and a new behaviour case (no seeded release below 0.25 s on `6j0mgo5z`, which seeded 0.0695 s, or 300
+  other worlds), all RED first; mutants floor 0.24 and ceiling 0.5 killed; the grid's cell and Compressor note.
+- [x] T7's table re-run and still meeting every threshold. — on links rebuilt with only the release changed, plus X1
+  (`6j0mgo5z`, every robot 100 %): `out` peak max −0.6 to −12.9 dB, none at 0 dBFS, `fin ok` throughout. The first
+  table is kept above it, not replaced, so the before stays visible (the file's own rule).
 
 **Verification:** the focused test files; `npm test`; the table. **Dependencies:** Checkpoint A.
 **Files:** at most `headroom.ts`, `globalFx.ts`, `globalFx.test.ts`, `globalAudioLoadingRanges.ts`,
