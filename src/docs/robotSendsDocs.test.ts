@@ -111,9 +111,12 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['AudioSettingValue.delaySend', 'src/components/robot/AudioSettingSection.tsx', /\bdelaySend: number;/],
     ['AudioSettingSection reverbSendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\breverbSendSwelling\?: boolean;/],
     ['AudioSettingSection delaySendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\bdelaySendSwelling\?: boolean;/],
-    ['the swell pool lists reverbSend', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS[\s\S]*?'reverbSend',[\s\S]*?\]/],
-    ['the swell pool lists delaySend', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS[\s\S]*?'delaySend',[\s\S]*?\]/],
-    ['the swell ranges carry both sends', 'src/data/audioSwellRanges.ts', /reverbSend: \{ min: SEND_MIN, max: SEND_MAX \}, delaySend: \{ min: SEND_MIN, max: SEND_MAX \}/],
+    // Re-pinned by Robot Send Table T8 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the pool and the ranges read the field list
+    // (robotSendsParity.test.ts pins the pool's order as a literal).
+    ['the swell pool ends in the sends', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId\[\] = \[[^\]]*'adsr\.release',\s*\.\.\.ROBOT_SEND_FIELDS,?\s*\]/],
+    ['the swell ranges carry every send', 'src/data/audioSwellRanges.ts', /\.\.\.\(Object\.fromEntries\(ROBOT_SEND_FIELDS\.map\(\(field\) => \[field, \{ min: SEND_MIN, max: SEND_MAX \}\]\)\)/],
+    ['the store clamps every send', 'src/stores/localeStore.ts', /for \(const sendKey of ROBOT_SEND_FIELDS\) \{/],
+    ['the company resolver falls back to 0 for every send', 'src/systems/companyOptions.ts', /\.\.\.\(Object\.fromEntries\(ROBOT_SEND_FIELDS\.map\(\(field\) => \[field, firstMember\[field\] \?\? 0\]\)\)/],
   ];
 
   it.each(declared)('%s', (_description, file, pattern) => {

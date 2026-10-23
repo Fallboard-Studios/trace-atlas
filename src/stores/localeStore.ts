@@ -26,6 +26,7 @@ import {
   PAN_MAX,
 } from '../constants';
 import { clampSend } from '../utils/clampSend';
+import { ROBOT_SEND_FIELDS } from '../data/robotSends';
 import { swallow } from '../utils/helpers';
 
 /**
@@ -211,7 +212,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           normalized.pan = Math.max(PAN_MIN, Math.min(PAN_MAX, normalized.pan));
         }
       }
-      for (const sendKey of ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const) {
+      for (const sendKey of ROBOT_SEND_FIELDS) {
         const send = normalized[sendKey];
         if (typeof send === 'number') {
           // Fractional like pan, so no trunc; NaN is dropped and the stored value kept.
