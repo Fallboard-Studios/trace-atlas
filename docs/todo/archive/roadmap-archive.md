@@ -891,7 +891,7 @@ Per Crawford's notes: a circular layout around the central, day/night-invariant 
 
 ## 17.1 Styling Overhaul: Sleeve / Tablet-Off State
 
-Requested by Crawford, 2026-09-16. High priority. First of a 5-part, per-view styling overhaul of the entire app (17.1–17.5), split by the app's own top-level view boundaries so each ships and reviews independently rather than as one large undifferentiated pass — precedes [18](#18-cabinetry-verification-accessibility--performance) (Cabinetry Verification), which should run once this series lands rather than before it, the same "verify after the visual-touching phases" ordering 18 already applies to 12/14/15.x/16. Scope: `SleeveContainer` and the tablet-off/powered-down visual state (`PowerRockerSwitch`, the Sleeve's own casing chrome) — deliberately out of scope for every prior Cabinetry/Color-Scheme phase (11.1.1's own About section: "the power rocker switch and the rest of the Sleeve casing — out of scope for now").
+Requested by Crawford, 2026-09-16. High priority. First of a 5-part, per-view styling overhaul of the entire app (17.1–17.5), split by the app's own top-level view boundaries so each ships and reviews independently rather than as one large undifferentiated pass — precedes [18](../roadmap.md#18-cabinetry-verification-accessibility--performance) (Cabinetry Verification), which should run once this series lands rather than before it, the same "verify after the visual-touching phases" ordering 18 already applies to 12/14/15.x/16. Scope: `SleeveContainer` and the tablet-off/powered-down visual state (`PowerRockerSwitch`, the Sleeve's own casing chrome) — deliberately out of scope for every prior Cabinetry/Color-Scheme phase (11.1.1's own About section: "the power rocker switch and the rest of the Sleeve casing — out of scope for now").
 
 **Done, 2026-09-27 — confirmed by Crawford.** Styled directly, without a separate `/interview-me`/spec pass (same convention as [24](#24-nav-panel-underline-link--deepest-level-auto-expand--superseded)/[29](#29-nav-panel-home-button-welcome-text-breadcrumb) below). No dedicated spec/task/intent doc exists for this item; the relevant commit history is `SleeveContainer.css`/`PowerRockerSwitch.css` work on `main` (`1caa931` "fixing power rocker css vars, moving rocker to the right", `422cc0e` "lots of tweaks re: nav display ui", and earlier `3d37d8a` "sleeve and logo updates").
 
@@ -1017,7 +1017,7 @@ Number assigned by Crawford 2026-09-23. Source of intent: [docs/intent/nav-layou
 
 ### About
 
-Confirmed via `/interview-me`, 2026-09-22 — full intent/spec/task trio agreed before implementation began. **Correction, 2026-09-27:** `bug/view-change-slowdown` did merge — as PR #484 (`dded768`), before this phase began — but it only ever shipped [17.2.1](#1721-performance-view-switch-profiling-harness--baseline) and [17.2.2](#1722-performance-lazy-mount-collapsed-accordion-content) (the profiling harness and the accordion lazy-mount). What this phase actually supersedes/moots is the unbuilt remainder of that series, specifically [17.2.3](#1723-performance-cabinetbox-mount-time-layout-thrash) (CabinetBox mount-time layout thrash) — the new one-node-mounted-at-a-time content model sidesteps that class of view-switch-stall problem by construction, so 17.2.3 never needed building. [17.2.4](#1724-performance-audio-scheduling-headroom-tone-lookahead)'s latency-preset work was separately absorbed by [17.2.6](#1726-performance-audio-load-budget); [17.2.5](#1725-performance-idle-paint--composite-cost)'s idle-paint cost is an orthogonal problem (unrelated to view-switching) this phase doesn't touch and remains open.
+Confirmed via `/interview-me`, 2026-09-22 — full intent/spec/task trio agreed before implementation began. **Correction, 2026-09-27:** `bug/view-change-slowdown` did merge — as PR #484 (`dded768`), before this phase began — but it only ever shipped [17.2.1](#1721-performance-view-switch-profiling-harness--baseline) and [17.2.2](#1722-performance-lazy-mount-collapsed-accordion-content) (the profiling harness and the accordion lazy-mount). What this phase actually supersedes/moots is the unbuilt remainder of that series, specifically [17.2.3](#1723-performance-cabinetbox-mount-time-layout-thrash) (CabinetBox mount-time layout thrash) — the new one-node-mounted-at-a-time content model sidesteps that class of view-switch-stall problem by construction, so 17.2.3 never needed building. [17.2.4](#1724-performance-audio-scheduling-headroom-tone-lookahead)'s latency-preset work was separately absorbed by [17.2.6](#1726-performance-audio-load-budget); [17.2.5](../roadmap.md#1725-performance-idle-paint--composite-cost)'s idle-paint cost is an orthogonal problem (unrelated to view-switching) this phase doesn't touch and remains open.
 
 ### Docs
 
@@ -1162,3 +1162,1818 @@ Added to this doc 2026-09-27 (same gap-fill audit). No intent/spec doc found —
 
 A polish pass on the nav panel shipped in the same cluster of work as 24-28 above, without its own documented rationale — flagged here so the roadmap has a record of it existing, not because the intent behind it is known. Worth a short retroactive note from Crawford if the reasoning matters later.
 
+## 31. Deterministic Robot Melody Generation
+
+Requested by Crawford, 2026-09-28, converged via an `/idea-refine` session (not yet run through `/interview-me` or a spec pass — most of the shape is already confirmed below, but treat this as pre-spec). Directly motivated by a real gap found while implementing Session Storage (20): `regenerateMelody.ts` (fired on every edit to a robot's Rhythmic Density/Motif Length/Note Variance/Pitch Repeat) calls `generateMelodyForRobot()` with no seed, falling back to `Math.random()` — so a robot's melody is currently a one-way die roll, unreproducible from its own attributes. This also means an overridden robot's melody does not survive a Session Storage save/load round trip today, even though its attributes do.
+
+### About
+
+Gives every robot a `compositionSeed` field, set once at spawn like `id` (not reusing `id` itself — a dedicated field, matching this app's existing convention of a distinct dataId per seeded concern rather than overloading one). `regenerateMelody.ts` builds a seed key from `compositionSeed` plus the robot's current `rhythmicDensity`/`rhythmicMotifLength`/`noteVariance`/`pitchRepeat`/`octaveRange` and passes it to `generateMelodyForRobot`'s already-existing (currently unused) `opts.seed` parameter — no new generation logic, no stored melody data, no seed map. The same attribute values always produce the same melody for a given robot going forward; nudging a slider back to a prior value no longer rerolls it. `applyOctaveMin`/`applyOctaveMax` (`robotOptionsActions.ts`) start calling `regenerateMelody` too, closing a second pre-existing gap (octave edits currently don't touch melody at all) — octave range becomes part of what shapes the melody, per Crawford's request.
+
+Bulk company edits (`CompanyOptionsSection.tsx`) already call `applyDensity`/`applyMotifLength`/etc. once per member robot, each with that robot's own live object — so once `regenerateMelody` is seed-aware, bulk-editing a company to identical settings automatically produces melodies that share rhythmic character without being identical note-for-note ("complementary, not unison," Crawford's explicit requirement) — no changes needed to the bulk-edit path itself.
+
+The standalone Reset Melody control (`handleResetMelody`/`onResetMelody` in `RobotOptionsTab.tsx`, wired to nothing but a bare `regenerateMelody()` call) is removed outright — under full determinism there's nothing left for it to do that changing an attribute doesn't already do, and no replacement was requested.
+
+Session Storage's existing robot-override diff (already covers all five seed-formula inputs) becomes sufficient on its own to guarantee melody fidelity across a save/load round trip, once this ships — no changes needed to `SessionPayload`'s shape.
+
+### Not Doing (and why)
+
+- **Persisting melody data directly** (the original alternative under consideration) — rejected: it's exactly the "store the derived state, not the recipe" anti-pattern this app (and Session Storage specifically) was built to avoid elsewhere.
+- **A global settings→melody map with no robot identity** — rejected: would make any two robots with identical dialed-in attributes sound identical to each other, which reads as a bug on a 12-robot roster, not a feature.
+- **An explicit "Reroll" action to replace the removed Reset Melody button** — not requested; full determinism was the explicit goal, not preserving an escape hatch for randomness.
+- **Melody history / a way to navigate a robot's past melodies** — split out to [Phase 32](../roadmap.md#32-robot-melody-history--configuration-scrubber), which depends on this phase shipping first.
+
+**Done** — see [docs/intent/deterministic-robot-melody-generation.md](../intent/deterministic-robot-melody-generation.md), [docs/specs/DETERMINISTIC_ROBOT_MELODY_GENERATION.md](../specs/DETERMINISTIC_ROBOT_MELODY_GENERATION.md), and [docs/tasks/DETERMINISTIC_ROBOT_MELODY_GENERATION.md](../tasks/DETERMINISTIC_ROBOT_MELODY_GENERATION.md). Implemented on `feature/deterministic-robot-melody`, one commit per task (9 tasks), full `interview-me` → `spec-driven-development` → `planning-and-task-breakdown` → TDD pipeline before any code changed. **Shipped scope is broader than this section's own "About" framing**, resolved during the spec pass before Task 1 started: this phase doesn't just seed `regenerateMelody.ts` — it unifies spawn-time and edit-time melody generation under one shared formula (`melodyGenerator.ts`'s new `buildSeededComposition`), retiring `spawnSystem.ts`'s separate `'melody.rand'`/`melodyCallIndex` mechanic. Without that unification, a robot's very first post-spawn edit — even reverted to its original value — would have permanently shifted it off its spawn-time melody; that "no first-edit ratchet" guarantee is the phase's actual capstone acceptance criterion, proven by a dedicated test in `spawnSystem.test.ts`. Also, `compositionSeed` feeds `generateMelodyForRobot` via its existing `opts.rand` (not `opts.seed` as this section's "About" describes) — `opts.seed` only accepts one stringified number, which can't cleanly fold in five additional attribute values; confirmed with Crawford before implementation, conditioned on the substitution introducing zero incidental randomness (verified with a `Math.random` spy in tests). One real, unplanned bug was found and fixed via the TDD cycle itself: `sessionDiff.ts`'s `applySessionPayload` patched a restored robot's attribute fields but never called `regenerateMelody`, so a robot's melody stayed the fresh seed-baseline one instead of matching its overridden attributes after a session load — `SessionPayload`'s shape needed no change (as this section predicted), but the apply logic did. Full suite at completion: 195 files / 4042 tests, `build:types`/`lint`/`build` all clean. **Manual browser verification not yet performed** — no live browser available during implementation, flagged rather than skipped.
+
+## 33. Free | Sync Toggle
+
+Requested by Crawford, 2026-09-30; re-scoped 2026-10-02 after the LFO Bank ([17.2.8](../roadmap.md#1728-performance-lfo-bank)) replaced the per-target LFO Rate this was first designed against. Intent: [docs/intent/free-sync-toggle.md](../intent/free-sync-toggle.md) (its dated re-scope section wins), spec [docs/specs/FREE_SYNC_TOGGLE.md](../specs/FREE_SYNC_TOGGLE.md), plan [docs/tasks/FREE_SYNC_TOGGLE.md](../tasks/FREE_SYNC_TOGGLE.md). **Implemented — all 15 tasks on `feature/sync-toggle` (unpushed, unmerged as of writing); the manual checkpoints (A, D, E: tempo seeding, seeded mix + persistence, the final browser/Pixel pass) are with Crawford.**
+
+### About
+
+Each of the four LFO Bank lanes' Rate, and the global Delay's Time, gets a **Free | Sync** toggle, shown to the user as **Float | Anchored**. Free is what it always was (a plain Hz / seconds value). Sync makes the same slider step through note values of the tempo — `1/32` up to 4 bars, straight / dotted / triplet (20 in all, `src/data/noteValues.ts`) — so a lane or the delay locks to `audioStore.bpm` and follows a Tempo drag. Five toggles in the whole app; no robot, company, link, or other effect has one. The engine stays Hz-only: pure resolvers (`src/utils/tempoSync.ts`) turn a stored note plus the tempo into the float the engine receives, a `sync?` field on `BankLfoSettings` / `DelaySettings` (absent = Free, no migration) carries the choice, and the Free value is kept underneath. Fresh worlds seed some lanes and the Delay Anchored (slow lanes lean Anchored, fast lanes Float, Delay mostly Anchored), with every Free value byte-identical to its pre-Sync self (pinned by an oracle test). The choice persists through a save, and through a share link as a compact `y` code.
+
+**BPM moved to the Attenuation Style.** So that a Sync seed draw can be computed from the style alone, the tempo is now seeded per Attenuation Style (`src/utils/bpmSeed.ts`, reseeding on a style change, not on a coordinates move), not per locale — this inverts `docs/specs/archive/BPM_CONTROL.md` §1.3. **Every unsaved world therefore gets a new tempo** (the tempo for a given style + coordinates differs from before); saved sessions and share links carry `bpm` and are unaffected.
+
+UI: the toggle sits in a row of its own under the slider it affects, with its own label (`Anchoring` / `Tempo Sync`) beside a box whose content is the current mode's pair (`Float` / `Free`, `Anchored` / `Sync`). Along the way the work set a UI rule — **a control whose content changes holds the size of its largest content** — and fixed the nav toggle (☰ / ✕) to follow it, via the new shared `ToggleFacade`. See `docs/AUDIO_SYSTEM.md`'s "Free | Sync" and BPM sections, `docs/COMPONENT_LIBRARY.md`, `docs/SESSION_STORAGE.md`.
+
+### Not Doing (and why)
+
+- **Probe envelope times** — a later follow-up, once this has landed.
+- **Reverb / Compressor times** — not tempo-meaningful the way a delay line and an LFO rate are.
+- **Drift amounts** — a drift is a percentage of the rate; syncing it would add nothing the lane's own note doesn't. A synced lane keeps its Rate Drift (`RATE_DRIFT_APPLIES_TO_SYNCED`, one switch to change that).
+- **Phrase Length** — a robot's, not a lane's or the delay's.
+- **Per-target or per-robot sync** — rejected in the 2026-10-02 re-scope: the LFO Bank made Rate a four-lane property, so the toggle is per lane (plus Delay), not per modulated field.
+- **An Off step on the Sync slider** — dropped (perf-neutral): a lane's `0` Hz stays the Free slider's own end.
+- **Multi-bar dotted / triplet notes** — 2 and 4 bars are straight-only.
+- **Fixing the pre-existing Attenuation-Style-switch lane re-prime gap** — `regenerateLfoBankFromSeed` is data-only (17.2.8's follow-up), so a style switch doesn't re-push the lanes to the running engine. This phase neither fixes nor worsens it: synced and Free lanes are equally stale until it is fixed.
+
+## 34. Layout Updates Pass 2: Post-Sync-Toggle Row Reshuffle
+
+Requested by Crawford, 2026-10-03, as a plain checklist (reproduced verbatim in the spec's §0). Spec [docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md](../specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md), plan [docs/tasks/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md](../tasks/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md). **Implemented — all 11 tasks on `layout/post-sync-toggle` (cut from `feature/sync-toggle`; unpushed, unmerged as of writing); the manual checkpoints (A–D: the look at ~360 / ~800 / ≥1024 px, and exactly 1024 px for the half-width Tempo Sync composition) are with Crawford.**
+
+### About
+
+A pure layout pass, no behaviour change. Nineteen sliders turn horizontal — the seven EQ/filter ones and the twelve probe-layer ones, which were the only vertical sliders in the app, so **no slider schema is vertical any more** (`src/data/sliderOrientation.test.ts` pins it; the primitives keep the mode, unused). Eight control pairs move onto shared rows, each a nested `'responsive'` `DirectionalPanel` (side by side on desktop, stacked below — the Compressor sub-rows' own shape): Shape | Rate and Rate Drift | Depth Drift on each LFO Bank lane; Delay Time (over its Tempo Sync toggle) | Repeats, and Reverb Length | Pre-Delay, each with the Amount slider on its own full-width row; Type | Gain and Phase | Interval on each probe layer. `LfoLink` lays Lane left and Depth right on desktop from the same tier, by its own CSS rather than a panel inside the primitive. EQ bands and filter params read top to bottom, each a horizontal slider over its Lane | Depth row. In Settings, Retransmit is aligned left and a saved session's timestamp sits beside its title.
+
+### Not Doing (and why)
+
+- **Removing the sliders' vertical mode** — it has no consumer after this pass, but deleting it touches the three primitives, the voxel-track maths and roadmap 11.1.5.x / 13's work; its own decision, "ask first" in the spec.
+- **`'row'` on every tier for the compact pairs** — every pair is `'responsive'` (spec assumption 1); horizontal sliders have a 3-box floor and the nav panel is narrow below desktop.
+- **Levels / Composition / Envelope, and Phase 30's open items** — not on the checklist.
+- **Hoisting the fifteen per-file `stubMatchMedia` test helpers** — a separate cleanup.
+
+## 35. World Palette Pull
+
+Requested by Crawford, 2026-10-02 ("robots, buildings and bubbles more based on the UI color scheme"; the world "is very gray"). Idea [docs/ideas/world-palette-pull.md](../ideas/world-palette-pull.md), intent [docs/intent/world-palette-pull.md](../intent/world-palette-pull.md), spec [docs/specs/WORLD_PALETTE_PULL.md](../specs/WORLD_PALETTE_PULL.md), plan [docs/tasks/WORLD_PALETTE_PULL.md](../tasks/WORLD_PALETTE_PULL.md). **Implemented — all 7 tasks on `feature/world-colors` (unpushed, unmerged as of writing); Crawford's visual checkpoint passed after two tuning rounds (red, then lime).** First of a three-branch series from one `/idea-refine` session; the other two ([parametric robot hull](../ideas/parametric-robot-hull.md), [layer pods](../ideas/layer-pods-and-follow-through.md)) are idea one-pagers only, not yet interviewed or specced.
+
+### About
+
+Factories, and through them their bubbles, lean toward the console's accent palette. Each Attenuation Style seeds a primary accent hue out of the 18 `ACCENT_COLORS` plus its nearest wheel neighbour; at placement, and again on a style retransmit, every factory's final body hue is pulled halfway toward one of the two (seeded coin per factory) and its saturation lifted by 15 points, with both deltas folded into the `hueShift`/`satShift` the actor already stores. No render path, store shape, robot file or CSS changed. The half pull, not a snap, exists because the console's 25%-transparent panels sit over the world. Two visual-checkpoint tunings added a saturation cap of 45% in two hue bands — warm 330→45 and lime 80→115 — because a warm or lime primary plus the 24-building Monolith row's own +40..60 variant saturation read "like candy". `src/utils/accentLean.ts` holds every constant; see `docs/BUILDING_DESIGN.md` "Accent Lean" and `docs/PROCEDURAL_GENERATION.md` for the two new dataIds.
+
+### Not Doing (and why)
+
+- **Robots** — dropped from this branch in the interview: they are not the grey part, and the parametric-robot-hull branch rewrites their colour mapping anyway (including the identityColor-on-the-body guardrail amendment, which this phase does **not** touch).
+- **A lightness term** — Crawford: "I'm ok with there still being gray buildings." Stacks and Warehouse often still read grey; accepted.
+- **Per-locale accent pairs** — per style, Crawford's call; two locales under one style share the pair.
+- **Per-building accent variety** — one or two hues per style, never a rainbow; that was the oversaturation risk itself.
+- **Hard snap or snap-plus-offset** — soft pull only.
+- **The Ballast neutrals, bubble colours other than their building's, placement/variant/greebles** — untouched.
+- **A simpler "replace the base with a jittered accent" model** — considered at spec review and rejected in favour of the pull.
+
+## 36. Robot Live Visuals
+
+Requested by Crawford, 2026-10-03, after the parametric hull (branch 2 of the earlier
+world-visuals series) was set aside as not matching the app's look. First of a new three-branch
+series on the existing four hand-drawn shapes. Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent [docs/intent/robot-live-visuals.md](../intent/robot-live-visuals.md), spec [docs/specs/ROBOT_LIVE_VISUALS.md](../specs/ROBOT_LIVE_VISUALS.md), plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md). **Implemented — all 13 tasks on `feature/robot-rework`; Crawford's visual checkpoint passed.**
+
+### About
+
+Deletes a spawn-time `visualAudioMap` snapshot of body scale/roundness/detail that never refreshed
+on a Robot Options edit, replacing it with a live computation (`bodyShapeFromAdsr`,
+`calculateBodyScale` — floored at `BODY_SCALE_MIN`, 1.5× the old unfloored minimum) so attack,
+sustain and release edits visibly reach the body. The four shapes now scale about their own centre
+(48,36) instead of the origin, and both avatar viewBoxes widen to frame the larger range without
+clipping. Every shape's highlight/shadow shading switches from a fixed grey/black to the robot's
+own hue-shifted colours (`colors.highlight`/`colors.shadow`). The window glass on every shape now
+carries the robot's `identityColor` (`identityGlass()`), replacing a fixed blue, so a robot's
+window reads the same hue as its selection card. One always-visible lamp (`g.lamp`, outside
+`.details`) replaces the two green status lights Organic and Industrial used to gate behind the
+detail cliff — lit by `calculateLampIntensity`, live audible-layer gain blended with detail,
+floored at `LAMP_MIN`. `CLAUDE.md`'s Visual Mapping guardrail is amended to carve out exactly this
+one non-audio exception: `identityColor` on the window glass and lamp, nothing else on the body
+(`docs/ROBOT_DESIGN.md` "Identity layer").
+
+### Not Doing (and why)
+
+- **Reviving the parametric hull** — rejected by eye; `feature/robot-v2` stays unmerged, not to be revived.
+- **Greebles** — computed live (`calculateGreebleCount`), still not drawn on any shape; Roadmap Phase 37 (Robot Greebles) owns rendering them.
+- **`microVariants`** — unread by every shape; parked pending Phase 37, which may cover the one non-redundant case (fast attack → stripes) with a greeble part instead.
+- **Layer markers / pod motion** — the always-present Coaxial/Harmonic sockets and any orbit/swim motion are their own later branches (Roadmap Phase 38 and beyond), not this one.
+- **Identity colour anywhere else on the body** — the guardrail amendment is scoped to exactly two elements; widening it needs its own decision.
+- **Changing `calculateScale`'s register steps** — the size fix is a floor clamp (`BODY_SCALE_MIN`), not a shift of the 0.7/1.0/1.3 steps themselves.
+
+## 37. Robot Greebles
+
+Second of the three-branch series on the existing four hand-drawn shapes (Roadmap Phase 36 →
+**37** → 38). Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent
+[docs/intent/robot-greebles.md](../intent/robot-greebles.md), spec
+[docs/specs/ROBOT_GREEBLES.md](../specs/ROBOT_GREEBLES.md), plan
+[docs/tasks/ROBOT_GREEBLES.md](../tasks/ROBOT_GREEBLES.md), sketch
+[docs/sketches/robot-greebles.html](../sketches/robot-greebles.html). **Implemented — all 9 tasks
+on `feature/robot-rework`; Crawford's sketch sign-off and the perf + visual checkpoint both
+passed.**
+
+### About
+
+Gives every robot a small, seeded, permanent set of hardware parts — panels, tanks, dishes,
+antennas, decals — placed inside its own silhouette. `Robot.greebles` (`{ kind, slot }[]`) is
+drawn once at spawn (`generateGreebles`, `spawnSystem.ts`): a count in `GREEBLE_COUNT_RANGE`
+(2..5), then that many independent kind/slot draws with no robot ever repeating a slot. `kind`
+indexes `RobotGreebles.tsx`'s fixed five-part vocabulary (`KIND_COUNT`, one or two SVG elements
+each, coloured only from `colors.accent`/`colors.shadow` and the hardware greys); `slot` indexes
+the current shape's `GREEBLE_SLOTS` table (`greebleSlots.ts`, `SLOT_COUNT` entries per shape,
+hand-measured in the sketch to clear the window, lamp, vent and the two layer-socket positions
+Roadmap Phase 38 reserves). `RobotBody` builds the node outside its audio memo and passes it to
+the shape, which places it between the hull shadow and the window without ever learning about
+kinds or slots — a waveform change re-slots the same parts onto the new outline instead of
+regenerating them. `hideGreebles` omits it only on the 64px selection card; the detail avatar and
+in-world robots always show parts. The five dead audio-driven greeble helpers
+(`calculateGreebleCount`/`Size`/`Persistence`/`PlacementBias`, `calculateDetailLevel`) are deleted.
+`CLAUDE.md`'s Visual Mapping guardrail gains a second non-audio layer alongside Phase 36's
+`identityColor`: the seeded greeble set, confined to the vocabulary's own slots
+(`docs/ROBOT_DESIGN.md` "Non-audio layers").
+
+### Not Doing (and why)
+
+- **Audio-driven greeble count/size/placement** — rejected in the intent interview: Crawford
+  didn't want parts popping in/out; a seeded, permanent set reads as "natural and lore friendly".
+- **Persistence/decay of individual parts** — there is nothing to decay; the set is permanent for
+  the robot's lifetime.
+- **More than two elements per kind, or more than `SLOT_COUNT` (8) slots per shape** — the Phase
+  36 idle-paint lesson keeps element count bounded; the perf gate at Checkpoint C confirmed it.
+- **Rendering parts on the 64px selection card** — `hideGreebles` keeps the card clean; only the
+  detail avatar and in-world robots show them.
+- **Layer markers / pod motion** — the two reserved socket positions this branch's sketch measures
+  are Roadmap Phase 38's own fixtures, not drawn here.
+
+## 38. Robot Layer Markers
+
+Third of the three-branch series on the existing four hand-drawn shapes (Roadmap Phase 36 → 37 →
+**38**). Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent
+[docs/intent/robot-layer-markers.md](../intent/robot-layer-markers.md), spec
+[docs/specs/ROBOT_LAYER_MARKERS.md](../specs/ROBOT_LAYER_MARKERS.md), plan
+[docs/tasks/ROBOT_LAYER_MARKERS.md](../tasks/ROBOT_LAYER_MARKERS.md). **Implemented — all 7 tasks
+on `feature/robot-rework`; Crawford's Checkpoint B visual pass confirmed.**
+
+### About
+
+Gives every robot two always-present, identity-coloured sockets — Coaxial and Harmonic — lit in
+proportion to that layer's live gain and dark when muted, so a robot's Signature Array edits
+reach the body the same way lamp and greebles already do. `socketLitOpacity` (`gain`) in
+`robotVisualHelpers.ts` maps gain 0 (or a missing layer) to `SOCKET_DARK`, interpolating up to
+fully lit at `SOCKET_GAIN_MAX` (floored at `SOCKET_MIN` once any gain registers) — the same curve
+shape as the lamp's `calculateLampIntensity`. `SOCKET_POSITIONS` (`greebleSlots.ts`) transcribes
+the two per-shape centers the Phase 37 sketch already reserved at the tail of each shape's
+`FIXTURE_BOXES`. `RobotLayerSockets.tsx` draws each socket as a housing ring (always visible, so a
+dark socket reads as a fixture, not a hole) plus a glass/sheen pair whose group opacity carries
+the gain-derived brightness; the four shapes take it as a `sockets` node placed after the lamp and
+before `.details`. `RobotBody` derives `socketLit` from `layers[1]`/`layers[2]` inside its audio
+memo, composes battery dim outside it exactly like the lamp, and wires the node into every render
+context — card, detail, world. Nothing pops in or out on an edit; a muted layer just goes dark,
+the same ruling the greebles got. `CLAUDE.md`'s Visual Mapping guardrail gains a third non-audio
+carrier alongside the window glass and lamp: the two layer sockets, with the note that a socket's
+lit state is still audio (gain) and only its hue is identity (`docs/ROBOT_DESIGN.md` "Non-audio
+layers").
+
+### Not Doing (and why)
+
+- **Audio-driven socket count or position** — there are always exactly two, Coaxial and Harmonic,
+  at fixed per-shape positions; nothing about count or placement is audio-derived.
+- **A socket for the Baseline layer** — only the two optional layers (Coaxial, Harmonic) get a
+  socket; Baseline is never quiet and has no socket of its own.
+- **Detune or phase mapped to the sockets** — gain only for now; those wait for a motion branch.
+- **Pod motion (orbits, trailing, lean)** — the static form of
+  [layer-pods-and-follow-through.md](../ideas/layer-pods-and-follow-through.md); its own branch on
+  top of this one.
+- **Hiding sockets on the card** — both avatars show them, unlike greebles' `hideGreebles`
+  carve-out.
+
+## 39. Gem Polygon Robots (Branch A)
+
+Replaces the robot series above (Phases 36–38) rather than extending it: the four hand-drawn
+shapes, their greebles and layer sockets are gone. Idea
+[docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md), intent
+[docs/intent/gem-polygon-robots.md](../intent/gem-polygon-robots.md), spec
+[docs/specs/GEM_POLYGON_ROBOTS.md](../specs/GEM_POLYGON_ROBOTS.md), plan
+[docs/tasks/GEM_POLYGON_ROBOTS.md](../tasks/GEM_POLYGON_ROBOTS.md), sketch
+[docs/sketches/gem-polygon-robots.html](../sketches/gem-polygon-robots.html). **Implemented on
+`back-to-gen-robots`: Gate 1 (sketch) and Gate 2 (live, by eye) passed; Task 9's perf gate closed
+on an accepted residual (below).** Requested by Crawford 2026-10-04: the old robots didn't match the
+console, blurred together and felt lifeless.
+
+### About
+
+A robot is a seeded stack of low-poly gem polygons — a near-black backing, four 24 × 16 orbiters in
+the corners, two Mids hanging off the centre line and a Top polygon with two lights — each a
+chamfered rectangle on a 15° grid with a bevel ring lit by one world light. Geometry is derived from
+`Robot.gemSeed` by `getRobotGem` and never stored. The guardrail is inverted: `identityColor` is
+the body; audio reaches it only through three continuous dials (lights, each Mid's lit level from
+its layer's gain, body scale), so nothing pops on an edit. Card and avatar fit each robot to its
+tile at scale 1 (`gemViewBox` + `ignoreScale`). See docs/ROBOT_DESIGN.md.
+
+**Decisions made while building** (all recorded in spec and plan): geometry derived from the seed,
+never stored; Mid z-order follows the outline (the spec draft had it reversed); generator fixes the
+sketch lacked (double-chamfer 15° drift, bevel bow-ties via `bevelHolds`, line clearance); card
+framing "fit each robot"; facets merged into one path per tone and quantized to 3 tones
+(`GEM_FACET_TONES`) after the idle-paint gate — busy +6 % / paint +34 % over the hand-drawn robots,
+down from +14 % / +94 %, the residual accepted by Crawford (docs/PERFORMANCE.md). The three
+`robot.greeble.*` dataIds are retired, not renamed — a breaking change to world generation, accepted.
+
+### Not Doing (and why)
+
+- **Audio → geometry, bevel or Mid hue** — Branch B (signal chain) in the idea one-pager.
+- **Orbiter motion, wobble and enter/leave** — Branch C (motion); absorbs the pods idea. Shipped,
+  redesigned, as Phase 40 below — not the wobble/orbit form this bullet originally named.
+- **Waveform as an angle dialect** — held from the Gate 1 sketch; no evidence yet it reads at 1×.
+- **Closing the last +6 % idle cost** — accepted; the residual is paint per element.
+
+## 40. Orbiting Polygons
+
+Idea [docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md) (Branch C, superseded),
+intent [docs/intent/orbiting-polygons.md](../intent/orbiting-polygons.md), spec
+[docs/specs/ORBITING_POLYGONS.md](../specs/ORBITING_POLYGONS.md), plan
+[docs/tasks/ORBITING_POLYGONS.md](../tasks/ORBITING_POLYGONS.md), sketch
+[docs/sketches/gem-polygon-robots.html](../sketches/gem-polygon-robots.html) (Motion panel).
+**Shipped on `feature/orbiting-polygons`, redesigned mid-build.**
+
+### About
+
+Phase 39's four orbiters stop sitting static at the canvas corners: they now attach to the hull.
+Composition settings (density → count, Phrase Length → size, Note Variance → boundary-line width,
+Pitch Repeat → a new emissive centre strip) drive the same four dials the original plan specified.
+Where the plan diverges is motion — the original design had orbiters drift near their corners and
+periodically ride a paired hoop through the body, entering and leaving by that ring. Gate 1 (the
+motion sketch) passed with that design and Task 13's idle-paint gate found it busy +63 % over the
+Phase 39 baseline, driven by the standing per-pair orbit-scheduler construct count (not drift, not
+orbit frequency — both were ablated and ruled out; see docs/PERFORMANCE.md). Crawford cut the whole
+orbit/drift mechanism rather than chase the perf gate further: orbiters now dock at Top's four
+corners, nestled between Mid and Top, and sit rigid with the body once attached. On spawn —
+including a robot's own first mount — each attaches with a short hop (dropped, shrunk, faded, then
+`back.out` into place); a count decrease plays the hop in reverse. Job animations (detach to do
+"work") are an explicit later phase, not this one.
+
+### Decisions made while building
+
+- **Dock position:** four distinct slots at Top's corners (not one shared cluster), so
+  `cornerOrder`/count/the dial mapping stay meaningful — Crawford's call when the redesign was
+  interviewed.
+- **Despawn before job animations exist:** mirrors the attach hop in reverse (fly out, then hide) —
+  keeps the existing one-arc-at-a-time queue (Task 10 of the plan) symmetric without needing to
+  invent "work" animations early.
+- **Depth twins removed:** the original plan's three copies per orbiter (behind/rest/front, for
+  passing in front of/behind the body mid-orbit) collapsed to one copy per corner — nothing passes
+  through the body any more, so the DOM z-order (orbiters drawn between Mid and Top) does all the
+  "nestled" work the twins used to.
+- **A code-review pass before committing** (CLAUDE.md's `code-review-and-quality` skill) found and
+  fixed three things: a race where the initial-mount attach batch (deliberately ungated, so every
+  orbiter pops in at once) wasn't tracked by the one-arc-at-a-time guard, letting a rapid count
+  change start a detach hop fighting an in-flight attach tween; a standing-but-always-empty
+  `gsap.timeline()` per robot per context, swapped for a lightweight stub; and `gemMotionViewBox`
+  not padding for the `size` dial's maximum, which the old hoop-based viewBox's generous padding
+  had been masking by accident.
+- **Flip removal** (§1.6 of the spec, its own task): robots no longer mirror on direction change —
+  unrelated to the motion redesign, landed alongside it.
+
+### Not Doing (and why)
+
+- **Drift and the ring/hoop orbit** — built, gated past Gate 1, measured at the perf gate, then cut
+  entirely per Crawford's redesign call; not a residual to revisit, a replaced design.
+- **Job animations (detach to do "work")** — explicitly the next phase on this feature, not scoped
+  here; `useOrbiterMotion.ts` stays ignorant of what a later detach will mean. Now
+  [Phase 43](#43-robot-jobs-and-charging-stations).
+- **LFO → orbiter links** — dropped for good at the intent stage (orbiter motion is composition-
+  driven, never LFO-driven).
+- **Top/Mid oscillator-driven rules** — a separate later pass, per the intent doc.
+
+## 41. Robot Halo and Lit Lines
+
+Intent [docs/intent/robot-halo-and-lit-lines.md](../intent/robot-halo-and-lit-lines.md), spec
+[docs/specs/ROBOT_HALO_AND_LIT_LINES.md](../specs/ROBOT_HALO_AND_LIT_LINES.md), plan
+[docs/tasks/ROBOT_HALO_AND_LIT_LINES.md](../tasks/ROBOT_HALO_AND_LIT_LINES.md), sketch
+[docs/sketches/robot-halo-and-lit-lines.html](../sketches/robot-halo-and-lit-lines.html).
+**Merged to main (PR #528, `feature/mystery-light`), Tasks 1–13.** The halo ripple's first
+caller is [Phase 43](#43-robot-jobs-and-charging-stations)'s station enter/exit arcs (J2,
+2026-10-08).
+
+### About
+
+Crawford's "mysterious light" pass, the Top/Mid pass Phase 40 reserved. Each gem robot gains a
+company-coloured halo behind its Mids (shaped by envelope, sized by volume), lit strips on the Top
+and Mid boundary lines widened by that layer's gain-LFO depth, and a two-second out-of-step flicker
+on any strip whose driving attribute changes. The strips and flicker are live everywhere.
+
+### Decisions made while building
+
+- **The halo ripple is not tied to the orbiter hop.** Wiring `decorateArc` into Phase 40's
+  attach/detach hop was tried and reverted the same day (2026-10-06): that hop is density-driven,
+  not a real spawn/despawn event. The halo exists, fully inert, reserved for a job-detach or
+  docking animation — [Phase 43](#43-robot-jobs-and-charging-stations)'s station enter/exit is its
+  first planned caller. See the spec's §1 Amendments.
+
+### Not Doing (and why)
+
+- **The halo/ripple visual gate** — deferred, per the spec's §5 gate note, to whichever task first
+  wires `decorateArc`; that task re-runs the gate's original wording (and the idle-paint check).
+
+## 42. World View Districts
+
+Intent [docs/intent/world-view-districts.md](../intent/world-view-districts.md), spec
+[docs/specs/WORLD_VIEW_DISTRICTS.md](../specs/WORLD_VIEW_DISTRICTS.md), plan
+[docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md), sketch
+[docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **D1 shipped on
+`feature/world-districts`; D2 (the scenery families) shipped on `feature/world-scenery`; D3
+(atmosphere) shipped on `feature/world-atmosphere` — all three branch tips, 2026-10-07.**
+
+### About
+
+Every locale becomes a seeded underwater district: one of nine row recipes replaces the single fixed
+`FACTORY_ROWS` table, drawn over a seabed ridge, a stepped ground line and a water column that
+follows the hour, populated by static scenery families that obey the factory rules. Three branches:
+**D1** districts + terrain + water, **D2** the families, **D3** atmosphere. Changing what existing
+coordinates and saved `?session=` links show is accepted.
+
+### Not Doing
+
+- **Coast framing** — the sketch kept it for comparison only; the world is underwater, full stop.
+- **The legacy `FACTORY_ROWS` table as a tenth district** — dropped; one in ten worlds looking like
+  today defeats the point of districts.
+- **Preserving existing worlds / saved `?session=` links** — accepted breaking change (intent
+  "Out of scope"); regenerating a different-looking locale at the same coordinates is the point.
+- **Audio → world mapping** (global audio parameters driving the recipe pick, derelict ratio or
+  lighting) — a separate session; the recipe pick and derelict ratio stay explicit per-locale values
+  so that future session has clean targets.
+- **Robot visuals** — untouched; Phase 40/41 own them on their own branches.
+
+### Decisions made after the spec
+
+- **The `dock` pad family is dropped (2026-10-06)** — [Phase 43](#43-robot-jobs-and-charging-stations)'s
+  charging stations replace it; 16 scenery families, not 17.
+- **Phase 43 reuses `deriveSceneryParams(actor)`** (already a pure module in the plan, Task 11) for
+  its `workAnchors(actor)` and headless readiness sim — so renderers must keep reading geometry from
+  it, never deriving sizes inline. Phase 43 also reads `config.derelict` and the row's `offscreen`
+  anchor (via `config.row` + the district) to decide which items can host jobs.
+- **D1 + D2 block Phase 43** — its building-to-job host lists are written against the district
+  families. D3 does not.
+- **`MarineSnow` is cut (2026-10-07)** — built, judged live by Crawford, and dropped: it read as
+  film grain over the scene rather than drifting particulate, making the already-static world look
+  stiller, not more alive. Three motion variants were perf-measured as a follow-up and none
+  changed the verdict. `LightShafts` ships alone as D3's atmosphere layer. See
+  docs/specs/WORLD_VIEW_DISTRICTS.md's 2026-10-07 amendment and docs/tasks/WORLD_VIEW_DISTRICTS.md
+  Task 21.
+- **D3's perf gate pinned an hour, not a district** — `computeLocaleHour` reads `abs(x % 24)` off
+  `dayStartTimestamp` at locale build time, so Task 22 picked `x = 12` (shafts on) and `x = 0`
+  (shafts off) directly rather than scanning for a district; passed within the existing noise band
+  at both hours (docs/PERFORMANCE.md).
+
+## 43. Robot Jobs and Charging Stations
+
+Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md), intent
+[docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
+[docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md), plan
+[docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md). **Shipped: all four
+branches merged to main, 2026-10-07 to 2026-10-08.**
+
+| Branch | PR | Tip merged | Tasks |
+|---|---|---|---|
+| J1 lifecycle + world data, `feature/jobs-lifecycle` | #537 | `cd7f9988` | 1–16 |
+| J2 stations + the loop, `feature/job-lifecycle-2` | #538 | `af560c36` | 0a, 0b, 16b, 17–27 |
+| J3 the move set, `feature/jobs-moves` | #539 | `9f7cda8e` | 28–30 |
+| J3 docs, `features/jobs-phase-4` | #543 | `8535afd8` | 31 |
+| J4 depth layers, `feature/jobs-depth` | #544 | `c1ad9837` | 32, 32b, 33, 34, 34b, 35 |
+| Final docs, `docs/jobs-final` | — | — | 36 |
+
+**J2 (stations + the loop) shipped and merged 2026-10-08:** Crawford's two motion sketches; the
+work loop (`workLoop.ts`) behind the `onLifecycleChange` seam, with the legacy adapter, idle
+wandering and job affinity scoring deleted; Crawford's charging station design (three fragments
+around the robots, slot lights, live rig dials, the station ripple); recall and turn-back; jobs
+6–10 s from the tempo; site cooldown 0.3/2/30; and the activity on the robot cards. **J3 (the move
+set) shipped and merged 2026-10-08:** all five moves (`hoverPulse`, `trace`, `ring`, `fan`,
+`carry`), the six-job table and per-robot variation. **J4 (depth layers) shipped and merged
+2026-10-08:** a second moving robot row (`robots-back`) behind the midground, so background
+buildings host work (`BACK_HOSTS_ENABLED` true); robots switch rows only at the start of a run
+clear of every midground silhouette, under a 1 s dissolve, at 0.75 scale in the back; four depth
+tints replace the old two; exiting robots leave between the station's back plate and the rest.
+Checkpoints A–E all passed live. Every perf gate passed except J4's, whose paint miss (+31 ms per
+6 s, the two extra compositor layers) Crawford accepted after a Pixel run on the Full Load
+Budget; the J2/J3 Pixel listen passed too (docs/PERFORMANCE.md). Docs:
+[ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md), [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md),
+[BUILDING_DESIGN.md](../BUILDING_DESIGN.md), [ROBOT_DESIGN.md](../ROBOT_DESIGN.md).
+
+J1 shipped:
+- the renamed docking states;
+- the flat drain (6), with the job out of the replay;
+- the `onLifecycleChange` seam with a legacy adapter (today's visuals, unchanged on screen);
+- host lists, work sites and the coverage top-ups (the only visible change, in 5 districts);
+- seeded stations, site choice, and the drain and readiness sims (site cooldown 0.4/3/30).
+
+Checkpoint B's static checks and idle-perf gate passed (busy −1.5 % vs main, docs/PERFORMANCE.md).
+Depends on
+[42](#42-world-view-districts) (D1 + D2, for the host buildings), [40](#40-orbiting-polygons) (the
+orbiters that do the work), [41](#41-robot-halo-and-lit-lines) (the halo ripple on station
+enter/exit) and [20.5](../roadmap.md#205-world-clock-deterministic-lifecycle-replay) (the replay this phase
+narrows).
+
+### About
+
+Robots stop wandering at random and do work their world asks for. Host buildings carry job lists;
+a building is ready when no robot holds it and its cooldown has elapsed, and a robot finishing a job
+(or leaving a station) goes to the nearest ready building for its job — or switches to a job no
+other robot holds when none is ready. At the building the robot bobs while its orbiters detach and
+play the job's moves (`hover-pulse`, `trace`, `ring`, `carry`, `fan`) at the building's work anchors,
+for 6–10 s set by the tempo (orbiter count was cut from timing at the moves sketch). Low battery sends it, once the current job finishes, into one of 2–3
+seeded floating gem stations (capacity 6, slot lights), where it is invisible while charging. A
+second moving robot layer behind the midground lets background buildings host work.
+
+Battery stays on the measure tick at one flat drain rate, so the job leaves the World Clock replay;
+battery, docking and pitch drift still replay exactly. Animation runs on wall-clock time and never
+touches the music. Six jobs: the existing four plus Salvage and Maintenance. Full direction,
+assumptions to validate, MVP and Not Doing list are in the idea doc.
+
+### Supersedes
+
+- Backlog item 8 (Visuals: Job Animations), closed by this phase and moved to
+  [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
+- The bottom-only entry/exit, random idle wandering and low-battery lower-third rules
+  ([docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)), job affinity scoring and per-job battery
+  surcharges — all removed by this phase, along with the dead `interactionSystem.ts` and factory
+  production fields. J1 removed the surcharges, `interactionSystem.ts` and the production fields;
+  J2 removed the rest when the work loop replaced the legacy adapter (Task 24).
+
+### Decisions made while building
+
+All Crawford's unless marked; each is recorded in the plan's "As shipped" notes.
+
+- **Orbiter count no longer drives job speed** (moves sketch, 2026-10-07): every job lasts 6–10 s,
+  set by the tempo at job start. Count only decides how many orbiters work.
+- **The station is his own design** (station sketch): four rotated gem layers drawn as three
+  fragments around the robots, a 25-shape budget (raised from 16), slot lights in the stored
+  robots' identity colours, no bob, geometry driven by the global rig.
+- **Flat drain 6 and site cooldown 0.3/2/30**, both picked from headless sims.
+- **Midground silhouettes are everything solid between the robot rows** ("let's not let robots
+  clip through anything"), with bubbles, plumes and floodlight beams left out.
+- **Tints and a dissolve together** (depth-tint sketch gate): A .06 / B .25 / C .20 / D .10, so a
+  row switch moves 40 % haze instead of 85 %, blended by a 1 s dissolve.
+- **The front copy fades in both directions** (Task 34, the agent's call against the plan's
+  wording): a back → front robot re-mounts in front only after its fade, so the haze never pops.
+- **J4's paint cost accepted** (Task 35): +17 % paint at idle and ≈ +17 MB on a Pixel 8, for the
+  two extra compositor layers, after a 3-minute Pixel run on Full.
+
+### Not Doing (and why)
+
+- **Time of day in job choice**: the hour is wall-clock and measures follow tempo, so they can't
+  share a replay.
+- **Per-job or per-orbiter battery drain**: jobs change at wall-clock moments; a flat drain keeps
+  the replay exact.
+- **Jobs from audio controls or companies**: audio drives the look; companies already make their
+  members look alike.
+- **Lifecycle light colours** (low-power red, charging yellow): no change to the Visual Mapping
+  guardrail.
+- **Visible building calls and a colony economy**: timers, static-layer repaints and unreplayable
+  state.
+- **Job animations on cards or the detail avatar**: the avatar keeps its orbiters attached.
+- **Persisting or replaying job, activity, position, row or cooldowns**: a live layer by design.
+- **Power-cycle polish**: its own pass; a power cycle still kills the work, swim and station
+  animations.
+- **One robot row with midground clipping**: J4's alternative if the re-mount had hitched; it
+  didn't (Checkpoint E).
+- **The districts' `dock` pad family**: dropped; stations replace it.
+
+### Still open
+
+- **Background parks below the roof** (spec §7 Q6): 10 of 1 523 background sites over the
+  121-seed grid park low; drop them or park beside them is Crawford's call
+  ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md#known-gaps)).
+
+## 44. World Gem Material (Option A)
+
+Idea [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), intent
+[docs/intent/world-gem-material.md](../intent/world-gem-material.md), spec
+[docs/specs/WORLD_GEM_MATERIAL.md](../specs/WORLD_GEM_MATERIAL.md), plan
+[docs/tasks/WORLD_GEM_MATERIAL.md](../tasks/WORLD_GEM_MATERIAL.md), sketch
+[docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540; sketch gate passed
+2026-10-08 — Crawford: "a great little blend of both art styles"). **Built on `feature/world-gem`,
+2026-10-08 to 2026-10-09 (Tasks 1–19, 21 and 22); not yet merged.** The idle-paint perf gate (Task 19)
+passed on all three pinned worlds with no cut — docs/PERFORMANCE.md, "World Gem Material — the Task 19
+perf gate". **Still owed: Task 20** — Crawford's by-eye look at the live 1920 × 1080 world at 9 am, noon,
+3 pm and 10 pm, and the Pixel listen — then the PR.
+
+### About
+
+The gem robots (Phase 39) and the world they sit in read as "one style randomly placed on another"
+(Crawford, 2026-10-08). Option A closes the gap by material, not form. The rule for what gets what:
+**mass gets the robots' bevel ring, everything else solid gets a 1.5 px hairline.**
+
+- **Mass** — factories and their rooftop blocks, tanks, walls, dome bases, containers, scaffold blocks,
+  wreck hulls, deckhouses and funnels, vent steps, crane loads, and the terrain's ridge and ground
+  profiles — gets an 8 px inset outline (× the item's own scale, through the robots' one 18 % short-side
+  cap, and no ring under 1 px), one trapezoid facet per edge, and three quantized tones (`quantizeShade`
+  from `gemShading.ts`, the 0.5 / 1.1 / 1.25 multipliers from `gemShape.tsx`). Rooftop blocks use 0.6 ×
+  the building's depth. There is no outline stroke on mass.
+- **Everything else solid** — members (posts, beams, masts, pylon towers, scaffold frames), curves (the
+  dome cap's arc, the dish reflector, the turbine hub) and the six families the world scene left out
+  (dish, turbine, floodlight, tether, pipeline, the pipe bridges) — gets the hairline, in the scenery
+  gem outline's colour. Thin rooftop parts and the cupola's arc get it too.
+- **Left alone:** silhouettes, windows (re-centred inside the ring), belts, lamps, greebles' placement,
+  boulders, beacon heads, pylon heads and the charging stations.
+
+Three rulings were made after the idea doc and supersede it (the intent's "Supersedes the idea doc"):
+members get the hairline instead of nothing; the terrain is in (its switch survives only as a code
+constant for the A/B); and everything else solid gets the hairline too. The other rulings stand: **the
+hour-driven east/west sun wins** on buildings (`worldLightVector`; the robots keep their own fixed
+top-left light), **the windows stay**, bevel 8 px, facet contrast 1.0, lateral sun 1.0, no boundary
+lines. A bevel of 0 renders as today's renderer did; the six `WORLD_GEM` switches in
+`material/worldGemMaterial.ts` are code constants, no setting and no UI.
+
+Built differently from the spec, found while building: the terrain's 8 px bevel does not hold on the
+polygon as drawn (a miter that deep inverts on most seeded worlds), so its ring is built on an extended
+outline (`terrainRingOutline`); at 9 am only east-facing steps and flat runs are lit, west-facing steps
+are neutral; the crane hanger is a `<rect>` now whatever the switches; and `midgroundSilhouettes.ts`
+widens the bridge boxes by half a hairline. Docs: BUILDING_DESIGN.md ("World Gem Material", "World gem
+treatment"), ROBOT_DESIGN.md ("Bevel and shading"), PERFORMANCE.md, and the executable pin in
+`src/docs/worldGemMaterialDocs.test.ts`.
+
+Perf: static-layer content only, repainted on the once-a-second lighting tick, never per frame. The
+Task 19 gate (2026-10-09) ran `main` `6802c8b4` against the branch on `dense`, `ventfield` and `yard`,
+three rounds each: median main-thread busy +2.1 % / +1.7 % / +0.4 % and Paint +6.6 % / +0.5 % / −2.4 %,
+every delta inside `main`'s own round-to-round spread; one ablation round with the hairlines off and the
+terrain off separated from nothing. No cut was taken; the Pixel is Task 20's. No CSS transition on any
+facet fill (the 17.2.5 rule). Depends on [42](#42-world-view-districts) (the families) and
+[39](#39-gem-polygon-robots-branch-a) (the material).
+
+### Supersedes
+
+- [docs/todo/backlog.md](backlog.md) item 9 (Visuals: Better Building Details) — the material pass is
+  the building-detail work; any greeble-variety follow-up is a later, separate item. Item 9 has moved to
+  [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
+
+### Not Doing (and why)
+
+- **Option B (chamfered silhouettes) and Option C (buildings as stacked gem parts)** — Crawford asked
+  for A only; both change the silhouette-first pillar (BUILDING_DESIGN.md) and the greeble, clip and
+  ground-lock geometry written against the universal rectangle. Re-decide after A ships, if at all.
+- **The robots' fixed top-left light on buildings** — ruled out; the east/west sun is the world's
+  only sunlight.
+- **Replacing windows with emissive vertex lights** — ruled out; the windows stay.
+- **A ring on members or curves** — they get the hairline, never a ring; arcs are never faceted (the
+  90/45 grid rule).
+- **A union ring on the vent cone** — its ledges are narrower than the bevel, so the ring
+  self-intersects; each step is ringed as its own block instead.
+
+## 45. Layout Rework (shell, nav, section tabs, roster, off screen)
+
+Intent [docs/intent/layout-rework.md](../intent/layout-rework.md) (confirmed via `interview-me`,
+2026-10-09), spec [docs/specs/LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md), plan
+[docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md), sketch
+[docs/sketches/layout-rework.html](../sketches/layout-rework.html) (every view tab approved; its header
+is the record of the design, no longer the plan). Docs: [UI_SHELL.md](../UI_SHELL.md),
+[COMPONENT_LIBRARY.md](../COMPONENT_LIBRARY.md), [COMPANIES.md](../COMPANIES.md),
+[SESSION_STORAGE.md](../SESSION_STORAGE.md). **Built on `feature/layout-rework`, 2026-10-09 to
+2026-10-11 (Tasks 1–32); not yet merged.** The idle-paint gate (Task 29) passed after one fix —
+docs/PERFORMANCE.md, "Layout Rework — the Task 29 perf gate". Task 30 (Crawford's screenshot check) was
+signed off on 2026-10-11. **Still owed: the Pixel listen** — then the PR.
+
+### About
+
+Crawford's twelve desktop and six phone screenshots (2026-10-08) named the problems: the off screen says
+nothing about what the switch does; the header and the permanently docked nav crowd every screen; the world
+shows through a 75 % glass under every control; the same information is stated three times per screen (nav
+tree depth, accordion headers, two intro panels); every radio option is a two-line cabinet box; the Probes
+list is twelve identical cards that are mostly company radios; and on phones the fixed header hides scrolled
+content. The shell and every screen were rebuilt to the sketch. Nothing below the UI changed: the session
+payload, the share link and the audio path are untouched.
+
+- **One shell switch.** `useShell()` (768 px) is the only desk/phone branch; `useCabinetTier` keeps sizing
+  controls. The phone shell holds down to 320 px.
+- **One nav panel, five boxes** (Deck, Fleet Params, Probes, Companies, Settings) that expands in place for
+  Probes and Companies, all selection through `navActions.ts`; on the phone the same panel is a sheet opened
+  from a bottom bar. The tree, the stacked accordion screens, scrollspy and `accordionSync` are deleted.
+- **An opaque content surface** over the dimmed world, a slim header (mute and volume), and a meta box on the
+  Deck carrying the world line and the selected robot's and company's lines; selected robots and company
+  members get a halo in their own and the company's colour.
+- **Section tabs** (`SectionTabs`, one section in the DOM at a time) on Fleet Params, the robot screen, the
+  company screen and Settings; a "?" help popover on every value control (`ContentEntry.help`); single-line
+  `RadioButton` faces; a compact `LfoLink`.
+- **The roster board** replaces the Probes list and the Companies index: a row per company then Freelance,
+  tiles with a quiet Move chip (popover on the desk, sheet on the phone) and a `Flip` glide. **The company
+  screen** is the robot screen with a company column, edited through `useCompanyOptions`.
+- **An off screen** that explains the power switch, over the world built before power-on (`initializeLocale`
+  split into build and start halves) and a Transmission picker of three preset worlds and the user's saves.
+
+### Decisions made while building
+
+- Picking a parent box goes to that branch's page and a pick collapses the list (Crawford, 2026-10-09 and
+  2026-10-10); the panel's rest and wide widths are 124 and 200 px. Deleting a company selects All Probes.
+- The phone's breadcrumb drops Root; the narrow desk (768–1000 px) was left as it is, and the top bar's empty
+  space left of the rocker is flagged for a later pass.
+- Option lore is back on the `RadioButton` face as a second line (not a popover), and every intro is a
+  collapsed More / Less expander with its headline showing, stacked on the phone.
+- The Freelance row is always present, even empty; a robot with an orphan `companyId` reads as Freelance.
+- The three presets (Kryndara, Vessport Null, Halcyon Drift) and the off-screen copy are placeholders
+  until Crawford curates them.
+- **A bug older than this branch, found by the perf gate:** `useHaloMotion` started a 0.5 s tween on every
+  re-render because `RobotBody` hands it a fresh object each time, so every halo wrote its attributes on every
+  frame (about 2,250 stop writes a second, on `main` too). Fixed in `153c2956`; the powered-off world went from
+  ~350 paints in 6 s to ~26, and the powered-on Deck's idle main-thread time fell about 32 %.
+- A known-flaky company-name test was removed on Crawford's word (`6d743603`).
+
+### Supersedes
+
+- [docs/todo/backlog.md](backlog.md) item 2 (Onload: Power-Off Intro Text) — the off screen's label, power
+  hint and Transmission row. Item 4 (Helper Text on Inputs) — `ContentEntry.help` and `HelpPopover`. Both
+  moved to [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
+
+### Open
+
+- The meta box's selection lines were deleted after the code review (2026-10-11): every selection opens a branch
+  and `goHome` clears both ids, so the Deck never has a selection. The halo stays; bring the lines back from git
+  history (commit before this note) if a surface ever shows them.
+- Compositor::Update is about 15–20 % higher on Fleet Params than on `main` (not a gate metric, not
+  investigated).
+- The Move sheet's 500 ms tap-hold was not tested on a touch device.
+
+### Not Doing (and why)
+
+- **The theme engine and the Theme row** — [docs/ideas/themes.md](../ideas/themes.md) is its own phase, with
+  its own interview; the sketch keeps the row behind an option under the same no-pop rule.
+- **The Atlas card, sleeve transport keys, a desk, any hardware key** beyond the power rocker — parked for
+  v2 (`punch-card-session.html`); soft keys were sketched and rejected.
+- **Drag between roster groups** — needs a keyboard fallback and is bad in a scrolling board on phones; the
+  Move chip is the reassignment.
+- **A per-field "own versus inherited" marker on the company screen**, **a roster filter**, **any gem
+  material on UI chrome or controls** (tried in `gem-controls.html`, rejected), and **option B** and the other
+  nav and roster cuts the sketch tried.
+- **Changes to the payload, the share link, the audio path or the Audio Load Budget.**
+
+## 46. Mobile Deck Camera (the world crop on phones)
+
+Raised by Crawford, 2026-10-09, during the districts brainstorm on `feature/layout-rework`. **Built
+2026-10-11 on `feature/deck-camera`** in two passes: first the fit, the native scroller and an
+idle-cut camera ([intent](../intent/mobile-deck-camera.md)), then that camera's trigger model
+replaced by a continuous follow loop ([intent](../intent/deck-camera-follow.md),
+[spec](../specs/DECK_CAMERA_FOLLOW.md), [plan](../tasks/DECK_CAMERA_FOLLOW.md)). The code is
+`src/animation/deckCamera.ts`; how it works is in
+[docs/ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md) ("Deck camera").
+
+### What was built
+
+The world view is a native horizontal scroller over the unchanged 1920 × 1080 stage (move the
+window, don't shrink the stage), and the camera always has a subject. It **picks** a robot (lowest
+battery among those above 50 %, else the lowest overall), floats to it, **follows** it for up to
+20 s or until it docks, rests for an 8 s **cooldown**, then picks again. Two things interrupt it:
+the user's touch, and backing out of a robot's or company's screen to the Deck, which floats
+straight to that robot (or a member of that company). Tap-to-pan and the idle-cut model are gone.
+
+### About
+
+The scene is a fixed 1920 × 1080 stage drawn with `preserveAspectRatio="xMidYMid slice"` (cover) in
+`OceanScene.tsx`'s `SceneLayer`, and `WorldView.css` clips the overflow ("nothing ever needs to
+scroll"). On a portrait phone that scales the world to the deck's height and crops the sides — on the
+sketch's 375 × 812 phone, with roughly 740 px of deck, the user sees about 28 % of the world's width.
+Crawford: "users miss a LOT."
+
+Measured against that phone (robot size is the gem body at the scene scale, approximate):
+
+| Fit | World height | Visible width | Robot |
+|---|---|---|---|
+| Today, cover | 740 px | 28 % | about 40 px |
+| 16:9 contain (letterbox) | 211 px | 100 % | about 12 px |
+| 2 × screen width, panned | 422 px | 50 % | about 23 px |
+
+A 16:9 letterbox (Crawford's first thought) shows everything but puts robots under tap size and
+loses the gem facets, lit lines and halos; it is the right fit for landscape phones and tablets and
+the wrong one for a portrait phone. Recommendation (2026-10-09): **move the window, don't shrink the
+stage.**
+
+1. **Pan.** Keep the cover fit and make the world view a native horizontal scroller with scroll
+   snap. Compositor-driven, no per-frame JavaScript, no new scene layer; momentum and tap-vs-swipe
+   come free. The "nothing scrolls" line in `WorldView.css` describes today's layout, it is not a
+   guardrail. The six stacked layers scroll as one container, so scene-to-pixel mapping is unchanged.
+2. **Drift and a camera.** Proposed then as an optional GSAP drift, and a later camera that follows
+   the selected robot or cuts to work sites on the work loop's semantic triggers. Both were
+   superseded by the follow loop (see "What was built").
+3. **Overview, if wanted:** a schematic minimap (terrain profile line, building dots, the viewport
+   rectangle), static per world — never a second render of the scene, which would double the DOM.
+   Robots as moving dots on it would be a moving layer and a separate perf-gated decision.
+
+Also on the table for the letterbox band, if the 16:9 fit is chosen anyway: the small phone avatar
+band the Robot screen already approved (tap to select, the camera pans to the robot), the meta box
+grown into a telemetry strip, a 24-hour clock, or nothing (a monitor letterbox is on-brand for the
+sleeve). The neighbourhood map is backlog [25](backlog.md#25-neighbourhood-map-coherent-districts-and-the-visited-log).
+
+The recommendation above is the 2026-10-09 brainstorm, kept as the record of why the fit is a
+scroller. Only its first step shipped as written.
+
+### Not Doing (and why)
+
+- **A portrait world (re-placing recipes for a tall `WORLD_BOUNDS`)** — the same coordinates would
+  show a different place on a phone than on a desktop, which defeats the share link and the
+  "coordinates are the place" promise. The stage stays 1920 × 1080 everywhere.
+- **Rendering the scene twice (overview + zoom)** — doubles the static DOM; the 17.2.5 and Phase 42
+  gates were passed on one scene.
+- **Tap-to-pan or any manual "jump to this robot" control** — the camera chooses; the user's only
+  levers are touch (freeze) and backing out of an edit screen.
+
+### Decisions made after the spec
+
+- **An empty pool restarts the cooldown (2026-10-11).** When every candidate is docked, `pick`
+  returns `null` and restarts the cooldown, so the camera retries after a full 8 s rather than every
+  frame.
+- **The wheel is an instant touch and release (assumption 8, spec Q1).** A wheel tick freezes the
+  camera and starts the cooldown in the same breath. Inferred from the touch/release rule, not stated
+  in the interview for the desktop case; revisit only if a mouse-wheel user finds the camera
+  re-picks too eagerly.
+- **The tie-break is the viewport centre (assumption 3, spec Q2).** Equal batteries go to the robot
+  whose target is nearest the scroller's current viewport centre, not the just-ended subject's last
+  position; the two agree whenever `pick` runs after the camera has settled.
+- **The float is `power1.inOut` over 1.4 s, not the spec's 0.8 s (Crawford, manual check).** Shorter
+  or sharper read as a snap on the stage's width.
+
+### Gate results
+
+- **Idle paint (Task 10, 6 s window): missed, accepted.** Busy +23 % (1265 → 1551 ms median) against
+  `main`, outside the round-to-round spread; Paint held and a 30 s tracking round showed no gap, so
+  the cause is unexplained (docs/PERFORMANCE.md, "Deck Camera Follow — the Task 10 perf gate").
+- **Pixel underruns (Task 11): not measured, signed off.** No `?debug` A/B counts were captured;
+  Crawford reported the phone running great and signed off the walk (docs/PERFORMANCE.md, "Deck
+  Camera Follow — the Task 11 Pixel check").
+
+## 48. One Day Clock: Remove the Measure-Based Day
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework` ("should we have two clocks like this? It
+often feels like it adds some complexity … I don't want bpm making days only take 30 seconds").
+Decided the same day: **replayability is the top priority**, so the fleet lifecycle, the harmony
+palette and the swells stay on measures and the World Clock replay
+([20.5](../roadmap.md#205-world-clock-deterministic-lifecycle-replay)) is untouched; the in-world day is the wall
+clock, a fixed `DAY_DURATION_MS` (6 real minutes) from each locale's own `dayStartTimestamp`, never
+tempo. The two clocks stay because they count different things. What goes is every line of code and
+doc that still claims measures make a day — all of it dead or wrong today, verified against the code
+2026-10-09 (inventory below). Widened the same day at Crawford's word ("add the rest to item 48") to the same class
+elsewhere — a spot check found a dozen more exports, fields and dials nothing turns (items 7–10). A
+cleanup, not a feature: no visual change, no audio change, no payload
+change, no new dependency. It amends a CLAUDE.md Guardrail, which this decision authorises.
+Independent of the layout rework (it touches the lighting components, the beat clock and
+`AudioEngine`, none of which the rework edits); its own short branch off `main`, a task list rather
+than a full spec.
+
+> **Shipped (2026-10-13), `fix/unused-clock-code`, twelve code commits and one docs commit, TDD, one per task.** T1 `getLighting(hour)`
+> (a golden table pinned from the measure form) and the five callers; T2 the flicker epoch in hours
+> (`FLICKER_PERIOD` 2, `flickerPhase`, `getFlickerEpoch`, the same eight quarter-hour slots, so the epochs are
+> unchanged); T3 the beat clock (`getCurrentHour`, `MEASURES_PER_HOUR` and the wrap gone; listeners get the real
+> measure); T4 `Locale.currentMeasure`; T5 `DAY_CYCLE_MEASURES`; T6 the four `uiStore` dials; T7 `Robot.createdAt`
+> and `lastInteractionMeasure`; T8a–e the stubs; then the docs, with the CLAUDE.md and Copilot-instructions
+> guardrail amended as authorised. The World Clock prove-it test was untouched. Verification, in
+> [PERFORMANCE.md](../PERFORMANCE.md#one-day-clock--the-idle-paint-ab-and-the-fixed-hour-parity-check-2026-10-13-roadmap-48):
+> idle busy −1.3 % and paint +2.8 % against the branch base (inside the spread), and the static scene layers
+> byte-identical to the base at ten fixed hours.
+>
+> **Where the inventory below was wrong when it was built (all re-checked against the tree on 2026-10-13):**
+> - **`loadSession` is live and was left alone** (item 9): `OffScreen.tsx` calls it to apply a picked save, and
+>   [SESSION_STORAGE.md](../SESSION_STORAGE.md) lists it correctly.
+> - **`theme` had no reader** (item 7): `realWorldGradient.ts` no longer reads it, so all four dials were plain dead
+>   code.
+> - **`attachFlickerAnimation` had two tests, not four** (item 9).
+> - **`isWarmHue` and `nearestAccentIndex` were exports of the shipped palette pull** (Phase 35), not leftovers of
+>   this phase's own making; their checks moved onto `satCapFor` and a plain band test, and `secondaryFor` keeps its
+>   brute-force oracle (which covers the 0/360 seam through the same helper).
+> - **`loadToLimits` and `withLoadParam` kept their coverage**: the tests now call `withParam(…, 'load', …)` and a
+>   small both-axes helper, and only the tautological "agrees with loadToLimits" checks went.
+> - **Line numbers had drifted** (the `AudioEngine` subscriber was at 559–569, not 541–543); every claim was re-grepped.
+> - **`Factory.tsx`'s `buildingPhase`**: the roadmap's `buildingSeed % FLICKER_PERIOD` would have given two phase
+>   slots, not eight; `flickerPhase` keeps the old spread exactly.
+>
+> **Noticed, not touched:** [BUILDING_DESIGN.md](../BUILDING_DESIGN.md)'s "Offline" passage still describes the
+> offline system Phase 43 removed (`offlineSince`, a 66-measure outage).
+
+### About
+
+**What is true today.** The visual day is `computeLocaleHour(locale.dayStartTimestamp)`
+(`src/constants/time.ts`): 6 minutes, started at hour `abs(x % 24)` by `buildLocale`
+(`src/systems/worldTransition.ts:64`). `AttenuationStyleView`'s per-second tick writes it to
+`uiStore.activeLocaleLocalTime`, and ten components read it from there. The musical clock is the beat
+clock's measure count: battery, docking and pitch drift tick per measure (`src/systems/robotSystems.ts`,
+the replay), the harmony palette advances every 2 measures with no hour meaning
+(`src/engine/harmonySystem.ts`; [HARMONY_SYSTEM.md](../HARMONY_SYSTEM.md) already states the
+decoupling), swells roll per 16n. Nothing musical reads the day; nothing visual reads a measure. The
+musical day is dead in practice and survives only as vocabulary.
+
+**Incorrect code to remove** (each with its tests):
+
+1. **`getCurrentHour()` and `MEASURES_PER_HOUR`** (`src/engine/beatClock.ts:22`, `:141`) — zero
+   production callers; `src/constants/index.ts:72` already says so.
+2. **The `% DAY_CYCLE_MEASURES` wrap on `subscribeToMeasure`'s callback argument**
+   (`beatClock.ts:58`). Both live subscribers route around it or misuse it: `startRobotLifecycle`
+   ignores the argument and reads `getCurrentMeasure()` because a wrapped count made a hold set near
+   the boundary unreachable (`robotSystems.ts:232–237`), and `AudioEngine` writes it into a dead field
+   (next item). Pass the real monotonic measure. Reword the trap notes at `robotSystems.ts:232–236`
+   and in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md)'s audio-swells paragraph (the `% 96` sentence).
+3. **`Locale.currentMeasure`** (`src/types/locale.ts:29`) — written every measure by
+   `src/engine/AudioEngine.ts:541–543` (the wrapped value), re-written as a mount-time no-op by
+   `src/App.tsx:28–34`, read by nothing. A Zustand write on every measure for no reader; any selector
+   that takes the whole locale object re-renders on it (`LocaleView.tsx`'s own comment records paying
+   that cost). Delete the subscription and its "updates visuals (lighting) and allows harmony to
+   derive from measures" comment (both false today), the `App.tsx` effect, the field, its `0` defaults
+   (`src/stores/localeStore.ts:97`, `worldTransition.ts:69`) and `currentMeasure` in the 14 test files
+   that build a `Locale`. Correct the `createdAtMeasure` doc comment (`types/locale.ts:19–24`), which
+   calls the field "never incremented by the real tick system" — the writer was `AudioEngine`'s
+   subscriber, not the lifecycle tick.
+4. **The hour → "light measure" → angle round trip in five components** —
+   `src/components/actors/Factory.tsx:286–304`, `actors/scenery/Scenery.tsx:91–92`,
+   `worldView/LightShafts.tsx:58–59`, `worldView/TerrainLayer.tsx:57–58`, `worldView/WaterColumn.tsx:39–40`
+   each compute `(localTime / 24) * DAY_CYCLE_MEASURES` to feed `getLighting(measure)`
+   (`src/utils/lightingUtils.ts:90`), which divides by 96 again. `getLighting(hour)` takes the 0–24
+   hour directly; same curve, same gamma, landmarks restated in hours (midnight 0, east peak 9, noon
+   12, west peak 15). `FLICKER_PERIOD` (8 measures, "roughly every 2 hours") becomes 2 hours and
+   `buildingPhase = buildingSeed % FLICKER_PERIOD` keeps its spread in the new unit; `Factory.tsx:37`'s
+   "driven by `currentMeasure`" comment goes with it. `src/components/robot/RobotBody.tsx:85` already
+   takes the hour straight — the model to follow. `DAY_CYCLE_MEASURES` leaves `lightingUtils.ts` and
+   the six lighting tests that import it.
+5. **`DAY_CYCLE_MEASURES`** (`src/constants/index.ts:76`) — no consumer left after 1–4. Delete it and
+   its comment. [DUPLICATE_VALUE_AUDIT.md](../DUPLICATE_VALUE_AUDIT.md) item 2 is marked superseded by
+   this phase: it centralised a constant that turned out to have no reason to exist.
+6. **Docs.** CLAUDE.md's Melody Logic guardrail loses "96 measures = 1 day cycle" and gains the
+   wall-clock rule — proposed wording: *"Melodies must store note indices (0..7), never literal pitch
+   strings. The in-world day is wall-clock: a fixed `DAY_DURATION_MS` (6 real minutes) from the
+   locale's `dayStartTimestamp`, never tempo. Measures count music and the fleet's lifecycle; nothing
+   musical defines a day."* Then [BEAT_CLOCK.md](../BEAT_CLOCK.md) (the constants table,
+   `getCurrentHour`, "fires … wrapped to `0..95`", "Day/night derivation is always …"),
+   [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) ("96 measures = 1 full day/night cycle" and the
+   `getCurrentHour` import in its example), [BUILDING_DESIGN.md](../BUILDING_DESIGN.md) §Day/Night
+   Cycle (rewritten around the hour), and the docs test.
+
+**Verification.** A parity test first: `getLighting` at hours 0 / 9 / 12 / 15 equals the old function
+at measures 0 / 36 / 48 / 60, then the measure form is deleted. The World Clock prove-it test
+(`robotSystems.test.ts`) unchanged and green. Full suite, types, lint. `npm run perf` idle-paint A/B
+against the branch base (docs/PERFORMANCE.md): one fewer store write per measure should be neutral or
+better, never worse. One before/after screenshot at a fixed hour confirms no visual change.
+
+**The same class elsewhere** (spot check at Crawford's "can you spot check for other similar dead
+code?", 2026-10-09: a scripted reference count over `src/` with tests excluded, every hit then read by
+hand; added to this item the same day, "add the rest to item 48"). The seed and coordinate override
+primitives in `src/utils/seedUtils.ts` are deliberately NOT on this list — backlog item 19 brings
+`?seed=`/`?x=`/`?y=` back and decides their fate (see Not Doing).
+
+7. **Dials nothing turns, in `uiStore`** (`src/stores/uiStore.ts`): `activeView` + `setActiveView` +
+   the `ActiveView` type (the pre-hub view switch, zero references); `isFullscreen` + `setFullscreen`
+   (zero references; the comment at `:222` describes components that do not exist); `theme` +
+   `setTheme` (read once by `src/utils/realWorldGradient.ts`, never set — the constant `'dark'` left
+   by the cut Console Theming phase, [11](#11-console-theming--cut); the gradient hardcodes dark);
+   `language` + `setLanguage` (no reader — the two text hits are the English word in comments).
+8. **Fields written but never read, or neither** (`src/types/Robot.ts:137–139`): `Robot.createdAt`,
+   stamped at spawn "for removal ordering" (`src/systems/spawnSystem.ts:707`) and read nowhere;
+   `Robot.lastInteractionMeasure`, no reader and no writer since `interactionSystem.ts` was deleted
+   ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) already records it). Neither is in `SessionPayload`.
+9. **Stubs and self-admitted keepers** — production never calls them; tests keep them alive:
+   `attachFlickerAnimation` (`src/components/actors/greebles/rooftopGreebles.tsx:616`, a placeholder
+   returning a no-op, four tests asserting the no-op); `loadToLimits` (`src/utils/audioBudget.ts:92`,
+   its own comment says it is kept only so a pre-split test still runs); `withLoadParam`
+   (`audioBudget.ts:184`, its comment says "every existing caller uses it" — there are none,
+   `audioBudgetSystem.ts:131` calls `withParam` directly); `gridUnitsToDuration`
+   (`src/engine/melodyGenerator.ts:384`, "kept as a general-purpose utility", unused); `loadSession`
+   (`src/utils/sessionStorageEngine.ts:81`, no caller — `SessionListItem.tsx:40` applies the listed
+   entry's own payload; [SESSION_STORAGE.md](../SESSION_STORAGE.md) lists it as live API and drops
+   it); `pickSilhouetteFill` and `assertInViewBox` (`src/components/actors/silhouetteUtils.ts:48`,
+   `:76` — the second has no reference anywhere, not even a test); `nearestAccentIndex` and
+   `isWarmHue` (`src/utils/accentLean.ts:93`, `:134`, test-only). Each goes with its tests.
+10. **Stale comments naming removed things**: "CompanyManager" at `uiStore.ts:88` (the component is
+    gone; the field it describes, `selectedCompanyId`, is live); "`TIME_PITCHES`" at
+    `src/constants/index.ts:57` (the palette table has been `HARMONY_PALETTES` since the sequencing
+    rewrite).
+
+**Excluded on purpose:** the nav tree family (`useNavTree`, `navTreeConfig`, `accordionSync`,
+`useAccordionOpenState`, `useSectionObserver`, `RobotSectionAccordionStack`), which the layout
+rework's Tasks 9 and 18 delete; the ~250 exports referenced only by tests as deliberate seams
+(constants, `lifecycleSim.ts`'s sim runners, `src/testUtils/`); and the ~100 exported types used only
+inside their own file (export hygiene, not dead code). The scripted count is a heuristic — re-run it
+and re-read each hit before deleting, since the tree moves.
+
+### Not Doing (and why)
+
+- **Moving battery, docking or pitch drift onto the wall clock** — replayability is the top priority
+  (Crawford, 2026-10-09). The fleet cycles in bars and runs faster at a higher BPM; accepted.
+- **Deriving the day from measures (one musical clock)** — a day would be 384 beats ÷ BPM: 1.9
+  minutes at the slider's 200, 19 at its 20, and the off screen's lit world would freeze at one hour
+  with the transport stopped. The "30-second day" Crawford ruled out.
+- **Changing the 6-minute day** — not asked; it would be a separate dial, and the arrival-hour-by-x
+  rule depends on the day length only through `dayStartTimestamp`.
+- **Tempo-syncing the LFOs** — backlog item 17: free-running Hz is intentional.
+- **Removing `seedUtils.ts`'s seed and coordinate override primitives**
+  (`setGlobalAttenuationStyleSeedOverride` and its getter, `parseCoordinateParam`,
+  `setLocaleCoordinateOverride`, `getLocaleCoordinateOverride`, `LocaleCoordinateOverride`) — no
+  production caller today, but backlog item 19 brings `?seed=`/`?x=`/`?y=` back and its spec decides
+  whether they are reused or replaced by the `?session=` boot path. They join this list only if
+  replaced.
+
+## 49. Robot Pan: a Pan Slider Beside Volume, with Auto
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "we need to give the user panning ability
+on the robots … put it in the section with volume, along with an 'auto' button that connects it to the
+robot as it works today." Interviewed, specced and built (status below). A small audio-UI phase on top of the Robot
+screen the layout rework delivers (its Levels tab,
+[docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md) Task 16); the component it extends,
+`AudioSettingSection`, is reused unchanged by the rework, so the code can land before or after it —
+build after, so the slider is laid out once, on the screen that ships.
+
+**Status: built 2026-10-13 on `feature/panning-update`** (intent [robot-pan.md](../intent/robot-pan.md), spec
+[ROBOT_PAN.md](../specs/ROBOT_PAN.md), plan [ROBOT_PAN.md](../tasks/ROBOT_PAN.md); tasks T1–T13 committed,
+guard test `src/docs/robotPanDocs.test.ts`). Crawford's listen (plan Task 14) signed off; the docs pass is Task 15.
+The "Shape" bullets below are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the Shape below)
+
+- **One `pan` field, no remembered manual value.** `Robot.pan` (−1…1) and `Robot.panAuto` (spawn default
+  `true`, `pan` 0). Switching Auto **off** copies the live position into `pan` in the same action
+  (`applyPanAuto`), so the slider never jumps and nothing "survives a round trip through Auto"; the Shape's
+  separate manual value was rejected in the interview. Auto **on** is the flag alone: the stored `pan` is
+  ignored while it is on.
+- **The robot keeps moving with Auto off.** Only the panner stops following it; the work loop, swim and job
+  timelines and `Robot.position` are untouched. A source-scan test pins that `workLoop.ts`, `siteChoice.ts`,
+  `lifecycleSim.ts` and `src/animation/` never read `pan` or `panAuto`.
+- **Full ±1 manual range**, against the ±0.5 Auto field, which is unchanged. Displayed and edited as a signed
+  −100…100 (`PAN_DISPLAY_SCALE`), no L/R letters, the same display-versus-storage split as Volume.
+- **A live readout, through its own store.** While Auto is on, the slider is a read-only readout of the
+  engine's position-follow pan. `robotPanReadoutStore` (`useRobotPanReadoutStore`) is written only on the
+  AudioParam writes `updateAllPanners` already makes, so Auto's audio is unchanged and no roster, card or world
+  subscriber is touched. `localeStore` would have churned the `robots` array on every tick.
+- **`SliderCenteredZero.readOnly`.** The primitive gained an optional `readOnly` branch (`role="status"`, no
+  Radix root), mirroring `SliderLinear`'s Phase 15.1 mode but keeping the help "?". The Pan row is a
+  `DirectionalPanel` holding that slider and a bare `Toggle`.
+- **Engine.** `AudioEngine.updateRobotPan(id, number | null)` and `getLivePan(id)`; a module-level
+  `manualPanByRobot` map that `updateAllPanners` skips and `releaseVoice` clears; a `PAN_RAMP_SECONDS` (0.05 s)
+  ramp both ways, so Auto on glides back with no click. A manual pan is re-primed from the store at every
+  reservation path (`loadInstruments`' post-load pass, `reRegisterAllRobotsAudio`, `reReserveVoice`); a fresh
+  spawn is always Auto and needs none.
+- **Companies broadcast both, from `useCompanyOptions`**, not `CompanyOptionsSection` (the layout rework moved
+  the handlers into the hook). Auto off holds each member at **its own** live position until the slider is next
+  touched, which then puts every member at one value; the company screen shows the snapshot and never
+  subscribes to the readout store.
+- **Persisted, unlike `masterVolume`.** A manual pan is a composition choice, so it saves: one optional `pan`
+  key on `RobotAudioOverrideDiff` (present means Auto off), and `p` on the share-link wire format. Payload
+  `version` stays 2. See [SESSION_STORAGE.md](../SESSION_STORAGE.md).
+- **Copy.** *Bearing* / *Tracking* are placeholder lore words awaiting Crawford's copy pass (two strings in
+  `src/content/copy/probe.ts`).
+
+### About
+
+**What exists, verified 2026-10-09.** Every reserved robot already has a stereo panner on its own bus
+(`composite.output → panner → busGain → busFilter → chain`, `src/engine/AudioEngine.ts:611–679`), and
+it already follows the robot: `updateAllPanners` (`AudioEngine.ts:308`) runs once per 16th-note tick
+from the melody playback loop (`:422`), reads each robot's **live GSAP x** through
+`getRef('robot-<id>')` (`getRobotVisualX`, `:204` — falling back to `Robot.position.x`, then to the
+scene's centre), maps it with `calculatePanFromPosition(x) = x / WORLD_WIDTH − 0.5`
+(`src/engine/audioEngine/panning.ts`, so the whole 1920-wide stage spans only **±0.5**, "keeps voices
+more centered for a cohesive mix"), and skips the AudioParam write when the value moved less than
+0.0005. So a robot's sound already swims across the field with it, leg by leg. There is no user
+control over any of this; `AudioAttributes`, `CompanyOptionsSnapshot` and `RobotAudioOverrideDiff`
+have no pan field, and pan is neither an LFO target (`RobotLfoTargetId`, `src/types/lfo.ts`) nor a
+swell attribute (`SwellRobotAttributeId`).
+
+**The feature.** In the Levels block — `AudioSettingSection.tsx`, today the Audio Setting radio over
+the Volume slider — a **Pan** row: a centred-zero slider (left … centre … right) and an **Auto** toggle.
+Auto on, the default and today's behaviour: the panner follows the robot's position exactly as above
+and the slider reads the live value back (read-only). Auto off: the slider's value is written to the
+panner and `updateAllPanners` leaves that robot alone. Companies broadcast both, the way Volume does.
+
+**Shape, as a starting point for the spec (not decided):**
+
+- **Model** — two JSON-serialisable fields on `Robot`: `panAuto: boolean` (spawn default `true`) and
+  `pan: number` in [−1, 1] (default 0), kept separately so a manual position survives a round trip
+  through Auto. Seeded like everything else at spawn (`spawnSystem.ts`), i.e. always `true` / `0` — no
+  noise draw, so no change to any existing world.
+- **Actions** — `applyPan` / `applyPanAuto` in `src/systems/robotOptionsActions.ts`, mirroring
+  `applyVolume` (`:35`: `updateRobot` + one engine call). Engine: `AudioEngine.updateRobotPan(id, value)`
+  on the pattern of `updateRobotMasterVolume` (`:887`), and a module-level `manualPanByRobot` map the
+  hot loop consults, so `updateAllPanners` stays store-free and simply `continue`s past a manual robot
+  (cleared in `releaseVoice`, like `lastPanByRobot`).
+- **UI** — `SliderCenteredZero` (`src/types/controls.ts:104`; the Oblique Cabinetry centred slider,
+  [11.1.5](#1115-oblique-cabinetry-slidercenteredzero)) and `Toggle` (`:128`), composed in
+  `AudioSettingSection` with a third `DirectionalPanel` row; schema in `robotOptionsConfig.ts` beside
+  `VOLUME_SCHEMA`. Existing components only (layout decision 10). The toggle holds its largest-content
+  size on flip. Both controls get a help popover description (layout spec §1.4).
+- **Company** — `CompanyOptionsSnapshot` gains `pan?` / `panAuto?`; `CompanyOptionsSection`'s handler
+  mirrors `handleVolumeChange` (`:313`: broadcast to every member, patch the snapshot). Broadcast, not
+  link ([COMPANIES.md](../COMPANIES.md)).
+- **Content** — `probe.pan` (human "Pan", a lore name in the
+  [copy-tone-guide](../reference/copy-tone-guide.md)'s voice, unit L/R) and `probe.pan.auto`, plus
+  their descriptions, in `src/content/copy/probe.ts`. Never a literal in the component.
+- **Persistence** — `masterVolume` is on [SESSION_STORAGE.md](../SESSION_STORAGE.md)'s "explicitly
+  never persisted" list; pan should follow the same rule unless the interview says otherwise (Auto is
+  the default, so an untouched robot needs nothing saved either way).
+
+**Guardrails this must respect.** Pan is an audio setting and reaches the body through **no** dial —
+[ROBOT_DESIGN.md](../ROBOT_DESIGN.md)'s dial list is unchanged and the Visual Mapping guardrail holds
+(nothing on the gem moves with pan). The panner write stays inside `AudioEngine`, on the transport
+tick, never from a GSAP callback. No new Tone nodes: the panner exists already, so the Audio Load
+Budget is untouched, and manual robots mean fewer writes per tick, not more.
+
+**Questions for the interview:**
+
+- Range and labels: does a manual pan get the full ±1, or the ±0.5 the auto mapping keeps to? Slider
+  shows L / R percentages, or just a centred bar?
+- While Auto is on, does the slider show the live value (a small per-tick store write, or a read on
+  the lighting tick) or sit greyed at centre?
+- Does a company's Auto broadcast as well as its pan value, and what does the company screen show
+  when members disagree (today's resolve-to-snapshot rule)?
+- Should a user-panned robot stop following when it swims — yes by definition — and should turning
+  Auto back on snap or glide to the live position (a `rampTo` on the panner, same as volume)?
+- Phone speakers are mono: nothing to do, but worth saying in the help copy?
+
+### Not Doing (and why)
+
+- **A pan LFO target** — autopan is tempting, but the per-robot `volume` LFO target was removed as
+  "not as impactful as I had hoped" (docs/specs/LFO_LOAD_FIX.md); a pan target is the same class of
+  decision and a separate one, with its own load cost on phones.
+- **Pan as an audio-swell attribute** — swells ride volume and the global chain; adding a target is a
+  swells design change, not a slider.
+- **Changing the auto mapping** (its ±0.5 span or the visual-x read) — "as it works today" is the
+  brief; a wider auto field would change every existing world's mix.
+- **Any visual sign of pan on the robot** — the Visual Mapping guardrail.
+
+## 50. Audio Palette: New Attributes Without New Libraries
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework`: "what other audio attributes, aside from
+changing up the oscillators, could we use without adding more libs … global effects, plugins, wah
+pedals, portamento", then "if we can organize it and make it happen without distortion, then i want to
+at least try it … let's get your suggested ones into the roadmap, and add the rest as backlogs for us
+to try and see what works." Seven sub-phases below, in build order (50.1 → 50.7; 50.6 and 50.7 were added later; 50.5 is the former backlog item 21,
+built 2026-10-16); the rest of the menu is backlog items 22–24 ([backlog.md](backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)).
+Not yet interviewed or specced — each sub-phase gets its own `/interview-me` → spec → plan, each small
+enough to land in a sitting. Build after the layout rework's Phase 2 (section tabs), so every new
+control is laid out once on the screens that ship.
+
+### About
+
+**Grounding (verified 2026-10-09, citations re-verified 2026-10-13).** Tone.js `^15.1.22` is the only audio dependency and nothing is
+added. Today the app constructs: per robot, up to three `Tone.Synth` layers
+(`src/engine/audioEngine/compositeVoice.ts:143` — oscillator type / pulse width / detune / phase /
+per-layer gain, one shared ADSR with no curve settings) into a bus of `Panner → Gain → Filter`
+(`src/engine/AudioEngine.ts:685–708`; the filter's cutoff is `AudioAttributes.filterFreq`, seeded only,
+no UI); globally `EQ3 → LPF → HPF → Delay → Reverb → Compressor → Limiter`, or the Compressor ahead of
+the Delay under Controlled Decay (`src/engine/audioEngine/globalFx.ts:147–149`); two `Tone.LFO`
+engines; nothing else. Robot LFO targets are layer gain / detune (`src/types/lfo.ts:43`); global targets
+are the EQ bands and filter frequency / Q (`:76`). Everything below is a Tone 15 class or parameter the
+app does not use yet.
+
+**Shared constraints — every sub-phase, no exceptions:**
+
+- **"Without distortion" is the gate.** Each sub-phase is measured the way the Audio Load Budget was
+  ([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) §Audio Load Budget; the archived spec
+  [AUDIO_LOAD_BUDGET.md](../specs/archive/AUDIO_LOAD_BUDGET.md) §7;
+  [scratchy-audio-phones.md](scratchy-audio-phones.md)): the same `?session=` world, A/B against the
+  branch base on the Pixel, the `?debug` HUD's output-underrun count (`src/utils/audioHealth.ts`) at
+  Standard and at Full, plus `npm run perf` on the desktop, against the series baseline recorded in
+  [scratchy-audio-phones.md](scratchy-audio-phones.md#baseline-for-the-audio-palette-series-roadmap-50--crawfords-run-2026-10-13)
+  (seed `alpha`, Full: 0 underruns in 3:00 on `main` at `ca2b6868`). A feature that raises underruns ships
+  behind the Effects Limit — a new `LOAD_*_MIN` threshold beside `LOAD_FILTER_LFOS_MIN`
+  (`src/constants/index.ts:44–46`) — or not at all.
+- **Where nodes may be added.** New nodes go on the global chain (one instance) or as a per-robot
+  send `Gain` (one cheap node each). Robots otherwise get *parameters on nodes they already have*.
+  Twelve of anything else is the phone's problem.
+- **Replayability stays first** (the 2026-10-09 time decision, [48](#48-one-day-clock-remove-the-measure-based-day)).
+  Every decision — a seeded default, a humanize offset, a skip roll — keys off
+  `getSeededVal(noiseMap, dataId, …)` and the measure or note index, the way velocity already does
+  (`computeNoteVelocitySeeded`, `AudioEngine.ts:491`). An effect's *internal* oscillator (Chorus,
+  Phaser, Tremolo…) is wall-clock like the LFO Bank's phase: the accepted class, recorded in
+  backlog 17.
+- **Architecture rules.** Every AudioParam write lives in `AudioEngine` / `globalFx.ts`, on the
+  transport tick or from an action, never from a GSAP callback. State stays JSON-serialisable:
+  numbers and strings on `AudioAttributes` / `OscillatorLayer` / `GlobalAudioSettings`, never a node.
+- **Seeded and saved like the existing fields.** Spawn: a new `dataId` draw in `spawnSystem.ts` /
+  `globalAudioSeed.ts`, with a row in `GLOBAL_AUDIO_LOADING_RANGES`
+  (`src/data/globalAudioLoadingRanges.ts`) mirrored in
+  [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md), and a band in the themes idea
+  ([themes.md](../ideas/themes.md)). Session: optional on `SessionPayload` / `RobotAudioOverrideDiff`,
+  absent = the seeded value, like every field since v1. The app is pre-v1, so a seeded default may
+  change how every world sounds; the phone gate is the only check on a new sound.
+- **UI.** Content keys with lore names in the
+  [copy-tone-guide](../reference/copy-tone-guide.md)'s voice, a help popover per control, existing
+  primitives only (layout decision 10), inside the Fleet Params / Robot section tabs
+  ([LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md) §1.4 / §1.5). Companies broadcast per-robot fields
+  the way Volume does (`CompanyOptionsSnapshot`). Nothing reaches the robot's body (Visual Mapping
+  guardrail).
+
+### Not Doing (and why)
+
+- **Per-robot effect nodes** (a chorus or a distortion each) — twelve instances on a phone; sends
+  and parameters instead.
+- **`Tone.PitchShift`** (granular, the heaviest effect in the library) and **`Panner3D`** per robot
+  (HRTF per source) — neither clears the gate by inspection.
+- **`AutoFilter` on the global chain** — already achievable: the global LPF plus a Bank lane.
+- **New oscillator types** (`fat`, `am`, `fm`, partials) — "aside from changing up the oscillators",
+  Crawford's own exclusion; a separate conversation.
+
+**Classic Band Retune (2026-10-21, on eature/classic-band-retune).** One tuning pass over the seed bands a fresh world rolls
+within, after 50.1–50.6 and before Robot Effect Sends ([50.7](#507-robot-effect-sends-grit-shimmer-and-double)), whose room bands are written against it. Plan, decisions and
+measurements: [CLASSIC_BAND_RETUNE.md](tasks/CLASSIC_BAND_RETUNE.md). A Mix is stored as a slider position and squared at the node,
+so the bottom third of every Mix slider is near silence (a wet layer of −48 dB at 0.05, −20 dB at 0.25); the floors rose, the
+ceilings from the listens stayed, and the three colour Mixes, after a first raise to 0.2–0.35, ended at one shared 0.1–0.2 under the original 0.25 ceiling (Crawford's listen: "much more subtle"). Also: Vibrato at near-full wet and a small depth,
+AutoWah sensitivity −20 to −5 dB, Chorus delay 6–15 ms, high-pass cutoff 20–120 Hz, Tremolo Sync odds 0.75 (PEDAL_SYNC_ODDS is
+per pedal), Reverb pre-delay 0–0.25 s with a clamp in setGlobalReverb, the per-robot Reverb send 0.1–0.6, and the Compressor
+−36 to −18 dB at 2–6:1 (the Web Audio compressor adds automatic makeup gain, so the old deep band swung fleet loudness by about
+11 dB between seeds). Defaults are untouched and only fresh worlds change. **Status:** built and committed; Crawford's listen
+(Checkpoint B) is the open gate, and anything he vetoes reverts one row at a time.
+
+## 50.1 Robot Articulation: Portamento, Envelope Curves, Bus Filter
+
+Zero new nodes: three per-robot attributes that are parameters on nodes every robot already has, so
+the budget cost is nil and the phone gate is a formality.
+
+- **Portamento.** `Tone.Synth` is a `Monophonic`; its `portamento` (seconds) is never set, so every
+  note steps. One slider per robot (0 = today) glides each layer's frequency into the next note.
+  Envelope section, beside ADSR. Default: off, or a low seeded chance of a glider — the interview decides.
+- **Envelope curves.** `Tone.Envelope` accepts `attackCurve` / `releaseCurve` of
+  `linear | exponential | sine | cosine | bounce | ripple | step` (and `decayCurve` linear /
+  exponential); both sit at Tone's defaults today. A single-line "contour shape" radio beside the ADSR
+  sliders; `ADSREnvelope` (`src/types/Robot.ts:53`) gains two optional string fields.
+- **The bus filter, exposed.** `AudioAttributes.filterFreq` drives each robot's bus `Tone.Filter`
+  (`resolveBusFilterCutoff`, `AudioEngine.ts:175`; `0` = open; Q is the fixed `ROBOT_BUS_FILTER_Q = 1`, `AudioEngine.ts:172`) but has no control, although
+  `RobotAudioOverrideDiff` already carries it (`src/types/session.ts:22`). Add Cutoff and Resonance (Q)
+  sliders and a type radio (lowpass / bandpass / highpass): a resonant bandpass *is* the wah, and a
+  Bank lane on its frequency is an autowah. The per-robot LFO target `bus.frequency` is an *option*
+  here, gated by `filterLfosEnabled`, since robot LFO count is what the budget fights
+  ([17.2.7](../roadmap.md#1727-performance-robot-lfo-priming)). Section: Source (spectral) or Levels — spec decides.
+
+Verification: the composite-voice tests extended; a headless test that a glide / curve / cutoff edit
+reaches the Tone node through the voice's `set` path (`compositeVoice.ts:240`); the phone A/B above,
+expected flat.
+
+**Status: built 2026-10-13 on `feature/palette-articulation`** (intent [robot-articulation.md](../intent/robot-articulation.md),
+spec [ROBOT_ARTICULATION.md](../specs/ROBOT_ARTICULATION.md), plan [ROBOT_ARTICULATION.md](../tasks/ROBOT_ARTICULATION.md);
+tasks T1–T14b committed, guard test `src/docs/robotArticulationDocs.test.ts`). Crawford's Pixel run passed: several minutes
+on Full audio quality with no distortion
+([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-articulation-roadmap-501-on-the-pixel--crawfords-report-2026-10-13));
+the HUD underrun counts, a Standard run and the manual listen list were not reported, so they are not claimed here.
+The paragraphs above are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraphs above)
+
+- **Two shape radios, not one.** Attack Shape and Release Shape, each the full seven curves (`EnvelopeCurveName`), sit in the
+  Envelope drawer's third and fourth rows with a Portamento slider (`PingContourDrawer`). `decayCurve` is not exposed.
+  Curves live on `ADSREnvelope.attackCurve` / `releaseCurve`, absent = linear; `toToneEnvelope` hands Tone a curve only when present.
+- **Seeded as minority traits, so a fresh world is not silent on all three.** Every threshold was picked from the measured
+  draw, not its nominal fraction (the draws bunch around 0.5): gliders ≈ 1.5 robots in 12 (0.05–0.20 s), shaped attack
+  ≈ 1.9 and shaped release ≈ 1.8, accent (resonant) filters ≈ 2.4, a lit bus LFO link ≈ 1.6. The cutoff is re-seeded in two
+  tiers: 2000–8000 Hz open lowpass for most, 400–2500 Hz with Q 3–8 for accents (bandpass 40 % of them, never highpass).
+  Pre-v1, so this changes every world's sound by design.
+- **Attack, Decay and Release now run 0–2 s** (`ENVELOPE_TIME_MAX_SECONDS`, was 0–10), and a shaped stage is seeded short
+  (attack 0.03–0.25 s, release 0.15–0.8 s). Found by listening: at several seconds a robot's back-to-back 16ths never let the
+  gate close, so it settles into a drone and neither times nor shapes can be heard. The seeded glide tops out at 0.2 s for the
+  same reason. This reverses the earlier "0–10 s edit range" for those three sliders; spec §1.10.
+- **The articulation object on `reserveVoice`.** One optional trailing `articulation?: { portamento?, filterQ?, filterType? }`
+  rather than three more parameters, so existing call sites and tests compile unchanged; all four reservation paths pass it from the store.
+- **The filter is a fourth Source subsection, `busFilter`** (`BusFilterDrawer`): Cutoff, its LFO link, then Resonance beside
+  Type. One entry in `ROBOT_SECTIONS_CONFIG` feeds the nav tree, breadcrumb and both renderers. Edits are live through
+  `AudioEngine.updateRobotBusFilter`; portamento through `updateVoicePortamento`. The lore words (Ping Glide, Onset Profile, Fade
+  Profile, Resonator, Resonator Band, Resonator Peak, Resonator Mode, and the option words) are **placeholders**.
+- **`bus.frequency` shipped as a seventh robot LFO target** (it was an option). It is a filter-tier target: the existing
+  filter switch holds it off at Light, and the robot Filter subsection greys its link on its own flag. `audioSwell.test`'s
+  superset assertion narrowed to the six layer ids and a new case pins that the bus cutoff is not a swell attribute.
+- **T14b happened, and probably did not need to.** It was built on Crawford's instruction before any rise was reported:
+  `LOAD_BUS_FILTER_LFOS_MIN = 0.8`, an effective `busFilterLfosEnabled` in `effectsLoadToLimits`,
+  `lfoEngine.setBusFilterLinksEnabled` as a second suspend tier (a bus link is held off when either switch is off),
+  `audioStore.busFilterLinksHeldOff`, and a `lfo drift · filter · bus` line on the `?debug` HUD. With the Pixel run clean, the
+  tier holds the robots' own cutoff links off at Standard for no measured reason: **open question for Crawford, keep it or
+  remove it**, and the 0.8 is a placeholder either way.
+- **Persistence and companies.** Session diff and share link carry `portamento`, `filterQ`, `filterType` (`po`, `fq`, `ft`)
+  and the curves inside `adsr` (`ac`, `rc`), each decoded and validated on its own. Company snapshots gain `portamento`,
+  `filterFreq`, `filterQ`, `filterType`, broadcast per field (`useCompanyOptions`).
+- **Zero new nodes**, pinned by a construction-count test in `AudioEngine.test.ts`; nothing on the gem reads any of it, pinned by
+  the guard test's source scan. The HUD's `links` line counts 7 robot slots, so twelve robots read `n/91`.
+- **Still open:** the lore-word verdicts, the manual listen list (glider, shaped contours, resonant robot, wah, type switch
+  without dropout, held-off link at Light, save/reload/share, company broadcast, keyboard, every "?"), and the desktop
+  `npm run perf` before and after.
+
+## 50.2 Robot Sends: Per-Robot Reverb and Delay Depth
+
+One `Gain` per robot. Today Reverb and Delay are inserts on the global chain with one `wet` each, so
+every robot sits at the same depth. A per-robot **send** into each — `busFilter → sendGain → effect
+input`, dry path unchanged — gives each robot its own distance, and pairs with
+[49](#49-robot-pan-a-pan-slider-beside-volume-with-auto): pan is where, send is how far. Companies
+broadcast it, so a company can be "the far ones".
+
+The interview must decide the topology: a true send / return (effect `wet` = 1, the global "wet"
+sliders become return levels, the `reverb.wet` / `delay.wet` rows of `GLOBAL_AUDIO_LOADING_RANGES`
+re-ranged) versus keeping the inserts and adding sends on top (simpler, but a robot then has two paths
+into the same reverb). `wireGlobalFxChain` (`globalFx.ts:146`) is the one place the chain is wired and
+already rewires on the Decay toggle, so the send bus belongs there. Seeded default: the interview decides
+(a seeded spread of depths is fair game; no world is held to today's sound). Swells currently ride
+`reverb.wet` / `delay.wet` (audioSwells.ts's off-equivalent check); with the returns at full they could only
+dip, so they move to the individual robots (Crawford, 2026-10-14): the sends join the robot swell pool and
+the two `wet` targets leave the global pool. Phone gate: twelve `Gain`s is the cheapest node there is, but this is a topology change,
+so it is measured.
+
+**Status: built 2026-10-14 on `feature/palette-sends`, PR pending** (intent [robot-sends.md](../intent/robot-sends.md),
+spec [ROBOT_SENDS.md](../specs/ROBOT_SENDS.md), plan [ROBOT_SENDS.md](../tasks/ROBOT_SENDS.md); tasks T1–T20 committed, guard test
+`src/docs/robotSendsDocs.test.ts`). Crawford's Pixel run passed: Full and Standard for 3:00 each with no distortion by ear
+([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-sends-roadmap-502-on-the-pixel--crawfords-report-2026-10-14)); the
+HUD underrun counts were not reported and the desktop `npm run perf` comparison was skipped at his call, so neither is claimed
+here. He signed the manual listen list off as a whole ("i think all is fine"), not line by line. The paragraphs above are the
+original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraphs above)
+
+- **True send / return, two parallel rooms.** The interview's topology question was answered as a true send / return, and the
+  rooms are **beside** the dry chain, not stages in it: `Tone.Reverb` and `Tone.FeedbackDelay` are permanently `wet: 1`, fed only
+  by each robot's send gain and followed by a return gain. A robot at 0 is truly dry. A side effect worth knowing: Delay's echoes
+  are no longer reverberated (the old serial order fed Delay into Reverb), which is the spec's assumption 1.
+- **The global `wet` sliders became return levels** and are no longer seeded (every world loads `1`; the global quiet-Delay roll
+  was deleted). They are relabelled "Reverb Amount" / "Delay Amount" with help text saying so. Their two Loading Range bands
+  (`0.1–0.4`, `0–0.3`) were kept and now seed each robot's send.
+- **Both Decay Modes keep their wiring-level behaviour** by changing only where the returns rejoin the dry chain: the Compressor's
+  input for Natural, the Limiter's for Controlled. The in-app Decay Mode copy described the *opposite* of that wiring and always
+  did; **resolved afterwards by correcting the copy to the wiring** (Crawford's call: the sound is unchanged; spec §7, point 2).
+- **A seeded spread, with a quiet-Delay trait.** Reverb seeds in `0.1–0.4`; Delay in `0–0.3` with a roll under
+  `SEND_DELAY_QUIET_THRESHOLD` (0.25) giving exactly `0`. The spec and plan say "about a quarter"; the roll's noise sample is
+  bell-curved, so in practice it is **about 17–18 %** of robots (measured over four seeds × 2000 offsets). The threshold was left
+  alone: ask before tuning.
+- **An explicit prime at every reservation.** A send is never "default", so `AudioEngine.updateRobotSends` is called after the
+  post-load pass, inside `reReserveVoice`, at both spawn reservations and on a session restore that carries a send;
+  `reserveVoice`'s signature is not widened. A source-scan test pins the sites.
+- **Swells moved to the robots, as answered.** The global swell pool is 7 (the two `wet` targets and
+  `isGlobalTargetAtOffEquivalent` are gone); the robot pool is 19, the sends appended last and live only while above `0`. **The
+  swell tick writes the stored fraction** through new `applyReverbSendValue` / `applyDelaySendValue`, not through the percent
+  actions: `x * 100 / 100 !== x` for about 15 % of doubles, so a swell could not land exactly on its base through the percent
+  path (`applyVolume` has the same round trip and was left alone). A hand edit cancels its own swell in the caller.
+- **Persistence and companies.** Session diff and share link carry `reverbSend` / `delaySend` (`rs`, `ds`), compared at two
+  decimals, a mid-swell save storing the swell's base, each decoded and validated on its own; the payload `version` stays 2.
+  Company snapshots gain both, broadcast per field, with the swell flags read from the first member.
+- **The seed oracle.** `globalAudioSeed.test.ts`'s "DO NOT REGENERATE" oracle was hand-edited in exactly four values
+  (`reverb.wet` and `delay.wet` in `oracle-alpha` and `oracle-theta`, both to `1`); every other field in every oracle is
+  byte-identical, which proves no other draw moved. Nothing was regenerated.
+- **Nothing on the gem reads a send**, pinned by the guard test's source scan.
+- **Corrected here:** the spec said the diagnostic's pre-chain tap "no longer includes echoes". It never did (EQ3's output fed
+  only the LPF in the old serial chain too), so the diagnostic docs now say the chain changed and the taps did not.
+- **Still open:** the lore words (Remoteness, Retrace Depth) are placeholders; whether the
+  swell is too heavy a wash (the follow-up, only if asked, is a `SEND_SWELL_UPWARD_CEILING` through `clampSwellCeiling`); the HUD
+  underrun counts and the desktop `npm run perf` comparison.
+
+## 50.3 Global Colour: Saturation and BitCrusher
+
+Two single-instance nodes on the global chain, each with a lore name — a degraded transmission is
+on-brand. `Tone.Distortion` (soft overdrive: `distortion` 0–1, `oversample`) or `Tone.Chebyshev`
+(harmonic waveshaper: integer `order`) — one of the two, chosen in the interview, since they fill the
+same slot — plus `Tone.BitCrusher` (`bits`). Both have `wet`, so the seeded default can be fully dry
+or a gentle seeded band (every world gains grit — the Phase 42 kind of call); the interview decides.
+Position: after the filters and before the Decay stage, a new slot in both of `wireGlobalFxChain`'s
+orderings. Fleet Params gets a new section tab ("Colour") or two rows in Output — spec decides against
+the rework's tab row. Both are LFO-able (`distortion`, `wet`) if a Bank target is wanted later, not in
+this sub-phase. Phone gate: waveshapers are cheap, `oversample: '4x'` is not — the gate sets the
+allowed values and the Effects Limit drops oversampling first.
+
+**Status: built 2026-10-15 on `feature/palette-colour`, PR pending** (intent [global-colour.md](../intent/global-colour.md),
+spec [GLOBAL_COLOUR.md](../specs/GLOBAL_COLOUR.md), plan [GLOBAL_COLOUR.md](../tasks/GLOBAL_COLOUR.md); tasks T1–T11, T14 and T15
+committed, T12 partial, T0 and T13b not done; guard test `src/docs/globalColourDocs.test.ts`). Crawford passed Checkpoints A, B
+and C. Pixel: one Full 3:00 run, "no clipping" and "no underruns" by his word
+([scratchy-audio-phones.md](scratchy-audio-phones.md#global-colour-roadmap-503-on-the-pixel--crawfords-report-2026-10-15)); the
+world, the HUD numbers, a Standard run, the T0 re-baseline on current `main` and the desktop `npm run perf` comparison were not
+recorded, so none is claimed here. The paragraphs above are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraph above)
+
+- **All three nodes ship, not one of two.** The interview overturned "Distortion or Chebyshev": `Tone.Distortion`,
+  `Tone.Chebyshev` and `Tone.BitCrusher` are all single instances on the **dry** chain, in that order, between the High-Pass
+  Filter and the Compressor, in both Decay Modes. The Reverb and Delay returns rejoin after them, so the rooms' tails are
+  never coloured. Nothing is per robot and none is an LFO or swell target.
+- **No oversampling and no control for it.** `oversample` is `'none'` on both shapers, always, so the gate's "drop
+  oversampling first" never applies. The Chebyshev cap stays at order 8; whether high orders are harsh at `none` was not
+  reported from the listen, so it is not claimed either way.
+- **A new Colour section tab and an eighth trait.** Fleet Params gains Colour between Time & Space and Output, with three
+  sub-tabs (Distortion, Chebyshev, Bit Crusher), each two sliders. The `colour` trait is red + tangerine, kept at Checkpoint B.
+  The copy is placeholder wording for the copy pass ("Bit Depth", not the spec's "Bit Crush", since a higher number is
+  cleaner).
+- **The Mix is tapered.** The stored Mix is the slider position and the node gets it squared (`colourWetGain`): after the
+  Pixel listen the three were far too strong across a linear slider. Only the Mix is tapered. Stored values, seed bands and
+  share codes keep meaning "slider position".
+- **One character per world, at most one effect on.** A fresh world draws `clean`, `drive`, `fold` or `crush`, about 25 %
+  each. The spec first drew three pair characters too (about 15 % of worlds); Crawford dropped them at T14. The lit effect's
+  Mix seeds in its band, **Distortion 0.10–0.25 and Chebyshev and Bit Crusher 0.05–0.15**, and **no seeded Mix is above 0.25**
+  (`COLOUR_LOAD_MIX_MAX`, a fresh world only). With the taper the seeded wet is about 0.01–0.06 for Distortion and 0.0025–0.02
+  for the other two: quiet, and the bands are the knob if lit worlds read faint. The other effects seed Mix 0 but still draw
+  their shape value.
+- **The character edges are measured, not nominal.** The single draw is bell-curved and discrete (about 190 distinct values), so
+  the nominal edges realised 10 / 34 / 18 / 30 / 4 / 4 / 0 %. The edges (0.3065 / 0.5 / 0.6935 / 1) are midpoints of the
+  gaps nearest the cumulative 25 / 50 / 75 targets, fitted over 20 000 styles and held out over 3 000 (24.8 / 25.5 / 25.6 /
+  24.0 %). The same method refits them if the shares move.
+- **Old payloads load dry.** `withGlobalAudioDefaults` is called in `applySessionPayload` and the share decoder: no encoding
+  change, `version` stays 2. A real crash was found on the way: an empty `globalAudio` used to throw. The recorded 50.2
+  baseline link decodes with all three effects off.
+- **Presets stay clean.** `DEFAULT_GLOBAL_AUDIO_SETTINGS` and the three transmission presets carry every Mix at 0.
+- **The seed oracles were hand-amended, never re-recorded:** at T1 and T5 (the colour keys, then their values) and three times
+  at T14 (the 0.25 ceiling, the lower Chebyshev and Bit Crusher bands, the one-character edges). Each value was derived from the
+  raw draws by hand and checked by running the same formula on the old band, which reproduced the old numbers.
+- **Beyond the spec:** every colour setter clamps into the field's full seed range and ignores a non-finite value (a share
+  link is untrusted, and an `order` of 1e9 stalls the shaper-map build); a BitCrusher constructor failure `devWarn`s.
+- **The phone gate was not fully run, and no threshold was built.** T13b (`LOAD_COLOUR_MIN`) exists only as a conditional
+  plan task; nothing reported a rise.
+- **Nothing on the gem reads a colour effect**, pinned by the guard test's source scan.
+- **Still open:** the lore words are placeholders for the copy pass; the T0 re-baseline and a Standard run on the Pixel, and
+  the desktop `npm run perf` comparison; which world the one clean run used (only a run with Bit Crusher alone at full Mix and
+  4 bits, or all three at full Mix, proves the worklet question); and **per-robot colour**, raised by Crawford after hearing
+  it (a send into each shared effect, the Robot Sends shape: one shared node plus twelve send gains). It reverses a stated
+  non-goal and touches `Robot`, company options, the session codes, the Levels sliders, the swell pool and per-robot
+  seeding, so it needs its own interview and spec; it is not scheduled.
+
+## 50.4 Global Modulation Pedal: AutoWah or Phaser
+
+One single-instance node, chosen in the interview. `Tone.AutoWah` is an envelope follower driving a
+bandpass (`baseFrequency`, `octaves`, `sensitivity`, `Q`, `gain`, `follower`): it reacts to the fleet's
+own dynamics and has no clock, so it is replayable in the only sense that matters. `Tone.Phaser`
+(`frequency`, `octaves`, `baseFrequency`, `stages`, `Q`) carries its own LFO, so its phase is
+wall-clock — the LFO Bank's accepted class — and its `frequency` could take the Free | Sync treatment
+([33](#33-free--sync-toggle)). Either lands as one more slot in `wireGlobalFxChain` with `wet`, seeded
+default dry or a low seeded band, the same call as 50.3. Whichever is not chosen moves to backlog 22.
+Phone gate: a follower is a few nodes; Phaser's `stages` multiplies allpass filters, so the gate caps it.
+
+**Decided with 50.3 (Crawford, 2026-10-14, "both of the other two"):** 50.4 ships **both** AutoWah and Phaser, as 50.3 shipped
+all three of its nodes, so "chosen in the interview" and "whichever is not chosen moves to backlog 22" above no longer apply.
+The cost notes stand for each, and the phone gate covers both.
+
+**Interviewed 2026-10-15**, intent at [global-modulation-pedal.md](../intent/global-modulation-pedal.md): both pedals after Colour on the dry
+chain, every parameter exposed, Phaser Rate with Free | Sync, a tab of their own between Colour and Output on the `spectral` trait,
+each lit in about a third of fresh worlds independently of Colour, Mix tapered like Colour's.
+
+**Status: built 2026-10-15 on `feature/palette-modulation`, PR pending** (intent [global-modulation-pedal.md](../intent/global-modulation-pedal.md),
+spec [GLOBAL_MODULATION_COLOUR.md](../specs/GLOBAL_MODULATION_COLOUR.md), plan [GLOBAL_MODULATION_COLOUR.md](../tasks/GLOBAL_MODULATION_COLOUR.md);
+tasks T1–T13, T14 (partial), T16 and T17 committed; T0 and T15b not done; guard test `src/docs/globalModulationDocs.test.ts`).
+Crawford passed Checkpoints A and B (B partly: he heard the AutoWah; the phone shell, a Stages drag and Free/Sync/tempo were not
+explicitly confirmed). Checkpoint C's by-hand save → reload → share-link check was not reported. Pixel: one Full 3:00 run with both
+pedals at full Mix and 12 stages, "some underruns" and no distortion by his word
+([scratchy-audio-phones.md](scratchy-audio-phones.md#global-modulation-roadmap-504-on-the-pixel--crawfords-report-2026-10-15)); the
+underrun count, the world, a Standard run, runs (a) and (b), the T0 re-baseline and the desktop `npm run perf` comparison were not
+recorded, so none is claimed here. The paragraphs above are the original starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraph above)
+
+- **Both pedals ship.** `Tone.AutoWah` then `Tone.Phaser`, single instances on the **dry** chain between BitCrusher and the
+  Compressor, wah first, in both Decay Modes. The Reverb and Delay returns rejoin after them, so the rooms' tails are never swept.
+  Nothing is per robot and neither is an LFO or swell target. From the Phaser onward the dry chain is stereo (`StereoEffect`);
+  everything downstream is stereo-safe, and the mono wah before it is the reason to keep wah first.
+- **Every Tone parameter is a slider**, thirteen in all: the AutoWah's seven (`baseFrequency`, `octaves`, `sensitivity`, `Q`,
+  `gain`, `follower`, `wet`) and the Phaser's six (`rate`, `octaves`, `baseFrequency`, `stages`, `Q`, `wet`).
+- **A Modulation section tab on the existing `spectral` trait.** Fleet Params gains Modulation between Colour and Output, with two
+  sub-tabs (AutoWah, Phaser); no new trait. The lore words (Pressure Sweep, Phase Lag and the tab's name) are placeholders for the
+  copy pass.
+- **The Phaser's Rate is the third Free | Sync field** (`PhaserSettings.sync?`, `resolvePhaserRateHz`, `phaserToSync`,
+  `phaserToFree`, `setPhaserSyncMode`; a tempo change re-pushes a synced Rate), on a `TempoSyncSlider` row. Its LFO is wall-clock,
+  not on the transport.
+- **`stages` rebuilds the node.** It is constructor-only in Tone, so a changed count builds a new Phaser with every other field's
+  last-written value, re-wires the chain in the last Decay Mode, then disposes the old one. Verified headless with real Tone 15
+  (a 1 → 12 drag, Decay flips, Sync with a tempo change): no exceptions or engine warnings and the master level steady. Whether a
+  Stages drag ticks audibly was Task 16's ear test; Crawford closed that task and **Stages stayed a slider**, with no seeded-only
+  change asked for.
+- **The Mix is tapered like Colour's** (`colourWetGain`, squared at the node).
+- **Seeding is uniform draws.** All four roll draws and all thirteen value draws use `getUniformSeededVal`, not the plain draw:
+  measured over 20 000 styles, the plain draw gave `autoWah.lit` 24 distinct values and put a lit wah in 55.9 % of clean-Colour
+  worlds against 26.8 % of coloured ones (not independent of Colour, which the intent required), and `autoWah.gain` and
+  `autoWah.wet` took 3 distinct values over 3 000 styles. With uniform draws: AutoWah lit 33.07 %, Phaser lit 33.30 %, both 11.22 %
+  (product 11.01 %), 50.2 % of lit Phasers Sync, all independent of Colour. So `PEDAL_LIT_EDGE` is the nominal 1/3 with no fitting
+  and `PHASER_SYNC_ODDS` is 0.5. A dark pedal seeds Mix 0 but still draws its shape values.
+- **The bands were retuned at T16 to Crawford's recommended ranges, then the Mix was brought down.** AutoWah: baseFrequency 50–250, octaves 2.5–5, sensitivity
+  −40 to −10, Q 2–6, gain 2–6, Mix 0.2–0.5 (follower unchanged, 0.1–0.4). Phaser: rate 0.1–2.5, octaves 2–5, baseFrequency
+  200–800, stages 4–12, Q 1–10, Mix 0.15–0.4. **The pedal Mix no longer shares Colour's 0.25 load ceiling** (`COLOUR_LOAD_MIX_MAX`
+  stays 0.25 for the three colour effects); with the taper a seeded pedal Mix is a node gain of about 0.04–0.25 (wah) or 0.02–0.16
+  (phaser). The Mix was first set to his recommended 0.3–0.7 and 0.25–0.6, which he found too loud, and brought down by about a
+  third. Stages now seed up to 12, the count the Pixel run used.
+- **Old payloads load dry and a bad `phaser.sync` is dropped** (`withGlobalAudioDefaults` at both call sites;
+  `sanitizePhaserSync` in `applySessionPayload`). No encoding change, `version` stays 2.
+- **Presets stay clean.** `DEFAULT_GLOBAL_AUDIO_SETTINGS` and the three transmission presets carry both pedals at Mix 0.
+- **The seed oracles were hand-amended, never re-recorded:** at T1 and T7 (the pedal keys, then their values: alpha has AutoWah dark
+  and the Phaser lit and synced, theta the reverse) and again at T16 for the retuned bands and for the lower Mix, each value re-derived from the
+  old raw draw and checked against it.
+- **Deviations from the plan:** a failed Phaser rebuild keeps the old node (the plan left the slot empty); boot builds the Phaser
+  twice (the default 10 stages, then the seeded count); the T3 "drop the floor" mutant is equivalent because the resolver already
+  clamps, so the resolver clamp was mutated instead; `rampOrSet`'s value type widened to `unknown`.
+- **The phone gate was not fully run, and no threshold was built.** Task 14 had "some underruns" at Full and no baseline to compare;
+  Crawford closed the gate on that evidence, so the gate's "zero underruns at Full" was not met as worded. T15b (`LOAD_PEDAL_MIN`)
+  exists only as a conditional plan task. The Stages ceiling stayed at 12.
+- **Nothing on the gem reads a pedal**, pinned by the guard test's source scan.
+- **Still open:** the lore words; the T0 re-baseline and a Standard run on the Pixel, and the desktop `npm run perf` comparison;
+  the underrun count at Full; and the Checkpoint C by-hand check.
+
+## 50.5 Robot Performance: Dynamics, Rests, Accents, Humanize
+
+The per-robot "musicality" half of the Audio Palette, promoted from backlog item 21 (now in
+[the archive](archive/backlog-archive.md#21-audio-palette-trials-robot-dynamics-gate-length-humanize-and-rests)). Four controls
+that make a robot's playing sound played rather than mechanical, every one **trigger-time arithmetic or melody data**: the phase
+adds zero audio nodes and no Audio Load cost. **Dynamics** (per robot, Levels) scales the existing velocity variance — neutral 50 is
+today's sound exactly, 0 is flat, 100 is twice the rate and twice the width. **Rests** (per robot, Composition) is a seeded per-event
+chance that a note ends early and leaves silence — a shortened note, never a skipped one, which would be anti-Density. **Accents**
+(per robot, Composition) is a seeded per-event chance of one of the five classical marks (accent, marcato, staccato, staccatissimo,
+tenuto), each a velocity × length pair, unlocked in three tiers. **Humanize** (global, Pacing) lands every note a few milliseconds
+off the grid inside `MIN_LEAD`. Seeded fleet-wide, not as minority traits.
+
+**Interviewed 2026-10-15**, intent at [robot-performance.md](../intent/robot-performance.md): three corrections to the backlog's
+framing — these are wanted features, not trials; rests shorten rather than skip; accents mean articulation marks, not beat patterns.
+Gate length folded into Rests; accent placement patterns, per-robot humanize and the "trial branch" framing dropped.
+
+**Status: built 2026-10-16 on `feature/palette-performance`, PR pending** (intent [robot-performance.md](../intent/robot-performance.md),
+spec [ROBOT_PERFORMANCE.md](../specs/ROBOT_PERFORMANCE.md), plan [ROBOT_PERFORMANCE.md](../tasks/ROBOT_PERFORMANCE.md); tasks
+T1–T17, T19 and the follow-up T20 committed; guard test `src/docs/robotPerformanceDocs.test.ts`). Crawford listened through
+Checkpoints B–E and gave one verdict, "it all sounds good", which accepts every open veto point as built (assumptions 2, 5, 6, 10,
+13, 14: the mark tiers and multipliers, the 0.8 baseline, Humanize in the Pacing top row, the seed ranges, the lore words).
+**T18's Pixel A/B was not run**, so the phone gate is open, not passed; a desktop `npm run perf` comparison was not run either.
+The desktop underruns that interrupted Phase 3 turned out to be a pre-existing rendering load on Crawford's laptop (main reproduced
+them; see `docs/PERFORMANCE.md` once that work is written up), not this phase.
+
+### As built (deltas from the paragraphs above)
+
+- **Rests and Accents live on a labelled Articulation panel in the Composition section** (`PingControlsCompositionSection`), not the
+  plan's PHRASING panel, which was no longer rendered on any screen. Gated by `disabled` alone.
+- **The post-pass is keyed on the seed alone.** `buildSeededPerformance(compositionSeed)` is an `alea` over
+  `` `${compositionSeed}:performance` ``; the spec's key carried both slider values, which re-seeded the stream on every tick of a
+  slider and broke its own four-draw contract. Four draws per event, always, so each slider re-stamps one concern.
+- **The per-note rolls hash the seed (T20).** `compositionSeed` is a 0–1 fraction, so the spec's `(compositionSeed + position) % 97`
+  noise-map offset put all twelve robots within one unit of each other on a smooth field: Humanize moved a unison together by ~7 ms
+  (Crawford: "I don't hear a change when I max out the slider") and the Dynamics roll was all-or-none across the roster on 51 of 64
+  ticks. `performanceRoll(compositionSeed, purpose, position)` — `alea` over `seed:purpose:position` — now feeds the velocity roll,
+  its variance and Humanize; the legacy no-position counter keeps the noise map. Measured: cross-robot Humanize spread 13–16 ms
+  before, ~34 ms after, at the 20 ms setting.
+- **Humanize is pushed, not read.** `AudioEngine.setHumanize(ms)` (the `setPolyphonyCap` precedent); `audioStore.setHumanize` and
+  the seed-once branch push it, and a session restore reaches the engine through the same setter. Seeded 2–6 ms by a **uniform**
+  draw (`getUniformSeededVal`): the plain draw gave three distinct values over 300 styles. Click-track entries are never humanized.
+- **`NOTE_VELOCITY_BASELINE` 1 → 0.8**, so the louder multipliers have headroom (about 2 dB fleet-wide; Volume untouched).
+- **Shortened notes are scheduled as seconds** (`NoteParams.duration: NoteDuration | number`), floored at `MIN_SOUNDING_SECONDS`
+  (0.03 s) and never longer than the note as written; the composite voice takes the number as a string.
+- **Companies broadcast the three robot fields** on `onDensityChange`'s shape; `CompanyOptionsSection` needed no change because T9/T10
+  had already wired the handlers through. Humanize is global, so no company field.
+- **Persistence:** `RobotAudioOverrideDiff.dynamics / rests / accents` (restored only when finite, key by key) and
+  `SessionPayload.humanize`; share-link codes `dy` / `rt` / `ax` and `hm`. The restore's existing `regenerateMelody` re-stamps the
+  marks. Payload `version` stays 2. A decoded absent `hm` is a present-but-undefined key, like `sd`.
+- **Nothing on the gem reads any of it**, pinned by the guard test's source scan.
+- **Still open:** the Pixel A/B at Standard and Full (T18); whether 20 ms is the right Humanize ceiling (`MIN_LEAD` allows up to
+  50 before the 50 ms rule breaks — listen again now that the unison smears); the "Dynamics" word's clash with the Audio Load
+  panel's use of the word (accepted for now).
+
+## 50.6 Global Pedals: Chorus, Tremolo, Vibrato, Frequency Shifter and Width
+
+Promoted from backlog item 22 ([backlog.md](backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)), the next
+item on the Audio Palette menu once 50.1–50.5 had merged (PRs #555–#559). Five more single-instance Tone 15 effects on the
+global chain, each one slot in `wireGlobalFxChain` with a Mix, each behind the phone gate. `Chorus` (its own LFO; with
+feedback it is a flanger), `Tremolo`, `Vibrato` and `FrequencyShifter` ("strange, and on-brand") are motion pedals on the
+dry chain after the Phaser. `StereoWidener` is a Width control whose 0 is a mono fold for a phone speaker. The three with an
+internal oscillator are wall-clock (backlog 17's accepted class) and take Free | Sync on their rate
+([33](#33-free--sync-toggle)). The backlog's two room *type* radios (PingPongDelay on the Delay row, Freeverb / JCReverb on
+the Reverb row) stay in backlog 22. This is a sixth sub-phase; the series header above now says seven, with Robot Effect Sends (50.7).
+
+**Interviewed 2026-10-17**, intent at [global-pedals.md](../intent/global-pedals.md): six questions, one guess overturned
+("all eight in one pass" became these five now and the two room radios later). Every parameter on screen; the four motion
+pedals as sub-tabs of Modulation and Width as a sub-tab of Output, after the rooms' join; a fresh world lights a pedal or two,
+quietly; by hand any pedal goes to its loudest.
+
+**Status: built 2026-10-18 to 2026-10-21 on `feature/pedals`, PR pending** (Crawford opens it; intent
+[global-pedals.md](../intent/global-pedals.md), spec [GLOBAL_PEDALS.md](../specs/GLOBAL_PEDALS.md), plan
+[GLOBAL_PEDALS.md](../tasks/GLOBAL_PEDALS.md); guard test `src/docs/globalPedalsDocs.test.ts`). Inside it, the
+**Dark-Effect Bypass**, built when the first phone run missed (intent [dark-effect-bypass.md](../intent/dark-effect-bypass.md),
+spec [DARK_EFFECT_BYPASS.md](../specs/DARK_EFFECT_BYPASS.md), plan [DARK_EFFECT_BYPASS.md](../tasks/DARK_EFFECT_BYPASS.md)).
+Tasks T0–T14, T16 and T17 done; T15b (a Mix threshold) was dropped, since a dark effect cost as much as a lit one. Crawford
+passed Checkpoints A, B (by ear) and C, the T16 listen ("it sounds fine"; nothing moved), and the branch review's follow-ups by
+ear on desktop and phone (2026-10-21: "it all sounds good on desktop and the phone"). The phone gate passed with a caveat, by his
+call (below). The paragraph above is the starting point, not what shipped: read "As built" first.
+
+### As built (deltas from the paragraphs above)
+
+- **Five nodes, in two places.** Chorus → Tremolo → Vibrato → FrequencyShifter on the dry chain after the Phaser and before
+  the Compressor, so the rooms' tails are never swept; the StereoWidener between the Compressor and the Limiter. Under
+  Controlled Decay the returns now join at Width's cell, not the Limiter, so Width hears the rooms in both modes and Width 0
+  folds everything to mono. Nothing is per robot, none is an LFO or swell target, and nothing on the gem reads them (guard
+  test).
+- **Every parameter is a slider**, sixteen in all, as sub-tabs: Modulation has six (AutoWah, Phaser, Chorus, Tremolo, Vibrato,
+  Shifter) and Output three (Compressor, Width, Limiter). The four Mixes are tapered like Colour's; Width is not, so 0.5 stays
+  unity. The Shift is a centred-zero slider on a signed-log track (`logKnee`, added in the branch review), so the seeded
+  ±2–20 Hz band is 28 % of each half rather than under 2 % of a linear ±1 000 Hz track.
+- **Three more Free | Sync rates, on one generic rail.** `resolveSyncedRateHz`, `syncedRateToSync`, `syncedRateToFree` and
+  `allowedRateNoteValues` over one range (`PEDAL_RATE_RANGE_HZ`), `setPedalSyncMode(key, …)` in the store, and one key list
+  (`SYNCED_RATE_KEYS`) that the store, the drawer, the seeder and the session sanitiser loop over. The Phaser moved onto it,
+  and its own helpers, `setPhaserSyncMode`, `PHASER_SYNC_ODDS` and the `PHASER_RATE_*` names were deleted in the review.
+- **Seeding: at most two Modulation pedals lit, by a sequential cap.** After the AutoWah and Phaser rolls (untouched), each
+  motion pedal rolls in chain order under its edge (0.25 / 0.25 / 0.25 / 0.15) and is forced dark once two of the six are
+  lit (`MAX_LIT_PEDALS`). Measured over 20 000 styles: Chorus 22.68 %, Tremolo 19.33 %, Vibrato 16.75 %, shifter 8.20 %,
+  two lit in 49.38 % of worlds, never three; about half of lit LFO pedals seed Sync. Width has no roll and seeds 0.4–0.65;
+  about 4 % of worlds land on exactly 0.5, which is unity, so the widener starts dark (4.36 % of 5 000 styles, measured at
+  T17). All draws are uniform. The seed oracles were amended by hand, never re-recorded, and the T16 listen kept every band.
+- **The Chorus comes back.** The V2 chain rework had removed one ("the effect isn't correct for this music"); the intent did
+  not mention that, and five V2 "no chorus" guards in the tests were inverted as the tasks reached them (T1 to T10).
+- **Power-on hung, and two zero-delay cuts fixed it.** Tone's `standardized-audio-context` searches every downstream path on
+  each `connect`, stopping only at a delay node, so the paths multiplied stage by stage: with all five pedals the estimate
+  was about 14 minutes. Two zero-delay `Delay` nodes in the dry chain (at its entry, and after the HPF) and, since the bypass,
+  one at the end of each cell, bound every search. They pass the sound unchanged. `chainCycleSearch.test.ts` is a tripwire on
+  the library's behaviour.
+- **Some changes could not be ramped, so they duck.** Tone's Chorus Delay and Depth setters step the LFOs' range and click
+  (×217 and ×13), so the range is ramped on the LFOs' Scale Signals instead (×1). A Spread on a lit Chorus or Tremolo swaps
+  the LFOs' waveform at once (×49–79 and ×7 in a real-time context), and so does a lit Phaser's Stages change (×2–55); both now
+  go dry, apply the change from Tone's audio-clock timer once the ramp has run on the audio thread, and come back
+  (×1.3 / ×1.6 for the Spread, ×0.82–0.93 for the Stages). A pedal goes dry for about 0.15 s per change.
+- **Stereo, corrected in the review.** The spec first said the Vibrato and the shifter were mono. The Vibrato is fully
+  stereo; the shifter's sine branch enters an AudioParam and is downmixed, so a hard-panned voice leaks the other sideband.
+  Crawford's T16 listen kept it.
+- **The Dark-Effect Bypass.** A Tone `Effect` processes its wet path at any Mix, so a dark pedal cost as much as a lit one.
+  Now each of the ten global effects (the three Colour effects, the AutoWah and the Phaser from `main`, and the five new ones)
+  sits in a four-node bypass cell that carries its Mix on Tone's own equal-power law. At Mix 0 (Width exactly 0.5) the effect
+  is disconnected and out of the signal path; every connect and disconnect happens with its wet gain at zero. The `?debug`
+  HUD reads ` · fx in n/10`. Measured on the desktop: lit sound unchanged (every difference ≤ 1.8e-7), crossings inaudible
+  (worst ×1.19), all ten dark at 38.3 ‰ against 150.6 inline in the same sitting, `perf:audio` below `main` (0.431 / 0.502
+  against 0.460 / 0.580), power-on and a Decay flip no slower. Full account: the spec's §8.
+- **Persistence.** The five blocks travel whole inside `globalAudio`; payload `version` stays 2 and nothing new is encoded.
+  An older payload loads them at the defaults. `sanitizeSyncedRate` (was `sanitizePhaserSync`) drops a bad `sync` on each of
+  the four synced blocks. A block of the wrong kind now counts as missing: a crafted `?session=` with `g.chorus: 1` used to
+  throw in the sanitiser, and `main` had the same gap for the Phaser and the Delay.
+- **Presets stay clean**: every pedal Mix 0, Width 0.5.
+- **Copy beyond the spec.** The Modulation intro ends "up to two pedals, or none"; the Output intro gains a Width paragraph,
+  and its Decay Mode line says Controlled Decay's echoes have "only Width and the Limiter above them". The lore words (Twin
+  Current, Pulse Fade, Line Waver, Band Slip, Spread) are placeholders for the copy pass.
+- **The phone gate passed with a caveat, by Crawford's call** (every run in
+  [scratchy-audio-phones.md](scratchy-audio-phones.md#global-pedals-roadmap-506-on-the-pixel--t0-and-t14-crawfords-runs-2026-10-19)
+  and the sections after it; Pixel 8, Full unless noted, underruns at 3:00, single runs).
+  - Round 1: `main` 36 (Standard 59); the branch's worst case, all six Modulation pedals at Mix 1, 92 (Standard 193). A miss.
+  - Round 2: the branch with every new pedal dark read 380, then collapsed; `main` 94. The cost was the effects' presence,
+    which is what the bypass fixed.
+  - Round 3, with the cells: the same dark world 31 against `main`'s 48. Worlds with four and seven effects lit ran away at
+    about 3:30.
+  - Round 4: four lit read 59 and 53 on a fresh phone. Later runs in the sitting collapsed whatever they carried, including
+    `main`'s, run fifth (26 at 3:00, silent at 4:13). That late-sitting collapse is backlog 27.
+- **Still open:**
+  - The lore words.
+  - Backlog 27: the late-sitting collapse on both builds, heat against state not yet separated.
+  - What a lit effect costs on the phone. Round 3's lit runs ran away; round 4's on a fresh phone did not. The desktop
+    pricing is in scratchy-audio-phones.md; a Phaser at 4 stages showed no signal on the phone.
+  - Whether a fresh world should ever seed Width at exactly 0.5 (harmless today: unity either way).
+  - Every phone figure above is a single run.
+
+## 50.7 Robot Effect Sends: Grit, Shimmer and Double
+
+Extends Robot Sends ([50.2](#502-robot-sends-per-robot-reverb-and-delay-depth)) to three of the global effects 50.3 and 50.6
+put on the chain. Each robot gets three more sends: Grit into a Colour room (Distortion, Chebyshev, BitCrusher), Shimmer into
+the Frequency Shifter and Double into the Chorus, so a few robots are coloured, ringing or doubled instead of the whole
+fleet. It grew from the Tone.js effects inventory ([TONE_EFFECTS_INVENTORY.md](../reference/TONE_EFFECTS_INVENTORY.md),
+2026-10-19): which global effects should the robots send into, and which should stay inserts. The names are working
+titles until the copy pass.
+
+**Interviewed 2026-10-21**, intent at [robot-effect-sends.md](../intent/robot-effect-sends.md): six questions, five guesses
+confirmed, per-robot delay time deferred to a phase of its own. **The Classic Band Retune came first** (above), as its own
+task and listen before T1, since the room bands are written against its merged numbers (PR #567, `2dc5b4a2`).
+
+**Status: built 2026-10-21 to 2026-10-22 on `feature/robot-effect-sends`, PR pending** (Crawford opens it; spec
+[ROBOT_EFFECT_SENDS.md](../specs/ROBOT_EFFECT_SENDS.md), plan [ROBOT_EFFECT_SENDS.md](../tasks/ROBOT_EFFECT_SENDS.md); guard
+test `src/docs/robotEffectSendsDocs.test.ts`). Tasks T0–T22 done. Crawford passed Checkpoints A, B and C, the T20 listen ("i
+think everything sounds fine"; no tuning) and the T21 phone gate.
+
+### As built (deltas from the paragraphs above)
+
+- **Three rooms beside the chain, no new effect nodes.** Each is the 50.6 bypass cell without its dry path: a shared `in`
+  that every robot's send feeds, one wet-only branch per effect, a zero-delay cut and a return gain, joining where the Reverb
+  and Delay returns join. The dry chain shrinks to seven stages after the filters (AutoWah, Phaser, Tremolo, Vibrato,
+  Compressor, Width, Limiter); the Vibrato stays an insert. A branch is in the signal path only while some reserved robot
+  sends into its room, the room's Return is above 0 and the branch's own level is above 0, through the 50.6 crossing, so a
+  dark room costs what a dark effect costs. The HUD's ` · fx in n/10` counts chain cells and room branches alike.
+- **No Colour master Return** (Crawford, 2026-10-21, after seeing it built as a Room sub-tab at T17). Each colour Mix is
+  already a wet-only level on its own branch, so it acts like the Reverb or Delay Amount; the Room tab, its settings block
+  and its setter were removed (T17.1, T17.2). The Chorus and Shifter Mixes became their rooms' Returns: they read
+  "Return", default to 1 and are not seeded.
+- **Per robot:** three more 0–100 % sliders after Delay in the Levels block on the robot and company screens, three more
+  seeded fields that save, share (`gr` / `sm` / `db`) and bulk-edit like Reverb and Delay, and three more swell attributes
+  (22 in the pool). Nothing on the body reads them.
+- **Seeding.** The five send bands moved into one table, `ROBOT_SEND_LOADING_RANGES`, that a theme can override; Reverb
+  and Delay seed byte for byte as before. A fresh robot carries at most one of Grit (0.4–0.8, lit 0.21), Shimmer (0.2–0.5,
+  0.16) and Double (0.3–0.6, 0.19): about 2.5, 1.6 and 1.6 robots per fleet of twelve. The Chorus and the shifter lost
+  their lit rolls, so the two-pedal cap now counts four (Tremolo 22.04 %, Vibrato 19.55 %), and the Chorus rolls Sync in
+  every world. A Grit send is heard only in a world whose Colour character lit an effect.
+- **Found and fixed on the way.** A voice replaced by a re-reservation must leave the feeder sets (T5). A share link's
+  sends were inaudible: the rooms were built unfed after robots had already joined the sets, so `loadInstruments` now
+  tells each new room where its set stands (Checkpoint C, `bd8c2ae6`). The build makes ten zero-delay cuts, not the
+  spec's fifteen.
+- **Measured** ([scratchy-audio-phones.md](scratchy-audio-phones.md#robot-effect-sends-roadmap-507-desktop--t19-2026-10-21)
+  and the section after it). Every room crossing ×0.84–×1.29; an all-dark `perf:audio` 0.466 / 0.547 against the base's
+  0.467 / 0.561; power-on, a Decay flip and a send crossing no slower. A connect sometimes loses one render quantum in
+  headless Chrome, 50.6's cells included (backlog 29); Crawford heard no tick. Pixel 8, off for 20 minutes before every
+  run: at 3:00 the branch read 76 / 62 / 59 against the base's 48 / 68 / 95. One branch run collapsed after 3:30 and its
+  repeat did not, and a world with all seven effects lit held (backlog 27).
+- **Still open:** the lore words; the room-depth second look at the colour Mix bands (spec §7 Q1, not taken at the
+  listen); backlogs 27 and 29; per-robot delay time (its own phase); themes, which now have the send table to override;
+  the five sends written out field by field across the code ([55](#55-robot-sends-one-table-for-the-five-sends), next up).
+
+## 52. Job Decorations (six small animations on the orbiters' work)
+
+Intent [docs/intent/job-decorations.md](../intent/job-decorations.md), spec
+[docs/specs/JOB_DECORATION.md](../specs/JOB_DECORATION.md), plan
+[docs/tasks/JOB_DECORATION.md](../tasks/JOB_DECORATION.md), sketch
+[docs/sketches/job-decorations.html](../sketches/job-decorations.html) (Verdict 1, 2026-10-12: all six rows kept at
+Crawford's settings). **Built on `feature/job-decorations`, 2026-10-12 to 2026-10-13 (Tasks 1–14 and 16); not yet
+merged.** The idle-paint perf gate (Task 14) **missed** — busy +11 %, paint +18.5 % against the branch's merge
+base, every run outside the parent's spread — and Crawford accepted it (docs/PERFORMANCE.md, "Job Decorations — the
+Task 14 perf gate"). **Still owed: Task 15** — the Pixel listen at Full with a working fleet, which was **not run**
+(Crawford could not test on 2026-10-13 and asked to continue) — then the PR. Crawford said "everything looks good
+so far" of the live build while it was made; Checkpoint C's formal verdicts were not written into the sketch.
+
+### About
+
+While a robot works, its job gains one decoration drawn over the orbiters: tethers and motes (Vent Extraction),
+ping arcs and a wired ring (Acoustic Survey), a scan trail and vertex ticks (Structural Inspection), droplets and
+a spinning valve (Fluid Monitoring), a wired load (Salvage), sparks and a flash (Maintenance). Each is a pure
+state module plus a builder that makes its SVG nodes once, in a `<g class="robot__work">` appended to the robot's
+`.robot__row`, and removes them when the job ends or is killed. As built, in
+[ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-decorations).
+
+**Decisions.**
+
+- **Six rows kept, at Crawford's numbers** — he went bigger than the brief's "small", and the sketch's defaults are
+  the constants.
+- **Variation is fixed per robot**, ±15 % on twelve size and timing factors, drawn from the end of the
+  `${gemSeed}:work` stream so no existing draw moved. Counts and opacities never vary.
+- **Decorations live in the robot's row frame**, so they scale with the back row and unmount with the robot.
+- **Writes run from the job timeline's `onUpdate`**, not one tween per decoration, so an orbiter's live position
+  is current when a wire reads it; cleanup wraps `tl.kill` because `onInterrupt` misses the silent finish.
+- **The tier ladder ships unbound.** `decorTier(robotLoad)` is plumbed through the work loop and every preset
+  draws everything; Full is always `'all'`, so binding the ladder could never lower the Full-tier cost.
+
+### Not Doing (and why)
+
+- **Cards and the detail avatar** — decorations are world animation; the cards keep their still body.
+- **Per-run or audio-driven variation** — a robot should work the same way each job, and the Visual Mapping
+  guardrail keeps audio out of the body.
+- **Changing move timing** — the moves, `moveWindows` and `jobDuration` are untouched.
+- **Binding the tier ladder now** — the perf miss was at Full, which the ladder cannot reach; revisit only if the
+  Pixel run shows a problem at Standard or Light.
+- **A battery dim** — decorations play only while Active, never critical.
+- **New dependencies** — GSAP and `createElementNS` only.
+
+### Open
+
+- The Pixel listen (Task 15), at Full with a working fleet.
+- Spec questions 1, 2, 3 and 5 (battery dim, identity colour, count 1, droplet numbers) shipped as the spec
+  proposed them and were not separately confirmed by Crawford.
+- If the Pixel shows trouble: cut the Full-tier cost (skip unchanged attribute writes, or fewer nodes at `'all'`).
+
+## 53. Per-Mover Compositor Layers
+
+Intent [docs/intent/per-mover-compositor-layers.md](../intent/per-mover-compositor-layers.md), spec
+[docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md](../specs/PER_MOVER_COMPOSITOR_LAYERS.md), plan
+[docs/tasks/PER_MOVER_COMPOSITOR_LAYERS.md](../tasks/PER_MOVER_COMPOSITOR_LAYERS.md); diagnosis in
+[backlog item 26](backlog.md#26-desktop-paint-stage-sized-moving-layers-re-raster-every-frame) and
+[PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16). **Built on
+`perf/per-mover-layers`, 2026-10-16 to 2026-10-17 (Tasks 1–23); not merged** (the PR is Crawford's). The Task 20
+idle-paint gate **MISSED its headline criterion**: median `screens/frame` 0.95 against `main`'s 3.10 is 0.31 × `main`,
+and the limit was 0.25. Busy time (2295 against 2749 ms), Paint time (128 against 246 ms) and layer memory (24.2
+against 37.8 MB) were within their limits. The work the phase targeted fell by over 90 % (about 2.07 to about 0.16
+screens/frame); what keeps the total above the line is the document layer, which repaints a full viewport on nearly
+every frame on both builds, cause unidentified. The run was stopped and not acted on. The Pixel listen (Task 21) ran
+2026-10-17: Full Audio Load, over five minutes, about 12 underruns, no distortion, no clipping, Crawford: "good to
+go"; no `main` count was taken, so the plan's not-above-`main` criterion is open. Checkpoints B and C (Crawford's
+look, Chrome and Firefox) were never recorded as passed; he proceeded on the automated checks and the Pixel listen.
+Numbers: PERFORMANCE.md, "Per-Mover Compositor Layers — the Task 20 gate" and "the Task 21 Pixel listen".
+
+### About
+
+Chrome composites a whole `<svg>`, so the four stage-sized sheets that carried the robots, bubbles and marker were each
+repainted in full whenever one robot moved, and the cost grew with the screen. The scene is now one scaled stage
+(`sceneFit`, `useStageFit`) holding four static sheets and one small mover per robot, per bubble stream, for the
+marker and for a row switch's dissolve copy. A swim slides a layer and repaints nothing; only a change inside a mover
+repaints, and only its own patch. A robot changes rows by a slot write (`data-scene-slot`, `SCENE_SLOTS`), not a
+React re-mount, so the re-mount machinery is gone. Nothing a viewer sees changes. The idle-paint harness gained a
+redrawn-area metric (`redrawn px²/frame`, `screens/frame`) with each paint clamped to its layer, and a mover-layer
+readout. As built, in [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#scene-stack--the-stage-the-sheets-and-the-movers).
+
+**Decisions made while building.**
+
+- **Hairline softness accepted.** A promoted mover under the scaled stage draws hairlines slightly softer than direct
+  vector (measured in Chrome 155); Crawford looked at the spike page in Chrome and Firefox on 2026-10-17 and said it
+  looks fine. No snapping or promote-only-while-moving mitigation was built.
+- **The swim pivots about the gem canvas centre** (the mover's centre), not the old bounding-box centre.
+- **The paint-area metric needed a prerequisite the plan did not list.** A `Paint` event's clip is a cull rect, and a
+  promoted mover's is unbounded, so each `Paint` is clamped to the layer it drew into (Task 20's prerequisite).
+  `main` re-measured under it reads 3.10, not the baseline's 4.63.
+- **Bubble strips are always promoted**, one per stream, as specified.
+- **The swim timeline is created before the dissolve's**, because GSAP updates in creation order and the copy mirrors
+  the body in the dissolve's update.
+
+### Not Doing (and why)
+
+- **The audio-headroom default** (the Standard Audio Load preset, `?latency=playback`) — mitigation, not cause, and
+  Crawford's call.
+- **Machine-side fixes** (routing Chrome onto the discrete GPU) — they help one machine, not anyone else.
+- **The re-mount path** and the `<use>`-inside-a-sheet dissolve — removed, not kept for its own sake; pre-v1 keeps
+  nothing because it was how it was.
+- **Any look change** — the world, the marker and its caption are as they were.
+- **Per-station sheets** — the fallback for a ripple-driven paint miss; the static sheets paint 3–23 times in 6 s, so
+  the miss is not that.
+- **Amending the gate after the result** — a criterion changed after its run is a stated decision, and none was made.
+
+### Open
+
+- **The document layer's repaint** (a full viewport on 279–345 of about 350 frames on both builds): Crawford's call
+  between accepting the criterion against it and filing the repaint as its own item, fixing it and re-running the gate
+  unchanged, or amending the criterion to exclude it from both sides.
+- **The Pixel `main` comparison**: no `main` listen was taken in the same session, so the listen is a clean branch
+  listen, not an A/B.
+- **Bubble strips' memory**: no strip was a drawing layer in the idle window, so spec §7 Q3 (fifty always-promoted
+  strips against the one sheet they replaced) is untested by the gate.
+- **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
+  is unverified.
+
+## 55. Robot Sends: One Table for the Five Sends
+
+Raised at the Robot Effect Sends ([50.7](#507-robot-effect-sends-grit-shimmer-and-double)) code review, 2026-10-22, and put
+next on the roadmap by Crawford the same day. A refactor with no change in behaviour: the five per-robot sends (Reverb,
+Delay, Grit, Shimmer, Double) are written out one field at a time in about fifteen places, so a sixth send, or a change to
+how a send is primed, means finding every copy by hand. The paragraphs below are the starting point, not what shipped:
+read "As built" first.
+
+**Status: built 2026-10-22 on `refactor/robot-send-table`, off `main` at `608c5b92` (the 50.7 merge), PR pending**
+(Crawford opens it; intent [robot-send-table.md](../intent/robot-send-table.md), spec
+[ROBOT_SEND_TABLE.md](../specs/ROBOT_SEND_TABLE.md), plan [ROBOT_SEND_TABLE.md](../tasks/ROBOT_SEND_TABLE.md); oracle
+`src/systems/robotSendsParity.test.ts`). Tasks T1–T15 done. Crawford passed Checkpoint A (a smoke listen) and Checkpoint B
+(both screens' Levels block unchanged); the closing listen, the code review and the PR remain.
+
+### About
+
+Where the copies are (checked against the code at `b96304f5`):
+
+- **The prime, four times.** `{ reverb: robot.reverbSend, delay: …, grit: …, shimmer: …, double: robot.doubleSend }` is
+  spelled out at every reservation site: `loadInstruments`' post-load pass and `reReserveVoice` (`AudioEngine.ts`),
+  `spawnRobot` and `reRegisterAllRobotsAudio` (`spawnSystem.ts`). Only a regex source scan
+  (`src/engine/reservationSendsPrime.test.ts`) stops a site from missing a key.
+- **The field list, four times.** `ROBOT_SEND_FIELDS` (`robotSendLoadingRanges.ts`) exists but only its type is read;
+  `localeStore.ts`'s clamp loop, `audioSwells.ts`'s `SEND_ATTRIBUTES` and `sessionDiff.ts`'s `SEND_PRIME_KEYS` (field to
+  `updateRobotSends` key) each carry their own copy.
+- **The actions, ten functions.** `applyReverbSend` … `applyDoubleSend` and their five `*Value` forms
+  (`robotOptionsActions.ts`) differ only in the field and the engine key; `audioSwells.ts`'s `writeRobotSend` is a five-way
+  switch over them.
+- **The screens, ten handlers.** Five `handle*SendChange` in `RobotScreen.tsx` and five `on*SendChange` in
+  `useCompanyOptions.ts`, each beside its own swelling flag. `AudioSettingSection` takes five value / handler / swelling
+  sets and renders five rows from five near-identical schemas (`REVERB_SEND_SCHEMA` … `DOUBLE_SEND_SCHEMA`,
+  `robotOptionsConfig.ts`), and `CompanyOptionsSection.tsx` passes them all through.
+- **The engine.** `reserveVoice` builds the five send gains one by one, twice (the live voice and the stub fallback), and
+  `updateRobotSends` writes Reverb and Delay one way and the three room sends in a loop.
+- **The share codec.** `sessionShareUtils.ts` maps `rs` / `ds` / `gr` / `sm` / `db` in and out, five lines each way.
+
+The shape the review proposed, to be settled at the spec: one table beside `ROBOT_SEND_FIELDS` mapping each field to its
+engine key (and perhaps its share code, schema and content key); a `robotSendLevels(robot)` helper that the four
+reservation sites call, which leaves the regex scan nothing to guard; and one `applySendValue(robot, localeId, field,
+fraction)` that the actions, the swell tick and both screens go through.
+
+### As built (deltas from the paragraphs above)
+
+- **One table, in a new module.** `ROBOT_SENDS` in `src/data/robotSends.ts` has one row per send: the `Robot` field, the
+  key `updateRobotSends` takes, the share code (`rs` / `ds` / `gr` / `sm` / `db`) and the slider's content key, written as
+  a literal because the content guard finds a key by its quoted text. `ROBOT_SEND_FIELDS` moved here from
+  `robotSendLoadingRanges.ts`; the seeding bands stayed there, since they are tuning, not wiring. The table's order is the
+  old order (Reverb, Delay, Grit, Shimmer, Double), and every loop runs in it.
+- **Two key spaces, one mapping.** The engine speaks `SendEngineKey` (`reverb`, `delay`, `grit`, `shimmer`, `double`);
+  robots, screens, the store, the swell tick and persistence speak `RobotSendField`. `engineKeyOf` is the only translation,
+  one way (the spec's inverse, `sendFieldOf`, had no caller and was deleted at review).
+- **What iterates it.** The four reservation primes (`robotSendLevels(robot)`); the voice's send gains (`VoiceEntry`'s
+  `sends` record, built, connected and disposed in a loop); `updateRobotSends`, which now takes
+  `Partial<Record<SendEngineKey, number>>`; the swell tick; the swell ranges, the swell pool's tail, the store clamp and the
+  company fallbacks; the session diff's loops; the share codec, at the place the five lines held, so a link's string is
+  byte for byte the same; and both screens' rows.
+- **Ten actions became one pair**, `applySend` / `applySendValue(robot, localeId, field, …)`. The ten named actions were
+  deleted, not kept as wrappers (T14). The swell tick's `writeRobotSend` switch and its `SEND_ATTRIBUTES` list went at T7,
+  and `sessionDiff.ts`'s `SEND_PRIME_KEYS` at T9.
+- **Screens.** `AudioSettingSection` takes `onSendChange(field, pct)` and a `sendSwelling` record, and renders one memo'd
+  `SendRow` per table row from `ROBOT_SEND_SCHEMAS` (the five named schemas are gone). `RobotScreen` and
+  `useCompanyOptions` each have one handler and read the five flags through `useSendSwellingFlags`, which re-reads every
+  render (two `RobotScreen` cases pin that a flag flip on an unrelated render must arrive). For three commits (T10–T12) the
+  section took either the new pair or the old five handlers, as a type union, so no screen could leave a row unwired during
+  the move; T13 removed the old ones.
+- **The parity oracle.** `src/systems/robotSendsParity.test.ts` was recorded at the branch base before the first refactor
+  commit and never re-recorded (one commit). It pins two seeds' sends, every `updateRobotSends` call sequence (spawn,
+  re-registration, re-reserve, session restore, share link, a swell landing on a send), the share string, the store clamp
+  and the swell pool, with non-default fixture values. It stayed green through every task; the full suite was the second
+  check.
+- **The regex reservation scan is deleted** (`reservationSendsPrime.test.ts`), one task early, at T4 not T5: its
+  literal-argument reader went red once the engine primes stopped being literals. Guard rows pinning
+  `robotSendLevels(robot)` at all four sites replace it.
+- **The docs guards.** Each task that moved a pinned symbol re-pinned its row in `robotSendsDocs` / `robotEffectSendsDocs`,
+  and every deleted name joined their `NOT_REPO_SYMBOLS` (the `SEND_DELAY_QUIET_THRESHOLD` precedent), because the two
+  historical specs' §1–4 still cite them; those specs carry a header note instead of edits. Both guards assert the ten
+  actions are not identifiers in `src/`, and `robotSendsDocs` asserts no living doc names any deleted symbol. Two more
+  guards (`robotPanDocs`, `robotArticulationDocs`) read send names on their own scanned lines and carried temporary entries
+  from T13 and T14 until T15 rewrote those doc lines.
+- **No Pixel A/B and no `perf:audio` run**: the graph is the same nodes, connections and ramps (spec assumption 13).
+
+### Not Doing (and why)
+
+- **Any change in behaviour.** No seeded value, saved diff, share code, slider, swell pick or sound moves; the existing
+  suite is the parity check. **Held**, with a dedicated parity oracle in front of the suite (As built).
+
+### Open
+
+- **Answered: they go.** Whether the named actions (`applyGritSend` and the rest) stay as one-line wrappers or go. About
+  70 test references in seven test files spy on them by name, and the two docs guards (`robotSendsDocs`,
+  `robotEffectSendsDocs`) pin them in the living docs. All ten were deleted; the tests assert `applySend` /
+  `applySendValue` and their `field` argument (spec assumption 5).
+- **Answered: one handler and one flag record.** Whether `AudioSettingSection` takes one list of send rows in place of the
+  five value / handler / swelling sets, or keeps its props and only the handlers are shared. It takes `onSendChange(field,
+  pct)` and `sendSwelling`, and renders the rows from the table; its value prop keeps five named fields (spec assumption 6).
+- **Answered: yes.** Whether `Robot`, `RobotAudioBaseline`, `RobotAudioOverrideDiff` and `CompanyOptionsSnapshot` keep five
+  named fields (the session format and the company snapshot read them by name); likely yes. They do, as do
+  `CompactRobotOverrideDiff` and `AudioSettingValue`; only the code that copies between them iterates (spec assumption 8).
