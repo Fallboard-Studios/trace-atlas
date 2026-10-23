@@ -197,53 +197,6 @@ test. **Not yet confirmed in a live browser** — the hypothesis is strong (the 
 component matching the bug's exact shape) but the real Chrome console output was never
 watched directly for it.
 
-### 14. Live-Profiler Reverification Still Pending (3 spots)
-
-The `refactor/factory-timing` performance series (merged to `main` via PR #465, `e55e846`,
-2026-09-14/15) fixed a long chain of re-render bugs — most were live-verified with
-Crawford and React DevTools Profiler at the time and are fully closed. Three specific
-fixes in that same series still haven't gotten their own live-Profiler recheck:
-
-- **`RobotBody`'s lighting/audio-shape split** (`RobotBody.tsx` — `audioVisual` vs.
-  `colors` memos) — code fix landed and unit-tested (a regression spy confirmed the
-  wasted recompute before the fix), but never re-checked live in the Profiler the way the
-  sibling `Factory`/`BubbleStream` fixes were.
-- **Once/sec lighting-tick batching smoothness** (`AttenuationStyleView.tsx`'s
-  `React.startTransition` wrap) — doesn't reduce total work, only lets React spread/
-  interrupt it; whether the commit visibly spreads across multiple frames now (and feels
-  less spiky) still needs a live look.
-- **`RobotOptionsTab`/`CompanyOptionsSection` memoization** — the fix and its cascade
-  regression tests are merged and passing, but note the file shape has since moved on:
-  both components were later rewritten to render through a shared
-  `RobotSectionAccordionStack` (roadmap Phase 28, Robot Section/Subsection Config
-  Consolidation) — any specific file:line citations from the original fix are stale, but
-  the underlying stabilized-callback/memo pattern is confirmed still present (a `// Task 6`
-  comment referencing the original fix survives the restructure). Re-verify against
-  current code, not old line numbers, when this gets checked.
-
-### 15. Test Suite: Three Tests Fail Intermittently Under a Full Parallel Run
-
-**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-28 (see project
-memory: known-flaky unmocked-random tests).
-
-**Update 2026-10-22:** three of the four are gone. `b49ee27a` (2026-10-05) deleted the worldTransition and
-CompanyCrudControls tests and the factoryPlacementSystem test's hue/sat-must-differ assertion (the rest of that test
-stays). The audioSwells test is still in the suite.
-
-Four tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
-
-- `src/systems/audioSwells.test.ts` › *pingVarianceAutomation forced return at 0% (Task 4) › forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue* — failed in 4 of 7 full runs.
-- `src/components/company/CompanyCrudControls.test.tsx` › *Rename Submit button › is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name* — failed in 2 full runs, one of them on the commit *before* any 17.2.2 work.
-- `src/systems/factoryPlacementSystem.test.ts` › *recolorFactoriesForAttenuationStyle › changes only config.hueShift/config.satShift on every factory — everything else round-trips byte-identical* — failed in 1 full run.
-- `src/systems/worldTransition.test.ts` › *initializeLocale › fully clears in-flight swells on a second `initializeLocale` call — no swell survives a restart* — failed 1 full run, seen 2026-09-28 during Session Storage (Phase 20) Task 12 verification; passed immediately on an isolated re-run.
-
-All known failures since (per project memory) are real-RNG preconditions, not assertion
-bugs — re-run once to confirm rather than retry-looping or editing assertions. All four
-suggest a shared, load- or order-dependent input (wall-clock time, seeded randomness that
-isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
-added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
-people to re-run instead of read.
-
 ### 17. Audit: LFO Drift / Audio Swells / Ping Variance — Replayability Findings
 
 Task 8 of `docs/tasks/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md` (roadmap Phase 20.5),

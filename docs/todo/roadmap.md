@@ -196,31 +196,19 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 17.3 Styling Overhaul: Robot Views
 
-Requested by Crawford, 2026-09-16. High priority — third of the 17.1–17.5 series (see 17.1). Not yet interviewed/specced. Scope: Robot Selection (`RobotsTab`, `RobotSelectionCard` — 15.2) and Robot Options (`RobotDisplaySection`, `PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer` — 15.3) together, since both share the same robot-detail visual language.
+**Cut, 2026-10-22 (Crawford) — never interviewed; the Layout Rework ([45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen)) restyled these views instead. Moved to [the archive](archive/roadmap-archive.md#173-styling-overhaul-robot-views).**
 
 ## 17.4 Styling Overhaul: Audio Rig View
 
-Requested by Crawford, 2026-09-16. High priority — fourth of the 17.1–17.5 series (see 17.1). Not yet interviewed/specced. Scope: `AudioRigDrawer` and its seven effect-block accordions plus the Drift accordion (10.2/10.3).
+**Cut, 2026-10-22 (Crawford) — never interviewed; superseded by [45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen). Moved to [the archive](archive/roadmap-archive.md#174-styling-overhaul-audio-rig-view).**
 
 ## 17.5 Styling Overhaul: Sector Settings View
 
-Requested by Crawford, 2026-09-16. High priority — last of the 17.1–17.5 series (see 17.1). Not yet interviewed/specced. Scope: `SectorSettingsDrawer` (Attenuation Style/Planet Calibration and Plot Tuning panels) — also the direct predecessor to the new shareable-link import/export item (21, below); that item's own UI work should land after this pass, not before.
+**Cut, 2026-10-22 (Crawford) — never interviewed; superseded by [45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen). Moved to [the archive](archive/roadmap-archive.md#175-styling-overhaul-sector-settings-view).**
 
 ## 18. Cabinetry Verification: Accessibility & Performance
 
-Originally inserted as `11.2` immediately after the Oblique Cabinetry series (11.1.1–11.1.9) — the same "insert out of sequence, don't renumber later phases" pattern as 10.1–10.4. Moved here and renumbered (2026-09-11, Crawford's call): 12 (Font Sizes), 14 (Color Scheme), and 15.2/15.3/16 (the three screen redesigns — 15.1 is a primitive change, not a screen, but its new `readOnly` slider state falls under this same verification pass) above all touch fonts, colors, and layout in ways this verification pass needs to check too, not just the original 11.1.x Cabinetry series — running it before those land would mean redoing it once they ship anyway. The 17.1–17.5 Styling Overhaul series (inserted 2026-09-16, directly above) extends the same reasoning further — a broader per-view visual pass touching every screen this verification checks — so it belongs before this item too, not after. Session Storage (20) comes after this instead, so persistence work starts against a UI that's already been through its accessibility/performance pass, not one about to change under it.
-
-### About
-
-Cabinetry's design (each 11.1.x item's own Restructure section) keeps each primitive's real Radix element in charge of all interaction and hands accessibility semantics off to Radix "for free," rather than rebuilding hit-testing/focus/ARIA from scratch — but that's an architectural intent, not a verified outcome, and this is a change touching every interactive primitive in the app at once. This phase is the check: a real keyboard-only walkthrough of every drawer (Robot Options, Audio Rig, Sector Settings, Company Manager), confirming the focus ring stays visible against a fully popped-out cabinet box (not obscured by the front face's z-index), confirming tab order wasn't disturbed by the SVG overlay's own DOM position, confirming `prefers-reduced-motion` actually cancels every cabinet timeline (pop, wall-polygon morph, and the voxel dual-fill transition alike) rather than just the ones the primitive spec called out first-hand, and a screen-reader pass over the slider voxel tracks specifically (the visual dual-fill/extrusion state carries real information — current value, how close to min/max — that must still be available to `aria-valuenow`/`aria-valuetext` via the underlying Radix `Slider`, not just implied visually). Extended by 11.1.6–11.1.9's own additions to the same check: `RadioButton`'s multi-box row (focus/selection state legible across every segment, not just the first), `AccordionContainer`'s trigger-only box (confirming the trigger's own focus ring and the coexisting content-height timeline both still behave correctly alongside the new pop timeline) — `Select`'s own equivalent check no longer applies, since 11.1.8 was cut (10.5) before it was ever built — and whatever pop-trigger `TextInput`/`CoordsInput` lands on (confirming it doesn't fight native text selection or caret visibility, the same class of bug already found once for `Toggle`, `docs/specs/OBLIQUE_CABINETRY_TOGGLE.md`).
-
-Bundled with the same pass rather than split into a separate item: a performance check across the primitive-heaviest screens (Audio Rig's seven effect blocks plus the Drift accordion, Robot Options' Signature Array with its per-layer LFO groups) now that every rendered slider/button/toggle carries its own GSAP timeline on top of whatever LFO-target-group/AccordionContainer timelines already existed — confirming that stacking hasn't reintroduced the kind of load 10.2's own spec flagged as a real constraint at "70-100+ primaries in a typical session," now compounded by a visual layer on every one of them. Update (2026-09-18): a profiling pass after the first GitHub Pages deploy confirmed exactly that concern for real — view switches stalling the main thread long enough to pause audio — and its findings are tracked separately as [17.2.1–17.2.5](#1721-performance-view-switch-profiling-harness--baseline), ahead of this item; this pass re-verifies against their baseline rather than rediscovering the same problems.
-
-Extended scope from the move (2026-09-11): also confirms Phase 12's new type scale didn't reintroduce label/overflow issues anywhere else the way 13 found, and that Phase 14's new color scheme still clears every contrast check this phase establishes — the redesigns in 15.2, 15.3, and 16 reuse Cabinetry primitives (including 15.1's new read-only slider state), so a real pass here covers their accessibility too rather than needing a fourth verification round.
-
-### Docs
-
-- docs/CONSOLE_THEMING.md gets a short "Verified" appendix once this phase completes, rather than a separate doc — recording what was checked and any fixes made, so the Cabinetry rules and their verification live in one place. By this point it should also reflect Phase 14's color scheme, superseding the static "Ballast" palette section as needed.
+**Cut, 2026-10-22 (Crawford) — never run as the single pass it describes; the UI it was written against has since been rebuilt by [45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen). Moved to [the archive](archive/roadmap-archive.md#18-cabinetry-verification-accessibility--performance).**
 
 ## 19. Test Coverage: Untested Core Modules
 
@@ -272,22 +260,7 @@ Extended scope from the move (2026-09-11): also confirms Phase 12's new type sca
 
 ## 30. Layout Updates Pass: Settings / Probes / Companies Content Restructuring
 
-Added to this doc 2026-09-27 (same gap-fill audit). Source: [docs/reference/layout-updates.md](../reference/layout-updates.md), a plain-language checklist Crawford wrote 2026-09-25 — not run through `/interview-me` or a spec pass, so treat this phase's own "About" section as a summary of that checklist plus what a direct code audit (2026-09-27) confirmed actually shipped, not a spec. Landed across PR #493 (`layout/more-content`, `a4b9f10`) and part of PR #496. **~75% done** — see Open Items below before assuming this is finished.
-
-### About
-
-Restyles and restructures the Settings, Probes (All Probes / Individual Probe), and Companies (Companies / Individual Company) nav content areas: trait-color audits and fixes throughout (`SettingsContent.tsx`, `SectorSettingsDrawer.tsx`, `RobotSelectionCard.tsx`), section- and group-level `IntroPanel`s added everywhere following the Fleet Params pattern (26, above), and the Probes/Companies accordion groups renamed and reshaped into 4 uniform groups — Levels (was "Output"/"Dynamics"), Composition (merging "Rhythm" and "Pitches" under one new parent), Envelope (was "Contour"), and Source (a new parent wrapping the 3 oscillator accordions plus Probe Drift) — applied consistently across `RobotOptionsTab.tsx` (per-robot) and `CompanyOptionsSection.tsx` (company bulk-edit), both of which now render this shape through 28's shared `RobotSectionAccordionStack`. Also fixed: invisible button text on robot-identity-colored controls (a WCAG-luminance contrast bug in `getRobotColorStyle`), and a new "Current Settings" readout built from scratch in `AudioLoadPanel.tsx` describing the current Robot Load/Effects Load preset in words.
-
-### Open Items (confirmed NOT done by direct code audit, 2026-09-27)
-
-- **Group-level intro panels for the 4 Levels/Composition/Envelope/Source accordions are entirely missing** — the biggest gap. `RobotSectionAccordionStack.tsx` renders `AccordionContainer`s only, no `IntroPanel` anywhere in it or in `ROBOT_SECTIONS_CONFIG` (28's own table). The section-level intro panels for "All Probes"/Individual Probes/Companies themselves did ship — only the per-*group* intro inside each of the 4 accordions is missing.
-- **The Click Track toggle was never actually removed**, despite the checklist calling for it. `CLICK_TRACK_SCHEMA` (`robotOptionsConfig.ts`), the old `PingControlsRhythmSection`/`PingControlsDrawer` components carrying it, and the underlying `src/engine/clickTrack.ts` module all still exist — dead in production (only referenced from their own test file) but not deleted, and `clickTrackActive` is still a live field threaded through `PingControlsValue`/`robotOptionsActions.ts`/`CompanyOptionsSection.tsx`.
-- **The Levels accordion's row layout doesn't match the checklist's literal "Row 1: Monitor Mode alone / Row 2: Volume+LFO together" spec** — the shipped layout is a column (Mode, Volume) beside the LFO display instead. A functionally similar outcome, structurally different from what was asked for; worth a decision on whether the shipped layout is good enough as-is.
-- **`RobotDisplaySection` (the Top Card) visual restyle is still outstanding** — flagged as outstanding in the checklist itself, not newly discovered; nothing since indicates it shipped. Distinct from the earlier, closed [15.3](#153-redesign-robot-detail-top-card) redesign (that one predates this checklist and doesn't cover the same restyle).
-
-### Docs
-
-- None yet — real lore/human copy for the placeholder `IntroPanel`s (26/30 both) and any doc updates for the accordion renames are future work.
+**Done — landed via PR #493 (`layout/more-content`) and part of #496; the four open items from the 2026-09-27 audit were closed as obsolete by Crawford on 2026-10-22. Moved to [the archive](archive/roadmap-archive.md#30-layout-updates-pass-settings--probes--companies-content-restructuring).**
 
 ## 31. Deterministic Robot Melody Generation
 

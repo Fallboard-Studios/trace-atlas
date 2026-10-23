@@ -72,6 +72,59 @@ most robots hit on every locale load simply by spawning Docked. Covered by new r
 in `idleSystem.test.ts` asserting `console.warn` fires for a missing robot and stays silent for
 every ordinary docking/state combination.
 
+## 14. Live-Profiler Reverification Still Pending (3 spots)
+
+**Closed** 2026-10-22 (Crawford): obsolete. Two of the three spots name components that no longer exist (`RobotOptionsTab`, `RobotSectionAccordionStack`), and the scene has been rebuilt twice since the fixes landed (roadmap [17.2.5](../roadmap.md#1725-performance-idle-paint--composite-cost) and [53](../roadmap.md#53-per-mover-compositor-layers)), so a Profiler recheck of the September fixes would be measuring a different app. The original item follows.
+
+The `refactor/factory-timing` performance series (merged to `main` via PR #465, `e55e846`,
+2026-09-14/15) fixed a long chain of re-render bugs — most were live-verified with
+Crawford and React DevTools Profiler at the time and are fully closed. Three specific
+fixes in that same series still haven't gotten their own live-Profiler recheck:
+
+- **`RobotBody`'s lighting/audio-shape split** (`RobotBody.tsx` — `audioVisual` vs.
+  `colors` memos) — code fix landed and unit-tested (a regression spy confirmed the
+  wasted recompute before the fix), but never re-checked live in the Profiler the way the
+  sibling `Factory`/`BubbleStream` fixes were.
+- **Once/sec lighting-tick batching smoothness** (`AttenuationStyleView.tsx`'s
+  `React.startTransition` wrap) — doesn't reduce total work, only lets React spread/
+  interrupt it; whether the commit visibly spreads across multiple frames now (and feels
+  less spiky) still needs a live look.
+- **`RobotOptionsTab`/`CompanyOptionsSection` memoization** — the fix and its cascade
+  regression tests are merged and passing, but note the file shape has since moved on:
+  both components were later rewritten to render through a shared
+  `RobotSectionAccordionStack` (roadmap Phase 28, Robot Section/Subsection Config
+  Consolidation) — any specific file:line citations from the original fix are stale, but
+  the underlying stabilized-callback/memo pattern is confirmed still present (a `// Task 6`
+  comment referencing the original fix survives the restructure). Re-verify against
+  current code, not old line numbers, when this gets checked.
+
+
+## 15. Test Suite: Three Tests Fail Intermittently Under a Full Parallel Run
+
+**Closed** 2026-10-22: the last of the four, `audioSwells.test.ts`'s company-wide forced-return test, is deleted in the commit that archives this item; the other three went in `b49ee27a` (2026-10-05). The standing rule is that a test documented as flaky is removed, not investigated. The original item follows.
+
+**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-28 (see project
+memory: known-flaky unmocked-random tests).
+
+**Update 2026-10-22:** three of the four are gone. `b49ee27a` (2026-10-05) deleted the worldTransition and
+CompanyCrudControls tests and the factoryPlacementSystem test's hue/sat-must-differ assertion (the rest of that test
+stays). The audioSwells test is still in the suite.
+
+Four tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
+
+- `src/systems/audioSwells.test.ts` › *pingVarianceAutomation forced return at 0% (Task 4) › forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue* — failed in 4 of 7 full runs.
+- `src/components/company/CompanyCrudControls.test.tsx` › *Rename Submit button › is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name* — failed in 2 full runs, one of them on the commit *before* any 17.2.2 work.
+- `src/systems/factoryPlacementSystem.test.ts` › *recolorFactoriesForAttenuationStyle › changes only config.hueShift/config.satShift on every factory — everything else round-trips byte-identical* — failed in 1 full run.
+- `src/systems/worldTransition.test.ts` › *initializeLocale › fully clears in-flight swells on a second `initializeLocale` call — no swell survives a restart* — failed 1 full run, seen 2026-09-28 during Session Storage (Phase 20) Task 12 verification; passed immediately on an isolated re-run.
+
+All known failures since (per project memory) are real-RNG preconditions, not assertion
+bugs — re-run once to confirm rather than retry-looping or editing assertions. All four
+suggest a shared, load- or order-dependent input (wall-clock time, seeded randomness that
+isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
+added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
+people to re-run instead of read.
+
+
 ## 16. `worldTransition.ts`: Retransmitting the Currently-Active Attenuation Style's Own Name Corrupts the Store
 
 **Closed** 2026-09-30 (`fixes/idlesystem-noise-wordltransition-bug`, same branch as #12 above).

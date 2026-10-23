@@ -421,32 +421,6 @@ describe('swellFrequency forced return at 0 (docs/specs/archive/AUTOMATION_FREQU
     expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(false);
   });
 
-  it('forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue', () => {
-    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', masterVolume: 0.1 }));
-    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', masterVolume: 0.9 }));
-    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
-
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // company-wide volume swell, rising 3 / falling 12
-
-    tickAudioSwells(LOCALE_ID, 1); // partway into rising
-    const r1Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
-    const r2Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume;
-
-    useAudioStore.setState({ swellFrequency: 0 });
-    tickAudioSwells(LOCALE_ID, 1); // forcing tick — both members convert together
-
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(r1Before);
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume).toBeCloseTo(r2Before);
-    const swell = getActiveSwellSnapshot('robot').find((s) => s.companyId === 'c1')!;
-    expect(swell.phase).toBe('falling');
-
-    tickAudioSwells(LOCALE_ID, 1 + 12);
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume).toBe(0.9);
-    expect(getActiveSwellSnapshot('robot')).toEqual([]);
-  });
-
   it('leaves a swell already in its falling phase untouched when frequency drops to 0 — no re-forcing', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0); // eq3.low creates, rising 3 / falling 12
