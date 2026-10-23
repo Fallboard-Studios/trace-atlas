@@ -395,7 +395,7 @@ These rules exist because uncontaminated data was the whole point.
 
 - **Foreground, one call at a time.** Never overlap two runs, and don't run tests, builds or anything else CPU-heavy while one is going — the audio thread shares the machine.
 - **Check for orphaned Chrome before and after** — the count must be 0:
-  `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -match 'trace-atlas-perf' } | Measure-Object`. The script closes Chrome with `Browser.close` (then `taskkill /T` as a fallback) and removes its temp profile.
+  `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -match 'trace-atlas-perf' } | Measure-Object`. Every perf script closes Chrome the same way (`scripts/perf/cdp-lib.mjs`, `withChrome`): `Browser.close`, then `taskkill /T` as a fallback, on Ctrl+C too, and removes its temp profile.
 - **A/B within one session, interleaved, ≥ 3 rounds.** Same-world stock capacity drifts run to run (0.30–0.41 across rounds in the 2026-09-19 data), so compare *differences from same-round stock*, rotate the start order with `--rot`, and never compare absolute numbers across sessions. A single run is not evidence.
 - **Name the code measured by commit**, and build variants from a clean tree (patch → `vite build --outDir <scratch>` → `git checkout --` the patched files); never commit a throwaway measurement variant.
 - **Test a metric by reintroducing the problem it should catch** before trusting it on a fix.

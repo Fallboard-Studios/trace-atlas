@@ -666,3 +666,23 @@ orphaned-Chrome check before and after ([PERFORMANCE.md](../PERFORMANCE.md), "Me
 
 **Where:** its own branch off `main` once 54 has merged; `output-level.mjs` exists only on `feature/output-headroom`
 until then.
+
+**Status: built 2026-10-23 on `tooling/cdp-lib`, off `main` at `3e6aca8d`; awaiting Crawford's PR.**
+
+**As built.** `scripts/perf/cdp-lib.mjs` (126 lines, not the estimated 90) exports two things: `sleep`, and
+`withChrome({ chromePath, port, flags }, run)`, which launches Chrome on a `trace-atlas-perf-` temp profile, connects,
+hands `run` the page's `{ send, evaluate, onEvent }`, returns what `run` returns, and always shuts Chrome down
+(`Browser.close`, then `taskkill /T`) and removes the profile, Ctrl+C included (exit 130). `findChrome`, `connect` and
+`shutdown` stay private to the lib. Two additions to the task above, agreed with Crawford before the build: `evaluate`,
+identical in all four scripts, moved into what `connect` returns; and the launcher became one wrapper that owns the
+Ctrl+C handler, so `profile` and `idle-paint` now clean up on Ctrl+C as well. The "wait for the Power on button" loop
+stays in each script, since it is about the app, not Chrome. The four scripts lost 390 lines and gained 17.
+
+**Proof (a Look), 2026-10-23,** against a production build on :4173, one run at a time, orphaned-Chrome count 0 before
+and after each run and no new temp profile left behind: `perf:idle --throttle 1 --only none`, `perf:audio` (`charlie`,
+12 s) and `perf:level` (8 s) ran to the end. Ctrl+C was checked with a scratch probe that emits SIGINT into `withChrome`
+mid-run: exit 130, profile removed; with the profile removal deleted from the handler, the probe reported the leftover.
+
+**Found while proving it: `profile.mjs` no longer completes, on `main` too.** Its step table and `--smoothness` both
+click `.robot-selection-card__top`, which went with the Probes list in layout rework Task 21 (`4ba12cae`). The run gets
+through power-on and Fleet Params, then throws; the new teardown cleaned up after the throw. Not fixed here.

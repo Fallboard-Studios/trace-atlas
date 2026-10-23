@@ -13,11 +13,9 @@
  *
  * Run with --help for flags. See docs/PERFORMANCE.md for method, caveats, and the baseline table.
  */
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+
+import { sleep, withChrome } from './cdp-lib.mjs';
 
 /** Tone's default `lookAhead` (Tone.Context, `interactive` latency hint), in ms — a main-thread task longer than this can starve the scheduler. */
 const LOOKAHEAD_MS = 100;
@@ -59,65 +57,6 @@ const { values: opts } = parseArgs({
 if (opts.help) {
   console.log(HELP);
   process.exit(0);
-}
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function findChrome() {
-  const platformDefaults = process.platform === 'win32'
-    ? [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ]
-    : process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
-      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  const found = [opts.chrome, process.env.CHROME_PATH, ...platformDefaults].filter(Boolean).find((p) => existsSync(p));
-  if (!found) throw new Error('No Chrome/Edge found — pass --chrome <path> or set CHROME_PATH.');
-  return found;
-}
-
-async function connect(port) {
-  let wsUrl;
-  for (let i = 0; i < 50 && !wsUrl; i++) {
-    try {
-      const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-      wsUrl = targets.find((t) => t.type === 'page')?.webSocketDebuggerUrl;
-    } catch { /* browser not listening yet */ }
-    if (!wsUrl) await sleep(200);
-  }
-  if (!wsUrl) throw new Error(`Chrome did not expose a debugging target on port ${port}.`);
-
-  const ws = new WebSocket(wsUrl);
-  await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true });
-    ws.addEventListener('error', reject, { once: true });
-  });
-
-  let nextId = 0;
-  const pending = new Map();
-  const listeners = new Set();
-  ws.addEventListener('message', (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      if (msg.error) reject(new Error(msg.error.message)); else resolve(msg.result);
-    } else if (msg.method) {
-      for (const listener of listeners) listener(msg);
-    }
-  });
-
-  return {
-    send: (method, params = {}) => new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject });
-      ws.send(JSON.stringify({ id, method, params }));
-    }),
-    onEvent: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    close: () => ws.close(),
-  };
 }
 
 /** In-page frame sampler (injected once in --smoothness mode; verification tooling only, never app code). While running it
@@ -204,14 +143,9 @@ function analyzeSamples({ samples, oldStyles, finalStyle }) {
   };
 }
 
-async function run({ send, onEvent }) {
+async function run({ send, evaluate, onEvent }) {
   const viewportWidth = opts.width ? Number(opts.width) : (opts.mobile ? 390 : 1280);
   const isPhone = opts.mobile || viewportWidth <= 480;
-  const evaluate = async (expression) => {
-    const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? 'evaluate failed');
-    return r.result.value;
-  };
 
   await send('Page.enable');
   await send('Runtime.enable');
@@ -471,29 +405,4 @@ async function captureTrace({ send, onEvent }, { label, action, ms }) {
   })));
 }
 
-async function main() {
-  const profileDir = mkdtempSync(join(tmpdir(), 'trace-atlas-perf-'));
-  const chrome = spawn(findChrome(), [
-    '--headless=new',
-    `--remote-debugging-port=${opts.port}`,
-    `--user-data-dir=${profileDir}`,
-    '--autoplay-policy=no-user-gesture-required',
-    '--mute-audio',
-    '--no-first-run',
-    '--no-default-browser-check',
-    'about:blank',
-  ], { stdio: 'ignore' });
-
-  let cdp;
-  try {
-    cdp = await connect(opts.port);
-    await run(cdp);
-  } finally {
-    cdp?.close();
-    chrome.kill();
-    await sleep(300);
-    try { rmSync(profileDir, { recursive: true, force: true }); } catch { /* Chrome may still hold the profile briefly on Windows — harmless in tmp */ }
-  }
-}
-
-await main();
+await withChrome({ chromePath: opts.chrome, port: opts.port, flags: ['--mute-audio'] }, run);

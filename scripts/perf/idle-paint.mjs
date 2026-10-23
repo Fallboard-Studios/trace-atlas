@@ -29,12 +29,9 @@
  * least n bubble circles are in flight before the layers are read, so the bubble layers are read while they draw; a window
  * longer than a burst interval (`--window 30000`) covers several bursts either way; a window over 6 s is traced without invalidation tracking (world-state-lib.mjs `traceCategories`), so it prints no invalidation table and is compared only with windows of its own length.
  */
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { sleep, withChrome } from './cdp-lib.mjs';
 import { framePaintWrappers, paintEventArea, rasteredArea, redrawnArea, scaledLayerArea } from './paint-area-lib.mjs';
 import {
   BACK_ROBOT_ELEMENTS,
@@ -82,7 +79,6 @@ const { values: opts } = parseArgs({
   },
 });
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const WINDOW_MS = Number(opts.window);
 
 /** The bubble circles — scene-markup-lib.mjs reads both the stage markup and the layers before it, so one name ablates a branch build and a `main` build. */
@@ -139,60 +135,6 @@ if (opts.help) {
   [--raster-top n]              rows in the stock window's raster-by-layer table (default 12; a 30 s window rasters 100+ layers)
 Ablations (comma-separate for --only): ${ABLATIONS.map((a) => a.name).join(', ')}`);
   process.exit(0);
-}
-
-function findChrome() {
-  const platformDefaults = process.platform === 'win32'
-    ? [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ]
-    : process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
-      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  const found = [opts.chrome, process.env.CHROME_PATH, ...platformDefaults].filter(Boolean).find((p) => existsSync(p));
-  if (!found) throw new Error('No Chrome/Edge found — pass --chrome <path> or set CHROME_PATH.');
-  return found;
-}
-
-async function connect(port) {
-  let wsUrl;
-  for (let i = 0; i < 50 && !wsUrl; i++) {
-    try {
-      const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-      wsUrl = targets.find((t) => t.type === 'page')?.webSocketDebuggerUrl;
-    } catch { /* not listening yet */ }
-    if (!wsUrl) await sleep(200);
-  }
-  if (!wsUrl) throw new Error(`Chrome did not expose a debugging target on port ${port}.`);
-  const ws = new WebSocket(wsUrl);
-  await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true });
-    ws.addEventListener('error', reject, { once: true });
-  });
-  let nextId = 0;
-  const pending = new Map();
-  const listeners = new Set();
-  ws.addEventListener('message', (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      if (msg.error) reject(new Error(msg.error.message)); else resolve(msg.result);
-    } else if (msg.method) {
-      for (const listener of listeners) listener(msg);
-    }
-  });
-  return {
-    send: (method, params = {}) => new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject });
-      ws.send(JSON.stringify({ id, method, params }));
-    }),
-    onEvent: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    close: () => ws.close(),
-  };
 }
 
 /**
@@ -416,12 +358,7 @@ async function describeSceneLayer(send, backendNodeId) {
 }
 
 async function run(cdp) {
-  const { send } = cdp;
-  const evaluate = async (expression) => {
-    const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? 'evaluate failed');
-    return r.result.value;
-  };
+  const { send, evaluate } = cdp;
   const width = Number(opts.width);
   const isPhone = width <= 480;
   const view = { dpr: isPhone ? 2 : 1, viewport: { width, height: isPhone ? 844 : 900 } };
@@ -604,29 +541,4 @@ async function printRasterByLayer(send, { byLayer, layersById }, label, top) {
   console.table(out);
 }
 
-async function main() {
-  const profileDir = mkdtempSync(join(tmpdir(), 'trace-atlas-perf-'));
-  const chrome = spawn(findChrome(), [
-    '--headless=new',
-    `--remote-debugging-port=${opts.port}`,
-    `--user-data-dir=${profileDir}`,
-    '--autoplay-policy=no-user-gesture-required',
-    '--mute-audio',
-    '--no-first-run',
-    '--no-default-browser-check',
-    'about:blank',
-  ], { stdio: 'ignore' });
-  let cdp;
-  try {
-    cdp = await connect(opts.port);
-    await run(cdp);
-  } finally {
-    try { await cdp?.send('Browser.close'); } catch { /* already gone */ }
-    cdp?.close();
-    chrome.kill();
-    await sleep(300);
-    try { rmSync(profileDir, { recursive: true, force: true }); } catch { /* harmless in tmp */ }
-  }
-}
-
-await main();
+await withChrome({ chromePath: opts.chrome, port: opts.port, flags: ['--mute-audio'] }, run);
