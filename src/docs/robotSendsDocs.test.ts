@@ -83,6 +83,12 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['RobotAudioBaseline.delaySend', 'src/systems/spawnSystem.ts', /interface RobotAudioBaseline \{[^}]*\bdelaySend: number;/],
     ['CompactRobotOverrideDiff.rs', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\brs\?: number;/],
     ['CompactRobotOverrideDiff.ds', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bds\?: number;/],
+    // Robot Send Table T9 (docs/specs/ROBOT_SEND_TABLE.md §1.5, assumption 9): the codec and the session diff loop over
+    // the table; the encoder's loop sits where the five lines were (after `p`, before `dy`), so a link's string is unchanged.
+    ['the share encoder writes the sends from the table, after p and before dy', 'src/utils/sessionShareUtils.ts', /if \(diff\.pan !== undefined\) compact\.p = diff\.pan;(\s*\/\/[^\n]*)*\s*for \(const spec of ROBOT_SENDS\) if \(diff\[spec\.field\] !== undefined\) compact\[spec\.shareCode\] = diff\[spec\.field\];\s*if \(diff\.dynamics !== undefined\) compact\.dy/],
+    ['the share decoder reads the sends from the table, each through isSendFraction', 'src/utils/sessionShareUtils.ts', /for \(const spec of ROBOT_SENDS\) \{\s*const send = compact\[spec\.shareCode\];\s*if \(isSendFraction\(send\)\) diff\[spec\.field\] = send;\s*\}/],
+    ['the session diff and restore loop over ROBOT_SEND_FIELDS', 'src/utils/sessionDiff.ts', /for \(const field of ROBOT_SEND_FIELDS\) \{[\s\S]*for \(const field of ROBOT_SEND_FIELDS\) \{/],
+    ['the session restore primes only the sends it carried, by engine key', 'src/utils/sessionDiff.ts', /ROBOT_SEND_FIELDS\.filter\(\(field\) => updates\[field\] !== undefined\)\.map\(\(field\) => \[engineKeyOf\(field\), updatedRobot\[field\]\]\)/],
     ['SEND_MIN', 'src/constants/index.ts', /export const SEND_MIN = 0;/],
     ['SEND_MAX', 'src/constants/index.ts', /export const SEND_MAX = 1;/],
     ['SEND_DISPLAY_SCALE', 'src/constants/index.ts', /export const SEND_DISPLAY_SCALE = 100;/],
@@ -146,6 +152,8 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'DELAY_QUIET_THRESHOLD', 'isGlobalTargetAtOffEquivalent', 'SEND_SWELL_UPWARD_CEILING',
   // Deleted by Robot Effect Sends T1 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6): the Delay row's 1 - lit
   'SEND_DELAY_QUIET_THRESHOLD',
+  // Deleted by Robot Send Table T9 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the session diff's loops read ROBOT_SEND_FIELDS
+  'SEND_PRIME_KEYS',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);
