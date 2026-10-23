@@ -946,11 +946,7 @@ describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/archive/AUT
 
 // EQ_FILTERS_ROW_PANEL_SCHEMA / TIME_SPACE_COLUMN_PANEL_SCHEMA /
 // OUTPUT_COLUMN_PANEL_SCHEMA were removed — those 3 groupings are no longer
-// DirectionalPanelSchema objects at all; AudioRigDrawer.tsx wraps them in a
-// plain PanelGroup (orientation prop, no schema/id/facade) instead, so each
-// block keeps its own independent Cabinetry facade. See PanelGroup.test.tsx
-// for that component's own coverage, and AudioRigDrawer.test.tsx for the
-// "each block gets its own facade" structural assertions.
+// DirectionalPanelSchema objects at all.
 
 // ========================================
 // AUDIO LOAD (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5)

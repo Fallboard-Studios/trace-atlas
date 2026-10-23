@@ -117,9 +117,9 @@
   /* The same default value as --color-text-primary above, but NEVER overridden by
      getRobotColorStyle's light-color contrast flip (traitColors.ts) — every consumer that must
      stay white regardless of an ancestor's light robot/company color (nav-tree human labels,
-     detail-page metadata, accordion names/content, control text) reads this instead of
+     detail-page metadata, control text) reads this instead of
      --color-text-primary. Only the nav tree's own row title (NavCabinetRow.css) and a toggled-
-     on CabinetBox front face (Toggle.css/AccordionContainer.css) — both cases where the text
+     on CabinetBox front face (Toggle.css) — both cases where the text
      genuinely sits on the robot/company's own light color as its background — keep reading the
      dynamic --color-text-primary. */
   --color-text-primary-fixed: rgba(255, 255, 255, 0.87);

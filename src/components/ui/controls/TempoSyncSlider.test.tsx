@@ -376,7 +376,7 @@ describe('TempoSyncSlider — the mode toggle', () => {
 
   // The toggle sits in its own row UNDER the slider it affects (Crawford, 2026-10-03), inside the same
   // wrapper — so a caller's one param-row per slider is preserved (the Delay block's "3 direct
-  // param-rows" rule) while the slider keeps the full width. The CSS stacks them (tempoSyncSliderLayout.test.ts).
+  // param-rows" rule) while the slider keeps the full width. TempoSyncSlider.css stacks them.
   describe('the toggle sits under the slider', () => {
     it.each([
       ['Free', undefined],
