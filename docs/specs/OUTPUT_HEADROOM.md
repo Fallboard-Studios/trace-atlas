@@ -296,8 +296,10 @@ mean, RMS mean, and the share of readings at or above 0 dBFS. Flags: `--url <ser
 or more, comma-separated, run in turn), `--seconds`, `--warmup`, `--json`, `--chrome`, `--port`, `--help`. It records
 the HUD's `fin` token and fails the run on `NaN!`.
 
-**Variants** (the links are built in the app's Share UI on the branch and pasted into the PERFORMANCE.md table so the
-gate is reproducible; the master slider at 100 % in every one):
+**Variants** (the links are built from the live stores on the dev server, T3's recipe, and pasted into the PERFORMANCE.md
+table so the gate is reproducible; the master slider at 100 % in every one). A link never carries robot Volume
+(`masterVolume` is not in a session payload), so H1 and H2 run with the probe's `--robot-volume-full`, which sets every
+robot to 100 % through the All Probes form before the warm-up (§7, 2026-10-23):
 
 | Variant | World | Settings |
 |---|---|---|
@@ -371,3 +373,8 @@ Compressor band narrows only if Checkpoint A hears it; backlog 23 is deferred, n
 4. **Assumption 5:** whether a deep-seeded Compressor band (−36 dB, 6:1, about +18 dB makeup) is narrowed in this phase
    or left for a listen after merge. The spec's default is: only if Checkpoint A hears it.
 5. **Backlog 23** stays open, deferred, one line added (assumption 9). No build.
+
+**T3, 2026-10-23: H1 and H2's robot Volume push.** A `?session=` link cannot carry it (`masterVolume` is excluded from
+the payload by design) and the production build exposes no store. Crawford chose the probe pushing it through the app's
+own controls (`--robot-volume-full`: All Probes → Levels → Volume, End key), over accepting the EQ and Limiter push
+alone or running H on the dev server. Checked in PERFORMANCE.md "Output level series".

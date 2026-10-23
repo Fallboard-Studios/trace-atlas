@@ -26,6 +26,13 @@ import { parseOutputFromHud, summarizeLevels } from './output-level-lib.mjs';
 /** How often the overlay is read: its own sampler ticks every 500 ms over a 0.68 s window, so no peak falls between. */
 const POLL_MS = 500;
 
+// The labels --robot-volume-full clicks (accessible names, from src/content/): a rename there needs the same rename here.
+const LABEL_NAV_SHEET = 'Navigation'; // the phone shell's nav button; the desk shell shows the nav without it
+const LABEL_PROBES = 'Probes';
+const LABEL_ALL_PROBES = 'All Probes';
+const LABEL_LEVELS_TAB = 'Levels';
+const LABEL_VOLUME = 'Volume'; // the header's master slider has the same name, so the query is scoped to .company-screen
+
 const HELP = `Usage: npm run perf:level -- --url <page url>[,<page url>…] [flags]
 
   --url <list>       one or more full page URLs, comma-separated, run one after another in fresh browsers. Each must
@@ -33,6 +40,10 @@ const HELP = `Usage: npm run perf:level -- --url <page url>[,<page url>…] [fla
                      http://localhost:4173/trace-atlas/?debug&session=eyJ…  (required)
   --seconds <n>      length of each measured series, after the warm-up (default 120, i.e. 240 readings)
   --warmup <n>       seconds to wait after powering on before measuring (default 8)
+  --robot-volume-full
+                     before the warm-up, set every robot's Volume to 100 % through the All Probes form (Probes →
+                     All Probes → Levels → Volume, End key). A ?session= link never carries robot Volume, so this is
+                     how the spec's hand-pushed H1/H2 variants get it. Applies to every --url in the call.
   --json <path>      also write each run's readings and summary to this file (a .json array, one entry per URL)
   --chrome <path>    Chrome/Edge executable (else $CHROME_PATH, else a platform default)
   --port <n>         remote-debugging port (default 9335)
@@ -48,6 +59,7 @@ const { values: opts } = parseArgs({
     url: { type: 'string' },
     seconds: { type: 'string', default: '120' },
     warmup: { type: 'string', default: '8' },
+    'robot-volume-full': { type: 'boolean', default: false },
     json: { type: 'string' },
     chrome: { type: 'string' },
     port: { type: 'string', default: '9335' },
@@ -139,8 +151,54 @@ const READ_HUD = `(() => {
   return hud ? Array.from(hud.children, (row) => row.textContent).join('\\n') : null;
 })()`;
 
+/** Polls `expression` until it returns a truthy value (about 5 s), else throws naming `what`. */
+async function waitFor(evaluate, expression, what) {
+  for (let i = 0; i < 25; i++) {
+    const value = await evaluate(expression);
+    if (value) return value;
+    await sleep(200);
+  }
+  throw new Error(`${what} never appeared — did a label change (see the LABEL_* constants)?`);
+}
+
+const buttonNamed = (name) => `[...document.querySelectorAll('button[aria-label]')].find((b) => b.getAttribute('aria-label') === ${JSON.stringify(name)} && b.getClientRects().length > 0)`;
+
+/**
+ * Every robot's Volume to 100 %, the way a user does it: the All Probes form broadcasts one Volume edit to every member
+ * (src/components/company/useCompanyOptions.ts). The Levels tab is a Radix tab, which activates on a real mouse press,
+ * not a synthetic click, and the slider takes the End key. Returns the form's Volume reading afterwards.
+ */
+async function pushRobotVolumeFull({ evaluate, send }) {
+  if (!(await evaluate(`!!${buttonNamed(LABEL_PROBES)}`))) {
+    await waitFor(evaluate, `!!${buttonNamed(LABEL_NAV_SHEET)}`, `The "${LABEL_NAV_SHEET}" button`);
+    await evaluate(`${buttonNamed(LABEL_NAV_SHEET)}.click()`);
+  }
+  await waitFor(evaluate, `!!${buttonNamed(LABEL_PROBES)}`, `The "${LABEL_PROBES}" nav box`);
+  await evaluate(`${buttonNamed(LABEL_PROBES)}.click()`);
+  await waitFor(evaluate, `!!${buttonNamed(LABEL_ALL_PROBES)}`, `The "${LABEL_ALL_PROBES}" nav box`);
+  await evaluate(`${buttonNamed(LABEL_ALL_PROBES)}.click()`);
+
+  const tab = await waitFor(evaluate, `(() => {
+    const t = [...document.querySelectorAll('.company-screen [role="tab"]')].find((x) => x.textContent.trim() === ${JSON.stringify(LABEL_LEVELS_TAB)});
+    if (!t) return null;
+    t.scrollIntoView({ block: 'center' });
+    const r = t.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`, `The All Probes form's "${LABEL_LEVELS_TAB}" tab`);
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tab.x, y: tab.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tab.x, y: tab.y, button: 'left', clickCount: 1 });
+
+  const thumb = `[...document.querySelectorAll('.company-screen [role="slider"]')].find((s) => s.getAttribute('aria-label') === ${JSON.stringify(LABEL_VOLUME)})`;
+  await waitFor(evaluate, `!!${thumb}`, `The All Probes form's "${LABEL_VOLUME}" slider`);
+  await evaluate(`${thumb}.focus()`);
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'End', code: 'End', windowsVirtualKeyCode: 35 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'End', code: 'End', windowsVirtualKeyCode: 35 });
+  const reading = await waitFor(evaluate, `${thumb}.getAttribute('aria-valuenow') === '100' && '100'`, `A Volume reading of 100 after the End key`);
+  return Number(reading);
+}
+
 /** One fresh Chrome, one page, one measured series. Returns the run's readings and summary. */
-async function measurePage(url, { seconds, warmupSec }) {
+async function measurePage(url, { seconds, warmupSec, robotVolumeFull }) {
   const profileDir = mkdtempSync(join(tmpdir(), 'trace-atlas-perf-'));
   const chrome = spawn(findChrome(), [
     '--headless=new',
@@ -174,6 +232,7 @@ async function measurePage(url, { seconds, warmupSec }) {
     }
     await sleep(1500);
     await evaluate(`document.querySelector('button[aria-label="Power on"]').click()`);
+    const robotVolume = robotVolumeFull ? await pushRobotVolumeFull({ evaluate, send }) : null;
     await sleep(warmupSec * 1000);
 
     const firstRead = await evaluate(READ_HUD);
@@ -195,7 +254,7 @@ async function measurePage(url, { seconds, warmupSec }) {
       throw new Error(`The overlay at ${url} never showed an output line (out … pre … fin …) — an older build?`);
     }
 
-    return { url, world, seconds, warmupSec, readings: samples.length, unparsed, summary: summarizeLevels(samples), samples };
+    return { url, world, robotVolume, seconds, warmupSec, readings: samples.length, unparsed, summary: summarizeLevels(samples), samples };
   } finally {
     process.removeListener('SIGINT', onInterrupt);
     await shutdown(chrome, cdp);
@@ -207,7 +266,8 @@ const db = (value) => (value === null ? '-' : value === -Infinity ? '-inf' : val
 
 function report(run) {
   const { out, pre, fin } = run.summary;
-  console.log(`\n=== ${run.world} — ${run.seconds}s after a ${run.warmupSec}s warm-up, ${run.readings} readings`);
+  const pushed = run.robotVolume === null ? '' : `, every robot Volume ${run.robotVolume} %`;
+  console.log(`\n=== ${run.world}${pushed} — ${run.seconds}s after a ${run.warmupSec}s warm-up, ${run.readings} readings`);
   console.log(run.url);
   const row = (tap) => ({
     'peak max (dB)': db(tap.peakMax),
@@ -224,7 +284,11 @@ function report(run) {
 async function main() {
   const urls = String(opts.url ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   if (urls.length === 0) throw new Error('Give --url <page url with ?debug&session=…> (see --help).');
-  const settings = { seconds: positiveNumber('seconds', opts.seconds), warmupSec: Number(opts.warmup) };
+  const settings = {
+    seconds: positiveNumber('seconds', opts.seconds),
+    warmupSec: Number(opts.warmup),
+    robotVolumeFull: opts['robot-volume-full'],
+  };
   if (!Number.isFinite(settings.warmupSec) || settings.warmupSec < 0) throw new Error(`--warmup must be 0 or more (got "${opts.warmup}")`);
 
   const runs = [];

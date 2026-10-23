@@ -14,8 +14,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 
 > **Status (2026-10-23): T0 passed** (Crawford: "for phase 0 your assumptions are fine", all five as written). Building
 > on `feature/output-headroom`. **Phase 1 (T1–T3) done**: the probe, the seven links and the `main` measurement are in
-> PERFORMANCE.md, "Output level series". Open before T7: H1 and H2 cannot push the robot Volumes (session links never
-> carry `masterVolume`; see T3). T4 next.
+> PERFORMANCE.md, "Output level series". H1 and H2 get their robot Volume push from the probe's `--robot-volume-full`
+> (session links never carry `masterVolume`; Crawford's choice, spec §7). T4 next.
 
 ## Overview
 
@@ -165,9 +165,10 @@ commit hash.
 
 **Acceptance criteria:**
 - [x] Seven links that each load their world and settings (D1 opens `56c2t2t8` at (−116, −2); H1's drawer shows the
-  pushed values). — read back from the stores after a reload, not the drawer. **Deviation:** H1 and H2 carry the EQ
-  and Limiter push but not "every robot Volume 100 %": `masterVolume` is never in a session payload. Recipe
-  corrections: modules under `/trace-atlas/src/`, and `buildSessionPayload()`, not `getSessionSharePayload()`.
+  pushed values). — read back from the stores after a reload, not the drawer. **Deviation:** H1 and H2's links carry
+  the EQ and Limiter push but not "every robot Volume 100 %" (`masterVolume` is never in a session payload); the probe
+  gained `--robot-volume-full`, which sets it through the All Probes form (Crawford, 2026-10-23). Recipe corrections:
+  modules under `/trace-atlas/src/`, and `buildSessionPayload()`, not `getSessionSharePayload()`.
 - [x] `main`'s D1 numbers reproduce the roadmap's reading within its own band (`out` peak +2 to +4 dB, over 0 dBFS in
   10–25 % of readings) or the discrepancy is written down; D5 recorded. — runs 2 and 3 inside; run 1 just outside
   (+4.6 dB, 25.1 %), written down.
@@ -276,7 +277,8 @@ docs/specs/OUTPUT_HEADROOM.md)".
 **Description:** On the served production build of the branch, foreground, one run at a time, with T3's links:
 (1) **trim alone** — a one-line local edit that makes `getToneCtor('WaveShaper')` return `undefined` (not committed,
 reverted after): D1 once; `pre` should have dropped by about the trim and `out` should still touch or pass 0 dBFS on
-D1, which is the evidence the ceiling is needed. (2) **complete** — D1 three times, D2–D5, H1, H2 once each, 120 s.
+D1, which is the evidence the ceiling is needed. (2) **complete** — D1 three times, D2–D5, H1, H2 once each, 120 s (H1 and H2 in their
+own call, with `--robot-volume-full`).
 (3) If `pre` peak max on any of D1–D5 is above −6 dBFS, step `HEADROOM_TRIM_DB` down by 2, commit the constant, and
 re-run (2) in full; if `out` peak max is above −0.5 dBFS or any reading is ≥ 0 dBFS on any variant, **stop**: the
 ceiling is not last in the graph, or the taps are not where the survey says; report with the numbers and the chain
