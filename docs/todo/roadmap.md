@@ -2,6 +2,8 @@
 
 Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.md](archive/roadmap-archive.md) to keep this file focused on what's still open. Phase numbers are never reused or renumbered when a phase moves — every cross-reference from specs/tasks/intent docs and from this file's own internal links stays valid whichever file a phase currently lives in.
 
+The order the open phases and backlog items get done in is [plan.md](plan.md); this file is the record, that one is the sequence.
+
 ## 0. LFO integration
 
 **Done — Tone.js LFO engine (`src/engine/lfoEngine.ts`) and modulation types shipped; foundational work predating this doc's `**Done**`-stamp convention.**

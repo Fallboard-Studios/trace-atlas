@@ -8,7 +8,8 @@ Create/Restructure/About/Docs shape.
 
 Not a spec — this is a review-output backlog. Each item gets its own `/interview-me` or
 spec pass (as warranted by its size) when picked up; check it off here once merged. Not
-itself one of CLAUDE.md's Reference docs.
+itself one of CLAUDE.md's Reference docs. The order items get done in is
+[plan.md](plan.md); this file is the record, that one is the sequence.
 
 See also [docs/DUPLICATE_VALUE_AUDIT.md](../DUPLICATE_VALUE_AUDIT.md) — a dedicated sibling
 backlog for one specific bug class (independently-declared duplicate values) rather than a
