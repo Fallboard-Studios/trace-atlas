@@ -626,6 +626,19 @@ added a second symptom the list did not have, steady clicks at Light, which no p
 3. Pixel, in the sitting: 29's lighting by ear; and the Incognito tab after a collapse and the cool-phone sine ramp
    only if 1 and 2 leave the collapse unexplained.
 
+**Update 2026-10-23 (Stage 1 step 1 done, desktop; [scratchy-audio-phones.md](scratchy-audio-phones.md) "Backlog 27,
+desktop step 1").** D1 and D5 at Light read alike on steady load (means 0.49–0.52, both bursting to 0.95–0.998 from the
+first bucket), so the tier is not what separates them. What separates them is **notes**: D1 plays about ten times as
+many with the same four robots sounding, and **every note leaks one native OscillatorNode** — Tone 15's `Oscillator`
+connects its persistent frequency and detune Signals into a fresh node per start and never disconnects them when the
+note ends, and standardized-audio-context keeps each such connection as a strong reference in the Signal's output Set,
+scanned on every later connect. Forced GC frees the matching Gains and not one oscillator: retention, not lag. About
+two a second on D1 (+324 nodes in four minutes, identical across three rounds; D5 +55). Pending Transport events hold
+at 12. Not yet tied to the underruns (the bursts predate any accumulation); the two settling measurements are the
+15-minute long run (step 2, unchanged, now with `nodes`/`heap`/`events` columns) and a same-session A/B against a
+scratch build whose `Oscillator.onstop` disconnects the dead node's params. A fix is a dependency patch or an upstream
+change: Crawford's call, then a spec.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;

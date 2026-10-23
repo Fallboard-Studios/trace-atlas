@@ -1186,3 +1186,81 @@ measures what a phone plays out of the box.
 
 **New for backlog 27:** on a rested Pixel 8 at Light, the phone default, D1 clicks throughout on `main` (190 → 254)
 and on the branch (140 → 173), and D5 reads 93–149 at 3:00. Crawford: chase it there.
+
+## Backlog 27, desktop step 1 — D1 against D5 at Light, and what grows (2026-10-23)
+
+plan.md Stage 1's first step ([backlog 27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included),
+"Next, re-ordered"): the two worlds of the T10 round, on the desktop, with a read of what D1 carries. **Build:** a
+production `vite build` of `perf/underruns-desktop` at `87b205c3` (`index-DekV9Q83`; `src/` is `main` `5bd7f593` plus
+the overlay's new `events` token), `vite preview` on :4173. **Harness:** `npm run perf:audio` with the long-run columns
+added the same day (PERFORMANCE.md "The long-run columns"): `--seconds 240 --bucket 15`, Light pinned by `?load=light`,
+the world by the T10 `?session=` links (PERFORMANCE.md "The seven links"), headless Chrome, three rounds interleaved
+(D1 D5, D5 D1, D1 D5), foreground, one run per call, orphaned Chrome 0 before and after. D1 = `56c2t2t8` (−116, −2),
+D5 = `bravo` (−150, 90).
+
+**What each world carries after the warm-up** (the overlay, as the harness now prints it). Both: `latency playback`,
+`load 20%·fx 20%`, sounding cap 4, poly cap 8, `fx in 5/10`, `bank 4/4`, every LFO tier off, `events 12`. The one
+difference the overlay shows: D1 `links 43/91`, D5 `links 25/91`.
+
+| Round, world | mean cap | peak window | overall max | nodes first → last | heap MB first → last | events |
+|---|---|---|---|---|---|---|
+| 1, D1 | 0.523 | 0.659 | 0.998 | 1800 → 2125 (+324) | 35.7 → 42.1 | 12 → 12 |
+| 1, D5 | 0.499 | 0.708 | 0.998 | 1815 → 1869 (+54) | 36.4 → 41.8 | 12 → 12 |
+| 2, D5 | 0.478 | 0.537 | 0.994 | 1815 → 1870 (+55) | 35.4 → 41.6 | 12 → 12 |
+| 2, D1 | 0.494 | 0.565 | 0.996 | 1798 → 2126 (+327) | 36.4 → 43.0 | 12 → 12 |
+| 3, D1 | 0.492 | 0.554 | 0.953 | 1798 → 2122 (+324) | 33.6 → 42.2 | 12 → 12 |
+| 3, D5 | 0.467 | 0.525 | 0.995 | 1815 → 1870 (+55) | 34.4 → 40.0 | 12 → 12 |
+
+**Reading, against the backlog's question** ("Light on D1 read worse than Full on D5 did; what is it, and why does
+Light not cut it?").
+- **Steady load does not separate them.** D1 reads 0.02–0.03 above D5 on the mean, inside the round-to-round spread;
+  both touch 0.95–0.998 in most 15 s buckets, so the desktop's audio thread also misses deadlines in bursts at Light,
+  with four robots sounding. The callback interval was 20.0 ms in round 1 and 21.33 ms after (Chrome's choice per
+  context, not a load signal). The pending Transport events stay at 12 throughout: nothing is scheduled and never
+  cleared.
+- **What grows is the live AudioNode count, and it is deterministic to the world.** D1 gains 324, 327 and 324 nodes in
+  four minutes, bucket for bucket the same curve each round, climbing while robots undock and flat while they dock
+  (buckets 9–12). D5 gains 54–55. The heap climbs about 6 MB in both, with garbage-collection drops along the way.
+- **By type** (the harness's new breakdown, 90 s runs): D1 `Oscillator +198, Gain +31`; D5 `Oscillator +15,
+  Gain +13`. Tone creates one native `OscillatorNode` and one `GainNode` per note start; the gains go, the oscillators
+  stay.
+- **Not a start-without-stop** (scratch probe `probe-osc-leak.mjs`, session scratchpad: `AudioScheduledSourceNode`'s
+  `start`/`stop` patched before the app loads). D1 in 90 s: 224 oscillators started, 196 `stop()` called, 196 `ended`
+  fired; the 28 never stopped are the fixed LFOs (`custom` and `sine`, the same 27–28 on D5). D5: 47 started, 20
+  stopped. So **D1 plays about ten times the notes D5 does with the same four robots sounding**, and every note's
+  oscillator ends as it should.
+- **Retained, not awaiting collection** (scratch probe `probe-osc-gc.mjs`: `HeapProfiler.collectGarbage` twice after
+  60 s of D1). Before the forced GC: `Oscillator +127, Gain +32` since the warm-up; after it: `Gain −12,
+  Oscillator +9` (the nine are new notes). Not one ended oscillator was destroyed.
+- **The holder, from the source** (Tone 15.1.22 and standardized-audio-context, `node_modules`):
+  `Oscillator._start` builds a new `ToneOscillatorNode` for every start from the stopped state and connects the
+  Oscillator's persistent `frequency` and `detune` Signals into the new node's params
+  (`source/oscillator/Oscillator.js`, `_start`). When the note ends, `OneShotSource._onended` disposes the
+  `ToneOscillatorNode`, which disconnects its own **output** and disposes its Param wrappers, but nothing ever calls
+  `frequency.disconnect(deadNode.frequency)`: only the source side can remove an inbound connection. In
+  standardized-audio-context every connect into an AudioParam inserts `[destinationParam, output]` into the **source's**
+  output Set (`factories/audio-node-constructor.js`, `connectAudioParam`, with an `insertElementInSet` scan of that Set
+  on every insert) and never forgets it until a disconnect. So each note leaves two strong references, one in the
+  frequency Signal's Set and one in the detune Signal's, to an AudioParam whose `OscillatorNode` therefore cannot be
+  collected; and each later connect from those Signals scans a Set that is longer by two. A retrigger while a note is
+  still sounding reuses the node (`_restart` only cancels the pending stop), so dense legato leaks less than dense
+  staccato. This is upstream behaviour the app meets by playing a Tone.Synth per layer (`compositeVoice.ts`), not a
+  wiring bug of ours; whether Tone has it on file was not checked.
+
+**What this does and does not say.** It names a leak that scales with notes played: about two retained oscillators a
+second on D1 at Light, so some 500 by the phone's 4:00 mark and 7 000 an hour, each with a longer connect scan behind
+it. It does not yet tie the leak to the underruns: the desktop's capacity bursts are there from the first bucket, before
+anything has accumulated, and the audio thread does not render an ended source. The link, if there is one, would be
+through the main thread (a growing scan per note start, GC pressure, the `detectCycles` walk that every connect runs;
+backlog 29's lost render quantum sits on the same connect path) starving Tone's 100 ms look-ahead on a slow phone late
+in a run, which is the shape of the 2:50–4:00 collapse. Two measurements would settle it, both desktop and both cheap:
+the 15-minute long run as planned (does `nodes` keep its slope and does `lag (max)` or capacity drift with it), and an
+A/B of a scratch build whose `Oscillator.onstop` disconnects the dead node's two params (one monkey-patch of Tone's
+`Oscillator.prototype._start`, never committed) against stock, same world, same session. A fix proper is a dependency
+patch or an upstream change to how notes are played, so it is Crawford's call and gets a spec (CLAUDE.md: ask before
+changing the audio architecture).
+
+**Housekeeping found on the way.** The harness's `--world name:x:y` had pinned nothing since 2026-09-28 (only
+`?session=` does); the first smoke run landed on a random world under the `bravo` label. The harness now aborts when the
+overlay's coordinates differ from the payload's. Its `sounding` column had read a dash since the two-dial budget line
+of 2026-09-22; fixed. Both in `87b205c3`.
