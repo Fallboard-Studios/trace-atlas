@@ -23,8 +23,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > done**: the ceiling's audio-thread cost is below the method's resolution. **Checkpoint A** heard one world crunch
 > with every robot at 100 % (`6j0mgo5z`): the seeded Compressor's 70 ms release, not the ceiling; Crawford: raise the
 > seeded release floor to 0.25 s (spec §7). **T9 done** (`1c13470d`, the gate re-run in PERFORMANCE.md "After T9").
-> **Phase 3 complete.** Crawford's re-listen after T9: "desktop sounds good" (Checkpoint A closed). **T10 next: the
-> phone (Checkpoint B, Crawford's device).**
+> **Phase 3 complete.** Crawford's re-listen after T9: "desktop sounds good" (Checkpoint A closed). **T10 done**:
+> Checkpoint B passed at Light, the phone default (scratchy-audio-phones.md; the clicks are backlog 27's). **T11 next.**
 
 ## Overview
 
@@ -441,8 +441,12 @@ on the Pixel — Checkpoint B, Crawford's runs", in the shape of the Robot Effec
 **Proof:** Read — the phone section with both counts and Crawford's word. No test file.
 
 **Acceptance criteria:**
-- [ ] Both counts and both hashes in the section; the branch's count within the baseline's band; the crunch gone.
-- [ ] A miss has its bisection row and stops the phase.
+- [x] Both counts and both hashes in the section; the branch's count within the baseline's band; the crunch gone. —
+  2026-10-23, at **Light** (the phone's own default; the plan said Full), rested, one run each: D5 `main` 93 / branch
+  149 at 3:00, D1 (ear check) `main` 190 / branch 140. One `main` run gives no band; the D1 pair reverses the D5 pair,
+  so the gap is the spread. D1's distortion gone on the branch; clicks (underruns) on both builds → backlog 27.
+  Crawford accepted the round as Checkpoint B (spec §7).
+- [x] A miss has its bisection row and stops the phase. — no miss; the no-ceiling build was served on :4175, not run.
 
 **Verification:** the section. **Dependencies:** T8 (and T9 if it ran). **Files:** `docs/todo/scratchy-audio-phones.md`.
 **Scope:** XS (Crawford's device).

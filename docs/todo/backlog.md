@@ -603,6 +603,12 @@ collapse on a rested phone. With the phone off for at least 20 minutes before ea
 95 → 250 with clipping at 4:20. A heavier world on the same build and tier (7 lit, run 5) did not collapse. So heat or
 state left over from earlier runs explains it less well than it did in round 4.
 
+**Update 2026-10-23 (Output Headroom T10, [scratchy-audio-phones.md](scratchy-audio-phones.md)):** clicks at Light, the
+tier a phone picks by itself, on a rested Pixel 8. `56c2t2t8` at (−116, −2) "clicks throughout" on `main` (190
+underruns at 3:00, 254 at 4:00) and on the Output Headroom branch (140 → 173); `bravo` read 93 (`main`) and 149
+(branch) at 3:00. The two builds swap order between the worlds, so the clicks are not that branch's; its output is
+never at full scale, so they are not clipping either. Crawford: chase them here, after roadmap 54 merges.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;

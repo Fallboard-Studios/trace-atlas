@@ -404,3 +404,11 @@ it (a ratio of 1 and a −20 dB threshold were the other two steps offered). **D
 (T9): `GLOBAL_AUDIO_LOADING_RANGES['compressor.release']` from 0.05–0.3 s to 0.25–0.3 s, the value heard to fix it.
 Assumption 5's threshold and ratio narrowing is not invoked; the user's own Release slider keeps its full 0.01–1 s.
 After T9 (`1c13470d`), Crawford's re-listen on the desktop, 2026-10-23: "desktop sounds good". **Checkpoint A closed.**
+
+**Checkpoint B, 2026-10-23: the Pixel 8 (T10).** Run at **Light**, not §5.4's Full: the phone picks Light by itself
+(a coarse primary pointer, `detectDefaultAudioLoad`) and the links did not pin `?load=`, so it measured what a phone
+plays out of the box. Rested phone, one run per build. D5 at 3:00: `main` 93, the branch 149, both "pass" by ear; D1
+(ear check): `main` 190 with "a tiny bit of audio distortion", the branch 140, clicks only. The two pairs swap order,
+so they show the run-to-run spread, not a cost of the ceiling. Crawford chose to accept this round (over a Full
+re-run, or a reversed Light pair) and to chase the clicks, underruns on both builds, in backlog 27.
+**Checkpoint B closed.** Numbers: `docs/todo/scratchy-audio-phones.md`, "Output Headroom (roadmap 54) on the Pixel".
