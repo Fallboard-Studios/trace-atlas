@@ -172,22 +172,7 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 17.2.5 Performance: Idle Paint & Composite Cost
 
-Requested by Crawford, 2026-09-18 — last of the 17.2.1–17.2.5 series (see 17.2.1). High priority for the phone.
-
-**Localized and fixed on desktop, 2026-10-02 (branch `perf/idle-paint`, unmerged as of writing); the real-phone confirmation is with Crawford.** See [docs/PERFORMANCE.md](../PERFORMANCE.md) "Idle paint & composite — roadmap 17.2.5" for the method, the ablation tables and the keep/revert ledger. A new harness, `npm run perf:idle` (`scripts/perf/idle-paint.mjs`), traces the idle blank hub in one Chrome session and re-traces it with one suspect switched off at a time, plus Chrome's own invalidation reasons per node. It found the whole ocean scene repainting at full viewport size on every frame, for two independent reasons: the `fill 4.8s` CSS transition on every lighting-driven factory fill (lightness steps every ~2 s, so some fill was always mid-transition, and a running transition style-invalidates its element every frame), and the robots and bubbles moving inside the same `<svg>` as the sixty static factories (any transform write re-rasterized them all). Fix 1 removes `FILL_TRANSITION`; fix 2 splits `OceanScene` into four stacked layers (static back, moving bubbles, moving robots, static front) with the moving ones promoted to compositor layers, moving bubbles out of `Factory.tsx` into `BubbleLayer`. Unthrottled, 6 s idle window: main-thread busy 3229 → 1672 ms, paint 1006 → 147 ms. A third change (robots as individually composited HTML elements) measured inside noise and was reverted, as the ledger records. The flicker overlay, rocker pulse and gradient rects were ruled out. What remains at idle is the robots' own per-frame cost (~0.8 s per 6 s) and the JS tick work the 17.2.1 profile already noted — not paint.
-
-Visible change for the checkpoint: factory lighting now steps once a second with no fade (a 1 % lightness step, imperceptible by design), and every building's bubbles rise behind the robots and below the foreground row (Crawford's call after the first look: foreground-row bubbles used to pass in front of the robots).
-
-Measured with nothing open at 4× throttle (blank hub, powered on, 6 s window): the main thread was ~84% busy at idle — ~5.0 s of "(program)" (native browser work, not JavaScript) out of a ~6.0 s window. The layout trace attributes most of it to paint and compositing rather than script: `LocalFrameView::RunPaintLifecyclePhase` ~3.1 s, `Paint` ~2.2 s, and `PaintArtifactCompositor::Update` ~1.8 s (compositor commit, which grows with layer count) across ~117 frames. Something in the always-visible scene repaints or re-layers every frame; JavaScript in the same window was small (GSAP ticker and React work under ~1.5 s combined). Suspects to check, none confirmed: the animated robot SVGs in `WorldView` (per-frame `setAttribute`/transform writes), the ocean scene's gradients/filters/shadows, the full-viewport `.screen-viewport::before` stripe overlay with its `bridgeFlicker` animation in `ScreenViewport.css` (opacity-only, so probably compositor-cheap, but its large gradient and `box-shadow` are worth ruling out), and the number of promoted compositing layers. Two further leads from 17.2.1's idle CPU profile (see `docs/PERFORMANCE.md`): the audio-swell tick (`tickAudioSwells` → `advanceActiveSwells` → `writeRobotValue` in `src/systems/audioSwells.ts`, scheduled on a `16n` repeat) was ~0.4 s inclusive of a 6 s idle window and appears to feed store writes that drive React re-renders (~0.5 s of `performWorkOnRoot`) — a cost that scales with robot count and runs whether or not any tile is open; and a native `createPeriodicWave` call (not referenced from `src/`, so Tone-internal) showed ~0.26 s self time at idle.
-
-### Restructure
-
-- Localize first, fix second: use 17.2.1's harness with Chrome's paint-flashing/layer-borders view or a trace narrowed to individual elements to find which element(s) invalidate every frame, then decide the fix per cause (cap repaint area, replace a filter with a precomputed asset, `contain`/`will-change` where it actually helps, reduce layer count). Any fix that touches robot animation goes through the "GSAP for animation, no `requestAnimationFrame` loops" rule in `CLAUDE.md` as usual.
-- Confirm on a real phone before declaring it fixed — headless Chrome's software rasterization is not a phone GPU.
-
-### About
-
-Sequenced last because its cause is unknown and its numbers are the least trustworthy in headless Chrome; 17.2.1's harness is what turns it into something measurable. Likely overlaps with [18](#18-cabinetry-verification-accessibility--performance)'s own performance check — this series' findings should land first so that pass verifies a UI that's already been through them.
+**Done — merged via PR #524 (`perf/idle-paint`); the real-phone confirmation was never recorded here, and [53](#53-per-mover-compositor-layers) replaced the moving-layer split it built. Moved to [the archive](archive/roadmap-archive.md#1725-performance-idle-paint--composite-cost).**
 
 ## 17.2.6 Performance: Audio Load Budget
 
@@ -195,21 +180,19 @@ Sequenced last because its cause is unknown and its numbers are the least trustw
 
 ## 17.2.7 Performance: Robot LFO Priming
 
-**Implemented — see [docs/specs/LFO_LOAD_FIX.md](../specs/LFO_LOAD_FIX.md) and [docs/tasks/LFO_LOAD_FIX.md](../tasks/LFO_LOAD_FIX.md). Branch `bug/LFO-load`, unmerged as of writing.**
-
-Seeded robot LFOs showed in the UI but never reached the engine — only a user edit ever connected one. `primeRobotLfos`/`primeRosterLfos` (`src/systems/robotLfoPriming.ts`) close the gap at every point a robot's voice is (re)reserved: spawn, power-on, a structural voice rebuild (also fixing a second bug — a user-connected robot LFO going silent on a layer-type change), and session load. The `volume` and `layerN.pulseWidth` LFO targets were removed and the seed odds lowered from 50% to 25% on to keep the primed count sustainable (9 targets now, not 13). The Task 11 perf gate found Full's previously-`Infinity` robot-LFO cap saturating the audio thread once priming made the cost real (bravo peak render capacity 0.40 → 0.998 at ≈18 connected robot LFOs); `ROBOT_LFO_CAP_FULL` gives Full a finite cap (equal to Standard's, 12), re-measured passing with a wide margin (peak 0.443). See `docs/PERFORMANCE.md` "Robot-LFO priming — the Task 11 perf gate" for the full measurement.
-
-**Not Doing:** control-rate robot LFOs (`layerN.phase` already polls at control rate and stays uncapped by design); raising the global-chain LFO odds (34%, untouched — out of scope). **Superseded by [17.2.8](#1728-performance-lfo-bank) below** — the per-target engine/priming/cap this item built was replaced outright, not extended.
+**Done — merged via PR #520 (`bug/LFO-load`); superseded by [17.2.8](#1728-performance-lfo-bank). Moved to [the archive](archive/roadmap-archive.md#1727-performance-robot-lfo-priming).**
 
 ## 17.2.8 Performance: LFO Bank
 
-**Implemented — see [docs/specs/LFO_BANK.md](../specs/LFO_BANK.md) and [docs/tasks/LFO_BANK.md](../tasks/LFO_BANK.md). Branch `feature/LFO-pool`, unmerged as of writing.**
+**Done — merged via PR #521 (`feature/LFO-pool`). Moved to [the archive](archive/roadmap-archive.md#1728-performance-lfo-bank).**
 
-Replaces one private `Tone.LFO` per modulation target (the 17.2.7 design above) with four shared, world-level, app-lifetime LFO lanes — a target now links to a lane and stores a depth instead of owning its own oscillator. Twenty tasks in five phases: Phase 1 deletes what the bank makes pointless (the `layerN.phase` target, the robot-LFO cap, the per-target held-off machinery); Phase 2 builds the bank (`src/engine/lfoEngine.ts`, renamed from `lfoBank.ts`) beside the old engine; Phase 3 flips the data/wiring so a seeded world is primed through the bank; Phase 4 swaps every panel to the inline `LfoLink` (Lane + Depth) primitive, replacing the old shared `Lfo`/`LfoTargetGroup` display and the 4-group Drift accordions (EQ/Low-Pass/High-Pass/Robot Drift) with one LFO Bank accordion (4 lane panels, each with its own Shape/Rate/Rate Drift/Depth Drift); Phase 5 deletes the old per-target engine entirely, moves persistence to session payload v2, and runs the perf gate (Task 19 — both the hard gate and the success bar passed with a wide margin on the measured worlds). `RobotLfoTargetId` is 6 now (`layer{0,1,2}.{gain,detune}` — Phase was cut, having never had a live Signal); global on-odds are 66%, robot on-odds 30% (correcting 17.2.7's own "25%" figure for the same coin flip, now reused by the bank's seeder). See `docs/AUDIO_SYSTEM.md`'s LFO Modulation section for the full current design.
+### Open
 
-**Not Doing:** the intent doc's own out-of-scope list (`docs/intent/lfo-bank.md`) — control-rate/polled bank LFOs (rejected in favor of real audio-rate nodes, may be revisited); per-link polarity/invert or other decorrelation (lockstep is wanted); lane-based load degradation (Light/Standard/Full all run all four lanes — only the filter switch and drift-off react to the dial); fixed lane "characters" with constrained ranges (the four lanes are seeded with spread rates but are otherwise blank, fully editable oscillators); migrating old sessions/share links (v1 payloads are stripped, not converted); a modulation-matrix overview UI (the per-target `LfoLink` picker is the UI).
-
-**Follow-up (spec §7 risk 8, inherited knowingly, not fixed here):** an Attenuation Style switch while the context is already running does not re-prime the bank or global links — `regenerateLfoBankFromSeed`/`regenerateGlobalLfoLinksFromSeed` are data-only, and nothing re-primes until the next `AudioEngine.start()` (a full power cycle). Pre-dates this phase (the old per-target engine had the identical gap); fixing it is a one-line addition — `primeLfoBank`/`linkTarget` from the same AS-switch subscription, guarded by `isAudioContextRunning()` — not done here.
+- **An Attenuation Style switch does not re-prime the bank or the global links** (spec §7 risk 8; still true 2026-10-22).
+  `regenerateLfoBankFromSeed` / `regenerateGlobalLfoLinksFromSeed` (`src/stores/audioStore.ts`) only write the store, so
+  a running engine keeps the old lanes until the next power-on. The archived follow-up calls the fix one line of
+  `primeLfoBank`, but `primeLfoBank` no-ops once the bank exists; the push is per lane (`setBankShape`, `setBankRate`,
+  the two drift setters) plus `linkTarget` per global target, guarded by `isAudioContextRunning()`.
 
 ## 17.3 Styling Overhaul: Robot Views
 
@@ -241,92 +224,19 @@ Extended scope from the move (2026-09-11): also confirms Phase 12's new type sca
 
 ## 19. Test Coverage: Untested Core Modules
 
-Requested by Crawford, 2026-09-16, following a source review of `src/` for coverage gaps left by early pre-testing-discipline work. `collisionSystem.ts` (`src/systems/`) was the one other module the review flagged — deliberately excluded here: it was unused (`startCollisionDetection` was never called from anywhere), and Crawford's call was to remove it outright rather than backfill tests for code likely to be rewritten from scratch if it's ever needed again. Removed 2026-09-16, along with `collisionSystem.test.ts` and its references in `powerController.ts`/`powerController.test.ts`. Not yet interviewed/specced.
-
-### Create
-
-Unit tests for the following, all currently untested despite carrying real logic (a tested sibling already exists in the same folder for most of them, e.g. `lfoEngine.test.ts`/`RobotBody.test.tsx`/`facadeGreebles.test.tsx`):
-
-- `src/engine/lfoDrift.ts` — group-scoped rate/depth drift pools, the depth silence-guard connect/disconnect behavior, `driftGroupForTarget`'s prefix matching
-- `src/engine/lfoShared.ts` — `centeredSwingFromRange` (has documented history as a real shipped bug, twice) and `connectAdditively`'s override-disable-then-restore sequence
-- `src/utils/getSeededVal.ts` — `precomputeDataX`/`getSeededVal` determinism, since it underpins reproducibility across audio, locale, and spawn generation
-- `src/components/ui/controls/sliderLogMath.ts` — the epsilon-floor curve, especially the `min = 0` edge case
-- `src/components/ui/controls/accordionAnimation.ts` — reduced-motion duration branching
-- `src/animation/swimAnimation.ts` — distance/duration calc, orientation-flip logic, propeller-rotation-count math in `createSwimTimeline`
-- `src/animation/timelineMap.ts` — `setTimeline`/`getTimeline`/`killTimeline`/`killAllTimelines`, the registry every GSAP consumer depends on
-- `src/utils/refs.ts` — `setRef`/`getRef`/`deleteRef`/`clearRefs`
-- `src/utils/helpers.ts` — `swallow`/`devWarn`/`getScreenViewportDomNode`
-- `src/components/robot/RobotAngular.tsx`, `RobotIndustrial.tsx`, `RobotOrganic.tsx`, `RobotSleek.tsx` — the four shape variants `selectRobotShape` (`robotVisualHelpers.ts`) chooses between and `RobotBody.tsx` renders; `robotVisualHelpers.test.ts`/`RobotBody.test.tsx` cover selection and props-threading but not each variant's own rendering
-- `src/components/actors/factoryVariants.ts` — `getVariantFromNoise` and `selectVariantFromSeed`, whose PRNG draw order is explicitly documented in-file as load-bearing ("must not be changed without updating tests") but currently has no test enforcing it
-- ~~`src/components/actors/greebles/greebleTypes.ts` — confirm during implementation whether this is pure types (skip) or has real pool/logic content worth covering~~ — **dropped**, confirmed pure `type`/`interface` exports with zero runtime logic; nothing to test.
-- `src/components/panels/screen/worldView/LocaleView.tsx`
-
-### About
-
-This phase backfills unit test coverage for a set of modules identified by source review as carrying real logic — deterministic seeding, animation timing math, signal-graph wiring, or SVG rendering variants — with no regression protection today, most of them extracted from or sitting alongside already-tested siblings. The goal is coverage parity with the rest of the codebase's established testing discipline, not new functionality; each item gets tests against its current, shipped behavior.
-
-**Done** — see [docs/intent/test-coverage-core-modules.md](../intent/test-coverage-core-modules.md), [docs/specs/TEST_COVERAGE_CORE_MODULES.md](../specs/TEST_COVERAGE_CORE_MODULES.md), and [docs/tasks/TEST_COVERAGE_CORE_MODULES.md](../tasks/TEST_COVERAGE_CORE_MODULES.md). Implemented on `tests/core-modules-coverage`, one commit per task (12 tasks, 12 new test files, 140 test cases). Merged to `main` via PR #501. `collisionSystem.ts` needed no action (already removed 2026-09-16, as noted above); `greebleTypes.ts` dropped from scope, confirmed pure types (see the struck-through bullet above). Every named-risk assertion was mutation-tested (the real guard temporarily broken, confirmed the new test failed, then reverted) rather than just written and trusted — this caught one genuinely weak assertion (an idempotency check in `lfoDrift.test.ts` that measured the wrong thing) before it shipped. One real gap found and fixed in shared test infrastructure, not production code: `vitest.setup.ts`'s global GSAP mock had no `.play()` — no prior test had ever exercised `createSwimTimeline`'s call to it; added, and the full suite re-verified green immediately after. Full suite at completion: 187 files / 3904 tests, zero regressions; `npm run build:types`/`npm run lint`/`npm run build` all clean. Zero other production files modified — confirmed via `git diff --name-only main...tests/core-modules-coverage`, not just self-report.
+**Done — merged via PR #501 (`tests/core-modules-coverage`). Moved to [the archive](archive/roadmap-archive.md#19-test-coverage-untested-core-modules).**
 
 ## 20. Session Storage
 
-### Create
-
-- Persistence engine: a debounced Zustand `subscribe()` listener (not a polling loop) that background-saves to localStorage on changes to locale/seed, Audio Rig settings, or Robot Options overrides
-- State resolver: URL query string → localStorage cache → fresh procedural seed, in that fixed priority order
-- URL state serializer: native `CompressionStream`/`DecompressionStream` (`'deflate-raw'`) plus base64url encoding, with an uncompressed base64url fallback if `CompressionStream` is unavailable — no new dependency
-- FirmwareResetModal: an `AlertDialog`-based full-state wipe (clears localStorage, strips the URL query string, regenerates at a fresh procedural baseline), with a GSAP flash timeline registered in timelineMap, labeled `SYSTEM_FIRMWARE_RESETS` in the UI — the flash timeline respects `prefers-reduced-motion` (same pattern as PowerRockerSwitch.css), skipping straight to the reset when set
-
-### Restructure
-
-- Persisted state is a diff, not a snapshot: active seed/coordinates, global Audio Rig settings, and a per-robot override map (keyed by robot ID) holding only the fields an operator explicitly changed in Robot Options — everything else regenerates from the seed on load
-- Depends on Phase 6's robot IDs becoming deterministic, so overrides can be reapplied by ID after the roster regenerates
-
-### About
-
-This phase replaces the (currently nonexistent) session/storage handling with an automated background persistence engine, URL serialization, and a strict state-loading hierarchy. There is no localStorage or persistence code anywhere in src/ today, so this is greenfield — the only thing to remove is the SESSION console tab stub, already handled by Phase 3. We are building src/utils/storageEngine.ts (flat alongside the rest of src/utils/) to debounce-save on meaningful Zustand store changes rather than polling on a fixed timer, acting like a rugged field recorder's non-volatile flash storage. We are implementing src/utils/stateResolver.ts to enforce the fixed startup resolution order — URL payload, then localStorage, then a fresh procedural seed — and src/utils/urlSerializer.ts to compress state with the native CompressionStream API into a dense, URL-safe string for direct link sharing. Because robot attributes are already fully seed-derived (see PROCEDURAL_GENERATION.md), the persisted/shared payload is a small diff — seed, coordinates, Audio Rig settings, and any operator overrides from Robot Options — reapplied on top of a freshly regenerated roster, not a full snapshot. Finally, we are building FirmwareResetModal.tsx (Radix AlertDialog, GSAP flash timeline via timelineMap) to handle full state wipes styled as a hard diagnostic system reset (SYSTEM_FIRMWARE_RESETS), keeping the industrial telemetry aesthetic consistent with the rest of the console.
-
-**Done** — see [docs/intent/session-storage.md](../intent/session-storage.md), [docs/specs/SESSION_STORAGE.md](../specs/SESSION_STORAGE.md), and [docs/tasks/SESSION_STORAGE.md](../tasks/SESSION_STORAGE.md). Implemented on `feature/session-storage`, one commit per task. **What actually shipped is narrower than the "Create"/"Restructure" description above** — that description was superseded during `interview-me`/spec (2026-09-27), before Task 1 started: a "Sessions" accordion (Settings, third/last leaf) for multiple named local saves (not one boot-autoloaded slot), a 6-slot autosave (5 rotating + 1 draft) on a plain 5-minute `setInterval` (not a debounced `subscribe()` listener), and no URL involvement of any kind — no state resolver, no `CompressionStream` serialization, no shareable link. That work is tracked separately as [Phase 21](#21-sector-settings-shareable-link-importexport), which depends on this phase but hasn't been built. `FirmwareResetModal` as originally scoped wasn't built either; a narrower "Clear Local Storage" button (wipes all of `localStorage`, resets the loaded-session pointer, no URL-stripping or GSAP flash) shipped instead, plus three more UI additions made after the original 12-task plan: an "Update" button for overwriting the currently-loaded named session in place, autosave-slot labeling by world identity instead of a generic string, and per-slot autosave deletion (the last one reverses an explicit out-of-scope call in the intent doc — see `docs/specs/SESSION_STORAGE.md`'s own "Reversed 2026-09-28" note). `docs/SESSION_STORAGE.md` is rewritten to describe the shipped design. Full suite at last check: 195 files / 4020 tests, one known-flaky real-RNG test (`worldTransition.test.ts`'s swell-clear precondition, `docs/todo/backlog.md` item 15 — unrelated to this work, confirmed passing in isolation); `npm run build:types`/`npm run lint` clean. Manually verified in-browser throughout implementation (Crawford).
-
-### Docs
-
-- docs/SESSION_STORAGE.md rewritten from the shipped implementation (Task 12) — no more "not yet implemented" banner. Already on CLAUDE.md's reference doc list. docs/UI_SHELL.md's Settings row updated to list Sessions alongside Audio Profile/Audio Seeds (and to drop the already-stale Volume/Tempo mentions — both relocated out of Settings before this phase started).
-
-### 2026-09-28: Session Autosave History amendment scoped, built, then cut
-
-A follow-on amendment to this phase — replacing the 6-slot autosave above with a per-named-session 3-deep FIFO history plus two unsaved-work buckets, a drill-down UI, and a "Primary Save" label — was interviewed, specced, and partially implemented on `features/session-updates` (`docs/intent/archive/session-autosave-history.md`, `docs/specs/archive/SESSION_AUTOSAVE_HISTORY.md`, `docs/tasks/archive/SESSION_AUTOSAVE_HISTORY.md`, all now marked `Status: cut. Do not implement.`). Crawford called it too complicated for a v1 before it merged and had it fully removed, going back to manual-only CRUD with no autosave of any kind — see [docs/intent/session-autosave-removal.md](../intent/session-autosave-removal.md), [docs/specs/SESSION_AUTOSAVE_REMOVAL.md](../specs/SESSION_AUTOSAVE_REMOVAL.md), and [docs/tasks/SESSION_AUTOSAVE_REMOVAL.md](../tasks/SESSION_AUTOSAVE_REMOVAL.md). `docs/SESSION_STORAGE.md` is rewritten again to reflect the autosave-free end state; the "Update" button mentioned above was already reverted to "Load" as part of the cut work, before the removal even started.
+**Done — merged via PR #503 (`feature/session-storage`); the autosave amendment and its removal followed in #506 (`features/session-updates`). Moved to [the archive](archive/roadmap-archive.md#20-session-storage).**
 
 ## 20.5. World Clock: Deterministic Lifecycle Replay
 
-Requested by Crawford, 2026-09-28, out of an `/idea-refine` session prompted by asking whether robot battery/docking/job state should be persisted in Session Storage (20). Sequenced here, ahead of [21](#21-sector-settings-shareable-link-importexport) and [32](#32-robot-melody-history--configuration-scrubber), because both depend on it: 21 wants a share link to reproduce an exact audible *moment* (not just tuning), and 32's scrubber needs a principled way to recompute world state at an arbitrary point, not just melody.
-
-### About
-
-Robot battery/docking/job (`docs/ROBOT_LIFECYCLE.md`) is currently the one piece of "who's playing when" that isn't reproducible from a seed the way melody now is (Phase 31) — it drifts continuously with elapsed measures and isn't captured by Session Storage's diff-based payload at all (deliberately excluded, `docs/SESSION_STORAGE.md`'s "Explicitly never persisted" list). Verified while scoping this: `spawnInitialRoster` (`spawnSystem.ts`) already seeds every robot's starting `batteryLevel`/`docking` deterministically from the noise map, and the tick logic in `robotSystems.ts` (drain/recharge rates, threshold crossings, `scoreJobAffinities`) is pure arithmetic with zero `Math.random` calls. The only non-deterministic ingredient is elapsed real time. This phase introduces a single tracked "world clock" (elapsed measures since roster creation) and refactors the lifecycle tick into a pure, headless step function — mirroring what Phase 31 already did for melody generation — so battery/docking/job become a deterministic function of `(seed-derived spawn state, world clock)`, replayable in a tight loop instead of only live via BeatClock.
-
-An audit pass comes first, before any refactor: trace every other timing-dependent system (LFO drift, audio swells, ping-variance automation) to confirm — or disprove — that they're already measure-quantized and safe, per `CLAUDE.md`'s existing no-`setInterval`-for-musical-timing guardrail, rather than assuming it and finding gaps piecemeal later.
-
-### Not Doing (and why)
-
-- **Wiring this into Session Storage's `SessionPayload` or Phase 21's share links** — downstream consumers, once the primitive exists and is proven; this phase is the foundation, not the feature.
-- **Building Phase 32's scrubber UI** — already tracked separately, depends on this landing first.
-- **A "checkpointed replay" performance optimization** (memoizing lifecycle state every N measures so long-elapsed replays stay cheap) — stays a fallback, not built until a real perf check says it's needed.
-- **Fixing every issue the audit surfaces in this same pass** — audit output may warrant its own follow-up phase(s) rather than snowballing scope here.
-
-See [docs/ideas/world-clock-deterministic-lifecycle-replay.md](../ideas/world-clock-deterministic-lifecycle-replay.md) for the full `/idea-refine` writeup, if saved.
-
-**Done** — see [docs/intent/world-clock-deterministic-lifecycle-replay.md](../intent/world-clock-deterministic-lifecycle-replay.md), [docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md](../specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md), and [docs/tasks/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md](../tasks/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md). Implemented on `feature/worldclock`, one commit per task (9 tasks). **Scope expanded beyond this section's own "About" framing**, discovered and confirmed with Crawford during the spec pass, before Task 1 started: dock-triggered melody pitch drift (`reRollMelodyPitches`, previously seeded by a live-only `dockCycleCounters` counter) is now replayable too, not "untouched" as first scoped — it's the audible part of "share exactly what you're hearing," this phase's own motivation, and turned out to fall out of the replay loop for free once replay was confirmed to always fully re-simulate from the locale's creation measure rather than ever resuming from a mid-point checkpoint. On-screen position/movement was confirmed out of scope instead (it was never measure-snapshot state to begin with). The audit (§"About"'s "comes first") actually ran last in implementation order — non-blocking, per its own task's design, since battery/docking/job's determinism was already independently confirmed by direct code reading before any refactor started; findings recorded in `docs/todo/backlog.md` item 17. A pre-existing, unrelated `Locale.currentMeasure` field was found dead/vestigial during the spec pass (never incremented by the real tick system) — left untouched; the new `createdAtMeasure` field is distinctly named, not a repurposing. `landOnDocked`'s signature changed (takes the already-drifted melody as a parameter instead of computing it) as a direct consequence of the melody-drift expansion. No consumer (Session Storage, Phase 21, Phase 32) wires this in yet — proven by a dedicated headless "prove-it" test (`robotSystems.test.ts`), mutation-checked against a broken invariant guard and against wiring the wrong melody into a landing, not a manual browser check (there is nothing to click). Full suite at completion: 192 files / 4050 tests (one known-flaky real-RNG test, `worldTransition.test.ts`'s swell-clear precondition, `docs/todo/backlog.md` item 15 — unrelated to this work, confirmed passing in isolation); `npm run build:types`/`npm run lint`/`npm run build` all clean.
-
-**Post-"Done" fix (2026-09-28):** a `/code-review-and-quality` pass after this note was first written found a real correctness bug: `stepRobotLifecycle` cleared a landing robot's `job` to `undefined` on Departing→Docked, but the real live path (`landOnDocked`'s `updateRobot` call) never touches `job` at all, so it silently persists stale in the actual running app. The prove-it test didn't catch it because its Departing fixture robot started with `job: undefined`, so the comparison passed on `undefined === undefined` without ever exercising a robot that already held a job when it departed. Fixed by deleting the `job = undefined` line (`robotSystems.ts`, Departing→Docked branch) so replay matches live behavior; the prove-it fixture and the dedicated Departing→Docked unit test were both strengthened with a robot holding a real job before departing, so this class of bug can't hide behind an undefined-vs-undefined comparison again. `docs/ROBOT_LIFECYCLE.md` and `Robot.job`'s own doc comment (`src/types/Robot.ts`) previously documented the *wrong* invariant ("undefined while Docked") — corrected to describe the actual (and now enforced-in-replay) behavior: job persists, stale, until the robot's next Active landing reassigns it.
+**Done — merged via PR #507 (`feature/worldclock`). Moved to [the archive](archive/roadmap-archive.md#205-world-clock-deterministic-lifecycle-replay).**
 
 ## 21. Sector Settings: Shareable Link Import/Export
 
-Requested by Crawford, 2026-09-16. Depends on [20](#20-session-storage) (Session Storage), shipped. **Correction, found while scoping this phase (2026-09-28): the sentence above originally claimed this phase "reuses Session Storage's `urlSerializer.ts` compression/encoding and `stateResolver.ts`'s URL-priority resolution" — neither file exists in this codebase, and no prior URL-sharing mechanism of any kind had been built. This was new work, not a wiring-up of an existing primitive** (see `docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md`'s own header note for the same correction, found independently while writing that spec).
-
-### About
-
-**Original framing (superseded, kept for history — see "Done" below for what actually shipped):** Session Storage (20) makes a shareable link *possible* — the URL query string already carries a compressed, resolvable session payload — but today the only way to get one is to manually copy the browser's own address bar, and the only way to load one is to paste it there and reload. This phase adds explicit Export (generate and copy the current session's shareable link) and Import (paste a link or raw payload and apply it) controls to `SectorSettingsDrawer`, so sharing a session is a deliberate, discoverable in-app action rather than an address-bar trick a user has to already know about. Directly closes the "shareable link" half `docs/todo/backlog.md`'s existing Attenuation Style presets note is waiting on — Crawford wants to update the in-app preset list with current, shareable links once this lands.
-
-**Done** — see [docs/intent/sector-settings-shareable-link.md](../intent/sector-settings-shareable-link.md), [docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md](../specs/SECTOR_SETTINGS_SHARABLE_LINK.md), and [docs/tasks/SECTOR_SETTINGS_SHARABLE_LINK.md](../tasks/SECTOR_SETTINGS_SHARABLE_LINK.md). Implemented on `feature/sharing`, one commit per task. **Scope narrowed from the original "About" framing above, confirmed with Crawford during `interview-me`:** no manual "paste a link or payload" Import UI — the only import path is opening a URL with `?session=` present; no compression (plain base64 JSON, one URL param); and the two Share buttons live in the existing Sessions panel (`SessionListItem.tsx`/`SessionsPanel.tsx`), not a new `SectorSettingsDrawer` Export/Import control. A real scope EXPANSION also happened, found only by tracing `worldTransition.ts`/`seedUtils.ts`/`noiseMaps.ts` directly during the spec pass: the pre-existing `?seed=`/`?x=`/`?y=` debug params were removed entirely (not just deprioritized) — reusing their persistent, sanitizing override mechanism for the share link would have both mangled the shared Attenuation Style's exact name and silently hijacked the seed of every *other* Attenuation Style created later in the same session. See `docs/SESSION_STORAGE.md`'s "Shareable Links (Phase 21)" section for the full boot-sequence design (a two-phase load — locale pinned before first paint, audio/robot overrides settled in just after — is what makes opening a link flash-free) and `docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md` §7 for the two load-bearing design decisions Crawford confirmed before implementation. Automated suite green (`npm run build:types`/`npm run lint`/`npm test`/`npm run build` all clean) at every task-file checkpoint. **Manual verification (Checkpoints B/C): passed — Crawford's own visual/click-through test, 2026-09-28.** Two follow-up encoding-compaction commits landed after this (abbreviated/omit-when-empty wire keys, extended two levels deep for `robotOverrides`/`companyDiffs`) — see `docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md`'s "Post-implementation follow-ups" note. Phase 21 is done.
+**Done — merged via PR #508 (`feature/sharing`). Moved to [the archive](archive/roadmap-archive.md#21-sector-settings-shareable-link-importexport).**
 
 ## 22. Navigation & Layout Rewrite
 
@@ -439,6 +349,10 @@ The `/idea-refine` session flagged the obvious framing (an audio scrubber) as li
 
 ### Still open
 
+- **Background parks below the roof** (spec §7 Q6): 10 of 1 523 background sites over the
+  121-seed grid park low; drop them or park beside them is Crawford's call
+  ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md#known-gaps)).
+
 ## 44. World Gem Material (Option A)
 
 **Done — on main since PR #547 (`feature/layout-rework` carried `feature/world-gem`); the Task 20 by-eye look and Pixel listen were never recorded here. Moved to [the archive](archive/roadmap-archive.md#44-world-gem-material-option-a).**
@@ -448,6 +362,13 @@ The `/idea-refine` session flagged the obvious framing (an audio scrubber) as li
 **Done — merged via PR #547 (`feature/layout-rework`). Moved to [the archive](archive/roadmap-archive.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen).**
 
 ### Open
+
+- The meta box's selection lines were deleted after the code review (2026-10-11): every selection opens a branch
+  and `goHome` clears both ids, so the Deck never has a selection. The halo stays; bring the lines back from git
+  history (commit before this note) if a surface ever shows them.
+- Compositor::Update is about 15–20 % higher on Fleet Params than on `main` (not a gate metric, not
+  investigated).
+- The Move sheet's 500 ms tap-hold was not tested on a touch device.
 
 ## 46. Mobile Deck Camera (the world crop on phones)
 
@@ -569,11 +490,25 @@ JSON-serialisable session.
 
 ### Open
 
+- The Pixel listen (Task 15), at Full with a working fleet.
+- Spec questions 1, 2, 3 and 5 (battery dim, identity colour, count 1, droplet numbers) shipped as the spec
+  proposed them and were not separately confirmed by Crawford.
+- If the Pixel shows trouble: cut the Full-tier cost (skip unchanged attribute writes, or fewer nodes at `'all'`).
+
 ## 53. Per-Mover Compositor Layers
 
 **Done — merged via PR #563 (`perf/per-mover-layers`). Moved to [the archive](archive/roadmap-archive.md#53-per-mover-compositor-layers).**
 
 ### Open
+
+- **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
+  is unverified.
+
+The archived Open list's other three items were settled after it was written: the document repaint was the harness
+counting Chrome's whole-frame `#document` paint (the gate re-run passes at 0.08 × `main`); the Pixel `main` comparison
+was closed by Crawford's decision on 2026-10-18; and the bubble strips were measured (review follow-up R5), their
+busy-time miss accepted on 2026-10-18. See [PERFORMANCE.md](../PERFORMANCE.md) "the Task 20 gate, re-run with the
+frame wrappers left out", "the Pixel A/B: not separable on the phone" and the two R5 sections.
 
 ## 54. Output Headroom: No Clipping Out of the Box
 
@@ -621,6 +556,4 @@ Options on the table for the interview (the first is the recommendation from the
 ## 55. Robot Sends: One Table for the Five Sends
 
 **Done — merged via PR #570 (`refactor/robot-send-table`), 2026-10-22. Moved to [the archive](archive/roadmap-archive.md#55-robot-sends-one-table-for-the-five-sends).**
-
-### Open
 

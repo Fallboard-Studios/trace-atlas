@@ -177,11 +177,9 @@ behind launch. No weather/atmosphere/particle system exists in `WorldView` today
 would be genuinely new (fog, dust, light rays, precipitation, or similar — not yet
 specified). Not yet scoped.
 
-### 11. Visuals: Small Immersion Animations
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
-behind launch. Likely a grab-bag of minor polish (idle bobs, blinking lights, and similar
-small touches) rather than a single feature; exact list not yet defined.
+**Update 2026-10-22:** roadmap [42](roadmap.md#42-world-view-districts)'s D3 branch shipped `LightShafts`, an
+atmosphere layer of light rays. Marine snow, the particle half, was built and cut on 2026-10-07 (it read as film
+grain). Fog, dust and precipitation are still unbuilt, so the item stays open.
 
 ### 13. SVG: Invalid Empty `y` Attribute — Live-Browser Confirmation Outstanding
 
@@ -227,6 +225,10 @@ fixes in that same series still haven't gotten their own live-Profiler recheck:
 
 **Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-28 (see project
 memory: known-flaky unmocked-random tests).
+
+**Update 2026-10-22:** three of the four are gone. `b49ee27a` (2026-10-05) deleted the worldTransition and
+CompanyCrudControls tests and the factoryPlacementSystem test's hue/sat-must-differ assertion (the rest of that test
+stays). The audioSwells test is still in the suite.
 
 Four tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
 
@@ -605,53 +607,6 @@ and give the Settings → Seeds coordinates a reason to be stepped rather than t
   `placeDistrict` per plot; too heavy for a map that paints many plots at once. District and hour
   only, until measured otherwise.
 - **Colouring the map by district before the field is coherent** — it would look like a bug.
-
-### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
-
-**Status (2026-10-17): mostly built, one finding left open.** Candidate 1 is done: small layers per mover, built as
-[roadmap Phase 53](roadmap.md#53-per-mover-compositor-layers) on `perf/per-mover-layers` (not merged). Candidate 2 is
-done (the camera's idle no-op, merged). Candidate 3 is not taken (the audio-headroom default stays Crawford's call).
-The idle-paint gate missed its headline criterion, 0.31 × `main` against 0.25, because of a **document layer** that
-repaints a full viewport on nearly every frame on both builds (cause unidentified); the work this item described fell
-by over 90 %. That repaint is the open remainder, to be accepted, fixed or reframed by Crawford. The record below is the
-original diagnosis, kept as written.
-
-Diagnosed 2026-10-16 while finishing roadmap 50.5, after Crawford reported the sound breaking up about 25–30 s into every
-world on his laptop at full screen. **Not an audio feature.** `main` at `2ec52f2f` reproduces it (411 underruns by 0:47,
-25 fps) and a window at a quarter of the area halves the cost (66 underruns by 1:00, 54 fps), so the cost scales with pixels.
-The full record, numbers and how to re-measure are in
-[PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16).
-
-**Mechanism.** The scene is seven stacked `<svg>` roots sharing one viewBox (`OceanScene.tsx`'s `SceneLayer`); the four
-*moving* ones — `robots-back`, `bubbles`, `robots`, `marker` — carry `will-change: transform` and are each the whole stage.
-Chrome composites an SVG root, never a `<g>` inside it, so a GSAP write to one robot group's transform dirties its entire
-stage-sized layer and the GPU re-rasters up to four 2560 × 1440 layers per frame for about fifty small movers (orbiters, work
-sparks, robot bodies, bubbles). On Crawford's laptop Chrome runs on the integrated Radeon (the RTX sits idle) and the GPU
-process is 94 % busy; the renderer main thread is 62 % busy, over half of it GSAP's frame render plus 3.3 s of layerization
-in 31 s. The audio thread averages 0.55 of its quantum but spikes to 0.99, so any CPU contention tips it into underruns.
-
-**Fix candidates, ranked:**
-
-1. **Small compositor layers per mover** (needs `interview-me` → spec → plan; the idle-paint gate `npm run perf:idle` and the
-   PERFORMANCE.md baseline are the numbers to beat). Each robot in its own positioned wrapper moved by a compositor-only
-   transform, with the gem's own small SVG inside, so a swim costs a composite and only an orbiter or spark costs a small
-   raster. Everything that reads a robot's group or ref must keep working: the swim and job timelines (`createSwimTimeline`,
-   `buildJobTimeline`), the row switch and its dissolve, the deck camera's target (`deckCamera.ts`, `getRef('robot-…')` and
-   `gsap.getProperty(el, 'x')`), `FollowedRobotMarker`, and click handling. Bubbles the same way.
-2. **The deck camera's idle tick** — **done 2026-10-16** on `fix/deck-camera-idle-range`: the two dimensions are measured at
-   registration and on resize, and with scroll range 0 the camera stands down (no tick work, no pick, no marker). The
-   diagnosis, kept: `registerDeckScroller` added the per-frame handler
-   whenever a scroller exists, scroll range 0 or not; at full screen the range is 0, yet every frame `targetFor` reads
-   `scrollWidth` / `clientWidth` (a forced layout right after GSAP's writes) and writes `scrollLeft`. It was 4.2 % of
-   main-thread samples. No-op when the range is 0; cache the two dimensions on resize.
-3. **Audio headroom as mitigation**, not cause: the Standard Audio Load preset or `?latency=playback` widen the margin;
-   whether the desktop default should change is Crawford's call.
-
-**Machine-side**, not a fix for anyone else: forcing `chrome.exe` onto the RTX in Windows graphics settings would show how
-much of the 25 fps is the Radeon specifically; the Windows setting did not take (the AMD stayed `*ACTIVE*`), and the NVIDIA
-Control Panel / Lenovo Vantage discrete-mode routes were not tried.
-
-**How to start:** `interview-me` from this item for candidate 1; candidate 2 can go straight to a RED test.
 
 ### 27. Audio: Phone Playback Underruns at Light Load, `main` Included
 
