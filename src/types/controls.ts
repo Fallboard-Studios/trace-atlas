@@ -163,10 +163,6 @@ export interface DualLabelSchema extends ControlSchemaBase {
   type: 'dualLabel';
 }
 
-export interface AccordionSchema extends ControlSchemaBase {
-  type: 'accordion';
-}
-
 /** docs/specs/LFO_BANK.md §1.5 — LfoLink primitive's schema (lane RadioButton + Depth slider). */
 export interface LfoLinkSchema extends ControlSchemaBase {
   type: 'lfoLink';
@@ -199,17 +195,17 @@ export type ControlSchema =
   | StepperSchema | StepperWithToggleSchema
   | SliderLinearSchema | SliderLogSchema | SliderCenteredZeroSchema
   | RadioButtonSchema | ToggleSchema | TextInputSchema | CoordsInputSchema
-  | ButtonSchema | DualLabelSchema | AccordionSchema | LfoLinkSchema
+  | ButtonSchema | DualLabelSchema | LfoLinkSchema
   | DirectionalPanelSchema;
 
 /** Every ControlSchema discriminant, paired with the union per the pattern
  *  src/types/lfo.ts established (LFO_SHAPES, ROBOT_LFO_TARGET_IDS) — makes
- *  "all 14 variants covered, no duplicates" a runtime-testable assertion. */
+ *  "all 13 variants covered, no duplicates" a runtime-testable assertion. */
 export const CONTROL_SCHEMA_TYPES: readonly ControlSchema['type'][] = [
   'stepper', 'stepperToggle',
   'sliderLinear', 'sliderLog', 'sliderCenteredZero',
   'radio', 'toggle', 'textInput', 'coordsInput',
-  'button', 'dualLabel', 'accordion', 'lfoLink',
+  'button', 'dualLabel', 'lfoLink',
   'directionalPanel',
 ];
 

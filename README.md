@@ -43,7 +43,7 @@ A tablet-styled console UI — navigated through a schema-driven nav tree (Setti
 - **Zustand 5** — serializable application state
 - **Tone.js 15** — Web Audio synthesis, scheduling, and the beat-clock transport
 - **GSAP 3** (`@gsap/react`) — all animation and motion (no `requestAnimationFrame` for musical timing)
-- **Radix UI** — accessible primitives underlying the Design System's 14 stateless UI controls
+- **Radix UI** — accessible primitives underlying the Design System's 13 stateless UI controls
 - **Vitest** + **Testing Library** — unit/component tests
 - **ESLint** + **Prettier** — linting and formatting
 
@@ -69,7 +69,7 @@ See [CLAUDE.md](CLAUDE.md) for the full list of non-negotiable architecture cons
 - Robot lifecycle: Battery drain/recharge, a Docking state machine, and Job assignment — the roster is fixed at spawn, nothing dynamically spawns or despawns afterward
 - **Companies** — user-created groups of robots; every editable Robot Options field can be broadcast-edited across a whole company at once
 - Global Audio Rig: 3-Band EQ, Low-/High-Pass Filter, Delay, Reverb, Compressor, Limiter, all seeded per world, plus stacked/grouped LFO "drift" for organic, non-repeating modulation
-- A schema-driven, hand-rolled ARIA nav tree (Settings / Fleet Params / Probes / Companies) with a shared "Oblique Cabinetry" tactile UI language (2.5D popping boxes) across all 14 Design System primitives
+- A schema-driven, hand-rolled ARIA nav tree (Settings / Fleet Params / Probes / Companies) with a shared "Oblique Cabinetry" tactile UI language (2.5D popping boxes) across all 13 Design System primitives
 - Deployed automatically to GitHub Pages on every push to `main` (`.github/workflows/deploy.yml`)
 
 **Not yet built** (see [docs/todo/roadmap.md](docs/todo/roadmap.md) Phases 19–21, 30 for specifics): backfilled unit coverage for a handful of older modules, Session Storage / URL-based save-and-share, and a few UI restructuring gaps (e.g. group-level intro panels on some Robot Options accordions).
@@ -102,7 +102,7 @@ src/
 ├── animation/      # GSAP timelines, timelineMap, swimAnimation
 ├── engine/         # AudioEngine, BeatClock, lfoEngine/lfoDrift, harmonySystem, melodyGenerator
 ├── components/
-│   ├── ui/controls/   # The 14 stateless Design System primitives (ControlSchema-driven)
+│   ├── ui/controls/   # The 13 stateless Design System primitives (ControlSchema-driven)
 │   ├── panels/screen/nav/   # Nav tree, per-branch content views, Oblique Cabinetry rows
 │   ├── panels/screen/console/  # Audio Rig, Sector Settings, Robot Options drawers
 │   ├── actors/     # Factory, BubbleStream (world-view set dressing)

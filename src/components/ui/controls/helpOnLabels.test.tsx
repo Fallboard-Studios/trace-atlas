@@ -15,14 +15,13 @@ import { LfoLink } from './LfoLink';
 import { TempoSyncToggle } from './TempoSyncToggle';
 import { DirectionalPanel } from './DirectionalPanel';
 import { Button } from './Button';
-import { AccordionContainer } from './AccordionContainer';
 import { CONTENT, fill, labels } from '@/content';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 12: every primitive that composes DualLabel for its own label row
- * passes `schema.help` through, so the "?" appears wherever a control's content entry has help. Two
- * never show one: Button and AccordionContainer draw their labels inside their own trigger, and a "?"
- * there would be a button inside a button.
+ * passes `schema.help` through, so the "?" appears wherever a control's content entry has help. One
+ * never shows one: Button draws its label inside its own trigger, and a "?" there would be a button
+ * inside a button.
  */
 
 const HELP = { human: 'What this control does.' };
@@ -81,10 +80,5 @@ describe('help on control labels', () => {
   it('Button never shows a "?" — its label is inside the button', () => {
     render(<Button schema={{ ...base, type: 'button' }} onClick={noop} />);
     expect(screen.getAllByRole('button')).toHaveLength(1);
-  });
-
-  it('AccordionContainer never shows a "?" — its label is inside its trigger', () => {
-    render(<AccordionContainer schema={{ ...base, type: 'accordion' }} open onOpenChange={noop}><p>body</p></AccordionContainer>);
-    expect(screen.queryByRole('button', { name: fill('ui.help', { name: NAME }) })).toBeNull();
   });
 });

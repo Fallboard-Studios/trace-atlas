@@ -18,7 +18,6 @@ import {
   type CoordsInputSchema,
   type ButtonSchema,
   type DualLabelSchema,
-  type AccordionSchema,
   type DirectionalPanelSchema,
   type PanelOrientation,
   type LfoLinkSchema,
@@ -30,9 +29,9 @@ import {
 // ========================================
 
 describe('CONTROL_SCHEMA_TYPES', () => {
-  it('has exactly 14 entries, no duplicates', () => {
-    expect(CONTROL_SCHEMA_TYPES).toHaveLength(14);
-    expect(new Set(CONTROL_SCHEMA_TYPES).size).toBe(14);
+  it('has exactly 13 entries, no duplicates', () => {
+    expect(CONTROL_SCHEMA_TYPES).toHaveLength(13);
+    expect(new Set(CONTROL_SCHEMA_TYPES).size).toBe(13);
   });
 
   it('matches the ControlSchema union discriminants exactly', () => {
@@ -41,7 +40,7 @@ describe('CONTROL_SCHEMA_TYPES', () => {
         'stepper', 'stepperToggle',
         'sliderLinear', 'sliderLog', 'sliderCenteredZero',
         'radio', 'toggle', 'textInput', 'coordsInput',
-        'button', 'dualLabel', 'accordion', 'lfoLink',
+        'button', 'dualLabel', 'lfoLink',
         'directionalPanel',
       ].sort()
     );
@@ -61,17 +60,16 @@ describe('ControlSchema variants', () => {
     const coordsInput: CoordsInputSchema = { id: 'sectorCoords', type: 'coordsInput' };
     const button: ButtonSchema = { id: 'resetMelody', type: 'button' };
     const dualLabel: DualLabelSchema = { id: 'jobData', type: 'dualLabel' };
-    const accordion: AccordionSchema = { id: 'pingControls', type: 'accordion' };
     const lfoLink: LfoLinkSchema = { id: 'eq3LowLink', type: 'lfoLink' };
     const directionalPanel: DirectionalPanelSchema = { id: 'eq3Panel', type: 'directionalPanel', orientation: 'row' };
 
     const variants: ControlSchema[] = [
       stepper, stepperToggle, sliderLinear, sliderLog, sliderCenteredZero,
-      radio, toggle, textInput, coordsInput, button, dualLabel, accordion, lfoLink,
+      radio, toggle, textInput, coordsInput, button, dualLabel, lfoLink,
       directionalPanel,
     ];
 
-    expect(variants).toHaveLength(14);
+    expect(variants).toHaveLength(13);
   });
 
   it('accepts loreLabel and/or humanLabel on the shared base, both optional', () => {

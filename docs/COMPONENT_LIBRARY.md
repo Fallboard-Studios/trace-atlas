@@ -16,7 +16,7 @@ interface ControlSchemaBase {
 }
 ```
 
-`CONTROL_SCHEMA_TYPES` is a `readonly` array of all 14 discriminant strings, mirroring `src/types/lfo.ts`'s `LFO_SHAPES`/`ROBOT_LFO_TARGET_IDS` pattern — it makes "all 14 variants covered, no duplicates" a runtime-testable assertion (`src/types/controls.test.ts`), not just a compile-time property. `select` (`Select`) was added in Roadmap Phase 10 (Companies) and removed in Roadmap Phase 10.5 (`docs/specs/COMPANY_ASSIGNMENT_RADIO.md`) once its one real use — robot-to-company assignment — moved to `RadioButton`; `directionalPanel` (`DirectionalPanel`), added by `docs/specs/DIRECTIONAL_PANEL.md` after `select`, is unaffected and remains; `accordion` (`AccordionContainer`) was removed once its last real consumer migrated off it (`docs/specs/NAV_LAYOUT_REWRITE.md` Task 21), then **restored and converted to a controlled component** once the nav panel's view/accordion/scroll model needed it again (`docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md` Tasks 3-4) — 13 at Phase 1, +1 for `select` then -1 for its removal, +1 for `directionalPanel`, -1 for `accordion`'s later removal, +1 for `accordion`'s restoration.
+`CONTROL_SCHEMA_TYPES` is a `readonly` array of all 13 discriminant strings, mirroring `src/types/lfo.ts`'s `LFO_SHAPES`/`ROBOT_LFO_TARGET_IDS` pattern — it makes "all 13 variants covered, no duplicates" a runtime-testable assertion (`src/types/controls.test.ts`), not just a compile-time property. `select` (`Select`) was added in Roadmap Phase 10 (Companies) and removed in Roadmap Phase 10.5 (`docs/specs/COMPANY_ASSIGNMENT_RADIO.md`) once its one real use — robot-to-company assignment — moved to `RadioButton`; `directionalPanel` (`DirectionalPanel`), added by `docs/specs/DIRECTIONAL_PANEL.md` after `select`, is unaffected and remains; `accordion` (`AccordionContainer`) was removed once its last real consumer migrated off it (`docs/specs/NAV_LAYOUT_REWRITE.md` Task 21), then **restored and converted to a controlled component** once the nav panel's view/accordion/scroll model needed it again (`docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md` Tasks 3-4) — 13 at Phase 1, +1 for `select` then -1 for its removal, +1 for `directionalPanel`, -1 for `accordion`'s later removal, +1 for `accordion`'s restoration, -1 when `AccordionContainer` was deleted for good (2026-10-22: its last consumer, the Deck's Welcome card, was removed on 2026-10-12).
 
 **Update (`docs/tasks/LFO_BANK.md`, 2026-10-01):** the `Lfo` primitive and its `LfoValue` type are gone — see the "`LfoLink`" entry under Shared composition components below, which replaced this paragraph's own subject along with `LfoTargetGroup`/`useLfoTargetGroup`.
 
@@ -38,19 +38,18 @@ Because `loreLabel`/`humanLabel` are both optional (`ControlSchemaBase`, exporte
 
 ## The `isActive` CSS hook
 
-`Toggle`, `StepperWithToggle`, `LfoLink`, and `AccordionContainer` each add a plain `isActive` class to their own root element whenever their represented state is "on" (`Toggle`/`StepperWithToggle`: their `active` value is `true`; `LfoLink`: `lane !== null` — `docs/tasks/LFO_BANK.md` Task 11, replacing the former `Lfo`/`LfoTargetGroup` entries here) — alongside whatever `data-state` Radix already sets internally on its own primitive. This exists so a consumer can write a plain compound selector instead of an attribute `:has()` query. All four share one implementation, `src/components/ui/controls/activeClass.ts`'s `withActiveClass(base, active)`:
+`Toggle`, `StepperWithToggle`, and `LfoLink` each add a plain `isActive` class to their own root element whenever their represented state is "on" (`Toggle`/`StepperWithToggle`: their `active` value is `true`; `LfoLink`: `lane !== null` — `docs/tasks/LFO_BANK.md` Task 11, replacing the former `Lfo`/`LfoTargetGroup` entries here) — alongside whatever `data-state` Radix already sets internally on its own primitive. This exists so a consumer can write a plain compound selector instead of an attribute `:has()` query. All three share one implementation, `src/components/ui/controls/activeClass.ts`'s `withActiveClass(base, active)`:
 
 ```css
 .sc-toggle.isActive { }
 .sc-stepper-toggle.isActive { }
 .sc-lfo-link.isActive { }
-.sc-accordion.isActive { }
 ```
 
 ## `React.memo` boundary (Roadmap Phase 11.1's own follow-up, `docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md`)
 
-All 16 files under `src/components/ui/controls/` that render Oblique Cabinetry facades — the 14
-primitives below, plus `DualLabel` and `VoxelTrack` (the shared `CabinetBox` row renderer
+Every file under `src/components/ui/controls/` that renders Oblique Cabinetry facades — the 13
+primitives below (`DualLabel` among them), plus `VoxelTrack` (the shared `CabinetBox` row renderer
 `SliderLinear`/`SliderLog`/`SliderCenteredZero` all build on) — are `React.memo`-wrapped, following
 the `XxxInner`/`export const Xxx = React.memo(XxxInner)` split `Factory.tsx`/`BubbleStream.tsx`
 already use elsewhere in this codebase. `CabinetBox` itself is memoized too.
@@ -68,7 +67,7 @@ carries the identical unstabilized-inline-closure pattern `AudioRigDrawer.tsx` h
 same treatment in its own follow-up pass before it benefits from this memo boundary.
 
 Two components' own memo benefit is conditional on the caller for a second reason, independent of
-callback stability: `AccordionContainer`/`DirectionalPanel`/`Toggle` (when given facade `children`)
+callback stability: `DirectionalPanel` and `Toggle` (when given facade `children`)
 take caller-supplied `children`. A caller constructing that `children` inline — the overwhelmingly
 common case today, e.g. every real `<DirectionalPanel schema={...}>{...}</DirectionalPanel>` call
 site — hands down a fresh element reference every render regardless of memoization here, since a
@@ -112,7 +111,7 @@ Side-by-side groupings are done with nested `'responsive'` `DirectionalPanel`s, 
 
 `DirectionalPanelSchema` carries an *optional* `orientation?: PanelOrientation` field (`'row' | 'column' | 'auto' | 'responsive'`, `src/types/controls.ts`) — the opposite of the 3 sliders' `SliderOrientation`, which is required. Omitting it defaults to `'row'` inside the component, not the type. The resolved value is exposed as `data-orientation="row" | "column"` on the component's content wrapper, reusing the same `data-orientation` CSS-attribute-selector pattern the slider orientation work established above, rather than inventing a second one. `'row'` is always `flex-wrap: nowrap` — there is no `wrap` prop; an overflowing row is solved by nesting another `DirectionalPanel` around the group that needs to break, not by this component growing wrap behavior. `'auto'` resolves per-instance via `useAutoPanelOrientation`, measuring that panel's own parent element and going `'row'` once there's enough room. `'responsive'` (roadmap: Audio Rig responsive layout) resolves instead via `useResponsivePanelOrientation`, reading the same fixed mobile(≤640px)/tablet(641–1024px)/desktop(>1024px) viewport tiers `CabinetBox` sizing already uses — every `'responsive'` panel resolves identically (`'column'` on mobile/tablet, `'row'` on desktop), never a per-instance measurement. `docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md` is the first (and, as of writing, only) consumer, replacing the Audio Rig's own `'auto'`/fixed-`'row'` panels — Robot Options still uses `'auto'` and hasn't been converted.
 
-`DirectionalPanel` is a pure layout container: no `value`/`onChange`, no state of its own (not even `AccordionContainer`'s open/closed `useState`), and no Radix primitive wrapped — plain CSS flexbox is enough since there's no interactive behavior to manage. It composes standalone (same `{ schema, children }` shape as every other primitive — no dependency on `AccordionContainer`), and nesting `DirectionalPanel` inside `DirectionalPanel` is the intended way to build 2D layouts from this one axis-flippable primitive, the same way flexbox itself or an `HStack`/`VStack`-style stack does. It composes safely around the inline `LfoLink` rows (below) the same way — wrapping *around* them, never replacing them, since `DirectionalPanel` adds no event handlers of its own and has no prop passthrough for `onClick`/`onFocus`/`className` (the original compatibility check below was written against `LfoTargetGroup`'s click/focus-targeted rows, since deleted and replaced by `LfoLink` — `docs/tasks/LFO_BANK.md` Task 16 — but the same "wraps around, adds no handlers" property holds for its independently-editable replacement).
+`DirectionalPanel` is a pure layout container: no `value`/`onChange`, no state of its own, and no Radix primitive wrapped — plain CSS flexbox is enough since there's no interactive behavior to manage. It composes standalone (same `{ schema, children }` shape as every other primitive), and nesting `DirectionalPanel` inside `DirectionalPanel` is the intended way to build 2D layouts from this one axis-flippable primitive, the same way flexbox itself or an `HStack`/`VStack`-style stack does. It composes safely around the inline `LfoLink` rows (below) the same way — wrapping *around* them, never replacing them, since `DirectionalPanel` adds no event handlers of its own and has no prop passthrough for `onClick`/`onFocus`/`className` (the original compatibility check below was written against `LfoTargetGroup`'s click/focus-targeted rows, since deleted and replaced by `LfoLink` — `docs/tasks/LFO_BANK.md` Task 16 — but the same "wraps around, adds no handlers" property holds for its independently-editable replacement).
 
 Full design rationale, including the original `LfoTargetGroup` composability check and the shallow real-world nesting depth against the app's actual multi-slider groups: `docs/specs/DIRECTIONAL_PANEL.md`. `DirectionalPanel` shipped standalone with no consumers; it got its first two in the Audio Rig drawer and the Robot Effects drawers (`AudioRigDrawer`, `AudioSettingSection`, `PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer`) — `docs/specs/DIRECTIONAL_PANEL_WIRING.md`.
 
@@ -152,7 +151,7 @@ Also worth knowing when placing a `Toggle` in a flex row: `Toggle.css` makes `.s
 
 ### `SliderLinear`'s `readOnly` mode (Roadmap Phase 15.1)
 
-`SliderLinear` gained an optional `readOnly?: boolean` prop, rendering a second branch entirely separate from the interactive one above: a plain `<div role="status">` — no Radix `Slider.Root`/`Track`/`Thumb`, no drag/keyboard interaction, not a tab stop. It is **not** a disabled slider (Radix's own `disabled` state keeps the widget's `role="slider"`/`aria-disabled` semantics, appropriate for "you can't edit this right now") — `readOnly` is a live, always-accurate status readout that was never editable in the first place (e.g. Battery/Power), so it drops the widget role entirely, following the same precedent `AudioStatusBadge` already set for "a value display that happens to look like a control." The `VoxelTrack` fill, `DualLabel` row, and value label are visually identical to the interactive branch (same colors, same fill logic, no desaturation) — only the thumb and interaction cues are gone. `readOnly` takes precedence over `disabled` when both are passed. Full design rationale, including why the accessible name relies on the wrapper's own visible text plus `role="status"`'s live-region behavior rather than a composed `aria-label`: `docs/specs/SLIDER_LINEAR_READ_ONLY.md`.
+`SliderLinear` gained an optional `readOnly?: boolean` prop, rendering a second branch entirely separate from the interactive one above: a plain `<div role="status">` — no Radix `Slider.Root`/`Track`/`Thumb`, no drag/keyboard interaction, not a tab stop. It is **not** a disabled slider (Radix's own `disabled` state keeps the widget's `role="slider"`/`aria-disabled` semantics, appropriate for "you can't edit this right now") — `readOnly` is a live, always-accurate status readout that was never editable in the first place (e.g. Battery/Power), so it drops the widget role entirely: it is a value display that happens to look like a control. The `VoxelTrack` fill, `DualLabel` row, and value label are visually identical to the interactive branch (same colors, same fill logic, no desaturation) — only the thumb and interaction cues are gone. `readOnly` takes precedence over `disabled` when both are passed. Full design rationale, including why the accessible name relies on the wrapper's own visible text plus `role="status"`'s live-region behavior rather than a composed `aria-label`: `docs/specs/SLIDER_LINEAR_READ_ONLY.md`.
 
 ### `SliderLog`'s Oblique Cabinetry rendering (Roadmap Phase 11.1.4)
 
@@ -190,16 +189,12 @@ One deliberate difference from `SliderLinear`'s branch: the `DualLabel` keeps it
 
 **Update (layout rework, `docs/specs/LAYOUT_REWORK.md` §1.4, §1.9):** three additions, all default-preserving. (1) **A single-line option face.** Each option's text is one `.sc-radio-button__face`: the lore name (when the option has one) over the human name, both held to one line with an ellipsis cap, so a 128-character company name cannot fold a row to a column. It is not `DualLabel` (no "?" on an option); `LfoLink`'s lane options carry no lore and so stay single-line. (2) **`appearance?: 'cabinet' | 'muted'`** on `RadioButtonSchema`: `'muted'` swaps each `CabinetBox` for the option's own shape and size with no cabinet walls, no pop timeline and no glow, and no hover pop. The off screen's Transmission row uses it, since nothing comes off the plate while the power is off. (3) **`dividerBefore?: boolean`** on an option draws a thin rule ahead of it in either appearance (the presets, a divider, then the user's saves). The radio's container is `container-type: inline-size` and so has no intrinsic width: a shrink-to-fit popover or dialog around one needs a width of its own.
 
-### `AccordionContainer`'s Oblique Cabinetry rendering (Roadmap Phase 11.1.7)
-
-`AccordionContainer`'s internal rendering changed — the fifth consumer of the shared `CabinetBox` mechanism, and the first to nest one `CabinetBox` inside another's front face. The trigger's content splits into two boxes with two different relationships to `popped`, not one state-keyed box the way `Toggle`/`RadioButton` are: an **outer, permanently-popped facade** wraps the whole row (`popped` is the literal `true`, never a variable, plus `skipMountAnimation`, so `CabinetBox`'s own unmodified mount/transition logic never actually produces a tween for this instance — it gives the trigger the Oblique Cabinetry look with zero animation tied to it), sized by a new tuned constant, `CABINET_ACCORDION_TRIGGER_HEIGHT = 56`, rather than `Button`'s breakpoint-driven 32/40/48px tiles — a full-width trigger bar holding `DualLabel`'s own 2-line stack needs more room than any single-line box in the series so far. Nested inside that facade's `children`, the old plain `+`/`−` text glyph is now its own small, **genuinely state-keyed** `CabinetBox` — popped when open, flat when closed, reusing `Toggle`'s exact `CABINET_TOGGLE_BOX_SIZE = 32` constant (imported directly, not redeclared) and its no-accent-tint precedent; this is the only part of the trigger that actually animates. Two same-class `.sc-cabinet-box__front`s now exist at different nesting depths, so `AccordionContainer.css` scopes each independently — direct-child combinators for the outer (`.sc-accordion__trigger > .sc-cabinet-box > .sc-cabinet-box__front`) and a descendant selector scoped to the new `.sc-accordion__row` wrapper for the inner — rather than a single shared selector that would catch both. The old outer chrome (`.sc-accordion`'s `border`/`border-radius`/`overflow: hidden`, the trigger's own `background-color`) is removed entirely; the content panel gains a new `background-color: var(--color-surface)` rule so it still reads as a continuation of the facade's own surface. `animateTo`/`contentRef` (the content-height GSAP timeline) were unchanged by this phase — the trigger's two `CabinetBox` timelines are independent `timelineMap` entries alongside it, not a replacement. (`handleValueChange` and when the content is mounted were later reworked by roadmap 17.2.2 — see "Lazy mounting" under `AccordionContainer` below.) The `ControlSchema`/props contract (`{ schema: AccordionSchema; children: ReactNode; defaultOpen?: boolean }`) is unchanged — no call site needed to change (later superseded by a controlled `open`/`onOpenChange` contract, `docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md` Task 4 — see the `AccordionContainer` entry below). Full design rationale: `docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md`.
-
 ### `DirectionalPanel`'s Oblique Cabinetry rendering
 
 `DirectionalPanel`'s internal rendering changed for **top-level instances only** — one rendered directly by
-a drawer/`AccordionContainer`, not one nested inside another `DirectionalPanel`'s own `children` for
-sub-layout. A top-level panel now renders through the same permanently-popped, non-animating `CabinetBox`
-facade `AccordionContainer`'s own trigger uses (`popped={true}` + `skipMountAnimation`), wrapping the whole
+a drawer, not one nested inside another `DirectionalPanel`'s own `children` for
+sub-layout. A top-level panel now renders through a permanently-popped, non-animating `CabinetBox`
+facade (`popped={true}` + `skipMountAnimation`), wrapping the whole
 panel — its `DualLabel` plus the full row/column of already-individually-`CabinetBox`ed child controls — as
 one framed unit; a nested panel renders exactly as before, unframed. Which instances are top-level is
 resolved by an internal (unexported) React Context, `DirectionalPanelNestingContext`, not a per-call-site
@@ -239,54 +234,13 @@ numeric?, disabled? }` props contract is unchanged — no call site needed to ch
 
 `SliderLinear`, `SliderLog`, `SliderCenteredZero`, and `Stepper` all round their visible `{value}{unit}` label through `src/components/ui/controls/formatDisplayValue.ts` before rendering — at most 3 decimal places, rounded rather than truncated (`5` stays `5`, not `5.000`). This exists to hide floating-point noise (log-scale math, repeated range conversions) that would otherwise surface as e.g. `4999.999999999999Hz`. It's display-only: the value passed to `onChange`/stored in Zustand, and `SliderLinear`/`SliderLog`/`SliderCenteredZero`'s underlying `aria-valuenow`, stay full precision — only the human-readable label is capped.
 
-### `AccordionContainer` (controlled)
-
-Wraps exactly one Radix `Accordion.Root type="single" collapsible` + one `Item` (`@radix-ui/react-accordion`) — a single independent collapsible section, not a group coordinator. The props contract is `{ schema: AccordionSchema; children: ReactNode; open: boolean; onOpenChange: (open: boolean) => void; style?: CSSProperties }`: the caller owns whether it is open, and the component animates the transition (a `useEffect` on the `open` prop, the content-height GSAP timeline, `prefers-reduced-motion` respected). It always renders whatever `children` it is given; it holds no lazy-mount state.
-
-The layout rework retired the stacked, scroll-synced screens it was restored for: Fleet Params, the robot and company screens and Settings are now `SectionTabs` (below), one section in the DOM at a time. Its one remaining consumer is the Deck's Welcome card in `ContentPane` (`home.welcome`), where the card can be collapsed on a phone to leave the world clickable. Design history: `docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md`, `docs/specs/ACCORDION_LAZY_MOUNT.md`.
-
 ### `CabinetBox`'s `color` and `enforceMinTouchHeight` props
 
 Two additive, opt-in props, both default-preserving (every other consumer is byte-for-byte unaffected). `color?: string` is a single already-resolved CSS colour that overrides `--color-accent`/`--color-surface` for the backing, both walls and the front face, implemented as a `--cabinet-box-color` custom property read as `var(--cabinet-box-color, <existing default>)`. `enforceMinTouchHeight?: boolean` (default `true`) controls whether `--cabinet-box-height` keeps its 44 px floor; `false` only when the `CabinetBox` is not itself the touch target, as in the roster tile's Move chip, where the wrapping button is.
 
-## Display-only primitives (no `ControlSchema`)
-
-Not part of the 15-primitive `ControlSchema` inventory above, and not a "shared composition
-component" either (below) — those compose *several already-rendered primitives*; this is a single
-leaf with no schema, no `id`, and no `value`/`onChange` pair at all, the first primitive in this
-directory shaped that way.
-
-### `Textbox`
-
-`src/components/ui/controls/Textbox.tsx` renders trusted, first-party HTML content (lore/
-description copy) with color theming that tracks whichever item it's about. Props:
-`{ html: string; cabinetry?: boolean; trait?: Trait }`.
-
-- **`html`** is sanitized via `DOMPurify.sanitize` unconditionally, on every render, before being
-  rendered with `dangerouslySetInnerHTML` on an inner `.sc-textbox__content` element — never
-  skipped, even though the data is always first-party/trusted (defense-in-depth).
-- **`cabinetry`** (default `false`) wraps the content in the same permanently-popped, non-animating
-  `CabinetBox` facade `TextInput`/`DirectionalPanel`'s own top-level instances use
-  (`popped`/`skipMountAnimation`/`autoHeight` all literal `true`) when `true`; when `false`, no
-  `CabinetBox` is rendered at all — not a flat/hidden one. `CabinetBox`'s `timelineKey` is built
-  from React's own `useId()` (`` `cabinet-textbox-${id}` ``) rather than a schema id, since none
-  exists here. The root additionally carries the literal class `hasCabinetry` (not translated to
-  this codebase's usual `sc-`/BEM convention — a deliberate, explicitly-requested exact name) when
-  `cabinetry` is `true`.
-- **`trait`** is an already-resolved `Trait` id (`src/types/traits.ts`), matching every other
-  trait-aware component (`NavBox`, `AudioSettingSection`, ...) — `Textbox` never derives a
-  trait from `html` or any item id itself. Omitted, it falls back to `getTraitColorStyle('header')`
-  — the same pair `index.css`'s own app-wide ambient default and `Header.tsx` use. The resolved
-  accent style is applied on `Textbox`'s own root (`.sc-textbox`), so both the cabinetry facade (if
-  present) and any other descendant reading `--color-accent-*` inherit it via plain CSS cascade.
-
-Ships with no real data-driven consumer as of this writing — a later phase wires it into actual
-robot/company lore or description data and chooses that consumer's own `trait` value. Full design
-rationale: `docs/specs/TEXTBOX_COMPONENT.md`.
-
 ## Shared composition components
 
-Not part of the 15-primitive `ControlSchema` inventory above — these compose several already-rendered primitives (caller-rendered sliders, one `LfoLink`) rather than rendering from a single schema-driven leaf. No new `ControlSchema` variant was added for this one, but a new discriminant (`'lfoLink'`) was added to the schema union it's built from — see below.
+Not part of the 13-primitive `ControlSchema` inventory above — these compose several already-rendered primitives (caller-rendered sliders, one `LfoLink`) rather than rendering from a single schema-driven leaf. No new `ControlSchema` variant was added for this one, but a new discriminant (`'lfoLink'`) was added to the schema union it's built from — see below.
 
 ### `LfoLink`
 

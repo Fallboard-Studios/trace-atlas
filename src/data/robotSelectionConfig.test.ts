@@ -5,8 +5,6 @@ import {
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
-  AUDIO_MODE_LABELS,
-  AUDIO_STATUS_COLOR_MAP,
   AUDIBILITY_LABELS,
   ACTIVITY_LABELS,
 } from './robotSelectionConfig';
@@ -16,11 +14,6 @@ import { JobType, DockingState, type RobotActivity } from '@/types/Robot';
 
 // RobotActivity is a type-only union (types/Robot.ts) — the seven spelled out, in lifecycle order.
 const ACTIVITIES = ['charging', 'exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const satisfies readonly RobotActivity[];
-
-// Every Robot['audioMode'] value per its own type comment (Robot.ts) — no const-object export
-// exists for this union today, unlike JobType/DockingState, so the literal list is spelled out
-// here rather than derived.
-const AUDIO_MODES = ['none', 'mute', 'solo', 'highlight'] as const;
 
 describe('robotSelectionConfig', () => {
   describe('ROBOT_SELECTION_ROW_SCHEMAS', () => {
@@ -149,35 +142,6 @@ describe('robotSelectionConfig', () => {
       });
     });
   });
-
-  describe('AUDIO_MODE_LABELS', () => {
-    it('covers every audioMode value with a loreLabel and humanLabel', () => {
-      for (const mode of AUDIO_MODES) {
-        expect(AUDIO_MODE_LABELS[mode]).toBeDefined();
-        expect(AUDIO_MODE_LABELS[mode].loreLabel).toBeTruthy();
-        expect(AUDIO_MODE_LABELS[mode].humanLabel).toBeTruthy();
-      }
-    });
-
-    it("labels 'none' as 'Auto', not 'Off' — matches AUDIO_SETTING_SCHEMA's own relabel (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3), so the Robot Selection card list reads consistently with Robot Options' own Audio Setting control", () => {
-      expect(AUDIO_MODE_LABELS.none.humanLabel).toBe(CONTENT['probe.status.monitorMode'].options.none.human);
-    });
-  });
-
-  describe('AUDIO_STATUS_COLOR_MAP', () => {
-    it('maps none/mute/solo/highlight to purple/red/green/amber, per confirmed intake', () => {
-      expect(AUDIO_STATUS_COLOR_MAP.none).toBe('purple');
-      expect(AUDIO_STATUS_COLOR_MAP.mute).toBe('red');
-      expect(AUDIO_STATUS_COLOR_MAP.solo).toBe('green');
-      expect(AUDIO_STATUS_COLOR_MAP.highlight).toBe('amber');
-    });
-
-    it('covers every audioMode value', () => {
-      for (const mode of AUDIO_MODES) {
-        expect(AUDIO_STATUS_COLOR_MAP[mode]).toBeDefined();
-      }
-    });
-  });
 });
 
 describe('robotSelectionConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 9)', () => {
@@ -187,7 +151,6 @@ describe('robotSelectionConfig reads its copy from src/content (docs/specs/CONTE
     expect(JOB_TYPE_LABELS.ventExtraction.humanLabel).toBe(CONTENT['probe.job'].options.ventExtraction.human);
     expect(DOCKING_STATE_LABELS.docked.loreLabel).toBe(CONTENT['probe.status.docking'].options.docked.lore);
     expect(AUDIBILITY_LABELS.limited.humanLabel).toBe(CONTENT['probe.status'].options.limited.human);
-    expect(AUDIO_MODE_LABELS.none.loreLabel).toBe(CONTENT['probe.status.monitorMode'].options.none.lore);
     expect(UNASSIGNED_JOB_LABEL.humanLabel).toBe(CONTENT['probe.job.unassigned'].human);
     expect(ROBOT_SELECTION_ROW_SCHEMAS.name.humanLabel).toBe(CONTENT['probe.name'].human);
     expect(BATTERY_READOUT_SCHEMA.unit).toBe(CONTENT['probe.battery'].unit);

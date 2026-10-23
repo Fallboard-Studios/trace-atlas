@@ -698,7 +698,7 @@ describe('Robot Articulation schemas', () => {
 
   it('every schema is one of the closed-set ControlSchema variants', () => {
     [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(CONTROL_SCHEMA_TYPES).toContain(schema.type));
-    expect(CONTROL_SCHEMA_TYPES).toHaveLength(14); // no primitive was added
+    expect(CONTROL_SCHEMA_TYPES).toHaveLength(13); // no primitive was added
   });
 
   describe('Portamento', () => {

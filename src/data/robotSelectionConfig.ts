@@ -3,14 +3,13 @@
  * Phase 8). ROBOT_SELECTION_ROW_SCHEMAS's five entries use the exact lore/human pairs already
  * confirmed in docs/reference/ROBOT_DATA_GRID.md (Robot Name/Job Data/Battery Data/Docked
  * Status/Audio Setting). The per-value label maps below (JOB_TYPE_LABELS/
- * DOCKING_STATE_LABELS/AUDIO_MODE_LABELS) are best-guess drafts — the grid only defines
+ * DOCKING_STATE_LABELS) are best-guess drafts — the grid only defines
  * category-level pairs, not per-value ones — appended to ROBOT_DATA_GRID.md as drafts pending
  * review (see docs/tasks/archive/ROBOT_SELECTION.md Task 12).
  */
 import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
-import type { JobType, DockingState, Robot, RobotActivity } from '@/types/Robot';
+import type { JobType, DockingState, RobotActivity } from '@/types/Robot';
 import type { AudibilityState } from '@/utils/robotAudibility';
-import type { StatusLightState } from '@/utils/statusLightColors';
 import { labels, optionsRecord } from '@/content';
 
 // ========================================
@@ -78,18 +77,6 @@ export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = optionsRec
 
 /** The work loop's seven activities (Phase 43 spec §1.11), keyed by `Robot.activity`. */
 export const ACTIVITY_LABELS: Record<RobotActivity, ValueLabel> = optionsRecord('probe.status.activity');
-
-type AudioMode = NonNullable<Robot['audioMode']>;
-
-export const AUDIO_MODE_LABELS: Record<AudioMode, ValueLabel> = optionsRecord('probe.status.monitorMode');
-
-/** off=purple, mute=red, solo=green, highlight=amber — confirmed during intake. */
-export const AUDIO_STATUS_COLOR_MAP: Record<AudioMode, StatusLightState> = {
-  none: 'purple',
-  mute: 'red',
-  solo: 'green',
-  highlight: 'amber',
-};
 
 /**
  * Roadmap 15.2 (docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.3) — Status, half of RobotSelectionCard's
