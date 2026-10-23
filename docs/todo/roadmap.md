@@ -395,6 +395,9 @@ building. Picked over the alternatives discussed the same day (see Not Doing). B
 [45](#45-layout-rework-shell-nav-section-tabs-roster-off-screen) is merged, since it is laid out with
 that phase's shell, nav panel and `SectionTabs`.
 
+**Crawford, 2026-10-22:** a large undertaking, to be approached as such. The likely shape is one tabbed
+window that shows everything, rather than a branch of nav pages; the interview starts from that.
+
 ### About
 
 **The gap (verified 2026-10-12).** Every explanation in the app today sits at or below the screen

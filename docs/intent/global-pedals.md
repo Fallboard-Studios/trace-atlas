@@ -2,7 +2,7 @@
 
 Confirmed via `interview-me` on 2026-10-17 (6 questions; one guess overturned — "all eight in one pass" became the
 five dry-chain pedals now and the two room type radios later), ahead of a `spec-driven-development` pass. Backlog
-item 22 ([docs/todo/backlog.md](../todo/backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)), the next
+item 22 ([docs/todo/backlog.md](../todo/archive/backlog-archive.md#22-audio-palette-trials-more-global-pedals-to-audition)), the next
 item on the Audio Palette menu (roadmap 50) after 50.1–50.5 merged to `main` (PRs #555–#559). Not yet a roadmap
 entry; the spec pass gives it a number.
 

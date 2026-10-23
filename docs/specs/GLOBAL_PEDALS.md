@@ -14,7 +14,7 @@
 Source of intent: [docs/intent/global-pedals.md](../intent/global-pedals.md) (confirmed 2026-10-17, six
 questions; one guess overturned — "all eight in one pass" became the five dry-chain pedals now and the two
 room type radios later). Backlog item 22
-([backlog.md](../todo/backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)); proposed roadmap
+([backlog.md](../todo/archive/backlog-archive.md#22-audio-palette-trials-more-global-pedals-to-audition)); proposed roadmap
 slot **50.6**, the sixth sub-phase of the Audio Palette series (assumption 17). 50.1–50.5 are merged (`main`
 at `4a9b3fec`, PRs #555–#559), so the chain already carries the send/return rooms, the three Colour nodes and
 the two 50.4 pedals this spec builds after. **This branch (`perf/per-mover-layers`) carries roadmap 53's build

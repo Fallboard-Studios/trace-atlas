@@ -58,6 +58,15 @@ out in the Sector Settings panel. Depends on Phase 21 for the "shareable link" h
 Session Storage (Phase 20) alone only makes a link possible via the address bar, not
 an in-app Export/Import action.
 
+**Reframed 2026-10-22 (Crawford):** this item is now about the **powered-down state**, not the Sector
+Settings panel. The off screen's Transmission row from roadmap 45 (three preset worlds and the user's
+saves; [backlog archive 2](archive/backlog-archive.md#2-onload-power-off-intro-text)) is the partial
+start; Crawford has a plan for how that screen shows the themes ([docs/ideas/themes.md](../ideas/themes.md)),
+the sessions and the presets. Item [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s
+selection UI is expected to live here too (its progression engine stays item 7's own, large, piece of
+work), and item [19](#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
+a preset entry. Still needs its own `/interview-me`.
+
 ### 6. Audio: Groove Feature
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
@@ -76,6 +85,12 @@ Requested by Crawford (`docs/todo/temp.md`), 2026-09-11, as "more chord progress
 selection UI". Low priority — deprioritized behind launch. Design discussed with Crawford
 2026-10-09 and recorded here; **not interviewed, not specced** — needs its own `/interview-me`
 pass when picked up, which should start from the "Open" list below.
+
+**Note 2026-10-22 (Crawford):** the user-facing part (the tag filter, the mood choice) is now expected to
+be built with item [5](#5-sector-settings-ascoordsfavorites-reorganization)'s powered-down state rather
+than in the Audio Rig's Pacing section as the "UI home" lean below says. The progression engine, the
+catalogue and the seeded chain stay this item and are a large build in their own right; 5's interview
+decides the surface, this item's interview decides the music.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
@@ -334,6 +349,14 @@ which stays for tweaked worlds) and roadmap
 [48](roadmap.md#48-one-day-clock-remove-the-measure-based-day)'s dead-code sweep, which leaves the old
 override primitives alone until this item decides their fate.
 
+**Added 2026-10-22 (Crawford):** the `?session=` form itself should get shorter too, for tweaked worlds,
+and a library is acceptable for it (this note is the ask-first; the pick still goes through the
+interview). Today it is plain base64 of abbreviated-key JSON with no compression (roadmap 21). Two
+candidates to measure on a real tweaked payload: the native `CompressionStream('deflate-raw')` plus
+base64url that roadmap 20's original design proposed (no dependency, but decoding is async, and the
+boot seam below reads the payload synchronously at module load, so it changes the boot sequence), or
+`lz-string`'s `compressToEncodedURIComponent` (a small dependency, synchronous, URL-safe output).
+
 **The case, verified 2026-10-09.** An untweaked world is fully determined by two values: the
 Attenuation Style's *name* (the seed for the Audio Rig, the LFO Bank, tempo and swells, via
 `deriveAttenuationStyleSeed`) and the locale's integer coordinates (robots, companies, melodies,
@@ -439,41 +462,6 @@ bypass the content-layer guard the same way robot and company names do; built-in
 **Open:** whether it is for Crawford (a composing tool with slot-level control) or for players (chord
 picker only); whether built-ins are forkable; whether a library is shareable on its own; the voicing
 templates themselves (the bulk of the musical work).
-
-### 22. Audio Palette Trials: More Global Pedals to Audition
-
-The single-instance Tone 15 effects not shipped in roadmap 50.3 / 50.4 (AutoWah and Phaser both shipped, so neither moves here) — each one slot in
-`wireGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:144`) with a `wet`, each behind the phone
-gate, auditioned one at a time on the Pixel:
-
-- `Chorus` (own LFO: `frequency`, `delayTime`, `depth`, `spread`), `Tremolo` (`frequency`, `depth`,
-  `spread`), `Vibrato` (`frequency`, `depth`), `FrequencyShifter` (`frequency` — strange, and
-  on-brand). The ones with an internal
-  oscillator are wall-clock (backlog 17's accepted class); Free | Sync (roadmap 33) could apply to
-  their `frequency`.
-- `StereoWidener` (`width`, no clock, cheap) — and a mono fold for phone speakers is the same control
-  at 0.
-- `PingPongDelay` as an alternative delay topology (stereo bounce) — a *type* radio on the Delay row
-  rather than a second delay; `Freeverb` / `JCReverb` as algorithmic reverb colours beside the
-  convolution `Reverb` (cheaper per sample than the impulse response, but metallic) — again a type
-  radio, not a second reverb.
-
-Keep what passes the gate and earns a lore name; the rest stays here as "tried, no".
-
-**Update 2026-10-21: the five pedals shipped as roadmap 50.6; this item now holds only the two room type radios.**
-Chorus, Tremolo, Vibrato, FrequencyShifter and StereoWidener were built on `feature/pedals` (roadmap 50.6,
-[docs/specs/GLOBAL_PEDALS.md](../specs/GLOBAL_PEDALS.md)), with Free | Sync on the three LFO rates. None was withdrawn,
-so nothing moves to "tried, no". Two corrections to the text above, for whoever picks this up:
-- **The cite is stale.** `globalFx.ts:144` was the old serial chain. Delay and Reverb are no longer chain stages
-  (Robot Sends, roadmap 50.2): they are two rooms that `buildGlobalFxChain` constructs beside the chain, fed by each
-  robot's send and joined back through a return gain (`docs/AUDIO_SYSTEM.md`, Signal Graph). A type radio would swap
-  the room node behind the sends and the return, not add a slot in `wireGlobalFxChain`.
-- **Freeverb and JCReverb are not cheaper.** Tone 15 (15.1.22) builds both from AudioWorklet comb filters (Freeverb
-  eight, JCReverb four, each its own worklet node) and its own docs warn that each "is now implemented with an
-  AudioWorkletNode which may result on performance degradation on some platforms. Consider using Reverb." The
-  BitCrusher is the app's only worklet today, and the phone is near its limit (backlog 27). So the reverb radio is
-  a phone-gate question first. `PingPongDelay` is plain Web Audio nodes (a cross-feedback stereo delay), with no
-  worklet.
 
 ### 23. Audio Palette Trials: Dynamics Processing and Ducking
 

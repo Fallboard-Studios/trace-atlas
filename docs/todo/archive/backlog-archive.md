@@ -172,6 +172,43 @@ replay exactly when seeded off the note index, the way velocity does (`computeNo
 Try order: dynamics first (cheapest to hear), then rests, gate, humanize. Each a short branch; drop
 what does not earn its slider.
 
+## 22. Audio Palette Trials: More Global Pedals to Audition
+
+**Closed** 2026-10-22 (Crawford). The five pedals shipped as roadmap [50.6](../roadmap.md#506-global-pedals-chorus-tremolo-vibrato-frequency-shifter-and-width) (PR #565), none withdrawn. The two room-type radios the 2026-10-21 update left here (PingPongDelay as a Delay type; Freeverb / JCReverb as Reverb types) are dropped, not built: both reverbs are AudioWorklet comb-filter stacks that Tone's own docs warn against, and the phone sits near its limit (item 27). The item as it stood follows.
+
+The single-instance Tone 15 effects not shipped in roadmap 50.3 / 50.4 (AutoWah and Phaser both shipped, so neither moves here) — each one slot in
+`wireGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:144`) with a `wet`, each behind the phone
+gate, auditioned one at a time on the Pixel:
+
+- `Chorus` (own LFO: `frequency`, `delayTime`, `depth`, `spread`), `Tremolo` (`frequency`, `depth`,
+  `spread`), `Vibrato` (`frequency`, `depth`), `FrequencyShifter` (`frequency` — strange, and
+  on-brand). The ones with an internal
+  oscillator are wall-clock (backlog 17's accepted class); Free | Sync (roadmap 33) could apply to
+  their `frequency`.
+- `StereoWidener` (`width`, no clock, cheap) — and a mono fold for phone speakers is the same control
+  at 0.
+- `PingPongDelay` as an alternative delay topology (stereo bounce) — a *type* radio on the Delay row
+  rather than a second delay; `Freeverb` / `JCReverb` as algorithmic reverb colours beside the
+  convolution `Reverb` (cheaper per sample than the impulse response, but metallic) — again a type
+  radio, not a second reverb.
+
+Keep what passes the gate and earns a lore name; the rest stays here as "tried, no".
+
+**Update 2026-10-21: the five pedals shipped as roadmap 50.6; this item now holds only the two room type radios.**
+Chorus, Tremolo, Vibrato, FrequencyShifter and StereoWidener were built on `feature/pedals` (roadmap 50.6,
+[docs/specs/GLOBAL_PEDALS.md](../../specs/GLOBAL_PEDALS.md)), with Free | Sync on the three LFO rates. None was withdrawn,
+so nothing moves to "tried, no". Two corrections to the text above, for whoever picks this up:
+- **The cite is stale.** `globalFx.ts:144` was the old serial chain. Delay and Reverb are no longer chain stages
+  (Robot Sends, roadmap 50.2): they are two rooms that `buildGlobalFxChain` constructs beside the chain, fed by each
+  robot's send and joined back through a return gain (`docs/AUDIO_SYSTEM.md`, Signal Graph). A type radio would swap
+  the room node behind the sends and the return, not add a slot in `wireGlobalFxChain`.
+- **Freeverb and JCReverb are not cheaper.** Tone 15 (15.1.22) builds both from AudioWorklet comb filters (Freeverb
+  eight, JCReverb four, each its own worklet node) and its own docs warn that each "is now implemented with an
+  AudioWorkletNode which may result on performance degradation on some platforms. Consider using Reverb." The
+  BitCrusher is the app's only worklet today, and the phone is near its limit (backlog 27). So the reverb radio is
+  a phone-gate question first. `PingPongDelay` is plain Web Audio nodes (a cross-feedback stereo delay), with no
+  worklet.
+
 ## 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
 
 **Closed** 2026-10-22 (Crawford). Both ranked fixes are on `main`: candidate 1 as roadmap [53](../roadmap.md#53-per-mover-compositor-layers) (PR #563) and candidate 2 as the deck camera's idle stand-down (PR #562, `fix/deck-camera-idle-range`). The "document layer" the status below leaves open was the harness, not the app: it counted Chrome's whole-frame `#document` paint as a full-viewport repaint, and with that left out the idle-paint gate passes at 0.08 × `main` ([PERFORMANCE.md](../../PERFORMANCE.md) "the Task 20 gate, re-run with the frame wrappers left out"). Not done: candidate 3 (a lighter desktop audio default) was not taken, and the full-screen underruns on Crawford's laptop were not re-measured after the merge. The item as it stood follows.

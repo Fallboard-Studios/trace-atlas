@@ -2379,7 +2379,7 @@ changing up the oscillators, could we use without adding more libs … global ef
 pedals, portamento", then "if we can organize it and make it happen without distortion, then i want to
 at least try it … let's get your suggested ones into the roadmap, and add the rest as backlogs for us
 to try and see what works." Seven sub-phases below, in build order (50.1 → 50.7; 50.6 and 50.7 were added later; 50.5 is the former backlog item 21,
-built 2026-10-16); the rest of the menu is backlog items 22–24 ([backlog.md](../backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)).
+built 2026-10-16); the rest of the menu is backlog items 22–24 ([backlog.md](backlog-archive.md#22-audio-palette-trials-more-global-pedals-to-audition)).
 Not yet interviewed or specced — each sub-phase gets its own `/interview-me` → spec → plan, each small
 enough to land in a sitting. Build after the layout rework's Phase 2 (section tabs), so every new
 control is laid out once on the screens that ship.
@@ -2789,7 +2789,7 @@ them; see `docs/PERFORMANCE.md` once that work is written up), not this phase.
 
 ## 50.6 Global Pedals: Chorus, Tremolo, Vibrato, Frequency Shifter and Width
 
-Promoted from backlog item 22 ([backlog.md](../backlog.md#22-audio-palette-trials-more-global-pedals-to-audition)), the next
+Promoted from backlog item 22 ([backlog.md](backlog-archive.md#22-audio-palette-trials-more-global-pedals-to-audition)), the next
 item on the Audio Palette menu once 50.1–50.5 had merged (PRs #555–#559). Five more single-instance Tone 15 effects on the
 global chain, each one slot in `wireGlobalFxChain` with a Mix, each behind the phone gate. `Chorus` (its own LFO; with
 feedback it is a flanger), `Tremolo`, `Vibrato` and `FrequencyShifter` ("strange, and on-brand") are motion pedals on the
