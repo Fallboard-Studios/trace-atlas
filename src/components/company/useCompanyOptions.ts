@@ -8,14 +8,15 @@ import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
-  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyGritSend, applyShimmerSend, applyDoubleSend,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyDynamics, applyRests, applyAccents,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
-import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
+import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
+import type { RobotSendField } from '@/data/robotSends';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
 import { BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
@@ -109,24 +110,17 @@ export interface CompanyOptions {
   /** The Audio Load dial is holding the robot bus-filter links off (the robot screen reads the same flag). */
   busFilterLinksHeldOff: boolean;
   volumeSwelling: boolean;
-  /** The first member's reverbSend / delaySend are being swelled (a company-wide swell shares the flag across members). */
-  reverbSendSwelling: boolean;
-  delaySendSwelling: boolean;
-  /** The same for Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6). */
-  gritSendSwelling: boolean;
-  shimmerSendSwelling: boolean;
-  doubleSendSwelling: boolean;
+  /** Per send, the first member's send is being swelled (a company-wide swell shares the flag across members). All
+   *  false with no members. docs/specs/ROBOT_SEND_TABLE.md §1.4. */
+  sendSwelling: Readonly<Record<RobotSendField, boolean>>;
   adsrSwelling: AdsrSwelling | undefined;
   layerSwelling: readonly [LayerSwelling | undefined, LayerSwelling | undefined, LayerSwelling | undefined];
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
   onPanChange: (display: number) => void;
   onPanAutoChange: (auto: boolean) => void;
-  onReverbSendChange: (pct: number) => void;
-  onDelaySendChange: (pct: number) => void;
-  onGritSendChange: (pct: number) => void;
-  onShimmerSendChange: (pct: number) => void;
-  onDoubleSendChange: (pct: number) => void;
+  /** 0..100 for whichever send row moved, broadcast to every member (docs/specs/ROBOT_SEND_TABLE.md §1.4). */
+  onSendChange: (field: RobotSendField, pct: number) => void;
   onDynamicsChange: (value: number) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
@@ -215,11 +209,8 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   // that happens to target some OTHER member never shows here, same as its value wouldn't either.
   const firstMemberId = firstMember?.id;
   const volumeSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'volume');
-  const reverbSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'reverbSend');
-  const delaySendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'delaySend');
-  const gritSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'gritSend');
-  const shimmerSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'shimmerSend');
-  const doubleSendSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'doubleSend');
+  // The five sends, read every render like Volume and kept as one object while no answer changes (useSwellingFlags).
+  const sendSwelling = useSendSwellingFlags(firstMemberId);
   // The flags recompute when the field a swell tick writes changes (useSwellingFlags).
   const adsrSwelling = useAdsrSwellingFlags(firstMemberId, resolved?.adsr);
   const layer0Swelling = useLayerSwellingFlags(firstMemberId, 0, resolved?.layers[0]);
@@ -374,53 +365,17 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     patchSnapshot({ panAuto: auto, ...(auto ? {} : { pan: latest.current.resolved?.pan ?? 0 }) });
   }, [localeId, patchSnapshot]);
 
-  // Reverb and Delay sends (docs/specs/ROBOT_SENDS.md): onVolumeChange's shape. Each member's own send swell is
-  // interrupted before the apply, and the snapshot records the clamped fraction the members store. A NaN is dropped
-  // whole (the actions would drop it per member, but the snapshot must not record it).
-  const onReverbSendChange = useCallback((pct: number) => {
+  // The five sends (docs/specs/ROBOT_SENDS.md, ROBOT_EFFECT_SENDS.md §1.6), one handler for the five rows
+  // (docs/specs/ROBOT_SEND_TABLE.md §1.4): onVolumeChange's shape. Broadcast, not link (COMPANIES.md): each member's own
+  // send swell is interrupted before the apply, and the snapshot records the clamped fraction the members store. A NaN
+  // is dropped whole (the action would drop it per member, but the snapshot must not record it).
+  const onSendChange = useCallback((field: RobotSendField, pct: number) => {
     if (Number.isNaN(pct)) return;
     latest.current.members.forEach((m) => {
-      cancelSwellForRobotAttribute(m.id, 'reverbSend');
-      applyReverbSend(m, localeId, pct);
+      cancelSwellForRobotAttribute(m.id, field);
+      applySend(m, localeId, field, pct);
     });
-    if (latest.current.members.length > 0) patchSnapshot({ reverbSend: clampSend(pct / SEND_DISPLAY_SCALE) });
-  }, [localeId, patchSnapshot]);
-
-  const onDelaySendChange = useCallback((pct: number) => {
-    if (Number.isNaN(pct)) return;
-    latest.current.members.forEach((m) => {
-      cancelSwellForRobotAttribute(m.id, 'delaySend');
-      applyDelaySend(m, localeId, pct);
-    });
-    if (latest.current.members.length > 0) patchSnapshot({ delaySend: clampSend(pct / SEND_DISPLAY_SCALE) });
-  }, [localeId, patchSnapshot]);
-
-  // Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6): onReverbSendChange's shape, three more times.
-  const onGritSendChange = useCallback((pct: number) => {
-    if (Number.isNaN(pct)) return;
-    latest.current.members.forEach((m) => {
-      cancelSwellForRobotAttribute(m.id, 'gritSend');
-      applyGritSend(m, localeId, pct);
-    });
-    if (latest.current.members.length > 0) patchSnapshot({ gritSend: clampSend(pct / SEND_DISPLAY_SCALE) });
-  }, [localeId, patchSnapshot]);
-
-  const onShimmerSendChange = useCallback((pct: number) => {
-    if (Number.isNaN(pct)) return;
-    latest.current.members.forEach((m) => {
-      cancelSwellForRobotAttribute(m.id, 'shimmerSend');
-      applyShimmerSend(m, localeId, pct);
-    });
-    if (latest.current.members.length > 0) patchSnapshot({ shimmerSend: clampSend(pct / SEND_DISPLAY_SCALE) });
-  }, [localeId, patchSnapshot]);
-
-  const onDoubleSendChange = useCallback((pct: number) => {
-    if (Number.isNaN(pct)) return;
-    latest.current.members.forEach((m) => {
-      cancelSwellForRobotAttribute(m.id, 'doubleSend');
-      applyDoubleSend(m, localeId, pct);
-    });
-    if (latest.current.members.length > 0) patchSnapshot({ doubleSend: clampSend(pct / SEND_DISPLAY_SCALE) });
+    if (latest.current.members.length > 0) patchSnapshot({ [field]: clampSend(pct / SEND_DISPLAY_SCALE) });
   }, [localeId, patchSnapshot]);
 
   const onDensityChange = useCallback((v: number) => {
@@ -562,22 +517,14 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     busFilterValue,
     busFilterLinksHeldOff,
     volumeSwelling,
-    reverbSendSwelling,
-    delaySendSwelling,
-    gritSendSwelling,
-    shimmerSendSwelling,
-    doubleSendSwelling,
+    sendSwelling,
     adsrSwelling,
     layerSwelling: [layer0Swelling, layer1Swelling, layer2Swelling],
     onAudioModeChange,
     onVolumeChange,
     onPanChange,
     onPanAutoChange,
-    onReverbSendChange,
-    onDelaySendChange,
-    onGritSendChange,
-    onShimmerSendChange,
-    onDoubleSendChange,
+    onSendChange,
     onDynamicsChange,
     onRestsChange,
     onAccentsChange,
@@ -596,10 +543,9 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onLayerLfoFieldChange,
   }), [
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
-    volumeSwelling, reverbSendSwelling, delaySendSwelling, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling,
+    volumeSwelling, sendSwelling,
     adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
-    onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
-    onGritSendChange, onShimmerSendChange, onDoubleSendChange,
+    onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onDynamicsChange, onRestsChange, onAccentsChange,
     onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,

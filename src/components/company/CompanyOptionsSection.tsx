@@ -66,18 +66,10 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onVolumeChange={options.onVolumeChange}
             onPanChange={options.onPanChange}
             onPanAutoChange={options.onPanAutoChange}
-            onReverbSendChange={options.onReverbSendChange}
-            onDelaySendChange={options.onDelaySendChange}
-            onGritSendChange={options.onGritSendChange}
-            onShimmerSendChange={options.onShimmerSendChange}
-            onDoubleSendChange={options.onDoubleSendChange}
+            onSendChange={options.onSendChange}
             onDynamicsChange={options.onDynamicsChange}
             volumeSwelling={options.volumeSwelling}
-            reverbSendSwelling={options.reverbSendSwelling}
-            delaySendSwelling={options.delaySendSwelling}
-            gritSendSwelling={options.gritSendSwelling}
-            shimmerSendSwelling={options.shimmerSendSwelling}
-            doubleSendSwelling={options.doubleSendSwelling}
+            sendSwelling={options.sendSwelling}
           />
         );
       case 'rhythm':

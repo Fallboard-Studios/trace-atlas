@@ -22,18 +22,14 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     value: { audioMode: string; masterVolume: number; reverbSend: number; delaySend: number; gritSend?: number; shimmerSend?: number; doubleSend?: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
-    onReverbSendChange: (pct: number) => void;
-    onDelaySendChange: (pct: number) => void;
-    onGritSendChange?: (pct: number) => void;
-    onShimmerSendChange?: (pct: number) => void;
-    onDoubleSendChange?: (pct: number) => void;
+    // Robot Send Table T12 (docs/specs/ROBOT_SEND_TABLE.md §1.4): one handler and one flag record for the five sends.
+    onSendChange: (field: string, pct: number) => void;
     onVolumeLfoChange?: unknown;
     volumeSwelling?: boolean;
-    reverbSendSwelling?: boolean;
-    delaySendSwelling?: boolean;
-    gritSendSwelling?: boolean;
-    shimmerSendSwelling?: boolean;
-    doubleSendSwelling?: boolean;
+    sendSwelling?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
+    // Captured only so a case can prove the section no longer passes the old per-field props.
+    onReverbSendChange?: unknown;
+    reverbSendSwelling?: unknown;
     disabled?: boolean;
   }) => {
     renderCounts.audioSettingSection();
@@ -45,23 +41,25 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-reverb-send={props.value.reverbSend}
         data-delay-send={props.value.delaySend}
         data-swelling={props.volumeSwelling ? '' : undefined}
-        data-reverb-swelling={props.reverbSendSwelling ? '' : undefined}
-        data-delay-swelling={props.delaySendSwelling ? '' : undefined}
+        data-reverb-swelling={props.sendSwelling?.reverbSend ? '' : undefined}
+        data-delay-swelling={props.sendSwelling?.delaySend ? '' : undefined}
         data-grit-send={props.value.gritSend}
         data-shimmer-send={props.value.shimmerSend}
         data-double-send={props.value.doubleSend}
-        data-grit-swelling={props.gritSendSwelling ? '' : undefined}
-        data-shimmer-swelling={props.shimmerSendSwelling ? '' : undefined}
-        data-double-swelling={props.doubleSendSwelling ? '' : undefined}
+        data-grit-swelling={props.sendSwelling?.gritSend ? '' : undefined}
+        data-shimmer-swelling={props.sendSwelling?.shimmerSend ? '' : undefined}
+        data-double-swelling={props.sendSwelling?.doubleSend ? '' : undefined}
+        data-has-send-swelling={props.sendSwelling ? '' : undefined}
+        data-has-old-send-props={props.onReverbSendChange !== undefined || props.reverbSendSwelling !== undefined ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
-        <button onClick={() => props.onReverbSendChange(40)}>probe-reverb-send</button>
-        <button onClick={() => props.onDelaySendChange(40)}>probe-delay-send</button>
-        <button onClick={() => props.onGritSendChange?.(40)}>probe-grit-send</button>
-        <button onClick={() => props.onShimmerSendChange?.(40)}>probe-shimmer-send</button>
-        <button onClick={() => props.onDoubleSendChange?.(40)}>probe-double-send</button>
+        <button onClick={() => props.onSendChange('reverbSend', 40)}>probe-reverb-send</button>
+        <button onClick={() => props.onSendChange('delaySend', 40)}>probe-delay-send</button>
+        <button onClick={() => props.onSendChange('gritSend', 40)}>probe-grit-send</button>
+        <button onClick={() => props.onSendChange('shimmerSend', 40)}>probe-shimmer-send</button>
+        <button onClick={() => props.onSendChange('doubleSend', 40)}>probe-double-send</button>
         {props.onVolumeLfoChange ? <button>probe-volume-lfo</button> : null}
       </div>
     );
@@ -406,6 +404,16 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(stub.getAttribute('data-delay-swelling')).toBe('');
       expect(stub.getAttribute('data-reverb-swelling')).toBeNull();
     });
+
+    // docs/tasks/ROBOT_SEND_TABLE.md Task 12: one handler and one flag record, the ten per-field props gone.
+    it('Levels: the panel gets onSendChange and the sendSwelling record, and none of the old per-field send props', () => {
+      activeCompany();
+      render(<Sections target="c1" ids={['audioSettings']} />);
+
+      const stub = screen.getByTestId('audio-setting-section-stub');
+      expect(stub.getAttribute('data-has-send-swelling')).toBe('');
+      expect(stub.getAttribute('data-has-old-send-props')).toBeNull();
+    });
   });
 
   describe('each panel\'s change reaches the members once (the broadcast itself is useCompanyOptions\' suite)', () => {
@@ -434,38 +442,21 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ masterVolume: 0.77 });
     });
 
-    it('Levels: Reverb — applyReverbSend once per member, and only reverbSend recorded in the snapshot', () => {
-      twoMembers();
-      const spy = vi.spyOn(robotOptionsActions, 'applyReverbSend').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['audioSettings']} />);
-      click('probe-reverb-send');
-      expect(ids(spy)).toEqual(['r1', 'r2']);
-      expect(spy.mock.calls[0][2]).toBe(40);
-      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ reverbSend: 0.4 });
-    });
-
-    it('Levels: Delay — applyDelaySend once per member, and only delaySend recorded in the snapshot', () => {
-      twoMembers();
-      const spy = vi.spyOn(robotOptionsActions, 'applyDelaySend').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['audioSettings']} />);
-      click('probe-delay-send');
-      expect(ids(spy)).toEqual(['r1', 'r2']);
-      expect(spy.mock.calls[0][2]).toBe(40);
-      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ delaySend: 0.4 });
-    });
-
-    // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14: the three new sends reach the members the same way.
+    // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14 / ROBOT_SEND_TABLE.md Task 12: every send row reaches the members through
+    // the one onSendChange, carrying its field.
     it.each([
-      ['Grit', 'probe-grit-send', 'applyGritSend', 'gritSend'],
-      ['Shimmer', 'probe-shimmer-send', 'applyShimmerSend', 'shimmerSend'],
-      ['Double', 'probe-double-send', 'applyDoubleSend', 'doubleSend'],
-    ] as const)('Levels: %s — its action once per member, and only its field recorded in the snapshot', (_name, probe, action, field) => {
+      ['Reverb', 'probe-reverb-send', 'reverbSend'],
+      ['Delay', 'probe-delay-send', 'delaySend'],
+      ['Grit', 'probe-grit-send', 'gritSend'],
+      ['Shimmer', 'probe-shimmer-send', 'shimmerSend'],
+      ['Double', 'probe-double-send', 'doubleSend'],
+    ] as const)('Levels: %s — applySend once per member with its field, and only its field recorded in the snapshot', (_name, probe, field) => {
       twoMembers();
-      const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+      const spy = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
       render(<Sections target="c1" ids={['audioSettings']} />);
       click(probe);
       expect(ids(spy)).toEqual(['r1', 'r2']);
-      expect(spy.mock.calls[0][2]).toBe(40);
+      expect(spy.mock.calls.map((call) => [call[2], call[3]])).toEqual([[field, 40], [field, 40]]);
       expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ [field]: 0.4 });
     });
 
