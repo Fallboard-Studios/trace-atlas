@@ -33,11 +33,12 @@ const EXPECTED: Record<LoadingRangeKey, { min: number; max: number }> = {
   'reverb.decay': { min: 0.5, max: 4 },
   'reverb.preDelay': { min: 0, max: 0.1 },
   // Classic Band Retune T6 (row 16, Crawford: "retune as proposed", 2026-10-21): -36 to -18 dB at 2-6:1. Attack, release and
-  // knee are unchanged.
+  // knee are unchanged. Output Headroom Checkpoint A (docs/specs/OUTPUT_HEADROOM.md §7, 2026-10-23): the release floor rose
+  // from 0.05 to 0.25 s.
   'compressor.threshold': { min: -36, max: -18 },
   'compressor.ratio': { min: 2, max: 6 },
   'compressor.attack': { min: 0.003, max: 0.05 },
-  'compressor.release': { min: 0.05, max: 0.3 },
+  'compressor.release': { min: 0.25, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
   'limiter.threshold': { min: -3, max: -1 },
   // Global Colour T2 (docs/specs/GLOBAL_COLOUR.md assumption 7): the lit bands, placeholders tuned by ear in T14;
@@ -311,12 +312,13 @@ describe('GLOBAL_AUDIO_LOADING_RANGES', () => {
 
   // Classic Band Retune T6 (docs/tasks/CLASSIC_BAND_RETUNE.md §7, the 2026-10-21 measurement). The Web Audio compressor
   // applies automatic makeup gain, so a deep threshold at a high ratio is a loudness lottery: the old band (-55 to -45 dB,
-  // 10-20:1) swung fleet level by about 11 dB between seeds. The retuned band keeps a seeded Compressor shallow.
-  it('seeds a shallow Compressor: threshold -36 to -18 dB, ratio 2-6:1, and attack, release and knee untouched', () => {
+  // 10-20:1) swung fleet level by about 11 dB between seeds. The retuned band keeps a seeded Compressor shallow. Output
+  // Headroom Checkpoint A (2026-10-23) then raised the release floor: a 70 ms release cutting 13-17 dB bent the waveform.
+  it('seeds a shallow, slow-releasing Compressor: threshold -36 to -18 dB, ratio 2-6:1, release 0.25-0.3 s', () => {
     expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.threshold']).toStrictEqual({ min: -36, max: -18 });
     expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.ratio']).toStrictEqual({ min: 2, max: 6 });
     expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.attack']).toStrictEqual({ min: 0.003, max: 0.05 });
-    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.release']).toStrictEqual({ min: 0.05, max: 0.3 });
+    expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.release']).toStrictEqual({ min: 0.25, max: 0.3 });
     expect(GLOBAL_AUDIO_LOADING_RANGES['compressor.knee']).toStrictEqual({ min: 1, max: 15 });
   });
 

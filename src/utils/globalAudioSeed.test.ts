@@ -222,6 +222,20 @@ describe('generateGlobalAudioSettings', () => {
     }
   });
 
+  // Output Headroom Checkpoint A (docs/specs/OUTPUT_HEADROOM.md §7, 2026-10-23): 6j0mgo5z seeded a 70 ms Compressor
+  // release, and with every robot Volume at 100 % its 13-17 dB of fast gain reduction bent the waveform; a 0.25 s release
+  // fixed it by ear. The seed is the style's name (the id only keys the cache), so that world is drawn here by name.
+  it('seeds no Compressor release faster than 0.25 s, on the world that crunched and across 300 others', () => {
+    const names = ['6j0mgo5z', ...Array.from({ length: 300 }, (_, i) => `release-floor-${i}`)];
+    for (const name of names) {
+      const id = `release-floor-id-${name}`;
+      const { release } = generateGlobalAudioSettings(id, name).compressor;
+      evictAttenuationStyleNoiseMap(id);
+      expect(release, name).toBeGreaterThanOrEqual(0.25);
+      expect(release, name).toBeLessThanOrEqual(0.3);
+    }
+  });
+
   it('no longer carries an enabled field on any effect, or a globalBypass flag — removed, off states are expressed via the params themselves', () => {
     const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
     expect('globalBypass' in settings).toBe(false);
@@ -2157,6 +2171,12 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // same raw draws: alpha threshold t 0.7558 -> -36 + 18 * t = -22.40 -> -22 (was -47), ratio t 0.7303 -> 2 + 4 * t = 4.92 -> 5
 // (was 17); theta threshold t 0.4466 -> -27.96 -> -28 (was -51), ratio t 0.4236 -> 3.69 -> 4 (was 14). The old bands
 // -55 + 10 * t and 10 + 10 * t reproduce -47, 17, -51 and 14, which is the check. Attack, release and knee did not move.
+//
+// AMENDED BY HAND, Output Headroom Checkpoint A (docs/specs/OUTPUT_HEADROOM.md §7, 2026-10-23): the Compressor's release
+// band rose to 0.25-0.3 s (a log draw, min * (max / min) ^ t). From the same raw draws: alpha release t 0.82891 ->
+// 0.25 * 1.2 ^ t = 0.290787 (was 0.220795); theta t 0.52140 -> 0.274932 (was 0.127262). The old band 0.05 * 6 ^ t
+// reproduces 0.220795 and 0.127262, which is the check; the hand derivation met the seeder's output to within 1e-16
+// (alpha's last digit is the seeder's own rounding). Nothing else moved.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2170,7 +2190,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         threshold: -22,
         ratio: 5,
         attack: 0.02815783553749843,
-        release: 0.2207947804737712,
+        release: 0.2907865282684584,
         knee: 10,
       },
       eq3: { low: 3.5, mid: 3.5, high: 4 },
@@ -2212,7 +2232,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         threshold: -28,
         ratio: 4,
         attack: 0.005351539547536516,
-        release: 0.12726233469418596,
+        release: 0.2749320026533538,
         knee: 6,
       },
       eq3: { low: -3.5, mid: -3.5, high: -3.5 },

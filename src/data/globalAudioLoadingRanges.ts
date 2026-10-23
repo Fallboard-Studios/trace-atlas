@@ -61,7 +61,10 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<LoadingRangeKey, LoadingRange> 
   'compressor.threshold': { min: -36, max: -18 },
   'compressor.ratio': { min: 2, max: 6 },
   'compressor.attack': { min: 0.003, max: 0.05 },
-  'compressor.release': { min: 0.05, max: 0.3 },
+  // Raised at Output Headroom Checkpoint A (docs/specs/OUTPUT_HEADROOM.md §7, Crawford, 2026-10-23) from 0.05-0.3 s. With
+  // every robot Volume at 100 %, 6j0mgo5z's seeded 70 ms release let a 13-17 dB gain reduction move fast enough to bend the
+  // waveform (heard as crunch, with the master never at full scale); a 0.25 s release removed it by ear.
+  'compressor.release': { min: 0.25, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
 
   'limiter.threshold': { min: -3, max: -1 },
