@@ -82,9 +82,12 @@ Survey basis (2026-10-23, against `main` at `5307a0cf`; every citation below was
    room, Compressor to returns) stays what the seed and the user set; only the level moves. Mechanism: one helper,
    `robotBusGain(position) = volumePositionToGain(position) × HEADROOM_TRIM_GAIN`, used at the bus gain's two write
    sites; `volumePositionToGain` itself is untouched (the master slider shares it and must keep unity at 1).
-3. **`HEADROOM_TRIM_DB` starts at −12 dB** (gain ≈ 0.251), the figure the +12 to +13 dB `pre` peaks ask for, and is
-   tuned once by the probe (§5.2) so that at the seeded defaults `pre` peaks at or under −6 dBFS on every gated world.
-   Not seeded, not a setting, one exported constant in `headroom.ts`.
+3. **`HEADROOM_TRIM_DB` is −12 dB** (gain ≈ 0.251), the figure the +12 to +13 dB `pre` peaks ask for. Not seeded,
+   not a setting, one exported constant in `headroom.ts`. *As decided at T7 (Crawford, 2026-10-23):* the spec first
+   tuned it until `pre` peaked at or under −6 dBFS on every gated world; at −12 dB D1, D4 and D5 still peaked at +1.8,
+   +2.9 and −3.6 dB, and the 2 dB steps would have landed near −22 dB, about twice the intent's "roughly 6–10 dB"
+   quieter. −12 dB is held and `pre` is recorded, not gated: `pre` above 0 clips nothing in a float chain, and the
+   ceiling bounds what leaves.
 4. **The ceiling is a `Tone.WaveShaper` soft clipper, after the Limiter and before `_masterGain`.** Its curve is the
    identity up to a knee `CEILING_KNEE` (start 0.7, about −3 dBFS) and a `tanh` saturation above it that never reaches
    1.0 (`softCeilingCurve`, §1.2): a true ceiling with no makeup gain and no release time, bit-exact below the knee so
@@ -313,15 +316,15 @@ robot to 100 % through the All Probes form before the warm-up (§7, 2026-10-23):
 |---|---|
 | `out` peak max, every variant | ≤ −0.5 dBFS (the ceiling's own top is −0.65; a reading above it means the ceiling is not last) |
 | `out` readings ≥ 0 dBFS, every variant | 0 of N |
-| `pre` peak max, D1–D5 | ≤ −6 dBFS at the final `HEADROOM_TRIM_DB` (assumption 3's tuning target) |
+| `pre` peak max, D1–D5 | recorded, not gated (assumption 3, as decided at T7; it was ≤ −6 dBFS, the trim's tuning target) |
 | `pre` peak max, H1–H2 | recorded, not gated (the hand push is the ceiling's test, not the trim's) |
 | `fin` | `ok` throughout |
 
 **Order of runs.** (1) `main`, D1 and D5, before any code: the "is it new" measurement the roadmap asked for, three
 runs of D1. (2) The branch with the trim alone (ceiling constructor absent via a one-line local edit, not committed):
 `pre` drops by the trim; `out` still over 0 on D1 says the ceiling is needed, not optional. (3) The branch complete:
-the table above. (4) If `pre` misses on any of D1–D5, step `HEADROOM_TRIM_DB` by 2 dB and re-run (3); the final
-value and the table go in PERFORMANCE.md with the commit hash and the links.
+the table above. (4) ~~If `pre` misses on any of D1–D5, step `HEADROOM_TRIM_DB` by 2 dB and re-run (3)~~ (dropped at
+T7, assumption 3); the value and the table go in PERFORMANCE.md with the commit hash and the links.
 
 ### 5.3 Audio-thread cost, desktop
 
@@ -378,3 +381,11 @@ Compressor band narrows only if Checkpoint A hears it; backlog 23 is deferred, n
 the payload by design) and the production build exposes no store. Crawford chose the probe pushing it through the app's
 own controls (`--robot-volume-full`: All Probes → Levels → Volume, End key), over accepting the EQ and Limiter push
 alone or running H on the dev server. Checked in PERFORMANCE.md "Output level series".
+
+**T7, 2026-10-23: the gate stopped on an `out` miss, and two answers.** H1 on the complete build read `out` +2.7 dB,
+40 of 239 readings at or over 0 dBFS, the same as the build without the ceiling: the ceiling had no curve. Tone
+15.1.22's `WaveShaper` takes its curve as `mapping` (or through the `curve` setter) and ignores a `curve` option, and
+a native `WaveShaperNode` with no curve passes its input unchanged; the T5 mock accepted the wrong name (the plan's
+risk table named it). (1) Crawford: fix it as T5.1, test first, then re-run T7 in full. (2) `pre` missed −6 dBFS on
+D1, D4 and D5 at −12 dB; Crawford took the recommendation to hold −12 dB and record `pre` rather than gate it
+(assumption 3 rewritten, §5.2's row changed) rather than step the trim toward −22 dB.

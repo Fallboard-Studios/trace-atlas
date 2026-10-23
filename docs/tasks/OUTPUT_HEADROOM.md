@@ -16,7 +16,9 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > on `feature/output-headroom`. **Phase 1 (T1–T3) done**: the probe, the seven links and the `main` measurement are in
 > PERFORMANCE.md, "Output level series". H1 and H2 get their robot Volume push from the probe's `--robot-volume-full`
 > (session links never carry `masterVolume`; Crawford's choice, spec §7). **Phase 2 (T4–T6) done** (`f3518293`,
-> `17546ac4`, `12776551`) and **Checkpoint A1 passed**. T7 next.
+> `17546ac4`, `12776551`) and **Checkpoint A1 passed**. **T7 stopped** on an `out` miss (H1 +2.7 dB): the ceiling had
+> no curve (Tone's `WaveShaper` reads `mapping`, not `curve`). Crawford, 2026-10-23: fix it as **T5.1**, then re-run
+> T7 in full; hold `HEADROOM_TRIM_DB` at −12 and record `pre` rather than gate it (spec assumption 3 and §7).
 
 ## Overview
 
@@ -48,7 +50,8 @@ One commit per task, suite / types / lint / build green. No docs guards, no sour
   slider shares it and must keep unity at 1 (spec assumption 2 and 6).
 - **The trim value is tuned by the gate, not by ear (T7).** Spec §5.2's `pre ≤ −6 dBFS` on five worlds picks
   `HEADROOM_TRIM_DB`; Crawford's ear (Checkpoint A) picks the ceiling's knee and oversample and whether the deep
-  Compressor band narrows. Two different questions, two different judges.
+  Compressor band narrows. Two different questions, two different judges. *(Superseded at T7, 2026-10-23: the `pre`
+  target would have taken the trim near −22 dB; Crawford held −12 dB and `pre` is recorded, spec assumption 3.)*
 - **Numbers live in PERFORMANCE.md, phone reports in scratchy-audio-phones.md**, as every audio phase before.
 
 ## Dependency Graph
@@ -294,6 +297,35 @@ docs/specs/OUTPUT_HEADROOM.md)".
 
 ## Phase 3: The gate
 
+### Task 5.1: The ceiling gets its curve (added at T7's stop)
+
+**Description:** T7's first complete run read H1's `out` at +2.7 dB, 40 of 239 readings at or over 0 dBFS, the same
+as the trim-alone build. Tone 15.1.22's `WaveShaper` constructor reads its curve from `mapping` (positional or option)
+and ignores a `curve` option, so `new WaveShaperCtor({ curve: softCeilingCurve(), oversample: 'none' })` built a native
+`WaveShaperNode` with no curve, which passes its input unchanged; headless Chrome confirmed it (as built `.curve` is
+`null` and a constant 2.0 leaves as 2.0; with `{ mapping }` the 4097-entry curve, and 2.0 leaves as 0.928). The T5
+mock recorded `curve` and accepted it. Fix: `new WaveShaperCtor({ mapping: softCeilingCurve() })`; `oversample` is
+not a Tone constructor option either, and the node's default is the spec's `'none'`, so it is left at the default (T9
+sets the property if Checkpoint A asks for `'2x'`). The spec's §1.3, §4 and §5.1 passages name `mapping`.
+
+**Proof:** RED test — `src/engine/audioEngine/globalFx.test.ts`: the `WaveShaper` mock models Tone's constructor (the
+curve from `mapping`, nothing from `curve`) and the case asserts the built node's `curve`; and the arguments the build
+passed are replayed into Tone's own `WaveShaper` (`vi.importActual('tone')`, whose dummy context stands in for an
+`AudioContext` under jsdom), which must hold the ceiling curve. Both fail on `{ curve }`.
+
+**Acceptance criteria:**
+- [ ] The built ceiling's `curve` equals `softCeilingCurve()` and its `oversample` reads `'none'`, in the mock that
+  follows Tone.
+- [ ] Tone's real `WaveShaper`, given the recorded constructor arguments, holds the same curve: the guard against the
+  mock drifting from Tone again.
+- [ ] The mutation gate kills `curve` for `mapping` and a 9-entry curve.
+
+**Verification:** `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/globalFx.headless.test.ts`;
+`npm run build:types`; `npm run lint`. **Dependencies:** T5. **Files:** `globalFx.ts`, `globalFx.test.ts`,
+`docs/specs/OUTPUT_HEADROOM.md`. **Scope:** XS.
+
+---
+
 ### Task 7: The level gate — trim-alone, complete, tune the trim — **STOP on an `out` miss**
 
 **Description:** On the served production build of the branch, foreground, one run at a time, with T3's links:
@@ -301,8 +333,9 @@ docs/specs/OUTPUT_HEADROOM.md)".
 reverted after): D1 once; `pre` should have dropped by about the trim and `out` should still touch or pass 0 dBFS on
 D1, which is the evidence the ceiling is needed. (2) **complete** — D1 three times, D2–D5, H1, H2 once each, 120 s (H1 and H2 in their
 own call, with `--robot-volume-full`).
-(3) If `pre` peak max on any of D1–D5 is above −6 dBFS, step `HEADROOM_TRIM_DB` down by 2, commit the constant, and
-re-run (2) in full; if `out` peak max is above −0.5 dBFS or any reading is ≥ 0 dBFS on any variant, **stop**: the
+(3) ~~If `pre` peak max on any of D1–D5 is above −6 dBFS, step `HEADROOM_TRIM_DB` down by 2, commit the constant, and
+re-run (2) in full~~ (dropped 2026-10-23, spec assumption 3: −12 dB held, `pre` recorded); if `out` peak max is above
+−0.5 dBFS or any reading is ≥ 0 dBFS on any variant, **stop**: the
 ceiling is not last in the graph, or the taps are not where the survey says; report with the numbers and the chain
 dump. (4) Add the branch table to T3's PERFORMANCE.md section, with the final `HEADROOM_TRIM_DB`, the commit hash
 and the trim-alone row, and the spec's §5.2 gate thresholds beside each number.
@@ -312,7 +345,8 @@ test follows the constant, so no new test file.
 
 **Acceptance criteria:**
 - [ ] Every spec §5.2 threshold is met in the final table: `out` peak max ≤ −0.5 dBFS and zero readings ≥ 0 dBFS on
-  all seven variants; `pre` peak max ≤ −6 dBFS on D1–D5; `fin ok` throughout.
+  all seven variants; `pre` peak max recorded on every variant (no longer gated, spec assumption 3); `fin ok`
+  throughout.
 - [ ] The trim-alone row exists and says what it showed.
 - [ ] The final `HEADROOM_TRIM_DB` in `headroom.ts` is the one in the table.
 
@@ -352,12 +386,12 @@ Recorded in T3's PERFORMANCE.md section: overall mean capacity and the peak wind
 ### Task 9 (conditional): Apply Checkpoint A's decisions
 
 **Description:** Only what Checkpoint A asked for: a new `CEILING_KNEE` or `oversample` value in `headroom.ts` /
-`globalFx.ts` (the T4 and T5 tests follow the constants, so only `'2x'` needs a test change: the constructor-options
-case); or the Compressor's two rows in `GLOBAL_AUDIO_LOADING_RANGES` narrowed (e.g. threshold −30 to −18, ratio 2 to
+`globalFx.ts` (the T4 and T5 tests follow the constants, so only `'2x'` needs a test change: the built ceiling's
+`oversample` property, which Tone does not take as a constructor option, T5.1); or the Compressor's two rows in `GLOBAL_AUDIO_LOADING_RANGES` narrowed (e.g. threshold −30 to −18, ratio 2 to
 4) with `globalAudioSeed`'s oracle cases re-pinned to the new band and `GLOBAL_CHAIN_GRID.md`'s two Loading Range
 cells updated. Then T7's complete run (2) is repeated and the table replaced.
 
-**Proof:** RED test for a behaviour change — the constructor-options case in `globalFx.test.ts` for `'2x'`, or the
+**Proof:** RED test for a behaviour change — the built ceiling's `oversample` case in `globalFx.test.ts` for `'2x'`, or the
 oracle cases in `src/utils/globalAudioSeed.test.ts` for a narrowed band, re-pinned by value and failing first. A
 knee-only change moves a constant its T4 test already follows and needs no new test.
 
