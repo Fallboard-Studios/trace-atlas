@@ -640,3 +640,29 @@ moment, or keeping the branch connected and paying its dark cost (which undoes 5
 **Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
 seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
 power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
+
+### 30. Tooling: One Shared CDP Helper for the Perf Scripts
+
+**Found 2026-10-23** in the Output Headroom review (roadmap 54): `scripts/perf/output-level.mjs` is the fourth copy of
+the same Chrome-driving plumbing, after `profile.mjs`, `idle-paint.mjs` and `audio-load.mjs`. The 54 plan copied it on
+purpose (`audio-load.mjs` was not to be refactored on that branch); this item is the follow-up. Crawford, 2026-10-23:
+next, once 54 has merged.
+
+**What is shared:** `findChrome` is the same in all four. `connect` is the same in three, and `output-level.mjs`'s copy
+only lacks the `onEvent` listener, so the fuller one serves all four. The temp profile and the `spawn` launch match,
+except that `profile` and `idle-paint` add `--mute-audio`. Teardown comes in three versions: `profile` kills Chrome,
+`idle-paint` sends `Browser.close` and then kills it, and `audio-load` / `output-level` use `shutdown`, which also kills
+Chrome's child processes on Windows (`taskkill /T`).
+
+**The task:** a `scripts/perf/cdp-lib.mjs` holding `sleep`, `findChrome`, `connect` (with `onEvent`), a launcher that
+takes extra Chrome flags, and `shutdown`; the four scripts import it. One task, one commit, size S: about 90 lines in
+the lib, about 70 out of each script. **The one decision:** `profile` and `idle-paint` move to the robust `shutdown`.
+That changes how they tear down, on purpose (it is the orphaned-Chrome fix the measurement hygiene asks for), and the
+commit says so.
+
+**Proof:** a Look, not a RED test. No test imports the four scripts, and what moves is file-system and network
+plumbing. A short real run of each against a served build (`npm run build && npx vite preview --port 4173`), with the
+orphaned-Chrome check before and after ([PERFORMANCE.md](../PERFORMANCE.md), "Measurement hygiene").
+
+**Where:** its own branch off `main` once 54 has merged; `output-level.mjs` exists only on `feature/output-headroom`
+until then.
