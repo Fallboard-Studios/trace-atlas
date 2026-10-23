@@ -19,6 +19,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > `17546ac4`, `12776551`) and **Checkpoint A1 passed**. **T7 stopped** on an `out` miss (H1 +2.7 dB): the ceiling had
 > no curve (Tone's `WaveShaper` reads `mapping`, not `curve`). Crawford, 2026-10-23: fix it as **T5.1**, then re-run
 > T7 in full; hold `HEADROOM_TRIM_DB` at −12 and record `pre` rather than gate it (spec assumption 3 and §7).
+> **T5.1 done** (`993217fc`); **T7 done**: every gate met on all seven variants (PERFORMANCE.md, "The branch"). T8 next.
 
 ## Overview
 
@@ -314,11 +315,13 @@ passed are replayed into Tone's own `WaveShaper` (`vi.importActual('tone')`, who
 `AudioContext` under jsdom), which must hold the ceiling curve. Both fail on `{ curve }`.
 
 **Acceptance criteria:**
-- [ ] The built ceiling's `curve` equals `softCeilingCurve()` and its `oversample` reads `'none'`, in the mock that
-  follows Tone.
-- [ ] Tone's real `WaveShaper`, given the recorded constructor arguments, holds the same curve: the guard against the
-  mock drifting from Tone again.
-- [ ] The mutation gate kills `curve` for `mapping` and a 9-entry curve.
+- [x] The built ceiling's `curve` equals `softCeilingCurve()` and its `oversample` reads `'none'`, in the mock that
+  follows Tone. — `993217fc`; both cases RED first (the mock's node had no curve; Tone's own read `undefined`).
+- [x] Tone's real `WaveShaper`, given the recorded constructor arguments, holds the same curve: the guard against the
+  mock drifting from Tone again. — `vi.importActual('tone')` constructs under jsdom; its `dispose()` cannot run on the
+  dummy context's plain-object shaper, so the case does not call it.
+- [x] The mutation gate kills `curve` for `mapping` and a 9-entry curve. — 3 of 3 killed, plus an `oversample` of
+  `'2x'` set on the node. Suite 326 files / 11 978 tests green.
 
 **Verification:** `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/globalFx.headless.test.ts`;
 `npm run build:types`; `npm run lint`. **Dependencies:** T5. **Files:** `globalFx.ts`, `globalFx.test.ts`,
@@ -344,11 +347,13 @@ and the trim-alone row, and the spec's §5.2 gate thresholds beside each number.
 test follows the constant, so no new test file.
 
 **Acceptance criteria:**
-- [ ] Every spec §5.2 threshold is met in the final table: `out` peak max ≤ −0.5 dBFS and zero readings ≥ 0 dBFS on
+- [x] Every spec §5.2 threshold is met in the final table: `out` peak max ≤ −0.5 dBFS and zero readings ≥ 0 dBFS on
   all seven variants; `pre` peak max recorded on every variant (no longer gated, spec assumption 3); `fin ok`
-  throughout.
-- [ ] The trim-alone row exists and says what it showed.
-- [ ] The final `HEADROOM_TRIM_DB` in `headroom.ts` is the one in the table.
+  throughout. — at `993217fc`: `out` peak max −0.6 (H1, the ceiling's top) to −12.9 dB (D2), none at 0 dBFS, `fin ok`
+  239 of 239 everywhere. The first complete run (`ab3d0616`) stopped on H1 (+2.7 dB): the empty ceiling, T5.1.
+- [x] The trim-alone row exists and says what it showed. — D1 alone does not reach 0 dBFS (−2.2 dB; the plan expected
+  it would); an extra H1 trim-alone run (+2.3 dB, 38 of 239 at or over 0) shows the ceiling is what holds a hand push.
+- [x] The final `HEADROOM_TRIM_DB` in `headroom.ts` is the one in the table. — −12, unchanged.
 
 **Verification:** the table; the hygiene stated. **Dependencies:** T3, T5, T6. **Files:** `docs/PERFORMANCE.md`,
 `headroom.ts` (the constant only). **Scope:** S (measurement, at most one constant).

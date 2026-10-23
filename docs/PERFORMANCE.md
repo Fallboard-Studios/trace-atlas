@@ -2389,6 +2389,39 @@ H2  http://localhost:4173/trace-atlas/?debug&session=eyJ2IjoyLCJuIjoiYnJhdm8iLCJ
 
 **D5 does not clip at the master.** `bravo`'s `out` peaks at −3.2 dB and never reaches 0 dBFS, although its `pre` peaks at +7.7 dB and is at or over 0 in 44 % of readings. Its `pre` read silent (`-inf`) 9 times while `out` never did, which fits the rooms' tails sounding on after the dry signal stops (the rooms rejoin after the `pre` tap).
 
+### The branch: the trim and the ceiling (T7, the gate)
+
+**Code measured.** `993217fc`: `HEADROOM_TRIM_DB` −12 dB (unchanged from T4; spec assumption 3), the ceiling at knee 0.7 and oversample `'none'`; production build `index-DxO5fP4y.js`. The trim-alone rows are a build of `ab3d0616` with a one-line local edit that made the ceiling's `getToneCtor('WaveShaper')` find nothing (not committed; T5.1's fix changes nothing that build runs). Headless Chrome 155, `vite preview` on :4173 (the trim-alone build on :4174), 8 s warm-up, 120 s series (239 readings), foreground, one call at a time (D1 ×3; D2 + D3; D4 + D5; H1 + H2 with `--robot-volume-full`), nothing else measuring, orphan count 0 before and after. All levels in dBFS; the gate (spec §5.2) is in each column head.
+
+| Run | `out` peak max (gate ≤ −0.5) | `out` peak mean | `out` RMS mean | `out` ≥ 0 dBFS (gate 0) | `pre` peak max (recorded) | `pre` peak mean | `pre` ≥ 0 dBFS | `fin` (gate ok) |
+|---|---|---|---|---|---|---|---|---|
+| D1, run 1 | −1.8 | −9.7 | −20.6 | 0 of 239 | +2.1 | −10.2 | 5 of 239 (2.1 %) | ok, 239 of 239 |
+| D1, run 2 | −2.3 | −9.6 | −20.5 | 0 of 239 | +1.4 | −10.0 | 8 of 239 (3.3 %) | ok, 239 of 239 |
+| D1, run 3 | −2.2 | −9.3 | −20.3 | 0 of 239 | +1.8 | −9.7 | 2 of 239 (0.8 %) | ok, 239 of 239 |
+| D2 | −12.9 | −17.9 | −27.6 | 0 of 239, 19 silent | −12.6 | −23.0 | 0 of 239, 20 silent | ok, 239 of 239 |
+| D3 | −6.2 | −9.7 | −19.8 | 0 of 239 | −7.4 | −15.5 | 0 of 239 | ok, 239 of 239 |
+| D4 | −5.1 | −9.3 | −20.5 | 0 of 239 | +2.1 | −7.6 | 22 of 239 (9.2 %) | ok, 239 of 239 |
+| D5 | −6.9 | −13.1 | −23.4 | 0 of 239, 5 silent | −4.2 | −13.4 | 0 of 239, 9 silent | ok, 239 of 239 |
+| H1 | **−0.6** | −2.3 | −12.2 | 0 of 239 | +11.1 | +4.9 | 238 of 239 (99.6 %) | ok, 239 of 239 |
+| H2 | −2.0 | −7.2 | −17.2 | 0 of 239, 8 silent | +12.6 | +6.0 | 205 of 239 (85.8 %), 13 silent | ok, 239 of 239 |
+
+**Every gate is met on all seven variants.** H1, the hand push, sits at the ceiling's own top: −0.65 dBFS, which the overlay rounds to −0.6.
+
+**Trim alone, and the ceiling that was empty.** The first complete run (build of `ab3d0616`) stopped the gate: its ceiling had no curve (Tone's `WaveShaper` reads `mapping`, not `curve`; fixed in T5.1, spec §7), so that build was trim-alone in effect. Its H1 row, beside the trim-alone build's two runs:
+
+| Run | `out` peak max | `out` peak mean | `out` RMS mean | `out` ≥ 0 dBFS | `pre` peak max | `pre` peak mean | `pre` ≥ 0 dBFS |
+|---|---|---|---|---|---|---|---|
+| D1, trim alone | −2.2 | −9.7 | −20.6 | 0 of 239 | +1.1 | −10.3 | 4 of 239 (1.7 %) |
+| H1, trim alone (an extra run, not in the plan) | +2.3 | −1.8 | −12.2 | 38 of 239 (15.9 %) | +10.2 | +4.9 | 238 of 239 (99.6 %) |
+| H1, the empty ceiling (`ab3d0616`) | +2.7 | −1.8 | −12.3 | 40 of 239 (16.7 %) | +10.9 | +4.7 | 238 of 239 (99.6 %) |
+| H1, the ceiling (`993217fc`, above) | −0.6 | −2.3 | −12.2 | 0 of 239 | +11.1 | +4.9 | 238 of 239 (99.6 %) |
+
+What the trim alone showed: **on D1 at the seeded defaults the trim alone is enough** (`out` −2.2 dB, never at 0); the plan expected D1 to still touch 0 dBFS, and it did not. The ceiling is what holds a **hand-pushed** world: H1 without it is over full scale in about one reading in six, with it never, at the same RMS (−12.2 against −12.3 dB): the ceiling takes the peaks and leaves the level. The empty-ceiling run's other eight rows sat within the run-to-run spread of the table above, except `bravo`'s (below); its `pre` readings, upstream of the ceiling, are what the trim decision was made on: `pre` peaked over −6 dBFS on D1, D4 and D5 at −12 dB, stepping the trim to meet that would have gone near −22 dB, and Crawford held −12 dB with `pre` recorded, not gated (spec assumption 3).
+
+**Against `main`.** D1: `out` peak max from +3.0 to +4.6 dB down to −1.8 to −2.3 dB; readings at or over full scale from 22–25 % to none; `out` RMS mean from −13.9 (the three runs' average) to −20.5 dB, **6.6 dB quieter**; `pre` peak mean down 12 dB, the trim. D5: `out` RMS mean −23.2 on `main` against −23.4 here and −27.2 in the empty-ceiling run, **0.2 to 4.0 dB quieter**. That `out` moves less than `pre` fits the seeded Compressor (spec survey): above its threshold an input change of x dB leaves as x / ratio, so D1's 2:1 halves the trim (−6 dB) and D5's 4:1 quarters it (−3 dB).
+
+**`bravo` varies between loads of the same link.** D5's `out` peak mean read −13.1 dB here and −17.0 dB in the empty-ceiling run, and H2's RMS mean −17.2 against −25.6 dB, from identical links; the ceiling cannot raise a level, so this is the world's own variation from load to load (its silent readings vary with it), not investigated (finish the branch first). A `bravo` comparison needs several runs a side; D1's runs agree within 0.3 dB of RMS.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
