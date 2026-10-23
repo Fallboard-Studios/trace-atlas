@@ -93,4 +93,35 @@ export default [
       ],
     },
   },
+
+  // Tests exercise code, not text (CLAUDE.md, Repo expectations): a test imports or renders what it checks and never
+  // reads a source, CSS or doc file to assert on it. Each way a test can get a file's text is an error here: node:fs,
+  // a ?raw or ?inline import, and import.meta.glob with a raw query. The exceptions are named here, never suppressed
+  // inline: content.test.ts is the one text guard, and OceanScene.clicks applies the real stylesheet to the document
+  // so it can check the rendered pointer-events, not the CSS text.
+  {
+    files: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.mjs'],
+    ignores: ['src/content/content.test.ts', 'src/components/panels/screen/worldView/OceanScene.clicks.test.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: ':matches(ImportDeclaration, ImportExpression)[source.value=/^(node:)?fs(\\W|$)/]',
+          message: 'Tests exercise code, not text: import or render what you check instead of reading a file (CLAUDE.md).',
+        },
+        {
+          selector: "CallExpression[callee.name='require'][arguments.0.value=/^(node:)?fs(\\W|$)/]",
+          message: 'Tests exercise code, not text: import or render what you check instead of reading a file (CLAUDE.md).',
+        },
+        {
+          selector: ':matches(ImportDeclaration, ImportExpression)[source.value=/[?&](raw|inline)\\b/]',
+          message: 'Tests exercise code, not text: import the module, not its source text (CLAUDE.md).',
+        },
+        {
+          selector: 'Property[key.name=/^(query|as)$/][value.value=/raw|inline/]',
+          message: 'Tests exercise code, not text: import.meta.glob the modules, not their source text (CLAUDE.md).',
+        },
+      ],
+    },
+  },
 ];

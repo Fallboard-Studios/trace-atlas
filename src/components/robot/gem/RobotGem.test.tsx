@@ -6,13 +6,6 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
 import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './RobotGem';
-import source from './RobotGem.tsx?raw';
-// Every job-decoration source (not its tests): they draw SVG nodes by hand, so the filter ban reaches them too.
-const decorSources = import.meta.glob(['../../../animation/jobMoves/decor/*.ts', '!../../../animation/jobMoves/decor/*.test.ts'], {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
 import { gemPalette, GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { quadPath } from './gemPaths';
@@ -161,7 +154,6 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
         if (v !== null && !v.startsWith('url(#')) expect(allowed.has(v)).toBe(true);
       }
     });
-    expect(source).not.toMatch(/hsl\(|#[0-9a-f]{6}\b|hexToHsl|facetTone/i);
   });
 
   it('a palette change reaches the matching elements (mid--left facets follow palette.midLeft)', () => {
@@ -380,8 +372,7 @@ describe('RobotGem — bodyLines: Top/Mid line width dial and lit strips (Phase 
     expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.3');
   });
 
-  it('the fixed BODY_LINE_WIDTH constant is gone from the source — nothing is 0.8 by default any more', () => {
-    expect(source).not.toMatch(/BODY_LINE_WIDTH/);
+  it('no stroke falls back to the old fixed 0.8 width — every body line width comes from the dial', () => {
     const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.9 }, BODY);
     container.querySelectorAll('[stroke-width]').forEach((el) => expect(el.getAttribute('stroke-width')).not.toBe('0.8'));
   });
@@ -431,15 +422,6 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
 
   it('no <filter> anywhere (spec Assumption 5)', () => {
     expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('filter')).toBeNull();
-    expect(source).not.toMatch(/<filter|feGaussianBlur/);
-  });
-
-  it('no <filter> in any job decoration either (the .robot__work builders in animation/jobMoves/decor, JOB_DECORATION.md Assumption 6)', () => {
-    const files = Object.entries(decorSources);
-    expect(files.length).toBeGreaterThan(0);
-    for (const [path, text] of files) {
-      expect(text, path).not.toMatch(/<filter|feGaussianBlur|['"]filter['"]/);
-    }
   });
 
   it('a new halo colour re-renders the waves and their trails (nothing freezes the markup: GSAP only writes attributes React leaves constant)', () => {

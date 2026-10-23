@@ -80,7 +80,9 @@ Quick checklist for PRs
 Repo expectations
 - **PR process:** All PRs should be reviewed by at least one other contributor before merging. There is no CI workflow configured yet — run lint, type-check, and tests locally before opening a PR.
 - **Accessibility & performance:** For audio, avoid autoplay without user intent; provide UI mute/volume controls. For animations, prefer GSAP for performant transforms and avoid large layout thrashing. Add basic a11y checks to PRs (focus/keyboard navigation, reduced-motion preference).
-- **Tests exercise code, not text:** a test imports or renders what it checks. Never assert on source, CSS or doc text read from disk (no docs guards, CSS contracts, source scans or "nothing imports X" gates; removed 2026-10-23). The one exception is `src/content/content.test.ts`. A docs-only or deletion task has no RED test; its checkpoint is a human read.
+- **Tests exercise code, not text:** a test imports or renders what it checks. Never assert on source, CSS or doc text, however it is read (`node:fs`, a `?raw` or `?inline` import, `import.meta.glob` raw): no docs guards, CSS contracts, source scans or "nothing imports X" gates (removed 2026-10-23). `npm run lint` enforces it; the exceptions are named in `eslint.config.js` (`src/content/content.test.ts`, and `OceanScene.clicks.test.tsx`, which applies the real stylesheet to check rendered pointer-events).
+- **No RED test for a task with no behaviour:** a task that only changes docs, CSS or copy, or only deletes, gets no test, even when the prompt says to write the failing test first for each task. Its proof is a human read or a look in the browser, named on the task's **Proof** line (`docs/tasks/TASK_TEMPLATE.md`) and stated in the commit. If the only way to make a test fail first is to read a file's text, the task has no test.
+- **Older plans are not a pattern for tests:** plans and specs in `docs/` written before 2026-10-23 list docs guards, CSS contracts, source scans and guard-row re-pins as steps. Those steps are obsolete; don't copy them into a new plan or carry them out.
 
 Boundaries
 - Never commit secrets or `.env` files.

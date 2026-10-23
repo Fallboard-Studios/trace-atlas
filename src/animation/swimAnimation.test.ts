@@ -4,8 +4,6 @@ import type { Robot } from '../types/Robot';
 import { setRef, clearRefs } from '../utils/refs';
 import { setTimeline, getTimeline } from './timelineMap';
 import { createSwimTimeline } from './swimAnimation';
-import swimAnimationSource from './swimAnimation.ts?raw';
-import robotSource from '../components/robot/Robot.tsx?raw';
 
 function fakeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
@@ -144,12 +142,5 @@ describe('createSwimTimeline — with a registered ref', () => {
     const robot = fakeRobot({ id: 'r6', position: { x: 0, y: 0 } });
     registerFakeRef('r6', false);
     expect(() => createSwimTimeline(robot, { x: 60, y: 0 })).not.toThrow();
-  });
-});
-
-describe('flip removal — no scaleX anywhere in the two files that used to own it (spec §1.6)', () => {
-  it('Robot.tsx and swimAnimation.ts no longer mention scaleX', () => {
-    expect(robotSource).not.toMatch(/scaleX/i);
-    expect(swimAnimationSource).not.toMatch(/scaleX/i);
   });
 });
