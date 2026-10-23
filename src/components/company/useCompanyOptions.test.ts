@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCompanyOptions } from './useCompanyOptions';
@@ -1252,12 +1250,6 @@ describe('useCompanyOptions', () => {
 
       expect(result.current.options.onPanChange).toBe(onPanChange);
       expect(result.current.options.onPanAutoChange).toBe(onPanAutoChange);
-    });
-
-    it('the hook never reads the live readout store (the company screen shows the stored pan only)', () => {
-      const source = readFileSync(resolve(__dirname, 'useCompanyOptions.ts'), 'utf8');
-
-      expect(source).not.toContain('robotPanReadoutStore');
     });
   });
 

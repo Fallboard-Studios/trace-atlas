@@ -2,10 +2,6 @@
 // whether a run was taken with the world dimmed (a hub tile open), and what the bubble layers cost.
 // Roadmap Phase 53 review follow-ups R5 and R6 (docs/tasks/PER_MOVER_REVIEW_FOLLOWUPS.md). The Chrome/CDP
 // plumbing is not unit-tested; it is verified by a real run (see docs/PERFORMANCE.md).
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -262,50 +258,5 @@ describe('truncationWarning', () => {
     expect(truncationWarning(100, 0)).toBeNull();
     expect(truncationWarning(100, Number.NaN)).toBeNull();
     expect(truncationWarning(100, -1)).toBeNull();
-  });
-});
-
-// ========================================
-// THE HARNESS USES THEM
-// ========================================
-
-describe('idle-paint.mjs uses them', () => {
-  const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'idle-paint.mjs'), 'utf-8');
-
-  it('imports the helpers from the lib', () => {
-    expect(source).toMatch(/from '\.\/world-state-lib\.mjs'/);
-    for (const name of ['DIMMED_PROBE', 'BUBBLES_IN_FLIGHT', 'bubbleLayerStats', 'checkDimmed', 'dimmedReading', 'paintTotalsFor', 'parseExpectDimmed']) {
-      expect(source, name).toContain(name);
-    }
-  });
-
-  it('takes --expect-dimmed and --bubbles, and says so in --help', () => {
-    expect(source).toContain("'expect-dimmed': { type: 'string' }");
-    expect(source).toContain('bubbles: { type: \'string\' }');
-    expect(source).toMatch(/--expect-dimmed/);
-  });
-
-  it('reports the dimmed state of every run and rejects a run that is not what was asked for', () => {
-    expect(source).toContain('parseExpectDimmed(opts[\'expect-dimmed\'])');
-    expect(source).toContain('dimmedReading(await evaluate(DIMMED_PROBE))');
-    expect(source).toContain('checkDimmed(');
-    expect(source).toMatch(/World: \$\{/);
-  });
-
-  it('checks the dimmed state again after the windows, so a tile that closed mid-run cannot pass', () => {
-    const calls = source.match(/dimmedReading\(await evaluate\(DIMMED_PROBE\)\)/g) ?? [];
-    expect(calls.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('chooses the trace categories for the window and warns when the frames say it was cut short', () => {
-    expect(source).toContain('includedCategories: traceCategories(ms)');
-    expect(source).toContain('truncationWarning(frames, ms)');
-  });
-
-  it('reads the bubble layers and the bubble slot paints, and prints them', () => {
-    expect(source).toContain('bubbleLayerStats(');
-    expect(source).toContain('paintTotalsFor(');
-    expect(source).toMatch(/Bubble layers: /);
-    expect(source).toMatch(/Bubble paints/);
   });
 });

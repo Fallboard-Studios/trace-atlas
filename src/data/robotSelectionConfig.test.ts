@@ -181,13 +181,6 @@ describe('robotSelectionConfig', () => {
 });
 
 describe('robotSelectionConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 9)', () => {
-  it('carries no copy literal of its own — the value-label maps are optionsRecord() wrappers', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'robotSelectionConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-    expect(src).toMatch(/optionsRecord\('probe\.job'\)/);
-  });
   it('wrappers expose exactly the same keys and text as CONTENT', async () => {
     const { CONTENT } = await import('@/content');
     expect(Object.keys(JOB_TYPE_LABELS)).toEqual(Object.keys(CONTENT['probe.job'].options));

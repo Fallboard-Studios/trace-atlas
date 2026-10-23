@@ -1,6 +1,3 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
 import { Profiler } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
@@ -371,16 +368,11 @@ describe('FleetParamsScreen — Pacing: Humanize (Robot Performance Task 13)', (
     expect(useAudioStore.getState().humanize).toBe(13);
     expect(push).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith(13);
-    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'FleetParamsScreen.tsx'), 'utf8');
-    expect(source).not.toMatch(/from\s+['"][^'"]*AudioEngine['"]/); // no import of the engine...
-    expect(source).not.toMatch(/AudioEngine\./); // ...and no call on it
   });
 
   it('carries a help button named for it, and the component writes no display string for it', () => {
     render(<FleetParamsScreen />);
     expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['fleet.pacing.humanize'].human }) })).toBeTruthy();
-    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'FleetParamsScreen.tsx'), 'utf8');
-    expect(source).not.toContain('>' + CONTENT['fleet.pacing.humanize'].human + '<');
   });
 
   it('the sliders in the row keep their own values when Humanize moves', () => {
@@ -669,38 +661,5 @@ describe('FleetParamsScreen — the Output section gains Width (Global Pedals T1
     useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: null });
     render(<FleetParamsScreen />);
     expect(tabNames(subRow('fleet.output'))).toEqual([human('fleet.compressor'), human('fleet.stereoWidener'), human('fleet.limiter')]);
-  });
-});
-
-describe('FleetParamsScreen — source', () => {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const src = readFileSync(resolve(here, 'FleetParamsScreen.tsx'), 'utf8');
-
-  it('imports none of the stacked-scroll machinery (accordionSync, sectionRefs, viewFade, the scrollspy, the open-state hook)', () => {
-    expect(src).not.toMatch(/accordionSync|sectionRefs|viewFade|useSectionObserver|useAccordionOpenState/);
-  });
-
-  it('carries no copy literal of its own', () => {
-    expect(src).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription|label)\s*[:=]\s*['"`]/);
-  });
-});
-
-// The grep gate, kept as a test (as Task 9's is): FleetParamsContent is gone and nothing imports it.
-describe('FleetParamsContent is deleted', () => {
-  const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-  const module = 'components/panels/screen/nav/content/FleetParamsContent';
-
-  it('its component, stylesheet and tests are gone', () => {
-    for (const ext of ['.ts', '.tsx', '.css', '.test.ts', '.test.tsx']) {
-      expect(existsSync(join(srcRoot, module + ext)), module + ext).toBe(false);
-    }
-  });
-
-  it('nothing under src/ imports or mocks it', () => {
-    const importOf = /(from|import|vi\.mock\()\s*['"][^'"]*\/FleetParamsContent(\.css)?['"]/;
-    const importers = (readdirSync(srcRoot, { recursive: true }) as string[])
-      .filter((file) => /\.(ts|tsx)$/.test(file))
-      .filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')));
-    expect(importers).toEqual([]);
   });
 });

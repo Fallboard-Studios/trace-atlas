@@ -411,7 +411,7 @@ describe('OceanScene', () => {
     });
 
     // The stage is exactly as large as its sheets' viewBox, so a sheet that fills it needs no
-    // preserveAspectRatio. The size is inline, not in the stylesheet (OceanScene.css.test.ts).
+    // preserveAspectRatio. The size is inline, not in the stylesheet.
     it('sizes the stage to the sheets viewBox: 1920 x 1080 by default, and the width and height props otherwise', () => {
       const { container, rerender } = render(<OceanScene />);
       const stage = container.querySelector<HTMLElement>('.ocean-scene__stage')!;

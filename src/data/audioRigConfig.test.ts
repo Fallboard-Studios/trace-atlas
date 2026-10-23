@@ -1061,14 +1061,6 @@ describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
 
 
 describe('audioRigConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 7)', () => {
-  it('carries no copy literal of its own — every loreLabel/humanLabel/unit is spread in from CONTENT', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'audioRigConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit)\s*:\s*['"`]/);
-    expect(src).not.toMatch(/panelSchema\([^)]*'[A-Z][^']*'/); // no positional heading strings either
-  });
-
   it('every schema label equals its concept\'s CONTENT entry', async () => {
     const { CONTENT } = await import('@/content');
     expect(BPM_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.tempo'].human);

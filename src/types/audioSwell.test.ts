@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from './lfo';
@@ -103,14 +100,6 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
 });
 
 describe('SwellPhase', () => {
-  it("is declared as exactly 'rising' | 'falling' — no third 'holding' member (source-scan regression guard, per spec §1.5)", () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwell.ts'), 'utf-8');
-    const declaration = source.match(/export type SwellPhase =[^;]+;/);
-    expect(declaration).not.toBeNull();
-    expect(declaration![0]).toBe("export type SwellPhase = 'rising' | 'falling';");
-  });
-
   it('accepts both documented phase values (compile-time check via build:types)', () => {
     const rising: SwellPhase = 'rising';
     const falling: SwellPhase = 'falling';

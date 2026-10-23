@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from 'vitest';
 
 // Spy on getSeededVal while keeping its real behavior (the worldTransition.test.ts
@@ -1633,12 +1630,6 @@ describe('generatePingVarianceAutomation', () => {
       const value = generatePingVarianceAutomation(`seed-pva-sample-${i}`, `PvaSample${i}`);
       expect(Number.isInteger(value * 100), `attenuationStyle ${i}: ${value}`).toBe(true);
     }
-  });
-
-  it('is not a Math.random()-driven value anywhere in this module (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'globalAudioSeed.ts'), 'utf-8');
-    expect(source).not.toMatch(/Math\.random/);
   });
 });
 

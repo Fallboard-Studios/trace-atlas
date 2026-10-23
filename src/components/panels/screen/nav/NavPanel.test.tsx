@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
@@ -11,7 +8,6 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { labels, type ContentKey } from '@/content';
 import type { HubTile } from '@/types/hub';
 import type { Robot } from '@/types/Robot';
@@ -671,150 +667,5 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     expect(nav()).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(scrim()).toBeNull();
-  });
-});
-
-describe('NavPanel.css — the phone sheet', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
-
-  it('the sheet is 300 px on the left edge, between the top bar and the bottom bar, never under either', () => {
-    const body = getCssRuleBody(css, '.nav-sheet');
-    expect(body).not.toBeNull();
-    for (const declaration of ['position: absolute;', 'left: 0;', 'bottom: var(--phone-bar-clearance);', 'width: min(var(--nav-sheet-width), 100%);']) {
-      expect(body).toContain(declaration);
-    }
-    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--nav-sheet-width: 300px;');
-  });
-
-  it('the scrim spans the same band, full width', () => {
-    const body = getCssRuleBody(css, '.nav-sheet__scrim');
-    expect(body).not.toBeNull();
-    for (const declaration of ['position: absolute;', 'left: 0;', 'right: 0;', 'bottom: var(--phone-bar-clearance);']) {
-      expect(body).toContain(declaration);
-    }
-  });
-
-  // Task 6: the top bar's lower edge is Header.css's --top-bar-bottom — the header or the power corner,
-  // whichever reaches lower. Task 5's own header clearance tucked the sheet 4–16 px over the header and
-  // 9 px under the power corner (measured in Chrome).
-  it('the sheet and the scrim share one top edge: the top bar', () => {
-    const top = (selector: string) => getCssRuleBody(css, selector)?.match(/(^|\s)top: ([^;]+);/)?.[2];
-    expect(top('.nav-sheet')).toBe('var(--top-bar-bottom)');
-    expect(top('.nav-sheet__scrim')).toBe('var(--top-bar-bottom)');
-  });
-
-  it('inside the sheet the panel fills it instead of sizing itself from --nav-panel-width', () => {
-    const body = getCssRuleBody(css, '.nav-sheet > .nav-panel');
-    expect(body).toContain('position: static;');
-    expect(body).toContain('width: 100%;');
-    expect(body).toContain('height: 100%;');
-  });
-});
-
-describe('NavPanel.css — the width contract', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
-
-  it('derives --nav-panel-width on the screen viewport from the rest and wide sizes and the expand factor', () => {
-    const body = getCssRuleBody(css, '#screen-viewport');
-    expect(body).not.toBeNull();
-    // Crawford, 2026-10-10: the rest width wider (124 px, so "TIMBRE & COLOR" fits one line), the wide
-    // one narrower (less side padding).
-    expect(body).toContain('--nav-panel-rest: 124px;');
-    expect(body).toContain('--nav-panel-wide: 200px;');
-    expect(body).toContain('--nav-panel-expand: 0;');
-    expect(body).toContain(
-      '--nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));',
-    );
-  });
-
-  it('sizes the panel from --nav-panel-width', () => {
-    expect(getCssRuleBody(css, '.nav-panel')).toContain('width: var(--nav-panel-width);');
-  });
-
-  // Crawford, 2026-10-10: the boxes collided with the list's scrollbar. With a list open (the panel
-  // scrolls when twelve robots outgrow it) the plate keeps 16 px on the right, 12 px clear of a popped
-  // face; at rest it keeps its 8 px, which the 124 px one-line labels were sized against.
-  it('keeps 16 px on the right of the plate while a list is open, and its 8 px padding at rest', () => {
-    const front = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front');
-    expect(front).toMatch(/padding:\s*var\(--spacing-sm\);/);
-    expect(getCssRuleBody(css, '.nav-panel:has(.nav-entity-list) > .sc-cabinet-box > .sc-cabinet-box__front')).toMatch(/padding-right:\s*16px;/);
-  });
-
-  // Crawford, 2026-10-10: "cut the side padding down". A box's face keeps 4 px a side, not 8.
-  it("a nav box's face has 4 px of side padding", () => {
-    const boxCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavBox.css'), 'utf-8');
-    // The face's own rule, not the shared `.nav-box .sc-cabinet-box, …__front` width rule before it.
-    const faceRules = [...boxCss.matchAll(/(?:^|\n)\.nav-box \.sc-cabinet-box__front \{([^}]*)\}/g)].map((m) => m[1]);
-    expect(faceRules.join('')).toMatch(/padding:\s*0 4px;/);
-    expect(faceRules.join('')).not.toMatch(/padding:\s*0 var\(--spacing-sm\)/);
-  });
-});
-
-describe('NavPanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', () => {
-    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*[A-Z][a-z]+( [A-Za-z]+)*\s*</);
-  });
-});
-
-// Crawford, 2026-10-10: on the desk the panel no longer takes the full height: its height comes from its content,
-// capped at the screen so a long list still scrolls inside the plate. 2026-10-12: it hangs from `--header-top`
-// (now `--spacing-md`, shared with the header) instead of padding itself 24px down, so its padding is
-// `0 0 40px var(--spacing-md)`. The phone's sheet is not the desk rail: it keeps its own padding and fills the
-// sheet.
-describe('NavPanel.css — the desk rail sizes itself from its content', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
-  const rail = () => getCssRuleBody(css, '.nav-panel');
-  const sheetPanel = () => getCssRuleBody(css, '.nav-sheet > .nav-panel');
-
-  it('pads nothing above, 40px below and 12px on the left, none on the right', () => {
-    expect(rail()).toContain('padding: 0 0 40px var(--spacing-md);');
-  });
-
-  it('hangs from --header-top and is no longer pinned to the bottom, so its height is its content', () => {
-    expect(rail()).toContain('top: var(--header-top);');
-    expect(rail()).not.toMatch(/(^|\s)bottom:/);
-    expect(rail()).not.toMatch(/(^|\s)height:/);
-  });
-
-  it('is capped at the screen, padding included, so twelve robots scroll inside the plate instead of running off', () => {
-    expect(rail()).toContain('max-height: 100%;');
-    expect(rail()).toContain('box-sizing: border-box;');
-  });
-
-  it('lets the facade shrink to that cap rather than stretch to fill it', () => {
-    const box = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box');
-    expect(box).toContain('flex: 0 1 auto;');
-    expect(box).toContain('min-height: 0;');
-  });
-
-  // Found in Chrome at 560px high with the Probes list open: a percentage height inside a content-sized flex item
-  // does not resolve, so the plate's face ran to 968px inside a 464px box and off the screen instead of
-  // scrolling. The facade is a flex column and the face is its flexing child, which shrinks to the cap.
-  it('makes the facade a flex column, so its face shrinks to the capped height and scrolls', () => {
-    const box = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box');
-    expect(box).toContain('display: flex;');
-    expect(box).toContain('flex-direction: column;');
-    const front = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front');
-    expect(front).toContain('flex: 1 1 auto;');
-    expect(front).toContain('min-height: 0;');
-    expect(front).toContain('overflow-y: auto;');
-    // CabinetBox.css gives every front face a fixed height; auto lets this one be its content's, then flex.
-    expect(front).toContain('height: auto;');
-  });
-
-  it('keeps the plate filling the phone sheet, as it did before the desk rail took its content height', () => {
-    const body = getCssRuleBody(css, '.nav-sheet > .nav-panel > .sc-cabinet-box');
-    expect(body).not.toBeNull();
-    expect(body).toContain('flex: 1 1 auto;');
-  });
-
-  it('keeps the phone sheet as it was: its own padding, the full sheet height, no screen cap', () => {
-    const body = sheetPanel();
-    expect(body).toContain('height: 100%;');
-    expect(body).toContain('max-height: none;');
-    expect(body).toContain('padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);');
   });
 });

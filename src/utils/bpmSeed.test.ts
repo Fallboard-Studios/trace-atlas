@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, afterEach } from 'vitest';
 
 import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
@@ -68,13 +65,5 @@ describe('generateAttenuationStyleBpm (docs/specs/FREE_SYNC_TOGGLE.md §1.7 "BPM
     const seen = new Set<number>();
     for (let i = 0; i < SAMPLE_COUNT; i++) seen.add(generateAttenuationStyleBpm(sampleId(i), sampleName(i)));
     expect(seen.size).toBeGreaterThanOrEqual(10);
-  });
-
-  it('is not a Math.random()-driven value, and is keyed off the Attenuation Style noise map, not the locale one (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'bpmSeed.ts'), 'utf-8');
-    expect(source).not.toMatch(/Math\.random/);
-    expect(source).toMatch(/getAttenuationStyleNoiseMap/);
-    expect(source).not.toMatch(/getLocaleNoiseMap/);
   });
 });

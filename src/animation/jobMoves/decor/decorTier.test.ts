@@ -1,10 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, it, expect } from 'vitest';
 
 import { decorTier, type DecorTier, type DecorTierLadder } from './decorTier';
@@ -71,22 +67,5 @@ describe('decorTier (docs/specs/JOB_DECORATION.md Assumption 9, Task 5)', () => 
 
   it('is a pure function of the load: the same input twice gives the same tier', () => {
     expect(decorTier(0.3, LADDER)).toBe(decorTier(0.3, LADDER));
-  });
-});
-
-describe('decorations never read the audio store inside a tween (Task 5)', () => {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const sources = [
-    ...readdirSync(here).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts')).map((f) => resolve(here, f)),
-    resolve(here, '..', 'buildJobTimeline.ts'),
-  ];
-
-  it('finds the sources it is meant to guard (a moved file cannot silently empty the check)', () => {
-    expect(sources.some((p) => p.endsWith('decorTier.ts'))).toBe(true);
-    expect(sources.some((p) => p.endsWith('buildJobTimeline.ts'))).toBe(true);
-  });
-
-  it('no decor module and not buildJobTimeline mentions useAudioStore: the tier is read once, by the work loop', () => {
-    for (const path of sources) expect(readFileSync(path, 'utf8'), path).not.toContain('useAudioStore');
   });
 });

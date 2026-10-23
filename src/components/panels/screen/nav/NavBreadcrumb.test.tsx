@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { Profiler } from 'react';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
@@ -8,7 +6,6 @@ import { NavBreadcrumb } from './NavBreadcrumb';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore, type UIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { CONTENT } from '@/content';
 import type { Robot } from '@/types/Robot';
 import type { Company } from '@/types/Company';
@@ -287,55 +284,5 @@ describe('NavBreadcrumb — where it renders, by shell', () => {
     setNav({ activeHubTile: 'settings' });
     render(<NavBreadcrumb />);
     expect(crumb().classList.contains('nav-breadcrumb--bar')).toBe(false);
-  });
-});
-
-describe('NavBreadcrumb.css — a well at the content surface’s bottom-left corner', () => {
-  const css = readFileSync(resolve(__dirname, 'NavBreadcrumb.css'), 'utf8');
-  const paneCss = readFileSync(resolve(__dirname, '../console/ContentPane.css'), 'utf8');
-  const declaration = (body: string | null, property: string) => body?.match(new RegExp(`(?:^|\\s)${property}:\\s*([^;]+);`))?.[1].trim();
-
-  it('sits on the surface’s own left and bottom edges (the same expressions ContentPane.css uses)', () => {
-    const crumbBody = getCssRuleBody(css, '.nav-breadcrumb');
-    const paneBody = getCssRuleBody(paneCss, '.content-pane');
-    expect(declaration(crumbBody, 'left')).toBeDefined();
-    expect(declaration(crumbBody, 'left')).toBe(declaration(paneBody, 'left'));
-    expect(declaration(crumbBody, 'bottom')).toBe(declaration(paneBody, 'bottom'));
-  });
-
-  it('is one line of the band height the surface keeps free for it, so no content sits under it', () => {
-    const crumbBody = getCssRuleBody(css, '.nav-breadcrumb');
-    expect(declaration(crumbBody, 'height')).toBe('var(--nav-breadcrumb-height)');
-    expect(declaration(getCssRuleBody(css, '#screen-viewport'), '--nav-breadcrumb-height')).toBeDefined();
-    expect(declaration(getCssRuleBody(paneCss, '.content-pane'), 'padding-bottom')).toBe('var(--nav-breadcrumb-height)');
-    expect(declaration(getCssRuleBody(paneCss, "#screen-viewport[data-shell='phone'] .content-pane"), 'padding-bottom')).toBe('0');
-    for (const d of ['white-space: nowrap;', 'overflow: hidden;', 'text-overflow: ellipsis;']) expect(crumbBody).toContain(d);
-  });
-
-  it('is a well: the shared well tokens, in the accent', () => {
-    const crumbBody = getCssRuleBody(css, '.nav-breadcrumb');
-    expect(crumbBody).toContain('background: var(--well-background);');
-    expect(crumbBody).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
-    expect(crumbBody).toContain('border: 1px solid var(--color-accent);');
-  });
-
-  it('the bar variant drops the well and its place: it is inline text inside the bar’s own well', () => {
-    const bar = getCssRuleBody(css, '.nav-breadcrumb--bar');
-    for (const d of ['position: static;', 'display: inline;', 'border: 0;', 'box-shadow: none;', 'background: none;', 'padding: 0;']) expect(bar).toContain(d);
-  });
-
-  it('keeps the plain parts click-through and the buttons clickable', () => {
-    expect(getCssRuleBody(css, '.nav-breadcrumb')).toContain('pointer-events: none;');
-    expect(getCssRuleBody(css, '.nav-breadcrumb__segment--link')).toContain('pointer-events: auto;');
-  });
-});
-
-describe('NavBreadcrumb reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', () => {
-    const source = readFileSync(resolve(__dirname, 'NavBreadcrumb.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
-    expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
   });
 });

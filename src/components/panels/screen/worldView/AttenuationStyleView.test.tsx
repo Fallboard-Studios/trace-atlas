@@ -125,38 +125,4 @@ describe('AttenuationStyleView — temperature wiring (docs/specs/HEADER_HUB_CON
     expect(useUIStore.getState().activeLocaleTemperature).toBeNull();
     expect(useUIStore.getState().activeLocaleLocalTime).toBeNull();
   });
-
-  it('introduces no second setInterval/timer for temperature (source-scan regression guard)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { dirname, join } = await import('node:path');
-    const { fileURLToPath } = await import('node:url');
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'AttenuationStyleView.tsx'), 'utf-8');
-    const intervalMatches = source.match(/setInterval\(/g) ?? [];
-    expect(intervalMatches.length).toBe(1);
-  });
-
-  // Found live-verifying items 21/23/24 (2026-09-15, Crawford + React DevTools Profiler):
-  // every FactoryInner/RobotBody subscribed to activeLocaleLocalTime re-renders in one
-  // synchronized React commit every tick, by design (avoids visual tearing between
-  // buildings) -- but that means one uninterruptible ~43ms (measured, jsdom) block on the
-  // main thread every second, even with 21/23/24's fixes landed. startTransition doesn't
-  // reduce that work; it marks it low-priority so React can interrupt/spread it instead of
-  // blocking. React scheduling priority itself isn't directly observable in a synchronous
-  // jsdom test (act() flushes transitions before returning either way), so this is a
-  // source-scan regression guard, matching this file's own existing pattern for the
-  // setInterval count above -- the 5 tests above already prove no behavioral regression
-  // (same final values, same call counts) regardless of scheduling priority.
-  it('wraps the tick\'s store updates in React.startTransition (docs/todo/backlog.md item 25)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { dirname, join } = await import('node:path');
-    const { fileURLToPath } = await import('node:url');
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'AttenuationStyleView.tsx'), 'utf-8');
-    expect(source).toMatch(/startTransition\(\(\) => \{/);
-    // Both store updates (localTime + temperature), not just one, must be inside the transition.
-    const transitionBody = source.match(/startTransition\(\(\) => \{([\s\S]*?)\}\);/)?.[1] ?? '';
-    expect(transitionBody).toContain('setActiveLocaleLocalTime');
-    expect(transitionBody).toContain('setActiveLocaleTemperature');
-  });
 });

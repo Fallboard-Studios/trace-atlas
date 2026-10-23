@@ -1,10 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 
@@ -2362,24 +2358,5 @@ describe('workLoop — the decoration tier (Job decorations Task 5, spec Assumpt
       clearRobotMotionRegistry();
       document.body.innerHTML = '';
     }
-  });
-});
-
-// Phase 53 Task 14 (docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.5): a row switch is a write of
-// `layer`, so the loop keeps no list of pending re-mounts and marks nothing. The machinery's names
-// are gone from the module, and from stopWorkLoop with them.
-describe('workLoop — no re-mount machinery (Phase 53 Task 14)', () => {
-  const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'workLoop.ts'), 'utf-8');
-
-  it.each(['remounts', 'markLayerSwitching', 'clearLayerSwitching', 'isLayerSwitching', 'continueLeg'])(
-    'workLoop.ts names no %s',
-    (name) => {
-      expect(source).not.toMatch(new RegExp(String.raw`\b${name}\b`));
-    },
-  );
-
-  it('onRobotMounted is adopt-or-hide only: it holds no continuation for a pending layer switch', () => {
-    const body = source.slice(source.indexOf('export function onRobotMounted'));
-    expect(body).not.toMatch(/\.get\(robotId\)/);
   });
 });

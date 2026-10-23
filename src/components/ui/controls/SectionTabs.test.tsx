@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { useEffect, useState, type ReactNode } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
@@ -320,23 +317,5 @@ describe('SectionTabs', () => {
   // docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md — every cabinetry primitive is React.memo-wrapped.
   it('is a React.memo-wrapped component', () => {
     expect((SectionTabs as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
-  });
-});
-
-// jsdom computes no layout: the never-resize-on-flip contract is pinned at the source.
-describe('SectionTabs.css', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SectionTabs.css'), 'utf-8').replace(/\r\n/g, '\n');
-  const SIZE_PROPERTIES = /(^|[\s;{])(font(-size|-weight|-family)?|letter-spacing|padding[\w-]*|margin[\w-]*|border(-\w+)?-width|border|width|height|min-width|min-height|max-width|line-height)\s*:/;
-
-  it('no rule keyed on the active state changes anything that sizes the box', () => {
-    const activeRules = [...css.matchAll(/([^{}]*\[data-state=['"]?active['"]?\][^{}]*)\{([^}]*)\}/g)];
-    for (const [, selector, body] of activeRules) {
-      expect(SIZE_PROPERTIES.test(body), `${selector.trim()} changes size: ${body.trim()}`).toBe(false);
-    }
-  });
-
-  it('keeps a label on one line, and lets a row too wide for its pane scroll rather than wrap or clip', () => {
-    expect(css).toMatch(/\.section-tabs__trigger\s*\{[^}]*white-space:\s*nowrap;/);
-    expect(css).toMatch(/\.section-tabs__list\s*\{[^}]*overflow-x:\s*auto;/);
   });
 });

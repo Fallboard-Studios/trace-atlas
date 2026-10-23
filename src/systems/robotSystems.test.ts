@@ -567,20 +567,6 @@ describe('robotSystems', () => {
     });
   });
 
-  describe('module boundary (Phase 43 Task 5)', () => {
-    it('robotSystems.ts reaches visuals only through the seam — no swimAnimation or spawnSystem, the work loop by onLifecycleChange alone', async () => {
-      const { readFileSync } = await import('node:fs');
-      const { resolve } = await import('node:path');
-      const src = readFileSync(resolve(__dirname, 'robotSystems.ts'), 'utf8');
-      // Every module specifier, including the closing line of a multi-line import.
-      const specifiers = [...src.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
-      expect(specifiers).not.toContain('../animation/swimAnimation');
-      expect(specifiers).not.toContain('./spawnSystem');
-      expect(specifiers).toContain('./workLoop');
-      expect(src).toMatch(/import \{ onLifecycleChange \} from '\.\/workLoop';/);
-    });
-  });
-
   describe('JobType', () => {
     it('has six members — the four legacy profiles plus salvage and maintenance (Phase 43 Task 4)', () => {
       expect(Object.values(JobType).sort()).toEqual(

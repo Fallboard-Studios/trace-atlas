@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { NoiseFunction2D } from 'simplex-noise';
 
@@ -270,29 +267,6 @@ describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
     tickAudioSwells(LOCALE_ID, 0);
 
     expect(getActiveSwellSnapshot('global')).toHaveLength(1);
-  });
-
-  it('no longer reads audioSwellsEnabled anywhere in this module (source-scan regression guard) — the field itself was deleted from AudioStore entirely in docs/tasks/PING-VARIANCE-AUTOMATION.md Task 7', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/audioSwellsEnabled/);
-  });
-
-  it('no longer reads SWELL_TRIGGER_CHANCE or lastRolledMeasure anywhere in this module (source-scan regression guard, docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §3)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/SWELL_TRIGGER_CHANCE/);
-    expect(source).not.toMatch(/lastRolledMeasure/);
-  });
-
-  it('no longer uses the identifier "automation" anywhere in this module outside a comment naming the superseded PING-VARIANCE-AUTOMATION.md spec (source-scan regression guard — magnitude scaling is now parameter "intensity", docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    const codeLines = source
-      .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)); // drop comment-only lines
-    const codeWithoutComments = codeLines.join('\n');
-    expect(codeWithoutComments).not.toMatch(/\bautomation\b/);
   });
 });
 
@@ -751,36 +725,9 @@ describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_
       expect(ratio).toBeLessThanOrEqual(0.8 + 0.05);
     }
   });
-
-  it('pickPhaseMeasures, DEFAULT_SWELL_DURATION_RANGE, MIX_SWELL_DURATION_RANGE, MIX_SWELL_TARGETS no longer exist anywhere in this module (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/pickPhaseMeasures/);
-    expect(source).not.toMatch(/DEFAULT_SWELL_DURATION_RANGE/);
-    expect(source).not.toMatch(/MIX_SWELL_DURATION_RANGE/);
-    expect(source).not.toMatch(/MIX_SWELL_TARGETS/);
-  });
-
-  it('has no global delay or reverb wet swell path left in code (source-scan regression guard, docs/specs/ROBOT_SENDS.md assumption 13)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    const code = source
-      .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)) // drop comment-only lines
-      .join('\n');
-    expect(code).not.toMatch(/isGlobalTargetAtOffEquivalent/);
-    expect(code).not.toMatch(/['"](delay|reverb)(\.wet)?['"]/);
-    expect(code).not.toMatch(/globalAudio\.(delay|reverb)\b/);
-  });
 });
 
-describe('determinism and zero Math.random()', () => {
-  it('never calls Math.random() anywhere in this module (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/Math\.random/);
-  });
-
+describe('determinism', () => {
   it('two identical ticks (same store state, same measure, real seeded noise) produce identical trigger/target/direction/duration decisions', () => {
     const runOnce = () => {
       stopAudioSwells();
@@ -1029,16 +976,6 @@ describe('robot pool — ramp lifecycle and write path', () => {
 
     expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls[0][0].id).toBe('r1');
-  });
-
-  it('never calls useLocaleStore\'s updateRobot or an AudioEngine.updateVoice*/updateRobotMasterVolume method directly (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    // Requires an actual call site (trailing paren) so a doc comment merely
-    // NAMING one of these functions in prose (e.g. "never a bare
-    // AudioEngine.updateVoice* pairing") doesn't trip this guard.
-    expect(source).not.toMatch(/\.updateRobot\(/);
-    expect(source).not.toMatch(/AudioEngine\.(updateVoice\w*|updateRobotMasterVolume)\(/);
   });
 });
 

@@ -101,14 +101,6 @@ describe('sectorSettingsConfig', () => {
 });
 
 describe('sectorSettingsConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
-  it('carries no copy literal of its own; preset names are data under `name`', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'sectorSettingsConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-    expect(src).not.toMatch(/\blabel\s*:/);
-    expect(ATTENUATION_STYLE_PRESETS[0]).toHaveProperty('name');
-  });
   it('labels equal CONTENT (the nav-row text where nav and control used to disagree)', async () => {
     const { CONTENT } = await import('@/content');
     expect(ATTENUATION_STYLE_SCHEMA.humanLabel).toBe(CONTENT['sector.attenuationStyle'].human);

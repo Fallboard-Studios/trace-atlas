@@ -85,30 +85,6 @@ describe('FactoryPlacementSystem', () => {
       for (const actor of scenery) expect(actor).not.toHaveProperty('cooldownRemaining');
     });
 
-    it('the interaction system and every removed production name are gone from src/ (Phase 43 Task 6)', async () => {
-      const { readdirSync, readFileSync, existsSync, statSync } = await import('node:fs');
-      const { resolve, join } = await import('node:path');
-      const srcRoot = resolve(__dirname, '..');
-      expect(existsSync(join(__dirname, 'interactionSystem.ts'))).toBe(false);
-      expect(existsSync(join(__dirname, 'interactionSystem.test.ts'))).toBe(false);
-
-      const removed = ['interactionSystem', 'cooldownRemaining', 'productionInterval', 'isOffline', 'offlineSince', 'PRODUCTION_INTERVAL'];
-      const self = resolve(__filename);
-      const offenders: string[] = [];
-      const walk = (dir: string): void => {
-        for (const name of readdirSync(dir)) {
-          const path = join(dir, name);
-          if (statSync(path).isDirectory()) walk(path);
-          else if (/\.(ts|tsx)$/.test(name) && path !== self) {
-            const text = readFileSync(path, 'utf8');
-            for (const word of removed) if (text.includes(word)) offenders.push(`${path}: ${word}`);
-          }
-        }
-      };
-      walk(srcRoot);
-      expect(offenders).toEqual([]);
-    });
-
     it('factory data is serializable', () => {
       const factory = createFactory({ x: 500, y: 1000 }, 2);
       expect(() => JSON.stringify(factory)).not.toThrow();

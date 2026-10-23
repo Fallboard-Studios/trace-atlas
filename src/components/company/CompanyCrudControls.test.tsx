@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
@@ -8,7 +5,6 @@ import { CompanyCreateForm, CompanyRenameDeleteForm } from './CompanyCrudControl
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { MAX_COMPANIES } from '@/constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 import { ADJECTIVES, COMPANY_NOUNS } from '@/systems/spawnSystem';
@@ -486,18 +482,6 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
   });
 });
 
-describe('CompanyCrudControls reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'CompanyCrudControls.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
-    expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
-  });
-});
-
 // docs/tasks/LAYOUT_REWORK.md Task 23 (Task 17's deferral): the delete confirm used to portal to <body>,
 // against the UI Shell guardrail. It goes into #screen-viewport like the Settings confirms, sets its own
 // text colour there, and gives focus back to the button that opened it.
@@ -530,11 +514,6 @@ describe('CompanyRenameDeleteForm — the delete confirm stays inside the screen
     const { container } = render(<CompanyRenameDeleteForm />);
     openDelete();
     expect(container.contains(screen.getByRole('alertdialog'))).toBe(true);
-  });
-
-  it('CSS: the dialog sets its own text colour rather than inheriting the screen\'s', () => {
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'CompanyCrudControls.css'), 'utf-8');
-    expect(getCssRuleBody(css, '.company-delete-confirm__content')).toContain('color: var(--color-text-primary-fixed);');
   });
 
   it('Escape gives focus back to the Delete button that opened it', async () => {

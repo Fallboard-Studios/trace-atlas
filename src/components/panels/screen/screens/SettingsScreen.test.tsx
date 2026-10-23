@@ -1,6 +1,3 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
 import { Profiler } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
@@ -12,7 +9,6 @@ import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type SettingsLeaf } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 17 (spec §1.3, §1.8, §1.10): Settings as one collapsible intro over
@@ -255,83 +251,5 @@ describe('SettingsScreen — the breadcrumb names the open tab (Root / Settings 
     expect(crumb()).toBe(path('settings.sessions'));
     pick('settings.quality');
     expect(crumb()).toBe(path('settings.quality'));
-  });
-});
-
-// Spec §1.8: "the limits readout as a well" (§1.1: in = read). AudioLoadPanel's own tests stay as they
-// are; the rule is the Settings screen's, so it is held here.
-describe('AudioLoadPanel.css — the limits readout is a well, not a cabinet', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../console/AudioLoadPanel.css'), 'utf8');
-  const readout = () => getCssRuleBody(css, '.audio-load-panel__readout');
-  const declaration = (property: string) => readout()?.match(new RegExp(`(?:^|\\s)${property}:\\s*([^;]+);`))?.[1].trim();
-
-  it('wears the shared well tokens and the accent edge every well has', () => {
-    expect(readout()).not.toBeNull();
-    expect(declaration('background')).toBe('var(--well-background)');
-    expect(declaration('box-shadow')).toBe('var(--well-inset), inset 0 0 8px var(--color-accent)');
-    expect(declaration('border')).toBe('1px solid var(--color-accent)');
-  });
-
-  it('is cut in, never raised: every shadow is inset, and nothing glows outward', () => {
-    const shadows = declaration('box-shadow')!.split(/,(?![^(]*\))/).map((layer) => layer.trim());
-    for (const layer of shadows) expect(layer.startsWith('inset') || layer === 'var(--well-inset)', layer).toBe(true);
-    expect(readout()).not.toMatch(/(?:^|\s)filter:/);
-  });
-
-  it('reads in the fixed white the other wells use, so a trait accent never tints the reading', () => {
-    expect(declaration('color')).toBe('var(--color-text-primary-fixed)');
-  });
-
-  // Beside the preset radio on the desk its row stretches every item to the radio's height (94 px in
-  // Chrome at 1280), which left one line of text in an empty well; the sketch's .limits sits at the start.
-  it('holds its own height: it never stretches to the preset radio beside it', () => {
-    expect(declaration('align-self')).toBe('flex-start');
-  });
-});
-
-describe('SettingsScreen — source', () => {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const src = readFileSync(resolve(here, 'SettingsScreen.tsx'), 'utf8');
-
-  it('imports none of the stacked-scroll machinery (accordionSync, sectionRefs, viewFade, the scrollspy, the open-state hook)', () => {
-    expect(src).not.toMatch(/accordionSync|sectionRefs|viewFade|useSectionObserver|useAccordionOpenState/);
-  });
-
-  it('carries no copy literal of its own', () => {
-    expect(src).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription|label)\s*[:=]\s*['"`]/);
-  });
-
-  it('reads the leaf order and the names from navActions, the table the breadcrumb reads', () => {
-    expect(src).toMatch(/SETTINGS_LEAVES/);
-    expect(src).toMatch(/SETTINGS_LEAF_CONTENT/);
-    expect(src).toMatch(/activeSettingsLeaf/);
-    expect(src).not.toMatch(/\[\s*'quality'\s*,\s*'sectorSettings'/);
-  });
-});
-
-// The grep gate, kept as a test (as Tasks 9 and 15 do): SettingsContent is gone, nothing imports it, and
-// the Settings subsection it alone read is retired from the store.
-describe('SettingsContent is deleted', () => {
-  const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-  const sourceFiles = () => (readdirSync(srcRoot, { recursive: true }) as string[]).filter((file) => /\.(ts|tsx)$/.test(file));
-
-  it('its component, stylesheet and tests are gone, the subsection integration test with them', () => {
-    for (const module of ['components/panels/screen/nav/content/SettingsContent', 'components/panels/screen/nav/content/SettingsSubsections.integration']) {
-      for (const ext of ['.ts', '.tsx', '.css', '.test.ts', '.test.tsx']) {
-        expect(existsSync(join(srcRoot, module + ext)), module + ext).toBe(false);
-      }
-    }
-  });
-
-  it('nothing under src/ imports or mocks it', () => {
-    const importOf = /(from|import|vi\.mock\()\s*['"][^'"]*\/SettingsContent(\.css)?['"]/;
-    expect(sourceFiles().filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')))).toEqual([]);
-  });
-
-  it('no source file names the retired Settings subsection (its type, field or setter)', () => {
-    const readers = sourceFiles()
-      .filter((file) => !/\.test\.tsx?$/.test(file))
-      .filter((file) => /SettingsSubsection/.test(readFileSync(join(srcRoot, file), 'utf8')));
-    expect(readers).toEqual([]);
   });
 });

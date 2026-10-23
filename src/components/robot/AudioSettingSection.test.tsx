@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import type { CSSProperties } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -25,7 +22,6 @@ import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, ROBOT_SEND_SCHEMAS, DYNAMICS_SCHEMA } from '@/data/robotOptionsConfig';
 import { ROBOT_SENDS, type RobotSendField } from '@/data/robotSends';
 import { CONTENT, fill } from '@/content';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import type { Robot } from '@/types/Robot';
 
 /** Stubs window.matchMedia so the mobile/tablet viewport tiers can be controlled — same shape
@@ -43,8 +39,6 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
     })),
   });
 }
-
-const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.css'), 'utf8');
 
 // The Pan row's two handlers, for every case that does not exercise Pan (docs/specs/ROBOT_PAN.md §1.5).
 const PAN_NOOPS = { onPanChange: () => {}, onPanAutoChange: () => {} };
@@ -476,13 +470,6 @@ describe('AudioSettingSection', () => {
       expect(screen.getByRole('status').closest('.audio-setting-section__pan-slider')).not.toBeNull();
     });
 
-    it('the pan-slider wrapper grows to fill the row and is not itself a flex container (useVoxelTrackSlider must see a block box)', () => {
-      const body = getCssRuleBody(css, '.audio-setting-section__pan-slider');
-      expect(body).not.toBeNull();
-      expect(body).toMatch(/flex(-grow)?\s*:\s*1/);
-      expect(body).not.toMatch(/display\s*:\s*(inline-)?flex/);
-    });
-
     it('is still a React.memo section: a livePan change re-renders neither the Audio Setting radio nor the Volume slider', () => {
       const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, ...LEVEL_NOOPS };
       const value = makeValue({ panAuto: true });
@@ -699,13 +686,6 @@ describe('AudioSettingSection', () => {
       expect(screen.getByRole('button', { name: fill('ui.help', { name: CONTENT['probe.delaySend'].human }) })).toBeTruthy();
     });
 
-    it('the component source writes no display string for the rows (they come from the schemas)', () => {
-      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
-      expect(source).not.toContain(CONTENT['probe.reverbSend'].human + '\'');
-      expect(source).not.toContain('>' + CONTENT['probe.reverbSend'].human + '<');
-      expect(source).not.toContain('>' + CONTENT['probe.delaySend'].human + '<');
-    });
-
     it('each slider sits in its own wrapper that is not the display:flex row (useVoxelTrackSlider needs a plain block box)', () => {
       render(<AudioSettingSection value={makeValue()} {...baseProps} />);
 
@@ -715,15 +695,6 @@ describe('AudioSettingSection', () => {
       expect(delayWrapper).not.toBeNull();
       expect(reverbWrapper).not.toBe(delayWrapper);
       [reverbWrapper, delayWrapper].forEach((w) => expect(w.classList.contains('audio-setting-section__row')).toBe(false));
-    });
-
-    it('the stylesheet gives neither wrapper a display:flex rule (scanned, as the Pan wrapper is)', () => {
-      for (const cls of ['.audio-setting-section__reverb-row', '.audio-setting-section__delay-row']) {
-        const body = getCssRuleBody(css, cls);
-        if (body !== null) expect(body, cls).not.toMatch(/display\s*:\s*(inline-)?flex/);
-      }
-      // ...and no combined selector rule smuggles flex onto them either.
-      expect(css).not.toMatch(/__(reverb|delay)-row[^{]*\{[^}]*display\s*:\s*(inline-)?flex/);
     });
 
     it('stays memo-stable: re-rendering with identical props re-renders none of the sliders', () => {
@@ -959,21 +930,12 @@ describe('AudioSettingSection', () => {
       expect(DYNAMICS_SCHEMA.unit).toBe('%');
     });
 
-    it('the component source writes no display string for the row (it comes from the schema)', () => {
-      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
-      expect(source).not.toContain('>' + CONTENT['probe.levels.dynamics'].human + '<');
-      expect(source).not.toContain(CONTENT['probe.levels.dynamics'].human + '\'');
-    });
-
     it('sits in its own wrapper that is not the display:flex row, and the stylesheet gives it no flex rule', () => {
       render(<AudioSettingSection value={makeValue()} {...baseProps} />);
 
       const wrapper = dynamicsSlider().closest('.audio-setting-section__dynamics-row')!;
       expect(wrapper).not.toBeNull();
       expect(wrapper.classList.contains('audio-setting-section__row')).toBe(false);
-      const body = getCssRuleBody(css, '.audio-setting-section__dynamics-row');
-      if (body !== null) expect(body).not.toMatch(/display\s*:\s*(inline-)?flex/);
-      expect(css).not.toMatch(/__dynamics-row[^{]*\{[^}]*display\s*:\s*(inline-)?flex/);
     });
 
     it('stays memo-stable, and editing Dynamics re-renders only the Dynamics slider (not Delay, Reverb, Volume, Pan or the radio)', () => {
@@ -1154,9 +1116,6 @@ describe('AudioSettingSection', () => {
         expect(w).not.toBeNull();
         expect(w.classList.contains('audio-setting-section__row')).toBe(false);
         expect(w.contains(sliderFor('probe.reverbSend'))).toBe(false);
-        const body = getCssRuleBody(css, `.${wrapper}`);
-        if (body !== null) expect(body).not.toMatch(/display\s*:\s*(inline-)?flex/);
-        expect(css).not.toMatch(new RegExp(`${wrapper}[^{]*\\{[^}]*display\\s*:\\s*(inline-)?flex`));
       });
 
       it('editing it re-renders no other slider, and editing Reverb or Volume does not re-render it', () => {
@@ -1202,14 +1161,6 @@ describe('AudioSettingSection', () => {
       const keys = ['probe.reverbSend', 'probe.delaySend', 'probe.gritSend', 'probe.shimmerSend', 'probe.doubleSend'] as const;
       keys.forEach((k) => fireEvent.keyDown(sliderFor(k), { key: 'ArrowRight' }));
       expect(fn.mock.calls.map(([field]) => field)).toEqual(['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend']);
-    });
-
-    it('the component source writes no display string for the new rows (they come from the schemas)', () => {
-      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
-      for (const { key } of ROWS) {
-        expect(source).not.toContain('>' + CONTENT[key].human + '<');
-        expect(source).not.toContain('\'' + CONTENT[key].human + '\'');
-      }
     });
   });
 
@@ -1419,23 +1370,6 @@ describe('AudioSettingSection', () => {
         <AudioSettingSection value={makeValue()} {...props} doubleSendSwelling />,
       ];
       expect([...handlers, ...flags]).toHaveLength(10);
-    });
-
-    it('the component source names none of the ten old props', () => {
-      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
-      for (const name of ['Reverb', 'Delay', 'Grit', 'Shimmer', 'Double']) {
-        expect(source, name).not.toMatch(new RegExp(`\\bon${name}SendChange\\b`));
-        expect(source, name).not.toMatch(new RegExp(`\\b${name.toLowerCase()}SendSwelling\\b`));
-      }
-    });
-
-    it('the component source spells out no send row by hand: no five-schema list, no per-field class literal', () => {
-      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
-      expect(source).toMatch(/ROBOT_SENDS\.map\(/);
-      for (const spec of ROBOT_SENDS) {
-        expect(source, spec.field).not.toContain(`audio-setting-section__${spec.engineKey}-row`);
-        expect(source, spec.field).not.toContain(`ROBOT_SEND_SCHEMAS.${spec.field}`);
-      }
     });
   });
 

@@ -69,14 +69,4 @@ describe('stepLocaleTemperature', () => {
     const results = Array.from({ length: 20 }, (_, i) => stepLocaleTemperature(`step-sample-${i}`, i * 7, i * 13, 5, -75));
     expect(new Set(results).size).toBeGreaterThan(1);
   });
-
-  it('is not a Math.random()-driven value (source-scan regression guard)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { dirname, join } = await import('node:path');
-    const { fileURLToPath } = await import('node:url');
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'localeTemperatureStep.ts'), 'utf-8');
-    expect(source).not.toMatch(/Math\.random/);
-    expect(source).toMatch(/getLocaleNoiseMap/);
-  });
 });

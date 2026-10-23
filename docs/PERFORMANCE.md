@@ -1825,7 +1825,7 @@ The area added up per frame, branch round 1: the document ≈ 0.78 screens, the 
 
 **Stopped here, not acted on** (plan Task 20: "Do not act on a miss"). The options for Crawford: (1) accept the criterion as written against the document layer, recording the phase as met on the work it targeted (≈ 2.07 → ≈ 0.16 screens/frame) with the document repaint filed as its own item; (2) find and fix the document repaint first, then re-run this gate unchanged; (3) amend the criterion to exclude the document layer from both sides. Option 3 changes the gate after seeing the result, so it should be a stated decision, not a quiet one. The Pixel listen (Task 21) is Crawford's either way and has not been run.
 
-Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate". Guarded by `src/docs/perMoverGateDocs.test.ts`.
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate".
 
 ## Per-Mover Compositor Layers — the Task 21 Pixel listen (2026-10-17)
 
@@ -1846,7 +1846,7 @@ The phone half of the phase's gates ([specs/PER_MOVER_COMPOSITOR_LAYERS.md](spec
 
 **The Task 20 miss stands, unchanged.** `screens/frame` 0.31 × `main` against the 0.25 limit is still recorded as a MISS above, and the document-layer repaint is still unidentified. Crawford went on to the docs phase after this listen; that is a decision to proceed, and this section does not rewrite the gate into a pass or amend its criterion.
 
-Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 21". Guarded by `src/docs/perMoverPixelDocs.test.ts`.
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 21".
 
 ## Per-Mover Compositor Layers — review follow-up R5: bubble strips drawing (2026-10-17)
 
@@ -1935,7 +1935,7 @@ Removing the circles takes about 200 ms off Compositor::Update on both builds, s
 
 The criterion as written is a MISS (busy). Options for Crawford: (1) accept it: +8 % busy and +18 % Compositor::Update on a 18-stream world over a 30 s window, against 0.85 MB of layers instead of 4.60 MB; (2) the bubble redesign spec §7 Q3 names (fewer layers, for example one stream per district); (3) first separate how much of the gap is the strips, for example with a sticky ablation that removes the strip `div`s themselves (not run), since the diagnostic above does not attribute it to them. Nothing was changed in the product, and the Task 20 result above stands as recorded.
 
-Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R5: Bubble strips with bubbles actually drawing". Guarded by `src/docs/perMoverReviewR5Docs.test.ts`.
+Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R5: Bubble strips with bubbles actually drawing".
 
 ## Per-Mover Compositor Layers — review follow-up R6: the dimmed world (2026-10-17)
 
@@ -1997,7 +1997,7 @@ Compositor::Update 520 → 567 ms (+47, +9 %) and Layerize 521 → 568 ms are ou
 
 No miss, so nothing is stopped here. Had a gate missed, any fix would change how the dimmed world is produced, which is a look decision for Crawford and a short amendment to the spec, not a quiet change.
 
-Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R6: The dimmed world (`data-dimmed`)". Guarded by `src/docs/perMoverReviewR6Docs.test.ts`.
+Plan: [tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) "R6: The dimmed world (`data-dimmed`)".
 
 ## Per-Mover Compositor Layers — the Task 20 gate, re-run with the frame wrappers left out (2026-10-17)
 
@@ -2005,7 +2005,7 @@ The Task 20 gate above, run again unchanged after the "document repaint" it miss
 
 **What was found.** There is no document repaint. The unnamed painter in the Task 20 attribution table ("the document", 279–345 paints of ~350 frames, a full viewport each) is the `Paint` trace event Chrome opens on `#document` (`layerId` 0, cull rect = the viewport) once per frame that paints anything: the whole-frame paint pass, inside whose span the per-layer `Paint` events sit. On both builds every one of 179 such events in a 3 s probe wrapped other `Paint` events and none stood alone, and the document's own compositor layer (layer 9, 1280 × 900) rastered on one frame in 179 (`RasterTask` events by `tileData.layerId`). The harness charged that wrapper one viewport per frame, because its clip is exactly the viewport and it has no layer of its own; that charge was ≈ 0.99 screens/frame on `main` and ≈ 0.77 on the branch, the whole of the miss. The spec had raised this doubt before the baseline (§4 assumption 6, Task 2 spike: "a `#document` paint with a clip of the whole page") and let the metric stand because `main` read near the predicted four screens; the agreement was a coincidence of the two sheets plus the wrapper. No ablation could name it: hiding the robots, factories, stations, gradients or transitions left the paint count untouched (`static-scene` 1054 of stock 1088 paints), and only `no-scene`, which leaves nothing to paint, removed it.
 
-**The metric changed, so the Task 20 numbers are not the comparison.** Commit `998207a5` (`scripts/perf/paint-area-lib.mjs` `framePaintWrappers`): a `#document` `Paint` whose span contains another complete `Paint` is a frame wrapper and is left out of the sum and of the per-node table; one with nothing nested still counts, so a genuine root-layer repaint is not hidden. Each `Paint` is still **clamped** to the area of the compositor layer it drew into, as before. Every row now also reports `frame wrappers` (the count left out): 355–357 on `main`, 277–280 on the branch, in the rounds below. TDD: 11 tests, 4 mutations killed; `src/docs/perMoverLayersDocs.test.ts` and `scripts/perf/scene-markup-lib.test.mjs` pin the harness. No product file changed.
+**The metric changed, so the Task 20 numbers are not the comparison.** Commit `998207a5` (`scripts/perf/paint-area-lib.mjs` `framePaintWrappers`): a `#document` `Paint` whose span contains another complete `Paint` is a frame wrapper and is left out of the sum and of the per-node table; one with nothing nested still counts, so a genuine root-layer repaint is not hidden. Each `Paint` is still **clamped** to the area of the compositor layer it drew into, as before. Every row now also reports `frame wrappers` (the count left out): 355–357 on `main`, 277–280 on the branch, in the rounds below. TDD: 11 tests, 4 mutations killed; `scripts/perf/scene-markup-lib.test.mjs` pins the harness. No product file changed.
 
 **Builds:** `main` `4a9b3fec`, from a throwaway `git worktree`, served on :4183, bundle `index-CVUy7kf3.js` (the Task 20 and Task 4 bundle, rebuilt and read back from the served HTML); the branch `fix/document-repaint` at `6e61e0ee` (= `perf/per-mover-layers` `570b279b` plus the harness fix and this investigation's docs; `src/` unchanged since `4d754d94`), served on :4181, bundle `index-Dil0Vyn4.js`. Both sides measured with the **branch's** harness at `998207a5`. Headless Chrome via `npm run perf:idle -- --throttle 1 --only none --port 9301 --url <link>`: **1280 × 900** at 1×, no CPU throttle, the stock **6 s** window after the 8 s power-on settle. The pinned world is the baseline's `?session=` link (style `alpha`, `(0, 50)`, defaults), with the port changed per side.
 
@@ -2050,7 +2050,7 @@ Compositor::Update 154 ms → 160 ms and Layerize 156 ms → 161 ms (medians) ar
 
 **Three side findings from the probe, filed and not acted on** ([tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) Gate 1 outcome): the branch promotes a `g.gem__part` (70 × 190) and a `circle.robot__work-drop` to compositor layers of their own, plus six small unnamed layers, and the gem part rasters every frame; both builds force a synchronous style-and-layout inside the rAF tick every frame (`Blink.ForcedStyleAndLayout` under the swim's `FunctionCall`, two `Layout`s per frame); and Chrome dispatches a fake mouse move with a hit test at the top of every frame, which follows from layout changing every frame.
 
-Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate" (the criteria) and [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) (this run). Guarded by `src/docs/perMoverGateDocs.test.ts`.
+Plan: [tasks/PER_MOVER_COMPOSITOR_LAYERS.md](tasks/PER_MOVER_COMPOSITOR_LAYERS.md) "Task 20 — the gate" (the criteria) and [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) (this run).
 
 ## Per-Mover Compositor Layers — the re-rastered area column (2026-10-18)
 
@@ -2097,7 +2097,7 @@ Long tasks 1, 1, 2 on `main` and 1, 1, 1 on the branch; busy is 2372–2657 ms a
 
 **Compositor-layer readouts** are the re-run's: `main` `Compositor layers: 28 (24 drawing content, ≈ 37.8 MB …; 23 with an owning node)`, `Mover layers: 0`; branch `Compositor layers: 30 (27 drawing content, ≈ 24.2 MB …, stage scale 0.763; 26 with an owning node)`, `Mover layers: 4, ≈ 0.1 MB` (30 rather than the re-run's 31: one fewer unowned layer at the read, the same drawing set). Compositor::Update 197 → 206 ms and Layerize 199 → 208 ms (medians) are recorded, not gated, as before.
 
-**What to do with the column.** Read it next to `screens/frame`, not instead of it: `screens/frame` says what the main thread recorded, `rastered screens/frame` what the GPU redrew, and a layer that shows in one and not the other (the marker sheet here) is the finding. Compare it only inside one session and at one viewport, like every other figure here. Plan and record: [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) Phase 5. Guarded by `src/docs/perMoverRasterDocs.test.ts`.
+**What to do with the column.** Read it next to `screens/frame`, not instead of it: `screens/frame` says what the main thread recorded, `rastered screens/frame` what the GPU redrew, and a layer that shows in one and not the other (the marker sheet here) is the finding. Compare it only inside one session and at one viewport, like every other figure here. Plan and record: [tasks/DOCUMENT_REPAINT.md](tasks/DOCUMENT_REPAINT.md) Phase 5.
 
 ### Follow-up, same day: the shell layer and the marker sheet are the deck camera
 
@@ -2199,8 +2199,6 @@ What Gate 2 is left with, for Crawford: on a DPR-1 desktop window narrower than 
 
 **Gate 2 decision (2026-10-18): adopt B.** Crawford's call, on the evidence above. His desktop runs at Windows 125 % scaling, DPR 1.25, the case B changes: a probe at DPR 1.25 reads stock with no scroller layer and B with the scrolling-contents layer and the shell layer not drawing, as at DPR 1. T2.1 (the Pixel underrun A/B) was skipped, since the phone composites the scroller on stock and the A/B would compare identical layers. T2.2 (the look, A against B in desktop Chrome at 125 %) passed: "they both look fine". The cost, stated: ≈ 0.7 MB at 1× on 1280 × 900, ≈ 1.1 MB at DPR 1.25 (× 1.25²), nothing on a phone. Committed as `9443dd1c`: `will-change: scroll-position` on `.world-view__scroller`, pinned by `WorldView.css.test.ts`, and a paragraph in ANIMATION_SYSTEM.md's deck camera section. The tables above stay as measured; "No variant is committed" was true when they were taken.
 
-Guarded by `src/docs/deckScrollerCompositingDocs.test.ts` (tables against their medians, ranges and viewports, the control, the reading's figures; 8 doc mutants killed).
-
 ## Per-Mover Compositor Layers — review follow-up R5, option 3: the strips separated (2026-10-18)
 
 Option (3) of "review follow-up R5" above ([tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md) R5): before Crawford chooses between accepting R5's busy MISS and the bubble redesign, find out how much of the branch's extra cost is the 18 bubble strips themselves, as layers, and how much is the other movers. R5's own diagnostic detached the circles and left the strip `div`s in the page, so it could not say. **Recorded, not gated, and not a decision:** the R5 section above stands as written, and what to do about its MISS is still Crawford's.
@@ -2291,8 +2289,6 @@ Window 2, medians of the accepted runs: the **Compositor::Update gap +357 → +3
 
 **Decision (2026-10-18): Crawford accepts R5's busy MISS.** On the evidence above: +8 % busy and +18 % Compositor::Update on the busiest world found, over 30 s, for 0.85 MB of bubble layers instead of 4.60 MB, with the larger part of the gap belonging to the robot movers that no bubble change reaches. No bubble redesign follows from it, and spec §7 Q3 is closed by this decision; R5's numbers and its MISS stand as recorded.
 
-Guarded by `src/docs/perMoverStripsDocs.test.ts` (every row against the acceptance rule, the medians and gaps against the accepted rows, the reading against the medians; 8 doc mutants killed).
-
 ## Per-Mover Compositor Layers — the Pixel A/B: not separable on the phone (2026-10-18)
 
 The `main` listen the Task 21 section above left open ([tasks/PER_MOVER_REVIEW_FOLLOWUPS.md](tasks/PER_MOVER_REVIEW_FOLLOWUPS.md), "Open before merge" item 3): the Pixel, `perf/per-mover-layers` against `main`, by ear and with the `?debug` overlay. **Result: the run-to-run spread on the phone is larger than the difference being looked for, so the A/B could not separate the two builds.** The gate was decided by Crawford on that basis (below).
@@ -2311,8 +2307,6 @@ The `main` listen the Task 21 section above left open ([tasks/PER_MOVER_REVIEW_F
 **Correction to the Task 21 section above.** It lists landscape among the plan's conditions and says Crawford did not restate the orientation. He has since said every run on his phone, Task 21's included, was **portrait**, where the deck camera runs. The Task 21 section stands as written; this is the correction.
 
 **Decision (2026-10-18): Crawford moves on.** The A/B is not separable on this instrument; with Task 21's clean listen, today's runs ("a few distortions, not as bad as earlier runs") and `main` underrunning too, the open "not above `main`" item is closed by his decision, not met as a measured criterion. A better instrument, if this ever needs settling, is the audio thread's render capacity read through Chrome's remote DevTools over USB, a continuous load figure rather than a count of failures.
-
-Guarded by `src/docs/perMoverPixelAbDocs.test.ts`.
 
 ## Recording a new baseline
 

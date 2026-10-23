@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
@@ -207,16 +204,10 @@ describe('OffScreen — muted: nothing comes off the plate', () => {
     expect(container.querySelector('[class*="popped"]')).toBeNull();
     expect(container.querySelector('.sc-radio-button--muted')).not.toBeNull();
   });
-
-  it('its stylesheet never mentions the cabinet, a pop or a glow', () => {
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'OffScreen.css'), 'utf-8');
-    expect(css).not.toMatch(/cabinet|popped|glow/i);
-  });
 });
 
 describe('OffScreen — on the phone shell (Task 28)', () => {
-  // jsdom computes no layout, so "no horizontal overflow" is pinned at the source (OffScreen.css.test.ts,
-  // RadioButton.css.test.ts, shell320.css.test.ts); here the phone shell's DOM is checked: ScreenViewport marks
+  // jsdom computes no layout, so "no horizontal overflow" is not checked here; the phone shell's DOM is: ScreenViewport marks
   // itself with data-shell, and every preset, and a save with the longest legal name, is still in the picker.
   const renderOnPhone = () =>
     render(

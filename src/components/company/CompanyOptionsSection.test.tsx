@@ -695,15 +695,3 @@ describe('companyTraitStyle', () => {
     expect(companyTraitStyle(trait, false)).toEqual(getDisabledTraitColorStyle(trait));
   });
 });
-
-describe('CompanyOptionsSection is the sections only', () => {
-  it('no longer owns an accordion stack, a selection read or a layout of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'CompanyOptionsSection.tsx'), 'utf8');
-    expect(source).not.toMatch(/RobotSectionAccordionStack/);
-    expect(source).not.toMatch(/useUIStore/);
-    expect(source).not.toMatch(/useLocaleStore/);
-    expect(source).not.toMatch(/AccordionState/);
-  });
-});

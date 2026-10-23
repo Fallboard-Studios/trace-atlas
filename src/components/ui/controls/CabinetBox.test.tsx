@@ -311,18 +311,6 @@ describe('CabinetBox', () => {
       const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
       expect(wrapper.style.getPropertyValue('--cabinet-box-color')).toBe('#ff0000');
     });
-
-    it("CabinetBox.css's backing/top-face/left-face-inner/front rules all read var(--cabinet-box-color, <default>) — source-scan, since jsdom doesn't resolve color-mix()/cascaded custom properties (this file's own existing caveat)", async () => {
-      const { readFileSync } = await import('node:fs');
-      const { dirname, join } = await import('node:path');
-      const { fileURLToPath } = await import('node:url');
-      const thisFile = fileURLToPath(import.meta.url);
-      const source = readFileSync(join(dirname(thisFile), 'CabinetBox.css'), 'utf-8');
-      expect(source).toMatch(/\.sc-cabinet-box__backing\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-accent-gradient\)\)/);
-      expect(source).toMatch(/\.sc-cabinet-box__top-face\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-accent\)\)/);
-      expect(source).toMatch(/\.sc-cabinet-box__left-face-inner\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-accent\)\)/);
-      expect(source).toMatch(/\.sc-cabinet-box__front\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-surface\)\)/);
-    });
   });
 
   describe('enforceMinTouchHeight (docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3/§5.1)', () => {

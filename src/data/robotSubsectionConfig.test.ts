@@ -1,8 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -26,9 +24,7 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(ROBOT_SECTIONS_CONFIG.map((s) => s.id)).toEqual(['volume', 'melody', 'envelope', 'source']);
   });
 
-  it('carries no label string of its own — every row and accordion is a content key that exists (docs/specs/CONTENT_LAYER.md, Task 11)', () => {
-    const src = readFileSync(resolve(__dirname, 'robotSubsectionConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|navLabel|accordionLabel|ownAccordionLabel)\s*:/);
+  it('every row and accordion is a content key that exists (docs/specs/CONTENT_LAYER.md, Task 11)', () => {
     for (const section of ROBOT_SECTIONS_CONFIG) {
       expect(CONTENT, section.id).toHaveProperty(section.content);
       if (section.accordion) expect(CONTENT).toHaveProperty(section.accordion);

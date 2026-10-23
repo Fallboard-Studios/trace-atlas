@@ -675,13 +675,6 @@ describe('SignatureArrayLayerBlock.panel (additive, Task 3)', () => {
 });
 
 describe('robotOptionsConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'robotOptionsConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-    expect(src).not.toMatch(/makeLayerBlock\([^)]*'[A-Z][a-z]/); // no positional label strings
-  });
   it('every schema label equals its concept\'s CONTENT entry', async () => {
     const { CONTENT } = await import('@/content');
     expect(VOLUME_SCHEMA.humanLabel).toBe(CONTENT['probe.volume'].human);
@@ -846,16 +839,6 @@ describe('Robot Articulation schemas', () => {
         expect(e.help.human.length).toBeGreaterThan(40);
         expect(e.help.human).not.toMatch(/[<>]/);
       });
-    });
-
-    it('the schemas carry no copy literal of their own', async () => {
-      const { readFileSync } = await import('node:fs');
-      const { resolve } = await import('node:path');
-      const src = readFileSync(resolve(__dirname, 'robotOptionsConfig.ts'), 'utf8');
-      const start = src.indexOf('ROBOT ARTICULATION');
-      expect(start, 'the articulation block header').toBeGreaterThan(-1);
-      const articulation = src.slice(start);
-      expect(articulation).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
     });
   });
 });

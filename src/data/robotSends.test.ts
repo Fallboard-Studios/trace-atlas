@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -63,24 +60,6 @@ describe('ROBOT_SENDS', () => {
   it('indexes every row by field, each lookup giving the row itself', () => {
     expect(Object.keys(ROBOT_SEND_BY_FIELD)).toEqual(ROBOT_SEND_FIELDS);
     for (const spec of ROBOT_SENDS) expect(ROBOT_SEND_BY_FIELD[spec.field]).toBe(spec);
-  });
-
-  it('writes each contentKey as a quoted literal in source (the content guard finds a key by its quoted text)', () => {
-    const src = readFileSync(resolve(__dirname, 'robotSends.ts'), 'utf8');
-    for (const spec of ROBOT_SENDS) {
-      expect(src, spec.contentKey).toMatch(
-        new RegExp(`contentKey: '${spec.contentKey.replace('.', '\\.')}'`)
-      );
-    }
-  });
-
-  // Review follow-up (2026-10-22): the wiring table owns the room keys too, so the tuning module (the bands) depends on
-  // it and never the other way round; a type-only cycle between the two is gone.
-  it('imports nothing from robotSendLoadingRanges.ts (the bands depend on the table, not the reverse)', () => {
-    const src = readFileSync(resolve(__dirname, 'robotSends.ts'), 'utf8');
-    expect(src).not.toMatch(/from\s+['"][^'"]*robotSendLoadingRanges['"]/);
-    const bands = readFileSync(resolve(__dirname, 'robotSendLoadingRanges.ts'), 'utf8');
-    expect(bands).toMatch(/import type \{[^}]*\bSendRoomKey\b[^}]*\} from '\.\/robotSends';/);
   });
 
   it('names the three effect-room keys, each an engine key', () => {

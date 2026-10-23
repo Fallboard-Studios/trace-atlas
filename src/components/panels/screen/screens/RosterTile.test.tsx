@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { Profiler } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
@@ -48,7 +46,6 @@ vi.mock('@radix-ui/react-popover', async (importOriginal) => {
 });
 
 import { RosterTile, ROSTER_BATTERY_BOX_COUNT, ROSTER_BATTERY_BOX_SIZE, ROSTER_BATTERY_BOX_GAP, MOVE_LONG_PRESS_MS, MOVE_CHIP_HEIGHT } from './RosterTile';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { computeVoxelTrackLength, computeVoxelTrackTrailingReserve } from '@/utils/voxelTrackMath';
 import { CONTENT, fill } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
@@ -202,8 +199,6 @@ describe('RosterTile — what it shows', () => {
     const length = computeVoxelTrackLength(ROSTER_BATTERY_BOX_COUNT, ROSTER_BATTERY_BOX_SIZE, ROSTER_BATTERY_BOX_GAP) + computeVoxelTrackTrailingReserve('horizontal');
     expect(box.style.width).toBe(`${length}px`);
     expect(box.style.height).toBe(`${ROSTER_BATTERY_BOX_SIZE}px`);
-    const css = readFileSync(resolve(__dirname, 'RosterTile.css'), 'utf8');
-    expect(getCssRuleBody(css, '.roster-tile__battery')).toMatch(/position:\s*relative/);
   });
 
   it('follows the battery as it drains', () => {
@@ -594,49 +589,6 @@ describe('RosterTile — the Move panel opens in ScreenViewport (Task 22)', () =
     const { container } = renderTile('r0');
     fireEvent.click(chip());
     expect(container.querySelector('li.roster-tile .roster-move__panel')).toBeTruthy();
-  });
-});
-
-describe('RosterTile — the Move chip (CSS contract, Task 22)', () => {
-  const css = readFileSync(resolve(__dirname, 'RosterTile.css'), 'utf8');
-  const opacityOf = (selector: string) => getCssRuleBody(css, selector)?.match(/opacity:\s*([\d.]+)/)?.[1];
-
-  it('on the desk the chip is invisible at rest', () => {
-    expect(opacityOf('.roster-tile__move')).toBe('0');
-  });
-
-  it.each([
-    '.roster-tile:hover .roster-tile__move',
-    '.roster-tile:focus-within .roster-tile__move',
-    ".roster-tile__move[data-state='open']",
-  ])('it shows under %s', (selector) => {
-    expect(Number(opacityOf(selector))).toBeGreaterThan(0);
-  });
-
-  it('on the phone the glyph is always on, and its press area is a full touch target', () => {
-    expect(Number(opacityOf('.roster-tile--phone .roster-tile__move'))).toBeGreaterThan(0);
-    const phone = getCssRuleBody(css, '.roster-tile--phone .roster-tile__move')!;
-    expect(phone).toMatch(/min-width:\s*var\(--touch-target-size\)/);
-    expect(phone).toMatch(/min-height:\s*var\(--touch-target-size\)/);
-  });
-
-  // Found in Chrome: RadioButton is an inline-size container with no width of its own, so a
-  // shrink-to-fit popover folded to 26 px around it.
-  it('the desk panel has a set width, capped by the window; the phone sheet spans the screen', () => {
-    expect(getCssRuleBody(css, '.roster-move__panel:not(.roster-move__sheet)')).toMatch(/width:\s*min\(var\(--move-panel-width\)/);
-    expect(getCssRuleBody(css, '.roster-move__panel')).toMatch(/--move-panel-width:\s*\d+px/);
-    const sheet = getCssRuleBody(css, '.roster-move__sheet')!;
-    expect(sheet).toMatch(/left:\s*0/);
-    expect(sheet).toMatch(/right:\s*0/);
-    expect(sheet).toMatch(/bottom:\s*var\(--phone-bar-clearance\)/);
-  });
-
-  // One source: CabinetBox draws its walls from a number, so the height is MOVE_CHIP_HEIGHT and the CSS
-  // reads it back through --move-chip-height, set inline on the tile (the --header-volume-width way).
-  it('the chip is 22 px tall (the sketch), one value shared by the cabinet and the CSS', () => {
-    expect(MOVE_CHIP_HEIGHT).toBe(22);
-    expect(css).not.toMatch(/--move-chip-height:\s*\d/);
-    expect(getCssRuleBody(css, '.roster-tile__move .sc-cabinet-box__front')).toMatch(/height:\s*var\(--move-chip-height\)/);
   });
 });
 

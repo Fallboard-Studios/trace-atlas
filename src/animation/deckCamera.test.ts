@@ -1,10 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import gsap from 'gsap';
 
@@ -90,7 +86,6 @@ vi.mock('gsap', () => {
 // FIXTURES
 // ========================================
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const here = dirname(fileURLToPath(import.meta.url));
 
 interface FakeScroller {
   scrollWidth: number;
@@ -1754,22 +1749,6 @@ describe('deckCamera', () => {
         expect(float.kill).toHaveBeenCalled();
         expect(getFollowedRobotId()).toBeNull();
       });
-    });
-  });
-
-  describe('source boundaries', () => {
-    const source = () => readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
-
-    it('imports nothing from @/engine, so the camera never reaches audio', () => {
-      expect(source()).not.toMatch(/@\/engine/);
-    });
-
-    it('uses no timers or frame loops (CLAUDE.md: GSAP only)', () => {
-      expect(source()).not.toMatch(/setTimeout|setInterval|requestAnimationFrame|queueMicrotask/);
-    });
-
-    it('listens for no scroll event', () => {
-      expect(source()).not.toMatch(/['"]scroll['"]/);
     });
   });
 });

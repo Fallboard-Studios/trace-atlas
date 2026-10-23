@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
@@ -71,7 +69,6 @@ import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { killAllTimelines, timelineMap } from '@/animation/timelineMap';
 import type { Company } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
@@ -459,31 +456,5 @@ describe('RosterBoard — moving a probe (Task 22)', () => {
     expect(assign).toHaveBeenCalledWith(localeId, 'r0', 'iron');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(tileNames(rowNamed('Iron Crew'))).toEqual(['Tidal Wisp']);
-  });
-});
-
-describe('RosterBoard — layout (CSS contract)', () => {
-  const css = readFileSync(resolve(__dirname, 'RosterBoard.css'), 'utf8');
-  const tileCss = readFileSync(resolve(__dirname, 'RosterTile.css'), 'utf8');
-
-  it('tiles flow right and wrap, each --roster-tile-width wide', () => {
-    expect(getCssRuleBody(css, '.roster-board__tiles')).toMatch(/flex-wrap:\s*wrap/);
-    expect(getCssRuleBody(tileCss, '.roster-tile')).toMatch(/width:\s*var\(--roster-tile-width\)/);
-    expect(css).toMatch(/--roster-tile-width:\s*250px/);
-  });
-
-  it('the phone lists the tiles in one column, full width', () => {
-    expect(getCssRuleBody(css, '.roster-board--phone .roster-board__tiles')).toMatch(/flex-direction:\s*column/);
-    expect(getCssRuleBody(css, '.roster-board--phone .roster-tile')).toMatch(/width:\s*100%/);
-  });
-});
-
-describe('RosterBoard reads its copy from src/content', () => {
-  it('carries no copy literal of its own', () => {
-    for (const file of ['RosterBoard.tsx', 'RosterTile.tsx']) {
-      const source = readFileSync(resolve(__dirname, file), 'utf8');
-      expect(source).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription)\s*:\s*['"`]/);
-      expect(source).not.toMatch(/>\s*[A-Z][a-z]+[^<{]*</);
-    }
   });
 });

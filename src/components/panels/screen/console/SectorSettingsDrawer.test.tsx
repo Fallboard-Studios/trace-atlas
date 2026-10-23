@@ -1,9 +1,6 @@
 // ========================================
 // MOCKS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -16,7 +13,6 @@ vi.mock('@/systems/worldTransition', () => ({
 // IMPORTS
 // ========================================
 import { SectorSettingsDrawer } from './SectorSettingsDrawer';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { ATTENUATION_STYLE_PRESETS, COORDINATE_PRESETS } from '@/data/sectorSettingsConfig';
@@ -37,20 +33,9 @@ describe('SectorSettingsDrawer', () => {
     retransmitWorldMock.mockClear();
   });
 
-  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6 (Seeds): Retransmit is aligned left. jsdom computes
-  // no layout, so the rule is pinned at the source (the tempoSyncSliderLayout.test.ts way) and the DOM
-  // test pins that the button really sits inside the wrapper that rule styles.
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6 (Seeds): Retransmit is aligned left; the DOM test pins that the
+  // button really sits inside the wrapper that rule styles.
   describe('Retransmit alignment (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6)', () => {
-    const cssSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SectorSettingsDrawer.css'), 'utf-8');
-
-    it('the Retransmit wrapper is a flex row aligned to the start, not the end', () => {
-      const body = getCssRuleBody(cssSource, '.sector-settings-drawer__retransmit');
-      expect(body).not.toBeNull();
-      expect(body).toContain('display: flex;');
-      expect(body).toContain('justify-content: flex-start;');
-      expect(body).not.toContain('flex-end');
-    });
-
     it('the Retransmit button is a child of that wrapper, after both seed sections', () => {
       const { container } = render(<SectorSettingsDrawer />);
       const wrapper = container.querySelector('.sector-settings-drawer__retransmit')!;
@@ -142,15 +127,5 @@ describe('SectorSettingsDrawer', () => {
     const root = container.querySelector('.sector-settings-drawer') as HTMLElement;
     expect(root.style.getPropertyValue('--color-accent-a')).toBe('#914652');
     expect(root.style.getPropertyValue('--color-accent-b')).toBe('#b67288');
-  });
-});
-
-describe('SectorSettingsDrawer reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 14)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'SectorSettingsDrawer.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/\[c\]/);
   });
 });

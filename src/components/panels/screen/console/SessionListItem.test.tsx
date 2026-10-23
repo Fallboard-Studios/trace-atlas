@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
@@ -16,7 +13,6 @@ vi.mock('@/utils/sessionShareUtils', () => ({
 }));
 
 import { SessionListItem } from './SessionListItem';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { useSessionStore } from '@/stores/sessionStore';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
@@ -92,8 +88,6 @@ describe('SessionListItem -- named entry', () => {
   // title. Before, the name was `flex: 1` and pushed the timestamp to the far end of the row, next to
   // the buttons. Now name + timestamp form one `__title` group that takes the `flex: 1`.
   describe('title group (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6)', () => {
-    const cssSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionListItem.css'), 'utf-8');
-
     it('the timestamp is inside the same title group as the name, immediately after it', () => {
       const savedAt = new Date('2026-09-28T14:14:00').getTime();
       const { container } = render(<SessionListItem entry={makeEntry({ name: 'Deep Dive', savedAt })} />);
@@ -129,31 +123,6 @@ describe('SessionListItem -- named entry', () => {
       const note = screen.getByRole('status');
       expect(container.querySelector('.session-list-item__title')!.contains(note)).toBe(false);
       vi.useRealTimers();
-    });
-
-    // Task 17 follow-up: the share has a basis now (it was `flex: 1`, a zero basis), so on a narrow row the
-    // button group wraps under the title instead of squeezing the name to "Nig…" (Chrome, 375 px).
-    it('CSS: the title group takes the row\'s flex share from a real basis, and can shrink; the name itself no longer does', () => {
-      const title = getCssRuleBody(cssSource, '.session-list-item__title');
-      expect(title).not.toBeNull();
-      expect(title).toMatch(/flex: 1 1 \d+(\.\d+)?rem;/);
-      expect(title).toContain('display: flex;');
-      expect(title).toContain('min-width: 0;');
-      expect(title).toMatch(/gap:\s*[\d.]+(rem|px);/);
-
-      const label = getCssRuleBody(cssSource, '.session-list-item__label');
-      expect(label).not.toBeNull();
-      expect(label).not.toMatch(/flex:\s*1/);
-      expect(label).toContain('min-width: 0;');
-      expect(label).toContain('text-overflow: ellipsis;');
-      expect(label).toContain('white-space: nowrap;');
-    });
-
-    it('CSS: the timestamp keeps its muted, small, no-wrap style', () => {
-      const savedAt = getCssRuleBody(cssSource, '.session-list-item__saved-at');
-      expect(savedAt).not.toBeNull();
-      expect(savedAt).toContain('white-space: nowrap;');
-      expect(savedAt).toContain('color: var(--color-text-muted);');
     });
   });
 
@@ -308,18 +277,6 @@ describe('SessionListItem -- named entry', () => {
   });
 });
 
-describe('SessionListItem reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'SessionListItem.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
-    expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
-  });
-});
-
 // docs/tasks/LAYOUT_REWORK.md Task 17 follow-up (Crawford, 2026-10-10: the sketch's Save & Share, its
 // copy, single-line faces on this panel only). Each row is one line: name · time · Load · Share · Delete.
 describe('SessionListItem — the sketch\'s row', () => {
@@ -359,26 +316,6 @@ describe('SessionListItem — the sketch\'s row', () => {
     expect([...actions.querySelectorAll('button')]).toEqual(screen.getAllByRole('button'));
     expect(container.querySelector('.session-list-item__title')!.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
-
-  describe('CSS', () => {
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionListItem.css'), 'utf-8');
-
-    it('a row is one line with a divider under it, and wraps only as whole groups', () => {
-      const row = getCssRuleBody(css, '.session-list-item');
-      expect(row).toContain('display: flex;');
-      expect(row).toContain('flex-wrap: wrap;');
-      expect(row).toContain('align-items: center;');
-      expect(row).toMatch(/border-bottom: 1px solid var\(--color-border\);/);
-    });
-
-    it('the actions never split across lines or shrink', () => {
-      const actions = getCssRuleBody(css, '.session-list-item__actions');
-      expect(actions).not.toBeNull();
-      expect(actions).toContain('display: flex;');
-      expect(actions).toContain('flex: none;');
-      expect(actions).not.toMatch(/flex-wrap:\s*wrap/);
-    });
-  });
 });
 
 // The UI Shell guardrail (CLAUDE.md): interactive UI lives inside ScreenViewport — the confirm used to
@@ -408,13 +345,6 @@ describe('SessionListItem — the delete confirm stays inside the screen', () =>
 });
 
 describe('SessionListItem — the delete confirm reads, and gives focus back', () => {
-  // Found in Chrome: inside the screen the dialog inherited a dark text colour (on <body> it had been
-  // light), so its title and Cancel all but vanished on the dark panel.
-  it('CSS: the dialog sets its own text colour rather than inheriting the screen\'s', () => {
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionListItem.css'), 'utf-8');
-    expect(getCssRuleBody(css, '.session-delete-confirm__content')).toContain('color: var(--color-text-primary-fixed);');
-  });
-
   // A modal Radix dialog gives focus back only to its own Trigger, and this one has none (the Delete
   // button opens it), so without this Escape left focus on <body>.
   it('Escape gives focus back to the Delete button that opened it', async () => {

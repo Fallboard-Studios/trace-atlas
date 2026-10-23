@@ -80,6 +80,7 @@ Quick checklist for PRs
 Repo expectations
 - **PR process:** All PRs should be reviewed by at least one other contributor before merging. There is no CI workflow configured yet — run lint, type-check, and tests locally before opening a PR.
 - **Accessibility & performance:** For audio, avoid autoplay without user intent; provide UI mute/volume controls. For animations, prefer GSAP for performant transforms and avoid large layout thrashing. Add basic a11y checks to PRs (focus/keyboard navigation, reduced-motion preference).
+- **Tests exercise code, not text:** a test imports or renders what it checks. Never assert on source, CSS or doc text read from disk (no docs guards, CSS contracts, source scans or "nothing imports X" gates; removed 2026-10-23). The one exception is `src/content/content.test.ts`. A docs-only or deletion task has no RED test; its checkpoint is a human read.
 
 Boundaries
 - Never commit secrets or `.env` files.

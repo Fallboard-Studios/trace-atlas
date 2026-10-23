@@ -72,12 +72,6 @@ describe('companyConfig', () => {
 });
 
 describe('companyConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'companyConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-  });
   it('labels equal CONTENT; company names stay data', async () => {
     const { CONTENT } = await import('@/content');
     const s = buildCompanyAssignmentSchema([{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a' } as Company]);

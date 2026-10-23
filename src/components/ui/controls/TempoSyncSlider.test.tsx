@@ -579,16 +579,3 @@ describe('TempoSyncSlider — memoisation and stable handlers', () => {
     expect(onSyncChange).toHaveBeenCalledWith(DELAY_LIST[4]);
   });
 });
-
-describe('TempoSyncSlider reads its copy from src/content (docs/specs/CONTENT_LAYER.md)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    // Comments are free to name the words (this file's own doc comments do); only code may not carry them.
-    const source = readFileSync(resolve(__dirname, 'TempoSyncSlider.tsx'), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\/\/.*$/gm, '');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/Float|Anchored|Anchoring|Tempo Sync|aria-label="[A-Za-z]/);
-  });
-});

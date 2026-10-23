@@ -249,16 +249,3 @@ describe('Button — as a disclosure (expanded / controls)', () => {
     expect(screen.getByRole('button').hasAttribute('aria-controls')).toBe(false);
   });
 });
-
-describe('Button.css — the single-line face', () => {
-  it('reads as DualLabel\'s human line does, on one line', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const { getCssRuleBody } = await import('@/testUtils/cssRuleBody');
-    const body = getCssRuleBody(readFileSync(resolve(__dirname, 'Button.css'), 'utf8'), '.sc-button__label');
-    expect(body).not.toBeNull();
-    for (const d of ['font-family: var(--font-mono);', 'font-size: var(--font-size-label);', 'color: var(--color-text-primary-fixed);', 'white-space: nowrap;']) {
-      expect(body).toContain(d);
-    }
-  });
-});
