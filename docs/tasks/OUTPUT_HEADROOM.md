@@ -24,7 +24,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > with every robot at 100 % (`6j0mgo5z`): the seeded Compressor's 70 ms release, not the ceiling; Crawford: raise the
 > seeded release floor to 0.25 s (spec §7). **T9 done** (`1c13470d`, the gate re-run in PERFORMANCE.md "After T9").
 > **Phase 3 complete.** Crawford's re-listen after T9: "desktop sounds good" (Checkpoint A closed). **T10 done**:
-> Checkpoint B passed at Light, the phone default (scratchy-audio-phones.md; the clicks are backlog 27's). **T11 next.**
+> Checkpoint B passed at Light, the phone default (scratchy-audio-phones.md; the clicks are backlog 27's). **T11 done**
+> (the docs; Crawford's read of them is its proof). **Left: Crawford's read and his PR.**
 
 ## Overview
 
@@ -471,8 +472,10 @@ deferred. The memory file for 54 updated. Spec §7's answers are already in from
 **Proof:** Read — human review of each file against the shipped code. No test file.
 
 **Acceptance criteria:**
-- [ ] Every file above reads true against the code on the branch (a human read; no docs guards).
-- [ ] No display string, no `src/content/` change, no test asserting on doc text.
+- [ ] Every file above reads true against the code on the branch (a human read; no docs guards). — every claim checked
+  against the code and the measurements while writing (the master slider's bare taper at `audioStore.ts:529`/`:533`,
+  `robotBusGain`'s three call sites, Tone's Limiter knee 30, the numbers in PERFORMANCE.md); Crawford's read is the proof.
+- [x] No display string, no `src/content/` change, no test asserting on doc text. — the T11 commit touches five docs.
 
 **Verification:** `npm test`, `npm run lint`, a read. **Dependencies:** T10. **Files:** the six docs and the memory.
 **Scope:** M (docs only).
@@ -481,9 +484,11 @@ deferred. The memory file for 54 updated. Spec §7's answers are already in from
 
 ### Checkpoint: Complete
 
-- [ ] T0–T11 committed on `feature/output-headroom`, one commit per task; the suite, types, lint and build green.
-- [ ] The PERFORMANCE.md table meets every spec §5.2 threshold at the committed `HEADROOM_TRIM_DB`.
-- [ ] Checkpoints A and B signed off by Crawford, in writing, in the spec and the phone section.
+- [x] T0–T11 committed on `feature/output-headroom`, one commit per task; the suite, types, lint and build green. —
+  plus T5.1 and the decision commits; 2026-10-23: 326 files / 11 979 tests, lint 0 errors (the 4 warnings of A1), build.
+- [x] The PERFORMANCE.md table meets every spec §5.2 threshold at the committed `HEADROOM_TRIM_DB`. — −12 dB; the
+  "After T9" table, as `pre` was un-gated at T7 (spec assumption 3).
+- [x] Checkpoints A and B signed off by Crawford, in writing, in the spec and the phone section. — spec §7, 2026-10-23.
 - [ ] Crawford opens the PR; the description links the table and the phone section.
 
 ---

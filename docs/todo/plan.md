@@ -16,10 +16,11 @@ Reading the stages: each one ends at a point where Crawford listens or looks bef
 
 ## Stage 1 — Sound right first
 
-- Roadmap [54](roadmap.md#54-output-headroom-no-clipping-out-of-the-box) **Output Headroom** — the one audible defect in
-  every world; interview first, build alone. Every listen after this is cleaner for it.
+- Roadmap [54](roadmap.md#54-output-headroom-no-clipping-out-of-the-box) **Output Headroom** — built on
+  `feature/output-headroom`, Checkpoints A and B passed (2026-10-23); awaiting Crawford's PR. Delete this line when it
+  merges.
 - Backlog [23](backlog.md#23-audio-palette-trials-dynamics-processing-and-ducking) **Dynamics processing and ducking** —
-  interviewed in the same sitting as 54 (same Output stage), built only if the interview says so.
+  interviewed with 54 and deferred: built only if the single Compressor sounds wrong now that it is off safety duty.
 
 ## Stage 2 — The phone sitting
 

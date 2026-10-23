@@ -493,7 +493,10 @@ frame wrappers left out", "the Pixel A/B: not separable on the phone" and the tw
 
 Raised by Crawford at Robot Effect Sends Checkpoint A, 2026-10-21: a world "is distorting a lot - not dropping out, the gain
 is too high. i think we need to compress things more out of the box." Promoted straight to the roadmap rather than the
-backlog ("quality is paramount"). **Status: not started.** It starts with an interview (intent), then spec and plan.
+backlog ("quality is paramount"). **Status: built on `feature/output-headroom`, Checkpoints A and B passed
+(2026-10-23); awaiting Crawford's PR.** Intent [docs/intent/output-headroom.md](../intent/output-headroom.md), spec
+[docs/specs/OUTPUT_HEADROOM.md](../specs/OUTPUT_HEADROOM.md), plan [docs/tasks/OUTPUT_HEADROOM.md](../tasks/OUTPUT_HEADROOM.md);
+as built below.
 
 ### About
 
@@ -524,13 +527,43 @@ Options on the table for the interview (the first is the recommendation from the
    but makeup gain may keep the output clipping.
 3. **Lower seeded robot Volumes.** Fewer moving parts; leaves the leaky ceiling as it is.
 
-### Open
+### As built (2026-10-23)
 
-- Whether this preempts Robot Effect Sends Phase 2 (T9 onward) or follows the 50.7 merge.
-- Whether the session's Limiter at -17 dB was set by hand.
-- A `main` measurement in the same sitting, to say whether the level is new.
-- The probe used (a CDP script driving the HUD, alternating settings live through the app's store) lived in a session
-  scratchpad; worth adding under `scripts/perf/` when this item starts, beside `audio-load.mjs`.
+Option 1, headroom plus a real ceiling (interview, 2026-10-23); both pieces fixed, not settings, never seeded, saved,
+shared or shown ([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md), "Headroom").
+
+- **The trim:** every robot's bus gain is the Volume taper × `HEADROOM_TRIM_GAIN`, `HEADROOM_TRIM_DB` = −12 dB
+  (`robotBusGain`, `src/engine/audioEngine/headroom.ts`). On the bus, not at the chain entry, so the five room sends keep
+  their balance. The master slider keeps unity.
+- **The ceiling:** a `Tone.WaveShaper` after the Limiter and before the master gain, the identity below 0.7 and a tanh
+  above that never reaches full scale (at most −0.65 dBFS). The first build passed Tone a `curve` option, which Tone
+  ignores (it reads `mapping`), so the ceiling was empty until the gate's browser run caught it (T5.1).
+- **The trim stayed at −12 dB.** The spec tuned it until the pre-chain peak sat at or under −6 dBFS; at −12 dB three
+  worlds still peaked above that, and meeting it would have taken about −22 dB, twice the intent's "roughly 6-10 dB"
+  quieter. Crawford held −12 dB; the pre-chain level is recorded, not gated.
+- **Checkpoint A (Crawford's desktop listen, 2026-10-23):** "most worked fine"; one world, `6j0mgo5z` at (−132, 83),
+  crunched with every robot Volume at 100 %. Measured, it was the seeded Compressor (a 70 ms release under 13–17 dB of
+  gain reduction), not clipping or the ceiling, and a 0.25 s release fixed it by ear, so the seeded release band rose
+  from 0.05–0.3 s to 0.25–0.3 s (T9). After it: "desktop sounds good".
+- **The gate** ([PERFORMANCE.md](../PERFORMANCE.md), "Output level series"): on five seeded worlds and two pushed by hand,
+  the master never reached full scale (−0.6 dB at most, on a hand push), where `main` sat at or over full scale in
+  22–25 % of readings on `56c2t2t8`. That world is 6.6–7.0 dB quieter at the master. The ceiling's audio-thread cost is
+  below what `npm run perf:audio` resolves.
+- **Checkpoint B (the Pixel, 2026-10-23):** run at Light, the tier a phone picks by itself, rather than the plan's Full;
+  the branch and `main` swapped order between two worlds, so no cost, and the distortion `main` had on `56c2t2t8` is
+  gone. Clicks (underruns) on both builds went to backlog 27
+  ([scratchy-audio-phones.md](scratchy-audio-phones.md)).
+- **Not built:** backlog 23 (multiband, Gate, ducking), interviewed with this item and deferred.
+
+### Open (closed 2026-10-23)
+
+- ~~Whether this preempts Robot Effect Sends Phase 2 (T9 onward) or follows the 50.7 merge.~~ Moot: Robot Effect Sends
+  merged before this item started.
+- ~~Whether the session's Limiter at -17 dB was set by hand.~~ Still unknown, and it does not matter: the ceiling bounds
+  the output at any Limiter setting (intent).
+- ~~A `main` measurement in the same sitting, to say whether the level is new.~~ Measured first (PERFORMANCE.md, "`main`
+  before any engine change"): the level did not move; `main` clipped as the entry says.
+- ~~The probe used … worth adding under `scripts/perf/`.~~ Added: `scripts/perf/output-level.mjs`, `npm run perf:level`.
 
 ## 55. Robot Sends: One Table for the Five Sends
 

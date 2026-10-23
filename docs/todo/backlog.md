@@ -475,6 +475,11 @@ pair into the dry bus's gain — no other nodes. All three react to the signal a
 they replay in the follower sense. Output section tab. Phone gate as always; multiband is three
 compressors.
 
+**Interviewed with roadmap 54, 2026-10-23, and deferred, not built** ([docs/specs/OUTPUT_HEADROOM.md](../specs/OUTPUT_HEADROOM.md)
+assumption 9). Multiband is worth trying only if the single Compressor sounds wrong now that it is off safety duty (the
+output ceiling holds the master under full scale). Roadmap 54's Checkpoint A heard one Compressor fault, a 70 ms release
+slammed by every robot at 100 %, and the seeded release floor (0.25 s) answered it, not multiband.
+
 ### 24. Audio Palette Trials: Transport Groove and Tempo Walk
 
 `Tone.Transport.swing` (0–1) and `swingSubdivision` (`'8n'` / `'16n'`) exist on the transport the
