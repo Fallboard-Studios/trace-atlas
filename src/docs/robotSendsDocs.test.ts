@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest';
 //   (3) the docs say what the code now does (SESSION_STORAGE names the sends as persisted, masterVolume as never).
 // Groups (1) and (2) are green from the moment they land. Group (3)'s doc-text cases are written against the text
 // Task 20 produces, so they are RED until Task 20 lands. That is intended.
+// Group (4) is roadmap 55's (docs/tasks/ROBOT_SEND_TABLE.md Task 15): the living docs name the one send table, not the
+// copies it replaced, and the two historical specs say so before their §1.
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8').replace(/\r\n/g, '\n');
@@ -182,8 +184,9 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
   // Deleted by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named actions are applySend / applySendValue
   ...REMOVED_SEND_ACTIONS,
-  // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
-  'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
+  // File names, not symbols: this test file and chainCycleSearch.test.ts (sourceFiles skips *.test.ts), and the planning
+  // docs (Robot Send Table T15's wider line filter reaches AUDIO_SYSTEM.md's Wiring line, which cites chainCycleSearch)
+  'robotSendsDocs', 'chainCycleSearch', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);
 
 /** Inline backtick spans only (fenced blocks are illustrative sketches, covered by the table above). */
@@ -247,7 +250,8 @@ describe('every symbol the spec and the updated docs cite exists in source', () 
   const sendLines = (doc: string) =>
     read(doc)
       .split('\n')
-      .filter((line) => /reverbSend|delaySend|updateRobotSends|applyReverbSend|applyDelaySend|getGlobalReverbRoom|getGlobalDelayRoom|generateRobotSends|SEND_[A-Z_]+/.test(line))
+      // Robot Send Table T15 added the table-era names, so a line that cites only them is still checked.
+      .filter((line) => /reverbSend|delaySend|updateRobotSends|applyReverbSend|applyDelaySend|getGlobalReverbRoom|getGlobalDelayRoom|generateRobotSends|SEND_[A-Z_]+|applySend|robotSendLevels|engineKeyOf|onSendChange|sendSwelling/.test(line))
       .join('\n');
 
   it('the line filter keeps a send line and drops an unrelated one (the filter itself)', () => {
@@ -284,5 +288,105 @@ describe('SESSION_STORAGE.md: the sends are persisted, masterVolume never is', (
 
   it.each(['masterVolume', 'audioMode'])('keeps `%s` on the never-persisted list', (field) => {
     expect(neverPersisted).toContain(`\`${field}\``);
+  });
+});
+
+// ========================================
+// (4) ROBOT SEND TABLE (roadmap 55): THE DOCS NAME THE TABLE   (RED until docs/tasks/ROBOT_SEND_TABLE.md Task 15)
+// ========================================
+
+/** Every name roadmap 55 deleted from src/ (docs/specs/ROBOT_SEND_TABLE.md §1.6), the regex scan's file included. */
+const REMOVED_BY_SEND_TABLE = [
+  ...REMOVED_SEND_ACTIONS,
+  'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
+  'handleReverbSendChange', 'handleDelaySendChange', 'handleGritSendChange', 'handleShimmerSendChange', 'handleDoubleSendChange',
+  'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
+  'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
+  'SEND_PRIME_KEYS', 'SEND_ATTRIBUTES', 'writeRobotSend', 'reservationSendsPrime',
+];
+const namesRemoved = (text: string) => REMOVED_BY_SEND_TABLE.filter((name) => new RegExp(`\\b${name}\\b`).test(text));
+
+/** The living docs: every Markdown file directly in docs/ and docs/reference/. The roadmap, specs, plans and intents are
+ *  the record of what each phase built and keep the names they were written with. */
+const markdownIn = (folder: string) =>
+  readdirSync(resolve(repoRoot, folder)).filter((entry) => entry.endsWith('.md')).map((entry) => `${folder}/${entry}`);
+const LIVING_DOCS = [...markdownIn('docs'), ...markdownIn('docs/reference')];
+/** Whether `text` cites `symbol` as a whole word inside an inline backtick span (`robotSendLevels(robot)` cites
+ *  robotSendLevels). Spans pair left to right, as citedSymbols reads them, so prose between two spans is not one. */
+const cites = (text: string, symbol: string) =>
+  [...text.matchAll(/`([^`\n]+)`/g)].some((m) => new RegExp(`\\b${symbol}\\b`).test(m[1]));
+
+describe('the living docs name the send table, not the copies it replaced (Robot Send Table T15)', () => {
+  it('reads the living docs, not an empty list, and not the history', () => {
+    expect(LIVING_DOCS).toContain('docs/AUDIO_SYSTEM.md');
+    expect(LIVING_DOCS).toContain('docs/COMPANIES.md');
+    expect(LIVING_DOCS).toContain('docs/reference/ROBOT_DATA_GRID.md');
+    expect(LIVING_DOCS.some((doc) => /docs\/(todo|specs|tasks|intent)\//.test(doc))).toBe(false);
+  });
+
+  it('catches a removed name as a whole word, and passes the names that replaced them (the matcher itself)', () => {
+    expect(namesRemoved('calls `applyGritSend` per member')).toEqual(['applyGritSend']);
+    expect(namesRemoved('the tick writes through `applyGritSendValue`')).toEqual(['applyGritSendValue']);
+    expect(namesRemoved('`src/engine/reservationSendsPrime.test.ts`')).toEqual(['reservationSendsPrime']);
+    expect(namesRemoved('`applySend` / `applySendValue`, `onSendChange` and `sendSwelling`')).toEqual([]);
+  });
+
+  it.each(LIVING_DOCS)('%s names none of the symbols roadmap 55 removed', (doc) => {
+    expect(namesRemoved(read(doc)), `${doc} still names a removed symbol`).toEqual([]);
+  });
+
+  it.each([
+    ['docs/AUDIO_SYSTEM.md', ['ROBOT_SENDS', 'robotSendLevels', 'engineKeyOf', 'applySend', 'applySendValue', 'ROBOT_SEND_SCHEMAS']],
+    ['docs/COMPANIES.md', ['applySend', 'onSendChange', 'sendSwelling']],
+    ['docs/SESSION_STORAGE.md', ['ROBOT_SEND_FIELDS', 'engineKeyOf', 'ROBOT_SENDS']],
+    ['docs/reference/ROBOT_DATA_GRID.md', ['ROBOT_SEND_SCHEMAS']],
+  ] as const)('%s names the table and its helpers', (doc, symbols) => {
+    const text = read(doc);
+    for (const symbol of symbols) expect(cites(text, symbol), symbol).toBe(true);
+  });
+
+  it('counts a call written in backticks as a citation, and prose or a longer name as none (the matcher itself)', () => {
+    expect(cites('primes with `robotSendLevels(robot)`', 'robotSendLevels')).toBe(true);
+    expect(cites('primes with robotSendLevels', 'robotSendLevels')).toBe(false);
+    expect(cites('`a` then robotSendLevels then `b`', 'robotSendLevels')).toBe(false);
+    expect(cites('through `applySendValue`', 'applySend')).toBe(false);
+  });
+});
+
+describe('the two historical specs point at the refactor before their §1 (Robot Send Table T15)', () => {
+  it.each(['docs/specs/ROBOT_SENDS.md', 'docs/specs/ROBOT_EFFECT_SENDS.md'])('%s carries the header note', (doc) => {
+    const text = read(doc);
+    const header = text.slice(0, text.indexOf('## 1. Overview'));
+    expect(header.length, 'the header precedes §1').toBeGreaterThan(500);
+    expect(header).toContain('](ROBOT_SEND_TABLE.md)');
+    expect(header).toContain('roadmap 55');
+    expect(header).toContain('`ROBOT_SENDS`');
+  });
+});
+
+describe('roadmap 55 reads as built (Robot Send Table T15)', () => {
+  const roadmap = read('docs/todo/roadmap.md');
+  const start = roadmap.indexOf('## 55. Robot Sends: One Table for the Five Sends');
+  const next = roadmap.indexOf('\n## ', start + 1);
+  const entry = start < 0 ? '' : roadmap.slice(start, next < 0 ? undefined : next);
+  const open = entry.slice(entry.indexOf('### Open'));
+
+  it('finds the entry and its Open section, not empty strings', () => {
+    expect(entry.length).toBeGreaterThan(2000);
+    expect(open.startsWith('### Open')).toBe(true);
+  });
+
+  it('says built, links the spec and the plan, and has an As built', () => {
+    expect(entry).toMatch(/\*\*Status: built/);
+    expect(entry).not.toMatch(/Status: not started/);
+    expect(entry).toContain('(../specs/ROBOT_SEND_TABLE.md)');
+    expect(entry).toContain('(../tasks/ROBOT_SEND_TABLE.md)');
+    expect(entry).toContain('### As built');
+  });
+
+  it('every Open bullet is answered', () => {
+    const bullets = open.split('\n').filter((line) => line.startsWith('- '));
+    expect(bullets).toHaveLength(3);
+    for (const bullet of bullets) expect(bullet).toMatch(/^- \*\*Answered/);
   });
 });

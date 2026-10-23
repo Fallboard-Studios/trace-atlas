@@ -16,6 +16,16 @@ wherever this spec differs (notably: the seeded default is no longer "today's de
 question is settled as true send/return). Branch: `feature/palette-sends`, off `main` (name is a proposal;
 Crawford creates it). Robot Pan (roadmap 49) is merged, so the Levels block already carries Volume and Pan.
 
+**Refactored 2026-10-22 by roadmap 55 ([ROBOT_SEND_TABLE.md](ROBOT_SEND_TABLE.md)), with no change in behaviour.** The
+five per-robot sends are one table, `ROBOT_SENDS` (`src/data/robotSends.ts`), and the code this spec describes now
+iterates it, so several names below no longer exist in `src/`: `applyReverbSend` / `applyDelaySend` and their `*Value`
+forms are `applySend` / `applySendValue(robot, localeId, field, …)`; `REVERB_SEND_SCHEMA` and `DELAY_SEND_SCHEMA` are rows
+of `ROBOT_SEND_SCHEMAS`; the robot screen's per-send handlers and the company's `on*SendChange` are one
+`onSendChange(field, pct)` each, and the per-send swelling flags one `sendSwelling` record; the voice's send gains are one
+`sends` record keyed by engine key; and the source scan that pinned the reservation sites is gone, since every site primes
+with `robotSendLevels(robot)`. §1 to §4 are left as written, the record of what this phase built; the refactor spec has the
+current names.
+
 Survey basis (2026-10-14, against `main` at `450bf2ad`; every citation below was read, not recalled):
 
 - **The chain today.** `buildGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:52`) builds EQ3, LPF, HPF,
