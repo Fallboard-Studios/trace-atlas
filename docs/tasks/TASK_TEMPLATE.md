@@ -25,11 +25,15 @@ Task 1 (...)          Task 2 (...)
 
 ## Task List
 
+[Every task names its **Proof**, decided here so the build never has to: **RED test** for a task that changes behaviour (a test that imports or renders the code and fails first); **Look** for a CSS-only or visual task (what to see in the browser); **Read** for a docs-only, copy-only or deletion task (a human review). Only a RED-test task lists a `*.test.ts` in its Files. If the only way to make a test fail first is to read a file's text, the proof is a Look or a Read (CLAUDE.md, "Tests exercise code, not text"; `npm run lint` rejects such a test). Plans written before 2026-10-23 list docs guards and source scans as steps; don't copy them.]
+
 ### Phase 1: [Foundation/group name]
 
 - [ ] **Task 1: [File/module — short description]**
 
   **Description:** [What this task builds or changes, naming the exact file(s), and how it fits the Architecture Decisions above. Note whether it has a real caller yet or ships as independently testable new code.]
+
+  **Proof:** RED test — `src/[path/File.test.ts]`: [the behaviour the test checks, which fails before the change].
 
   **Acceptance criteria:**
   - [ ] [A specific, testable behavior — phrased as "X does Y", not "X should do Y".]
@@ -59,6 +63,8 @@ Task 1 (...)          Task 2 (...)
 
   **Description:** [...]
 
+  **Proof:** RED test — `src/[path/File.test.ts]`: [...].
+
   **Acceptance criteria:**
   - [ ] [...]
 
@@ -73,6 +79,25 @@ Task 1 (...)          Task 2 (...)
 
   **Estimated scope:** [XS / S / M / L]
 
+- [ ] **Task [M]: [stylesheet or markup] — [the visual change] (the CSS-only / visual task shape)**
+
+  **Description:** [What changes on screen, naming the exact stylesheet or markup. If the task also changes behaviour (a handler, a store write, a computed value), that part is a RED-test task; split it out when the two can land apart.]
+
+  **Proof:** Look — [the world, view and state to open, and what to see there; phone width and desktop where it matters].
+
+  **Acceptance criteria:**
+  - [ ] [What the look shows, stated concretely — e.g. "the three Output sub-tabs sit on one row at 360 px".]
+
+  **Verification:**
+  - [ ] The Look above, done in a live browser and recorded in the commit, or flagged at the checkpoint if not done this session. No test file: the test environment loads no stylesheet, so a test could only read the CSS text.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** [Task numbers, or None.]
+
+  **Files:** `src/[path/File.css]` (no `*.test.ts`)
+
+  **Estimated scope:** XS / S
+
 ### Checkpoint: [Phase 2 name]
 - [ ] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite — note any pre-existing, unrelated failures explicitly so new failures are distinguishable).
 - [ ] `npm run build` clean (production bundle) — required at the last integration checkpoint before docs, not necessarily every checkpoint.
@@ -85,6 +110,8 @@ Task 1 (...)          Task 2 (...)
 - [ ] **Task [N]: [doc file] — document the shipped behavior**
 
   **Description:** [What section(s) to add/update, and the instruction to spot-check every named identifier against the final shipped source rather than the plan.]
+
+  **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
   - [ ] [Named APIs/behaviors documented exactly matching shipped source.]
