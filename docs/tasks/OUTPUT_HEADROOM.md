@@ -13,7 +13,9 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
 > **Status (2026-10-23): T0 passed** (Crawford: "for phase 0 your assumptions are fine", all five as written). Building
-> on `feature/output-headroom`; T1 next.
+> on `feature/output-headroom`. **Phase 1 (T1–T3) done**: the probe, the seven links and the `main` measurement are in
+> PERFORMANCE.md, "Output level series". Open before T7: H1 and H2 cannot push the robot Volumes (session links never
+> carry `masterVolume`; see T3). T4 next.
 
 ## Overview
 
@@ -112,10 +114,12 @@ a `null` peak are dropped from that tap's statistics and counted separately. Bot
 and the summary's ≥ 0 dB fraction is right; both fail before the lib exists.
 
 **Acceptance criteria:**
-- [ ] `parseOutputFromHud` handles the four token forms (number, `-`, `-inf`, `NaN!`), a HUD with other lines around
-  it, and an empty string; the mutation gate kills a swapped `out`/`pre` group and a dropped sign.
-- [ ] `summarizeLevels` on a hand-built sample set gives the expected max, mean, the ≥ 0 dB fraction (a reading at
-  exactly 0.0 counts), and drops `null`s without skewing the mean.
+- [x] `parseOutputFromHud` handles the four token forms (number, `-`, `-inf`, `NaN!`), a HUD with other lines around
+  it, and an empty string; the mutation gate kills a swapped `out`/`pre` group and a dropped sign. — `315f7884`; also
+  rows run together (the overlay's `textContent`) and a rounded `-0.0dB` read as 0.
+- [x] `summarizeLevels` on a hand-built sample set gives the expected max, mean, the ≥ 0 dB fraction (a reading at
+  exactly 0.0 counts), and drops `null`s without skewing the mean. — silent (`-inf`) readings count in N but not in the
+  means, and are reported; `fin` tokens counted. 17 tests; 14 mutants killed (one survivor closed by a tighter test).
 
 **Verification:** `npx vitest run scripts/perf/output-level-lib.test.mjs` (vitest includes `scripts/**/*.test.mjs`).
 **Dependencies:** None. **Files:** `scripts/perf/output-level-lib.mjs`, `output-level-lib.test.mjs`. **Scope:** S.
@@ -136,10 +140,10 @@ mean, ≥ 0 dB count of N, `fin`), with `--json <path>` for the raw samples. Fai
 non-zero. The script is CDP plumbing with no pure part of its own (T1 holds that), so no test file.
 
 **Acceptance criteria:**
-- [ ] Against a served build and any `?debug` link, the script prints the table and exits 0; with a URL whose page
-  has no HUD it exits non-zero with a message naming the URL.
-- [ ] No new dependency; the only imports are `node:` modules and T1's lib.
-- [ ] `npm run perf:level -- --help` prints the usage block.
+- [x] Against a served build and any `?debug` link, the script prints the table and exits 0; with a URL whose page
+  has no HUD it exits non-zero with a message naming the URL. — `57a16ba2`.
+- [x] No new dependency; the only imports are `node:` modules and T1's lib.
+- [x] `npm run perf:level -- --help` prints the usage block.
 
 **Verification:** one foreground run against `vite preview` (a random world is fine here), the orphaned-Chrome check
 before and after. **Dependencies:** T1. **Files:** `scripts/perf/output-level.mjs`, `package.json`. **Scope:** S.
@@ -160,11 +164,14 @@ commit hash.
 **Proof:** Read — the PERFORMANCE.md section, every number from a run in this task. No test file.
 
 **Acceptance criteria:**
-- [ ] Seven links that each load their world and settings (D1 opens `56c2t2t8` at (−116, −2); H1's drawer shows the
-  pushed values).
-- [ ] `main`'s D1 numbers reproduce the roadmap's reading within its own band (`out` peak +2 to +4 dB, over 0 dBFS in
-  10–25 % of readings) or the discrepancy is written down; D5 recorded.
-- [ ] The PERFORMANCE.md section exists with every link and number from this task.
+- [x] Seven links that each load their world and settings (D1 opens `56c2t2t8` at (−116, −2); H1's drawer shows the
+  pushed values). — read back from the stores after a reload, not the drawer. **Deviation:** H1 and H2 carry the EQ
+  and Limiter push but not "every robot Volume 100 %": `masterVolume` is never in a session payload. Recipe
+  corrections: modules under `/trace-atlas/src/`, and `buildSessionPayload()`, not `getSessionSharePayload()`.
+- [x] `main`'s D1 numbers reproduce the roadmap's reading within its own band (`out` peak +2 to +4 dB, over 0 dBFS in
+  10–25 % of readings) or the discrepancy is written down; D5 recorded. — runs 2 and 3 inside; run 1 just outside
+  (+4.6 dB, 25.1 %), written down.
+- [x] The PERFORMANCE.md section exists with every link and number from this task.
 
 **Verification:** the section and a human read. **Dependencies:** T2. **Files:** `docs/PERFORMANCE.md`. **Scope:** S
 (measurement, no code).
