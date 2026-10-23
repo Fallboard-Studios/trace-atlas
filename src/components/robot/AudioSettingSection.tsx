@@ -13,13 +13,10 @@ import {
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
   PAN_ROW_PANEL_SCHEMA,
-  REVERB_SEND_SCHEMA,
-  DELAY_SEND_SCHEMA,
-  GRIT_SEND_SCHEMA,
-  SHIMMER_SEND_SCHEMA,
-  DOUBLE_SEND_SCHEMA,
+  ROBOT_SEND_SCHEMAS,
   DYNAMICS_SCHEMA,
 } from '@/data/robotOptionsConfig';
+import { ROBOT_SENDS, type RobotSendField, type RobotSendSpec } from '@/data/robotSends';
 import { PAN_DISPLAY_SCALE, SEND_DISPLAY_SCALE } from '@/constants';
 import { roundToDecimals } from '@/utils/math';
 import type { Robot } from '@/types/Robot';
@@ -55,20 +52,32 @@ export interface AudioSettingValue {
   dynamics: number;
 }
 
-interface AudioSettingSectionProps {
+/** The five per-field send handlers the screens passed before Robot Send Table T10. 0..100, the same display-domain
+ *  contract as onVolumeChange. A bridge only: T11 / T12 move both screens to onSendChange and T13 deletes these. */
+interface OldSendHandlerProps {
+  onReverbSendChange: (pct: number) => void;
+  onDelaySendChange: (pct: number) => void;
+  onGritSendChange: (pct: number) => void;
+  onShimmerSendChange: (pct: number) => void;
+  onDoubleSendChange: (pct: number) => void;
+}
+
+/** A caller wires the send rows one way or the other, never neither: onSendChange (the old five then optional and
+ *  ignored), or all five old handlers. docs/specs/ROBOT_SEND_TABLE.md §1.4. */
+type SendHandlerProps =
+  | ({
+      /** 0..100, the display-domain contract of onVolumeChange, for whichever send row moved. */
+      onSendChange: (field: RobotSendField, pct: number) => void;
+    } & Partial<OldSendHandlerProps>)
+  | ({ onSendChange?: undefined } & OldSendHandlerProps);
+
+type AudioSettingSectionProps = SendHandlerProps & {
   value: AudioSettingValue;
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
   /** -100..100, the same display-domain contract as onVolumeChange. Only fires with Auto off. */
   onPanChange: (display: number) => void;
   onPanAutoChange: (auto: boolean) => void;
-  /** 0..100, the same display-domain contract as onVolumeChange. */
-  onReverbSendChange: (pct: number) => void;
-  onDelaySendChange: (pct: number) => void;
-  /** 0..100, the same contract as onReverbSendChange. */
-  onGritSendChange: (pct: number) => void;
-  onShimmerSendChange: (pct: number) => void;
-  onDoubleSendChange: (pct: number) => void;
   /** 0..100, emitted as the whole number the slider shows (Robot.dynamics stores it unconverted). */
   onDynamicsChange: (value: number) => void;
   /** The engine's live Auto value (-0.5..0.5) for the robot screen; undefined on the company screen and
@@ -80,6 +89,10 @@ interface AudioSettingSectionProps {
    *  straight to the Volume slider's own `swelling` prop. See useEasedControlValue.ts and
    *  audioSwells.ts's isRobotAttributeSwelling. */
   volumeSwelling?: boolean;
+  /** Per send, true while an Audio Swell rides it (isRobotAttributeSwelling(id, field)), forwarded to that row's own
+   *  `swelling` so a swell tick is not eased a second time. When given, the only flag source: the five old flags below
+   *  are then ignored (docs/specs/ROBOT_SEND_TABLE.md §1.4; they go in T13). */
+  sendSwelling?: Readonly<Record<RobotSendField, boolean>>;
   /** The same for the Reverb and Delay sends (isRobotAttributeSwelling(id, 'reverbSend' | 'delaySend')),
    *  forwarded to each send slider's own `swelling` prop so a swell tick is not eased a second time.
    *  docs/tasks/ROBOT_SENDS.md Task 13. */
@@ -95,11 +108,41 @@ interface AudioSettingSectionProps {
    *  Output, whether it's editing one robot or a company's bulk baseline. See
    *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
-}
+};
 
 /** A stored 0..1 send as the slider's 0-100 number. Rounded to two places so the x100 leaves no float noise (0.29 would
  *  otherwise reach the slider, and a screen reader, as 28.999999999999996) while a swell's fractional percent survives. */
 const toSendDisplay = (send: number) => roundToDecimals(send * SEND_DISPLAY_SCALE, 2);
+
+interface SendRowProps {
+  spec: RobotSendSpec;
+  /** 0..1, the row's stored send. */
+  value: number;
+  onSendChange: (field: RobotSendField, pct: number) => void;
+  swelling?: boolean;
+  disabled?: boolean;
+}
+
+/**
+ * One send row (docs/specs/ROBOT_SEND_TABLE.md §1.4): a plain block wrapper named by the engine key (useVoxelTrackSlider
+ * measures its own wrapper and needs a block box, the Volume row's reason; the class has no CSS rule of its own - a stable
+ * hook only) around the row's slider. A memo'd child, so editing one send re-renders that row alone, as the five
+ * hand-written rows did; the memo is what keeps the row's onChange closure stable (it is rebuilt only when a prop of this
+ * row changes, when the slider re-renders anyway), so no useCallback. Exported for its memo test only.
+ */
+export const SendRow = memo(function SendRow({ spec, value, onSendChange, swelling, disabled }: SendRowProps) {
+  return (
+    <div className={`audio-setting-section__${spec.engineKey}-row`}>
+      <SliderLinear
+        schema={ROBOT_SEND_SCHEMAS[spec.field]}
+        value={toSendDisplay(value)}
+        onChange={(pct) => onSendChange(spec.field, pct)}
+        disabled={disabled}
+        swelling={swelling}
+      />
+    </div>
+  );
+});
 
 /**
  * Robot Options' editable Audio Setting + Volume block — extracted out of RobotDisplaySection
@@ -119,10 +162,28 @@ const toSendDisplay = (send: number) => roundToDecimals(send * SEND_DISPLAY_SCAL
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
 function AudioSettingSectionInner({
-  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onReverbSendChange, onDelaySendChange,
-  onGritSendChange, onShimmerSendChange, onDoubleSendChange, onDynamicsChange, livePan, disabled, volumeSwelling,
+  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onReverbSendChange, onDelaySendChange,
+  onGritSendChange, onShimmerSendChange, onDoubleSendChange, onDynamicsChange, livePan, disabled, volumeSwelling, sendSwelling,
   reverbSendSwelling, delaySendSwelling, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling, style,
 }: AudioSettingSectionProps) {
+  // The T10 bridge (docs/tasks/ROBOT_SEND_TABLE.md): every row reports through one (field, pct) handler. A caller on
+  // onSendChange is handed straight through; a caller still on the five old props is routed to the matching one. T13
+  // deletes the fallback, the five old handlers and the five old flags.
+  const handleSendChange = useCallback(
+    (field: RobotSendField, pct: number) => {
+      if (onSendChange) {
+        onSendChange(field, pct);
+        return;
+      }
+      const old = { reverbSend: onReverbSendChange, delaySend: onDelaySendChange, gritSend: onGritSendChange, shimmerSend: onShimmerSendChange, doubleSend: onDoubleSendChange };
+      old[field]?.(pct);
+    },
+    [onSendChange, onReverbSendChange, onDelaySendChange, onGritSendChange, onShimmerSendChange, onDoubleSendChange],
+  );
+  const oldSendSwelling: Partial<Record<RobotSendField, boolean>> = {
+    reverbSend: reverbSendSwelling, delaySend: delaySendSwelling, gritSend: gritSendSwelling, shimmerSend: shimmerSendSwelling, doubleSend: doubleSendSwelling,
+  };
+
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
   // re-executing this component, which then handed the already-memoized RadioButton a new
@@ -173,26 +234,18 @@ function AudioSettingSectionInner({
             </div>
             <Toggle schema={PAN_AUTO_SCHEMA} value={value.panAuto} onChange={onPanAutoChange} disabled={disabled} />
           </DirectionalPanel>
-          {/* Reverb and Delay sends (docs/specs/ROBOT_SENDS.md §1.6): two plain slider rows after Pan, each in a
-              wrapper with no display rule for the Volume row's reason (useVoxelTrackSlider measures its own wrapper
-              and needs a plain block box). The wrapper classes have no CSS rule of their own - stable hooks only. */}
-          <div className="audio-setting-section__reverb-row">
-            <SliderLinear schema={REVERB_SEND_SCHEMA} value={toSendDisplay(value.reverbSend)} onChange={onReverbSendChange} disabled={disabled} swelling={reverbSendSwelling} />
-          </div>
-          <div className="audio-setting-section__delay-row">
-            <SliderLinear schema={DELAY_SEND_SCHEMA} value={toSendDisplay(value.delaySend)} onChange={onDelaySendChange} disabled={disabled} swelling={delaySendSwelling} />
-          </div>
-          {/* Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6): the sends into the three rooms, after Delay, each
-              in its own block wrapper for the same reason. */}
-          <div className="audio-setting-section__grit-row">
-            <SliderLinear schema={GRIT_SEND_SCHEMA} value={toSendDisplay(value.gritSend)} onChange={onGritSendChange} disabled={disabled} swelling={gritSendSwelling} />
-          </div>
-          <div className="audio-setting-section__shimmer-row">
-            <SliderLinear schema={SHIMMER_SEND_SCHEMA} value={toSendDisplay(value.shimmerSend)} onChange={onShimmerSendChange} disabled={disabled} swelling={shimmerSendSwelling} />
-          </div>
-          <div className="audio-setting-section__double-row">
-            <SliderLinear schema={DOUBLE_SEND_SCHEMA} value={toSendDisplay(value.doubleSend)} onChange={onDoubleSendChange} disabled={disabled} swelling={doubleSendSwelling} />
-          </div>
+          {/* The five sends (docs/specs/ROBOT_SENDS.md §1.6, ROBOT_EFFECT_SENDS.md §1.6), after Pan, one SendRow per
+              ROBOT_SENDS entry in table order (docs/specs/ROBOT_SEND_TABLE.md §1.4, assumption 2). */}
+          {ROBOT_SENDS.map((spec) => (
+            <SendRow
+              key={spec.field}
+              spec={spec}
+              value={value[spec.field]}
+              onSendChange={handleSendChange}
+              swelling={sendSwelling ? sendSwelling[spec.field] : oldSendSwelling[spec.field]}
+              disabled={disabled}
+            />
+          ))}
           {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6): the last row, after the sends, in a wrapper with no display rule for
               the Volume row's reason. No `swelling`: Dynamics is not a swell attribute. */}
           <div className="audio-setting-section__dynamics-row">

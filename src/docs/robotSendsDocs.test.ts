@@ -111,8 +111,9 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['applyDelaySend', 'src/systems/robotOptionsActions.ts', /export function applyDelaySend\(robot: Robot, localeId: string, pct: number\): void/],
     ['applyReverbSendValue (the swell tick writes the stored fraction)', 'src/systems/robotOptionsActions.ts', /export function applyReverbSendValue\(robot: Robot, localeId: string, fraction: number\): void/],
     ['applyDelaySendValue', 'src/systems/robotOptionsActions.ts', /export function applyDelaySendValue\(robot: Robot, localeId: string, fraction: number\): void/],
-    ['REVERB_SEND_SCHEMA', 'src/data/robotOptionsConfig.ts', /export const REVERB_SEND_SCHEMA: SliderLinearSchema/],
-    ['DELAY_SEND_SCHEMA', 'src/data/robotOptionsConfig.ts', /export const DELAY_SEND_SCHEMA: SliderLinearSchema/],
+    // Re-pinned by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are one record.
+    ['ROBOT_SEND_SCHEMAS', 'src/data/robotOptionsConfig.ts', /export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> =/],
+    ['each send schema is built from its table row', 'src/data/robotOptionsConfig.ts', /ROBOT_SENDS\.map\(\(spec\) => \[\s*spec\.field,\s*\{\s*id: `robotOptions\.\$\{spec\.field\}`,\s*type: 'sliderLinear',\s*\.\.\.labels\(spec\.contentKey\),/],
     ['AudioSettingValue.reverbSend', 'src/components/robot/AudioSettingSection.tsx', /\breverbSend: number;/],
     ['AudioSettingValue.delaySend', 'src/components/robot/AudioSettingSection.tsx', /\bdelaySend: number;/],
     ['AudioSettingSection reverbSendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\breverbSendSwelling\?: boolean;/],
@@ -154,6 +155,8 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'SEND_DELAY_QUIET_THRESHOLD',
   // Deleted by Robot Send Table T9 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the session diff's loops read ROBOT_SEND_FIELDS
   'SEND_PRIME_KEYS',
+  // Deleted by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are ROBOT_SEND_SCHEMAS
+  'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);

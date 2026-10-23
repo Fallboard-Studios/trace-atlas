@@ -5,11 +5,7 @@ import {
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
   PAN_ROW_PANEL_SCHEMA,
-  REVERB_SEND_SCHEMA,
-  DELAY_SEND_SCHEMA,
-  GRIT_SEND_SCHEMA,
-  SHIMMER_SEND_SCHEMA,
-  DOUBLE_SEND_SCHEMA,
+  ROBOT_SEND_SCHEMAS,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -47,6 +43,7 @@ import {
 // accordion consts' absence at runtime, without a named import that would itself fail to compile
 // the instant they're removed from the source module.
 import * as robotOptionsConfigModule from './robotOptionsConfig';
+import { ROBOT_SENDS, ROBOT_SEND_FIELDS } from './robotSends';
 import { CONTENT } from '@/content';
 import { CONTROL_SCHEMA_TYPES } from '@/types/controls';
 import { ROBOT_LFO_TARGET_IDS } from '@/types/lfo';
@@ -62,16 +59,14 @@ import {
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES } from '@/types/Robot';
 import { ENVELOPE_TIME_MAX_SECONDS } from '@/constants';
 
+const SEND_SCHEMAS = ROBOT_SEND_FIELDS.map((field) => ROBOT_SEND_SCHEMAS[field]);
+
 const ALL_TOP_LEVEL_SCHEMAS = [
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
-  REVERB_SEND_SCHEMA,
-  DELAY_SEND_SCHEMA,
-  GRIT_SEND_SCHEMA,
-  SHIMMER_SEND_SCHEMA,
-  DOUBLE_SEND_SCHEMA,
+  ...SEND_SCHEMAS,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -225,16 +220,44 @@ describe('robotOptionsConfig', () => {
     });
   });
 
-  const SEND_SCHEMAS = [REVERB_SEND_SCHEMA, DELAY_SEND_SCHEMA, GRIT_SEND_SCHEMA, SHIMMER_SEND_SCHEMA, DOUBLE_SEND_SCHEMA];
+  // docs/specs/ROBOT_SEND_TABLE.md §1.4 (Robot Send Table T10): one record of five schemas, built from the table, in place
+  // of the five named constants. Ids and words are today's, so the screens and the content guard see no change.
+  describe('ROBOT_SEND_SCHEMAS', () => {
+    it('has exactly one schema per ROBOT_SENDS row, keyed by its field, in table order', () => {
+      expect(Object.keys(ROBOT_SEND_SCHEMAS)).toEqual(ROBOT_SENDS.map((spec) => spec.field));
+    });
+
+    it.each(ROBOT_SENDS)('the $field schema carries robotOptions.$field and the words of $contentKey', (spec) => {
+      const schema = ROBOT_SEND_SCHEMAS[spec.field];
+      expect(schema.id).toBe(`robotOptions.${spec.field}`);
+      expect(schema.humanLabel).toBe(CONTENT[spec.contentKey].human);
+      expect(schema.help).toEqual(CONTENT[spec.contentKey].help);
+    });
+
+    it('the five schemas are five objects, not one shared object (no row borrows the words of another)', () => {
+      expect(new Set(SEND_SCHEMAS).size).toBe(5);
+    });
+
+    it.each(['REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA'])(
+      'the old named constant %s is gone (the record is the one source)',
+      (name) => {
+        expect(name in robotOptionsConfigModule).toBe(false);
+      },
+    );
+
+    it('is JSON-serializable as a whole', () => {
+      expect(JSON.parse(JSON.stringify(ROBOT_SEND_SCHEMAS))).toEqual(ROBOT_SEND_SCHEMAS);
+    });
+  });
 
   // docs/specs/ROBOT_SENDS.md §1.6 - the send sliders, on Volume's display-vs-storage split (Grit, Shimmer and
   // Double from docs/specs/ROBOT_EFFECT_SENDS.md §1.6).
   describe.each([
-    { name: 'REVERB_SEND_SCHEMA', schema: REVERB_SEND_SCHEMA, id: 'robotOptions.reverbSend', key: 'probe.reverbSend' },
-    { name: 'DELAY_SEND_SCHEMA', schema: DELAY_SEND_SCHEMA, id: 'robotOptions.delaySend', key: 'probe.delaySend' },
-    { name: 'GRIT_SEND_SCHEMA', schema: GRIT_SEND_SCHEMA, id: 'robotOptions.gritSend', key: 'probe.gritSend' },
-    { name: 'SHIMMER_SEND_SCHEMA', schema: SHIMMER_SEND_SCHEMA, id: 'robotOptions.shimmerSend', key: 'probe.shimmerSend' },
-    { name: 'DOUBLE_SEND_SCHEMA', schema: DOUBLE_SEND_SCHEMA, id: 'robotOptions.doubleSend', key: 'probe.doubleSend' },
+    { name: 'ROBOT_SEND_SCHEMAS.reverbSend', schema: ROBOT_SEND_SCHEMAS.reverbSend, id: 'robotOptions.reverbSend', key: 'probe.reverbSend' },
+    { name: 'ROBOT_SEND_SCHEMAS.delaySend', schema: ROBOT_SEND_SCHEMAS.delaySend, id: 'robotOptions.delaySend', key: 'probe.delaySend' },
+    { name: 'ROBOT_SEND_SCHEMAS.gritSend', schema: ROBOT_SEND_SCHEMAS.gritSend, id: 'robotOptions.gritSend', key: 'probe.gritSend' },
+    { name: 'ROBOT_SEND_SCHEMAS.shimmerSend', schema: ROBOT_SEND_SCHEMAS.shimmerSend, id: 'robotOptions.shimmerSend', key: 'probe.shimmerSend' },
+    { name: 'ROBOT_SEND_SCHEMAS.doubleSend', schema: ROBOT_SEND_SCHEMAS.doubleSend, id: 'robotOptions.doubleSend', key: 'probe.doubleSend' },
   ] as const)('$name', ({ schema, id, key }) => {
     it('is a horizontal sliderLinear displaying 0-100 % in steps of 1', () => {
       expect(schema.type).toBe('sliderLinear');

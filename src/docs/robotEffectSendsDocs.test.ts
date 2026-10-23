@@ -106,8 +106,11 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     ...(['Grit', 'Shimmer', 'Double'] as const).flatMap((name): [string, string, RegExp][] => [
       [`apply${name}Send`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}Send\\(robot: Robot, localeId: string, pct: number\\): void`)],
       [`apply${name}SendValue`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}SendValue\\(robot: Robot, localeId: string, fraction: number\\): void`)],
-      [`${name.toUpperCase()}_SEND_SCHEMA`, 'src/data/robotOptionsConfig.ts', new RegExp(`export const ${name.toUpperCase()}_SEND_SCHEMA: SliderLinearSchema`)],
     ]),
+    // Re-pinned by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are one record, and
+    // the screen renders one row per table entry.
+    ['ROBOT_SEND_SCHEMAS', 'src/data/robotOptionsConfig.ts', /export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> =/],
+    ['the Levels block renders one send row per table entry', 'src/components/robot/AudioSettingSection.tsx', /\{ROBOT_SENDS\.map\(\(spec\) => \(\s*<SendRow\b/],
     // Re-pinned by Robot Send Table T8 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the pool and the ranges read the field list,
     // which carries the three new sends (robotSends.test.ts pins its rows; robotSendsParity.test.ts the pool's order).
     ['the swell pool ends in the sends', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId\[\] = \[[^\]]*'adsr\.release',\s*\.\.\.ROBOT_SEND_FIELDS,?\s*\]/],
@@ -146,6 +149,8 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'FrequencyShifter', 'CrossFade', 'AudioParam', 'BitCrusher', 'getContext', 'setTimeout', 'rampTo',
   // Deleted by T1 (assumption 6): the Delay row's 1 - lit
   'SEND_DELAY_QUIET_THRESHOLD',
+  // Deleted by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are ROBOT_SEND_SCHEMAS
+  'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
   // File and doc names, not symbols (chainCycleSearch is a test file, which sourceFiles skips)
   'chainCycleSearch', 'ROBOT_SENDS', 'ROBOT_EFFECT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES', 'AUDIO_SYSTEM',
   'SESSION_STORAGE', 'GLOBAL_PEDALS', 'GLOBAL_COLOUR', 'DARK_EFFECT_BYPASS', 'TONE_EFFECTS_INVENTORY', 'CLASSIC_BAND_RETUNE',

@@ -20,10 +20,10 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { AudioSettingSection } from './AudioSettingSection';
+import { AudioSettingSection, SendRow } from './AudioSettingSection';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
-import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, REVERB_SEND_SCHEMA, DELAY_SEND_SCHEMA, DYNAMICS_SCHEMA,
-  GRIT_SEND_SCHEMA, SHIMMER_SEND_SCHEMA, DOUBLE_SEND_SCHEMA } from '@/data/robotOptionsConfig';
+import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, ROBOT_SEND_SCHEMAS, DYNAMICS_SCHEMA } from '@/data/robotOptionsConfig';
+import { ROBOT_SENDS, type RobotSendField } from '@/data/robotSends';
 import { CONTENT, fill } from '@/content';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import type { Robot } from '@/types/Robot';
@@ -748,7 +748,7 @@ describe('AudioSettingSection', () => {
       rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.4, panAuto: false })} {...baseProps} />);
 
       const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
-      expect(rerendered).not.toContain(DELAY_SEND_SCHEMA.id);
+      expect(rerendered).not.toContain(ROBOT_SEND_SCHEMAS.delaySend.id);
       expect(rerendered).not.toContain(VOLUME_SCHEMA.id);
       expect(rerendered).not.toContain(PAN_SCHEMA.id);
       expect(rerendered).not.toContain(PAN_AUTO_SCHEMA.id);
@@ -760,13 +760,13 @@ describe('AudioSettingSection', () => {
       (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
       rerender(<AudioSettingSection value={makeValue({ delaySend: 0.2, masterVolume: 0.42 })} {...baseProps} />);
-      expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id)).not.toContain(REVERB_SEND_SCHEMA.id);
+      expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id)).not.toContain(ROBOT_SEND_SCHEMAS.reverbSend.id);
 
       (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
       rerender(<AudioSettingSection value={makeValue({ delaySend: 0.2, masterVolume: 0.7 })} {...baseProps} />);
       const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
-      expect(rerendered).not.toContain(REVERB_SEND_SCHEMA.id);
-      expect(rerendered).not.toContain(DELAY_SEND_SCHEMA.id);
+      expect(rerendered).not.toContain(ROBOT_SEND_SCHEMAS.reverbSend.id);
+      expect(rerendered).not.toContain(ROBOT_SEND_SCHEMAS.delaySend.id);
     });
 
     // docs/tasks/ROBOT_SENDS.md Task 13 - the swell flags. The flag reaches the slider's `swelling` prop, which makes
@@ -842,8 +842,8 @@ describe('AudioSettingSection', () => {
         rerender(<AudioSettingSection value={value} {...baseProps} reverbSendSwelling />);
 
         const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
-        expect(rerendered).toContain(REVERB_SEND_SCHEMA.id);
-        expect(rerendered).not.toContain(DELAY_SEND_SCHEMA.id);
+        expect(rerendered).toContain(ROBOT_SEND_SCHEMAS.reverbSend.id);
+        expect(rerendered).not.toContain(ROBOT_SEND_SCHEMAS.delaySend.id);
         expect(rerendered).not.toContain(VOLUME_SCHEMA.id);
         expect(rerendered).not.toContain(PAN_SCHEMA.id);
       });
@@ -856,8 +856,8 @@ describe('AudioSettingSection', () => {
         rerender(<AudioSettingSection value={value} {...baseProps} delaySendSwelling />);
 
         const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
-        expect(rerendered).toContain(DELAY_SEND_SCHEMA.id);
-        expect(rerendered).not.toContain(REVERB_SEND_SCHEMA.id);
+        expect(rerendered).toContain(ROBOT_SEND_SCHEMAS.delaySend.id);
+        expect(rerendered).not.toContain(ROBOT_SEND_SCHEMAS.reverbSend.id);
       });
     });
   });
@@ -994,7 +994,7 @@ describe('AudioSettingSection', () => {
       rerender(<AudioSettingSection value={makeValue({ panAuto: false, dynamics: 80 })} {...baseProps} />);
       const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
       expect(rerendered).toContain(DYNAMICS_SCHEMA.id);
-      [DELAY_SEND_SCHEMA.id, REVERB_SEND_SCHEMA.id, VOLUME_SCHEMA.id, PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, AUDIO_SETTING_SCHEMA.id]
+      [ROBOT_SEND_SCHEMAS.delaySend.id, ROBOT_SEND_SCHEMAS.reverbSend.id, VOLUME_SCHEMA.id, PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, AUDIO_SETTING_SCHEMA.id]
         .forEach((id) => expect(rerendered).not.toContain(id));
     });
 
@@ -1018,9 +1018,9 @@ describe('AudioSettingSection', () => {
     const rerenderedIds = () => (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
 
     const ROWS = [
-      { name: 'Grit', field: 'gritSend', key: 'probe.gritSend', handler: 'onGritSendChange', flag: 'gritSendSwelling', schema: GRIT_SEND_SCHEMA, wrapper: 'audio-setting-section__grit-row' },
-      { name: 'Shimmer', field: 'shimmerSend', key: 'probe.shimmerSend', handler: 'onShimmerSendChange', flag: 'shimmerSendSwelling', schema: SHIMMER_SEND_SCHEMA, wrapper: 'audio-setting-section__shimmer-row' },
-      { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', handler: 'onDoubleSendChange', flag: 'doubleSendSwelling', schema: DOUBLE_SEND_SCHEMA, wrapper: 'audio-setting-section__double-row' },
+      { name: 'Grit', field: 'gritSend', key: 'probe.gritSend', handler: 'onGritSendChange', flag: 'gritSendSwelling', schema: ROBOT_SEND_SCHEMAS.gritSend, wrapper: 'audio-setting-section__grit-row' },
+      { name: 'Shimmer', field: 'shimmerSend', key: 'probe.shimmerSend', handler: 'onShimmerSendChange', flag: 'shimmerSendSwelling', schema: ROBOT_SEND_SCHEMAS.shimmerSend, wrapper: 'audio-setting-section__shimmer-row' },
+      { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', handler: 'onDoubleSendChange', flag: 'doubleSendSwelling', schema: ROBOT_SEND_SCHEMAS.doubleSend, wrapper: 'audio-setting-section__double-row' },
     ] as const;
     const ALL_SEND_HANDLERS = ['onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange'] as const;
 
@@ -1184,7 +1184,7 @@ describe('AudioSettingSection', () => {
         (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
         rerender(<AudioSettingSection value={makeValue({ [field]: 0.4, panAuto: false })} {...baseProps} />);
-        const others = [REVERB_SEND_SCHEMA, DELAY_SEND_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, AUDIO_SETTING_SCHEMA, DYNAMICS_SCHEMA, ...ROWS.map((r) => r.schema)]
+        const others = [ROBOT_SEND_SCHEMAS.reverbSend, ROBOT_SEND_SCHEMAS.delaySend, VOLUME_SCHEMA, PAN_SCHEMA, AUDIO_SETTING_SCHEMA, DYNAMICS_SCHEMA, ...ROWS.map((r) => r.schema)]
           .filter((s) => s !== schema).map((s) => s.id);
         expect(rerenderedIds()).toContain(schema.id);
         others.forEach((id) => expect(rerenderedIds()).not.toContain(id));
@@ -1229,6 +1229,191 @@ describe('AudioSettingSection', () => {
       for (const { key } of ROWS) {
         expect(source).not.toContain('>' + CONTENT[key].human + '<');
         expect(source).not.toContain('\'' + CONTENT[key].human + '\'');
+      }
+    });
+  });
+
+  // docs/specs/ROBOT_SEND_TABLE.md §1.4 (Robot Send Table T10): the five rows come from ROBOT_SENDS, one memo'd SendRow
+  // each, and report through one onSendChange(field, pct) with one sendSwelling record. Until both screens pass the two
+  // (T11, T12) a caller on the old per-field props still works through a fallback; T13 deletes it and the ten props.
+  describe('send rows from the table (Robot Send Table T10)', () => {
+    const OLD_HANDLERS = ['onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange'] as const;
+    const oldHandlers = () =>
+      Object.fromEntries(OLD_HANDLERS.map((h) => [h, vi.fn()])) as Record<(typeof OLD_HANDLERS)[number], ReturnType<typeof vi.fn>>;
+    const NEW_PROPS = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, onDynamicsChange: () => {} };
+    const NO_SWELLS: Record<RobotSendField, boolean> = { reverbSend: false, delaySend: false, gritSend: false, shimmerSend: false, doubleSend: false };
+    const sliderOf = (field: RobotSendField) =>
+      screen.getByRole('slider', { name: new RegExp(`^${CONTENT[ROBOT_SENDS.find((s) => s.field === field)!.contentKey].human}`, 'i') });
+    const shown = (field: RobotSendField) => sliderOf(field).getAttribute('aria-valuenow');
+    const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const rerenderedIds = () => (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id as string);
+    const allSends = (send: number) => makeValue({ reverbSend: send, delaySend: send, gritSend: send, shimmerSend: send, doubleSend: send });
+
+    it('renders one row per ROBOT_SENDS entry, in table order, each in the wrapper its engine key names', () => {
+      const { container } = render(<AudioSettingSection value={makeValue({ panAuto: false })} {...NEW_PROPS} onSendChange={vi.fn()} />);
+
+      const wrappers = ROBOT_SENDS.map((spec) => container.querySelector(`.audio-setting-section__${spec.engineKey}-row`));
+      wrappers.forEach((w, i) => {
+        expect(w, ROBOT_SENDS[i].field).not.toBeNull();
+        expect(w!.contains(sliderOf(ROBOT_SENDS[i].field)), ROBOT_SENDS[i].field).toBe(true);
+        expect(w!.classList.contains('audio-setting-section__row')).toBe(false);
+      });
+      for (let i = 1; i < wrappers.length; i++) expect(before(wrappers[i - 1]!, wrappers[i]!), `row ${i}`).toBe(true);
+      // Volume, Pan, the five sends and Dynamics: no row twice, none missing.
+      expect(screen.getAllByRole('slider')).toHaveLength(8);
+    });
+
+    it('each row renders its ROBOT_SEND_SCHEMAS schema, and the rows render in table order', () => {
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+      render(<AudioSettingSection value={makeValue()} {...NEW_PROPS} onSendChange={vi.fn()} />);
+
+      const sendIds = new Set(ROBOT_SENDS.map((spec) => ROBOT_SEND_SCHEMAS[spec.field].id));
+      const rendered = [...new Set(rerenderedIds().filter((id) => sendIds.has(id)))];
+      expect(rendered).toEqual(ROBOT_SENDS.map((spec) => `robotOptions.${spec.field}`));
+    });
+
+    it.each(ROBOT_SENDS)('with onSendChange, a step on the $field row calls onSendChange($field, 40) once and no old handler', (spec) => {
+      const onSendChange = vi.fn();
+      const old = oldHandlers();
+      render(<AudioSettingSection value={makeValue({ [spec.field]: 0.39 })} {...NEW_PROPS} {...old} onSendChange={onSendChange} />);
+
+      fireEvent.keyDown(sliderOf(spec.field), { key: 'ArrowRight' });
+
+      expect(onSendChange.mock.calls).toEqual([[spec.field, 40]]);
+      OLD_HANDLERS.forEach((h) => expect(old[h], h).not.toHaveBeenCalled());
+    });
+
+    it('onSendChange reports the display number at both ends of the travel (Home 0, End 100), never a fraction', () => {
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ shimmerSend: 0.5 })} {...NEW_PROPS} onSendChange={onSendChange} />);
+      fireEvent.keyDown(sliderOf('shimmerSend'), { key: 'Home' });
+      fireEvent.keyDown(sliderOf('shimmerSend'), { key: 'End' });
+      expect(onSendChange.mock.calls).toEqual([['shimmerSend', 0], ['shimmerSend', 100]]);
+    });
+
+    it('disabled: no row reaches onSendChange', () => {
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue()} disabled {...NEW_PROPS} onSendChange={onSendChange} />);
+      ROBOT_SENDS.forEach((spec) => fireEvent.keyDown(sliderOf(spec.field), { key: 'ArrowRight' }));
+      expect(onSendChange).not.toHaveBeenCalled();
+    });
+
+    it('a new onSendChange is the one the next step reaches (no row holds a stale handler)', () => {
+      const first = vi.fn();
+      const second = vi.fn();
+      const value = makeValue();
+      const { rerender } = render(<AudioSettingSection value={value} {...NEW_PROPS} onSendChange={first} />);
+      rerender(<AudioSettingSection value={value} {...NEW_PROPS} onSendChange={second} />);
+
+      fireEvent.keyDown(sliderOf('doubleSend'), { key: 'ArrowRight' });
+
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledWith('doubleSend', 6);
+    });
+
+    it('with only the old props (the bridge), the Grit row calls onGritSendChange(40) and nothing else', () => {
+      const old = oldHandlers();
+      render(<AudioSettingSection value={makeValue({ gritSend: 0.39 })} {...NEW_PROPS} {...old} />);
+
+      fireEvent.keyDown(sliderOf('gritSend'), { key: 'ArrowRight' });
+
+      expect(old.onGritSendChange.mock.calls).toEqual([[40]]);
+      OLD_HANDLERS.filter((h) => h !== 'onGritSendChange').forEach((h) => expect(old[h], h).not.toHaveBeenCalled());
+    });
+
+    it.each(ROBOT_SENDS)('sendSwelling.$field snaps the $field row alone; the other four still ease', async (spec) => {
+      const flags = { ...NO_SWELLS, [spec.field]: true };
+      const { rerender } = render(<AudioSettingSection value={allSends(0.1)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={flags} />);
+      rerender(<AudioSettingSection value={allSends(0.5)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={flags} />);
+
+      expect(shown(spec.field)).toBe('50');
+      ROBOT_SENDS.filter((s) => s !== spec).forEach((s) => expect(shown(s.field), s.field).toBe('10'));
+      await waitFor(() => ROBOT_SENDS.forEach((s) => expect(shown(s.field)).toBe('50')));
+    });
+
+    it('an all-false sendSwelling eases every row, as no record does', () => {
+      const { rerender } = render(<AudioSettingSection value={allSends(0.1)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} />);
+      rerender(<AudioSettingSection value={allSends(0.5)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} />);
+      ROBOT_SENDS.forEach((s) => expect(shown(s.field), s.field).toBe('10'));
+    });
+
+    it('a sendSwelling record is the only flag source when given: an old per-field flag beside it is ignored', () => {
+      const { rerender } = render(<AudioSettingSection value={allSends(0.1)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} reverbSendSwelling />);
+      rerender(<AudioSettingSection value={allSends(0.5)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} reverbSendSwelling />);
+      expect(shown('reverbSend')).toBe('10');
+    });
+
+    it('with onSendChange, editing Reverb re-renders the Reverb row and no other send row', () => {
+      const onSendChange = vi.fn();
+      const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.4 })} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+
+      expect(rerenderedIds()).toContain(ROBOT_SEND_SCHEMAS.reverbSend.id);
+      for (const field of ['delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const) {
+        expect(rerenderedIds(), field).not.toContain(ROBOT_SEND_SCHEMAS[field].id);
+      }
+    });
+
+    // Without the memo every SendRow rebuilds its onChange closure on any section render, so every send slider re-renders
+    // with it; the probe cases below see the result, this one names the cause.
+    it('SendRow is a React.memo-wrapped component', () => {
+      expect((SendRow as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+
+    it('with onSendChange, editing Volume or Dynamics re-renders no send row', () => {
+      const onSendChange = vi.fn();
+      const { rerender } = render(<AudioSettingSection value={makeValue({ masterVolume: 0.4, dynamics: 50 })} {...NEW_PROPS} onSendChange={onSendChange} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={makeValue({ masterVolume: 0.7, dynamics: 80 })} {...NEW_PROPS} onSendChange={onSendChange} />);
+
+      ROBOT_SENDS.forEach((spec) => expect(rerenderedIds(), spec.field).not.toContain(ROBOT_SEND_SCHEMAS[spec.field].id));
+    });
+
+    it('a fresh but equal sendSwelling record re-renders no slider (the rows compare booleans, not the record)', () => {
+      const onSendChange = vi.fn();
+      const value = makeValue({ panAuto: false });
+      const { rerender } = render(<AudioSettingSection value={value} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={{ ...NO_SWELLS }} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={value} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={{ ...NO_SWELLS }} />);
+
+      const sendIds = ROBOT_SENDS.map((spec) => ROBOT_SEND_SCHEMAS[spec.field].id);
+      sendIds.forEach((id) => expect(rerenderedIds()).not.toContain(id));
+    });
+
+    it('flipping sendSwelling.gritSend re-renders the Grit row only', () => {
+      const onSendChange = vi.fn();
+      const value = makeValue({ panAuto: false });
+      const { rerender } = render(<AudioSettingSection value={value} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={NO_SWELLS} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<AudioSettingSection value={value} {...NEW_PROPS} onSendChange={onSendChange} sendSwelling={{ ...NO_SWELLS, gritSend: true }} />);
+
+      expect(rerenderedIds()).toContain(ROBOT_SEND_SCHEMAS.gritSend.id);
+      for (const field of ['reverbSend', 'delaySend', 'shimmerSend', 'doubleSend'] as const) {
+        expect(rerenderedIds(), field).not.toContain(ROBOT_SEND_SCHEMAS[field].id);
+      }
+      expect(rerenderedIds()).not.toContain(VOLUME_SCHEMA.id);
+    });
+
+    // `npm run build:types` checks the directive: the bridge keeps the rows wired, so a caller passes onSendChange or all
+    // five old handlers, and onSendChange alone needs none of the old ones.
+    it('a caller must wire the send rows: onSendChange alone type-checks, neither it nor the old five does not', () => {
+      // @ts-expect-error neither onSendChange nor the five old send handlers
+      const neither = <AudioSettingSection value={makeValue()} {...NEW_PROPS} />;
+      const newOnly = <AudioSettingSection value={makeValue()} {...NEW_PROPS} onSendChange={() => {}} />;
+      expect([neither, newOnly]).toHaveLength(2);
+    });
+
+    it('the component source spells out no send row by hand: no five-schema list, no per-field class literal', () => {
+      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
+      expect(source).toMatch(/ROBOT_SENDS\.map\(/);
+      for (const spec of ROBOT_SENDS) {
+        expect(source, spec.field).not.toContain(`audio-setting-section__${spec.engineKey}-row`);
+        expect(source, spec.field).not.toContain(`ROBOT_SEND_SCHEMAS.${spec.field}`);
       }
     });
   });
