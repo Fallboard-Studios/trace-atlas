@@ -9,12 +9,7 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 1 — Sound right first
-
-- Backlog [23](backlog.md#23-audio-palette-trials-dynamics-processing-and-ducking) **Dynamics processing and ducking** —
-  interviewed with 54 and deferred: built only if the single Compressor sounds wrong now that it is off safety duty.
-
-## Stage 2 — The underruns: desktop first, then one phone sitting
+## Stage 1 — The underruns: desktop first, then one phone sitting
 
 Measure before changing anything. The desktop answers what it can; the Pixel comes out once, at the end, for only what
 the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-23 re-ordered this stage (backlog 27,
@@ -35,7 +30,7 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
   per-lane push the stub describes.
 - **The phone sitting**, last — 29's lighting by ear, and whatever 27 still owes.
 
-## Stage 3 — The powered-down state
+## Stage 2 — The powered-down state
 
 - Backlog [19](backlog.md#19-short-world-link-bring-back-seed-x-and-y) **Short world link, and a shorter `?session=`**
   — first, because a preset entry is a short link and 5's interview needs to know what a preset is. A library is
@@ -46,12 +41,12 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
 - Backlog [1](backlog.md#1-onload-better-power-off-background) and [3](backlog.md#3-onload-sleeve-logo) **Off
   background art, sleeve logo** — blocked on artwork, but they land on this screen, so decided here.
 
-## Stage 4 — The Guide
+## Stage 3 — The Guide
 
 - Roadmap [51](roadmap.md#51-guide-a-read-only-branch-that-teaches-the-whole-app) **The Guide** — large; likely one
   tabbed window that shows everything. After Stage 3 so it describes the off screen as it will be.
 
-## Stage 5 — The music
+## Stage 4 — The music
 
 - Backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) **Tagged progressions,
   seeded mood chain** — the engine, catalogue and chain (large); its UI was decided in Stage 3. Backlog
@@ -63,7 +58,7 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
 - Backlog [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) **User-authored progressions**
   — a maybe; only if 7 earns it, and then its own roadmap phase.
 
-## Stage 6 — Observe the world
+## Stage 5 — Observe the world
 
 Interview these three together: they share one decision about what to record and what survives a reload, even if only
 one is built.
@@ -83,6 +78,8 @@ one is built.
   console check** — two minutes whenever DevTools is next open.
 - Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
   option (B); only when a main-thread question needs per-section numbers.
+- Backlog [23](backlog.md#23-audio-palette-trials-dynamics-processing-and-ducking) **Dynamics processing and ducking** —
+  interviewed with 54 and deferred: built only if the single Compressor sounds wrong now that it is off safety duty.
 - Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
   the roof), [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen) (three notes) and
   [52](roadmap.md#52-job-decorations-six-small-animations-on-the-orbiters-work) (the spec questions shipped as proposed).

@@ -614,7 +614,7 @@ underruns at 3:00, 254 at 4:00) and on the Output Headroom branch (140 → 173);
 (branch) at 3:00. The two builds swap order between the worlds, so the clicks are not that branch's; its output is
 never at full scale, so they are not clipping either. Crawford: chase them here, after roadmap 54 merges.
 
-**Next, re-ordered 2026-10-23** ([plan.md](plan.md) Stage 2: the desktop first, the Pixel once at the end). The two
+**Next, re-ordered 2026-10-23** ([plan.md](plan.md) Stage 1: the desktop first, the Pixel once at the end). The two
 rested sittings changed the list above. T21's run 2 collapsed after 20 minutes off, and run 7, the same link on the same
 build and storage later in the sitting, did not; so heat and carried state each explain the collapse less well, and the
 Incognito tab and the cool-phone sine ramp drop to last, run only if the desktop leaves the collapse unexplained. T10
