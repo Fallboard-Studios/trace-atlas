@@ -12,6 +12,8 @@ import {
   ROBOT_SEND_FIELDS,
   engineKeyOf,
   isRoomSendKey,
+  recordByEngineKey,
+  recordByField,
   robotSendLevels,
   type RobotSendField,
   type SendEngineKey,
@@ -145,6 +147,41 @@ describe('isRoomSendKey', () => {
     const perRoom: Record<SendRoomKey, number> = { grit: 1, shimmer: 2, double: 3 };
     const key: SendEngineKey = 'shimmer';
     expect(isRoomSendKey(key) ? perRoom[key] : undefined).toBe(2);
+  });
+});
+
+// Review follow-up (2026-10-22): seven sites built a five-key record from the table through `Object.fromEntries(...) as
+// Record<...>` or `{} as Record<...>`; these two build it, in table order, and are the one place that casts.
+describe('recordByField / recordByEngineKey', () => {
+  it('recordByField keys one value per row by field, in table order, from the row and its index', () => {
+    const record = recordByField((spec, i) => `${spec.shareCode}${i}`);
+    expect(record).toStrictEqual({ reverbSend: 'rs0', delaySend: 'ds1', gritSend: 'gr2', shimmerSend: 'sm3', doubleSend: 'db4' });
+    expect(Object.keys(record)).toEqual(ROBOT_SEND_FIELDS);
+  });
+
+  it('recordByEngineKey keys one value per row by engine key, in table order (JSON order is observable)', () => {
+    const record = recordByEngineKey((spec) => spec.field);
+    expect(JSON.stringify(record)).toBe(
+      '{"reverb":"reverbSend","delay":"delaySend","grit":"gritSend","shimmer":"shimmerSend","double":"doubleSend"}'
+    );
+  });
+
+  it.each([
+    ['recordByField', recordByField],
+    ['recordByEngineKey', recordByEngineKey],
+  ] as const)('%s calls its builder once per row, in table order, so an allocating builder gives each row its own value', (_name, build) => {
+    const seen: string[] = [];
+    const record = build((spec) => {
+      seen.push(spec.field);
+      return { field: spec.field };
+    });
+    expect(seen).toEqual(ROBOT_SEND_FIELDS);
+    expect(new Set(Object.values(record)).size).toBe(ROBOT_SENDS.length);
+  });
+
+  it('returns a fresh record every call (a caller may keep or spread it)', () => {
+    expect(recordByField(() => 0)).not.toBe(recordByField(() => 0));
+    expect(recordByEngineKey(() => 0)).not.toBe(recordByEngineKey(() => 0));
   });
 });
 

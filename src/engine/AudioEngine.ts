@@ -11,7 +11,7 @@ import { getActiveLocaleId } from '../utils/localeHelpers';
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
-import { ROBOT_SENDS, isRoomSendKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
+import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
@@ -200,11 +200,7 @@ function storeVoice(robotId: string, entry: VoiceEntry): void {
 /** A voice's five send gains, all at 0 (dry): live Tone.Gains, or stubs when there is no constructor (headless, or the
  *  fallback voice). Built in table order (docs/specs/ROBOT_SEND_TABLE.md §1.2); every reservation site primes them. */
 function buildSendGains(GainCtor: (new (...args: unknown[]) => Tone.Gain) | undefined): Record<SendEngineKey, Tone.Gain> {
-  const sends = {} as Record<SendEngineKey, Tone.Gain>;
-  for (const spec of ROBOT_SENDS) {
-    sends[spec.engineKey] = GainCtor ? new GainCtor(0) : makeStubGain(0) as unknown as Tone.Gain;
-  }
-  return sends;
+  return recordByEngineKey(() => (GainCtor ? new GainCtor(0) : makeStubGain(0) as unknown as Tone.Gain));
 }
 
 /** The room a send feeds: the Reverb and Delay rooms by their getters, an effect room by its in. Null while the room is

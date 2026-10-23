@@ -116,7 +116,8 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     // Re-pinned by Robot Send Table T8 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the pool and the ranges read the field list,
     // which carries the three new sends (robotSends.test.ts pins its rows; robotSendsParity.test.ts the pool's order).
     ['the swell pool ends in the sends', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId\[\] = \[[^\]]*'adsr\.release',\s*\.\.\.ROBOT_SEND_FIELDS,?\s*\]/],
-    ['the swell ranges carry every send', 'src/data/audioSwellRanges.ts', /\.\.\.\(Object\.fromEntries\(ROBOT_SEND_FIELDS\.map\(\(field\) => \[field, \{ min: SEND_MIN, max: SEND_MAX \}\]\)\)/],
+    // Re-pinned by the review follow-up (2026-10-22): the record is built by recordByField, in table order.
+    ['the swell ranges carry every send', 'src/data/audioSwellRanges.ts', /\.\.\.recordByField\(\(\) => \(\{ min: SEND_MIN, max: SEND_MAX \}\)\)/],
     ['RETURN_FIELD_KEYS is the four (no Colour room Return, the amendment)', 'src/data/globalAudioSeedRanges.ts', /export const RETURN_FIELD_KEYS = \['reverb\.wet', 'delay\.wet', 'chorus\.wet', 'frequencyShifter\.wet'\] as const;/],
     // The reserve-site scan's row went with the scan at Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md assumption 10):
     // every prime is robotSendLevels(robot), and robotSendsParity.test.ts pins what each site hands the engine.

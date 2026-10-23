@@ -114,7 +114,8 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['applySendValue (the swell tick writes the stored fraction)', 'src/systems/robotOptionsActions.ts', /export function applySendValue\(robot: Robot, localeId: string, field: RobotSendField, fraction: number\): void/],
     // Re-pinned by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are one record.
     ['ROBOT_SEND_SCHEMAS', 'src/data/robotOptionsConfig.ts', /export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> =/],
-    ['each send schema is built from its table row', 'src/data/robotOptionsConfig.ts', /ROBOT_SENDS\.map\(\(spec\) => \[\s*spec\.field,\s*\{\s*id: `robotOptions\.\$\{spec\.field\}`,\s*type: 'sliderLinear',\s*\.\.\.labels\(spec\.contentKey\),/],
+    // Re-pinned by the review follow-up (2026-10-22): every send-keyed record is built by recordByField / recordByEngineKey.
+    ['each send schema is built from its table row', 'src/data/robotOptionsConfig.ts', /ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> = recordByField\(\(spec\) => \(\{\s*id: `robotOptions\.\$\{spec\.field\}`,\s*type: 'sliderLinear',\s*\.\.\.labels\(spec\.contentKey\),/],
     ['AudioSettingValue.reverbSend', 'src/components/robot/AudioSettingSection.tsx', /\breverbSend: number;/],
     ['AudioSettingValue.delaySend', 'src/components/robot/AudioSettingSection.tsx', /\bdelaySend: number;/],
     // Re-pinned by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): one flag record and one handler for the rows.
@@ -123,9 +124,9 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     // Re-pinned by Robot Send Table T8 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the pool and the ranges read the field list
     // (robotSendsParity.test.ts pins the pool's order as a literal).
     ['the swell pool ends in the sends', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId\[\] = \[[^\]]*'adsr\.release',\s*\.\.\.ROBOT_SEND_FIELDS,?\s*\]/],
-    ['the swell ranges carry every send', 'src/data/audioSwellRanges.ts', /\.\.\.\(Object\.fromEntries\(ROBOT_SEND_FIELDS\.map\(\(field\) => \[field, \{ min: SEND_MIN, max: SEND_MAX \}\]\)\)/],
+    ['the swell ranges carry every send', 'src/data/audioSwellRanges.ts', /\.\.\.recordByField\(\(\) => \(\{ min: SEND_MIN, max: SEND_MAX \}\)\)/],
     ['the store clamps every send', 'src/stores/localeStore.ts', /for \(const sendKey of ROBOT_SEND_FIELDS\) \{/],
-    ['the company resolver falls back to 0 for every send', 'src/systems/companyOptions.ts', /\.\.\.\(Object\.fromEntries\(ROBOT_SEND_FIELDS\.map\(\(field\) => \[field, firstMember\[field\] \?\? 0\]\)\)/],
+    ['the company resolver falls back to 0 for every send', 'src/systems/companyOptions.ts', /\.\.\.recordByField\(\(spec\) => firstMember\[spec\.field\] \?\? 0\)/],
   ];
 
   it.each(declared)('%s', (_description, file, pattern) => {
@@ -140,6 +141,21 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
 
   it('the declared-pattern table itself fails on a rename (a pattern that matches nothing is not a pass)', () => {
     expect(read('src/types/Robot.ts')).not.toMatch(/\breverbSendX: number;/);
+  });
+
+  // Review follow-up (2026-10-22): a record keyed by the five sends is built by recordByField / recordByEngineKey, the one
+  // place that casts, so a module that builds its own (and may drop or reorder a key) is caught here.
+  const SEND_RECORD_CAST = /\bas\s+(Readonly<\s*)?Record<\s*(RobotSendField|SendEngineKey)\b/;
+  it('the cast pattern catches both spellings (the matcher itself)', () => {
+    expect('}) as Record<RobotSendField, number>').toMatch(SEND_RECORD_CAST);
+    expect('{} as Readonly<Record<SendEngineKey, Tone.Gain>>').toMatch(SEND_RECORD_CAST);
+    expect('as Record<\n    RobotSendField,').toMatch(SEND_RECORD_CAST);
+    expect('const x: Record<RobotSendField, number> = y;').not.toMatch(SEND_RECORD_CAST);
+  });
+
+  it('no module but robotSends.ts casts to a send-keyed record', () => {
+    const casting = sourceFiles('src').filter((file) => SEND_RECORD_CAST.test(withoutComments(read(file))));
+    expect(casting).toEqual(['src/data/robotSends.ts']);
   });
 });
 

@@ -11,7 +11,7 @@
  * ROBOT_SELECTION_ROW_SCHEMAS/label maps directly (Phase 8) rather than duplicating them — see
  * RobotDisplaySection.tsx.
  */
-import { ROBOT_SENDS, type RobotSendField } from './robotSends';
+import { recordByField, type RobotSendField } from './robotSends';
 import type {
   ControlSchema,
   DirectionalPanelSchema,
@@ -138,20 +138,15 @@ export const PAN_AUTO_SCHEMA: ToggleSchema = {
  * component consuming these converts pct/100 on write and value*100 on read. Ids and words are unchanged from the five
  * named schemas this replaces; the words come from each row's literal content key (spec assumption 1).
  */
-export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> = Object.fromEntries(
-  ROBOT_SENDS.map((spec) => [
-    spec.field,
-    {
-      id: `robotOptions.${spec.field}`,
-      type: 'sliderLinear',
-      ...labels(spec.contentKey),
-      min: SEND_MIN * SEND_DISPLAY_SCALE,
-      max: SEND_MAX * SEND_DISPLAY_SCALE,
-      step: SEND_STEP_PERCENT,
-      orientation: 'horizontal',
-    } satisfies SliderLinearSchema,
-  ]),
-) as Record<RobotSendField, SliderLinearSchema>;
+export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> = recordByField((spec) => ({
+  id: `robotOptions.${spec.field}`,
+  type: 'sliderLinear',
+  ...labels(spec.contentKey),
+  min: SEND_MIN * SEND_DISPLAY_SCALE,
+  max: SEND_MAX * SEND_DISPLAY_SCALE,
+  step: SEND_STEP_PERCENT,
+  orientation: 'horizontal',
+}));
 
 /**
  * Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.6): how much this robot's note velocities swing.

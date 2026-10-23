@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { ROBOT_SEND_FIELDS, type RobotSendField } from '@/data/robotSends';
+import { ROBOT_SEND_FIELDS, recordByField, type RobotSendField } from '@/data/robotSends';
 import { isRobotAttributeSwelling } from '@/systems/audioSwells';
 
 /**
@@ -52,10 +52,7 @@ export function useAdsrSwellingFlags(robotId: string | undefined, source: unknow
 export function useSendSwellingFlags(robotId: string | undefined): Readonly<Record<RobotSendField, boolean>> {
   // One character per send, in table order: '1' swelling, '0' not.
   const answers = ROBOT_SEND_FIELDS.map((field) => (robotId !== undefined && isRobotAttributeSwelling(robotId, field) ? '1' : '0')).join('');
-  return useMemo(
-    () => Object.fromEntries(ROBOT_SEND_FIELDS.map((field, i) => [field, answers[i] === '1'])) as Record<RobotSendField, boolean>,
-    [answers],
-  );
+  return useMemo(() => recordByField((_spec, i) => answers[i] === '1'), [answers]);
 }
 
 export function useLayerSwellingFlags(robotId: string, index: 0 | 1 | 2, source: unknown): LayerSwellingFlags;

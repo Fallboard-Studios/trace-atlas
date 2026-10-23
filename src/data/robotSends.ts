@@ -45,9 +45,24 @@ export const ROBOT_SENDS: readonly RobotSendSpec[] = [
   { field: 'doubleSend', engineKey: 'double', shareCode: 'db', contentKey: 'probe.doubleSend' },
 ];
 
-export const ROBOT_SEND_BY_FIELD = Object.fromEntries(
-  ROBOT_SENDS.map((spec) => [spec.field, spec])
-) as Readonly<Record<RobotSendField, RobotSendSpec>>;
+/** A fresh record of one value per send, keyed by field, built row by row in table order (so its key order is the
+ *  table's). With recordByEngineKey, the one place a send-keyed record is cast: no consumer builds its own. */
+export function recordByField<T>(valueOf: (spec: RobotSendSpec, index: number) => T): Record<RobotSendField, T> {
+  const record = {} as Record<RobotSendField, T>;
+  ROBOT_SENDS.forEach((spec, index) => {
+    record[spec.field] = valueOf(spec, index);
+  });
+  return record;
+}
+
+/** recordByField keyed by engine key, for the engine's side (the prime, a voice's send gains). */
+export function recordByEngineKey<T>(valueOf: (spec: RobotSendSpec) => T): Record<SendEngineKey, T> {
+  const record = {} as Record<SendEngineKey, T>;
+  for (const spec of ROBOT_SENDS) record[spec.engineKey] = valueOf(spec);
+  return record;
+}
+
+export const ROBOT_SEND_BY_FIELD: Readonly<Record<RobotSendField, RobotSendSpec>> = recordByField((spec) => spec);
 
 /** The one translation from the robot's keys to the engine's. Nothing maps back: the engine never names a field. */
 export function engineKeyOf(field: RobotSendField): SendEngineKey {
@@ -57,7 +72,5 @@ export function engineKeyOf(field: RobotSendField): SendEngineKey {
 /** The prime every reservation site hands updateRobotSends: all five, in table order, straight off the robot. No clamp and
  *  no NaN filter here; updateRobotSends does both. */
 export function robotSendLevels(robot: Pick<Robot, RobotSendField>): Record<SendEngineKey, number> {
-  const levels = {} as Record<SendEngineKey, number>;
-  for (const spec of ROBOT_SENDS) levels[spec.engineKey] = robot[spec.field];
-  return levels;
+  return recordByEngineKey((spec) => robot[spec.field]);
 }
