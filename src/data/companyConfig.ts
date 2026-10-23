@@ -23,8 +23,8 @@ export const FREELANCE_VALUE = '__freelance__';
  * not a static export. Used for the robot-to-company assignment RadioButton in both
  * RobotSelectionCard and RobotDisplaySection. Named/typed for a Select (buildCompanySelectSchema,
  * SelectSchema) through Roadmap Phase 10; renamed and retyped to RadioButtonSchema by 10.5 when
- * Select was removed entirely — see docs/specs/COMPANY_ASSIGNMENT_RADIO.md. Each company option
- * now also carries that company's own `color` (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.3);
+ * Select was removed entirely — see docs/specs/archive/COMPANY_ASSIGNMENT_RADIO.md. Each company option
+ * now also carries that company's own `color` (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.3);
  * Freelance omits it, keeping RadioButton's ambient-accent fallback.
  */
 export function buildCompanyAssignmentSchema(companies: Company[]): RadioButtonSchema {

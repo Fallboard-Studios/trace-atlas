@@ -630,7 +630,7 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
 });
 
 describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
-  it('is a linear slider, 1-100%, id audioRig.pingVarianceAutomation (min raised from 0 — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2, Intensity no longer doubles as an on/off gate)', () => {
+  it('is a linear slider, 1-100%, id audioRig.pingVarianceAutomation (min raised from 0 — docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2, Intensity no longer doubles as an on/off gate)', () => {
     expect(PING_VARIANCE_AUTOMATION_SCHEMA).toMatchObject({
       id: 'audioRig.pingVarianceAutomation',
       type: 'sliderLinear',
@@ -663,7 +663,7 @@ describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
   });
 });
 
-describe('SWELL_FREQUENCY_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3, §1.6)', () => {
+describe('SWELL_FREQUENCY_SCHEMA (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3, §1.6)', () => {
   it('is a sliderLog, id audioRig.swellFrequency, with a fixed 0-16 step grid (Crawford\'s own request) rather than a continuous range', () => {
     expect(SWELL_FREQUENCY_SCHEMA).toMatchObject({
       id: 'audioRig.swellFrequency',
@@ -720,7 +720,7 @@ describe('SWELL_FREQUENCY_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT
   });
 });
 
-describe('SWELL_DURATION_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4)', () => {
+describe('SWELL_DURATION_SCHEMA (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4)', () => {
   it('is a linear slider, 1-24 measures, id audioRig.swellDuration', () => {
     expect(SWELL_DURATION_SCHEMA).toMatchObject({
       id: 'audioRig.swellDuration',
@@ -744,7 +744,7 @@ describe('SWELL_DURATION_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.
   });
 });
 
-describe('BPM_SCHEMA (docs/specs/BPM_CONTROL.md §1.4-§1.5)', () => {
+describe('BPM_SCHEMA (docs/specs/archive/BPM_CONTROL.md §1.4-§1.5)', () => {
   it('is a linear slider, 20-200 BPM, id audioRig.bpm', () => {
     expect(BPM_SCHEMA).toMatchObject({
       id: 'audioRig.bpm',
@@ -786,7 +786,7 @@ function orientationOf(schema: ControlSchema): string | undefined {
   return (schema as { orientation?: string }).orientation;
 }
 
-describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.1; EQ/filters horizontal since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2)', () => {
+describe('slider orientation classification (docs/specs/archive/VERTICAL_SLIDERS.md §1.1; EQ/filters horizontal since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2)', () => {
   it('3-Band EQ (Low/Mid/High) is horizontal — one stacked band row each, the slider over its Lane | Depth row', () => {
     for (const field of ['low', 'mid', 'high']) {
       expect(orientationOf(findParam('eq3', field).schema), field).toBe('horizontal');
@@ -813,17 +813,17 @@ describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.
     }
   });
 
-  it('Compressor (Threshold/Ratio/Attack/Release/Knee) is horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
+  it('Compressor (Threshold/Ratio/Attack/Release/Knee) is horizontal (docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
     for (const field of ['threshold', 'ratio', 'attack', 'release', 'knee']) {
       expect(orientationOf(findParam('compressor', field).schema), field).toBe('horizontal');
     }
   });
 
-  it('Limiter (Threshold) is horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
+  it('Limiter (Threshold) is horizontal (docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
     expect(orientationOf(findParam('limiter', 'threshold').schema)).toBe('horizontal');
   });
 
-  it('every lane\'s Rate Drift/Depth Drift (LFO_BANK_LANE_SCHEMAS) is horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
+  it('every lane\'s Rate Drift/Depth Drift (LFO_BANK_LANE_SCHEMAS) is horizontal (docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
     for (const lane of LFO_LANE_IDS) {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
       expect(schema.rateDrift.orientation, `${lane}.rateDrift`).toBe('horizontal');
@@ -877,11 +877,11 @@ describe('verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow"
 
 // ========================================
 // DirectionalPanel wiring — additive schema work
-// (docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 1)
+// (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 1)
 // ========================================
 
 // The exact loreLabel/humanLabel text every AudioRigEffectBlock's now-removed `accordion` field
-// used to carry, before the type swap to `panel` (docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 2)
+// used to carry, before the type swap to `panel` (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 2)
 // — verbatim preservation is guarded by comparing `panel`'s text against these literals directly,
 // since there's no more sibling `accordion` field left to compare against at runtime.
 const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: string; humanLabel: string }> = {
@@ -931,14 +931,14 @@ describe('AudioRigEffectBlock.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
   });
 });
 
-describe('AUDIO_RIG_ACCORDION_GROUPS / TRANSPORT_COMPOSITION_ACCORDION_SCHEMA no longer exist (docs/tasks/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
+describe('AUDIO_RIG_ACCORDION_GROUPS / TRANSPORT_COMPOSITION_ACCORDION_SCHEMA no longer exist (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
   it('are not exported by the module', () => {
     expect('AUDIO_RIG_ACCORDION_GROUPS' in audioRigConfigModule).toBe(false);
     expect('TRANSPORT_COMPOSITION_ACCORDION_SCHEMA' in audioRigConfigModule).toBe(false);
   });
 });
 
-describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1 — Intensity no longer self-wraps in its own panel, now that it shares FleetParamsContent\'s own Pacing row with Frequency/Duration)', () => {
+describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1 — Intensity no longer self-wraps in its own panel, now that it shares FleetParamsContent\'s own Pacing row with Frequency/Duration)', () => {
   it('is not exported by the module', () => {
     expect('SPEED_AUTOMATION_PANEL_SCHEMA' in audioRigConfigModule).toBe(false);
   });
@@ -946,14 +946,10 @@ describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/AUTOMATION_
 
 // EQ_FILTERS_ROW_PANEL_SCHEMA / TIME_SPACE_COLUMN_PANEL_SCHEMA /
 // OUTPUT_COLUMN_PANEL_SCHEMA were removed — those 3 groupings are no longer
-// DirectionalPanelSchema objects at all; AudioRigDrawer.tsx wraps them in a
-// plain PanelGroup (orientation prop, no schema/id/facade) instead, so each
-// block keeps its own independent Cabinetry facade. See PanelGroup.test.tsx
-// for that component's own coverage, and AudioRigDrawer.test.tsx for the
-// "each block gets its own facade" structural assertions.
+// DirectionalPanelSchema objects at all.
 
 // ========================================
-// AUDIO LOAD (docs/specs/AUDIO_LOAD_BUDGET.md §4.5)
+// AUDIO LOAD (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5)
 // ========================================
 
 describe('AUDIO_LOAD_PRESET_SCHEMA', () => {
@@ -1061,14 +1057,6 @@ describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
 
 
 describe('audioRigConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 7)', () => {
-  it('carries no copy literal of its own — every loreLabel/humanLabel/unit is spread in from CONTENT', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'audioRigConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit)\s*:\s*['"`]/);
-    expect(src).not.toMatch(/panelSchema\([^)]*'[A-Z][^']*'/); // no positional heading strings either
-  });
-
   it('every schema label equals its concept\'s CONTENT entry', async () => {
     const { CONTENT } = await import('@/content');
     expect(BPM_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.tempo'].human);

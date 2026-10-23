@@ -394,8 +394,8 @@ describe('SignatureArrayDrawer', () => {
     expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('data-disabled')).toBe('');
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md section 1.5, Task 11) — an optional
-  // `style` prop forwarded to this drawer's own root (Task 17, docs/tasks/NAV_LAYOUT_REWRITE.md:
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md section 1.5, Task 11) — an optional
+  // `style` prop forwarded to this drawer's own root (Task 17, docs/tasks/archive/NAV_LAYOUT_REWRITE.md:
   // moved from the now-removed accordion wrapper to the plain .signature-array-drawer
   // root), for trait-color scoping (getTraitColorStyle('spectral'), applied at the
   // RobotOptionsTab call site).
@@ -560,7 +560,7 @@ describe('SignatureArrayDrawer', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 4)', () => {
+  describe('React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 4)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((SignatureArrayDrawer as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });
@@ -610,7 +610,7 @@ describe('SignatureArrayDrawer', () => {
   });
 });
 
-describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10)', () => {
+describe('SignatureArrayLayer — exported standalone (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10)', () => {
   const layers = makeLayers();
 
   function renderLayer(idx: 0 | 1 | 2, overrides: Partial<Parameters<typeof SignatureArrayLayer>[0]> = {}) {

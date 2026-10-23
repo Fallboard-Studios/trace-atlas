@@ -399,7 +399,7 @@ const LFO_QUIET_THRESHOLD = 0.34;
  * fraction — same "bounded/legible default, freely draggable afterward"
  * convention every other seeded Rig field follows (e.g. DELAY_SYNC_ODDS
  * above). Narrowed from [33%, 66%] once Intensity's on/off role moved to the
- * new Frequency field (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2).
+ * new Frequency field (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2).
  */
 const PING_VARIANCE_AUTOMATION_SEED_RANGE = { min: 0.10, max: 0.60 };
 
@@ -408,7 +408,7 @@ const PING_VARIANCE_AUTOMATION_SEED_RANGE = { min: 0.10, max: 0.60 };
  * as a fraction. Sampled once per session, not once per Attenuation Style
  * switch — audioStore.ts's regenerateGlobalAudioFromSeed is responsible for
  * only calling this on the very first seed and carrying the value forward on
- * every later call (docs/specs/PING-VARIANCE-AUTOMATION.md §1.2); this
+ * every later call (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.2); this
  * function itself is a plain, stateless seeded draw, same shape as every
  * other function in this file.
  */
@@ -428,13 +428,13 @@ export function generatePingVarianceAutomation(attenuationStyleId: string, atten
 /**
  * Frequency's own seeded-default range — [2, 8] swells/measure, same domain
  * the slider itself uses directly (no fraction/percent split, unlike
- * pingVarianceAutomation). docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5.
+ * pingVarianceAutomation). docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5.
  */
 const SWELL_FREQUENCY_SEED_RANGE = { min: 2, max: 8 };
 
 /**
  * Duration's own seeded-default range — [2, 8] measures, same domain the
- * slider itself uses directly. docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5.
+ * slider itself uses directly. docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5.
  */
 const SWELL_DURATION_SEED_RANGE = { min: 2, max: 8 };
 
@@ -445,7 +445,7 @@ const SWELL_DURATION_SEED_RANGE = { min: 2, max: 8 };
  * inside this range), the same "no off-grid value" guarantee pingVarianceAutomation's own
  * quantization gives it below. Sampled once per session, carried forward across later Attenuation
  * Style switches, same sentinel-gated mechanism pingVarianceAutomation already uses
- * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5).
+ * (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5).
  */
 export function generateSwellFrequency(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);

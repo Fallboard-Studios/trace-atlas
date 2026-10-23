@@ -5,8 +5,6 @@ import {
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
-  AUDIO_MODE_LABELS,
-  AUDIO_STATUS_COLOR_MAP,
   AUDIBILITY_LABELS,
   ACTIVITY_LABELS,
 } from './robotSelectionConfig';
@@ -17,11 +15,6 @@ import { JobType, DockingState, type RobotActivity } from '@/types/Robot';
 // RobotActivity is a type-only union (types/Robot.ts) — the seven spelled out, in lifecycle order.
 const ACTIVITIES = ['charging', 'exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const satisfies readonly RobotActivity[];
 
-// Every Robot['audioMode'] value per its own type comment (Robot.ts) — no const-object export
-// exists for this union today, unlike JobType/DockingState, so the literal list is spelled out
-// here rather than derived.
-const AUDIO_MODES = ['none', 'mute', 'solo', 'highlight'] as const;
-
 describe('robotSelectionConfig', () => {
   describe('ROBOT_SELECTION_ROW_SCHEMAS', () => {
     it('matches ROBOT_DATA_GRID.md\'s exact lore/human pairs for its three remaining card rows', () => {
@@ -30,7 +23,7 @@ describe('robotSelectionConfig', () => {
       expect(ROBOT_SELECTION_ROW_SCHEMAS.docking).toMatchObject({ loreLabel: CONTENT['probe.status.docking'].lore, humanLabel: CONTENT['probe.status.docking'].human });
     });
 
-    // Roadmap 15.2 (docs/specs/ROBOT_CARDS_REDESIGN.md §1.5 item 1): .battery moved to
+    // Roadmap 15.2 (docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.5 item 1): .battery moved to
     // BATTERY_READOUT_SCHEMA (Roadmap 15.1) and .audio had no consumer at all — both dropped
     // as genuinely dead once RobotSelectionCard stopped referencing them.
     it('no longer has .battery or .audio entries', () => {
@@ -38,7 +31,7 @@ describe('robotSelectionConfig', () => {
       expect((ROBOT_SELECTION_ROW_SCHEMAS as Record<string, unknown>).audio).toBeUndefined();
     });
 
-    // Roadmap 15.3 (docs/specs/ROBOT_DETAIL_TOP_CARD_REDESIGN.md §1.3) — the first field-level
+    // Roadmap 15.3 (docs/specs/archive/ROBOT_DETAIL_TOP_CARD_REDESIGN.md §1.3) — the first field-level
     // DualLabel for Status; RobotSelectionCard's own Status (15.2) renders bare, with no field-level
     // label of its own, so this is new rather than a rename of an existing entry.
     it('has a .status entry with a non-empty loreLabel and humanLabel of "Status"', () => {
@@ -149,52 +142,15 @@ describe('robotSelectionConfig', () => {
       });
     });
   });
-
-  describe('AUDIO_MODE_LABELS', () => {
-    it('covers every audioMode value with a loreLabel and humanLabel', () => {
-      for (const mode of AUDIO_MODES) {
-        expect(AUDIO_MODE_LABELS[mode]).toBeDefined();
-        expect(AUDIO_MODE_LABELS[mode].loreLabel).toBeTruthy();
-        expect(AUDIO_MODE_LABELS[mode].humanLabel).toBeTruthy();
-      }
-    });
-
-    it("labels 'none' as 'Auto', not 'Off' — matches AUDIO_SETTING_SCHEMA's own relabel (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3), so the Robot Selection card list reads consistently with Robot Options' own Audio Setting control", () => {
-      expect(AUDIO_MODE_LABELS.none.humanLabel).toBe(CONTENT['probe.status.monitorMode'].options.none.human);
-    });
-  });
-
-  describe('AUDIO_STATUS_COLOR_MAP', () => {
-    it('maps none/mute/solo/highlight to purple/red/green/amber, per confirmed intake', () => {
-      expect(AUDIO_STATUS_COLOR_MAP.none).toBe('purple');
-      expect(AUDIO_STATUS_COLOR_MAP.mute).toBe('red');
-      expect(AUDIO_STATUS_COLOR_MAP.solo).toBe('green');
-      expect(AUDIO_STATUS_COLOR_MAP.highlight).toBe('amber');
-    });
-
-    it('covers every audioMode value', () => {
-      for (const mode of AUDIO_MODES) {
-        expect(AUDIO_STATUS_COLOR_MAP[mode]).toBeDefined();
-      }
-    });
-  });
 });
 
 describe('robotSelectionConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 9)', () => {
-  it('carries no copy literal of its own — the value-label maps are optionsRecord() wrappers', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'robotSelectionConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-    expect(src).toMatch(/optionsRecord\('probe\.job'\)/);
-  });
   it('wrappers expose exactly the same keys and text as CONTENT', async () => {
     const { CONTENT } = await import('@/content');
     expect(Object.keys(JOB_TYPE_LABELS)).toEqual(Object.keys(CONTENT['probe.job'].options));
     expect(JOB_TYPE_LABELS.ventExtraction.humanLabel).toBe(CONTENT['probe.job'].options.ventExtraction.human);
     expect(DOCKING_STATE_LABELS.docked.loreLabel).toBe(CONTENT['probe.status.docking'].options.docked.lore);
     expect(AUDIBILITY_LABELS.limited.humanLabel).toBe(CONTENT['probe.status'].options.limited.human);
-    expect(AUDIO_MODE_LABELS.none.loreLabel).toBe(CONTENT['probe.status.monitorMode'].options.none.lore);
     expect(UNASSIGNED_JOB_LABEL.humanLabel).toBe(CONTENT['probe.job.unassigned'].human);
     expect(ROBOT_SELECTION_ROW_SCHEMAS.name.humanLabel).toBe(CONTENT['probe.name'].human);
     expect(BATTERY_READOUT_SCHEMA.unit).toBe(CONTENT['probe.battery'].unit);

@@ -51,7 +51,6 @@ Vitest + Testing Library. Tests are colocated with source (`beatClock.ts` → `b
 
 ```bash
 npm test               # run once
-npm run test:ui        # interactive UI
 npm run test:coverage  # coverage report
 npm test -- --watch    # watch mode
 npm test beatClock.test.ts   # single file

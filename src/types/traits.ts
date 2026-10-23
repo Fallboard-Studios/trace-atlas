@@ -1,5 +1,5 @@
 /**
- * The 8 app-wide color traits (Roadmap Phase 14 — see docs/specs/COLOR_SCHEME_TRAIT_THEMING.md;
+ * The 8 app-wide color traits (Roadmap Phase 14 — see docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md;
  * `colour` added by Roadmap 50.3, docs/specs/GLOBAL_COLOUR.md assumption 9).
  * Every accordion/drawer/control in the app belongs to exactly one of these; each trait's own
  * 2-color pair lives in src/utils/traitColors.ts, kept as a separate module so this file stays a

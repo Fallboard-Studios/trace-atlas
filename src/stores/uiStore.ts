@@ -7,7 +7,7 @@ import type { AudioRigEffectKey } from '@/data/audioRigConfig';
 // ========================================
 
 /** A leaf section within whatever entity is selected (a robot, a company, or
- *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
+ *  the implicit "All Probes" bulk-edit target) — docs/specs/archive/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
 export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
 /** Fleet Params' 6 mid-level groups (`lfoBank` added by docs/tasks/LFO_BANK.md Task 15,
@@ -17,7 +17,7 @@ export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
  *  Task 10, between `colour` and `output`) — used to type-narrow a tree node id segment
  *  (useNavTree.ts's `asFleetParamsGroup`), not to back any expand-tracking store field: all 7 are
  *  always expanded once Fleet Params itself is expanded
- *  (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) — there is no independent per-group
+ *  (docs/specs/archive/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) — there is no independent per-group
  *  toggle state anymore. */
 export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'colour' | 'modulation' | 'output';
 /** Settings' three tabs — Audio Quality, Seeds, Save & Share (docs/specs/LAYOUT_REWORK.md §1.8).
@@ -29,7 +29,7 @@ export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' 
  *  under a leaf (Voice Limit, Location…) retired with the stacked screen (LAYOUT_REWORK.md Task 17). */
 export type SettingsLeaf = 'quality' | 'sectorSettings' | 'sessions';
 /** A Fleet Params sub-tab — fleetParamsSubsection's type (docs/specs/LAYOUT_REWORK.md §1.10). Added in
- *  Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) for the tree's effect leaf, a field that retired with the
+ *  Task 14 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) for the tree's effect leaf, a field that retired with the
  *  stacked scroll (LAYOUT_REWORK.md Task 18); same reasoning as SettingsLeaf: Fleet Params' 5 groups
  *  (Pacing/LFO Bank/EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the
  *  7 real effect leaves underneath EQ & Filters/Time & Space/Output (EQ/HPF/LPF/Reverb/Delay/
@@ -40,7 +40,7 @@ export type SettingsLeaf = 'quality' | 'sectorSettings' | 'sessions';
  *  groups' leaves, none of these are a real AudioRigEffectPanel/AudioRigEffectKey, so each
  *  needs its own synthetic member here. */
 export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects' | 'swellFrequency' | 'swellDuration' | 'laneA' | 'laneB' | 'laneC' | 'laneD';
-/** The 4th tree level under a robot's/company's RobotSection — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md
+/** The 4th tree level under a robot's/company's RobotSection — docs/specs/archive/NAV_PANEL_VIEWS_AND_CONTENT.md
  *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
  *  name collides across sections). Shared by Probes and Companies, same as RobotSection itself. */
@@ -63,7 +63,7 @@ export type RobotSubsection =
 export type TopLevelBranch = 'settings' | 'fleetParams' | 'probes' | 'companies';
 /** True when the nav tree's "All Probes" leaf is selected — the bulk-edit target covering
  *  every robot in the locale, distinct from bare "Probes" (the browse list), which also has
- *  selectedRobotId === null. Added in Task 19 (docs/tasks/NAV_LAYOUT_REWRITE.md): without this
+ *  selectedRobotId === null. Added in Task 19 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md): without this
  *  flag, "Probes" and "All Probes" are indistinguishable from state alone. Unrelated to
  *  allRobotsSelected, which drives the pre-existing RobotsTab company filter, not nav content
  *  routing — selecting "All Probes" in the tree does not imply that filter is set, and vice versa. */
@@ -74,7 +74,7 @@ export interface UIStore {
   /** Live decorative temperature (°C) for the active locale — Header's row 2
    *  readout. Purely cosmetic, never read by any other system. Same shape/
    *  placement/no-persistence convention as activeLocaleLocalTime.
-   *  docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3. */
+   *  docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3. */
   activeLocaleTemperature: number | null;
   selectedRobotId: string | null;
   /** The company (Roadmap Phase 10) currently selected from the nav panel's company list —
@@ -93,12 +93,12 @@ export interface UIStore {
    *  those stay driven by selectedCompanyId alone. */
   allRobotsSelected: boolean;
   activeHubTile: HubTile | null;
-  /** Nav & Layout Rewrite additive state (docs/specs/NAV_LAYOUT_REWRITE.md §1.3) —
+  /** Nav & Layout Rewrite additive state (docs/specs/archive/NAV_LAYOUT_REWRITE.md §1.3) —
    *  a handful of per-level fields, not a single opaque node-id scheme. */
   selectedSection: RobotSection | null;
   /** The open great-grandchild, when one is selected — null when only a RobotSection (or
    *  nothing) is selected. Shared by Probes and Companies, same reasoning as selectedSection.
-   *  docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3. */
+   *  docs/specs/archive/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3. */
   selectedSubsection: RobotSubsection | null;
   /** Mobile only; desktop/tablet ignore this and stay docked-open. */
   isNavPanelOpen: boolean;

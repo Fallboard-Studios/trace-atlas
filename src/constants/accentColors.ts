@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the app's static accent palette — transcribed once from
  * docs/reference/accent-colors.css (Crawford's own design reference; that file is not imported at
- * runtime). See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.1. Renaming a key here is a breaking
+ * runtime). See docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.1. Renaming a key here is a breaking
  * change to traitColors.ts and spawnSystem.ts's robot-color seeding — treat it the same caution
  * class as a getSeededVal dataId rename (docs/PROCEDURAL_GENERATION.md).
  */
@@ -30,7 +30,7 @@ export const ACCENT_COLORS = {
    *  16° apart on the wheel — nothing tempers either one). rosewood/dustyRose sit at sat 32-35%,
    *  10° apart. burntOrange is a second, deeper orange (sat 65, light 36) bracketing the existing
    *  orange (sat 78, light 48) from below — paired with it directly, replacing red as Output's
-   *  own second color. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.3's amendment. */
+   *  own second color. See docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.3's amendment. */
   rosewood: '#914652',
   dustyRose: '#b67288',
   burntOrange: '#974820',

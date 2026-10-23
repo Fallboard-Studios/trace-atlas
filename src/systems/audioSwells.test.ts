@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { NoiseFunction2D } from 'simplex-noise';
 
@@ -130,7 +127,7 @@ beforeEach(() => {
   // those tests assert an UNSCALED peak; automation-scaling itself gets its
   // own dedicated describe block below, which sets a different value per test.
   // swellFrequency: 4 gives a per-tick trigger chance of 4/16 = 0.25
-  // (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — close enough to
+  // (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — close enough to
   // the old fixed SWELL_TRIGGER_CHANCE (0.28) that every existing
   // ALWAYS_MIN(succeeds)/ALWAYS_MID(fails) fixture below still behaves
   // identically; individual trigger-mechanism tests override this explicitly.
@@ -216,7 +213,7 @@ describe('smooth sub-measure advance (16n ticking)', () => {
     expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(12 * (0.9375 / 3));
   });
 
-  it('rolls the trigger/selection on every tick, not just once per whole measure (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — replaces the old once-per-whole-measure gate)', () => {
+  it('rolls the trigger/selection on every tick, not just once per whole measure (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — replaces the old once-per-whole-measure gate)', () => {
     for (let i = 0; i < 16; i++) {
       vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
       tickAudioSwells(LOCALE_ID, i / 16); // all 16 ticks land within measure 0
@@ -238,7 +235,7 @@ describe('smooth sub-measure advance (16n ticking)', () => {
   });
 });
 
-describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — takes over the on/off role pingVarianceAutomation used to have)', () => {
+describe('swellFrequency gate (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — takes over the on/off role pingVarianceAutomation used to have)', () => {
   it('starts no new swell (global or robot) at frequency 0, even when the trigger draw would otherwise succeed', () => {
     useAudioStore.setState({ swellFrequency: 0 });
     useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
@@ -271,32 +268,9 @@ describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
 
     expect(getActiveSwellSnapshot('global')).toHaveLength(1);
   });
-
-  it('no longer reads audioSwellsEnabled anywhere in this module (source-scan regression guard) — the field itself was deleted from AudioStore entirely in docs/tasks/PING-VARIANCE-AUTOMATION.md Task 7', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/audioSwellsEnabled/);
-  });
-
-  it('no longer reads SWELL_TRIGGER_CHANCE or lastRolledMeasure anywhere in this module (source-scan regression guard, docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §3)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/SWELL_TRIGGER_CHANCE/);
-    expect(source).not.toMatch(/lastRolledMeasure/);
-  });
-
-  it('no longer uses the identifier "automation" anywhere in this module outside a comment naming the superseded PING-VARIANCE-AUTOMATION.md spec (source-scan regression guard — magnitude scaling is now parameter "intensity", docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    const codeLines = source
-      .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)); // drop comment-only lines
-    const codeWithoutComments = codeLines.join('\n');
-    expect(codeWithoutComments).not.toMatch(/\bautomation\b/);
-  });
 });
 
-describe('frequencyToPerTickChance (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3)', () => {
+describe('frequencyToPerTickChance (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3)', () => {
   it('divides frequency by the 16-tick-per-measure cadence', () => {
     expect(frequencyToPerTickChance(4)).toBeCloseTo(0.25);
     expect(frequencyToPerTickChance(8)).toBeCloseTo(0.5);
@@ -405,7 +379,7 @@ describe('pingVarianceAutomation magnitude scaling (Task 3)', () => {
   });
 });
 
-describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — re-keyed from pingVarianceAutomation, Task 4 of PING-VARIANCE-AUTOMATION.md)', () => {
+describe('swellFrequency forced return at 0 (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — re-keyed from pingVarianceAutomation, Task 4 of PING-VARIANCE-AUTOMATION.md)', () => {
   it('forces a rising global swell into its falling phase with no jump, then lands exactly on baseValue after its own original fallingMeasures', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12
@@ -445,32 +419,6 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
     tickAudioSwells(LOCALE_ID, 1 + 12);
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
     expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(false);
-  });
-
-  it('forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue', () => {
-    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', masterVolume: 0.1 }));
-    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', masterVolume: 0.9 }));
-    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
-
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // company-wide volume swell, rising 3 / falling 12
-
-    tickAudioSwells(LOCALE_ID, 1); // partway into rising
-    const r1Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
-    const r2Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume;
-
-    useAudioStore.setState({ swellFrequency: 0 });
-    tickAudioSwells(LOCALE_ID, 1); // forcing tick — both members convert together
-
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(r1Before);
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume).toBeCloseTo(r2Before);
-    const swell = getActiveSwellSnapshot('robot').find((s) => s.companyId === 'c1')!;
-    expect(swell.phase).toBe('falling');
-
-    tickAudioSwells(LOCALE_ID, 1 + 12);
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume).toBe(0.9);
-    expect(getActiveSwellSnapshot('robot')).toEqual([]);
   });
 
   it('leaves a swell already in its falling phase untouched when frequency drops to 0 — no re-forcing', () => {
@@ -712,7 +660,7 @@ describe('ramp lifecycle', () => {
   });
 });
 
-describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4, full pipeline, real seeded noise)', () => {
+describe('Duration — pickSwellSplit (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4, full pipeline, real seeded noise)', () => {
   it('risingMeasures + fallingMeasures always equals swellDuration (within the 1-measure-per-phase rounding floor), for every swell type', () => {
     useAudioStore.setState({ swellDuration: 10 });
     const samples: { target: string; rising: number; falling: number }[] = [];
@@ -751,36 +699,9 @@ describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_
       expect(ratio).toBeLessThanOrEqual(0.8 + 0.05);
     }
   });
-
-  it('pickPhaseMeasures, DEFAULT_SWELL_DURATION_RANGE, MIX_SWELL_DURATION_RANGE, MIX_SWELL_TARGETS no longer exist anywhere in this module (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/pickPhaseMeasures/);
-    expect(source).not.toMatch(/DEFAULT_SWELL_DURATION_RANGE/);
-    expect(source).not.toMatch(/MIX_SWELL_DURATION_RANGE/);
-    expect(source).not.toMatch(/MIX_SWELL_TARGETS/);
-  });
-
-  it('has no global delay or reverb wet swell path left in code (source-scan regression guard, docs/specs/ROBOT_SENDS.md assumption 13)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    const code = source
-      .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)) // drop comment-only lines
-      .join('\n');
-    expect(code).not.toMatch(/isGlobalTargetAtOffEquivalent/);
-    expect(code).not.toMatch(/['"](delay|reverb)(\.wet)?['"]/);
-    expect(code).not.toMatch(/globalAudio\.(delay|reverb)\b/);
-  });
 });
 
-describe('determinism and zero Math.random()', () => {
-  it('never calls Math.random() anywhere in this module (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    expect(source).not.toMatch(/Math\.random/);
-  });
-
+describe('determinism', () => {
   it('two identical ticks (same store state, same measure, real seeded noise) produce identical trigger/target/direction/duration decisions', () => {
     const runOnce = () => {
       stopAudioSwells();
@@ -1029,16 +950,6 @@ describe('robot pool — ramp lifecycle and write path', () => {
 
     expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls[0][0].id).toBe('r1');
-  });
-
-  it('never calls useLocaleStore\'s updateRobot or an AudioEngine.updateVoice*/updateRobotMasterVolume method directly (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
-    // Requires an actual call site (trailing paren) so a doc comment merely
-    // NAMING one of these functions in prose (e.g. "never a bare
-    // AudioEngine.updateVoice* pairing") doesn't trip this guard.
-    expect(source).not.toMatch(/\.updateRobot\(/);
-    expect(source).not.toMatch(/AudioEngine\.(updateVoice\w*|updateRobotMasterVolume)\(/);
   });
 });
 

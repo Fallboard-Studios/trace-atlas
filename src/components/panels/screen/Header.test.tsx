@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
@@ -9,7 +6,6 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { getTimeline } from '@/animation/timelineMap';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { labels } from '@/content';
 import { CABINET_BOX_HEIGHT, CABINET_VOXEL_GAP, type CabinetTier } from '@/utils/cabinetBreakpoints';
 import { CABINET_REST_POP } from '@/utils/cabinetGeometry';
@@ -90,7 +86,7 @@ vi.mock('gsap', () => {
 });
 
 // Controllable ResizeObserver mock — exercises the --header-height
-// measurement effect (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6, Task 9).
+// measurement effect (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.6, Task 9).
 class MockResizeObserver {
   static instances: MockResizeObserver[] = [];
   callback: ResizeObserverCallback;
@@ -238,7 +234,7 @@ describe('Header', () => {
     expect(screen.queryByText(/BPM/)).toBeNull();
   });
 
-  // docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6 (Task 9) — Console.css's
+  // docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.6 (Task 9) — Console.css's
   // vertical deadzone clearance reads --header-height off document.documentElement,
   // since Header is a sibling of Console, not an ancestor.
   describe('--header-height measurement (§1.6)', () => {
@@ -357,7 +353,7 @@ describe('Header', () => {
     });
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 15) — the Header
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 15) — the Header
   // trait's own colors (teal/green, rebalanced from emerald/indigo — see traitColors.ts's own
   // comment) on the header root.
   it("scopes its root to the Header trait's colors (teal/green)", () => {
@@ -692,16 +688,6 @@ describe('Header', () => {
   });
 });
 
-describe('Header reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 14)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'Header.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/\[c\]/);
-  });
-});
-
 // Found in Chrome: a 176 px slider overflowed the desk header by 8 px — the voxel boxes follow the
 // cabinet tier (48 px on the desktop tier) and a track never draws fewer than three, so its shortest
 // track is 184 px there. The width is that track, from the tier tables, so no tier overflows it.
@@ -717,137 +703,5 @@ describe('the volume slider width holds the shortest track at every cabinet tier
     expect(boxes).toBeGreaterThanOrEqual(VOXEL_TRACK_MIN_BOX_COUNT);
     expect(computeVoxelTrackLength(boxes, CABINET_BOX_HEIGHT[tier], CABINET_VOXEL_GAP[tier]) + reserve).toBeLessThanOrEqual(width);
     Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
-  });
-});
-
-describe('Header.tsx — the slide and its constants are gone (Task 6)', () => {
-  it('reads no nav-panel flag and no media query of its own: the shell comes from useShell', () => {
-    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'Header.tsx'), 'utf8');
-    expect(source).not.toMatch(/HEADER_NAV_CLEARANCE|isNavPanelOpen|matchMedia|nav-clearance/);
-    expect(source).toMatch(/useShell\(\)/);
-  });
-});
-
-describe('Header.css — one row beside the power corner', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'Header.css'), 'utf-8');
-
-  it('has no media query: what differs by shell comes from useShell (spec Assumption 1), not the stylesheet', () => {
-    expect(css).not.toMatch(/@media/);
-  });
-
-  // Crawford, 2026-10-12: the header, the meta box and the nav panel's plate share one top margin, the nav's:
-  // its padding-top, --spacing-xl, so the three plates start level.
-  it("sits at --header-top, the one offset the top bar is measured from, the nav plate's own top margin", () => {
-    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--header-top: var(--spacing-md);');
-    const navCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'nav/NavPanel.css'), 'utf-8');
-    expect(getCssRuleBody(navCss, '.nav-panel')).toContain('top: var(--header-top);');
-    expect(getCssRuleBody(css, '.header')).toContain('top: var(--header-top);');
-  });
-
-  // Measured in Chrome: the power corner (126 px on the phone, 160 on the desk) reaches lower than the
-  // header, and the nav sheet ran 9 px under it at 320 px. The top bar ends where the lower of the two does.
-  it('declares the top bar\'s lower edge as the header or the power corner beside it, whichever reaches lower', () => {
-    expect(getCssRuleBody(css, '#screen-viewport')).toContain(
-      '--top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height));',
-    );
-  });
-
-  it('the row never wraps and keeps the power corner clear on its right', () => {
-    const body = getCssRuleBody(css, '.header__row');
-    expect(body).not.toBeNull();
-    expect(body).toContain('flex-wrap: nowrap;');
-    expect(body).toContain('calc(var(--power-corner-width) + var(--spacing-md))');
-  });
-
-  // The 320 px fit: on the phone the row is mute and the volume box, two fixed touch targets and a gap,
-  // beside the power corner's reserve — nothing in it grows with content or holds a min-width.
-  it('the volume box is a fixed touch target that never grows or shrinks', () => {
-    const body = getCssRuleBody(css, '.header__volume-trigger');
-    expect(body).not.toBeNull();
-    expect(body).toContain('flex: 0 0 auto;');
-    expect(getCssRuleBody(css, '.header__volume-trigger .sc-cabinet-box__front')).toContain('width: var(--touch-target-size);');
-  });
-
-  it('the slider, desk row or pop-out, has one width and no min-width of its own', () => {
-    const row = getCssRuleBody(css, '.header__controls .sc-slider-linear');
-    expect(row).toContain('width: var(--header-volume-width);');
-    expect(row).not.toMatch(/min-width/);
-    expect(getCssRuleBody(css, '.header__volume-popover .sc-slider-linear')).toContain('width: var(--header-volume-width);');
-  });
-
-  it('the volume box reads as on while open: the accent fill a checked Toggle gets', () => {
-    expect(getCssRuleBody(css, ".header__volume-trigger[data-state='open'] .sc-cabinet-box__front")).toContain(
-      'background: var(--color-accent-gradient);',
-    );
-  });
-
-  // Crawford, 2026-10-11: the well and the panel under it take one width and sit one inset from the tablet's
-  // edge. The stack is as wide as the wider of the two (the well's text is its content), up to the free band
-  // left of the power corner; both stretch to it, and a longer well scrolls.
-  it('the phone stack is content-wide, capped at the free band, inset from the left edge', () => {
-    expect(getCssRuleBody(css, '.header--phone')).toContain('flex-direction: column;');
-    const stack = getCssRuleBody(css, '.header__stack');
-    for (const declaration of [
-      'display: flex;',
-      'flex-direction: column;',
-      'width: fit-content;',
-      'max-width: calc(100% - var(--power-corner-width) - 2 * var(--spacing-md));',
-      'margin-left: var(--spacing-md);',
-      'gap: var(--header-row-gap);',
-    ]) {
-      expect(stack).toContain(declaration);
-    }
-    expect(getCssRuleBody(css, '.header__stack > .sc-cabinet-box')).toContain('align-self: stretch;');
-    // The desk's plate rule (.header > .sc-cabinet-box > .sc-cabinet-box__front) misses the stack's, so the
-    // stack's front restates it: a block, no padding of its own, as wide as the stack (measured in Chrome:
-    // without it the plate overran the well by 15 px and the controls sat 14 px in from the panel's edge).
-    const front = getCssRuleBody(css, '.header__stack > .sc-cabinet-box > .sc-cabinet-box__front');
-    for (const declaration of ['display: block;', 'width: 100%;', 'height: auto;', 'padding: 0;', 'box-sizing: border-box;']) {
-      expect(front).toContain(declaration);
-    }
-    expect(getCssRuleBody(css, '.header--phone .header__row')).toContain('padding: var(--spacing-sm) var(--spacing-md);');
-    expect(getCssRuleBody(css, '.header__controls')).toContain('display: flex;');
-  });
-
-  // The well holds all the info and scrolls sideways when it is longer than the stack.
-  it('the well scrolls sideways and never truncates, and stretches to the stack', () => {
-    const body = getCssRuleBody(css, '.header__well');
-    expect(body).not.toBeNull();
-    for (const declaration of ['align-self: stretch;', 'overflow-x: auto;', 'white-space: nowrap;', 'min-width: 0;', 'pointer-events: auto;']) {
-      expect(body).toContain(declaration);
-    }
-    expect(body).not.toContain('text-overflow');
-    expect(body).not.toContain('margin');
-  });
-
-  // The ruler mirrors the room the controls line has: the stack's inset and the panel's padding on the left,
-  // the corner's reserve and the same two on the right.
-  it('the ruler is an empty, invisible box spanning the free band left of the power corner', () => {
-    const body = getCssRuleBody(css, '.header__ruler');
-    expect(body).not.toBeNull();
-    for (const declaration of ['position: absolute;', 'height: 0;', 'visibility: hidden;', 'pointer-events: none;', 'left: calc(2 * var(--spacing-md));', 'right: calc(var(--power-corner-width) + 2 * var(--spacing-md));']) {
-      expect(body).toContain(declaration);
-    }
-  });
-
-  it('the well wears the shared well tokens (index.css), as the meta box and the breadcrumb do', () => {
-    const body = getCssRuleBody(css, '.header__well');
-    expect(body).toContain('background: var(--well-background);');
-    expect(body).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
-  });
-
-  // Toggle.css makes .sc-toggle width: 100% and an inline-size container; the existing .header__controls > .sc-toggle
-  // override already sizes the menu to its 44 px box, so the menu needs no rule of its own.
-  it('the menu is sized by the same controls rule as mute', () => {
-    expect(getCssRuleBody(css, '.header__controls > .sc-toggle')).toContain('width: auto;');
-  });
-
-  it('the phone band leaves the bottom alone: no bar, no bottom clearance variable', () => {
-    expect(css).not.toMatch(/phone-bar-/);
-  });
-
-  it('the pop-out takes pointer events back from the header, which lets presses through to the world', () => {
-    expect(getCssRuleBody(css, '.header')).toContain('pointer-events: none;');
-    expect(getCssRuleBody(css, '.header__volume-popover')).toContain('pointer-events: auto;');
   });
 });

@@ -27,7 +27,7 @@ import './PingControlsDrawer.css';
 export interface PingControlsValue {
   rhythmicDensity: number;
   /**
-   * 0-8, min extended down to 0 (docs/specs/STEPPER_TO_SLIDER.md) — 0 is the off state
+   * 0-8, min extended down to 0 (docs/specs/archive/STEPPER_TO_SLIDER.md) — 0 is the off state
    * (equivalent to the old rhythmicMotifLength.active === false), reproduced exactly in
    * melodyGenerator.ts. The slider itself is never disabled purely because its value is 0 —
    * there's no separate toggle left to turn it back on, so dragging it back above 0 is the
@@ -72,14 +72,14 @@ interface PingControlsDrawerProps {
    *  (getTraitColorStyle('composition'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
    *  Composition, whether it's editing one robot or a company's bulk baseline. See
-   *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
+   *  docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
 }
 
 /**
  * 2 DirectionalPanels — Phrasing (Density, Motif Length, Pitch Repeat, the dev-only Click Track
  * toggle) and Frequency (Octave Range, Note Variance). No accordion wrapper
- * as of Task 15 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own
+ * as of Task 15 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own
  * "Melody" tree leaf, and the tree node itself carries the "Melody" label, so there's no longer an
  * accordion header to show it on. Purely presentational — no `robot` prop, no store access; both
  * RobotOptionsTab (robot mode) and CompanyOptionsSection (company mode) derive `value` and wire
@@ -107,8 +107,8 @@ function PingControlsDrawerInner({
   // so they're disabled alongside it, not just cosmetically greyed but genuinely inert.
   const generationDisabled = disabled || value.clickTrackActive;
   // Pitch Repeat additionally needs a tiled motif to lock cells within — no cell concept exists
-  // when Motif Length is off (docs/specs/PITCH_REPEAT.md). rhythmicMotifLength === 0 is the off
-  // state (equivalent to the old .active === false) — see docs/specs/STEPPER_TO_SLIDER.md. Named
+  // when Motif Length is off (docs/specs/archive/PITCH_REPEAT.md). rhythmicMotifLength === 0 is the off
+  // state (equivalent to the old .active === false) — see docs/specs/archive/STEPPER_TO_SLIDER.md. Named
   // separately from generationDisabled (rather than inlined at the one call site) so a future
   // field with a similar cross-field gate has a pattern to match instead of inventing its own shape.
   const pitchRepeatDisabled = generationDisabled || value.rhythmicMotifLength === 0;
@@ -143,7 +143,7 @@ function PingControlsDrawerInner({
   );
 }
 
-// React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 2) — every prop is either a
+// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 2) — every prop is either a
 // stable module-level schema constant or a plain value/callback the caller (RobotOptionsTab/
 // CompanyOptionsSection) hands over; no instability internal to this file.
 export const PingControlsDrawer = memo(PingControlsDrawerInner);
@@ -151,10 +151,10 @@ export const PingControlsDrawer = memo(PingControlsDrawerInner);
 export default PingControlsDrawer;
 
 // ========================================
-// SPLIT SECTIONS (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9)
+// SPLIT SECTIONS (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9)
 // ========================================
 // Rhythm/Frequency each become their own top-level tree leaf under the new nav panel view model
-// (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §2) — independently mountable, each wrapped in its
+// (docs/specs/archive/NAV_PANEL_VIEWS_AND_CONTENT.md §2) — independently mountable, each wrapped in its
 // own accordion by RobotOptionsTab (Task 11)/CompanyOptionsSection (Task 13), instead of one fixed
 // drawer always rendering both. PHRASING_PANEL_SCHEMA is retired: Rhythm absorbs everything that
 // used to sit inside or beside it (Density/Motif Length/Pitch Repeat, the dev-only Click Track
@@ -295,7 +295,7 @@ function PingControlsCompositionSectionInner({
 }: PingControlsCompositionSectionProps) {
   const [octMin, octMax] = value.octaveRange;
   // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
-  // Motif Length is off (docs/specs/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
+  // Motif Length is off (docs/specs/archive/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
   const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
 
   return (

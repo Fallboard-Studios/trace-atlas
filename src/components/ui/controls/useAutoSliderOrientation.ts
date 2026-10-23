@@ -9,7 +9,7 @@ export type ResolvedSliderOrientation = 'horizontal' | 'vertical';
  * observation. 'auto' measures the *parent* of `ref`'s element — never the
  * element's own box, since flipping orientation changes the slider's own
  * rendered size and a self-observed measurement would feed back into itself
- * (docs/specs/VERTICAL_SLIDERS.md §1.2) — via ResizeObserver, resolving to
+ * (docs/specs/archive/VERTICAL_SLIDERS.md §1.2) — via ResizeObserver, resolving to
  * whichever axis (width or height) is longer. Defaults to 'horizontal'
  * before the first measurement and whenever no parent element exists yet.
  */

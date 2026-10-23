@@ -4,7 +4,7 @@ import type { Robot } from '@/types/Robot';
  * True if a robot with `audioMode` would actually be heard right now, given whether ANY robot in
  * its locale is currently soloed — mirrors AudioEngine.ts's own triggerWithCap mute/solo check
  * exactly (that check is refactored to call this instead of re-deriving the rule, see
- * docs/specs/ROBOT_CARDS_REDESIGN.md §1.2). `undefined` (a robot not yet in the store, or
+ * docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.2). `undefined` (a robot not yet in the store, or
  * audioMode unset) behaves identically to `'none'`.
  *
  * Takes `anySolo: boolean`, not the full locale robot list (bugfix, found live: the only thing
@@ -26,7 +26,7 @@ export function isRobotAudible(audioMode: Robot['audioMode'], anySolo: boolean):
 export type AudibilityState = 'emitting' | 'limited' | 'disabled';
 
 /**
- * Three-state audibility for the UI (docs/specs/AUDIO_LOAD_BUDGET.md §4.5). A robot `isRobotAudible` rules out
+ * Three-state audibility for the UI (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5). A robot `isRobotAudible` rules out
  * is `disabled`; one that is eligible but outside the budget's sounding set is `limited` ("Standing by"); an
  * eligible robot in the set is `emitting`. `isRobotAudible` itself is unchanged and stays the mute/solo rule.
  */

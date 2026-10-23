@@ -64,7 +64,7 @@ describe('TRAIT_COLORS', () => {
 // resolved to whenever that outer property was first read. All 4 properties must therefore be
 // computed with LITERAL color values baked directly into the color-mix()/linear-gradient() calls,
 // at the exact point --color-accent-a/-b are being scoped — never through a second layer of
-// custom-property indirection. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.2's amendment.
+// custom-property indirection. See docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.2's amendment.
 describe('getTraitColorStyle', () => {
   it('returns all 5 accent properties, matching the trait\'s own pair', () => {
     expect(getTraitColorStyle('output')).toEqual({

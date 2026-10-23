@@ -19,7 +19,7 @@ interface SliderLogProps {
   onChange: (value: number) => void;
   disabled?: boolean;
   /** On a vertical slider, the box-count-fitting BUDGET (not a literal
-   *  applied length — see docs/specs/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.4)
+   *  applied length — see docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.4)
    *  box count fits within, instead of a live ResizeObserver measurement of
    *  the parent. Omit to fit against the fixed VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT
    *  budget. */
@@ -39,7 +39,7 @@ interface SliderLogProps {
  * whatever space its container gives it, same as SliderLinear. Box
  * placement uses this component's own normalized t (the same value already
  * fed to Radix's own Slider.Root), not the raw log-scaled value — see
- * docs/specs/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.3. sliderLogMath's actual
+ * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.3. sliderLogMath's actual
  * curve is unchanged. `schema.steps`, when present, swaps that continuous curve for a fixed set
  * of allowed values evenly spaced by index (sliderLogMath's stepsValueToT/stepsTToValue) — e.g.
  * Automation Rate's specific frequencies — everything else (VoxelTrack rendering, Radix wiring,
@@ -58,7 +58,7 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight, swe
   const { displayValue, handleValueChange } = useEasedControlValue(value, swelling);
 
   const t = schema.steps ? stepsValueToT(displayValue, schema.steps) : sliderLogValueToT(displayValue, schema.min, schema.max);
-  // Memoized so VoxelTrack's own React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
+  // Memoized so VoxelTrack's own React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
   // can bail on an unchanged states reference — computeVoxelBoxStates is a pure function that
   // otherwise returns a fresh array every render.
   const states = useMemo(() => computeVoxelBoxStates(t, 0, 1, boxCount), [t, boxCount]);
@@ -104,7 +104,7 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight, swe
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 2 correction) — every prop is a
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 2 correction) — every prop is a
 // primitive, a stable schema object, or the onChange callback a caller must keep stable to
 // benefit.
 export const SliderLog = memo(SliderLogInner);

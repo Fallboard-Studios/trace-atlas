@@ -12,8 +12,8 @@
    row and the 8-box depth strip side by side where both fit, the strip wrapping under the lane row where
    they do not. Each line is one cabinet row at the tier's size. Replaces the tier-driven row/column
    switch (POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5), whose equal `flex: 1 1 0` halves only worked for a
-   slider that fitted itself to its half. Pinned by LfoLink.css.test.ts; every declaration below was
-   removed one at a time in Chrome and each one changed the layout (the ones that did not were deleted). */
+   slider that fitted itself to its half. Every declaration below was removed one at a time in Chrome
+   and each one changed the layout (the ones that did not were deleted). */
 .sc-lfo-link__row {
   display: flex;
   flex-wrap: wrap;
@@ -21,8 +21,7 @@
 }
 
 /* RadioButton's root is a full-width sc-control size container, and inline-size containment collapses an
-   element whose width comes from its content (leafControlContainerQuery.test.ts's documented bug — 0px
-   here, measured). Here the lane radio's width comes from its options, so it drops both: at full width
+   element whose width comes from its content (0px here, measured). Here the lane radio's width comes from its options, so it drops both: at full width
    the strip could never share its line. Too wide for the row, it shrinks like any flex item and its
    options wrap inside it. Its labels' compact fallback then queries the link's container above. */
 .sc-lfo-link__row > .sc-radio-button {

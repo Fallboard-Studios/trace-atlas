@@ -59,7 +59,7 @@ import type { LfoLinkValue } from '@/types/controls';
 
 /**
  * AudioRigEffectPanel — one effect's own full content, extracted from AudioRigDrawer.test.tsx
- * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 14) once each effect became its own standalone tree
+ * (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 14) once each effect became its own standalone tree
  * leaf, rendered directly rather than nested inside a shared group accordion. Every test below
  * renders one (or, where cross-effect isolation is the point, two) AudioRigEffectPanel instance(s)
  * directly — no accordion wrapper, no PanelGroup, no lazy-mount/opening concept left, since
@@ -358,7 +358,7 @@ describe('AudioRigEffectPanel', () => {
     expect(useAudioStore.getState().globalAudio.compressor.threshold).toBe(-23);
   });
 
-  it('a real user edit interrupts any Audio Swell riding that same field (docs/specs/AUDIO_SWELLS.md follow-up)', () => {
+  it('a real user edit interrupts any Audio Swell riding that same field (docs/specs/archive/AUDIO_SWELLS.md follow-up)', () => {
     const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
     render(<AudioRigEffectPanel effectKey="compressor" />);
     const thresholdSlider = screen.getByRole('slider', { name: 'Threshold' });
@@ -579,7 +579,7 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('Compressor sub-rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.8)', () => {
+  describe('Compressor sub-rows (docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.8)', () => {
     it('Threshold+Ratio and Attack+Release pairs stack (column) on mobile/tablet', () => {
       stubMatchMedia({ mobile: true, tablet: true });
       render(<AudioRigEffectPanel effectKey="compressor" />);
@@ -671,7 +671,7 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('Drift removed from every global-chain effect panel (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF\'s own embedded Rate/Depth Drift sliders removed; the merged control now lives in FleetDriftPanel/the Fleet Drift nav leaf, not here)', () => {
+  describe('Drift removed from every global-chain effect panel (docs/specs/archive/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF\'s own embedded Rate/Depth Drift sliders removed; the merged control now lives in FleetDriftPanel/the Fleet Drift nav leaf, not here)', () => {
     it('renders no Rate Drift / Depth Drift slider, and no "Robot Drift"/"EQ Drift" text, for eq3/filterLPF/filterHPF individually', () => {
       for (const key of ['eq3', 'filterLPF', 'filterHPF'] as const) {
         const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
@@ -691,9 +691,9 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5/§1.6, Task 9) — each effect's
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5/§1.6, Task 9) — each effect's
   // own trait, applied directly to its wrapper now that there's no group accordion to cascade
-  // one down from (Task 14, docs/tasks/NAV_LAYOUT_REWRITE.md).
+  // one down from (Task 14, docs/tasks/archive/NAV_LAYOUT_REWRITE.md).
   describe('trait color scoping', () => {
     function effectBlockOf(label: string) {
       return screen.getByText(label).closest('.audio-rig-drawer__effect-block') as HTMLElement;
@@ -1037,7 +1037,7 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
+  describe('re-render cascade regression (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
     it("a setGlobalAudio update to ONE field (Delay's delayTime, simulating an audio-swell tick) does not re-execute a SIBLING field's own control (Delay's Mix/wet) — only the changed field's own control re-renders", () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
       const delayTimeCallsBefore = callsFor('delay.delayTime');

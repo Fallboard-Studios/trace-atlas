@@ -11,7 +11,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the repo
 convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Status: T1–T14 done and T16 docs done (2026-10-13). T14 perf gate missed, accepted by Crawford (2026-10-13). T15 Pixel run NOT RUN: Crawford could not test and asked to continue; it is still owed. See "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
+> **Status: T1–T14 done and T16 docs done (2026-10-13). T14 perf gate missed, accepted by Crawford (2026-10-13). T15 Pixel run passed 2026-10-22 via the Robot Effect Sends T21 runs (see Task 15). See "Perf gate results".** Originally planned 2026-10-12. Spec assumptions 1–10 and open questions 1–5 are
 > Crawford's to confirm before Task 1; the defaults the tasks assume are: no battery dim (Q1), identity
 > colour (Q2), count-1 shapes as sketched (Q3), `onInterrupt` pinned by T6 (Q4), droplet numbers kept (Q5).
 
@@ -347,8 +347,14 @@ visible stutter on a job. Any tuning request goes to the sketch first, then the 
 decision to proceed, recorded as such in docs/PERFORMANCE.md; it is not a pass, and this task stays open until he runs it
 (LAN production preview, Full, working fleet, about 3 minutes, `?debug` optional).
 
+**Passed 2026-10-22, by Crawford's Robot Effect Sends T21 runs** (docs/todo/scratchy-audio-phones.md, "Robot Effect
+Sends (roadmap 50.7) on the Pixel — T21"): seven runs on the Pixel 8 at Full and Standard, 3–6 minutes each, with the
+job decorations in both builds (PR #551 is in the base `2dc5b4a2`), a seeded world's fleet working throughout; "sounded
+fine", "sounded great, even 6 minutes in", no stutter reported, and the 3:00 underrun counts (48–95) inside the earlier
+rounds' band. Not an A/B against a decorations-off build; the criterion asked for none.
+
 **Acceptance criteria:**
-- [ ] "Pixel is fine" (or the tuning loop closed) recorded here with the date.
+- [x] "Pixel is fine" (or the tuning loop closed) recorded here with the date — 2026-10-22, above.
 
 **Dependencies:** T14. **Scope:** —.
 

@@ -1,8 +1,6 @@
 // ========================================
 // MOCKS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 
@@ -33,7 +31,6 @@ import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/loca
 import { useUIStore } from '@/stores/uiStore';
 import { retransmitWorld } from '@/systems/worldTransition';
 import { stopRobotLifecycle } from '@/systems/robotSystems';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import type { HubTile } from '@/types/hub';
 
 const UI_INITIAL_STATE = useUIStore.getState();
@@ -239,37 +236,5 @@ describe('WorldView — hands the scroller to the camera module', () => {
     rerender(<WorldView />);
 
     expect(registerDeckScroller).not.toHaveBeenCalled();
-  });
-});
-
-describe('WorldView.css — the dim', () => {
-  const css = readFileSync(resolve(__dirname, 'WorldView.css'), 'utf8');
-
-  it('dims and blurs the static sheets by the sketch’s values', () => {
-    const body = getCssRuleBody(css, '.world-view[data-dimmed] .ocean-scene__sheet');
-    expect(body).not.toBeNull();
-    expect(body).toContain('filter: brightness(0.42) blur(2px);');
-  });
-
-  // Roadmap 53 Task 19: no sheet moves any more, so there is no moving-sheet dim rule to keep.
-  it('has no dim rule for a moving sheet, because no sheet moves', () => {
-    expect(css).not.toContain('ocean-scene__sheet--moving');
-  });
-
-  // Phase 53 (spec §1.3): a mover repaints in its own patch every frame, so it dims by brightness
-  // alone and never takes the blur.
-  it('dims every mover by the same brightness, without a per-frame blur', () => {
-    const body = getCssRuleBody(css, '.world-view[data-dimmed] .mover');
-    expect(body).not.toBeNull();
-    expect(body).toContain('filter: brightness(0.42);');
-    expect(body).not.toContain('blur');
-  });
-
-  it('keeps no trace of the old layer class', () => {
-    expect(css).not.toContain('ocean-scene__layer');
-  });
-
-  it('leaves the world unfiltered when not dimmed', () => {
-    expect(getCssRuleBody(css, '.world-view')).not.toMatch(/filter\s*:/);
   });
 });

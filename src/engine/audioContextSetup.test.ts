@@ -72,7 +72,7 @@ describe('audioContextSetup (?latency= opt-in)', () => {
   });
 });
 
-// Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §1.5, plan task 23): with no explicit ?latency=, the preset in force at
+// Audio Load Budget (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.5, plan task 23): with no explicit ?latency=, the preset in force at
 // page load — from ?load= or, failing that, device detection — chooses the hint. Light selects playback; Standard and Full
 // leave Tone's own default (interactive) untouched. A context's hint is fixed at creation, so only the boot-time preset counts.
 describe('audioContextSetup (boot-time Audio Load preset)', () => {

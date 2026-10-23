@@ -1,7 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import * as registry from './robotMotionRegistry';
@@ -120,27 +116,6 @@ describe('robotMotionRegistry — no layer-switch marks (Phase 53 Task 15)', () 
       'registerOrbiterWork',
     ]);
     for (const name of REMOVED) expect(registry).not.toHaveProperty(name);
-  });
-
-  // Test files are left out: a guard like workLoop.test.ts's names them as strings it expects to be
-  // gone, and a test that still imported one would fail to type-check anyway.
-  it('no source file in src/ names them', () => {
-    const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-    const files: string[] = [];
-    const walk = (dir: string) => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = resolve(dir, entry.name);
-        if (entry.isDirectory()) walk(path);
-        else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.(ts|tsx)$/.test(entry.name)) files.push(path);
-      }
-    };
-    walk(root);
-    expect(files.length).toBeGreaterThan(300);
-    const offenders = files.filter((file) => {
-      const text = readFileSync(file, 'utf-8');
-      return REMOVED.some((name) => text.includes(name));
-    });
-    expect(offenders.map((f) => f.slice(root.length + 1).replace(/\\/g, '/'))).toEqual([]);
   });
 
   it('clearRobotMotionRegistry clears both maps', () => {

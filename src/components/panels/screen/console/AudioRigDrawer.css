@@ -18,15 +18,3 @@
   padding: 6px 10px;
   border-bottom: 1px solid var(--color-border);
 }
-
-/* The gap between EQ/LPF/HPF, between Delay/Reverb, and between
-   Compressor/Limiter now lives on PanelGroup itself (PanelGroup.css's own
-   0.75rem default) — AudioRigDrawer.tsx wraps each of those 3 groupings in
-   a PanelGroup, not a shared DirectionalPanel, specifically so each block
-   keeps its own independent Cabinetry facade. A data-panel-id-targeted gap
-   here previously tried to solve the same spacing need by widening a
-   shared DirectionalPanel's internal flex gap; the CSS matched correctly
-   but the visual result was still one continuous facade with extra
-   padding inside it, not a gap between two distinct boxes — removed in
-   favor of the PanelGroup restructuring (docs/specs/
-   AUDIO_RIG_RESPONSIVE_LAYOUT.md's "Separate facades" amendment). */

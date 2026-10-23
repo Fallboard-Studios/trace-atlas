@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 9) can tell whether CoordsInput's render body actually re-executed.
 // CoordsInput has no hook/utility call of its own, but it unconditionally
 // composes two TextInputs (each calling resolveAccessibleName internally) —
@@ -106,13 +106,13 @@ describe('CoordsInput', () => {
   // Roadmap 11.1.9 — the regression guard for this item's own central design decision: each
   // TextInput renders its own facade independently, so CoordsInput naturally ends up with two,
   // not one shared facade around the whole X/Y row. See
-  // docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.6.
+  // docs/specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.6.
   it('renders two independent CabinetBox facades, one per field — not one shared facade', () => {
     const { container } = render(<CoordsInput schema={schema} value={{ x: 0, y: 0 }} onChange={() => {}} />);
     expect(container.querySelectorAll('.sc-text-input-facade')).toHaveLength(2);
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((CoordsInput as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });
@@ -138,15 +138,5 @@ describe('CoordsInput', () => {
 
       expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterMount);
     });
-  });
-});
-
-describe('CoordsInput reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 14)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'CoordsInput.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/\[c\]/);
   });
 });

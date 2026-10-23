@@ -19,7 +19,7 @@ interface RadioButtonProps {
    *  ToggleGroup emitting '' when the active item is clicked again), the
    *  event onChange itself never sees (guarded below, unchanged). Every
    *  existing consumer omits this and keeps today's swallow-and-ignore
-   *  behavior; Header's nav group (docs/specs/HEADER_HUB_CONSOLIDATION.md
+   *  behavior; Header's nav group (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md
    *  §1.4) is the first to need it, to tell "re-click the active option"
    *  apart from "no interaction at all". */
   onDeselect?: () => void;
@@ -28,7 +28,7 @@ interface RadioButtonProps {
    *  inherits by omitting boxHeight/frontWidth/frontHeight entirely. Every
    *  existing consumer (Audio Setting, Decay Mode, per-layer Type,
    *  CompanyButtonRow, ...) omits this and is unaffected.
-   *  docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4. */
+   *  docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4. */
   boxSize?: number;
 }
 
@@ -52,7 +52,7 @@ interface RadioButtonProps {
  *  Toggle's own fixed-32px/textless shape. Only the selected option's front
  *  face is accent-tinted (RadioButton.css, keyed off Radix's own
  *  data-state='on'); every other option stays on CabinetBox.css's
- *  --color-surface default. See docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md
+ *  --color-surface default. See docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md
  *  §1 for the full derivation, including why this is the first consumer with
  *  more than one CabinetBox per control.
  *
@@ -96,7 +96,7 @@ interface RadioButtonProps {
  *  every selection change sidesteps that class of missed-event entirely,
  *  rather than chasing the exact pointer-event sequence that drops it.
  *
- *  Optional per-option `color` (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.3) scopes
+ *  Optional per-option `color` (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.3) scopes
  *  getRobotColorStyle's 4 accent custom properties to that one option's own ToggleGroup.Item —
  *  no new CSS needed, since CabinetBox.css's rest-state hint and RadioButton.css's
  *  [data-state='on'] front-face tint both already read those properties ambiently. An option
@@ -117,7 +117,7 @@ interface RadioButtonProps {
 function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSize }: RadioButtonProps) {
   // Reuses the same breakpoint-tier gap VoxelTrack (11.1.3) uses between its
   // own boxes — not renamed to something RadioButton-neutral; see
-  // docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.5 for why.
+  // docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.5 for why.
   const gap = useVoxelTrackGap();
   const rowTokens = { '--cabinet-radio-gap': `${gap}px` } as CSSProperties;
   const instanceId = useId();
@@ -190,7 +190,7 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9) — every prop is a primitive,
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9) — every prop is a primitive,
 // a callback, or a stable schema object (schema.options included — a static config array, per
 // every real consumer). `onDeselect` is optional and, when a caller passes it inline, defeats
 // this memo the same way any unstabilized callback does elsewhere (docs/COMPONENT_LIBRARY.md).

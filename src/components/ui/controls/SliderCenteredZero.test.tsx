@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 3 correction — found via Task 12's own end-to-end debugging: this
 // component's own React.memo wrap was missed originally, only the internal
 // states useMemo was added) can tell whether SliderCenteredZero's render body
@@ -70,7 +70,7 @@ import {
 } from '@/utils/voxelTrackMath';
 // Separate namespace import so computeVoxelBoxStatesCenteredZero can be spied
 // on as a real cross-module call from SliderCenteredZero.tsx's own
-// perspective (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3) — distinct
+// perspective (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3) — distinct
 // from the named import above, which existing tests already use directly to
 // compute expected values, unspied.
 import * as voxelTrackMath from '@/utils/voxelTrackMath';
@@ -378,7 +378,7 @@ describe('SliderCenteredZero component', () => {
     });
   });
 
-  describe('computeVoxelBoxStatesCenteredZero memoization (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3)', () => {
+  describe('computeVoxelBoxStatesCenteredZero memoization (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3)', () => {
     it('does not recompute states across re-renders with unchanged value/schema.min/schema.max/boxCount', () => {
       const spy = vi.spyOn(voxelTrackMath, 'computeVoxelBoxStatesCenteredZero');
       const { rerender } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} />);
@@ -564,7 +564,7 @@ describe('SliderCenteredZero component', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3 correction — SliderCenteredZero itself, not just its internal states useMemo)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3 correction — SliderCenteredZero itself, not just its internal states useMemo)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((SliderCenteredZero as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

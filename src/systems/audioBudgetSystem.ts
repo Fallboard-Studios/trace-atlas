@@ -25,7 +25,7 @@ import { isRobotAudible } from '../utils/robotAudibility';
 // ========================================
 // MODULE STATE (runtime-only — never in Zustand)
 // ========================================
-// Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.4). Module-singleton start/stop pair, the same
+// Audio Load Budget (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.4). Module-singleton start/stop pair, the same
 // shape as startRobotLifecycle/stopRobotLifecycle. Nothing here depends on the transport, so a power
 // cycle (AudioEngine.killAll) neither tears it down nor clears what it has pushed.
 
@@ -93,7 +93,7 @@ function reconcile(force = false): void {
 }
 
 /**
- * The LFO tiers (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO links and each robot's
+ * The LFO tiers (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO links and each robot's
  * bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
  * docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap and Task 4 moved the filter rule itself into the engine;
  * the bus tier is Robot Articulation T14b — and publish the held-off state the UI greys out from.

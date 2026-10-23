@@ -175,7 +175,7 @@ const VOLUME_STEP_PERCENT = 1;
 /**
  * Fraction of rhythmicMotifLength's single seed draw ([0, 1)) that lands the field
  * off (value: 0) — 15% chance, preserving the pre-STEPPER_TO_SLIDER two-draw scheme's
- * exact off-rate (docs/specs/STEPPER_TO_SLIDER.md §7.1) now that active/value collapse
+ * exact off-rate (docs/specs/archive/STEPPER_TO_SLIDER.md §7.1) now that active/value collapse
  * to one draw. A fresh robot tiles a repeating motif far more often than it scatters
  * freely.
  */
@@ -189,7 +189,7 @@ const NOTE_VARIANCE_OFF_THRESHOLD = 0.15;
 
 /**
  * Seed a Motif Length/Note Variance-shaped { active, value } field from one
- * consolidated [0, 1) draw (docs/specs/STEPPER_TO_SLIDER.md) — replaces the old
+ * consolidated [0, 1) draw (docs/specs/archive/STEPPER_TO_SLIDER.md) — replaces the old
  * two-draw (separate active/value) scheme. `raw < offThreshold` lands the field off
  * (value: 0); the remaining `1 - offThreshold` span maps uniformly onto value 1-8.
  * `active` is always derived from the resulting `value > 0`, never drawn independently.
@@ -207,7 +207,7 @@ const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pu
 // Simple word lists for deterministic-looking robot names. ADJECTIVES is exported — reused by
 // generateCompanyName below (Roadmap Phase 10), the same "sounds like this universe" half, paired
 // with a distinct COMPANY_NOUNS list so a generated company name can never take the exact same
-// word-pair form a robot name can (see docs/specs/COMPANIES.md §7.3).
+// word-pair form a robot name can (see docs/specs/archive/COMPANIES.md §7.3).
 export const ADJECTIVES = ['Iron', 'Null', 'Silent', 'Drift', 'Azure', 'Rust', 'Neon', 'Glass', 'Solar', 'Tidal'];
 const NOUNS = ['Drifter', 'Tide', 'Warden', 'Seeker', 'Courier', 'Wisp', 'Beacon', 'Nomad', 'Rover', 'Pilot'];
 
@@ -274,13 +274,13 @@ export function generateCompanyId(noiseMap: NoiseFunction2D, index: number): str
 }
 
 /**
- * Deterministic per-company identity color (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.2) —
+ * Deterministic per-company identity color (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.2) —
  * mirrors generateRobotIdentityColor's own clamped-index-into-ROBOT_IDENTITY_COLOR_NAMES shape,
  * with its own dataId ('company.identityColor') so it draws from a distinct row of the noise map
  * rather than sharing the robot one's seeded stream. Exported (unlike generateCompanyId) only so
  * it can be unit-tested directly — still only called from spawnInitialCompanies below.
  *
- * Reverses docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §7 item 2's "accepted, low-risk" decision
+ * Reverses docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §7 item 2's "accepted, low-risk" decision
  * to skip collision-avoidance here (Roadmap: Robot Selection Filter Panel Polish §1.4) — retries
  * on collision against `usedColors` (every color already assigned to an earlier company in the
  * same spawnInitialCompanies pass), bounded at ROBOT_IDENTITY_COLOR_NAMES.length attempts, the
@@ -1017,7 +1017,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
  * every robot is placed at its station's port (placeRosterAtStations). Does
  * NOT assign jobs — worldTransition.ts's initializeLocale does that for the
  * initially-Active robots immediately after this returns (see
- * docs/specs/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on why job
+ * docs/specs/archive/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on why job
  * assignment isn't done here: avoids an import cycle with robotSystems.ts).
  */
 export function spawnInitialRoster(localeId: string): void {

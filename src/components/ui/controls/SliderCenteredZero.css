@@ -7,7 +7,7 @@
 }
 
 /* Vertical fader: inline so several can sit side by side in a row without a
-   parent grid/flex rework (docs/specs/VERTICAL_SLIDERS.md's own deferred
+   parent grid/flex rework (docs/specs/archive/VERTICAL_SLIDERS.md's own deferred
    drawer-layout work isn't a prerequisite for this); centered cross-axis so
    the narrow box row lines up under a wider label/value instead of sitting
    flush left. */
@@ -22,7 +22,7 @@
    own precedent — scoped to the existing data-orientation attribute, no new
    wrapper element.
    container-type/container-name live here, not on the bare
-   .sc-slider-centered-zero selector above (docs/specs/TYPE_SCALE.md
+   .sc-slider-centered-zero selector above (docs/specs/archive/TYPE_SCALE.md
    incident, found in a real browser post-Task-6 — see SliderLinear.css's own
    copy of this comment for the full explanation): the vertical variant below
    is a shrink-to-fit inline-flex box that CSS size containment would
@@ -124,7 +124,7 @@
 
 /* The readOnly branch renders plain divs, not an interactive Radix widget; this is the only rule that
    differs from the interactive rendering (the same rule SliderLinear.css carries for roadmap 15.1,
-   docs/specs/SLIDER_LINEAR_READ_ONLY.md §4). Every other rule in this file already applies unchanged
+   docs/specs/archive/SLIDER_LINEAR_READ_ONLY.md §4). Every other rule in this file already applies unchanged
    via the shared data-orientation attribute, set manually in the readOnly branch to match. */
 .sc-slider-centered-zero[data-readonly='true'] {
   cursor: default;

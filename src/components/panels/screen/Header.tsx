@@ -21,7 +21,7 @@ import './Header.css';
  *  The Toggle usage below passes an icon facade (🔇/🔊, swapped on isMuted)
  *  instead of relying on the external DualLabel row — loreLabel added per
  *  Crawford's own request (2026-09-16) to resolve the flagged gap
- *  (docs/specs/HEADER_HUB_CONSOLIDATION.md §7 item #2), even though it
+ *  (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §7 item #2), even though it
  *  renders alongside the facade icon rather than replacing it. */
 const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', ...labels('header.mute') };
 
@@ -118,7 +118,7 @@ function VolumePopout({ disabled, container, children }: { disabled: boolean; co
  * bar and the desk panel never reaches the header, so nothing here moves with the nav.
  *
  * Volume stays reachable beside mute, never gated behind a nav selection (Crawford, after
- * docs/specs/NAV_LAYOUT_REWRITE.md Task 11).
+ * docs/specs/archive/NAV_LAYOUT_REWRITE.md Task 11).
  */
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
@@ -138,7 +138,7 @@ function Header() {
 
   // The content's header clearance (ContentPane.css) and the top bar's lower edge (Header.css's
   // --top-bar-bottom, which the nav sheet reads) need Header's real rendered height
-  // (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6). Written to document.documentElement, since those
+  // (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.6). Written to document.documentElement, since those
   // are Header's siblings, not its descendants.
   useEffect(() => {
     if (!headerRef.current) return;
@@ -196,7 +196,7 @@ function Header() {
        DirectionalPanel's own top-level facade (permanently popped,
      non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
      value/state tie-in). See DirectionalPanel.tsx's own comment and
-     docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */
+     docs/specs/archive/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */
   const panel = (
     <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
       <div ref={rowRef} className={shell === 'phone' ? 'header__row header__row--phone' : 'header__row'}>

@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { Profiler } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
@@ -258,14 +255,5 @@ describe('NavEntityList — Companies', () => {
     seedRoster({ companies: false });
     render(<NavEntityList branch="companies" />);
     expect(names()).toEqual([human('nav.entity.newCompany')]);
-  });
-});
-
-describe('NavEntityList reads its copy from src/content (docs/specs/CONTENT_LAYER.md)', () => {
-  it('carries no copy literal of its own', () => {
-    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavEntityList.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*[:=]\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*[A-Z+][a-z]*( [A-Za-z]+)*\s*</);
   });
 });

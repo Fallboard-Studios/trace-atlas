@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 8) can tell whether StepperWithToggle's render body actually
 // re-executed. StepperWithToggle itself has no hook/utility call of its own,
 // but it unconditionally composes both Toggle and Stepper (each of which
@@ -78,7 +78,7 @@ describe('StepperWithToggle', () => {
     expect((screen.getByRole('button', { name: /increment/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((StepperWithToggle as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

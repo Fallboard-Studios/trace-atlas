@@ -31,7 +31,7 @@ function DualLabelInner({ loreLabel, humanLabel, help }: DualLabelProps) {
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6) — every prop is a plain string or the
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6) — every prop is a plain string or the
 // content entry's own `help` object, pulled directly off a stable schema object, so the default shallow
 // compare is correct. Composed internally by every other primitive; its own benefit is realized once its
 // parent primitive is memoized and bails (so DualLabel is never even reached).

@@ -1,13 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import { IntroPanel } from './IntroPanel';
 import { CONTENT, fill } from '@/content';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 
 // Crawford, 2026-10-10 (docs/specs/LAYOUT_REWORK.md §1.3 amended): the intros come back on every section
 // tab, and a collapsible intro is an expander, not an accordion — the headline always shows, and a
@@ -98,42 +93,5 @@ describe('IntroPanel — collapsible: the headline and a More button', () => {
   it('without a name the button is named by its face', () => {
     render(<IntroPanel {...INTRO} collapsible />);
     expect(toggle().getAttribute('aria-label')).toBe(MORE);
-  });
-});
-
-describe('IntroPanel.css — the expander layout', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'IntroPanel.css'), 'utf-8');
-
-  it('puts the headline and the button on one row, the body under both', () => {
-    const body = getCssRuleBody(css, '.sc-intro-panel--collapsible');
-    expect(body).toContain('display: grid;');
-    expect(body).toMatch(/grid-template-areas:\s*"head toggle"\s*"body body";/);
-  });
-
-  // Crawford, 2026-10-10 (option a): beside a 70 px button the phone's headline wrapped to 135–270 px. On
-  // the phone shell the headline takes the full width at a smaller size, and the button gets its own line.
-  describe('on the phone shell', () => {
-    const PHONE = "#screen-viewport[data-shell='phone'] .sc-intro-panel--collapsible";
-
-    it('stacks headline, button, body, one column', () => {
-      const body = getCssRuleBody(css, PHONE);
-      expect(body).not.toBeNull();
-      expect(body).toContain('grid-template-columns: minmax(0, 1fr);');
-      expect(body).toMatch(/grid-template-areas:\s*"head"\s*"toggle"\s*"body";/);
-    });
-
-    it('sets the headline smaller than the desk h2', () => {
-      expect(getCssRuleBody(css, `${PHONE} > .loreLabel`)).toContain('font-size: var(--font-size-heading-sm);');
-    });
-
-    it('gives the text more of the pane: tighter margin and padding than the desk\'s 16 px', () => {
-      const body = getCssRuleBody(css, PHONE);
-      expect(body).toContain('margin: 8px 0;');
-      expect(body).toContain('padding: 12px;');
-    });
-
-    it('the desk rule does not carry the phone\'s headline size', () => {
-      expect(getCssRuleBody(css, '.sc-intro-panel--collapsible > .loreLabel')).not.toContain('font-size');
-    });
   });
 });

@@ -102,7 +102,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // Roadmap Phase 8: clicking a robot in the world view also opens the Robots hub tile, but only
   // from the main hub grid (activeHubTile === null) — once any tile is already open, the user is
   // already where they meant to go, so the active tile is left alone. Console.tsx renders nothing
-  // at all in that state (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.7) — with no .console element
+  // at all in that state (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.7) — with no .console element
   // present to block anything, this click reaches WorldView for free, no pointer-events
   // special-casing needed the way the old console--grid mechanism once provided.
   // From the Deck or the Probes tile it is a nav pick like any other (navActions): the robot's screen

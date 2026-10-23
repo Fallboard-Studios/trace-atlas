@@ -234,7 +234,7 @@ function buildDefaultGlobalLfoLinks(): Record<GlobalLfoTargetId, LfoLink> {
  *  every real value (seeded or hand-dragged). regenerateGlobalAudioFromSeed
  *  uses this to seed pingVarianceAutomation exactly once per session and
  *  carry it forward across every later Attenuation Style switch
- *  (docs/specs/PING-VARIANCE-AUTOMATION.md §1.2) — the field-level
+ *  (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.2) — the field-level
  *  equivalent of how compressorBeforeDelay already survives regeneration via
  *  the current-value spread a few lines below, except that field never needs
  *  a "have I seeded yet" check because its generator always returns the
@@ -242,7 +242,7 @@ function buildDefaultGlobalLfoLinks(): Record<GlobalLfoTargetId, LfoLink> {
 const PING_VARIANCE_AUTOMATION_UNSEEDED = -1;
 
 /** Same shape as PING_VARIANCE_AUTOMATION_UNSEEDED, for the two new Pacing
- *  fields (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5) — outside
+ *  fields (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5) — outside
  *  each field's real [2, 8] domain. */
 const SWELL_FREQUENCY_UNSEEDED = -1;
 const SWELL_DURATION_UNSEEDED = -1;
@@ -251,7 +251,7 @@ const SWELL_DURATION_UNSEEDED = -1;
 const HUMANIZE_UNSEEDED = -1;
 
 /**
- * The Robot Load slider's position at page load (docs/specs/AUDIO_LOAD_BUDGET.md §4.2): a valid `?load=`
+ * The Robot Load slider's position at page load (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.2): a valid `?load=`
  * wins, otherwise Light on a coarse-pointer (phone-like) device and Full elsewhere. Browser-only, read
  * once at module load like seedUtils' URL params; anything without a window is Full (today's behavior).
  */
@@ -281,18 +281,18 @@ export interface AudioStore {
   /** Live master-volume slider position, [0, 1] — Header's volume slider's single source
    *  of truth. Default 1 (100%), never persisted across sessions. The engine's actual live gain
    *  is `isMuted ? 0 : volumePositionToGain(volume)` — see setVolume/setMuted below.
-   *  docs/specs/GLOBAL_VOLUME_CONTROL.md §1.3. */
+   *  docs/specs/archive/GLOBAL_VOLUME_CONTROL.md §1.3. */
   volume: number;
   /** Continuous automation-amount fraction, [0, 1] — the Audio Rig's "Ping
    *  Variance Automation" slider, replacing the former audioSwellsEnabled
-   *  boolean (docs/specs/PING-VARIANCE-AUTOMATION.md). Read directly by
+   *  boolean (docs/specs/archive/PING-VARIANCE-AUTOMATION.md). Read directly by
    *  audioSwells.ts's own tick: a plain UI-adjacent value, not tied to
    *  AudioEngine. Seeded once per session (regenerateGlobalAudioFromSeed's
    *  first call), then carried forward across every future Attenuation Style
    *  switch — freely draggable via the Audio Rig slider at any time. */
   pingVarianceAutomation: number;
   /** Swells per measure ([0, 24], sliderLog) — the Audio Rig's Pacing
-   *  "Frequency" slider (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+   *  "Frequency" slider (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
    *  §1.3). 0 is the sole on/off switch for the whole Audio Swells system
    *  (replacing pingVarianceAutomation's former on/off role). Seeded once
    *  per session, then carried forward across every future Attenuation
@@ -311,11 +311,11 @@ export interface AudioStore {
   humanize: number;
   /** The Robot Load slider, [0, 1] — 1 (Full) is today's behavior exactly; lower values cap audible
    *  robots, polyphony and (at load time) latency. Initialised at boot from `?load=` / device detection,
-   *  changed only through `setRobotLoad`. docs/specs/AUDIO_LOAD_BUDGET.md. */
+   *  changed only through `setRobotLoad`. docs/specs/archive/AUDIO_LOAD_BUDGET.md. */
   robotLoad: number;
   /** The Effects Load slider, [0, 1] — 1 (Full) is today's behavior exactly; lower values cap drift,
    *  filter LFOs and the robot-LFO count. Initialised at boot from `?fxLoad=` / `?load=` / device
-   *  detection, changed only through `setEffectsLoad`. docs/specs/AUDIO_LOAD_BUDGET.md. */
+   *  detection, changed only through `setEffectsLoad`. docs/specs/archive/AUDIO_LOAD_BUDGET.md. */
   effectsLoad: number;
   /** Robots currently allowed to sound under the Audio Load budget, in admission order. Derived, and
    *  written only by audioBudgetSystem (via `setSoundingRobotIds`) — never edited by hand. */
@@ -363,11 +363,11 @@ export interface AudioStore {
    *  volumePositionToGain(volume) (the live slider position) when not. Owns its own
    *  AudioEngine call, matching every other audioStore setter's shape (setBPM, etc.) —
    *  Header.tsx doesn't call AudioEngine directly for mute either.
-   *  docs/specs/GLOBAL_VOLUME_CONTROL.md §1.3, §1.5. */
+   *  docs/specs/archive/GLOBAL_VOLUME_CONTROL.md §1.3, §1.5. */
   setMuted: (muted: boolean) => void;
   /** Sets the master-volume slider position and pushes the tapered gain to AudioEngine.
    *  Always also clears isMuted — dragging the slider while muted un-mutes as a side
-   *  effect, jumping straight to the dragged-to level. docs/specs/GLOBAL_VOLUME_CONTROL.md §1.3. */
+   *  effect, jumping straight to the dragged-to level. docs/specs/archive/GLOBAL_VOLUME_CONTROL.md §1.3. */
   setVolume: (volume: number) => void;
   /** Sets the Audio Rig "Ping Variance Automation" slider — a plain state
    *  write, no AudioEngine call; audioSwells.ts reads this fraction fresh
@@ -592,7 +592,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // via the PING_VARIANCE_AUTOMATION_UNSEEDED sentinel instead — this key
     // is simply omitted from the set() call below on every later switch,
     // and Zustand's default merge leaves the current value untouched
-    // (docs/specs/PING-VARIANCE-AUTOMATION.md §1.2).
+    // (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.2).
     const pingVarianceAutomation = get().pingVarianceAutomation === PING_VARIANCE_AUTOMATION_UNSEEDED
       ? generatePingVarianceAutomation(attenuationStyleId, attenuationStyleName)
       : undefined;

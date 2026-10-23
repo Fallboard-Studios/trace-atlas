@@ -25,7 +25,7 @@ interface VoxelTrackProps {
  * slider's traditional track+handle. Purely a pointer-events: none visual
  * overlay; SliderLinear.tsx (and, unchanged, SliderLog/SliderCenteredZero in
  * 11.1.4/11.1.5) keeps Radix's own Slider.Root/Track/Thumb fully in charge
- * of interaction — see docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.10.
+ * of interaction — see docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.10.
  *
  * Every CabinetBox instance below gets skipMountAnimation (2026-09-09 fix).
  * The box at the ordinary/straddling role boundary — a plain CabinetBox vs.
@@ -195,7 +195,7 @@ function VoxelTrackInner({ states, boxSize, gap, axis, timelineKeyPrefix }: Voxe
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5) — every prop here is a
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5) — every prop here is a
 // primitive or `states` (an array), so the default shallow compare is correct; no custom
 // comparator. This bail-out is only effective once `states` is itself a referentially stable
 // array across unrelated re-renders — see SliderLinear/SliderLog/SliderCenteredZero's own

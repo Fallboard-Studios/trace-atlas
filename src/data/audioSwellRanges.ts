@@ -13,7 +13,7 @@ import type { SwellRobotAttributeId } from '@/types/audioSwell';
  * that display value — converting between this table's 0-1 domain and
  * applyVolume's pct/100 convention is the caller's job, not this table's).
  * Global targets reuse GLOBAL_AUDIO_SEED_RANGES directly — this table shares
- * zero keys with it (docs/specs/AUDIO_SWELLS.md §2, §4).
+ * zero keys with it (docs/specs/archive/AUDIO_SWELLS.md §2, §4).
  */
 export const ROBOT_SWELL_FIELD_RANGE: Record<SwellRobotAttributeId, { min: number; max: number }> = {
   volume: { min: 0, max: 1 },

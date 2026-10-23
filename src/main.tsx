@@ -25,7 +25,7 @@ import '@fontsource/rajdhani/latin-ext-700.css'
 // rationale as Rajdhani above. Weights 400/600/700 — Titillium Web has no
 // 500; its 400 is kept as-is (not bumped) since it's a substantially
 // heavier-set, more legible-at-small-sizes regular than Rajdhani's own 400
-// (docs/specs/TYPE_SCALE.md §1.3). index.css's --font-controls token is the
+// (docs/specs/archive/TYPE_SCALE.md §1.3). index.css's --font-controls token is the
 // only consumer, applied to the 11 leaf ControlSchema primitives (sliders,
 // toggle, text input, etc.) and the two smaller heading tiers.
 import '@fontsource/titillium-web/latin-400.css'
@@ -43,7 +43,7 @@ import './index.css'
 
 import { startAudioBudget } from './systems/audioBudgetSystem'
 
-// Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.4): started once, before the first power-on, so the
+// Audio Load Budget (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.4): started once, before the first power-on, so the
 // dial's caps are in force from the first note. Purely event-driven (store subscriptions) — no timers — and
 // deliberately not torn down by a power cycle.
 startAudioBudget()

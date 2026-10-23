@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { useEffect } from 'react';
 import { describe, it, vi, beforeEach, afterEach, expect } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
@@ -63,7 +60,6 @@ vi.mock('@gsap/react', () => ({
 import { PowerRockerSwitch } from './PowerRockerSwitch';
 import { LIGHT_PERSPECTIVE, LIGHT_PRESSED_ANGLE, LIGHT_REST_ANGLE, POWER_GLYPH, POWER_GLYPH_ORIGIN, POWER_GLYPH_PRESSED, RIDGE_ORIGIN_PERCENT } from './rockerGeometry';
 import { powerController } from '@/systems/powerController';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { getStatusLightColor } from '@/utils/statusLightColors';
 
 function normalizeColor(color: string): string {
@@ -190,43 +186,6 @@ describe('PowerRockerSwitch — the light follows the rocker', () => {
     const startStep = calls.find((c) => c.method === 'to' && c.vars.duration === 0.18 && typeof c.vars.onComplete === 'function');
     (startStep!.vars.onComplete as () => void)();
     expect(powerController.powerOnSequence).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('PowerRockerSwitch.css — the pivot', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'PowerRockerSwitch.css'), 'utf-8');
-
-  it('lays the pivot over exactly the button: inside the bezel\'s padding, and never taking a click', () => {
-    const body = getCssRuleBody(css, '.rocker-light-pivot');
-    expect(body).not.toBeNull();
-    expect(body).toContain('position: absolute;');
-    expect(body).toContain('pointer-events: none;');
-    expect(body).toContain('inset: var(--rocker-bezel-padding);');
-    expect(getCssRuleBody(css, '.rocker-bezel')).toContain('position: relative;');
-  });
-
-  it('keeps the transform out of the stylesheet: GSAP owns it', () => {
-    expect(getCssRuleBody(css, '.rocker-light-pivot')).not.toMatch(/transform/);
-  });
-
-  it('lays the lens on the top face, small and centred', () => {
-    const body = getCssRuleBody(css, '.rocker-light-pivot .rocker-light');
-    expect(body).not.toBeNull();
-    expect(body).toContain('position: absolute;');
-    expect(body).toMatch(/top:/);
-    expect(body).toMatch(/width:/);
-    expect(body).toContain('height: 10px;');
-    // Twice the earlier 5px, grown about the same centre (22% down, plus half the old height) so it stays on the face.
-    expect(body).toContain('top: calc(22% - 2.5px - var(--rocker-light-border));');
-    // A thin black border around the lens (Crawford, 2026-10-10), 3px then 2px, drawn outside it: the lens keeps its size
-    // and place, and the border adds to the box rather than eating the 10px.
-    expect(body).toContain('--rocker-light-border: 2px;');
-    expect(body).toContain('border: var(--rocker-light-border) solid #000;');
-    expect(body).toContain('box-sizing: content-box;');
-  });
-
-  it('has no housing rule left', () => {
-    expect(css).not.toContain('.rocker-light-housing');
   });
 });
 

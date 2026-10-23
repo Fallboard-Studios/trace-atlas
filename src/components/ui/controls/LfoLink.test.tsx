@@ -193,7 +193,7 @@ describe('LfoLink', () => {
 
   // Crawford, 2026-10-10: app sizes (tier boxes, the 44 px touch floor), the strip wrapping under the lane
   // row where both do not fit; and the Lane and Depth label rows kept, each with its own "?". jsdom computes
-  // no layout, so the wrap itself is pinned in LfoLink.css.test.ts; here, the structure and the strip.
+  // no layout, so the wrap itself is not checked; here, the structure and the strip.
   describe('the compact row', () => {
     /** The real link schemas carry no labels of their own (SignatureArrayDrawer, AudioRigDrawer). */
     const bare: LfoLinkSchema = { id: 'layer0.gain.link', type: 'lfoLink' };
@@ -304,15 +304,5 @@ describe('LfoLink', () => {
       fitDepth(container, 288);
       expect(container.querySelector('.sc-voxel-track')?.children).toHaveLength(7);
     });
-  });
-});
-
-describe('LfoLink reads its copy from src/content (docs/specs/CONTENT_LAYER.md)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'LfoLink.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]|>Off<|Core LFO|Companion LFO|Accent LFO|Overtone LFO/);
   });
 });

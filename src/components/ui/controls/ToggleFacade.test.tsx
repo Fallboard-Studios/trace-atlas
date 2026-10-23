@@ -9,7 +9,7 @@ import { facadeCurrent, facadeStates } from '@/testUtils/toggleFacade';
 // flipping it never resizes it. Every state's content is really in the DOM (all but the current one
 // visibility: hidden) and they share one grid cell, so the box is as big as the biggest — which works
 // for ANY content, a glyph or a two-line DualLabel. jsdom computes no layout, so the contract tested
-// here is the markup the CSS sizes from (ToggleFacade.css.test.ts pins the CSS; real sizes were
+// here is the markup the CSS sizes from (real sizes were
 // measured in Chrome).
 
 const facade = (container: HTMLElement) => container.querySelector('.sc-toggle-facade') as HTMLElement;

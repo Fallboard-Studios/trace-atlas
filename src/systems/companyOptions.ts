@@ -3,7 +3,7 @@
  * last editing, or the first member robot's options if unused" true without a special-cased
  * first-edit branch: an untouched field falls back live to the first member's current value;
  * a field that HAS been edited reads from its own recorded snapshot instead. See
- * docs/specs/COMPANIES.md §7.1 for why this is a deliberate simplification over literally
+ * docs/specs/archive/COMPANIES.md §7.1 for why this is a deliberate simplification over literally
  * cloning the first member's values into the snapshot at first-edit time — functionally
  * identical from the user's perspective, without ever storing a stale duplicate of a field that
  * was never actually edited.
@@ -23,7 +23,7 @@ import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 
-// Stable fallback references (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up, 2026-09-15)
+// Stable fallback references (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up, 2026-09-15)
 // — `resolveCompanyOptions` is called on every render of `CompanyOptionsSection` (via a `useMemo`
 // keyed on its own real inputs), so a fallback that constructs a fresh object/array literal every
 // call defeats that memoization even when the underlying robot data hasn't changed. Only `layers`

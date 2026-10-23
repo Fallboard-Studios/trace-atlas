@@ -112,7 +112,7 @@ describe('PingContourDrawer', () => {
     expect(newAdsr.sustain).toBeGreaterThanOrEqual(0);
   });
 
-  it('renders its controls inside one Contour panel, with no accordion wrapper (docs/tasks/NAV_LAYOUT_REWRITE.md Task 16: the "Envelope" label now lives on the tree node itself, not this drawer)', () => {
+  it('renders its controls inside one Contour panel, with no accordion wrapper (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 16: the "Envelope" label now lives on the tree node itself, not this drawer)', () => {
     const { container } = render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
     expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     expect(screen.queryByText('Envelope')).toBeNull();
@@ -121,7 +121,7 @@ describe('PingContourDrawer', () => {
     expect(pingContourPanel!.contains(screen.getByRole('slider', { name: /attack/i }))).toBe(true);
   });
 
-  describe('Attack+Decay / Sustain+Release pairing (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — "two across" on desktop)', () => {
+  describe('Attack+Decay / Sustain+Release pairing (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — "two across" on desktop)', () => {
     it('Attack and Decay share a row, and Sustain and Release share a row, on desktop', () => {
       stubMatchMedia({ mobile: false, tablet: false });
       render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
@@ -166,8 +166,8 @@ describe('PingContourDrawer', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
-  // `style` prop forwarded to this drawer's own root (Task 16, docs/tasks/NAV_LAYOUT_REWRITE.md:
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
+  // `style` prop forwarded to this drawer's own root (Task 16, docs/tasks/archive/NAV_LAYOUT_REWRITE.md:
   // moved from the now-removed accordion wrapper to the plain .ping-contour-drawer
   // root), for trait-color scoping (getTraitColorStyle('timeSpace'), applied at the
   // RobotOptionsTab call site in Task 12).
@@ -193,14 +193,14 @@ describe('PingContourDrawer', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3)', () => {
+  describe('React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3)', () => {
     // Same reasoning as PingControlsDrawer.test.tsx's own memo describe block — a delegated
     // render-count marker can't cleanly discriminate this drawer's own bail from its already-
     // memoized children's independent one, and the 2 inline DirectionalPanel schemas this task
     // also hoists to module scope have no observable path to a measurable win today either (their
     // own `children` are freshly constructed by this drawer on every real re-render regardless,
     // which is exactly the "conditional benefit" DirectionalPanel's own memoization was
-    // documented to have in docs/specs/OBLIQUE_CABINETRY_MEMOIZATION.md §1.3) —
+    // documented to have in docs/specs/archive/OBLIQUE_CABINETRY_MEMOIZATION.md §1.3) —
     // so the structural check is what's provable in isolation here.
     it('is a React.memo-wrapped component', () => {
       expect((PingContourDrawer as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));

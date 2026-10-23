@@ -1,16 +1,15 @@
 /**
- * Robot Selection card content, resolving docs/tasks/ROBOT_SELECTION.md Task 6 (Roadmap
+ * Robot Selection card content, resolving docs/tasks/archive/ROBOT_SELECTION.md Task 6 (Roadmap
  * Phase 8). ROBOT_SELECTION_ROW_SCHEMAS's five entries use the exact lore/human pairs already
  * confirmed in docs/reference/ROBOT_DATA_GRID.md (Robot Name/Job Data/Battery Data/Docked
  * Status/Audio Setting). The per-value label maps below (JOB_TYPE_LABELS/
- * DOCKING_STATE_LABELS/AUDIO_MODE_LABELS) are best-guess drafts — the grid only defines
+ * DOCKING_STATE_LABELS) are best-guess drafts — the grid only defines
  * category-level pairs, not per-value ones — appended to ROBOT_DATA_GRID.md as drafts pending
- * review (see docs/tasks/ROBOT_SELECTION.md Task 12).
+ * review (see docs/tasks/archive/ROBOT_SELECTION.md Task 12).
  */
 import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
-import type { JobType, DockingState, Robot, RobotActivity } from '@/types/Robot';
+import type { JobType, DockingState, RobotActivity } from '@/types/Robot';
 import type { AudibilityState } from '@/utils/robotAudibility';
-import type { StatusLightState } from '@/utils/statusLightColors';
 import { labels, optionsRecord } from '@/content';
 
 // ========================================
@@ -28,7 +27,7 @@ export const ROBOT_SELECTION_ROW_SCHEMAS = {
   // its own (it renders bare, combined with Docking into one line) — this is the first FIELD-level
   // lore/human pair for Status. Best-guess draft, pending review, same as AUDIBILITY_LABELS itself.
   status: { id: 'robotSelection.status', type: 'dualLabel', ...labels('probe.status') },
-  // .battery and .audio removed (Roadmap 15.2, docs/specs/ROBOT_CARDS_REDESIGN.md §1.5 item 1) —
+  // .battery and .audio removed (Roadmap 15.2, docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.5 item 1) —
   // genuinely dead once RobotSelectionCard stopped referencing them: Battery moved to
   // BATTERY_READOUT_SCHEMA (Roadmap 15.1) via RobotDisplaySection first, then RobotSelectionCard
   // itself; Audio Setting's card-level dot (AudioStatusBadge) was replaced by the combined
@@ -79,20 +78,8 @@ export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = optionsRec
 /** The work loop's seven activities (Phase 43 spec §1.11), keyed by `Robot.activity`. */
 export const ACTIVITY_LABELS: Record<RobotActivity, ValueLabel> = optionsRecord('probe.status.activity');
 
-type AudioMode = NonNullable<Robot['audioMode']>;
-
-export const AUDIO_MODE_LABELS: Record<AudioMode, ValueLabel> = optionsRecord('probe.status.monitorMode');
-
-/** off=purple, mute=red, solo=green, highlight=amber — confirmed during intake. */
-export const AUDIO_STATUS_COLOR_MAP: Record<AudioMode, StatusLightState> = {
-  none: 'purple',
-  mute: 'red',
-  solo: 'green',
-  highlight: 'amber',
-};
-
 /**
- * Roadmap 15.2 (docs/specs/ROBOT_CARDS_REDESIGN.md §1.3) — Status, half of RobotSelectionCard's
+ * Roadmap 15.2 (docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.3) — Status, half of RobotSelectionCard's
  * combined "Docking · Status" line. Reflects true audibility (isRobotAudible, src/utils/
  * robotAudibility.ts), not just this robot's own audioMode. Same loreLabel/humanLabel shape as
  * every other value-label map in this file for consistency, even though only humanLabel is ever

@@ -193,7 +193,7 @@ describe('Factory — body fill tracks the day/night lighting cycle', () => {
 });
 
 describe('Factory — static-only greebles stay visually identical across a lighting tick', () => {
-  // Per docs/specs/FACTORY_LIGHTING_RERENDER.md §1.1: these renderers read no lighting
+  // Per docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.1: these renderers read no lighting
   // field at all today, so their output must be byte-identical regardless of the tick —
   // both before and after the eventual layout/paint split (Tasks 2-4).
   // (machinery left this group in Phase 44: its world gem ring is lit by the hour, so it moved to
@@ -226,7 +226,7 @@ describe('Factory — static-only greebles stay visually identical across a ligh
 });
 
 describe('Factory — lighting-dependent greebles change across a lighting tick', () => {
-  // Per docs/specs/FACTORY_LIGHTING_RERENDER.md §1.1: these are the 5 renderers that
+  // Per docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.1: these are the 5 renderers that
   // genuinely read eastLMultiplier/westLMultiplier/nightDepth/flickerEpoch — the eventual
   // layout/paint split (Tasks 2-4) must not freeze their paint step along with their geometry.
   it('rooftop: pitchedRoof', () => {
@@ -339,7 +339,7 @@ describe('Factory — regression guard (documents pre-fix behavior; tightened by
 });
 
 describe('Factory — Task 4: staticVisual isolates geometry from the lighting tick', () => {
-  // The regression test the whole fix (docs/specs/FACTORY_LIGHTING_RERENDER.md) is for.
+  // The regression test the whole fix (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md) is for.
   // Must fail against pre-Task-4 Factory.tsx (confirmed directly before implementing) and
   // pass once staticVisual exists.
   //

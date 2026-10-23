@@ -174,7 +174,7 @@ describe('the two axes at one shared dial position', () => {
     });
 
     it('drops the latency hint to playback strictly below LOAD_PLAYBACK_BELOW (0.61)', () => {
-      // Decision J (docs/specs/AUDIO_LOAD_BUDGET.md §7): the Pixel 8 phone run measured playback
+      // Decision J (docs/specs/archive/AUDIO_LOAD_BUDGET.md §7): the Pixel 8 phone run measured playback
       // giving Standard 6.6x fewer output underruns than interactive on bravo (1227 -> 186), the
       // same real cost (~266ms average output latency) Light already ships unremarked. The
       // threshold sits strictly above Standard's dial value (0.6) so Standard gets playback too,

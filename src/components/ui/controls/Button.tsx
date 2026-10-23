@@ -36,7 +36,7 @@ interface ButtonProps {
  * box a hint of its accent color even before interaction (Crawford's own
  * request, 2026-09-13) — engaged pops the rest of the way to the original,
  * unchanged full pop. No distinct click bounce or intermediate engaged state
- * — see docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md §1.5.
+ * — see docs/specs/archive/OBLIQUE_CABINETRY_FOUNDATION.md §1.5.
  *
  * `timelineKey` includes `useId()`, not just `schema.id` — `timelineMap` is a
  * shared, module-level `Map`, so two simultaneously-mounted `Button`s
@@ -86,7 +86,7 @@ function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName:
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6) — schema is always a stable,
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6) — schema is always a stable,
 // module-level config object; onClick/disabled are the only props a caller must keep stable to
 // benefit (an implicit performance contract, not a type-level one — see
 // docs/COMPONENT_LIBRARY.md).

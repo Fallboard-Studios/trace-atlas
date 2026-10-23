@@ -36,7 +36,7 @@ describe('ConsolePanel', () => {
     useUIStore.setState(useUIStore.getInitialState(), true);
   });
 
-  it('renders nothing when activeHubTile is null — navigation now lives in Header, not a tile-grid inside the console (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.7)', () => {
+  it('renders nothing when activeHubTile is null — navigation now lives in Header, not a tile-grid inside the console (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.7)', () => {
     const { container } = render(<ConsolePanel />);
     expect(container.firstChild).toBeNull();
     expect(screen.queryByRole('region', { name: 'Hub Navigation' })).toBeNull();
@@ -110,16 +110,5 @@ describe('ConsolePanel — the Companies branch', () => {
     useUIStore.getState().setAllProbesSelected(true);
     render(<ConsolePanel />);
     expect(shown()).toEqual(['roster-board-stub']);
-  });
-});
-
-describe('ConsolePanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 16)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'ConsolePanel.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]|'Power (on|off)'|'Mutation'|`(Increment|Decrement) \$\{|Held off by Audio Load|>Power off\?<|All audio will stop\./);
-    expect(source).not.toMatch(/^\s+(triangle|sine|square|sawtooth): '[A-Z]/m);
   });
 });

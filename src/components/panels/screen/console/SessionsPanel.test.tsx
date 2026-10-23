@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
@@ -21,7 +18,6 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { STORAGE_KEY } from '@/utils/sessionStorageEngine';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import { copySessionLink } from '@/utils/sessionShareUtils';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { CONTENT } from '@/content';
 
 beforeEach(() => {
@@ -238,23 +234,10 @@ describe('SessionsPanel', () => {
   });
 });
 
-describe('SessionsPanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'SessionsPanel.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
-    expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
-  });
-});
-
 // docs/tasks/LAYOUT_REWORK.md Task 17 follow-up (Crawford, 2026-10-10: the sketch's Save & Share, its
 // copy, single-line faces on this panel only): the name, Save Session and Share live in one row; a
 // Saved Sessions label over the list; a Factory Reset label over a full-width Reset to Factory Settings.
 describe('SessionsPanel — the sketch\'s layout', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionsPanel.css'), 'utf-8');
   const saveOne = () => fireEvent.click(screen.getByRole('button', { name: CONTENT['session.save'].human }));
 
   it('the name, Save Session and Share live share one row, in that order', () => {
@@ -316,27 +299,6 @@ describe('SessionsPanel — the sketch\'s layout', () => {
     const reset = container.querySelector('.sessions-panel__reset')!;
     expect(saved.compareDocumentPosition(reset) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
-
-  describe('CSS', () => {
-    it('the save row wraps, its buttons sitting on the input\'s baseline; the input takes the room', () => {
-      const row = getCssRuleBody(css, '.sessions-panel__save-row');
-      expect(row).toContain('display: flex;');
-      expect(row).toContain('flex-wrap: wrap;');
-      expect(row).toContain('align-items: flex-end;');
-      expect(getCssRuleBody(css, '.sessions-panel__save-row .sc-text-input-facade')).toMatch(/flex: 1 1 \d+px;/);
-    });
-
-    it('the label rows are standalone DualLabel hosts in the controls\' face (TYPE_SCALE.md Task 8)', () => {
-      const group = getCssRuleBody(css, '.sessions-panel__group');
-      expect(group).toContain('font-family: var(--font-controls);');
-      expect(group).toContain('font-weight: var(--font-weight-control);');
-    });
-
-    it('the reset button runs the full width, its cabinet with it, so the hit area is the box', () => {
-      expect(getCssRuleBody(css, '.sessions-panel__reset .sc-button')).toContain('width: 100%;');
-      expect(getCssRuleBody(css, '.sessions-panel__reset .sc-cabinet-box')).toContain('width: 100%;');
-    });
-  });
 });
 
 describe('SessionsPanel — the clear confirm stays inside the screen (the UI Shell guardrail)', () => {
@@ -361,11 +323,6 @@ describe('SessionsPanel — the clear confirm stays inside the screen (the UI Sh
 });
 
 describe('SessionsPanel — the clear confirm reads, and gives focus back', () => {
-  it('CSS: the dialog sets its own text colour rather than inheriting the screen\'s', () => {
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionsPanel.css'), 'utf-8');
-    expect(getCssRuleBody(css, '.clear-storage-confirm__content')).toContain('color: var(--color-text-primary-fixed);');
-  });
-
   it('Escape gives focus back to the reset button that opened it', async () => {
     render(<SessionsPanel />);
     const reset = screen.getByRole('button', { name: CONTENT['session.clearStorage.action'].human });

@@ -225,7 +225,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
   );
 }
 
-/** Exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — becomes Baseline/
+/** Exported standalone (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — becomes Baseline/
  *  Coaxial/Harmonic Oscillator's own independently-mountable tree leaf, one instance per fixed
  *  SIGNATURE_ARRAY_CONFIG slot (block/idx together identify which). Already isolated per layer
  *  internally (see this component's own doc comment above) — the split here is exposing it, not
@@ -234,8 +234,8 @@ export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
 
 /**
  * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic) —
- * docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
- * 17 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
+ * docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
+ * 17 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
  * leaf, and the tree node itself carries that label, so there's no accordion header left to show
  * it on. Robot Drift (`RobotDriftPanel`) is gone entirely as of docs/tasks/LFO_BANK.md Task 15 —
  * modulation now goes through the per-row LfoLink controls below, and lane-level drift lives only
@@ -315,7 +315,7 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
   );
 }
 
-// React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 4)
+// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 4)
 export const SignatureArrayDrawer = memo(SignatureArrayDrawerInner);
 
 export default SignatureArrayDrawer;

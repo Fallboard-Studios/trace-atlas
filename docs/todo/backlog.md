@@ -8,9 +8,10 @@ Create/Restructure/About/Docs shape.
 
 Not a spec — this is a review-output backlog. Each item gets its own `/interview-me` or
 spec pass (as warranted by its size) when picked up; check it off here once merged. Not
-itself one of CLAUDE.md's Reference docs.
+itself one of CLAUDE.md's Reference docs. The order items get done in is
+[plan.md](plan.md); this file is the record, that one is the sequence.
 
-See also [docs/DUPLICATE_VALUE_AUDIT.md](DUPLICATE_VALUE_AUDIT.md) — a dedicated sibling
+See also [docs/DUPLICATE_VALUE_AUDIT.md](../DUPLICATE_VALUE_AUDIT.md) — a dedicated sibling
 backlog for one specific bug class (independently-declared duplicate values) rather than a
 duplicate of this doc.
 
@@ -58,6 +59,15 @@ out in the Sector Settings panel. Depends on Phase 21 for the "shareable link" h
 Session Storage (Phase 20) alone only makes a link possible via the address bar, not
 an in-app Export/Import action.
 
+**Reframed 2026-10-22 (Crawford):** this item is now about the **powered-down state**, not the Sector
+Settings panel. The off screen's Transmission row from roadmap 45 (three preset worlds and the user's
+saves; [backlog archive 2](archive/backlog-archive.md#2-onload-power-off-intro-text)) is the partial
+start; Crawford has a plan for how that screen shows the themes ([docs/ideas/themes.md](../ideas/themes.md)),
+the sessions and the presets. Item [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s
+selection UI is expected to live here too (its progression engine stays item 7's own, large, piece of
+work), and item [19](#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
+a preset entry. Still needs its own `/interview-me`.
+
 ### 6. Audio: Groove Feature
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
@@ -76,6 +86,12 @@ Requested by Crawford (`docs/todo/temp.md`), 2026-09-11, as "more chord progress
 selection UI". Low priority — deprioritized behind launch. Design discussed with Crawford
 2026-10-09 and recorded here; **not interviewed, not specced** — needs its own `/interview-me`
 pass when picked up, which should start from the "Open" list below.
+
+**Note 2026-10-22 (Crawford):** the user-facing part (the tag filter, the mood choice) is now expected to
+be built with item [5](#5-sector-settings-ascoordsfavorites-reorganization)'s powered-down state rather
+than in the Audio Rig's Pacing section as the "UI home" lean below says. The progression engine, the
+catalogue and the seeded chain stay this item and are a large build in their own right; 5's interview
+decides the surface, this item's interview decides the music.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
@@ -177,11 +193,9 @@ behind launch. No weather/atmosphere/particle system exists in `WorldView` today
 would be genuinely new (fog, dust, light rays, precipitation, or similar — not yet
 specified). Not yet scoped.
 
-### 11. Visuals: Small Immersion Animations
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
-behind launch. Likely a grab-bag of minor polish (idle bobs, blinking lights, and similar
-small touches) rather than a single feature; exact list not yet defined.
+**Update 2026-10-22:** roadmap [42](roadmap.md#42-world-view-districts)'s D3 branch shipped `LightShafts`, an
+atmosphere layer of light rays. Marine snow, the particle half, was built and cut on 2026-10-07 (it read as film
+grain). Fog, dust and precipitation are still unbuilt, so the item stays open.
 
 ### 13. SVG: Invalid Empty `y` Attribute — Live-Browser Confirmation Outstanding
 
@@ -198,49 +212,6 @@ GSAP still owns the tween from there. Covered by a `PowerRockerSwitch.test.tsx` 
 test. **Not yet confirmed in a live browser** — the hypothesis is strong (the one
 component matching the bug's exact shape) but the real Chrome console output was never
 watched directly for it.
-
-### 14. Live-Profiler Reverification Still Pending (3 spots)
-
-The `refactor/factory-timing` performance series (merged to `main` via PR #465, `e55e846`,
-2026-09-14/15) fixed a long chain of re-render bugs — most were live-verified with
-Crawford and React DevTools Profiler at the time and are fully closed. Three specific
-fixes in that same series still haven't gotten their own live-Profiler recheck:
-
-- **`RobotBody`'s lighting/audio-shape split** (`RobotBody.tsx` — `audioVisual` vs.
-  `colors` memos) — code fix landed and unit-tested (a regression spy confirmed the
-  wasted recompute before the fix), but never re-checked live in the Profiler the way the
-  sibling `Factory`/`BubbleStream` fixes were.
-- **Once/sec lighting-tick batching smoothness** (`AttenuationStyleView.tsx`'s
-  `React.startTransition` wrap) — doesn't reduce total work, only lets React spread/
-  interrupt it; whether the commit visibly spreads across multiple frames now (and feels
-  less spiky) still needs a live look.
-- **`RobotOptionsTab`/`CompanyOptionsSection` memoization** — the fix and its cascade
-  regression tests are merged and passing, but note the file shape has since moved on:
-  both components were later rewritten to render through a shared
-  `RobotSectionAccordionStack` (roadmap Phase 28, Robot Section/Subsection Config
-  Consolidation) — any specific file:line citations from the original fix are stale, but
-  the underlying stabilized-callback/memo pattern is confirmed still present (a `// Task 6`
-  comment referencing the original fix survives the restructure). Re-verify against
-  current code, not old line numbers, when this gets checked.
-
-### 15. Test Suite: Three Tests Fail Intermittently Under a Full Parallel Run
-
-**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-28 (see project
-memory: known-flaky unmocked-random tests).
-
-Four tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
-
-- `src/systems/audioSwells.test.ts` › *pingVarianceAutomation forced return at 0% (Task 4) › forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue* — failed in 4 of 7 full runs.
-- `src/components/company/CompanyCrudControls.test.tsx` › *Rename Submit button › is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name* — failed in 2 full runs, one of them on the commit *before* any 17.2.2 work.
-- `src/systems/factoryPlacementSystem.test.ts` › *recolorFactoriesForAttenuationStyle › changes only config.hueShift/config.satShift on every factory — everything else round-trips byte-identical* — failed in 1 full run.
-- `src/systems/worldTransition.test.ts` › *initializeLocale › fully clears in-flight swells on a second `initializeLocale` call — no swell survives a restart* — failed 1 full run, seen 2026-09-28 during Session Storage (Phase 20) Task 12 verification; passed immediately on an isolated re-run.
-
-All known failures since (per project memory) are real-RNG preconditions, not assertion
-bugs — re-run once to confirm rather than retry-looping or editing assertions. All four
-suggest a shared, load- or order-dependent input (wall-clock time, seeded randomness that
-isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
-added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
-people to re-run instead of read.
 
 ### 17. Audit: LFO Drift / Audio Swells / Ping Variance — Replayability Findings
 
@@ -374,10 +345,18 @@ Raised by Crawford, 2026-10-09, on `feature/layout-rework`, reversing the Phase 
 them: "I want to bring `?seed=`, `?x=`, and `?y=` back actually, they're so much better to use if a
 user didn't change anything than the current json soup, especially if they want to share an
 untweaked world with someone." Not yet interviewed or specced — needs its own `/interview-me`. Sits
-beside roadmap [21](roadmap.md#21-sector-settings-shareable-linkimportexport) (the `?session=` link,
+beside roadmap [21](roadmap.md#21-sector-settings-shareable-link-importexport) (the `?session=` link,
 which stays for tweaked worlds) and roadmap
 [48](roadmap.md#48-one-day-clock-remove-the-measure-based-day)'s dead-code sweep, which leaves the old
 override primitives alone until this item decides their fate.
+
+**Added 2026-10-22 (Crawford):** the `?session=` form itself should get shorter too, for tweaked worlds,
+and a library is acceptable for it (this note is the ask-first; the pick still goes through the
+interview). Today it is plain base64 of abbreviated-key JSON with no compression (roadmap 21). Two
+candidates to measure on a real tweaked payload: the native `CompressionStream('deflate-raw')` plus
+base64url that roadmap 20's original design proposed (no dependency, but decoding is async, and the
+boot seam below reads the payload synchronously at module load, so it changes the boot sequence), or
+`lz-string`'s `compressToEncodedURIComponent` (a small dependency, synchronous, URL-safe output).
 
 **The case, verified 2026-10-09.** An untweaked world is fully determined by two values: the
 Attenuation Style's *name* (the seed for the Audio Rig, the LFO Bank, tempo and swells, via
@@ -485,41 +464,6 @@ bypass the content-layer guard the same way robot and company names do; built-in
 picker only); whether built-ins are forkable; whether a library is shareable on its own; the voicing
 templates themselves (the bulk of the musical work).
 
-### 22. Audio Palette Trials: More Global Pedals to Audition
-
-The single-instance Tone 15 effects not shipped in roadmap 50.3 / 50.4 (AutoWah and Phaser both shipped, so neither moves here) — each one slot in
-`wireGlobalFxChain` (`src/engine/audioEngine/globalFx.ts:144`) with a `wet`, each behind the phone
-gate, auditioned one at a time on the Pixel:
-
-- `Chorus` (own LFO: `frequency`, `delayTime`, `depth`, `spread`), `Tremolo` (`frequency`, `depth`,
-  `spread`), `Vibrato` (`frequency`, `depth`), `FrequencyShifter` (`frequency` — strange, and
-  on-brand). The ones with an internal
-  oscillator are wall-clock (backlog 17's accepted class); Free | Sync (roadmap 33) could apply to
-  their `frequency`.
-- `StereoWidener` (`width`, no clock, cheap) — and a mono fold for phone speakers is the same control
-  at 0.
-- `PingPongDelay` as an alternative delay topology (stereo bounce) — a *type* radio on the Delay row
-  rather than a second delay; `Freeverb` / `JCReverb` as algorithmic reverb colours beside the
-  convolution `Reverb` (cheaper per sample than the impulse response, but metallic) — again a type
-  radio, not a second reverb.
-
-Keep what passes the gate and earns a lore name; the rest stays here as "tried, no".
-
-**Update 2026-10-21: the five pedals shipped as roadmap 50.6; this item now holds only the two room type radios.**
-Chorus, Tremolo, Vibrato, FrequencyShifter and StereoWidener were built on `feature/pedals` (roadmap 50.6,
-[docs/specs/GLOBAL_PEDALS.md](../specs/GLOBAL_PEDALS.md)), with Free | Sync on the three LFO rates. None was withdrawn,
-so nothing moves to "tried, no". Two corrections to the text above, for whoever picks this up:
-- **The cite is stale.** `globalFx.ts:144` was the old serial chain. Delay and Reverb are no longer chain stages
-  (Robot Sends, roadmap 50.2): they are two rooms that `buildGlobalFxChain` constructs beside the chain, fed by each
-  robot's send and joined back through a return gain (`docs/AUDIO_SYSTEM.md`, Signal Graph). A type radio would swap
-  the room node behind the sends and the return, not add a slot in `wireGlobalFxChain`.
-- **Freeverb and JCReverb are not cheaper.** Tone 15 (15.1.22) builds both from AudioWorklet comb filters (Freeverb
-  eight, JCReverb four, each its own worklet node) and its own docs warn that each "is now implemented with an
-  AudioWorkletNode which may result on performance degradation on some platforms. Consider using Reverb." The
-  BitCrusher is the app's only worklet today, and the phone is near its limit (backlog 27). So the reverb radio is
-  a phone-gate question first. `PingPongDelay` is plain Web Audio nodes (a cross-feedback stereo delay), with no
-  worklet.
-
 ### 23. Audio Palette Trials: Dynamics Processing and Ducking
 
 `Tone.MultibandCompressor` (low / mid / high compressors with two crossovers) as a richer Output stage
@@ -606,53 +550,6 @@ and give the Settings → Seeds coordinates a reason to be stepped rather than t
   only, until measured otherwise.
 - **Colouring the map by district before the field is coherent** — it would look like a bug.
 
-### 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
-
-**Status (2026-10-17): mostly built, one finding left open.** Candidate 1 is done: small layers per mover, built as
-[roadmap Phase 53](roadmap.md#53-per-mover-compositor-layers) on `perf/per-mover-layers` (not merged). Candidate 2 is
-done (the camera's idle no-op, merged). Candidate 3 is not taken (the audio-headroom default stays Crawford's call).
-The idle-paint gate missed its headline criterion, 0.31 × `main` against 0.25, because of a **document layer** that
-repaints a full viewport on nearly every frame on both builds (cause unidentified); the work this item described fell
-by over 90 %. That repaint is the open remainder, to be accepted, fixed or reframed by Crawford. The record below is the
-original diagnosis, kept as written.
-
-Diagnosed 2026-10-16 while finishing roadmap 50.5, after Crawford reported the sound breaking up about 25–30 s into every
-world on his laptop at full screen. **Not an audio feature.** `main` at `2ec52f2f` reproduces it (411 underruns by 0:47,
-25 fps) and a window at a quarter of the area halves the cost (66 underruns by 1:00, 54 fps), so the cost scales with pixels.
-The full record, numbers and how to re-measure are in
-[PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16).
-
-**Mechanism.** The scene is seven stacked `<svg>` roots sharing one viewBox (`OceanScene.tsx`'s `SceneLayer`); the four
-*moving* ones — `robots-back`, `bubbles`, `robots`, `marker` — carry `will-change: transform` and are each the whole stage.
-Chrome composites an SVG root, never a `<g>` inside it, so a GSAP write to one robot group's transform dirties its entire
-stage-sized layer and the GPU re-rasters up to four 2560 × 1440 layers per frame for about fifty small movers (orbiters, work
-sparks, robot bodies, bubbles). On Crawford's laptop Chrome runs on the integrated Radeon (the RTX sits idle) and the GPU
-process is 94 % busy; the renderer main thread is 62 % busy, over half of it GSAP's frame render plus 3.3 s of layerization
-in 31 s. The audio thread averages 0.55 of its quantum but spikes to 0.99, so any CPU contention tips it into underruns.
-
-**Fix candidates, ranked:**
-
-1. **Small compositor layers per mover** (needs `interview-me` → spec → plan; the idle-paint gate `npm run perf:idle` and the
-   PERFORMANCE.md baseline are the numbers to beat). Each robot in its own positioned wrapper moved by a compositor-only
-   transform, with the gem's own small SVG inside, so a swim costs a composite and only an orbiter or spark costs a small
-   raster. Everything that reads a robot's group or ref must keep working: the swim and job timelines (`createSwimTimeline`,
-   `buildJobTimeline`), the row switch and its dissolve, the deck camera's target (`deckCamera.ts`, `getRef('robot-…')` and
-   `gsap.getProperty(el, 'x')`), `FollowedRobotMarker`, and click handling. Bubbles the same way.
-2. **The deck camera's idle tick** — **done 2026-10-16** on `fix/deck-camera-idle-range`: the two dimensions are measured at
-   registration and on resize, and with scroll range 0 the camera stands down (no tick work, no pick, no marker). The
-   diagnosis, kept: `registerDeckScroller` added the per-frame handler
-   whenever a scroller exists, scroll range 0 or not; at full screen the range is 0, yet every frame `targetFor` reads
-   `scrollWidth` / `clientWidth` (a forced layout right after GSAP's writes) and writes `scrollLeft`. It was 4.2 % of
-   main-thread samples. No-op when the range is 0; cache the two dimensions on resize.
-3. **Audio headroom as mitigation**, not cause: the Standard Audio Load preset or `?latency=playback` widen the margin;
-   whether the desktop default should change is Crawford's call.
-
-**Machine-side**, not a fix for anyone else: forcing `chrome.exe` onto the RTX in Windows graphics settings would show how
-much of the 25 fps is the Radeon specifically; the Windows setting did not take (the AMD stayed `*ACTIVE*`), and the NVIDIA
-Control Panel / Lenovo Vantage discrete-mode routes were not tried.
-
-**How to start:** `interview-me` from this item for candidate 1; candidate 2 can go straight to a RED test.
-
 ### 27. Audio: Phone Playback Underruns at Light Load, `main` Included
 
 **Found 2026-10-18** during the per-mover Pixel A/B (PERFORMANCE.md "the Pixel A/B: not separable on the phone"). On the
@@ -728,3 +625,7 @@ thread up. Candidates: the graph lock while the main thread connects, or standar
 log if gone) in headed Chrome with a real device. Then a bare page with no Tone, connecting native nodes only, to split
 Chrome from Tone. Then the same lighting by ear on the Pixel. Only if it is audible: options are connecting at a quieter
 moment, or keeping the branch connected and paying its dark cost (which undoes 50.6's saving), Crawford's call.
+
+**Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
+seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
+power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.

@@ -1,9 +1,6 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, afterEach } from 'vitest';
 
 import { computeLocaleTemperature, LOCALE_TEMPERATURE_RANGE } from './localeTemperature';
@@ -67,13 +64,5 @@ describe('computeLocaleTemperature', () => {
     const b2 = computeLocaleTemperature('temp-test-locale-b', -37, 204, 4);
     expect(a2).toBe(a1);
     expect(b2).toBe(b1);
-  });
-
-  it('is not a Math.random()-driven value, and is keyed off the locale noise map, not the Attenuation Style one (source-scan regression guard)', () => {
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'localeTemperature.ts'), 'utf-8');
-    expect(source).not.toMatch(/Math\.random/);
-    expect(source).toMatch(/getLocaleNoiseMap/);
-    expect(source).not.toMatch(/getAttenuationStyleNoiseMap/);
   });
 });

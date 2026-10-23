@@ -26,11 +26,11 @@ async function flushEase() {
 }
 
 /**
- * The Audio Load panel (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, decision F) — a self-contained,
+ * The Audio Load panel (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5, decision F) — a self-contained,
  * prop-less component (no engine calls of its own; audioBudgetSystem reacts to the store write),
  * so it renders here in isolation rather than through its host. Lived inside AudioRigDrawer's
  * Transport & Composition accordion until it relocated to Settings -> Quality
- * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 13, SettingsContent.tsx) — its own internals, and this
+ * (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 13, SettingsContent.tsx) — its own internals, and this
  * test file, are otherwise unchanged; only where it's rendered from changed. Extracted from
  * AudioRigDrawer.test.tsx originally (code-review follow-up, 2026-09-22).
  */

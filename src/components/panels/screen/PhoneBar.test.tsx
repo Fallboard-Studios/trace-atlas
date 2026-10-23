@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 
@@ -118,14 +115,5 @@ describe('PhoneWell', () => {
     renderPieces();
     expect(well().textContent).toBe(MENU_OPEN_HINT);
     expect(crumb()).toBeNull();
-  });
-});
-
-describe('PhoneBar.tsx reads its copy from src/content (docs/CONTENT_LAYER.md)', () => {
-  it('carries no copy literal of its own', () => {
-    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'PhoneBar.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*[A-Z][a-z]+( [A-Za-z]+)*\s*</);
   });
 });

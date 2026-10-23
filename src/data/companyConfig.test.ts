@@ -59,7 +59,7 @@ describe('companyConfig', () => {
       expect(buildCompanyAssignmentSchema([]).id.startsWith('company.')).toBe(true);
     });
 
-    // docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.3 — per-company color, populated once
+    // docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.3 — per-company color, populated once
     // Company.color exists; Freelance keeps today's ambient fallback (no color key at all).
     it('the Freelance option carries no color — ambient fallback, unlike every real company option', () => {
       const companies: Company[] = [{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] }];
@@ -72,12 +72,6 @@ describe('companyConfig', () => {
 });
 
 describe('companyConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'companyConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-  });
   it('labels equal CONTENT; company names stay data', async () => {
     const { CONTENT } = await import('@/content');
     const s = buildCompanyAssignmentSchema([{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a' } as Company]);

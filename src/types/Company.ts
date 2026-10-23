@@ -1,7 +1,7 @@
 /**
  * Company — a seeded, named group of robots (Roadmap Phase 10). Lets every editable Robot
  * Options field be broadcast across a group of robots at once, without becoming a live source
- * of truth any member robot re-reads from later. See docs/specs/COMPANIES.md.
+ * of truth any member robot re-reads from later. See docs/specs/archive/COMPANIES.md.
  */
 import type { Robot, ADSREnvelope, RobotFilterType } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
@@ -52,7 +52,7 @@ export interface CompanyOptionsSnapshot {
 export interface Company {
   id: string;
   name: string;
-  /** Seeded UI-chrome identity color (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.2) — a single
+  /** Seeded UI-chrome identity color (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.2) — a single
    *  hex, same shape as Robot.identityColor, not a TRAIT_COLORS-style [a, b] pair. Set at creation
    *  time by every real construction path (spawnSystem.ts's seeded generateCompanyIdentityColor,
    *  CompanyCrudControls.tsx's Math.random()-fed pickRandomCompanyColor) — required, not optional,

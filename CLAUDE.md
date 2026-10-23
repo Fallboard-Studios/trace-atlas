@@ -59,7 +59,7 @@ Reference docs
 - `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage, plus the robots' swim, job, station-arc and layer-switch timelines (Phase 43), the scene stack (one scaled stage of four static sheets and per-robot, per-bubble-stream and marker movers, Phase 53) with its depth tints, and the deck camera's follow loop (Phase 46: pick, float, follow, cooldown, plus the touch and edit-return overrides).
 - `docs/BUILDING_DESIGN.md`: Factory and placement rules and placement algorithms, plus the nine seeded districts, sixteen scenery families, and the light-shafts atmosphere layer (roadmap Phase 42) that replaced the single fixed row table, and the robot-job hosts, work sites, coverage guarantee, station placement and midground silhouettes (Phase 43), and the world gem material (Phase 44): the bevel ring, three-tone facets lit by the hour's sun, and the hairline every solid in the world wears.
 - `docs/ROBOT_DESIGN.md`: Gem polygon robots (Phase 39) — the seeded generator (`getRobotGem` from `Robot.gemSeed`), bevel and 3-tone facet shading, the identity-colour palette, the three audio dials (lights, Mid lit level, body scale), the day/night and battery overlays, and the world/avatar/card render contexts, including the back robot row's 0.75 scale.
-- `docs/COMPONENT_LIBRARY.md`: The 14 stateless UI primitives in `src/components/ui/controls/` and the `ControlSchema` contract they consume — the Design System foundation later drawer phases build on.
+- `docs/COMPONENT_LIBRARY.md`: The 13 stateless UI primitives in `src/components/ui/controls/` and the `ControlSchema` contract they consume — the Design System foundation later drawer phases build on.
 - `docs/CONTRIBUTION_GUIDE.md`: PR process, testing expectations, and where to record exceptions.
 - `docs/UI_SHELL.md`: Sleeve & Glass UI architecture, console navigation, and `uiStore` responsibilities.
 - `docs/PROCEDURAL_GENERATION.md`: Seeded/deterministic world generation — noise-map registry, `getSeededVal`, and dataId conventions.
@@ -80,6 +80,7 @@ Quick checklist for PRs
 Repo expectations
 - **PR process:** All PRs should be reviewed by at least one other contributor before merging. There is no CI workflow configured yet — run lint, type-check, and tests locally before opening a PR.
 - **Accessibility & performance:** For audio, avoid autoplay without user intent; provide UI mute/volume controls. For animations, prefer GSAP for performant transforms and avoid large layout thrashing. Add basic a11y checks to PRs (focus/keyboard navigation, reduced-motion preference).
+- **Tests exercise code, not text:** a test imports or renders what it checks. Never assert on source, CSS or doc text read from disk (no docs guards, CSS contracts, source scans or "nothing imports X" gates; removed 2026-10-23). The one exception is `src/content/content.test.ts`. A docs-only or deletion task has no RED test; its checkpoint is a human read.
 
 Boundaries
 - Never commit secrets or `.env` files.

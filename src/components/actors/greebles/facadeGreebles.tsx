@@ -36,7 +36,7 @@ export interface WindowGrid {
 
 // ========================================
 // LAYOUT/PAINT SPLIT TYPES
-// (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 3)
+// (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 3)
 //
 // Of this file's 5 renderers, only the window grid (squareWindows/wideWindows/tallWindows,
 // all sharing `renderWindowGrid`) reads a lighting field. Its geometry — which grid slots
@@ -176,7 +176,7 @@ function computeWindowGridItems(
  * `renderWindowGrid`). Respects optional `zoneY`/`zoneHeight` on the context to confine
  * windows to a vertical slice (e.g. between belt courses). When `frontCornerX` is defined,
  * splits into two independent grids — one per face — so no window is clipped or bisected by
- * the front corner edge, exactly as before this split (docs/specs/FACTORY_LIGHTING_RERENDER.md
+ * the front corner edge, exactly as before this split (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md
  * §1.4): the west (left, untranslated) sub-grid pairs with `westLMultiplier` at paint time; the
  * east (right, translated by `frontCornerX`) sub-grid pairs with `eastLMultiplier` and uses its
  * own `+500` seed offset so the two faces' patterns don't mirror each other.
@@ -285,7 +285,7 @@ export function paintWindowGrid(layout: WindowGridLayout, ctx: GreebleRendererCo
 /**
  * Renders a grid of windows based on a probability threshold. Kept as a thin compatibility
  * wrapper over `computeWindowGridLayout`/`paintWindowGrid`
- * (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4) — byte-identical output to before the split.
+ * (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4) — byte-identical output to before the split.
  * @param ctx Greeble renderer context.
  * @param type Window type key.
  * @param threshold Probability (0..1) of a window spawning at a grid slot.
@@ -463,7 +463,7 @@ export const FACADE_RENDERERS: Record<FacadeGreeble, GreebleRenderer> = {
 
 /**
  * Registry of the layout/paint pair for every `FacadeGreeble` that actually reads a lighting
- * field — only the 3 window types (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.1).
+ * field — only the 3 window types (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.1).
  * Deliberately `Partial`: a type absent from this map is static-only and gets memoized
  * wholesale by its caller (`Factory.tsx`, Task 4) via the plain `FACADE_RENDERERS` entry
  * above instead. `unknown`-typed pragmatically (confirmed 2026-09-14, spec §7.2) rather than

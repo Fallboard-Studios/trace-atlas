@@ -1,7 +1,7 @@
 /**
  * Pure voxel-track math shared by SliderLinear (roadmap 11.1.3) and its two
  * thin follow-ups, SliderLog/SliderCenteredZero (11.1.4/11.1.5) — no DOM, no
- * GSAP, no React. See docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.5,
+ * GSAP, no React. See docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.5,
  * §1.8, §1.9 for the derivations.
  */
 
@@ -16,7 +16,7 @@ export const VOXEL_TRACK_MIN_BOX_COUNT = 3;
  * The fitting BUDGET a vertical SliderLinear falls back to when its caller
  * omits `verticalHeight` — matches index.css's `--slider-vertical-height:
  * 256px`, the same default `SliderLog`/`SliderCenteredZero` already use
- * (docs/specs/VERTICAL_SLIDERS.md's own resolved "256px default, optional
+ * (docs/specs/archive/VERTICAL_SLIDERS.md's own resolved "256px default, optional
  * per-instance override," which predates the voxel-track rewrite).
  *
  * Post-implementation correction, 2026-09-09: the voxel-track rewrite
@@ -36,7 +36,7 @@ export const VOXEL_TRACK_MIN_BOX_COUNT = 3;
  * `SliderLinear.tsx` now defaults to this constant instead of measuring —
  * restoring the original non-circular design, quantized to real boxes via
  * the same "fitting budget" treatment an explicit `verticalHeight` already
- * gets (docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.7).
+ * gets (docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.7).
  */
 export const VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT = 256;
 
@@ -84,7 +84,7 @@ export interface VoxelBoxState {
    * computeVoxelBoxStates' own output, used by SliderLinear/SliderLog)
    * preserves their exact existing whole-row falloff. z-index
    * (computeVoxelBoxZIndex) is NOT affected by either field — see
-   * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.3.
+   * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.3.
    */
   popDistanceLocalIndex?: number;
   popDistanceLocalCount?: number;
@@ -101,7 +101,7 @@ export interface VoxelBoxState {
    * min side. Set true there so VoxelTrack visually swaps which side the
    * glow piece renders on; omitted/false (computeVoxelBoxStates' own output,
    * and the positive side here) preserves the existing min-side-is-filled
-   * rendering. See docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.2
+   * rendering. See docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.2
    * and its own post-ship bugfix note.
    */
   flipStraddleFill?: boolean;
@@ -143,7 +143,7 @@ export function computeVoxelBoxStates(value: number, min: number, max: number, b
  * to the full VOXEL_TRACK_POP_DISTANCE at the last box. Only meaningful for
  * a box that's actually popped (popT > 0, from computeVoxelBoxStates above);
  * a flat box never renders this value regardless of what it computes to.
- * See docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.8 revision note.
+ * See docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.8 revision note.
  */
 export function computeVoxelBoxPopDistance(index: number, boxCount: number): number {
   const span = Math.max(1, boxCount - 1); // guards boxCount <= 1 (single-box row)
@@ -257,7 +257,7 @@ export const VOXEL_TRACK_MIN_BOX_COUNT_EVEN = 4;
  * Rounds a fitted box count down to the nearest even number, floored at
  * VOXEL_TRACK_MIN_BOX_COUNT_EVEN (4) rather than the odd VOXEL_TRACK_MIN_BOX_COUNT
  * (3). An already-even count is returned unchanged. See
- * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.4.
+ * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.4.
  */
 export function computeEvenBoxCount(rawBoxCount: number): number {
   const rounded = rawBoxCount - (rawBoxCount % 2);
@@ -281,7 +281,7 @@ export function computeEvenBoxCount(rawBoxCount: number): number {
  * must land at the HIGHEST global index on that side instead (nearest the
  * seam, not nearest min) — computed against the side's own magnitude
  * (`-value`, `0`, `-min`) and then reversed before assembly. See
- * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.2 for the full
+ * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.2 for the full
  * worked derivation.
  *
  * Every returned box also carries popDistanceLocalIndex/LocalCount — that

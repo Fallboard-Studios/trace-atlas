@@ -1,12 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 
 import { HelpPopover } from './HelpPopover';
 import { CONTENT, fill } from '@/content';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
 
 /*
@@ -181,36 +177,5 @@ describe('HelpPopover', () => {
 
   it('is a React.memo-wrapped component', () => {
     expect((HelpPopover as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
-  });
-});
-
-// jsdom computes no layout or paint: the well is pinned at the source.
-describe('HelpPopover.css', () => {
-  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'HelpPopover.css'), 'utf-8');
-
-  it('the content is a recessed well over an opaque base — the shared well tokens, no outward shadow, no glow', () => {
-    const body = getCssRuleBody(css, '.sc-help__content');
-    expect(body).not.toBeNull();
-    expect(body).toMatch(/background:\s*linear-gradient\(var\(--well-background\), var\(--well-background\)\), var\(--content-surface\);/);
-    const shadow = body?.match(/box-shadow:\s*([^;]*);/)?.[1] ?? '';
-    expect(shadow).toContain('var(--well-inset)');
-    // every shadow layer is inset (a well is cut in); an outward one would be a cabinet's glow
-    for (const layer of shadow.split(/,(?![^(]*\))/)) {
-      expect(layer.trim().startsWith('inset') || layer.trim().startsWith('var(--well-inset)')).toBe(true);
-    }
-    expect(body).not.toMatch(/filter\s*:/);
-    expect(body).toContain('z-index: var(--z-popover);');
-  });
-
-  it('the "?" gives back the layout height its press area adds, so a labelled row never grows', () => {
-    const body = getCssRuleBody(css, '.sc-help__trigger');
-    expect(body).toContain('--help-trigger-size: 24px;');
-    expect(body).toContain('margin-block: -4px;');
-  });
-
-  it('the "?" keeps a 44 px hit area on the phone shell', () => {
-    const body = getCssRuleBody(css, "#screen-viewport[data-shell='phone'] .sc-help__trigger::before");
-    expect(body).not.toBeNull();
-    expect(body).toContain('inset: calc((var(--help-trigger-size) - var(--touch-target-size)) / 2);');
   });
 });

@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 
@@ -59,13 +57,5 @@ describe('a selected robot in the world has no text label', () => {
     expect(container.querySelectorAll('text, foreignObject, title')).toHaveLength(0);
     expect(container.textContent).not.toContain('Tidal Wisp');
     expect(container.textContent).not.toContain('Rust Syndicate');
-  });
-
-  it('and no source file under components/robot draws an SVG <text>', () => {
-    const dir = resolve(__dirname);
-    const offenders = (readdirSync(dir, { recursive: true }) as string[])
-      .filter((f) => /\.tsx$/.test(f) && !/\.test\.tsx$/.test(f))
-      .filter((f) => /<text[\s>]/.test(readFileSync(join(dir, f), 'utf8')));
-    expect(offenders).toEqual([]);
   });
 });

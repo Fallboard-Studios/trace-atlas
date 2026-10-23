@@ -63,10 +63,10 @@ function subscribeToTierChange(listener: () => void): () => void {
  * module-level comment above), reused by every hook below rather than each
  * resolving its own. Factored out of useCabinetBoxHeight (roadmap 11.1.1)
  * when useVoxelTrackGap (11.1.3) needed the same tier for a second,
- * independent value — see docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md
+ * independent value — see docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md
  * §1.4 for why this wasn't simply a second copy of the same listener logic.
  * Exported (was private) for useResponsivePanelOrientation's own reuse —
- * see docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2. `resolveTier` doubles
+ * see docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2. `resolveTier` doubles
  * as the snapshot getter: it's a cheap, pure read of the live matchMedia
  * state, so there's no need to separately cache "the last computed tier" —
  * useSyncExternalStore only re-renders a consumer when the returned
@@ -83,7 +83,7 @@ export function useCabinetTier(): CabinetTier {
  * — the roadmap's box sizes are these same 3 numbers, not a new constant).
  * CabinetBox.tsx applies this same value as an inline --cabinet-box-height
  * custom property on its wrapper, rather than CSS independently re-deriving
- * it via @media rules. See docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md §1.3.
+ * it via @media rules. See docs/specs/archive/OBLIQUE_CABINETRY_FOUNDATION.md §1.3.
  */
 export function useCabinetBoxHeight(): number {
   return CABINET_BOX_HEIGHT[useCabinetTier()];
@@ -91,7 +91,7 @@ export function useCabinetBoxHeight(): number {
 
 /**
  * Live numeric voxel-track box gap for the current viewport tier (roadmap
- * Phase 11.1.3). See docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.4.
+ * Phase 11.1.3). See docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.4.
  */
 export function useVoxelTrackGap(): number {
   return CABINET_VOXEL_GAP[useCabinetTier()];

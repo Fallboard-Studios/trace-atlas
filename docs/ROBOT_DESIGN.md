@@ -117,27 +117,26 @@ Waveform, filter frequency, phase and detune have no visual mapping on gem robot
 in [gem-polygon-robots.md](ideas/gem-polygon-robots.md) may map them to geometry or motion).
 
 Pan (`Robot.pan` / `Robot.panAuto`, Roadmap Phase 49) reaches the body through no dial: the list above is
-unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads either field (pinned by
-`src/docs/robotPanDocs.test.ts`). Switching Auto off stops only the audio panner following the robot; the
+unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads either field. Switching Auto off stops only the audio panner following the robot; the
 robot keeps swimming.
 
 Robot Articulation (portamento, the attack and release shapes, and the bus filter's cutoff, resonance and type, plus
 the cutoff's `bus.frequency` LFO link; roadmap 50.1) reaches the body through no dial either: the list above is
 unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads `portamento`, `filterQ`,
 `filterType`, `attackCurve`, `releaseCurve` or `bus.frequency`, and `bodyLineDials` still reads only the three layer
-gain links (pinned by `src/docs/robotArticulationDocs.test.ts`). Attack and Release still feed the Lights and Body
+gain links. Attack and Release still feed the Lights and Body
 scale as before, through `bodyShapeFromAdsr`.
 
 The two sends (`Robot.reverbSend` / `Robot.delaySend`, the Reverb and Delay sliders; roadmap 50.2) reach the body
 through no dial either, and a send swell moves a slider, never the gem: nothing under `src/components/robot/gem/` or in
-`RobotBody.tsx` reads either field (pinned by `src/docs/robotSendsDocs.test.ts`). A robot's depth in the echo is a
+`RobotBody.tsx` reads either field. A robot's depth in the echo is a
 property of the audio graph only; its body is still identity and seed. The same holds for the three Robot Effect Sends
 (`Robot.gritSend` / `Robot.shimmerSend` / `Robot.doubleSend`, the Grit, Shimmer and Double sliders; roadmap 50.7): they
-reach the body through no dial (pinned by `src/docs/robotEffectSendsDocs.test.ts`).
+reach the body through no dial.
 
 Robot Performance (`Robot.dynamics` / `rests` / `accents`, the melody's `rest` / `mark` stamps and the global Humanize; roadmap
 50.5) reaches the body through no dial either: nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads `dynamics`,
-`rests`, `accents`, `.rest`, `.mark` or `humanize` (pinned by `src/docs/robotPerformanceDocs.test.ts`). A note struck harder, cut
+`rests`, `accents`, `.rest`, `.mark` or `humanize`. A note struck harder, cut
 short or landing a few milliseconds late is a property of the performance only; the gem keeps its seeded geometry and the three
 audio dials above.
 

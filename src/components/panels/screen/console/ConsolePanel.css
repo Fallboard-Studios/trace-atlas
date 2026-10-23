@@ -28,7 +28,7 @@
   height: 100%;
   min-height: 160px;
   /* Confirmed dead — zero .tsx consumers of .console-panel__stub anywhere in
-     the app (docs/specs/TYPE_SCALE.md §7 item 5); migrated anyway per that
+     the app (docs/specs/archive/TYPE_SCALE.md §7 item 5); migrated anyway per that
      item's own instruction, for consistency with the rest of this pass. */
   font-size: var(--font-size-label);
   color: rgba(255, 255, 255, 0.75);

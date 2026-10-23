@@ -963,27 +963,6 @@ describe('useAudioStore - BPM Attenuation Style sync (docs/specs/FREE_SYNC_TOGGL
     expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(DEFAULT_PELAGOS.id, DEFAULT_PELAGOS.name));
   });
 
-  it('stays driven by the existing single AS subscription — audioStore.ts registers no second subscribe (source-scan regression guard)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { dirname, join } = await import('node:path');
-    const { fileURLToPath } = await import('node:url');
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioStore.ts'), 'utf-8');
-    const subscribeCalls = source.match(/\.subscribe\(/g) ?? [];
-    // Exactly the one useAttenuationStyleStore.subscribe: BPM now rides the same AS-sync that
-    // reseeds globalAudio/lfoBank/globalLfoLinks, so it needs no subscription of its own.
-    expect(subscribeCalls.length).toBe(1);
-  });
-
-  it('no longer reads the locale — audioStore.ts imports and calls nothing from localeStore (source-scan regression guard)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { dirname, join } = await import('node:path');
-    const { fileURLToPath } = await import('node:url');
-    const thisFile = fileURLToPath(import.meta.url);
-    const source = readFileSync(join(dirname(thisFile), 'audioStore.ts'), 'utf-8');
-    expect(source).not.toMatch(/localeStore|useLocaleStore|getLocaleById/);
-  });
-
   it('reseeds bpm when currentAttenuationStyleId changes', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');

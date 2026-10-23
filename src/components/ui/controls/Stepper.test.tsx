@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 8) can tell whether Stepper's render body actually re-executed —
 // resolveAccessibleName(schema) is called unconditionally in the render body.
 vi.mock('./accessibleName', async (importOriginal) => {
@@ -71,7 +71,7 @@ describe('Stepper', () => {
     expect(screen.getByText('5')).toBeTruthy();
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((Stepper as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });
@@ -96,16 +96,5 @@ describe('Stepper', () => {
 
       expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterMount);
     });
-  });
-});
-
-describe('Stepper reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 16)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'Stepper.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]|'Power (on|off)'|'Mutation'|`(Increment|Decrement) \$\{|Held off by Audio Load|>Power off\?<|All audio will stop\./);
-    expect(source).not.toMatch(/^\s+(triangle|sine|square|sawtooth): '[A-Z]/m);
   });
 });

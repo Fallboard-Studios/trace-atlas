@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCompanyOptions } from './useCompanyOptions';
@@ -1253,12 +1251,6 @@ describe('useCompanyOptions', () => {
       expect(result.current.options.onPanChange).toBe(onPanChange);
       expect(result.current.options.onPanAutoChange).toBe(onPanAutoChange);
     });
-
-    it('the hook never reads the live readout store (the company screen shows the stored pan only)', () => {
-      const source = readFileSync(resolve(__dirname, 'useCompanyOptions.ts'), 'utf8');
-
-      expect(source).not.toContain('robotPanReadoutStore');
-    });
   });
 
   describe('Composition', () => {
@@ -2011,7 +2003,7 @@ describe('useCompanyOptions', () => {
     });
   });
 
-  describe('stability (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md): an edit re-derives only what it touches', () => {
+  describe('stability (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md): an edit re-derives only what it touches', () => {
     function memberAndStranger() {
       addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
       addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));

@@ -1,6 +1,6 @@
 /**
  * Canonical section/subsection shape for a robot/company's Levels/Composition/Envelope/Source
- * stacked view (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — one source of truth for
+ * stacked view (docs/specs/archive/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — one source of truth for
  * RobotScreen.tsx and CompanyScreen.tsx (their section tabs, docs/tasks/LAYOUT_REWORK.md Tasks 16 and 23)
  * and the breadcrumb (navActions.ts), which
  * otherwise each hand-duplicate the exact same id/label/trait table and risk
@@ -8,7 +8,7 @@
  * be typed out).
  *
  * Every literal id/label/trait below is transcribed from current shipped source, not invented —
- * see docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md §1.3/§2 for the citations this was checked
+ * see docs/specs/archive/ROBOT_SECTION_CONFIG_CONSOLIDATION.md §1.3/§2 for the citations this was checked
  * against.
  */
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
@@ -75,7 +75,7 @@ export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
     id: 'source', content: 'probe.source', trait: 'spectral', accordion: 'probe.source',
     subsections: [
-      // navLabel/accordionLabel renamed together (docs/reference/text-content-tables.md:
+      // navLabel/accordionLabel renamed together (docs/reference/archive/text-content-tables.md:
       // Baseline/Coaxial/Harmonic Oscillator -> Core/Companion/Accent Oscillator) — unlike
       // Rhythm/Composition or Contour/Envelope above, these 2 fields were always identical for
       // each of these 3 subsections, not a deliberate divergence, so both move together.

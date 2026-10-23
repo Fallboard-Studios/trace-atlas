@@ -29,7 +29,7 @@
    CabinetBox's front face is otherwise content-driven (Button) or a
    caller-forced fixed size (Toggle); this scopes the same override
    technique to voxel-track boxes specifically, mirroring
-   docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.2 exactly. See this item's own
+   docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md §1.2 exactly. See this item's own
    §1.3. */
 .sc-voxel-track .sc-cabinet-box__front {
   width: var(--voxel-box-size);

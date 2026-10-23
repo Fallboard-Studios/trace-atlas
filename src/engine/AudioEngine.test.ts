@@ -27,7 +27,7 @@ vi.mock('tone', () => ({
     scheduleRepeat: vi.fn(() => 1),
   })),
   // Tone.getContext().setTimeout is the AudioContext-clock-based, tempo-independent
-  // scheduling primitive scheduleVoiceRelease uses (docs/specs/BPM_CONTROL.md's
+  // scheduling primitive scheduleVoiceRelease uses (docs/specs/archive/BPM_CONTROL.md's
   // bug-fix follow-up) — distinct from Transport.scheduleOnce, which resolves a
   // '+N' offset against Transport's own tick timeline and is therefore skewed by
   // any bpm change between scheduling and firing.
@@ -537,7 +537,7 @@ describe('AudioEngine - Polyphony Management', () => {
     });
   });
 
-  // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.3): two module-state inputs the budget system
+  // Audio Load Budget (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.3): two module-state inputs the budget system
   // pushes in — the set of robots allowed to sound, and a dynamic polyphony ceiling. Both default to
   // "no restriction" so the engine behaves exactly as before until (and unless) something pushes them.
   describe('Audio Load Budget gate (sounding set + dynamic polyphony cap)', () => {
@@ -762,7 +762,7 @@ describe('AudioEngine - Polyphony Management', () => {
   // (bpm decreased) or early (bpm increased). Enough skew — one Tempo slider
   // drag while 16 notes are in flight is enough — strands activeVoices at
   // MAX_POLYPHONY for an extended stretch, silently blocking every new
-  // trigger. docs/specs/BPM_CONTROL.md's bug-fix follow-up.
+  // trigger. docs/specs/archive/BPM_CONTROL.md's bug-fix follow-up.
   describe('Voice release scheduling is tempo-independent', () => {
     it('schedules the release via the AudioContext clock (context.setTimeout), not Transport.scheduleOnce', async () => {
       const Tone = await import('tone');
@@ -1611,7 +1611,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
     expect(result).toBe(true);
   });
 
-  it('falls back to a stub panner/gain/filter when a Tone constructor is unavailable, and reservation still succeeds (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 5)', async () => {
+  it('falls back to a stub panner/gain/filter when a Tone constructor is unavailable, and reservation still succeeds (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 5)', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const Tone = await import('tone');
@@ -1628,7 +1628,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
     }
   });
 
-  it('falls back to a fully stubbed composite voice when construction throws, and reserveVoice returns false without throwing (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 5)', async () => {
+  it('falls back to a fully stubbed composite voice when construction throws, and reserveVoice returns false without throwing (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 5)', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const Tone = await import('tone');
@@ -1645,7 +1645,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
     }
   });
 
-  it('triggerWithCap no longer sets the panner\'s pan directly — that\'s updateAllPanners\' job now, once per tick (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 6)', async () => {
+  it('triggerWithCap no longer sets the panner\'s pan directly — that\'s updateAllPanners\' job now, once per tick (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 6)', async () => {
     const { AudioEngine, triggerWithCap } = await import('./AudioEngine');
     await AudioEngine.start();
     const storeMod = await import('../stores/localeStore');
@@ -1951,7 +1951,7 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
     });
   });
 
-  // ── setBPM (docs/specs/BPM_CONTROL.md §1.6) ───────────── //
+  // ── setBPM (docs/specs/archive/BPM_CONTROL.md §1.6) ───────────── //
   describe('setBPM()', () => {
     // Deliberately instant, not ramped — see the doc comment on setBPM itself.
     // A ramp that gets cancelled and restarted on every rapid call (exactly

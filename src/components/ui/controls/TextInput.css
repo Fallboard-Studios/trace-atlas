@@ -35,7 +35,7 @@
    free defensive scoping — TextInput's own content (DualLabel + a native
    <input>) never contains a nested CabinetBox, so unlike DirectionalPanel
    there's no real selector-scoping ambiguity to solve
-   here. See docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.3. */
+   here. See docs/specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.3. */
 .sc-text-input-facade > .sc-cabinet-box {
   width: 100%;
 }
@@ -47,7 +47,7 @@
    to be measured against. Needed here, not just carried over from
    DirectionalPanel defensively: real TextInput consumers vary in DualLabel
    line count (CoordsInput's X/Y: 1 line; Company/Attenuation-Style name
-   fields: 2 lines) — see docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.2.
+   fields: 2 lines) — see docs/specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.2.
    Padding (12px 14px) is DirectionalPanel.css's own literal facade value,
    reused as-is — both frame a labeled block of content, not one centered
    inline line (Button's own horizontal-only default). */

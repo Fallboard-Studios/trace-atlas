@@ -15,7 +15,7 @@ vi.mock('./CabinetBox', () => ({
 }));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 7) can tell whether Toggle's render body actually re-executed —
 // resolveAccessibleName(schema) is called unconditionally in the render body.
 vi.mock('./accessibleName', async (importOriginal) => {
@@ -144,7 +144,7 @@ describe('Toggle', () => {
     expect(container.querySelector('.sc-toggle__thumb')).toBeNull();
   });
 
-  it('passes an explicit boxSize straight through as CabinetBox\'s boxHeight, overriding the fixed 44px default (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4)', () => {
+  it('passes an explicit boxSize straight through as CabinetBox\'s boxHeight, overriding the fixed 44px default (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4)', () => {
     render(<Toggle schema={schema} value={false} onChange={() => {}} boxSize={56} />);
     expect(screen.getByTestId('cabinet-box').getAttribute('data-box-height')).toBe('56');
   });
@@ -217,7 +217,7 @@ describe('Toggle', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((Toggle as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

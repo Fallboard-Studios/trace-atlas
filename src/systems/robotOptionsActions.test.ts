@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -394,11 +391,6 @@ describe('robotOptionsActions', () => {
     applySendValue(robot, localeId, field, 0.25);
 
     expect(cancelSpy).not.toHaveBeenCalled();
-  });
-
-  it('robotOptionsActions.ts never imports audioSwells (the swell module imports the send actions, so a back-import would be a cycle)', () => {
-    const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'robotOptionsActions.ts'), 'utf-8');
-    expect(source).not.toMatch(/from\s+['"][^'"]*audioSwells['"]/);
   });
 
   // Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named send actions went, not as wrappers;

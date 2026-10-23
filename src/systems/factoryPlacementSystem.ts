@@ -48,7 +48,7 @@ export const DEFAULT_FACTORY_ROW = 1;
  *  an outlier; most variants sit in the ±15-60 range) so a fresh AS visibly
  *  recolors the skyline without a single roll being able to wash it out
  *  entirely. First-pass default, not spec-mandated — see
- *  docs/specs/ATTENUATION_STYLE.md §7 item 2; tune here if a manual check
+ *  docs/specs/archive/ATTENUATION_STYLE.md §7 item 2; tune here if a manual check
  *  finds it reads as invisible or overwhelming. Shared by factory and scenery
  *  AS-shift draws (roadmap Phase 42 Task 13 gave scenery its own dataId
  *  namespace, not its own magnitude — see deriveAsColorShiftFor below). */
@@ -87,7 +87,7 @@ export function generateFactoryId(noiseMap: NoiseFunction2D, index: number): str
  *  getSeededVal(noiseMap, dataId, offset, min, max) pattern every other seeded field in this
  *  file already uses). `deriveAsColorShift`/`deriveSceneryAsColorShift` below are the named,
  *  per-family entry points real callers use; this is the one body both share.
- *  See docs/specs/ATTENUATION_STYLE.md §1.2. */
+ *  See docs/specs/archive/ATTENUATION_STYLE.md §1.2. */
 function deriveAsColorShiftFor(namespace: AsShiftNamespace, noiseMap: NoiseFunction2D, index: number): ColorShift {
   return {
     hueShift: getSeededVal(noiseMap, `${namespace}.as.hueShift`, index, ...AS_HUE_SHIFT_RANGE),
@@ -188,7 +188,7 @@ export function createFactory(
   const { variant, hueShift: localHue, satShift: localSat, rooftopGreeble, facadeGreeble, beltCourseCount, purpose } = selectVariantFromSeed(id, position.x, row, availableTypes);
 
   // Additive: locale-seeded local shift + AS-seeded shift + Phase 35 accent lean, never a
-  // replacement. See docs/specs/ATTENUATION_STYLE.md §1.2; foldBodyShift (roadmap Phase 42
+  // replacement. See docs/specs/archive/ATTENUATION_STYLE.md §1.2; foldBodyShift (roadmap Phase 42
   // Task 13) is this exact fold, shared with scenery's body-bearing families.
   const { hueShift, satShift } = foldBodyShift(VARIANT_CONF[variant].colors.body, { hueShift: localHue, satShift: localSat }, asShift, accentTarget);
 
@@ -221,7 +221,7 @@ export function createFactory(
  * out the previous AS delta, so repeated AS changes never accumulate drift. Called only from
  * retransmitAttenuationStyleOnly (worldTransition.ts) — never from placeDistrict's own
  * fresh-spawn path, which folds the current AS's shift in at creation time instead. See
- * docs/specs/ATTENUATION_STYLE.md §1.2, docs/specs/WORLD_VIEW_DISTRICTS.md §1.8.
+ * docs/specs/archive/ATTENUATION_STYLE.md §1.2, docs/specs/WORLD_VIEW_DISTRICTS.md §1.8.
  *
  * Structural scenery (crane, pylon, boulder, …) stores no shift and is left untouched —
  * `BODY_BEARING_BASE[kind]` is `undefined` for every one of them, so the scenery branch below

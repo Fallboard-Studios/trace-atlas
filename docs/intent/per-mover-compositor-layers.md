@@ -12,7 +12,7 @@ correction and one note). The correction: the target is any device, not Crawford
 laptop is where the cost became audible (backlog item 26; the baseline in
 [PERFORMANCE.md](../PERFORMANCE.md#desktop-full-screen-underruns-are-raster-bound-2026-10-16)),
 and it is now an anecdote, not a gate. The note: the Deck camera's marker keeps its look and its
-caption. Starts from [backlog item 26](../todo/backlog.md#26-desktop-paint-stage-sized-moving-layers-re-raster-every-frame)
+caption. Starts from [backlog item 26](../todo/archive/backlog-archive.md#26-desktop-paint-stage-sized-moving-layers-re-raster-every-frame)
 and the scene stack in [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#scene-stack--the-stage-the-sheets-and-the-movers).
 
 - **Outcome:** Every per-frame mover in the world view — each robot, each building's bubble

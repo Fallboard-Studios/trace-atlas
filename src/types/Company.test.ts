@@ -83,7 +83,7 @@ describe('Company', () => {
   });
 
   it('rejects a Company literal missing color at the type level — required, not optional', () => {
-    // @ts-expect-error — color is required (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.2)
+    // @ts-expect-error — color is required (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.2)
     const withoutColor: Company = { id: 'company-2-ghi', name: 'Rust Cartel', robotIds: [] };
     expect(withoutColor.id).toBe('company-2-ghi');
   });

@@ -147,7 +147,7 @@ describe('zone-aware renderSquareWindows', () => {
 
 // ========================================
 // WINDOW GRID — LAYOUT/PAINT SPLIT
-// (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 3)
+// (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 3)
 // ========================================
 
 describe('computeWindowGridLayout / paintWindowGrid', () => {

@@ -4,7 +4,7 @@ import './ContentPane.css';
 
 /**
  * The single content area the nav opens into (repurposed from Console.tsx, spec §7 Q6,
- * docs/specs/NAV_LAYOUT_REWRITE.md Task 8; the opaque content surface is docs/specs/LAYOUT_REWORK.md §1.3).
+ * docs/specs/archive/NAV_LAYOUT_REWRITE.md Task 8; the opaque content surface is docs/specs/LAYOUT_REWORK.md §1.3).
  * activeHubTile === null is the Deck, the landing state (nothing picked in the nav yet): it renders
  * nothing, so the world stays bright and clickable — Robot.tsx's own click handler relies on nothing
  * blocking WorldView at this state. (The Welcome accordion and intro card that used to sit here were

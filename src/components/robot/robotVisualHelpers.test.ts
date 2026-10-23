@@ -3,8 +3,8 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-// Phase 39 Task 10: the colour/shape/socket helpers for the hand-drawn robots are deleted (their
-// absence is pinned in legacyRemoval.test.ts); layerLitLevel's cases live in gem/gemPalette.test.ts.
+// Phase 39 Task 10: the colour/shape/socket helpers for the hand-drawn robots are deleted;
+// layerLitLevel's cases live in gem/gemPalette.test.ts.
 import {
   calculateScale,
   computeBatteryDimOpacity,

@@ -1,13 +1,13 @@
 /* The `.console--grid .sc-button` cross-module dependency this comment used to flag no longer
    exists — HubNav (and the console--grid pointer-events mechanism built for it) was retired in
-   docs/specs/HEADER_HUB_CONSOLIDATION.md §1.7. No dependency on this class name from Console.css
+   docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.7. No dependency on this class name from Console.css
    remains. */
 .sc-button {
   display: inline-flex;
   font-family: var(--font-sans);
   font-weight: var(--font-weight-control);
   /* This selector deliberately does NOT establish the shared sc-control
-     size-query container (docs/specs/TYPE_SCALE.md incident, discovered in
+     size-query container (docs/specs/archive/TYPE_SCALE.md incident, discovered in
      a real browser post-Task-6): this element is ALWAYS inline-flex + width:
      fit-content, sized by shrink-to-fit — CSS size containment collapses any
      element to zero width when its own size normally comes from its content
@@ -48,7 +48,7 @@
    textless boxes (SliderLinear et al. — their .sc-voxel-track__fill divs
    carry no text), which stay on the --color-surface default always.
    Confirmed, 2026-09-09: "any front facade with text on it," not every
-   front facade. Toggle's own bare box (docs/specs/OBLIQUE_CABINETRY_TOGGLE.md
+   front facade. Toggle's own bare box (docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md
    §1.3) used to stay on --color-surface unconditionally too, matching this
    rule's original reasoning — Toggle.css now gives it this identical
    gradient fill, but only once checked (Crawford's own request,

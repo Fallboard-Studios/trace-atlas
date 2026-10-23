@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { memo } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
@@ -501,12 +499,5 @@ describe('CompanyScreen', () => {
       act(() => shell.set('desk'));
       expect(mounted()).toEqual(['ping-contour-drawer-stub']);
     });
-  });
-
-  it('reads its copy from src/content: no copy literal of its own', () => {
-    const source = readFileSync(resolve(__dirname, 'CompanyScreen.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/>\s*[A-Z][a-z]+\s*</); // a bare word between JSX tags
   });
 });

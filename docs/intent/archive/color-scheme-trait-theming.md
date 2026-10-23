@@ -1,12 +1,12 @@
 # Intent: Visual Identity — Color Scheme & Trait-Based Theming
 
 Confirmed via `/interview-me` on 2026-09-12. Implements
-[Phase 14](../todo/roadmap.md#14-visual-identity-color-scheme--trait-based-theming), and resolves that
+[Phase 14](../../todo/roadmap.md#14-visual-identity-color-scheme--trait-based-theming), and resolves that
 phase's own open "still being worked out" trait-theming question into a concrete design. Deliberately
 static, not seed-driven — a reversal of the cut Phase 11 approach
-([docs/CONSOLE_THEMING.md](../CONSOLE_THEMING.md)), whose WCAG-safety-for-every-seed guarantee is what
+([docs/CONSOLE_THEMING.md](../../CONSOLE_THEMING.md)), whose WCAG-safety-for-every-seed guarantee is what
 forced that attempt's colors into an unsatisfying band. Source palette:
-[docs/reference/accent-colors.css](../reference/accent-colors.css) — 13 named hues (orange, red, pink,
+[docs/reference/accent-colors.css](../../reference/accent-colors.css) — 13 named hues (orange, red, pink,
 purple, plum, blue, cyan, teal, green, lime, yellow, tangerine, beige) plus black/white/dark-gray.
 
 ## Outcome
@@ -120,7 +120,7 @@ meant to be designed against the real palette rather than being redone once it l
 - Static/hand-picked colors, not seed-driven — consistent with `docs/CONSOLE_THEMING.md`'s decision to
   cut the seed-driven approach over its WCAG-safety-vs-visual-variety tension.
 - WCAG/contrast verification is explicitly **out of scope for this phase** — deferred to
-  [Phase 18](../todo/roadmap.md#18-cabinetry-verification-accessibility--performance), which already
+  [Phase 18](../../todo/archive/roadmap-archive.md#18-cabinetry-verification-accessibility--performance), which already
   names Phase 14's color scheme as something it needs to check. This phase should not block on or
   attempt its own contrast proof.
 - `docs/ROBOT_DESIGN.md`'s "no static palette" guardrail continues to govern the robot's own SVG body

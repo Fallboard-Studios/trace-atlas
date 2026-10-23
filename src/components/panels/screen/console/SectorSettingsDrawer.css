@@ -10,7 +10,7 @@
   gap: 4px;
   padding: 8px 4px;
   border-bottom: 1px solid var(--color-border);
-  /* Scoped here, not at the drawer root (docs/specs/TYPE_SCALE.md §1.5) —
+  /* Scoped here, not at the drawer root (docs/specs/archive/TYPE_SCALE.md §1.5) —
      this is the DualLabel's own real wrapper (STATUS_HEADER_SCHEMA); the
      drawer also renders TextInput/Button, which already set their own
      explicit font-family, so a drawer-root rule would be a bigger blast

@@ -132,18 +132,6 @@ export const probe = {
       disabled: { human: 'Disabled', lore: 'ACOUSTIC EMISSION SUPPRESSED' },
     },
   },
-  /** The audio-mode badge's own value words (robotSelectionConfig AUDIO_MODE_LABELS) — same
-   *  values as probe.monitorMode's radio below but a different legacy lore set; listed as a
-   *  conflict in the inventory for the review gate. */
-  'probe.status.monitorMode': {
-    human: 'Monitor Mode',
-    options: {
-      none: { human: 'Auto', lore: 'OFFLINE' },
-      mute: { human: 'Mute', lore: 'SILENCED' },
-      solo: { human: 'Solo', lore: 'ISOLATED' },
-      highlight: { human: 'Highlight', lore: 'PRIORITIZED' },
-    },
-  },
 
   // ---------------------------------------------------------------- Dynamics / Levels
   'probe.dynamics': { human: 'Dynamics', lore: 'Output' },

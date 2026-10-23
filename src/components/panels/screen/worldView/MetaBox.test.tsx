@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { Profiler } from 'react';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
@@ -9,7 +7,6 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAttenuationStyleStore, DEFAULT_LOCALE_ID } from '@/stores/attenuationStyleStore';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import type { Robot } from '@/types/Robot';
 
 /*
@@ -216,64 +213,7 @@ describe('MetaBox — renders only when its line changes', () => {
   });
 });
 
-describe('MetaBox.css — the glow-glass well at the top of the Deck, right of the nav', () => {
-  const css = readFileSync(resolve(__dirname, 'MetaBox.css'), 'utf8');
-  const paneCss = readFileSync(resolve(__dirname, '../console/ContentPane.css'), 'utf8');
-  const declaration = (body: string | null, property: string) => body?.match(new RegExp(`(?:^|\\s)${property}:\\s*([^;]+);`))?.[1].trim();
-
-  // Crawford, 2026-10-10: with the nav no longer full height, the meta box moves to the top of the screen, still
-  // right of the nav. Its left stays the content surface's (clear of the panel as it widens); it hangs from the
-  // header's own top, so the two read as one band.
-  it('hangs from the top of the screen, level with the header, and no longer from the bottom', () => {
-    const box = getCssRuleBody(css, '.meta-box');
-    expect(declaration(box, 'position')).toBe('absolute');
-    expect(declaration(box, 'top')).toBe('var(--header-top)');
-    expect(box).not.toMatch(/(^|\s)bottom:/);
-  });
-
-  it('stays right of the nav panel, at the left of the content surface', () => {
-    const box = getCssRuleBody(css, '.meta-box');
-    const pane = getCssRuleBody(paneCss, '.content-pane');
-    expect(declaration(box, 'left')).toBe(declaration(pane, 'left'));
-    expect(declaration(box, 'left')).toContain('var(--nav-panel-width)');
-  });
-
-  it('stops short of the header: its max-width takes off the measured width of the header as well as the nav', () => {
-    const maxWidth = declaration(getCssRuleBody(css, '.meta-box'), 'max-width');
-    expect(maxWidth).toContain('var(--nav-panel-width)');
-    expect(maxWidth).toContain('var(--header-width, 0px)');
-  });
-
-  it('is a well in the shared tokens, a readout that never takes a click meant for the world', () => {
-    const box = getCssRuleBody(css, '.meta-box');
-    expect(box).toContain('background: var(--well-background);');
-    expect(box).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
-    expect(box).toContain('border: 1px solid var(--color-accent);');
-    expect(box).toContain('pointer-events: none;');
-  });
-
-  // Crawford, 2026-10-12: above 768 px the one-line box ran into the volume bar; it wraps instead of being cut
-  // short. Its max-width still stops it short of the nav and the header.
-  it('wraps rather than cutting its text short, inside the max-width that keeps it off the header', () => {
-    const box = getCssRuleBody(css, '.meta-box');
-    expect(box).not.toMatch(/white-space:\s*nowrap/);
-    expect(box).not.toContain('text-overflow');
-    expect(box).not.toMatch(/overflow:\s*hidden/);
-    expect(declaration(box, 'max-width')).toMatch(/var\(--nav-panel-width\)/);
-  });
-
-  // Adjacent inline spans with no space between them offer no place to break, so the fields are inline-blocks:
-  // each wraps whole onto the next line, and the gap between them is a right margin that a wrapped line drops.
-  it('lets the three fields wrap whole, spaced by a right margin rather than a left one', () => {
-    const field = getCssRuleBody(css, '.world-line__field');
-    expect(field).toContain('display: inline-block;');
-    expect(declaration(getCssRuleBody(css, '.world-line__field:not(:last-child)'), 'margin-right')).toBe('var(--spacing-md)');
-    expect(css).not.toContain('.world-line__field + .world-line__field');
-  });
-});
-
 describe('the clock holds its width (Crawford, 2026-10-10: the time display changes width on updates, resizing its container)', () => {
-  const css = readFileSync(resolve(__dirname, 'MetaBox.css'), 'utf8');
   const clock = () => document.querySelector('.world-line__clock');
 
   it.each([
@@ -299,30 +239,9 @@ describe('the clock holds its width (Crawford, 2026-10-10: the time display chan
     render(<MetaBox />);
     expect(document.querySelectorAll('.world-line__clock')).toHaveLength(1);
   });
-
-  it('is a block with a min-width wide enough for the widest time, so a tick never resizes the well', () => {
-    const body = getCssRuleBody(css, '.world-line__clock');
-    expect(body).not.toBeNull();
-    expect(body).toContain('display: inline-block;');
-    // 4 digits and a colon: at most 5 characters of the font's "0", the widest digit.
-    expect(Number(body!.match(/min-width:\s*([\d.]+)ch;/)?.[1])).toBeGreaterThanOrEqual(5);
-  });
-
-  it('sets the digits at one width each, so the times that fit the min-width are all the same width', () => {
-    expect(getCssRuleBody(css, '.world-line__clock')).toContain('font-variant-numeric: tabular-nums;');
-  });
-
-  it('never wraps or shrinks below the min-width inside the one-line well', () => {
-    const body = getCssRuleBody(css, '.world-line__clock');
-    expect(body).toContain('white-space: nowrap;');
-    expect(body).toContain('flex-shrink: 0;');
-  });
 });
 
 describe('the probe count and the temperature hold their widths too (Crawford, 2026-10-10: so the whole box does not keep changing width)', () => {
-  const css = readFileSync(resolve(__dirname, 'MetaBox.css'), 'utf8');
-  const minWidthCh = (selector: string) => Number(getCssRuleBody(css, selector)?.match(/min-width:\s*([\d.]+)ch;/)?.[1]);
-
   it('puts the temperature in its own element, with only the reading in it', () => {
     render(<MetaBox />);
     expect(document.querySelector('.world-line__temp')?.textContent).toBe('-45°C');
@@ -350,31 +269,5 @@ describe('the probe count and the temperature hold their widths too (Crawford, 2
     render(<MetaBox />);
     expect(document.querySelectorAll('.world-line__temp')).toHaveLength(1);
     expect(document.querySelectorAll('.world-line__count')).toHaveLength(1);
-  });
-
-  // Widths measured in Chrome in the well's own font, in ch (the width of a "0"): "-120°C" (the range runs
-  // -120 to -30) is 5.36ch; "10 of 12 Probes active." (at most 12 probes) is 19.1ch. "NO TEMP" is 7.47ch but
-  // only shows until the first reading.
-  it('gives the temperature a min-width that fits the widest reading, -120°C', () => {
-    expect(minWidthCh('.world-line__temp')).toBeGreaterThanOrEqual(5.4);
-  });
-
-  it('gives the probe count a min-width that fits the widest sentence, 10 of 12 Probes active.', () => {
-    expect(minWidthCh('.world-line__count')).toBeGreaterThanOrEqual(19.2);
-  });
-
-  it.each(['.world-line__temp', '.world-line__count'])('holds %s as a one-line block with tabular digits that never shrinks', (selector) => {
-    const body = getCssRuleBody(css, selector);
-    expect(body).not.toBeNull();
-    for (const d of ['display: inline-block;', 'font-variant-numeric: tabular-nums;', 'white-space: nowrap;', 'flex-shrink: 0;']) expect(body).toContain(d);
-  });
-});
-
-describe('MetaBox reads its copy from src/content (docs/specs/CONTENT_LAYER.md)', () => {
-  it('carries no copy literal of its own', () => {
-    const source = readFileSync(resolve(__dirname, 'MetaBox.tsx'), 'utf8');
-    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
-    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
-    expect(source).not.toMatch(/'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
   });
 });

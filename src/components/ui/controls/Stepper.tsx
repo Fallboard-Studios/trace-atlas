@@ -60,6 +60,6 @@ function StepperInner({ schema, value, onChange, disabled }: StepperProps) {
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8) — every prop is a primitive
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8) — every prop is a primitive
 // or stable schema object; the default shallow compare is correct.
 export const Stepper = memo(StepperInner);

@@ -20,7 +20,7 @@ interface ToggleProps {
    *  it also has facade content (children, below) — an explicit boxSize
    *  always wins over content-sizing. Omitted (and no children), behavior
    *  is identical to before this prop existed.
-   *  docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4. */
+   *  docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4. */
   boxSize?: number;
   /** Optional facade content — an icon (Header's Mute, 🔇/🔊) or short text
    *  (PingControlsDrawer's Click Track) rendered on CabinetBox's own front
@@ -42,7 +42,7 @@ interface ToggleProps {
  * NOT the breakpoint-driven 32/40/48px tiers Button's own content-sized box
  * uses (roadmap 11.1.1). Toggle sits inline next to its own DualLabel row
  * rather than filling a hub tile, so there's no content to accommodate at a
- * larger size on wider viewports. See docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.2.
+ * larger size on wider viewports. See docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md §1.2.
  * Applies only to the bare (no facade content) case — see `children` above.
  */
 export const CABINET_TOGGLE_BOX_SIZE = 44;
@@ -58,7 +58,7 @@ export const CABINET_TOGGLE_BOX_SIZE = 44;
  * used before), keyed directly off `value` (never hover/focus/press, unlike
  * Button). `popped` mirrors `value` even when `disabled` — a disabled-but-
  * checked toggle still visually reads as on, just non-interactive; see
- * docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.4.
+ * docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md §1.4.
  * The root also carries a plain `isActive` class (alongside Radix's own
  * `data-state` on the switch itself) so a consumer can write
  * `.sc-toggle.isActive { ... }` instead of a `:has()` attribute selector.
@@ -83,7 +83,7 @@ function ToggleInner({ schema, value, onChange, disabled, boxSize, children }: T
   // boxSize reaches Toggle.css's own front-face size override, not just
   // CabinetBox's boxHeight prop below — both must agree, or the front face
   // stays visually stuck at 32px while the wall geometry pops at a
-  // different size. docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4. Unused
+  // different size. docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4. Unused
   // (and not applied — see the --bare modifier class below) when
   // contentSized, since the fixed-square rule it feeds doesn't apply then.
   const cabinetTokens = {
@@ -113,7 +113,7 @@ function ToggleInner({ schema, value, onChange, disabled, boxSize, children }: T
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7) — the bare (no `children`) call
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7) — the bare (no `children`) call
 // shape every existing consumer but Header's Mute uses gets a guaranteed bail-out; a caller
 // passing `children` inline (a fresh element reference every render) defeats it regardless of
 // memoization here — see docs/COMPONENT_LIBRARY.md.

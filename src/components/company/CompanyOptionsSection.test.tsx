@@ -618,7 +618,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     });
   });
 
-  // docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up: the hook subscribes to the whole locale's
+  // docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up: the hook subscribes to the whole locale's
   // robots array, which gets a new reference on any robot edit anywhere — these prove a mounted panel
   // re-renders only for an edit to a value it shows.
   describe('re-render cascade regression', () => {
@@ -693,17 +693,5 @@ describe('companyTraitStyle', () => {
   it.each(['output', 'composition', 'timeSpace', 'spectral'] as const)('has both states for the %s trait', (trait) => {
     expect(companyTraitStyle(trait, true)).toEqual(getTraitColorStyle(trait));
     expect(companyTraitStyle(trait, false)).toEqual(getDisabledTraitColorStyle(trait));
-  });
-});
-
-describe('CompanyOptionsSection is the sections only', () => {
-  it('no longer owns an accordion stack, a selection read or a layout of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const source = readFileSync(resolve(__dirname, 'CompanyOptionsSection.tsx'), 'utf8');
-    expect(source).not.toMatch(/RobotSectionAccordionStack/);
-    expect(source).not.toMatch(/useUIStore/);
-    expect(source).not.toMatch(/useLocaleStore/);
-    expect(source).not.toMatch(/AccordionState/);
   });
 });

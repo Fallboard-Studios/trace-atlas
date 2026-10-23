@@ -1,5 +1,5 @@
 /**
- * ControlSchema types, resolving docs/tasks/ARCHITECTURE_AND_COMPONENTS_PLAN.md
+ * ControlSchema types, resolving docs/tasks/archive/ARCHITECTURE_AND_COMPONENTS_PLAN.md
  * Task 1. One interface per stateless UI primitive (docs/specs/
  * ARCHITECTURE_AND_COMPONENTS.md §4) — every later drawer phase (Audio Rig,
  * Sector Settings, Robot Options) renders its content through these schemas
@@ -43,7 +43,7 @@ export interface StepperWithToggleSchema extends ControlSchemaBase {
 
 /**
  * Rendering orientation for the 3 slider primitives (SliderLinear/SliderLog/
- * SliderCenteredZero) — docs/specs/VERTICAL_SLIDERS.md. 'horizontal'/'vertical'
+ * SliderCenteredZero) — docs/specs/archive/VERTICAL_SLIDERS.md. 'horizontal'/'vertical'
  * render fixed; 'auto' resolves at render time via useAutoSliderOrientation,
  * measuring the slider's parent element and picking whichever axis is longer.
  */
@@ -122,7 +122,7 @@ export interface SliderCenteredZeroSchema extends ControlSchemaBase, SliderVerti
 
 export interface RadioButtonSchema extends ControlSchemaBase {
   type: 'radio';
-  /** color is optional and additive (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.3) — an
+  /** color is optional and additive (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.3) — an
    *  option that sets it gets that hex scoped to its own CabinetBox via getRobotColorStyle
    *  (rest-state hint + a stronger tint when selected, through the same ambient-CSS-custom-
    *  property mechanism every other trait/identity color already uses); an option that omits it
@@ -130,7 +130,7 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  loreLabel is optional and additive too — an option that sets it renders both (via DualLabel,
    *  the same lore-caption-over-human-label pairing every other control primitive shows), an
    *  option that omits it renders `humanLabel` alone exactly as before. Not every option set has a
-   *  documented lore counterpart (docs/reference/text-content-tables.md's Waveform Names table is
+   *  documented lore counterpart (docs/reference/archive/text-content-tables.md's Waveform Names table is
    *  the only one that does today), so this is per-option, not a schema-wide requirement. */
   options: { value: string; humanLabel: string; loreLabel?: string; color?: string; dividerBefore?: boolean }[];
   /** 'cabinet' (the default, omitted by every consumer before the off screen) is the popped cabinetry
@@ -163,10 +163,6 @@ export interface DualLabelSchema extends ControlSchemaBase {
   type: 'dualLabel';
 }
 
-export interface AccordionSchema extends ControlSchemaBase {
-  type: 'accordion';
-}
-
 /** docs/specs/LFO_BANK.md §1.5 — LfoLink primitive's schema (lane RadioButton + Depth slider). */
 export interface LfoLinkSchema extends ControlSchemaBase {
   type: 'lfoLink';
@@ -185,11 +181,11 @@ export interface LfoLinkSchema extends ControlSchemaBase {
  *  measurement — every 'responsive' panel resolves identically ('column' on
  *  mobile/tablet, 'row' on desktop), unlike 'auto', which can resolve
  *  differently per instance depending on how much room that instance's own
- *  parent has (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2). */
+ *  parent has (docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2). */
 export type PanelOrientation = 'row' | 'column' | 'auto' | 'responsive';
 
 /** Pure layout container — groups already-rendered controls into a row or
- *  column flex box. No value/onChange: docs/specs/DIRECTIONAL_PANEL.md. */
+ *  column flex box. No value/onChange: docs/specs/archive/DIRECTIONAL_PANEL.md. */
 export interface DirectionalPanelSchema extends ControlSchemaBase {
   type: 'directionalPanel';
   orientation?: PanelOrientation;
@@ -199,17 +195,17 @@ export type ControlSchema =
   | StepperSchema | StepperWithToggleSchema
   | SliderLinearSchema | SliderLogSchema | SliderCenteredZeroSchema
   | RadioButtonSchema | ToggleSchema | TextInputSchema | CoordsInputSchema
-  | ButtonSchema | DualLabelSchema | AccordionSchema | LfoLinkSchema
+  | ButtonSchema | DualLabelSchema | LfoLinkSchema
   | DirectionalPanelSchema;
 
 /** Every ControlSchema discriminant, paired with the union per the pattern
  *  src/types/lfo.ts established (LFO_SHAPES, ROBOT_LFO_TARGET_IDS) — makes
- *  "all 14 variants covered, no duplicates" a runtime-testable assertion. */
+ *  "all 13 variants covered, no duplicates" a runtime-testable assertion. */
 export const CONTROL_SCHEMA_TYPES: readonly ControlSchema['type'][] = [
   'stepper', 'stepperToggle',
   'sliderLinear', 'sliderLog', 'sliderCenteredZero',
   'radio', 'toggle', 'textInput', 'coordsInput',
-  'button', 'dualLabel', 'accordion', 'lfoLink',
+  'button', 'dualLabel', 'lfoLink',
   'directionalPanel',
 ];
 

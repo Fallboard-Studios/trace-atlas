@@ -23,7 +23,7 @@
 .sc-directional-panel__content {
   display: flex;
   flex-direction: row;
-  /* 'row' never wraps — a deliberate decision (docs/specs/DIRECTIONAL_PANEL.md
+  /* 'row' never wraps — a deliberate decision (docs/specs/archive/DIRECTIONAL_PANEL.md
      §1.4, confirmed during design discussion, 2026-09-04), not an oversight.
      This was shipped as `wrap` instead — the opposite of the documented
      decision — a pre-existing bug found while debugging the voxel-track
@@ -65,7 +65,7 @@
    content from the space-distribution calculation entirely, so every row
    child's width is stable and content-independent.
    Scoped to [data-orientation='row'] specifically — bugfix,
-   docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md Task 8. Applying the same
+   docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md Task 8. Applying the same
    flex-basis: 0 unconditionally to COLUMN orientation targets that axis's
    main axis instead (height, not width): in a top-level, autoHeight
    Cabinetry facade (height itself 'auto'/content-sized), a flex-basis-0
@@ -95,7 +95,7 @@
    combinators, not descendant selectors: a child control's own nested
    CabinetBox (a Slider, Button, etc. rendered somewhere inside `children`)
    must never be caught by either rule. See
-   docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.3. */
+   docs/specs/archive/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.3. */
 .sc-directional-panel-facade>.sc-cabinet-box {
   width: 100%;
   /* The tab content's background (Crawford, 2026-10-18): a faint wash of the section's darker trait tone on

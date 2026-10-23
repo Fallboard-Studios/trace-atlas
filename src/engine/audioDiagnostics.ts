@@ -53,7 +53,7 @@ export interface DiagInfo {
   audibleRobots: number;
   /** Size of the active locale's roster. 0 until robots have spawned. */
   totalRobots: number;
-  /** The Robot Load slider, 0–1 (docs/specs/AUDIO_LOAD_BUDGET.md). NaN until the first sample. */
+  /** The Robot Load slider, 0–1 (docs/specs/archive/AUDIO_LOAD_BUDGET.md). NaN until the first sample. */
   robotLoad: number;
   /** The Effects Load slider, 0–1. NaN until the first sample. */
   effectsLoad: number;

@@ -6,12 +6,12 @@ import type { Trait } from '@/types/traits';
 
 /**
  * One 2-color pair per trait, hand-picked from ACCENT_COLORS — analogous hues only (see
- * docs/intent/color-scheme-trait-theming.md), so both the color-mix() midpoint (--color-accent)
+ * docs/intent/archive/color-scheme-trait-theming.md), so both the color-mix() midpoint (--color-accent)
  * and the literal linear-gradient (--color-accent-gradient) stay clean rather than muddy. Header's
  * pair doubles as src/index.css's app-wide ambient default (see that file's own :root block) —
  * kept here too so it isn't a value declared in two places, just referenced from one call site.
  * ACCENT_COLORS.beige is deliberately unused by any pair — reserved for later, not an oversight
- * (see docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.3).
+ * (see docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.3).
  *
  * Rebalanced (2026-09-12, Crawford's own request) when emerald/indigo were added: Header's
  * original pairing of the two new hues sat 96° apart on the hue wheel — the only pair in the
@@ -78,7 +78,7 @@ type AccentCSSProperties = CSSProperties &
  * whatever they resolved to wherever that outer property was first read, not the local override.
  * The fix computes --color-accent/--color-accent-gradient with the 2 literal colors baked directly
  * into the color-mix()/linear-gradient() calls, right here — no second layer of custom-property
- * indirection left for a browser to get wrong. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.2's
+ * indirection left for a browser to get wrong. See docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.2's
  * amendment.
  */
 function buildAccentStyle(a: string, b: string): AccentCSSProperties {

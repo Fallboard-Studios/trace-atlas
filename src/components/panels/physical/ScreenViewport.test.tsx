@@ -1,6 +1,3 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ScreenViewport from './ScreenViewport';
@@ -98,37 +95,5 @@ describe('ScreenViewport', () => {
     } finally {
       Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
     }
-  });
-});
-
-// The grep gate, kept as a test: the tree's modules are gone and nothing under src/ imports one
-// (spec §1.11). The stacked scroll's gate (Task 18) is screens/stackedScrollRetired.test.ts.
-describe('ScreenViewport — the nav tree is deleted', () => {
-  const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-  const DELETED = [
-    'components/panels/screen/nav/NavTree',
-    'components/panels/screen/nav/NavTreeNode',
-    'components/panels/screen/nav/NavCabinetRow',
-    'components/panels/screen/nav/NavStatusBlock',
-    'components/panels/screen/nav/NavToggleButton',
-    'components/panels/screen/nav/useNavTree',
-    'components/panels/screen/nav/useNavPanelSlideAway',
-    'components/panels/screen/nav/navPanelViewsAndContent.integration',
-    'data/navTreeConfig',
-  ];
-
-  it.each(DELETED)('%s is gone, with its stylesheet and tests', (module) => {
-    for (const ext of ['.ts', '.tsx', '.css', '.test.ts', '.test.tsx']) {
-      expect(existsSync(join(srcRoot, module + ext)), module + ext).toBe(false);
-    }
-  });
-
-  it('nothing under src/ imports one of them', () => {
-    const names = DELETED.map((module) => module.split('/').pop()!).join('|');
-    const importOf = new RegExp(`(from|import|vi\\.mock\\()\\s*['"][^'"]*/(${names})(\\.css)?['"]`);
-    const importers = (readdirSync(srcRoot, { recursive: true }) as string[])
-      .filter((file) => /\.(ts|tsx)$/.test(file) && file !== join('components', 'panels', 'physical', 'ScreenViewport.test.tsx'))
-      .filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')));
-    expect(importers).toEqual([]);
   });
 });

@@ -97,7 +97,7 @@ UI-only, JSON-serializable state (`src/stores/uiStore.ts`): `isPoweredOn`, `acti
 
 ## Radix Primitives in Use
 
-Installed and in use: `react-alert-dialog`, `react-dialog`, `react-dropdown-menu`, `react-popover`, `react-select`, `react-separator`, `react-slider`, `react-switch`, `react-tabs`, `react-toggle`, `react-toggle-group`, `react-toolbar`, `react-tooltip`, `react-visually-hidden`. Radix owns ARIA roles, focus trapping and keyboard contracts; project design tokens own visual styling — don't install `@radix-ui/themes`. The two sheets on the phone (nav and Move) are `Dialog`s; the help "?" and the desk Move panel are `Popover`s; `SectionTabs` is `Tabs`.
+Installed and in use: `react-alert-dialog`, `react-dialog`, `react-popover`, `react-slider`, `react-switch`, `react-tabs`, `react-toggle`, `react-toggle-group`, `react-visually-hidden`. Radix owns ARIA roles, focus trapping and keyboard contracts; project design tokens own visual styling — don't install `@radix-ui/themes`. The two sheets on the phone (nav and Move) are `Dialog`s; the help "?" and the desk Move panel are `Popover`s; `SectionTabs` is `Tabs`.
 
 ## Forbidden Patterns
 

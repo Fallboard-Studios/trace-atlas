@@ -288,7 +288,7 @@ export function OceanScene({
     <div className="ocean-scene" ref={sceneRef}>
       {/* The stage is as large as its sheets' viewBox (one size, so a sheet that fills it needs no
           preserveAspectRatio), set inline rather than in the stylesheet: OceanScene.css fixes no
-          width here, and the phone shell's 320 px guard (shell320.css.test.ts) walks every sheet. */}
+          width here, so no shell stylesheet carries a fixed width wider than the phone shell's 320 px. */}
       <div className="ocean-scene__stage" style={{ width, height }}>
         {/* Static back layer: ocean floor, background factories, tint A. */}
         <Sheet slot="back" width={width} height={height}>

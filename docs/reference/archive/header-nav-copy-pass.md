@@ -1,5 +1,7 @@
 # Trace Atlas: Header & Nav Copy Pass
 
+> Archived 2026-10-22 from the repo root's `Claude outputs/trace_atlas_tables.md`, added 2026-09-29. This is the copy pass the Content Layer took its nav labels from. The live copy is in `src/content/`.
+
 ## 1. Header
 
 | Element | Lore | Human | Status in code |

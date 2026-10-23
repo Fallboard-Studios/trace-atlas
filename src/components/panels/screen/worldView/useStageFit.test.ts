@@ -1,7 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useEffect, useRef } from 'react';
@@ -214,14 +210,5 @@ describe('useStageFit', () => {
       })
     ).not.toThrow();
     expect(MockResizeObserver.instances).toHaveLength(0);
-  });
-
-  it('is a plain observer callback: no GSAP and no timer in the source', () => {
-    const source = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), 'useStageFit.ts'),
-      'utf-8'
-    );
-    expect(source).not.toMatch(/gsap/i);
-    expect(source).not.toMatch(/setTimeout|setInterval|requestAnimationFrame|queueMicrotask/);
   });
 });

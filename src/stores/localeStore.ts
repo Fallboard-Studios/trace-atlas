@@ -33,7 +33,7 @@ import { swallow } from '../utils/helpers';
  * Clamp a { active, value } toggle payload (rhythmicMotifLength/noteVariance) to
  * [min, max], deriving `active` from the clamped `value` (`value > 0`) rather than
  * trusting whatever the caller supplied for `active` — the single central enforcement
- * point for the value > 0 <=> active invariant (docs/specs/STEPPER_TO_SLIDER.md); every
+ * point for the value > 0 <=> active invariant (docs/specs/archive/STEPPER_TO_SLIDER.md); every
  * store-mediated write funnels through here via updateRobot. Returns undefined for
  * anything that isn't a well-formed object with a finite `value` — notably the old
  * pre-refactor bare-number shape — so the caller can reject it instead of
@@ -66,9 +66,9 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 // to collapse to a low- or zero-entropy result). getLocaleNoiseMap
 // (src/utils/noiseMaps.ts) now hashes (x, y) directly instead of sampling
 // simplex noise at the point, which structurally eliminates that class of
-// bug — no coordinate is unsafe anymore (see docs/specs/LOCALE_SEED_DECOUPLING.md).
+// bug — no coordinate is unsafe anymore (see docs/specs/archive/LOCALE_SEED_DECOUPLING.md).
 // Still rounded to an integer because CoordsInput.tsx/SectorSettingsDrawer.tsx
-// both assume coordinates are integers system-wide (docs/specs/SECTOR_SETTINGS.md)
+// both assume coordinates are integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md)
 // — randomCoordinate() already rounds, so this stays true without extra work.
 //
 // `?x=`/`?y=` boot-time override removed (roadmap Phase 21 — superseded by
@@ -88,7 +88,7 @@ const DEFAULT_LOCALE: Locale = {
   name: 'Pelagos Ocean',
   coordinates: DEFAULT_LOCALE_COORDINATES,
   // Computed once at module load via the same x-derived formula buildLocale
-  // uses (worldTransition.ts) — see docs/specs/ATTENUATION_STYLE.md §1.1.
+  // uses (worldTransition.ts) — see docs/specs/archive/ATTENUATION_STYLE.md §1.1.
   dayStartTimestamp: Date.now() - (Math.abs(DEFAULT_LOCALE_COORDINATES.x % 24) / 24) * DAY_DURATION_MS,
   // Literal 0, not getCurrentMeasure() -- this module-level constant is constructed before
   // BeatClock could ever have advanced past its own 0 default, and calling getCurrentMeasure()
@@ -103,7 +103,7 @@ const DEFAULT_LOCALE: Locale = {
 
 // Reuse DEFAULT_LOCALE.coordinates rather than a second hardcoded x/y pair
 // that could silently drift from it. getLocaleNoiseMap no longer takes an
-// Attenuation Style argument at all (see docs/specs/LOCALE_SEED_DECOUPLING.md) — the
+// Attenuation Style argument at all (see docs/specs/archive/LOCALE_SEED_DECOUPLING.md) — the
 // locale noise map is purely a function of these coordinates.
 getLocaleNoiseMap(DEFAULT_LOCALE_ID, DEFAULT_LOCALE.coordinates.x, DEFAULT_LOCALE.coordinates.y);
 

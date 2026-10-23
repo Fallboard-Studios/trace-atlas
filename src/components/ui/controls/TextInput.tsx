@@ -24,19 +24,19 @@ interface TextInputProps {
  *
  * Renders through a permanently-popped, non-animating CabinetBox facade
  * (roadmap Phase 11.1.9) — the same static-facade mechanism DirectionalPanel
- * (docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md) already uses:
+ * (docs/specs/archive/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md) already uses:
  * popped={true} (a literal, never a variable) plus skipMountAnimation, so
  * CabinetBox's own unmodified mount/transition logic never actually
  * produces a tween for this instance. autoHeight lets the box's own real
  * content height (DualLabel's 1 or 2 lines, depending on which labels the
  * schema sets, plus the input row) drive the facade's size — see
- * docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.2 for why a fixed
+ * docs/specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.2 for why a fixed
  * breakpoint-tier height (Button's own pattern) doesn't fit every real
  * consumer here.
  *
  * Unlike DirectionalPanel, every instance renders its own facade
  * unconditionally — no nesting-context, no per-instance opt-out
- * (docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1, confirmed intent).
+ * (docs/specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1, confirmed intent).
  * CoordsInput composes two of these and needs no code of its own to end up
  * with two independent facades. The native <input> itself is completely
  * unaffected — no new interaction, no hover/focus/disabled-reactive pop;
@@ -80,6 +80,6 @@ function TextInputInner({ schema, value, onChange, numeric, disabled }: TextInpu
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7) — every prop is a primitive
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7) — every prop is a primitive
 // or stable schema object; the default shallow compare is correct.
 export const TextInput = memo(TextInputInner);

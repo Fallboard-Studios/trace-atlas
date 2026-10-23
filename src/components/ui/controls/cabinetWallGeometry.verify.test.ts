@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // The empirical skew-direction verification flagged as the highest-risk
-// item in docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md §5/§7 — the
+// item in docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md §5/§7 — the
 // algebra in §1.2 is only trustworthy once confirmed against what GSAP
 // actually writes to the DOM, not assumed. Uses the REAL gsap library
 // (overriding vitest.setup.ts's global noop mock for this file only, same

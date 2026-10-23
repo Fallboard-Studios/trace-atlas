@@ -2,7 +2,7 @@
  * ControlSchema data for Robot Options' 4 sections (Roadmap Phase 9), following
  * audioRigConfig.ts's structural pattern — typed block/param arrays, not one flat schema list.
  * Field-for-field from docs/reference/ROBOT_DATA_GRID.md, with the numeric-range/behavior
- * corrections confirmed via /interview-me and recorded in docs/specs/ROBOT_OPTIONS.md §7:
+ * corrections confirmed via /interview-me and recorded in docs/specs/archive/ROBOT_OPTIONS.md §7:
  * Density uses RHYTHMIC_DENSITY_MIN/MAX (0-100, not the grid's stale 1-16), Audio Setting
  * includes a 4th "Off" option, Signature Array has no 'noise' Type option, and Detune is ±50
  * cents (the grid's number — the removed per-layer editor's ±100 was the stale one).
@@ -188,7 +188,7 @@ export const PHRASING_PANEL_SCHEMA: DirectionalPanelSchema = {
 };
 
 // 'responsive', not fixed 'row' — Density/Motif Length/Pitch Repeat each get their own row on
-// mobile/tablet, share one row on desktop. docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4.
+// mobile/tablet, share one row on desktop. docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4.
 export const RHYTHM_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.rhythm',
   type: 'directionalPanel',
@@ -264,9 +264,9 @@ export const MOTIF_LENGTH_SCHEMA: SliderLinearSchema = {
  * Increasingly locks a tiled motif's repeated cells to the base cell's pitches (0-100, same
  * SliderLinear shape as Density — a plain percentage, no toggle of its own). Placed immediately
  * after Motif Length, before Octave Range (Architecture Decision §7.5 in
- * docs/tasks/PITCH_REPEAT.md) — adjacent to the field it's gated by
+ * docs/tasks/archive/PITCH_REPEAT.md) — adjacent to the field it's gated by
  * (`rhythmicMotifLength.active`), so the dependency reads naturally without a label explaining
- * it. See docs/specs/PITCH_REPEAT.md.
+ * it. See docs/specs/archive/PITCH_REPEAT.md.
  */
 export const PITCH_REPEAT_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.pitchRepeat',
@@ -337,10 +337,10 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
 // ========================================
 
 /**
- * DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes the old flat
+ * DirectionalPanel wiring (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md) — supersedes the old flat
  * "Ping Contour" accordion-typed schema (removed, Task 9; its own successor accordion, Envelope,
- * was itself removed docs/tasks/NAV_LAYOUT_REWRITE.md Task 16). Fixed 'column' (was 'row') as of
- * docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — wraps 2 responsive sub-rows
+ * was itself removed docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 16). Fixed 'column' (was 'row') as of
+ * docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — wraps 2 responsive sub-rows
  * (Attack+Decay, Sustain+Release — inline in PingContourDrawer.tsx, matching Compressor's own
  * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly.
  */
@@ -498,12 +498,12 @@ export interface SignatureArrayLayerBlock {
   // Display text only — 'layer0'/'layer1'/'layer2' (the `key` field above) is this block's real
   // internal identity everywhere else (RobotLfoTargetId construction, etc.); this union never
   // doubles as one, so it's safe to rename its display values without any other consumer's logic
-  // breaking (docs/reference/text-content-tables.md: Baseline/Coaxial/Harmonic -> Core/Companion/
+  // breaking (docs/reference/archive/text-content-tables.md: Baseline/Coaxial/Harmonic -> Core/Companion/
   // Accent).
   /** The layer's own name — content's probe.source.<layer> human/lore (Core Oscillator, …). */
   humanLabel: string;
   loreLabel?: string;
-  /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel.
+  /** DirectionalPanel wiring (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel.
    *  Reuses this block's own humanLabel/loreLabel verbatim (Baseline/Coaxial/Harmonic already had
    *  exactly the right per-layer label; no new copy). */
   panel: DirectionalPanelSchema;
@@ -516,7 +516,7 @@ export interface SignatureArrayLayerBlock {
 }
 
 /** The 5 real WaveformType values only — 'noise' is dropped entirely (Roadmap Phase 9, see
- *  docs/specs/ROBOT_OPTIONS.md §7). Lore/human pairs per docs/reference/text-content-tables.md's
+ *  docs/specs/archive/ROBOT_OPTIONS.md §7). Lore/human pairs per docs/reference/archive/text-content-tables.md's
  *  Waveform Names table — corrects a previous mismatch where 'sine' carried "Sweep" (now
  *  Triangle's word) and 'triangle' carried the now-retired "Gradient". `label` is now the human
  *  name (each option previously showed the lore word alone, with no human counterpart). */

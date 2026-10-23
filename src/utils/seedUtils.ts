@@ -53,7 +53,7 @@ export function getGlobalAttenuationStyleSeedOverride(): string | null {
 
 /**
  * Parse a `?x=` / `?y=` coordinate URL param. Coordinates are integers
- * system-wide (docs/specs/SECTOR_SETTINGS.md), so only a plain optionally
+ * system-wide (docs/specs/archive/SECTOR_SETTINGS.md), so only a plain optionally
  * negative integer string is accepted — anything else (empty, decimal,
  * exponent, trailing text) returns `null`, i.e. "not overridden".
  */

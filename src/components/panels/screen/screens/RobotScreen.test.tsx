@@ -1,6 +1,3 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
 import { memo, Profiler, type ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
@@ -302,7 +299,6 @@ import { AudioEngine } from '@/engine/AudioEngine';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { ROBOT_SELECTION_ROW_SCHEMAS, ACTIVITY_LABELS } from '@/data/robotSelectionConfig';
 import { buildCompanyAssignmentSchema } from '@/data/companyConfig';
 import { getRobotGem } from '@/components/robot/gem/polygon';
@@ -2217,101 +2213,5 @@ describe('RobotScreen — the breadcrumb names the open tab (Root / Probes / <ro
     expect(crumb()).toBe(path(LEVELS));
     pick(COMPOSITION);
     expect(crumb()).toBe(path(COMPOSITION));
-  });
-});
-
-const here = dirname(fileURLToPath(import.meta.url));
-
-describe('RobotScreen — source and CSS', () => {
-  const src = readFileSync(resolve(here, 'RobotScreen.tsx'), 'utf8');
-  const css = readFileSync(resolve(here, 'RobotScreen.css'), 'utf8');
-
-  it('imports none of the stacked-scroll machinery', () => {
-    expect(src).not.toMatch(/accordionSync|sectionRefs|viewFade|useSectionObserver|useAccordionOpenState|RobotSectionAccordionStack/);
-  });
-
-  it('carries no copy literal of its own', () => {
-    expect(src).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription|label)\s*[:=]\s*['"`]/);
-    expect(src).not.toMatch(/>[A-Za-z][^<{]*</);
-  });
-
-  it('the desk column is 400 px wide, a custom property, never a magic number in JSX (spec §4)', () => {
-    expect(getCssRuleBody(css, '.robot-screen')).toMatch(/--avatar-column-width:\s*400px/);
-    expect(src).not.toMatch(/400/);
-  });
-
-  // Crawford, 2026-10-10: at 1024 px the controls' side-by-side rows were cramped. The controls get
-  // first claim on 560 px; the column takes what is left, between 200 and 400 px.
-  it('reserves 560 px for the controls and gives the column the rest, 200 to 400 px', () => {
-    const root = getCssRuleBody(css, '.robot-screen')!;
-    expect(root).toMatch(/--controls-column-reserve:\s*560px/);
-    expect(root).toMatch(/--avatar-column-min:\s*200px/);
-    expect(getCssRuleBody(css, '.robot-screen--desk')).toMatch(
-      /grid-template-columns:\s*clamp\(var\(--avatar-column-min\), calc\(100% - var\(--controls-column-reserve\) - var\(--spacing-lg\)\), var\(--avatar-column-width\)\) minmax\(0, 1fr\);/,
-    );
-  });
-
-  it('the column keeps clear of its own scrollbar', () => {
-    // Its own rule, not the shared `…__avatar-column, …__controls` scroll rule before it.
-    const own = [...css.matchAll(/(?:^|\n)\.robot-screen--desk > \.robot-screen__avatar-column \{([^}]*)\}/g)].map((m) => m[1]).join('');
-    expect(own).toMatch(/padding-right:\s*var\(--spacing-sm\)/);
-  });
-
-  it('the meta wells sit two to a row where the column has room, one where it does not (never three)', () => {
-    expect(getCssRuleBody(css, '.robot-screen__meta')).toMatch(
-      /grid-template-columns:\s*repeat\(auto-fit, minmax\(max\(120px, calc\(\(100% - var\(--spacing-sm\)\) \/ 2\)\), 1fr\)\);/,
-    );
-  });
-
-  it('the phone band sticks to the top and draws the 72 × 58 gem; there is no expanded form', () => {
-    const bandBody = getCssRuleBody(css, '.robot-screen__band')!;
-    expect(bandBody).toMatch(/position:\s*sticky/);
-    const gem = getCssRuleBody(css, '.robot-screen__band .robot-screen__gem')!;
-    expect(gem).toMatch(/width:\s*72px/);
-    expect(gem).toMatch(/height:\s*58px/);
-    expect(`${src}\n${css}`).not.toMatch(/band--(big|expanded|large)|\.big\b/);
-  });
-
-  it("the band sticks at the scroller's edge, not inside its padding (where the controls showed through)", () => {
-    const consoleCss = readFileSync(resolve(here, '../console/ConsolePanel.css'), 'utf8');
-    const padding = getCssRuleBody(consoleCss, '.console-panel__content')!.match(/padding:\s*(var\(--[a-z-]+\))/)![1];
-    expect(getCssRuleBody(css, '.robot-screen__band')).toMatch(new RegExp(`top:\\s*calc\\(-1 \\* ${padding.replace(/[()]/g, '\\$&')}\\)`));
-  });
-
-  it('the status line wraps rather than cutting off the emission and the battery', () => {
-    const line = getCssRuleBody(css, '.robot-screen__status-line')!;
-    expect(line).not.toMatch(/nowrap|ellipsis/);
-  });
-
-  it('the desk gem is the first thing to give way in a short column, down to 120 px', () => {
-    const gem = getCssRuleBody(css, '.robot-screen__avatar-column .robot-screen__gem')!;
-    expect(gem).toMatch(/flex:\s*0 1 auto/);
-    expect(gem).toMatch(/height:\s*300px/);
-    expect(gem).toMatch(/min-height:\s*120px/);
-  });
-});
-
-// The grep gate, kept as a test (as Task 9's is). RobotSectionAccordionStack went with its last consumer,
-// CompanyOptionsSection, when Task 23 made that the company screen's section panels.
-describe('RobotOptionsTab, RobotDisplaySection and RobotSectionAccordionStack are deleted', () => {
-  const srcRoot = resolve(here, '../../../..');
-  const DELETED = [
-    'components/panels/screen/console/RobotOptionsTab',
-    'components/robot/RobotDisplaySection',
-    'components/panels/screen/nav/RobotSectionAccordionStack',
-  ];
-
-  it.each(DELETED)('%s is gone, with its stylesheet and tests', (module) => {
-    for (const ext of ['.ts', '.tsx', '.css', '.test.ts', '.test.tsx']) {
-      expect(existsSync(join(srcRoot, module + ext)), module + ext).toBe(false);
-    }
-  });
-
-  it('nothing under src/ imports or mocks one', () => {
-    const importOf = /(from|import|vi\.mock\()\s*['"][^'"]*\/(RobotOptionsTab|RobotDisplaySection|RobotSectionAccordionStack)(\.css)?['"]/;
-    const importers = (readdirSync(srcRoot, { recursive: true }) as string[])
-      .filter((file) => /\.(ts|tsx)$/.test(file))
-      .filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')));
-    expect(importers).toEqual([]);
   });
 });

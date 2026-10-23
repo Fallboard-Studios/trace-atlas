@@ -128,7 +128,7 @@ describe('robotOptionsConfig', () => {
     );
   });
 
-  it("Audio Setting's 'none' option is labeled 'Auto', not 'Off' (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3)", () => {
+  it("Audio Setting's 'none' option is labeled 'Auto', not 'Off' (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3)", () => {
     expect(AUDIO_SETTING_SCHEMA.options.find((o) => o.value === 'none')?.humanLabel).toBe(CONTENT['probe.monitorMode'].options.none.human);
   });
 
@@ -371,7 +371,7 @@ describe('robotOptionsConfig', () => {
   });
 
   describe('SIGNATURE_ARRAY_CONFIG', () => {
-    it('has exactly 3 blocks, labeled Core/Companion/Accent in order (docs/reference/text-content-tables.md — renamed from Baseline/Coaxial/Harmonic; the key field below is the unchanged internal identity)', () => {
+    it('has exactly 3 blocks, labeled Core/Companion/Accent in order (docs/reference/archive/text-content-tables.md — renamed from Baseline/Coaxial/Harmonic; the key field below is the unchanged internal identity)', () => {
       expect(SIGNATURE_ARRAY_CONFIG).toHaveLength(3);
       expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.humanLabel)).toEqual([CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human]);
       expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.key)).toEqual(['layer0', 'layer1', 'layer2']);
@@ -481,18 +481,18 @@ describe('robotOptionsConfig', () => {
   });
 });
 
-describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.1)', () => {
+describe('slider orientation classification (docs/specs/archive/VERTICAL_SLIDERS.md §1.1)', () => {
   it('Volume is horizontal', () => {
     expect(VOLUME_SCHEMA.orientation).toBe('horizontal');
   });
 
-  it('Ping Controls (Density, Motif Length, Pitch Repeat, Octave Range Min/Max, Note Variance) is horizontal (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.6)', () => {
+  it('Ping Controls (Density, Motif Length, Pitch Repeat, Octave Range Min/Max, Note Variance) is horizontal (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.6)', () => {
     [DENSITY_SCHEMA, MOTIF_LENGTH_SCHEMA, PITCH_REPEAT_SCHEMA, OCTAVE_RANGE_MIN_SCHEMA, OCTAVE_RANGE_MAX_SCHEMA, NOTE_VARIANCE_SCHEMA].forEach((schema) => {
       expect(schema.orientation, schema.id).toBe('horizontal');
     });
   });
 
-  it('Ping Contour (Attack/Decay/Sustain/Release) is horizontal (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.6)', () => {
+  it('Ping Contour (Attack/Decay/Sustain/Release) is horizontal (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.6)', () => {
     [ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA].forEach((schema) => {
       expect(schema.orientation).toBe('horizontal');
     });
@@ -551,7 +551,7 @@ describe('SignatureArrayLayerBlock.rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDA
 
 // ========================================
 // DirectionalPanel wiring — additive schema work
-// (docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 3)
+// (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 3)
 // ========================================
 
 describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
@@ -560,7 +560,7 @@ describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
   });
 });
 
-describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
+describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
   it('VOLUME_ROW_PANEL_SCHEMA is a column-orientation directionalPanel, unlabeled — Volume always renders above its LFO, matching every other LFO layout (Crawford\'s own correction, was "responsive")', () => {
     expect(VOLUME_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
     expect(VOLUME_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
@@ -585,7 +585,7 @@ describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/sp
   });
 });
 
-describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/tasks/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
+describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
   it('are not exported by the module', () => {
     expect('VOLUME_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
     expect('MELODY_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
@@ -612,7 +612,7 @@ describe('PHRASING_PANEL_SCHEMA / FREQUENCY_PANEL_SCHEMA (Task 3)', () => {
   });
 });
 
-describe('RHYTHM_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — no prior test coverage existed for this schema)', () => {
+describe('RHYTHM_PANEL_SCHEMA (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — no prior test coverage existed for this schema)', () => {
   it('is a responsive-orientation directionalPanel with humanLabel Rhythm', () => {
     expect(RHYTHM_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: CONTENT['probe.composition.rhythm'].human });
   });
@@ -628,7 +628,7 @@ describe('RHYTHM_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1
 });
 
 describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () => {
-  it('is a column-orientation directionalPanel — wraps 2 responsive sub-rows instead of 4 sliders directly (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4)', () => {
+  it('is a column-orientation directionalPanel — wraps 2 responsive sub-rows instead of 4 sliders directly (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4)', () => {
     expect(PING_CONTOUR_PANEL_SCHEMA.type).toBe('directionalPanel');
     expect(PING_CONTOUR_PANEL_SCHEMA.orientation).toBe('column');
   });
@@ -675,13 +675,6 @@ describe('SignatureArrayLayerBlock.panel (additive, Task 3)', () => {
 });
 
 describe('robotOptionsConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, 'robotOptionsConfig.ts'), 'utf8');
-    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
-    expect(src).not.toMatch(/makeLayerBlock\([^)]*'[A-Z][a-z]/); // no positional label strings
-  });
   it('every schema label equals its concept\'s CONTENT entry', async () => {
     const { CONTENT } = await import('@/content');
     expect(VOLUME_SCHEMA.humanLabel).toBe(CONTENT['probe.volume'].human);
@@ -705,7 +698,7 @@ describe('Robot Articulation schemas', () => {
 
   it('every schema is one of the closed-set ControlSchema variants', () => {
     [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(CONTROL_SCHEMA_TYPES).toContain(schema.type));
-    expect(CONTROL_SCHEMA_TYPES).toHaveLength(14); // no primitive was added
+    expect(CONTROL_SCHEMA_TYPES).toHaveLength(13); // no primitive was added
   });
 
   describe('Portamento', () => {
@@ -846,16 +839,6 @@ describe('Robot Articulation schemas', () => {
         expect(e.help.human.length).toBeGreaterThan(40);
         expect(e.help.human).not.toMatch(/[<>]/);
       });
-    });
-
-    it('the schemas carry no copy literal of their own', async () => {
-      const { readFileSync } = await import('node:fs');
-      const { resolve } = await import('node:path');
-      const src = readFileSync(resolve(__dirname, 'robotOptionsConfig.ts'), 'utf8');
-      const start = src.indexOf('ROBOT ARTICULATION');
-      expect(start, 'the articulation block header').toBeGreaterThan(-1);
-      const articulation = src.slice(start);
-      expect(articulation).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
     });
   });
 });

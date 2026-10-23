@@ -1,6 +1,6 @@
 # Implementation Plan: Fleet Drift Consolidation
 
-Source spec: [docs/specs/FLEET_DRIFT_CONSOLIDATION.md](../specs/FLEET_DRIFT_CONSOLIDATION.md). Source intent: [docs/intent/fleet-drift-consolidation.md](../intent/fleet-drift-consolidation.md). Restructures the shipped 4-group design from [docs/specs/archive/LFO_DRIFT_GROUPS.md](../specs/archive/LFO_DRIFT_GROUPS.md) (Roadmap Phase 10.3, [docs/tasks/archive/LFO_DRIFT_GROUPS.md](archive/LFO_DRIFT_GROUPS.md)) — every task below modifies code that phase already shipped, not blank-slate additions.
+Source spec: [docs/specs/archive/FLEET_DRIFT_CONSOLIDATION.md](../../specs/archive/FLEET_DRIFT_CONSOLIDATION.md). Source intent: [docs/intent/archive/fleet-drift-consolidation.md](../../intent/archive/fleet-drift-consolidation.md). Restructures the shipped 4-group design from [docs/specs/archive/LFO_DRIFT_GROUPS.md](../../specs/archive/LFO_DRIFT_GROUPS.md) (Roadmap Phase 10.3, [docs/tasks/archive/LFO_DRIFT_GROUPS.md](LFO_DRIFT_GROUPS.md)) — every task below modifies code that phase already shipped, not blank-slate additions.
 
 ## Overview
 

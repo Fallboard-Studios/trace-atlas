@@ -499,7 +499,7 @@ describe('VoxelTrack', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((VoxelTrack as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

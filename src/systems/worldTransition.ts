@@ -39,7 +39,7 @@ export interface RetransmitInput {
 
 /** Construct a fresh AttenuationStyle. No dayStartTimestamp/size/currentHour anymore —
  *  dayStartTimestamp moved to Locale (buildLocale below), the rest were
- *  deleted outright. See docs/specs/ATTENUATION_STYLE.md §1.1. */
+ *  deleted outright. See docs/specs/archive/ATTENUATION_STYLE.md §1.1. */
 function buildAttenuationStyle(name: string): AttenuationStyle {
   return {
     id: generateUUID(),
@@ -54,7 +54,7 @@ function buildAttenuationStyle(name: string): AttenuationStyle {
  *  place a fresh dayStartTimestamp gets produced; retransmitAttenuationStyleOnly
  *  deliberately never calls this for its preserved locale (the inversion
  *  this phase's spec flags as easiest to get backwards — see
- *  docs/specs/ATTENUATION_STYLE.md §1.1/§3). */
+ *  docs/specs/archive/ATTENUATION_STYLE.md §1.1/§3). */
 function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: number }): Locale {
   return {
     id: generateUUID(),
@@ -244,7 +244,7 @@ function finalizeAttenuationStyleTransition(newAttenuationStyle: AttenuationStyl
  *  a pure function of (x, y), independent of which Attenuation Style owns
  *  it, so there is genuinely nothing to regenerate. dayStartTimestamp is NOT
  *  recalculated here — inverted from the old Attenuation-Style-owned-time
- *  behavior, see docs/specs/ATTENUATION_STYLE.md §1.1. Factory colors DO
+ *  behavior, see docs/specs/archive/ATTENUATION_STYLE.md §1.1. Factory colors DO
  *  change — recolorActorsForAttenuationStyle is new coupling, not a
  *  preservation exception; see §1.2. */
 function retransmitAttenuationStyleOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId: string | undefined, attenuationStyleName: string): void {
@@ -297,7 +297,7 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
 
 /**
  * The Sector Settings retransmit action — four branches, per
- * docs/specs/SECTOR_SETTINGS.md §1's preservation rules. `input`'s two
+ * docs/specs/archive/SECTOR_SETTINGS.md §1's preservation rules. `input`'s two
  * fields are each present only if the user actually edited that panel;
  * absence means "preserve as-is," not "reset to default."
  */

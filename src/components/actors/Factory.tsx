@@ -50,7 +50,7 @@ const CLIP_MARGIN = 2;
 
 // ========================================
 // STATIC/DYNAMIC GREEBLE RESOLUTION
-// (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.3 — Task 4)
+// (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.3 — Task 4)
 //
 // A "slot" is one rooftop greeble or one facade zone's content, resolved once inside
 // `staticVisual` (below): a static-only greeble (8 of 13 across both files — see the spec's
@@ -109,7 +109,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   // Everything below is actor-derived and fixed for the factory's lifetime (per-instance
   // config fields are all documented "read-only after spawn" — see Actor.ts) — computed once
   // per mount, never recomputed by the once/sec lighting tick that drives the render below.
-  // docs/specs/FACTORY_LIGHTING_RERENDER.md §1.3 (backlog item 21).
+  // docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.3 (backlog item 21).
   const staticVisual = useMemo(() => {
     const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
     const district = actor.config?.district ?? 'dense';
