@@ -90,8 +90,8 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     // Robot Effect Sends T1: SEND_DELAY_QUIET_THRESHOLD is deleted; its 0.25 is the Delay row's 1 - lit.
     ['the Delay send row (the old quiet threshold as 1 - lit)', 'src/data/robotSendLoadingRanges.ts', /delaySend: \{ min: 0, max: 0\.3, lit: 0\.75 \}/],
     ['SEND_RAMP_SECONDS', 'src/engine/AudioEngine.ts', /const SEND_RAMP_SECONDS = /],
-    ['the compositeVoices entry carries the reverb send node', 'src/engine/audioEngine/voiceEntry.ts', /\breverbSend: Tone\.Gain;/],
-    ['the compositeVoices entry carries the delay send node', 'src/engine/audioEngine/voiceEntry.ts', /\bdelaySend: Tone\.Gain;/],
+    // Re-pinned by Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md assumption 4): one record of send gains.
+    ['the compositeVoices entry carries the send nodes', 'src/engine/audioEngine/voiceEntry.ts', /\bsends: Readonly<Record<SendEngineKey, Tone\.Gain>>;/],
     // Robot Effect Sends T5 widened it with grit / shimmer / double (docs/specs/ROBOT_EFFECT_SENDS.md §1.4).
     ['AudioEngine.updateRobotSends', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: \{ reverb\?: number; delay\?: number; grit\?: number; shimmer\?: number; double\?: number \},?\s*\): void/],
     ['the reverb return gain', 'src/engine/audioEngine/globalFx.ts', /let _globalReverbReturn: Tone\.Gain \| null/],

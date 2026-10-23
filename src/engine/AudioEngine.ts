@@ -11,6 +11,7 @@ import { getActiveLocaleId } from '../utils/localeHelpers';
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
+import { ROBOT_SENDS, type SendEngineKey } from '../data/robotSends';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
@@ -194,6 +195,24 @@ function storeVoice(robotId: string, entry: VoiceEntry): void {
     unfeedRooms(robotId);
   }
   compositeVoices.set(robotId, entry);
+}
+
+/** A voice's five send gains, all at 0 (dry): live Tone.Gains, or stubs when there is no constructor (headless, or the
+ *  fallback voice). Built in table order (docs/specs/ROBOT_SEND_TABLE.md §1.2); every reservation site primes them. */
+function buildSendGains(GainCtor: (new (...args: unknown[]) => Tone.Gain) | undefined): Record<SendEngineKey, Tone.Gain> {
+  const sends = {} as Record<SendEngineKey, Tone.Gain>;
+  for (const spec of ROBOT_SENDS) {
+    sends[spec.engineKey] = GainCtor ? new GainCtor(0) : makeStubGain(0) as unknown as Tone.Gain;
+  }
+  return sends;
+}
+
+/** The room a send feeds: the Reverb and Delay rooms by their getters, an effect room by its in. Null while the room is
+ *  not built (headless, or before the FX chain), and the send then gets no downstream edge. */
+function sendTargetOf(key: SendEngineKey): Tone.ToneAudioNode | null {
+  if (key === 'reverb') return getGlobalReverbRoom();
+  if (key === 'delay') return getGlobalDelayRoom();
+  return getGlobalRoomInput(key);
 }
 
 /**
@@ -812,12 +831,7 @@ export const AudioEngine = {
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
       // The sends start at 0 (dry); every reservation site primes them from the store afterwards.
-      const reverbSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      const delaySend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): one more send per effect room, in ROOM_KEYS order.
-      const gritSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      const shimmerSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
-      const doubleSend = GainCtorLocal ? new GainCtorLocal(0) : makeStubGain(0) as unknown as Tone.Gain;
+      const sends = buildSendGains(GainCtorLocal);
       const busFilter = FilterCtor ? new FilterCtor({
         frequency: busCutoff,
         Q: resolveBusFilterQ(articulation?.filterQ),
@@ -838,28 +852,21 @@ export const AudioEngine = {
       } catch (e) {
         devWarn('[AudioEngine] busFilter connection failed', e);
       }
-      // Wet path: busFilter (post-Volume, post-bus-filter) -> send -> room. The dry link above is untouched, so at
-      // send 0 the only way into a room is through these two gains. A room that does not exist (headless, or
-      // before the FX chain is built) simply gets no connection.
+      // Wet path: busFilter (post-Volume, post-bus-filter) -> send -> room, one send per ROBOT_SENDS row. The dry link
+      // above is untouched, so at send 0 the only way into a room is through these gains. A room that does not exist
+      // (headless, or before the FX chain is built) simply gets no connection.
       try {
         const busFilterOut = busFilter as unknown as { connect?: (target?: unknown) => unknown };
-        busFilterOut.connect?.(reverbSend);
-        busFilterOut.connect?.(delaySend);
-        const reverbRoom = getGlobalReverbRoom();
-        if (reverbRoom) reverbSend.connect(reverbRoom);
-        const delayRoom = getGlobalDelayRoom();
-        if (delayRoom) delaySend.connect(delayRoom);
-        const roomSends: Record<RoomKey, Tone.Gain> = { grit: gritSend, shimmer: shimmerSend, double: doubleSend };
-        for (const key of ROOM_KEYS) {
-          busFilterOut.connect?.(roomSends[key]);
-          const input = getGlobalRoomInput(key);
-          if (input) roomSends[key].connect(input);
+        for (const { engineKey } of ROBOT_SENDS) {
+          busFilterOut.connect?.(sends[engineKey]);
+          const target = sendTargetOf(engineKey);
+          if (target) sends[engineKey].connect(target);
         }
       } catch (e) {
         devWarn('[AudioEngine] send connection failed', e);
       }
 
-      storeVoice(robotId, { composite, panner, busGain, busFilter, reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
+      storeVoice(robotId, { composite, panner, busGain, busFilter, sends });
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -892,12 +899,7 @@ export const AudioEngine = {
       const panner = makeStubPanner() as unknown as Tone.Panner;
       const busGain = makeStubGain(volumePositionToGain(masterVolume ?? 1)) as unknown as Tone.Gain;
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
-      const reverbSend = makeStubGain(0) as unknown as Tone.Gain;
-      const delaySend = makeStubGain(0) as unknown as Tone.Gain;
-      const gritSend = makeStubGain(0) as unknown as Tone.Gain;
-      const shimmerSend = makeStubGain(0) as unknown as Tone.Gain;
-      const doubleSend = makeStubGain(0) as unknown as Tone.Gain;
-      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, reverbSend, delaySend, gritSend, shimmerSend, doubleSend });
+      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, sends: buildSendGains(undefined) });
       return false;
     }
   },
@@ -1159,14 +1161,13 @@ export const AudioEngine = {
       if (requested === undefined || Number.isNaN(requested)) return;
       rampOrSet(send.gain as unknown as RampableParam, clampSend(requested), SEND_RAMP_SECONDS);
     };
-    const roomSends: Record<RoomKey, Tone.Gain> = { grit: entry.gritSend, shimmer: entry.shimmerSend, double: entry.doubleSend };
     try {
-      write(entry.reverbSend, sends.reverb);
-      write(entry.delaySend, sends.delay);
+      write(entry.sends.reverb, sends.reverb);
+      write(entry.sends.delay, sends.delay);
       for (const key of ROOM_KEYS) {
         const requested = sends[key];
         if (requested === undefined || Number.isNaN(requested)) continue;
-        write(roomSends[key], requested);
+        write(entry.sends[key], requested);
         setRoomFeeder(key, robotId, clampSend(requested) > 0);
       }
     } catch (err) {

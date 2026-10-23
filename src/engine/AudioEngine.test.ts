@@ -4002,6 +4002,23 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       expect(() => AudioEngine.updateRobotSends('stubbed', { reverb: 0.4, delay: 0.2 })).not.toThrow();
       expect(() => AudioEngine.releaseVoice('stubbed')).not.toThrow();
     });
+
+    // Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the fallback builds its five stubs keyed by engine key,
+    // in table order, so each key's write lands on its own stub.
+    it('the stub-fallback voice takes each of the five sends on its own stub gain, in table order', async () => {
+      const { AudioEngine } = await setup();
+      const helpers = await import('./audioEngine/toneHelpers');
+      const stubGain = vi.spyOn(helpers, 'makeStubGain');
+      vi.spyOn(AudioEngine, 'createCompositeVoice').mockImplementation(() => { throw new Error('boom'); });
+      AudioEngine.reserveVoice('stubbed', LAYERS as any, TEST_ADSR);
+      const stubs = stubGain.mock.results
+        .filter((_r, i) => stubGain.mock.calls[i][0] === 0)
+        .map((r) => r.value as { gain: { value: number } });
+
+      AudioEngine.updateRobotSends('stubbed', { reverb: 0.11, delay: 0.22, grit: 0.33, shimmer: 0.44, double: 0.55 });
+
+      expect(stubs.map((s) => s.gain.value)).toEqual([0.11, 0.22, 0.33, 0.44, 0.55]);
+    });
   });
 
   describe('updateRobotSends', () => {

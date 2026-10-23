@@ -79,9 +79,10 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
       [`RobotAudioBaseline.${field}`, 'src/systems/spawnSystem.ts', new RegExp(`interface RobotAudioBaseline \\{[^}]*\\b${field}: number;`)],
       [`AudioSettingValue.${field}`, 'src/components/robot/AudioSettingSection.tsx', new RegExp(`\\b${field}: number;`)],
       [`AudioSettingSection ${field}Swelling prop`, 'src/components/robot/AudioSettingSection.tsx', new RegExp(`\\b${field}Swelling\\?: boolean;`)],
-      [`the voice entry carries the ${field} node`, 'src/engine/audioEngine/voiceEntry.ts', new RegExp(`\\b${field}: Tone\\.Gain;`)],
       [`the swell pool lists ${field}`, 'src/types/audioSwell.ts', new RegExp(`SWELL_ROBOT_ATTRIBUTE_IDS[\\s\\S]*?'${field}',[\\s\\S]*?\\]`)],
     ]),
+    // Re-pinned by Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md assumption 4): the five send nodes are one record.
+    ['the voice entry carries the send nodes', 'src/engine/audioEngine/voiceEntry.ts', /\bsends: Readonly<Record<SendEngineKey, Tone\.Gain>>;/],
     ['CompactRobotOverrideDiff.gr', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bgr\?: number;/],
     ['CompactRobotOverrideDiff.sm', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bsm\?: number;/],
     ['CompactRobotOverrideDiff.db', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bdb\?: number;/],
