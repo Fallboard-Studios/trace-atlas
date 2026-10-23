@@ -28,7 +28,7 @@ import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { calculatePanFromPosition } from './audioEngine/panning';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
-import { volumePositionToGain } from './audioEngine/volumeTaper';
+import { robotBusGain } from './audioEngine/headroom';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
@@ -785,12 +785,12 @@ export const AudioEngine = {
    * @param detune - Optional detune (cents) applied across all layers
    * @param pulseWidth - Optional pulse width (0..1) applied across all layers
    * @param masterVolume - The robot's Volume slider position (0..1, Roadmap Phase 9's live-fader
-   *   fix), defaulting to 1 when omitted. Passed through `volumePositionToGain` (a perceptual
-   *   taper, not a raw pass-through — see volumeTaper.ts) before being applied as the initial
-   *   value of the robot's live per-robot bus gain. Unlike `adsr`/`phase`/`detune`, this is not
-   *   baked into any note's own trigger — it's a continuously-live AudioParam on the bus every
-   *   note from this robot passes through, updatable afterward via `updateRobotMasterVolume`
-   *   without re-reserving.
+   *   fix), defaulting to 1 when omitted. Passed through `robotBusGain` (the shared taper, then the
+   *   headroom trim, docs/specs/OUTPUT_HEADROOM.md — not a raw pass-through, see volumeTaper.ts and
+   *   headroom.ts) before being applied as the initial value of the robot's live per-robot bus
+   *   gain. Unlike `adsr`/`phase`/`detune`, this is not baked into any note's own trigger — it's
+   *   a continuously-live AudioParam on the bus every note from this robot passes through,
+   *   updatable afterward via `updateRobotMasterVolume` without re-reserving.
    * @param filterFreq - The robot's seeded `audioAttributes.filterFreq` (Hz): the cutoff of the
    *   per-robot bus low-pass (`composite.output → panner → busGain → busFilter → chain entry`).
    *   The same number once drove the hand-drawn robots' body detail and greeble count; gem
@@ -819,7 +819,7 @@ export const AudioEngine = {
       const GainCtorLocal = getToneCtor<Tone.Gain>('Gain');
       const FilterCtor = getToneCtor<Tone.Filter>('Filter');
 
-      const initialBusGain = volumePositionToGain(masterVolume ?? 1);
+      const initialBusGain = robotBusGain(masterVolume ?? 1);
       const busCutoff = resolveBusFilterCutoff(filterFreq);
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
@@ -890,7 +890,7 @@ export const AudioEngine = {
         dispose: () => { },
       } as unknown as CompositeVoice;
       const panner = makeStubPanner() as unknown as Tone.Panner;
-      const busGain = makeStubGain(volumePositionToGain(masterVolume ?? 1)) as unknown as Tone.Gain;
+      const busGain = makeStubGain(robotBusGain(masterVolume ?? 1)) as unknown as Tone.Gain;
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
       storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, sends: buildSendGains(undefined) });
       return false;
@@ -1108,11 +1108,12 @@ export const AudioEngine = {
    * Volume slider) — a continuously-live AudioParam, not a value baked into each note's own
    * trigger, so this affects anything currently sounding through the bus (an already-ringing
    * note's release tail included), not just the next note this robot happens to play. `masterVolume`
-   * is the 0..1 slider position, passed through `volumePositionToGain` first — a linear position
-   * applied directly as gain would feel almost flat across most of the fader (human loudness
-   * perception is roughly logarithmic), so the actual gain follows a perceptual taper instead;
-   * see volumeTaper.ts. Ramps over a short duration when the live Tone.Gain param supports it, to
-   * avoid an audible click; falls back to a direct value assignment in headless/test environments
+   * is the 0..1 slider position, passed through `robotBusGain` first (the shared taper, then the
+   * headroom trim, docs/specs/OUTPUT_HEADROOM.md) — a linear position applied directly as gain
+   * would feel almost flat across most of the fader (human loudness perception is roughly
+   * logarithmic), so the actual gain follows a perceptual taper instead; see volumeTaper.ts.
+   * Ramps over a short duration when the live Tone.Gain param supports it, to avoid an audible
+   * click; falls back to a direct value assignment in headless/test environments
    * where it doesn't. A safe no-op (with a devWarn, matching updateVoiceLayerParams/
    * updateVoiceEnvelope's existing pattern) when no composite voice is reserved for the robot.
    */
@@ -1123,7 +1124,7 @@ export const AudioEngine = {
       return;
     }
     try {
-      const targetGain = volumePositionToGain(masterVolume);
+      const targetGain = robotBusGain(masterVolume);
       rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);

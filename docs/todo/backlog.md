@@ -475,6 +475,11 @@ pair into the dry bus's gain — no other nodes. All three react to the signal a
 they replay in the follower sense. Output section tab. Phone gate as always; multiband is three
 compressors.
 
+**Interviewed with roadmap 54, 2026-10-23, and deferred, not built** ([docs/specs/OUTPUT_HEADROOM.md](../specs/OUTPUT_HEADROOM.md)
+assumption 9). Multiband is worth trying only if the single Compressor sounds wrong now that it is off safety duty (the
+output ceiling holds the master under full scale). Roadmap 54's Checkpoint A heard one Compressor fault, a 70 ms release
+slammed by every robot at 100 %, and the seeded release floor (0.25 s) answered it, not multiband.
+
 ### 24. Audio Palette Trials: Transport Groove and Tempo Walk
 
 `Tone.Transport.swing` (0–1) and `swingSubdivision` (`'8n'` / `'16n'`) exist on the transport the
@@ -603,6 +608,12 @@ collapse on a rested phone. With the phone off for at least 20 minutes before ea
 95 → 250 with clipping at 4:20. A heavier world on the same build and tier (7 lit, run 5) did not collapse. So heat or
 state left over from earlier runs explains it less well than it did in round 4.
 
+**Update 2026-10-23 (Output Headroom T10, [scratchy-audio-phones.md](scratchy-audio-phones.md)):** clicks at Light, the
+tier a phone picks by itself, on a rested Pixel 8. `56c2t2t8` at (−116, −2) "clicks throughout" on `main` (190
+underruns at 3:00, 254 at 4:00) and on the Output Headroom branch (140 → 173); `bravo` read 93 (`main`) and 149
+(branch) at 3:00. The two builds swap order between the worlds, so the clicks are not that branch's; its output is
+never at full scale, so they are not clipping either. Crawford: chase them here, after roadmap 54 merges.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
@@ -629,3 +640,29 @@ moment, or keeping the branch connected and paying its dark cost (which undoes 5
 **Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
 seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
 power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
+
+### 30. Tooling: One Shared CDP Helper for the Perf Scripts
+
+**Found 2026-10-23** in the Output Headroom review (roadmap 54): `scripts/perf/output-level.mjs` is the fourth copy of
+the same Chrome-driving plumbing, after `profile.mjs`, `idle-paint.mjs` and `audio-load.mjs`. The 54 plan copied it on
+purpose (`audio-load.mjs` was not to be refactored on that branch); this item is the follow-up. Crawford, 2026-10-23:
+next, once 54 has merged.
+
+**What is shared:** `findChrome` is the same in all four. `connect` is the same in three, and `output-level.mjs`'s copy
+only lacks the `onEvent` listener, so the fuller one serves all four. The temp profile and the `spawn` launch match,
+except that `profile` and `idle-paint` add `--mute-audio`. Teardown comes in three versions: `profile` kills Chrome,
+`idle-paint` sends `Browser.close` and then kills it, and `audio-load` / `output-level` use `shutdown`, which also kills
+Chrome's child processes on Windows (`taskkill /T`).
+
+**The task:** a `scripts/perf/cdp-lib.mjs` holding `sleep`, `findChrome`, `connect` (with `onEvent`), a launcher that
+takes extra Chrome flags, and `shutdown`; the four scripts import it. One task, one commit, size S: about 90 lines in
+the lib, about 70 out of each script. **The one decision:** `profile` and `idle-paint` move to the robust `shutdown`.
+That changes how they tear down, on purpose (it is the orphaned-Chrome fix the measurement hygiene asks for), and the
+commit says so.
+
+**Proof:** a Look, not a RED test. No test imports the four scripts, and what moves is file-system and network
+plumbing. A short real run of each against a served build (`npm run build && npx vite preview --port 4173`), with the
+orphaned-Chrome check before and after ([PERFORMANCE.md](../PERFORMANCE.md), "Measurement hygiene").
+
+**Where:** its own branch off `main` once 54 has merged; `output-level.mjs` exists only on `feature/output-headroom`
+until then.

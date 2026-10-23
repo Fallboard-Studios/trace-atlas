@@ -1146,3 +1146,43 @@ reads lit branches plus lit chain cells). **T21 passes.**
 
 **New for backlog 27:** run 2 collapsed second in the sitting, after 20 minutes off. That is the first collapse on a
 phone rested this way, so heat or state left over from an earlier run explains it less well than it explained round 4.
+
+## Output Headroom (roadmap 54) on the Pixel — Checkpoint B (T10), Crawford's runs, 2026-10-23
+
+Spec §5.4's phone gate ([docs/specs/OUTPUT_HEADROOM.md](../specs/OUTPUT_HEADROOM.md); plan
+[docs/tasks/OUTPUT_HEADROOM.md](../tasks/OUTPUT_HEADROOM.md) T10). **Builds:** production `vite build`s served side by
+side on the LAN, each on its own port so their browser storage stays apart: the branch `feature/output-headroom` at
+`1c13470d` (`index-BPtv2uVr`; product code unchanged through `ad79498d`) on **4173**, `main` `abde941e`
+(`index-Dhv9XsRM`) on **4174**, and for the bisection the branch without the ceiling (`index-CHKOo1LQ`, a local edit
+that makes `getToneCtor('WaveShaper')` find nothing, not committed) on **4175**, which was not needed. Pixel 8,
+`?debug`, a fresh tab per run from a links page (`phone.html`, session scratchpad), hands off to 3:00, read again at
+4:00, the phone rested before each run (Crawford). **Worlds:** D5 (`bravo` at (−150, 90)) for the gate, as each build
+seeds it: `main` on T3's link (Compressor release 0.126 s), the branch on T9's (0.275 s), the two links otherwise
+identical (PERFORMANCE.md, "Output level series"); D1 (`56c2t2t8` at (−116, −2)), the world that crunched on `main`,
+as an ear check, not gated. Every link was loaded headlessly over the LAN address first: right coordinates, powered
+on, `fin ok`.
+
+**Tier: Light, not the plan's Full.** The phone chose it: a coarse primary pointer defaults to Light
+(`detectDefaultAudioLoad`, `src/utils/audioBudget.ts`, decision D), and the links did not pin `?load=`. So the round
+measures what a phone plays out of the box.
+
+| # | Build | Tier | World | `underruns` 3:00 → 4:00 | Crawford's words |
+|---|---|---|---|---|---|
+| 1 | `main` `abde941e` | Light | D5 | **93** → 106 | "acceptable pass." |
+| 2 | branch `1c13470d` | Light | D5 | **149** → 173 | "barely acceptable pass" |
+| a | `main` `abde941e` | Light | D1, ear check | **190** → 254 | "clicks happen throughout. Tiny bit of audio distortion as well. Not acceptable." |
+| b | branch `1c13470d` | Light | D1, ear check | **140** → 173 | "clicks happen throughout." |
+
+**Reading against the gate** (spec §5.4: the branch's count within the baseline's band, and the crunch gone).
+**Checkpoint B passes on Crawford's decision** (2026-10-23: accept this round as it ran, rather than re-run at Full).
+- **No cost the branch adds.** On D5 the branch read 56 more than `main` at 3:00; on D1 it read 50 fewer. A cost from
+  the one node this phase adds (the ceiling, one table lookup per sample; T8 found none on the desktop) would show in
+  both pairs. A gap that flips sign between worlds is the run-to-run spread, which on this phone has spanned 48–95 for
+  one build in one rested sitting (T21 above). The plan's "within the baseline's band" cannot be read from one `main`
+  run; the reversed D1 pair stands in for it.
+- **The crunch is gone.** `main` on D1 carried "a tiny bit of audio distortion"; the branch, clicks only.
+- **The clicks are underruns, on both builds**, and are backlog 27's, not this phase's.
+- **Deviations from the plan:** Light rather than Full (above); one run per build; the bisection run not needed.
+
+**New for backlog 27:** on a rested Pixel 8 at Light, the phone default, D1 clicks throughout on `main` (190 → 254)
+and on the branch (140 → 173), and D5 reads 93–149 at 3:00. Crawford: chase it there.

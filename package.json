@@ -16,6 +16,7 @@
     "perf": "node scripts/perf/profile.mjs",
     "perf:audio": "node scripts/perf/audio-load.mjs",
     "perf:idle": "node scripts/perf/idle-paint.mjs",
+    "perf:level": "node scripts/perf/output-level.mjs",
     "perf:trace": "node --max-old-space-size=6000 scripts/perf/trace-summary.mjs"
   },
   "dependencies": {
