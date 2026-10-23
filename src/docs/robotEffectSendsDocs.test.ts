@@ -105,10 +105,10 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     // Re-pinned by Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2): the same five optional keys, as a type.
     ['AudioEngine.updateRobotSends takes all five', 'src/engine/AudioEngine.ts', /\bupdateRobotSends\(\s*robotId: string,\s*sends: Partial<Record<SendEngineKey, number>>,?\s*\): void/],
     ['generateRobotSends draws all five', 'src/systems/spawnSystem.ts', /export function generateRobotSends\(noiseMap: NoiseFunction2D, offset: number\): Record<RobotSendField, number>/],
-    ...(['Grit', 'Shimmer', 'Double'] as const).flatMap((name): [string, string, RegExp][] => [
-      [`apply${name}Send`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}Send\\(robot: Robot, localeId: string, pct: number\\): void`)],
-      [`apply${name}SendValue`, 'src/systems/robotOptionsActions.ts', new RegExp(`export function apply${name}SendValue\\(robot: Robot, localeId: string, fraction: number\\): void`)],
-    ]),
+    // Re-pinned by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the six named Grit / Shimmer / Double
+    // actions are the keyed pair every send shares.
+    ['applySend', 'src/systems/robotOptionsActions.ts', /export function applySend\(robot: Robot, localeId: string, field: RobotSendField, pct: number\): void/],
+    ['applySendValue', 'src/systems/robotOptionsActions.ts', /export function applySendValue\(robot: Robot, localeId: string, field: RobotSendField, fraction: number\): void/],
     // Re-pinned by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are one record, and
     // the screen renders one row per table entry.
     ['ROBOT_SEND_SCHEMAS', 'src/data/robotOptionsConfig.ts', /export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> =/],
@@ -144,6 +144,23 @@ describe('the names the 2026-10-21 amendment removed (no Colour master Return) a
   });
 });
 
+/** The ten per-send actions Robot Send Table T14 deleted (docs/specs/ROBOT_SEND_TABLE.md §1.3). */
+const REMOVED_SEND_ACTIONS = [
+  'applyReverbSend', 'applyDelaySend', 'applyGritSend', 'applyShimmerSend', 'applyDoubleSend',
+  'applyReverbSendValue', 'applyDelaySendValue', 'applyGritSendValue', 'applyShimmerSendValue', 'applyDoubleSendValue',
+] as const;
+
+describe('the ten named send actions Robot Send Table removed are gone from source', () => {
+  it.each(REMOVED_SEND_ACTIONS)('%s is not an identifier in src/', (symbol) => {
+    expect(isInSource(symbol)).toBe(false);
+  });
+
+  it('the keyed pair that replaced them is (the membership check reads real source)', () => {
+    expect(isInSource('applySend')).toBe(true);
+    expect(isInSource('applySendValue')).toBe(true);
+  });
+});
+
 /** Words that are cited in backticks but are not, and should not be, names in this repo's source: third-party API
  *  members, names the spec records as deleted or not built, and file names. */
 const NOT_REPO_SYMBOLS = new Set<string>([
@@ -157,6 +174,8 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   // and the company options' twins are one onSendChange and one sendSwelling record
   'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
   'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
+  // Deleted by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named actions are applySend / applySendValue
+  ...REMOVED_SEND_ACTIONS,
   // File and doc names, not symbols (chainCycleSearch is a test file, which sourceFiles skips)
   'chainCycleSearch', 'ROBOT_SENDS', 'ROBOT_EFFECT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES', 'AUDIO_SYSTEM',
   'SESSION_STORAGE', 'GLOBAL_PEDALS', 'GLOBAL_COLOUR', 'DARK_EFFECT_BYPASS', 'TONE_EFFECTS_INVENTORY', 'CLASSIC_BAND_RETUNE',
@@ -188,8 +207,8 @@ describe('every symbol the spec and the updated docs cite exists in source', () 
   });
 
   it('extracts code-shaped names and drops plain words, wildcards and listed non-symbols (the extractor itself)', () => {
-    const extracted = citedSymbols('`applyGritSend` and `robot` and `SEND_*` and `SEND_DELAY_QUIET_THRESHOLD` and `ROOM_KEYS`');
-    expect(extracted).toEqual(['ROOM_KEYS', 'applyGritSend']);
+    const extracted = citedSymbols('`applySend` and `robot` and `SEND_*` and `SEND_DELAY_QUIET_THRESHOLD` and `ROOM_KEYS`');
+    expect(extracted).toEqual(['ROOM_KEYS', 'applySend']);
   });
 
   it('does not read a fenced sketch as a claim about the source', () => {

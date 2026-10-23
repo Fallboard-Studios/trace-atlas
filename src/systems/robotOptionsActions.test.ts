@@ -7,8 +7,7 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
-  applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento,
-  applyGritSend, applyShimmerSend, applyDoubleSend, applyGritSendValue, applyShimmerSendValue, applyDoubleSendValue, applyBusFilter,
+  applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyPortamento, applyBusFilter,
   applySend, applySendValue,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
@@ -205,8 +204,9 @@ describe('robotOptionsActions', () => {
   // Every send field at a distinct non-default value, so a write to the wrong field cannot pass by coincidence.
   const STORED_SENDS = { reverbSend: 0.2, delaySend: 0.1, gritSend: 0.3, shimmerSend: 0.4, doubleSend: 0.6 } as const;
   const SEND_FIELDS = Object.keys(STORED_SENDS) as (keyof typeof STORED_SENDS)[];
-  // Robot Send Table T6 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the keyed pair runs through the same cases as the ten,
-  // one row per field. The engine keys are written out here, not read from the table, so a wrong mapping fails.
+  // Robot Send Table T6 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the keyed pair runs through the cases the ten named
+  // actions had, one row per field (T14 deleted the ten). The engine keys are written out here, not read from the table,
+  // so a wrong mapping fails.
   const SEND_ENGINE_KEYS = [
     ['reverbSend', 'reverb'], ['delaySend', 'delay'], ['gritSend', 'grit'], ['shimmerSend', 'shimmer'], ['doubleSend', 'double'],
   ] as const;
@@ -224,16 +224,9 @@ describe('robotOptionsActions', () => {
   }));
 
   // docs/tasks/ROBOT_SENDS.md Task 12 - the stored-fraction form of the send actions (the three new rooms'
-  // from docs/tasks/ROBOT_EFFECT_SENDS.md Task 9). The swell tick writes through these: a display percent
+  // from docs/tasks/ROBOT_EFFECT_SENDS.md Task 9). The swell tick writes through this: a display percent
   // (x * 100 / 100) does not round-trip every double, and a swell must land on its base exactly.
-  describe.each([
-    { name: 'applyReverbSendValue', apply: applyReverbSendValue, field: 'reverbSend', engineKey: 'reverb' },
-    { name: 'applyDelaySendValue', apply: applyDelaySendValue, field: 'delaySend', engineKey: 'delay' },
-    { name: 'applyGritSendValue', apply: applyGritSendValue, field: 'gritSend', engineKey: 'grit' },
-    { name: 'applyShimmerSendValue', apply: applyShimmerSendValue, field: 'shimmerSend', engineKey: 'shimmer' },
-    { name: 'applyDoubleSendValue', apply: applyDoubleSendValue, field: 'doubleSend', engineKey: 'double' },
-    ...KEYED_SEND_VALUE_ROWS,
-  ] as const)('$name', ({ apply, field, engineKey }) => {
+  describe.each(KEYED_SEND_VALUE_ROWS)('$name', ({ apply, field, engineKey }) => {
     function storedRobot(): Robot {
       const robot = makeRobot({ ...STORED_SENDS });
       useLocaleStore.getState().addRobot(localeId, robot);
@@ -286,17 +279,10 @@ describe('robotOptionsActions', () => {
     });
   });
 
-  // docs/specs/ROBOT_SENDS.md §1.5 - the send slider actions, on applyVolume's shape (Grit, Shimmer and Double from
-  // docs/specs/ROBOT_EFFECT_SENDS.md §1.5). They never cancel a swell (the callers do): the swell tick itself writes
-  // through them.
-  describe.each([
-    { name: 'applyReverbSend', apply: applyReverbSend, field: 'reverbSend', engineKey: 'reverb' },
-    { name: 'applyDelaySend', apply: applyDelaySend, field: 'delaySend', engineKey: 'delay' },
-    { name: 'applyGritSend', apply: applyGritSend, field: 'gritSend', engineKey: 'grit' },
-    { name: 'applyShimmerSend', apply: applyShimmerSend, field: 'shimmerSend', engineKey: 'shimmer' },
-    { name: 'applyDoubleSend', apply: applyDoubleSend, field: 'doubleSend', engineKey: 'double' },
-    ...KEYED_SEND_ROWS,
-  ] as const)('$name', ({ apply, field, engineKey }) => {
+  // docs/specs/ROBOT_SENDS.md §1.5 - the send slider action, on applyVolume's shape (Grit, Shimmer and Double from
+  // docs/specs/ROBOT_EFFECT_SENDS.md §1.5). It never cancels a swell (the callers do): the swell tick itself writes
+  // through the pair.
+  describe.each(KEYED_SEND_ROWS)('$name', ({ apply, field, engineKey }) => {
     const others = SEND_FIELDS.filter((f) => f !== field);
     function storedRobot(overrides: Partial<Robot> = {}): Robot {
       const robot = makeRobot({ ...STORED_SENDS, ...overrides });
@@ -413,6 +399,22 @@ describe('robotOptionsActions', () => {
   it('robotOptionsActions.ts never imports audioSwells (the swell module imports the send actions, so a back-import would be a cycle)', () => {
     const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'robotOptionsActions.ts'), 'utf-8');
     expect(source).not.toMatch(/from\s+['"][^'"]*audioSwells['"]/);
+  });
+
+  // Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named send actions went, not as wrappers;
+  // applySend / applySendValue, keyed by field, are the only way to write a send.
+  describe('the ten per-send actions (removed — docs/tasks/ROBOT_SEND_TABLE.md Task 14)', () => {
+    it.each([
+      'applyReverbSend', 'applyDelaySend', 'applyGritSend', 'applyShimmerSend', 'applyDoubleSend',
+      'applyReverbSendValue', 'applyDelaySendValue', 'applyGritSendValue', 'applyShimmerSendValue', 'applyDoubleSendValue',
+    ])('%s is no longer exported — the keyed pair takes the field instead', (name) => {
+      expect(name in robotOptionsActionsModule).toBe(false);
+    });
+
+    it('the keyed pair is exported (the absence check reads the real module)', () => {
+      expect('applySend' in robotOptionsActionsModule).toBe(true);
+      expect('applySendValue' in robotOptionsActionsModule).toBe(true);
+    });
   });
 
   describe('applyPanAuto', () => {

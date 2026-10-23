@@ -157,6 +157,9 @@ const NOT_REPO_SYMBOLS = new Set([
   'decayCurve',
   // Deliberately absent: names the Audio Load section records as removed (the robot-LFO cap went with the LFO Bank)
   'lfoAllowed', 'maxRobotLfos',
+  // Deleted by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the named send actions are applySend /
+  // applySendValue. AUDIO_SYSTEM.md's swell-pool line and COMPANIES.md's action list still cite them until its T15.
+  'applyReverbSend', 'applyDelaySend', 'applyReverbSendValue', 'applyDelaySendValue',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotArticulationDocs', 'SLIDER_VALUES', 'ROBOT_ARTICULATION',
 ]);

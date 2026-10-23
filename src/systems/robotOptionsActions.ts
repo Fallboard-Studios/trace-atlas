@@ -51,77 +51,19 @@ export function applyPan(robot: Robot, localeId: string, display: number): void 
   AudioEngine.updateRobotPan(robot.id, value);
 }
 
-// Reverb and Delay sends display 0-100 % but store 0..1 (Robot.reverbSend / delaySend), the Volume split
-// (docs/specs/ROBOT_SENDS.md §1.5). A hand edit cancels a swell on the same robot at the CALLER (RobotScreen /
-// useCompanyOptions), exactly where handleVolumeChange does; the swell tick itself writes through these two
-// (via writeRobotValue), so the cancel cannot live here (it would cancel itself). A NaN display number is
-// dropped whole: neither the store nor the engine sees it.
-export function applyReverbSend(robot: Robot, localeId: string, pct: number): void {
-  applyReverbSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
-}
-
-export function applyDelaySend(robot: Robot, localeId: string, pct: number): void {
-  applyDelaySendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
-}
-
-// Grit, Shimmer and Double send into the Colour, Shifter and Chorus rooms (docs/specs/ROBOT_EFFECT_SENDS.md §1.5):
-// the same pair as Reverb and Delay, with the same caller-side swell cancel and NaN rule.
-export function applyGritSend(robot: Robot, localeId: string, pct: number): void {
-  applyGritSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
-}
-
-export function applyShimmerSend(robot: Robot, localeId: string, pct: number): void {
-  applyShimmerSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
-}
-
-export function applyDoubleSend(robot: Robot, localeId: string, pct: number): void {
-  applyDoubleSendValue(robot, localeId, pct / SEND_DISPLAY_SCALE);
+// One pair for the five sends (Reverb, Delay, Grit, Shimmer, Double), keyed by field (docs/specs/ROBOT_SEND_TABLE.md
+// §1.3). A send displays 0-100 % but stores 0..1 (Robot.reverbSend and the rest), the Volume split
+// (docs/specs/ROBOT_SENDS.md §1.5, docs/specs/ROBOT_EFFECT_SENDS.md §1.5). A hand edit cancels a swell on the same
+// robot at the CALLER (RobotScreen / useCompanyOptions), exactly where handleVolumeChange does; the swell tick itself
+// writes through applySendValue (via writeRobotValue), so the cancel cannot live here (it would cancel itself). A NaN
+// display number is dropped whole: neither the store nor the engine sees it.
+export function applySend(robot: Robot, localeId: string, field: RobotSendField, pct: number): void {
+  applySendValue(robot, localeId, field, pct / SEND_DISPLAY_SCALE);
 }
 
 // The stored-fraction form, for the swell tick (docs/tasks/ROBOT_SENDS.md Task 12). A display percent does not
 // round-trip every double (0.007 * 100 / 100 is not 0.007), and a swell must land on its base exactly, so the
 // tick hands the 0..1 fraction over directly. A NaN is dropped whole, as above.
-export function applyReverbSendValue(robot: Robot, localeId: string, fraction: number): void {
-  if (Number.isNaN(fraction)) return;
-  const value = clampSend(fraction);
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { reverbSend: value });
-  AudioEngine.updateRobotSends(robot.id, { reverb: value });
-}
-
-export function applyDelaySendValue(robot: Robot, localeId: string, fraction: number): void {
-  if (Number.isNaN(fraction)) return;
-  const value = clampSend(fraction);
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { delaySend: value });
-  AudioEngine.updateRobotSends(robot.id, { delay: value });
-}
-
-export function applyGritSendValue(robot: Robot, localeId: string, fraction: number): void {
-  if (Number.isNaN(fraction)) return;
-  const value = clampSend(fraction);
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { gritSend: value });
-  AudioEngine.updateRobotSends(robot.id, { grit: value });
-}
-
-export function applyShimmerSendValue(robot: Robot, localeId: string, fraction: number): void {
-  if (Number.isNaN(fraction)) return;
-  const value = clampSend(fraction);
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { shimmerSend: value });
-  AudioEngine.updateRobotSends(robot.id, { shimmer: value });
-}
-
-export function applyDoubleSendValue(robot: Robot, localeId: string, fraction: number): void {
-  if (Number.isNaN(fraction)) return;
-  const value = clampSend(fraction);
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { doubleSend: value });
-  AudioEngine.updateRobotSends(robot.id, { double: value });
-}
-
-// One pair for the five sends, keyed by field (docs/specs/ROBOT_SEND_TABLE.md §1.3): the display percent and the
-// stored-fraction form above, with the same NaN rule, clamp and caller-side swell cancel.
-export function applySend(robot: Robot, localeId: string, field: RobotSendField, pct: number): void {
-  applySendValue(robot, localeId, field, pct / SEND_DISPLAY_SCALE);
-}
-
 export function applySendValue(robot: Robot, localeId: string, field: RobotSendField, fraction: number): void {
   if (Number.isNaN(fraction)) return;
   const value = clampSend(fraction);

@@ -107,10 +107,9 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['getGlobalDelayRoom', 'src/engine/audioEngine/globalFx.ts', /export function getGlobalDelayRoom\(\): Tone\.FeedbackDelay \| null/],
     ['generateRobotSends', 'src/systems/spawnSystem.ts', /export function generateRobotSends\(noiseMap: NoiseFunction2D, offset: number\)/],
     ['clampSend', 'src/utils/clampSend.ts', /export function clampSend\(fraction: number\): number/],
-    ['applyReverbSend', 'src/systems/robotOptionsActions.ts', /export function applyReverbSend\(robot: Robot, localeId: string, pct: number\): void/],
-    ['applyDelaySend', 'src/systems/robotOptionsActions.ts', /export function applyDelaySend\(robot: Robot, localeId: string, pct: number\): void/],
-    ['applyReverbSendValue (the swell tick writes the stored fraction)', 'src/systems/robotOptionsActions.ts', /export function applyReverbSendValue\(robot: Robot, localeId: string, fraction: number\): void/],
-    ['applyDelaySendValue', 'src/systems/robotOptionsActions.ts', /export function applyDelaySendValue\(robot: Robot, localeId: string, fraction: number\): void/],
+    // Re-pinned by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named actions are one keyed pair.
+    ['applySend', 'src/systems/robotOptionsActions.ts', /export function applySend\(robot: Robot, localeId: string, field: RobotSendField, pct: number\): void/],
+    ['applySendValue (the swell tick writes the stored fraction)', 'src/systems/robotOptionsActions.ts', /export function applySendValue\(robot: Robot, localeId: string, field: RobotSendField, fraction: number\): void/],
     // Re-pinned by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are one record.
     ['ROBOT_SEND_SCHEMAS', 'src/data/robotOptionsConfig.ts', /export const ROBOT_SEND_SCHEMAS: Readonly<Record<RobotSendField, SliderLinearSchema>> =/],
     ['each send schema is built from its table row', 'src/data/robotOptionsConfig.ts', /ROBOT_SENDS\.map\(\(spec\) => \[\s*spec\.field,\s*\{\s*id: `robotOptions\.\$\{spec\.field\}`,\s*type: 'sliderLinear',\s*\.\.\.labels\(spec\.contentKey\),/],
@@ -147,6 +146,23 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
 const sourceIdentifiers = new Set(sourceFiles('src').flatMap((file) => read(file).match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []));
 const isInSource = (symbol: string) => sourceIdentifiers.has(symbol);
 
+/** The ten per-send actions Robot Send Table T14 deleted (docs/specs/ROBOT_SEND_TABLE.md §1.3). */
+const REMOVED_SEND_ACTIONS = [
+  'applyReverbSend', 'applyDelaySend', 'applyGritSend', 'applyShimmerSend', 'applyDoubleSend',
+  'applyReverbSendValue', 'applyDelaySendValue', 'applyGritSendValue', 'applyShimmerSendValue', 'applyDoubleSendValue',
+] as const;
+
+describe('the ten named send actions Robot Send Table removed are gone from source', () => {
+  it.each(REMOVED_SEND_ACTIONS)('%s is not an identifier in src/', (symbol) => {
+    expect(isInSource(symbol)).toBe(false);
+  });
+
+  it('the keyed pair that replaced them is (the membership check reads real source)', () => {
+    expect(isInSource('applySend')).toBe(true);
+    expect(isInSource('applySendValue')).toBe(true);
+  });
+});
+
 /** Words that are cited in backticks but are not, and should not be, names in this repo's source: third-party
  *  API members, names the spec records as deliberately NOT built or as deleted, and prose terms. */
 const NOT_REPO_SYMBOLS = new Set<string>([
@@ -164,6 +180,8 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   // and the company options' twins are one onSendChange and one sendSwelling record
   'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
   'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
+  // Deleted by Robot Send Table T14 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the ten named actions are applySend / applySendValue
+  ...REMOVED_SEND_ACTIONS,
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);
@@ -195,8 +213,8 @@ describe('every symbol the spec and the updated docs cite exists in source', () 
   });
 
   it('extracts code-shaped names and drops plain words, wildcards and listed non-symbols (the extractor itself)', () => {
-    const extracted = citedSymbols('`applyReverbSend` and `robot` and `SEND_*` and `DELAY_QUIET_THRESHOLD` and `SEND_RAMP_SECONDS`');
-    expect(extracted).toEqual(['SEND_RAMP_SECONDS', 'applyReverbSend']);
+    const extracted = citedSymbols('`applySend` and `robot` and `SEND_*` and `DELAY_QUIET_THRESHOLD` and `SEND_RAMP_SECONDS`');
+    expect(extracted).toEqual(['SEND_RAMP_SECONDS', 'applySend']);
   });
 
   it('does not read a fenced sketch as a claim about the source', () => {
