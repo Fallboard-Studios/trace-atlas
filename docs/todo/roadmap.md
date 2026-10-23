@@ -2267,8 +2267,8 @@ fraction)` that the actions, the swell tick and both screens go through.
   `robotSendLoadingRanges.ts`; the seeding bands stayed there, since they are tuning, not wiring. The table's order is the
   old order (Reverb, Delay, Grit, Shimmer, Double), and every loop runs in it.
 - **Two key spaces, one mapping.** The engine speaks `SendEngineKey` (`reverb`, `delay`, `grit`, `shimmer`, `double`);
-  robots, screens, the store, the swell tick and persistence speak `RobotSendField`. `engineKeyOf` / `sendFieldOf` are the
-  only translation.
+  robots, screens, the store, the swell tick and persistence speak `RobotSendField`. `engineKeyOf` is the only translation,
+  one way (the spec's inverse, `sendFieldOf`, had no caller and was deleted at review).
 - **What iterates it.** The four reservation primes (`robotSendLevels(robot)`); the voice's send gains (`VoiceEntry`'s
   `sends` record, built, connected and disposed in a loop); `updateRobotSends`, which now takes
   `Partial<Record<SendEngineKey, number>>`; the swell tick; the swell ranges, the swell pool's tail, the store clamp and the

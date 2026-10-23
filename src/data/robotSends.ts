@@ -38,16 +38,10 @@ export const ROBOT_SENDS: readonly RobotSendSpec[] = [
 export const ROBOT_SEND_BY_FIELD = Object.fromEntries(
   ROBOT_SENDS.map((spec) => [spec.field, spec])
 ) as Readonly<Record<RobotSendField, RobotSendSpec>>;
-export const ROBOT_SEND_BY_ENGINE_KEY = Object.fromEntries(
-  ROBOT_SENDS.map((spec) => [spec.engineKey, spec])
-) as Readonly<Record<SendEngineKey, RobotSendSpec>>;
 
+/** The one translation from the robot's keys to the engine's. Nothing maps back: the engine never names a field. */
 export function engineKeyOf(field: RobotSendField): SendEngineKey {
   return ROBOT_SEND_BY_FIELD[field].engineKey;
-}
-
-export function sendFieldOf(key: SendEngineKey): RobotSendField {
-  return ROBOT_SEND_BY_ENGINE_KEY[key].field;
 }
 
 /** The prime every reservation site hands updateRobotSends: all five, in table order, straight off the robot. No clamp and

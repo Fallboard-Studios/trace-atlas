@@ -8,15 +8,15 @@ import { describe, it, expect } from 'vitest';
 
 import {
   ROBOT_SENDS,
-  ROBOT_SEND_BY_ENGINE_KEY,
   ROBOT_SEND_BY_FIELD,
   ROBOT_SEND_FIELDS,
   engineKeyOf,
   robotSendLevels,
-  sendFieldOf,
   type RobotSendField,
   type SendEngineKey,
 } from './robotSends';
+// Namespace import so a removed export can be asserted absent at runtime (robotOptionsActions.test.ts's pattern).
+import * as robotSendsModule from './robotSends';
 
 // ========================================
 // TESTS
@@ -56,19 +56,9 @@ describe('ROBOT_SENDS', () => {
     }
   });
 
-  it('indexes every row by field and by engine key, each lookup giving the row itself', () => {
+  it('indexes every row by field, each lookup giving the row itself', () => {
     expect(Object.keys(ROBOT_SEND_BY_FIELD)).toEqual(ROBOT_SEND_FIELDS);
-    expect(Object.keys(ROBOT_SEND_BY_ENGINE_KEY)).toEqual([
-      'reverb',
-      'delay',
-      'grit',
-      'shimmer',
-      'double',
-    ]);
-    for (const spec of ROBOT_SENDS) {
-      expect(ROBOT_SEND_BY_FIELD[spec.field]).toBe(spec);
-      expect(ROBOT_SEND_BY_ENGINE_KEY[spec.engineKey]).toBe(spec);
-    }
+    for (const spec of ROBOT_SENDS) expect(ROBOT_SEND_BY_FIELD[spec.field]).toBe(spec);
   });
 
   it('writes each contentKey as a quoted literal in source (the content guard finds a key by its quoted text)', () => {
@@ -84,7 +74,7 @@ describe('ROBOT_SENDS', () => {
     const field: RobotSendField = 'gritSend';
     const key: SendEngineKey = 'shimmer';
     expect(engineKeyOf(field)).toBe('grit');
-    expect(sendFieldOf(key)).toBe('shimmerSend');
+    expect(ROBOT_SENDS.some((spec) => spec.engineKey === key)).toBe(true);
     // @ts-expect-error - 'volumeSend' is not a send field
     const notAField: RobotSendField = 'volumeSend';
     // @ts-expect-error - 'chorus' is not a send engine key (the room is 'double')
@@ -93,7 +83,7 @@ describe('ROBOT_SENDS', () => {
   });
 });
 
-describe('engineKeyOf / sendFieldOf', () => {
+describe('engineKeyOf', () => {
   it('maps the five fields to the five engine keys', () => {
     expect(ROBOT_SEND_FIELDS.map(engineKeyOf)).toEqual([
       'reverb',
@@ -104,16 +94,14 @@ describe('engineKeyOf / sendFieldOf', () => {
     ]);
   });
 
-  it.each(ROBOT_SEND_FIELDS)('sendFieldOf(engineKeyOf(%s)) is the field back', (field) => {
-    expect(sendFieldOf(engineKeyOf(field))).toBe(field);
+  // Review follow-up (2026-10-22): the engine-key-to-field direction had no production caller, so it went with its index.
+  it.each(['sendFieldOf', 'ROBOT_SEND_BY_ENGINE_KEY'])('%s is not exported (nothing maps an engine key back to a field)', (name) => {
+    expect(name in robotSendsModule).toBe(false);
   });
 
-  it.each(['reverb', 'delay', 'grit', 'shimmer', 'double'] as const)(
-    'engineKeyOf(sendFieldOf(%s)) is the key back',
-    (key) => {
-      expect(engineKeyOf(sendFieldOf(key))).toBe(key);
-    }
-  );
+  it('engineKeyOf is exported (the absence check reads the real module)', () => {
+    expect('engineKeyOf' in robotSendsModule).toBe(true);
+  });
 });
 
 describe('robotSendLevels', () => {

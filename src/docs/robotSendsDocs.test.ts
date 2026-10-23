@@ -303,6 +303,8 @@ const REMOVED_BY_SEND_TABLE = [
   'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
   'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
   'SEND_PRIME_KEYS', 'SEND_ATTRIBUTES', 'writeRobotSend', 'reservationSendsPrime',
+  // The review follow-up (2026-10-22): the engine-key-to-field direction had no production caller
+  'sendFieldOf', 'ROBOT_SEND_BY_ENGINE_KEY',
 ];
 const namesRemoved = (text: string) => REMOVED_BY_SEND_TABLE.filter((name) => new RegExp(`\\b${name}\\b`).test(text));
 
