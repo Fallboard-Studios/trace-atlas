@@ -3,13 +3,8 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import {
-  EXCLUSIVE_SEND_FIELDS,
-  ROBOT_SEND_FIELDS,
-  ROBOT_SEND_LOADING_RANGES,
-  SEND_FIELD_ROOM,
-  type RobotSendField,
-} from './robotSendLoadingRanges';
+import { EXCLUSIVE_SEND_FIELDS, ROBOT_SEND_LOADING_RANGES, SEND_FIELD_ROOM } from './robotSendLoadingRanges';
+import { ROBOT_SEND_FIELDS, type RobotSendField } from './robotSends';
 import { SEND_MAX, SEND_MIN } from '../constants';
 
 // ========================================

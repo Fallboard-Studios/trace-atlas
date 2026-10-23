@@ -85,7 +85,8 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     ['CompactRobotOverrideDiff.gr', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bgr\?: number;/],
     ['CompactRobotOverrideDiff.sm', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bsm\?: number;/],
     ['CompactRobotOverrideDiff.db', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bdb\?: number;/],
-    ['ROBOT_SEND_FIELDS', 'src/data/robotSendLoadingRanges.ts', /export const ROBOT_SEND_FIELDS = \['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'\] as const;/],
+    // Re-pinned by Robot Send Table T2 (docs/specs/ROBOT_SEND_TABLE.md assumption 1): the field list is wiring, not a band.
+    ['ROBOT_SEND_FIELDS', 'src/data/robotSends.ts', /export const ROBOT_SEND_FIELDS = \['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'\] as const;/],
     ['ROBOT_SEND_LOADING_RANGES', 'src/data/robotSendLoadingRanges.ts', /export const ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, SendLoadingRange>/],
     ['EXCLUSIVE_SEND_FIELDS (the roll order)', 'src/data/robotSendLoadingRanges.ts', /export const EXCLUSIVE_SEND_FIELDS = \['gritSend', 'shimmerSend', 'doubleSend'\] as const;/],
     ['ROOM_KEYS', 'src/engine/audioEngine/bypassCell.ts', /export const ROOM_KEYS = \['grit', 'shimmer', 'double'\] as const;/],

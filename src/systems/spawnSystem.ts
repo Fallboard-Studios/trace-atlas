@@ -33,8 +33,8 @@ import {
   ROBOT_SEND_LOADING_RANGES,
   SEND_FIELD_ROOM,
   type ExclusiveSendField,
-  type RobotSendField,
 } from '../data/robotSendLoadingRanges';
+import type { RobotSendField } from '../data/robotSends';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
