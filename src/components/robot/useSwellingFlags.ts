@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import { ROBOT_SEND_FIELDS, type RobotSendField } from '@/data/robotSends';
 import { isRobotAttributeSwelling } from '@/systems/audioSwells';
 
 /**
@@ -39,6 +40,21 @@ export function useAdsrSwellingFlags(robotId: string | undefined, source: unknow
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `source` gates recompute timing, not read in the body (see above)
     [robotId, source],
+  );
+}
+
+/**
+ * The five send flags as one record keyed by field (docs/specs/ROBOT_SEND_TABLE.md §1.4), all false without a robot.
+ * Unlike the two hooks around it there is no `source`: the five reads it replaces ran on every render, and a send's flag
+ * can flip on a render no send field caused (a swell ends while the screen re-renders for another field), so this reads
+ * every render too and keeps its object only while the five answers are unchanged - a memo keyed on it still holds.
+ */
+export function useSendSwellingFlags(robotId: string | undefined): Readonly<Record<RobotSendField, boolean>> {
+  // One character per send, in table order: '1' swelling, '0' not.
+  const answers = ROBOT_SEND_FIELDS.map((field) => (robotId !== undefined && isRobotAttributeSwelling(robotId, field) ? '1' : '0')).join('');
+  return useMemo(
+    () => Object.fromEntries(ROBOT_SEND_FIELDS.map((field, i) => [field, answers[i] === '1'])) as Record<RobotSendField, boolean>,
+    [answers],
   );
 }
 

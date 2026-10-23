@@ -36,10 +36,11 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyAudioMode, applyVolume, applyPan, applyPanAuto, applyReverbSend, applyDelaySend, applyGritSend, applyShimmerSend, applyDoubleSend, applyDynamics, applyRests, applyAccents,
+  applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend, applyDynamics, applyRests, applyAccents,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
-import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
+import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
+import type { RobotSendField } from '@/data/robotSends';
 import { CONTENT, fill, introProps, labels } from '@/content';
 import type { DualLabelSchema, LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -202,11 +203,8 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // audioSwells.ts's module-scope Map, which React does not track: each memo's deps are the robot field
   // a swell tick writes, so it recomputes at that moment even though the body never reads them.
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
-  const reverbSendSwelling = isRobotAttributeSwelling(robot.id, 'reverbSend');
-  const delaySendSwelling = isRobotAttributeSwelling(robot.id, 'delaySend');
-  const gritSendSwelling = isRobotAttributeSwelling(robot.id, 'gritSend');
-  const shimmerSendSwelling = isRobotAttributeSwelling(robot.id, 'shimmerSend');
-  const doubleSendSwelling = isRobotAttributeSwelling(robot.id, 'doubleSend');
+  // The five sends, read every render like Volume and kept as one object while no answer changes (useSwellingFlags).
+  const sendSwelling = useSendSwellingFlags(robot.id);
   // Absent means no glide, today's sound (docs/specs/ROBOT_ARTICULATION.md assumption 1). A number, so the memo deps compare by value.
   const portamento = robot.audioAttributes.portamento ?? 0;
   const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
@@ -268,28 +266,12 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     applyVolume(latestRobot.current, localeId, pct);
   }, [localeId]);
 
-  // The sends are swell attributes (Task 12): a hand edit interrupts one first, the handleVolumeChange shape, so the
-  // typed value is the last write and the swell does not carry on over it.
-  const handleReverbSendChange = useCallback((pct: number) => {
-    cancelSwellForRobotAttribute(latestRobot.current.id, 'reverbSend');
-    applyReverbSend(latestRobot.current, localeId, pct);
-  }, [localeId]);
-  const handleDelaySendChange = useCallback((pct: number) => {
-    cancelSwellForRobotAttribute(latestRobot.current.id, 'delaySend');
-    applyDelaySend(latestRobot.current, localeId, pct);
-  }, [localeId]);
-  // Grit, Shimmer and Double (docs/specs/ROBOT_EFFECT_SENDS.md §1.6, §1.9): swell attributes too, so the same cancel first.
-  const handleGritSendChange = useCallback((pct: number) => {
-    cancelSwellForRobotAttribute(latestRobot.current.id, 'gritSend');
-    applyGritSend(latestRobot.current, localeId, pct);
-  }, [localeId]);
-  const handleShimmerSendChange = useCallback((pct: number) => {
-    cancelSwellForRobotAttribute(latestRobot.current.id, 'shimmerSend');
-    applyShimmerSend(latestRobot.current, localeId, pct);
-  }, [localeId]);
-  const handleDoubleSendChange = useCallback((pct: number) => {
-    cancelSwellForRobotAttribute(latestRobot.current.id, 'doubleSend');
-    applyDoubleSend(latestRobot.current, localeId, pct);
+  // All five sends are swell attributes (docs/specs/ROBOT_SENDS.md Task 12, ROBOT_EFFECT_SENDS.md §1.9): a hand edit
+  // interrupts that send's swell first, the handleVolumeChange shape, so the typed value is the last write and the swell
+  // does not carry on over it. One handler for the five rows (docs/specs/ROBOT_SEND_TABLE.md §1.4).
+  const handleSendChange = useCallback((field: RobotSendField, pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, field);
+    applySend(latestRobot.current, localeId, field, pct);
   }, [localeId]);
 
   // Dynamics is read at trigger time and is not a swell attribute: no cancel, no melody regeneration (spec §1.5).
@@ -355,18 +337,10 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onVolumeChange={handleVolumeChange}
             onPanChange={handlePanChange}
             onPanAutoChange={handlePanAutoChange}
-            onReverbSendChange={handleReverbSendChange}
-            onDelaySendChange={handleDelaySendChange}
-            onGritSendChange={handleGritSendChange}
-            onShimmerSendChange={handleShimmerSendChange}
-            onDoubleSendChange={handleDoubleSendChange}
+            onSendChange={handleSendChange}
             onDynamicsChange={handleDynamicsChange}
             volumeSwelling={volumeSwelling}
-            reverbSendSwelling={reverbSendSwelling}
-            delaySendSwelling={delaySendSwelling}
-            gritSendSwelling={gritSendSwelling}
-            shimmerSendSwelling={shimmerSendSwelling}
-            doubleSendSwelling={doubleSendSwelling}
+            sendSwelling={sendSwelling}
           />
         );
       case 'rhythm':
@@ -428,8 +402,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     }
   }, [
     robot.id, audioSettingValue, handleAudioModeChange, handleVolumeChange, handlePanChange, handlePanAutoChange, volumeSwelling,
-    handleReverbSendChange, handleDelaySendChange, handleDynamicsChange, reverbSendSwelling, delaySendSwelling,
-    handleGritSendChange, handleShimmerSendChange, handleDoubleSendChange, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling,
+    handleSendChange, handleDynamicsChange, sendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleRestsChange, handleAccentsChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,

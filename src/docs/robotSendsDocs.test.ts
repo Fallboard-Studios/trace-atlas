@@ -157,6 +157,8 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'SEND_PRIME_KEYS',
   // Deleted by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are ROBOT_SEND_SCHEMAS
   'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
+  // Deleted by Robot Send Table T11 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the robot screen has one handleSendChange
+  'handleReverbSendChange', 'handleDelaySendChange',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);
