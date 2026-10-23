@@ -118,6 +118,9 @@ const NOT_REPO_SYMBOLS = new Set([
   'cancelScheduledValues', 'setValueAtTime', 'linearRampToValueAtTime',
   // Deliberately absent: the spec's "Ask first" and "Not Doing" lists
   'formatValue',
+  // Deleted by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the company's send handlers are one onSendChange.
+  // COMPANIES.md's send-and-pan line names them until docs/tasks/ROBOT_SEND_TABLE.md Task 15 rewrites it.
+  'onReverbSendChange', 'onDelaySendChange',
   // File names, not symbols: a reference doc and this test file (sourceFiles skips *.test.ts)
   'SLIDER_VALUES', 'robotPanDocs',
 ]);

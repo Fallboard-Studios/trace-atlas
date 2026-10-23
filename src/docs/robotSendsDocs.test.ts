@@ -116,8 +116,9 @@ describe('the named Robot Sends symbols are declared where the spec says they ar
     ['each send schema is built from its table row', 'src/data/robotOptionsConfig.ts', /ROBOT_SENDS\.map\(\(spec\) => \[\s*spec\.field,\s*\{\s*id: `robotOptions\.\$\{spec\.field\}`,\s*type: 'sliderLinear',\s*\.\.\.labels\(spec\.contentKey\),/],
     ['AudioSettingValue.reverbSend', 'src/components/robot/AudioSettingSection.tsx', /\breverbSend: number;/],
     ['AudioSettingValue.delaySend', 'src/components/robot/AudioSettingSection.tsx', /\bdelaySend: number;/],
-    ['AudioSettingSection reverbSendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\breverbSendSwelling\?: boolean;/],
-    ['AudioSettingSection delaySendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\bdelaySendSwelling\?: boolean;/],
+    // Re-pinned by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): one flag record and one handler for the rows.
+    ['AudioSettingSection sendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\bsendSwelling\?: Readonly<Record<RobotSendField, boolean>>;/],
+    ['AudioSettingSection onSendChange prop', 'src/components/robot/AudioSettingSection.tsx', /\bonSendChange: \(field: RobotSendField, pct: number\) => void;/],
     // Re-pinned by Robot Send Table T8 (docs/specs/ROBOT_SEND_TABLE.md §1.5): the pool and the ranges read the field list
     // (robotSendsParity.test.ts pins the pool's order as a literal).
     ['the swell pool ends in the sends', 'src/types/audioSwell.ts', /SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId\[\] = \[[^\]]*'adsr\.release',\s*\.\.\.ROBOT_SEND_FIELDS,?\s*\]/],
@@ -159,6 +160,10 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
   // Deleted by Robot Send Table T11 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the robot screen has one handleSendChange
   'handleReverbSendChange', 'handleDelaySendChange',
+  // Deleted by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): AudioSettingSection's ten per-field send props
+  // and the company options' twins are one onSendChange and one sendSwelling record
+  'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
+  'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
   // File names, not symbols: this test file (sourceFiles skips *.test.ts) and the planning docs
   'robotSendsDocs', 'ROBOT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES',
 ]);

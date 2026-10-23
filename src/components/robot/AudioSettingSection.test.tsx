@@ -50,10 +50,14 @@ const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'Audio
 const PAN_NOOPS = { onPanChange: () => {}, onPanAutoChange: () => {} };
 // The send and Dynamics rows' handlers, for every case that does not exercise them (docs/specs/ROBOT_SENDS.md §1.6;
 // docs/specs/ROBOT_PERFORMANCE.md §1.6; docs/specs/ROBOT_EFFECT_SENDS.md §1.6).
-const LEVEL_NOOPS = {
-  onReverbSendChange: () => {}, onDelaySendChange: () => {}, onDynamicsChange: () => {},
-  onGritSendChange: () => {}, onShimmerSendChange: () => {}, onDoubleSendChange: () => {},
-};
+// One onSendChange(field, pct) for the five send rows since docs/tasks/ROBOT_SEND_TABLE.md Task 13.
+const LEVEL_NOOPS = { onSendChange: () => {}, onDynamicsChange: () => {} };
+
+/** The sendSwelling record with the named sends true and the rest false. */
+const swells = (...fields: RobotSendField[]): Record<RobotSendField, boolean> => ({
+  reverbSend: fields.includes('reverbSend'), delaySend: fields.includes('delaySend'), gritSend: fields.includes('gritSend'),
+  shimmerSend: fields.includes('shimmerSend'), doubleSend: fields.includes('doubleSend'),
+});
 
 function makeValue(overrides: Partial<{
   audioMode: NonNullable<Robot['audioMode']>; masterVolume: number; pan: number; panAuto: boolean; reverbSend: number; delaySend: number; dynamics: number;
@@ -579,21 +583,21 @@ describe('AudioSettingSection', () => {
       expect(delaySlider().getAttribute('aria-valuenow')).toBe(shown);
     });
 
-    it('a Reverb keyboard step calls onReverbSendChange with the display number (send x 100 + 1), not the 0..1 fraction', () => {
-      const onReverbSendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} onReverbSendChange={onReverbSendChange} />);
+    it('a Reverb keyboard step calls onSendChange(reverbSend) with the display number (send x 100 + 1), not the 0..1 fraction', () => {
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} onSendChange={onSendChange} />);
 
       fireEvent.keyDown(reverbSlider(), { key: 'ArrowRight' });
-      expect(onReverbSendChange).toHaveBeenCalledTimes(1);
-      expect(onReverbSendChange).toHaveBeenCalledWith(31);
+      expect(onSendChange).toHaveBeenCalledTimes(1);
+      expect(onSendChange).toHaveBeenCalledWith('reverbSend', 31);
     });
 
     it('a Reverb keyboard step the other way steps down by one display unit', () => {
-      const onReverbSendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} onReverbSendChange={onReverbSendChange} />);
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} onSendChange={onSendChange} />);
 
       fireEvent.keyDown(reverbSlider(), { key: 'ArrowLeft' });
-      expect(onReverbSendChange).toHaveBeenCalledWith(29);
+      expect(onSendChange).toHaveBeenCalledWith('reverbSend', 29);
     });
 
     it('a fractional stored send (a swell lands between whole percents) keeps its fraction on the slider', () => {
@@ -601,34 +605,32 @@ describe('AudioSettingSection', () => {
       expect(reverbSlider().getAttribute('aria-valuenow')).toBe('12.5');
     });
 
-    it('a Delay keyboard step calls onDelaySendChange with the display number', () => {
-      const onDelaySendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue({ delaySend: 0.1 })} {...baseProps} onDelaySendChange={onDelaySendChange} />);
+    it('a Delay keyboard step calls onSendChange(delaySend) with the display number', () => {
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ delaySend: 0.1 })} {...baseProps} onSendChange={onSendChange} />);
 
       fireEvent.keyDown(delaySlider(), { key: 'ArrowRight' });
-      expect(onDelaySendChange).toHaveBeenCalledTimes(1);
-      expect(onDelaySendChange).toHaveBeenCalledWith(11);
+      expect(onSendChange).toHaveBeenCalledTimes(1);
+      expect(onSendChange).toHaveBeenCalledWith('delaySend', 11);
     });
 
     it('End and Home drive each slider to its full travel (100 and 0)', () => {
-      const onReverbSendChange = vi.fn();
-      const onDelaySendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue()} {...baseProps} onReverbSendChange={onReverbSendChange} onDelaySendChange={onDelaySendChange} />);
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue()} {...baseProps} onSendChange={onSendChange} />);
 
       fireEvent.keyDown(reverbSlider(), { key: 'End' });
-      expect(onReverbSendChange).toHaveBeenLastCalledWith(100);
+      expect(onSendChange).toHaveBeenLastCalledWith('reverbSend', 100);
       fireEvent.keyDown(reverbSlider(), { key: 'Home' });
-      expect(onReverbSendChange).toHaveBeenLastCalledWith(0);
+      expect(onSendChange).toHaveBeenLastCalledWith('reverbSend', 0);
       fireEvent.keyDown(delaySlider(), { key: 'End' });
-      expect(onDelaySendChange).toHaveBeenLastCalledWith(100);
+      expect(onSendChange).toHaveBeenLastCalledWith('delaySend', 100);
       fireEvent.keyDown(delaySlider(), { key: 'Home' });
-      expect(onDelaySendChange).toHaveBeenLastCalledWith(0);
+      expect(onSendChange).toHaveBeenLastCalledWith('delaySend', 0);
     });
 
     it('never emits a display number outside 0..100: stepping down from 0 or up from 100 stays in range', () => {
-      const onReverbSendChange = vi.fn();
-      const onDelaySendChange = vi.fn();
-      const props = { ...baseProps, onReverbSendChange, onDelaySendChange };
+      const onSendChange = vi.fn();
+      const props = { ...baseProps, onSendChange };
       const dry = render(<AudioSettingSection value={makeValue({ reverbSend: 0, delaySend: 0 })} {...props} />);
       fireEvent.keyDown(reverbSlider(), { key: 'ArrowLeft' });
       fireEvent.keyDown(delaySlider(), { key: 'ArrowLeft' });
@@ -637,27 +639,24 @@ describe('AudioSettingSection', () => {
       fireEvent.keyDown(reverbSlider(), { key: 'ArrowRight' });
       fireEvent.keyDown(delaySlider(), { key: 'ArrowRight' });
 
-      [...onReverbSendChange.mock.calls, ...onDelaySendChange.mock.calls].forEach(([n]) => {
+      onSendChange.mock.calls.forEach(([, n]) => {
         expect(n).toBeGreaterThanOrEqual(0);
         expect(n).toBeLessThanOrEqual(100);
       });
     });
 
-    it('a step on one send never calls the other send, Volume, Pan or Audio Setting handlers', () => {
+    it('a step on one send reports that send only, and never calls the Volume, Pan, Dynamics or Audio Setting handlers', () => {
       const handlers = {
         onAudioModeChange: vi.fn(), onVolumeChange: vi.fn(), onPanChange: vi.fn(), onPanAutoChange: vi.fn(),
-        onReverbSendChange: vi.fn(), onDelaySendChange: vi.fn(), onDynamicsChange: vi.fn(),
-        onGritSendChange: vi.fn(), onShimmerSendChange: vi.fn(), onDoubleSendChange: vi.fn(),
+        onSendChange: vi.fn(), onDynamicsChange: vi.fn(),
       };
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...handlers} />);
 
       fireEvent.keyDown(reverbSlider(), { key: 'ArrowRight' });
-      expect(handlers.onReverbSendChange).toHaveBeenCalledTimes(1);
+      expect(handlers.onSendChange.mock.calls.map(([field]) => field)).toEqual(['reverbSend']);
       fireEvent.keyDown(delaySlider(), { key: 'ArrowRight' });
-      expect(handlers.onDelaySendChange).toHaveBeenCalledTimes(1);
+      expect(handlers.onSendChange.mock.calls.map(([field]) => field)).toEqual(['reverbSend', 'delaySend']);
 
-      expect(handlers.onReverbSendChange).toHaveBeenCalledTimes(1);
-      expect(handlers.onDelaySendChange).toHaveBeenCalledTimes(1);
       expect(handlers.onVolumeChange).not.toHaveBeenCalled();
       expect(handlers.onPanChange).not.toHaveBeenCalled();
       expect(handlers.onPanAutoChange).not.toHaveBeenCalled();
@@ -665,28 +664,24 @@ describe('AudioSettingSection', () => {
       expect(handlers.onAudioModeChange).not.toHaveBeenCalled();
     });
 
-    it('a Volume or Pan step never calls either send handler', () => {
-      const onReverbSendChange = vi.fn();
-      const onDelaySendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue({ panAuto: false })} {...baseProps} onReverbSendChange={onReverbSendChange} onDelaySendChange={onDelaySendChange} />);
+    it('a Volume or Pan step never calls the send handler', () => {
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue({ panAuto: false })} {...baseProps} onSendChange={onSendChange} />);
 
       fireEvent.keyDown(screen.getByRole('slider', { name: /volume/i }), { key: 'ArrowRight' });
       fireEvent.keyDown(screen.getByRole('slider', { name: new RegExp(`^${CONTENT['probe.pan'].human}`, 'i') }), { key: 'ArrowRight' });
-      expect(onReverbSendChange).not.toHaveBeenCalled();
-      expect(onDelaySendChange).not.toHaveBeenCalled();
+      expect(onSendChange).not.toHaveBeenCalled();
     });
 
     it('disabled: both sliders are disabled and call nothing', () => {
-      const onReverbSendChange = vi.fn();
-      const onDelaySendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue()} disabled {...baseProps} onReverbSendChange={onReverbSendChange} onDelaySendChange={onDelaySendChange} />);
+      const onSendChange = vi.fn();
+      render(<AudioSettingSection value={makeValue()} disabled {...baseProps} onSendChange={onSendChange} />);
 
       expect(reverbSlider().getAttribute('data-disabled')).toBe('');
       expect(delaySlider().getAttribute('data-disabled')).toBe('');
       fireEvent.keyDown(reverbSlider(), { key: 'ArrowRight' });
       fireEvent.keyDown(delaySlider(), { key: 'ArrowRight' });
-      expect(onReverbSendChange).not.toHaveBeenCalled();
-      expect(onDelaySendChange).not.toHaveBeenCalled();
+      expect(onSendChange).not.toHaveBeenCalled();
     });
 
     it('is enabled by default', () => {
@@ -775,25 +770,25 @@ describe('AudioSettingSection', () => {
     describe('swelling flags (Robot Sends Task 13)', () => {
       const shown = (slider: HTMLElement) => slider.getAttribute('aria-valuenow');
 
-      it('reverbSendSwelling makes an external Reverb change land at once, and leaves Delay easing', async () => {
-        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} reverbSendSwelling />);
-        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} reverbSendSwelling />);
+      it('sendSwelling.reverbSend makes an external Reverb change land at once, and leaves Delay easing', async () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} sendSwelling={swells('reverbSend')} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} sendSwelling={swells('reverbSend')} />);
 
         expect(shown(reverbSlider())).toBe('60'); // snapped
         expect(shown(delaySlider())).toBe('10'); // still easing
         await waitFor(() => expect(shown(delaySlider())).toBe('50'));
       });
 
-      it('delaySendSwelling makes an external Delay change land at once, and leaves Reverb easing', async () => {
-        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} delaySendSwelling />);
-        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} delaySendSwelling />);
+      it('sendSwelling.delaySend makes an external Delay change land at once, and leaves Reverb easing', async () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} sendSwelling={swells('delaySend')} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} sendSwelling={swells('delaySend')} />);
 
         expect(shown(delaySlider())).toBe('50');
         expect(shown(reverbSlider())).toBe('30');
         await waitFor(() => expect(shown(reverbSlider())).toBe('60'));
       });
 
-      it('with neither flag (the default) both sends ease, never snap', async () => {
+      it('with no record (the default) both sends ease, never snap', async () => {
         const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} />);
         rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} />);
 
@@ -803,43 +798,41 @@ describe('AudioSettingSection', () => {
         await waitFor(() => expect(shown(delaySlider())).toBe('50'));
       });
 
-      it('an explicit false behaves as absent', () => {
-        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} reverbSendSwelling={false} delaySendSwelling={false} />);
-        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6 })} {...baseProps} reverbSendSwelling={false} delaySendSwelling={false} />);
+      it('an all-false record behaves as absent', () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3 })} {...baseProps} sendSwelling={swells()} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6 })} {...baseProps} sendSwelling={swells()} />);
         expect(shown(reverbSlider())).toBe('30');
       });
 
       it('both flags together snap both sends', () => {
-        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
-        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
+        const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...baseProps} sendSwelling={swells('reverbSend', 'delaySend')} />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.6, delaySend: 0.5 })} {...baseProps} sendSwelling={swells('reverbSend', 'delaySend')} />);
         expect(shown(reverbSlider())).toBe('60');
         expect(shown(delaySlider())).toBe('50');
       });
 
       it('a send flag does not touch Volume: a Volume change still eases', () => {
-        const { rerender } = render(<AudioSettingSection value={makeValue({ masterVolume: 0.2 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
-        rerender(<AudioSettingSection value={makeValue({ masterVolume: 0.9 })} {...baseProps} reverbSendSwelling delaySendSwelling />);
+        const { rerender } = render(<AudioSettingSection value={makeValue({ masterVolume: 0.2 })} {...baseProps} sendSwelling={swells('reverbSend', 'delaySend')} />);
+        rerender(<AudioSettingSection value={makeValue({ masterVolume: 0.9 })} {...baseProps} sendSwelling={swells('reverbSend', 'delaySend')} />);
         expect(shown(screen.getByRole('slider', { name: /volume/i }))).toBe('20');
       });
 
       it('flipping a flag by itself moves no slider and fires no change handler', () => {
-        const onReverbSendChange = vi.fn();
-        const onDelaySendChange = vi.fn();
-        const props = { ...baseProps, onReverbSendChange, onDelaySendChange };
+        const onSendChange = vi.fn();
+        const props = { ...baseProps, onSendChange };
         const { rerender } = render(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...props} />);
-        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...props} reverbSendSwelling delaySendSwelling />);
+        rerender(<AudioSettingSection value={makeValue({ reverbSend: 0.3, delaySend: 0.1 })} {...props} sendSwelling={swells('reverbSend', 'delaySend')} />);
         expect(shown(reverbSlider())).toBe('30');
         expect(shown(delaySlider())).toBe('10');
-        expect(onReverbSendChange).not.toHaveBeenCalled();
-        expect(onDelaySendChange).not.toHaveBeenCalled();
+        expect(onSendChange).not.toHaveBeenCalled();
       });
 
-      it('flipping reverbSendSwelling re-renders the Reverb slider only', () => {
+      it('flipping sendSwelling.reverbSend re-renders the Reverb slider only', () => {
         const value = makeValue({ panAuto: false });
-        const { rerender } = render(<AudioSettingSection value={value} {...baseProps} />);
+        const { rerender } = render(<AudioSettingSection value={value} {...baseProps} sendSwelling={swells()} />);
         (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
-        rerender(<AudioSettingSection value={value} {...baseProps} reverbSendSwelling />);
+        rerender(<AudioSettingSection value={value} {...baseProps} sendSwelling={swells('reverbSend')} />);
 
         const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
         expect(rerendered).toContain(ROBOT_SEND_SCHEMAS.reverbSend.id);
@@ -848,12 +841,12 @@ describe('AudioSettingSection', () => {
         expect(rerendered).not.toContain(PAN_SCHEMA.id);
       });
 
-      it('flipping delaySendSwelling re-renders the Delay slider only', () => {
+      it('flipping sendSwelling.delaySend re-renders the Delay slider only', () => {
         const value = makeValue({ panAuto: false });
-        const { rerender } = render(<AudioSettingSection value={value} {...baseProps} />);
+        const { rerender } = render(<AudioSettingSection value={value} {...baseProps} sendSwelling={swells()} />);
         (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
-        rerender(<AudioSettingSection value={value} {...baseProps} delaySendSwelling />);
+        rerender(<AudioSettingSection value={value} {...baseProps} sendSwelling={swells('delaySend')} />);
 
         const rerendered = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
         expect(rerendered).toContain(ROBOT_SEND_SCHEMAS.delaySend.id);
@@ -931,14 +924,13 @@ describe('AudioSettingSection', () => {
     it('a step on Dynamics never calls any other handler, and a step on Delay, Volume or Pan never calls onDynamicsChange', () => {
       const handlers = {
         onAudioModeChange: vi.fn(), onVolumeChange: vi.fn(), onPanChange: vi.fn(), onPanAutoChange: vi.fn(),
-        onReverbSendChange: vi.fn(), onDelaySendChange: vi.fn(), onDynamicsChange: vi.fn(),
-        onGritSendChange: vi.fn(), onShimmerSendChange: vi.fn(), onDoubleSendChange: vi.fn(),
+        onSendChange: vi.fn(), onDynamicsChange: vi.fn(),
       };
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...handlers} />);
 
       fireEvent.keyDown(dynamicsSlider(), { key: 'ArrowRight' });
       expect(handlers.onDynamicsChange).toHaveBeenCalledTimes(1);
-      const others = [handlers.onAudioModeChange, handlers.onVolumeChange, handlers.onPanChange, handlers.onPanAutoChange, handlers.onReverbSendChange, handlers.onDelaySendChange];
+      const others = [handlers.onAudioModeChange, handlers.onVolumeChange, handlers.onPanChange, handlers.onPanAutoChange, handlers.onSendChange];
       others.forEach((h) => expect(h).not.toHaveBeenCalled());
 
       fireEvent.keyDown(delaySlider(), { key: 'ArrowRight' });
@@ -1018,11 +1010,10 @@ describe('AudioSettingSection', () => {
     const rerenderedIds = () => (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
 
     const ROWS = [
-      { name: 'Grit', field: 'gritSend', key: 'probe.gritSend', handler: 'onGritSendChange', flag: 'gritSendSwelling', schema: ROBOT_SEND_SCHEMAS.gritSend, wrapper: 'audio-setting-section__grit-row' },
-      { name: 'Shimmer', field: 'shimmerSend', key: 'probe.shimmerSend', handler: 'onShimmerSendChange', flag: 'shimmerSendSwelling', schema: ROBOT_SEND_SCHEMAS.shimmerSend, wrapper: 'audio-setting-section__shimmer-row' },
-      { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', handler: 'onDoubleSendChange', flag: 'doubleSendSwelling', schema: ROBOT_SEND_SCHEMAS.doubleSend, wrapper: 'audio-setting-section__double-row' },
+      { name: 'Grit', field: 'gritSend', key: 'probe.gritSend', schema: ROBOT_SEND_SCHEMAS.gritSend, wrapper: 'audio-setting-section__grit-row' },
+      { name: 'Shimmer', field: 'shimmerSend', key: 'probe.shimmerSend', schema: ROBOT_SEND_SCHEMAS.shimmerSend, wrapper: 'audio-setting-section__shimmer-row' },
+      { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', schema: ROBOT_SEND_SCHEMAS.doubleSend, wrapper: 'audio-setting-section__double-row' },
     ] as const;
-    const ALL_SEND_HANDLERS = ['onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange'] as const;
 
     it('renders Volume, Pan, Reverb, Delay, Grit, Shimmer, Double, Dynamics in that order, all inside the settings column', () => {
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...baseProps} />);
@@ -1054,49 +1045,38 @@ describe('AudioSettingSection', () => {
       ROWS.forEach(({ key }) => expect(sliderFor(key).getAttribute('aria-valuenow')).toBe('0'));
     });
 
-    it('a step on one new send calls only its own handler: no other send, Volume, Pan, Dynamics or Audio Setting handler', () => {
+    it('a step on one new send reports that send only, and calls no Volume, Pan, Dynamics or Audio Setting handler', () => {
       for (const row of ROWS) {
         const handlers = {
           onAudioModeChange: vi.fn(), onVolumeChange: vi.fn(), onPanChange: vi.fn(), onPanAutoChange: vi.fn(), onDynamicsChange: vi.fn(),
-          onReverbSendChange: vi.fn(), onDelaySendChange: vi.fn(), onGritSendChange: vi.fn(), onShimmerSendChange: vi.fn(), onDoubleSendChange: vi.fn(),
+          onSendChange: vi.fn(),
         };
         const view = render(<AudioSettingSection value={makeValue({ panAuto: false })} {...handlers} />);
 
         fireEvent.keyDown(sliderFor(row.key), { key: 'ArrowRight' });
 
         const called = Object.entries(handlers).filter(([, fn]) => fn.mock.calls.length > 0).map(([name]) => name);
-        expect(called, row.name).toEqual([row.handler]);
+        expect(called, row.name).toEqual(['onSendChange']);
+        expect(handlers.onSendChange.mock.calls.map(([field]) => field), row.name).toEqual([row.field]);
         view.unmount();
       }
     });
 
-    // Task 14 made the three values and handlers required, so neither screen can leave a row out. `npm run build:types`
-    // checks the directives: each goes unused (an error) if the prop it names turns optional again.
-    it('the three values and the three handlers are required props', () => {
-      const { onGritSendChange: _grit, onShimmerSendChange: _shimmer, onDoubleSendChange: _double, ...withoutNewHandlers } = LEVEL_NOOPS;
+    // Effect Sends Task 14 made the three values required, and Robot Send Table Task 13 made onSendChange required, so
+    // neither screen can leave a row out. `npm run build:types` checks the directives: each goes unused (an error) if
+    // the prop it names turns optional again.
+    it('the three values and onSendChange are required props', () => {
+      const { onSendChange: _send, ...withoutSendHandler } = LEVEL_NOOPS;
       const { gritSend: _g, shimmerSend: _s, doubleSend: _d, ...withoutNewValues } = makeValue();
       const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS };
-      // @ts-expect-error onGritSendChange, onShimmerSendChange and onDoubleSendChange are required
-      const missingHandlers = <AudioSettingSection value={makeValue()} {...props} {...withoutNewHandlers} />;
+      // @ts-expect-error onSendChange is required
+      const missingHandler = <AudioSettingSection value={makeValue()} {...props} {...withoutSendHandler} />;
       // @ts-expect-error value.gritSend, shimmerSend and doubleSend are required
       const missingValues = <AudioSettingSection value={withoutNewValues} {...props} {...LEVEL_NOOPS} />;
-      expect([missingHandlers, missingValues]).toHaveLength(2);
+      expect([missingHandler, missingValues]).toHaveLength(2);
     });
 
-    it('a Reverb or Delay step never calls a new send handler', () => {
-      const onGritSendChange = vi.fn();
-      const onShimmerSendChange = vi.fn();
-      const onDoubleSendChange = vi.fn();
-      render(<AudioSettingSection value={makeValue()} {...baseProps} onGritSendChange={onGritSendChange} onShimmerSendChange={onShimmerSendChange} onDoubleSendChange={onDoubleSendChange} />);
-
-      fireEvent.keyDown(sliderFor('probe.reverbSend'), { key: 'ArrowRight' });
-      fireEvent.keyDown(sliderFor('probe.delaySend'), { key: 'ArrowRight' });
-      expect(onGritSendChange).not.toHaveBeenCalled();
-      expect(onShimmerSendChange).not.toHaveBeenCalled();
-      expect(onDoubleSendChange).not.toHaveBeenCalled();
-    });
-
-    describe.each(ROWS)('$name', ({ field, key, handler, flag, schema, wrapper }) => {
+    describe.each(ROWS)('$name', ({ field, key, schema, wrapper }) => {
       it('shows 0-100 % of its own stored 0..1 send, with a 0..100 range', () => {
         render(<AudioSettingSection value={makeValue({ [field]: 0.37 })} {...baseProps} />);
         const slider = sliderFor(key);
@@ -1123,32 +1103,32 @@ describe('AudioSettingSection', () => {
         expect(sliderFor(key).getAttribute('aria-valuenow')).toBe('100');
       });
 
-      it('a keyboard step calls its handler once with the display number (send x 100 +/- 1), not the 0..1 fraction', () => {
+      it('a keyboard step calls onSendChange once with its field and the display number (send x 100 +/- 1), not the 0..1 fraction', () => {
         const fn = vi.fn();
-        const up = render(<AudioSettingSection value={makeValue({ [field]: 0.3 })} {...baseProps} {...{ [handler]: fn }} />);
+        const up = render(<AudioSettingSection value={makeValue({ [field]: 0.3 })} {...baseProps} onSendChange={fn} />);
         fireEvent.keyDown(sliderFor(key), { key: 'ArrowRight' });
         expect(fn).toHaveBeenCalledTimes(1);
-        expect(fn).toHaveBeenLastCalledWith(31);
+        expect(fn).toHaveBeenLastCalledWith(field, 31);
         up.unmount();
 
-        render(<AudioSettingSection value={makeValue({ [field]: 0.3 })} {...baseProps} {...{ [handler]: fn }} />);
+        render(<AudioSettingSection value={makeValue({ [field]: 0.3 })} {...baseProps} onSendChange={fn} />);
         fireEvent.keyDown(sliderFor(key), { key: 'ArrowLeft' });
         expect(fn).toHaveBeenCalledTimes(2);
-        expect(fn).toHaveBeenLastCalledWith(29);
+        expect(fn).toHaveBeenLastCalledWith(field, 29);
       });
 
       it('End and Home drive it to its full travel, and it never emits outside 0..100', () => {
         const fn = vi.fn();
-        const top = render(<AudioSettingSection value={makeValue({ [field]: 1 })} {...baseProps} {...{ [handler]: fn }} />);
+        const top = render(<AudioSettingSection value={makeValue({ [field]: 1 })} {...baseProps} onSendChange={fn} />);
         fireEvent.keyDown(sliderFor(key), { key: 'ArrowRight' });
         fireEvent.keyDown(sliderFor(key), { key: 'Home' });
-        expect(fn).toHaveBeenLastCalledWith(0);
+        expect(fn).toHaveBeenLastCalledWith(field, 0);
         top.unmount();
-        render(<AudioSettingSection value={makeValue({ [field]: 0 })} {...baseProps} {...{ [handler]: fn }} />);
+        render(<AudioSettingSection value={makeValue({ [field]: 0 })} {...baseProps} onSendChange={fn} />);
         fireEvent.keyDown(sliderFor(key), { key: 'ArrowLeft' });
         fireEvent.keyDown(sliderFor(key), { key: 'End' });
-        expect(fn).toHaveBeenLastCalledWith(100);
-        fn.mock.calls.forEach(([n]) => {
+        expect(fn).toHaveBeenLastCalledWith(field, 100);
+        fn.mock.calls.forEach(([, n]) => {
           expect(n).toBeGreaterThanOrEqual(0);
           expect(n).toBeLessThanOrEqual(100);
         });
@@ -1162,7 +1142,7 @@ describe('AudioSettingSection', () => {
 
       it('disabled: the slider is disabled and calls nothing', () => {
         const fn = vi.fn();
-        render(<AudioSettingSection value={makeValue()} disabled {...baseProps} {...{ [handler]: fn }} />);
+        render(<AudioSettingSection value={makeValue()} disabled {...baseProps} onSendChange={fn} />);
         expect(sliderFor(key).getAttribute('data-disabled')).toBe('');
         fireEvent.keyDown(sliderFor(key), { key: 'ArrowRight' });
         expect(fn).not.toHaveBeenCalled();
@@ -1199,8 +1179,8 @@ describe('AudioSettingSection', () => {
       it('its swelling flag makes an external change land at once, and leaves the other new sends easing', async () => {
         const start = makeValue({ gritSend: 0.1, shimmerSend: 0.1, doubleSend: 0.1 });
         const next = makeValue({ gritSend: 0.5, shimmerSend: 0.5, doubleSend: 0.5 });
-        const { rerender } = render(<AudioSettingSection value={start} {...baseProps} {...{ [flag]: true }} />);
-        rerender(<AudioSettingSection value={next} {...baseProps} {...{ [flag]: true }} />);
+        const { rerender } = render(<AudioSettingSection value={start} {...baseProps} sendSwelling={swells(field)} />);
+        rerender(<AudioSettingSection value={next} {...baseProps} sendSwelling={swells(field)} />);
 
         expect(sliderFor(key).getAttribute('aria-valuenow')).toBe('50');
         for (const other of ROWS.filter((r) => r.key !== key)) {
@@ -1209,19 +1189,19 @@ describe('AudioSettingSection', () => {
         await waitFor(() => ROWS.forEach((r) => expect(sliderFor(r.key).getAttribute('aria-valuenow')).toBe('50')));
       });
 
-      it('without its flag (the default, or false) it eases, never snaps', () => {
-        const { rerender } = render(<AudioSettingSection value={makeValue({ [field]: 0.1 })} {...baseProps} {...{ [flag]: false }} />);
-        rerender(<AudioSettingSection value={makeValue({ [field]: 0.5 })} {...baseProps} {...{ [flag]: false }} />);
+      it('without its flag (no record, or false) it eases, never snaps', () => {
+        const { rerender } = render(<AudioSettingSection value={makeValue({ [field]: 0.1 })} {...baseProps} sendSwelling={swells()} />);
+        rerender(<AudioSettingSection value={makeValue({ [field]: 0.5 })} {...baseProps} sendSwelling={swells()} />);
         expect(sliderFor(key).getAttribute('aria-valuenow')).toBe('10');
       });
     });
 
-    it('the five send handlers are five props: each row gets its own', () => {
-      const fns = Object.fromEntries(ALL_SEND_HANDLERS.map((h) => [h, vi.fn()]));
-      render(<AudioSettingSection value={makeValue()} {...baseProps} {...fns} />);
+    it('the five rows share one handler: each reports its own field, once', () => {
+      const fn = vi.fn();
+      render(<AudioSettingSection value={makeValue()} {...baseProps} onSendChange={fn} />);
       const keys = ['probe.reverbSend', 'probe.delaySend', 'probe.gritSend', 'probe.shimmerSend', 'probe.doubleSend'] as const;
       keys.forEach((k) => fireEvent.keyDown(sliderFor(k), { key: 'ArrowRight' }));
-      ALL_SEND_HANDLERS.forEach((h) => expect(fns[h], h).toHaveBeenCalledTimes(1));
+      expect(fn.mock.calls.map(([field]) => field)).toEqual(['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend']);
     });
 
     it('the component source writes no display string for the new rows (they come from the schemas)', () => {
@@ -1233,13 +1213,10 @@ describe('AudioSettingSection', () => {
     });
   });
 
-  // docs/specs/ROBOT_SEND_TABLE.md §1.4 (Robot Send Table T10): the five rows come from ROBOT_SENDS, one memo'd SendRow
-  // each, and report through one onSendChange(field, pct) with one sendSwelling record. Until both screens pass the two
-  // (T11, T12) a caller on the old per-field props still works through a fallback; T13 deletes it and the ten props.
+  // docs/specs/ROBOT_SEND_TABLE.md §1.4 (Robot Send Table T10, T13): the five rows come from ROBOT_SENDS, one memo'd
+  // SendRow each, and report through one onSendChange(field, pct) with one sendSwelling record. T13 deleted the bridge
+  // from the ten old per-field props; they no longer type-check.
   describe('send rows from the table (Robot Send Table T10)', () => {
-    const OLD_HANDLERS = ['onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange'] as const;
-    const oldHandlers = () =>
-      Object.fromEntries(OLD_HANDLERS.map((h) => [h, vi.fn()])) as Record<(typeof OLD_HANDLERS)[number], ReturnType<typeof vi.fn>>;
     const NEW_PROPS = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, onDynamicsChange: () => {} };
     const NO_SWELLS: Record<RobotSendField, boolean> = { reverbSend: false, delaySend: false, gritSend: false, shimmerSend: false, doubleSend: false };
     const sliderOf = (field: RobotSendField) =>
@@ -1272,15 +1249,13 @@ describe('AudioSettingSection', () => {
       expect(rendered).toEqual(ROBOT_SENDS.map((spec) => `robotOptions.${spec.field}`));
     });
 
-    it.each(ROBOT_SENDS)('with onSendChange, a step on the $field row calls onSendChange($field, 40) once and no old handler', (spec) => {
+    it.each(ROBOT_SENDS)('a step on the $field row calls onSendChange($field, 40) once', (spec) => {
       const onSendChange = vi.fn();
-      const old = oldHandlers();
-      render(<AudioSettingSection value={makeValue({ [spec.field]: 0.39 })} {...NEW_PROPS} {...old} onSendChange={onSendChange} />);
+      render(<AudioSettingSection value={makeValue({ [spec.field]: 0.39 })} {...NEW_PROPS} onSendChange={onSendChange} />);
 
       fireEvent.keyDown(sliderOf(spec.field), { key: 'ArrowRight' });
 
       expect(onSendChange.mock.calls).toEqual([[spec.field, 40]]);
-      OLD_HANDLERS.forEach((h) => expect(old[h], h).not.toHaveBeenCalled());
     });
 
     it('onSendChange reports the display number at both ends of the travel (Home 0, End 100), never a fraction', () => {
@@ -1311,16 +1286,6 @@ describe('AudioSettingSection', () => {
       expect(second).toHaveBeenCalledWith('doubleSend', 6);
     });
 
-    it('with only the old props (the bridge), the Grit row calls onGritSendChange(40) and nothing else', () => {
-      const old = oldHandlers();
-      render(<AudioSettingSection value={makeValue({ gritSend: 0.39 })} {...NEW_PROPS} {...old} />);
-
-      fireEvent.keyDown(sliderOf('gritSend'), { key: 'ArrowRight' });
-
-      expect(old.onGritSendChange.mock.calls).toEqual([[40]]);
-      OLD_HANDLERS.filter((h) => h !== 'onGritSendChange').forEach((h) => expect(old[h], h).not.toHaveBeenCalled());
-    });
-
     it.each(ROBOT_SENDS)('sendSwelling.$field snaps the $field row alone; the other four still ease', async (spec) => {
       const flags = { ...NO_SWELLS, [spec.field]: true };
       const { rerender } = render(<AudioSettingSection value={allSends(0.1)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={flags} />);
@@ -1335,12 +1300,6 @@ describe('AudioSettingSection', () => {
       const { rerender } = render(<AudioSettingSection value={allSends(0.1)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} />);
       rerender(<AudioSettingSection value={allSends(0.5)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} />);
       ROBOT_SENDS.forEach((s) => expect(shown(s.field), s.field).toBe('10'));
-    });
-
-    it('a sendSwelling record is the only flag source when given: an old per-field flag beside it is ignored', () => {
-      const { rerender } = render(<AudioSettingSection value={allSends(0.1)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} reverbSendSwelling />);
-      rerender(<AudioSettingSection value={allSends(0.5)} {...NEW_PROPS} onSendChange={vi.fn()} sendSwelling={NO_SWELLS} reverbSendSwelling />);
-      expect(shown('reverbSend')).toBe('10');
     });
 
     it('with onSendChange, editing Reverb re-renders the Reverb row and no other send row', () => {
@@ -1401,11 +1360,50 @@ describe('AudioSettingSection', () => {
 
     // `npm run build:types` checks the directive: the bridge keeps the rows wired, so a caller passes onSendChange or all
     // five old handlers, and onSendChange alone needs none of the old ones.
-    it('a caller must wire the send rows: onSendChange alone type-checks, neither it nor the old five does not', () => {
-      // @ts-expect-error neither onSendChange nor the five old send handlers
-      const neither = <AudioSettingSection value={makeValue()} {...NEW_PROPS} />;
+    it('a caller must wire the send rows: onSendChange alone type-checks, without it nothing does', () => {
+      // @ts-expect-error onSendChange is required
+      const missing = <AudioSettingSection value={makeValue()} {...NEW_PROPS} />;
       const newOnly = <AudioSettingSection value={makeValue()} {...NEW_PROPS} onSendChange={() => {}} />;
-      expect([neither, newOnly]).toHaveLength(2);
+      expect([missing, newOnly]).toHaveLength(2);
+    });
+
+    // Robot Send Table T13 (the 50.7 T14 pattern): the ten per-field props are gone from the type, so a caller still on
+    // them fails `npm run build:types` instead of silently wiring nothing. Each directive goes unused if its prop returns.
+    it('the ten old per-field send props no longer type-check', () => {
+      const props = { ...NEW_PROPS, onSendChange: () => {} };
+      const handlers = [
+        // @ts-expect-error onReverbSendChange is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} onReverbSendChange={() => {}} />,
+        // @ts-expect-error onDelaySendChange is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} onDelaySendChange={() => {}} />,
+        // @ts-expect-error onGritSendChange is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} onGritSendChange={() => {}} />,
+        // @ts-expect-error onShimmerSendChange is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} onShimmerSendChange={() => {}} />,
+        // @ts-expect-error onDoubleSendChange is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} onDoubleSendChange={() => {}} />,
+      ];
+      const flags = [
+        // @ts-expect-error reverbSendSwelling is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} reverbSendSwelling />,
+        // @ts-expect-error delaySendSwelling is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} delaySendSwelling />,
+        // @ts-expect-error gritSendSwelling is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} gritSendSwelling />,
+        // @ts-expect-error shimmerSendSwelling is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} shimmerSendSwelling />,
+        // @ts-expect-error doubleSendSwelling is no longer a prop
+        <AudioSettingSection value={makeValue()} {...props} doubleSendSwelling />,
+      ];
+      expect([...handlers, ...flags]).toHaveLength(10);
+    });
+
+    it('the component source names none of the ten old props', () => {
+      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'AudioSettingSection.tsx'), 'utf8');
+      for (const name of ['Reverb', 'Delay', 'Grit', 'Shimmer', 'Double']) {
+        expect(source, name).not.toMatch(new RegExp(`\\bon${name}SendChange\\b`));
+        expect(source, name).not.toMatch(new RegExp(`\\b${name.toLowerCase()}SendSwelling\\b`));
+      }
     });
 
     it('the component source spells out no send row by hand: no five-schema list, no per-field class literal', () => {

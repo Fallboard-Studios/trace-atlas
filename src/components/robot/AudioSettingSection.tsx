@@ -37,7 +37,7 @@ export interface AudioSettingValue {
    *  false holds `pan` (the slider is interactive). */
   panAuto: boolean;
   /** 0..1, matching Robot.reverbSend's own domain - how much of this robot's sound goes into the shared Reverb. This
-   *  component converts to the 0-100% the Reverb slider displays (x SEND_DISPLAY_SCALE); onReverbSendChange emits the
+   *  component converts to the 0-100% the Reverb slider displays (x SEND_DISPLAY_SCALE); onSendChange emits the
    *  0-100 display number (the same contract as onVolumeChange). docs/specs/ROBOT_SENDS.md §1.6. */
   reverbSend: number;
   /** 0..1, Robot.delaySend's own domain - the Delay twin of `reverbSend`. */
@@ -52,32 +52,16 @@ export interface AudioSettingValue {
   dynamics: number;
 }
 
-/** The five per-field send handlers the screens passed before Robot Send Table T10. 0..100, the same display-domain
- *  contract as onVolumeChange. A bridge only: T11 / T12 move both screens to onSendChange and T13 deletes these. */
-interface OldSendHandlerProps {
-  onReverbSendChange: (pct: number) => void;
-  onDelaySendChange: (pct: number) => void;
-  onGritSendChange: (pct: number) => void;
-  onShimmerSendChange: (pct: number) => void;
-  onDoubleSendChange: (pct: number) => void;
-}
-
-/** A caller wires the send rows one way or the other, never neither: onSendChange (the old five then optional and
- *  ignored), or all five old handlers. docs/specs/ROBOT_SEND_TABLE.md §1.4. */
-type SendHandlerProps =
-  | ({
-      /** 0..100, the display-domain contract of onVolumeChange, for whichever send row moved. */
-      onSendChange: (field: RobotSendField, pct: number) => void;
-    } & Partial<OldSendHandlerProps>)
-  | ({ onSendChange?: undefined } & OldSendHandlerProps);
-
-type AudioSettingSectionProps = SendHandlerProps & {
+interface AudioSettingSectionProps {
   value: AudioSettingValue;
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
   /** -100..100, the same display-domain contract as onVolumeChange. Only fires with Auto off. */
   onPanChange: (display: number) => void;
   onPanAutoChange: (auto: boolean) => void;
+  /** 0..100, the display-domain contract of onVolumeChange, for whichever send row moved: one handler for the five rows
+   *  (docs/specs/ROBOT_SEND_TABLE.md §1.4). */
+  onSendChange: (field: RobotSendField, pct: number) => void;
   /** 0..100, emitted as the whole number the slider shows (Robot.dynamics stores it unconverted). */
   onDynamicsChange: (value: number) => void;
   /** The engine's live Auto value (-0.5..0.5) for the robot screen; undefined on the company screen and
@@ -90,25 +74,16 @@ type AudioSettingSectionProps = SendHandlerProps & {
    *  audioSwells.ts's isRobotAttributeSwelling. */
   volumeSwelling?: boolean;
   /** Per send, true while an Audio Swell rides it (isRobotAttributeSwelling(id, field)), forwarded to that row's own
-   *  `swelling` so a swell tick is not eased a second time. When given, the only flag source: the five old flags below
-   *  are then ignored (docs/specs/ROBOT_SEND_TABLE.md §1.4; they go in T13). */
+   *  `swelling` so a swell tick is not eased a second time (docs/tasks/ROBOT_SENDS.md Task 13,
+   *  docs/specs/ROBOT_SEND_TABLE.md §1.4). Absent means no row is swelling. */
   sendSwelling?: Readonly<Record<RobotSendField, boolean>>;
-  /** The same for the Reverb and Delay sends (isRobotAttributeSwelling(id, 'reverbSend' | 'delaySend')),
-   *  forwarded to each send slider's own `swelling` prop so a swell tick is not eased a second time.
-   *  docs/tasks/ROBOT_SENDS.md Task 13. */
-  reverbSendSwelling?: boolean;
-  delaySendSwelling?: boolean;
-  /** The same for Grit, Shimmer and Double (docs/tasks/ROBOT_EFFECT_SENDS.md Tasks 13-14). */
-  gritSendSwelling?: boolean;
-  shimmerSendSwelling?: boolean;
-  doubleSendSwelling?: boolean;
   /** Optional inline style forwarded to this section's own root — trait-color scoping
    *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
    *  Output, whether it's editing one robot or a company's bulk baseline. See
    *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
-};
+}
 
 /** A stored 0..1 send as the slider's 0-100 number. Rounded to two places so the x100 leaves no float noise (0.29 would
  *  otherwise reach the slider, and a screen reader, as 28.999999999999996) while a swell's fractional percent survives. */
@@ -162,28 +137,9 @@ export const SendRow = memo(function SendRow({ spec, value, onSendChange, swelli
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
 function AudioSettingSectionInner({
-  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onReverbSendChange, onDelaySendChange,
-  onGritSendChange, onShimmerSendChange, onDoubleSendChange, onDynamicsChange, livePan, disabled, volumeSwelling, sendSwelling,
-  reverbSendSwelling, delaySendSwelling, gritSendSwelling, shimmerSendSwelling, doubleSendSwelling, style,
+  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDynamicsChange, livePan, disabled,
+  volumeSwelling, sendSwelling, style,
 }: AudioSettingSectionProps) {
-  // The T10 bridge (docs/tasks/ROBOT_SEND_TABLE.md): every row reports through one (field, pct) handler. A caller on
-  // onSendChange is handed straight through; a caller still on the five old props is routed to the matching one. T13
-  // deletes the fallback, the five old handlers and the five old flags.
-  const handleSendChange = useCallback(
-    (field: RobotSendField, pct: number) => {
-      if (onSendChange) {
-        onSendChange(field, pct);
-        return;
-      }
-      const old = { reverbSend: onReverbSendChange, delaySend: onDelaySendChange, gritSend: onGritSendChange, shimmerSend: onShimmerSendChange, doubleSend: onDoubleSendChange };
-      old[field]?.(pct);
-    },
-    [onSendChange, onReverbSendChange, onDelaySendChange, onGritSendChange, onShimmerSendChange, onDoubleSendChange],
-  );
-  const oldSendSwelling: Partial<Record<RobotSendField, boolean>> = {
-    reverbSend: reverbSendSwelling, delaySend: delaySendSwelling, gritSend: gritSendSwelling, shimmerSend: shimmerSendSwelling, doubleSend: doubleSendSwelling,
-  };
-
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
   // re-executing this component, which then handed the already-memoized RadioButton a new
@@ -241,8 +197,8 @@ function AudioSettingSectionInner({
               key={spec.field}
               spec={spec}
               value={value[spec.field]}
-              onSendChange={handleSendChange}
-              swelling={sendSwelling ? sendSwelling[spec.field] : oldSendSwelling[spec.field]}
+              onSendChange={onSendChange}
+              swelling={sendSwelling?.[spec.field]}
               disabled={disabled}
             />
           ))}

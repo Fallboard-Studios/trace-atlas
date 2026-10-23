@@ -78,8 +78,10 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
       [`RobotAudioOverrideDiff.${field}`, 'src/types/session.ts', new RegExp(`\\b${field}\\?: number;`)],
       [`RobotAudioBaseline.${field}`, 'src/systems/spawnSystem.ts', new RegExp(`interface RobotAudioBaseline \\{[^}]*\\b${field}: number;`)],
       [`AudioSettingValue.${field}`, 'src/components/robot/AudioSettingSection.tsx', new RegExp(`\\b${field}: number;`)],
-      [`AudioSettingSection ${field}Swelling prop`, 'src/components/robot/AudioSettingSection.tsx', new RegExp(`\\b${field}Swelling\\?: boolean;`)],
     ]),
+    // Re-pinned by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the three per-field flags are one record.
+    ['AudioSettingSection sendSwelling prop', 'src/components/robot/AudioSettingSection.tsx', /\bsendSwelling\?: Readonly<Record<RobotSendField, boolean>>;/],
+    ['AudioSettingSection onSendChange prop', 'src/components/robot/AudioSettingSection.tsx', /\bonSendChange: \(field: RobotSendField, pct: number\) => void;/],
     // Re-pinned by Robot Send Table T3 (docs/specs/ROBOT_SEND_TABLE.md assumption 4): the five send nodes are one record.
     ['the voice entry carries the send nodes', 'src/engine/audioEngine/voiceEntry.ts', /\bsends: Readonly<Record<SendEngineKey, Tone\.Gain>>;/],
     ['CompactRobotOverrideDiff.gr', 'src/utils/sessionShareUtils.ts', /interface CompactRobotOverrideDiff \{[^}]*\bgr\?: number;/],
@@ -151,6 +153,10 @@ const NOT_REPO_SYMBOLS = new Set<string>([
   'SEND_DELAY_QUIET_THRESHOLD',
   // Deleted by Robot Send Table T10 (docs/specs/ROBOT_SEND_TABLE.md §1.4): the five named schemas are ROBOT_SEND_SCHEMAS
   'REVERB_SEND_SCHEMA', 'DELAY_SEND_SCHEMA', 'GRIT_SEND_SCHEMA', 'SHIMMER_SEND_SCHEMA', 'DOUBLE_SEND_SCHEMA',
+  // Deleted by Robot Send Table T13 (docs/specs/ROBOT_SEND_TABLE.md §1.4): AudioSettingSection's ten per-field send props
+  // and the company options' twins are one onSendChange and one sendSwelling record
+  'onReverbSendChange', 'onDelaySendChange', 'onGritSendChange', 'onShimmerSendChange', 'onDoubleSendChange',
+  'reverbSendSwelling', 'delaySendSwelling', 'gritSendSwelling', 'shimmerSendSwelling', 'doubleSendSwelling',
   // File and doc names, not symbols (chainCycleSearch is a test file, which sourceFiles skips)
   'chainCycleSearch', 'ROBOT_SENDS', 'ROBOT_EFFECT_SENDS', 'GLOBAL_CHAIN_GRID', 'ROBOT_DATA_GRID', 'SLIDER_VALUES', 'AUDIO_SYSTEM',
   'SESSION_STORAGE', 'GLOBAL_PEDALS', 'GLOBAL_COLOUR', 'DARK_EFFECT_BYPASS', 'TONE_EFFECTS_INVENTORY', 'CLASSIC_BAND_RETUNE',
