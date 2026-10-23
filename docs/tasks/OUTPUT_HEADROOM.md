@@ -23,7 +23,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > done**: the ceiling's audio-thread cost is below the method's resolution. **Checkpoint A** heard one world crunch
 > with every robot at 100 % (`6j0mgo5z`): the seeded Compressor's 70 ms release, not the ceiling; Crawford: raise the
 > seeded release floor to 0.25 s (spec §7). **T9 done** (`1c13470d`, the gate re-run in PERFORMANCE.md "After T9").
-> **Phase 3 complete. Next: T10, the phone (Checkpoint B, Crawford's device), after his re-listen to `6j0mgo5z`.**
+> **Phase 3 complete.** Crawford's re-listen after T9: "desktop sounds good" (Checkpoint A closed). **T10 next: the
+> phone (Checkpoint B, Crawford's device).**
 
 ## Overview
 

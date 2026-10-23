@@ -403,3 +403,4 @@ top, 0.05 % of samples above the knee; the Limiter's gain reduction 0.05 dB at m
 it (a ratio of 1 and a −20 dB threshold were the other two steps offered). **Decision: raise the seeded release floor**
 (T9): `GLOBAL_AUDIO_LOADING_RANGES['compressor.release']` from 0.05–0.3 s to 0.25–0.3 s, the value heard to fix it.
 Assumption 5's threshold and ratio narrowing is not invoked; the user's own Release slider keeps its full 0.01–1 s.
+After T9 (`1c13470d`), Crawford's re-listen on the desktop, 2026-10-23: "desktop sounds good". **Checkpoint A closed.**
