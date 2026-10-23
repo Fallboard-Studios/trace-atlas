@@ -28,43 +28,43 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 6. Robot Melody & Seed Engine
 
-**Done — see [docs/specs/ROBOT_MELODY_SEED_ENGINE.md](../specs/ROBOT_MELODY_SEED_ENGINE.md).**
+**Done — see [docs/specs/ROBOT_MELODY_SEED_ENGINE.md](../specs/archive/ROBOT_MELODY_SEED_ENGINE.md).**
 
 ## 7. Robot Systems Engine
 
-**Done — see [docs/specs/ROBOT_SYSTEMS_ENGINE.md](../specs/ROBOT_SYSTEMS_ENGINE.md).**
+**Done — see [docs/specs/ROBOT_SYSTEMS_ENGINE.md](../specs/archive/ROBOT_SYSTEMS_ENGINE.md).**
 
 ## 8. Robot Selection
 
-**Done — see [docs/specs/ROBOT_SELECTION.md](../specs/ROBOT_SELECTION.md).**
+**Done — see [docs/specs/ROBOT_SELECTION.md](../specs/archive/ROBOT_SELECTION.md).**
 
 ## 9. Robot Options
 
-**Done — see [docs/specs/ROBOT_OPTIONS.md](../specs/ROBOT_OPTIONS.md) and [docs/tasks/ROBOT_OPTIONS.md](../tasks/ROBOT_OPTIONS.md), plus post-launch fixes.**
+**Done — see [docs/specs/ROBOT_OPTIONS.md](../specs/archive/ROBOT_OPTIONS.md) and [docs/tasks/ROBOT_OPTIONS.md](../tasks/archive/ROBOT_OPTIONS.md), plus post-launch fixes.**
 
 ## 10. Companies
 
-**Done — see [docs/specs/COMPANIES.md](../specs/COMPANIES.md) and [docs/tasks/COMPANIES.md](../tasks/COMPANIES.md).**
+**Done — see [docs/specs/COMPANIES.md](../specs/archive/COMPANIES.md) and [docs/tasks/COMPANIES.md](../tasks/archive/COMPANIES.md).**
 
 ## 10.1 Attenuation Style (single-planet reskin)
 
-**Done — see [docs/specs/ATTENUATION_STYLE.md](../specs/ATTENUATION_STYLE.md) and [docs/tasks/ATTENUATION_STYLE.md](../tasks/ATTENUATION_STYLE.md).**
+**Done — see [docs/specs/ATTENUATION_STYLE.md](../specs/archive/ATTENUATION_STYLE.md) and [docs/tasks/ATTENUATION_STYLE.md](../tasks/archive/ATTENUATION_STYLE.md).**
 
 ## 10.2 LFO Modulation Engine (Stacked LFO Drift)
 
-**Done — see [docs/specs/LFO_DRIFT.md](../specs/LFO_DRIFT.md) and [docs/tasks/LFO_DRIFT.md](../tasks/LFO_DRIFT.md); superseded in shape (not scope) by 10.3's 4-group reshape.**
+**Done — see [docs/specs/LFO_DRIFT.md](../specs/archive/LFO_DRIFT.md) and [docs/tasks/LFO_DRIFT.md](../tasks/archive/LFO_DRIFT.md); superseded in shape (not scope) by 10.3's 4-group reshape.**
 
 ## 10.3 LFO Modulation Engine — Multi-Group Drift
 
-**Done — see [docs/specs/LFO_DRIFT_GROUPS.md](../specs/LFO_DRIFT_GROUPS.md) and [docs/tasks/LFO_DRIFT_GROUPS.md](../tasks/LFO_DRIFT_GROUPS.md).**
+**Done — see [docs/specs/LFO_DRIFT_GROUPS.md](../specs/archive/LFO_DRIFT_GROUPS.md) and [docs/tasks/LFO_DRIFT_GROUPS.md](../tasks/archive/LFO_DRIFT_GROUPS.md).**
 
 ## 10.4 Attenuation Style Internal Rename
 
-**Done — see [docs/specs/ATTENUATION_STYLE_RENAME.md](../specs/ATTENUATION_STYLE_RENAME.md) and [docs/tasks/ATTENUATION_STYLE_RENAME.md](../tasks/ATTENUATION_STYLE_RENAME.md).**
+**Done — see [docs/specs/ATTENUATION_STYLE_RENAME.md](../specs/archive/ATTENUATION_STYLE_RENAME.md) and [docs/tasks/ATTENUATION_STYLE_RENAME.md](../tasks/archive/ATTENUATION_STYLE_RENAME.md).**
 
 ## 10.5 Company Assignment: Select → RadioButton
 
-**Done — see [docs/specs/COMPANY_ASSIGNMENT_RADIO.md](../specs/COMPANY_ASSIGNMENT_RADIO.md) and [docs/tasks/COMPANY_ASSIGNMENT_RADIO.md](../tasks/COMPANY_ASSIGNMENT_RADIO.md).**
+**Done — see [docs/specs/COMPANY_ASSIGNMENT_RADIO.md](../specs/archive/COMPANY_ASSIGNMENT_RADIO.md) and [docs/tasks/COMPANY_ASSIGNMENT_RADIO.md](../tasks/archive/COMPANY_ASSIGNMENT_RADIO.md).**
 
 ## 11. Console Theming — Cut
 
@@ -72,23 +72,23 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 11.1.1 Oblique Cabinetry: Foundation & Button
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md](../specs/OBLIQUE_CABINETRY_FOUNDATION.md) and [docs/tasks/OBLIQUE_CABINETRY_FOUNDATION.md](../tasks/OBLIQUE_CABINETRY_FOUNDATION.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md](../specs/archive/OBLIQUE_CABINETRY_FOUNDATION.md) and [docs/tasks/OBLIQUE_CABINETRY_FOUNDATION.md](../tasks/archive/OBLIQUE_CABINETRY_FOUNDATION.md).**
 
 ## 11.1.2 Oblique Cabinetry: Toggle
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_TOGGLE.md](../specs/OBLIQUE_CABINETRY_TOGGLE.md) and [docs/tasks/OBLIQUE_CABINETRY_TOGGLE.md](../tasks/OBLIQUE_CABINETRY_TOGGLE.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_TOGGLE.md](../specs/archive/OBLIQUE_CABINETRY_TOGGLE.md) and [docs/tasks/OBLIQUE_CABINETRY_TOGGLE.md](../tasks/archive/OBLIQUE_CABINETRY_TOGGLE.md).**
 
 ## 11.1.3 Oblique Cabinetry: SliderLinear (Voxel-Track Foundation)
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md](../specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md) and [docs/tasks/OBLIQUE_CABINETRY_SLIDER_LINEAR.md](../tasks/OBLIQUE_CABINETRY_SLIDER_LINEAR.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md](../specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md) and [docs/tasks/OBLIQUE_CABINETRY_SLIDER_LINEAR.md](../tasks/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md).**
 
 ## 11.1.4 Oblique Cabinetry: SliderLog
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_SLIDER_LOG.md](../specs/OBLIQUE_CABINETRY_SLIDER_LOG.md) and [docs/tasks/OBLIQUE_CABINETRY_SLIDER_LOG.md](../tasks/OBLIQUE_CABINETRY_SLIDER_LOG.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_SLIDER_LOG.md](../specs/archive/OBLIQUE_CABINETRY_SLIDER_LOG.md) and [docs/tasks/OBLIQUE_CABINETRY_SLIDER_LOG.md](../tasks/archive/OBLIQUE_CABINETRY_SLIDER_LOG.md).**
 
 ## 11.1.5 Oblique Cabinetry: SliderCenteredZero
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md](../specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md) and [docs/tasks/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md](../tasks/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md](../specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md) and [docs/tasks/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md](../tasks/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md).**
 
 ## 11.1.5.1 Oblique Cabinetry: SliderLinear vertical box verification
 
@@ -104,11 +104,11 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 11.1.6 Oblique Cabinetry: RadioButton
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md](../specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md), [docs/tasks/OBLIQUE_CABINETRY_RADIO_BUTTON.md](../tasks/OBLIQUE_CABINETRY_RADIO_BUTTON.md), and [docs/intent/oblique-cabinetry-radio-button.md](../intent/oblique-cabinetry-radio-button.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md](../specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md), [docs/tasks/OBLIQUE_CABINETRY_RADIO_BUTTON.md](../tasks/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md), and [docs/intent/oblique-cabinetry-radio-button.md](../intent/archive/oblique-cabinetry-radio-button.md).**
 
 ## 11.1.7 Oblique Cabinetry: AccordionContainer
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md](../specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md), [docs/tasks/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md](../tasks/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md), and [docs/intent/oblique-cabinetry-accordion-container.md](../intent/oblique-cabinetry-accordion-container.md).**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md](../specs/archive/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md), [docs/tasks/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md](../tasks/archive/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md), and [docs/intent/oblique-cabinetry-accordion-container.md](../intent/archive/oblique-cabinetry-accordion-container.md).**
 
 ## 11.1.8 Oblique Cabinetry: Select — Cut
 
@@ -116,11 +116,11 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 11.1.9 Oblique Cabinetry: TextInput / CoordsInput
 
-**Done — see [docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md](../specs/OBLIQUE_CABINETRY_TEXT_INPUT.md), [docs/tasks/OBLIQUE_CABINETRY_TEXT_INPUT.md](../tasks/OBLIQUE_CABINETRY_TEXT_INPUT.md), and [docs/intent/oblique-cabinetry-text-input.md](../intent/oblique-cabinetry-text-input.md). Closing stamp added 2026-09-27; confirmed shipped on `main` via `599ea19`.**
+**Done — see [docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md](../specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md), [docs/tasks/OBLIQUE_CABINETRY_TEXT_INPUT.md](../tasks/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md), and [docs/intent/oblique-cabinetry-text-input.md](../intent/archive/oblique-cabinetry-text-input.md). Closing stamp added 2026-09-27; confirmed shipped on `main` via `599ea19`.**
 
 ## 12. Font Sizes: App-Wide Type Scale
 
-**Done — see [docs/intent/type-scale.md](../intent/type-scale.md), [docs/specs/TYPE_SCALE.md](../specs/TYPE_SCALE.md), and [docs/tasks/TYPE_SCALE.md](../tasks/TYPE_SCALE.md). Merged via PR #457.**
+**Done — see [docs/intent/type-scale.md](../intent/archive/type-scale.md), [docs/specs/TYPE_SCALE.md](../specs/archive/TYPE_SCALE.md), and [docs/tasks/TYPE_SCALE.md](../tasks/archive/TYPE_SCALE.md). Merged via PR #457.**
 
 ## 13. Bug: Vertical Slider Label Overflow
 
@@ -128,23 +128,23 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 14. Visual Identity: Color Scheme & Trait-Based Theming
 
-**Done — see [docs/intent/color-scheme-trait-theming.md](../intent/color-scheme-trait-theming.md), [docs/specs/COLOR_SCHEME_TRAIT_THEMING.md](../specs/COLOR_SCHEME_TRAIT_THEMING.md), and [docs/tasks/COLOR_SCHEME_TRAIT_THEMING.md](../tasks/COLOR_SCHEME_TRAIT_THEMING.md).**
+**Done — see [docs/intent/color-scheme-trait-theming.md](../intent/archive/color-scheme-trait-theming.md), [docs/specs/COLOR_SCHEME_TRAIT_THEMING.md](../specs/archive/COLOR_SCHEME_TRAIT_THEMING.md), and [docs/tasks/COLOR_SCHEME_TRAIT_THEMING.md](../tasks/archive/COLOR_SCHEME_TRAIT_THEMING.md).**
 
 ## 15.1 Component: SliderLinear Read-Only Mode
 
-**Done — see [docs/specs/SLIDER_LINEAR_READ_ONLY.md](../specs/SLIDER_LINEAR_READ_ONLY.md).**
+**Done — see [docs/specs/SLIDER_LINEAR_READ_ONLY.md](../specs/archive/SLIDER_LINEAR_READ_ONLY.md).**
 
 ## 15.2 Redesign: Robot Cards
 
-**Done — see [docs/specs/ROBOT_CARDS_REDESIGN.md](../specs/ROBOT_CARDS_REDESIGN.md) and [docs/intent/robot-cards-redesign.md](../intent/robot-cards-redesign.md).**
+**Done — see [docs/specs/ROBOT_CARDS_REDESIGN.md](../specs/archive/ROBOT_CARDS_REDESIGN.md) and [docs/intent/robot-cards-redesign.md](../intent/archive/robot-cards-redesign.md).**
 
 ## 16. Redesign: Company CRUD Area
 
-**Done — narrower scope than originally drafted (Company Section Enhancements + Company CRUD Button Preview + 10.5's Select→RadioButton swap); see [docs/specs/COMPANY_SECTION_ENHANCEMENTS.md](../specs/COMPANY_SECTION_ENHANCEMENTS.md) and [docs/specs/COMPANY_CRUD_BUTTON_PREVIEW.md](../specs/COMPANY_CRUD_BUTTON_PREVIEW.md).**
+**Done — narrower scope than originally drafted (Company Section Enhancements + Company CRUD Button Preview + 10.5's Select→RadioButton swap); see [docs/specs/COMPANY_SECTION_ENHANCEMENTS.md](../specs/archive/COMPANY_SECTION_ENHANCEMENTS.md) and [docs/specs/COMPANY_CRUD_BUTTON_PREVIEW.md](../specs/archive/COMPANY_CRUD_BUTTON_PREVIEW.md).**
 
 ## 15.3 Redesign: Robot Detail Top Card
 
-**Done — see [docs/intent/robot-detail-top-card-redesign.md](../intent/robot-detail-top-card-redesign.md), [docs/specs/ROBOT_DETAIL_TOP_CARD_REDESIGN.md](../specs/ROBOT_DETAIL_TOP_CARD_REDESIGN.md), and [docs/tasks/ROBOT_DETAIL_TOP_CARD_REDESIGN.md](../tasks/ROBOT_DETAIL_TOP_CARD_REDESIGN.md).**
+**Done — see [docs/intent/robot-detail-top-card-redesign.md](../intent/archive/robot-detail-top-card-redesign.md), [docs/specs/ROBOT_DETAIL_TOP_CARD_REDESIGN.md](../specs/archive/ROBOT_DETAIL_TOP_CARD_REDESIGN.md), and [docs/tasks/ROBOT_DETAIL_TOP_CARD_REDESIGN.md](../tasks/archive/ROBOT_DETAIL_TOP_CARD_REDESIGN.md).**
 
 ## 17.1 Styling Overhaul: Sleeve / Tablet-Off State
 
@@ -160,7 +160,7 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 17.2.2 Performance: Lazy-Mount Collapsed Accordion Content
 
-**Done — see [docs/specs/ACCORDION_LAZY_MOUNT.md](../specs/ACCORDION_LAZY_MOUNT.md) and [docs/tasks/ACCORDION_LAZY_MOUNT.md](../tasks/ACCORDION_LAZY_MOUNT.md). Merged via PR #484.**
+**Done — see [docs/specs/ACCORDION_LAZY_MOUNT.md](../specs/archive/ACCORDION_LAZY_MOUNT.md) and [docs/tasks/ACCORDION_LAZY_MOUNT.md](../tasks/archive/ACCORDION_LAZY_MOUNT.md). Merged via PR #484.**
 
 ## 17.2.3 Performance: CabinetBox Mount-Time Layout Thrash
 
@@ -176,7 +176,7 @@ Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.m
 
 ## 17.2.6 Performance: Audio Load Budget
 
-**Implemented — see [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) §8 "As Shipped" and [docs/tasks/AUDIO_LOAD_BUDGET.md](../tasks/AUDIO_LOAD_BUDGET.md). Merged via PR #485/#486.**
+**Implemented — see [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/archive/AUDIO_LOAD_BUDGET.md) §8 "As Shipped" and [docs/tasks/AUDIO_LOAD_BUDGET.md](../tasks/archive/AUDIO_LOAD_BUDGET.md). Merged via PR #485/#486.**
 
 ## 17.2.7 Performance: Robot LFO Priming
 

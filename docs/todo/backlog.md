@@ -10,7 +10,7 @@ Not a spec — this is a review-output backlog. Each item gets its own `/intervi
 spec pass (as warranted by its size) when picked up; check it off here once merged. Not
 itself one of CLAUDE.md's Reference docs.
 
-See also [docs/DUPLICATE_VALUE_AUDIT.md](DUPLICATE_VALUE_AUDIT.md) — a dedicated sibling
+See also [docs/DUPLICATE_VALUE_AUDIT.md](../DUPLICATE_VALUE_AUDIT.md) — a dedicated sibling
 backlog for one specific bug class (independently-declared duplicate values) rather than a
 duplicate of this doc.
 
@@ -376,7 +376,7 @@ Raised by Crawford, 2026-10-09, on `feature/layout-rework`, reversing the Phase 
 them: "I want to bring `?seed=`, `?x=`, and `?y=` back actually, they're so much better to use if a
 user didn't change anything than the current json soup, especially if they want to share an
 untweaked world with someone." Not yet interviewed or specced — needs its own `/interview-me`. Sits
-beside roadmap [21](roadmap.md#21-sector-settings-shareable-linkimportexport) (the `?session=` link,
+beside roadmap [21](roadmap.md#21-sector-settings-shareable-link-importexport) (the `?session=` link,
 which stays for tweaked worlds) and roadmap
 [48](roadmap.md#48-one-day-clock-remove-the-measure-based-day)'s dead-code sweep, which leaves the old
 override primitives alone until this item decides their fate.
