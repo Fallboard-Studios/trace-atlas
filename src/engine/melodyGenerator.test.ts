@@ -176,7 +176,7 @@ describe('buildMotifOnsets', () => {
 // ========================================
 // TEST SUITE: buildMotifOnsets — tail-cell pass (untruncating)
 //
-// Pitch Repeat (docs/specs/PITCH_REPEAT.md) bundles a fix to the shared rhythm engine: when
+// Pitch Repeat (docs/specs/archive/PITCH_REPEAT.md) bundles a fix to the shared rhythm engine: when
 // `rhythmicMotifLength` (M) doesn't evenly divide `subdivisions`, the leftover
 // `subdivisions - repeats * M` steps used to never receive an onset. This block pins the fix.
 // ========================================
@@ -264,7 +264,7 @@ describe('buildMotifOnsets — tail-cell pass (untruncating)', () => {
 // ========================================
 // TEST SUITE: computePitchLockPlan
 //
-// Pitch Repeat's staged/seeded pitch-locking model (docs/specs/PITCH_REPEAT.md §4). Uses
+// Pitch Repeat's staged/seeded pitch-locking model (docs/specs/archive/PITCH_REPEAT.md §4). Uses
 // hand-built onset arrays (rather than buildMotifOnsets output) so each scenario's K/repeats/tail
 // shape is exact and legible, and `rand = () => 0` where a specific, known permutation is needed
 // (pickUniqueInRange's Fisher-Yates shuffle degenerates to the identity order at rand() === 0).

@@ -255,7 +255,7 @@ vi.mock('tone', () => ({
   get Limiter() {
     return toneFlags.limiterAbsent ? undefined : toneFlags.limiterCtor;
   },
-  // The read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md) are NATIVE AnalyserNodes made from Tone's raw
+  // The read-only output taps (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md) are NATIVE AnalyserNodes made from Tone's raw
   // context: Tone.Analyser cannot be used, because it sets fftSize = 2 * size and caps size at 16384, so it can neither
   // build a 32768 window nor read more than half of one (found in the real-browser check, Task 6).
   getContext: vi.fn(() => ({
@@ -4936,7 +4936,7 @@ describe('globalFx', () => {
     });
   });
 
-  describe('output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md)', () => {
+  describe('output taps (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md)', () => {
     type FakeAnalyser = ReturnType<typeof makeFakeAnalyser>;
     const analysers = (): FakeAnalyser[] => createAnalyser.mock.results.map((r) => r.value as FakeAnalyser);
     /** The analysers a node has been asked to feed. */
@@ -5220,7 +5220,7 @@ describe('globalFx', () => {
     expect('setGlobalBypass' in globalFx).toBe(false);
   });
 
-  describe('setGlobalFilterLPF/HPF frequency ramping (docs/tasks/AUDIO_ENGINE_CLEANUP.md P2.4) — confirmed live: a large LPF frequency jump produced an audible click with a direct .value write', () => {
+  describe('setGlobalFilterLPF/HPF frequency ramping (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md P2.4) — confirmed live: a large LPF frequency jump produced an audible click with a direct .value write', () => {
     it('ramps the live LPF frequency via rampTo when available, rather than an instant .value jump', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();

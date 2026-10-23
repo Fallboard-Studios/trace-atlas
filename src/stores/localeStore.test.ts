@@ -81,11 +81,11 @@ describe('localeStore', () => {
       expect(() => JSON.stringify(useLocaleStore.getState())).not.toThrow();
     });
 
-    it('default locale coordinates still avoid the old (0, 0) default — kept for continuity, though no coordinate is unsafe anymore now that getLocaleNoiseMap hashes (x, y) directly instead of sampling simplex noise at the point (see docs/specs/LOCALE_SEED_DECOUPLING.md)', () => {
+    it('default locale coordinates still avoid the old (0, 0) default — kept for continuity, though no coordinate is unsafe anymore now that getLocaleNoiseMap hashes (x, y) directly instead of sampling simplex noise at the point (see docs/specs/archive/LOCALE_SEED_DECOUPLING.md)', () => {
       expect(DEFAULT_LOCALE.coordinates).not.toEqual({ x: 0, y: 0 });
     });
 
-    it('default locale coordinates are integers — CoordsInput.tsx and SectorSettingsDrawer.tsx both assume coordinates are integers system-wide (docs/specs/SECTOR_SETTINGS.md); a decimal default renders as a multi-decimal value on first load, before any user edit rounds it', () => {
+    it('default locale coordinates are integers — CoordsInput.tsx and SectorSettingsDrawer.tsx both assume coordinates are integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md); a decimal default renders as a multi-decimal value on first load, before any user edit rounds it', () => {
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.x)).toBe(true);
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.y)).toBe(true);
     });
@@ -139,7 +139,7 @@ describe('localeStore', () => {
       });
     });
 
-    it('has a dayStartTimestamp computed from its own x coordinate, per docs/specs/ATTENUATION_STYLE.md §1.1', () => {
+    it('has a dayStartTimestamp computed from its own x coordinate, per docs/specs/archive/ATTENUATION_STYLE.md §1.1', () => {
       expect(typeof DEFAULT_LOCALE.dayStartTimestamp).toBe('number');
       expect(Number.isFinite(DEFAULT_LOCALE.dayStartTimestamp)).toBe(true);
     });
@@ -154,7 +154,7 @@ describe('localeStore', () => {
 
     // Note: this tests getAttenuationStyleNoiseMap directly, not locale
     // generation — getLocaleNoiseMap no longer derives from the Attenuation
-    // Style map at all (see docs/specs/LOCALE_SEED_DECOUPLING.md), so this
+    // Style map at all (see docs/specs/archive/LOCALE_SEED_DECOUPLING.md), so this
     // assertion is unaffected by that change; it's still true and still
     // worth asserting on its own.
     it('sampling the Attenuation Style noise map at the default locale\'s coordinates varies by AS seed', async () => {
@@ -194,7 +194,7 @@ describe('localeStore', () => {
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].id).toBe('r2');
     });
 
-    it('releases the robot\'s AudioEngine voice and melody (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 3)', () => {
+    it('releases the robot\'s AudioEngine voice and melody (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 3)', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
       const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
       const unregisterMelodySpy = vi.spyOn(AudioEngine, 'unregisterRobotMelody');

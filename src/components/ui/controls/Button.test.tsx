@@ -7,7 +7,7 @@ vi.mock('./CabinetBox', () => ({
   ),
 }));
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 6) can tell whether Button's render body actually re-executed —
 // resolveAccessibleName(schema) is called unconditionally in the render body.
 vi.mock('./accessibleName', async (importOriginal) => {
@@ -150,7 +150,7 @@ describe('Button', () => {
     expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('0.5');
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((Button as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

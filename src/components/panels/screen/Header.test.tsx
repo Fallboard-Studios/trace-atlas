@@ -86,7 +86,7 @@ vi.mock('gsap', () => {
 });
 
 // Controllable ResizeObserver mock — exercises the --header-height
-// measurement effect (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6, Task 9).
+// measurement effect (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.6, Task 9).
 class MockResizeObserver {
   static instances: MockResizeObserver[] = [];
   callback: ResizeObserverCallback;
@@ -234,7 +234,7 @@ describe('Header', () => {
     expect(screen.queryByText(/BPM/)).toBeNull();
   });
 
-  // docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6 (Task 9) — Console.css's
+  // docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.6 (Task 9) — Console.css's
   // vertical deadzone clearance reads --header-height off document.documentElement,
   // since Header is a sibling of Console, not an ancestor.
   describe('--header-height measurement (§1.6)', () => {
@@ -353,7 +353,7 @@ describe('Header', () => {
     });
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 15) — the Header
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 15) — the Header
   // trait's own colors (teal/green, rebalanced from emerald/indigo — see traitColors.ts's own
   // comment) on the header root.
   it("scopes its root to the Header trait's colors (teal/green)", () => {

@@ -12,7 +12,7 @@ vi.mock('./CabinetBox', () => ({
 }));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so render-count tests (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so render-count tests (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 11) can tell whether DirectionalPanel's render body actually
 // re-executed — useResponsivePanelOrientation() is called unconditionally on
 // every render (per this component's own "both hooks always called" comment).
@@ -192,7 +192,7 @@ describe('DirectionalPanel', () => {
     expect(texts).toEqual(['Low', 'Mid', 'High']);
   });
 
-  describe('orientation="auto" (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up: row when there\'s room)', () => {
+  describe('orientation="auto" (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md follow-up: row when there\'s room)', () => {
     it('renders data-orientation="column" before any measurement — the narrower, safer fallback', () => {
       const schema: DirectionalPanelSchema = { id: 'eqFiltersRow', type: 'directionalPanel', orientation: 'auto' };
       const { container } = render(
@@ -210,7 +210,7 @@ describe('DirectionalPanel', () => {
     // their true parent); top-level panels measure the facade instead — a
     // real, accepted consequence (spec §1.4), pinned here as an explicit
     // regression guard rather than left implicit. See
-    // docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.4/§5.
+    // docs/specs/archive/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.4/§5.
     it('a nested panel still observes its own true parent element, unaffected by the facade', () => {
       const outerSchema: DirectionalPanelSchema = { id: 'outer', type: 'directionalPanel' };
       const innerSchema: DirectionalPanelSchema = { id: 'inner', type: 'directionalPanel', orientation: 'auto' };
@@ -256,7 +256,7 @@ describe('DirectionalPanel', () => {
     });
   });
 
-  // docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2 — a fixed viewport-tier
+  // docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2 — a fixed viewport-tier
   // orientation, distinct from 'auto''s per-parent measurement.
   describe("orientation=\"responsive\" (fixed viewport tier, not a per-parent measurement)", () => {
     afterEach(() => {
@@ -309,7 +309,7 @@ describe('DirectionalPanel', () => {
   });
 
   // Roadmap "Oblique Cabinetry — DirectionalPanel". See
-  // docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.2/§1.3.
+  // docs/specs/archive/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.2/§1.3.
   describe('Oblique Cabinetry facade (top-level only, never nested)', () => {
     it('renders through a CabinetBox facade when top-level', () => {
       const schema: DirectionalPanelSchema = { id: 'eq3Panel', type: 'directionalPanel' };
@@ -357,7 +357,7 @@ describe('DirectionalPanel', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 11 — the conditional-benefit case, spec §1.3)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 11 — the conditional-benefit case, spec §1.3)', () => {
     const schema: DirectionalPanelSchema = { id: 'eq3Panel', type: 'directionalPanel' };
 
     it('is a React.memo-wrapped component', () => {

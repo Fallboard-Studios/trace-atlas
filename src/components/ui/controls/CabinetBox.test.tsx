@@ -7,7 +7,7 @@ vi.mock('@/utils/cabinetGeometry', async (importOriginal) => {
   return { ...actual, computeCabinetFrontFaceOffset: vi.fn(actual.computeCabinetFrontFaceOffset) };
 });
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 4) can tell whether CabinetBoxInner's render body actually re-executed —
 // useCabinetBoxHeight() is called unconditionally on every render (even when
 // boxHeightOverride makes its result unused, per CabinetBox.tsx's own comment),
@@ -299,7 +299,7 @@ describe('CabinetBox', () => {
     expect(wrapper.style.getPropertyValue('--cabinet-box-height')).toBe('44px');
   });
 
-  describe('color override (docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§5.1)', () => {
+  describe('color override (docs/specs/archive/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§5.1)', () => {
     it('applies no --cabinet-box-color inline style when color is omitted', () => {
       const { container } = render(<CabinetBox popped={false} timelineKey="test-box" />);
       const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
@@ -313,7 +313,7 @@ describe('CabinetBox', () => {
     });
   });
 
-  describe('enforceMinTouchHeight (docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3/§5.1)', () => {
+  describe('enforceMinTouchHeight (docs/specs/archive/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3/§5.1)', () => {
     it('enforceMinTouchHeight={false} lets --cabinet-box-height go below the 44px floor', () => {
       const { container } = render(
         <CabinetBox popped={false} timelineKey="test-box" boxHeight={4} enforceMinTouchHeight={false}>x</CabinetBox>,
@@ -340,7 +340,7 @@ describe('CabinetBox', () => {
     });
   });
 
-  describe('wall rendering (roadmap 11.1.1 follow-up — two fixed-skew, scale-tweened divs, replacing SVG polygons; docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md)', () => {
+  describe('wall rendering (roadmap 11.1.1 follow-up — two fixed-skew, scale-tweened divs, replacing SVG polygons; docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md)', () => {
     it('the top-face and left-face elements are plain <div>s, not SVG polygons', () => {
       const { container } = render(<CabinetBox popped={false} timelineKey="test-box">x</CabinetBox>);
       const topFace = container.querySelector('.sc-cabinet-box__top-face');
@@ -1017,7 +1017,7 @@ describe('CabinetBox', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 4)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 4)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((CabinetBox as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

@@ -23,7 +23,7 @@ describe('robotSelectionConfig', () => {
       expect(ROBOT_SELECTION_ROW_SCHEMAS.docking).toMatchObject({ loreLabel: CONTENT['probe.status.docking'].lore, humanLabel: CONTENT['probe.status.docking'].human });
     });
 
-    // Roadmap 15.2 (docs/specs/ROBOT_CARDS_REDESIGN.md §1.5 item 1): .battery moved to
+    // Roadmap 15.2 (docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.5 item 1): .battery moved to
     // BATTERY_READOUT_SCHEMA (Roadmap 15.1) and .audio had no consumer at all — both dropped
     // as genuinely dead once RobotSelectionCard stopped referencing them.
     it('no longer has .battery or .audio entries', () => {
@@ -31,7 +31,7 @@ describe('robotSelectionConfig', () => {
       expect((ROBOT_SELECTION_ROW_SCHEMAS as Record<string, unknown>).audio).toBeUndefined();
     });
 
-    // Roadmap 15.3 (docs/specs/ROBOT_DETAIL_TOP_CARD_REDESIGN.md §1.3) — the first field-level
+    // Roadmap 15.3 (docs/specs/archive/ROBOT_DETAIL_TOP_CARD_REDESIGN.md §1.3) — the first field-level
     // DualLabel for Status; RobotSelectionCard's own Status (15.2) renders bare, with no field-level
     // label of its own, so this is new rather than a rename of an existing entry.
     it('has a .status entry with a non-empty loreLabel and humanLabel of "Status"', () => {

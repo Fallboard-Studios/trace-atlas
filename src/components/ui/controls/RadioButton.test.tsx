@@ -28,7 +28,7 @@ vi.mock('./CabinetBox', () => ({
 }));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 9) can tell whether RadioButton's render body actually re-executed —
 // resolveAccessibleName(schema) is called unconditionally in the render body.
 vi.mock('./accessibleName', async (importOriginal) => {
@@ -81,7 +81,7 @@ describe('RadioButton', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  // docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4 (correction found during
+  // docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4 (correction found during
   // Header's own implementation, Task 8) — every existing consumer relies on
   // the deselect-to-empty event being silently swallowed (the test above),
   // so it can't just start forwarding '' to onChange without risking a
@@ -140,7 +140,7 @@ describe('RadioButton', () => {
   });
 
   // Roadmap 11.1.6 — one CabinetBox per option, popped only for the
-  // currently-selected one. See docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.1.
+  // currently-selected one. See docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.1.
   it('renders one CabinetBox per option, fully popped only for the option matching value, resting at CABINET_REST_POP for every other', () => {
     render(<RadioButton schema={schema} value="sine" onChange={() => {}} />);
     expect(screen.getAllByTestId('cabinet-box')).toHaveLength(4);
@@ -196,7 +196,7 @@ describe('RadioButton', () => {
   });
 
   // Hover-pop, matching Button's own hover behavior — reverses 11.1.6's original
-  // "no hover/partial-pop on unselected options" exclusion (docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md §3).
+  // "no hover/partial-pop on unselected options" exclusion (docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §3).
   it('pops an unselected option fully on mouseEnter and rests it again at CABINET_REST_POP on mouseLeave', () => {
     render(<RadioButton schema={schema} value="sine" onChange={() => {}} />);
     const item = screen.getByRole('radio', { name: 'TRIANGLE' });
@@ -253,7 +253,7 @@ describe('RadioButton', () => {
     expect(item.querySelector('[data-testid="cabinet-box"]')?.getAttribute('data-popped')).toBe('0.5');
   });
 
-  // docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4 — literal square box size,
+  // docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4 — literal square box size,
   // overriding the responsive useCabinetBoxHeight() tier every other
   // consumer relies on by omitting these props entirely.
   it('passes boxSize as boxHeight/frontWidth/frontHeight on every option\'s CabinetBox when provided', () => {
@@ -277,7 +277,7 @@ describe('RadioButton', () => {
     expect(box?.getAttribute('data-front-height')).toBeNull();
   });
 
-  // docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.3 — per-option color, consumed by
+  // docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.3 — per-option color, consumed by
   // CompanyButtonRow and RobotSelectionCard's company-assignment RadioButton. Scopes
   // getRobotColorStyle's 4 custom properties to just that option's own ToggleGroup.Item, letting
   // CabinetBox.css/RadioButton.css's existing ambient-accent rules do the rest — no new CSS.
@@ -323,7 +323,7 @@ describe('RadioButton', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((RadioButton as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

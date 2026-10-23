@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 2 correction — found via Task 12's own end-to-end debugging: this
 // component's own React.memo wrap was missed originally, only the internal
 // states useMemo was added) can tell whether SliderLog's render body
@@ -210,7 +210,7 @@ describe('SliderLog component', () => {
     });
   });
 
-  describe('formatValue (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.6)', () => {
+  describe('formatValue (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.6)', () => {
     it('uses formatValue for the displayed label when present, ignoring unit entirely', () => {
       const formatValue = (v: number) => `custom:${v}`;
       const formattedSchema: SliderLogSchema = { ...schema, formatValue };
@@ -428,7 +428,7 @@ describe('SliderLog component', () => {
     });
   });
 
-  describe('computeVoxelBoxStates memoization (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 2)', () => {
+  describe('computeVoxelBoxStates memoization (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 2)', () => {
     it('does not recompute states across re-renders with unchanged value/schema.min/schema.max/boxCount', () => {
       const spy = vi.spyOn(voxelTrackMath, 'computeVoxelBoxStates');
       const { rerender } = render(<SliderLog schema={schema} value={2} onChange={() => {}} />);
@@ -477,7 +477,7 @@ describe('SliderLog component', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 2 correction — SliderLog itself, not just its internal states useMemo)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 2 correction — SliderLog itself, not just its internal states useMemo)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((SliderLog as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

@@ -101,7 +101,7 @@ describe('createCompositeVoice', () => {
     expect(Tone.Synth).toHaveBeenCalledTimes(2);
   });
 
-  describe('detune/phase/pulseWidth application (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 4) — characterizes today\'s behavior before extracting a shared helper, so the refactor has a real safety net', () => {
+  describe('detune/phase/pulseWidth application (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 4) — characterizes today\'s behavior before extracting a shared helper, so the refactor has a real safety net', () => {
     describe('at construction', () => {
       it('applies detune directly onto oscillator.detune.value', () => {
         createCompositeVoice([makeLayer({ detune: 37 })], SHARED_ADSR);

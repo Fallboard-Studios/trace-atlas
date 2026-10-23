@@ -255,7 +255,7 @@ describe('AudioSettingSection', () => {
     expect(onVolumeChange).not.toHaveBeenCalled();
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 11) — an optional
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 11) — an optional
   // `style` prop forwarded to this section's own root (Task 18 follow-up, docs/tasks/
   // NAV_LAYOUT_REWRITE.md: moved from the now-removed accordion wrapper to the plain
   // .audio-setting-section root), for trait-color scoping (getTraitColorStyle('output'), applied
@@ -1373,7 +1373,7 @@ describe('AudioSettingSection', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)', () => {
+  describe('React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((AudioSettingSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

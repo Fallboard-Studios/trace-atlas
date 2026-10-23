@@ -36,7 +36,7 @@ describe('ConsolePanel', () => {
     useUIStore.setState(useUIStore.getInitialState(), true);
   });
 
-  it('renders nothing when activeHubTile is null — navigation now lives in Header, not a tile-grid inside the console (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.7)', () => {
+  it('renders nothing when activeHubTile is null — navigation now lives in Header, not a tile-grid inside the console (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.7)', () => {
     const { container } = render(<ConsolePanel />);
     expect(container.firstChild).toBeNull();
     expect(screen.queryByRole('region', { name: 'Hub Navigation' })).toBeNull();

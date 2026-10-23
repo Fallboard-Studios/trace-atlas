@@ -114,12 +114,12 @@ describe('SectorSettingsDrawer', () => {
     expect(retransmitWorldMock).toHaveBeenCalledWith({});
   });
 
-  it('no longer renders the old "Enable automatic effects" toggle — relocated and reshaped into the Audio Rig drawer\'s Ping Variance Automation slider (docs/tasks/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
+  it('no longer renders the old "Enable automatic effects" toggle — relocated and reshaped into the Audio Rig drawer\'s Ping Variance Automation slider (docs/tasks/archive/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
     render(<SectorSettingsDrawer />);
     expect(screen.queryByRole('switch', { name: 'Enable automatic effects' })).toBeNull();
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 14) — the Seed trait's
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 14) — the Seed trait's
   // own colors (rosewood/dustyRose, since the 2026-09-12 rebalance replaced the too-intense
   // tangerine/yellow pairing) on the drawer's own root.
   it("scopes its root to the Seed trait's colors (rosewood/dustyRose)", () => {

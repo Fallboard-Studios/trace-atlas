@@ -127,7 +127,7 @@ beforeEach(() => {
   // those tests assert an UNSCALED peak; automation-scaling itself gets its
   // own dedicated describe block below, which sets a different value per test.
   // swellFrequency: 4 gives a per-tick trigger chance of 4/16 = 0.25
-  // (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — close enough to
+  // (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — close enough to
   // the old fixed SWELL_TRIGGER_CHANCE (0.28) that every existing
   // ALWAYS_MIN(succeeds)/ALWAYS_MID(fails) fixture below still behaves
   // identically; individual trigger-mechanism tests override this explicitly.
@@ -213,7 +213,7 @@ describe('smooth sub-measure advance (16n ticking)', () => {
     expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(12 * (0.9375 / 3));
   });
 
-  it('rolls the trigger/selection on every tick, not just once per whole measure (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — replaces the old once-per-whole-measure gate)', () => {
+  it('rolls the trigger/selection on every tick, not just once per whole measure (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — replaces the old once-per-whole-measure gate)', () => {
     for (let i = 0; i < 16; i++) {
       vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
       tickAudioSwells(LOCALE_ID, i / 16); // all 16 ticks land within measure 0
@@ -235,7 +235,7 @@ describe('smooth sub-measure advance (16n ticking)', () => {
   });
 });
 
-describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — takes over the on/off role pingVarianceAutomation used to have)', () => {
+describe('swellFrequency gate (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — takes over the on/off role pingVarianceAutomation used to have)', () => {
   it('starts no new swell (global or robot) at frequency 0, even when the trigger draw would otherwise succeed', () => {
     useAudioStore.setState({ swellFrequency: 0 });
     useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
@@ -270,7 +270,7 @@ describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
   });
 });
 
-describe('frequencyToPerTickChance (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3)', () => {
+describe('frequencyToPerTickChance (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3)', () => {
   it('divides frequency by the 16-tick-per-measure cadence', () => {
     expect(frequencyToPerTickChance(4)).toBeCloseTo(0.25);
     expect(frequencyToPerTickChance(8)).toBeCloseTo(0.5);
@@ -379,7 +379,7 @@ describe('pingVarianceAutomation magnitude scaling (Task 3)', () => {
   });
 });
 
-describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — re-keyed from pingVarianceAutomation, Task 4 of PING-VARIANCE-AUTOMATION.md)', () => {
+describe('swellFrequency forced return at 0 (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — re-keyed from pingVarianceAutomation, Task 4 of PING-VARIANCE-AUTOMATION.md)', () => {
   it('forces a rising global swell into its falling phase with no jump, then lands exactly on baseValue after its own original fallingMeasures', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12
@@ -686,7 +686,7 @@ describe('ramp lifecycle', () => {
   });
 });
 
-describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4, full pipeline, real seeded noise)', () => {
+describe('Duration — pickSwellSplit (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4, full pipeline, real seeded noise)', () => {
   it('risingMeasures + fallingMeasures always equals swellDuration (within the 1-measure-per-phase rounding floor), for every swell type', () => {
     useAudioStore.setState({ swellDuration: 10 });
     const samples: { target: string; rising: number; falling: number }[] = [];

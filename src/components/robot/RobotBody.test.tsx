@@ -252,7 +252,7 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
     });
   });
 
-  // Backlog item 22 (docs/specs/ROBOT_BODY_LIGHTING_RERENDER.md): the once/sec lighting tick, and
+  // Backlog item 22 (docs/specs/archive/ROBOT_BODY_LIGHTING_RERENDER.md): the once/sec lighting tick, and
   // every non-audio input, must not recompute the audio memo. Spies on bodyShapeFromAdsr across a
   // real module boundary (robotVisualHelpers.ts) — called exactly once per memo computation.
   describe('the audio memo recomputes only for audio', () => {

@@ -25,7 +25,7 @@ vi.mock('./CabinetBox', () => ({
 }));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 7) can tell whether TextInput's render body actually re-executed —
 // resolveAccessibleName(schema) is called unconditionally in the render body.
 vi.mock('./accessibleName', async (importOriginal) => {
@@ -108,7 +108,7 @@ describe('TextInput', () => {
   });
 
   // Roadmap 11.1.9 — a single, permanently-popped, autoHeight CabinetBox facade per instance.
-  // See docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.2.
+  // See docs/specs/archive/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.2.
   it('renders through a permanently-popped CabinetBox facade', () => {
     const schema: TextInputSchema = { id: 'robotName', type: 'textInput' };
     render(<TextInput schema={schema} value="" onChange={() => {}} />);
@@ -139,7 +139,7 @@ describe('TextInput', () => {
     expect(box.textContent).toContain('Robot Name');
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 7)', () => {
     const schema: TextInputSchema = { id: 'robotName', type: 'textInput', humanLabel: 'Robot Name' };
 
     it('is a React.memo-wrapped component', () => {

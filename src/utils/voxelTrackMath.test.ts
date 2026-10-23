@@ -226,7 +226,7 @@ describe('computeVoxelTrackTrailingReserve', () => {
 
 describe('computeVoxelFillBackground', () => {
   it('returns the 2-tone gradient token (not the solid accent token) at exactly 100%', () => {
-    // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.2/§4, Task 6) — a fully-filled
+    // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.2/§4, Task 6) — a fully-filled
     // box is one of the few flat-rectangle fills that can render the literal 2-tone gradient
     // rather than a single solid color.
     expect(computeVoxelFillBackground(100, 'horizontal')).toBe('var(--color-accent-gradient)');

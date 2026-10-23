@@ -17,7 +17,7 @@ import {
 // Every seedable field across all 7 global effects (V2: Compressor, EQ3, LPF,
 // HPF, Delay, Reverb, Limiter — Chorus removed, Limiter added). `type` and
 // `compressorBeforeDelay` are excluded — not seeded as continuous ranges
-// (see docs/specs/AUDIO_RIG_V2.md §3). The old `enabled`/`globalBypass`
+// (see docs/specs/archive/AUDIO_RIG_V2.md §3). The old `enabled`/`globalBypass`
 // booleans are gone entirely (off states are expressed via the params
 // themselves), so there's nothing left to exclude for them.
 const EXPECTED_KEYS = [

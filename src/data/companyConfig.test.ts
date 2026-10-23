@@ -59,7 +59,7 @@ describe('companyConfig', () => {
       expect(buildCompanyAssignmentSchema([]).id.startsWith('company.')).toBe(true);
     });
 
-    // docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.3 — per-company color, populated once
+    // docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.3 — per-company color, populated once
     // Company.color exists; Freelance keeps today's ambient fallback (no color key at all).
     it('the Freelance option carries no color — ambient fallback, unlike every real company option', () => {
       const companies: Company[] = [{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] }];

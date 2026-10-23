@@ -314,7 +314,7 @@ describe('SectionTabs', () => {
     });
   });
 
-  // docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md — every cabinetry primitive is React.memo-wrapped.
+  // docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md — every cabinetry primitive is React.memo-wrapped.
   it('is a React.memo-wrapped component', () => {
     expect((SectionTabs as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
   });

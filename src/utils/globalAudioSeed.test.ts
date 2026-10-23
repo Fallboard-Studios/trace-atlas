@@ -1596,7 +1596,7 @@ describe('generatePingVarianceAutomation', () => {
     for (let i = 0; i < 30; i++) evictAttenuationStyleNoiseMap(`seed-pva-sample-${i}`);
   });
 
-  it('always returns a value in [0.10, 0.60], across many Attenuation Styles (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2 — narrowed from [0.33, 0.66])', () => {
+  it('always returns a value in [0.10, 0.60], across many Attenuation Styles (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2 — narrowed from [0.33, 0.66])', () => {
     const SAMPLE_ATTENUATION_STYLES = 30;
     for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
       const value = generatePingVarianceAutomation(`seed-pva-sample-${i}`, `PvaSample${i}`);
@@ -1633,7 +1633,7 @@ describe('generatePingVarianceAutomation', () => {
   });
 });
 
-describe('generateSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
+describe('generateSwellFrequency (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('seed-test-planet');
     evictAttenuationStyleNoiseMap('seed-test-planet-b');
@@ -1685,7 +1685,7 @@ describe('generateSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT
   });
 });
 
-describe('generateSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
+describe('generateSwellDuration (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('seed-test-planet');
     evictAttenuationStyleNoiseMap('seed-test-planet-b');

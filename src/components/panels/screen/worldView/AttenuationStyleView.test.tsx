@@ -12,7 +12,7 @@ import type { Locale } from '@/types/locale';
 
 // LocaleView renders the full world-view stack (robots, actors, ...) — out
 // of scope for this file, which only exercises AttenuationStyleView's own
-// tick/store-wiring logic (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3).
+// tick/store-wiring logic (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3).
 vi.mock('./LocaleView', () => ({ default: () => null }));
 
 const TEST_ATTENUATION_STYLE: AttenuationStyle = {
@@ -40,7 +40,7 @@ function setStoreFixtures() {
   useUIStore.setState({ activeLocaleLocalTime: null, activeLocaleTemperature: null });
 }
 
-describe('AttenuationStyleView — temperature wiring (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3)', () => {
+describe('AttenuationStyleView — temperature wiring (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3)', () => {
   beforeEach(() => {
     setStoreFixtures();
   });

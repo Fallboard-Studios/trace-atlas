@@ -2003,7 +2003,7 @@ describe('useCompanyOptions', () => {
     });
   });
 
-  describe('stability (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md): an edit re-derives only what it touches', () => {
+  describe('stability (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md): an edit re-derives only what it touches', () => {
     function memberAndStranger() {
       addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
       addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));

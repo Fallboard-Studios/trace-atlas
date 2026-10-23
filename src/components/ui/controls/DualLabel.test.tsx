@@ -64,8 +64,8 @@ describe('DualLabel', () => {
     expect(screen.getByText('Reset Melody')).toBeTruthy();
   });
 
-  // docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6 — structural check only, matching
-  // BubbleStream.test.tsx's own precedent (docs/specs/OBLIQUE_CABINETRY_MEMOIZATION.md §5): this
+  // docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6 — structural check only, matching
+  // BubbleStream.test.tsx's own precedent (docs/specs/archive/OBLIQUE_CABINETRY_MEMOIZATION.md §5): this
   // component has no hook or cross-module utility call in its render body to spy on as a
   // render-count marker (it's genuinely pure JSX composed from its own props), so a real
   // render-based re-render-count test isn't practical here.

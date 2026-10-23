@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 8) can tell whether Stepper's render body actually re-executed —
 // resolveAccessibleName(schema) is called unconditionally in the render body.
 vi.mock('./accessibleName', async (importOriginal) => {
@@ -71,7 +71,7 @@ describe('Stepper', () => {
     expect(screen.getByText('5')).toBeTruthy();
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((Stepper as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

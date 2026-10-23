@@ -10,7 +10,7 @@ const scheduleRepeatMock = vi.fn<(interval: string, cb: () => void) => string>((
 const cancelScheduleMock = vi.fn<(id: string) => void>();
 
 // harmonySystem.ts now goes through beatClock.ts's own scheduleRepeat/cancelSchedule exports
-// (docs/specs/HARMONY_PALETTE_SEQUENCING.md §1.5) instead of a locally-owned transport interface,
+// (docs/specs/archive/HARMONY_PALETTE_SEQUENCING.md §1.5) instead of a locally-owned transport interface,
 // so this is the only mock this file needs — no more mockTransport, no more vi.mock('tone', ...).
 vi.mock('./beatClock', () => ({
   getCurrentMeasure: () => currentMeasure,
@@ -63,7 +63,7 @@ describe('harmonySystem', () => {
     scheduleHarmonyCycle();
     expect(scheduleRepeatMock).toHaveBeenCalledTimes(1);
     // '2m' must come from MEASURES_PER_PALETTE_ENTRY, not an independently-written literal
-    // (docs/specs/HARMONY_PALETTE_SEQUENCING.md §1.4) — this is the regression guard for that.
+    // (docs/specs/archive/HARMONY_PALETTE_SEQUENCING.md §1.4) — this is the regression guard for that.
     expect(scheduleRepeatMock).toHaveBeenCalledWith('2m', expect.any(Function));
   });
 

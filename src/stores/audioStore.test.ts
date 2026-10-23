@@ -685,7 +685,7 @@ describe('useAudioStore - pingVarianceAutomation / setPingVarianceAutomation', (
     vi.resetModules();
   });
 
-  it('seeds into [0.10, 0.60] on module load (the first regenerateGlobalAudioFromSeed call) — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2, narrowed from [0.33, 0.66]', async () => {
+  it('seeds into [0.10, 0.60] on module load (the first regenerateGlobalAudioFromSeed call) — docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2, narrowed from [0.33, 0.66]', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { pingVarianceAutomation } = useAudioStore.getState();
     expect(pingVarianceAutomation).toBeGreaterThanOrEqual(0.10);
@@ -721,7 +721,7 @@ describe('useAudioStore - pingVarianceAutomation / setPingVarianceAutomation', (
     expect(useAudioStore.getState().pingVarianceAutomation).toBe(0.9);
   });
 
-  it('no longer coexists with the old audioSwellsEnabled/setAudioSwellsEnabled fields it replaces (docs/tasks/PING-VARIANCE-AUTOMATION.md Task 7)', async () => {
+  it('no longer coexists with the old audioSwellsEnabled/setAudioSwellsEnabled fields it replaces (docs/tasks/archive/PING-VARIANCE-AUTOMATION.md Task 7)', async () => {
     const { useAudioStore } = await import('./audioStore');
     const state = useAudioStore.getState();
     expect('audioSwellsEnabled' in state).toBe(false);
@@ -729,7 +729,7 @@ describe('useAudioStore - pingVarianceAutomation / setPingVarianceAutomation', (
   });
 });
 
-describe('useAudioStore - swellFrequency / setSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
+describe('useAudioStore - swellFrequency / setSwellFrequency (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -771,7 +771,7 @@ describe('useAudioStore - swellFrequency / setSwellFrequency (docs/specs/AUTOMAT
   });
 });
 
-describe('useAudioStore - swellDuration / setSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
+describe('useAudioStore - swellDuration / setSwellDuration (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -922,7 +922,7 @@ describe('useAudioStore - humanize / setHumanize (Robot Performance Task 11)', (
   });
 });
 
-describe('useAudioStore - volume / setVolume / setMuted (docs/specs/GLOBAL_VOLUME_CONTROL.md §1.3, §4)', () => {
+describe('useAudioStore - volume / setVolume / setMuted (docs/specs/archive/GLOBAL_VOLUME_CONTROL.md §1.3, §4)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -1004,7 +1004,7 @@ describe('useAudioStore - volume / setVolume / setMuted (docs/specs/GLOBAL_VOLUM
   });
 });
 
-describe('useAudioStore - robotLoad / effectsLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BUDGET.md §3, §4)', () => {
+describe('useAudioStore - robotLoad / effectsLoad / soundingRobotIds (docs/specs/archive/AUDIO_LOAD_BUDGET.md §3, §4)', () => {
   const originalMatchMedia = window.matchMedia;
 
   /** Stub `(pointer: coarse)` — jsdom has no matchMedia of its own. */

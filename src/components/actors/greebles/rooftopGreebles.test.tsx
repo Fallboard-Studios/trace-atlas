@@ -232,7 +232,7 @@ describe('renderPitchedRoof — shaded', () => {
 
 // ========================================
 // PITCHED ROOF — LAYOUT/PAINT SPLIT
-// (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 2)
+// (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 2)
 // ========================================
 
 describe('computePitchedRoofLayout / paintPitchedRoof', () => {
@@ -424,7 +424,7 @@ describe('renderCrownSpire — shaded', () => {
 
 // ========================================
 // CROWN SPIRE — LAYOUT/PAINT SPLIT
-// (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 2)
+// (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 2)
 // ========================================
 
 describe('computeCrownSpireLayout / paintCrownSpire', () => {

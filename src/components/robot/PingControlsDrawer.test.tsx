@@ -33,7 +33,7 @@ describe('PingControlsDrawer', () => {
     mockDevTuning = true;
   });
 
-  it('renders 2 nested panels — Phrasing and Frequency — with no accordion wrapper (docs/tasks/NAV_LAYOUT_REWRITE.md Task 15: the "Melody" label now lives on the tree node itself, not this drawer)', () => {
+  it('renders 2 nested panels — Phrasing and Frequency — with no accordion wrapper (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 15: the "Melody" label now lives on the tree node itself, not this drawer)', () => {
     const { container } = render(
       <PingControlsDrawer
         value={makeValue()}
@@ -407,8 +407,8 @@ describe('PingControlsDrawer', () => {
     expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
-  // `style` prop forwarded to this drawer's own root (Task 15, docs/tasks/NAV_LAYOUT_REWRITE.md:
+  // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
+  // `style` prop forwarded to this drawer's own root (Task 15, docs/tasks/archive/NAV_LAYOUT_REWRITE.md:
   // moved from the now-removed accordion wrapper to the plain .ping-controls-drawer
   // root), for trait-color scoping (getTraitColorStyle('composition'), applied at the
   // RobotOptionsTab call site in Task 12).
@@ -445,7 +445,7 @@ describe('PingControlsDrawer', () => {
 
 });
 
-describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9) — Rhythm absorbs Phrasing\'s sibling: Click Track', () => {
+describe('PingControlsRhythmSection (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9) — Rhythm absorbs Phrasing\'s sibling: Click Track', () => {
   beforeEach(() => {
     mockDevTuning = true;
   });
@@ -569,7 +569,7 @@ describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md T
   });
 });
 
-describe('PingControlsFrequencySection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9)', () => {
+describe('PingControlsFrequencySection (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9)', () => {
   function renderSection(overrides: Partial<Pick<PingControlsValue, 'octaveRange' | 'noteVariance' | 'clickTrackActive'>> = {}, disabled?: boolean) {
     return render(
       <PingControlsFrequencySection
@@ -642,7 +642,7 @@ describe('PingControlsFrequencySection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.m
   });
 });
 
-describe('PingControlsDrawer — old combined component, unchanged (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9 keeps this working until Task 11 rewires RobotOptionsTab off it)', () => {
+describe('PingControlsDrawer — old combined component, unchanged (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9 keeps this working until Task 11 rewires RobotOptionsTab off it)', () => {
     // No internal instability in this component (unlike AudioSettingSection/PingContourDrawer/
     // RobotDisplaySection) — every schema is already a module-level constant and every onChange
     // passes straight through, unwrapped. That also means a delegated render-count marker (e.g.

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES, type AccentColorName } from './accentColors';
 
 // The 21 hex values here are transcribed once from docs/reference/accent-colors.css (spec
-// docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.1) — this test asserts the transcription is exact,
+// docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.1) — this test asserts the transcription is exact,
 // byte-for-byte, against that same source, so the two never silently drift apart. emerald/indigo
 // added later (Crawford's own request) to fill the 2 biggest hue-wheel gaps in the original 13
 // hues — lime→green (~51°) and blue→plum (~50°) — and reused as the new Header trait pair.

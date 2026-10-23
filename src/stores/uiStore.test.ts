@@ -24,7 +24,7 @@ describe('uiStore — activeHubTile', () => {
   });
 });
 
-describe('uiStore — activeLocaleTemperature (docs/specs/HEADER_HUB_CONSOLIDATION.md)', () => {
+describe('uiStore — activeLocaleTemperature (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });
@@ -112,7 +112,7 @@ describe('uiStore — allRobotsSelected ("All" button in the company row)', () =
   });
 });
 
-describe('uiStore — selectedSection (docs/specs/NAV_LAYOUT_REWRITE.md §1.3)', () => {
+describe('uiStore — selectedSection (docs/specs/archive/NAV_LAYOUT_REWRITE.md §1.3)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });
@@ -141,7 +141,7 @@ describe('uiStore — selectedSection (docs/specs/NAV_LAYOUT_REWRITE.md §1.3)',
     expect(useUIStore.getState().selectedSection).toBe('source');
   });
 
-  // Bugfix, found in code review (docs/tasks/NAV_LAYOUT_REWRITE.md work) — selectRobot is called
+  // Bugfix, found in code review (docs/tasks/archive/NAV_LAYOUT_REWRITE.md work) — selectRobot is called
   // directly, outside useNavTree's own select() (which always follows it with a fresh
   // setSelectedSection call), from two real, non-tree sites: RobotSelectionCard's browse-list
   // click and ConsolePanel's inline Back button. Without this reset, a section left open on a
@@ -164,7 +164,7 @@ describe('uiStore — selectedSection (docs/specs/NAV_LAYOUT_REWRITE.md §1.3)',
   });
 });
 
-describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/NAV_LAYOUT_REWRITE.md §1.3)', () => {
+describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/archive/NAV_LAYOUT_REWRITE.md §1.3)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });
@@ -185,7 +185,7 @@ describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/NA
   });
 });
 
-describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 11)', () => {
+describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 11)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });
@@ -375,7 +375,7 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
   });
 });
 
-describe('uiStore — selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
+describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });
@@ -416,7 +416,7 @@ describe('uiStore — selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT
   });
 });
 
-describe('uiStore — allProbesSelected (which Probes content view is active, docs/tasks/NAV_LAYOUT_REWRITE.md Task 19)', () => {
+describe('uiStore — allProbesSelected (which Probes content view is active, docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 19)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
   });

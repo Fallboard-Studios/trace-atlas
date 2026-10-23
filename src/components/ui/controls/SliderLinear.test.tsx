@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
-// implementation) so a render-count test (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+// implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
 // Task 1 correction — found via Task 12's own end-to-end debugging: this
 // component's own React.memo wrap was missed originally, only the internal
 // states useMemo was added) can tell whether SliderLinear's render body
@@ -703,7 +703,7 @@ describe('SliderLinear', () => {
     });
   });
 
-  describe('computeVoxelBoxStates memoization (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 1)', () => {
+  describe('computeVoxelBoxStates memoization (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 1)', () => {
     it('does not recompute states across re-renders with unchanged value/schema.min/schema.max/boxCount', () => {
       const spy = vi.spyOn(voxelTrackMath, 'computeVoxelBoxStates');
       const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
@@ -753,7 +753,7 @@ describe('SliderLinear', () => {
     });
   });
 
-  describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 1 correction — SliderLinear itself, not just its internal states useMemo)', () => {
+  describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 1 correction — SliderLinear itself, not just its internal states useMemo)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((SliderLinear as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });

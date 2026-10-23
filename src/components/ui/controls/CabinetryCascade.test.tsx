@@ -58,7 +58,7 @@ afterEach(() => {
 
 const schema: SliderLinearSchema = { id: 'cascadeTest', type: 'sliderLinear', min: 0, max: 100, orientation: 'horizontal' };
 
-describe('Oblique Cabinetry re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5 — the end-to-end proof the whole plan exists for)', () => {
+describe('Oblique Cabinetry re-render cascade regression (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5 — the end-to-end proof the whole plan exists for)', () => {
   it('a SliderLinear re-render with unchanged value/schema re-executes ZERO of its own CabinetBox render bodies — only SliderLinear\'s own fixed +1 baseline (via useVoxelTrackSlider) accounts for the count moving at all', () => {
     const spy = useCabinetBoxHeight as ReturnType<typeof vi.fn>;
     const { rerender } = render(<SliderLinear schema={schema} value={37} onChange={() => {}} />);

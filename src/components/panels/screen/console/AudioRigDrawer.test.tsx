@@ -6,7 +6,7 @@ import { CONTENT } from '@/content';
 import { useAudioStore } from '@/stores/audioStore';
 
 /**
- * AudioRigDrawer — as of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md), this component's own scope
+ * AudioRigDrawer — as of Task 14 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md), this component's own scope
  * has shrunk to just Automatic Effects (Ping Variance Automation), the one control that never got
  * a tree leaf of its own. Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter)
  * moved to AudioRigEffectPanel, tested standalone in AudioRigEffectPanel.test.tsx. No accordion
@@ -14,7 +14,7 @@ import { useAudioStore } from '@/stores/audioStore';
  * heavy lfoEngine/timelineMap/accessibleName-spy mocks the pre-Task-14 version of this file
  * needed are gone too, since nothing here exercises any of that anymore.
  *
- * As of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component no longer wraps
+ * As of docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component no longer wraps
  * itself in an outer `.audio-rig-drawer` div or its own DirectionalPanel — it renders a bare
  * `.audio-rig-drawer__param-row` only, since it now shares FleetParamsScreen's Pacing row
  * panel with Frequency/Duration/Tempo instead of owning a panel of its own.
@@ -28,12 +28,12 @@ describe('AudioRigDrawer', () => {
     resetAudioStore();
   });
 
-  it('renders no Tempo slider — relocated to Settings -> Tempo (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12; see SettingsContent.test.tsx)', () => {
+  it('renders no Tempo slider — relocated to Settings -> Tempo (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 12; see SettingsContent.test.tsx)', () => {
     render(<AudioRigDrawer />);
     expect(screen.queryByRole('slider', { name: 'Tempo' })).toBeNull();
   });
 
-  it('renders no Audio Load panel — relocated to Settings -> Quality (docs/tasks/NAV_LAYOUT_REWRITE.md Task 13; see AudioLoadPanel.test.tsx)', () => {
+  it('renders no Audio Load panel — relocated to Settings -> Quality (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 13; see AudioLoadPanel.test.tsx)', () => {
     render(<AudioRigDrawer />);
     expect(screen.queryByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human })).toBeNull();
     expect(screen.queryByRole('slider', { name: CONTENT['settings.quality.effectsLoad'].human })).toBeNull();
@@ -81,7 +81,7 @@ describe('AudioRigDrawer', () => {
       expect(slider.getAttribute('data-disabled')).toBeNull();
     });
 
-    it('renders no panel or accordion of its own — a bare .audio-rig-drawer__param-row, no .sc-directional-panel, no .sc-accordion (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
+    it('renders no panel or accordion of its own — a bare .audio-rig-drawer__param-row, no .sc-directional-panel, no .sc-accordion (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
       render(<AudioRigDrawer />);
       const slider = screen.getByRole('slider', { name: 'Automation Range' });
       expect(slider.closest('.sc-directional-panel')).toBeNull();
@@ -94,7 +94,7 @@ describe('AudioRigDrawer', () => {
       expect(slider.closest('.audio-rig-drawer__param-row')).toBeTruthy();
     });
 
-    it('no longer renders an outer .audio-rig-drawer wrapper div (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
+    it('no longer renders an outer .audio-rig-drawer wrapper div (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
       const { container } = render(<AudioRigDrawer />);
       expect(container.querySelector('.audio-rig-drawer')).toBeNull();
     });

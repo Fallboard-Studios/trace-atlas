@@ -618,7 +618,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     });
   });
 
-  // docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up: the hook subscribes to the whole locale's
+  // docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up: the hook subscribes to the whole locale's
   // robots array, which gets a new reference on any robot edit anywhere — these prove a mounted panel
   // re-renders only for an edit to a value it shows.
   describe('re-render cascade regression', () => {

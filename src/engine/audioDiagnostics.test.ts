@@ -106,7 +106,7 @@ vi.mock('../utils/localeHelpers', () => ({
   getActiveLocaleId: () => fakeActiveLocaleId,
 }));
 
-// The two read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md). This module only attaches, reads and
+// The two read-only output taps (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md). This module only attaches, reads and
 // detaches them; their Tone plumbing is tested in globalFx.test.ts.
 type TapBuffers = { pre: Float32Array | null; master: Float32Array | null };
 const tapSpies = {

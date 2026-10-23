@@ -11,7 +11,7 @@ import { ADJECTIVES, COMPANY_NOUNS } from '@/systems/spawnSystem';
 import type { Company } from '@/types/Company';
 import type { Locale } from '@/types/locale';
 
-describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the bare "Companies" tree node)', () => {
+describe('CompanyCreateForm (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 20 — the bare "Companies" tree node)', () => {
   const localeId = getActiveLocaleId();
 
   afterEach(() => {
@@ -84,7 +84,7 @@ describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the ba
     expect((screen.getByRole('button', { name: /^create\b/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  // docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.2 — pickRandomCompanyColor, Math.random()-fed
+  // docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.2 — pickRandomCompanyColor, Math.random()-fed
   // (a live UI roll, matching suggestCompanyName's own precedent), re-rolled against every color
   // already in use by an existing company in the locale.
   describe('color generation', () => {
@@ -141,7 +141,7 @@ describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the ba
     expect(company.name).toBe('Iron Consortium');
   });
 
-  // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 2 — the Create button's own label previews the
+  // docs/tasks/archive/COMPANY_CRUD_BUTTON_PREVIEW.md Task 2 — the Create button's own label previews the
   // draft, so both the visible text and the accessible name change together.
   describe('Create button label', () => {
     it('is exactly "Create" when the draft is blank', () => {
@@ -188,7 +188,7 @@ describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the ba
   });
 });
 
-describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — a specific "Company X" tree node)', () => {
+describe('CompanyRenameDeleteForm (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 20 — a specific "Company X" tree node)', () => {
   const localeId = getActiveLocaleId();
 
   afterEach(() => {
@@ -201,7 +201,7 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
     expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).disabled).toBe(true);
   });
 
-  // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 3 — the Rename button's own label previews
+  // docs/tasks/archive/COMPANY_CRUD_BUTTON_PREVIEW.md Task 3 — the Rename button's own label previews
   // "{current name} > {draft}", so both the visible text and the accessible name change together.
   describe('Rename button label', () => {
     it('is exactly "Rename" when no company is selected', () => {

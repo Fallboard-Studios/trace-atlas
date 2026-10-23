@@ -2310,7 +2310,7 @@ describe('spawnSystem', () => {
       expect(dockingRun2).toEqual(dockingRun1);
     });
 
-    // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4) — each robot's own seeded
+    // Roadmap Phase 14 (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.4) — each robot's own seeded
     // UI-chrome identity color, generated the same way generateRobotName already is.
     it('gives every robot an identityColor from ROBOT_IDENTITY_COLOR_NAMES\' resolved hex set', () => {
       spawnInitialRoster(DEFAULT_LOCALE_ID);
@@ -2595,7 +2595,7 @@ describe('spawnSystem', () => {
       });
     });
 
-    // Roadmap: Company Section Enhancements (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.2) —
+    // Roadmap: Company Section Enhancements (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.2) —
     // each company's own seeded identity color, generated the same way generateRobotIdentityColor
     // already is (mirrors the identityColor test block above).
     it('gives every company a color from ROBOT_IDENTITY_COLOR_NAMES\' resolved hex set', () => {
@@ -2701,7 +2701,7 @@ describe('spawnSystem', () => {
     });
 
     // Roadmap: Robot Selection Filter Panel Polish §1.4 — reverses the "accepted, low-risk"
-    // decision docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §7 item 2 previously made: two companies
+    // decision docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §7 item 2 previously made: two companies
     // spawned in the same locale must never share a color, closing the same gap
     // pickRandomCompanyColor (CompanyCrudControls.tsx, manual creation) already closed.
     it('never assigns two companies in the same locale the same color, across a sample of locales', () => {

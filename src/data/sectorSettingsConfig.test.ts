@@ -30,7 +30,7 @@ describe('sectorSettingsConfig', () => {
       expect(ATTENUATION_STYLE_SCHEMA.maxLength).toBe(128);
     });
 
-    it('ATTENUATION_STYLE_SCHEMA uses Attenuation Style copy, per docs/specs/ATTENUATION_STYLE.md §4', () => {
+    it('ATTENUATION_STYLE_SCHEMA uses Attenuation Style copy, per docs/specs/archive/ATTENUATION_STYLE.md §4', () => {
       expect(ATTENUATION_STYLE_SCHEMA.loreLabel).toBe(CONTENT['sector.attenuationStyle'].lore);
       expect(ATTENUATION_STYLE_SCHEMA.humanLabel).toBe(CONTENT['sector.attenuationStyle'].human);
       expect(ATTENUATION_STYLE_SCHEMA.placeholder).toBe(CONTENT['sector.attenuationStyle'].placeholder);
@@ -60,7 +60,7 @@ describe('sectorSettingsConfig', () => {
       for (const id of ids) expect(id).toBeTruthy();
     });
 
-    it('no longer exports AUDIO_SWELLS_ENABLED_SCHEMA — replaced by audioRigConfig.ts\'s PING_VARIANCE_AUTOMATION_SCHEMA (docs/tasks/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
+    it('no longer exports AUDIO_SWELLS_ENABLED_SCHEMA — replaced by audioRigConfig.ts\'s PING_VARIANCE_AUTOMATION_SCHEMA (docs/tasks/archive/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
       expect('AUDIO_SWELLS_ENABLED_SCHEMA' in sectorSettingsConfigModule).toBe(false);
     });
   });
