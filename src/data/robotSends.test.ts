@@ -14,6 +14,7 @@ import {
   robotSendLevels,
   type RobotSendField,
   type SendEngineKey,
+  type SendRoomKey,
 } from './robotSends';
 // Namespace import so a removed export can be asserted absent at runtime (robotOptionsActions.test.ts's pattern).
 import * as robotSendsModule from './robotSends';
@@ -68,6 +69,24 @@ describe('ROBOT_SENDS', () => {
         new RegExp(`contentKey: '${spec.contentKey.replace('.', '\\.')}'`)
       );
     }
+  });
+
+  // Review follow-up (2026-10-22): the wiring table owns the room keys too, so the tuning module (the bands) depends on
+  // it and never the other way round; a type-only cycle between the two is gone.
+  it('imports nothing from robotSendLoadingRanges.ts (the bands depend on the table, not the reverse)', () => {
+    const src = readFileSync(resolve(__dirname, 'robotSends.ts'), 'utf8');
+    expect(src).not.toMatch(/from\s+['"][^'"]*robotSendLoadingRanges['"]/);
+    const bands = readFileSync(resolve(__dirname, 'robotSendLoadingRanges.ts'), 'utf8');
+    expect(bands).toMatch(/import type \{[^}]*\bSendRoomKey\b[^}]*\} from '\.\/robotSends';/);
+  });
+
+  it('names the three effect-room keys, each an engine key', () => {
+    const rooms: SendRoomKey[] = ['grit', 'shimmer', 'double'];
+    const keys: SendEngineKey[] = rooms;
+    expect(keys.every((key) => ROBOT_SENDS.some((spec) => spec.engineKey === key))).toBe(true);
+    // @ts-expect-error - Reverb is a fixed room, not an effect room
+    const notARoom: SendRoomKey = 'reverb';
+    expect(notARoom).toBe('reverb');
   });
 
   it('types a field and an engine key, so an unknown one is a compile error', () => {

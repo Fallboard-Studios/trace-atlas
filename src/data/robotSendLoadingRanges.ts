@@ -1,4 +1,4 @@
-import type { RobotSendField } from './robotSends';
+import type { RobotSendField, SendRoomKey } from './robotSends';
 
 /**
  * The per-robot send bands (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1): what a FRESH robot may seed for each
@@ -34,9 +34,8 @@ export const ROBOT_SEND_LOADING_RANGES: Record<RobotSendField, SendLoadingRange>
 export const EXCLUSIVE_SEND_FIELDS = ['gritSend', 'shimmerSend', 'doubleSend'] as const;
 export type ExclusiveSendField = (typeof EXCLUSIVE_SEND_FIELDS)[number];
 
-/** The room each exclusive send feeds: the Colour room (Grit), the Frequency Shifter (Shimmer), the Chorus (Double). These
- *  are the seeder's dataId segment (`robot.send.<room>`), and the engine's RoomKey is this type (bypassCell.ts). */
-export type SendRoomKey = 'grit' | 'shimmer' | 'double';
+/** The room each exclusive send feeds (SendRoomKey, robotSends.ts). These are the seeder's dataId segment
+ *  (`robot.send.<room>`). */
 export const SEND_FIELD_ROOM: Record<ExclusiveSendField, SendRoomKey> = {
   gritSend: 'grit',
   shimmerSend: 'shimmer',

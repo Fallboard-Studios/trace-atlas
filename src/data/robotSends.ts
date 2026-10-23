@@ -1,5 +1,4 @@
 import type { Robot } from '../types/Robot';
-import type { SendRoomKey } from './robotSendLoadingRanges';
 
 /**
  * The per-robot send wiring table (docs/specs/ROBOT_SEND_TABLE.md §1.1): one row per send, naming the robot field, the
@@ -12,6 +11,11 @@ import type { SendRoomKey } from './robotSendLoadingRanges';
  *  codec's keys and the swell pool's tail (spec assumption 2). A sixth send is a new row of ROBOT_SENDS. */
 export const ROBOT_SEND_FIELDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
 export type RobotSendField = (typeof ROBOT_SEND_FIELDS)[number];
+
+/** The three effect rooms a send can feed: the Colour room (Grit), the Frequency Shifter (Shimmer), the Chorus (Double).
+ *  The engine's RoomKey is this type (bypassCell.ts), and the seeder's dataId segment (`robot.send.<room>`,
+ *  robotSendLoadingRanges.ts) reads it from here, so the bands depend on the table and never the reverse. */
+export type SendRoomKey = 'grit' | 'shimmer' | 'double';
 
 /** The key AudioEngine.updateRobotSends takes for a send: the two fixed rooms by name, the three effect rooms by RoomKey.
  *  The engine speaks these; robots, screens, the store and the swell tick speak RobotSendField (spec assumption 3). */
