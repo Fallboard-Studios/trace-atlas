@@ -32,8 +32,13 @@ const fakeRaw = {
 
 vi.mock('tone', () => ({
   getContext: () => ({ rawContext: fakeRaw, state: fakeRaw.state, latencyHint: 'playback', lookAhead: 0.1 }),
-  getTransport: () => ({ state: fakeTransportState }),
+  getTransport: () => ({ state: fakeTransportState, ...fakeTransportTimelines }),
 }));
+
+// Tone's Transport keeps its pending events in two private timelines (`_timeline` for one-shots, `_repeatedEvents`
+// for repeats); the long-run column reads their lengths. A test can empty this object to stand for a Tone that
+// no longer has those fields.
+let fakeTransportTimelines: Record<string, { length: number }> = { _timeline: { length: 30 }, _repeatedEvents: { length: 7 } };
 
 const tickerCallbacks = new Set<() => void>();
 vi.mock('gsap', () => ({
@@ -164,6 +169,7 @@ describe('audioDiagnostics runtime', () => {
     fakeSoundingIds = [];
     fakeVoices = 3;
     fakeTransportState = 'started';
+    fakeTransportTimelines = { _timeline: { length: 30 }, _repeatedEvents: { length: 7 } };
     fakeGlobalLfoLinks = {
       'eq3.low': { lane: 'a', depth: 40 },
       'eq3.mid': { lane: null, depth: 0 },
@@ -209,6 +215,26 @@ describe('audioDiagnostics runtime', () => {
       effectsLoad: 1,
       soundingRobots: 0,
       maxAudibleRobots: 12,
+    });
+  });
+
+  describe('pending Transport events (backlog 27, the long-run column)', () => {
+    it('reads the one-shot and repeated timelines together', () => {
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.transportEvents).toBe(37);
+    });
+
+    it('follows the count between samples, so growth during a run shows', () => {
+      advance();
+      fakeTransportTimelines._timeline.length = 300;
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.transportEvents).toBe(307);
+    });
+
+    it('is null, never NaN, when Tone no longer has those private fields', () => {
+      fakeTransportTimelines = {};
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.transportEvents).toBeNull();
     });
   });
 

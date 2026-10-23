@@ -29,6 +29,7 @@ const baseInfo: DiagInfo = {
   soundingRobots: 5,
   maxAudibleRobots: 12,
   fxConnected: 2,
+  transportEvents: 37,
 };
 
 const snap = (timing: Partial<DiagState> = {}, info: Partial<DiagInfo> = {}): DiagSnapshot => ({
@@ -110,6 +111,18 @@ describe('buildHudLines', () => {
     expect(text).toContain('suspended');
     expect(text).toContain('x0.42');
     expect(text).toContain('started');
+  });
+
+  it('shows the pending Transport event count on the transport line (backlog 27, the long-run column)', () => {
+    const lines = buildHudLines(snap(), world, 0);
+    expect(lines[1]).toContain('transport started');
+    expect(lines[1]).toContain('events 37');
+  });
+
+  it('shows a dash for an unknown Transport event count, never null or NaN', () => {
+    const text = buildHudLines(snap({}, { transportEvents: null }), world, 0).join('\n');
+    expect(text).toContain('events -');
+    expect(text).not.toMatch(/null|NaN/);
   });
 
   it('shows latency hint, lookahead, and base latency', () => {

@@ -300,7 +300,7 @@ Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known world
 
 ```
 bravo @ -150,90   up 1:32
-ctx running   clock x1.00   transport started
+ctx running   clock x1.00   transport started   events 37
 latency interactive   ahead 100ms   base 11ms
 voices 3/16   audible 5/12   LFOs 5/7
 load 100%·fx 100% · sounding 5/12 · standing by 0 · poly 3/16 · fx in 2/10
@@ -317,6 +317,7 @@ The border turns red when any failure signature is live: the context is not runn
 |---|---|
 | `ctx` (`running` / `suspended` / `interrupted`) | AudioContext state. The app never resumes a suspended context (no `statechange` handler); changes are logged from the context's own `statechange` event, so transient states aren't missed. |
 | `clock xN` | Audio-clock seconds advanced per wall second over the last 500 ms. ~1.00 is healthy; **below 0.5 while `ctx` says `running`** is logged as "audio clock stalled" — the audio thread isn't advancing. |
+| `events n` | Events pending on Tone's Transport: one-shots (`schedule` / `scheduleOnce`) plus repeats (`scheduleRepeat`), read off Tone's two private timelines, so a dash if a Tone update hides them. Added 2026-10-23 for backlog 27's long run: a count that climbs through a run on a steady world is scheduling that is never cleared. `perf:audio` reads it as its `events` column. |
 | `fps` | GSAP ticker ticks/second. **0** logs "UI frames stopped" — the page's animation loop froze. |
 | `lag` (`max`) | How late the 500 ms sampler tick ran — a main-thread stall meter. ≥ 500 ms is logged as "main thread stalled". |
 | `voices n/16` | `activeVoices` against `MAX_POLYPHONY`. Pinned at 16 with sound gone = the stuck-voice-counter hypothesis. |
@@ -375,12 +376,16 @@ npm run build && npx vite preview --port 4173                                 # 
 npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15       # terminal 2
 ```
 
-One row per time bucket — mean and max capacity, mean callback interval, and the overlay's audible-robot count — then the **peak window** (the highest bucket mean; the number the Audio Load gates compare), the overall mean and max, and `r(audible, capacity)`, the Pearson correlation between the per-bucket audible count and capacity (`-` when either is constant). `--help` documents every flag:
+One row per time bucket — mean and max capacity, mean callback interval, and the overlay's audible-robot count — then the **peak window** (the highest bucket mean; the number the Audio Load gates compare), the overall mean and max, and `r(audible, capacity)`, the Pearson correlation between the per-bucket audible count and capacity (`-` when either is constant).
+
+**The long-run columns (backlog 27, 2026-10-23).** Three more per-bucket means, for a run long enough to catch load that grows: `nodes`, the live `AudioNode`s of the polled context, tallied from the DevTools `WebAudio.audioNodeCreated` / `audioNodeWillBeDestroyed` events (counted from `WebAudio.enable`, before the page loads); `heap (MB)`, the renderer's used JS heap (`Performance.getMetrics`, `JSHeapUsedSize`); and `events`, the overlay's pending-Transport-event count (above). The summary's last line gives each as *first bucket → last bucket (delta)*; on a steady world every delta should sit near zero once the roster has spawned, and a steady climb names the leak. Before the table the script prints the overlay's lines once, as they read after the warm-up (`carried after warm-up:`), so the record says what the world carried — the tier, the sounding cap, `fx in`, the bank and the tiers. The long run is the ordinary command with a longer series and wider buckets, e.g. `--seconds 900 --bucket 60`; the 10-minute tool limit on an agent's shell does not apply to a terminal.
+
+`--help` documents every flag:
 
 | Flag | Meaning |
 |---|---|
-| `--world name:x:y` / `--worlds a,b,c` | Pinned world(s): `name` is `?seed=`, `x`/`y` the integer locale coordinates. `--worlds` runs them one after another, each in a fresh Chrome. |
-| `charlie:200:-30?load=light` | Anything after `?` rides along into the page URL, so variants of one world (a `?load=` preset, `?latency=`) can be A/B-ed within one session. |
+| `--world name:x:y` / `--worlds a,b,c` | World(s), each a **label** plus its query: `name`, `x` and `y` still go out as `?seed=&x=&y=`, which the app has ignored since 2026-09-28 (only `?session=` pins a world, above). `--worlds` runs them one after another, each in a fresh Chrome. |
+| `bravo:-150:90?session=…` | Anything after `?` rides along into the page URL: the `?session=` link that pins the world ("The seven links" below has D1–D5), and variants of one world (a `?load=` preset, `?latency=`) to A/B within one session. **The pin check (2026-10-23):** after the warm-up the script reads where the overlay says the page landed and aborts if that differs from the session payload's coordinates, or from `x:y` when no session was given, so a random world can no longer be measured under a pinned label (which happened once; see the 17.2.6 baseline's retraction). |
 | `--rot n` | Rotates the start order of `--worlds` left by `n`, for interleaved rounds. |
 | `--seconds` / `--bucket` / `--warmup` | Series length (240), bucket width (15), warm-up after power-on (8) — all seconds. |
 | `--url` | Base URL of the served build (default `http://localhost:4173/trace-atlas/`). A LAN address works too — the insecure-context case a phone hits. Any query on it is replaced. |
