@@ -24,16 +24,7 @@
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
 
-import {
-  applyVolume,
-  applyLayersContinuous,
-  applyAdsr,
-  applyReverbSendValue,
-  applyDelaySendValue,
-  applyGritSendValue,
-  applyShimmerSendValue,
-  applyDoubleSendValue,
-} from './robotOptionsActions';
+import { applyVolume, applyLayersContinuous, applyAdsr, applySendValue } from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
 import { getSeededVal } from '@/utils/getSeededVal';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
@@ -42,6 +33,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { ROBOT_SWELL_FIELD_RANGE } from '@/data/audioSwellRanges';
+import { ROBOT_SEND_FIELDS, type RobotSendField } from '@/data/robotSends';
 import {
   SWELL_GLOBAL_TARGET_IDS,
   SWELL_ROBOT_ATTRIBUTE_IDS,
@@ -181,13 +173,9 @@ function writeGlobalValue(target: SwellGlobalTargetId, value: number): void {
 const LAYER_FIELD_PATTERN = /^layer(\d)\.(gain|detune|phase|pulseWidth)$/;
 const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
 
-/** The five per-robot sends, each a stored 0..1 fraction on Robot (Robot Sends, Robot Effect Sends). */
-const SEND_ATTRIBUTES = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
-
-type SendAttribute = (typeof SEND_ATTRIBUTES)[number];
-
-function isSendAttribute(attribute: SwellRobotAttributeId): attribute is SendAttribute {
-  return (SEND_ATTRIBUTES as readonly string[]).includes(attribute);
+/** The five per-robot sends, each a stored 0..1 fraction on Robot (docs/specs/ROBOT_SEND_TABLE.md §1.3). */
+function isSendAttribute(attribute: SwellRobotAttributeId): attribute is RobotSendField {
+  return (ROBOT_SEND_FIELDS as readonly string[]).includes(attribute);
 }
 
 /** A robot attribute's own parent-mute check (§1.5, §3): layerN.* requires
@@ -222,17 +210,6 @@ function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number 
   return (robot.audioAttributes.adsr as any)[adsrMatch![1]] as number;
 }
 
-/** One send tick through the fraction-form action its slider's hand edit ends in. */
-function writeRobotSend(robot: Robot, localeId: string, attribute: SendAttribute, value: number): void {
-  switch (attribute) {
-    case 'reverbSend': applyReverbSendValue(robot, localeId, value); return;
-    case 'delaySend': applyDelaySendValue(robot, localeId, value); return;
-    case 'gritSend': applyGritSendValue(robot, localeId, value); return;
-    case 'shimmerSend': applyShimmerSendValue(robot, localeId, value); return;
-    case 'doubleSend': applyDoubleSendValue(robot, localeId, value); return;
-  }
-}
-
 /**
  * Writes through the exact same apply* function a human editing that
  * control by hand would call (docs/specs/AUDIO_SWELLS.md §3) — never a bare
@@ -248,9 +225,9 @@ function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAt
     return;
   }
   // The sends' range is their stored 0..1 fraction; the fraction form of the action avoids the display-percent
-  // round trip, which would miss the base by an ulp for some seeded values.
+  // round trip, which would miss the base by an ulp for some seeded values. It ends where the slider's hand edit does.
   if (isSendAttribute(attribute)) {
-    writeRobotSend(robot, localeId, attribute, value);
+    applySendValue(robot, localeId, attribute, value);
     return;
   }
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);

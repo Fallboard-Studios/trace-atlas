@@ -1139,17 +1139,19 @@ describe('robot pool — reverbSend and delaySend', () => {
       expect(isRobotAttributeSwelling('r1', 'delaySend')).toBe(false);
     });
 
-    it('writes each reverbSend tick through the reverb send action, and delaySend through the delay one', () => {
-      const reverbSpy = vi.spyOn(robotOptionsActions, 'applyReverbSendValue');
-      const delaySpy = vi.spyOn(robotOptionsActions, 'applyDelaySendValue');
+    // Robot Send Table T7 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the tick writes through the keyed applySendValue.
+    it('writes each reverbSend tick through applySendValue with the reverbSend field, never the delaySend one', () => {
+      const sendSpy = vi.spyOn(robotOptionsActions, 'applySendValue');
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0 }));
       forceSingleStart(1);
       tickAudioSwells(LOCALE_ID, 0);
       advanceOnlyTo(1);
 
-      expect(reverbSpy).toHaveBeenCalled();
-      expect(reverbSpy.mock.calls[0][0].id).toBe('r1');
-      expect(delaySpy).not.toHaveBeenCalled();
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy.mock.calls[0][0].id).toBe('r1');
+      expect(sendSpy.mock.calls[0][1]).toBe(LOCALE_ID);
+      expect(sendSpy.mock.calls[0][2]).toBe('reverbSend');
+      expect(sendSpy.mock.calls[0][3]).toBe(sendOf('r1', 'reverbSend'));
     });
 
     it('ramps the stored send away from its base at the peak and keeps every tick inside 0..1', () => {
@@ -1279,18 +1281,15 @@ describe('robot pool — reverbSend and delaySend', () => {
 
 type EffectSendField = 'gritSend' | 'shimmerSend' | 'doubleSend';
 
-/** Each new send, its fraction-form action, its updateRobotSends key and its index in SWELL_ROBOT_ATTRIBUTE_IDS. */
+/** Each new send, its updateRobotSends key and its index in SWELL_ROBOT_ATTRIBUTE_IDS. Every tick writes through
+ *  applySendValue with the field (Robot Send Table T7, docs/specs/ROBOT_SEND_TABLE.md §1.3). */
 const EFFECT_SENDS = [
-  { field: 'gritSend', action: 'applyGritSendValue', key: 'grit', index: 19 },
-  { field: 'shimmerSend', action: 'applyShimmerSendValue', key: 'shimmer', index: 20 },
-  { field: 'doubleSend', action: 'applyDoubleSendValue', key: 'double', index: 21 },
+  { field: 'gritSend', key: 'grit', index: 19 },
+  { field: 'shimmerSend', key: 'shimmer', index: 20 },
+  { field: 'doubleSend', key: 'double', index: 21 },
 ] as const;
 
-const SEND_ACTIONS = [
-  'applyReverbSendValue', 'applyDelaySendValue', 'applyGritSendValue', 'applyShimmerSendValue', 'applyDoubleSendValue',
-] as const;
-
-describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, action, key, index }) => {
+describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, key, index }) => {
   const sendOf = (robotId: string, f: EffectSendField) => useLocaleStore.getState().getRobotById(LOCALE_ID, robotId)![f];
 
   /** Every send at 0 except `field`, which sits at `value` (the other two new sends are set, not absent). */
@@ -1356,17 +1355,32 @@ describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, action, key, inde
     expect(isRobotAttributeSwelling('r1', field)).toBe(false);
   });
 
-  it(`writes every tick through ${action} and no other send action`, () => {
-    const spies = Object.fromEntries(SEND_ACTIONS.map((name) => [name, vi.spyOn(robotOptionsActions, name)]));
+  it(`writes every tick through applySendValue with ${field} and no other field, the stored fraction as the value`, () => {
+    const sendSpy = vi.spyOn(robotOptionsActions, 'applySendValue');
     useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.25));
     forceSingleStart(1);
     tickAudioSwells(LOCALE_ID, 0);
     advanceOnlyTo(1);
+    advanceOnlyTo(2);
 
-    expect(spies[action]).toHaveBeenCalled();
-    expect(spies[action].mock.calls[0][0].id).toBe('r1');
-    expect(spies[action].mock.calls[0][1]).toBe(LOCALE_ID);
-    for (const name of SEND_ACTIONS) if (name !== action) expect(spies[name], name).not.toHaveBeenCalled();
+    expect(sendSpy).toHaveBeenCalledTimes(2); // one write per member per tick
+    for (const [robot, locale, f] of sendSpy.mock.calls) {
+      expect(robot.id).toBe('r1');
+      expect(locale).toBe(LOCALE_ID);
+      expect(f).toBe(field);
+    }
+    expect(sendSpy.mock.calls[1][3]).toBe(sendOf('r1', field));
+  });
+
+  it('lands on its base through applySendValue: the last write is the base value itself', () => {
+    const sendSpy = vi.spyOn(robotOptionsActions, 'applySendValue');
+    useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.7123456789));
+    forceSingleStart(1);
+    tickAudioSwells(LOCALE_ID, 0);
+    const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === field)!;
+    advanceOnlyTo(swell.risingMeasures + swell.fallingMeasures + 1);
+
+    expect(sendSpy.mock.calls.at(-1)).toEqual([expect.objectContaining({ id: 'r1' }), LOCALE_ID, field, 0.7123456789]);
   });
 
   it(`primes the engine with { ${key} } on every tick`, () => {
