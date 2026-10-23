@@ -241,7 +241,8 @@ export function buildGlobalFxChain(): void {
     try {
       // The output ceiling (docs/specs/OUTPUT_HEADROOM.md §1.2): identity below CEILING_KNEE, a tanh above it that never
       // reaches full scale. The last stage before the master gain, so the user's Limiter and its makeup sit inside it.
-      _ceiling = new WaveShaperCtor({ curve: softCeilingCurve(), oversample: 'none' });
+      // Tone takes the curve as `mapping` and ignores a `curve` option; oversample stays the node's default, 'none'.
+      _ceiling = new WaveShaperCtor({ mapping: softCeilingCurve() });
     } catch (err) {
       _ceiling = null;
       devWarn('[AudioEngine] the output ceiling could not be constructed; the chain runs without it', err);

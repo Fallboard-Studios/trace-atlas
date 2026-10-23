@@ -183,7 +183,8 @@ curve length.
 ### 1.3 Where the engine changes
 
 - `globalFx.ts`: a module-scope `_ceiling: Tone.WaveShaper | null`, built in `buildGlobalFxChain` from
-  `getToneCtor('WaveShaper')` with `{ curve: softCeilingCurve(), oversample: 'none' }`; `nodeSpan(_ceiling)` after
+  `getToneCtor('WaveShaper')` with `{ mapping: softCeilingCurve() }` (Tone's name for the curve; a `curve` option is
+  ignored, T5.1) and the node's default oversample, `'none'`; `nodeSpan(_ceiling)` after
   `nodeSpan(_globalLimiter)` in `chainNodes`; listed between `_globalLimiter` and `_masterGain` in
   `disconnectAllFxNodes`. The taps, the join, the cells, every setter: untouched.
 - `AudioEngine.ts`: `reserveVoice`'s initial bus gain (both the real and the stub-bus path) and
@@ -248,7 +249,8 @@ if (WaveShaperCtor) {
   try {
     // The output ceiling (docs/specs/OUTPUT_HEADROOM.md §1.2): identity below CEILING_KNEE, a tanh above it that never
     // reaches full scale. The last stage before the master gain, so the user's Limiter and its makeup sit inside it.
-    _ceiling = new WaveShaperCtor({ curve: softCeilingCurve(), oversample: 'none' });
+    // Tone takes the curve as `mapping` and ignores a `curve` option; oversample stays the node's default, 'none'.
+    _ceiling = new WaveShaperCtor({ mapping: softCeilingCurve() });
   } catch (err) {
     _ceiling = null;
     devWarn('[AudioEngine] the output ceiling could not be constructed; the chain runs without it', err);
@@ -278,8 +280,10 @@ if (WaveShaperCtor) {
   equals `10 ** (HEADROOM_TRIM_DB / 20)` and is below 1.
 - `globalFx.test.ts` (the `vi.mock('tone')` factory gains a `WaveShaper` spy with `connect`/`disconnect`/
   `toDestination`, toggled absent by a flag like `toneFlags.phaserAbsent`): the dry-chain order test at `:4706` and
-  its Controlled twin assert `Limiter → ceiling → masterGain`; the constructor receives a `curve` of
-  `CEILING_CURVE_LENGTH` and `oversample: 'none'`; `disconnectAllFxNodes`' order test at `:533` includes the ceiling
+  its Controlled twin assert `Limiter → ceiling → masterGain`; the built node holds a `curve` of
+  `CEILING_CURVE_LENGTH` at `oversample` `'none'`, in a mock that follows Tone's constructor (the curve from `mapping`),
+  and the build's constructor arguments replayed into Tone's own `WaveShaper` leave the same curve (T5.1);
+  `disconnectAllFxNodes`' order test at `:533` includes the ceiling
   between master and Limiter; with the constructor absent the chain wires `Limiter → masterGain` and warns once; a
   throwing constructor does the same; the `out` tap still hangs off `_masterGain` (`:4954`'s neighbour).
 - `globalFx.headless.test.ts`: `WaveShaper: undefined` added to the mock; the existing "builds and rewires both ways

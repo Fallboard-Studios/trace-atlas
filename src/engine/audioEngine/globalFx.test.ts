@@ -158,17 +158,25 @@ const toneFlags = vi.hoisted(() => ({
     threshold: { value: -12 },
   })),
   // Output Headroom T5 (docs/specs/OUTPUT_HEADROOM.md §1.3): the output ceiling, a WaveShaper between the Limiter and the
-  // master gain. Hoisted with a switch to hide it (headless) and one to hand out a constructor that throws; the options
-  // it was built with are read back from its call arguments, by key.
+  // master gain. Hoisted with a switch to hide it (headless) and one to hand out a constructor that throws. It follows
+  // Tone 15's constructor (signal/WaveShaper.js): the curve comes from `mapping`, positional or an option, and any other
+  // option (a `curve`, an `oversample`) is ignored, so the node keeps the native default oversample, 'none'. The first
+  // version read a `curve` option, which Tone ignores, and hid an empty ceiling until T7's browser run (T5.1).
   shaperAbsent: false,
   shaperThrows: false,
-  shaperCtor: vi.fn((opts: { curve?: Float32Array; oversample?: string } = {}) => ({
-    connect: vi.fn().mockReturnThis(),
-    disconnect: vi.fn(),
-    toDestination: vi.fn(),
-    curve: opts.curve ?? null,
-    oversample: opts.oversample ?? 'none',
-  })),
+  shaperCtor: vi.fn((mappingOrOptions?: unknown) => {
+    const mapping =
+      Object.prototype.toString.call(mappingOrOptions) === '[object Object]'
+        ? (mappingOrOptions as { mapping?: unknown }).mapping
+        : mappingOrOptions;
+    return {
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+      toDestination: vi.fn(),
+      curve: mapping instanceof Float32Array || Array.isArray(mapping) ? Float32Array.from(mapping) : null,
+      oversample: 'none',
+    };
+  }),
   shaperThrowingCtor: vi.fn(() => {
     throw new Error('no shaper');
   }),
@@ -5004,20 +5012,32 @@ describe('globalFx', () => {
         toneFlags.limiterCtor,
       ].flatMap((ctor) => (ctor as unknown as AnyMock).mock.results.map((r) => r.value as { connect: Mock }));
 
-    it('builds one WaveShaper per build from the soft ceiling curve with oversample none, and no rewire rebuilds it', async () => {
+    it('builds one WaveShaper per build holding the soft ceiling curve at oversample none, and no rewire rebuilds it', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       expect(toneFlags.shaperCtor).toHaveBeenCalledTimes(1);
-      const [options] = toneFlags.shaperCtor.mock.calls[0];
-      expect(options).toStrictEqual({ curve: expect.any(Float32Array), oversample: 'none' });
-      const curve = options!.curve!;
+      const { curve, oversample } = ceilingOf();
       expect(curve).toHaveLength(CEILING_CURVE_LENGTH);
       expect(curve[(CEILING_CURVE_LENGTH - 1) / 2]).toBe(0);
       expect(curve).toEqual(softCeilingCurve());
+      expect(oversample).toBe('none');
 
       globalFx.wireGlobalFxChain(true);
       globalFx.wireGlobalFxChain(false);
       expect(toneFlags.shaperCtor).toHaveBeenCalledTimes(1);
+    });
+
+    // T5.1: the mock follows Tone's constructor by hand, so the build's own arguments are also replayed into Tone's
+    // real WaveShaper; a mock that drifts from Tone again fails here. Under jsdom (no AudioContext) Tone runs on its
+    // dummy context, whose createWaveShaper() is a plain object the node's curve setter writes into (and that holds
+    // nothing to dispose: it has no disconnect).
+    it("leaves the soft ceiling curve on Tone's own WaveShaper when its arguments are replayed into it", async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const RealTone = await vi.importActual<typeof import('tone')>('tone');
+      const [arg] = toneFlags.shaperCtor.mock.calls[0];
+      const shaper = new RealTone.WaveShaper(arg as ConstructorParameters<typeof RealTone.WaveShaper>[0]);
+      expect(shaper.curve).toEqual(softCeilingCurve());
     });
 
     it.each([false, true])('is fed by the Limiter and nothing else, controlledDecay=%s', async (controlled) => {
