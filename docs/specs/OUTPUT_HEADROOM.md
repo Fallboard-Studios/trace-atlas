@@ -393,3 +393,13 @@ a native `WaveShaperNode` with no curve passes its input unchanged; the T5 mock 
 risk table named it). (1) Crawford: fix it as T5.1, test first, then re-run T7 in full. (2) `pre` missed −6 dBFS on
 D1, D4 and D5 at −12 dB; Crawford took the recommendation to hold −12 dB and record `pre` rather than gate it
 (assumption 3 rewritten, §5.2's row changed) rather than step the trim toward −22 dB.
+
+**Checkpoint A, 2026-10-23: Crawford's desktop listen.** "Most worked fine": no change asked for the ceiling's knee
+(0.7) or oversample (`'none'`). One world distorted: `6j0mgo5z` at (−132, 83) with every robot Volume at 100 %.
+Measured headless on the branch, it was neither clipping nor the ceiling (master peak −1.2 dB, never at the ceiling's
+top, 0.05 % of samples above the knee; the Limiter's gain reduction 0.05 dB at most): the world's seeded Compressor
+(−33 dB, 3:1, knee 8, attack 12 ms, **release 70 ms**) was cutting 13.6–16.5 dB on average and up to 23 dB, against
+6 dB at the seeded Volumes, and moving that fast bends the waveform. By ear in the Output tab, a 0.25 s release removed
+it (a ratio of 1 and a −20 dB threshold were the other two steps offered). **Decision: raise the seeded release floor**
+(T9): `GLOBAL_AUDIO_LOADING_RANGES['compressor.release']` from 0.05–0.3 s to 0.25–0.3 s, the value heard to fix it.
+Assumption 5's threshold and ratio narrowing is not invoked; the user's own Release slider keeps its full 0.01–1 s.

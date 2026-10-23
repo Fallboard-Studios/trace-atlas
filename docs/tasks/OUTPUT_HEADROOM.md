@@ -20,7 +20,9 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > no curve (Tone's `WaveShaper` reads `mapping`, not `curve`). Crawford, 2026-10-23: fix it as **T5.1**, then re-run
 > T7 in full; hold `HEADROOM_TRIM_DB` at −12 and record `pre` rather than gate it (spec assumption 3 and §7).
 > **T5.1 done** (`993217fc`); **T7 done**: every gate met on all seven variants (PERFORMANCE.md, "The branch"). **T8
-> done**: the ceiling's audio-thread cost is below the method's resolution. **Checkpoint A (Crawford's listen) next.**
+> done**: the ceiling's audio-thread cost is below the method's resolution. **Checkpoint A** heard one world crunch
+> with every robot at 100 % (`6j0mgo5z`): the seeded Compressor's 70 ms release, not the ceiling; Crawford: raise the
+> seeded release floor to 0.25 s (spec §7). **T9 next.**
 
 ## Overview
 
@@ -380,13 +382,16 @@ Recorded in T3's PERFORMANCE.md section: overall mean capacity and the peak wind
 
 ### Checkpoint A: Crawford's desktop listen — **STOP**
 
-- [ ] D1 and H1 on the branch, then D1 on `main` for the before: is the crunch gone, and does the quieter level read
-  as a clean world rather than a dull one?
-- [ ] The loudest moments of H1: any colour from the ceiling? If so, a local edit to `CEILING_KNEE` 0.6 and 0.8, and
-  `oversample: '2x'`, each listened to once; the choice recorded.
-- [ ] A deep-seeded world (find one whose Output tab shows a Compressor threshold near −36 dB and a ratio near 6):
-  does it pump against the ceiling? If so, spec assumption 5's remedy is invoked in T9.
-- [ ] Decisions written into spec §7 as dated answers; "no change" is an answer.
+- [x] D1 and H1 on the branch, then D1 on `main` for the before: is the crunch gone, and does the quieter level read
+  as a clean world rather than a dull one? — Crawford, 2026-10-23: "most worked fine".
+- [x] The loudest moments of H1: any colour from the ceiling? If so, a local edit to `CEILING_KNEE` 0.6 and 0.8, and
+  `oversample: '2x'`, each listened to once; the choice recorded. — no change asked; knee 0.7 and `'none'` stay.
+- [x] A deep-seeded world (find one whose Output tab shows a Compressor threshold near −36 dB and a ratio near 6):
+  does it pump against the ceiling? If so, spec assumption 5's remedy is invoked in T9. — the world that crunched,
+  `6j0mgo5z` (−33 dB, 3:1) with every robot at 100 %, was the Compressor's 70 ms release, not the ceiling (measured:
+  13.6–16.5 dB mean gain reduction, master never at the ceiling's top); a 0.25 s release fixed it by ear. Assumption 5's
+  threshold/ratio narrowing is not invoked; the seeded release floor rises instead (T9).
+- [x] Decisions written into spec §7 as dated answers; "no change" is an answer.
 
 ---
 
@@ -396,7 +401,11 @@ Recorded in T3's PERFORMANCE.md section: overall mean capacity and the peak wind
 `globalFx.ts` (the T4 and T5 tests follow the constants, so only `'2x'` needs a test change: the built ceiling's
 `oversample` property, which Tone does not take as a constructor option, T5.1); or the Compressor's two rows in `GLOBAL_AUDIO_LOADING_RANGES` narrowed (e.g. threshold −30 to −18, ratio 2 to
 4) with `globalAudioSeed`'s oracle cases re-pinned to the new band and `GLOBAL_CHAIN_GRID.md`'s two Loading Range
-cells updated. Then T7's complete run (2) is repeated and the table replaced.
+cells updated. Then T7's complete run (2) is repeated and the table replaced. **As decided at Checkpoint A (spec §7):**
+the one change is the Compressor's *release* row, 0.05–0.3 s → 0.25–0.3 s, with the loading-range test, the two seed
+oracles' release values (re-derived by hand from the same draw) and the grid's Release cell. The seven T3 links carry
+the whole `globalAudio`, release included, so they pin the old seeded release; the re-run uses links rebuilt by T3's
+recipe on this branch, and the T3 links stay as `main`'s.
 
 **Proof:** RED test for a behaviour change — the built ceiling's `oversample` case in `globalFx.test.ts` for `'2x'`, or the
 oracle cases in `src/utils/globalAudioSeed.test.ts` for a narrowed band, re-pinned by value and failing first. A
