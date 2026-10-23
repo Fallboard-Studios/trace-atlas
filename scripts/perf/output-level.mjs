@@ -12,15 +12,13 @@
  *   npm run perf:level -- --url "http://localhost:4173/trace-atlas/?debug&session=…" --seconds 120
  *
  * The pure parts (reading the HUD line, the summary) live in output-level-lib.mjs and are unit-tested; the Chrome
- * plumbing below mirrors audio-load.mjs and is verified by a real run. Run with --help for flags.
+ * plumbing lives in cdp-lib.mjs and is verified by real runs. Run with --help for flags.
  * Measurement hygiene (foreground, one call at a time, orphaned-Chrome check, same-session A/B): docs/PERFORMANCE.md.
  */
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
+import { sleep, withChrome } from './cdp-lib.mjs';
 import { parseOutputFromHud, summarizeLevels } from './output-level-lib.mjs';
 
 /** How often the overlay is read: its own sampler ticks every 500 ms over a 0.68 s window, so no peak falls between. */
@@ -72,77 +70,10 @@ if (opts.help) {
   process.exit(0);
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function positiveNumber(name, raw) {
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) throw new Error(`--${name} must be a positive number (got "${raw}")`);
   return value;
-}
-
-function findChrome() {
-  const platformDefaults = process.platform === 'win32'
-    ? [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ]
-    : process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
-      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  const found = [opts.chrome, process.env.CHROME_PATH, ...platformDefaults].filter(Boolean).find((p) => existsSync(p));
-  if (!found) throw new Error('No Chrome/Edge found — pass --chrome <path> or set CHROME_PATH.');
-  return found;
-}
-
-async function connect(port) {
-  let wsUrl;
-  for (let i = 0; i < 50 && !wsUrl; i++) {
-    try {
-      const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-      wsUrl = targets.find((t) => t.type === 'page')?.webSocketDebuggerUrl;
-    } catch { /* browser not listening yet */ }
-    if (!wsUrl) await sleep(200);
-  }
-  if (!wsUrl) throw new Error(`Chrome did not expose a debugging target on port ${port}.`);
-
-  const ws = new WebSocket(wsUrl);
-  await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true });
-    ws.addEventListener('error', reject, { once: true });
-  });
-
-  let nextId = 0;
-  const pending = new Map();
-  ws.addEventListener('message', (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      if (msg.error) reject(new Error(msg.error.message)); else resolve(msg.result);
-    }
-  });
-
-  return {
-    send: (method, params = {}) => new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject });
-      ws.send(JSON.stringify({ id, method, params }));
-    }),
-    close: () => ws.close(),
-  };
-}
-
-/** Closes Chrome and every child process it spawned, so nothing is left behind (verify with the orphan check). */
-async function shutdown(chrome, cdp) {
-  try { await Promise.race([cdp?.send('Browser.close'), sleep(2000)]); } catch { /* the socket drops as Chrome exits */ }
-  try { cdp?.close(); } catch { /* already closed */ }
-  for (let i = 0; i < 25 && chrome.exitCode === null && chrome.signalCode === null; i++) await sleep(200);
-  if (chrome.exitCode === null && chrome.signalCode === null) {
-    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(chrome.pid), '/T', '/F'], { stdio: 'ignore' });
-    else chrome.kill('SIGKILL');
-    await sleep(500);
-  }
 }
 
 /** The overlay's rows joined by newlines, or null when the page has no overlay. */
@@ -199,29 +130,7 @@ async function pushRobotVolumeFull({ evaluate, send }) {
 
 /** One fresh Chrome, one page, one measured series. Returns the run's readings and summary. */
 async function measurePage(url, { seconds, warmupSec, robotVolumeFull }) {
-  const profileDir = mkdtempSync(join(tmpdir(), 'trace-atlas-perf-'));
-  const chrome = spawn(findChrome(), [
-    '--headless=new',
-    `--remote-debugging-port=${opts.port}`,
-    `--user-data-dir=${profileDir}`,
-    '--autoplay-policy=no-user-gesture-required',
-    '--no-first-run',
-    '--no-default-browser-check',
-    'about:blank',
-  ], { stdio: 'ignore' });
-
-  const onInterrupt = () => { shutdown(chrome, cdp).finally(() => process.exit(130)); };
-  let cdp;
-  process.once('SIGINT', onInterrupt);
-  try {
-    cdp = await connect(opts.port);
-    const { send } = cdp;
-    const evaluate = async (expression) => {
-      const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-      if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? 'evaluate failed');
-      return r.result.value;
-    };
-
+  return withChrome({ chromePath: opts.chrome, port: opts.port }, async ({ send, evaluate }) => {
     await send('Page.enable');
     await send('Runtime.enable');
     await send('Page.navigate', { url });
@@ -255,11 +164,7 @@ async function measurePage(url, { seconds, warmupSec, robotVolumeFull }) {
     }
 
     return { url, world, robotVolume, seconds, warmupSec, readings: samples.length, unparsed, summary: summarizeLevels(samples), samples };
-  } finally {
-    process.removeListener('SIGINT', onInterrupt);
-    await shutdown(chrome, cdp);
-    try { rmSync(profileDir, { recursive: true, force: true }); } catch { /* Chrome may still hold the profile briefly on Windows — harmless in tmp */ }
-  }
+  });
 }
 
 const db = (value) => (value === null ? '-' : value === -Infinity ? '-inf' : value.toFixed(1));

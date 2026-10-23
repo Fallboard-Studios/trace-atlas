@@ -13,13 +13,10 @@
  *   npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15
  *
  * The pure parts (world specs, URLs, bucketing, correlation) live in audio-load-lib.mjs and are unit-tested;
- * the Chrome plumbing below mirrors profile.mjs and is verified by a real run. Run with --help for flags.
+ * the Chrome plumbing lives in cdp-lib.mjs and is verified by real runs. Run with --help for flags.
  * Measurement hygiene (foreground, one call at a time, orphaned-Chrome check, same-session A/B): docs/PERFORMANCE.md.
  */
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import {
@@ -34,6 +31,7 @@ import {
   rotateList,
   summarizeBuckets,
 } from './audio-load-lib.mjs';
+import { sleep, withChrome } from './cdp-lib.mjs';
 
 /** How often the DevTools realtime data is polled. `contextRealtimeDataChanged` events do not arrive on their own. */
 const POLL_MS = 500;
@@ -83,108 +81,15 @@ if (opts.help) {
   process.exit(0);
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function positiveNumber(name, raw) {
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) throw new Error(`--${name} must be a positive number (got "${raw}")`);
   return value;
 }
 
-function findChrome() {
-  const platformDefaults = process.platform === 'win32'
-    ? [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ]
-    : process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
-      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  const found = [opts.chrome, process.env.CHROME_PATH, ...platformDefaults].filter(Boolean).find((p) => existsSync(p));
-  if (!found) throw new Error('No Chrome/Edge found — pass --chrome <path> or set CHROME_PATH.');
-  return found;
-}
-
-async function connect(port) {
-  let wsUrl;
-  for (let i = 0; i < 50 && !wsUrl; i++) {
-    try {
-      const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-      wsUrl = targets.find((t) => t.type === 'page')?.webSocketDebuggerUrl;
-    } catch { /* browser not listening yet */ }
-    if (!wsUrl) await sleep(200);
-  }
-  if (!wsUrl) throw new Error(`Chrome did not expose a debugging target on port ${port}.`);
-
-  const ws = new WebSocket(wsUrl);
-  await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true });
-    ws.addEventListener('error', reject, { once: true });
-  });
-
-  let nextId = 0;
-  const pending = new Map();
-  const listeners = new Set();
-  ws.addEventListener('message', (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      if (msg.error) reject(new Error(msg.error.message)); else resolve(msg.result);
-    } else if (msg.method) {
-      for (const listener of listeners) listener(msg);
-    }
-  });
-
-  return {
-    send: (method, params = {}) => new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject });
-      ws.send(JSON.stringify({ id, method, params }));
-    }),
-    onEvent: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    close: () => ws.close(),
-  };
-}
-
-/** Closes Chrome and every child process it spawned, so nothing is left behind (verify with the orphan check). */
-async function shutdown(chrome, cdp) {
-  try { await Promise.race([cdp?.send('Browser.close'), sleep(2000)]); } catch { /* the socket drops as Chrome exits */ }
-  try { cdp?.close(); } catch { /* already closed */ }
-  for (let i = 0; i < 25 && chrome.exitCode === null && chrome.signalCode === null; i++) await sleep(200);
-  if (chrome.exitCode === null && chrome.signalCode === null) {
-    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(chrome.pid), '/T', '/F'], { stdio: 'ignore' });
-    else chrome.kill('SIGKILL');
-    await sleep(500);
-  }
-}
-
 /** One fresh Chrome, one world, one measured series. Returns the run's buckets and summary. */
 async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
-  const profileDir = mkdtempSync(join(tmpdir(), 'trace-atlas-perf-'));
-  const chrome = spawn(findChrome(), [
-    '--headless=new',
-    `--remote-debugging-port=${opts.port}`,
-    `--user-data-dir=${profileDir}`,
-    '--autoplay-policy=no-user-gesture-required',
-    '--no-first-run',
-    '--no-default-browser-check',
-    'about:blank',
-  ], { stdio: 'ignore' });
-
-  const onInterrupt = () => { shutdown(chrome, cdp).finally(() => process.exit(130)); };
-  let cdp;
-  process.once('SIGINT', onInterrupt);
-  try {
-    cdp = await connect(opts.port);
-    const { send, onEvent } = cdp;
-    const evaluate = async (expression) => {
-      const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-      if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? 'evaluate failed');
-      return r.result.value;
-    };
-
+  return withChrome({ chromePath: opts.chrome, port: opts.port }, async ({ send, evaluate, onEvent }) => {
     const created = [];
     const destroyed = [];
     onEvent((msg) => {
@@ -239,11 +144,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       summary: summarizeBuckets(buckets),
       audibleCorrelation: audibleCapacityCorrelation(buckets),
     };
-  } finally {
-    process.removeListener('SIGINT', onInterrupt);
-    await shutdown(chrome, cdp);
-    try { rmSync(profileDir, { recursive: true, force: true }); } catch { /* Chrome may still hold the profile briefly on Windows — harmless in tmp */ }
-  }
+  });
 }
 
 const fixed = (value, digits) => (value === null || value === undefined ? '-' : value.toFixed(digits));
