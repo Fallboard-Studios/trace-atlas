@@ -788,10 +788,9 @@ export const AudioEngine = {
    *   fix), defaulting to 1 when omitted. Passed through `robotBusGain` (the shared taper, then the
    *   headroom trim, docs/specs/OUTPUT_HEADROOM.md — not a raw pass-through, see volumeTaper.ts and
    *   headroom.ts) before being applied as the initial value of the robot's live per-robot bus
-   *   gain. Unlike `adsr`/`phase`/`detune`, this is not
-   *   baked into any note's own trigger — it's a continuously-live AudioParam on the bus every
-   *   note from this robot passes through, updatable afterward via `updateRobotMasterVolume`
-   *   without re-reserving.
+   *   gain. Unlike `adsr`/`phase`/`detune`, this is not baked into any note's own trigger — it's
+   *   a continuously-live AudioParam on the bus every note from this robot passes through,
+   *   updatable afterward via `updateRobotMasterVolume` without re-reserving.
    * @param filterFreq - The robot's seeded `audioAttributes.filterFreq` (Hz): the cutoff of the
    *   per-robot bus low-pass (`composite.output → panner → busGain → busFilter → chain entry`).
    *   The same number once drove the hand-drawn robots' body detail and greeble count; gem
@@ -1112,8 +1111,9 @@ export const AudioEngine = {
    * is the 0..1 slider position, passed through `robotBusGain` first (the shared taper, then the
    * headroom trim, docs/specs/OUTPUT_HEADROOM.md) — a linear position applied directly as gain
    * would feel almost flat across most of the fader (human loudness perception is roughly
-   * logarithmic), so the actual gain follows a perceptual taper instead; see volumeTaper.ts. Ramps over a short duration when the live Tone.Gain param supports it, to
-   * avoid an audible click; falls back to a direct value assignment in headless/test environments
+   * logarithmic), so the actual gain follows a perceptual taper instead; see volumeTaper.ts.
+   * Ramps over a short duration when the live Tone.Gain param supports it, to avoid an audible
+   * click; falls back to a direct value assignment in headless/test environments
    * where it doesn't. A safe no-op (with a devWarn, matching updateVoiceLayerParams/
    * updateVoiceEnvelope's existing pattern) when no composite voice is reserved for the robot.
    */

@@ -205,6 +205,10 @@ src/engine/audioEngine/
 src/engine/
 ├── AudioEngine.ts                  EDIT  three bus-gain write sites call robotBusGain
 ├── AudioEngine.test.ts             EDIT  bus gain = taper × trim at reserve and on a Volume edit
+src/data/
+├── globalAudioLoadingRanges.ts     EDIT  the Compressor release row 0.25–0.3 s, and its pin in the .test.ts (§7, T9)
+src/utils/
+├── globalAudioSeed.test.ts         EDIT  the release floor case; the two seed oracles' release, re-derived by hand (T9)
 scripts/perf/
 ├── output-level.mjs                NEW   the level probe (§5.2), CDP plumbing mirrored from audio-load.mjs
 ├── output-level-lib.mjs            NEW   parseOutputFromHud, summarizeLevels, pure
@@ -226,7 +230,8 @@ docs/
 
 - **Strict scope:** the files above. No change to `volumeTaper.ts`, `globalAudioSeed.ts`, the seed or loading ranges
   (unless assumption 5's remedy is invoked at Checkpoint A, then only `GLOBAL_AUDIO_LOADING_RANGES`'s two Compressor
-  rows and the grid), `audioStore.ts`, `sessionDiff.ts`, `sessionShareUtils.ts`, `audioRigConfig.ts`, `src/content/`,
+  rows and the grid; as decided at Checkpoint A, §7, the one row changed is the Compressor's release instead, with its
+  grid cell), `audioStore.ts`, `sessionDiff.ts`, `sessionShareUtils.ts`, `audioRigConfig.ts`, `src/content/`,
   or anything under `src/components/` beyond none at all. The HUD line does not change.
 - **CLAUDE.md:** the ceiling and the trim are engine nodes and constants; no synth in a component, no timeline, nothing
   in Zustand, no AudioParam write from a GSAP callback. The bus-gain ramp is `rampOrSet` as today (a de-click on the

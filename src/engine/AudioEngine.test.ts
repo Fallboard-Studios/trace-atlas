@@ -2082,8 +2082,12 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
       const Tone = await import('tone');
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
-      const gainNode = lastInstance(Tone.Gain) ?? { gain: { value: 1 } };
+      // No stand-in node: one already reading 1 would pass this without a master gain. The 0.5 write proves the node
+      // is the one setMasterVolume drives, so the 1 after it is the slider's, not a leftover.
+      const gainNode = lastInstance(Tone.Gain);
+      expect(gainNode).toBeDefined();
       AudioEngine.setMasterVolume(0.5);
+      expect(gainNode.gain.value).toBe(0.5);
       AudioEngine.setMasterVolume(1);
       expect(gainNode.gain.value).toBe(1);
     });
