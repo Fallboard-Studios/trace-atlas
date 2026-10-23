@@ -225,15 +225,22 @@ spy (`connect`/`disconnect`/`toDestination`, records its options) behind a `tone
 gain directly.
 
 **Acceptance criteria:**
-- [ ] The dry-chain order cases (`globalFx.test.ts:4706`, `:4783`, `:772`'s `it.each`) assert
+- [x] The dry-chain order cases (`globalFx.test.ts:4706`, `:4783`, `:772`'s `it.each`) assert
   `Limiter → ceiling → masterGain` in both Decay Modes; the Controlled join still lands on the Width cell's `in`, never
   the ceiling; the constructor was called once with a `curve` of length `CEILING_CURVE_LENGTH` whose middle entry is 0
-  and `oversample: 'none'`.
-- [ ] The disconnect-order case (`:533`) lists the ceiling between master and Limiter; a Decay flip disconnects and
-  reconnects it exactly once; the `out` tap still hangs off `_masterGain` (`:4954`'s neighbours unchanged).
-- [ ] Constructor absent → `Limiter → masterGain`, no warn; constructor throws → the same with one `devWarn`; the
+  and `oversample: 'none'`. — options read back by key (`toStrictEqual`), the curve equal to `softCeilingCurve()`;
+  in both Decay Modes the Limiter is the only node of any constructor that feeds the ceiling.
+- [x] The disconnect-order case (`:533`) lists the ceiling between master and Limiter; a Decay flip disconnects and
+  reconnects it exactly once; the `out` tap still hangs off `_masterGain` (`:4954`'s neighbours unchanged). — also no
+  tap hangs off the ceiling; the Limiter-absent case (`:827`) now runs Width cell cut → ceiling → master, and with no
+  master gain the ceiling goes to the destination itself.
+- [x] Constructor absent → `Limiter → masterGain`, no warn; constructor throws → the same with one `devWarn`; the
   headless file's "builds and rewires both ways" still passes. The mutation gate kills a ceiling placed before the
-  Limiter and a ceiling left out of the disconnect list.
+  Limiter and a ceiling left out of the disconnect list. — also a second build that finds the constructor absent or
+  throwing drops the first ceiling. 8 of 8 mutants killed (before the Limiter, out of the disconnect list, after the
+  master in it, no `_ceiling = null` reset, `'2x'`, a 9-entry curve, no warning, never built). `AudioEngine.test.ts`'s
+  Tone mock gains a `WaveShaper` spy (vitest throws on an export the factory does not list). The `npm run dev` look is
+  folded into Checkpoint A1.
 
 **Verification:** `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/globalFx.headless.test.ts`;
 `npm run build:types`; `npm run dev` powers on with no console warning from the chain. **Dependencies:** T4.

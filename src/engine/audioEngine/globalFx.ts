@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 
+import { softCeilingCurve } from './headroom';
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
 import {
   CHAIN_CUT_OPTIONS,
@@ -61,6 +62,8 @@ let _globalEQ: Tone.EQ3 | null = null;
 let _globalLPF: Tone.Filter | null = null;
 let _globalHPF: Tone.Filter | null = null;
 let _globalLimiter: Tone.Limiter | null = null;
+// The output ceiling, after the Limiter and before the master gain (docs/specs/OUTPUT_HEADROOM.md §1.3).
+let _ceiling: Tone.WaveShaper | null = null;
 // The colour slot, in chain order between the High-Pass Filter and the Compressor (docs/specs/GLOBAL_COLOUR.md §1.3).
 let _globalDistortion: Tone.Distortion | null = null;
 let _globalChebyshev: Tone.Chebyshev | null = null;
@@ -193,6 +196,7 @@ export function buildGlobalFxChain(): void {
   const FilterCtor = getToneCtor<Tone.Filter>('Filter');
   const GainCtorFX = getToneCtor<Tone.Gain>('Gain');
   const LimiterCtor = getToneCtor<Tone.Limiter>('Limiter');
+  const WaveShaperCtor = getToneCtor<Tone.WaveShaper>('WaveShaper');
   const DistortionCtor = getToneCtor<Tone.Distortion>('Distortion');
   const ChebyshevCtor = getToneCtor<Tone.Chebyshev>('Chebyshev');
   const BitCrusherCtor = getToneCtor<Tone.BitCrusher>('BitCrusher');
@@ -231,6 +235,17 @@ export function buildGlobalFxChain(): void {
   }
   if (LimiterCtor) {
     _globalLimiter = new LimiterCtor({ threshold: -12 });
+  }
+  _ceiling = null;
+  if (WaveShaperCtor) {
+    try {
+      // The output ceiling (docs/specs/OUTPUT_HEADROOM.md §1.2): identity below CEILING_KNEE, a tanh above it that never
+      // reaches full scale. The last stage before the master gain, so the user's Limiter and its makeup sit inside it.
+      _ceiling = new WaveShaperCtor({ curve: softCeilingCurve(), oversample: 'none' });
+    } catch (err) {
+      _ceiling = null;
+      devWarn('[AudioEngine] the output ceiling could not be constructed; the chain runs without it', err);
+    }
   }
   // Built pinned fully wet in a dark cell, which carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9); the
   // store pushes the seeded values once the chain exists. `oversample` is 'none' on both shapers and is never read from
@@ -435,6 +450,7 @@ function disconnectAllFxNodes(): void {
     _globalCompressor,
     ...cellNodes('stereoWidener'),
     _globalLimiter,
+    _ceiling,
     _masterGain,
   ].filter(Boolean) as Array<{ disconnect: () => void }>;
   for (const node of nodes.reverse()) {
@@ -450,8 +466,9 @@ function disconnectAllFxNodes(): void {
  * Wire the global FX chain, tearing down whatever was previously connected
  * first. The dry chain is the same in both modes: EQ3 → LPF → HPF →
  * AutoWah → Phaser → Tremolo → Vibrato → Compressor → StereoWidener →
- * Limiter → masterGain → Destination (or straight to Destination if masterGain
- * wasn't constructed). Each of those five effects is a bypass cell, entered at its
+ * Limiter → ceiling → masterGain → Destination (or straight to Destination if masterGain
+ * wasn't constructed; the ceiling is docs/specs/OUTPUT_HEADROOM.md's WaveShaper, skipped
+ * when absent like any node). Each of those five effects is a bypass cell, entered at its
  * `in` and left at its `cut` (docs/specs/DARK_EFFECT_BYPASS.md section 1.3); an
  * absent cell (headless, or no Gain / Delay constructor) is skipped by the filter
  * below, and an effect that failed to construct leaves an empty cell wired dry,
@@ -494,6 +511,7 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     nodeSpan(_globalCompressor),
     cellSpan('stereoWidener'),
     nodeSpan(_globalLimiter),
+    nodeSpan(_ceiling),
   ].filter((span): span is ChainSpan => span !== null);
 
   if (chainNodes.length === 0) {

@@ -157,6 +157,21 @@ const toneFlags = vi.hoisted(() => ({
     toDestination: vi.fn(),
     threshold: { value: -12 },
   })),
+  // Output Headroom T5 (docs/specs/OUTPUT_HEADROOM.md §1.3): the output ceiling, a WaveShaper between the Limiter and the
+  // master gain. Hoisted with a switch to hide it (headless) and one to hand out a constructor that throws; the options
+  // it was built with are read back from its call arguments, by key.
+  shaperAbsent: false,
+  shaperThrows: false,
+  shaperCtor: vi.fn((opts: { curve?: Float32Array; oversample?: string } = {}) => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+    curve: opts.curve ?? null,
+    oversample: opts.oversample ?? 'none',
+  })),
+  shaperThrowingCtor: vi.fn(() => {
+    throw new Error('no shaper');
+  }),
 }));
 
 vi.mock('tone', () => ({
@@ -255,6 +270,10 @@ vi.mock('tone', () => ({
   get Limiter() {
     return toneFlags.limiterAbsent ? undefined : toneFlags.limiterCtor;
   },
+  get WaveShaper() {
+    if (toneFlags.shaperAbsent) return undefined;
+    return toneFlags.shaperThrows ? toneFlags.shaperThrowingCtor : toneFlags.shaperCtor;
+  },
   // The read-only output taps (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md) are NATIVE AnalyserNodes made from Tone's raw
   // context: Tone.Analyser cannot be used, because it sets fftSize = 2 * size and caps size at 16384, so it can neither
   // build a 32768 window nor read more than half of one (found in the real-browser check, Task 6).
@@ -307,6 +326,7 @@ vi.mock('@/utils/helpers', () => ({
 
 import * as Tone from 'tone';
 import { colourWetGain } from './bypassCell';
+import { CEILING_CURVE_LENGTH, softCeilingCurve } from './headroom';
 import { devWarn } from '@/utils/helpers';
 import { SAMPLE_INTERVAL_MS } from '@/utils/audioHealth';
 
@@ -328,6 +348,8 @@ const returnOf = (room: any) => room.connect.mock.calls.at(-1)?.[0];
 const filterCutOf = () => toneFlags.cutCtor.mock.results[1]?.value;
 /** Every Delay node made so far: the two cycle-search cuts first, then the ten cells' cuts. */
 const delaysBuilt = () => toneFlags.cutCtor.mock.results.map((r) => r.value);
+/** The output ceiling (Output Headroom T5): the WaveShaper the latest build made. */
+const ceilingOf = () => lastInstance(toneFlags.shaperCtor);
 /** The bypassCell module globalFx is using: the same instance after vi.resetModules, imported by the beforeEach below
  *  (and again by a test that resets modules itself). Read for the live cells and rooms. */
 let live: typeof import('./bypassCell');
@@ -428,6 +450,8 @@ describe('globalFx', () => {
     toneFlags.cutAbsent = false;
     toneFlags.gainAbsent = false;
     toneFlags.limiterAbsent = false;
+    toneFlags.shaperAbsent = false;
+    toneFlags.shaperThrows = false;
     toneFlags.lookAhead = 0.1;
     toneFlags.timeouts = [];
   });
@@ -530,7 +554,7 @@ describe('globalFx', () => {
 
     // A disconnect runs detectCycles from each destination it drops. Dropping the downstream nodes first means every
     // later search starts from a node that has no outputs left (a front-to-back rewire took 2.6 s with the pedals).
-    it('disconnects the chain downstream first on a rewire: master, Limiter, Width cell, ..., EQ3, entry cut', async () => {
+    it('disconnects the chain downstream first on a rewire: master, ceiling, Limiter, Width cell, ..., EQ3, entry cut', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const [entryCut, filterCut] = toneFlags.cutCtor.mock.results.map((r) => r.value);
@@ -550,6 +574,7 @@ describe('globalFx', () => {
         lastInstance(Tone.Compressor),
         ...cellChain(lastInstance(toneFlags.widenerCtor)),
         lastInstance(Tone.Limiter),
+        ceilingOf(),
         lastInstance(Tone.Gain),
       ];
       for (const node of chain) node.disconnect.mockClear();
@@ -769,13 +794,14 @@ describe('globalFx', () => {
     });
 
     it.each([false, true])(
-      'runs the chain through the cells, controlledDecay=%s: filter cut -> four cells -> Compressor -> Width cell -> Limiter -> master',
+      'runs the chain through the cells, controlledDecay=%s: filter cut -> four cells -> Compressor -> Width cell -> Limiter -> ceiling -> master',
       async (controlled) => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
         const cells = [...chainEffects(), lastInstance(toneFlags.widenerCtor)].map(cellOf);
         const compressor = lastInstance(Tone.Compressor);
         const limiter = lastInstance(Tone.Limiter);
+        const ceiling = ceilingOf();
         const master = lastInstance(Tone.Gain);
         const stages = [
           delaysBuilt()[0],
@@ -784,8 +810,11 @@ describe('globalFx', () => {
           lastInstance(Tone.Filter),
           filterCutOf(),
         ];
-        const all = [...stages, compressor, limiter, ...cells.flatMap((c) => [c.in, c.cut])];
-        for (const node of all) node.connect.mockClear();
+        const all = [...stages, compressor, limiter, ceiling, master, ...cells.flatMap((c) => [c.in, c.cut])];
+        for (const node of all) {
+          node.connect.mockClear();
+          node.toDestination.mockClear();
+        }
 
         globalFx.wireGlobalFxChain(controlled);
 
@@ -795,7 +824,11 @@ describe('globalFx', () => {
         expect(cells[3].cut.connect.mock.calls).toEqual([[compressor]]);
         expect(compressor.connect.mock.calls).toEqual([[cells[4].in]]);
         expect(cells[4].cut.connect.mock.calls).toEqual([[limiter]]);
-        expect(limiter.connect.mock.calls).toEqual([[master]]);
+        // Output Headroom T5: the ceiling is the last stage before the master gain, which stays the one to the destination.
+        expect(limiter.connect.mock.calls).toEqual([[ceiling]]);
+        expect(ceiling.connect.mock.calls).toEqual([[master]]);
+        expect(ceiling.toDestination).not.toHaveBeenCalled();
+        expect(master.toDestination).toHaveBeenCalledTimes(1);
         for (const cell of cells) expect(cell.in.connect).not.toHaveBeenCalledWith(cell.cut);
       },
     );
@@ -824,12 +857,13 @@ describe('globalFx', () => {
       expect(toneFlags.cutCtor).toHaveBeenCalledTimes(9);
     });
 
-    it('leaves a chain that ends on the Width cell from its cut: no Limiter, Width cell cut -> master', async () => {
+    it('leaves a chain that ends on the Width cell from its cut: no Limiter, Width cell cut -> ceiling -> master', async () => {
       toneFlags.limiterAbsent = true;
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const cell = cellOf(lastInstance(toneFlags.widenerCtor));
-      expect(cell.cut.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+      expect(cell.cut.connect).toHaveBeenLastCalledWith(ceilingOf());
+      expect(ceilingOf().connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
       expect(cell.in.connect).not.toHaveBeenCalledWith(lastInstance(Tone.Gain));
     });
 
@@ -4703,7 +4737,7 @@ describe('globalFx', () => {
   describe('wireGlobalFxChain — Natural Decay (controlledDecay=false)', () => {
     // Robot Effect Sends T4 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 11): the Colour trio, the Chorus and the
     // FrequencyShifter left the dry chain for their rooms, so it is seven stages after the filters.
-    it('wires the dry chain entry cut -> EQ3 -> LPF -> HPF -> filter cut -> AutoWah -> Phaser -> Tremolo -> Vibrato -> Compressor -> StereoWidener -> Limiter -> masterGain -> Destination', async () => {
+    it('wires the dry chain entry cut -> EQ3 -> LPF -> HPF -> filter cut -> AutoWah -> Phaser -> Tremolo -> Vibrato -> Compressor -> StereoWidener -> Limiter -> ceiling -> masterGain -> Destination', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // builds + wires Natural Decay by default
 
@@ -4738,7 +4772,9 @@ describe('globalFx', () => {
       }
       expect(compNode.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
       expect(cutOf(lastInstance(toneFlags.widenerCtor)).connect).toHaveBeenCalledWith(limiterNode);
-      expect(limiterNode.connect).toHaveBeenCalledWith(gainNode);
+      expect(limiterNode.connect).toHaveBeenCalledWith(ceilingOf());
+      expect(limiterNode.connect).not.toHaveBeenCalledWith(gainNode);
+      expect(ceilingOf().connect).toHaveBeenCalledWith(gainNode);
       expect(gainNode.toDestination).toHaveBeenCalled();
     });
 
@@ -4775,12 +4811,13 @@ describe('globalFx', () => {
         expect(ret.connect).toHaveBeenCalledTimes(1);
         expect(ret.connect).toHaveBeenCalledWith(compNode);
         expect(ret.connect).not.toHaveBeenCalledWith(limiterNode);
+        expect(ret.connect).not.toHaveBeenCalledWith(ceilingOf());
       }
     });
   });
 
   describe('wireGlobalFxChain — Controlled Decay (controlledDecay=true)', () => {
-    it('keeps the same dry chain entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> masterGain', async () => {
+    it('keeps the same dry chain entry cut -> EQ3 -> LPF -> HPF -> filter cut -> Distortion -> Chebyshev -> BitCrusher -> AutoWah -> Phaser -> Chorus -> Tremolo -> Vibrato -> FrequencyShifter -> Compressor -> StereoWidener -> Limiter -> ceiling -> masterGain', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
 
@@ -4808,7 +4845,8 @@ describe('globalFx', () => {
       expect(cutOf(vibratoNode).connect).toHaveBeenLastCalledWith(compNode);
       expect(compNode.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
       expect(cutOf(lastInstance(toneFlags.widenerCtor)).connect).toHaveBeenLastCalledWith(limiterNode);
-      expect(limiterNode.connect).toHaveBeenLastCalledWith(gainNode);
+      expect(limiterNode.connect).toHaveBeenLastCalledWith(ceilingOf());
+      expect(ceilingOf().connect).toHaveBeenLastCalledWith(gainNode);
     });
 
     // Global Pedals T6: the Controlled join moved from the Limiter to the StereoWidener just before it; Dark-Effect
@@ -4837,6 +4875,7 @@ describe('globalFx', () => {
         expect(ret.connect).toHaveBeenCalledWith(inOf(widenerNode));
         expect(ret.connect).not.toHaveBeenCalledWith(limiterNode);
         expect(ret.connect).not.toHaveBeenCalledWith(compNode);
+        expect(ret.connect).not.toHaveBeenCalledWith(ceilingOf());
       }
     });
 
@@ -4856,7 +4895,7 @@ describe('globalFx', () => {
       const delayReturn = returnOf(delayNode);
       const colourNodes = [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)];
       const modulationNodes = [lastInstance(toneFlags.wahCtor), lastInstance(toneFlags.phaserCtor)];
-      const all = [eqNode, lpfNode, hpfNode, ...colourNodes, ...modulationNodes, delayNode, reverbNode, compNode, limiterNode, reverbReturn, delayReturn];
+      const all = [eqNode, lpfNode, hpfNode, ...colourNodes, ...modulationNodes, delayNode, reverbNode, compNode, limiterNode, ceilingOf(), reverbReturn, delayReturn];
       // Forget the build's own wiring so only the flip is under test.
       for (const node of all) node.disconnect.mockClear();
 
@@ -4894,7 +4933,7 @@ describe('globalFx', () => {
 
       // disconnect() with no argument drops a node's OUTPUTS and nothing else. A room's INPUT (where a robot's
       // send gain is connected) therefore stays wired - the same reason the engine can flip Decay Mode mid-play.
-      const nodes = [Tone.EQ3, Tone.Filter, Tone.Distortion, Tone.Chebyshev, toneFlags.crusherCtor, toneFlags.wahCtor, toneFlags.phaserCtor, Tone.Reverb, Tone.FeedbackDelay, Tone.Compressor, Tone.Limiter, Tone.Gain];
+      const nodes = [Tone.EQ3, Tone.Filter, Tone.Distortion, Tone.Chebyshev, toneFlags.crusherCtor, toneFlags.wahCtor, toneFlags.phaserCtor, Tone.Reverb, Tone.FeedbackDelay, Tone.Compressor, Tone.Limiter, toneFlags.shaperCtor, Tone.Gain];
       for (const ctor of nodes) {
         for (const result of (ctor as unknown as AnyMock).mock.results) {
           for (const call of (result.value as { disconnect: Mock }).disconnect.mock.calls) {
@@ -4936,6 +4975,141 @@ describe('globalFx', () => {
     });
   });
 
+  // ========================================
+  // Output Headroom T5 (docs/specs/OUTPUT_HEADROOM.md §1.3 and §4): a WaveShaper soft ceiling after the Limiter and
+  // before the master gain, so nothing leaves the chain at or above full scale. The join, the cells, the taps and every
+  // setter are untouched; the chain-order cases above carry Limiter -> ceiling -> master.
+  // ========================================
+  describe('the output ceiling (Output Headroom T5)', () => {
+    /** Every node of every mocked constructor this file builds the chain from. */
+    const everyNode = (): Array<{ connect: Mock }> =>
+      [
+        Tone.Compressor,
+        Tone.Reverb,
+        Tone.FeedbackDelay,
+        Tone.EQ3,
+        Tone.Filter,
+        Tone.Distortion,
+        Tone.Chebyshev,
+        toneFlags.crusherCtor,
+        toneFlags.wahCtor,
+        toneFlags.phaserCtor,
+        toneFlags.chorusCtor,
+        toneFlags.tremoloCtor,
+        toneFlags.vibratoCtor,
+        toneFlags.shifterCtor,
+        toneFlags.widenerCtor,
+        toneFlags.cutCtor,
+        toneFlags.gainCtor,
+        toneFlags.limiterCtor,
+      ].flatMap((ctor) => (ctor as unknown as AnyMock).mock.results.map((r) => r.value as { connect: Mock }));
+
+    it('builds one WaveShaper per build from the soft ceiling curve with oversample none, and no rewire rebuilds it', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.shaperCtor).toHaveBeenCalledTimes(1);
+      const [options] = toneFlags.shaperCtor.mock.calls[0];
+      expect(options).toStrictEqual({ curve: expect.any(Float32Array), oversample: 'none' });
+      const curve = options!.curve!;
+      expect(curve).toHaveLength(CEILING_CURVE_LENGTH);
+      expect(curve[(CEILING_CURVE_LENGTH - 1) / 2]).toBe(0);
+      expect(curve).toEqual(softCeilingCurve());
+
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(toneFlags.shaperCtor).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([false, true])('is fed by the Limiter and nothing else, controlledDecay=%s', async (controlled) => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const ceiling = ceilingOf();
+      for (const node of everyNode()) node.connect.mockClear();
+
+      globalFx.wireGlobalFxChain(controlled);
+
+      const feeders = everyNode().filter((node) => node.connect.mock.calls.some(([target]) => target === ceiling));
+      expect(feeders).toStrictEqual([lastInstance(Tone.Limiter)]);
+      for (const key of live.ROOM_KEYS) expect(fake(live.getRoom(key)!.return).connect).not.toHaveBeenCalledWith(ceiling);
+    });
+
+    it('is disconnected once and reconnected once per Decay flip, always with no argument', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const ceiling = ceilingOf();
+      for (const flip of [true, false]) {
+        ceiling.connect.mockClear();
+        ceiling.disconnect.mockClear();
+        globalFx.wireGlobalFxChain(flip);
+        expect(ceiling.disconnect.mock.calls).toEqual([[]]);
+        expect(ceiling.connect.mock.calls).toEqual([[lastInstance(Tone.Gain)]]);
+      }
+    });
+
+    it('is built fresh on a second build, and the new Limiter feeds the new ceiling', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const first = ceilingOf();
+      globalFx.buildGlobalFxChain();
+      expect(toneFlags.shaperCtor).toHaveBeenCalledTimes(2);
+      expect(ceilingOf()).not.toBe(first);
+      expect(lastInstance(Tone.Limiter).connect).toHaveBeenLastCalledWith(ceilingOf());
+      expect(ceilingOf().connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+    });
+
+    it('sends itself to the destination when there is no master gain', async () => {
+      toneFlags.gainAbsent = true;
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const limiter = lastInstance(Tone.Limiter);
+      expect(limiter.connect).toHaveBeenLastCalledWith(ceilingOf());
+      expect(ceilingOf().toDestination).toHaveBeenCalledTimes(1);
+      expect(limiter.toDestination).not.toHaveBeenCalled();
+    });
+
+    describe('failure paths', () => {
+      it('with no WaveShaper constructor runs Limiter -> master gain in both Decay Modes, and warns nothing', async () => {
+        toneFlags.shaperAbsent = true;
+        const globalFx = await import('./globalFx');
+        expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+        expect(toneFlags.shaperCtor).not.toHaveBeenCalled();
+        expect(lastInstance(Tone.Limiter).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+        globalFx.wireGlobalFxChain(true);
+        expect(lastInstance(Tone.Limiter).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+        expect(devWarn).not.toHaveBeenCalled();
+      });
+
+      it('with a throwing WaveShaper constructor runs Limiter -> master gain with one warning, and rewires on', async () => {
+        toneFlags.shaperThrows = true;
+        const globalFx = await import('./globalFx');
+        expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+        expect(toneFlags.shaperThrowingCtor).toHaveBeenCalledTimes(1);
+        expect(devWarn).toHaveBeenCalledTimes(1);
+        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('ceiling'), expect.any(Error));
+        expect(lastInstance(Tone.Limiter).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+        expect(() => globalFx.wireGlobalFxChain(true)).not.toThrow();
+        expect(lastInstance(Tone.Limiter).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+      });
+
+      it.each([
+        ['absent', () => (toneFlags.shaperAbsent = true)],
+        ['throwing', () => (toneFlags.shaperThrows = true)],
+      ])('drops the first ceiling when the second build finds the constructor %s', async (_name, hide) => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const first = ceilingOf();
+        hide();
+        globalFx.buildGlobalFxChain();
+        const limiter = lastInstance(Tone.Limiter);
+        expect(limiter.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
+        expect(limiter.connect).not.toHaveBeenCalledWith(first);
+        first.disconnect.mockClear();
+        globalFx.wireGlobalFxChain(true);
+        expect(first.disconnect).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('output taps (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md)', () => {
     type FakeAnalyser = ReturnType<typeof makeFakeAnalyser>;
     const analysers = (): FakeAnalyser[] => createAnalyser.mock.results.map((r) => r.value as FakeAnalyser);
@@ -4972,6 +5146,17 @@ describe('globalFx', () => {
       expect(preTaps).toHaveLength(1);
       expect(masterTaps).toHaveLength(1);
       expect(preTaps[0]).not.toBe(masterTaps[0]);
+    });
+
+    // Output Headroom T5: `out` reads after the ceiling (and the master slider), so the ceiling itself feeds no tap.
+    it('keeps the master tap on the master gain, after the ceiling, and hangs no tap off the ceiling', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.attachOutputTaps();
+      const ceiling = ceilingOf();
+      expect(tapsFedBy(ceiling)).toHaveLength(0);
+      expect(tapsFedBy(lastInstance(Tone.Gain))).toHaveLength(1);
+      expect(ceiling.connect.mock.calls).toEqual([[lastInstance(Tone.Gain)]]);
     });
 
     it('never connects a tap onward — no output, and never the destination', async () => {

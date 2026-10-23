@@ -222,6 +222,12 @@ vi.mock('tone', () => ({
     width: { value: opts.width ?? 0.5, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
+  // Output Headroom T5: the output ceiling between the Limiter and the master gain.
+  WaveShaper: vi.fn(() => ({
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+    toDestination: vi.fn(),
+  })),
 }));
 
 // Mock harmony system

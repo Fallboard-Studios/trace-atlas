@@ -34,6 +34,8 @@ vi.mock('tone', () => ({
   StereoWidener: undefined,
   // The cycle-search cuts are skipped the same way.
   Delay: undefined,
+  // Output Headroom T5: the output ceiling is skipped the same way.
+  WaveShaper: undefined,
 }));
 
 vi.mock('@/utils/helpers', () => ({
