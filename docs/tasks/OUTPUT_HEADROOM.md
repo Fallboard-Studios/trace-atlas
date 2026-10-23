@@ -192,13 +192,17 @@ yet (exported, so `noUnusedLocals` is content).
 symmetry properties and `robotBusGain`'s taper-times-trim identity; all fail before the module exists.
 
 **Acceptance criteria:**
-- [ ] `softCeiling`: identity for `|x| ≤ knee`; strictly increasing over 401 points on [−1, 1]; odd; `f(knee) === knee`
+- [x] `softCeiling`: identity for `|x| ≤ knee`; strictly increasing over 401 points on [−1, 1]; odd; `f(knee) === knee`
   and `f(knee + 1e-6) − knee < 1e-6`; `|f(x)| < 1` everywhere; `f(1) ≈ knee + (1 − knee)·tanh(1)` within 1e-12. The
-  mutation gate kills a `≥` for `≤` at the knee, a dropped `Math.sign`, a `tanh` replaced by its argument.
-- [ ] `softCeilingCurve`: a `Float32Array` of `length`, `curve[(length − 1) / 2] === 0`, ends at `±f(1)`, monotonic.
-- [ ] `robotBusGain(1) === HEADROOM_TRIM_GAIN`, `robotBusGain(0) === 0`, and equals
+  mutation gate kills a `≥` for `≤` at the knee, a dropped `Math.sign`, a `tanh` replaced by its argument. — **Deviation:**
+  in doubles `(0.7 + 1e-6) − 0.7` is 1.0000000000287e-6, so the literal `< 1e-6` cannot hold; tested against that real
+  offset (`> 0`, `≤ dx`, slope 1 to six places). 11 of 12 mutants killed; the survivor, `<` for `≤` at the knee, is
+  equivalent (at `|x| = knee` the tanh branch returns `knee + room·tanh(0)`, exactly `x`).
+- [x] `softCeilingCurve`: a `Float32Array` of `length`, `curve[(length − 1) / 2] === 0`, ends at `±f(1)`, monotonic. —
+  also every entry at or below the knee is `Math.fround(x)` exactly, and a custom length and knee are honoured.
+- [x] `robotBusGain(1) === HEADROOM_TRIM_GAIN`, `robotBusGain(0) === 0`, and equals
   `volumePositionToGain(p) × HEADROOM_TRIM_GAIN` at `p` 0.25, 0.5, 0.8; `HEADROOM_TRIM_GAIN === 10 ** (−12 / 20)` and
-  is below 1.
+  is below 1. — tested as `10 ** (HEADROOM_TRIM_DB / 20)` so T7 can move the constant; out-of-range positions clamp.
 
 **Verification:** `npx vitest run src/engine/audioEngine/headroom.test.ts`; `npm run build:types`.
 **Dependencies:** T0. **Files:** `headroom.ts`, `headroom.test.ts`. **Scope:** S.
