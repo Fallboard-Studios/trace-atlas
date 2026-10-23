@@ -250,13 +250,38 @@ export function parseHeapMb(result) {
  * missed). Per context, because `?latency=` disposes Tone's first context for a second one. Never negative.
  */
 export function createNodeTally() {
-  const live = new Map();
-  const bump = (contextId, by) => live.set(contextId, Math.max(0, (live.get(contextId) ?? 0) + by));
-  return {
-    created: (contextId) => bump(contextId, 1),
-    destroyed: (contextId) => bump(contextId, -1),
-    live: (contextId) => live.get(contextId) ?? 0,
+  const live = new Map(); // contextId -> count
+  const byType = new Map(); // contextId -> Map(nodeType -> count)
+  const typeOf = new Map(); // nodeId -> nodeType, so a destroy (id only) is credited to the right type
+  const bump = (contextId, type, by) => {
+    live.set(contextId, Math.max(0, (live.get(contextId) ?? 0) + by));
+    if (!byType.has(contextId)) byType.set(contextId, new Map());
+    const types = byType.get(contextId);
+    const next = Math.max(0, (types.get(type) ?? 0) + by);
+    if (next === 0) types.delete(type); else types.set(type, next);
   };
+  return {
+    created: (contextId, nodeId, nodeType) => {
+      const type = nodeType ?? 'unknown';
+      if (nodeId !== undefined) typeOf.set(nodeId, type);
+      bump(contextId, type, 1);
+    },
+    destroyed: (contextId, nodeId) => {
+      const type = typeOf.get(nodeId) ?? 'unknown';
+      typeOf.delete(nodeId);
+      bump(contextId, type, -1);
+    },
+    live: (contextId) => live.get(contextId) ?? 0,
+    /** `[nodeType, count]` pairs, largest first, then by name — a snapshot, safe to keep and diff later. */
+    liveByType: (contextId) => [...(byType.get(contextId) ?? new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+  };
+}
+
+/** The change from one `liveByType` snapshot to another, as `[nodeType, delta]` pairs, largest change first; types that did not move are left out. */
+export function diffByType(before, after) {
+  const counts = new Map(before.map(([type, n]) => [type, -n]));
+  for (const [type, n] of after) counts.set(type, (counts.get(type) ?? 0) + n);
+  return [...counts].filter(([, delta]) => delta !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]) || a[0].localeCompare(b[0]));
 }
 
 /**

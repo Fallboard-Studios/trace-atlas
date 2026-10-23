@@ -8,6 +8,7 @@ import {
   buildPageUrl,
   chooseRealtimeContext,
   createNodeTally,
+  diffByType,
   expectedCoordinates,
   parseAudibleFromHud,
   parseBudgetFromHud,
@@ -517,6 +518,50 @@ describe('createNodeTally', () => {
     expect(tally.live('ctx-9')).toBe(0);
     tally.destroyed('ctx-9');
     expect(tally.live('ctx-9')).toBe(0);
+  });
+
+  describe('by node type (what is accumulating, not just how much)', () => {
+    it('breaks the live count down by nodeType, largest first', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1', 'n1', 'GainNode');
+      tally.created('ctx-1', 'n2', 'OscillatorNode');
+      tally.created('ctx-1', 'n3', 'OscillatorNode');
+      tally.created('ctx-1', 'n4', 'BiquadFilterNode');
+      expect(tally.liveByType('ctx-1')).toEqual([
+        ['OscillatorNode', 2],
+        ['BiquadFilterNode', 1],
+        ['GainNode', 1],
+      ]);
+    });
+
+    it('credits a destroy to the type the node was created as (the destroy event carries only the id)', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1', 'n1', 'GainNode');
+      tally.created('ctx-1', 'n2', 'OscillatorNode');
+      tally.destroyed('ctx-1', 'n2');
+      expect(tally.liveByType('ctx-1')).toEqual([['GainNode', 1]]);
+      expect(tally.live('ctx-1')).toBe(1);
+    });
+
+    it('still counts a node whose type or id is unknown (an older Chrome), under "unknown"', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1');
+      tally.created('ctx-1', 'n2');
+      expect(tally.liveByType('ctx-1')).toEqual([['unknown', 2]]);
+      tally.destroyed('ctx-1', 'never-seen');
+      expect(tally.live('ctx-1')).toBe(1);
+    });
+
+    it('reports a snapshot the caller can diff: the breakdown at one moment against another', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1', 'n1', 'GainNode');
+      const before = tally.liveByType('ctx-1');
+      tally.created('ctx-1', 'n2', 'OscillatorNode');
+      tally.created('ctx-1', 'n3', 'OscillatorNode');
+      expect(diffByType(before, tally.liveByType('ctx-1'))).toEqual([['OscillatorNode', 2]]);
+      expect(diffByType(tally.liveByType('ctx-1'), before)).toEqual([['OscillatorNode', -2]]);
+      expect(diffByType(before, before)).toEqual([]);
+    });
   });
 });
 

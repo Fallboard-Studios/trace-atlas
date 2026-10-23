@@ -29,6 +29,7 @@ import {
   buildPageUrl,
   chooseRealtimeContext,
   createNodeTally,
+  diffByType,
   expectedCoordinates,
   parseAudibleFromHud,
   parseBudgetFromHud,
@@ -108,8 +109,8 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
     onEvent((msg) => {
       if (msg.method === 'WebAudio.contextCreated') created.push(msg.params.context);
       if (msg.method === 'WebAudio.contextWillBeDestroyed') destroyed.push(msg.params.contextId);
-      if (msg.method === 'WebAudio.audioNodeCreated') nodes.created(msg.params.node.contextId);
-      if (msg.method === 'WebAudio.audioNodeWillBeDestroyed') nodes.destroyed(msg.params.contextId);
+      if (msg.method === 'WebAudio.audioNodeCreated') nodes.created(msg.params.node.contextId, msg.params.node.nodeId, msg.params.node.nodeType);
+      if (msg.method === 'WebAudio.audioNodeWillBeDestroyed') nodes.destroyed(msg.params.contextId, msg.params.nodeId);
     });
     await send('Page.enable');
     await send('Runtime.enable');
@@ -144,6 +145,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       throw new Error(`World not pinned: the page landed at (${landed.x}, ${landed.y}), expected (${expected.x}, ${expected.y}) — ${hint}.`);
     }
 
+    const nodesAtStart = nodes.liveByType(contextId);
     const samples = [];
     const start = performance.now();
     for (let k = 1; performance.now() - start < seconds * 1000; k++) {
@@ -179,6 +181,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       summary: summarizeBuckets(buckets),
       audibleCorrelation: audibleCapacityCorrelation(buckets),
       trends: { nodes: trend(buckets, 'nodes'), heapMb: trend(buckets, 'heapMb'), events: trend(buckets, 'events') },
+      nodesByType: { atStart: nodesAtStart, atEnd: nodes.liveByType(contextId), change: diffByType(nodesAtStart, nodes.liveByType(contextId)) },
     };
   });
 }
@@ -214,6 +217,11 @@ function report(run) {
     `r(audible, capacity) ${run.audibleCorrelation === null ? '-' : run.audibleCorrelation.toFixed(2)}`,
   );
   console.log(`first → last bucket:   nodes ${movement(trends.nodes, 0)}   heap MB ${movement(trends.heapMb, 1)}   events ${movement(trends.events, 0)}`);
+  const { change, atEnd } = run.nodesByType;
+  if (change.length) {
+    const total = atEnd.reduce((sum, [, n]) => sum + n, 0);
+    console.log(`live nodes by type, start → end of series (${total} at end):   ${change.map(([type, d]) => `${type} ${d >= 0 ? '+' : ''}${d}`).join('   ')}`);
+  }
 }
 
 async function main() {
