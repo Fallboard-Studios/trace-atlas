@@ -1636,6 +1636,12 @@ were fine. That is a decision to proceed, not a measurement: there is no underru
 to compare against the 17.2.6 spread. Re-measure with the `?debug` overlay on the Pixel, at Full with a working
 fleet, if audio trouble or stutter on a job appears.
 
+**Update (2026-10-22): the Pixel run is covered.** Crawford's Robot Effect Sends T21 runs
+([scratchy-audio-phones.md](todo/scratchy-audio-phones.md), "Robot Effect Sends (roadmap 50.7) on the Pixel — T21") ran
+seven times at Full and Standard, 3–6 minutes each, on two builds that both carry the decorations (PR #551 is in the base
+`2dc5b4a2`), with the fleet working; no stutter reported, "sounded fine", 3:00 counts 48–95. Task 15 is recorded as
+passed in docs/tasks/JOB_DECORATION.md. Not a decorations-off A/B.
+
 ## One Day Clock — the idle-paint A/B and the fixed-hour parity check (2026-10-13, roadmap 48)
 
 Gate ([todo/roadmap.md](todo/roadmap.md) item 48): removing the measure-based day deletes a Zustand write on

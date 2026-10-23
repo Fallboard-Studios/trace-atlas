@@ -636,3 +636,7 @@ thread up. Candidates: the graph lock while the main thread connects, or standar
 log if gone) in headed Chrome with a real device. Then a bare page with no Tone, connecting native nodes only, to split
 Chrome from Tone. Then the same lighting by ear on the Pixel. Only if it is audible: options are connecting at a quieter
 moment, or keeping the branch connected and paying its dark cost (which undoes 50.6's saving), Crawford's call.
+
+**Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
+seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
+power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.

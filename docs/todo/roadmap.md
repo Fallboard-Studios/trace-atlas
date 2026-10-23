@@ -463,10 +463,11 @@ JSON-serialisable session.
 
 ### Open
 
-- The Pixel listen (Task 15), at Full with a working fleet.
 - Spec questions 1, 2, 3 and 5 (battery dim, identity colour, count 1, droplet numbers) shipped as the spec
   proposed them and were not separately confirmed by Crawford.
-- If the Pixel shows trouble: cut the Full-tier cost (skip unchanged attribute writes, or fewer nodes at `'all'`).
+- ~~The Pixel listen (Task 15)~~ — passed 2026-10-22 via the Robot Effect Sends T21 runs (seven runs at Full and
+  Standard with the decorations in both builds, fleet working, no stutter); the Full-tier cost cut it would have
+  triggered is not needed. Recorded in docs/tasks/JOB_DECORATION.md and PERFORMANCE.md.
 
 ## 53. Per-Mover Compositor Layers
 
