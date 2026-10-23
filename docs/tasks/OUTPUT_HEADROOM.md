@@ -15,7 +15,8 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 > **Status (2026-10-23): T0 passed** (Crawford: "for phase 0 your assumptions are fine", all five as written). Building
 > on `feature/output-headroom`. **Phase 1 (T1–T3) done**: the probe, the seven links and the `main` measurement are in
 > PERFORMANCE.md, "Output level series". H1 and H2 get their robot Volume push from the probe's `--robot-volume-full`
-> (session links never carry `masterVolume`; Crawford's choice, spec §7). T4 next.
+> (session links never carry `masterVolume`; Crawford's choice, spec §7). **Phase 2 (T4–T6) done** (`f3518293`,
+> `17546ac4`, `12776551`) and **Checkpoint A1 passed**. T7 next.
 
 ## Overview
 
@@ -277,10 +278,17 @@ docs/specs/OUTPUT_HEADROOM.md)".
 
 ### Checkpoint A1: All automated
 
-- [ ] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` all green on the branch.
-- [ ] `npm run dev`: power on, a fresh world plays, no engine `devWarn` in the console; the drawer's Output tab is
-  unchanged (three sub-tabs, same rows).
-- [ ] One commit per task so far (T1, T2, T3 docs, T4, T5, T6), the intent, spec and this plan committed first.
+- [x] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` all green on the branch. — 2026-10-23 at
+  `12776551`: 326 files / 11 977 tests; lint 0 errors (4 warnings, all in scenery components this branch does not
+  touch); the build passes.
+- [x] `npm run dev`: power on, a fresh world plays, no engine `devWarn` in the console; the drawer's Output tab is
+  unchanged (three sub-tabs, same rows). — a dev server of the branch, fresh headless Chrome over CDP, `?debug`, 25 s
+  after power-on: no `[AudioEngine]` warning, no page exception, HUD `out` −12.2 to −19.3 dB, `fin ok` throughout. Two
+  other console warnings, not the chain's: `[sessionShareUtils] malformed ?session= param` before power-on, and Tone's
+  "Events scheduled inside of scheduled callbacks" notice; not checked against `main`. The Output tab is a Read, not a
+  look: `git diff main --stat -- src/components src/content src/stores` is empty.
+- [x] One commit per task so far (T1, T2, T3 docs, T4, T5, T6), the intent, spec and this plan committed first. —
+  plus `3315abb2` (`--robot-volume-full`, the T3 decision).
 
 ---
 
