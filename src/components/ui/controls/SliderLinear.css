@@ -7,7 +7,7 @@
 }
 
 /* Vertical fader: inline so several can sit side by side in a row without a
-   parent grid/flex rework (docs/specs/VERTICAL_SLIDERS.md's own deferred
+   parent grid/flex rework (docs/specs/archive/VERTICAL_SLIDERS.md's own deferred
    drawer-layout work isn't a prerequisite for this); centered cross-axis so
    the narrow 20px track lines up under a wider label/value instead of
    sitting flush left. */
@@ -21,10 +21,10 @@
    the label/value are always narrower in practice, so overflow here was only
    ever meant to engage for the 3-box overflow floor (voxelTrackMath.ts's
    VOXEL_TRACK_MIN_BOX_COUNT). No separate wrapper element — see
-   docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.11 for why one was
+   docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.11 for why one was
    deliberately avoided.
    container-type/container-name live here, not on the bare .sc-slider-linear
-   selector above (docs/specs/TYPE_SCALE.md incident, found in a real browser
+   selector above (docs/specs/archive/TYPE_SCALE.md incident, found in a real browser
    post-Task-6): the [data-orientation='vertical'] override below switches
    display to inline-flex, a shrink-to-fit box — CSS size containment
    collapses such a box to zero width when it has no explicit/contextual
@@ -125,7 +125,7 @@
      carry all visible fill/position information; the thumb itself stays
      real, hit-testable, and focusable (never visibility:hidden/opacity:0,
      which would also hide the :focus-visible outline below). See
-     docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.10. */
+     docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.10. */
   background-color: transparent;
 }
 
@@ -165,7 +165,7 @@
 
 /* Roadmap 15.1 — the readOnly branch renders plain divs, not an interactive
    Radix widget; this is the only rule that differs from the interactive
-   rendering (docs/specs/SLIDER_LINEAR_READ_ONLY.md §4). Every other rule in
+   rendering (docs/specs/archive/SLIDER_LINEAR_READ_ONLY.md §4). Every other rule in
    this file already applies unchanged via the shared data-orientation
    attribute, set manually in the readOnly branch to match. */
 .sc-slider-linear[data-readonly='true'] {

@@ -46,7 +46,7 @@ function StepperWithToggleInner({ schema, value, onChange, disabled }: StepperWi
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8) — every prop is a primitive,
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 8) — every prop is a primitive,
 // a stable schema object, or the StepperWithToggleValue object (compared shallowly, same as
 // AudioRigDrawer's own per-effect settings objects — a caller replacing it wholesale on any real
 // change is the expected usage, matching every other primitive here).

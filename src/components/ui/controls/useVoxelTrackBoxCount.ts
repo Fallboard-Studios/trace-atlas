@@ -4,7 +4,7 @@ import { computeFittedBoxCount } from '@/utils/voxelTrackMath';
 /**
  * Live, self-fitting voxel-track box count. `axis` must already be resolved
  * ('horizontal' | 'vertical', never 'auto') — orientation resolves first,
- * box count fits second (docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.6).
+ * box count fits second (docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.6).
  *
  * Measurement target is axis-dependent, per that spec's own §1.5 amendment
  * (originally specified as "always observe the parent," corrected after a

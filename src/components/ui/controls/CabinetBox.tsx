@@ -23,7 +23,7 @@ interface CabinetBoxProps {
    *  instead of true flatness, hinting at the box's own accent color before
    *  it's ever interacted with. Normalized to a 0-1 number immediately on
    *  entry — everything downstream uses that normalized value only. See
-   *  docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.1. */
+   *  docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.1. */
   popped: boolean | number;
   /** Unique timelineMap key for this instance, e.g. `cabinet-button-${schema.id}`
    *  or `cabinet-toggle-${schema.id}`. */
@@ -33,7 +33,7 @@ interface CabinetBoxProps {
    *  a fixed 32 regardless of viewport — it sits inline next to its own
    *  DualLabel row rather than filling a hub tile, so there's no content to
    *  accommodate at a larger size on wider breakpoints. See
-   *  docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.2. */
+   *  docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md §1.2. */
   boxHeight?: number;
   /** Optional, overriding CABINET_POP_DISTANCE (cabinetGeometry.ts) — how
    *  far the front face slides at full pop. Button/Toggle omit this (their
@@ -108,7 +108,7 @@ interface CabinetBoxProps {
    *  animating consumer exists yet, and this doesn't newly support one
    *  (untested against a real height-tweening box, though nothing about the
    *  wall's own scaleX/scaleY tween touches height). See
-   *  docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.1. */
+   *  docs/specs/archive/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.1. */
   autoHeight?: boolean;
   /** Optional per-instance color override — a single already-resolved CSS color string (a
    *  color-mix() expression, hex, or var() reference; NOT a Trait or 2-tone pair — no new color
@@ -119,7 +119,7 @@ interface CabinetBoxProps {
    *  exactly as before this prop existed — every current consumer (Button/Toggle/RadioButton/
    *  VoxelTrack/AccordionContainer) omits it and is unaffected. First consumer: NavCabinetRow
    *  (nav panel polish), which needs a full box tinted in a resolved trait/robot color rather than
-   *  the single ambient accent. See docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§4.1. */
+   *  the single ambient accent. See docs/specs/archive/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§4.1. */
   color?: string;
   /** Optional — false skips the 44px minimum-touch-target floor this component otherwise always
    *  applies to --cabinet-box-height (added `ffec8fd` for Header's own touch-sized controls; see
@@ -130,11 +130,11 @@ interface CabinetBoxProps {
    *  is purely decorative, the same "real interactive element stays in charge, decorative child
    *  renders the visuals" split Button.tsx's own .sc-button/CabinetBox split already established.
    *  Do not pass false for any box that IS itself the real touch target. See
-   *  docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3. */
+   *  docs/specs/archive/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3. */
   enforceMinTouchHeight?: boolean;
   /** Optional — Button nests its own DualLabel here; Toggle renders a bare,
    *  textless box and omits this entirely. See
-   *  docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.3. */
+   *  docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md §1.3. */
   children?: ReactNode;
 }
 
@@ -151,9 +151,9 @@ interface CabinetBoxProps {
  * 50% opaque, the further it's popped, so the backing (always fully opaque,
  * always exactly the box's own resting footprint, never transformed) shows
  * through behind the popped facade. Confirmed via /interview-me, 2026-09-09.
- * See docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md §1 for the original
+ * See docs/specs/archive/OBLIQUE_CABINETRY_FOUNDATION.md §1 for the original
  * oblique-projection derivation, and
- * docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md for why the walls are two
+ * docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md for why the walls are two
  * CSS-transformed divs rather than SVG polygons tweening a `points`
  * attribute (the latter is main-thread/paint-bound and visibly lagged the
  * front face's own compositor-driven transform under load).
@@ -162,7 +162,7 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   const wrapperRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLDivElement>(null);
   // Both walls are plain <div>s (not SVG <polygon>s) — see
-  // docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md. A fixed CSS skew
+  // docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md. A fixed CSS skew
   // (set once, below) plus an animated scale reproduces the same oblique
   // parallelogram the old points-attribute tweening did, entirely on the
   // compositor.
@@ -267,7 +267,7 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   // `width` now feeds ONLY the top-face div's own inline style (below) —
   // sizing it to match the front face's real rendered width. It is
   // deliberately NOT a dependency of the geometry effect below: since the
-  // wall-rendering rewrite (docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md),
+  // wall-rendering rewrite (docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md),
   // nothing that effect computes (the wall scales, the front-face offset)
   // depends on width at all — only the old SVG-polygon math did. See that
   // effect's own comment for the bug this caused before being fixed,
@@ -287,7 +287,7 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   // every write); never author `transform`/`skewX`/`skewY` as a CSS rule
   // on .sc-cabinet-box__top-face/__left-face, or it will be silently
   // dropped the first time the geometry effect below sets scaleY/scaleX.
-  // See docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md §1.4. leftFaceOuterRef
+  // See docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md §1.4. leftFaceOuterRef
   // specifically must NEVER receive any other gsap.set/tween call, ever —
   // see leftFaceOuterRef/leftFaceInnerRef's own comment above for why.
   useGSAP(() => {
@@ -479,7 +479,7 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 4) — every real prop here is a
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 4) — every real prop here is a
 // primitive or ReactNode `children`, so the default shallow compare is correct; no custom
 // comparator. A caller that keeps constructing `children`/callbacks inline gets no benefit from
 // this alone (an implicit performance contract, not a type-level one — see

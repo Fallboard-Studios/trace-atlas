@@ -12,7 +12,7 @@ export type ResolvedPanelOrientation = 'row' | 'column';
  * same tier and resolves identically: 'column' on mobile/tablet, 'row' on
  * desktop. No ref, no ResizeObserver — this only reads useCabinetTier()'s
  * existing matchMedia listener pair. See
- * docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2.
+ * docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.2.
  */
 export function useResponsivePanelOrientation(): ResolvedPanelOrientation {
   const tier = useCabinetTier();

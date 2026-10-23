@@ -6,7 +6,7 @@
  * property on CabinetBox's wrapper (CabinetBox.tsx), not redeclared in CSS
  * via @media rules — that redundant copy was removed after going stale in
  * prose more than once as this value was tuned. See
- * docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md §1.3/§7.
+ * docs/specs/archive/OBLIQUE_CABINETRY_FOUNDATION.md §1.3/§7.
  */
 export const CABINET_BREAKPOINT_MOBILE_MAX = 639;
 export const CABINET_BREAKPOINT_TABLET_MAX = 1023;
@@ -22,7 +22,7 @@ export const CABINET_BOX_HEIGHT = {
  * CABINET_BOX_HEIGHT already uses, resolved by the same shared tier
  * detection (useCabinetTier, useCabinetBoxHeight.ts) rather than a second,
  * independently hand-synced set of matchMedia listeners. See
- * docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.4.
+ * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md §1.4.
  */
 export const CABINET_VOXEL_GAP = {
   mobile: 8,

@@ -76,7 +76,7 @@ function db(level: number | undefined): string {
 }
 
 /**
- * The output taps in one line (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md): master peak and RMS, the pre-chain peak,
+ * The output taps in one line (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md): master peak and RMS, the pre-chain peak,
  * and whether either tap saw a non-finite sample. Comparing `out` with `pre` at a dropout says whether the
  * silence is inside the FX chain (pre live, out silent) or upstream of it (both silent).
  */

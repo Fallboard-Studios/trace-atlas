@@ -7,7 +7,7 @@
   --font-sans: 'Rajdhani', system-ui, Avenir, Helvetica, Arial, sans-serif;
   /* Titillium Web (self-hosted, main.tsx) — the 11 leaf ControlSchema
      primitives (sliders, toggle, text input, etc.) and the two smaller
-     heading tiers (docs/specs/TYPE_SCALE.md §1.5). Falls back to Rajdhani
+     heading tiers (docs/specs/archive/TYPE_SCALE.md §1.5). Falls back to Rajdhani
      before the generic stack, mirroring --font-sans's own fallback shape. */
   --font-controls: 'Titillium Web', 'Rajdhani', system-ui, Avenir, Helvetica, Arial, sans-serif;
   --font-mono: var(--font-sans), ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
@@ -15,7 +15,7 @@
      font has). Defined, ready, unused — no component references it yet. */
   --font-display: 'Fugaz One', var(--font-sans);
 
-  /* New semantic type scale (docs/specs/TYPE_SCALE.md §1.2). --font-size-body
+  /* New semantic type scale (docs/specs/archive/TYPE_SCALE.md §1.2). --font-size-body
      and the 3 --font-size-heading-* tokens have no real consumer yet — same
      "defined, ready, unused" status Stepper/StepperWithToggle already have
      in this codebase; roadmap items 15-17 are the first intended consumers. */
@@ -37,7 +37,7 @@
   /* --font-weight-control (Titillium Web's own regular) is deliberately NOT
      bumped to match --font-weight-regular's 500 floor — Titillium Web has no
      500 weight, and its 400 is a substantially heavier-set, more legible-at-
-     small-sizes regular than Rajdhani's own 400 (docs/specs/TYPE_SCALE.md
+     small-sizes regular than Rajdhani's own 400 (docs/specs/archive/TYPE_SCALE.md
      §1.3). --font-weight-bold is Rajdhani-only (large titles). */
   --font-weight-control: 400;
   --font-weight-regular: 500;
@@ -69,7 +69,7 @@
      seed-driven system that was tried and cut (see docs/CONSOLE_THEMING.md).
      --color-accent-a/-b/--color-accent/--color-accent-gradient are the new
      trait-scoped set (Roadmap Phase 14, see
-     docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.2) — the values below are the
+     docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.2) — the values below are the
      Header trait's own pair, doubling as the app-wide ambient default for any
      region no trait has scoped. A descendant element overriding all 4
      properties (src/utils/traitColors.ts's getTraitColorStyle/
@@ -143,7 +143,7 @@
   --transport-separator-height: 24px;
 
   /* SliderLinear/SliderLog/SliderCenteredZero's default vertical track height
-     (docs/specs/VERTICAL_SLIDERS.md) — overridable per-instance via each
+     (docs/specs/archive/VERTICAL_SLIDERS.md) — overridable per-instance via each
      component's own verticalHeight prop. */
   --slider-vertical-height: 256px;
 

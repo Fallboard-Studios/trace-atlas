@@ -10,7 +10,7 @@ import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
 import { SOURCE_OSCILLATOR_SUBSECTIONS, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
 
-// Module-level (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up, 2026-09-15) — 'output'/
+// Module-level (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up, 2026-09-15) — 'output'/
 // 'composition'/'timeSpace'/'spectral' are literal constants, and `active` is a plain boolean, so
 // picking between a fixed active/disabled pair per trait needs no memoization at all — the lookup
 // below just selects one of these already-stable references, never constructs anything new.

@@ -18,7 +18,7 @@ import { getLatencyOverride, type LatencyHint } from '../utils/debugParams';
 // It constructs no Tone nodes itself.
 //
 // The hint comes from, in order: an explicit `?latency=interactive|balanced|playback`; otherwise the Audio Load
-// preset in force at page load (docs/specs/AUDIO_LOAD_BUDGET.md §1.5) — `?load=`, or device detection when there is
+// preset in force at page load (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.5) — `?load=`, or device detection when there is
 // none — where Light selects `playback` and Standard/Full leave Tone's own default (interactive) alone. A context's
 // hint is fixed at creation, so only the BOOT-TIME preset counts; moving the dial later never touches the context.
 // That resolution uses only src/utils/audioBudget.ts (constants, no Tone, no stores), which is why it can run here.

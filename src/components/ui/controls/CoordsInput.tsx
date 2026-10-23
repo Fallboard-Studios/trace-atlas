@@ -19,7 +19,7 @@ interface CoordsInputProps {
 
 /**
  * X/Y coordinate entry composing two TextInput instances. Coordinates are
- * integers system-wide (docs/specs/SECTOR_SETTINGS.md) — a decimal entry is
+ * integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md) — a decimal entry is
  * rounded to the nearest integer before onChange fires. A non-numeric entry
  * does not call onChange.
  */
@@ -34,7 +34,7 @@ function CoordsInputInner({ schema, value, onChange }: CoordsInputProps) {
     if (raw.trim() === '') return;
     const parsed = Number(raw);
     if (Number.isNaN(parsed)) return;
-    // Coordinates are integers system-wide (see docs/specs/SECTOR_SETTINGS.md) —
+    // Coordinates are integers system-wide (see docs/specs/archive/SECTOR_SETTINGS.md) —
     // round rather than reject, so a typed decimal still lands on something.
     onChange({ ...value, x: Math.round(parsed) });
   }
@@ -57,7 +57,7 @@ function CoordsInputInner({ schema, value, onChange }: CoordsInputProps) {
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9) — every prop is a primitive,
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9) — every prop is a primitive,
 // a stable schema object, or the CoordsValue object (compared shallowly — a caller replacing it
 // wholesale on any real change is the expected usage).
 export const CoordsInput = memo(CoordsInputInner);

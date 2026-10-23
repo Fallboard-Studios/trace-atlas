@@ -8,8 +8,8 @@
  * instead of SVG <polygon>s tweening a `points` attribute string. This file
  * no longer computes wall geometry at all, only the front face's own
  * translate offset, which never depended on box width/height in the first
- * place. See docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md §1.2/§1.3 for
- * the full derivation, and docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md §1.2
+ * place. See docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md §1.2/§1.3 for
+ * the full derivation, and docs/specs/archive/OBLIQUE_CABINETRY_FOUNDATION.md §1.2
  * for the original oblique-projection vector this re-expresses.
  */
 
@@ -79,7 +79,7 @@ export const CABINET_REST_POP = 0.5;
  * never animated. Their sum is 90°: the top face's stationary edge
  * (horizontal) and the left face's (vertical) are perpendicular, sharing
  * one projection vector. See
- * docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md §1.2 for the derivation.
+ * docs/specs/archive/OBLIQUE_CABINETRY_WALL_RENDERING.md §1.2 for the derivation.
  */
 export const CABINET_TOP_FACE_SKEW_DEG = Math.atan(2) * (180 / Math.PI);
 export const CABINET_LEFT_FACE_SKEW_DEG = Math.atan(0.5) * (180 / Math.PI);

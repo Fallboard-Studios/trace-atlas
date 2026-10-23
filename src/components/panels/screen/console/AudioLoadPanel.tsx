@@ -18,9 +18,9 @@ const AUDIO_LOAD_PRESET_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.aud
 const AUDIO_LOAD_SLIDERS_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.slidersRow', type: 'directionalPanel', orientation: 'responsive' };
 
 /**
- * The Audio Load control (docs/specs/AUDIO_LOAD_BUDGET.md §4.5) — rendered as Settings' Audio Quality
+ * The Audio Load control (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5) — rendered as Settings' Audio Quality
  * tab (SettingsScreen.tsx, docs/tasks/LAYOUT_REWORK.md Task 17; first moved to Settings by
- * docs/tasks/NAV_LAYOUT_REWRITE.md Task 13). Previously sat inside
+ * docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 13). Previously sat inside
  * AudioRigDrawer's Transport & Composition accordion, next to a Tempo slider that itself relocated
  * to Settings -> Tempo (Task 12) — both moved out once "Quality"/"Tempo" became real tree leaves.
  * A preset radio and two fine sliders (Robot Load, Effects Load) are three views of TWO stored

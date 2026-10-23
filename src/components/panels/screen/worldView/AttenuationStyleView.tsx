@@ -25,7 +25,7 @@ function AttenuationStyleView({ attenuationStyleId }: AttenuationStyleViewProps)
 
   useEffect(() => {
     // Temperature rides this same 1s interval (no second timer — see
-    // docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3) but only steps when the
+    // docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3) but only steps when the
     // in-world clock crosses a half-hour boundary (top or bottom of the
     // hour), not on a fixed wall-clock cadence — a slower, small-random-walk
     // step keyed to game time rather than local time's own per-second

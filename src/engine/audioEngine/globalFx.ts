@@ -96,7 +96,7 @@ let _globalDelayReturn: Tone.Gain | null = null;
 // Master output gain controlling overall volume (used by setMasterVolume/getMasterVolume)
 let _masterGain: Tone.Gain | null = null;
 let _masterVolume = 1;
-// Read-only output taps for the `?debug` overlay (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md). Nothing here
+// Read-only output taps for the `?debug` overlay (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md). Nothing here
 // exists unless attachOutputTaps() is called.
 let _tapsWanted = false;
 let _preTap: OutputTap | null = null;
@@ -105,7 +105,7 @@ let _masterTap: OutputTap | null = null;
 /** Ramp duration for a live LPF/HPF frequency change — same declick rationale as
  *  AudioEngine.ts's own VOLUME_RAMP_SECONDS: short enough to feel instant while dragging, long
  *  enough to avoid an audible click on a large jump. Confirmed audible live on LPF frequency
- *  with a direct .value write (docs/tasks/AUDIO_ENGINE_CLEANUP.md P2.4); Q and every other
+ *  with a direct .value write (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md P2.4); Q and every other
  *  global-chain param are left as direct writes — not confirmed audible, and out of scope for
  *  this fix. */
 const FILTER_FREQUENCY_RAMP_SECONDS = 0.05;
@@ -579,7 +579,7 @@ export { getConnectedEffectCount } from './bypassCell';
 // OUTPUT TAPS (read-only diagnostics)
 // ========================================
 // Two analysers for the `?debug` overlay, to tell a silent graph from loss after the graph
-// (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md): one on EQ3's output (what the voices hand the chain) and one on
+// (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md): one on EQ3's output (what the voices hand the chain) and one on
 // masterGain's output (what the destination receives). They only listen — they connect to nothing and
 // never to the destination, and they exist only between attachOutputTaps() and detachOutputTaps().
 //
@@ -1184,7 +1184,7 @@ export function setGlobalLimiter(params: Partial<LimiterSettings>): void {
 
 /**
  * Resolve the live, connectable Tone Signal/Param for a global-chain LFO
- * modulation target (docs/tasks/LFO_INTEGRATION_PLAN.md Task 10). Returns
+ * modulation target (docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 10). Returns
  * null — never throws — before buildGlobalFxChain() has run (module-scope
  * _global* nodes are null until then). Neither Limiter nor Delay's
  * delayTime ever appears here: neither is a GlobalLfoTargetId member (no

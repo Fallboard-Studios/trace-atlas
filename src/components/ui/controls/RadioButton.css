@@ -22,7 +22,7 @@
    from useVoxelTrackGap() and applied as an inline style, following the same
    "JS-owned value applied as inline style" pattern CabinetBox.tsx/Toggle.tsx
    already use for their own tokens. See
-   docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.5. */
+   docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.5. */
 /* width: 100% alongside flex-wrap above — same reasoning as .sc-radio-button's own rule: the
    row of option boxes wraps against the group's actual available width, not its own
    shrink-to-fit content width. */
@@ -70,7 +70,7 @@
    momentary control, not a multi-way selection) and Toggle (never
    accent-tinted, bare box). Matches today's existing [data-state='on']
    color swap this rule replaces. See
-   docs/specs/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.4. */
+   docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.4. */
 .sc-radio-button__item[data-state='on'] .sc-cabinet-box__front {
   background: var(--color-accent-gradient);
 }

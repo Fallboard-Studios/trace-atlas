@@ -81,7 +81,7 @@ interface AudioSettingSectionProps {
    *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
    *  Output, whether it's editing one robot or a company's bulk baseline. See
-   *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
+   *  docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
 }
 
@@ -134,7 +134,7 @@ export const SendRow = memo(function SendRow({ spec, display, onSendChange, swel
  * and the held-off note. The two-panel column layout is kept as-is so the section renders
  * identically in its own slot and nothing around it reflows.
  *
- * No accordion wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
+ * No accordion wrapper as of Task 18's own follow-up (docs/tasks/archive/NAV_LAYOUT_REWRITE.md —
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
 function AudioSettingSectionInner({
@@ -214,7 +214,7 @@ function AudioSettingSectionInner({
   );
 }
 
-// React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)
+// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)
 export const AudioSettingSection = memo(AudioSettingSectionInner);
 
 export default AudioSettingSection;

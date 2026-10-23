@@ -1,7 +1,7 @@
 /**
  * Audio Swells — a rare, self-reversing ramp event on one global-chain or
- * robot-scoped parameter, resolving docs/tasks/AUDIO_SWELLS.md Task 3.
- * Deliberately NOT built on lfoEngine.ts (docs/specs/AUDIO_SWELLS.md
+ * robot-scoped parameter, resolving docs/tasks/archive/AUDIO_SWELLS.md Task 3.
+ * Deliberately NOT built on lfoEngine.ts (docs/specs/archive/AUDIO_SWELLS.md
  * §1.1) — no Tone.LFO, no Signal/Param connection. Every write flows through
  * the same store-backed path a human editing a control by hand would use
  * (setGlobalAudio here; robotOptionsActions.ts's apply* functions once the
@@ -88,9 +88,9 @@ export const SWELL_COMPANY_CHANCE = 0.15; // placeholder — needs a manual audi
  *  falling phase gets the remainder. Randomized per swell within this bound
  *  rather than fixed at 0.5, so splits still vary (up to ~20/80 skew either
  *  direction) even though the total is now a single deterministic value
- *  (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4) — replaces the
+ *  (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4) — replaces the
  *  former per-target duration-range constants' independent-per-phase draws
- *  (docs/specs/AUDIO_SWELLS.md §1.5), including delay.wet/reverb.wet's old
+ *  (docs/specs/archive/AUDIO_SWELLS.md §1.5), including delay.wet/reverb.wet's old
  *  2x-longer treatment — one flat Duration now applies to every target. */
 const SWELL_SPLIT_MIN_FRACTION = 0.2;
 const SWELL_SPLIT_MAX_FRACTION = 0.8;
@@ -212,7 +212,7 @@ function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number 
 
 /**
  * Writes through the exact same apply* function a human editing that
- * control by hand would call (docs/specs/AUDIO_SWELLS.md §3) — never a bare
+ * control by hand would call (docs/specs/archive/AUDIO_SWELLS.md §3) — never a bare
  * updateRobot/AudioEngine.updateVoice* pairing. `robot` must be freshly read
  * from the store (not a stale creation-time reference) so a concurrent edit
  * to a different field on the same robot isn't clobbered.
@@ -253,7 +253,7 @@ function robotSwellKey(robotId: string, attribute: SwellRobotAttributeId): strin
 // ========================================
 
 /**
- * Attribute-agnostic direction+magnitude draw (docs/specs/AUDIO_SWELLS.md
+ * Attribute-agnostic direction+magnitude draw (docs/specs/archive/AUDIO_SWELLS.md
  * §1.5) — reused unchanged by the robot pool (Task 4). Direction is picked so
  * the swell can cover AT LEAST 50% of the field's full range: up if `current`
  * is at or below the range's midpoint, down if at or above it, a seeded
@@ -301,7 +301,7 @@ function pickSwellDirection(
  * The magnitude half of pickSwellPeakDelta, given an ALREADY-DECIDED
  * direction — split out for the company-wide variant (Task 5), where
  * direction is shared/drawn once for the whole company rather than derived
- * from each member's own current value (docs/specs/AUDIO_SWELLS.md §1.5:
+ * from each member's own current value (docs/specs/archive/AUDIO_SWELLS.md §1.5:
  * "Magnitude is still per-robot... independently of every other robot",
  * but direction is lock-step). pickSwellPeakDelta itself is just this
  * function with `goingUp` derived from `currentValue`'s own midpoint check.
@@ -360,9 +360,9 @@ function peakDeltaCappedByFraction(
 
 /**
  * The literal last step of every swell's peak calculation
- * (docs/specs/PING-VARIANCE-AUTOMATION.md §1.3) — multiplies an
+ * (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.3) — multiplies an
  * already-clamped, already-direction-picked delta by the Intensity fraction
- * (renamed from `automation` in docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+ * (renamed from `automation` in docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
  * §1.2, now that it's magnitude-only — on/off moved to swellFrequency).
  * Safe by construction: peakDelta and (peakDelta * intensity) always share a
  * sign (or intensity collapses it to exactly 0), and |peakDelta * intensity|
@@ -378,10 +378,10 @@ function scaleSwellPeakByAutomation(peakDelta: number, intensity: number): numbe
 
 /**
  * Splits Duration's total into [risingMeasures, fallingMeasures]
- * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4) — replaces the
+ * (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4) — replaces the
  * former per-phase-draw helper's two independent draws with one shared
  * total and a single ratio draw. Each phase is floored at 1 measure (the
- * existing hard minimum, docs/specs/AUDIO_SWELLS.md §1.5); for a
+ * existing hard minimum, docs/specs/archive/AUDIO_SWELLS.md §1.5); for a
  * `totalMeasures` below 2, both floors can't be honored simultaneously and
  * the realized total may exceed the requested one at that extreme — an
  * accepted rounding edge, not a bug.
@@ -415,7 +415,7 @@ export function startAudioSwells(localeId: string): void {
   if (swellScheduleId !== null) return; // already running — same idempotent guard startRobotLifecycle uses
   // 16n: tickAudioSwells's advance step needs sub-measure resolution for a
   // smooth ramp (16 updates/measure), and trigger/selection now also rolls on
-  // every one of those same ticks (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+  // every one of those same ticks (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
   // §1.3 — frequencyToPerTickChance derives its per-tick probability from
   // this exact TICKS_PER_MEASURE cadence).
   swellScheduleId = scheduleRepeat('16n', () => tickAudioSwells(localeId, getCurrentMeasurePrecise()));
@@ -459,7 +459,7 @@ function activeSwellCount(pool: SwellPool): number {
  *  it without a real transport — see startAudioSwells for the BeatClock-wired
  *  entry point. Mirrors tickRobotLifecycle's own shape (robotSystems.ts).
  *  Trigger/selection now rolls on every tick, not just once per whole measure
- *  (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — frequencyToPerTickChance
+ *  (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — frequencyToPerTickChance
  *  derives a per-tick probability from swellFrequency so the long-run rate
  *  still matches "swells per measure", without needing a once-per-measure gate. */
 export function tickAudioSwells(localeId: string, measure: number): void {
@@ -470,7 +470,7 @@ export function tickAudioSwells(localeId: string, measure: number): void {
   // Intensity is read once per tick and threaded only to the magnitude-
   // scaling call sites below (§1.2) — it no longer has any gating role.
   // frequency is threaded to advanceActiveSwells (the 0-forced-return check,
-  // re-keyed from Intensity in docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+  // re-keyed from Intensity in docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
   // §1.3) and to both pools' swell-creation call sites' own trigger roll.
   // Advance runs every tick regardless of frequency's value: a still-rising
   // swell gets force-converted at exactly 0 (see maybeForceGlobalSwellReturn/
@@ -569,7 +569,7 @@ function isRobotAttributeEligible(robot: Robot, attribute: SwellRobotAttributeId
  * which path this pick takes — but only when the locale actually HAS a
  * company to pick: with zero companies, "company-wide" was never really an
  * option this tick regardless of the roll, so it falls straight through to
- * the single-robot path instead of aborting the tick (docs/specs/AUDIO_SWELLS.md
+ * the single-robot path instead of aborting the tick (docs/specs/archive/AUDIO_SWELLS.md
  * §7 item 6 leaves the exact company-selection mechanics for
  * Plan/Tasks to settle — this is that settling).
  */
@@ -592,7 +592,7 @@ function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measu
 }
 
 function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measure: number, intensity: number, duration: number): void {
-  // Robot selection spans the whole roster (docs/specs/AUDIO_SWELLS.md §3) —
+  // Robot selection spans the whole roster (docs/specs/archive/AUDIO_SWELLS.md §3) —
   // the 19x12 pool, never scoped to one robot.
   const eligiblePairs: { robot: Robot; attribute: SwellRobotAttributeId }[] = [];
   for (const robot of robots) {
@@ -823,8 +823,8 @@ function advanceActiveSwells(localeId: string, measure: number, frequency: numbe
 }
 
 /**
- * 0-forced-return (docs/specs/PING-VARIANCE-AUTOMATION.md §1.4, re-keyed from
- * automation to frequency in docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+ * 0-forced-return (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.4, re-keyed from
+ * automation to frequency in docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
  * §1.3): a swell still in its rising phase when frequency is exactly 0 is
  * converted in place to ride its own already-drawn fallingMeasures back to
  * base, reusing
@@ -911,7 +911,7 @@ function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, fr
  * and removed together on completion, per the Map's own doc comment. Unlike
  * the global pool, a robot attribute's structural parent going inactive
  * mid-swell is NOT re-checked here — eligibility is evaluated at selection
- * time only (docs/specs/AUDIO_SWELLS.md §7, an explicitly deferred open
+ * time only (docs/specs/archive/AUDIO_SWELLS.md §7, an explicitly deferred open
  * question, not addressed this task).
  */
 function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number, frequency: number): void {

@@ -18,7 +18,7 @@ interface SliderLinearProps {
   onChange: (value: number) => void;
   disabled?: boolean;
   /** On a vertical slider, the box-count-fitting BUDGET (not a literal
-   *  applied length — see docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md
+   *  applied length — see docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md
    *  §1.7) box count fits within, instead of a live ResizeObserver
    *  measurement of the parent. Omit to fit against the fixed
    *  VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT budget instead — never a live
@@ -35,7 +35,7 @@ interface SliderLinearProps {
    * the way a functionally-disabled section is elsewhere in this app).
    * `onChange` is still required but is never called in this mode. Takes
    * precedence over `disabled` if both are somehow passed — see
-   * docs/specs/SLIDER_LINEAR_READ_ONLY.md §1.5.
+   * docs/specs/archive/SLIDER_LINEAR_READ_ONLY.md §1.5.
    */
   readOnly?: boolean;
   /** True while an Audio Swell is actively riding this exact control (audioSwells.ts's
@@ -55,9 +55,9 @@ interface SliderLinearProps {
  * (roadmap Phase 11.1.3) — a row of uniform CabinetBox facades in place of
  * the traditional track+handle, self-fitting its own box count live to
  * whatever space its container gives it. All 3 SliderOrientation values.
- * See docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md for the full derivation.
+ * See docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LINEAR.md for the full derivation.
  * `readOnly` (roadmap 15.1) renders a second, non-interactive branch below —
- * see docs/specs/SLIDER_LINEAR_READ_ONLY.md for the full derivation.
+ * see docs/specs/archive/SLIDER_LINEAR_READ_ONLY.md for the full derivation.
  *
  * Renders its own `displayValue` (a locally-eased copy of `value`), never `value` directly —
  * see useEasedControlValue.ts for the full derivation (shared by all 3 slider primitives).
@@ -70,7 +70,7 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
 
   const { displayValue, handleValueChange } = useEasedControlValue(value, swelling);
 
-  // Memoized so VoxelTrack's own React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
+  // Memoized so VoxelTrack's own React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
   // can bail on an unchanged states reference — computeVoxelBoxStates is a pure function that
   // otherwise returns a fresh array every render.
   const states = useMemo(
@@ -143,7 +143,7 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 1 correction) — every prop is a
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 1 correction) — every prop is a
 // primitive, a stable schema object, or the onChange callback a caller must keep stable to
 // benefit (an implicit performance contract, not a type-level one — see
 // docs/COMPONENT_LIBRARY.md).

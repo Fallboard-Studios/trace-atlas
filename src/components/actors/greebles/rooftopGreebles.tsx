@@ -57,7 +57,7 @@ const present = (els: Array<GreebleElement | null>): GreebleElement[] => els.fil
 
 // ========================================
 // LAYOUT/PAINT SPLIT TYPES
-// (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 2)
+// (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4 — Task 2)
 //
 // Of this file's 8 renderers, only pitchedRoof/crownSpire read a lighting field
 // (eastLMultiplier/westLMultiplier). Their geometry is split out into a `compute*Layout`
@@ -228,7 +228,7 @@ export function paintSteppeRoof(layout: SteppeRoofLayout, ctx: GreebleRendererCo
  * Geometry for the shaded (frontCornerX-aware) branch of `renderPitchedRoof` — no color.
  * Reads only static fields (`buildingWidth`, `roofY`, `frontCornerX`), so the same input
  * always produces the same output regardless of lighting; safe to compute once per factory
- * and reuse across every lighting tick (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4).
+ * and reuse across every lighting tick (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4).
  *
  * @returns `null` when `frontCornerX`/`eastLMultiplier`/`westLMultiplier` aren't all present
  *   — matches the original branch condition exactly (this decides which *shape* to draw, not
@@ -301,7 +301,7 @@ export function paintPitchedRoof(layout: PitchedRoofLayout | null, ctx: GreebleR
  * Falls back to a single centred triangle when lighting context is absent.
  *
  * Kept as a thin compatibility wrapper over `computePitchedRoofLayout`/`paintPitchedRoof`
- * (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4) — byte-identical output to before the split;
+ * (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4) — byte-identical output to before the split;
  * callers that don't care about the layout/paint separation (existing tests, ad-hoc use)
  * can keep calling this directly.
  *
@@ -334,7 +334,7 @@ export function renderPitchedRoof(ctx: GreebleRendererContext): GreebleElement |
  * `frontCornerX`) plus the *definedness* (not the value) of `eastLMultiplier`/
  * `westLMultiplier` to pick shaded vs. unshaded branching — so the same input always
  * produces the same output regardless of the lighting tick
- * (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4).
+ * (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4).
  */
 export function computeCrownSpireLayout(ctx: GreebleRendererContext): CrownSpireLayout {
   const { buildingWidth: bw, buildingHeight: bh, roofY, seed, frontCornerX, eastLMultiplier, westLMultiplier } = ctx;
@@ -439,7 +439,7 @@ export function paintCrownSpire(layout: CrownSpireLayout, ctx: GreebleRendererCo
  * — preserves the existing 2D silhouette when context is absent.
  *
  * Kept as a thin compatibility wrapper over `computeCrownSpireLayout`/`paintCrownSpire`
- * (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.4) — byte-identical output to before the split.
+ * (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md §1.4) — byte-identical output to before the split.
  *
  * @param ctx - The greeble renderer context providing dimensions and colors.
  * @returns A React fragment containing tier rectangles and an antenna rect.
@@ -656,7 +656,7 @@ export const ROOFTOP_RENDERERS: Record<RooftopGreeble, GreebleRenderer> = {
 
 /**
  * Registry of the layout/paint pair for every `RooftopGreeble` that actually reads a
- * lighting field — only `pitchedRoof`/`crownSpire` (docs/specs/FACTORY_LIGHTING_RERENDER.md
+ * lighting field — only `pitchedRoof`/`crownSpire` (docs/specs/archive/FACTORY_LIGHTING_RERENDER.md
  * §1.1). Deliberately `Partial`: a type absent from this map is static-only and gets
  * memoized wholesale by its caller (`Factory.tsx`, Task 4) via the plain `ROOFTOP_RENDERERS`
  * entry above instead — the map's own key set is how the caller tells the two cases apart.

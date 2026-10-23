@@ -20,7 +20,7 @@ import type { DirectionalPanelSchema } from '@/types/controls';
 
 import './PingContourDrawer.css';
 
-// Hoisted to module scope (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3) — these don't
+// Hoisted to module scope (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3) — these don't
 // depend on any prop/state, so a plain module-level constant is the correct, minimal fix, matching
 // this codebase's established "schema is always a stable reference" convention.
 const TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.pingContour.topRow', type: 'directionalPanel', orientation: 'responsive' };
@@ -37,7 +37,7 @@ interface PingContourDrawerProps {
    *  (getTraitColorStyle('timeSpace'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
    *  Time/Space, whether it's editing one robot or a company's bulk baseline. See
-   *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
+   *  docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
   /** Per-field swelling flags (audioSwells.ts's isRobotAttributeSwelling for 'adsr.attack' etc.),
    *  forwarded straight to each of the 4 sliders' own `swelling` prop. Omitted fields default to
@@ -47,7 +47,7 @@ interface PingContourDrawerProps {
 
 /**
  * One Ping Contour DirectionalPanel, editing the robot's single shared ADSR envelope. No
- * accordion wrapper as of Task 16 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's
+ * accordion wrapper as of Task 16 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) — this drawer's
  * content is now a probe's own "Envelope" tree leaf, and the tree node itself carries that label,
  * so there's no accordion header left to show it on ("Ping Contour" is the panel's own internal
  * label, unrelated to the removed accordion's). Purely presentational — no `robot` prop, no store
@@ -102,7 +102,7 @@ function PingContourDrawerInner({ value: adsr, onChange, portamento, onPortament
   );
 }
 
-// React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3)
+// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3)
 export const PingContourDrawer = memo(PingContourDrawerInner);
 
 export default PingContourDrawer;

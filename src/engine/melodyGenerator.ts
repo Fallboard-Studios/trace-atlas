@@ -196,7 +196,7 @@ export const DEFAULT_RHYTHMIC_DENSITY = 50;
 export const DEFAULT_RHYTHMIC_MOTIF_LENGTH: ToggleValue = { active: true, value: 8 };
 /**
  * Default note-variance toggle — inactive. value: 0 satisfies the value > 0 ⟺ active
- * invariant (docs/specs/STEPPER_TO_SLIDER.md) — active: false paired with a nonzero
+ * invariant (docs/specs/archive/STEPPER_TO_SLIDER.md) — active: false paired with a nonzero
  * value would violate it. Preserves the old noteVariance === 0 / unweighted default
  * exactly.
  */
@@ -365,8 +365,8 @@ export function buildMotifOnsets(
 
 /**
  * Determine which onsets in a tiled-motif melody should copy the base cell's noteIndex
- * verbatim, per Pitch Repeat's staged/seeded locking model (docs/intent/pitch-repeat.md,
- * docs/specs/PITCH_REPEAT.md §4). Returns a boolean per onset, same order/length as `onsets`.
+ * verbatim, per Pitch Repeat's staged/seeded locking model (docs/intent/archive/pitch-repeat.md,
+ * docs/specs/archive/PITCH_REPEAT.md §4). Returns a boolean per onset, same order/length as `onsets`.
  * Repeat-0 (base cell) onsets are always `false` — they're the copy source, never a locked
  * target.
  *
@@ -511,7 +511,7 @@ export function generateMelodyForRobot(
     onsets = buildMotifOnsets(onsetCount, subdivisions, subdivisions, rand);
   }
 
-  // Pitch Repeat: which onsets copy the base cell's noteIndex verbatim (docs/specs/PITCH_REPEAT.md).
+  // Pitch Repeat: which onsets copy the base cell's noteIndex verbatim (docs/specs/archive/PITCH_REPEAT.md).
   // Inert (all-false, no `computePitchLockPlan` call at all) whenever motif tiling is off.
   const pitchRepeatPct = Math.max(
     PITCH_REPEAT_MIN,
@@ -643,7 +643,7 @@ export function pickWeightedIndex(rand: () => number = Math.random): number {
  * @param opts.rand Seeded RNG — never Math.random (see CLAUDE.md).
  * @returns A new array; unchanged events are unchanged, changed events are new objects with only `noteIndex` different.
  *
- * Pitch Repeat (docs/specs/PITCH_REPEAT.md): `pitchLocked` events are excluded from the candidate
+ * Pitch Repeat (docs/specs/archive/PITCH_REPEAT.md): `pitchLocked` events are excluded from the candidate
  * pool entirely — locking should visibly resist drift, not quietly compensate to preserve a fixed
  * amount of change. The "always changes at least 1" floor only applies once the eligible
  * (unlocked) pool is non-empty; a fully-locked melody re-rolls zero events.

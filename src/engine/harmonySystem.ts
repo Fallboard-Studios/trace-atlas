@@ -16,7 +16,7 @@ export type EighthNotes = [string, string, string, string, string, string, strin
 // ========================================
 // 12 structurally-unique palettes, cycled sequentially — no hour-of-day meaning. Copied verbatim
 // from the old TIME_PITCHES[0..11] (hours 12-23 were byte-for-byte duplicates of 0-11 and are
-// dropped, not re-derived, by this restructuring). See docs/specs/HARMONY_PALETTE_SEQUENCING.md.
+// dropped, not re-derived, by this restructuring). See docs/specs/archive/HARMONY_PALETTE_SEQUENCING.md.
 const HARMONY_PALETTES: EighthNotes[] = [
   ['C', 'G', 'E', 'D', 'B', 'C', 'E', 'G'],
   ['C', 'G', 'F', 'D', 'A', 'C', 'F', 'F'],
@@ -34,7 +34,7 @@ const HARMONY_PALETTES: EighthNotes[] = [
 
 // Measures each palette entry holds before advancing to the next. One value read by both the
 // index derivation and the schedule interval below — not independently restated as two literal
-// `2`s. Not yet user-configurable (docs/intent/harmony-palette-sequencing.md's "Out of scope").
+// `2`s. Not yet user-configurable (docs/intent/archive/harmony-palette-sequencing.md's "Out of scope").
 const MEASURES_PER_PALETTE_ENTRY = 2;
 
 // ========================================

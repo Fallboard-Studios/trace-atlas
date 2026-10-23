@@ -127,7 +127,7 @@ export interface MelodyEvent {
   noteIndex: number;                    // 0-7 (index into available harmony palette)
   octave: number;                       // Concrete octave assigned at spawn time
   /**
-   * Pitch Repeat (docs/specs/PITCH_REPEAT.md): true only on a locked non-base-cell repeat whose
+   * Pitch Repeat (docs/specs/archive/PITCH_REPEAT.md): true only on a locked non-base-cell repeat whose
    * noteIndex was copied verbatim from the base cell, bypassing Note Variance. Never set on
    * base-cell (repeat 0) events or on any event when Pitch Repeat locking didn't apply — those
    * stay `undefined`, not `false`.
@@ -164,7 +164,7 @@ export interface Robot {
    * darker tone of it lit by their layer's gain (gem/gemPalette.ts). Identity and seed, not audio:
    * the body's geometry is `getRobotGem(gemSeed)`; audio and composition settings reach it only
    * through the dials in docs/ROBOT_DESIGN.md (the Visual Mapping guardrail). See
-   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/GEM_POLYGON_ROBOTS.md §1.4 and
+   * docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/GEM_POLYGON_ROBOTS.md §1.4 and
    * docs/specs/ORBITING_POLYGONS.md (the orbiter dials).
    */
   identityColor: string;
@@ -271,7 +271,7 @@ export interface Robot {
    * rises (100 = full verbatim repetition). Inert whenever `rhythmicMotifLength.active` is false
    * — no cell concept exists to lock pitches within when tiling is off. Same plain-number shape
    * as `rhythmicDensity` (no `{active, value}` toggle of its own). Default: 0 (today's behavior,
-   * unlocked). See docs/specs/PITCH_REPEAT.md.
+   * unlocked). See docs/specs/archive/PITCH_REPEAT.md.
    */
   pitchRepeat?: number;
   /**

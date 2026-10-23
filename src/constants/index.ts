@@ -28,7 +28,7 @@ export const MIN_LEAD = 0.1;
 export const MAX_POLYPHONY = 16;
 
 // ========================================
-// AUDIO LOAD BUDGET (docs/specs/AUDIO_LOAD_BUDGET.md §4.2)
+// AUDIO LOAD BUDGET (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.2)
 // ========================================
 // One 0–1 dial ("Audio Load") lowers audio cost. At 1 (Full) every limit equals today's behavior:
 // MAX_ROBOTS audible robots, MAX_POLYPHONY notes, drift and every LFO on, unlimited robot LFOs.
@@ -55,7 +55,7 @@ export const LOAD_BUS_FILTER_LFOS_MIN = 0.8;
 /**
  * Below this dial position the AudioContext latency hint is "playback"; at/above it, "interactive".
  * Above Standard's anchor (0.6) so Light AND Standard both get it (decision J,
- * docs/specs/AUDIO_LOAD_BUDGET.md §7: the Pixel 8 phone run measured playback giving Standard 6.6x
+ * docs/specs/archive/AUDIO_LOAD_BUDGET.md §7: the Pixel 8 phone run measured playback giving Standard 6.6x
  * fewer output underruns than interactive on bravo, at the same ~266ms average output latency cost
  * Light already ships unremarked); below Full's (1) so Full is untouched.
  */
@@ -98,7 +98,7 @@ export const NOTE_PALETTE_SIZE = 8;
 /**
  * Fixed real-world milliseconds per full in-world day (6 minutes), and the
  * pure function that derives a locale's current hour from its own
- * dayStartTimestamp. See docs/specs/ATTENUATION_STYLE.md §1.1.
+ * dayStartTimestamp. See docs/specs/archive/ATTENUATION_STYLE.md §1.1.
  */
 export { DAY_DURATION_MS, computeLocaleHour } from './time';
 
@@ -109,7 +109,7 @@ export { DAY_DURATION_MS, computeLocaleHour } from './time';
  *
  * `rhythmicDensity` is a 0-100% fill rate (not an onset count). `rhythmicMotifLength`
  * and `noteVariance` are both `{ active: boolean; value: number }` — MIN/MAX below
- * bound the nested `value`, 0-8 for both (docs/specs/STEPPER_TO_SLIDER.md). `value === 0`
+ * bound the nested `value`, 0-8 for both (docs/specs/archive/STEPPER_TO_SLIDER.md). `value === 0`
  * is now itself the "off" state for each; `active` is a derived, enforced consequence of
  * `value > 0` everywhere a payload for these two fields is written, never independently
  * settable. (Prior to that phase, `value`'s floor was 1 and `active: false` was the sole
@@ -126,7 +126,7 @@ export const OCTAVE_RANGE_MAX = 7;
 
 /**
  * `pitchRepeat` is a 0-100% lock strength (not a toggle) — same shape as `rhythmicDensity`. See
- * docs/specs/PITCH_REPEAT.md.
+ * docs/specs/archive/PITCH_REPEAT.md.
  */
 export const PITCH_REPEAT_MIN = 0;
 export const PITCH_REPEAT_MAX = 100;
@@ -165,7 +165,7 @@ export const SEND_STEP_PERCENT = 1;
 
 /**
  * Robot Systems Engine (Roadmap Phase 7) — Battery/Docking/Job lifecycle constants.
- * See docs/specs/ROBOT_SYSTEMS_ENGINE.md and src/systems/robotSystems.ts.
+ * See docs/specs/archive/ROBOT_SYSTEMS_ENGINE.md and src/systems/robotSystems.ts.
  */
 
 /** Seeded count of robots that start Active (rest start Docked) when a locale's roster is created. */
@@ -453,7 +453,7 @@ export const BATTERY_DIM_THRESHOLD_CRITICAL = 12; // <= this: 90% dim (opacity 0
 
 /**
  * Companies (Roadmap Phase 10) — seeded groups of robots that let every editable Robot Options
- * field be broadcast across a group at once. See docs/specs/COMPANIES.md.
+ * field be broadcast across a group at once. See docs/specs/archive/COMPANIES.md.
  *
  * MAX_COMPANIES is a CRUD ceiling only — CompanyCrudControls' Create button is disabled at this
  * count. It is a separate concept from spawn generation below and is deliberately higher than

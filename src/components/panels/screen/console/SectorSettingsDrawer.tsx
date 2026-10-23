@@ -33,7 +33,7 @@ function presetSchema(idSuffix: string, name: string, content: ContentKey): Butt
  * Style) and Plot Tuning (jump to new locale coordinates), sharing one
  * Retransmit action. Preset buttons only populate their own field(s); they
  * never submit on their own — the user still presses Retransmit separately,
- * per docs/specs/SECTOR_SETTINGS.md §5.
+ * per docs/specs/archive/SECTOR_SETTINGS.md §5.
  */
 export function SectorSettingsDrawer() {
   const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);

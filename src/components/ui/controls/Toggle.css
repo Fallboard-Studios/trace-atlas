@@ -47,7 +47,7 @@
    still keeps the --bare class even with children (Header's Mute needs an
    exact 44px regardless of its icon) — Toggle.tsx's own contentSized check
    is what decides this, not this rule. See
-   docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.2. */
+   docs/specs/archive/OBLIQUE_CABINETRY_TOGGLE.md §1.2. */
 .sc-toggle__root--bare .sc-cabinet-box__front {
   width: var(--cabinet-toggle-box-size);
   height: var(--cabinet-toggle-box-size);

@@ -55,7 +55,7 @@ export interface DiagSample {
 }
 
 /**
- * `AudioContext.playbackStats` (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md), read-only. Counts and durations are
+ * `AudioContext.playbackStats` (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md), read-only. Counts and durations are
  * cumulative since the context was created; the latency figures are in seconds (verified, task 1).
  */
 export interface PlaybackReading {
@@ -344,7 +344,7 @@ export function formatUptime(ms: number): string {
 }
 
 /**
- * Peak, RMS and non-finite count of one analyser buffer (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md §4).
+ * Peak, RMS and non-finite count of one analyser buffer (docs/specs/archive/AUDIO_OUTPUT_DIAGNOSTIC.md §4).
  * NaN and ±Infinity are counted but kept out of peak and RMS — one bad sample must not turn the
  * whole reading into NaN, because the point is to say *that* it went non-finite, not to lose the
  * level. RMS is over the finite samples only. An empty buffer has nothing to measure: `null`.

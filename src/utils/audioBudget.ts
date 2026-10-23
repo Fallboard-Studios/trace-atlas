@@ -22,7 +22,7 @@ import {
 export type LoadLatencyHint = 'playback' | 'interactive';
 
 /**
- * The caps the Robot Load slider sets (docs/specs/AUDIO_LOAD_BUDGET.md §1.2, "shipped as two sliders"
+ * The caps the Robot Load slider sets (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.2, "shipped as two sliders"
  * note): how much is sounding at once, plus the boot-time latency hint (an output-buffer concern, not
  * a modulation-cost one, so it rides this axis rather than the effects one).
  */
@@ -235,7 +235,7 @@ export function orderByArrival(previousOrder: readonly string[], eligibleNow: re
 }
 
 /**
- * First-come-first-served admission with solo priority (docs/specs/AUDIO_LOAD_BUDGET.md §1.3).
+ * First-come-first-served admission with solo priority (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.3).
  * `previous` is the current sounding set in admission order; `eligible` is every robot `isRobotAudible`
  * allows, **in arrival order** (see `orderByArrival`); `soloIds` the soloed subset.
  *

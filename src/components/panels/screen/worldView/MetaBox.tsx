@@ -43,7 +43,7 @@ function useEmittingCount(): number {
 
 /**
  * The world line (docs/specs/LAYOUT_REWORK.md §1.7): the locale's clock and temperature, how many robots
- * are emitting against the Audio Load budget's cap (docs/specs/AUDIO_LOAD_BUDGET.md), and the current
+ * are emitting against the Audio Load budget's cap (docs/specs/archive/AUDIO_LOAD_BUDGET.md), and the current
  * Attenuation Style and coordinates — NavStatusBlock's three rows, moved here verbatim (Task 8) and laid
  * in one line. Inline, so a parent's one-line ellipsis cuts it: the meta box's well on the desk,
  * PhoneBar's well on the phone.

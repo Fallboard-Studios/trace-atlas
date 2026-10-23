@@ -11,7 +11,7 @@ import { getSeededVal } from './getSeededVal';
 /**
  * Temperature's own decorative range (°C) — purely for display/world
  * immersion, no gameplay or audio effect. Confirmed via /interview-me,
- * docs/intent/header-hub-consolidation.md.
+ * docs/intent/archive/header-hub-consolidation.md.
  */
 export const LOCALE_TEMPERATURE_RANGE = { min: -120, max: -30 };
 
@@ -26,7 +26,7 @@ export const LOCALE_TEMPERATURE_RANGE = { min: -120, max: -30 };
  * along the axis it's sampled on, so nearby hours produce nearby values.
  * Rounded to the nearest whole degree for display. A pure function: never
  * stored on the Locale object itself, called fresh on every tick
- * (AttenuationStyleView.tsx). docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3.
+ * (AttenuationStyleView.tsx). docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3.
  *
  * Only used as the initial/reseed value on locale change — subsequent
  * updates are stepLocaleTemperature's random walk (localeTemperatureStep.ts).

@@ -38,7 +38,7 @@ function suggestCompanyName(): string {
 }
 
 /**
- * A random, currently-unused company color (docs/specs/COMPANY_SECTION_ENHANCEMENTS.md §1.2) —
+ * A random, currently-unused company color (docs/specs/archive/COMPANY_SECTION_ENHANCEMENTS.md §1.2) —
  * re-rolls against every color already in use by an existing company in this locale, the same
  * Math.random()-for-a-live-UI-roll precedent suggestCompanyName above already establishes (not
  * reproducible world generation — spawnSystem.ts's own generateCompanyIdentityColor covers that
@@ -57,7 +57,7 @@ function pickRandomCompanyColor(existingColors: string[]): string {
 
 /**
  * Create half of Companies CRUD (Roadmap Phase 10; relocated into the nav tree by
- * docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is the bare "Companies" tree node's
+ * docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is the bare "Companies" tree node's
  * own content). Split out of the old combined CompanyCrudControls (which rendered Create AND
  * Rename/Delete together, gated on whether a company was selected) since the tree now shows one
  * or the other depending on which node is selected, never both. The name field is local, staged
@@ -79,7 +79,7 @@ export function CompanyCreateForm() {
   // impossible to type a first character back in.
   const nameIsBlank = createNameDraft.trim().length === 0;
 
-  // Previews what clicking Create will do (docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 2) — the
+  // Previews what clicking Create will do (docs/tasks/archive/COMPANY_CRUD_BUTTON_PREVIEW.md Task 2) — the
   // raw, as-typed draft, not trimmed (matches nameIsBlank's own trim-only-for-the-blank-check
   // convention: what's displayed once non-blank is "as typed"). A per-render clone, not a mutation
   // of the shared CREATE_COMPANY_SCHEMA constant. Button.tsx's own resolveAccessibleName/DualLabel
@@ -107,7 +107,7 @@ export function CompanyCreateForm() {
 
 /**
  * Rename/Delete half of Companies CRUD (Roadmap Phase 10; relocated into the nav tree by
- * docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is a specific "Company X" tree node's
+ * docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is a specific "Company X" tree node's
  * own content, rendered only once a company is actually selected). Split out of the old combined
  * CompanyCrudControls the same way CompanyCreateForm was — see that component's own doc comment.
  *

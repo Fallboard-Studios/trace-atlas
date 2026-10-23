@@ -28,10 +28,10 @@ import type { GlobalLfoTargetId } from '@/types/lfo';
 import './AudioRigDrawer.css';
 
 /**
- * Trait per individual effect (Roadmap Phase 14, docs/specs/COLOR_SCHEME_TRAIT_THEMING.md
+ * Trait per individual effect (Roadmap Phase 14, docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md
  * §1.5/§1.6) — previously applied once per AUDIO_RIG_ACCORDION_GROUPS group (3 accordions, cascading
  * to every nested effect); now applied directly on each AudioRigEffectPanel's own wrapper (Task 14,
- * docs/tasks/NAV_LAYOUT_REWRITE.md — each effect is its own tree leaf, standalone, with no group
+ * docs/tasks/archive/NAV_LAYOUT_REWRITE.md — each effect is its own tree leaf, standalone, with no group
  * accordion left to inherit the color from).
  */
 // Hoisted to module scope (docs/todo/backlog.md #27 follow-up, 2026-09-15) — these 2 don't depend
@@ -99,7 +99,7 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
  *  Takes the field's own resolved `onChange` directly (AudioRigEffectPanel's `fieldOnChange` map)
  *  rather than building `(v) => updateParam(param.field, v)` inline here — that inline arrow was a
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
- *  regardless of how many of them got memoized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
+ *  regardless of how many of them got memoized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
  *  Task 12). */
 function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode) {
   return (
@@ -126,14 +126,14 @@ interface LfoTargetedParamSchema extends AudioRigParamSchema {
 }
 
 /**
- * Automatic Effects content — resolves docs/tasks/AUDIO_RIG.md Task 10/11, docs/tasks/
- * AUDIO_RIG_V2.md Task 11, and docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 2 historically, but as
- * of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) this component's own scope shrank to just the one
+ * Automatic Effects content — resolves docs/tasks/archive/AUDIO_RIG.md Task 10/11, docs/tasks/
+ * AUDIO_RIG_V2.md Task 11, and docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 2 historically, but as
+ * of Task 14 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) this component's own scope shrank to just the one
  * control that never got a tree leaf of its own: Ping Variance Automation ("Automatic Effects").
  * Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to its own
  * AudioRigEffectPanel instance, rendered by FleetParamsScreen.tsx as that effect's sub-tab.
  *
- * As of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component's own outer
+ * As of docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component's own outer
  * wrapper (`.audio-rig-drawer` div + its own Speed & Automation DirectionalPanel) is gone too —
  * Intensity now shares a 2x2 Pacing row with Frequency/Duration/Tempo, and a panel-inside-a-panel
  * would result if this component kept wrapping itself. FleetParamsScreen.tsx's own
@@ -146,7 +146,7 @@ export function AudioRigDrawer() {
   const pingVarianceAutomation = useAudioStore((s) => s.pingVarianceAutomation);
   const setPingVarianceAutomation = useAudioStore((s) => s.setPingVarianceAutomation);
 
-  // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — SliderLinear is now
+  // Stabilized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — SliderLinear is now
   // React.memo'd (Task 6); an inline `(v) => setPingVarianceAutomation(v / 100)` here would have
   // been a fresh function every render, defeating that memo regardless.
   const handlePingVarianceChange = useCallback(
@@ -172,7 +172,7 @@ interface AudioRigEffectPanelProps {
 /**
  * One effect's own full content (a plain params map, each with its own inline `LfoLink` row where
  * `lfoTarget` is present, plus the compressor-only Decay Mode radio) — as of Task 14 (docs/tasks/
- * LFO_BANK.md, inside the standalone-leaf shape docs/tasks/NAV_LAYOUT_REWRITE.md Task 14 set up),
+ * LFO_BANK.md, inside the standalone-leaf shape docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 14 set up),
  * this is a standalone,
  * exported component: FleetParamsScreen.tsx renders exactly one instance, for whichever effect
  * sub-tab (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) is open —
@@ -255,7 +255,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
     [syncedRateKey, setPedalSyncMode],
   );
 
-  // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — this used to be a plain
+  // Stabilized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — this used to be a plain
   // function, rebuilt fresh every render; every one of the ~9 call shapes below built its own
   // `(v) => updateParam(field, v)` inline from it, each a fresh function every render, which
   // defeated every memoized primitive's own React.memo bail-out (Tasks 1-11) regardless of how

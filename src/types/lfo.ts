@@ -1,5 +1,5 @@
 /**
- * LFO modulation types, resolving docs/tasks/LFO_INTEGRATION_PLAN.md Task 7.
+ * LFO modulation types, resolving docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 7.
  * Target ids and bounds trace to the reference grids — see each export's
  * comment for its source row.
  */

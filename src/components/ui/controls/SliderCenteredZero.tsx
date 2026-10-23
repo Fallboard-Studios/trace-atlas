@@ -47,7 +47,7 @@ interface SliderCenteredZeroProps {
  * uniform CabinetBox facades split into two independent halves at a fixed
  * dead-center seam (never the schema's own proportional zero point), each
  * filling outward from the seam toward its own physical end. See
- * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md for the full
+ * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md for the full
  * derivation. Unlike SliderLog, there's no t-curve here — Slider.Root keeps
  * using the schema's literal min/max/value, exactly as before this item.
  *
@@ -70,7 +70,7 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
   const trackValue = logKnee === undefined ? displayValue : signedLogValueToT(displayValue, min, max, logKnee);
   const [trackMin, trackMax] = logKnee === undefined ? [min, max] : [-1, 1];
 
-  // Memoized so VoxelTrack's own React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
+  // Memoized so VoxelTrack's own React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
   // can bail on an unchanged states reference — computeVoxelBoxStatesCenteredZero is a pure
   // function that otherwise returns a fresh array every render.
   const states = useMemo(
@@ -161,7 +161,7 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
   );
 }
 
-// React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3 correction) — every prop is a
+// React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 3 correction) — every prop is a
 // primitive, a stable schema object, or the onChange callback a caller must keep stable to
 // benefit.
 export const SliderCenteredZero = memo(SliderCenteredZeroInner);

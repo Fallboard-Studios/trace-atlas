@@ -25,7 +25,7 @@ export interface VoxelTrackSliderOptions {
    * dead-center seam always lands exactly on a box boundary. Omitted or
    * false preserves SliderLinear/SliderLog's exact existing behavior — this
    * is a strictly additive, opt-in extension of this hook's contract. See
-   * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.4.
+   * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.4.
    */
   forceEven?: boolean;
   /**
@@ -44,7 +44,7 @@ export interface VoxelTrackSliderOptions {
  * (roadmap 11.1.3), extracted so SliderLog.tsx (this item's own new
  * consumer) doesn't need a second copy, and SliderLinear.tsx itself
  * retrofitted to call this instead of repeating the logic. See
- * docs/specs/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.1.
+ * docs/specs/archive/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.1.
  *
  * `orientation` must already be resolved ('horizontal' | 'vertical', never
  * 'auto') — each consumer calls useAutoSliderOrientation itself first, same

@@ -40,7 +40,7 @@ const LANE_OF: Partial<Record<SelectedFleetParamsEffect, LfoLaneId>> = { laneA: 
 const INTRO = introProps('fleet.root');
 const INTRO_NAME = labels('fleet.root').humanLabel;
 
-/** Pacing's five leaves as two rows (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo, Humanize
+/** Pacing's five leaves as two rows (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo, Humanize
  *  (docs/specs/ROBOT_PERFORMANCE.md §1.6) and Automation Rate across the top, Automation Length beside the
  *  intensity drawer below. 'responsive' rows, side by side on desktop and stacked below it, as the
  *  Compressor rows. */

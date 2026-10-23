@@ -14,7 +14,7 @@ export interface Locale {
   coordinates: LocaleCoordinates;
   /** Wall-clock timestamp this locale's in-world day began. Computed once at
    *  build time from the locale's own x coordinate — see
-   *  docs/specs/ATTENUATION_STYLE.md §1.1. Moved here from AttenuationStyle. */
+   *  docs/specs/archive/ATTENUATION_STYLE.md §1.1. Moved here from AttenuationStyle. */
   dayStartTimestamp: number;
   /** BeatClock measure this locale's roster was created at (getCurrentMeasure() at build time,
    *  same stamping point as dayStartTimestamp) -- docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md.

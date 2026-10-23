@@ -17,7 +17,7 @@ function createLayerGain(value: number, out: Tone.Gain): Tone.Gain {
  * Set a layer synth's detune directly on its oscillator's detune Signal. No `.set()` fallback
  * chain needed here — detune is always a real Signal (with a `.value`) on any real Tone
  * oscillator, unlike phase/width below. Shared by construction and the live-update `set({
- * layers })` path (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 4) — previously duplicated verbatim
+ * layers })` path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 4) — previously duplicated verbatim
  * in both places.
  */
 function applyOscDetune(synth: SynthWithOscillator, detune: number, verb: 'apply' | 'set'): void {
@@ -92,7 +92,7 @@ export function toToneEnvelope(adsr: ADSREnvelope): Partial<Tone.EnvelopeOptions
 /**
  * A live-update patch entry for `set({ layers })`. `adsr` is not part of the persisted
  * `OscillatorLayer` shape (Roadmap Phase 9 moved ADSR to one shared robot-level envelope,
- * see docs/specs/ROBOT_OPTIONS.md) — it's an ephemeral field this live-update RPC accepts so
+ * see docs/specs/archive/ROBOT_OPTIONS.md) — it's an ephemeral field this live-update RPC accepts so
  * AudioEngine.updateVoiceEnvelope can reuse this exact path for envelope edits, the same way it's
  * reused for gain/detune/phase/pulseWidth. Nothing here is ever written back to `Robot` state.
  */
@@ -107,7 +107,7 @@ export interface CompositeVoice {
   /**
    * Per-layer live node references — synth (for oscillator.detune/width) and
    * gain node (for gain). Exposed for AudioEngine.getRobotModulationTarget
-   * (docs/tasks/LFO_INTEGRATION_PLAN.md Task 9) to resolve a connectable
+   * (docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 9) to resolve a connectable
    * Signal without duplicating layer-construction logic outside this module.
    */
   layers?: ReadonlyArray<{

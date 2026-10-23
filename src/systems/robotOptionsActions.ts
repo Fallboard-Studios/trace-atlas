@@ -5,7 +5,7 @@
  * Nothing about what an edit does changes here, only where the code lives: both the single-robot
  * drawers (via RobotOptionsTab.tsx) and the company-broadcast panel (CompanyOptionsSection.tsx)
  * call these same functions — the single-robot call site calls once, the company call site loops
- * across every member robot. See docs/specs/COMPANIES.md §4.
+ * across every member robot. See docs/specs/archive/COMPANIES.md §4.
  *
  * Every function takes (robot, localeId, value) — never reads uiStore, never touches anything
  * beyond localeStore/AudioEngine/lfoEngine/regenerateMelody. Selection state is a caller concern.
@@ -118,7 +118,7 @@ export function applyAccents(robot: Robot, localeId: string, value: number): voi
 }
 
 // Number-in: active is a derived, enforced consequence of value > 0, never
-// independently settable (docs/specs/STEPPER_TO_SLIDER.md) — the caller (a bare
+// independently settable (docs/specs/archive/STEPPER_TO_SLIDER.md) — the caller (a bare
 // SliderLinear, post-toggle-removal) only ever has the raw number.
 export function applyMotifLength(robot: Robot, localeId: string, value: number): void {
   const next: StepperWithToggleValue = { active: value > 0, value };

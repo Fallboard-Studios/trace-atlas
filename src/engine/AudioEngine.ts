@@ -160,7 +160,7 @@ let initialized = false;
 let instrumentsLoaded = false;
 // Reservation state
 let activeVoices = 0;
-// Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.3) — pushed in by audioBudgetSystem, never read from a
+// Audio Load Budget (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.3) — pushed in by audioBudgetSystem, never read from a
 // store here (AudioEngine imports the stores dynamically for load-order reasons). Both default to "no
 // restriction", so the engine behaves exactly as before until something pushes them.
 // Robots allowed to sound; null = every robot (no budget running).
@@ -378,7 +378,7 @@ async function loadInstruments(): Promise<void> {
  * resolves against the TRANSPORT's own tick timeline (`Transport.scheduleOnce` ->
  * `TransportTimeClass(...).toTicks()`), converting the real-seconds delay into a
  * fixed tick position using the tempo in effect at schedule time. If BPM changes
- * before that tick position is reached (docs/specs/BPM_CONTROL.md's live Tempo
+ * before that tick position is reached (docs/specs/archive/BPM_CONTROL.md's live Tempo
  * slider makes this routine now), the real time it takes to reach that fixed tick
  * shifts — releases fire late (bpm decreased) or early (bpm increased). Enough
  * skew strands `activeVoices` at `MAX_POLYPHONY`, silently blocking every new
@@ -506,7 +506,7 @@ export function triggerWithCap(params: NoteParams): boolean {
     // Pan is no longer recomputed here on every note — updateAllPanners (called once per
     // 16th-note tick from startMelodyPlayback) already keeps every reserved robot's panner
     // current at a strictly higher resolution than any single robot's own note-trigger rate,
-    // so this was pure duplicate work on the hot path (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 6).
+    // so this was pure duplicate work on the hot path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 6).
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
     synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8);
@@ -918,7 +918,7 @@ export const AudioEngine = {
 
   /**
    * Resolve the live, connectable Tone Signal/Param for a robot-level LFO
-   * modulation target (docs/tasks/LFO_INTEGRATION_PLAN.md Task 9). Returns
+   * modulation target (docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 9). Returns
    * null — never throws — for: an unreserved robotId, an out-of-range layer
    * index, and any id outside the current RobotLfoTargetId set — including
    * the removed 'volume', 'layerN.pulseWidth' (docs/specs/LFO_LOAD_FIX.md

@@ -7,7 +7,7 @@ interface LocaleViewProps {
   localeId: string;
   /** Was currentHour — computeLocalTime's longitude-offset step is retired,
    *  this IS the final, already-resolved local time (see AttenuationStyleView.tsx and
-   *  docs/specs/ATTENUATION_STYLE.md §1.1). */
+   *  docs/specs/archive/ATTENUATION_STYLE.md §1.1). */
   localTime: number;
 }
 

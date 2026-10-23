@@ -1,6 +1,6 @@
 /**
  * ControlSchema data for the Audio Rig drawer's 7 global effect blocks,
- * resolving docs/tasks/AUDIO_RIG.md Task 1 (V1) and docs/tasks/AUDIO_RIG_V2.md
+ * resolving docs/tasks/archive/AUDIO_RIG.md Task 1 (V1) and docs/tasks/archive/AUDIO_RIG_V2.md
  * Task 10 (V2 — Chorus removed, Limiter added, chain reordered). Every
  * label/unit/range/default traces field-for-field to
  * docs/reference/GLOBAL_CHAIN_GRID.md — no invented copy. Field paths
@@ -42,9 +42,9 @@ export interface AudioRigParamSchema {
 export interface AudioRigEffectBlock {
   /** Matches GlobalAudioSettings' own key. */
   key: AudioRigEffectKey;
-  /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes this block's
+  /** DirectionalPanel wiring (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md) — supersedes this block's
    *  old `accordion:` field (its own accordion-typed schema, removed Task 2); every block's own
-   *  top-level accordion wrapper was later removed too (docs/tasks/NAV_LAYOUT_REWRITE.md Task 14). */
+   *  top-level accordion wrapper was later removed too (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 14). */
   panel: DirectionalPanelSchema;
   params: AudioRigParamSchema[];
 }
@@ -54,7 +54,7 @@ export interface AudioRigEffectBlock {
 // ========================================
 
 /** DirectionalPanel counterpart to the old accordionSchema() helper (removed
- *  docs/tasks/NAV_LAYOUT_REWRITE.md Task 21) — same id/loreLabel/humanLabel
+ *  docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 21) — same id/loreLabel/humanLabel
  *  shape, plus the orientation every DirectionalPanel needs. */
 function panelSchema(key: AudioRigEffectKey, content: ContentKey, orientation: PanelOrientation): DirectionalPanelSchema {
   return { id: `audioRig.${key}`, type: 'directionalPanel', ...labels(content, { surface: 'heading' }), orientation };
@@ -358,7 +358,7 @@ export const LFO_BANK_LANE_SCHEMAS: Record<LfoLaneId, LfoBankLaneSchema> = Objec
 
 /**
  * "Ping Variance Automation" — the Audio Swells master control
- * (docs/specs/PING-VARIANCE-AUTOMATION.md), replacing the former
+ * (docs/specs/archive/PING-VARIANCE-AUTOMATION.md), replacing the former
  * audioSwellsEnabled boolean. A bare, Rig-wide meta-setting like
  * DECAY_MODE_SCHEMA above — not a per-effect param, so it never joins
  * AUDIO_RIG_CONFIG's own array. Displays 0-100%; the store's own
@@ -370,7 +370,7 @@ export const PING_VARIANCE_AUTOMATION_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.pingVarianceAutomation',
   type: 'sliderLinear',
   ...labels('fleet.pacing.automationRange'),
-  min: 1, // was 0 — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2: Intensity no longer doubles as an on/off gate (Frequency took over that role), so it can never reach 0
+  min: 1, // was 0 — docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2: Intensity no longer doubles as an on/off gate (Frequency took over that role), so it can never reach 0
   max: 100,
   step: 1,
   orientation: 'horizontal',
@@ -378,8 +378,8 @@ export const PING_VARIANCE_AUTOMATION_SCHEMA: SliderLinearSchema = {
 
 /**
  * "x times per measure when above 1, every x measures (calculated) when
- * below 1" (docs/intent/automation-frequency-duration-split.md). 0 reads as
- * "Off" (Frequency's on/off role, docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+ * below 1" (docs/intent/archive/automation-frequency-duration-split.md). 0 reads as
+ * "Off" (Frequency's on/off role, docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
  * §1.3), not "0.0/measure" or "every Infinity measures". Below 1, "every x
  * measures" uses 1/value, rounded via the same formatDisplayValue every other
  * slider's readout already uses.
@@ -406,7 +406,7 @@ export const SWELL_FREQUENCY_STEPS: readonly number[] = [
 /**
  * "Frequency" — takes over Ping Variance Automation's former on/off role (0
  * = off) and replaces the fixed per-measure trigger chance with a real rate
- * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). A fixed set of allowed values
+ * (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). A fixed set of allowed values
  * (SWELL_FREQUENCY_STEPS above), not a continuous sliderLog range — min/max are just that list's
  * own first/last entries. A bare Rig-wide meta-setting, like PING_VARIANCE_AUTOMATION_SCHEMA
  * above — not a per-effect param.
@@ -425,7 +425,7 @@ export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
 /**
  * "Duration" — total swell length in measures (rising + falling together),
  * replacing the former per-swell-randomized independent phase-length picks
- * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4). A bare Rig-wide
+ * (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4). A bare Rig-wide
  * meta-setting, like PING_VARIANCE_AUTOMATION_SCHEMA above.
  */
 export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
@@ -439,7 +439,7 @@ export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
 };
 
 /**
- * "Tempo" — the Audio Rig's live BPM override (docs/specs/BPM_CONTROL.md),
+ * "Tempo" — the Audio Rig's live BPM override (docs/specs/archive/BPM_CONTROL.md),
  * a bare Rig-wide meta-setting like PING_VARIANCE_AUTOMATION_SCHEMA above —
  * not a per-effect param, so it never joins AUDIO_RIG_CONFIG's own array.
  * No unit conversion at the drawer wiring point: audioStore.bpm is already
@@ -477,7 +477,7 @@ export const HUMANIZE_SCHEMA: SliderLinearSchema = {
 };
 
 // ========================================
-// AUDIO LOAD (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, shipped as two independent sliders 2026-09-22)
+// AUDIO LOAD (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5, shipped as two independent sliders 2026-09-22)
 // ========================================
 // Bare Rig-wide meta-settings, like BPM_SCHEMA/DECAY_MODE_SCHEMA: they never join AUDIO_RIG_CONFIG's
 // array. The radio and the two sliders are three views of two stored numbers (audioStore.robotLoad,
@@ -540,5 +540,5 @@ export const AUDIO_LOAD_PANEL_SCHEMA: DirectionalPanelSchema = {
 // Output) instead — PanelGroup provides row/column + gap layout only, no
 // Cabinetry facade of its own, so each block's own DirectionalPanel
 // (block.panel, above) stays top-level and keeps its own independent facade.
-// See docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md's "Separate facades"
+// See docs/specs/archive/AUDIO_RIG_RESPONSIVE_LAYOUT.md's "Separate facades"
 // amendment.
