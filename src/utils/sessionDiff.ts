@@ -326,7 +326,7 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   // Robot Sends (docs/specs/ROBOT_SENDS.md §1.8): compared at the slider's two decimals on both sides, so float noise
   // and a seed off the grid never read as a change. A swell in flight saves its base (never the mid-ramp value).
   for (const field of ROBOT_SEND_FIELDS) {
-    const saved =roundToDecimals(extractSwellBaseValueIfActive(live.id, field) ?? live[field], 2);
+    const saved = roundToDecimals(extractSwellBaseValueIfActive(live.id, field) ?? live[field], 2);
     if (saved !== roundToDecimals(baseline[field], 2)) diff[field] = saved;
   }
 
