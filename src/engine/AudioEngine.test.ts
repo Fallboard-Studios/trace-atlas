@@ -291,6 +291,7 @@ vi.mock('../systems/robotLfoLinks', () => ({
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
+import { HEADROOM_TRIM_GAIN, robotBusGain } from './audioEngine/headroom';
 import { precomputeDataX } from '../utils/getSeededVal';
 
 /** Shared placeholder ADSR for tests that don't care about specific envelope values —
@@ -1463,27 +1464,27 @@ describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per
     vi.resetModules();
   });
 
-  it('reserveVoice initializes the per-robot bus gain from the masterVolume parameter, through the perceptual taper', async () => {
+  it('reserveVoice initializes the per-robot bus gain from the masterVolume parameter, through robotBusGain', async () => {
     const Tone = await import('tone');
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     (Tone.Gain as unknown as ReturnType<typeof vi.fn>).mockClear();
 
     const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
-    AudioEngine.reserveVoice('bus-gain-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.3);
+    AudioEngine.reserveVoice('bus-gain-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
 
     // The bus gain is constructed after the (single) layer's own gain node, inside the same
     // reserveVoice call — its constructor argument is what this asserts, not the mocked Gain
     // factory's echoed-back .gain.value (the mock ignores its constructor argument entirely).
-    // The value itself is the taper's output for position 0.3, not 0.3 verbatim — a linear
-    // pass-through is exactly the bug this taper fixes (see volumeTaper.test.ts for the curve's
-    // own dedicated tests; this just confirms AudioEngine actually applies it).
+    // The value is the taper's output for position 0.8 times the headroom trim (Output Headroom
+    // T6, docs/specs/OUTPUT_HEADROOM.md): not 0.8 verbatim, and not the bare taper either.
     const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
     const busGainCallArgs = gainCalls[gainCalls.length - BUS_GAIN_FROM_END];
-    expect(busGainCallArgs[0]).toBe(volumePositionToGain(0.3));
+    expect(busGainCallArgs[0]).toBe(robotBusGain(0.8));
+    expect(busGainCallArgs[0]).not.toBe(volumePositionToGain(0.8));
   });
 
-  it('defaults the bus gain to 1 when masterVolume is omitted (backward compatible)', async () => {
+  it('defaults the bus gain to Volume 1, the headroom trim alone, when masterVolume is omitted', async () => {
     const Tone = await import('tone');
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
@@ -1494,7 +1495,36 @@ describe('AudioEngine — masterVolume drives a live per-robot bus gain, not per
 
     const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
     const busGainCallArgs = gainCalls[gainCalls.length - BUS_GAIN_FROM_END];
-    expect(busGainCallArgs[0]).toBe(1);
+    expect(busGainCallArgs[0]).toBe(HEADROOM_TRIM_GAIN);
+  });
+
+  it('the stub bus built without a Gain constructor starts at robotBusGain too', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const helpers = await import('./audioEngine/toneHelpers');
+    const realGetToneCtor = helpers.getToneCtor;
+    vi.spyOn(helpers, 'getToneCtor').mockImplementation(((name: string) =>
+      name === 'Gain' ? undefined : realGetToneCtor(name)) as typeof helpers.getToneCtor);
+    const stubGain = vi.spyOn(helpers, 'makeStubGain');
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    AudioEngine.reserveVoice('stub-bus-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    // The five send stubs start at 0; the one other stub is the bus.
+    expect(stubGain.mock.calls.filter(([value]) => value !== 0)).toEqual([[robotBusGain(0.8)]]);
+  });
+
+  it('the stub-fallback bus (composite construction throws) starts at robotBusGain too', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const helpers = await import('./audioEngine/toneHelpers');
+    const stubGain = vi.spyOn(helpers, 'makeStubGain');
+    vi.spyOn(AudioEngine, 'createCompositeVoice').mockImplementation(() => { throw new Error('boom'); });
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    expect(AudioEngine.reserveVoice('fallback-bus-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8)).toBe(false);
+
+    expect(stubGain.mock.calls.filter(([value]) => value !== 0)).toEqual([[robotBusGain(0.8)]]);
   });
 
   it('a note scheduled at masterVolume 0 still triggers at a real velocity — muting is the bus gain\'s job now, not a zeroed velocity', async () => {
@@ -1547,9 +1577,32 @@ describe('AudioEngine.updateRobotMasterVolume', () => {
 
     AudioEngine.updateRobotMasterVolume('volume-live-edit-robot', 0.2);
 
-    // Taper output for position 0.2, not 0.2 verbatim (see volumeTaper.test.ts for the curve's own
-    // dedicated tests) — this just confirms the live-update path applies it too, not only construction.
-    expect(busGainInstance.gain.value).toBe(volumePositionToGain(0.2));
+    // Taper output for position 0.2 times the headroom trim, not 0.2 verbatim (see volumeTaper.test.ts and
+    // headroom.test.ts) — this confirms the live-update path applies it too, not only construction.
+    expect(busGainInstance.gain.value).toBe(robotBusGain(0.2));
+  });
+
+  it('ramps to the trim alone at Volume 1 and to 0 at Volume 0, over the 50 ms de-click', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    AudioEngine.reserveVoice('volume-ramp-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.55);
+    const gainResults = (Tone.Gain as unknown as { mock: { results: { value: { gain: { value: number; rampTo?: unknown } } }[] } }).mock.results;
+    const busGainInstance = gainResults[gainResults.length - BUS_GAIN_FROM_END].value;
+    const rampTo = vi.fn();
+    busGainInstance.gain.rampTo = rampTo;
+
+    AudioEngine.updateRobotMasterVolume('volume-ramp-robot', 1);
+    AudioEngine.updateRobotMasterVolume('volume-ramp-robot', 0);
+
+    // 0.05 s is AudioEngine.ts's VOLUME_RAMP_SECONDS.
+    expect(rampTo.mock.calls).toEqual([
+      [HEADROOM_TRIM_GAIN, 0.05],
+      [0, 0.05],
+    ]);
+    expect(HEADROOM_TRIM_GAIN).toBeLessThan(1);
   });
 
   it('is a safe no-op (no throw) when the robot has never had a note scheduled yet', async () => {
@@ -2022,6 +2075,17 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
       const gainNode = lastInstance(Tone.Gain) ?? { gain: { value: 1 } };
       AudioEngine.setMasterVolume(0.5);
       expect(gainNode.gain.value).toBe(0.5);
+    });
+
+    // Output Headroom T6: the trim is on the robot buses only; the master slider keeps unity at full.
+    it('writes exactly 1 to the master gain at full, with no headroom trim', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const gainNode = lastInstance(Tone.Gain) ?? { gain: { value: 1 } };
+      AudioEngine.setMasterVolume(0.5);
+      AudioEngine.setMasterVolume(1);
+      expect(gainNode.gain.value).toBe(1);
     });
 
     it('clamps values above 1 to 1', async () => {

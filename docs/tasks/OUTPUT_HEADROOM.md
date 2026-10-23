@@ -260,12 +260,15 @@ docs/specs/OUTPUT_HEADROOM.md)".
 `robotBusGain(0.8)` and `updateRobotMasterVolume(id, 1)` ramps to `HEADROOM_TRIM_GAIN`; both fail on the bare taper.
 
 **Acceptance criteria:**
-- [ ] `reserveVoice` with `masterVolume: 0.8` (a non-default value, per the parity-fixture rule) constructs the bus
-  `Gain` at `robotBusGain(0.8)`, not `volumePositionToGain(0.8)`; the stub path (no `Gain` constructor) the same.
-- [ ] `updateRobotMasterVolume(id, 1)` ramps to `HEADROOM_TRIM_GAIN`; `(id, 0)` to 0; the ramp duration is
-  `VOLUME_RAMP_SECONDS` as before.
-- [ ] `setMasterVolume(1)` still writes `1` to the master gain (the master slider keeps unity); the mutation gate
-  kills a trim applied to the master gain and a site left on the bare taper.
+- [x] `reserveVoice` with `masterVolume: 0.8` (a non-default value, per the parity-fixture rule) constructs the bus
+  `Gain` at `robotBusGain(0.8)`, not `volumePositionToGain(0.8)`; the stub path (no `Gain` constructor) the same. —
+  both stub paths: no `Gain` constructor (`getToneCtor` spied) and the composite-failure fallback at `:894`; an
+  omitted Volume now starts the bus at `HEADROOM_TRIM_GAIN`, not 1 (the existing default case re-pinned).
+- [x] `updateRobotMasterVolume(id, 1)` ramps to `HEADROOM_TRIM_GAIN`; `(id, 0)` to 0; the ramp duration is
+  `VOLUME_RAMP_SECONDS` as before. — the existing 0.2 case re-pinned to `robotBusGain(0.2)`.
+- [x] `setMasterVolume(1)` still writes `1` to the master gain (the master slider keeps unity); the mutation gate
+  kills a trim applied to the master gain and a site left on the bare taper. — 5 of 5 killed (each of the three sites
+  on the bare taper, the ramp duration moved, a trim on the master gain). 6 RED first.
 
 **Verification:** `npx vitest run src/engine/AudioEngine.test.ts`; `npm run build:types`; `npm run lint`.
 **Dependencies:** T4. **Files:** `AudioEngine.ts`, `AudioEngine.test.ts`. **Scope:** S.
