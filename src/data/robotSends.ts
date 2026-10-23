@@ -20,6 +20,12 @@ export type SendRoomKey = 'grit' | 'shimmer' | 'double';
 /** The key AudioEngine.updateRobotSends takes for a send: the two fixed rooms by name, the three effect rooms by RoomKey.
  *  The engine speaks these; robots, screens, the store and the swell tick speak RobotSendField (spec assumption 3). */
 export type SendEngineKey = 'reverb' | 'delay' | SendRoomKey;
+
+/** Whether a send feeds one of the three effect rooms (each lit only while some robot feeds it), rather than the fixed
+ *  Reverb or Delay room. */
+export function isRoomSendKey(key: SendEngineKey): key is SendRoomKey {
+  return key !== 'reverb' && key !== 'delay';
+}
 /** The send's key in a share link's CompactRobotOverrideDiff (docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md). */
 export type SendShareCode = 'rs' | 'ds' | 'gr' | 'sm' | 'db';
 

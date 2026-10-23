@@ -11,6 +11,7 @@ import {
   ROBOT_SEND_BY_FIELD,
   ROBOT_SEND_FIELDS,
   engineKeyOf,
+  isRoomSendKey,
   robotSendLevels,
   type RobotSendField,
   type SendEngineKey,
@@ -120,6 +121,30 @@ describe('engineKeyOf', () => {
 
   it('engineKeyOf is exported (the absence check reads the real module)', () => {
     expect('engineKeyOf' in robotSendsModule).toBe(true);
+  });
+});
+
+// Review follow-up (2026-10-22): the engine branched on `key !== 'reverb' && key !== 'delay'` in two places (the send's
+// target and the feeder sets); this names that test once.
+describe('isRoomSendKey', () => {
+  it.each([
+    ['reverb', false],
+    ['delay', false],
+    ['grit', true],
+    ['shimmer', true],
+    ['double', true],
+  ] as const)('%s feeds an effect room: %s', (key, expected) => {
+    expect(isRoomSendKey(key)).toBe(expected);
+  });
+
+  it('is true for exactly the three effect-room keys, in table order', () => {
+    expect(ROBOT_SENDS.map((spec) => spec.engineKey).filter(isRoomSendKey)).toEqual(['grit', 'shimmer', 'double']);
+  });
+
+  it('narrows to SendRoomKey (a room key can index a per-room record without a cast)', () => {
+    const perRoom: Record<SendRoomKey, number> = { grit: 1, shimmer: 2, double: 3 };
+    const key: SendEngineKey = 'shimmer';
+    expect(isRoomSendKey(key) ? perRoom[key] : undefined).toBe(2);
   });
 });
 

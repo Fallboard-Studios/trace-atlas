@@ -11,7 +11,7 @@ import { getActiveLocaleId } from '../utils/localeHelpers';
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
-import { ROBOT_SENDS, robotSendLevels, type SendEngineKey } from '../data/robotSends';
+import { ROBOT_SENDS, isRoomSendKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
@@ -210,9 +210,8 @@ function buildSendGains(GainCtor: (new (...args: unknown[]) => Tone.Gain) | unde
 /** The room a send feeds: the Reverb and Delay rooms by their getters, an effect room by its in. Null while the room is
  *  not built (headless, or before the FX chain), and the send then gets no downstream edge. */
 function sendTargetOf(key: SendEngineKey): Tone.ToneAudioNode | null {
-  if (key === 'reverb') return getGlobalReverbRoom();
-  if (key === 'delay') return getGlobalDelayRoom();
-  return getGlobalRoomInput(key);
+  if (isRoomSendKey(key)) return getGlobalRoomInput(key);
+  return key === 'reverb' ? getGlobalReverbRoom() : getGlobalDelayRoom();
 }
 
 /**
@@ -1161,7 +1160,7 @@ export const AudioEngine = {
         const level = clampSend(requested);
         rampOrSet(entry.sends[key].gain as unknown as RampableParam, level, SEND_RAMP_SECONDS);
         // Reverb and Delay are fixed rooms with no feeder set; the three effect rooms light only while someone feeds them.
-        if (key !== 'reverb' && key !== 'delay') setRoomFeeder(key, robotId, level > 0);
+        if (isRoomSendKey(key)) setRoomFeeder(key, robotId, level > 0);
       }
     } catch (err) {
       devWarn('[AudioEngine] updateRobotSends failed', err);
