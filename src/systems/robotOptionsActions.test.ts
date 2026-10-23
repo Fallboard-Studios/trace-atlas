@@ -9,6 +9,7 @@ import {
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
   applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyReverbSend, applyDelaySend, applyReverbSendValue, applyDelaySendValue, applyPortamento,
   applyGritSend, applyShimmerSend, applyDoubleSend, applyGritSendValue, applyShimmerSendValue, applyDoubleSendValue, applyBusFilter,
+  applySend, applySendValue,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -204,6 +205,23 @@ describe('robotOptionsActions', () => {
   // Every send field at a distinct non-default value, so a write to the wrong field cannot pass by coincidence.
   const STORED_SENDS = { reverbSend: 0.2, delaySend: 0.1, gritSend: 0.3, shimmerSend: 0.4, doubleSend: 0.6 } as const;
   const SEND_FIELDS = Object.keys(STORED_SENDS) as (keyof typeof STORED_SENDS)[];
+  // Robot Send Table T6 (docs/specs/ROBOT_SEND_TABLE.md §1.3): the keyed pair runs through the same cases as the ten,
+  // one row per field. The engine keys are written out here, not read from the table, so a wrong mapping fails.
+  const SEND_ENGINE_KEYS = [
+    ['reverbSend', 'reverb'], ['delaySend', 'delay'], ['gritSend', 'grit'], ['shimmerSend', 'shimmer'], ['doubleSend', 'double'],
+  ] as const;
+  const KEYED_SEND_VALUE_ROWS = SEND_ENGINE_KEYS.map(([field, engineKey]) => ({
+    name: `applySendValue(${field})`,
+    apply: (robot: Robot, locale: string, fraction: number) => applySendValue(robot, locale, field, fraction),
+    field,
+    engineKey,
+  }));
+  const KEYED_SEND_ROWS = SEND_ENGINE_KEYS.map(([field, engineKey]) => ({
+    name: `applySend(${field})`,
+    apply: (robot: Robot, locale: string, pct: number) => applySend(robot, locale, field, pct),
+    field,
+    engineKey,
+  }));
 
   // docs/tasks/ROBOT_SENDS.md Task 12 - the stored-fraction form of the send actions (the three new rooms'
   // from docs/tasks/ROBOT_EFFECT_SENDS.md Task 9). The swell tick writes through these: a display percent
@@ -214,6 +232,7 @@ describe('robotOptionsActions', () => {
     { name: 'applyGritSendValue', apply: applyGritSendValue, field: 'gritSend', engineKey: 'grit' },
     { name: 'applyShimmerSendValue', apply: applyShimmerSendValue, field: 'shimmerSend', engineKey: 'shimmer' },
     { name: 'applyDoubleSendValue', apply: applyDoubleSendValue, field: 'doubleSend', engineKey: 'double' },
+    ...KEYED_SEND_VALUE_ROWS,
   ] as const)('$name', ({ apply, field, engineKey }) => {
     function storedRobot(): Robot {
       const robot = makeRobot({ ...STORED_SENDS });
@@ -276,6 +295,7 @@ describe('robotOptionsActions', () => {
     { name: 'applyGritSend', apply: applyGritSend, field: 'gritSend', engineKey: 'grit' },
     { name: 'applyShimmerSend', apply: applyShimmerSend, field: 'shimmerSend', engineKey: 'shimmer' },
     { name: 'applyDoubleSend', apply: applyDoubleSend, field: 'doubleSend', engineKey: 'double' },
+    ...KEYED_SEND_ROWS,
   ] as const)('$name', ({ apply, field, engineKey }) => {
     const others = SEND_FIELDS.filter((f) => f !== field);
     function storedRobot(overrides: Partial<Robot> = {}): Robot {
@@ -375,6 +395,19 @@ describe('robotOptionsActions', () => {
       expect(() => apply(robot, localeId, 50)).not.toThrow();
       expect(stored(robot.id)?.[field]).toBe(0.5);
     });
+  });
+
+  it.each(SEND_ENGINE_KEYS)('applySend and applySendValue on %s never cancel a swell (the caller does; the tick writes through them)', async (field) => {
+    const swells = await import('./audioSwells');
+    const cancelSpy = vi.spyOn(swells, 'cancelSwellForRobotAttribute');
+    const robot = makeRobot({ ...STORED_SENDS });
+    useLocaleStore.getState().addRobot(localeId, robot);
+    vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+    applySend(robot, localeId, field, 40);
+    applySendValue(robot, localeId, field, 0.25);
+
+    expect(cancelSpy).not.toHaveBeenCalled();
   });
 
   it('robotOptionsActions.ts never imports audioSwells (the swell module imports the send actions, so a back-import would be a cycle)', () => {

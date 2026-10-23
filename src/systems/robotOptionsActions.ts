@@ -16,6 +16,7 @@ import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
+import { engineKeyOf, type RobotSendField } from '@/data/robotSends';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
@@ -113,6 +114,19 @@ export function applyDoubleSendValue(robot: Robot, localeId: string, fraction: n
   const value = clampSend(fraction);
   useLocaleStore.getState().updateRobot(localeId, robot.id, { doubleSend: value });
   AudioEngine.updateRobotSends(robot.id, { double: value });
+}
+
+// One pair for the five sends, keyed by field (docs/specs/ROBOT_SEND_TABLE.md §1.3): the display percent and the
+// stored-fraction form above, with the same NaN rule, clamp and caller-side swell cancel.
+export function applySend(robot: Robot, localeId: string, field: RobotSendField, pct: number): void {
+  applySendValue(robot, localeId, field, pct / SEND_DISPLAY_SCALE);
+}
+
+export function applySendValue(robot: Robot, localeId: string, field: RobotSendField, fraction: number): void {
+  if (Number.isNaN(fraction)) return;
+  const value = clampSend(fraction);
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: value });
+  AudioEngine.updateRobotSends(robot.id, { [engineKeyOf(field)]: value });
 }
 
 // Auto off: hold the SOUND where the robot is now — the engine's live auto value becomes `pan` in the same
