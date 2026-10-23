@@ -114,6 +114,7 @@ describe('the named Robot Effect Sends symbols are declared where the spec says 
     // The reserve-site scan's row went with the scan at Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md assumption 10):
     // every prime is robotSendLevels(robot), and robotSendsParity.test.ts pins what each site hands the engine.
     ['every engine reservation site primes with robotSendLevels', 'src/engine/AudioEngine.ts', /updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)[\s\S]*updateRobotSends\(robotId, robotSendLevels\(robot\)\)/],
+    ['both spawnSystem reservation sites prime with robotSendLevels (Robot Send Table T5)', 'src/systems/spawnSystem.ts', /updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)[\s\S]*updateRobotSends\(robot\.id, robotSendLevels\(robot\)\)/],
   ];
 
   it.each(declared)('%s', (_description, file, pattern) => {
