@@ -7,6 +7,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
+import { isAudioContextRunning } from '../engine/lfoShared';
 import {
   generateGlobalAudioSettings,
   generateLfoBankSettings,
@@ -195,6 +196,16 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: 
  * starts — lfoEngine.setBankRate just records the value until the lanes are primed, and the delay
  * setter no-ops without a node.
  */
+/** One whole lane to the bank engine, resolved for it (Hz-only, `sync` stripped). Safe before audio starts:
+ *  each setter only records the value until the lanes are primed. */
+function pushLaneToEngine(lane: LfoLaneId, settings: BankLfoSettings, bpm: number): void {
+  const engineLane = resolveLaneForEngine(settings, bpm);
+  lfoEngine.setBankShape(lane, engineLane.shape);
+  lfoEngine.setBankRate(lane, engineLane.rate);
+  lfoEngine.setBankRateDrift(lane, engineLane.rateDrift);
+  lfoEngine.setBankDepthDrift(lane, engineLane.depthDrift);
+}
+
 function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank' | 'globalAudio'>): void {
   for (const lane of LFO_LANE_IDS) {
     const settings = state.lfoBank[lane];
@@ -648,11 +659,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // Same defense-in-depth as setLfoBank above.
     if (!settings) return;
     set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: settings } }));
-    const engineLane = resolveLaneForEngine(settings, get().bpm);
-    lfoEngine.setBankShape(lane, engineLane.shape);
-    lfoEngine.setBankRate(lane, engineLane.rate);
-    lfoEngine.setBankRateDrift(lane, engineLane.rateDrift);
-    lfoEngine.setBankDepthDrift(lane, engineLane.depthDrift);
+    pushLaneToEngine(lane, settings, get().bpm);
   },
 
   setLfoBankLaneSyncMode: (lane, synced) => {
@@ -711,6 +718,17 @@ function syncGlobalAudioToCurrentAttenuationStyle(): void {
   useAudioStore.getState().regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
+  // The two regenerates are data-only (they also run at module load, before any gesture), so a switch on a
+  // powered-on engine pushes the new bank and links here (roadmap 17.2.8): every lane, then every global link.
+  // Last on purpose: the bpm reseed above re-pushed the OLD bank's synced lanes, and linkTarget's swing reads
+  // each target's current value, which the globalAudio push above has just set.
+  if (isAudioContextRunning()) pushLfoBankAndLinksToEngine();
+}
+
+function pushLfoBankAndLinksToEngine(): void {
+  const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
+  for (const lane of LFO_LANE_IDS) pushLaneToEngine(lane, lfoBank[lane], bpm);
+  for (const target of GLOBAL_LFO_TARGET_IDS) lfoEngine.linkTarget(target, globalLfoLinks[target]);
 }
 
 syncGlobalAudioToCurrentAttenuationStyle();
