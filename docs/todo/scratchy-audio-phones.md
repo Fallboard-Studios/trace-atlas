@@ -1320,3 +1320,47 @@ per note and more memory) and an unnamed 0.8 MB/min heap growth that survives th
 phone with no headroom and neither can be settled here. Crawford's calls: whether to carry the one-line disconnect as a
 dependency patch or an upstream Tone PR (a spec either way, since it changes how notes are played); whether to name the
 heap growth before the sitting; and whether the sitting takes the patched build beside stock.
+
+## Backlog 27, desktop step 2b — naming the heap growth (2026-10-23, same sitting)
+
+Crawford's decisions on the three calls above: the leak fix goes as a dependency patch (spec:
+[docs/specs/OSCILLATOR_LEAK_FIX.md](../specs/OSCILLATOR_LEAK_FIX.md)); name the heap growth if it could improve
+performance; the sitting after both.
+
+**Method.** Against the dev server (unminified names; `npm run dev` on :5174), D1 at Light, Chrome's **sampling heap
+profiler** started after the warm-up (`HeapProfiler.startSampling`, 8 KB interval, collected objects excluded) so only
+allocations made during the run are sampled, read three times at 120 s intervals after a forced GC each (scratch probe
+`probe-heap-growth.mjs`). A frame whose live bytes grow across the three readings is growth; one that stays flat is
+steady-state churn. Then one direct read of Tone's context over two minutes (`probe-timeouts.mjs`, importing the
+app's own Tone module instance by its pre-bundled URL).
+
+**Heap after GC:** 40.0 MB at the start, 52.7 → 56.1 → 60.9 MB at 2, 4 and 6 minutes (the dev build carries React's
+debug bookkeeping, so about three times the production slope).
+
+**What grows, by allocating frame (120 s → 240 s → 360 s):**
+- The whole growing set hangs off Tone's Transport tick (`_processTick` → `invoke` → our `scheduleRepeat` callback →
+  `scheduleNote` → `triggerWithCap` → `compositeVoice.triggerAttackRelease` → Tone `Synth.triggerAttackRelease`), 4.8 →
+  6.2 → 7.9 MB: per-note allocations that stay live.
+- Inside it, **`Param.setValueAtTime` (Tone) 0.9 → 1.6 → 2.4 MB**: every note writes automation events into the frequency
+  Param's and the envelope Signal's event Timelines. `Param` builds its Timeline with `memory 1000`
+  (`core/context/Param.js`), and `Timeline.add` trims to the newest 1 000 events, so **each Param retains up to 1 000
+  events, and the growth is bounded**: it stops once every sounding layer's params have written 1 000 events (a few
+  hundred notes per layer for the envelope, 1 000 for the frequency), which on D1 is tens of minutes. About 100 bytes an
+  event over some 36 layer synths with two to three automated params each puts the ceiling in the 7–11 MB range, which
+  is the size of the 15-minute production climb (+12 MB on both worlds: D5's robots play fewer notes but every layer
+  still writes events).
+- **The leaked `OscillatorNode` wrappers** (standardized-audio-context's `createOscillator`), 0.46 MB over the run:
+  the oscillator leak's JS-side footprint, gone with the patch.
+- `scheduleVoiceRelease`'s `context.setTimeout` showed 2.1 MB of apparent growth; the direct read says otherwise: the
+  context's timeout list holds 7–15 entries throughout (none past due, none NaN), while its ids advance about 24 a
+  second (each note on a sounding layer re-schedules its stop). Misattributed by the sampler; not a leak.
+- React's render output is the largest live set (11 MB) but flat across the readings: the latest render's tree, steady
+  state. In production `jsxDEV` does not exist, and the dev build's React debug stacks explain the dev slope.
+- Transport events hold at 8 one-shots and 4 repeats.
+
+**Reading, against Crawford's condition ("if it could improve performance").** The world-independent heap growth is
+Tone's per-Param automation history, capped at 1 000 events per Param: it saturates rather than runs away, and a
+1 000-entry array per Param costs the main thread nothing measurable per note. Nothing here to fix for performance;
+the one thing that did grow without bound was the oscillator leak, which the step 2 patch closes. **Prediction, not yet
+observed:** a production run past about 30 minutes on D1 should show the heap flattening. **Closed as a cause**; the
+prediction is the one loose end, and the long run that checks it can ride along with any later sitting.

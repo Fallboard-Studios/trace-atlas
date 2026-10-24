@@ -650,6 +650,15 @@ minutes; two things accumulate that only the phone can price. Open for Crawford:
 dependency patch or an upstream Tone PR (a spec either way); name the heap growth (a heap-snapshot diff) before the
 sitting or not; take the patched build to the sitting beside stock.
 
+**Update 2026-10-23, later still (Crawford's calls, and the heap growth named; [scratchy-audio-phones.md](scratchy-audio-phones.md)
+"step 2b").** Decisions: the leak fix goes as a dependency patch, spec at
+[docs/specs/OSCILLATOR_LEAK_FIX.md](../specs/OSCILLATOR_LEAK_FIX.md); the heap growth was named; the Pixel sitting comes
+after both. **The heap growth is Tone's per-Param automation history** (`Param.setValueAtTime` on every note, each
+Param's Timeline capped at its newest 1 000 events), so it is bounded and saturates after tens of minutes; a
+sampling-profiler read on the dev server put it, the leaked oscillator wrappers and dev-only React bookkeeping at the
+top, and a direct read showed the context's timeout list flat. Closed as a cause; the one loose end is the prediction
+that a 30-minute production run flattens the heap.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
