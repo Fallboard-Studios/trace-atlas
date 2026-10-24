@@ -35,6 +35,7 @@ import {
   parseBudgetFromHud,
   parseCoordinatesFromHud,
   parseHeapMb,
+  parseLagFromHud,
   parseTransportEventsFromHud,
   parseWorldList,
   parseWorldSpec,
@@ -166,6 +167,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
         nodes: nodes.live(contextId),
         heapMb: parseHeapMb(metrics),
         events: parseTransportEventsFromHud(hudText),
+        lagMs: parseLagFromHud(hudText)?.lagMs ?? null,
       });
     }
 
@@ -209,6 +211,7 @@ function report(run) {
     nodes: fixed(b.nodes, 0),
     'heap (MB)': fixed(b.heapMb, 1),
     events: fixed(b.events, 0),
+    'max lag': b.maxLagMs === null ? '-' : `${b.maxLagMs}ms`,
   })));
   const { summary, trends } = run;
   console.log(

@@ -103,7 +103,8 @@ const usable = (value) => typeof value === 'number' && Number.isFinite(value);
  * the readings the overlay supplied in the bucket, or null when there were none; `sounding` and `maxSounding`
  * are the mean and the maximum of the budget line's sounding-robot count (the maximum is what shows a cap held).
  * The long-run columns (backlog 27) are means likewise: `nodes` (live AudioNodes of the polled context), `heapMb`
- * (the renderer's used JS heap) and `events` (pending Transport events); a column no sample carried is null.
+ * (the renderer's used JS heap) and `events` (pending Transport events); `maxLagMs` is the largest main-thread lag the
+ * overlay's sampler reported in the bucket (a stall is a maximum, not a mean). A column no sample carried is null.
  */
 const meanOrNull = (group, key) => {
   const values = group.map((s) => s[key]).filter(usable);
@@ -141,6 +142,7 @@ export function bucketSamples(samples, bucketSec) {
         nodes: meanOrNull(group, 'nodes'),
         heapMb: meanOrNull(group, 'heapMb'),
         events: meanOrNull(group, 'events'),
+        maxLagMs: (() => { const lags = group.map((s) => s.lagMs).filter(usable); return lags.length ? Math.max(...lags) : null; })(),
       };
     });
 }
@@ -236,6 +238,12 @@ export function parseBudgetFromHud(text) {
 export function parseTransportEventsFromHud(text) {
   const match = /transport \S+\s+events (\d+)/.exec(text ?? '');
   return match ? Number(match[1]) : null;
+}
+
+/** Read the main-thread lag meter off the overlay's fps line (`fps 60   lag 2ms (max 363ms)`), or null when absent or dashes. */
+export function parseLagFromHud(text) {
+  const match = /lag (\d+)ms \(max (\d+)ms\)/.exec(text ?? '');
+  return match ? { lagMs: Number(match[1]), maxLagMs: Number(match[2]) } : null;
 }
 
 /** The renderer's used JS heap in megabytes from a `Performance.getMetrics` result, or null when it is not there. */

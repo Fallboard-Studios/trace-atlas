@@ -14,6 +14,7 @@ import {
   parseBudgetFromHud,
   parseCoordinatesFromHud,
   parseHeapMb,
+  parseLagFromHud,
   parseTransportEventsFromHud,
   parseWorldList,
   parseWorldSpec,
@@ -477,6 +478,37 @@ describe('parseTransportEventsFromHud', () => {
     expect(parseTransportEventsFromHud('transport started   events -')).toBeNull();
     expect(parseTransportEventsFromHud('')).toBeNull();
     expect(parseTransportEventsFromHud(null)).toBeNull();
+  });
+});
+
+describe('parseLagFromHud', () => {
+  it('reads the main-thread lag and its running maximum off the fps line', () => {
+    expect(parseLagFromHud('fps 60   lag 2ms (max 363ms)')).toEqual({ lagMs: 2, maxLagMs: 363 });
+  });
+
+  it('still finds it when the overlay text has no newlines', () => {
+    expect(parseLagFromHud('lfo drift offfps 61   lag 0ms (max 167ms)out -10.4dB')).toEqual({ lagMs: 0, maxLagMs: 167 });
+  });
+
+  it('returns null when the line is absent or shows dashes', () => {
+    expect(parseLagFromHud('fps -   lag - (max -)')).toBeNull();
+    expect(parseLagFromHud('')).toBeNull();
+    expect(parseLagFromHud(null)).toBeNull();
+  });
+});
+
+describe('bucketSamples — main-thread lag column', () => {
+  it('keeps the largest lag seen in the bucket (a stall is a maximum, not a mean)', () => {
+    const samples = [
+      { t: 0, capacity: 0.3, intervalMs: 10, audible: null, lagMs: 2 },
+      { t: 1, capacity: 0.3, intervalMs: 10, audible: null, lagMs: 140 },
+      { t: 2, capacity: 0.3, intervalMs: 10, audible: null, lagMs: 5 },
+    ];
+    expect(bucketSamples(samples, 15)[0].maxLagMs).toBe(140);
+  });
+
+  it('is null when no sample in the bucket carried a reading', () => {
+    expect(bucketSamples(series(15, () => 0.3), 15)[0].maxLagMs).toBeNull();
   });
 });
 
