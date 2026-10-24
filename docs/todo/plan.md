@@ -19,16 +19,11 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
   Light-tier clicks and the late collapse** — desktop first: D1 against D5 at Light on `perf:audio`, then the 15-minute
   long run; the Incognito tab and the cool-phone sine ramp drop to the sitting, and only if the collapse is still
   unexplained.
-- Backlog [29](backlog.md#29-audio-a-connect-sometimes-loses-a-render-quantum-main-included) **A connect loses a render
-  quantum** — the headed-Chrome probe on a real output device, then the bare page without Tone; by ear on the Pixel in
-  the sitting.
-- Backlog [28](backlog.md#28-audio-eq3-and-the-two-filters-stay-in-the-chain-at-neutral) **EQ3 and the filters at
-  neutral** — closes itself if nothing in 27 or 29 points at them.
 - Roadmap [53](roadmap.md#53-per-mover-compositor-layers) **Checkpoints B and C, Safari** — the desktop look list, never
   signed off; same verify-don't-build mood.
 - Roadmap [17.2.8](roadmap.md#1728-performance-lfo-bank) **Style switch re-primes the LFO bank** — one TDD task, the
   per-lane push the stub describes.
-- **The phone sitting**, last — 29's lighting by ear, and whatever 27 still owes.
+- **The phone sitting**, last — whatever 27 still owes.
 
 ## Stage 2 — The powered-down state
 

@@ -1367,7 +1367,7 @@ prediction is the one loose end, and the long run that checks it can ride along 
 
 ## Backlog 29 — the lost render quantum is the recorder's clock, not the audio (2026-10-24)
 
-[Backlog 29](backlog.md#29-audio-a-connect-sometimes-loses-a-render-quantum-main-included), "How to start": T19's
+[Backlog 29](archive/backlog-archive.md#29-audio-a-connect-sometimes-loses-a-render-quantum-main-included), "How to start": T19's
 crossing probe in headed Chrome on a real output device. **Build:** the dev server of `main` at `4e0cb174` (after the
 Oscillator Leak Fix merge, PR #577) on :5199. **Probe:** T19's `probe-crossing.mjs`, copied to this session's scratchpad
 (`b29/`) and extended: headed by default (`HEADLESS=1` for T19's condition, interleaved in the same sitting), plus the
