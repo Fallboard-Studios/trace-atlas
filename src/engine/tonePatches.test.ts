@@ -81,7 +81,7 @@ describe('patchOscillatorEndedDisconnect', () => {
     expect(devWarn).not.toHaveBeenCalled();
   });
 
-  it('on onended, disconnects frequency then detune from the node params, then runs the original onended', () => {
+  it('on onended, runs the original onended, then disconnects frequency then detune from the node params', () => {
     const calls: string[] = [];
     const originalOnended = vi.fn((...args: unknown[]) =>
       calls.push(`onended(${String(args[0])})`)
@@ -95,7 +95,7 @@ describe('patchOscillatorEndedDisconnect', () => {
     expect(calls).toEqual([]); // nothing disconnects at start: the note is still to sound
     node.onended?.('the-node');
 
-    expect(calls).toEqual(['frequency.disconnect', 'detune.disconnect', 'onended(the-node)']);
+    expect(calls).toEqual(['onended(the-node)', 'frequency.disconnect', 'detune.disconnect']);
     expect(oscillator.frequency.disconnect).toHaveBeenCalledTimes(1);
     expect(oscillator.frequency.disconnect).toHaveBeenCalledWith(node.frequency);
     expect(oscillator.detune.disconnect).toHaveBeenCalledTimes(1);
@@ -154,6 +154,65 @@ describe('patchOscillatorEndedDisconnect', () => {
       expect(originalOnended).toHaveBeenCalledWith('the-node');
     }
   );
+
+  it('lets the detune disconnect run when the frequency disconnect throws', () => {
+    const node = makeNode(vi.fn());
+    const { prototype } = makePrototype([node]);
+    patchOscillatorEndedDisconnect(prototype);
+    const oscillator = makeOscillator(prototype);
+    oscillator.frequency.disconnect.mockImplementation(() => {
+      throw new Error('Not connected to destination node');
+    });
+
+    oscillator._start(0);
+    node.onended?.();
+
+    expect(oscillator.detune.disconnect).toHaveBeenCalledTimes(1);
+    expect(oscillator.detune.disconnect).toHaveBeenCalledWith(node.detune);
+  });
+
+  it('on a Tone whose own onended already disconnects both params (15.3.11+), nothing throws and Tone finishes', () => {
+    // standardized-audio-context throws when a source disconnects a param it is no longer connected to.
+    const disconnected = new Set<unknown>();
+    const disconnectOnce = (param: unknown) => {
+      if (disconnected.has(param)) throw new Error('Not connected to destination node');
+      disconnected.add(param);
+    };
+    const toneSteps: string[] = [];
+    // Tone's fixed `_start` installs this as the node's `onended`: `_cleanUpConnections`, then `onstop`.
+    const fixedToneOnended = () => {
+      oscillator.frequency.disconnect(node.frequency);
+      oscillator.detune.disconnect(node.detune);
+      toneSteps.push('onstop');
+    };
+    const node = makeNode(fixedToneOnended);
+    const { prototype } = makePrototype([node]);
+    patchOscillatorEndedDisconnect(prototype);
+    const oscillator = makeOscillator(prototype);
+    oscillator.frequency.disconnect.mockImplementation(disconnectOnce);
+    oscillator.detune.disconnect.mockImplementation(disconnectOnce);
+
+    oscillator._start(0);
+
+    expect(() => node.onended?.('the-node')).not.toThrow();
+    expect(toneSteps).toEqual(['onstop']);
+  });
+
+  it("still disconnects when the original onended throws, and lets Tone's error through", () => {
+    const toneError = new Error('thrown by an onstop handler');
+    const node = makeNode(() => {
+      throw toneError;
+    });
+    const { prototype } = makePrototype([node]);
+    patchOscillatorEndedDisconnect(prototype);
+    const oscillator = makeOscillator(prototype);
+
+    oscillator._start(0);
+
+    expect(() => node.onended?.()).toThrow(toneError);
+    expect(oscillator.frequency.disconnect).toHaveBeenCalledWith(node.frequency);
+    expect(oscillator.detune.disconnect).toHaveBeenCalledWith(node.detune);
+  });
 
   it('is idempotent: a second call returns false and leaves the first wrap in place', () => {
     const originalOnended = vi.fn();

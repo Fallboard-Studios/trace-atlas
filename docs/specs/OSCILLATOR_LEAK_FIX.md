@@ -89,8 +89,12 @@ Route (B) replaces the first three with `patches/tone+15.1.22.patch`, a `postins
 - **Applied once, before the first Oscillator start.** `audioContextSetup.ts` is the only call site; the function is
   idempotent (a marker on the prototype), so a second call changes nothing.
 - **Feature-detected, never assumed.** If `prototype._start` is not a function, or `_oscillator` is not set after the
-  original runs, the patch is a `devWarn`ed no-op. Both disconnects sit in one `try`; a throw there is swallowed (the
-  leak stays, the sound does not change). Tone's own `onended` handler (`() => this.onstop(this)`) runs after ours.
+  original runs, the patch is a `devWarn`ed no-op. ~~Both disconnects sit in one `try`; a throw there is swallowed (the
+  leak stays, the sound does not change). Tone's own `onended` handler (`() => this.onstop(this)`) runs after ours.~~
+  **Superseded 2026-10-23 (plan T6, Open Question 4 option (b)):** Tone's own `onended` handler runs **first**, in a
+  `try` whose `finally` runs the two disconnects, each in its own swallowing `try`; an error from Tone's handler still
+  propagates. Ours-first threw out of Tone's handler on every note on Tone 15.3.11+, whose handler disconnects the same
+  two params (upstream's fix); this order makes ours the swallowed repeat there.
 - **No other Tone internals.** `_start` and `_oscillator` are the two private names touched; the test names them so a
   Tone upgrade that renames them fails loudly in CI rather than silently in the browser.
 - **CLAUDE.md rules stand:** no Tone construction in components; `AudioEngine` remains the only musical scheduler; the
@@ -126,7 +130,8 @@ On a stub prototype whose `_start` sets `this._oscillator = { frequency, detune,
 
 1. After the patch, calling `_start(time)` runs the original with the same `this` and `time`.
 2. Invoking the node's `onended` calls `frequency.disconnect(node.frequency)` and `detune.disconnect(node.detune)`
-   once each, then the `onended` the original installed, in that order.
+   once each, then the `onended` the original installed, in that order. *(Reversed by plan T6, 2026-10-23: the
+   original `onended`, then the two disconnects.)*
 3. A `disconnect` that throws is swallowed; the original `onended` still runs.
 4. A second `patchOscillatorEndedDisconnect(prototype)` leaves `_start` as it was after the first (idempotent; returns
    false).
@@ -171,6 +176,7 @@ stock, per Crawford's decision of 2026-10-23.
    costs an hour and would retire the patch one day. Recommendation: yes, after T3, as its own small task.
    **Moot, 2026-10-23 (plan T5):** upstream already has it, [#1379](https://github.com/Tonejs/Tone.js/issues/1379),
    fixed by [#1393](https://github.com/Tonejs/Tone.js/pull/1393) in Tone 15.3.11 (npm `next`; `latest` is still
-   15.1.22). On that Tone this wrapper throws on every note, so the upgrade removes it: the plan's Open Question 4.
+   15.1.22). On that Tone the wrapper as first built threw on every note; plan T6 reorders it so it is safe there (the
+   plan's Open Question 4, option (b)), and the upgrade still removes it.
 3. **Number.** A backlog item (the fix is a few dozen lines) or a roadmap phase (it changes a dependency's behaviour).
    Recommendation: backlog, next free number, with this spec linked.

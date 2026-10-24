@@ -116,7 +116,8 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Acceptance criteria:**
   - [x] After patching, `_start(time)` runs the original with the same `this` and `time`, and returns its value.
   - [x] Firing the node's `onended(arg)` calls `frequency.disconnect(node.frequency)` once, `detune.disconnect(node.detune)`
-        once, then the original `onended(arg)`, in that order (a call-order array in the test).
+        once, then the original `onended(arg)`, in that order (a call-order array in the test). *(Order reversed by
+        Task 6: the original `onended` first.)*
   - [x] A `disconnect` that throws is swallowed; the original `onended` still runs; nothing propagates.
   - [x] A second `patchOscillatorEndedDisconnect(prototype)` returns `false` and leaves `_start` the same function as
         after the first call (no double wrap: one `onended` chain, disconnects still called once).
@@ -284,6 +285,57 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
   **Estimated scope:** XS (one doc)
 
+---
+
+### Phase 4: Safe on a fixed Tone (Open Question 4, option (b), Crawford 2026-10-23)
+
+- [x] **Task 6: `src/engine/tonePatches.ts` — Tone's `onended` first, then the disconnects, each swallowing** *(Built 2026-10-23.)*
+
+  **Description:** T5 found that on Tone 15.3.11 and later (upstream's fix, #1393) the wrapper throws on every note:
+  its disconnects run first, Tone's `_cleanUpConnections` repeats them, and the repeat throws out of Tone's `onended`
+  before `onstop` and dispose. Reverse the order: the wrapper's `onended` runs Tone's handler first, inside a `try`
+  whose `finally` runs the two disconnects, each in its own swallowing `try`. On 15.1.22 the disconnects still happen
+  (Tone's handler does not touch them); on a fixed Tone, Tone disconnects and ours are the swallowed repeats. An error
+  from Tone's own handler still propagates, after the disconnects, so the patch hides nothing of Tone's. This
+  supersedes T1's order criterion (disconnects, then Tone's `onended`). Header comment, AUDIO_SYSTEM.md, the spec's
+  mechanism lines and backlog 32 follow the new order.
+
+  **Proof:** RED test — `src/engine/tonePatches.test.ts`: the order case rewritten and three cases added, failing
+  before the change.
+
+  **Acceptance criteria:**
+  - [x] Firing `onended(arg)` calls the original `onended(arg)`, then `frequency.disconnect(node.frequency)`, then
+        `detune.disconnect(node.detune)`, each once (the order array, reversed from T1).
+  - [x] A stub "fixed Tone" whose `onended` disconnects both params itself, on Signals that throw when asked to
+        disconnect a param a second time (standardized-audio-context's `Not connected to destination node`): firing
+        `onended` does not throw, and Tone's handler runs to its end.
+  - [x] A `frequency` disconnect that throws still lets the `detune` disconnect run (separate `try`s).
+  - [x] An original `onended` that throws: both disconnects still run, and that error propagates unchanged. *(Passes
+        on the old code too, which disconnected first; it guards the new `finally`, proven by the mutation below.)*
+  - [x] The existing cases (swallowing, idempotence, guards, null `_oscillator`) pass unchanged. *(One
+        `audioContextSetup.test.ts` case pinned the old order too; its expected array and title were reversed with it.)*
+
+  **Verification:**
+  - [x] `npx vitest run src/engine/tonePatches.test.ts src/engine/audioContextSetup.test.ts` passes (RED first: 3 of
+        18 failed before the change).
+  - [x] Mutation check: disconnects back before Tone's handler → the order and fixed-Tone cases fail; one shared
+        `try` → the detune case fails; `finally` dropped → the throwing-handler case fails. *(Each mutant killed by
+        exactly those cases.)*
+  - [x] The scratch repro with the real module bundled: Tone 15.1.22 retains no oscillator and fires `onstop` on
+        every note; Tone 15.5.61 throws nothing and fires `onstop` on every note. *(`esbuild` bundle of
+        `tonePatches.ts`; 120 notes each: 0 retained, 0 exceptions, 120 of 120 `onstop` on both.)*
+  - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. *(12 038 tests; bundle
+        `index-o4Xe88a5.js`.)* One D1-at-Light `perf:audio` run on that bundle (240 s, :4189, pin check passed,
+        orphans 0): `Oscillator +23, Gain +30`, nodes +49, mean 0.501, peak window 0.555, max lag 9–24 ms, as T3's
+        patched rounds read.
+
+  **Dependencies:** Task 5's finding.
+
+  **Files:** `src/engine/tonePatches.ts`, `src/engine/tonePatches.test.ts`, `docs/AUDIO_SYSTEM.md`,
+  `docs/specs/OSCILLATOR_LEAK_FIX.md`, `docs/todo/backlog.md`, this plan
+
+  **Estimated scope:** S (one module, its test, doc lines)
+
 ### Checkpoint: Complete
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. *(2026-10-23 at `ddd6c2b9`:
       327 files, 12 035 tests green; lint 0 errors, 4 existing warnings; bundle `index-BJ-YFaEE.js`, T3's.)*
@@ -291,14 +343,15 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
       Crawford's acceptance at Checkpoint B. The reads of T0, T4 and T5 are Crawford's.)*
 - [x] Docs reflect the shipped names, spot-checked against source.
 - [x] Crawford's listen recorded at Checkpoint B, or flagged here.
-- [ ] Ready for Crawford's PR, once Open Question 4 is answered. The Pixel sitting of plan.md Stage 1 carries this build beside stock (Crawford's decision
+- [x] Ready for Crawford's PR. *(Open Question 4 answered and built as Task 6, 2026-10-23; suite, types, lint, build
+      clean again after it. Crawford's reads of T0, T4, T5 and T6's doc lines still to come.)* The Pixel sitting of plan.md Stage 1 carries this build beside stock (Crawford's decision
       of 2026-10-23); that sitting is Stage 1's, not this plan's.
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| A Tone upgrade renames `_start` or `_oscillator`, or fixes the leak upstream, and the wrapper silently does nothing | Medium | T1's guard returns `false` with a `devWarn`; T2 exports `oscillatorLeakPatched`; the T1 tests name the two private fields, so a rename that reaches the stub contract fails a test. A real upgrade re-runs T3. **Corrected 2026-10-23 (T5):** the upstream fix exists (Tone 15.3.11) and on it the wrapper is not silent, it throws on every note; Open Question 4. |
+| A Tone upgrade renames `_start` or `_oscillator`, or fixes the leak upstream, and the wrapper silently does nothing | Medium | T1's guard returns `false` with a `devWarn`; T2 exports `oscillatorLeakPatched`; the T1 tests name the two private fields, so a rename that reaches the stub contract fails a test. A real upgrade re-runs T3. **Corrected 2026-10-23 (T5):** the upstream fix exists (Tone 15.3.11) and on it the wrapper as first built threw on every note; Task 6 reorders it, safe on both. |
 | Disconnecting a param that is already gone throws and breaks Tone's own `onended` (dispose never runs, a second leak) | High | T1's third criterion: the disconnects sit in one `try`, and the original `onended` runs after it regardless; mutation-checked. |
 | The wrapper replaces `onended` *after* Tone's `_onended` has already fired (a node that ends inside `_start`) | Low | `_start` schedules the native start in the future; `onended` cannot fire synchronously inside it. T2's manual check and T3's node count would show a wrap that never ran. |
 | `audioContextSetup.test.ts`'s `tone` mock lacks `Oscillator` and the new call throws there | Medium | The guard treats a missing prototype as `false`; T2's second criterion keeps the existing cases unmodified. |
@@ -310,7 +363,8 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 1. Route: **Resolved** (Architecture Decisions): (A), the in-app wrapper. Crawford, 2026-10-23.
 2. File upstream? **Moot** (T5, 2026-10-23): Tone already has it, #1379, fixed by #1393 in 15.3.11.
 3. Numbering: **Open** — T0 proposes backlog 32; Crawford may renumber or make it a roadmap phase.
-4. The wrapper on a Tone with the upstream fix: **Open** — Crawford's call (T5, 2026-10-23). On 15.3.11 and later
+4. The wrapper on a Tone with the upstream fix: **Resolved, option (b)** — Crawford, 2026-10-23; built as Task 6.
+   The finding (T5, 2026-10-23): On 15.3.11 and later
    the wrapper's disconnects run first, Tone's `_cleanUpConnections` repeats them, and standardized-audio-context
    throws `Not connected to destination node` out of Tone's `onended`, every note, before `onstop` and dispose (the
    app reads neither `onstop` nor Synth's `onsilence`; the nodes are still collected). `tone` is `^15.1.22` and

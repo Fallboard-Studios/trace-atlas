@@ -239,7 +239,7 @@ describe('audioContextSetup (Oscillator leak patch at boot)', () => {
     return import('./audioContextSetup');
   }
 
-  it('patches Tone.Oscillator.prototype at import: a note’s onended disconnects both Signals, then runs Tone’s', async () => {
+  it('patches Tone.Oscillator.prototype at import: a note’s onended runs Tone’s, then disconnects both Signals', async () => {
     const calls: string[] = [];
     const OscillatorStub = makeStubOscillatorClass(calls);
     toneStub.Oscillator = OscillatorStub;
@@ -255,7 +255,7 @@ describe('audioContextSetup (Oscillator leak patch at boot)', () => {
     node.onended?.();
     expect(oscillator.frequency.disconnect).toHaveBeenCalledWith(node.frequency);
     expect(oscillator.detune.disconnect).toHaveBeenCalledWith(node.detune);
-    expect(calls).toEqual(['frequency.disconnect', 'detune.disconnect', 'tone.onended']);
+    expect(calls).toEqual(['tone.onended', 'frequency.disconnect', 'detune.disconnect']);
     expect(devWarn).not.toHaveBeenCalled();
   });
 

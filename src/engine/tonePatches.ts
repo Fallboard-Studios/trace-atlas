@@ -13,8 +13,11 @@ import { devWarn } from '../utils/helpers';
 // later connect from those Signals scans a longer Set. Spec: docs/specs/OSCILLATOR_LEAK_FIX.md (measured in
 // docs/todo/scratchy-audio-phones.md, "Backlog 27, desktop step 1").
 //
-// The patch wraps `_start` so the new node's `onended` first disconnects the two Signals from its params and then runs
-// the handler Tone installed (`() => this.onstop(this)`), which disposes the node. It touches two private names,
+// The patch wraps `_start` so the new node's `onended` first runs the handler Tone installed (`() => this.onstop(this)`)
+// and then disconnects the two Signals from its params, each disconnect swallowing a throw. Tone 15.3.11 fixed this
+// upstream (Tone.js #1379, #1393: its handler disconnects the same two params); on such a Tone the repeat is the
+// swallowed one, so the wrapper is safe there until the upgrade deletes it. Ours first would throw out of Tone's handler
+// every note, before its `onstop`. An error from Tone's handler itself still propagates. It touches two private names,
 // `_start` and `_oscillator`; when they are not what this was written against it is a devWarned no-op, so a Tone
 // upgrade degrades to "the leak is back", never to a broken boot. No Tone import: it works on any prototype.
 
@@ -44,6 +47,16 @@ type PatchablePrototype = {
   [OSCILLATOR_ENDED_DISCONNECT_PATCHED]?: true;
 };
 
+/** One disconnect that never throws: a param Tone already disconnected (15.3.11+), or a Tone that wires this
+ *  differently, leaves the leak as it was and the sound unchanged. */
+function disconnectQuietly(source: Disconnectable, destination: unknown): void {
+  try {
+    source.disconnect(destination);
+  } catch {
+    // Not connected (any more): nothing to undo.
+  }
+}
+
 function isPatchablePrototype(prototype: unknown): prototype is PatchablePrototype {
   return (
     typeof prototype === 'object' &&
@@ -53,7 +66,7 @@ function isPatchablePrototype(prototype: unknown): prototype is PatchablePrototy
 }
 
 /** Wrap `prototype._start` so each new one-shot node disconnects the Oscillator's frequency and detune Signals from
- *  its own params in `onended`, before Tone disposes it. Returns `true` when it wrapped, `false` when the prototype was
+ *  its own params in `onended`, after Tone's own handler and before Tone disposes it. Returns `true` when it wrapped, `false` when the prototype was
  *  already wrapped or is not the private API this was written against (Tone 15.1.22). */
 export function patchOscillatorEndedDisconnect(prototype: unknown): boolean {
   if (!isPatchablePrototype(prototype)) {
@@ -74,12 +87,11 @@ export function patchOscillatorEndedDisconnect(prototype: unknown): boolean {
     const { frequency, detune } = this;
     node.onended = function (this: unknown, ...endedArgs: unknown[]) {
       try {
-        frequency.disconnect(node.frequency);
-        detune.disconnect(node.detune);
-      } catch {
-        // Already disconnected, or a Tone that wires this differently: the leak stays, the sound does not change.
+        toneOnended?.apply(this, endedArgs);
+      } finally {
+        disconnectQuietly(frequency, node.frequency);
+        disconnectQuietly(detune, node.detune);
       }
-      toneOnended?.apply(this, endedArgs);
     };
     return result;
   };
