@@ -755,3 +755,8 @@ errors and no `onstop` in 120 notes).
 each swallowing, so on a fixed Tone ours are the swallowed repeats. The repro on the real module: no error, every
 `onstop`, no retained oscillator, on 15.1.22 and 15.5.61 alike. The upgrade still deletes the patch; it no longer has
 to be the same change.
+
+**The Tone upgrade waits for the official release (Crawford, 2026-10-23).** No move to 15.3+ while it rides npm's
+`next` tag. When a release with the fix becomes `latest`: upgrade on its own branch (read the changelog from 15.1.22,
+full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
+call and `oscillatorLeakPatched` in that change.
