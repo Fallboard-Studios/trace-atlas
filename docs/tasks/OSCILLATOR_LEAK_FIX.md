@@ -139,7 +139,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 ### Checkpoint A: The patch
 - [x] `npm run build:types`, `npm run lint` clean; `npx vitest run src/engine/tonePatches.test.ts` green.
 - [x] The module has no caller yet; nothing in the app has changed.
-- [ ] Reviewed with Crawford before Phase 2 (a glance; the design is the spec's).
+- [x] Reviewed with Crawford before Phase 2 (a glance; the design is the spec's). Passed 2026-10-23.
 
 ---
 
