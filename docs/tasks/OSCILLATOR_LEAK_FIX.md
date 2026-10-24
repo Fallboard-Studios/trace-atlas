@@ -222,7 +222,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
 ### Phase 3: Docs, and the upstream report
 
-- [ ] **Task 4: `docs/AUDIO_SYSTEM.md`, `docs/todo/backlog.md` — document the shipped patch**
+- [x] **Task 4: `docs/AUDIO_SYSTEM.md`, `docs/todo/backlog.md` — document the shipped patch** *(Written 2026-10-23: AUDIO_SYSTEM.md "Tone patch: the per-note oscillator leak", under Debug Tools; backlog 32's "Built" line. Crawford's read outstanding.)*
 
   **Description:** AUDIO_SYSTEM.md gets a short subsection near the diagnostics paragraph: what the leak was (two
   sentences, linking the step 1 record), what `tonePatches.ts` does and where it is applied, the guard's behaviour on a
@@ -233,13 +233,16 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] AUDIO_SYSTEM.md names `patchOscillatorEndedDisconnect`, `audioContextSetup.ts` and `oscillatorLeakPatched`
+  - [x] AUDIO_SYSTEM.md names `patchOscillatorEndedDisconnect`, `audioContextSetup.ts` and `oscillatorLeakPatched`
         exactly as shipped, and links the measurement record.
-  - [ ] The backlog item says what shipped and where the proof is.
+  - [x] The backlog item says what shipped and where the proof is.
 
   **Verification:**
-  - [ ] Manual review against the final source.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+  - [ ] Manual review against the final source. *(Identifiers spot-checked against `tonePatches.ts` and
+        `audioContextSetup.ts` at `1078ed7e`; one finding written into the doc: a renamed `_oscillator` leaves the
+        wrapper a silent no-op with `oscillatorLeakPatched` still `true`, so a Tone upgrade re-runs the proof run
+        rather than trusting the flag. Crawford's read is the box.)*
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change).
 
   **Dependencies:** Tasks 2 and 3.
 

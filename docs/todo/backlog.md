@@ -737,4 +737,10 @@ the plan's proposal; Crawford may renumber it or make it a roadmap phase.
 and exports `oscillatorLeakPatched` (`13ee3b7d`). T3 run: the leak is closed (patched Oscillator +23 to +32 in 240 s on D1 at Light,
 stock +325 to +328) and max lag unchanged; one patched round read one 15 s bucket above the stock spread, so the "no
 cost" criterion is missed as written ([PERFORMANCE.md](../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run").
-Checkpoint B passed (Crawford 2026-10-23: the round 3 bucket accepted as noise, his listen passed). Next: T4, the docs.
+Checkpoint B passed (Crawford 2026-10-23: the round 3 bucket accepted as noise, his listen passed).
+
+**Built 2026-10-23 on `fix/oscillator-leak`.** What shipped: `patchOscillatorEndedDisconnect` in
+`src/engine/tonePatches.ts`, applied at boot by `src/engine/audioContextSetup.ts`, which exports
+`oscillatorLeakPatched`; documented in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md), "Tone patch: the per-note oscillator
+leak". The proof is PERFORMANCE.md's T3 section above. Left: Crawford's PR; the Pixel sitting of plan.md Stage 1
+carries this build beside stock. Archive this item when the PR merges.
