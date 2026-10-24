@@ -687,6 +687,16 @@ moment, or keeping the branch connected and paying its dark cost (which undoes 5
 seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
 power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
 
+**Update 2026-10-24: not a lost quantum; the recorder's clock ([scratchy-audio-phones.md](scratchy-audio-phones.md),
+"Backlog 29 — the lost render quantum is the recorder's clock").** It reproduces headed on the real device as often as
+headless (20 of 96 room lightings headed, 8 of 48 headless). But Chromium updates the AudioWorklet scope's
+`currentFrame` only when the render thread wins a `TryLock` on the graph mutex, which a main-thread connect holds. So
+the next block repeats the previous frame, and the probe's recorder stacked it on the one before. Every spike sits on a
+repeated frame (6 of 6). In arrival order the same lightings read ×0.89–×1.00, while the self-check click still reads
+×338–×636. The audio is continuous; there is nothing for the bare page or the Pixel to find. **Proposed: close it**
+(Crawford's call). Found on the way: `playbackStats` read 0 underruns through a forced 200 ms render stall, so the
+`?debug` overlay's underrun count is not evidence on the desktop.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
