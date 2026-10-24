@@ -19,7 +19,9 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
   Light-tier clicks and the late collapse** — desktop first: D1 against D5 at Light on `perf:audio`, then the 15-minute
   long run; the Incognito tab and the cool-phone sine ramp drop to the sitting, and only if the collapse is still
   unexplained.
-- **The phone sitting**, last — whatever 27 still owes.
+- **The phone sitting**, last — whatever 27 still owes. **On hold** (2026-10-24) until Crawford is back at his Pixel
+  setup; Stage 2 goes ahead meanwhile. Carry `main` (the leak fix is in it), D1 and D5 at Light, and don't read the
+  overlay's underrun count as evidence ([scratchy-audio-phones.md](scratchy-audio-phones.md), "Backlog 29").
 
 ## Stage 2 — The powered-down state
 
