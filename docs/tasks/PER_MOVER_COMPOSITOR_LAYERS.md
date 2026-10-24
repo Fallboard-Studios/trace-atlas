@@ -449,11 +449,15 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
   **Dependencies:** Task 15. **Files:** `scripts/perf/idle-paint.mjs`. **Scope:** XS.
 
 ### Checkpoint B: Robots as movers (Crawford, dev server, Chrome and Firefox)
-- [ ] A swim, a job on the widest building in view, a selection and a company halo, a station exit and entry, a row
+- [x] A swim, a job on the widest building in view, a selection and a company halo, a station exit and entry, a row
       switch each way, a recall mid-switch, clicks on both rows, the camera and marker in portrait emulation: identical
-      to `main` by eye; nothing clipped at a mover's edge.
-- [ ] Types, lint, full suite, `npm run build` clean.
-- [ ] Reviewed with Crawford before Phase 4.
+      to `main` by eye; nothing clipped at a mover's edge. *(**Passed, Crawford 2026-10-24, Chrome and Firefox**, on
+      `main` after PR #563. "Identical to `main`" read as "looks right, nothing clipped or out of order", since this
+      work is `main` now.)*
+- [x] Types, lint, full suite, `npm run build` clean. *(2026-10-24 on `main`'s code (`83a5613a`, merged as #579):
+      12 042 tests; types, lint, build clean.)*
+- [ ] Reviewed with Crawford before Phase 4. *(Not held as written: Phases 4 and 5 were built and merged, PR #563,
+      before this look.)*
 
 ---
 
@@ -530,9 +534,10 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 - Mutation gates: Task 17 12/12, Task 18 5/5, Task 19 15/15 killed (one survivor, the initial `visibility: hidden`, got a test for a robot with no gem seed).
 
 ### Checkpoint C: Everything moves on its own sheet (Crawford, Chrome and Firefox)
-- [ ] Spec §5.3's whole list, in Chrome and again in Firefox; Safari if a device is to hand.
-- [ ] Types, lint, full suite, `npm run build` clean.
-- [ ] Reviewed with Crawford before the gate.
+- [x] Spec §5.3's whole list, in Chrome and again in Firefox; Safari if a device is to hand. *(**Passed, Crawford
+      2026-10-24, Chrome and Firefox.** Safari not checked: no device to hand. It stays open on roadmap 53's stub.)*
+- [x] Types, lint, full suite, `npm run build` clean. *(As Checkpoint B, 2026-10-24.)*
+- [ ] Reviewed with Crawford before the gate. *(Not held as written: the gate ran and the work merged, PR #563, first.)*
 
 ---
 
@@ -611,7 +616,7 @@ T22 docs + perMoverLayersDocs guard ─→ T23 roadmap, backlog, status headers
 - [x] Types, lint (0 errors, the 4 old warnings), full suite (368 files / 12406 tests) and `npm run build` clean, 2026-10-17.
 - [ ] Every automated acceptance criterion met; the two gates recorded with numbers, a skipped Pixel listen flagged. (**Not met:** Task 20's `screens/frame` criterion is a recorded MISS, and Task 21 has no `main` count. Both are recorded with numbers; neither is rewritten as a pass.)
 - [x] Docs match the shipped source; every named identifier spot-checked (`perMoverLayersDocs.test.ts` checks each against its source file).
-- [ ] Ready for Crawford's PR. (Waits on his call about the Task 20 miss and the unsigned Checkpoints B and C.)
+- [ ] Ready for Crawford's PR. (Waits on his call about the Task 20 miss and the unsigned Checkpoints B and C.) *(Overtaken: merged as PR #563, the Task 20 miss settled per roadmap 53's stub; Checkpoints B and C signed off in Chrome and Firefox 2026-10-24; Safari open.)*
 
 ## Risks and Mitigations
 

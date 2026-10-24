@@ -186,19 +186,7 @@ The order the open phases and backlog items get done in is [plan.md](plan.md); t
 
 ## 17.2.8 Performance: LFO Bank
 
-**Done — merged via PR #521 (`feature/LFO-pool`). Moved to [the archive](archive/roadmap-archive.md#1728-performance-lfo-bank).**
-
-### Open
-
-- **An Attenuation Style switch does not re-prime the bank or the global links** (spec §7 risk 8; still true 2026-10-22).
-  `regenerateLfoBankFromSeed` / `regenerateGlobalLfoLinksFromSeed` (`src/stores/audioStore.ts`) only write the store, so
-  a running engine keeps the old lanes until the next power-on. The archived follow-up calls the fix one line of
-  `primeLfoBank`, but `primeLfoBank` no-ops once the bank exists; the push is per lane (`setBankShape`, `setBankRate`,
-  the two drift setters) plus `linkTarget` per global target, guarded by `isAudioContextRunning()`.
-  **Built 2026-10-24 on `perf/as-switch-reprimes-lfo-bank`** (PR pending): `syncGlobalAudioToCurrentAttenuationStyle`
-  ends with that push (`pushLfoBankAndLinksToEngine` in `src/stores/audioStore.ts`), the regenerates stay data-only.
-  RED tests in `audioStore.test.ts`; checked live on the dev server, stock against fixed: the engine's lanes kept the
-  old shapes on stock and matched the new bank with the fix. This stub is archived when the PR merges.
+**Done — merged via PR #521 (`feature/LFO-pool`); its last open item (an Attenuation Style switch re-primes a running bank) merged via PR #579 (`perf/as-switch-reprimes-lfo-bank`). Moved to [the archive](archive/roadmap-archive.md#1728-performance-lfo-bank).**
 
 ## 17.3 Styling Overhaul: Robot Views
 
@@ -484,8 +472,9 @@ JSON-serialisable session.
 
 ### Open
 
-- **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
-  is unverified.
+- **Safari**: spec §5.3's manual list has never been run in Safari. Checkpoints B and C passed in Chrome and Firefox
+  (Crawford, 2026-10-24; ticked in [the plan](../tasks/PER_MOVER_COMPOSITOR_LAYERS.md)). Run it when a Mac or iPhone is
+  to hand.
 
 The archived Open list's other three items were settled after it was written: the document repaint was the harness
 counting Chrome's whole-frame `#document` paint (the gate re-run passes at 0.08 × `main`); the Pixel `main` comparison

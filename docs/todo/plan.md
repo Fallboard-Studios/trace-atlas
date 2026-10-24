@@ -19,10 +19,6 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
   Light-tier clicks and the late collapse** — desktop first: D1 against D5 at Light on `perf:audio`, then the 15-minute
   long run; the Incognito tab and the cool-phone sine ramp drop to the sitting, and only if the collapse is still
   unexplained.
-- Roadmap [53](roadmap.md#53-per-mover-compositor-layers) **Checkpoints B and C, Safari** — the desktop look list, never
-  signed off; same verify-don't-build mood.
-- Roadmap [17.2.8](roadmap.md#1728-performance-lfo-bank) **Style switch re-primes the LFO bank** — one TDD task, the
-  per-lane push the stub describes.
 - **The phone sitting**, last — whatever 27 still owes.
 
 ## Stage 2 — The powered-down state
@@ -69,6 +65,8 @@ one is built.
 
 - Backlog [10](backlog.md#10-visuals-atmospheric-animations) **Fog, dust, precipitation** — unspecified; light shafts
   shipped, marine snow was cut.
+- Roadmap [53](roadmap.md#53-per-mover-compositor-layers) **The Safari look** — spec §5.3's manual list, passed in
+  Chrome and Firefox; whenever a Mac or iPhone is to hand.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes whenever DevTools is next open.
 - Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
