@@ -734,4 +734,7 @@ plan [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md), branc
 the plan's proposal; Crawford may renumber it or make it a roadmap phase.
 
 **Progress 2026-10-23:** T1 built (`bda60dcc`, the wrapper and its tests). T2 built: `audioContextSetup.ts` applies it at boot
-and exports `oscillatorLeakPatched`. Next: T3, the proof run against a stock build.
+and exports `oscillatorLeakPatched` (`13ee3b7d`). T3 run: the leak is closed (patched Oscillator +23 to +32 in 240 s on D1 at Light,
+stock +325 to +328) and max lag unchanged; one patched round read one 15 s bucket above the stock spread, so the "no
+cost" criterion is missed as written ([PERFORMANCE.md](../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run").
+Next: Checkpoint B (Crawford: that reading, more rounds or not, and the listen), then T4.

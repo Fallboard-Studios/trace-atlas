@@ -181,7 +181,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
   **Estimated scope:** S (two files, a few lines each)
 
-- [ ] **Task 3: The proof run — patched against stock on D1 at Light, recorded**
+- [ ] **Task 3: The proof run — patched against stock on D1 at Light, recorded** *(Run and recorded 2026-10-23; one criterion missed, below. Left open for Checkpoint B.)*
 
   **Description:** Spec §5.2. Production build of the branch (`npm run build`, served on :4173) and of the stock
   comparison (`main`, or the commit before T2, built from a clean checkout to a scratch `--outDir` and served on :4175;
@@ -193,14 +193,14 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Proof:** a run, not a test (nothing imports a served build). Recorded in PERFORMANCE.md and in the commit.
 
   **Acceptance criteria:**
-  - [ ] Patched build: the by-type `Oscillator` change per 240 s is within the step 2 band (about +20 to +60, in step
+  - [x] Patched build: the by-type `Oscillator` change per 240 s is within the step 2 band (about +20 to +60, in step
         with `Gain`); stock: about +320. Three rounds each.
-  - [ ] Patched mean capacity, peak window and `max lag` inside the stock rounds' spread (no cost added).
-  - [ ] The pin check passed on every run (the overlay landed at (−116, −2)).
+  - [ ] Patched mean capacity, peak window and `max lag` inside the stock rounds' spread (no cost added). *(Missed on round 3, 2026-10-23: `max lag` inside on all three, mean and peak window inside on rounds 1 and 2; round 3 read 0.516 against stock 0.487–0.513 and 0.717 against 0.529–0.621, the peak from one 15 s bucket. PERFORMANCE.md, "Oscillator Leak Fix — the T3 proof run". Not re-run: more rounds are Crawford's call at Checkpoint B.)*
+  - [x] The pin check passed on every run (the overlay landed at (−116, −2)).
 
   **Verification:**
-  - [ ] The PERFORMANCE.md section names both bundles, the commands and the orphan counts.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change in the repo).
+  - [x] The PERFORMANCE.md section names both bundles, the commands and the orphan counts.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change in the repo).
 
   **Dependencies:** Task 2.
 
