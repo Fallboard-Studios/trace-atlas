@@ -285,11 +285,13 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Estimated scope:** XS (one doc)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] All automated acceptance criteria across T1–T3 met; T0 and T4 read.
-- [ ] Docs reflect the shipped names, spot-checked against source.
-- [ ] Crawford's listen recorded at Checkpoint B, or flagged here.
-- [ ] Ready for Crawford's PR. The Pixel sitting of plan.md Stage 1 carries this build beside stock (Crawford's decision
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. *(2026-10-23 at `ddd6c2b9`:
+      327 files, 12 035 tests green; lint 0 errors, 4 existing warnings; bundle `index-BJ-YFaEE.js`, T3's.)*
+- [ ] All automated acceptance criteria across T1–T3 met; T0 and T4 read. *(Automated: met, T3's cost criterion by
+      Crawford's acceptance at Checkpoint B. The reads of T0, T4 and T5 are Crawford's.)*
+- [x] Docs reflect the shipped names, spot-checked against source.
+- [x] Crawford's listen recorded at Checkpoint B, or flagged here.
+- [ ] Ready for Crawford's PR, once Open Question 4 is answered. The Pixel sitting of plan.md Stage 1 carries this build beside stock (Crawford's decision
       of 2026-10-23); that sitting is Stage 1's, not this plan's.
 
 ## Risks and Mitigations
