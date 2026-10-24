@@ -195,6 +195,10 @@ The order the open phases and backlog items get done in is [plan.md](plan.md); t
   a running engine keeps the old lanes until the next power-on. The archived follow-up calls the fix one line of
   `primeLfoBank`, but `primeLfoBank` no-ops once the bank exists; the push is per lane (`setBankShape`, `setBankRate`,
   the two drift setters) plus `linkTarget` per global target, guarded by `isAudioContextRunning()`.
+  **Built 2026-10-24 on `perf/as-switch-reprimes-lfo-bank`** (PR pending): `syncGlobalAudioToCurrentAttenuationStyle`
+  ends with that push (`pushLfoBankAndLinksToEngine` in `src/stores/audioStore.ts`), the regenerates stay data-only.
+  RED tests in `audioStore.test.ts`; checked live on the dev server, stock against fixed: the engine's lanes kept the
+  old shapes on stock and matched the new bank with the fix. This stub is archived when the PR merges.
 
 ## 17.3 Styling Overhaul: Robot Views
 

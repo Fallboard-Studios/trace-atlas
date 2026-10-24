@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
-import { resolveDelayTimeSeconds, resolveSyncedRateHz } from '../utils/tempoSync';
+import { resolveDelayTimeSeconds, resolveLaneForEngine, resolveSyncedRateHz } from '../utils/tempoSync';
 import { PEDAL_RATE_RANGE_HZ } from '../types/globalAudio';
+import { isNoteValue } from '../data/noteValues';
 
 // Ensure AudioEngine is mocked before importing the store so the module's
 // import of AudioEngine receives the mock. The store now calls the full
@@ -55,6 +56,11 @@ vi.mock('../engine/lfoEngine', () => ({
     setFilterLinksEnabled: vi.fn(),
   },
 }));
+
+// Whether the AudioContext is running (roadmap 17.2.8): false by default, as at module load before any
+// user gesture; a test sets it true to stand for a powered-on engine.
+const engineRunning = vi.hoisted(() => ({ value: false }));
+vi.mock('../engine/lfoShared', () => ({ isAudioContextRunning: () => engineRunning.value }));
 
 describe('useAudioStore - setBPM', () => {
   beforeEach(() => {
@@ -677,6 +683,95 @@ describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding
 
     expect(useAudioStore.getState().lfoBank).not.toEqual(beforeBank);
     expect(useAudioStore.getState().globalLfoLinks).not.toEqual(beforeLinks);
+  });
+});
+
+describe('useAudioStore - an Attenuation Style switch re-primes a running bank and its global links (roadmap 17.2.8)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    engineRunning.value = false;
+  });
+  afterEach(() => {
+    engineRunning.value = false;
+  });
+
+  /** Loads the store with the engine off (module load comes before any gesture), then switches to a new
+   *  Attenuation Style with the engine `running` or not; mock calls are cleared just before the switch. */
+  async function switchStyle(running: boolean) {
+    const { useAudioStore } = await import('./audioStore');
+    const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    const { AudioEngine: engine } = await import('../engine/AudioEngine');
+    const before = useAudioStore.getState();
+    useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-reprime', name: 'ZenithReprime' });
+    engineRunning.value = running;
+    vi.clearAllMocks();
+    useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-reprime');
+    return { before, after: useAudioStore.getState(), lfoEngine, engine };
+  }
+
+  it('pushes every lane of the new bank to the running engine, resolved for the engine', async () => {
+    const { before, after, lfoEngine } = await switchStyle(true);
+
+    // The switch has to change the bank, or this test would pass on the old lanes by coincidence.
+    expect(after.lfoBank).not.toEqual(before.lfoBank);
+    for (const lane of LFO_LANE_IDS) {
+      const engineLane = resolveLaneForEngine(after.lfoBank[lane], after.bpm);
+      expect(lfoEngine.setBankShape).toHaveBeenCalledWith(lane, engineLane.shape);
+      expect(lfoEngine.setBankRate).toHaveBeenCalledWith(lane, engineLane.rate);
+      expect(lfoEngine.setBankRateDrift).toHaveBeenCalledWith(lane, engineLane.rateDrift);
+      expect(lfoEngine.setBankDepthDrift).toHaveBeenCalledWith(lane, engineLane.depthDrift);
+    }
+    expect(lfoEngine.setBankShape).toHaveBeenCalledTimes(LFO_LANE_IDS.length);
+    // The tempo reseed re-pushes the OLD bank's synced lanes first (reapplyTempoSyncedValues); the new
+    // bank's rate must be each lane's last word, or a synced lane keeps the old rate.
+    for (const lane of LFO_LANE_IDS) {
+      const rateCalls = vi.mocked(lfoEngine.setBankRate).mock.calls.filter(([l]) => l === lane);
+      expect(rateCalls.at(-1)).toEqual([lane, resolveLaneForEngine(after.lfoBank[lane], after.bpm).rate]);
+    }
+    // primeLfoBank no-ops once the bank exists; the push is per lane, never a rebuild.
+    expect(lfoEngine.primeLfoBank).not.toHaveBeenCalled();
+  });
+
+  it('relinks every global target with the new links', async () => {
+    const { before, after, lfoEngine } = await switchStyle(true);
+
+    expect(after.globalLfoLinks).not.toEqual(before.globalLfoLinks);
+    for (const target of GLOBAL_LFO_TARGET_IDS) {
+      expect(lfoEngine.linkTarget).toHaveBeenCalledWith(target, after.globalLfoLinks[target]);
+    }
+    expect(lfoEngine.linkTarget).toHaveBeenCalledTimes(GLOBAL_LFO_TARGET_IDS.length);
+  });
+
+  it("relinks only after the new globalAudio reached the engine (a link's swing reads the target's current value)", async () => {
+    const { lfoEngine, engine } = await switchStyle(true);
+
+    expect(lfoEngine.linkTarget).toHaveBeenCalled(); // or the order below holds vacuously (min of nothing)
+    expect(engine.setGlobalEQ).toHaveBeenCalled();
+    const firstLink = Math.min(...vi.mocked(lfoEngine.linkTarget).mock.invocationCallOrder);
+    const lastTargetPush = Math.max(
+      ...vi.mocked(engine.setGlobalEQ).mock.invocationCallOrder,
+      ...vi.mocked(engine.setGlobalFilterLPF).mock.invocationCallOrder,
+      ...vi.mocked(engine.setGlobalFilterHPF).mock.invocationCallOrder
+    );
+    expect(firstLink).toBeGreaterThan(lastTargetPush);
+  });
+
+  it('pushes nothing to the bank engine when the AudioContext is not running', async () => {
+    const { before, after, lfoEngine } = await switchStyle(false);
+
+    expect(after.lfoBank).not.toEqual(before.lfoBank); // the store still reseeds
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    // The only rate pushes are the tempo reseed's existing re-push of the OLD bank's synced lanes, which
+    // only records a value until the bank is primed (reapplyTempoSyncedValues); none is the new bank's.
+    for (const [lane] of vi.mocked(lfoEngine.setBankRate).mock.calls) {
+      expect(isNoteValue(before.lfoBank[lane].sync)).toBe(true);
+    }
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
+    expect(lfoEngine.primeLfoBank).not.toHaveBeenCalled();
   });
 });
 
