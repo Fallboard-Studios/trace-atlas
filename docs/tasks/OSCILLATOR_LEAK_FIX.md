@@ -145,7 +145,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
 ### Phase 2: The boot call and the proof
 
-- [ ] **Task 2: `src/engine/audioContextSetup.ts` — apply the patch once at boot**
+- [x] **Task 2: `src/engine/audioContextSetup.ts` — apply the patch once at boot**
 
   **Description:** Import `patchOscillatorEndedDisconnect` and call it with `Tone.Oscillator?.prototype` after
   `appliedLatencyHint` is computed, exporting the result as `oscillatorLeakPatched: boolean` (read-only, for the
@@ -159,17 +159,21 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   `disconnect`s, and `oscillatorLeakPatched` is `true`. Fails before the call exists.
 
   **Acceptance criteria:**
-  - [ ] Importing `audioContextSetup` with an `Oscillator` in the `tone` mock patches its prototype (the disconnects fire
+  - [x] Importing `audioContextSetup` with an `Oscillator` in the `tone` mock patches its prototype (the disconnects fire
         on `onended`) and exports `oscillatorLeakPatched === true`.
-  - [ ] Importing it with no `Oscillator` in the mock (the existing cases) still installs or leaves the context as before,
-        and `oscillatorLeakPatched === false`; the existing cases pass unmodified.
-  - [ ] The module still imports no store (the existing throwing mocks for `audioStore` / `localeStore` stay green).
+  - [x] Importing it with no `Oscillator` in the mock (the existing cases) still installs or leaves the context as before,
+        and `oscillatorLeakPatched === false`; the existing cases pass unmodified. *(The cases are unmodified; the
+        shared `tone` mock gained an `Oscillator` getter, `undefined` by default, because vitest throws on reading an
+        export a mock does not define. `devWarn` is mocked through a forwarding `vi.fn`, so it survives `resetModules`.)*
+  - [x] The module still imports no store (the existing throwing mocks for `audioStore` / `localeStore` stay green).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioContextSetup.test.ts src/engine/tonePatches.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] Manual check, dev server: power on a world with `?debug`; the console shows no warning from the patch and the
-        sound is unchanged.
+  - [x] `npx vitest run src/engine/audioContextSetup.test.ts src/engine/tonePatches.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual check, dev server: power on a world with `?debug`; the console shows no warning from the patch and the
+        sound is unchanged. *(2026-10-23, headless Chrome on the dev server at `?debug`, powered on for 20 s: the app's
+        own `Tone.Oscillator.prototype` carries the `oscillatorEndedDisconnect` marker and its `_start` is the wrapper;
+        no `[tonePatches]` warning, no console error. The sound half is Crawford's listen at Checkpoint B.)*
 
   **Dependencies:** Task 1.
 

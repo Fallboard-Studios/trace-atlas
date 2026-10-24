@@ -733,4 +733,5 @@ with nothing changed on the audio thread. The desktop never felt it; the fix is 
 plan [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md), branch `fix/oscillator-leak`. The number is
 the plan's proposal; Crawford may renumber it or make it a roadmap phase.
 
-**Progress 2026-10-23:** T1 built (`bda60dcc`, the wrapper and its tests, no caller yet). Next: T2, the boot call.
+**Progress 2026-10-23:** T1 built (`bda60dcc`, the wrapper and its tests). T2 built: `audioContextSetup.ts` applies it at boot
+and exports `oscillatorLeakPatched`. Next: T3, the proof run against a stock build.

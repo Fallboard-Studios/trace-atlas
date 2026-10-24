@@ -6,6 +6,8 @@ import * as Tone from 'tone';
 import { detectCoarsePointer, latencyForLoad, resolveInitialAudioLoad } from '../utils/audioBudget';
 import { getLatencyOverride, type LatencyHint } from '../utils/debugParams';
 
+import { patchOscillatorEndedDisconnect } from './tonePatches';
+
 // ========================================
 // SIDE EFFECT AT IMPORT — must be main.tsx's FIRST import
 // ========================================
@@ -25,6 +27,9 @@ import { getLatencyOverride, type LatencyHint } from '../utils/debugParams';
 // With neither, nothing is touched and Tone keeps its own default. Roadmap 17.2.4 / docs/todo/scratchy-audio-phones.md — Chrome
 // Android's low-latency path is known to glitch on complex graphs, and `playback` is the usual
 // mitigation; this switch exists so it can be A/B tested on a real phone from one deploy.
+//
+// It also applies the Tone patches (./tonePatches.ts): this is the one module that runs before any Oscillator can
+// start, so a prototype patched here covers every note. docs/specs/OSCILLATOR_LEAK_FIX.md.
 
 /** The hint to install, or `null` to leave Tone's default context alone. */
 function resolveBootLatencyHint(): LatencyHint | null {
@@ -45,3 +50,7 @@ function applyLatencyOverride(): LatencyHint | null {
 
 /** The latency hint installed (from `?latency=` or the boot-time Audio Load preset), or `null` when Tone's default was left alone. */
 export const appliedLatencyHint: LatencyHint | null = applyLatencyOverride();
+
+/** Whether `Tone.Oscillator.prototype` took the ended-disconnect patch; `false` (with a devWarn) on a Tone whose
+ *  private `_start` is not the one it was written against. */
+export const oscillatorLeakPatched: boolean = patchOscillatorEndedDisconnect(Tone.Oscillator?.prototype);
