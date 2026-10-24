@@ -1264,3 +1264,59 @@ changing the audio architecture).
 `?session=` does); the first smoke run landed on a random world under the `bravo` label. The harness now aborts when the
 overlay's coordinates differ from the payload's. Its `sounding` column had read a dash since the two-dial budget line
 of 2026-09-22; fixed. Both in `87b205c3`.
+
+## Backlog 27, desktop step 2 — the 15-minute runs, and the leak A/B (2026-10-23, same sitting)
+
+**The long runs** (Crawford's terminal, same build and links as step 1, `--seconds 900 --bucket 60`, the machine
+otherwise idle; the two outputs were pasted into the session and are summarised here).
+
+| World | mean cap first → last bucket | overall max | nodes first → last | by type | heap MB | events |
+|---|---|---|---|---|---|---|
+| D1 | 0.566 → 0.501, no trend (mean 0.470) | 0.996 | 1854 → 2911 (+1057) | Oscillator +1120, Gain +22 | 38.6 → 50.9 (+12.3) | 12 → 12 |
+| D5 | 0.504 → 0.473, no trend (mean 0.433) | 0.996 | 1816 → 1987 (+171) | Oscillator +162, Gain +10 | 35.6 → 48.0 (+12.4) | 12 → 12 |
+
+- **The leak holds its rate for fifteen minutes** (D1 about 70 nodes a minute, a straight line, never a drop) and
+  **the desktop's audio thread never feels it**: capacity tracks the audible count, not the clock, and the 0.99 bursts
+  are in the first bucket and no worse in the fifteenth.
+- **The heap climbs the same 12 MB on both worlds**, though D5 leaks six times fewer oscillators. So most of the memory
+  growth is a second accumulation, world-independent, about 0.8 MB a minute, not the oscillators. Unidentified; a heap
+  snapshot diff (CDP `HeapProfiler.takeHeapSnapshot`, early against late) is the way to name it.
+- Pending Transport events hold at 12 on both.
+
+**The A/B** (Crawford's go-ahead given in the session). **Patched:** a throwaway `vite build` of the same tree with one
+monkey-patch appended to `src/engine/audioContextSetup.ts` and reverted with `git checkout` after the build (the patch
+text is kept in the session scratchpad as `osc-leak-patch.ts`; bundle `index-8SKi0TLk`, served on :4175): it wraps
+`Tone.Oscillator.prototype._start` so the new `ToneOscillatorNode`'s `onended` first calls
+`frequency.disconnect(node.frequency)` and `detune.disconnect(node.detune)`, then Tone's own handler. **Stock:** the step 1
+build on :4173. D1 at Light, `--seconds 240 --bucket 15`, three rounds interleaved (stock patched, patched stock, stock
+patched), foreground, one run per call, orphaned Chrome 0. The harness gained a `max lag` column for this (the largest
+main-thread lag the overlay's sampler saw per bucket, `d14de9db`).
+
+| Round | Build | mean cap | peak window | overall max | nodes | by type | heap MB | max lag range |
+|---|---|---|---|---|---|---|---|---|
+| 1 | stock | 0.526 | 0.643 | 0.996 | +326 | Oscillator +325, Gain +48 | +7.7 | 9–26 ms |
+| 1 | patched | 0.543 | 0.650 | 0.996 | +48 | Gain +36, Oscillator +26 | +4.6 | 9–23 ms |
+| 2 | patched | 0.541 | 0.617 | 0.995 | +48 | Gain +42, Oscillator +29 | +9.1 | — |
+| 2 | stock | 0.579 | 0.621 | 0.996 | +322 | Oscillator +322, Gain +42 | +5.5 | — |
+| 3 | stock | 0.551 | 0.648 | 0.995 | +324 | Oscillator +322, Gain +24 | +6.7 | — |
+| 3 | patched | 0.558 | 0.636 | 0.996 | +47 | Gain +30, Oscillator +23 | +4.6 | — |
+
+**Reading.**
+- **The mechanism is proven.** Disconnecting the two params at `onended` takes the oscillator line from +324 to +48,
+  and what remains is oscillators and gains in step (nodes awaiting ordinary collection, the balance D5 showed). So
+  the holder was exactly the two inbound Signal connections, and nothing else.
+- **It is not the desktop's underruns.** Stock 0.526 / 0.579 / 0.551 against patched 0.543 / 0.541 / 0.558: the
+  difference is inside the round-to-round spread and has no sign. Peak windows and the 0.99 bursts are the same on
+  both. Max lag sits at 9–26 ms on both, with no growth over four minutes.
+- **The heap growth is not the oscillators either.** Patched climbs 4.6–9.1 MB in four minutes, stock 5.5–7.7; the
+  second accumulation above is still there with the leak closed.
+
+**Where that leaves backlog 27.** The desktop has now answered what it can. (1) At Light, the audio thread misses
+deadlines in bursts from the first bucket on both worlds, with four robots sounding, so that is the graph's standing
+cost at this tier, not an accumulation; whether the same bursts are the phone's steady clicks is for the sitting.
+(2) The late collapse is not reproduced on the desktop in fifteen minutes on either world. (3) Two things do accumulate:
+the oscillator leak (upstream, mechanism proven, cost unproven here; on a phone it still means a longer connect scan
+per note and more memory) and an unnamed 0.8 MB/min heap growth that survives the patch. Either could matter on a
+phone with no headroom and neither can be settled here. Crawford's calls: whether to carry the one-line disconnect as a
+dependency patch or an upstream Tone PR (a spec either way, since it changes how notes are played); whether to name the
+heap growth before the sitting; and whether the sitting takes the patched build beside stock.

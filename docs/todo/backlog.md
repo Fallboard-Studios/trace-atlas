@@ -639,6 +639,17 @@ at 12. Not yet tied to the underruns (the bursts predate any accumulation); the 
 scratch build whose `Oscillator.onstop` disconnects the dead node's params. A fix is a dependency patch or an upstream
 change: Crawford's call, then a spec.
 
+**Update 2026-10-23, later (step 2 done; [scratchy-audio-phones.md](scratchy-audio-phones.md) "Backlog 27, desktop step
+2").** The 15-minute runs: the leak holds its rate (D1 +1057 nodes, D5 +171) and capacity shows no trend on either
+world; the heap climbs the same 12 MB on both, so most of that is a **second, world-independent accumulation of about
+0.8 MB/min, unidentified**. The A/B (a throwaway build that disconnects the dead node's two params at `onended`) proves
+the mechanism, taking D1 from +324 to +48 nodes, and changes nothing on the audio thread: stock 0.526–0.579 against
+patched 0.541–0.558, same bursts, same max lag (9–26 ms), heap still climbing. **The desktop has answered what it can**:
+the bursts at Light are the graph's standing cost with four robots sounding; the collapse does not reproduce in fifteen
+minutes; two things accumulate that only the phone can price. Open for Crawford: carry the one-line disconnect as a
+dependency patch or an upstream Tone PR (a spec either way); name the heap growth (a heap-snapshot diff) before the
+sitting or not; take the patched build to the sitting beside stock.
+
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
