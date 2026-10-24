@@ -99,7 +99,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
 ### Phase 1: The patch
 
-- [ ] **Task 1: `src/engine/tonePatches.ts` — `patchOscillatorEndedDisconnect(prototype)`**
+- [x] **Task 1: `src/engine/tonePatches.ts` — `patchOscillatorEndedDisconnect(prototype)`**
 
   **Description:** New module. `patchOscillatorEndedDisconnect(prototype: unknown): boolean` wraps `prototype._start`:
   the wrapper calls the original with the same `this` and arguments, then reads `this._oscillator`; if it is an object,
@@ -114,21 +114,21 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   the module exists.
 
   **Acceptance criteria:**
-  - [ ] After patching, `_start(time)` runs the original with the same `this` and `time`, and returns its value.
-  - [ ] Firing the node's `onended(arg)` calls `frequency.disconnect(node.frequency)` once, `detune.disconnect(node.detune)`
+  - [x] After patching, `_start(time)` runs the original with the same `this` and `time`, and returns its value.
+  - [x] Firing the node's `onended(arg)` calls `frequency.disconnect(node.frequency)` once, `detune.disconnect(node.detune)`
         once, then the original `onended(arg)`, in that order (a call-order array in the test).
-  - [ ] A `disconnect` that throws is swallowed; the original `onended` still runs; nothing propagates.
-  - [ ] A second `patchOscillatorEndedDisconnect(prototype)` returns `false` and leaves `_start` the same function as
+  - [x] A `disconnect` that throws is swallowed; the original `onended` still runs; nothing propagates.
+  - [x] A second `patchOscillatorEndedDisconnect(prototype)` returns `false` and leaves `_start` the same function as
         after the first call (no double wrap: one `onended` chain, disconnects still called once).
-  - [ ] A prototype without a `_start` function (undefined, or a non-object) returns `false`, is left untouched, and
+  - [x] A prototype without a `_start` function (undefined, or a non-object) returns `false`, is left untouched, and
         `devWarn` is called once (`vi.mock('../utils/helpers')`).
-  - [ ] An original `_start` that leaves `_oscillator` null or undefined does not throw and installs nothing.
+  - [x] An original `_start` that leaves `_oscillator` null or undefined does not throw and installs nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/tonePatches.test.ts` passes (RED first: the file does not exist).
-  - [ ] Mutation check: remove the `detune` disconnect and the order test fails; remove the marker and the idempotence
+  - [x] `npx vitest run src/engine/tonePatches.test.ts` passes (RED first: the file does not exist).
+  - [x] Mutation check: remove the `detune` disconnect and the order test fails; remove the marker and the idempotence
         test fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 0.
 
@@ -137,8 +137,8 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Estimated scope:** S (one new module, one new test file)
 
 ### Checkpoint A: The patch
-- [ ] `npm run build:types`, `npm run lint` clean; `npx vitest run src/engine/tonePatches.test.ts` green.
-- [ ] The module has no caller yet; nothing in the app has changed.
+- [x] `npm run build:types`, `npm run lint` clean; `npx vitest run src/engine/tonePatches.test.ts` green.
+- [x] The module has no caller yet; nothing in the app has changed.
 - [ ] Reviewed with Crawford before Phase 2 (a glance; the design is the spec's).
 
 ---
