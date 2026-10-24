@@ -2495,6 +2495,8 @@ Spec [specs/OSCILLATOR_LEAK_FIX.md](specs/OSCILLATOR_LEAK_FIX.md) §5.2, plan [t
 
 **Reading.** The fix works and the leak is gone. On cost, five of the six patched figures sit inside stock's spread and one 15 s bucket does not. One bucket on one round is the shape of noise; step 2's three patched rounds (0.617–0.650) showed nothing like it. But the criterion as written is missed, and this run alone cannot rule a cost out. Not re-run or re-tuned here: whether to take more rounds is Crawford's call at Checkpoint B.
 
+**Checkpoint B (Crawford, 2026-10-23):** the round 3 bucket accepted as noise, no more rounds; his listen on the desktop passed (no change to the sound, no click at a note's end).
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

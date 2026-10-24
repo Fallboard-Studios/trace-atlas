@@ -737,4 +737,4 @@ the plan's proposal; Crawford may renumber it or make it a roadmap phase.
 and exports `oscillatorLeakPatched` (`13ee3b7d`). T3 run: the leak is closed (patched Oscillator +23 to +32 in 240 s on D1 at Light,
 stock +325 to +328) and max lag unchanged; one patched round read one 15 s bucket above the stock spread, so the "no
 cost" criterion is missed as written ([PERFORMANCE.md](../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run").
-Next: Checkpoint B (Crawford: that reading, more rounds or not, and the listen), then T4.
+Checkpoint B passed (Crawford 2026-10-23: the round 3 bucket accepted as noise, his listen passed). Next: T4, the docs.
