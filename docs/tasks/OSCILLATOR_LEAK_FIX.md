@@ -72,7 +72,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
 ### Phase 0: The slot
 
-- [ ] **Task 0: `docs/todo/backlog.md` — the item's line; spec status points here**
+- [x] **Task 0: `docs/todo/backlog.md` — the item's line; spec status points here**
 
   **Description:** Add the backlog item (proposed **32. Audio: Oscillator Leak Fix — Disconnecting the Dead Note's
   Params**; Crawford may renumber): one paragraph naming the leak, the measurements that found it (step 1, step 2 of
@@ -82,12 +82,12 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] The backlog has one new numbered item linking the spec and this plan; backlog 27 points at it.
-  - [ ] The spec's Status line says route (A), 2026-10-23, and links `docs/tasks/OSCILLATOR_LEAK_FIX.md`.
+  - [x] The backlog has one new numbered item linking the spec and this plan; backlog 27 points at it.
+  - [x] The spec's Status line says route (A), 2026-10-23, and links `docs/tasks/OSCILLATOR_LEAK_FIX.md`.
 
   **Verification:**
   - [ ] Manual review of the two files.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change).
 
   **Dependencies:** None.
 

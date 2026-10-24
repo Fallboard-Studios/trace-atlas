@@ -12,8 +12,9 @@
 **Status:** spec written 2026-10-23 from the measurements in
 [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md) ("Backlog 27, desktop step 1" and "step 2").
 Crawford's call of 2026-10-23: a dependency patch, **route (A), the in-app wrapper** (§7 question 1, resolved the same
-day). Plan: [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md). Numbering (a backlog item or a
-roadmap phase) is Crawford's; the plan's T0 proposes backlog 32.
+day). Plan: [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md). Backlog slot:
+[32](../todo/backlog.md#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params), the plan's T0 proposal;
+the number (or a roadmap phase instead) stays Crawford's.
 
 ---
 

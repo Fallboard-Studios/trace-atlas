@@ -657,7 +657,8 @@ after both. **The heap growth is Tone's per-Param automation history** (`Param.s
 Param's Timeline capped at its newest 1 000 events), so it is bounded and saturates after tens of minutes; a
 sampling-profiler read on the dev server put it, the leaked oscillator wrappers and dev-only React bookkeeping at the
 top, and a direct read showed the context's timeout list flat. Closed as a cause; the one loose end is the prediction
-that a 30-minute production run flattens the heap.
+that a 30-minute production run flattens the heap. The leak fix is its own item now:
+[32](#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params).
 
 ### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
@@ -715,3 +716,21 @@ screens' and are not comparable.
 Params' five with its sub-tab row; the robot screen's), and `--smoothness` goes with its PERFORMANCE.md section: tabs do
 not tween height, so the empty-open flash and the height snap it measured cannot happen. Then a fresh baseline table.
 Half a day with a Look; only when a main-thread question needs per-section numbers.
+
+### 32. Audio: Oscillator Leak Fix — Disconnecting the Dead Note's Params
+
+**Found 2026-10-23** by backlog [27](#27-audio-phone-playback-underruns-at-light-load-main-included)'s desktop step 1
+([scratchy-audio-phones.md](scratchy-audio-phones.md), "Backlog 27, desktop step 1"). Every note the app plays leaves one
+native `OscillatorNode` alive for the life of the page. Tone 15.1.22's `Oscillator._start` connects the Oscillator's
+persistent `frequency` and `detune` Signals into a fresh node on each start, and nothing disconnects them when the note
+ends, so standardized-audio-context keeps both connections in the Signals' output Sets and scans them on every later
+connect. On D1 at Light that is about two a second (+324 nodes in four minutes). Step 2's 15-minute runs held the rate
+(D1 +1057, D5 +171), and its A/B against a throwaway build that disconnects the two params at `onended` took D1 to +48
+with nothing changed on the audio thread. The desktop never felt it; the fix is for the phone, and for correctness.
+
+**Route (A), Crawford 2026-10-23:** an in-app wrapper, `src/engine/tonePatches.ts`, applied once at boot by
+`src/engine/audioContextSetup.ts`; no new dependency. Spec [docs/specs/OSCILLATOR_LEAK_FIX.md](../specs/OSCILLATOR_LEAK_FIX.md),
+plan [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md), branch `fix/oscillator-leak`. The number is
+the plan's proposal; Crawford may renumber it or make it a roadmap phase.
+
+**Progress 2026-10-23:** T1 built (`bda60dcc`, the wrapper and its tests, no caller yet). Next: T2, the boot call.
