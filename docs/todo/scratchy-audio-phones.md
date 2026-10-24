@@ -1364,3 +1364,56 @@ Tone's per-Param automation history, capped at 1 000 events per Param: it satura
 the one thing that did grow without bound was the oscillator leak, which the step 2 patch closes. **Prediction, not yet
 observed:** a production run past about 30 minutes on D1 should show the heap flattening. **Closed as a cause**; the
 prediction is the one loose end, and the long run that checks it can ride along with any later sitting.
+
+## Backlog 29 — the lost render quantum is the recorder's clock, not the audio (2026-10-24)
+
+[Backlog 29](archive/backlog-archive.md#29-audio-a-connect-sometimes-loses-a-render-quantum-main-included), "How to start": T19's
+crossing probe in headed Chrome on a real output device. **Build:** the dev server of `main` at `4e0cb174` (after the
+Oscillator Leak Fix merge, PR #577) on :5199. **Probe:** T19's `probe-crossing.mjs`, copied to this session's scratchpad
+(`b29/`) and extended: headed by default (`HEADLESS=1` for T19's condition, interleaved in the same sitting), plus the
+context's output path, the browser's underrun count, and the two checks below. Chrome 155.0.8059.84, the desktop's
+speakers, one run per call, no stray Chrome before or after.
+
+**It reproduces, headed and headless alike.** Both modes report the same output path (48 kHz, `baseLatency` 10.7 ms,
+`outputLatency` 32–40 ms), so T19's headless runs were likely on the real device already. The metric's self-check
+(`abrupt`, a Return gain jumped) read ×10–×617 in both, as T19's ×10–×536.
+
+| | Lightings with the spike-and-hole | Darkenings |
+|---|---|---|
+| headed, the rooms (six runs) | 20 of 96 | 1 of 96 (a send's disconnect, 171 ms after the call) |
+| headless, the rooms (three runs) | 8 of 48 | 1 of 48 |
+| headed, the controls (Tremolo cell, a FrequencyShifter with no path) | 3 of 16 | 0 of 16 |
+| headless, the controls | 1 of 16 | 0 of 16 |
+
+The rate swings from 0 to 6 of 16 between runs. Holes away from the events all sat on the probe's own graph changes:
+the recorder's connect 1.5 s before the first event, and the teardown.
+
+**The mechanism, from Chromium's source** (`third_party/blink/renderer/modules/webaudio`, `main` at the time of
+writing). `BaseAudioContext::UpdateWorkletGlobalScopeOnRenderingThread()`, called at the end of every render quantum,
+sets the AudioWorklet scope's `currentFrame` **only if a `TryLock` on the graph mutex succeeds**. A main-thread connect
+or disconnect holds that mutex. The render itself does not wait for it (`RealtimeAudioDestinationHandler::Render`
+pulls the graph every quantum; `AudioContext::HandlePreRenderTasks` defers graph updates on a failed `TryLock`). So the
+next `process()` reads the previous quantum's `currentFrame`. T19's recorder places every block at its reported frame,
+so it wrote that block over the one before and left a 128-frame hole after it: the "missing block" and the ×50–×600
+second-difference spike are the reconstruction's seam.
+
+**Checked on the data, not just read in the source.** Two checks added to the probe: every step between consecutive
+blocks' frames that is not 128, and the same metric with the blocks placed in **arrival order** (a MessagePort
+delivers in order). Five runs (rooms and controls, headed and headless): every by-frame spike, 6 of 6, sits on a
+frame step of **0** (a repeated `currentFrame`) followed by 256. In arrival order those lightings read ×0.89–×1.00, and no
+event of any kind reads above ×1.22. The `abrupt` self-check still reads ×338–×636 in arrival order, so the
+arrival-order metric would have caught a real click.
+
+**Reading.** No render quantum is lost at a connect: the signal entering the destination is continuous, and the room
+crossings, lightings included, are smooth. T19's "a connect sometimes loses a render quantum" was the recorder's
+timestamp going stale for one block while the main thread held the graph lock. It is Chrome's behaviour on any graph
+change, not Tone's or ours, so the planned bare-page split (native nodes only) answers nothing more, and there is
+nothing for the Pixel to hear. Any later probe on this recorder should place blocks in arrival order, or treat a
+repeated `currentFrame` as a seam, not a gap.
+
+**Found on the way: `playbackStats` did not count a forced stall.** A self-check worklet busy-waited 200 ms inside one
+`process()` (it reported back 200 ms each time, three times, headed); `AudioContext.playbackStats.underrunEvents` read
+0 before and after, and so did every other snapshot of the sitting. Chromium collects those stats only while the page
+`IsVisibleOrHasPermission()`, rate-limited, and absorbs them only on a successful graph `TryLock`; why a visible page
+read 0 through a stall that must have starved the device is not known. The `?debug` overlay's underrun count reads
+the same API, so on the desktop its 0 is not evidence of no underrun. Not chased.

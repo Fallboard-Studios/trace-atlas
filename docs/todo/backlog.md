@@ -660,33 +660,6 @@ top, and a direct read showed the context's timeout list flat. Closed as a cause
 that a 30-minute production run flattens the heap. The leak fix is its own item now:
 [32](#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params).
 
-### 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
-
-Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
-EQ3, the LPF and the HPF stay in at neutral, being cheap built-ins and global LFO targets that would flap through
-neutral, and are revisited only if a phone measurement points at them.
-
-### 29. Audio: A Connect Sometimes Loses a Render Quantum (`main` Included)
-
-**Found 2026-10-21** by the Robot Effect Sends T19 crossing probe ([scratchy-audio-phones.md](scratchy-audio-phones.md),
-"Robot Effect Sends (roadmap 50.7), desktop — T19"). In headless Chrome on a real-time context, about one connect in
-six, of a Tone effect into the live graph, is followed by one missing 128-frame render block (2.7 ms) and a spike in
-the master output (×50–×600 over the steady state). This happens to an effect room's branch lighting, to a 50.6 dry-chain
-bypass cell lighting (on `main`), and to a FrequencyShifter connected outside the chain into a muted gain, which has no
-audible path, so the whole graph loses the quantum. Disconnects, which run on the audio clock's timer, never did (0 of 42).
-
-**Not known:** whether it happens on a real output device (not headless) and on the Pixel, and what holds the audio
-thread up. Candidates: the graph lock while the main thread connects, or standardized-audio-context's connect path.
-
-**How to start:** run the scratchpad probe (`probe-crossing.mjs focus focus controls`, rebuilt from the recipe in the
-log if gone) in headed Chrome with a real device. Then a bare page with no Tone, connecting native nodes only, to split
-Chrome from Tone. Then the same lighting by ear on the Pixel. Only if it is audible: options are connecting at a quieter
-moment, or keeping the branch connected and paying its dark cost (which undoes 50.6's saving), Crawford's call.
-
-**Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
-seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
-power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
-
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):

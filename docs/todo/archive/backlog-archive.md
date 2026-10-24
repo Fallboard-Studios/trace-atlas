@@ -258,6 +258,47 @@ Control Panel / Lenovo Vantage discrete-mode routes were not tried.
 
 **How to start:** `interview-me` from this item for candidate 1; candidate 2 can go straight to a RED test.
 
+## 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
+
+**Closed** 2026-10-24 (Crawford, on the recommendation in backlog 29's close: plan.md said it "closes itself if nothing in 27 or 29 points at them", and neither does. Backlog 27's desktop steps put the Light-tier bursts on the graph's standing cost with four robots sounding and the late collapse not reproduced; 29 turned out to be no lost quantum at all). Nothing built. The original request follows.
+
+Recorded 2026-10-20 (Dark-Effect Bypass spec §3): the bypass takes only the ten effects out of the path when dark;
+EQ3, the LPF and the HPF stay in at neutral, being cheap built-ins and global LFO targets that would flap through
+neutral, and are revisited only if a phone measurement points at them.
+
+## 29. Audio: A Connect Sometimes Loses a Render Quantum (`main` Included)
+
+**Closed** 2026-10-24 (Crawford; `docs/backlog-29-recorder-clock`, `0f9a1972`, record [scratchy-audio-phones.md](../scratchy-audio-phones.md), "Backlog 29 — the lost render quantum is the recorder's clock, not the audio"). No render quantum is lost at a connect. Chromium sets the AudioWorklet scope's `currentFrame` only when the render thread wins a `TryLock` on the graph mutex, which a main-thread connect holds, so the probe's recorder stacked one block on the one before; in arrival order every lighting is smooth. Nothing built; any later recorder probe places blocks in arrival order. The original request follows.
+
+**Found 2026-10-21** by the Robot Effect Sends T19 crossing probe ([scratchy-audio-phones.md](../scratchy-audio-phones.md),
+"Robot Effect Sends (roadmap 50.7), desktop — T19"). In headless Chrome on a real-time context, about one connect in
+six, of a Tone effect into the live graph, is followed by one missing 128-frame render block (2.7 ms) and a spike in
+the master output (×50–×600 over the steady state). This happens to an effect room's branch lighting, to a 50.6 dry-chain
+bypass cell lighting (on `main`), and to a FrequencyShifter connected outside the chain into a muted gain, which has no
+audible path, so the whole graph loses the quantum. Disconnects, which run on the audio clock's timer, never did (0 of 42).
+
+**Not known:** whether it happens on a real output device (not headless) and on the Pixel, and what holds the audio
+thread up. Candidates: the graph lock while the main thread connects, or standardized-audio-context's connect path.
+
+**How to start:** run the scratchpad probe (`probe-crossing.mjs focus focus controls`, rebuilt from the recipe in the
+log if gone) in headed Chrome with a real device. Then a bare page with no Tone, connecting native nodes only, to split
+Chrome from Tone. Then the same lighting by ear on the Pixel. Only if it is audible: options are connecting at a quieter
+moment, or keeping the branch connected and paying its dark cost (which undoes 50.6's saving), Crawford's call.
+
+**Note 2026-10-22:** weak evidence only, not the probe. The Robot Effect Sends T21 runs (seven on the Pixel 8, every
+seeded world lighting Shimmer and Double branches at power-on, the hand world all five) reported no click or spike at
+power-on; nothing was crossed by hand mid-run, so a live connect was never listened for. The probe steps above stand.
+
+**Update 2026-10-24: not a lost quantum; the recorder's clock ([scratchy-audio-phones.md](../scratchy-audio-phones.md),
+"Backlog 29 — the lost render quantum is the recorder's clock").** It reproduces headed on the real device as often as
+headless (20 of 96 room lightings headed, 8 of 48 headless). But Chromium updates the AudioWorklet scope's
+`currentFrame` only when the render thread wins a `TryLock` on the graph mutex, which a main-thread connect holds. So
+the next block repeats the previous frame, and the probe's recorder stacked it on the one before. Every spike sits on a
+repeated frame (6 of 6). In arrival order the same lightings read ×0.89–×1.00, while the self-check click still reads
+×338–×636. The audio is continuous; there is nothing for the bare page or the Pixel to find. **Proposed: close it**
+(Crawford's call). Found on the way: `playbackStats` read 0 underruns through a forced 200 ms render stall, so the
+`?debug` overlay's underrun count is not evidence on the desktop.
+
 ## 30. Tooling: One Shared CDP Helper for the Perf Scripts
 
 **Closed** 2026-10-23 (merged as PR #574, `tooling/cdp-lib`, `bbfe1930`). One finding it recorded stays open and has no item of its own yet: `scripts/perf/profile.mjs` no longer completes on `main` (its step table and `--smoothness` click `.robot-selection-card__top`, which went with the Probes list in layout rework Task 21, `4ba12cae`). The original request follows.
