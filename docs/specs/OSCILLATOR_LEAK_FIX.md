@@ -169,5 +169,8 @@ stock, per Crawford's decision of 2026-10-23.
 1. **(A) wrapper or (B) `patch-package`?** Recommendation: (A). (B) needs the dependency approval CLAUDE.md asks for.
 2. **File upstream?** A Tone.js issue with the probe's numbers (two inbound Signal connections per note never removed)
    costs an hour and would retire the patch one day. Recommendation: yes, after T3, as its own small task.
+   **Moot, 2026-10-23 (plan T5):** upstream already has it, [#1379](https://github.com/Tonejs/Tone.js/issues/1379),
+   fixed by [#1393](https://github.com/Tonejs/Tone.js/pull/1393) in Tone 15.3.11 (npm `next`; `latest` is still
+   15.1.22). On that Tone this wrapper throws on every note, so the upgrade removes it: the plan's Open Question 4.
 3. **Number.** A backlog item (the fix is a few dozen lines) or a roadmap phase (it changes a dependency's behaviour).
    Recommendation: backlog, next free number, with this spec linked.

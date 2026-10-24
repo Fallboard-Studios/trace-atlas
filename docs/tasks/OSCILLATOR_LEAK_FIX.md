@@ -250,7 +250,16 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
   **Estimated scope:** XS (docs only)
 
-- [ ] **Task 5 (optional, Crawford's call — spec §7 question 2): the upstream report, drafted**
+- [x] **Task 5 (optional, Crawford's call — spec §7 question 2): the upstream report, drafted** *(Not drafted,
+  2026-10-23: upstream already has it. [Tone.js #1379](https://github.com/Tonejs/Tone.js/issues/1379), "Memory Leak in
+  High-Frequency triggerAttackRelease() Loops", diagnosed by standardized-audio-context's author as these two
+  connections and fixed by [#1393](https://github.com/Tonejs/Tone.js/pull/1393) on 2025-12-14 (`_start`'s `onended`
+  calls `_cleanUpConnections`). First release with it: 15.3.11; absent from 15.3.10. npm's `latest` is still 15.1.22,
+  the fix rides `next` (15.5.61 at the time of writing). A scratch repro in the session scratchpad (`repro/`, one
+  `Tone.Synth`, 120 notes at 2 a second, forced GC, node and heap-snapshot counts) confirmed both sides: 15.1.22 retains
+  120 of 120 `OscillatorNode`s, 15.1.22 with the fix and 15.5.61 stock retain 0. It also found the hazard in Open
+  Question 4, recorded in AUDIO_SYSTEM.md and backlog 32. `docs/reference/tone-oscillator-leak-report.md` not
+  written.)*
 
   **Description:** A draft Tone.js issue as a markdown file for Crawford to post: Tone 15.1.22 and
   standardized-audio-context versions, the mechanism (`Oscillator._start` connects `frequency`/`detune` into each new
@@ -262,10 +271,12 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
   **Proof:** Read — Crawford's review of the draft. No test file.
 
   **Acceptance criteria:**
-  - [ ] The draft is self-contained for a Tone maintainer: versions, mechanism, reproduction, numbers, proposed fix.
+  - [x] ~~The draft is self-contained for a Tone maintainer: versions, mechanism, reproduction, numbers, proposed fix.~~
+        *(No draft: the issue and its fix exist upstream, above.)*
 
   **Verification:**
-  - [ ] Crawford's read.
+  - [ ] Crawford's read of the finding (this entry, AUDIO_SYSTEM.md's "Upstream has fixed it" paragraph, Open
+        Question 4).
 
   **Dependencies:** Task 3 (the numbers).
 
@@ -285,7 +296,7 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| A Tone upgrade renames `_start` or `_oscillator`, or fixes the leak upstream, and the wrapper silently does nothing | Medium | T1's guard returns `false` with a `devWarn`; T2 exports `oscillatorLeakPatched`; the T1 tests name the two private fields, so a rename that reaches the stub contract fails a test. A real upgrade re-runs T3. |
+| A Tone upgrade renames `_start` or `_oscillator`, or fixes the leak upstream, and the wrapper silently does nothing | Medium | T1's guard returns `false` with a `devWarn`; T2 exports `oscillatorLeakPatched`; the T1 tests name the two private fields, so a rename that reaches the stub contract fails a test. A real upgrade re-runs T3. **Corrected 2026-10-23 (T5):** the upstream fix exists (Tone 15.3.11) and on it the wrapper is not silent, it throws on every note; Open Question 4. |
 | Disconnecting a param that is already gone throws and breaks Tone's own `onended` (dispose never runs, a second leak) | High | T1's third criterion: the disconnects sit in one `try`, and the original `onended` runs after it regardless; mutation-checked. |
 | The wrapper replaces `onended` *after* Tone's `_onended` has already fired (a node that ends inside `_start`) | Low | `_start` schedules the native start in the future; `onended` cannot fire synchronously inside it. T2's manual check and T3's node count would show a wrap that never ran. |
 | `audioContextSetup.test.ts`'s `tone` mock lacks `Oscillator` and the new call throws there | Medium | The guard treats a missing prototype as `false`; T2's second criterion keeps the existing cases unmodified. |
@@ -295,5 +306,14 @@ T4 (AUDIO_SYSTEM.md, backlog line finished)        T5 (upstream report draft —
 ## Open Questions
 
 1. Route: **Resolved** (Architecture Decisions): (A), the in-app wrapper. Crawford, 2026-10-23.
-2. File upstream? **Open** — Crawford's call; T5 drafts the report if yes, and posting it is his.
+2. File upstream? **Moot** (T5, 2026-10-23): Tone already has it, #1379, fixed by #1393 in 15.3.11.
 3. Numbering: **Open** — T0 proposes backlog 32; Crawford may renumber or make it a roadmap phase.
+4. The wrapper on a Tone with the upstream fix: **Open** — Crawford's call (T5, 2026-10-23). On 15.3.11 and later
+   the wrapper's disconnects run first, Tone's `_cleanUpConnections` repeats them, and standardized-audio-context
+   throws `Not connected to destination node` out of Tone's `onended`, every note, before `onstop` and dispose (the
+   app reads neither `onstop` nor Synth's `onsilence`; the nodes are still collected). `tone` is `^15.1.22` and
+   resolves to 15.1.22 only while that is npm's `latest`. Options: (a) leave the code; the upgrade deletes the patch
+   (now written in AUDIO_SYSTEM.md and backlog 32); (b) run Tone's `onended` first, in a `try`/`finally`, then the
+   disconnects in their swallowing `try`, so a fixed Tone's second disconnect is the swallowed one: no new private
+   name, safe on both, but it reverses T1's order criterion and needs its own RED task; (c) step aside when the
+   prototype has a `_cleanUpConnections` function: explicit, but a third private name.

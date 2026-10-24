@@ -744,3 +744,10 @@ Checkpoint B passed (Crawford 2026-10-23: the round 3 bucket accepted as noise, 
 `oscillatorLeakPatched`; documented in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md), "Tone patch: the per-note oscillator
 leak". The proof is PERFORMANCE.md's T3 section above. Left: Crawford's PR; the Pixel sitting of plan.md Stage 1
 carries this build beside stock. Archive this item when the PR merges.
+
+**Upstream, 2026-10-23 (T5).** No report to file: Tone already has it as
+[#1379](https://github.com/Tonejs/Tone.js/issues/1379), fixed by [#1393](https://github.com/Tonejs/Tone.js/pull/1393)
+(the same two disconnects) in **15.3.11**, on npm's `next` tag; `latest` is still 15.1.22. On a fixed Tone the
+wrapper throws on every note (Tone's own cleanup disconnects a second time; a scratch repro on 15.5.61 read 120 uncaught
+errors and no `onstop` in 120 notes), so the Tone upgrade deletes the patch in the same change. **Open for Crawford:**
+whether the wrapper should also survive that upgrade on its own (see the plan's Open Question 4).
