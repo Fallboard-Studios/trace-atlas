@@ -1034,7 +1034,7 @@ Replaces one private `Tone.LFO` per modulation target (the 17.2.7 design above) 
 
 **Not Doing:** the intent doc's own out-of-scope list (`docs/intent/lfo-bank.md`) — control-rate/polled bank LFOs (rejected in favor of real audio-rate nodes, may be revisited); per-link polarity/invert or other decorrelation (lockstep is wanted); lane-based load degradation (Light/Standard/Full all run all four lanes — only the filter switch and drift-off react to the dial); fixed lane "characters" with constrained ranges (the four lanes are seeded with spread rates but are otherwise blank, fully editable oscillators); migrating old sessions/share links (v1 payloads are stripped, not converted); a modulation-matrix overview UI (the per-target `LfoLink` picker is the UI).
 
-**Follow-up (spec §7 risk 8, inherited knowingly, not fixed here):** an Attenuation Style switch while the context is already running does not re-prime the bank or global links — `regenerateLfoBankFromSeed`/`regenerateGlobalLfoLinksFromSeed` are data-only, and nothing re-primes until the next `AudioEngine.start()` (a full power cycle). Pre-dates this phase (the old per-target engine had the identical gap); fixing it is a one-line addition — `primeLfoBank`/`linkTarget` from the same AS-switch subscription, guarded by `isAudioContextRunning()` — not done here.
+**Follow-up (spec §7 risk 8, inherited knowingly, not fixed here):** an Attenuation Style switch while the context is already running does not re-prime the bank or global links — `regenerateLfoBankFromSeed`/`regenerateGlobalLfoLinksFromSeed` are data-only, and nothing re-primes until the next `AudioEngine.start()` (a full power cycle). Pre-dates this phase (the old per-target engine had the identical gap); fixing it is a one-line addition — `primeLfoBank`/`linkTarget` from the same AS-switch subscription, guarded by `isAudioContextRunning()` — not done here. **Fixed 2026-10-24, PR #579 (`perf/as-switch-reprimes-lfo-bank`, `83a5613a`):** not the one line this note proposed (`primeLfoBank` no-ops once the bank exists), but a per-lane push through the four `setBank*` setters plus `linkTarget` per global target, run at the end of `syncGlobalAudioToCurrentAttenuationStyle` behind `isAudioContextRunning()` (`pushLfoBankAndLinksToEngine`); the two regenerates stay data-only. See [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md), LFO Modulation, Seeding.
 
 ## 19. Test Coverage: Untested Core Modules
 
@@ -3050,7 +3050,8 @@ readout. As built, in [ANIMATION_SYSTEM.md](../../ANIMATION_SYSTEM.md#scene-stac
 - **Bubble strips' memory**: no strip was a drawing layer in the idle window, so spec §7 Q3 (fifty always-promoted
   strips against the one sheet they replaced) is untested by the gate.
 - **Checkpoints B and C, and Safari**: Crawford's manual list was never signed off in Chrome and Firefox, and Safari
-  is unverified.
+  is unverified. *(2026-10-24: B and C passed in Chrome and Firefox, Crawford. Safari is still open on the live stub,
+  [roadmap 53](../roadmap.md#53-per-mover-compositor-layers).)*
 
 ## 54. Output Headroom: No Clipping Out of the Box
 
