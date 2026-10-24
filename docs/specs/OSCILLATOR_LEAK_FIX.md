@@ -11,8 +11,9 @@
 
 **Status:** spec written 2026-10-23 from the measurements in
 [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md) ("Backlog 27, desktop step 1" and "step 2").
-Crawford's call of 2026-10-23: a dependency patch. Which kind is §7 question 1. Numbering (a backlog item or a roadmap
-phase) is Crawford's; the work hangs off backlog 27 until then.
+Crawford's call of 2026-10-23: a dependency patch, **route (A), the in-app wrapper** (§7 question 1, resolved the same
+day). Plan: [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md). Numbering (a backlog item or a
+roadmap phase) is Crawford's; the plan's T0 proposes backlog 32.
 
 ---
 
