@@ -1186,3 +1186,181 @@ measures what a phone plays out of the box.
 
 **New for backlog 27:** on a rested Pixel 8 at Light, the phone default, D1 clicks throughout on `main` (190 → 254)
 and on the branch (140 → 173), and D5 reads 93–149 at 3:00. Crawford: chase it there.
+
+## Backlog 27, desktop step 1 — D1 against D5 at Light, and what grows (2026-10-23)
+
+plan.md Stage 1's first step ([backlog 27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included),
+"Next, re-ordered"): the two worlds of the T10 round, on the desktop, with a read of what D1 carries. **Build:** a
+production `vite build` of `perf/underruns-desktop` at `87b205c3` (`index-DekV9Q83`; `src/` is `main` `5bd7f593` plus
+the overlay's new `events` token), `vite preview` on :4173. **Harness:** `npm run perf:audio` with the long-run columns
+added the same day (PERFORMANCE.md "The long-run columns"): `--seconds 240 --bucket 15`, Light pinned by `?load=light`,
+the world by the T10 `?session=` links (PERFORMANCE.md "The seven links"), headless Chrome, three rounds interleaved
+(D1 D5, D5 D1, D1 D5), foreground, one run per call, orphaned Chrome 0 before and after. D1 = `56c2t2t8` (−116, −2),
+D5 = `bravo` (−150, 90).
+
+**What each world carries after the warm-up** (the overlay, as the harness now prints it). Both: `latency playback`,
+`load 20%·fx 20%`, sounding cap 4, poly cap 8, `fx in 5/10`, `bank 4/4`, every LFO tier off, `events 12`. The one
+difference the overlay shows: D1 `links 43/91`, D5 `links 25/91`.
+
+| Round, world | mean cap | peak window | overall max | nodes first → last | heap MB first → last | events |
+|---|---|---|---|---|---|---|
+| 1, D1 | 0.523 | 0.659 | 0.998 | 1800 → 2125 (+324) | 35.7 → 42.1 | 12 → 12 |
+| 1, D5 | 0.499 | 0.708 | 0.998 | 1815 → 1869 (+54) | 36.4 → 41.8 | 12 → 12 |
+| 2, D5 | 0.478 | 0.537 | 0.994 | 1815 → 1870 (+55) | 35.4 → 41.6 | 12 → 12 |
+| 2, D1 | 0.494 | 0.565 | 0.996 | 1798 → 2126 (+327) | 36.4 → 43.0 | 12 → 12 |
+| 3, D1 | 0.492 | 0.554 | 0.953 | 1798 → 2122 (+324) | 33.6 → 42.2 | 12 → 12 |
+| 3, D5 | 0.467 | 0.525 | 0.995 | 1815 → 1870 (+55) | 34.4 → 40.0 | 12 → 12 |
+
+**Reading, against the backlog's question** ("Light on D1 read worse than Full on D5 did; what is it, and why does
+Light not cut it?").
+- **Steady load does not separate them.** D1 reads 0.02–0.03 above D5 on the mean, inside the round-to-round spread;
+  both touch 0.95–0.998 in most 15 s buckets, so the desktop's audio thread also misses deadlines in bursts at Light,
+  with four robots sounding. The callback interval was 20.0 ms in round 1 and 21.33 ms after (Chrome's choice per
+  context, not a load signal). The pending Transport events stay at 12 throughout: nothing is scheduled and never
+  cleared.
+- **What grows is the live AudioNode count, and it is deterministic to the world.** D1 gains 324, 327 and 324 nodes in
+  four minutes, bucket for bucket the same curve each round, climbing while robots undock and flat while they dock
+  (buckets 9–12). D5 gains 54–55. The heap climbs about 6 MB in both, with garbage-collection drops along the way.
+- **By type** (the harness's new breakdown, 90 s runs): D1 `Oscillator +198, Gain +31`; D5 `Oscillator +15,
+  Gain +13`. Tone creates one native `OscillatorNode` and one `GainNode` per note start; the gains go, the oscillators
+  stay.
+- **Not a start-without-stop** (scratch probe `probe-osc-leak.mjs`, session scratchpad: `AudioScheduledSourceNode`'s
+  `start`/`stop` patched before the app loads). D1 in 90 s: 224 oscillators started, 196 `stop()` called, 196 `ended`
+  fired; the 28 never stopped are the fixed LFOs (`custom` and `sine`, the same 27–28 on D5). D5: 47 started, 20
+  stopped. So **D1 plays about ten times the notes D5 does with the same four robots sounding**, and every note's
+  oscillator ends as it should.
+- **Retained, not awaiting collection** (scratch probe `probe-osc-gc.mjs`: `HeapProfiler.collectGarbage` twice after
+  60 s of D1). Before the forced GC: `Oscillator +127, Gain +32` since the warm-up; after it: `Gain −12,
+  Oscillator +9` (the nine are new notes). Not one ended oscillator was destroyed.
+- **The holder, from the source** (Tone 15.1.22 and standardized-audio-context, `node_modules`):
+  `Oscillator._start` builds a new `ToneOscillatorNode` for every start from the stopped state and connects the
+  Oscillator's persistent `frequency` and `detune` Signals into the new node's params
+  (`source/oscillator/Oscillator.js`, `_start`). When the note ends, `OneShotSource._onended` disposes the
+  `ToneOscillatorNode`, which disconnects its own **output** and disposes its Param wrappers, but nothing ever calls
+  `frequency.disconnect(deadNode.frequency)`: only the source side can remove an inbound connection. In
+  standardized-audio-context every connect into an AudioParam inserts `[destinationParam, output]` into the **source's**
+  output Set (`factories/audio-node-constructor.js`, `connectAudioParam`, with an `insertElementInSet` scan of that Set
+  on every insert) and never forgets it until a disconnect. So each note leaves two strong references, one in the
+  frequency Signal's Set and one in the detune Signal's, to an AudioParam whose `OscillatorNode` therefore cannot be
+  collected; and each later connect from those Signals scans a Set that is longer by two. A retrigger while a note is
+  still sounding reuses the node (`_restart` only cancels the pending stop), so dense legato leaks less than dense
+  staccato. This is upstream behaviour the app meets by playing a Tone.Synth per layer (`compositeVoice.ts`), not a
+  wiring bug of ours; whether Tone has it on file was not checked.
+
+**What this does and does not say.** It names a leak that scales with notes played: about two retained oscillators a
+second on D1 at Light, so some 500 by the phone's 4:00 mark and 7 000 an hour, each with a longer connect scan behind
+it. It does not yet tie the leak to the underruns: the desktop's capacity bursts are there from the first bucket, before
+anything has accumulated, and the audio thread does not render an ended source. The link, if there is one, would be
+through the main thread (a growing scan per note start, GC pressure, the `detectCycles` walk that every connect runs;
+backlog 29's lost render quantum sits on the same connect path) starving Tone's 100 ms look-ahead on a slow phone late
+in a run, which is the shape of the 2:50–4:00 collapse. Two measurements would settle it, both desktop and both cheap:
+the 15-minute long run as planned (does `nodes` keep its slope and does `lag (max)` or capacity drift with it), and an
+A/B of a scratch build whose `Oscillator.onstop` disconnects the dead node's two params (one monkey-patch of Tone's
+`Oscillator.prototype._start`, never committed) against stock, same world, same session. A fix proper is a dependency
+patch or an upstream change to how notes are played, so it is Crawford's call and gets a spec (CLAUDE.md: ask before
+changing the audio architecture).
+
+**Housekeeping found on the way.** The harness's `--world name:x:y` had pinned nothing since 2026-09-28 (only
+`?session=` does); the first smoke run landed on a random world under the `bravo` label. The harness now aborts when the
+overlay's coordinates differ from the payload's. Its `sounding` column had read a dash since the two-dial budget line
+of 2026-09-22; fixed. Both in `87b205c3`.
+
+## Backlog 27, desktop step 2 — the 15-minute runs, and the leak A/B (2026-10-23, same sitting)
+
+**The long runs** (Crawford's terminal, same build and links as step 1, `--seconds 900 --bucket 60`, the machine
+otherwise idle; the two outputs were pasted into the session and are summarised here).
+
+| World | mean cap first → last bucket | overall max | nodes first → last | by type | heap MB | events |
+|---|---|---|---|---|---|---|
+| D1 | 0.566 → 0.501, no trend (mean 0.470) | 0.996 | 1854 → 2911 (+1057) | Oscillator +1120, Gain +22 | 38.6 → 50.9 (+12.3) | 12 → 12 |
+| D5 | 0.504 → 0.473, no trend (mean 0.433) | 0.996 | 1816 → 1987 (+171) | Oscillator +162, Gain +10 | 35.6 → 48.0 (+12.4) | 12 → 12 |
+
+- **The leak holds its rate for fifteen minutes** (D1 about 70 nodes a minute, a straight line, never a drop) and
+  **the desktop's audio thread never feels it**: capacity tracks the audible count, not the clock, and the 0.99 bursts
+  are in the first bucket and no worse in the fifteenth.
+- **The heap climbs the same 12 MB on both worlds**, though D5 leaks six times fewer oscillators. So most of the memory
+  growth is a second accumulation, world-independent, about 0.8 MB a minute, not the oscillators. Unidentified; a heap
+  snapshot diff (CDP `HeapProfiler.takeHeapSnapshot`, early against late) is the way to name it.
+- Pending Transport events hold at 12 on both.
+
+**The A/B** (Crawford's go-ahead given in the session). **Patched:** a throwaway `vite build` of the same tree with one
+monkey-patch appended to `src/engine/audioContextSetup.ts` and reverted with `git checkout` after the build (the patch
+text is kept in the session scratchpad as `osc-leak-patch.ts`; bundle `index-8SKi0TLk`, served on :4175): it wraps
+`Tone.Oscillator.prototype._start` so the new `ToneOscillatorNode`'s `onended` first calls
+`frequency.disconnect(node.frequency)` and `detune.disconnect(node.detune)`, then Tone's own handler. **Stock:** the step 1
+build on :4173. D1 at Light, `--seconds 240 --bucket 15`, three rounds interleaved (stock patched, patched stock, stock
+patched), foreground, one run per call, orphaned Chrome 0. The harness gained a `max lag` column for this (the largest
+main-thread lag the overlay's sampler saw per bucket, `d14de9db`).
+
+| Round | Build | mean cap | peak window | overall max | nodes | by type | heap MB | max lag range |
+|---|---|---|---|---|---|---|---|---|
+| 1 | stock | 0.526 | 0.643 | 0.996 | +326 | Oscillator +325, Gain +48 | +7.7 | 9–26 ms |
+| 1 | patched | 0.543 | 0.650 | 0.996 | +48 | Gain +36, Oscillator +26 | +4.6 | 9–23 ms |
+| 2 | patched | 0.541 | 0.617 | 0.995 | +48 | Gain +42, Oscillator +29 | +9.1 | — |
+| 2 | stock | 0.579 | 0.621 | 0.996 | +322 | Oscillator +322, Gain +42 | +5.5 | — |
+| 3 | stock | 0.551 | 0.648 | 0.995 | +324 | Oscillator +322, Gain +24 | +6.7 | — |
+| 3 | patched | 0.558 | 0.636 | 0.996 | +47 | Gain +30, Oscillator +23 | +4.6 | — |
+
+**Reading.**
+- **The mechanism is proven.** Disconnecting the two params at `onended` takes the oscillator line from +324 to +48,
+  and what remains is oscillators and gains in step (nodes awaiting ordinary collection, the balance D5 showed). So
+  the holder was exactly the two inbound Signal connections, and nothing else.
+- **It is not the desktop's underruns.** Stock 0.526 / 0.579 / 0.551 against patched 0.543 / 0.541 / 0.558: the
+  difference is inside the round-to-round spread and has no sign. Peak windows and the 0.99 bursts are the same on
+  both. Max lag sits at 9–26 ms on both, with no growth over four minutes.
+- **The heap growth is not the oscillators either.** Patched climbs 4.6–9.1 MB in four minutes, stock 5.5–7.7; the
+  second accumulation above is still there with the leak closed.
+
+**Where that leaves backlog 27.** The desktop has now answered what it can. (1) At Light, the audio thread misses
+deadlines in bursts from the first bucket on both worlds, with four robots sounding, so that is the graph's standing
+cost at this tier, not an accumulation; whether the same bursts are the phone's steady clicks is for the sitting.
+(2) The late collapse is not reproduced on the desktop in fifteen minutes on either world. (3) Two things do accumulate:
+the oscillator leak (upstream, mechanism proven, cost unproven here; on a phone it still means a longer connect scan
+per note and more memory) and an unnamed 0.8 MB/min heap growth that survives the patch. Either could matter on a
+phone with no headroom and neither can be settled here. Crawford's calls: whether to carry the one-line disconnect as a
+dependency patch or an upstream Tone PR (a spec either way, since it changes how notes are played); whether to name the
+heap growth before the sitting; and whether the sitting takes the patched build beside stock.
+
+## Backlog 27, desktop step 2b — naming the heap growth (2026-10-23, same sitting)
+
+Crawford's decisions on the three calls above: the leak fix goes as a dependency patch (spec:
+[docs/specs/OSCILLATOR_LEAK_FIX.md](../specs/OSCILLATOR_LEAK_FIX.md)); name the heap growth if it could improve
+performance; the sitting after both.
+
+**Method.** Against the dev server (unminified names; `npm run dev` on :5174), D1 at Light, Chrome's **sampling heap
+profiler** started after the warm-up (`HeapProfiler.startSampling`, 8 KB interval, collected objects excluded) so only
+allocations made during the run are sampled, read three times at 120 s intervals after a forced GC each (scratch probe
+`probe-heap-growth.mjs`). A frame whose live bytes grow across the three readings is growth; one that stays flat is
+steady-state churn. Then one direct read of Tone's context over two minutes (`probe-timeouts.mjs`, importing the
+app's own Tone module instance by its pre-bundled URL).
+
+**Heap after GC:** 40.0 MB at the start, 52.7 → 56.1 → 60.9 MB at 2, 4 and 6 minutes (the dev build carries React's
+debug bookkeeping, so about three times the production slope).
+
+**What grows, by allocating frame (120 s → 240 s → 360 s):**
+- The whole growing set hangs off Tone's Transport tick (`_processTick` → `invoke` → our `scheduleRepeat` callback →
+  `scheduleNote` → `triggerWithCap` → `compositeVoice.triggerAttackRelease` → Tone `Synth.triggerAttackRelease`), 4.8 →
+  6.2 → 7.9 MB: per-note allocations that stay live.
+- Inside it, **`Param.setValueAtTime` (Tone) 0.9 → 1.6 → 2.4 MB**: every note writes automation events into the frequency
+  Param's and the envelope Signal's event Timelines. `Param` builds its Timeline with `memory 1000`
+  (`core/context/Param.js`), and `Timeline.add` trims to the newest 1 000 events, so **each Param retains up to 1 000
+  events, and the growth is bounded**: it stops once every sounding layer's params have written 1 000 events (a few
+  hundred notes per layer for the envelope, 1 000 for the frequency), which on D1 is tens of minutes. About 100 bytes an
+  event over some 36 layer synths with two to three automated params each puts the ceiling in the 7–11 MB range, which
+  is the size of the 15-minute production climb (+12 MB on both worlds: D5's robots play fewer notes but every layer
+  still writes events).
+- **The leaked `OscillatorNode` wrappers** (standardized-audio-context's `createOscillator`), 0.46 MB over the run:
+  the oscillator leak's JS-side footprint, gone with the patch.
+- `scheduleVoiceRelease`'s `context.setTimeout` showed 2.1 MB of apparent growth; the direct read says otherwise: the
+  context's timeout list holds 7–15 entries throughout (none past due, none NaN), while its ids advance about 24 a
+  second (each note on a sounding layer re-schedules its stop). Misattributed by the sampler; not a leak.
+- React's render output is the largest live set (11 MB) but flat across the readings: the latest render's tree, steady
+  state. In production `jsxDEV` does not exist, and the dev build's React debug stacks explain the dev slope.
+- Transport events hold at 8 one-shots and 4 repeats.
+
+**Reading, against Crawford's condition ("if it could improve performance").** The world-independent heap growth is
+Tone's per-Param automation history, capped at 1 000 events per Param: it saturates rather than runs away, and a
+1 000-entry array per Param costs the main thread nothing measurable per note. Nothing here to fix for performance;
+the one thing that did grow without bound was the oscillator leak, which the step 2 patch closes. **Prediction, not yet
+observed:** a production run past about 30 minutes on D1 should show the heap flattening. **Closed as a cause**; the
+prediction is the one loose end, and the long run that checks it can ride along with any later sitting.

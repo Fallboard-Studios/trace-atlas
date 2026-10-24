@@ -7,14 +7,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // MOCKS
 // ========================================
 const setContext = vi.fn();
+const devWarn = vi.fn();
 const ContextCtor = vi.fn(function (this: { options?: unknown }, options?: unknown) {
   this.options = options;
 });
+/** What the mock exports as `Oscillator`; `undefined` unless a case supplies one. A getter, because vitest throws on
+ *  reading an export a mock does not define, and the module reads `Tone.Oscillator` on every load. */
+const toneStub: { Oscillator: unknown } = { Oscillator: undefined };
 
 vi.mock('tone', () => ({
   setContext: (...args: unknown[]) => setContext(...args),
   Context: ContextCtor,
+  get Oscillator() {
+    return toneStub.Oscillator;
+  },
 }));
+
+vi.mock('../utils/helpers', () => ({ devWarn: (...args: unknown[]) => devWarn(...args) }));
 
 // This module runs before any Tone node exists, so it must never pull in a store: importing one would throw here.
 vi.mock('../stores/audioStore', () => {
@@ -174,5 +183,122 @@ describe('audioContextSetup (boot-time Audio Load preset)', () => {
     await loadFreshWithQuery('?load=light');
     expect(ContextCtor).toHaveBeenCalledTimes(1);
     expect(setContext).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Oscillator Leak Fix (docs/specs/OSCILLATOR_LEAK_FIX.md, plan Task 2): this module is the one that runs before any
+// Oscillator can start, so it applies patchOscillatorEndedDisconnect to Tone.Oscillator.prototype at import. The stub
+// stands in for Tone 15.1.22's private `_start` / `_oscillator` exactly as tonePatches.test.ts does.
+describe('audioContextSetup (Oscillator leak patch at boot)', () => {
+  type StubParam = { readonly name: string };
+  type StubNode = { frequency: StubParam; detune: StubParam; onended: (() => void) | undefined };
+  type StubOscillator = {
+    _oscillator: StubNode | null;
+    frequency: { disconnect: ReturnType<typeof vi.fn> };
+    detune: { disconnect: ReturnType<typeof vi.fn> };
+    _start(time: unknown): void;
+  };
+
+  /** A stub `Oscillator` whose `_start` builds a node with Tone's own `onended` installed, recorded in `calls`. */
+  function makeStubOscillatorClass(calls: string[]) {
+    const prototype = {
+      _start(this: StubOscillator) {
+        this._oscillator = {
+          frequency: { name: 'node.frequency' },
+          detune: { name: 'node.detune' },
+          onended: () => calls.push('tone.onended'),
+        };
+      },
+    };
+    return { prototype };
+  }
+
+  function makeInstance(prototype: object, calls: string[]): StubOscillator {
+    const oscillator = Object.create(prototype) as StubOscillator;
+    oscillator._oscillator = null;
+    oscillator.frequency = { disconnect: vi.fn(() => calls.push('frequency.disconnect')) };
+    oscillator.detune = { disconnect: vi.fn(() => calls.push('detune.disconnect')) };
+    return oscillator;
+  }
+
+  beforeEach(() => {
+    setContext.mockClear();
+    ContextCtor.mockClear();
+    devWarn.mockClear();
+  });
+
+  afterEach(() => {
+    toneStub.Oscillator = undefined;
+    window.history.replaceState({}, '', '/');
+    vi.resetModules();
+  });
+
+  async function loadFreshWithQuery(query: string) {
+    window.history.replaceState({}, '', `/${query}`);
+    vi.resetModules();
+    return import('./audioContextSetup');
+  }
+
+  it('patches Tone.Oscillator.prototype at import: a note’s onended runs Tone’s, then disconnects both Signals', async () => {
+    const calls: string[] = [];
+    const OscillatorStub = makeStubOscillatorClass(calls);
+    toneStub.Oscillator = OscillatorStub;
+
+    const fresh = await loadFreshWithQuery('');
+    expect(fresh.oscillatorLeakPatched).toBe(true);
+
+    const oscillator = makeInstance(OscillatorStub.prototype, calls);
+    oscillator._start(0);
+    const node = oscillator._oscillator as StubNode;
+    expect(calls).toEqual([]);
+
+    node.onended?.();
+    expect(oscillator.frequency.disconnect).toHaveBeenCalledWith(node.frequency);
+    expect(oscillator.detune.disconnect).toHaveBeenCalledWith(node.detune);
+    expect(calls).toEqual(['tone.onended', 'frequency.disconnect', 'detune.disconnect']);
+    expect(devWarn).not.toHaveBeenCalled();
+  });
+
+  it('every note gets its own disconnect: two starts, two nodes, each ends cleanly', async () => {
+    const calls: string[] = [];
+    const OscillatorStub = makeStubOscillatorClass(calls);
+    toneStub.Oscillator = OscillatorStub;
+    await loadFreshWithQuery('');
+
+    const oscillator = makeInstance(OscillatorStub.prototype, calls);
+    oscillator._start(0);
+    const first = oscillator._oscillator as StubNode;
+    oscillator._start(1);
+    const second = oscillator._oscillator as StubNode;
+
+    first.onended?.();
+    second.onended?.();
+    expect(oscillator.frequency.disconnect.mock.calls).toEqual([[first.frequency], [second.frequency]]);
+    expect(oscillator.detune.disconnect.mock.calls).toEqual([[first.detune], [second.detune]]);
+  });
+
+  it('patches alongside the latency install: ?load=light gets both the playback context and the patch', async () => {
+    toneStub.Oscillator = makeStubOscillatorClass([]);
+    const fresh = await loadFreshWithQuery('?load=light');
+    expect(fresh.appliedLatencyHint).toBe('playback');
+    expect(setContext).toHaveBeenCalledTimes(1);
+    expect(fresh.oscillatorLeakPatched).toBe(true);
+  });
+
+  it('with no Oscillator export (a Tone that moved it) it boots anyway: false, one devWarn, the context unchanged', async () => {
+    const fresh = await loadFreshWithQuery('?load=light');
+    expect(fresh.oscillatorLeakPatched).toBe(false);
+    expect(devWarn).toHaveBeenCalledTimes(1);
+    expect(fresh.appliedLatencyHint).toBe('playback');
+    expect(setContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('with an Oscillator that has no prototype, or a prototype without _start, it is false and does not throw', async () => {
+    toneStub.Oscillator = {};
+    expect((await loadFreshWithQuery('')).oscillatorLeakPatched).toBe(false);
+
+    toneStub.Oscillator = { prototype: { _start: 'not a function' } };
+    expect((await loadFreshWithQuery('')).oscillatorLeakPatched).toBe(false);
+    expect(devWarn).toHaveBeenCalledTimes(2);
   });
 });

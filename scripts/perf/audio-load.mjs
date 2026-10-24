@@ -7,10 +7,14 @@
  * waits out a warm-up, then polls the DevTools "Web Audio" panel's `WebAudio.getRealtimeData` every 500 ms
  * and reports the audio render capacity (0–1; near 1.0 the audio thread misses its deadline) per time bucket:
  * mean, max, callback interval, and — when the `?debug` overlay is present — the audible-robot count, plus the
- * peak window, the overall mean, and the correlation between audible robots and capacity.
+ * peak window, the overall mean, and the correlation between audible robots and capacity. For a long run
+ * (backlog 27) each bucket also carries the live AudioNode count, the renderer's JS heap and the pending Transport
+ * events, and the summary says how each moved from the first bucket to the last; the overlay's text is printed
+ * once after the warm-up, so the record says what the world carried.
  *
  *   npm run build && npx vite preview --port 4173      # terminal 1 — serve a production build
  *   npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15
+ *   npm run perf:audio -- --world bravo:-150:90?load=light --seconds 900 --bucket 60   # the long run
  *
  * The pure parts (world specs, URLs, bucketing, correlation) live in audio-load-lib.mjs and are unit-tested;
  * the Chrome plumbing lives in cdp-lib.mjs and is verified by real runs. Run with --help for flags.
@@ -24,12 +28,20 @@ import {
   bucketSamples,
   buildPageUrl,
   chooseRealtimeContext,
+  createNodeTally,
+  diffByType,
+  expectedCoordinates,
   parseAudibleFromHud,
   parseBudgetFromHud,
+  parseCoordinatesFromHud,
+  parseHeapMb,
+  parseLagFromHud,
+  parseTransportEventsFromHud,
   parseWorldList,
   parseWorldSpec,
   rotateList,
   summarizeBuckets,
+  trend,
 } from './audio-load-lib.mjs';
 import { sleep, withChrome } from './cdp-lib.mjs';
 
@@ -38,9 +50,11 @@ const POLL_MS = 500;
 
 const HELP = `Usage: npm run perf:audio -- [flags]
 
-  --world <spec>     one pinned world, name:x:y (e.g. charlie:200:-30). An optional @page names another page under --url
-                     (two builds served side by side: charlie:200:-30@pre.html). Appending a query string carries it
-                     into the page URL, so variants of one world can be A/B-ed: charlie:200:-30?load=light
+  --world <spec>     one world, name:x:y (e.g. charlie:200:-30) — a LABEL: the app pins a world only through a
+                     ?session= link (docs/PERFORMANCE.md, "The seven links"), so append one to pin it:
+                     bravo:-150:90?session=<value>. The run aborts if the overlay lands anywhere else. An optional
+                     @page names another page under --url (two builds served side by side: charlie:200:-30@pre.html).
+                     Anything after ? rides into the page URL, so variants A/B in one session: ...?load=light&session=…
   --worlds <list>    comma-separated worlds, run one after another in fresh browsers
                      (e.g. charlie:200:-30,bravo:-150:90). One of --world / --worlds is required.
   --rot <n>          rotate the start order of --worlds left by n (for interleaved rounds; default 0)
@@ -92,13 +106,17 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
   return withChrome({ chromePath: opts.chrome, port: opts.port }, async ({ send, evaluate, onEvent }) => {
     const created = [];
     const destroyed = [];
+    const nodes = createNodeTally();
     onEvent((msg) => {
       if (msg.method === 'WebAudio.contextCreated') created.push(msg.params.context);
       if (msg.method === 'WebAudio.contextWillBeDestroyed') destroyed.push(msg.params.contextId);
+      if (msg.method === 'WebAudio.audioNodeCreated') nodes.created(msg.params.node.contextId, msg.params.node.nodeId, msg.params.node.nodeType);
+      if (msg.method === 'WebAudio.audioNodeWillBeDestroyed') nodes.destroyed(msg.params.contextId, msg.params.nodeId);
     });
     await send('Page.enable');
     await send('Runtime.enable');
     await send('WebAudio.enable');
+    await send('Performance.enable');
 
     const url = buildPageUrl(opts.url, world, { debug: !opts['no-debug'] });
     await send('Page.navigate', { url });
@@ -114,6 +132,21 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
     const contextId = chooseRealtimeContext(created, destroyed);
     if (contextId === null) throw new Error('No realtime AudioContext was created — did the page power on?');
 
+    // What the world carries, as the overlay states it after the warm-up (one line per overlay row).
+    const carried = await evaluate(`[...document.querySelectorAll('.audio-debug-hud > div')].map((d) => d.textContent)`);
+
+    // The pin check: a world is random unless a ?session= link pins it, and a random world measured under a pinned
+    // label has misled this harness before (docs/PERFORMANCE.md, "Pre-change baseline for roadmap 17.2.6", the retraction).
+    const landed = parseCoordinatesFromHud(carried.join('\n'));
+    const expected = expectedCoordinates(world);
+    if (landed && (landed.x !== expected.x || landed.y !== expected.y)) {
+      const hint = expected.from === 'session'
+        ? 'the ?session= payload did not take'
+        : 'name:x:y is only a label since 2026-09-28; pin the world with a ?session= link in the world query (see --help)';
+      throw new Error(`World not pinned: the page landed at (${landed.x}, ${landed.y}), expected (${expected.x}, ${expected.y}) — ${hint}.`);
+    }
+
+    const nodesAtStart = nodes.liveByType(contextId);
     const samples = [];
     const start = performance.now();
     for (let k = 1; performance.now() - start < seconds * 1000; k++) {
@@ -122,6 +155,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       if (t >= seconds) break; // a final sample past the end would form a one-sample bucket that could win "peak window"
       const { realtimeData } = await send('WebAudio.getRealtimeData', { contextId });
       const hudText = await evaluate(`document.querySelector('.audio-debug-hud')?.textContent ?? ''`);
+      const metrics = await send('Performance.getMetrics');
       const hud = parseAudibleFromHud(hudText);
       const budget = parseBudgetFromHud(hudText);
       samples.push({
@@ -130,6 +164,10 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
         intervalMs: typeof realtimeData?.callbackIntervalMean === 'number' ? realtimeData.callbackIntervalMean * 1000 : null,
         audible: hud ? hud.audible : null,
         sounding: budget ? budget.sounding : null,
+        nodes: nodes.live(contextId),
+        heapMb: parseHeapMb(metrics),
+        events: parseTransportEventsFromHud(hudText),
+        lagMs: parseLagFromHud(hudText)?.lagMs ?? null,
       });
     }
 
@@ -140,18 +178,28 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       seconds,
       bucketSec,
       samples: samples.length,
+      carried,
       buckets,
       summary: summarizeBuckets(buckets),
       audibleCorrelation: audibleCapacityCorrelation(buckets),
+      trends: { nodes: trend(buckets, 'nodes'), heapMb: trend(buckets, 'heapMb'), events: trend(buckets, 'events') },
+      nodesByType: { atStart: nodesAtStart, atEnd: nodes.liveByType(contextId), change: diffByType(nodesAtStart, nodes.liveByType(contextId)) },
     };
   });
 }
 
 const fixed = (value, digits) => (value === null || value === undefined ? '-' : value.toFixed(digits));
 
+/** One trend as `first → last (+delta)`, or a dash when fewer than two buckets carried the column. */
+const movement = (t, digits) => (t ? `${fixed(t.first, digits)} → ${fixed(t.last, digits)} (${t.delta >= 0 ? '+' : ''}${fixed(t.delta, digits)})` : '-');
+
 function report(run) {
   console.log(`\n=== ${run.world} — ${run.seconds}s, ${run.bucketSec}s buckets, ${run.samples} samples`);
   console.log(run.url);
+  if (run.carried.length) {
+    console.log('carried after warm-up:');
+    for (const line of run.carried) console.log(`  ${line}`);
+  }
   console.table(run.buckets.map((b) => ({
     't (s)': b.startSec,
     'mean cap': Number(fixed(b.meanCapacity, 3)),
@@ -160,13 +208,23 @@ function report(run) {
     audible: fixed(b.audible, 1),
     sounding: fixed(b.sounding, 1),
     'max snd': b.maxSounding ?? '-',
+    nodes: fixed(b.nodes, 0),
+    'heap (MB)': fixed(b.heapMb, 1),
+    events: fixed(b.events, 0),
+    'max lag': b.maxLagMs === null ? '-' : `${b.maxLagMs}ms`,
   })));
-  const { summary } = run;
+  const { summary, trends } = run;
   console.log(
     `peak window ${fixed(summary.peakWindow, 3)} (at ${summary.peakWindowStartSec ?? '-'}s)   ` +
     `overall mean ${fixed(summary.overallMean, 3)}   overall max ${fixed(summary.overallMax, 3)}   ` +
     `r(audible, capacity) ${run.audibleCorrelation === null ? '-' : run.audibleCorrelation.toFixed(2)}`,
   );
+  console.log(`first → last bucket:   nodes ${movement(trends.nodes, 0)}   heap MB ${movement(trends.heapMb, 1)}   events ${movement(trends.events, 0)}`);
+  const { change, atEnd } = run.nodesByType;
+  if (change.length) {
+    const total = atEnd.reduce((sum, [, n]) => sum + n, 0);
+    console.log(`live nodes by type, start → end of series (${total} at end):   ${change.map(([type, d]) => `${type} ${d >= 0 ? '+' : ''}${d}`).join('   ')}`);
+  }
 }
 
 async function main() {

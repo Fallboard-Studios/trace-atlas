@@ -45,6 +45,7 @@ const makeSnapshot = (ctxState = 'running'): DiagSnapshot => ({
     soundingRobots: 4,
     maxAudibleRobots: 12,
     fxConnected: 2,
+    transportEvents: 37,
   },
 });
 

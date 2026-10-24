@@ -64,6 +64,9 @@ export interface DiagInfo {
   /** How many of the ten global effects are in the signal path (docs/specs/DARK_EFFECT_BYPASS.md assumption 13).
    *  NaN before the global chain exists. */
   fxConnected: number;
+  /** Events pending on Tone's Transport (one-shots plus repeats), the long-run column of backlog 27: a count that
+   *  climbs through a run is scheduling that is never cleared. Null when Tone's private timelines cannot be read. */
+  transportEvents: number | null;
   /** Level of what the voices hand the FX chain (EQ3's output) in the last sample; null when that tap is not attached or has nothing to read. */
   outputPre?: LevelReading | null;
   /** Level of what the destination receives (masterGain's output) in the last sample; null likewise. */
@@ -119,6 +122,7 @@ function emptyInfo(): DiagInfo {
     soundingRobots: NaN,
     maxAudibleRobots: NaN,
     fxConnected: NaN,
+    transportEvents: null,
     outputPre: null,
     outputMaster: null,
     playback: null,
@@ -190,6 +194,22 @@ function readBankRunning(lfoBank: Record<string, BankLfoSettings>): number {
   return Object.values(lfoBank).filter(isLaneRunning).length;
 }
 
+/**
+ * Tone's Transport keeps its pending events in two TypeScript-private timelines: `_timeline` (scheduleOnce /
+ * schedule) and `_repeatedEvents` (scheduleRepeat). There is no public count, so this reads them the way
+ * `findPlaybackStats` reads the wrapper's native context: defensively, with null as the worst case, never a throw.
+ */
+function readTransportEvents(): number | null {
+  try {
+    const transport = Tone.getTransport() as unknown as { _timeline?: { length?: unknown }; _repeatedEvents?: { length?: unknown } };
+    const once = transport._timeline?.length;
+    const repeated = transport._repeatedEvents?.length;
+    return typeof once === 'number' && typeof repeated === 'number' && Number.isFinite(once + repeated) ? once + repeated : null;
+  } catch {
+    return null;
+  }
+}
+
 function readInfo(): DiagInfo {
   const context = Tone.getContext();
   const raw = readRawContext();
@@ -210,6 +230,7 @@ function readInfo(): DiagInfo {
     soundingRobots: audio.soundingRobotIds.length,
     maxAudibleRobots: robotLoadToLimits(audio.robotLoad).maxAudibleRobots,
     fxConnected: getGlobalChainEntry() ? getConnectedEffectCount() : NaN,
+    transportEvents: readTransportEvents(),
     outputPre: outputLevels.pre,
     outputMaster: outputLevels.master,
     playback: playbackReading,

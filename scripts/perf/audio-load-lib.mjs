@@ -61,6 +61,35 @@ export function buildPageUrl(baseUrl, world, { debug = true } = {}) {
 }
 
 // ========================================
+// THE PIN CHECK
+// ========================================
+
+/**
+ * Where the page is expected to land. A world is pinned only by a `?session=` link (Shareable Link, roadmap Phase 21;
+ * `?seed=`/`?x=`/`?y=` were removed on 2026-09-28), so the pin is the payload's `c` field when the world query carries a
+ * decodable session (base64 of the app's compact JSON), and the spec's own `x:y` otherwise, which a page will not
+ * honour; `from` says which, so the caller can word its complaint.
+ */
+export function expectedCoordinates(world) {
+  const session = new URLSearchParams(world.query ?? '').get('session');
+  if (session) {
+    try {
+      const { c } = JSON.parse(Buffer.from(session, 'base64').toString('utf8'));
+      if (usable(c?.x) && usable(c?.y)) return { x: c.x, y: c.y, from: 'session' };
+    } catch {
+      // Not the app's encoding; fall through to the spec.
+    }
+  }
+  return { x: world.x, y: world.y, from: 'spec' };
+}
+
+/** Where the page landed, off the overlay's world row (`random @ -116,-2   up 0:06`); null when absent or a dash. */
+export function parseCoordinatesFromHud(text) {
+  const match = /\S+ @ (-?\d+),(-?\d+)/.exec(text ?? '');
+  return match ? { x: Number(match[1]), y: Number(match[2]) } : null;
+}
+
+// ========================================
 // BUCKETING AND SUMMARY
 // ========================================
 
@@ -73,7 +102,15 @@ const usable = (value) => typeof value === 'number' && Number.isFinite(value);
  * capacity are dropped; buckets that received none (a polling gap) are omitted. `audible` is the mean of
  * the readings the overlay supplied in the bucket, or null when there were none; `sounding` and `maxSounding`
  * are the mean and the maximum of the budget line's sounding-robot count (the maximum is what shows a cap held).
+ * The long-run columns (backlog 27) are means likewise: `nodes` (live AudioNodes of the polled context), `heapMb`
+ * (the renderer's used JS heap) and `events` (pending Transport events); `maxLagMs` is the largest main-thread lag the
+ * overlay's sampler reported in the bucket (a stall is a maximum, not a mean). A column no sample carried is null.
  */
+const meanOrNull = (group, key) => {
+  const values = group.map((s) => s[key]).filter(usable);
+  return values.length ? mean(values) : null;
+};
+
 export function bucketSamples(samples, bucketSec) {
   if (!Number.isFinite(bucketSec) || bucketSec <= 0) {
     throw new Error(`Invalid bucket width ${bucketSec} — must be a positive number of seconds`);
@@ -102,8 +139,25 @@ export function bucketSamples(samples, bucketSec) {
         audible: audible.length ? mean(audible) : null,
         sounding: sounding.length ? mean(sounding) : null,
         maxSounding: sounding.length ? Math.max(...sounding) : null,
+        nodes: meanOrNull(group, 'nodes'),
+        heapMb: meanOrNull(group, 'heapMb'),
+        events: meanOrNull(group, 'events'),
+        maxLagMs: (() => { const lags = group.map((s) => s.lagMs).filter(usable); return lags.length ? Math.max(...lags) : null; })(),
       };
     });
+}
+
+/**
+ * How one bucket column moved over a run: the first and last bucket means that carry it, with their start times,
+ * and the change between them. Null when fewer than two buckets carry the column. The long run reads this for
+ * `nodes`, `heapMb` and `events`: a positive delta on a steady world is load that grew during the run.
+ */
+export function trend(buckets, key) {
+  const carrying = buckets.filter((b) => usable(b[key]));
+  if (carrying.length < 2) return null;
+  const first = carrying[0];
+  const last = carrying[carrying.length - 1];
+  return { first: first[key], last: last[key], delta: last[key] - first[key], firstSec: first.startSec, lastSec: last.startSec };
 }
 
 /**
@@ -169,14 +223,73 @@ export function parseAudibleFromHud(text) {
 }
 
 /**
- * Read the Audio Load caps line off the `?debug` overlay (`load 20% · sounding 4/4 · standing by 2 · poly 3/8`), or null
- * when it is absent (an older build) or shows dashes.
+ * Read the Audio Load caps line off the `?debug` overlay (`load 20%·fx 20% · sounding 4/4 · standing by 2 · poly 3/8`;
+ * the `·fx e%` dial arrived 2026-09-22 and is optional here so the one-dial line of an older build still reads), or null
+ * when the line is absent or shows dashes.
  */
 export function parseBudgetFromHud(text) {
-  const match = /load (\d+)% · sounding (\d+)\/(\d+) · standing by (\d+) · poly (\d+)\/(\d+)/.exec(text ?? '');
+  const match = /load (\d+)%(?:·fx \d+%)? · sounding (\d+)\/(\d+) · standing by (\d+) · poly (\d+)\/(\d+)/.exec(text ?? '');
   if (!match) return null;
   const [loadPct, sounding, cap, standingBy, poly, polyCap] = match.slice(1).map(Number);
   return { loadPct, sounding, cap, standingBy, poly, polyCap };
+}
+
+/** Read the pending Transport event count (`events 37`) off the overlay's transport line, or null when absent or a dash. */
+export function parseTransportEventsFromHud(text) {
+  const match = /transport \S+\s+events (\d+)/.exec(text ?? '');
+  return match ? Number(match[1]) : null;
+}
+
+/** Read the main-thread lag meter off the overlay's fps line (`fps 60   lag 2ms (max 363ms)`), or null when absent or dashes. */
+export function parseLagFromHud(text) {
+  const match = /lag (\d+)ms \(max (\d+)ms\)/.exec(text ?? '');
+  return match ? { lagMs: Number(match[1]), maxLagMs: Number(match[2]) } : null;
+}
+
+/** The renderer's used JS heap in megabytes from a `Performance.getMetrics` result, or null when it is not there. */
+export function parseHeapMb(result) {
+  const metric = result?.metrics?.find?.((m) => m?.name === 'JSHeapUsedSize');
+  return usable(metric?.value) ? metric.value / (1024 * 1024) : null;
+}
+
+/**
+ * Live AudioNodes per context, tallied from the DevTools `WebAudio.audioNodeCreated` and
+ * `WebAudio.audioNodeWillBeDestroyed` events (counted from `WebAudio.enable`, before the page loads, so nothing is
+ * missed). Per context, because `?latency=` disposes Tone's first context for a second one. Never negative.
+ */
+export function createNodeTally() {
+  const live = new Map(); // contextId -> count
+  const byType = new Map(); // contextId -> Map(nodeType -> count)
+  const typeOf = new Map(); // nodeId -> nodeType, so a destroy (id only) is credited to the right type
+  const bump = (contextId, type, by) => {
+    live.set(contextId, Math.max(0, (live.get(contextId) ?? 0) + by));
+    if (!byType.has(contextId)) byType.set(contextId, new Map());
+    const types = byType.get(contextId);
+    const next = Math.max(0, (types.get(type) ?? 0) + by);
+    if (next === 0) types.delete(type); else types.set(type, next);
+  };
+  return {
+    created: (contextId, nodeId, nodeType) => {
+      const type = nodeType ?? 'unknown';
+      if (nodeId !== undefined) typeOf.set(nodeId, type);
+      bump(contextId, type, 1);
+    },
+    destroyed: (contextId, nodeId) => {
+      const type = typeOf.get(nodeId) ?? 'unknown';
+      typeOf.delete(nodeId);
+      bump(contextId, type, -1);
+    },
+    live: (contextId) => live.get(contextId) ?? 0,
+    /** `[nodeType, count]` pairs, largest first, then by name — a snapshot, safe to keep and diff later. */
+    liveByType: (contextId) => [...(byType.get(contextId) ?? new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+  };
+}
+
+/** The change from one `liveByType` snapshot to another, as `[nodeType, delta]` pairs, largest change first; types that did not move are left out. */
+export function diffByType(before, after) {
+  const counts = new Map(before.map(([type, n]) => [type, -n]));
+  for (const [type, n] of after) counts.set(type, (counts.get(type) ?? 0) + n);
+  return [...counts].filter(([, delta]) => delta !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]) || a[0].localeCompare(b[0]));
 }
 
 /**

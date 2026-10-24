@@ -116,7 +116,7 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
 
   const lines = [
     `${seed} @ ${coords}   up ${formatUptime(uptimeMs)}`,
-    `ctx ${timing.ctxState}   clock ${clock}   transport ${info.transport}`,
+    `ctx ${timing.ctxState}   clock ${clock}   transport ${info.transport}   events ${info.transportEvents === null ? DASH : count(info.transportEvents)}`,
     `latency ${info.latencyHint}   ahead ${info.lookAheadMs}ms   base ${ms(info.baseLatencyMs)}`,
     `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}`,
     budgetLine(info),

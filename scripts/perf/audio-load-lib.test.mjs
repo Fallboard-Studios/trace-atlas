@@ -7,13 +7,21 @@ import {
   bucketSamples,
   buildPageUrl,
   chooseRealtimeContext,
+  createNodeTally,
+  diffByType,
+  expectedCoordinates,
   parseAudibleFromHud,
   parseBudgetFromHud,
+  parseCoordinatesFromHud,
+  parseHeapMb,
+  parseLagFromHud,
+  parseTransportEventsFromHud,
   parseWorldList,
   parseWorldSpec,
   pearson,
   rotateList,
   summarizeBuckets,
+  trend,
 } from './audio-load-lib.mjs';
 
 // ========================================
@@ -381,6 +389,12 @@ fps 58`)).toEqual({
     });
   });
 
+  it('reads the live two-dial line (`load r%·fx e%`, since 2026-09-22) — found reading a dash in the 2026-10-23 smoke run', () => {
+    expect(parseBudgetFromHud('load 20%·fx 20% · sounding 3/4 · standing by 0 · poly 2/8 · fx in 3/10')).toEqual({
+      loadPct: 20, sounding: 3, cap: 4, standingBy: 0, poly: 2, polyCap: 8,
+    });
+  });
+
   it('reads Full', () => {
     expect(parseBudgetFromHud('load 100% · sounding 7/12 · standing by 0 · poly 3/16')).toEqual({
       loadPct: 100, sounding: 7, cap: 12, standingBy: 0, poly: 3, polyCap: 16,
@@ -397,6 +411,240 @@ fps 58`)).toEqual({
     expect(parseBudgetFromHud(undefined)).toBeNull();
     expect(parseBudgetFromHud('voices 3/16   audible 5/12')).toBeNull();
     expect(parseBudgetFromHud('load - · sounding -/- · standing by - · poly -/-')).toBeNull();
+  });
+});
+
+// ========================================
+// THE PIN CHECK (the world is random unless a ?session= link pins it; the overlay says where the page landed)
+// ========================================
+
+/** A `?session=` value as the app encodes it: base64 of the compact JSON (`n` the style name, `c` the coordinates). */
+const sessionParam = (n, x, y) => btoa(JSON.stringify({ v: 2, n, c: { x, y }, g: {} }));
+
+describe('expectedCoordinates', () => {
+  it('reads the coordinates out of a ?session= payload carried in the world query', () => {
+    const world = parseWorldSpec(`bravo:-150:90?session=${sessionParam('bravo', -150, 90)}`);
+    expect(expectedCoordinates(world)).toEqual({ x: -150, y: 90, from: 'session' });
+  });
+
+  it('trusts the payload over the spec label when they disagree (the label is a name, the payload is the pin)', () => {
+    const world = parseWorldSpec(`s:0:0?session=${sessionParam('alpha', 12, 68)}`);
+    expect(expectedCoordinates(world)).toEqual({ x: 12, y: 68, from: 'session' });
+  });
+
+  it('finds the session among other query params', () => {
+    const world = parseWorldSpec(`bravo:-150:90?load=light&session=${sessionParam('bravo', -150, 90)}&latency=playback`);
+    expect(expectedCoordinates(world)).toMatchObject({ x: -150, y: 90 });
+  });
+
+  it('falls back to the spec coordinates when no session is given — which the page will not honour, so the check fails loudly', () => {
+    expect(expectedCoordinates(parseWorldSpec('bravo:-150:90'))).toEqual({ x: -150, y: 90, from: 'spec' });
+  });
+
+  it('falls back to the spec when the session value is not decodable', () => {
+    expect(expectedCoordinates(parseWorldSpec('bravo:-150:90?session=%%%not-base64'))).toEqual({ x: -150, y: 90, from: 'spec' });
+    expect(expectedCoordinates(parseWorldSpec(`bravo:-150:90?session=${btoa('{"v":2}')}`))).toEqual({ x: -150, y: 90, from: 'spec' });
+  });
+});
+
+describe('parseCoordinatesFromHud', () => {
+  it('reads where the page landed off the overlay’s world row', () => {
+    expect(parseCoordinatesFromHud('random @ -116,-2   up 0:06ctx running')).toEqual({ x: -116, y: -2 });
+    expect(parseCoordinatesFromHud('bravo @ -150,90   up 1:32')).toEqual({ x: -150, y: 90 });
+  });
+
+  it('returns null when the row is absent or shows a dash', () => {
+    expect(parseCoordinatesFromHud('random @ -   up 0:06')).toBeNull();
+    expect(parseCoordinatesFromHud('')).toBeNull();
+    expect(parseCoordinatesFromHud(null)).toBeNull();
+  });
+});
+
+// ========================================
+// LONG-RUN COLUMNS (backlog 27: load that grows during a run)
+// ========================================
+
+describe('parseTransportEventsFromHud', () => {
+  it('reads the pending Transport event count off the transport line', () => {
+    expect(parseTransportEventsFromHud('ctx running   clock x1.00   transport started   events 37')).toBe(37);
+  });
+
+  it('still finds it when the overlay text has no newlines (textContent joins the divs)', () => {
+    expect(parseTransportEventsFromHud('transport started   events 1204latency playback')).toBe(1204);
+  });
+
+  it('returns null when the token is absent (an older build) or shows a dash', () => {
+    expect(parseTransportEventsFromHud('ctx running   clock x1.00   transport started')).toBeNull();
+    expect(parseTransportEventsFromHud('transport started   events -')).toBeNull();
+    expect(parseTransportEventsFromHud('')).toBeNull();
+    expect(parseTransportEventsFromHud(null)).toBeNull();
+  });
+});
+
+describe('parseLagFromHud', () => {
+  it('reads the main-thread lag and its running maximum off the fps line', () => {
+    expect(parseLagFromHud('fps 60   lag 2ms (max 363ms)')).toEqual({ lagMs: 2, maxLagMs: 363 });
+  });
+
+  it('still finds it when the overlay text has no newlines', () => {
+    expect(parseLagFromHud('lfo drift offfps 61   lag 0ms (max 167ms)out -10.4dB')).toEqual({ lagMs: 0, maxLagMs: 167 });
+  });
+
+  it('returns null when the line is absent or shows dashes', () => {
+    expect(parseLagFromHud('fps -   lag - (max -)')).toBeNull();
+    expect(parseLagFromHud('')).toBeNull();
+    expect(parseLagFromHud(null)).toBeNull();
+  });
+});
+
+describe('bucketSamples — main-thread lag column', () => {
+  it('keeps the largest lag seen in the bucket (a stall is a maximum, not a mean)', () => {
+    const samples = [
+      { t: 0, capacity: 0.3, intervalMs: 10, audible: null, lagMs: 2 },
+      { t: 1, capacity: 0.3, intervalMs: 10, audible: null, lagMs: 140 },
+      { t: 2, capacity: 0.3, intervalMs: 10, audible: null, lagMs: 5 },
+    ];
+    expect(bucketSamples(samples, 15)[0].maxLagMs).toBe(140);
+  });
+
+  it('is null when no sample in the bucket carried a reading', () => {
+    expect(bucketSamples(series(15, () => 0.3), 15)[0].maxLagMs).toBeNull();
+  });
+});
+
+describe('parseHeapMb', () => {
+  it('reads JSHeapUsedSize from a Performance.getMetrics result, in megabytes', () => {
+    const result = { metrics: [{ name: 'Timestamp', value: 12.5 }, { name: 'JSHeapUsedSize', value: 48 * 1024 * 1024 }] };
+    expect(parseHeapMb(result)).toBe(48);
+  });
+
+  it('returns null when the metric is missing or the result is malformed', () => {
+    expect(parseHeapMb({ metrics: [{ name: 'Timestamp', value: 1 }] })).toBeNull();
+    expect(parseHeapMb({})).toBeNull();
+    expect(parseHeapMb(null)).toBeNull();
+    expect(parseHeapMb(undefined)).toBeNull();
+  });
+});
+
+describe('createNodeTally', () => {
+  it('counts the live AudioNodes of one context from the DevTools created/destroyed events', () => {
+    const tally = createNodeTally();
+    tally.created('ctx-1');
+    tally.created('ctx-1');
+    tally.created('ctx-1');
+    tally.destroyed('ctx-1');
+    expect(tally.live('ctx-1')).toBe(2);
+  });
+
+  it('keeps contexts apart, so a disposed first context (the ?latency= swap) does not count against the polled one', () => {
+    const tally = createNodeTally();
+    tally.created('ctx-0');
+    tally.created('ctx-0');
+    tally.created('ctx-1');
+    expect(tally.live('ctx-1')).toBe(1);
+    expect(tally.live('ctx-0')).toBe(2);
+  });
+
+  it('reads 0 for a context that has had no events, and never goes negative', () => {
+    const tally = createNodeTally();
+    expect(tally.live('ctx-9')).toBe(0);
+    tally.destroyed('ctx-9');
+    expect(tally.live('ctx-9')).toBe(0);
+  });
+
+  describe('by node type (what is accumulating, not just how much)', () => {
+    it('breaks the live count down by nodeType, largest first', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1', 'n1', 'GainNode');
+      tally.created('ctx-1', 'n2', 'OscillatorNode');
+      tally.created('ctx-1', 'n3', 'OscillatorNode');
+      tally.created('ctx-1', 'n4', 'BiquadFilterNode');
+      expect(tally.liveByType('ctx-1')).toEqual([
+        ['OscillatorNode', 2],
+        ['BiquadFilterNode', 1],
+        ['GainNode', 1],
+      ]);
+    });
+
+    it('credits a destroy to the type the node was created as (the destroy event carries only the id)', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1', 'n1', 'GainNode');
+      tally.created('ctx-1', 'n2', 'OscillatorNode');
+      tally.destroyed('ctx-1', 'n2');
+      expect(tally.liveByType('ctx-1')).toEqual([['GainNode', 1]]);
+      expect(tally.live('ctx-1')).toBe(1);
+    });
+
+    it('still counts a node whose type or id is unknown (an older Chrome), under "unknown"', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1');
+      tally.created('ctx-1', 'n2');
+      expect(tally.liveByType('ctx-1')).toEqual([['unknown', 2]]);
+      tally.destroyed('ctx-1', 'never-seen');
+      expect(tally.live('ctx-1')).toBe(1);
+    });
+
+    it('reports a snapshot the caller can diff: the breakdown at one moment against another', () => {
+      const tally = createNodeTally();
+      tally.created('ctx-1', 'n1', 'GainNode');
+      const before = tally.liveByType('ctx-1');
+      tally.created('ctx-1', 'n2', 'OscillatorNode');
+      tally.created('ctx-1', 'n3', 'OscillatorNode');
+      expect(diffByType(before, tally.liveByType('ctx-1'))).toEqual([['OscillatorNode', 2]]);
+      expect(diffByType(tally.liveByType('ctx-1'), before)).toEqual([['OscillatorNode', -2]]);
+      expect(diffByType(before, before)).toEqual([]);
+    });
+  });
+});
+
+describe('bucketSamples — long-run columns', () => {
+  it('averages the live node count, heap and pending Transport events over the bucket', () => {
+    const samples = [
+      { t: 0, capacity: 0.3, intervalMs: 10, audible: null, nodes: 400, heapMb: 60, events: 30 },
+      { t: 1, capacity: 0.3, intervalMs: 10, audible: null, nodes: 420, heapMb: 64, events: 34 },
+    ];
+    const [bucket] = bucketSamples(samples, 15);
+    expect(bucket.nodes).toBe(410);
+    expect(bucket.heapMb).toBe(62);
+    expect(bucket.events).toBe(32);
+  });
+
+  it('reports null for each when no sample in the bucket carried that reading', () => {
+    const [bucket] = bucketSamples(series(15, () => 0.3), 15);
+    expect(bucket.nodes).toBeNull();
+    expect(bucket.heapMb).toBeNull();
+    expect(bucket.events).toBeNull();
+  });
+
+  it('averages each column over only the samples that had a reading', () => {
+    const samples = [
+      { t: 0, capacity: 0.3, intervalMs: 10, audible: null, nodes: null, heapMb: null, events: null },
+      { t: 1, capacity: 0.3, intervalMs: 10, audible: null, nodes: 500, heapMb: 70, events: 9 },
+    ];
+    const [bucket] = bucketSamples(samples, 15);
+    expect(bucket).toMatchObject({ nodes: 500, heapMb: 70, events: 9 });
+  });
+});
+
+describe('trend', () => {
+  const buckets = [
+    { startSec: 0, nodes: 400, heapMb: null },
+    { startSec: 15, nodes: 410, heapMb: 60 },
+    { startSec: 30, nodes: 450, heapMb: 66 },
+  ];
+
+  it('reports the first and last bucket means of a column and the change between them', () => {
+    expect(trend(buckets, 'nodes')).toEqual({ first: 400, last: 450, delta: 50, firstSec: 0, lastSec: 30 });
+  });
+
+  it('skips buckets without a reading at either end', () => {
+    expect(trend(buckets, 'heapMb')).toEqual({ first: 60, last: 66, delta: 6, firstSec: 15, lastSec: 30 });
+  });
+
+  it('returns null when fewer than two buckets carry the column', () => {
+    expect(trend([{ startSec: 0, nodes: 400 }], 'nodes')).toBeNull();
+    expect(trend(buckets, 'events')).toBeNull();
+    expect(trend([], 'nodes')).toBeNull();
   });
 });
 
