@@ -50,11 +50,11 @@ const POLL_MS = 500;
 
 const HELP = `Usage: npm run perf:audio -- [flags]
 
-  --world <spec>     one world, name:x:y (e.g. charlie:200:-30) — a LABEL: the app pins a world only through a
-                     ?session= link (docs/PERFORMANCE.md, "The seven links"), so append one to pin it:
-                     bravo:-150:90?session=<value>. The run aborts if the overlay lands anywhere else. An optional
+  --world <spec>     one world, name:x:y (e.g. charlie:200:-30), pinned through the page's ?seed=&x=&y=. A tweaked
+                     world adds its link's s= blob after ?: bravo:-150:90?s=1.<blob> (docs/PERFORMANCE.md, "The seven
+                     links"). The run aborts if the overlay lands anywhere else. An optional
                      @page names another page under --url (two builds served side by side: charlie:200:-30@pre.html).
-                     Anything after ? rides into the page URL, so variants A/B in one session: ...?load=light&session=…
+                     Anything after ? rides into the page URL, so variants A/B in one session: ...?load=light&s=1.…
   --worlds <list>    comma-separated worlds, run one after another in fresh browsers
                      (e.g. charlie:200:-30,bravo:-150:90). One of --world / --worlds is required.
   --rot <n>          rotate the start order of --worlds left by n (for interleaved rounds; default 0)
@@ -135,14 +135,12 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
     // What the world carries, as the overlay states it after the warm-up (one line per overlay row).
     const carried = await evaluate(`[...document.querySelectorAll('.audio-debug-hud > div')].map((d) => d.textContent)`);
 
-    // The pin check: a world is random unless a ?session= link pins it, and a random world measured under a pinned
-    // label has misled this harness before (docs/PERFORMANCE.md, "Pre-change baseline for roadmap 17.2.6", the retraction).
+    // The pin check: a world measured somewhere other than its label has misled this harness before
+    // (docs/PERFORMANCE.md, "Pre-change baseline for roadmap 17.2.6", the retraction).
     const landed = parseCoordinatesFromHud(carried.join('\n'));
     const expected = expectedCoordinates(world);
     if (landed && (landed.x !== expected.x || landed.y !== expected.y)) {
-      const hint = expected.from === 'session'
-        ? 'the ?session= payload did not take'
-        : 'name:x:y is only a label since 2026-09-28; pin the world with a ?session= link in the world query (see --help)';
+      const hint = 'the page did not honour ?seed=&x=&y= (a build older than the world link, roadmap 56?)';
       throw new Error(`World not pinned: the page landed at (${landed.x}, ${landed.y}), expected (${expected.x}, ${expected.y}) — ${hint}.`);
     }
 

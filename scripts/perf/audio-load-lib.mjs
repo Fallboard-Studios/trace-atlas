@@ -65,22 +65,12 @@ export function buildPageUrl(baseUrl, world, { debug = true } = {}) {
 // ========================================
 
 /**
- * Where the page is expected to land. A world is pinned only by a `?session=` link (Shareable Link, roadmap Phase 21;
- * `?seed=`/`?x=`/`?y=` were removed on 2026-09-28), so the pin is the payload's `c` field when the world query carries a
- * decodable session (base64 of the app's compact JSON), and the spec's own `x:y` otherwise, which a page will not
- * honour; `from` says which, so the caller can word its complaint.
+ * Where the page is expected to land: the spec's own `x:y`. `buildPageUrl` puts the spec's name and coordinates in the
+ * world link's `?seed=&x=&y=` (docs/specs/SHORT_WORLD_LINK.md), and a tweaked world's `s=` blob in the world query
+ * carries no coordinates, so the spec is the pin for every world.
  */
 export function expectedCoordinates(world) {
-  const session = new URLSearchParams(world.query ?? '').get('session');
-  if (session) {
-    try {
-      const { c } = JSON.parse(Buffer.from(session, 'base64').toString('utf8'));
-      if (usable(c?.x) && usable(c?.y)) return { x: c.x, y: c.y, from: 'session' };
-    } catch {
-      // Not the app's encoding; fall through to the spec.
-    }
-  }
-  return { x: world.x, y: world.y, from: 'spec' };
+  return { x: world.x, y: world.y };
 }
 
 /** Where the page landed, off the overlay's world row (`random @ -116,-2   up 0:06`); null when absent or a dash. */
