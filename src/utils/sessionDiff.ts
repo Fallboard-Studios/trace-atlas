@@ -31,7 +31,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
-import { quantizeToStep, roundToDecimals } from './math';
+import { deepEqual, quantizeToStep, roundToDecimals } from './math';
 import { SEND_MIN, SEND_MAX } from '../constants';
 import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
@@ -44,23 +44,6 @@ import { isAudioContextRunning } from '../engine/lfoShared';
 // ========================================
 // FUNCTIONS
 // ========================================
-
-/** Structural equality over plain JSON-shaped values (numbers, strings, booleans, arrays, plain
- *  objects) — every field this module compares is one of those. Not a general-purpose deep-equal
- *  (no Date/Map/Set handling), since nothing in Robot/RobotAudioBaseline's audio-relevant fields
- *  needs it (CLAUDE.md requires state stay JSON-serializable in the first place). */
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    return a.every((item, i) => deepEqual(item, b[i]));
-  }
-  const aKeys = Object.keys(a as object);
-  const bKeys = Object.keys(b as object);
-  if (aKeys.length !== bKeys.length) return false;
-  return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
-}
 
 /** Backfills any lane a payload's lfoBank is missing with DEFAULT_BANK_LFO -- the same guarantee
  *  sessionShareUtils.ts's fromCompactSessionPayload already gives a `?session=` link, applied here

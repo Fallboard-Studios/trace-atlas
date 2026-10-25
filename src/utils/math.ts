@@ -45,3 +45,26 @@ export function roundToDecimals(value: number, decimalPlaces: number): number {
   const factor = Math.pow(10, decimalPlaces);
   return Math.round(value * factor) / factor;
 }
+
+// ========================================
+// STRUCTURAL EQUALITY
+// ========================================
+
+/** Structural equality over plain JSON-shaped values (numbers, strings, booleans, arrays, plain
+ *  objects) — every field this module compares is one of those. Not a general-purpose deep-equal
+ *  (no Date/Map/Set handling), since nothing in Robot/RobotAudioBaseline's audio-relevant fields
+ *  needs it (CLAUDE.md requires state stay JSON-serializable in the first place). */
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => deepEqual(item, b[i]));
+  }
+  const aKeys = Object.keys(a as object);
+  const bKeys = Object.keys(b as object);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) =>
+    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  );
+}
