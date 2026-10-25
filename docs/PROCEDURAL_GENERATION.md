@@ -18,25 +18,21 @@ An **Attenuation Style noise map** is seeded from the Attenuation Style's own na
 deriveAttenuationStyleSeed(name: string): string   // lowercase, strip non a-z0-9 — "Pelagos 7!" → "pelagos7"
 ```
 
-### Global seed override
-
-A debug/testing escape hatch: setting `window.__GLOBAL_ATTENUATION_STYLE_SEED__` before load, passing `?seed=` in the URL, or calling `setGlobalAttenuationStyleSeedOverride(seed)` forces **every** Attenuation Style seed and **every** `precomputeDataX` key to be derived from one shared override string, for reproducible screenshots/tests/bug repros. `getGlobalAttenuationStyleSeedOverride()` reads the current override (`null` if unset).
-
-**`?seed=` alone does not pin the whole world.** It fixes the *Attenuation Style* noise map (global Audio Rig, global LFOs, the tempo and the Free | Sync rolls, audio swells, AS-level factory placement) and is folded into the locale map's key (`${seed}:${x}:${y}`), but the default locale's coordinates are still random on every page load — so robots, temperature and the time-of-day phase (`dayStartTimestamp`, derived from `x`) all differ between loads.
-
-### Locale coordinate override (`?x=` / `?y=`)
-
-To reproduce a whole world, pin the coordinates as well: `?seed=foo&x=12&y=-68`.
+`deriveAttenuationStyleSeed` is pure: the seed is the name alone, and nothing overrides it. (A module-level seed and coordinate override, with its `?seed=` / `?x=` / `?y=` entry points and a `window.__GLOBAL_ATTENUATION_STYLE_SEED__` hook, existed until roadmap 56 deleted it; see [specs/SHORT_WORLD_LINK.md](specs/SHORT_WORLD_LINK.md) assumption 10.)
 
 ```typescript
-parseCoordinateParam(raw: string | null | undefined): number | null   // integers only: "12", "-68"; anything else → null
-getLocaleCoordinateOverride(): { x: number | null; y: number | null }  // null = axis not overridden
-setLocaleCoordinateOverride({ x, y }): void                            // mainly for tests / pre-import setup
+generateRandomAttenuationStyleName(): string   // 8 chars of a-z0-9: a fresh world's name
+randomCoordinate(): number                     // one integer axis: a fresh world's x or y, and the "Random" button's
 ```
 
-- Read from the URL at `seedUtils.ts` module load (browser only), the same way `?seed=` is. `localeStore.ts` then builds the default locale from `override.x ?? randomCoordinate()` (and likewise `y`) — once, at its own module load, so the override must be set **before** `localeStore` is imported.
-- **Each axis is independent.** `?x=5` pins `x` and leaves `y` random; a non-integer or non-numeric value is ignored (that axis stays random). Also independent of `?seed=` — either can be used alone.
-- **Boot-time only.** Sector Settings' "Random" coordinate button still calls `randomCoordinate()` ungated, and any locale added later takes its coordinates from the user, not from these params.
+### Reproducing a world: share its link
+
+**To reproduce a world, share its world link** (Settings → Seeds → Copy link; [SESSION_STORAGE.md](SESSION_STORAGE.md#shareable-links-phase-21-the-world-link-since-roadmap-56)): `?seed=<name>&x=<int>&y=<int>`, the exact Attenuation Style name and the locale coordinates, plus an `s=1.<blob>` param carrying whatever was edited away from the seed. The triple alone pins the whole generated world:
+
+- **The name** seeds the *Attenuation Style* noise map (global Audio Rig, global LFOs, the tempo and the Free | Sync rolls, audio swells, AS-level factory placement). It is used exactly as given; only the derived seed is lowercased and stripped, so `Pelagos 7!` and `pelagos7` make the same world under two names.
+- **The coordinates** seed the locale noise map (robots, temperature, work sites) and the time-of-day phase (`dayStartTimestamp`, derived from `x`).
+- **Each part falls back on its own.** A missing or malformed part takes what a fresh world would get for that part alone (`generateRandomAttenuationStyleName()` / `randomCoordinate()`): `?x=5` pins `x` and leaves the name and `y` random, and a non-integer coordinate is random. `decodeWorldLink` (`src/utils/worldLink.ts`) reads the link once, at module load, and the two stores build the default world from it before first render.
+- **Boot-time only.** Sector Settings' "Random" coordinate button calls `randomCoordinate()` as before, and any locale added later takes its coordinates from the user, not from the link.
 - **What pinning both still doesn't guarantee:** `Math.random()` remains only as the no-noise-map fallback in `spawnSystem.ts` (melody rand), in `factoryPlacementSystem.ts`'s default `scale` parameter (overridden by the seeded value on the normal path), and in UI-only rolls (`CompanyCrudControls.tsx`, `realWorldGradient.ts`). Simplex-seeded values are fully reproducible; live behaviour that depends on wall-clock time (`dayStartTimestamp` is `Date.now()`-relative, so the *hour* is reproducible but the timestamp is not) and on user/scheduler timing is not. Treat a pinned world as "same generated content", not "same audio sample-for-sample".
 
 ## Noise Map Registry (`noiseMaps.ts`)
@@ -52,7 +48,7 @@ evictLocaleNoiseMap(localeId: string): void
 ```
 
 - **Attenuation Style map:** `createNoise2D(alea(deriveAttenuationStyleSeed(attenuationStyleName)))`, cached by `attenuationStyleId`.
-- **Locale map:** `(x, y)` are concatenated into a single string key (`` `${x}:${y}` ``, or `` `${seed}:${x}:${y}` `` when a global seed override is set, the same way `deriveAttenuationStyleSeed` folds it in) and that string seeds `createNoise2D(alea(...))` directly, cached by `localeId`. **Two locales with identical `(x, y)` — regardless of which Attenuation Style either one is on — get identical noise maps.** This is a deliberate design guarantee, not an accident: `x` and `y` are two independent inputs at the UI layer (Sector Settings' coordinate entry), but they collapse into exactly one seed value here, never two separate dimensions sampled through a noise function. This also structurally eliminates the coordinate "dead zone" bug the old Attenuation-Style-sampled derivation had (simplex noise degenerating toward zero at lattice-aligned points like `(0,0)`) — there's no simplex sampling left in the derivation step to collapse. See [docs/specs/LOCALE_SEED_DECOUPLING.md](specs/LOCALE_SEED_DECOUPLING.md) for the full rationale.
+- **Locale map:** `(x, y)` are concatenated into a single string key (`` `${x}:${y}` ``) and that string seeds `createNoise2D(alea(...))` directly, cached by `localeId`. **Two locales with identical `(x, y)` — regardless of which Attenuation Style either one is on — get identical noise maps.** This is a deliberate design guarantee, not an accident: `x` and `y` are two independent inputs at the UI layer (Sector Settings' coordinate entry), but they collapse into exactly one seed value here, never two separate dimensions sampled through a noise function. This also structurally eliminates the coordinate "dead zone" bug the old Attenuation-Style-sampled derivation had (simplex noise degenerating toward zero at lattice-aligned points like `(0,0)`) — there's no simplex sampling left in the derivation step to collapse. See [docs/specs/LOCALE_SEED_DECOUPLING.md](specs/LOCALE_SEED_DECOUPLING.md) for the full rationale.
 - **Lifecycle:** `attenuationStyleStore.ts` and `localeStore.ts` prime the default Attenuation Style/locale's maps eagerly at module scope (so they exist before first render) and again inside `addAttenuationStyle`/`addLocale`. `removeAttenuationStyle`/`removeLocale` call the matching `evict*` function; `removeAttenuationStyle` also evicts every locale map belonging to that Attenuation Style.
 - `tryGetLocaleNoiseMap` exists specifically for hot-path callers (`AudioEngine`) that must not throw or block if a locale hasn't been registered yet.
 
@@ -115,7 +111,7 @@ Every threshold was picked from the measured draw rather than set to its nominal
 
 - **Retiring `FACTORY_ROWS` (roadmap Phase 42) is an accepted breaking change to world generation.**
   Every locale now draws a district (`'locale.district'`) and places that district's recipe instead
-  of the old single fixed row table — existing coordinates and saved `?session=` links regenerate a
+  of the old single fixed row table — existing coordinates and shared links (then `?session=` links) regenerate a
   different-looking locale, by design (see docs/specs/WORLD_VIEW_DISTRICTS.md §6, intent "Out of
   scope"). No `dataId` was renamed; only the row table and its reader changed.
 - Don't call `getSeededVal`/`precomputeDataX` inside a per-note audio callback without precomputing the `dataId` → x-value first (see `precomputeDataX`'s hot-path warning above).

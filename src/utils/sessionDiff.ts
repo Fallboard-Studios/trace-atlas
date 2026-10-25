@@ -377,10 +377,11 @@ export function buildSessionPayload(): SessionPayload {
 
   const audioState = useAudioStore.getState();
 
-  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): always captured whole, never diffed -- there's no
-  // meaningful "untouched seed baseline" for a world-level lane/link set, same treatment as
-  // globalAudio itself. Drifts quantized to 2 decimal places, same floating-point cleanup every
-  // other seeded-then-hand-dragged field on this payload already gets.
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): a save captures it whole, as it does globalAudio.
+  // The world link diffs both against what the seed regenerates, per lane and per Audio Rig block
+  // (seedBaseline.ts, docs/specs/SHORT_WORLD_LINK.md assumption 4); this payload stays whole.
+  // Drifts quantized to 2 decimal places, same floating-point cleanup every other
+  // seeded-then-hand-dragged field on this payload already gets.
   const lfoBank = Object.fromEntries(
     LFO_LANE_IDS.map((lane) => {
       const settings = audioState.lfoBank[lane];

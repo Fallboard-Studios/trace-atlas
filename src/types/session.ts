@@ -81,8 +81,9 @@ export interface SessionPayload {
   coordinates: { x: number; y: number };
   globalAudio: GlobalAudioSettings;
   /** The LFO Bank's 4 lanes and the 7 global-chain links (docs/tasks/LFO_BANK.md Task 18) —
-   *  always captured whole (never diffed, same treatment as globalAudio itself: there's no
-   *  meaningful "untouched" baseline for a world-level lane/link set). Optional only so a payload
+   *  always whole in a payload, as globalAudio is. The world link carries only the lanes and links
+   *  that differ from the seed's and fills the rest back in before a payload exists
+   *  (seedBaseline.ts, docs/specs/SHORT_WORLD_LINK.md assumptions 4 and 6). Optional only so a payload
    *  saved before this field existed (version 1) still decodes — applySessionPayload leaves the
    *  freshly-seeded value untouched when absent, same convention as the pacing fields below. */
   lfoBank?: Record<LfoLaneId, BankLfoSettings>;
