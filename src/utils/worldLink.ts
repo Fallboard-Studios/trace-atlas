@@ -5,8 +5,16 @@
 import { deflateSync, inflateSync, strFromU8, strToU8 } from 'fflate';
 
 import { fromCompactWorldDiff, toCompactWorldDiff } from './sessionShareUtils';
-import type { WorldDiff } from './seedBaseline';
+import {
+  diffWorldAgainstSeed,
+  fillWorldFromSeed,
+  generateWorldSeedBaseline,
+  type WorldDiff,
+  type WorldIdentity,
+} from './seedBaseline';
+import { generateRandomAttenuationStyleName, randomCoordinate } from './seedUtils';
 import { devWarn } from './helpers';
+import type { SessionPayload } from '../types/session';
 
 // ========================================
 // CONSTANTS
@@ -78,4 +86,70 @@ export function decodeBlob(raw: string): WorldDiff | null {
     devWarn('[worldLink] malformed ?s= blob, loading the bare world', err);
     return null;
   }
+}
+
+// ========================================
+// THE LINK
+// ========================================
+
+/** A plain, optionally negative integer: the rule the deleted parseCoordinateParam used (spec assumption 10). */
+const INTEGER = /^-?\d+$/;
+
+/** One axis, or the random a fresh world would get for that axis alone (spec assumption 6). `-0` reads as 0. */
+function readCoordinate(raw: string | null): number {
+  return raw !== null && INTEGER.test(raw) ? Number(raw) + 0 : randomCoordinate();
+}
+
+/**
+ * The params for a payload: always `seed` (the exact Attenuation Style name), `x` and `y`, and `s` only when the world
+ * differs from what its seed regenerates. Reads nothing from the address bar, so no other param (debug, load, theme,
+ * session) can ride along (spec assumption 1).
+ */
+export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set(WORLD_LINK_PARAMS.seed, payload.attenuationStyleName);
+  params.set(WORLD_LINK_PARAMS.x, String(payload.coordinates.x));
+  params.set(WORLD_LINK_PARAMS.y, String(payload.coordinates.y));
+  const diff = diffWorldAgainstSeed(
+    payload,
+    generateWorldSeedBaseline(payload.attenuationStyleName)
+  );
+  if (Object.keys(diff).length > 0) params.set(WORLD_LINK_PARAMS.blob, encodeBlob(diff));
+  return params;
+}
+
+/**
+ * The payload a page's search string describes, or null when it names no world at all (none of seed / x / y / s; spec
+ * assumption 6). Otherwise a whole payload: each identity part as given or, when absent or malformed, the random a fresh
+ * world gets for that part alone (spec §1.4); the blob's fields over the seed's for everything else, so
+ * applySessionPayload never sees a partial lfoBank. `theme` and `session` are never read.
+ */
+export function decodeWorldLink(search: string): SessionPayload | null {
+  const params = new URLSearchParams(search);
+  const seed = params.get(WORLD_LINK_PARAMS.seed);
+  const blob = params.get(WORLD_LINK_PARAMS.blob);
+  if (
+    seed === null &&
+    blob === null &&
+    !params.has(WORLD_LINK_PARAMS.x) &&
+    !params.has(WORLD_LINK_PARAMS.y)
+  ) {
+    return null;
+  }
+  const identity: WorldIdentity = {
+    // Exact: URLSearchParams has already undone the percent-encoding and the `+`; nothing here lowercases, trims or
+    // caps the name (spec assumptions 6 and 8).
+    attenuationStyleName: seed || generateRandomAttenuationStyleName(),
+    coordinates: {
+      x: readCoordinate(params.get(WORLD_LINK_PARAMS.x)),
+      y: readCoordinate(params.get(WORLD_LINK_PARAMS.y)),
+    },
+  };
+  // A blob of the wrong version, or one that will not inflate or parse, is no blob (spec assumption 2).
+  const diff = blob === null ? {} : (decodeBlob(blob) ?? {});
+  return fillWorldFromSeed(
+    identity,
+    diff,
+    generateWorldSeedBaseline(identity.attenuationStyleName)
+  );
 }
