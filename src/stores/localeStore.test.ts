@@ -127,7 +127,8 @@ describe('localeStore', () => {
 
       it('computes dayStartTimestamp from the link x (abs(29 % 24) = 5 hours in)', async () => {
         const fresh = await loadWithQuery('?seed=Pelagos%207%21&x=29&y=-14');
-        expect(computeLocaleHour(fresh.DEFAULT_LOCALE.dayStartTimestamp)).toBe(5);
+        // Close, not exact: the hour is read off the wall clock after the module loaded (one in-world hour is 15 s).
+        expect(computeLocaleHour(fresh.DEFAULT_LOCALE.dayStartTimestamp)).toBeCloseTo(5, 0);
       });
 
       it('falls back to randomCoordinate() when the address bar names no world', async () => {
