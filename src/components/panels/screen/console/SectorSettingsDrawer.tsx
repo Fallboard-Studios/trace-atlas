@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShareStatus } from './useShareStatus';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
@@ -11,13 +12,15 @@ import {
   ATTENUATION_STYLE_SCHEMA,
   COORDS_SCHEMA,
   RETRANSMIT_SCHEMA,
+  COPY_LINK_SCHEMA,
   STATUS_HEADER_SCHEMA,
   ATTENUATION_STYLE_PRESETS,
   COORDINATE_PRESETS,
 } from '@/data/sectorSettingsConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
+import { buildSessionPayload } from '@/utils/sessionDiff';
 import type { ButtonSchema } from '@/types/controls';
-import { labels, fill, type ContentKey } from '@/content';
+import { CONTENT, labels, fill, type ContentKey } from '@/content';
 import './SectorSettingsDrawer.css';
 
 const RANDOM_ATTENUATION_STYLE_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomPlanet', type: 'button', ...labels('sector.random.attenuationStyle') };
@@ -47,6 +50,7 @@ export function SectorSettingsDrawer() {
   // it through, untouched), so narrowing to it directly lets this component skip re-rendering for
   // all of that ambient churn and re-render only when coordinates actually change.
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
+  const { shareStatus, share } = useShareStatus();
 
   const [attenuationStyleNameDraft, setAttenuationStyleNameDraft] = useState(currentAttenuationStyle?.name ?? '');
   const [coordsDraft, setCoordsDraft] = useState(coordinates ?? { x: 0, y: 0 });
@@ -85,6 +89,21 @@ export function SectorSettingsDrawer() {
         <DualLabel loreLabel={STATUS_HEADER_SCHEMA.loreLabel} humanLabel={STATUS_HEADER_SCHEMA.humanLabel} />
         <div className="sector-settings-drawer__status-line">
           {currentAttenuationStyle?.name ?? '—'} · ({coordinates?.x ?? '—'}, {coordinates?.y ?? '—'})
+        </div>
+        {/* Copy link shares the LIVE world, like the Sessions panel's Share live, which stays
+            (docs/specs/SHORT_WORLD_LINK.md assumption 9): one encoder behind both buttons. */}
+        <div className="sector-settings-drawer__copy-link">
+          <Button schema={COPY_LINK_SCHEMA} face="single" onClick={() => share(buildSessionPayload())} />
+          {shareStatus === 'copied' && (
+            <span className="sector-settings-drawer__share-status" role="status">
+              {CONTENT['session.status.linkCopied'].human}
+            </span>
+          )}
+          {shareStatus === 'error' && (
+            <span className="sector-settings-drawer__share-status sector-settings-drawer__share-status--error" role="alert">
+              {CONTENT['session.status.copyFailed'].human}
+            </span>
+          )}
         </div>
       </div>
 
