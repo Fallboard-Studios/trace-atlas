@@ -15,6 +15,7 @@ import {
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { deepEqual } from './math';
+import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
 import type { GlobalAudioSettings } from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -87,14 +88,18 @@ const SCRATCH_ATTENUATION_STYLE_ID = '__world-link__';
 // FUNCTIONS
 // ========================================
 
-/** Regenerate what a name seeds for the world: the Audio Rig, the LFO Bank, the global links and the pacing scalars,
- *  through the same pure generators boot uses. Reads no store. */
+/** Regenerate what a name seeds for the world, as a save would capture it untouched: the Audio Rig, the LFO Bank, the
+ *  global links and the pacing scalars, through the same pure generators boot uses, then the rig and the lanes through
+ *  the capture step buildSessionPayload applies (sessionCapture.ts). Without that step every seeded value off a slider
+ *  step would read as an edit, and no untouched world would copy its bare triple. Reads no store. */
 export function generateWorldSeedBaseline(attenuationStyleName: string): WorldSeedBaseline {
   const id = SCRATCH_ATTENUATION_STYLE_ID;
   try {
     return {
-      globalAudio: generateGlobalAudioSettings(id, attenuationStyleName),
-      lfoBank: generateLfoBankSettings(id, attenuationStyleName),
+      globalAudio: quantizeGlobalAudioForCapture(
+        generateGlobalAudioSettings(id, attenuationStyleName)
+      ),
+      lfoBank: roundLfoBankForCapture(generateLfoBankSettings(id, attenuationStyleName)),
       globalLfoLinks: generateGlobalLfoLinks(id, attenuationStyleName),
       bpm: generateAttenuationStyleBpm(id, attenuationStyleName),
       swellFrequency: generateSwellFrequency(id, attenuationStyleName),

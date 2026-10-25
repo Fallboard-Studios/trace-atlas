@@ -11,6 +11,7 @@ import {
 } from './seedBaseline';
 import * as globalAudioSeed from './globalAudioSeed';
 import { generateAttenuationStyleBpm } from './bpmSeed';
+import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
 import {
   EDITED_USER_COMPANY,
@@ -28,11 +29,14 @@ import type { SessionPayload } from '../types/session';
 const NAME = 'n40dh8p8';
 const SCRATCH_ID = '__world-link__';
 
-/** The eight generators called directly, under an id of the test's own choosing. */
+/** The eight generators called directly, under an id of the test's own choosing, with the rig and the lanes through
+ *  the capture step a save applies (sessionCapture.ts). */
 function directBaseline(id: string, name: string) {
   return {
-    globalAudio: globalAudioSeed.generateGlobalAudioSettings(id, name),
-    lfoBank: globalAudioSeed.generateLfoBankSettings(id, name),
+    globalAudio: quantizeGlobalAudioForCapture(
+      globalAudioSeed.generateGlobalAudioSettings(id, name)
+    ),
+    lfoBank: roundLfoBankForCapture(globalAudioSeed.generateLfoBankSettings(id, name)),
     globalLfoLinks: globalAudioSeed.generateGlobalLfoLinks(id, name),
     bpm: generateAttenuationStyleBpm(id, name),
     swellFrequency: globalAudioSeed.generateSwellFrequency(id, name),
@@ -58,7 +62,7 @@ describe('generateWorldSeedBaseline', () => {
       evictAttenuationStyleNoiseMap(id);
   });
 
-  it('equals the eight generators called directly with any id and the same name, field for field', () => {
+  it('equals the eight generators called directly with any id and the same name, as a save captures them, field for field', () => {
     const baseline = generateWorldSeedBaseline(NAME);
     expect(baseline).toEqual(directBaseline('any-id', NAME));
     expect(Object.keys(baseline).sort()).toEqual(

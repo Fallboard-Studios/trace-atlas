@@ -524,6 +524,11 @@ passed Checkpoint B. The review boxes for Checkpoints A and C are not ticked in 
 - **Harness and docs.** `perf:audio`'s pin check reads the spec's `x:y` (T13). T14 re-minted 18 recorded `?session=`
   links in PERFORMANCE.md and scratchy-audio-phones.md with the shipped encoder (the plan said five) and opened each one
   once in headless Chrome. T15 rewrote SESSION_STORAGE.md, PROCEDURAL_GENERATION.md and the Phase 21 spec's header.
+- **Fixed after the branch's code review (2026-10-25): an untouched world copied a blob, not its bare triple.** A save
+  snaps the rig to its slider steps and rounds the LFO drifts; the seed baseline compared against the raw generators,
+  so every untouched world carried a 225–350-character `s=` (measured on 20 of 20 fresh worlds). The baseline now goes
+  through the same capture step (`src/utils/sessionCapture.ts`). `worldLinkBoot.test.ts` drives the real boot (stores,
+  `initializeLocale`, `applySessionPayload`, `buildSessionPayload`), which no earlier test did.
 - **Spec §7, as taken.** Every item was built on its default, and none was vetoed: Share live stays; the blob param is
   `s`; D1–D5 are re-minted; floats are not rounded on the wire; the decoder returns a whole payload; the name is not
   capped; this number and title.

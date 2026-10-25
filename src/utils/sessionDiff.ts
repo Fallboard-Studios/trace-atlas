@@ -31,9 +31,9 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
-import { deepEqual, quantizeToStep, roundToDecimals } from './math';
+import { deepEqual, roundToDecimals } from './math';
 import { SEND_MIN, SEND_MAX } from '../constants';
-import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
+import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -199,45 +199,8 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
   }
 
   // Quantize all fields to eliminate floating-point rounding errors and clean up representation artifacts
-  toCapture.compressor = {
-    threshold: roundToDecimals(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),
-    ratio: roundToDecimals(quantizeToStep(toCapture.compressor.ratio, GLOBAL_AUDIO_SEED_RANGES['compressor.ratio'].min, 1), 0),
-    attack: roundToDecimals(quantizeToStep(toCapture.compressor.attack, GLOBAL_AUDIO_SEED_RANGES['compressor.attack'].min, 0.001), 3),
-    release: roundToDecimals(quantizeToStep(toCapture.compressor.release, GLOBAL_AUDIO_SEED_RANGES['compressor.release'].min, 0.001), 3),
-    knee: roundToDecimals(quantizeToStep(toCapture.compressor.knee, GLOBAL_AUDIO_SEED_RANGES['compressor.knee'].min, 1), 0),
-  };
-  toCapture.eq3 = {
-    low: roundToDecimals(quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5), 1),
-    mid: roundToDecimals(quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5), 1),
-    high: roundToDecimals(quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5), 1),
-  };
-  toCapture.filterLPF = {
-    ...toCapture.filterLPF,
-    frequency: roundToDecimals(quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1), 0),
-    Q: roundToDecimals(quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01), 2),
-  };
-  toCapture.filterHPF = {
-    ...toCapture.filterHPF,
-    frequency: roundToDecimals(quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1), 0),
-    Q: roundToDecimals(quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01), 2),
-  };
-  toCapture.delay = {
-    ...toCapture.delay,
-    delayTime: roundToDecimals(quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001), 3),
-    feedback: roundToDecimals(quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01), 2),
-    wet: roundToDecimals(quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01), 2),
-  };
-  toCapture.reverb = {
-    ...toCapture.reverb,
-    decay: roundToDecimals(quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01), 2),
-    preDelay: roundToDecimals(quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01), 2),
-    wet: roundToDecimals(quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01), 2),
-  };
-  toCapture.limiter = {
-    threshold: roundToDecimals(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
-  };
-
-  return toCapture;
+  // (sessionCapture.ts, shared with the world link's seed baseline).
+  return quantizeGlobalAudioForCapture(toCapture);
 }
 
 /**
@@ -380,18 +343,9 @@ export function buildSessionPayload(): SessionPayload {
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): a save captures it whole, as it does globalAudio.
   // The world link diffs both against what the seed regenerates, per lane and per Audio Rig block
   // (seedBaseline.ts, docs/specs/SHORT_WORLD_LINK.md assumption 4); this payload stays whole.
-  // Drifts quantized to 2 decimal places, same floating-point cleanup every other
-  // seeded-then-hand-dragged field on this payload already gets.
-  const lfoBank = Object.fromEntries(
-    LFO_LANE_IDS.map((lane) => {
-      const settings = audioState.lfoBank[lane];
-      return [lane, {
-        ...settings,
-        rateDrift: roundToDecimals(settings.rateDrift, 2),
-        depthDrift: roundToDecimals(settings.depthDrift, 2),
-      }];
-    }),
-  ) as SessionPayload['lfoBank'];
+  // Drifts rounded to 2 decimal places by roundLfoBankForCapture (sessionCapture.ts), which the
+  // seed baseline shares, so an untouched lane still equals its seed.
+  const lfoBank = roundLfoBankForCapture(audioState.lfoBank);
   const globalLfoLinks = { ...audioState.globalLfoLinks };
 
   return {
