@@ -4,7 +4,8 @@
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type ADSREnvelope, type EnvelopeCurveName, type RobotFilterType } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
-import { withGlobalAudioDefaults } from '../types/globalAudio';
+import { withGlobalAudioDefaults, type GlobalAudioSettings } from '../types/globalAudio';
+import type { WorldDiff } from './seedBaseline';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { NOTE_VALUES, isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '../data/noteValues';
@@ -52,6 +53,25 @@ interface CompactSessionPayload {
    *  own "always whole, never diffed" treatment (undefined only for a pre-Task-18, version-1 blob). */
   lb?: Record<LfoLaneId, CompactBankLfoSettings>;
   gll?: Record<GlobalLfoTargetId, CompactLfoLink>;
+  r?: Record<string, CompactRobotOverrideDiff>;
+  d?: Record<string, CompactCompanyDiff>;
+  u?: SessionPayload['userCreatedCompanies'];
+}
+
+/** The world link's blob JSON (docs/specs/SHORT_WORLD_LINK.md assumption 3): CompactSessionPayload's codes without the
+ *  identity (`v` / `n` / `c` -- the link's own `seed` / `x` / `y` params carry it, and wire version 1 implies payload
+ *  version 2), and every world-level field partial: `g` holds only the Audio Rig blocks that differ from the seed, each
+ *  whole (assumption 4), `lb` only the lanes, `gll` only the targets, and a pacing scalar only when it differs. `r` / `d`
+ *  / `u` are exactly as before. Every key is omitted when it carries nothing. */
+interface CompactWorldDiff {
+  g?: Partial<GlobalAudioSettings>;
+  b?: number;
+  sf?: number;
+  sd?: number;
+  hm?: number;
+  pv?: number;
+  lb?: Partial<Record<LfoLaneId, CompactBankLfoSettings>>;
+  gll?: Partial<Record<GlobalLfoTargetId, CompactLfoLink>>;
   r?: Record<string, CompactRobotOverrideDiff>;
   d?: Record<string, CompactCompanyDiff>;
   u?: SessionPayload['userCreatedCompanies'];
@@ -432,9 +452,123 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
   };
 }
 
+/** The Audio Rig blocks of an untrusted `g` that are real: withGlobalAudioDefaults is the one kind check, so a block it
+ *  handed back as given is kept (whole, never merged), and one it would have replaced with a default -- missing, null,
+ *  the wrong kind -- is simply not carried, so the fill takes the seed's instead (spec assumption 8). An unknown key is
+ *  not in its output at all. */
+function knownGlobalAudioBlocks(g: Record<string, unknown>): Partial<GlobalAudioSettings> {
+  const checked = withGlobalAudioDefaults(g as Partial<GlobalAudioSettings>) as unknown as Record<string, unknown>;
+  const known: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(checked)) {
+    if (Object.prototype.hasOwnProperty.call(g, key) && g[key] === value) known[key] = value;
+  }
+  return known as Partial<GlobalAudioSettings>;
+}
+
+/** The plain-object entries of an untrusted record, each decoded; a non-object entry (a number, null, an array) is dropped
+ *  rather than read as an empty override. */
+function decodeEntries<C, T>(record: Record<string, unknown>, decode: (compact: C) => T): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([, entry]) => isPlainObject(entry))
+      .map(([id, entry]) => [id, decode(entry as C)]),
+  );
+}
+
+/** The entries of an untrusted record under the canonical ids only (an unknown or stale id is gone), each decoded. */
+function decodeKnownIds<K extends string, C, T>(ids: readonly K[], record: Record<string, unknown>, decode: (compact: C) => T): Partial<Record<K, T>> {
+  const decoded: Partial<Record<K, T>> = {};
+  for (const id of ids) {
+    const entry = record[id];
+    if (isPlainObject(entry)) decoded[id] = decode(entry as C);
+  }
+  return decoded;
+}
+
+function isNonEmpty(record: object): boolean {
+  return Object.keys(record).length > 0;
+}
+
 // ========================================
 // FUNCTIONS
 // ========================================
+
+/** A WorldDiff in its abbreviated blob JSON. Only what the diff carries is written: `g` / `lb` / `gll` hold exactly its
+ *  blocks, lanes and targets, never a whole record, and an empty part is omitted (an empty diff is `{}`). */
+export function toCompactWorldDiff(diff: WorldDiff): CompactWorldDiff {
+  const compact: CompactWorldDiff = {};
+  if (diff.globalAudio !== undefined && isNonEmpty(diff.globalAudio)) compact.g = diff.globalAudio;
+  if (diff.bpm !== undefined) compact.b = diff.bpm;
+  if (diff.swellFrequency !== undefined) compact.sf = diff.swellFrequency;
+  if (diff.swellDuration !== undefined) compact.sd = diff.swellDuration;
+  if (diff.humanize !== undefined) compact.hm = diff.humanize;
+  if (diff.pingVarianceAutomation !== undefined) compact.pv = diff.pingVarianceAutomation;
+  if (diff.lfoBank !== undefined && isNonEmpty(diff.lfoBank)) {
+    compact.lb = Object.fromEntries(
+      Object.entries(diff.lfoBank).map(([lane, b]) => [lane, toCompactBankLfoSettings(b as BankLfoSettings)]),
+    ) as Partial<Record<LfoLaneId, CompactBankLfoSettings>>;
+  }
+  if (diff.globalLfoLinks !== undefined && isNonEmpty(diff.globalLfoLinks)) {
+    compact.gll = Object.fromEntries(
+      Object.entries(diff.globalLfoLinks).map(([target, link]) => [target, toCompactLfoLink(link as LfoLink)]),
+    ) as Partial<Record<GlobalLfoTargetId, CompactLfoLink>>;
+  }
+  if (diff.robotOverrides !== undefined && isNonEmpty(diff.robotOverrides)) {
+    compact.r = Object.fromEntries(Object.entries(diff.robotOverrides).map(([id, d]) => [id, toCompactRobotOverrideDiff(d)]));
+  }
+  if (diff.companyDiffs !== undefined && isNonEmpty(diff.companyDiffs)) {
+    compact.d = Object.fromEntries(Object.entries(diff.companyDiffs).map(([id, d]) => [id, toCompactCompanyDiff(d)]));
+  }
+  if (diff.userCreatedCompanies !== undefined && diff.userCreatedCompanies.length > 0) compact.u = diff.userCreatedCompanies;
+  return compact;
+}
+
+/** The shape check for a blob's parsed JSON -- untrusted input (spec assumption 8): an object, and every key it carries of
+ *  the right kind (`g` / `lb` / `gll` / `r` / `d` plain objects, the pacing scalars numbers, `u` an array). Deeper entries
+ *  are checked field by field as they decode. */
+export function isValidCompactWorldDiff(parsed: unknown): parsed is CompactWorldDiff {
+  if (!isPlainObject(parsed)) return false;
+  const { g, b, sf, sd, hm, pv, lb, gll, r, d, u } = parsed;
+  for (const scalar of [b, sf, sd, hm, pv]) if (scalar !== undefined && typeof scalar !== 'number') return false;
+  for (const record of [g, lb, gll, r, d]) if (record !== undefined && !isPlainObject(record)) return false;
+  if (u !== undefined && !Array.isArray(u)) return false;
+  return true;
+}
+
+/** A blob's parsed JSON back to a WorldDiff, or null when its shape is wrong. Fills nothing (fillWorldFromSeed does):
+ *  `lb` / `gll` are read under the canonical lane and target ids, so an unknown id is dropped and a missing one stays
+ *  missing; every per-field guard of the robot codec applies; a part that decodes to nothing writes no key. */
+export function fromCompactWorldDiff(parsed: unknown): WorldDiff | null {
+  if (!isValidCompactWorldDiff(parsed)) return null;
+  const diff: WorldDiff = {};
+  if (parsed.g !== undefined) {
+    const globalAudio = knownGlobalAudioBlocks(parsed.g as Record<string, unknown>);
+    if (isNonEmpty(globalAudio)) diff.globalAudio = globalAudio;
+  }
+  if (parsed.b !== undefined) diff.bpm = parsed.b;
+  if (parsed.sf !== undefined) diff.swellFrequency = parsed.sf;
+  if (parsed.sd !== undefined) diff.swellDuration = parsed.sd;
+  if (parsed.hm !== undefined) diff.humanize = parsed.hm;
+  if (parsed.pv !== undefined) diff.pingVarianceAutomation = parsed.pv;
+  if (parsed.lb !== undefined) {
+    const lanes = decodeKnownIds(LFO_LANE_IDS, parsed.lb as Record<string, unknown>, fromCompactBankLfoSettings);
+    if (isNonEmpty(lanes)) diff.lfoBank = lanes;
+  }
+  if (parsed.gll !== undefined) {
+    const links = decodeKnownIds(GLOBAL_LFO_TARGET_IDS, parsed.gll as Record<string, unknown>, fromCompactLfoLink);
+    if (isNonEmpty(links)) diff.globalLfoLinks = links;
+  }
+  if (parsed.r !== undefined) {
+    const robots = decodeEntries(parsed.r as Record<string, unknown>, fromCompactRobotOverrideDiff);
+    if (isNonEmpty(robots)) diff.robotOverrides = robots;
+  }
+  if (parsed.d !== undefined) {
+    const companies = decodeEntries(parsed.d as Record<string, unknown>, fromCompactCompanyDiff);
+    if (isNonEmpty(companies)) diff.companyDiffs = companies;
+  }
+  if (parsed.u !== undefined && parsed.u.length > 0) diff.userCreatedCompanies = parsed.u;
+  return diff;
+}
 
 /** Encodes a SessionPayload for a URL query param -- via the abbreviated, empty-fields-omitted
  *  CompactSessionPayload wire shape, never the full field names. */
