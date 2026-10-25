@@ -11,13 +11,11 @@ export const DEFAULT_LOCALE_ID = 'pelagos-default';
 // The default Attenuation Style's *id* stays a stable literal — nothing
 // downstream keys off the name (localeStore.ts, WorldView.tsx, etc. all
 // reference the id). The *name* is what actually feeds the procedural seed
-// (deriveAttenuationStyleSeed), so it's resolved once per module load: a
-// shareable link's exact, unsanitized name (docs/specs/
-// SECTOR_SETTINGS_SHARABLE_LINK.md §4.4/§7 item 1) takes priority when
-// `?session=` is present, otherwise a fresh random name — deliberately NOT
-// routed through deriveAttenuationStyleSeed's override mechanism (removed
-// from URL-boot entirely, roadmap Phase 21), which would both sanitize the
-// name and persist for the rest of the session. Exported so localeStore.ts's
+// (deriveAttenuationStyleSeed), so it's resolved once per module load: a world
+// link's exact, unsanitized `seed` (docs/specs/SHORT_WORLD_LINK.md, decoded once
+// by sessionShareUtils.ts) when the address bar has one, otherwise a fresh
+// random name (the decoder draws it for a link without a usable `seed`, and
+// this line does with no link at all). Exported so localeStore.ts's
 // own noise-map priming call uses the same name instead of a second
 // hardcoded literal that could silently drift from this one.
 export const DEFAULT_ATTENUATION_STYLE_NAME = getSessionSharePayload()?.attenuationStyleName ?? generateRandomAttenuationStyleName();
