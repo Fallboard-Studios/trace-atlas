@@ -4,7 +4,7 @@
 // Named imports only, so the bundle takes the two codecs and the UTF-8 pair and nothing else (spec §3).
 import { deflateSync, inflateSync, strFromU8, strToU8 } from 'fflate';
 
-import { fromCompactWorldDiff, toCompactWorldDiff } from './sessionShareUtils';
+import { fromCompactWorldDiff, toCompactWorldDiff } from './worldDiffCodec';
 import {
   diffWorldAgainstSeed,
   fillWorldFromSeed,

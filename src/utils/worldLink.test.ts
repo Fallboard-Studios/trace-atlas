@@ -19,7 +19,7 @@ import {
 } from './worldLink';
 import * as helpers from './helpers';
 import * as seedUtils from './seedUtils';
-import { toCompactWorldDiff } from './sessionShareUtils';
+import { toCompactWorldDiff } from './worldDiffCodec';
 import {
   diffWorldAgainstSeed,
   fillWorldFromSeed,
