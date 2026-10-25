@@ -516,11 +516,12 @@ Chrome 153, `?debug` on, the local Vite preview build.
 **The world:** Crawford's "go to for testing now" — the share link's `?session=` payload, decoded:
 seed `alpha`, camera `x 0, y 50`, every global setting at its default (Natural Decay; reverb decay 1.5
 / preDelay 0.02 / wet 0.3; delay 0.25 / feedback 0.2 / wet 0.15; compressor −24 dB / 2:1 / 3 ms /
-250 ms / knee 6; EQ3 flat; LPF 20 kHz Q 1; HPF 20 Hz Q 1; limiter −12). Append `?debug&session=` and the
-payload below to the preview URL:
+250 ms / knee 6; EQ3 flat; LPF 20 kHz Q 1; HPF 20 Hz Q 1; limiter −12). Append `?debug&` and the
+params below to the preview URL (re-minted 2026-10-25 from the `?session=` payload as a world link, roadmap 56,
+by the shipped encoder; the same world, decoded back field for field):
 
 ```
-eyJ2IjoyLCJuIjoiYWxwaGEiLCJjIjp7IngiOjAsInkiOjUwfSwiZyI6eyJjb21wcmVzc29yQmVmb3JlRGVsYXkiOmZhbHNlLCJyZXZlcmIiOnsiZGVjYXkiOjEuNSwicHJlRGVsYXkiOjAuMDIsIndldCI6MC4zfSwiZGVsYXkiOnsiZGVsYXlUaW1lIjowLjI1LCJmZWVkYmFjayI6MC4yLCJ3ZXQiOjAuMTV9LCJjb21wcmVzc29yIjp7InRocmVzaG9sZCI6LTI0LCJyYXRpbyI6MiwiYXR0YWNrIjowLjAwMywicmVsZWFzZSI6MC4yNSwia25lZSI6Nn0sImVxMyI6eyJsb3ciOjAsIm1pZCI6MCwiaGlnaCI6MH0sImZpbHRlckxQRiI6eyJ0eXBlIjoibG93cGFzcyIsImZyZXF1ZW5jeSI6MjAwMDAsIlEiOjF9LCJmaWx0ZXJIUEYiOnsidHlwZSI6ImhpZ2hwYXNzIiwiZnJlcXVlbmN5IjoyMCwiUSI6MX0sImxpbWl0ZXIiOnsidGhyZXNob2xkIjotMTJ9fX0=
+seed=alpha&x=0&y=50&s=1.bVJNT8MwDP0vOZepHwxQryDEgQMIJM5p660WbVOSrNOE9t957kqWIXaps-f3bD_7W21V-a0sTWQriRqq9UGV2WqdqNHSA3XyTFdpnqg9eQmLY4K0-X_JR_DOPQmSg7Qhaipdf87vwMnWINWmh6RzxgrTt4hb0zWqvMqvE2W1Z6NKcLT3i0CaFgCoI-1Cgc-BEN9Aj74KEerMHliieoYUvi1vWwRI2HDnyT6_PM71DiN4kj1q5xRQS187GmrMkaf4JeoVgwfa0wVNRP_jBVLDzhuLEQZh6d7shpNbvx6IAS1VB9fSJCnGNgQjgkfAK_b3doeE2SC8nCrvIlzvvPnQGA4gHHk8N5JJ-6b2eiJwbhLlaHDseWIv65u7RKWtZrSHYGM6GCF1oi2hwthCd66OdcyWw_Ggi1n-1C3W0HZebwXOFjfwiUY2mOgsOB9WdDTF6T16WdnqFmI4EY1FZneQiY5p0RSrvaXedLiVIAo0aEDvQiO0MnGF9IgWV86ixLDgt5Y3uARhOAkv23CAyHxwQ8MpZ8_N0gLQjnteuPGlZ_nxePwB
 ```
 
 | Run | Length | `underruns` (start → end) | By ear |
