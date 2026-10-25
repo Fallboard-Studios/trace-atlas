@@ -144,6 +144,87 @@ own "needs its own scoping pass" caveat raised (what happens to the *reused* ent
 previously-current locale) remains genuinely open but is now a documented, intentional
 limitation rather than silent corruption — see the fix's own doc comments.
 
+## 19. Short World Link: Bring Back `?seed=`, `?x=` and `?y=`
+
+**Closed** 2026-10-25 (built on `feature/short-world-link`, roadmap [56](../roadmap.md#56-short-world-link); PR pending). The world link replaced `?session=`: `?seed=<exact name>&x=<int>&y=<int>`, plus one `s=1.<blob>` param of raw-deflated compact JSON (`fflate`) only when the world differs from its seed; the `seedUtils.ts` override primitives were deleted, not revived. The original request follows.
+
+
+Raised by Crawford, 2026-10-09, on `feature/layout-rework`, reversing the Phase 21 call that removed
+them: "I want to bring `?seed=`, `?x=`, and `?y=` back actually, they're so much better to use if a
+user didn't change anything than the current json soup, especially if they want to share an
+untweaked world with someone." Not yet interviewed or specced — needs its own `/interview-me`. Sits
+beside roadmap [21](../roadmap.md#21-sector-settings-shareable-link-importexport) (the `?session=` link,
+which stays for tweaked worlds) and roadmap
+[48](../roadmap.md#48-one-day-clock-remove-the-measure-based-day)'s dead-code sweep, which leaves the old
+override primitives alone until this item decides their fate.
+
+**Added 2026-10-22 (Crawford):** the `?session=` form itself should get shorter too, for tweaked worlds,
+and a library is acceptable for it (this note is the ask-first; the pick still goes through the
+interview). Today it is plain base64 of abbreviated-key JSON with no compression (roadmap 21). Two
+candidates to measure on a real tweaked payload: the native `CompressionStream('deflate-raw')` plus
+base64url that roadmap 20's original design proposed (no dependency, but decoding is async, and the
+boot seam below reads the payload synchronously at module load, so it changes the boot sequence), or
+`lz-string`'s `compressToEncodedURIComponent` (a small dependency, synchronous, URL-safe output).
+
+**The case, verified 2026-10-09.** An untweaked world is fully determined by two values: the
+Attenuation Style's *name* (the seed for the Audio Rig, the LFO Bank, tempo and swells, via
+`deriveAttenuationStyleSeed`) and the locale's integer coordinates (robots, companies, melodies,
+district, terrain, stations, via `getLocaleNoiseMap`). `SessionPayload` says so itself
+(`src/types/session.ts:52–58`). Yet `?session=` always carries `globalAudio`, `lfoBank` and
+`globalLfoLinks` whole — "never diffed", by design — so even an untouched world shares as a long
+base64 blob (`encodeSessionPayload`, `src/utils/sessionShareUtils.ts:361`). `?seed=pelagos7&x=12&y=68`
+is the same world in a link a person can read, type and remember.
+
+**What exists.** The boot seam the short form needs is already the `?session=` one: at module load
+`src/stores/attenuationStyleStore.ts:23` pins `DEFAULT_ATTENUATION_STYLE_NAME` and
+`src/stores/localeStore.ts:73–77` pins `DEFAULT_LOCALE_COORDINATES` from `getSessionSharePayload()`,
+before first paint (no flash of the wrong world); `OceanScene.tsx`'s mount effect consumes the
+payload once for its side effects. The old primitives survive in `src/utils/seedUtils.ts` with no
+production caller: the sanitising `setGlobalAttenuationStyleSeedOverride` and its getter (still read
+by `deriveAttenuationStyleSeed`, `getSeededVal.ts:29`, `noiseMaps.ts:55` and the debug HUD, whose
+world line has printed "random" ever since), `parseCoordinateParam`, and the
+`LocaleCoordinateOverride` setter / getter. Their URL readers in `seedUtils.ts` and `main.tsx` were
+deleted (Phase 21 Task 0). The perf harness's `--world name:x:y` option assumed the params and has
+been dead since ([PERFORMANCE.md](../../PERFORMANCE.md) lines 52, 295, 382, 721);
+[PROCEDURAL_GENERATION.md](../../PROCEDURAL_GENERATION.md) lines 23–38 still document the removed
+mechanism as live.
+
+**The constraint that killed them, which the spec must answer**
+([SECTOR_SETTINGS_SHARABLE_LINK.md](../../specs/SECTOR_SETTINGS_SHARABLE_LINK.md) §7 item 1): the old
+`?seed=` worked by setting a *persistent, sanitising* module override, which (a) lowercased and
+stripped the style's name, so a shared "Pelagos 7!" arrived as "pelagos7" under a different display
+name, and (b) stayed set for the whole session, so every Attenuation Style created afterwards silently
+inherited the pinned seed. The recommended shape is therefore **a second wire format for the same boot
+path, not a revival of the override**: decode `?seed=&x=&y=` into a minimal `SessionPayload`
+(`attenuationStyleName` = the exact, URL-decoded name; `coordinates`; everything else absent, so
+`applySessionPayload` leaves the freshly seeded values alone as it already does for older payloads)
+and hand it to the existing `getSessionSharePayload` / `consumeSessionSharePayload` seam. Then nothing
+persists, nothing is sanitised, later styles are untouched, and the `seedUtils.ts` primitives become
+deletable (roadmap 48 picks them up). If both forms are present, `?session=` wins — the Phase 21
+interview's answer to the same question.
+
+**Questions for the interview:**
+
+- Param names: `?seed=` was the style's seed, which is its name; `?style=` or `?world=` may read
+  better now that the name is a human string. Case and spaces must round-trip exactly.
+- Each axis independent as before (`?x=5` alone pins x, y stays random), or all-or-nothing?
+- Does the Sessions panel's Share (`SessionListItem.tsx` / `SessionsPanel.tsx`, `buildShareUrl`)
+  emit the short form automatically when the live state equals the seeded baseline, offer both, or
+  is the short form something a user composes by hand? Detecting "untweaked" means comparing against
+  what the seed would regenerate (`generateGlobalAudioSettings`, `generateLfoBankSettings` and
+  `generateGlobalLfoLinks` in `src/utils/globalAudioSeed.ts`, plus the seeded BPM), not just checking
+  that `robotOverrides` and `companyDiffs` are empty.
+- The off screen's three transmission presets ([docs/tasks/LAYOUT_REWORK.md](../../tasks/LAYOUT_REWORK.md)
+  Task 25) are untweaked worlds — store them as `(name, x, y)` triples and print them as short links?
+- Settings → Seeds already shows the style name and coordinates; a "copy short link" there is the
+  obvious home. Whether Retransmit updates the address bar is open (`?session=` is never cleared
+  today, by design).
+
+**Knock-ons once built:** the HUD's world line reads a real name again; the perf harness's `--world`
+pinning comes back to life and [PERFORMANCE.md](../../PERFORMANCE.md)'s suspect `charlie` / `bravo`
+baselines can be re-measured honestly; PROCEDURAL_GENERATION.md is rewritten around the new mechanism;
+[SESSION_STORAGE.md](../../SESSION_STORAGE.md)'s "Shareable Links" section gains the second form.
+
 ## 21. Audio Palette Trials: Robot Dynamics, Gate Length, Humanize and Rests
 
 **Closed** 2026-10-16 — built as roadmap [50.5 Robot Performance](../roadmap.md#505-robot-performance-dynamics-rests-accents-humanize) on `feature/palette-performance` (intent [robot-performance.md](../../intent/robot-performance.md), spec [ROBOT_PERFORMANCE.md](../../specs/ROBOT_PERFORMANCE.md), plan [ROBOT_PERFORMANCE.md](../../tasks/ROBOT_PERFORMANCE.md)). Three of the four picks shipped as described below with corrections from the interview: Dynamics as a per-robot scale on the velocity variance; Humanize as a global Pacing slider; Rests as a seeded *shortening* of notes, not a skip. Gate length folded into Rests, and "accents" became the five classical articulation marks rather than a beat pattern. Nothing was dropped for failing to earn its slider. The original request follows.
