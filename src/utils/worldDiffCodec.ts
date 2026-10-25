@@ -21,8 +21,8 @@ import { PAN_MIN, PAN_MAX, SEND_MIN, SEND_MAX } from '../constants';
 // TYPES
 // ========================================
 
-/** The world link's blob JSON (docs/specs/SHORT_WORLD_LINK.md assumption 3): CompactSessionPayload's codes without the
- *  identity (`v` / `n` / `c` -- the link's own `seed` / `x` / `y` params carry it, and wire version 1 implies payload
+/** The world link's blob JSON (docs/specs/SHORT_WORLD_LINK.md assumption 3): the retired `?session=` wire's codes without
+ *  the identity (`v` / `n` / `c` -- the link's own `seed` / `x` / `y` params carry it, and wire version 1 implies payload
  *  version 2), and every world-level field partial: `g` holds only the Audio Rig blocks that differ from the seed, each
  *  whole (assumption 4), `lb` only the lanes, `gll` only the targets, and a pacing scalar only when it differs. `r` / `d`
  *  / `u` are exactly as before. Every key is omitted when it carries nothing. */
@@ -425,22 +425,3 @@ export function fromCompactWorldDiff(parsed: unknown): WorldDiff | null {
   if (parsed.u !== undefined && parsed.u.length > 0) diff.userCreatedCompanies = parsed.u;
   return diff;
 }
-
-// ========================================
-// INTERIM EXPORTS
-// ========================================
-
-// For sessionShareUtils.ts's old `?session=` codec only, until docs/tasks/SHORT_WORLD_LINK.md Task 7 deletes it;
-// Task 7 makes them private again.
-export type { CompactBankLfoSettings, CompactLfoLink, CompactRobotOverrideDiff, CompactCompanyDiff };
-export {
-  toCompactBankLfoSettings,
-  fromCompactBankLfoSettings,
-  toCompactLfoLink,
-  fromCompactLfoLink,
-  toCompactRobotOverrideDiff,
-  fromCompactRobotOverrideDiff,
-  toCompactCompanyDiff,
-  fromCompactCompanyDiff,
-  isPlainObject,
-};

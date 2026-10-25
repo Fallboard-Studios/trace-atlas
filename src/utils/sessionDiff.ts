@@ -45,11 +45,10 @@ import { isAudioContextRunning } from '../engine/lfoShared';
 // FUNCTIONS
 // ========================================
 
-/** Backfills any lane a payload's lfoBank is missing with DEFAULT_BANK_LFO -- the same guarantee
- *  sessionShareUtils.ts's fromCompactSessionPayload already gives a `?session=` link, applied here
- *  too so every applySessionPayload caller gets it, not just that one. A session loaded from
- *  localStorage (SessionListItem.tsx) is never run through fromCompactSessionPayload at all, so a
- *  stale/hand-edited/partial saved entry could otherwise reach AudioEngine.start()'s
+/** Backfills any lane a payload's lfoBank is missing with DEFAULT_BANK_LFO, so every applySessionPayload
+ *  caller gets a whole bank. A world link arrives whole already (worldLink.ts's decodeWorldLink fills every
+ *  lane from the seed), but a session loaded from localStorage (SessionListItem.tsx) is never run through
+ *  the link's decoder at all, so a stale/hand-edited/partial saved entry could otherwise reach AudioEngine.start()'s
  *  primeLfoBank(lfoBank) with a hole and throw reading .rate off `undefined`. */
 function backfillLfoBank(bank: SessionPayload['lfoBank']): Record<LfoLaneId, BankLfoSettings> | undefined {
   if (!bank) return undefined;

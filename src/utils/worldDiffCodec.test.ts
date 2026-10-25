@@ -14,9 +14,8 @@ import { fillWorldFromSeed, generateWorldSeedBaseline, type WorldDiff } from './
 // HELPERS
 // ========================================
 
-/** Decodes an encodeSessionPayload() output back to its raw wire JSON object -- bypassing
- *  decodeSessionPayload's own expansion, so a test can inspect the actual bytes-on-the-wire
- *  shape (abbreviated keys, omitted-when-empty fields) rather than the reconstructed SessionPayload. */
+/** Reads a recorded value of the retired `?session=` param (base64 of its compact JSON) back to that JSON, for the
+ *  50.2 baseline fixture below. */
 function decodeRawWire(encoded: string): unknown {
   const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
   return JSON.parse(new TextDecoder().decode(bytes));
@@ -222,6 +221,50 @@ describe('CompactWorldDiff codec (toCompactWorldDiff / fromCompactWorldDiff)', (
     expect(Object.keys(decoded.robotOverrides!)).toEqual(['__proto__']);
     expect(({} as Record<string, unknown>).wet).toBeUndefined();
     expect(({} as Record<string, unknown>).p).toBeUndefined();
+  });
+});
+
+// Ported from the deleted `?session=` codec's describe (docs/tasks/SHORT_WORLD_LINK.md Task 7): the nested shapes the
+// core describe above round-trips but does not spell out.
+describe('CompactWorldDiff: nested wire shapes', () => {
+  it('omits the lane key for a null-lane link, globally and under a robot ll, and still round-trips', () => {
+    const diff: WorldDiff = {
+      globalLfoLinks: { 'eq3.low': { lane: null, depth: 12 }, 'lpf.frequency': { lane: 'd', depth: 60 } },
+      robotOverrides: { 'robot-1': { lfoLinks: { 'layer1.gain': { lane: null, depth: 30 }, 'layer2.detune': { lane: 'a', depth: 5 } } } },
+    };
+    const wire = wireOf(diff) as {
+      gll: Record<string, Record<string, unknown>>;
+      r: Record<string, { ll: Record<string, Record<string, unknown>> }>;
+    };
+    expect(wire.gll['eq3.low']).toEqual({ d: 12 });
+    expect(wire.gll['lpf.frequency']).toEqual({ l: 'd', d: 60 });
+    expect(wire.r['robot-1'].ll['layer1.gain']).toEqual({ d: 30 });
+    expect(wire.r['robot-1'].ll['layer2.detune']).toEqual({ l: 'a', d: 5 });
+    expect(roundTrip(diff)).toEqual(diff);
+  });
+
+  it('abbreviates the envelope to {at,dc,su,rl}, a layer to {t,g,dt,ph,pw} and a toggle to {a,v}', () => {
+    const diff: WorldDiff = {
+      robotOverrides: {
+        'robot-1': {
+          adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3 },
+          layers: [{ type: 'sine', gain: 0.9, detune: 3, phase: 45, pulseWidth: 0.5 }],
+          rhythmicMotifLength: { active: true, value: 4 },
+        },
+      },
+    };
+    const robot = (wireOf(diff) as { r: Record<string, Record<string, unknown>> }).r['robot-1'];
+    expect(robot.a).toEqual({ at: 0.01, dc: 0.2, su: 0.7, rl: 0.3 });
+    expect(robot.l).toEqual([{ t: 'sine', g: 0.9, dt: 3, ph: 45, pw: 0.5 }]);
+    expect(robot.rm).toEqual({ a: true, v: 4 });
+    expect(roundTrip(diff)).toEqual(diff);
+  });
+
+  it('omits an optional nested field (a layer with no pulseWidth) from the wire, and still round-trips', () => {
+    const diff: WorldDiff = { robotOverrides: { 'robot-1': { layers: [{ type: 'square', gain: 0.8, detune: 5, phase: 0 }] } } };
+    const wire = wireOf(diff) as { r: Record<string, { l: [Record<string, unknown>] }> };
+    expect(wire.r['robot-1'].l[0]).not.toHaveProperty('pw');
+    expect(roundTrip(diff)).toEqual(diff);
   });
 });
 

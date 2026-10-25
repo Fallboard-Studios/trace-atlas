@@ -740,8 +740,8 @@ describe('applySessionPayload', () => {
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
     // docs/specs/LFO_LOAD_FIX.md assumption 9: the field is gone from CompanyOptionsSnapshot, so an
-    // old payload is the only way it can appear — cast through unknown, since decodeSessionPayload's
-    // own doc comment treats this as untyped JSON from outside the app. The stale key is inert:
+    // old payload is the only way it can appear — cast through unknown, since a saved or shared
+    // payload is untyped JSON from outside the app. The stale key is inert:
     // never read, never thrown on.
     const legacyCompany = {
       id: 'user-created-legacy-volume-lfo',
@@ -2528,8 +2528,8 @@ describe('applySessionPayload', () => {
     // Simulates a session saved on `main` before this branch: version 1, no lfoBank/
     // globalLfoLinks, and still carrying the exact fields Task 17 removed from the TYPE -- a real
     // pre-branch blob on disk/in a share link still has them as plain JSON, since nothing migrates
-    // old saves forward. Cast through unknown: decodeSessionPayload's own doc comment treats a
-    // loaded payload as untyped JSON from outside the app, same as the existing legacy-company test above.
+    // old saves forward. Cast through unknown: a loaded payload is untyped JSON from outside
+    // the app, same as the existing legacy-company test above.
     const v1Payload = {
       ...freshPayload,
       version: 1,

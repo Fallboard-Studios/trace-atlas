@@ -4,8 +4,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useAttenuationStyleStore, DEFAULT_PELAGOS, selectCurrentAttenuationStyle } from './attenuationStyleStore';
-import { encodeSessionPayload } from '../utils/sessionShareUtils';
-import type { SessionPayload } from '../types/session';
 
 // ========================================
 // TESTS
@@ -112,22 +110,8 @@ describe('DEFAULT_ATTENUATION_STYLE_NAME -- ?session= share-payload priority (ro
     vi.resetModules();
   });
 
-  function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
-    return {
-      version: 1,
-      attenuationStyleName: 'Pelagos 7!',
-      coordinates: { x: -5, y: 777 },
-      globalAudio: {} as SessionPayload['globalAudio'],
-      robotOverrides: {},
-      companyDiffs: {},
-      userCreatedCompanies: [],
-      ...overrides,
-    };
-  }
-
   it('uses a share payload\'s exact, unsanitized attenuationStyleName when ?session= is present', async () => {
-    const payload = makePayload({ attenuationStyleName: 'Pelagos 7!' });
-    window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
+    window.history.replaceState({}, '', '/?seed=Pelagos%207%21&x=29&y=-14');
     vi.resetModules();
 
     const fresh = await import('./attenuationStyleStore');
@@ -142,8 +126,7 @@ describe('DEFAULT_ATTENUATION_STYLE_NAME -- ?session= share-payload priority (ro
   });
 
   it('never touches the global seed override -- getGlobalAttenuationStyleSeedOverride() stays null after a share-link boot', async () => {
-    const payload = makePayload({ attenuationStyleName: 'Pelagos 7!' });
-    window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
+    window.history.replaceState({}, '', '/?seed=Pelagos%207%21&x=29&y=-14');
     vi.resetModules();
 
     await import('./attenuationStyleStore');

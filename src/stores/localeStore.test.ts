@@ -11,8 +11,6 @@ import type { Locale } from '../types/locale';
 import type { Company } from '../types/Company';
 import type { Robot } from '../types/Robot';
 import { DockingState } from '../types/Robot';
-import { encodeSessionPayload } from '../utils/sessionShareUtils';
-import type { SessionPayload } from '../types/session';
 
 // ========================================
 // HELPERS
@@ -108,27 +106,13 @@ describe('localeStore', () => {
         vi.resetModules();
       });
 
-      function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
-        return {
-          version: 1,
-          attenuationStyleName: 'Pelagos 7!',
-          coordinates: { x: -5, y: 777 },
-          globalAudio: {} as SessionPayload['globalAudio'],
-          robotOverrides: {},
-          companyDiffs: {},
-          userCreatedCompanies: [],
-          ...overrides,
-        };
-      }
-
       it('uses a share payload\'s coordinates exactly when ?session= is present', async () => {
-        const payload = makePayload({ coordinates: { x: -5, y: 777 } });
-        window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
+        window.history.replaceState({}, '', '/?seed=Pelagos%207%21&x=29&y=-14');
         vi.resetModules();
 
         const fresh = await import('./localeStore');
 
-        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: -5, y: 777 });
+        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 29, y: -14 });
       });
 
       it('falls back to randomCoordinate() when ?session= is absent', async () => {
