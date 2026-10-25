@@ -1,13 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-vi.mock('./seedUtils', () => ({
-  getGlobalAttenuationStyleSeedOverride: vi.fn(() => null),
-}));
-
 import { precomputeDataX, getSeededVal, getUniformSeededVal } from './getSeededVal';
-import { getGlobalAttenuationStyleSeedOverride } from './seedUtils';
 
 describe('precomputeDataX', () => {
   it('is deterministic — the same dataId produces the same output on repeated calls', () => {
@@ -18,20 +13,6 @@ describe('precomputeDataX', () => {
 
   it('produces a different output for a different dataId', () => {
     expect(precomputeDataX('a')).not.toBe(precomputeDataX('b'));
-  });
-
-  it('folds the global seed override into the key — two different overrides produce two different outputs for the same dataId', () => {
-    const mocked = vi.mocked(getGlobalAttenuationStyleSeedOverride);
-
-    mocked.mockReturnValue('seed-one');
-    const withSeedOne = precomputeDataX('robots.spawn.index');
-
-    mocked.mockReturnValue('seed-two');
-    const withSeedTwo = precomputeDataX('robots.spawn.index');
-
-    expect(withSeedOne).not.toBe(withSeedTwo);
-
-    mocked.mockReturnValue(null);
   });
 });
 

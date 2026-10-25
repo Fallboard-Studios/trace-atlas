@@ -92,7 +92,7 @@ export function decodeBlob(raw: string): WorldDiff | null {
 // THE LINK
 // ========================================
 
-/** A plain, optionally negative integer: the rule the deleted parseCoordinateParam used (spec assumption 10). */
+/** A plain, optionally negative integer: the rule the old `?x=` / `?y=` parser used (spec assumption 10). */
 const INTEGER = /^-?\d+$/;
 
 /** One axis, or the random a fresh world would get for that axis alone (spec assumption 6). `-0` reads as 0. */

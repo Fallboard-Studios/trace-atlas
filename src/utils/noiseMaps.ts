@@ -4,7 +4,7 @@
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { deriveAttenuationStyleSeed, getGlobalAttenuationStyleSeedOverride } from './seedUtils';
+import { deriveAttenuationStyleSeed } from './seedUtils';
 
 // ========================================
 // REGISTRY (module-level, non-serialisable — must NOT be stored in Zustand)
@@ -52,9 +52,7 @@ export function getLocaleNoiseMap(
   y: number,
 ): NoiseFunction2D {
   if (!localeMaps.has(localeId)) {
-    const global = getGlobalAttenuationStyleSeedOverride();
-    const key = global ? `${global}:${x}:${y}` : `${x}:${y}`;
-    localeMaps.set(localeId, createNoise2D(alea(key)));
+    localeMaps.set(localeId, createNoise2D(alea(`${x}:${y}`)));
   }
   return localeMaps.get(localeId)!;
 }

@@ -104,7 +104,7 @@ describe('AudioDebugHud', () => {
   });
 
   // docs/specs/SHORT_WORLD_LINK.md Task 10: the world line names the live Attenuation Style, read from the store,
-  // not from the old seed override (which only a ?seed= URL ever set, so a typed-in world read "random").
+  // not from the deleted seed override (which nothing in the app set any more, so every world read "random").
   describe('the world line', () => {
     const firstLine = (container: HTMLElement) => container.querySelector('.audio-debug-hud')!.firstElementChild!.textContent!;
 

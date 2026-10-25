@@ -1,11 +1,10 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
-import { setGlobalAttenuationStyleSeedOverride } from './seedUtils';
 
 // ========================================
 // HELPERS
@@ -35,10 +34,6 @@ function freshLocaleId(): string {
 // ========================================
 
 describe('noiseMaps — getLocaleNoiseMap (decoupled from Attenuation Style)', () => {
-  afterEach(() => {
-    setGlobalAttenuationStyleSeedOverride(null);
-  });
-
   describe('Attenuation-Style-invariance', () => {
     it('produces identical getSeededVal output for two different locale ids at the same coordinates', () => {
       const { x, y } = CONTROL_COORD;
@@ -79,22 +74,6 @@ describe('noiseMaps — getLocaleNoiseMap (decoupled from Attenuation Style)', (
       });
 
       expect(new Set(samples).size).toBe(points.length);
-    });
-  });
-
-  describe('global seed override', () => {
-    it('changes the result for a fixed (x, y) when an override is set', () => {
-      const { x, y } = CONTROL_COORD;
-
-      setGlobalAttenuationStyleSeedOverride(null);
-      const withoutOverride = getLocaleNoiseMap(freshLocaleId(), x, y);
-      const withoutOverrideVal = getSeededVal(withoutOverride, 'override.probe');
-
-      setGlobalAttenuationStyleSeedOverride('bug-repro-seed');
-      const withOverride = getLocaleNoiseMap(freshLocaleId(), x, y);
-      const withOverrideVal = getSeededVal(withOverride, 'override.probe');
-
-      expect(withOverrideVal).not.toBe(withoutOverrideVal);
     });
   });
 

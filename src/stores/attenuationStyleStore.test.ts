@@ -136,14 +136,4 @@ describe('DEFAULT_ATTENUATION_STYLE_NAME -- the world link in the address bar (d
     const fresh = await loadWithQuery('?debug');
     expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toMatch(/^[a-z0-9]+$/);
   });
-
-  it('never touches the global seed override -- getGlobalAttenuationStyleSeedOverride() stays null after a world-link boot', async () => {
-    window.history.replaceState({}, '', '/?seed=Pelagos%207%21&x=29&y=-14');
-    vi.resetModules();
-
-    await import('./attenuationStyleStore');
-    const seed = await import('../utils/seedUtils');
-
-    expect(seed.getGlobalAttenuationStyleSeedOverride()).toBeNull();
-  });
 });

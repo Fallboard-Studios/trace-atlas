@@ -88,18 +88,6 @@ describe('localeStore', () => {
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.y)).toBe(true);
     });
 
-    it('no longer reads seedUtils.ts\'s coordinate override at all (roadmap Phase 21 -- superseded by the world link) -- setting it directly has no effect on a freshly-loaded default locale, which still uses the mocked randomCoordinate() sequence', async () => {
-      vi.resetModules();
-      const seed = await import('../utils/seedUtils');
-      seed.setLocaleCoordinateOverride({ x: -5, y: 777 });
-      const fresh = await import('./localeStore');
-      // vitest.setup.ts mocks randomCoordinate() to alternate 12/68 -- if the override were
-      // still read, this would be { x: -5, y: 777 } instead.
-      expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 12, y: 68 });
-      seed.setLocaleCoordinateOverride({ x: null, y: null });
-      vi.resetModules();
-    });
-
     describe('the world link in the address bar (docs/specs/SHORT_WORLD_LINK.md)', () => {
       afterEach(() => {
         window.history.replaceState({}, '', '/');
