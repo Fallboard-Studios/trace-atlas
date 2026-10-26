@@ -7,9 +7,10 @@ const SHARE_STATUS_DISMISS_MS = 5000;
 export type ShareStatus = 'copied' | 'error' | null;
 
 /** The "click Share -> copy a link -> show a 5-second auto-dismissing status note" behavior
- *  shared by SessionListItem.tsx's per-row Share button and SessionsPanel.tsx's panel-level one
- *  (docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md). Extracted after code review found the two
- *  components had copy-pasted this logic verbatim. */
+ *  shared by SessionListItem.tsx's per-row Share button, SessionsPanel.tsx's panel-level one
+ *  (docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md) and SectorSettingsDrawer.tsx's Copy link
+ *  (docs/specs/SHORT_WORLD_LINK.md). Extracted after code review found the first two components
+ *  had copy-pasted this logic verbatim. */
 export function useShareStatus() {
   const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
   const dismissTimeoutRef = useRef<number | undefined>(undefined);

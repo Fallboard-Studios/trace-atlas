@@ -415,35 +415,34 @@ fps 58`)).toEqual({
 });
 
 // ========================================
-// THE PIN CHECK (the world is random unless a ?session= link pins it; the overlay says where the page landed)
+// THE PIN CHECK (the spec's name:x:y is the link's seed/x/y; the overlay says where the page landed)
 // ========================================
 
-/** A `?session=` value as the app encodes it: base64 of the compact JSON (`n` the style name, `c` the coordinates). */
-const sessionParam = (n, x, y) => btoa(JSON.stringify({ v: 2, n, c: { x, y }, g: {} }));
-
 describe('expectedCoordinates', () => {
-  it('reads the coordinates out of a ?session= payload carried in the world query', () => {
-    const world = parseWorldSpec(`bravo:-150:90?session=${sessionParam('bravo', -150, 90)}`);
-    expect(expectedCoordinates(world)).toEqual({ x: -150, y: 90, from: 'session' });
+  it('expects the spec coordinates, which the page URL pins through ?seed=&x=&y=', () => {
+    expect(expectedCoordinates(parseWorldSpec('bravo:-150:90'))).toStrictEqual({ x: -150, y: 90 });
   });
 
-  it('trusts the payload over the spec label when they disagree (the label is a name, the payload is the pin)', () => {
-    const world = parseWorldSpec(`s:0:0?session=${sessionParam('alpha', 12, 68)}`);
-    expect(expectedCoordinates(world)).toEqual({ x: 12, y: 68, from: 'session' });
+  it('ignores a retired ?session= value in the world query (its coordinates are not the pin)', () => {
+    // base64 of {"c":{"x":1,"y":2}}: the old reader returned { x: 1, y: 2, from: 'session' }.
+    expect(expectedCoordinates({ x: 200, y: -30, query: 'session=eyJjIjp7IngiOjEsInkiOjJ9fQ' })).toStrictEqual({ x: 200, y: -30 });
   });
 
-  it('finds the session among other query params', () => {
-    const world = parseWorldSpec(`bravo:-150:90?load=light&session=${sessionParam('bravo', -150, 90)}&latency=playback`);
-    expect(expectedCoordinates(world)).toMatchObject({ x: -150, y: 90 });
+  it('expects the spec coordinates when a tweaked world rides along in an s= blob among other params', () => {
+    const world = parseWorldSpec('bravo:-150:90?load=light&s=1.q1YqU7JSMjQwUNJRKkpNzs8rUbIyNDDQUcrJTEotSs7PTgUA&latency=playback');
+    expect(expectedCoordinates(world)).toStrictEqual({ x: -150, y: 90 });
   });
 
-  it('falls back to the spec coordinates when no session is given — which the page will not honour, so the check fails loudly', () => {
-    expect(expectedCoordinates(parseWorldSpec('bravo:-150:90'))).toEqual({ x: -150, y: 90, from: 'spec' });
+  it('expects the spec coordinates when the world has no query at all', () => {
+    expect(expectedCoordinates({ x: 0, y: -7 })).toStrictEqual({ x: 0, y: -7 });
   });
 
-  it('falls back to the spec when the session value is not decodable', () => {
-    expect(expectedCoordinates(parseWorldSpec('bravo:-150:90?session=%%%not-base64'))).toEqual({ x: -150, y: 90, from: 'spec' });
-    expect(expectedCoordinates(parseWorldSpec(`bravo:-150:90?session=${btoa('{"v":2}')}`))).toEqual({ x: -150, y: 90, from: 'spec' });
+  it('pairs with buildPageUrl: the expected coordinates are the ones the URL carries, ahead of the blob', () => {
+    const world = parseWorldSpec('bravo:-150:90?s=1.abc');
+    const url = new URL(buildPageUrl('http://localhost:4173/trace-atlas/', world));
+    expect(url.search).toBe('?debug&seed=bravo&x=-150&y=90&s=1.abc');
+    const { x, y } = expectedCoordinates(world);
+    expect({ x: Number(url.searchParams.get('x')), y: Number(url.searchParams.get('y')) }).toEqual({ x, y });
   });
 });
 

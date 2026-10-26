@@ -49,11 +49,10 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 
 // Randomized once per module load (page load), via the same randomCoordinate()
 // Sector Settings' own "Random" coordinate button uses — otherwise every fresh
-// session dropped into the exact same plot. No seed/reproducibility contract
-// applies here the way resolveDefaultAttenuationStyleName's override does for
-// the Attenuation Style name: coordinates are already a freely user-driven
-// axis (Sector Settings lets anyone retransmit to new ones at will), so there
-// is nothing to keep stable across reloads. In tests, vitest.setup.ts mocks
+// session dropped into the exact same plot. Only a world link pins them (see
+// below); coordinates are otherwise a freely user-driven axis (Sector Settings
+// lets anyone retransmit to new ones at will), so there is nothing to keep
+// stable across reloads. In tests, vitest.setup.ts mocks
 // randomCoordinate back to a fixed (12, 68)-equivalent sequence — the whole
 // suite (this file's own tests included) was written assuming a fixed,
 // reproducible default locale for seeded/noise-map-derived determinism
@@ -71,11 +70,11 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 // both assume coordinates are integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md)
 // — randomCoordinate() already rounds, so this stays true without extra work.
 //
-// `?x=`/`?y=` boot-time override removed (roadmap Phase 21 — superseded by
-// the shareable-link `?session=` param, sessionShareUtils.ts). A share
-// payload's exact coordinates take priority when `?session=` is present,
-// otherwise random. Sector Settings' own "Random" button still calls
-// randomCoordinate() ungated, same as before.
+// A world link in the address bar (`?seed=…&x=…&y=…`, docs/specs/SHORT_WORLD_LINK.md,
+// decoded once by sessionShareUtils.ts) gives the exact coordinates; an axis
+// the link leaves out or garbles is drawn by the decoder itself. With no link
+// at all, both axes are random. Sector Settings' own "Random" button still
+// calls randomCoordinate() ungated, same as before.
 const sessionSharePayload = getSessionSharePayload();
 const DEFAULT_LOCALE_COORDINATES = {
   x: sessionSharePayload?.coordinates.x ?? randomCoordinate(),

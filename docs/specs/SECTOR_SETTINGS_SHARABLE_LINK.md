@@ -1,5 +1,13 @@
 # Phase Spec: Sector Settings — Shareable Link
 
+> **Wire format superseded (2026-10-25, roadmap 56).** The `?session=` param, its base64 JSON and
+> `encodeSessionPayload` / `decodeSessionPayload` described below are gone: a share link is now the world link,
+> `?seed=&x=&y=` plus an optional `s=1.<blob>` ([SHORT_WORLD_LINK.md](SHORT_WORLD_LINK.md)). What this spec built
+> still stands as built: the boot seam in `sessionShareUtils.ts` (`getSessionSharePayload` / `consumeSessionSharePayload`,
+> decoded once at module load), the two-phase boot (store defaults, then `applySessionPayload` with
+> `skipLocaleRebuild: true`), `buildShareUrl` / `copySessionLink`, and the Share buttons. Read the wire sections below
+> as history.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc --noEmit`)

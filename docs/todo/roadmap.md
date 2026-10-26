@@ -490,3 +490,63 @@ frame wrappers left out", "the Pixel A/B: not separable on the phone" and the tw
 
 **Done — merged via PR #570 (`refactor/robot-send-table`), 2026-10-22. Moved to [the archive](archive/roadmap-archive.md#55-robot-sends-one-table-for-the-five-sends).**
 
+## 56. Short World Link
+
+Backlog [19](archive/backlog-archive.md#19-short-world-link-bring-back-seed-x-and-y), raised by Crawford on 2026-10-09
+and widened on 2026-10-22: bring back `?seed=`, `?x=` and `?y=` for an untouched world, and make a tweaked world's link
+short. One wire format replaces roadmap [21](#21-sector-settings-shareable-link-importexport)'s `?session=`:
+`?seed=<exact name>&x=<int>&y=<int>`, plus one `s=1.<base64url of raw-deflated compact JSON>` param only when the world
+differs from what its seed regenerates. Phase 21's boot seam, two-phase boot and Share buttons stay.
+
+**Status: built 2026-10-25 on `feature/short-world-link`, off `main` at `fee2de9e`, PR pending** (Crawford opens it;
+intent [short-world-link.md](../intent/short-world-link.md), spec [SHORT_WORLD_LINK.md](../specs/SHORT_WORLD_LINK.md),
+plan [SHORT_WORLD_LINK.md](../tasks/SHORT_WORLD_LINK.md)). Tasks T0–T16 done, with T6b added during the build, then a
+code review and its fix. Crawford passed Checkpoint B (2026-10-25) and Checkpoint C (2026-10-26: spec §5's manual list
+end to end in the browser, at `aad1270e`). Checkpoint A's review box is not ticked in the plan.
+
+### As built
+
+- **One new dependency, `fflate` 0.8.3**, named imports only (`deflateSync`, `inflateSync`, `strToU8`, `strFromU8`), so
+  the boot decode stays synchronous. The main chunk grew 13.0 kB (5.5 kB gzip) over the branch, against an estimate of
+  about 8 kB.
+- **Three new modules.** `worldLink.ts` holds the params, the versioned blob, the lenient decode and the encoder.
+  `seedBaseline.ts` regenerates a name's world-level fields through the eight pure generators;
+  `diffWorldAgainstSeed` and `fillWorldFromSeed` are inverses. `worldDiffCodec.ts` holds the compact codec, which T6b
+  moved out of `sessionShareUtils.ts` to break an import cycle. `deepEqual` moved to `math.ts`. `sessionShareUtils.ts`
+  keeps only the seam, `buildShareUrl` and `copySessionLink`.
+- **Size.** Crawford's own world (`n40dh8p8` at (29, −14): twelve edited robots, and all 17 Audio Rig blocks off their seed) went from
+  a 14,092-character `session` param to a 1,722-character `s`, or 1,784 characters for the whole localhost URL. That is
+  about 7 % over the 1,615 the intent measured; the cause is not known.
+- **Buttons.** T9 added Copy link in Settings → Seeds, beside the Sessions panel's Share live and each save's Share.
+  All three use one encoder.
+- **Deleted.** T11 removed the `seedUtils.ts` override primitives, `parseCoordinateParam` and
+  `resolveDefaultAttenuationStyleName`; T7 removed the `?session=` codec. The HUD's world line now reads the style name
+  (T10). It had printed `random` for every world since Phase 21.
+- **Harness and docs.** `perf:audio`'s pin check reads the spec's `x:y` (T13). T14 re-minted 18 recorded `?session=`
+  links in PERFORMANCE.md and scratchy-audio-phones.md with the shipped encoder (the plan said five) and opened each one
+  once in headless Chrome. **Ten of them were broken as committed** (fixed 2026-10-26): the re-mint script left the old
+  value's URL-encoded padding (`%3D`, `%3D%3D`) after the new blob, which made the blob invalid, so those links loaded
+  the bare seed with the right name and coordinates but none of their edits. The HUD check could not see it (it reads
+  only the triple) and the probe had tested the links without the suffix. Each link is now checked exactly as written:
+  its blob applies and it decodes to the payload it replaced. T15 rewrote SESSION_STORAGE.md, PROCEDURAL_GENERATION.md and the Phase 21 spec's header.
+- **Fixed after the branch's code review (2026-10-25): an untouched world copied a blob, not its bare triple.** A save
+  snaps the rig to its slider steps and rounds the LFO drifts; the seed baseline compared against the raw generators,
+  so every untouched world carried a 225–350-character `s=` (measured on 20 of 20 fresh worlds). The baseline now goes
+  through the same capture step (`src/utils/sessionCapture.ts`). `worldLinkBoot.test.ts` drives the real boot (stores,
+  `initializeLocale`, `applySessionPayload`, `buildSessionPayload`), which no earlier test did.
+- **Spec §7, as taken.** Every item was built on its default, and none was vetoed: Share live stays; the blob param is
+  `s`; D1–D5 are re-minted; floats are not rounded on the wire; the decoder returns a whole payload; the name is not
+  capped; this number and title.
+- **Accepted: generator drift (spec risk 1).** "Absent means seeded" holds only while the generators stay as they are.
+  A later change to a generator turns every untouched field of an old link into a diff nobody wrote, and silently
+  changes what an old link plays. Pre-v1, nothing mitigates it, by design.
+- Old `?session=` links open a random world. There is no migration and no fallback (the intent's call).
+
+### Open
+
+- Spec §5's static grep still has two false positives: the `'session'` content-area name (`src/content/types.ts`) and
+  a T13 test comment quoting the old `from: 'session'` return.
+- The re-minted links resolve only on a build that has the world link. The on-hold phone sitting has to carry this
+  branch, or `main` after the merge, not today's `main`.
+- The PR.
+

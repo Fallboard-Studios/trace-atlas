@@ -10,7 +10,6 @@ import {
 } from '../../engine/audioDiagnostics';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../../stores/attenuationStyleStore';
 import { useLocaleStore } from '../../stores/localeStore';
-import { getGlobalAttenuationStyleSeedOverride } from '../../utils/seedUtils';
 
 import { buildHudLines, hudStatus } from './hudLines';
 import './AudioDebugHud.css';
@@ -36,14 +35,13 @@ export function AudioDebugHud() {
   // doesn't re-render on every unrelated robot write.
   const currentLocaleId = useAttenuationStyleStore((s) => selectCurrentAttenuationStyle(s)?.currentLocaleId);
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
+  // The live style's name, and only the name (as narrow as the two above). null, printed "random", only when
+  // there is no current style at all (docs/specs/SHORT_WORLD_LINK.md Task 10).
+  const styleName = useAttenuationStyleStore((s) => selectCurrentAttenuationStyle(s)?.name ?? null);
 
   // Derived from the last sample (not performance.now() during render, which would be impure).
   const uptimeMs = Math.max(0, (snapshot.timing.last?.wallMs ?? snapshot.timing.startWallMs) - snapshot.timing.startWallMs);
-  const lines = buildHudLines(
-    snapshot,
-    { seed: getGlobalAttenuationStyleSeedOverride(), x: coordinates?.x, y: coordinates?.y },
-    uptimeMs,
-  );
+  const lines = buildHudLines(snapshot, { seed: styleName, x: coordinates?.x, y: coordinates?.y }, uptimeMs);
   const bad = hudStatus(snapshot) === 'bad';
 
   return (

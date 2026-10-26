@@ -33,7 +33,7 @@ import {
   DELAY_TIME_STEP_SECONDS,
   type DelaySettings,
 } from '@/types/globalAudio';
-import { quantizeToStep, roundToDecimals } from '@/utils/math';
+import { quantizeToStep } from '@/utils/math';
 
 // ========================================
 // CONSTANTS
@@ -60,13 +60,6 @@ export type RateRange = { readonly min: number; readonly max: number };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
-}
-
-/** quantizeToStep, then roundToDecimals at the step's own decimal places so state never carries
- *  floating-point residue (1.3500000000000001 instead of 1.35). */
-function quantizeClean(value: number, min: number, step: number): number {
-  const decimals = String(step).split('.')[1]?.length ?? 0;
-  return roundToDecimals(quantizeToStep(value, min, step), decimals);
 }
 
 // ========================================
@@ -170,7 +163,7 @@ export function laneToSync(lane: BankLfoSettings, bpm: number): BankLfoSettings 
 export function laneToFree(lane: BankLfoSettings, bpm: number): BankLfoSettings {
   const { sync, ...rest } = lane;
   if (!isNoteValue(sync)) return rest;
-  const hz = quantizeClean(resolveLaneRateHz(lane, bpm), LFO_RATE_MIN, LFO_RATE_STEP);
+  const hz = quantizeToStep(resolveLaneRateHz(lane, bpm), LFO_RATE_MIN, LFO_RATE_STEP);
   return { ...rest, rate: Math.max(LFO_RATE_STEP, hz) };
 }
 
@@ -195,7 +188,7 @@ export function delayToFree(delay: DelaySettings, bpm: number): DelaySettings {
   if (!isNoteValue(sync)) return rest;
   return {
     ...rest,
-    delayTime: quantizeClean(
+    delayTime: quantizeToStep(
       resolveDelayTimeSeconds(delay, bpm),
       DELAY_TIME_RANGE_SECONDS.min,
       DELAY_TIME_STEP_SECONDS
@@ -221,7 +214,7 @@ export function syncedRateToSync<T extends SyncedRate>(field: T, bpm: number, ra
 export function syncedRateToFree<T extends SyncedRate>(field: T, bpm: number, range: RateRange, step: number): T {
   const { sync, ...rest } = field;
   if (!isNoteValue(sync)) return rest as T;
-  return { ...rest, rate: quantizeClean(resolveSyncedRateHz(field, bpm, range), range.min, step) } as T;
+  return { ...rest, rate: quantizeToStep(resolveSyncedRateHz(field, bpm, range), range.min, step) } as T;
 }
 
 // ========================================

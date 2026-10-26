@@ -285,11 +285,12 @@ function isSameKind(value: unknown, fallback: unknown): boolean {
 
 /**
  * Fills any effect block a payload lacks from DEFAULT_GLOBAL_AUDIO_SETTINGS and drops keys it does not
- * know. A session or share link saved before a block existed therefore loads with that block at its
- * default (dry, for colour) instead of crashing `applyGlobalAudioToEngine`. Blocks are whole: a block that
+ * know. A session saved before a block existed therefore loads with that block at its default (dry, for
+ * colour) instead of crashing `applyGlobalAudioToEngine`; a world link's missing block takes the seed's
+ * instead (worldDiffCodec.ts uses this function only as its kind check). Blocks are whole: a block that
  * is present is kept as given and never deep-merged (docs/specs/GLOBAL_COLOUR.md §1.1, assumption 11).
- * A value of the wrong kind (a number where a block belongs, say, from a crafted `?session=`) counts as
- * missing, so the restore path's sanitisers only ever see objects.
+ * A value of the wrong kind (a number where a block belongs, say, from a crafted save or `s=` blob)
+ * counts as missing, so the restore path's sanitisers only ever see objects.
  */
 export function withGlobalAudioDefaults(partial: Partial<GlobalAudioSettings>): GlobalAudioSettings {
   const result: Record<string, unknown> = {};

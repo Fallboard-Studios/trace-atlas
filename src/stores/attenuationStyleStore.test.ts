@@ -4,8 +4,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useAttenuationStyleStore, DEFAULT_PELAGOS, selectCurrentAttenuationStyle } from './attenuationStyleStore';
-import { encodeSessionPayload } from '../utils/sessionShareUtils';
-import type { SessionPayload } from '../types/session';
 
 // ========================================
 // TESTS
@@ -106,49 +104,36 @@ describe('attenuationStyleStore', () => {
   });
 });
 
-describe('DEFAULT_ATTENUATION_STYLE_NAME -- ?session= share-payload priority (roadmap Phase 21)', () => {
+describe('DEFAULT_ATTENUATION_STYLE_NAME -- the world link in the address bar (docs/specs/SHORT_WORLD_LINK.md)', () => {
   afterEach(() => {
     window.history.replaceState({}, '', '/');
     vi.resetModules();
   });
 
-  function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
-    return {
-      version: 1,
-      attenuationStyleName: 'Pelagos 7!',
-      coordinates: { x: -5, y: 777 },
-      globalAudio: {} as SessionPayload['globalAudio'],
-      robotOverrides: {},
-      companyDiffs: {},
-      userCreatedCompanies: [],
-      ...overrides,
-    };
+  /** A fresh store module, loaded with `query` in the address bar. */
+  async function loadWithQuery(query: string) {
+    window.history.replaceState({}, '', `/${query}`);
+    vi.resetModules();
+    return import('./attenuationStyleStore');
   }
 
-  it('uses a share payload\'s exact, unsanitized attenuationStyleName when ?session= is present', async () => {
-    const payload = makePayload({ attenuationStyleName: 'Pelagos 7!' });
-    window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
-    vi.resetModules();
-
-    const fresh = await import('./attenuationStyleStore');
-
+  it('is the exact, unsanitized seed of a world link (?seed=Pelagos%207%21&x=29&y=-14)', async () => {
+    const fresh = await loadWithQuery('?seed=Pelagos%207%21&x=29&y=-14');
     expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toBe('Pelagos 7!');
   });
 
-  it('falls back to a fresh random name when ?session= is absent', async () => {
-    vi.resetModules();
-    const fresh = await import('./attenuationStyleStore');
+  it('is the seed of a link whose blob is unreadable: a bad blob drops alone, never the name', async () => {
+    const fresh = await loadWithQuery('?seed=Pelagos%207%21&x=29&y=-14&s=2.notablob');
+    expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toBe('Pelagos 7!');
+  });
+
+  it('is a fresh random name when the link has coordinates but no seed (only the missing part is drawn)', async () => {
+    const fresh = await loadWithQuery('?x=29&y=-14');
     expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toMatch(/^[a-z0-9]+$/);
   });
 
-  it('never touches the global seed override -- getGlobalAttenuationStyleSeedOverride() stays null after a share-link boot', async () => {
-    const payload = makePayload({ attenuationStyleName: 'Pelagos 7!' });
-    window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
-    vi.resetModules();
-
-    await import('./attenuationStyleStore');
-    const seed = await import('../utils/seedUtils');
-
-    expect(seed.getGlobalAttenuationStyleSeedOverride()).toBeNull();
+  it('falls back to a fresh random name when the address bar names no world', async () => {
+    const fresh = await loadWithQuery('?debug');
+    expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toMatch(/^[a-z0-9]+$/);
   });
 });

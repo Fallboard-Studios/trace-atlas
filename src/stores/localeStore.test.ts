@@ -11,8 +11,6 @@ import type { Locale } from '../types/locale';
 import type { Company } from '../types/Company';
 import type { Robot } from '../types/Robot';
 import { DockingState } from '../types/Robot';
-import { encodeSessionPayload } from '../utils/sessionShareUtils';
-import type { SessionPayload } from '../types/session';
 
 // ========================================
 // HELPERS
@@ -90,52 +88,53 @@ describe('localeStore', () => {
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.y)).toBe(true);
     });
 
-    it('no longer reads seedUtils.ts\'s coordinate override at all (roadmap Phase 21 -- superseded by ?session=) -- setting it directly has no effect on a freshly-loaded default locale, which still uses the mocked randomCoordinate() sequence', async () => {
-      vi.resetModules();
-      const seed = await import('../utils/seedUtils');
-      seed.setLocaleCoordinateOverride({ x: -5, y: 777 });
-      const fresh = await import('./localeStore');
-      // vitest.setup.ts mocks randomCoordinate() to alternate 12/68 -- if the override were
-      // still read, this would be { x: -5, y: 777 } instead.
-      expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 12, y: 68 });
-      seed.setLocaleCoordinateOverride({ x: null, y: null });
-      vi.resetModules();
-    });
-
-    describe('?session= share-payload priority (roadmap Phase 21)', () => {
+    describe('the world link in the address bar (docs/specs/SHORT_WORLD_LINK.md)', () => {
       afterEach(() => {
         window.history.replaceState({}, '', '/');
         vi.resetModules();
       });
 
-      function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
-        return {
-          version: 1,
-          attenuationStyleName: 'Pelagos 7!',
-          coordinates: { x: -5, y: 777 },
-          globalAudio: {} as SessionPayload['globalAudio'],
-          robotOverrides: {},
-          companyDiffs: {},
-          userCreatedCompanies: [],
-          ...overrides,
-        };
+      /** A fresh store module, loaded with `query` in the address bar. */
+      async function loadWithQuery(query: string) {
+        window.history.replaceState({}, '', `/${query}`);
+        vi.resetModules();
+        return import('./localeStore');
       }
 
-      it('uses a share payload\'s coordinates exactly when ?session= is present', async () => {
-        const payload = makePayload({ coordinates: { x: -5, y: 777 } });
-        window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
-        vi.resetModules();
-
-        const fresh = await import('./localeStore');
-
-        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: -5, y: 777 });
+      it('uses the x and y of a world link exactly (?seed=Pelagos%207%21&x=29&y=-14)', async () => {
+        const fresh = await loadWithQuery('?seed=Pelagos%207%21&x=29&y=-14');
+        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 29, y: -14 });
       });
 
-      it('falls back to randomCoordinate() when ?session= is absent', async () => {
-        vi.resetModules();
-        const fresh = await import('./localeStore');
-        // vitest.setup.ts mocks randomCoordinate() to alternate 12/68.
-        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 12, y: 68 });
+      // vitest.setup.ts mocks randomCoordinate() to alternate 12/68 across the whole file, so which of the two a draw
+      // returns depends on the draws before it: a drawn axis is one of them, a kept axis is exact.
+      const DRAWS = [12, 68];
+
+      it('keeps the given axis and draws only the missing one', async () => {
+        const yMissing = (await loadWithQuery('?seed=Pelagos%207%21&x=29')).DEFAULT_LOCALE.coordinates;
+        expect(yMissing.x).toBe(29);
+        expect(DRAWS).toContain(yMissing.y);
+        const xMissing = (await loadWithQuery('?seed=Pelagos%207%21&y=-14')).DEFAULT_LOCALE.coordinates;
+        expect(DRAWS).toContain(xMissing.x);
+        expect(xMissing.y).toBe(-14);
+      });
+
+      it('draws an axis that is not a plain integer, keeping the other', async () => {
+        const coordinates = (await loadWithQuery('?seed=Pelagos%207%21&x=2.5&y=-14')).DEFAULT_LOCALE.coordinates;
+        expect(DRAWS).toContain(coordinates.x);
+        expect(coordinates.y).toBe(-14);
+      });
+
+      it('computes dayStartTimestamp from the link x (abs(29 % 24) = 5 hours in)', async () => {
+        const fresh = await loadWithQuery('?seed=Pelagos%207%21&x=29&y=-14');
+        // Close, not exact: the hour is read off the wall clock after the module loaded (one in-world hour is 15 s).
+        expect(computeLocaleHour(fresh.DEFAULT_LOCALE.dayStartTimestamp)).toBeCloseTo(5, 0);
+      });
+
+      it('falls back to randomCoordinate() when the address bar names no world', async () => {
+        const { x, y } = (await loadWithQuery('?debug')).DEFAULT_LOCALE.coordinates;
+        // Two consecutive draws of the alternating mock: one of each, in either order.
+        expect([x, y].sort((a, b) => a - b)).toEqual(DRAWS);
       });
     });
 

@@ -24,6 +24,8 @@ export const sector = {
   'sector.coords.y': { human: 'Y', lore: 'VERTICAL VECTOR [c]' },
   'sector.retransmit': { human: 'Retransmit', lore: 'RETRANSMIT' },
   'sector.status': { human: 'Current Sector', lore: 'ACTIVE TRANSMISSION' },
+  /** Copies the live world's short link (docs/specs/SHORT_WORLD_LINK.md assumption 9). No lore yet — Crawford's column. */
+  'sector.copyLink': { human: 'Copy link' },
   'sector.random.attenuationStyle': { human: 'Random', lore: 'STOCHASTIC SEED [c]' },
   'sector.random.coords': { human: 'Random', lore: 'STOCHASTIC VECTOR [c]' },
   /** A preset button's visible label is the preset's own name (data, filled via `template`);

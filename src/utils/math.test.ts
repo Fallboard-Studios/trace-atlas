@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { lerp, quantizeToStep, roundToDecimals } from './math';
+import { deepEqual, lerp, quantizeToStep, roundToDecimals } from './math';
 
 // ========================================
 // TEST SUITE
@@ -59,6 +59,30 @@ describe('math utilities', () => {
       expect(quantizeToStep(0, 0, 0.25)).toBe(0);
     });
 
+    // Backlog 33: the result is exact, never a grid point plus floating-point residue.
+    it('returns the exact grid value, without floating-point residue', () => {
+      expect(quantizeToStep(-0.4712, 0, 0.01)).toBe(-0.47); // not -0.47000000000000003
+      expect(quantizeToStep(1.35, 0, 0.05)).toBe(1.35); // not 1.3500000000000001
+      expect(quantizeToStep(0.333, 0, 0.001)).toBe(0.333);
+      expect(quantizeToStep(0.7, 0, 0.1)).toBe(0.7); // 7 * 0.1 is 0.7000000000000001
+    });
+
+    it('is exact when the grid origin has more decimal places than the step', () => {
+      // min 0.05, step 0.1: the grid is 0.05, 0.15, 0.25 … — two decimals, though the step has one.
+      expect(quantizeToStep(0.26, 0.05, 0.1)).toBe(0.25);
+      expect(quantizeToStep(3.57, 0.05, 0.1)).toBe(3.55);
+    });
+
+    it('is exact for a step written in exponent form', () => {
+      expect(quantizeToStep(0.00000033, 0, 1e-7)).toBe(0.0000003);
+    });
+
+    it('is exact for whole-number and large steps, and for large values', () => {
+      expect(quantizeToStep(17.4, 0, 5)).toBe(15);
+      expect(quantizeToStep(19999.9, 20, 1)).toBe(20000);
+      expect(quantizeToStep(-1001.2, -1000, 1)).toBe(-1001);
+    });
+
     it('quantizes correctly against a negative min', () => {
       const result = quantizeToStep(-3, -12, 0.5);
       const steps = (result - -12) / 0.5;
@@ -101,6 +125,56 @@ describe('math utilities', () => {
     it('leaves an exact value alone', () => {
       expect(roundToDecimals(10, 3)).toBe(10);
       expect(roundToDecimals(0, 2)).toBe(0);
+    });
+  });
+
+  // Moved here from sessionDiff.ts so seedBaseline.ts can compare without importing the
+  // store-bound sessionDiff (docs/specs/SHORT_WORLD_LINK.md §1.3).
+  describe('deepEqual', () => {
+    it('tells nested arrays of objects apart by a leaf', () => {
+      expect(deepEqual({ a: [1, { b: 2 }] }, { a: [1, { b: 3 }] })).toBe(false);
+      expect(deepEqual({ a: [1, { b: 2 }] }, { a: [1, { b: 2 }] })).toBe(true);
+    });
+
+    it('counts a key holding undefined as present', () => {
+      expect(deepEqual({ a: 1, sync: undefined }, { a: 1 })).toBe(false);
+      expect(deepEqual({ a: 1 }, { a: 1, sync: undefined })).toBe(false);
+      expect(deepEqual({ a: undefined }, { a: undefined })).toBe(true);
+    });
+
+    it('ignores key order and compares primitives by identity', () => {
+      expect(deepEqual({ x: 1, y: 'two' }, { y: 'two', x: 1 })).toBe(true);
+      expect(deepEqual(1, 1)).toBe(true);
+      expect(deepEqual(1, '1')).toBe(false);
+      expect(deepEqual(null, null)).toBe(true);
+      expect(deepEqual(null, {})).toBe(false);
+      expect(deepEqual({}, null)).toBe(false);
+    });
+
+    it('never treats an array as equal to an object, or arrays of different length as equal', () => {
+      expect(deepEqual([1, 2], { 0: 1, 1: 2 })).toBe(false);
+      expect(deepEqual({ 0: 1, 1: 2 }, [1, 2])).toBe(false);
+      expect(deepEqual([1, 2], [1, 2, 3])).toBe(false);
+      expect(deepEqual([], [])).toBe(true);
+    });
+
+    it('is true for two structurally equal payload-shaped objects built apart', () => {
+      const build = () => ({
+        version: 2,
+        attenuationStyleName: 'n40dh8p8',
+        coordinates: { x: 29, y: -14 },
+        globalAudio: {
+          delay: { time: 0.25, feedback: 0.4, sync: '8n' },
+          compressorBeforeDelay: true,
+        },
+        lfoBank: { a: { rate: 0.5, depth: 0.3, shape: 'sine' } },
+        robotOverrides: { r1: { pan: -0.2, layers: [{ gain: 0.5 }, { gain: 0 }] } },
+        userCreatedCompanies: [],
+      });
+      expect(deepEqual(build(), build())).toBe(true);
+      const edited = build();
+      edited.robotOverrides.r1.layers[1].gain = 0.1;
+      expect(deepEqual(build(), edited)).toBe(false);
     });
   });
 });

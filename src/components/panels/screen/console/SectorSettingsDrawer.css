@@ -25,6 +25,26 @@
   font-size: var(--font-size-label);
 }
 
+/* Copy link and its note (docs/specs/SHORT_WORLD_LINK.md assumption 9). The note wraps under the
+   button on a narrow drawer rather than pushing it sideways. Colours follow SessionsPanel.css's
+   .sessions-panel__share-status rules. */
+.sector-settings-drawer__copy-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 4px;
+}
+
+.sector-settings-drawer__share-status {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.sector-settings-drawer__share-status--error {
+  color: #b3362c;
+}
+
 .sector-settings-drawer__section {
   display: flex;
   flex-direction: column;

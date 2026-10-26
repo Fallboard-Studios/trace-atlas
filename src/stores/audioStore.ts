@@ -635,10 +635,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
 
   setLfoBank: (lane, partial) => {
-    // Defense in depth against a hole left by malformed/untrusted data (a hand-trimmed session
-    // share link, a corrupted localStorage blob) reaching this far — the decode boundary
-    // (sessionShareUtils.ts) is supposed to backfill every lane, but a caller passing `undefined`
-    // here should never throw regardless.
+    // Defense in depth against a hole left by malformed/untrusted data (a hand-trimmed share
+    // link, a corrupted localStorage blob) reaching this far — the restore boundary is supposed
+    // to supply every lane (applySessionPayload's backfill for a save, fillWorldFromSeed in
+    // seedBaseline.ts for a world link), but a caller passing `undefined` here should never throw
+    // regardless.
     if (!partial) return;
     // An undefined-valued key is not an edit (definedKeys above): `{ sync: undefined }` neither
     // lands `undefined` in state nor turns the lane Free — that is setLfoBankLaneSyncMode's job.

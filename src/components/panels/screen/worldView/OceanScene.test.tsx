@@ -106,6 +106,18 @@ import type { Robot as RobotType } from '@/types/Robot';
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString } from '@/utils/colorUtils';
 import { getRef } from '@/utils/refs';
+import { decodeWorldLink, encodeBlob } from '@/utils/worldLink';
+
+/** What the real seam hands the scene for a world link whose blob carries one robot override (docs/specs/SHORT_WORLD_LINK.md). */
+const LINK_OVERRIDE = { 'robot-3': { pan: 0.4 } };
+function blobLinkPayload() {
+  return decodeWorldLink(`?seed=Pelagos%207%21&x=29&y=-14&s=${encodeBlob({ robotOverrides: LINK_OVERRIDE })}`)!;
+}
+
+/** What the real seam hands the scene for a bare triple: the seed's own world, whole. */
+function bareLinkPayload() {
+  return decodeWorldLink('?seed=n40dh8p8&x=29&y=-14')!;
+}
 
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
   return {
@@ -150,7 +162,7 @@ describe('OceanScene', () => {
     applySessionPayloadMock.mockClear();
   });
 
-  describe('boot-time shareable-link apply (roadmap Phase 21)', () => {
+  describe('boot-time world-link apply (roadmap Phase 21, docs/specs/SHORT_WORLD_LINK.md)', () => {
     it('does not call applySessionPayload when no share payload is present (the common case)', () => {
       consumeSessionSharePayloadMock.mockReturnValue(null);
       render(<OceanScene />);
@@ -158,8 +170,9 @@ describe('OceanScene', () => {
       cleanup();
     });
 
-    it('calls applySessionPayload with the share payload and { skipLocaleRebuild: true }, after initializeLocale, when one is present', () => {
-      const payload = { attenuationStyleName: 'x' };
+    it('applies a world link whose blob carries one robot override once, with { skipLocaleRebuild: true }, after initializeLocale', () => {
+      const payload = blobLinkPayload();
+      expect(payload.robotOverrides).toEqual(LINK_OVERRIDE); // precondition: the link carries the one override
       consumeSessionSharePayloadMock.mockReturnValueOnce(payload);
       const callOrder: string[] = [];
       initializeLocaleMock.mockImplementation(() => callOrder.push('initializeLocale'));
@@ -173,6 +186,18 @@ describe('OceanScene', () => {
       cleanup();
     });
 
+    it('applies a bare triple once too, with { skipLocaleRebuild: true } (the payload is whole, so the world restores its seed)', () => {
+      const payload = bareLinkPayload();
+      expect(payload.robotOverrides).toEqual({}); // precondition: nothing but the seed's own world
+      consumeSessionSharePayloadMock.mockReturnValueOnce(payload);
+
+      render(<OceanScene />);
+
+      expect(applySessionPayloadMock).toHaveBeenCalledTimes(1);
+      expect(applySessionPayloadMock).toHaveBeenCalledWith(payload, { skipLocaleRebuild: true });
+      cleanup();
+    });
+
     it('uses consumeSessionSharePayload, not getSessionSharePayload -- a power cycle (unmount, then remount, e.g. the power switch) must not re-apply the share payload', () => {
       // Real consumeSessionSharePayload returns the payload once, then null forever -- simulate
       // that one-time-consumption contract directly in the mock, rather than re-testing the real
@@ -180,7 +205,7 @@ describe('OceanScene', () => {
       // for the OceanScene call site specifically: it must call consumeSessionSharePayload (whose
       // contract handles the power-cycle case), not the plain getSessionSharePayload getter
       // (which would keep returning the same payload forever, re-applying on every power-on).
-      const payload = { attenuationStyleName: 'x' };
+      const payload = blobLinkPayload();
       consumeSessionSharePayloadMock.mockReturnValueOnce(payload).mockReturnValue(null);
 
       const { unmount } = render(<OceanScene />);
@@ -229,8 +254,8 @@ describe('OceanScene', () => {
       cleanup();
     });
 
-    it('still applies a ?session= payload once on a powered-off mount, after the world is built', () => {
-      const payload = { attenuationStyleName: 'x' };
+    it('still applies a world-link payload once on a powered-off mount, after the world is built', () => {
+      const payload = blobLinkPayload();
       consumeSessionSharePayloadMock.mockReturnValueOnce(payload);
       const callOrder: string[] = [];
       initializeLocaleMock.mockImplementation(() => callOrder.push('initializeLocale'));

@@ -1,11 +1,14 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { render, screen } from '@testing-library/react';
+import { Profiler } from 'react';
+import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { initDiagState } from '../../utils/audioHealth';
 import type { DiagSnapshot } from '../../engine/audioDiagnostics';
+import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../../stores/attenuationStyleStore';
+import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../../stores/localeStore';
 
 // ========================================
 // MOCKS
@@ -98,5 +101,56 @@ describe('AudioDebugHud', () => {
   it('renders nothing visible to screen readers: no live region', () => {
     render(<AudioDebugHud />);
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  // docs/specs/SHORT_WORLD_LINK.md Task 10: the world line names the live Attenuation Style, read from the store,
+  // not from the deleted seed override (which nothing in the app set any more, so every world read "random").
+  describe('the world line', () => {
+    const firstLine = (container: HTMLElement) => container.querySelector('.audio-debug-hud')!.firstElementChild!.textContent!;
+
+    beforeEach(() => {
+      useAttenuationStyleStore.setState({
+        attenuationStyles: [{ ...DEFAULT_PELAGOS, name: 'n40dh8p8' }],
+        currentAttenuationStyleId: DEFAULT_PELAGOS.id,
+      });
+      useLocaleStore.setState({
+        locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, coordinates: { x: 29, y: -14 } } },
+      });
+    });
+
+    it('starts with the current style name and the locale coordinates', () => {
+      const { container } = render(<AudioDebugHud />);
+      expect(firstLine(container)).toMatch(/^n40dh8p8 @ 29,-14 /);
+    });
+
+    it('follows a retransmit to a new style name', () => {
+      const { container } = render(<AudioDebugHud />);
+      act(() => {
+        useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS, name: 'Kryndara' }] });
+      });
+      expect(firstLine(container)).toMatch(/^Kryndara @ 29,-14 /);
+    });
+
+    it('prints random only when there is no current style at all', () => {
+      useAttenuationStyleStore.setState({ attenuationStyles: [], currentAttenuationStyleId: 'gone' });
+      const { container } = render(<AudioDebugHud />);
+      expect(firstLine(container)).toMatch(/^random @ /);
+    });
+
+    it('does not re-render when the style object changes but its name does not', () => {
+      let commits = 0;
+      render(
+        <Profiler id="hud" onRender={() => commits++}>
+          <AudioDebugHud />
+        </Profiler>,
+      );
+      const before = commits;
+      act(() => {
+        useAttenuationStyleStore.setState({
+          attenuationStyles: [{ ...DEFAULT_PELAGOS, name: 'n40dh8p8', locales: [DEFAULT_LOCALE_ID, 'another'] }],
+        });
+      });
+      expect(commits).toBe(before);
+    });
   });
 });

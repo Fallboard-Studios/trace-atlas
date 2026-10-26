@@ -25,9 +25,6 @@ the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-2
 
 ## Stage 2 — The powered-down state
 
-- Backlog [19](backlog.md#19-short-world-link-bring-back-seed-x-and-y) **Short world link, and a shorter `?session=`**
-  — first, because a preset entry is a short link and 5's interview needs to know what a preset is. A library is
-  allowed; the boot seam is synchronous.
 - Backlog [5](backlog.md#5-sector-settings-ascoordsfavorites-reorganization) **The off screen: themes, sessions,
   presets** — Crawford's plan for the powered-down state; the interview fixes the surface, including where item 7's
   selection UI goes.

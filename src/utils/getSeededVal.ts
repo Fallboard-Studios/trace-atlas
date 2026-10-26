@@ -3,7 +3,6 @@
 // ========================================
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
-import { getGlobalAttenuationStyleSeedOverride } from './seedUtils';
 
 // ========================================
 // FUNCTIONS
@@ -26,9 +25,7 @@ import { getGlobalAttenuationStyleSeedOverride } from './seedUtils';
  *   const value = noiseMap(MY_KEY_X, offset);
  */
 export function precomputeDataX(dataId: string): number {
-  const global = getGlobalAttenuationStyleSeedOverride();
-  const key = global ? `${global}:${dataId}` : dataId;
-  return alea(key)();
+  return alea(dataId)();
 }
 
 /**

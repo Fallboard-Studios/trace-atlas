@@ -12,7 +12,7 @@ vi.mock('../engine/beatClock', () => ({
 
 import { TRANSMISSION_PRESETS } from './transmissionPresets';
 import { applySessionPayload } from '../utils/sessionDiff';
-import { encodeSessionPayload, decodeSessionPayload } from '../utils/sessionShareUtils';
+import { encodeWorldLinkParams, decodeWorldLink } from '../utils/worldLink';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
@@ -174,7 +174,7 @@ describe('TRANSMISSION_PRESETS', () => {
     });
 
     it('passes the same wire validation a shared link passes, and decodes back to the same payload', () => {
-      const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+      const decoded = decodeWorldLink(`?${encodeWorldLinkParams(payload).toString()}`);
       expect(decoded).not.toBeNull();
       expect(decoded?.attenuationStyleName).toBe(payload.attenuationStyleName);
       expect(decoded?.coordinates).toEqual(payload.coordinates);

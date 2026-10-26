@@ -248,10 +248,11 @@ export function OceanScene({
   // them on the rocker. It's idempotent on factories/robots (skips if the
   // locale is already populated), so calling it again here is safe.
   //
-  // Immediately after, if a shareable link's ?session= payload is present
-  // (roadmap Phase 21), apply its robotOverrides/companyDiffs/globalAudio on
-  // top via applySessionPayload — with skipLocaleRebuild: true, since the
-  // locale this initializeLocale call just built is already correct (its
+  // Immediately after, if the address bar holds a world link (?seed=&x=&y=,
+  // plus s= for a tweaked world: docs/specs/SHORT_WORLD_LINK.md, roadmap 56),
+  // apply its payload's robotOverrides/companyDiffs/globalAudio on top via
+  // applySessionPayload — with skipLocaleRebuild: true, since the locale this
+  // initializeLocale call just built is already correct (its
   // attenuationStyleName/coordinates were pinned before the default locale
   // was even constructed, docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §4.3) —
   // calling applySessionPayload's normal retransmitWorld path here would
@@ -260,7 +261,7 @@ export function OceanScene({
   // consumeSessionSharePayload, NOT getSessionSharePayload — getSessionSharePayload
   // would keep returning the same payload forever, so any remount of this scene
   // would re-apply it (re-registering every robot's melody, reapplying company
-  // membership) for as long as ?session= stays in the URL. (The scene no longer
+  // membership) for as long as the link stays in the URL. (The scene no longer
   // remounts on a power cycle, but it is still a mount effect.)
   // consumeSessionSharePayload returns it once per page load, then null.
   useEffect(() => {

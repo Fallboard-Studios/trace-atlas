@@ -17,15 +17,25 @@ export function lerp(a: number, b: number, t: number): number {
 // STEP QUANTIZATION
 // ========================================
 
+/** The decimal places a number is written with: 0.05 → 2, 5 → 0, 1e-7 → 7. */
+function decimalPlaces(n: number): number {
+  const [mantissa, exponent] = String(n).split('e');
+  const fraction = mantissa.split('.')[1]?.length ?? 0;
+  return Math.max(0, fraction - Number(exponent ?? 0));
+}
+
 /**
- * Rounds a value to the nearest point on the min + n*step grid.
+ * Rounds a value to the nearest point on the min + n*step grid, exactly: the result is rounded to the grid's own
+ * decimal places (the more of the step's and the origin's), so it never carries floating-point residue
+ * (-0.47, not -0.47000000000000003).
  * @param value - Value to quantize
  * @param min - Grid origin
  * @param step - Grid spacing
  * @returns Nearest value on the grid
  */
 export function quantizeToStep(value: number, min: number, step: number): number {
-  return min + Math.round((value - min) / step) * step;
+  const onGrid = min + Math.round((value - min) / step) * step;
+  return roundToDecimals(onGrid, Math.max(decimalPlaces(step), decimalPlaces(min)));
 }
 
 // ========================================
@@ -44,4 +54,27 @@ export function quantizeToStep(value: number, min: number, step: number): number
 export function roundToDecimals(value: number, decimalPlaces: number): number {
   const factor = Math.pow(10, decimalPlaces);
   return Math.round(value * factor) / factor;
+}
+
+// ========================================
+// STRUCTURAL EQUALITY
+// ========================================
+
+/** Structural equality over plain JSON-shaped values (numbers, strings, booleans, arrays, plain
+ *  objects) — every field this module compares is one of those. Not a general-purpose deep-equal
+ *  (no Date/Map/Set handling), since nothing in Robot/RobotAudioBaseline's audio-relevant fields
+ *  needs it (CLAUDE.md requires state stay JSON-serializable in the first place). */
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => deepEqual(item, b[i]));
+  }
+  const aKeys = Object.keys(a as object);
+  const bKeys = Object.keys(b as object);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) =>
+    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  );
 }

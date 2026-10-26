@@ -30,13 +30,13 @@ import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import type { Robot } from '../types/Robot';
 import type { SessionPayload, RobotAudioOverrideDiff } from '../types/session';
-import type { GlobalAudioSettings } from '../types/globalAudio';
 import { SWELL_ROBOT_ATTRIBUTE_IDS } from '../types/audioSwell';
 import { generateRobotRosterBaseline, spawnInitialRoster, reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from './audioSwells';
 import { buildSessionPayload, applySessionPayload } from '../utils/sessionDiff';
-import { encodeSessionPayload, decodeSessionPayload } from '../utils/sessionShareUtils';
+import { decodeBlob, decodeWorldLink, encodeBlob, encodeWorldLinkParams } from '../utils/worldLink';
+import { toCompactWorldDiff } from '../utils/worldDiffCodec';
 import { precomputeDataX } from '../utils/getSeededVal';
 import * as noiseMaps from '../utils/noiseMaps';
 
@@ -211,8 +211,6 @@ const SWELL_PRIMES: Prime[] = [
   ['robot-11-ri6s5np6', '{"delay":0.1721428571428572}'],
   ['robot-11-ri6s5np6', '{"delay":0.07}'],
 ];
-const SHARE_STRING =
-  'eyJ2IjoyLCJuIjoiU2VuZCBQYXJpdHkiLCJjIjp7IngiOjMxLCJ5Ijo0N30sImciOnt9LCJyIjp7InBhcml0eS1yb2JvdCI6eyJyZCI6MzcsInAiOi0wLjM1LCJycyI6MC42MiwiZHMiOjAuMTgsImdyIjowLjQ3LCJzbSI6MC4wOSwiZGIiOjAuNzMsImR5Ijo0MX19fQ==';
 const SHARE_WIRE_JSON =
   '{"v":2,"n":"Send Parity","c":{"x":31,"y":47},"g":{},"r":{"parity-robot":{"rd":37,"p":-0.35,"rs":0.62,"ds":0.18,"gr":0.47,"sm":0.09,"db":0.73,"dy":41}}}';
 const CLAMPED_SENDS: number[] = [1, 0.18, 0, 1, 0.73];
@@ -287,7 +285,7 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
       const payload = buildSessionPayload();
       expect(payload.robotOverrides[target.id]).toEqual(HAND_SET); // precondition: the diff carries all five
       applySessionPayload(shifted(payload));
-      const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+      const decoded = decodeWorldLink(`?${encodeWorldLinkParams(payload).toString()}`);
       expect(decoded).not.toBeNull();
 
       const primes = recordPrimes(() => applySessionPayload(decoded!));
@@ -322,25 +320,15 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
     });
   });
 
-  it('(c) encodes all five sends to the recorded share string, between pan and dynamics, and decodes them back', () => {
+  it('(c) encodes all five sends to the recorded share codes, between pan and dynamics, and decodes them back', () => {
     const diff: RobotAudioOverrideDiff = { rhythmicDensity: 37, pan: -0.35, ...HAND_SET, dynamics: 41 };
-    // The codec carries `g` verbatim and backfills it on decode, so a stand-in keeps the recording about the robot diff
-    // rather than the global defaults.
-    const payload: SessionPayload = {
-      version: 2,
-      attenuationStyleName: 'Send Parity',
-      coordinates: COORDINATES,
-      globalAudio: {} as unknown as GlobalAudioSettings,
-      robotOverrides: { 'parity-robot': diff },
-      companyDiffs: {},
-      userCreatedCompanies: [],
-    };
-
-    const encoded = encodeSessionPayload(payload);
-    const wire = new TextDecoder().decode(Uint8Array.from(atob(encoded), (ch) => ch.charCodeAt(0)));
-    expect(wire).toBe(SHARE_WIRE_JSON);
-    expect(encoded).toBe(SHARE_STRING);
-    expect(decodeSessionPayload(encoded)?.robotOverrides).toEqual({ 'parity-robot': diff });
+    // The `?session=` codec this was recorded against is gone (docs/tasks/SHORT_WORLD_LINK.md Task 7). The world link's
+    // blob carries a robot's diff under `r` with the same codes in the same order, so the recording's `r` is still the
+    // oracle; the blob itself is checked by what it decodes to, never by its deflate bytes (spec risk 3).
+    const robotOverrides = { 'parity-robot': diff };
+    const recordedR = (JSON.parse(SHARE_WIRE_JSON) as { r: unknown }).r;
+    expect(JSON.stringify(toCompactWorldDiff({ robotOverrides }).r)).toBe(JSON.stringify(recordedR));
+    expect(decodeBlob(encodeBlob({ robotOverrides }))?.robotOverrides).toEqual(robotOverrides);
   });
 
   it('(d) updateRobot clamps an out-of-range send, drops a NaN one and keeps the stored value', () => {
@@ -366,7 +354,7 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
     }
     expect(Object.keys(SEEDED_SENDS)).toHaveLength(2);
     for (const roster of Object.values(SEEDED_SENDS)) expect(new Set(roster.flat()).size, 'seeded sends vary').toBeGreaterThan(5);
-    expect(SHARE_STRING.length).toBeGreaterThan(0);
+    expect(SHARE_WIRE_JSON.length).toBeGreaterThan(0);
     expect(new Set(Object.values(HAND_SET)).size, 'five distinct hand-set sends').toBe(5);
     expect(new Set(Object.values(SESSION_THREE)).size).toBe(3);
     for (const value of [...Object.values(HAND_SET), ...Object.values(SESSION_THREE)]) {

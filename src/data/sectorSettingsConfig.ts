@@ -44,6 +44,13 @@ export const RETRANSMIT_SCHEMA: ButtonSchema = {
   ...labels('sector.retransmit'),
 };
 
+/** Copies the live world's short link (docs/specs/SHORT_WORLD_LINK.md assumption 9). */
+export const COPY_LINK_SCHEMA: ButtonSchema = {
+  id: 'sectorSettings.copyLink',
+  type: 'button',
+  ...labels('sector.copyLink'),
+};
+
 export const STATUS_HEADER_SCHEMA: DualLabelSchema = {
   id: 'sectorSettings.status',
   type: 'dualLabel',

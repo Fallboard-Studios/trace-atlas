@@ -65,7 +65,7 @@ saves; [backlog archive 2](archive/backlog-archive.md#2-onload-power-off-intro-t
 start; Crawford has a plan for how that screen shows the themes ([docs/ideas/themes.md](../ideas/themes.md)),
 the sessions and the presets. Item [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s
 selection UI is expected to live here too (its progression engine stays item 7's own, large, piece of
-work), and item [19](#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
+work), and item [19](archive/backlog-archive.md#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
 a preset entry. Still needs its own `/interview-me`.
 
 ### 6. Audio: Groove Feature
@@ -338,84 +338,6 @@ most-played degree, districts discovered out of nine).
 **Open:** where it lives — a new Telemetry leaf in the nav, per-robot stats on the robot detail
 screen, or roadmap 46's letterbox band if the 16:9 fit is chosen after all. And whether any of it
 survives a reload (the visit log is the only part that can't be recomputed).
-
-### 19. Short World Link: Bring Back `?seed=`, `?x=` and `?y=`
-
-Raised by Crawford, 2026-10-09, on `feature/layout-rework`, reversing the Phase 21 call that removed
-them: "I want to bring `?seed=`, `?x=`, and `?y=` back actually, they're so much better to use if a
-user didn't change anything than the current json soup, especially if they want to share an
-untweaked world with someone." Not yet interviewed or specced — needs its own `/interview-me`. Sits
-beside roadmap [21](roadmap.md#21-sector-settings-shareable-link-importexport) (the `?session=` link,
-which stays for tweaked worlds) and roadmap
-[48](roadmap.md#48-one-day-clock-remove-the-measure-based-day)'s dead-code sweep, which leaves the old
-override primitives alone until this item decides their fate.
-
-**Added 2026-10-22 (Crawford):** the `?session=` form itself should get shorter too, for tweaked worlds,
-and a library is acceptable for it (this note is the ask-first; the pick still goes through the
-interview). Today it is plain base64 of abbreviated-key JSON with no compression (roadmap 21). Two
-candidates to measure on a real tweaked payload: the native `CompressionStream('deflate-raw')` plus
-base64url that roadmap 20's original design proposed (no dependency, but decoding is async, and the
-boot seam below reads the payload synchronously at module load, so it changes the boot sequence), or
-`lz-string`'s `compressToEncodedURIComponent` (a small dependency, synchronous, URL-safe output).
-
-**The case, verified 2026-10-09.** An untweaked world is fully determined by two values: the
-Attenuation Style's *name* (the seed for the Audio Rig, the LFO Bank, tempo and swells, via
-`deriveAttenuationStyleSeed`) and the locale's integer coordinates (robots, companies, melodies,
-district, terrain, stations, via `getLocaleNoiseMap`). `SessionPayload` says so itself
-(`src/types/session.ts:52–58`). Yet `?session=` always carries `globalAudio`, `lfoBank` and
-`globalLfoLinks` whole — "never diffed", by design — so even an untouched world shares as a long
-base64 blob (`encodeSessionPayload`, `src/utils/sessionShareUtils.ts:361`). `?seed=pelagos7&x=12&y=68`
-is the same world in a link a person can read, type and remember.
-
-**What exists.** The boot seam the short form needs is already the `?session=` one: at module load
-`src/stores/attenuationStyleStore.ts:23` pins `DEFAULT_ATTENUATION_STYLE_NAME` and
-`src/stores/localeStore.ts:73–77` pins `DEFAULT_LOCALE_COORDINATES` from `getSessionSharePayload()`,
-before first paint (no flash of the wrong world); `OceanScene.tsx`'s mount effect consumes the
-payload once for its side effects. The old primitives survive in `src/utils/seedUtils.ts` with no
-production caller: the sanitising `setGlobalAttenuationStyleSeedOverride` and its getter (still read
-by `deriveAttenuationStyleSeed`, `getSeededVal.ts:29`, `noiseMaps.ts:55` and the debug HUD, whose
-world line has printed "random" ever since), `parseCoordinateParam`, and the
-`LocaleCoordinateOverride` setter / getter. Their URL readers in `seedUtils.ts` and `main.tsx` were
-deleted (Phase 21 Task 0). The perf harness's `--world name:x:y` option assumed the params and has
-been dead since ([PERFORMANCE.md](../PERFORMANCE.md) lines 52, 295, 382, 721);
-[PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md) lines 23–38 still document the removed
-mechanism as live.
-
-**The constraint that killed them, which the spec must answer**
-([SECTOR_SETTINGS_SHARABLE_LINK.md](../specs/SECTOR_SETTINGS_SHARABLE_LINK.md) §7 item 1): the old
-`?seed=` worked by setting a *persistent, sanitising* module override, which (a) lowercased and
-stripped the style's name, so a shared "Pelagos 7!" arrived as "pelagos7" under a different display
-name, and (b) stayed set for the whole session, so every Attenuation Style created afterwards silently
-inherited the pinned seed. The recommended shape is therefore **a second wire format for the same boot
-path, not a revival of the override**: decode `?seed=&x=&y=` into a minimal `SessionPayload`
-(`attenuationStyleName` = the exact, URL-decoded name; `coordinates`; everything else absent, so
-`applySessionPayload` leaves the freshly seeded values alone as it already does for older payloads)
-and hand it to the existing `getSessionSharePayload` / `consumeSessionSharePayload` seam. Then nothing
-persists, nothing is sanitised, later styles are untouched, and the `seedUtils.ts` primitives become
-deletable (roadmap 48 picks them up). If both forms are present, `?session=` wins — the Phase 21
-interview's answer to the same question.
-
-**Questions for the interview:**
-
-- Param names: `?seed=` was the style's seed, which is its name; `?style=` or `?world=` may read
-  better now that the name is a human string. Case and spaces must round-trip exactly.
-- Each axis independent as before (`?x=5` alone pins x, y stays random), or all-or-nothing?
-- Does the Sessions panel's Share (`SessionListItem.tsx` / `SessionsPanel.tsx`, `buildShareUrl`)
-  emit the short form automatically when the live state equals the seeded baseline, offer both, or
-  is the short form something a user composes by hand? Detecting "untweaked" means comparing against
-  what the seed would regenerate (`generateGlobalAudioSettings`, `generateLfoBankSettings` and
-  `generateGlobalLfoLinks` in `src/utils/globalAudioSeed.ts`, plus the seeded BPM), not just checking
-  that `robotOverrides` and `companyDiffs` are empty.
-- The off screen's three transmission presets ([docs/tasks/LAYOUT_REWORK.md](../tasks/LAYOUT_REWORK.md)
-  Task 25) are untweaked worlds — store them as `(name, x, y)` triples and print them as short links?
-- Settings → Seeds already shows the style name and coordinates; a "copy short link" there is the
-  obvious home. Whether Retransmit updates the address bar is open (`?session=` is never cleared
-  today, by design).
-
-**Knock-ons once built:** the HUD's world line reads a real name again; the perf harness's `--world`
-pinning comes back to life and [PERFORMANCE.md](../PERFORMANCE.md)'s suspect `charlie` / `bravo`
-baselines can be re-measured honestly; PROCEDURAL_GENERATION.md is rewritten around the new mechanism;
-[SESSION_STORAGE.md](../SESSION_STORAGE.md)'s "Shareable Links" section gains the second form.
 
 ### 20. Audio: User-Authored Progressions and Tags (Editor UI) — Maybe
 
@@ -733,3 +655,64 @@ to be the same change.
 `next` tag. When a release with the fix becomes `latest`: upgrade on its own branch (read the changelog from 15.1.22,
 full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
 call and `oscillatorLeakPatched` in that change.
+
+### 33. Audio Rig: Exact Stepped Values, and Log Sliders That Read Cleanly
+
+**Raised by Crawford, 2026-10-25,** on `feature/short-world-link`, after its code review: "those values should be
+quantized when they're loaded in initially, then they should stick to the steps of the sliders … why are we rounding
+things on save/share?" Weighed the same day and cut down to the two small pieces below; the larger version (a value
+grid for every log slider) is parked at the end. Not yet specced. Waits for roadmap
+[56](roadmap.md#56-short-world-link) to merge (the finish-the-branch rule); nothing on that branch depends on it.
+
+**Background (verified 2026-10-25).** A save snaps the Audio Rig to slider steps and rounds the LFO drifts
+(`quantizeGlobalAudioForCapture` / `roundLfoBankForCapture`, `src/utils/sessionCapture.ts`, called by
+`buildSessionPayload`). Roadmap 56's review fix (`7cf54637`) runs the world link's seed baseline through the same step,
+so saves and links agree, and `src/utils/worldLinkBoot.test.ts` guards it through the real boot. The rounding is there
+for two reasons, and each piece below takes one of them.
+
+**1. `quantizeToStep` returns exact numbers.** Fields with a linear step are already snapped when they load:
+`sampleField` (`src/utils/globalAudioSeed.ts`) snaps every field whose `GLOBAL_AUDIO_SEED_RANGES` entry has a `step`,
+and `generateLfoBankSettings` snaps the drifts to 0.01. But `quantizeToStep` (`src/utils/math.ts`) is
+`min + Math.round((value - min) / step) * step`, so a drift of −0.4712 comes out as `-0.47000000000000003`, and the
+save's `roundToDecimals` is only there to clean that up.
+
+- Round the result to the step's own decimal places, so an on-step value is exact (`-0.47`).
+- One function, used by every generator and slider that snaps, so it fixes the noise everywhere at once. No value
+  moves by more than the noise itself.
+- Then check whether the capture step still changes anything for the stepped fields; if it doesn't, drop those lines
+  from it.
+
+**Piece 1 done 2026-10-25** (on `feature/short-world-link`, at Crawford's "if it's as simple as it sounds do it"):
+
+- `quantizeToStep` (`src/utils/math.ts`) rounds to the grid's own decimal places: the more of the step's and the
+  origin's, since a grid at min 0.05 with step 0.1 has two. It reads an exponent-form step too (`1e-7` → 7 places).
+- `tempoSync.ts` already had this as a private `quantizeClean` (step decimals only); it is deleted and its three calls
+  use `quantizeToStep`.
+- The seed oracle in `globalAudioSeed.test.ts` ("do not regenerate") held twelve literals with float tails
+  (`0.7000000000000001` …). They were amended by hand, each to its value without the tail, with a note in the oracle's
+  amendment log; no draw, band or grid moved. A colour-wet band check lost the `1e-9` slack it kept for that noise.
+- The capture step's `roundToDecimals` wrappers in `sessionCapture.ts` were redundant once `quantizeToStep` is exact,
+  and are gone (output identical on 20,000 random rigs, compared as JSON against the old function). The capture step
+  itself stays: it is still the only grid for the seven log fields it snaps, and the drift rounding still covers
+  dragged values.
+
+**2. Log sliders show sensible decimals.** Twelve log-scale fields have no step anywhere, so their values are whatever
+the seed or the drag produced: compressor attack and release, the LPF and HPF frequency and Q, reverb decay, the
+AutoWah's base frequency, Q and follower, and the Phaser's base frequency and Q. None of their `sliderLog` schemas
+(`src/data/audioRigConfig.ts`) has a `unit` or a `formatValue`, so the label falls back to `formatDisplayValue`
+(3 decimals, no unit) and a cutoff reads `3152.859`.
+
+- Give each a display format: for example whole hertz with a unit for the frequencies, 2 decimals for Q, milliseconds
+  for attack and release, 2 decimals of seconds for decay.
+- Display only, like `formatDisplayValue` itself: the stored value and the sound do not change.
+- Copy: any unit text goes through `src/content/` like every other label.
+
+**Parked: a value grid for the log sliders.** Giving the twelve fields a step at load, making `SliderLog` snap to it,
+and then deleting `sessionCapture.ts`. Weighed 2026-10-25 and not worth it now: nothing audible changes (every value
+moves by less than a step), links and saves already agree, and the risky part is the slider. A fixed step sticks at the
+low end of a log range: at attack's minimum one key press moves the value about 0.0000053 s, which snaps back to
+0.001 s, so the key never leaves the bottom step (a cutoff near 20 Hz on a 1 Hz grid sticks the same way). Revisit only
+if piece 2 leaves the decimals still bothering Crawford. Options then: every press moves at least one whole step, a
+relative grid (three significant figures), or `schema.steps`, the fixed list of allowed values `SliderLog` already
+supports for Automation Rate. The robot side of `sessionDiff.ts` (layer gain and the five sends rounded to 2 decimals,
+whose comment notes "a seed off the grid") would be the same question.
