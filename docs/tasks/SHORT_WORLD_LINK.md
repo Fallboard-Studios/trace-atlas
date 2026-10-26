@@ -853,7 +853,25 @@ Tasks 8, 9, 10 and 13 are independent of each other and may run in any order (or
     match field for field. The three `alpha` links differ only in seven fields the old link did not carry (pacing, LFO
     Bank, global links), which the world link fills from the seed, as a fresh load of the old link did.
 - **Crawford, 2026-10-26: "the seven links work fine"** — read before the fix above; the HUD looks right with or
-  without the blob, so his read and the fix are independent.
+  without the blob, so his read and the fix are independent. **Re-read after the fix:** "i used the new links for the
+  seven links, all is fine". T14's Proof line is met.
+
+**Review follow-ups (2026-10-26, Crawford: "make those proposed changes"):** the code review's five minor findings, one
+commit each.
+
+- `003f1030`: a one-slider-step pacing edit (ping variance ± 0.01) is a diff. Test gap; the review's surviving
+  whole-number-compare mutant now fails it.
+- `fd5d0b33`: a save missing an LFO lane writes no key for it and still encodes, the lane decoding as the seed's. Test
+  gap; the guard-dropping mutant now fails both new cases.
+- `9621334a`: `WORLD_LINK_BLOB_MAX_LENGTH` (32,768), checked in `decodeBlob` before anything is decoded. RED first: a
+  valid 4,000-robot blob over the limit was applied before. At that length deflate's ceiling holds inflation to about
+  25 MB.
+- `827f058f`: the comments in `useShareStatus.ts` (three users, not two) and `OceanScene.tsx` (the world link, not
+  `?session=`), plus three more of the kind the sweep found (`globalAudio.ts`, `audioStore.ts`, `lfo.ts`), and the
+  length limit in SESSION_STORAGE.md.
+- Suite after them: 331 files / 12,164 tests. One full run before that timed out once in
+  `sceneToOrbiterLocal.test.tsx` (5 s limit; it took 5,114 ms in an earlier green run and touches nothing this branch
+  changed); the re-run was green.
 - **Task 15:** beyond the planned sections, SESSION_STORAGE.md's per-feature "Share links" bullets now name
   `worldDiffCodec.ts`, three "loads them dry" bullets and the `g.chorus: 1` bullet say a link's missing block takes the
   seed's, and Boot Behavior, "What changed" and two Forbidden Patterns were rewritten (they described `?session=`, the
