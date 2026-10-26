@@ -254,6 +254,61 @@ describe('useAudioStore - setGlobalAudio pushes to AudioEngine', () => {
     expect(AudioEngine.setGlobalReverb).toHaveBeenCalledWith({ wet: 0.6 });
   });
 
+  // BeatClock Transport time T5 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 6): the global swell pool's time passes
+  // through the action to the engine setter; nothing about it is stored.
+  describe('a Transport time passes through to the setter', () => {
+    it('hands the time to the matching setter as its second argument', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setGlobalAudio('filterLPF', { frequency: 900 }, 8);
+      useAudioStore.getState().setGlobalAudio('filterHPF', { Q: 5 }, 8.25);
+      useAudioStore.getState().setGlobalAudio('eq3', { low: 4 }, 8.5);
+
+      expect(vi.mocked(AudioEngine.setGlobalFilterLPF).mock.calls).toEqual([[{ frequency: 900 }, 8]]);
+      expect(vi.mocked(AudioEngine.setGlobalFilterHPF).mock.calls).toEqual([[{ Q: 5 }, 8.25]]);
+      expect(vi.mocked(AudioEngine.setGlobalEQ).mock.calls).toEqual([[{ low: 4 }, 8.5]]);
+    });
+
+    it('a time of 0 is a time, not a missing one', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+      useAudioStore.getState().setGlobalAudio('eq3', { high: -2 }, 0);
+      expect(vi.mocked(AudioEngine.setGlobalEQ).mock.calls).toEqual([[{ high: -2 }, 0]]);
+    });
+
+    it('without a time (or an explicit undefined), the setter gets the one-argument call a UI edit always made', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+      useAudioStore.getState().setGlobalAudio('filterHPF', { Q: 5 });
+      useAudioStore.getState().setGlobalAudio('filterHPF', { Q: 6 }, undefined);
+      expect(vi.mocked(AudioEngine.setGlobalFilterHPF).mock.calls).toEqual([[{ Q: 5 }], [{ Q: 6 }]]);
+      expect(vi.mocked(AudioEngine.setGlobalFilterHPF).mock.calls.map((call) => call.length)).toEqual([1, 1]);
+    });
+
+    it('an empty partial with a time writes nothing and pushes nothing', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+      const before = useAudioStore.getState().globalAudio;
+      useAudioStore.getState().setGlobalAudio('eq3', { low: undefined }, 8);
+      expect(useAudioStore.getState().globalAudio).toBe(before);
+      expect(AudioEngine.setGlobalEQ).not.toHaveBeenCalled();
+    });
+
+    it('stores nothing about the time: the block holds just the edit, and no state key appears', async () => {
+      const { useAudioStore } = await import('./audioStore');
+      const before = useAudioStore.getState().globalAudio.filterLPF;
+      const keysBefore = Object.keys(useAudioStore.getState()).sort();
+      useAudioStore.getState().setGlobalAudio('filterLPF', { frequency: 900 }, 8);
+      expect(useAudioStore.getState().globalAudio.filterLPF).toEqual({ ...before, frequency: 900 });
+      expect(Object.keys(useAudioStore.getState()).sort()).toEqual(keysBefore);
+    });
+  });
+
   // Global Colour T4 (docs/specs/GLOBAL_COLOUR.md section 1.4).
   describe('the colour blocks', () => {
     it('routes setGlobalAudio(bitCrusher, { wet }) to the BitCrusher setter with exactly that partial, and updates state', async () => {
