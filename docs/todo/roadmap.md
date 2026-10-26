@@ -500,8 +500,9 @@ differs from what its seed regenerates. Phase 21's boot seam, two-phase boot and
 
 **Status: built 2026-10-25 on `feature/short-world-link`, off `main` at `fee2de9e`, PR pending** (Crawford opens it;
 intent [short-world-link.md](../intent/short-world-link.md), spec [SHORT_WORLD_LINK.md](../specs/SHORT_WORLD_LINK.md),
-plan [SHORT_WORLD_LINK.md](../tasks/SHORT_WORLD_LINK.md)). Tasks T0–T16 done, with T6b added during the build. Crawford
-passed Checkpoint B. The review boxes for Checkpoints A and C are not ticked in the plan.
+plan [SHORT_WORLD_LINK.md](../tasks/SHORT_WORLD_LINK.md)). Tasks T0–T16 done, with T6b added during the build, then a
+code review and its fix. Crawford passed Checkpoint B (2026-10-25) and Checkpoint C (2026-10-26: spec §5's manual list
+end to end in the browser, at `aad1270e`). Checkpoint A's review box is not ticked in the plan.
 
 ### As built
 
@@ -539,8 +540,6 @@ passed Checkpoint B. The review boxes for Checkpoints A and C are not ticked in 
 
 ### Open
 
-- Checkpoint C: Crawford's review, and spec §5's manual list run once end to end, including the 320 px look at the
-  Seeds drawer and T10's `?debug` HUD check. The agent ran neither.
 - Spec §5's static grep still has two false positives: the `'session'` content-area name (`src/content/types.ts`) and
   a T13 test comment quoting the old `from: 'session'` return.
 - The re-minted links resolve only on a build that has the world link. The on-hold phone sitting has to carry this
