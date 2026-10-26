@@ -85,7 +85,9 @@ export function scheduleHarmonyCycle(): void {
     return;
   }
 
-  scheduleId = scheduleRepeat(`${MEASURES_PER_PALETTE_ENTRY}m`, () => {
+  // The tick's time goes unused on purpose: no Tone call is made here. `availableNotes` is read by the note scheduler,
+  // which places each note at its own time, so there is nothing to place (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §1).
+  scheduleId = scheduleRepeat(`${MEASURES_PER_PALETTE_ENTRY}m`, (_time) => {
     try {
       const paletteIndex = Math.floor(getCurrentMeasure() / MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length;
 

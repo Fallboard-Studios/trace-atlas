@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const callbacks: Array<() => void> = [];
+const callbacks: Array<(time?: unknown) => void> = [];
 
 const mockTransport = {
   position: '0:0:0',
-  scheduleRepeat: vi.fn<(cb: () => void, interval: string) => string>((cb) => {
+  scheduleRepeat: vi.fn<(cb: (time?: unknown) => void, interval: string) => string>((cb) => {
     callbacks.push(cb);
     return 'repeat-id';
   }),
@@ -22,7 +22,7 @@ let getCurrentMeasurePrecise: () => number;
 let parseTransportPosition: (rawPosition: unknown) => { measure: number; beat: number; sixteenths: number };
 let subscribeToMeasure: (cb: (m: number) => void) => () => void;
 let resetBeatClock: () => void;
-let scheduleRepeat: (interval: string, callback: () => void) => string;
+let scheduleRepeat: (interval: string, callback: (time: number) => void) => string;
 let cancelSchedule: (scheduleId: string) => void;
 
 describe('beatClock', () => {
@@ -192,6 +192,64 @@ describe('beatClock', () => {
     initBeatClock(mockTransport);
     expect(mockTransport.scheduleRepeat).toHaveBeenCalledTimes(2);
     expect(mockTransport.scheduleRepeat).toHaveBeenCalledWith(expect.any(Function), '4m', '4m');
+  });
+
+  // BeatClock Transport time T7 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 1): the wrapper forwards the
+  // audio-clock time the Transport hands each tick, so a consumer can place its writes on the beat.
+  describe('scheduleRepeat forwards the Transport time', () => {
+    it('a callback registered after init receives the time the transport passes, as its only argument', () => {
+      const cb = vi.fn();
+      scheduleRepeat('4m', cb);
+      callbacks[callbacks.length - 1](7.75);
+      expect(cb.mock.calls).toEqual([[7.75]]);
+    });
+
+    it('each tick receives its own time', () => {
+      const cb = vi.fn();
+      scheduleRepeat('16n', cb);
+      const tick = callbacks[callbacks.length - 1];
+      tick(1.5);
+      tick(1.625);
+      expect(cb.mock.calls).toEqual([[1.5], [1.625]]);
+    });
+
+    it('a time of 0 arrives as 0', () => {
+      const cb = vi.fn();
+      scheduleRepeat('4m', cb);
+      callbacks[callbacks.length - 1](0);
+      expect(cb.mock.calls).toEqual([[0]]);
+    });
+
+    it('a callback queued before init and promoted by initBeatClock receives the time the same way', () => {
+      resetBeatClock();
+      mockTransport.scheduleRepeat.mockClear();
+      callbacks.length = 0;
+      const cb = vi.fn();
+      scheduleRepeat('4m', cb);
+      initBeatClock(mockTransport);
+      // callbacks[0] is the internal 16n tick; [1] is the promoted '4m' schedule.
+      expect(callbacks).toHaveLength(2);
+      callbacks[1](12.25);
+      expect(cb.mock.calls).toEqual([[12.25]]);
+    });
+
+    it('two schedules each get the time of their own tick', () => {
+      const a = vi.fn();
+      const b = vi.fn();
+      scheduleRepeat('4m', a);
+      scheduleRepeat('2m', b);
+      callbacks[callbacks.length - 2](4);
+      callbacks[callbacks.length - 1](2);
+      expect(a.mock.calls).toEqual([[4]]);
+      expect(b.mock.calls).toEqual([[2]]);
+    });
+
+    it('a cancelled schedule is cleared from the transport, so it hears no more ticks', () => {
+      const cb = vi.fn();
+      const id = scheduleRepeat('4m', cb);
+      cancelSchedule(id);
+      expect(mockTransport.clear).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('resetBeatClock', () => {
