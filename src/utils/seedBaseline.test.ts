@@ -12,6 +12,7 @@ import {
 import * as globalAudioSeed from './globalAudioSeed';
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
+import { roundToDecimals } from './math';
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
 import {
   EDITED_USER_COMPANY,
@@ -208,6 +209,20 @@ describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
       pingVarianceAutomation: p.pingVarianceAutomation,
       swellDuration: p.swellDuration,
     });
+  });
+
+  // Review follow-up (2026-10-26): every case above moves a fractional scalar across a whole number (0.9 <-> 0.1), so a
+  // comparison made after rounding to whole numbers would still pass them. One slider step (1 %) must count.
+  it('a pacing scalar one slider step off its seed is a diff (ping variance by 0.01)', () => {
+    const p = untouchedWorld();
+    const seeded = baseline.pingVarianceAutomation;
+    p.pingVarianceAutomation =
+      seeded >= 0.5 ? roundToDecimals(seeded - 0.01, 2) : roundToDecimals(seeded + 0.01, 2);
+    expect(Math.round(p.pingVarianceAutomation)).toBe(Math.round(seeded)); // precondition: same whole number
+    expect(diffWorldAgainstSeed(p, baseline)).toEqual({
+      pingVarianceAutomation: p.pingVarianceAutomation,
+    });
+    expect(fillWorldFromSeed(identity, diffWorldAgainstSeed(p, baseline), baseline)).toEqual(p);
   });
 
   it('a pacing scalar or record the payload lacks writes no key (never an undefined value)', () => {
