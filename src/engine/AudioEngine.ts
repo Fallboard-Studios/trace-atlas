@@ -217,7 +217,9 @@ function sendTargetOf(key: SendEngineKey): Tone.ToneAudioNode | null {
  */
 const roomFeeders: Record<RoomKey, Set<string>> = { grit: new Set(), shimmer: new Set(), double: new Set() };
 
-/** Add or remove `robotId` as a feeder of `key`'s room, telling the room when that flips whether anyone feeds it. */
+/** Add or remove `robotId` as a feeder of `key`'s room, telling the room when that flips whether anyone feeds it.
+ *  Stays on "now" by decision: a room going light or dark is a room-state change, not a swell value, so the swell
+ *  tick's time is not passed here even when a send swell reaches 0 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3). */
 function setRoomFeeder(key: RoomKey, robotId: string, feeding: boolean): void {
   const feeders = roomFeeders[key];
   const was = feeders.size > 0;
