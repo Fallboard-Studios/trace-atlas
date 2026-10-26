@@ -595,6 +595,19 @@ count as a pointer and not as evidence (backlog 29):
    the heap. It exceeds the agent's tool limit, so it is Crawford's terminal run: step 2's command with
    `--seconds 1800`.
 
+**Update 2026-10-26, later: the sitting is done ([scratchy-audio-phones.md](scratchy-audio-phones.md) "Backlog 27 on
+the Pixel — the sitting"). Both halves of the measurement are in; what is left is a design decision.** Four runs on a
+rested Pixel 8 at Light, `main` `286ee642` beside `main` just before the leak fix (`5bd7f593`), D1 and D5: every run
+"scratchy throughout" from the first seconds, about two hundred underruns by 3:00 (191 / 200 on D1, 136 / 222 on D5),
+no audible difference the leak fix makes in either direction, and **no collapse in any run**, the second rested sitting
+without one. So the clicks are the graph's standing cost at Light on this phone, not an accumulation; the Dark-Effect
+Bypass, the leak fix and the tier's own cuts (four sounding robots, eight voices) have each left them in place, and the
+collapse of round 4 and T21 has not recurred since 2026-10-22 and stays unexplained. Step 3 (the 30-minute heap run)
+was not run; it is optional and settles nothing here. **Next:** what Light still carries (about 1 790 live nodes with
+two to four robots sounding, `fx in 5/10`) and what else it could cut is a change to how the audio graph is built, so
+per the Stage 1 agreement it goes interview → spec → plan, with the two `main` sittings at Light (2026-10-23 and today)
+as the baseline. Where that sits in [plan.md](plan.md) is Crawford's call.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
