@@ -427,3 +427,49 @@ mid-run: exit 130, profile removed; with the profile removal deleted from the ha
 **Found while proving it: `profile.mjs` no longer completes, on `main` too.** Its step table and `--smoothness` both
 click `.robot-selection-card__top`, which went with the Probes list in layout rework Task 21 (`4ba12cae`). The run gets
 through power-on and Fleet Params, then throws; the new teardown cleaned up after the throw. Not fixed here.
+
+## 32. Audio: Oscillator Leak Fix — Disconnecting the Dead Note's Params
+
+**Closed** 2026-10-26 (Crawford; `fix/oscillator-leak`, merged via PR #577, `4e0cb174`). Every note's two param connections are disconnected when it ends: `patchOscillatorEndedDisconnect` in `src/engine/tonePatches.ts`, applied at boot by `src/engine/audioContextSetup.ts` (`oscillatorLeakPatched`), documented in [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md), "Tone patch: the per-note oscillator leak"; proof in [PERFORMANCE.md](../../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run". The Tone upgrade that deletes the patch waits on npm and is its own item: [34](../backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch). The original request follows.
+
+**Found 2026-10-23** by backlog [27](../backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included)'s desktop step 1
+([scratchy-audio-phones.md](../scratchy-audio-phones.md), "Backlog 27, desktop step 1"). Every note the app plays leaves one
+native `OscillatorNode` alive for the life of the page. Tone 15.1.22's `Oscillator._start` connects the Oscillator's
+persistent `frequency` and `detune` Signals into a fresh node on each start, and nothing disconnects them when the note
+ends, so standardized-audio-context keeps both connections in the Signals' output Sets and scans them on every later
+connect. On D1 at Light that is about two a second (+324 nodes in four minutes). Step 2's 15-minute runs held the rate
+(D1 +1057, D5 +171), and its A/B against a throwaway build that disconnects the two params at `onended` took D1 to +48
+with nothing changed on the audio thread. The desktop never felt it; the fix is for the phone, and for correctness.
+
+**Route (A), Crawford 2026-10-23:** an in-app wrapper, `src/engine/tonePatches.ts`, applied once at boot by
+`src/engine/audioContextSetup.ts`; no new dependency. Spec [docs/specs/OSCILLATOR_LEAK_FIX.md](../../specs/OSCILLATOR_LEAK_FIX.md),
+plan [docs/tasks/OSCILLATOR_LEAK_FIX.md](../../tasks/OSCILLATOR_LEAK_FIX.md), branch `fix/oscillator-leak`. The number is
+the plan's proposal; Crawford may renumber it or make it a roadmap phase.
+
+**Progress 2026-10-23:** T1 built (`bda60dcc`, the wrapper and its tests). T2 built: `audioContextSetup.ts` applies it at boot
+and exports `oscillatorLeakPatched` (`13ee3b7d`). T3 run: the leak is closed (patched Oscillator +23 to +32 in 240 s on D1 at Light,
+stock +325 to +328) and max lag unchanged; one patched round read one 15 s bucket above the stock spread, so the "no
+cost" criterion is missed as written ([PERFORMANCE.md](../../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run").
+Checkpoint B passed (Crawford 2026-10-23: the round 3 bucket accepted as noise, his listen passed).
+
+**Built 2026-10-23 on `fix/oscillator-leak`.** What shipped: `patchOscillatorEndedDisconnect` in
+`src/engine/tonePatches.ts`, applied at boot by `src/engine/audioContextSetup.ts`, which exports
+`oscillatorLeakPatched`; documented in [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md), "Tone patch: the per-note oscillator
+leak". The proof is PERFORMANCE.md's T3 section above. Left: Crawford's PR; the Pixel sitting of plan.md Stage 1
+carries this build beside stock. Archive this item when the PR merges.
+
+**Upstream, 2026-10-23 (T5).** No report to file: Tone already has it as
+[#1379](https://github.com/Tonejs/Tone.js/issues/1379), fixed by [#1393](https://github.com/Tonejs/Tone.js/pull/1393)
+(the same two disconnects) in **15.3.11**, on npm's `next` tag; `latest` is still 15.1.22. On a fixed Tone the
+wrapper throws on every note (Tone's own cleanup disconnects a second time; a scratch repro on 15.5.61 read 120 uncaught
+errors and no `onstop` in 120 notes).
+
+**T6, 2026-10-23 (Crawford's option (b)):** the wrapper now runs Tone's `onended` first and the two disconnects after,
+each swallowing, so on a fixed Tone ours are the swallowed repeats. The repro on the real module: no error, every
+`onstop`, no retained oscillator, on 15.1.22 and 15.5.61 alike. The upgrade still deletes the patch; it no longer has
+to be the same change.
+
+**The Tone upgrade waits for the official release (Crawford, 2026-10-23).** No move to 15.3+ while it rides npm's
+`next` tag. When a release with the fix becomes `latest`: upgrade on its own branch (read the changelog from 15.1.22,
+full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
+call and `oscillatorLeakPatched` in that change.
