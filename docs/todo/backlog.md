@@ -740,6 +740,11 @@ CDP catches it: a `console.warn` listener on the page) and the measure-tick cons
 changes how the scheduling path is called, not what it schedules; Crawford asked for it (2026-10-26), so the CLAUDE.md
 "ask first" is met.
 
+**Status:** intent [docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md), spec
+[docs/specs/BEATCLOCK_TRANSPORT_TIME.md](../specs/BEATCLOCK_TRANSPORT_TIME.md), plan
+[docs/tasks/BEATCLOCK_TRANSPORT_TIME.md](../tasks/BEATCLOCK_TRANSPORT_TIME.md); building on branch
+`fix/beatclock-transport-time`.
+
 ### 36. Audio: Swells on `pulseWidth` Write NaN Into the Voice Every Tick
 
 **Found 2026-10-26** (Crawford, dev and production): a flood of
