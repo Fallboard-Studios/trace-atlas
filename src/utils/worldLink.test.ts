@@ -191,6 +191,18 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     expect(decodeWorldLink(`?${params.toString()}`)).toEqual(payload);
   });
 
+  // Review follow-up (2026-10-26): a saved row's Share encodes the save as stored, and an old or hand-edited save can
+  // lack an LFO lane. The link must still be made, and the missing lane loads as the seed's.
+  it('encodes a payload missing an LFO lane, and the lane decodes as the seed', () => {
+    const payload = untouchedWorld(FIXTURE_NAME, { x: 29, y: -14 });
+    const laneB = { ...payload.lfoBank!.b, rate: 0 };
+    payload.lfoBank = { ...payload.lfoBank!, b: laneB };
+    delete (payload.lfoBank as Partial<NonNullable<SessionPayload['lfoBank']>>).c;
+    const params = encodeWorldLinkParams(payload);
+    const decoded = decodeWorldLink(`?${params.toString()}`)!;
+    expect(decoded.lfoBank).toEqual({ ...untouchedWorld().lfoBank, b: laneB });
+  });
+
   it('the fully edited world round-trips through seed, x, y and s only', () => {
     const payload = fullyEditedWorld();
     const params = encodeWorldLinkParams(payload);

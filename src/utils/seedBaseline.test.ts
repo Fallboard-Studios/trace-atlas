@@ -225,6 +225,18 @@ describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
     expect(fillWorldFromSeed(identity, diffWorldAgainstSeed(p, baseline), baseline)).toEqual(p);
   });
 
+  // Review follow-up (2026-10-26): an old or hand-edited save can hold an LFO Bank with a lane missing, and a saved row's
+  // Share sends it here as stored. The missing lane is no edit: it must write no key, not `c: undefined`.
+  it('a payload missing one LFO lane writes no key for it, beside a lane that did change', () => {
+    const p: SessionPayload = untouchedWorld();
+    const laneB = { ...p.lfoBank!.b, rate: 0 };
+    p.lfoBank = { ...p.lfoBank!, b: laneB };
+    delete (p.lfoBank as Partial<NonNullable<SessionPayload['lfoBank']>>).c;
+    const diff = diffWorldAgainstSeed(p, baseline);
+    expect(diff).toEqual({ lfoBank: { b: laneB } });
+    expect(Object.keys(diff.lfoBank!)).toEqual(['b']);
+  });
+
   it('a pacing scalar or record the payload lacks writes no key (never an undefined value)', () => {
     const p: SessionPayload = untouchedWorld();
     p.globalAudio.reverb = { ...p.globalAudio.reverb, decay: p.globalAudio.reverb.decay + 1 };
