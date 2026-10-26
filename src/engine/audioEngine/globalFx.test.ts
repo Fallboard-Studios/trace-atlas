@@ -5468,6 +5468,95 @@ describe('globalFx', () => {
     });
   });
 
+  // BeatClock Transport time T4 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 5): the three setters the global swell
+  // pool reaches place their writes at the tick's time; without one, today's calls.
+  describe('setGlobalFilterLPF / HPF / EQ with a Transport time', () => {
+    /** globalFx.ts's FILTER_FREQUENCY_RAMP_SECONDS (module-private). */
+    const FILTER_RAMP = 0.05;
+
+    /** The built chain's LPF, HPF and EQ3, each live param given a setValueAtTime spy as a real Param / Signal has. */
+    async function timedChain() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const lpf = secondLastInstance(Tone.Filter);
+      const hpf = lastInstance(Tone.Filter);
+      const eq = lastInstance(Tone.EQ3);
+      for (const param of [lpf.frequency, lpf.Q, hpf.frequency, hpf.Q, eq.low, eq.mid, eq.high]) {
+        param.setValueAtTime = vi.fn();
+      }
+      return { globalFx, lpf, hpf, eq };
+    }
+
+    it.each([
+      ['setGlobalFilterLPF', 'lpf'],
+      ['setGlobalFilterHPF', 'hpf'],
+    ] as const)('%s ramps frequency from the time, and places Q as a point there', async (setter, node) => {
+      const chain = await timedChain();
+      const filter = chain[node];
+      filter.Q.value = 1;
+      chain.globalFx[setter]({ frequency: 900, Q: 2 }, 8);
+      expect(filter.frequency.rampTo.mock.calls).toEqual([[900, FILTER_RAMP, 8]]);
+      expect(filter.Q.setValueAtTime.mock.calls).toEqual([[2, 8]]);
+      expect(filter.Q.value).toBe(1);
+    });
+
+    it.each([
+      ['setGlobalFilterLPF', 'lpf'],
+      ['setGlobalFilterHPF', 'hpf'],
+    ] as const)('%s without a time ramps with two arguments and assigns Q', async (setter, node) => {
+      const chain = await timedChain();
+      const filter = chain[node];
+      chain.globalFx[setter]({ frequency: 900, Q: 2 });
+      expect(filter.frequency.rampTo.mock.calls).toEqual([[900, FILTER_RAMP]]);
+      expect(filter.Q.setValueAtTime).not.toHaveBeenCalled();
+      expect(filter.Q.value).toBe(2);
+    });
+
+    it('setGlobalEQ places each given band as a point at the time and leaves the others alone', async () => {
+      const { globalFx, eq } = await timedChain();
+      globalFx.setGlobalEQ({ low: -3, high: 2 }, 8);
+      expect(eq.low.setValueAtTime.mock.calls).toEqual([[-3, 8]]);
+      expect(eq.high.setValueAtTime.mock.calls).toEqual([[2, 8]]);
+      expect(eq.mid.setValueAtTime).not.toHaveBeenCalled();
+      expect([eq.low.value, eq.mid.value, eq.high.value]).toEqual([0, 0, 0]);
+    });
+
+    it('setGlobalEQ places the mid band too', async () => {
+      const { globalFx, eq } = await timedChain();
+      globalFx.setGlobalEQ({ mid: 4 }, 8);
+      expect(eq.mid.setValueAtTime.mock.calls).toEqual([[4, 8]]);
+    });
+
+    it('setGlobalEQ without a time assigns, and places no point', async () => {
+      const { globalFx, eq } = await timedChain();
+      globalFx.setGlobalEQ({ low: -3 });
+      expect(eq.low.value).toBe(-3);
+      expect(eq.low.setValueAtTime).not.toHaveBeenCalled();
+    });
+
+    it('a time of 0 is a time, not a missing one', async () => {
+      const { globalFx, lpf, eq } = await timedChain();
+      globalFx.setGlobalFilterLPF({ frequency: 900, Q: 2 }, 0);
+      globalFx.setGlobalEQ({ low: -3 }, 0);
+      expect(lpf.frequency.rampTo.mock.calls).toEqual([[900, FILTER_RAMP, 0]]);
+      expect(lpf.Q.setValueAtTime).toHaveBeenCalledWith(2, 0);
+      expect(eq.low.setValueAtTime).toHaveBeenCalledWith(-3, 0);
+    });
+
+    it('params without setValueAtTime, given a time, fall back to .value (headless parity)', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const lpf = secondLastInstance(Tone.Filter);
+      const hpf = lastInstance(Tone.Filter);
+      const eq = lastInstance(Tone.EQ3);
+      globalFx.setGlobalFilterLPF({ Q: 3 }, 8);
+      globalFx.setGlobalFilterHPF({ Q: 4 }, 8);
+      globalFx.setGlobalEQ({ low: -6, mid: 1, high: 5 }, 8);
+      expect([lpf.Q.value, hpf.Q.value]).toEqual([3, 4]);
+      expect([eq.low.value, eq.mid.value, eq.high.value]).toEqual([-6, 1, 5]);
+    });
+  });
+
   // Robot Sends T2 (assumption 3): the global Reverb / Delay `wet` sliders drive the RETURN gain, never
   // Effect.wet - the rooms stay fully wet so a robot's send is the only thing that sets how much enters.
   describe.each([
