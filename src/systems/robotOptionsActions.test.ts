@@ -1065,4 +1065,94 @@ describe('robotOptionsActions', () => {
       expect(spy).toHaveBeenCalledWith(robot.id, 'layer0.gain', link);
     });
   });
+
+  // BeatClock Transport time T6 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 7): the four helpers the swell tick
+  // writes through hand its time to the engine; the store write is the same with or without one.
+  describe('the swell-path helpers forward a Transport time', () => {
+    const LAYERS: OscillatorLayer[] = [{ type: 'sine', gain: 0.9, detune: 5, phase: 0 }];
+    const ADSR: ADSREnvelope = { attack: 0.5, decay: 0.3, sustain: 0.8, release: 1.5 };
+
+    /** Each helper, its engine method, the arguments it is called with, and what the engine should see before the time. */
+    const ROWS = [
+      {
+        name: 'applyVolume',
+        engine: 'updateRobotMasterVolume' as const,
+        call: (robot: Robot, time?: number) => applyVolume(robot, localeId, 55, time),
+        engineArgs: (robot: Robot) => [robot.id, 0.55],
+        storedOf: (robot: Robot | undefined) => robot?.masterVolume,
+      },
+      {
+        name: 'applySendValue',
+        engine: 'updateRobotSends' as const,
+        call: (robot: Robot, time?: number) => applySendValue(robot, localeId, 'reverbSend', 0.25, time),
+        engineArgs: (robot: Robot) => [robot.id, { reverb: 0.25 }],
+        storedOf: (robot: Robot | undefined) => robot?.reverbSend,
+      },
+      {
+        name: 'applyLayersContinuous',
+        engine: 'updateVoiceLayerParams' as const,
+        call: (robot: Robot, time?: number) => applyLayersContinuous(robot, localeId, LAYERS, time),
+        engineArgs: (robot: Robot) => [robot.id, LAYERS],
+        storedOf: (robot: Robot | undefined) => robot?.audioAttributes.layers,
+      },
+      {
+        name: 'applyAdsr',
+        engine: 'updateVoiceEnvelope' as const,
+        call: (robot: Robot, time?: number) => applyAdsr(robot, localeId, ADSR, time),
+        engineArgs: (robot: Robot) => [robot.id, ADSR],
+        storedOf: (robot: Robot | undefined) => robot?.audioAttributes.adsr,
+      },
+    ];
+
+    function storedRobot(): Robot {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      return robot;
+    }
+    function stored(id: string): Robot | undefined {
+      return useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
+    }
+
+    it.each(ROWS)('$name hands the time to $engine as its last argument', ({ engine, call, engineArgs }) => {
+      const robot = storedRobot();
+      const spy = vi.spyOn(AudioEngine, engine).mockImplementation(() => {});
+      call(robot, 4.5);
+      expect(spy.mock.calls).toEqual([[...engineArgs(robot), 4.5]]);
+    });
+
+    it.each(ROWS)('$name hands a time of 0 through as 0', ({ engine, call, engineArgs }) => {
+      const robot = storedRobot();
+      const spy = vi.spyOn(AudioEngine, engine).mockImplementation(() => {});
+      call(robot, 0);
+      expect(spy.mock.calls).toEqual([[...engineArgs(robot), 0]]);
+    });
+
+    it.each(ROWS)('$name without a time (or an explicit undefined) makes the call a hand edit always made', ({ engine, call, engineArgs }) => {
+      const robot = storedRobot();
+      const spy = vi.spyOn(AudioEngine, engine).mockImplementation(() => {});
+      call(robot);
+      call(robot, undefined);
+      expect(spy.mock.calls).toEqual([engineArgs(robot), engineArgs(robot)]);
+      expect((spy.mock.calls as unknown[][]).map((args) => args.length)).toEqual([2, 2]);
+    });
+
+    it.each(ROWS)('$name stores the same value with a time as without', ({ engine, call, storedOf }) => {
+      vi.spyOn(AudioEngine, engine).mockImplementation(() => {});
+      const timed = storedRobot();
+      call(timed, 4.5);
+      const timedValue = storedOf(stored(timed.id));
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+      const untimed = storedRobot();
+      call(untimed);
+      expect(timedValue).toBeDefined();
+      expect(storedOf(stored(untimed.id))).toEqual(timedValue);
+    });
+
+    it('applySendValue with a time still drops a NaN whole', () => {
+      const robot = storedRobot();
+      const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      applySendValue(robot, localeId, 'reverbSend', NaN, 4.5);
+      expect(sendsSpy).not.toHaveBeenCalled();
+    });
+  });
 });
