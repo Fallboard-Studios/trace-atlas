@@ -9,11 +9,17 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 1 — The underruns: what Light still carries
+## Stage 1 — The audio engine: two console errors, then what Light still carries
 
-The measurement is done, desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks at Light are the
-graph's standing cost, not an accumulation, and the late collapse has not recurred. What is left is a design decision.
+Two console errors first (found 2026-10-26, both in the scheduling and swell paths), then the underruns' design
+decision. The measurement for that is done, desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks
+at Light are the graph's standing cost, not an accumulation, and the late collapse has not recurred.
 
+- Backlog [35](backlog.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given) **BeatClock passes
+  the Transport time** — the measure-tick consumers schedule at "now" instead of the callback's time; Tone's
+  one-line warning. Next.
+- Backlog [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) **Swells write NaN into
+  `pulseWidth`** — a swell on a layer field the layer does not have; a warning every 16th note while it runs.
 - Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
   Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
   could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as
