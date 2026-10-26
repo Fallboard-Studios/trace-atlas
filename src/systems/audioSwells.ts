@@ -27,6 +27,7 @@ import type { NoiseFunction2D } from 'simplex-noise';
 import { applyVolume, applyLayersContinuous, applyAdsr, applySendValue } from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
 import { getSeededVal } from '@/utils/getSeededVal';
+import { timeArg } from '@/utils/timeArg';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -160,10 +161,10 @@ function readGlobalValue(target: SwellGlobalTargetId): number {
   return (effectSettings as any)[meta.field] as number;
 }
 
-function writeGlobalValue(target: SwellGlobalTargetId, value: number): void {
+function writeGlobalValue(target: SwellGlobalTargetId, value: number, time?: number): void {
   const meta = GLOBAL_TARGET_META[target];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useAudioStore.getState().setGlobalAudio(meta.effect, { [meta.field]: value } as any);
+  useAudioStore.getState().setGlobalAudio(meta.effect, { [meta.field]: value } as any, ...timeArg(time));
 }
 
 // ========================================
@@ -215,19 +216,22 @@ function readRobotValue(robot: Robot, attribute: SwellRobotAttributeId): number 
  * control by hand would call (docs/specs/archive/AUDIO_SWELLS.md §3) — never a bare
  * updateRobot/AudioEngine.updateVoice* pairing. `robot` must be freshly read
  * from the store (not a stale creation-time reference) so a concurrent edit
- * to a different field on the same robot isn't clobbered.
+ * to a different field on the same robot isn't clobbered. `time` is the tick's
+ * Transport time, passed as that apply*'s last argument so the write lands at
+ * the callback's time (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a hand edit
+ * passes none and lands now.
  */
-function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAttributeId, value: number): void {
+function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAttributeId, value: number, time?: number): void {
   if (attribute === 'volume') {
     // ROBOT_SWELL_FIELD_RANGE.volume is the store's 0-1 masterVolume fraction;
     // applyVolume's own parameter is the UI's 0-100 display percent.
-    applyVolume(robot, localeId, value * 100);
+    applyVolume(robot, localeId, value * 100, ...timeArg(time));
     return;
   }
   // The sends' range is their stored 0..1 fraction; the fraction form of the action avoids the display-percent
   // round trip, which would miss the base by an ulp for some seeded values. It ends where the slider's hand edit does.
   if (isSendAttribute(attribute)) {
-    applySendValue(robot, localeId, attribute, value);
+    applySendValue(robot, localeId, attribute, value, ...timeArg(time));
     return;
   }
   const layerMatch = LAYER_FIELD_PATTERN.exec(attribute);
@@ -237,11 +241,11 @@ function writeRobotValue(robot: Robot, localeId: string, attribute: SwellRobotAt
     const nextLayers = robot.audioAttributes.layers!.map((layer, i) =>
       i === layerIndex ? { ...layer, [field]: value } : layer
     );
-    applyLayersContinuous(robot, localeId, nextLayers);
+    applyLayersContinuous(robot, localeId, nextLayers, ...timeArg(time));
     return;
   }
   const adsrMatch = ADSR_FIELD_PATTERN.exec(attribute)!;
-  applyAdsr(robot, localeId, { ...robot.audioAttributes.adsr, [adsrMatch[1]]: value });
+  applyAdsr(robot, localeId, { ...robot.audioAttributes.adsr, [adsrMatch[1]]: value }, ...timeArg(time));
 }
 
 function robotSwellKey(robotId: string, attribute: SwellRobotAttributeId): string {
@@ -417,8 +421,9 @@ export function startAudioSwells(localeId: string): void {
   // smooth ramp (16 updates/measure), and trigger/selection now also rolls on
   // every one of those same ticks (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
   // §1.3 — frequencyToPerTickChance derives its per-tick probability from
-  // this exact TICKS_PER_MEASURE cadence).
-  swellScheduleId = scheduleRepeat('16n', () => tickAudioSwells(localeId, getCurrentMeasurePrecise()));
+  // this exact TICKS_PER_MEASURE cadence). The callback's `time` (the audio-clock time this tick is for) rides down
+  // to every engine write the tick makes, both pools (docs/specs/BEATCLOCK_TRANSPORT_TIME.md).
+  swellScheduleId = scheduleRepeat('16n', (time) => tickAudioSwells(localeId, getCurrentMeasurePrecise(), time));
 }
 
 export function stopAudioSwells(): void {
@@ -461,8 +466,9 @@ function activeSwellCount(pool: SwellPool): number {
  *  Trigger/selection now rolls on every tick, not just once per whole measure
  *  (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — frequencyToPerTickChance
  *  derives a per-tick probability from swellFrequency so the long-run rate
- *  still matches "swells per measure", without needing a once-per-measure gate. */
-export function tickAudioSwells(localeId: string, measure: number): void {
+ *  still matches "swells per measure", without needing a once-per-measure gate.
+ *  `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (absent when a test drives it directly). */
+export function tickAudioSwells(localeId: string, measure: number, time?: number): void {
   const as = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!as) return;
   const noiseMap = getAttenuationStyleNoiseMap(as.id, as.name);
@@ -482,7 +488,7 @@ export function tickAudioSwells(localeId: string, measure: number): void {
   const intensity = useAudioStore.getState().pingVarianceAutomation;
   const frequency = useAudioStore.getState().swellFrequency;
   const duration = useAudioStore.getState().swellDuration;
-  advanceActiveSwells(localeId, measure, frequency);
+  advanceActiveSwells(localeId, measure, frequency, time);
 
   // frequency is the sole on/off switch for new-swell starts (docs/specs/
   // AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — Intensity no longer gates
@@ -812,13 +818,13 @@ export function isRobotAttributeSwelling(robotId: string, attribute: SwellRobotA
 // ADVANCE / WRITE-BACK
 // ========================================
 
-function advanceActiveSwells(localeId: string, measure: number, frequency: number): void {
+function advanceActiveSwells(localeId: string, measure: number, frequency: number, time?: number): void {
   const processed = new Set<ActiveSwell>();
   for (const swell of activeSwells.values()) {
     if (processed.has(swell)) continue;
     processed.add(swell);
-    if (swell.pool === 'global') advanceGlobalSwell(swell.globalTarget!, swell, measure, frequency);
-    else advanceRobotSwell(swell, localeId, measure, frequency);
+    if (swell.pool === 'global') advanceGlobalSwell(swell.globalTarget!, swell, measure, frequency, time);
+    else advanceRobotSwell(swell, localeId, measure, frequency, time);
   }
 }
 
@@ -871,7 +877,7 @@ function maybeForceRobotSwellReturn(swell: ActiveSwell, localeId: string, measur
   swell.phase = 'falling';
 }
 
-function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, frequency: number): void {
+function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, frequency: number, time?: number): void {
   const target = swell.globalTarget!;
 
   maybeForceGlobalSwellReturn(swell, target, measure, frequency);
@@ -883,7 +889,7 @@ function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, fr
   const total = swell.risingMeasures + swell.fallingMeasures;
 
   if (elapsed >= total) {
-    writeGlobalValue(target, baseValue); // exact return-to-base, never approximate
+    writeGlobalValue(target, baseValue, time); // exact return-to-base, never approximate
     activeSwells.delete(key);
     return;
   }
@@ -900,7 +906,7 @@ function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, fr
     value = baseValue + peakDelta * (1 - progress);
   }
 
-  writeGlobalValue(target, value);
+  writeGlobalValue(target, value, time);
 }
 
 /**
@@ -914,7 +920,7 @@ function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, fr
  * time only (docs/specs/archive/AUDIO_SWELLS.md §7, an explicitly deferred open
  * question, not addressed this task).
  */
-function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number, frequency: number): void {
+function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number, frequency: number, time?: number): void {
   const attribute = swell.robotAttribute!;
   const members = swell.members!;
 
@@ -930,7 +936,7 @@ function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number
     if (!robot) continue; // this member's robot no longer exists — defensive, skip just this one
 
     if (complete) {
-      writeRobotValue(robot, localeId, attribute, member.baseValue); // exact return-to-base
+      writeRobotValue(robot, localeId, attribute, member.baseValue, time); // exact return-to-base
       continue;
     }
 
@@ -941,7 +947,7 @@ function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number
       const fallElapsed = elapsed - swell.risingMeasures;
       value = member.baseValue + member.peakDelta * (1 - fallElapsed / swell.fallingMeasures);
     }
-    writeRobotValue(robot, localeId, attribute, value);
+    writeRobotValue(robot, localeId, attribute, value, time);
   }
 
   if (complete) {

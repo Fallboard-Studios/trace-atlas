@@ -16,6 +16,7 @@ import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
+import { timeArg } from '@/utils/timeArg';
 import { engineKeyOf, type RobotSendField } from '@/data/robotSends';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
@@ -23,14 +24,8 @@ import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
 
-/**
- * The swell tick's time as the engine call's trailing argument, only when there is one
- * (docs/specs/BEATCLOCK_TRANSPORT_TIME.md). Four helpers below take `time?` because the swell tick writes through
- * them; a hand edit passes none, and its engine call stays exactly the call it always was, with no trailing undefined.
- */
-function timeArg(time: number | undefined): [] | [number] {
-  return time === undefined ? [] : [time];
-}
+// applyVolume, applySendValue, applyAdsr and applyLayersContinuous take `time?`: the swell tick writes through them
+// with its Transport time (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a hand edit passes none (see timeArg).
 
 // ========================================
 // AUDIO SETTING / VOLUME (RobotDisplaySection.tsx today)
