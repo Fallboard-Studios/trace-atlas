@@ -41,7 +41,7 @@ export const LFO_SHAPES: readonly LfoShape[] = ['triangle', 'sine', 'square', 's
  * ROBOT_ARTICULATION.md assumption 9) is the first target that is not a layer
  * field, and a filter-tier target (see lfoEngine's isFilterTarget). Every
  * removed id can still arrive as a string from an old session or share
- * link; the loaders drop them (sessionDiff.ts / sessionShareUtils.ts) and
+ * link; the loaders drop them (sessionDiff.ts / worldDiffCodec.ts) and
  * the engine resolves them to null.
  */
 export type RobotLfoTargetId =
