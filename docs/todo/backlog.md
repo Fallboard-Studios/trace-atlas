@@ -714,3 +714,54 @@ patch is safe on a fixed Tone too (its repeated disconnects are swallowed), so t
 full suite, listen, and run the perf runs against the old version. In the same change, delete
 `src/engine/tonePatches.ts`, its test, its call in `src/engine/audioContextSetup.ts` and `oscillatorLeakPatched`, and
 the "Tone patch: the per-note oscillator leak" section of [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md).
+
+### 35. Audio: BeatClock Drops the Transport Time Its Callbacks Are Given
+
+**Found 2026-10-26** (Crawford, dev and production builds alike): Tone prints, once per page load,
+"Events scheduled inside of scheduled callbacks should use the passed in scheduling time"
+([Accurate Timing](https://github.com/Tonejs/Tone.js/wiki/Accurate-Timing)). Tone raises it the first time a call
+inside a Transport callback reaches `toSeconds(undefined)`, that is, a Tone method given no time while the Transport is
+running a scheduled callback (`assertUsedScheduleTime` in Tone's `Debug.js`, called from `ToneWithContext.toSeconds`).
+
+**Cause.** The engine's own note tick passes the Transport's time through (`AudioEngine.ts`, `scheduleRepeat((time) =>`),
+so notes are placed on the beat. BeatClock does not: its `scheduleRepeat(interval, callback)` wrapper
+(`src/engine/beatClock.ts`) takes a `() => void` callback and discards the `time` the Transport hands it. Every consumer
+of the measure tick runs through that wrapper: the harmony tick (`harmonySystem.ts`), the swell tick
+(`audioSwells.ts`, every 16th), and the docking lifecycle's ramps and starts. Each of their Tone calls (ramps, level
+sets, starts) therefore lands at "now", the audio clock's current time, rather than at the callback's time, which runs
+about `lookAhead` (100 ms) ahead of it: early by up to that much, with jitter. Those are ramps and levels, so it has
+not been heard; it is still scheduling off the beat on the path CLAUDE.md says is beat-based.
+
+**Fix (behaviour, so RED first):** BeatClock's wrapper passes the Transport time to its callback; `scheduleRepeat`'s
+callback type becomes `(time: number) => void`; each consumer that reaches Tone from the tick takes the time and uses it
+(the swells' `apply*` writes, the harmony change, the lifecycle's ramps), or states in a comment why "now" is right for
+it. Done when the warning does not fire on a fresh page through a few measures of a playing world (a headless check over
+CDP catches it: a `console.warn` listener on the page) and the measure-tick consumers' tests pass a time through. This
+changes how the scheduling path is called, not what it schedules; Crawford asked for it (2026-10-26), so the CLAUDE.md
+"ask first" is met.
+
+### 36. Audio: Swells on `pulseWidth` Write NaN Into the Voice Every Tick
+
+**Found 2026-10-26** (Crawford, dev and production): a flood of
+`[AudioEngine] Failed to set pulseWidth on composite layer Error: Invalid argument(s) to setValueAtTime: null, 14.2…`,
+one every 16th note, from `applyOscFieldViaSet` ← `composite.set` ← `AudioEngine.updateVoiceLayerParams` ←
+`applyLayersContinuous` (`robotOptionsActions.ts`). The `null` is `JSON.stringify(NaN)` (Tone's `Param.setValueAtTime`
+assert prints the value that way), so the value written is **NaN**, not null.
+
+**Cause.** A swell whose target is `layerN.pulseWidth` reads its base from the robot's stored layer
+(`readRobotValue` in `audioSwells.ts`: `layer[field]`), and `OscillatorLayer.pulseWidth` is optional
+(`src/types/layeredAudio.ts`: "meaningful for pulse/square oscillators"), so on a layer without one the base is
+`undefined`, the swell's arithmetic makes NaN, and `writeRobotValue` applies it through `applyLayersContinuous` on every
+tick for the swell's life. The eligibility check (`isRobotAttributeStructurallyLive`) asks only that the layer's gain be
+nonzero, not that the field exist or that the layer be a pulse type. The composite catches the throw and warns, so the
+voice keeps its old width and nothing is heard; the console is unusable while it runs.
+
+**To check first:** whether `applyLayersContinuous` also writes the NaN into the store (a NaN in Zustand serialises
+as `null`, so a saved session or world link could carry a `pulseWidth: null`), and whether `phase`, also optional on
+the type, can do the same.
+
+**Fix (behaviour, RED first):** a swell on a layer field is structurally unavailable when the robot's layer has no finite
+value for that field, the same way a missing layer slot already is, so the pool never selects it; and
+`readRobotValue` never returns a non-number (fall back or throw in a test, not NaN into the engine). If the store check
+finds a NaN, the write path refuses non-finite values too. Done when a world with non-pulse layers runs several swells
+with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on such a layer passes.
