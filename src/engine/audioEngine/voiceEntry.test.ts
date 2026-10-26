@@ -1,7 +1,7 @@
 import type * as Tone from 'tone';
 import { describe, it, expect, vi } from 'vitest';
 
-import { disposeVoiceNodes, rampOrSet, type VoiceEntry } from './voiceEntry';
+import { disposeVoiceNodes, rampOrSet, setOrPoint, type VoiceEntry } from './voiceEntry';
 import type { CompositeVoice } from './compositeVoice';
 import type { SendEngineKey } from '../../data/robotSends';
 
@@ -123,5 +123,35 @@ describe('rampOrSet', () => {
     const untimed = { value: 0 };
     rampOrSet(untimed, 0.75, 0.1);
     expect(untimed.value).toBe(0.75);
+  });
+});
+
+// BeatClock Transport time T2: the no-glide twin, for writes that were `.value =` (layer gain, detune, filter Q, EQ bands).
+describe('setOrPoint', () => {
+  it('given a time and a setValueAtTime, places a point there and leaves value alone', () => {
+    const param = { setValueAtTime: vi.fn(), value: 1 };
+    setOrPoint(param, 0.25, 4.5);
+    expect(param.setValueAtTime).toHaveBeenCalledWith(0.25, 4.5);
+    expect(param.value).toBe(1);
+  });
+
+  it('given no time (or an explicit undefined), assigns and places no point', () => {
+    const param = { setValueAtTime: vi.fn(), value: 1 };
+    setOrPoint(param, 0.25);
+    setOrPoint(param, 0.5, undefined);
+    expect(param.setValueAtTime).not.toHaveBeenCalled();
+    expect(param.value).toBe(0.5);
+  });
+
+  it('given a time of 0, places a point at 0', () => {
+    const param = { setValueAtTime: vi.fn(), value: 1 };
+    setOrPoint(param, 0.25, 0);
+    expect(param.setValueAtTime).toHaveBeenCalledWith(0.25, 0);
+  });
+
+  it('a stub without setValueAtTime is assigned even with a time', () => {
+    const param = { value: 1 };
+    setOrPoint(param, 0.25, 4.5);
+    expect(param.value).toBe(0.25);
   });
 });

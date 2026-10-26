@@ -59,9 +59,20 @@ export function rampOrSet(param: RampableParam, target: number, rampSeconds: num
   if (typeof param.rampTo === 'function') {
     if (time !== undefined) param.rampTo(target, rampSeconds, time);
     else param.rampTo(target, rampSeconds);
-  } else if (time !== undefined && typeof param.setValueAtTime === 'function') {
-    param.setValueAtTime(target, time);
   } else {
-    param.value = target;
+    setOrPoint(param, target, time);
+  }
+}
+
+/**
+ * Write `value` to a live Param / Signal with no glide: a point at `time` when the caller is a Transport tick and the
+ * node can take one, else assign it now (no time, or a headless / test stub). For writes that were `.value =` before
+ * docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3; the untimed call is exactly that assignment.
+ */
+export function setOrPoint(param: Pick<RampableParam, 'setValueAtTime' | 'value'>, value: number, time?: number): void {
+  if (time !== undefined && typeof param.setValueAtTime === 'function') {
+    param.setValueAtTime(value, time);
+  } else {
+    param.value = value;
   }
 }

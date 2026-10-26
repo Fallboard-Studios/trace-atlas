@@ -380,3 +380,95 @@ describe('createCompositeVoice: set({ layers }) portamento and curves', () => {
     expect(synth.set).toHaveBeenCalledWith({ envelope: { ...SHARED_ADSR, attackCurve: 'bounce' } });
   });
 });
+
+// ========================================
+// BEATCLOCK TRANSPORT TIME (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3, §5.1 item 3, Task 2)
+// ========================================
+
+type TimedParam = { value: number; setValueAtTime?: ReturnType<typeof vi.fn> };
+
+/** One-layer voice whose layer gain and oscillator detune carry a `setValueAtTime` spy, as a live Tone Param / Signal does. */
+function timedVoice() {
+  const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
+  const gain = voice.layers![0].gainNode!.gain as unknown as TimedParam;
+  gain.setValueAtTime = vi.fn();
+  const detune = (synthInstances()[0] as unknown as { oscillator: { detune: TimedParam } }).oscillator.detune;
+  detune.setValueAtTime = vi.fn();
+  return { voice, gain, detune, synth: synthInstances()[0] };
+}
+
+describe('createCompositeVoice: set(params, time) places live Param writes at the Transport time', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('a layer gain with a time is a timed point, and .value is not assigned', () => {
+    const { voice, gain } = timedVoice();
+    gain.value = 1;
+    voice.set({ layers: [{ gain: 0.4 }] }, 12.5);
+    expect(gain.setValueAtTime).toHaveBeenCalledTimes(1);
+    expect(gain.setValueAtTime).toHaveBeenCalledWith(0.4, 12.5);
+    expect(gain.value).toBe(1);
+  });
+
+  it('a layer gain without a time is assigned, and no point is placed', () => {
+    const { voice, gain } = timedVoice();
+    voice.set({ layers: [{ gain: 0.4 }] });
+    expect(gain.value).toBe(0.4);
+    expect(gain.setValueAtTime).not.toHaveBeenCalled();
+  });
+
+  it('a detune with a time is a timed point on oscillator.detune', () => {
+    const { voice, detune } = timedVoice();
+    voice.set({ layers: [{ detune: 7 }] }, 12.5);
+    expect(detune.setValueAtTime).toHaveBeenCalledWith(7, 12.5);
+    expect(detune.value).toBe(0);
+  });
+
+  it('a detune without a time is assigned, and no point is placed', () => {
+    const { voice, detune } = timedVoice();
+    voice.set({ layers: [{ detune: 7 }] });
+    expect(detune.value).toBe(7);
+    expect(detune.setValueAtTime).not.toHaveBeenCalled();
+  });
+
+  it('a time of 0 is a time, not a missing one', () => {
+    const { voice, gain, detune } = timedVoice();
+    voice.set({ layers: [{ gain: 0.3, detune: 5 }] }, 0);
+    expect(gain.setValueAtTime).toHaveBeenCalledWith(0.3, 0);
+    expect(detune.setValueAtTime).toHaveBeenCalledWith(5, 0);
+  });
+
+  it('places each layer its own point at the one time', () => {
+    const voice = createCompositeVoice([makeLayer(), makeLayer()], SHARED_ADSR);
+    const gains = voice.layers!.map((l) => {
+      const g = l.gainNode!.gain as unknown as TimedParam;
+      g.setValueAtTime = vi.fn();
+      return g;
+    });
+    voice.set({ layers: [{ gain: 0.2 }, { gain: 0.6 }] }, 3.5);
+    expect(gains[0].setValueAtTime).toHaveBeenCalledWith(0.2, 3.5);
+    expect(gains[1].setValueAtTime).toHaveBeenCalledWith(0.6, 3.5);
+  });
+
+  it('phase, pulseWidth, portamento and adsr are settings: the same calls with a time as without', () => {
+    const { voice, synth } = timedVoice();
+    synth.set.mockClear(); // construction already applied the layer's phase through synth.set
+    voice.set({ layers: [{ phase: 180, pulseWidth: 0.3, portamento: 0.2, adsr: SHARED_ADSR }] }, 12.5);
+    expect(synth.set.mock.calls).toEqual([
+      [{ oscillator: { phase: 180 } }],
+      [{ oscillator: { width: 0.3 } }],
+      [{ envelope: SHARED_ADSR }],
+    ]);
+    expect(synth.portamento).toBe(0.2);
+  });
+
+  it('a gain and a detune stub without setValueAtTime, given a time, fall back to .value (headless parity)', () => {
+    const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
+    const gain = voice.layers![0].gainNode!.gain as unknown as TimedParam;
+    const detune = (synthInstances()[0] as unknown as { oscillator: { detune: TimedParam } }).oscillator.detune;
+    expect(() => voice.set({ layers: [{ gain: 0.4, detune: 9 }] }, 12.5)).not.toThrow();
+    expect(gain.value).toBe(0.4);
+    expect(detune.value).toBe(9);
+  });
+});

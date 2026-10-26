@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 
 import { getToneCtor, type MinimalToneNode, type SynthWithOscillator } from './toneHelpers';
+import { setOrPoint, type RampableParam } from './voiceEntry';
 import { devWarn } from '@/utils/helpers';
 import type { ADSREnvelope, NoteDuration, WaveformType } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -18,12 +19,12 @@ function createLayerGain(value: number, out: Tone.Gain): Tone.Gain {
  * chain needed here — detune is always a real Signal (with a `.value`) on any real Tone
  * oscillator, unlike phase/width below. Shared by construction and the live-update `set({
  * layers })` path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 4) — previously duplicated verbatim
- * in both places.
+ * in both places. `time` (the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md) places the write as a point there.
  */
-function applyOscDetune(synth: SynthWithOscillator, detune: number, verb: 'apply' | 'set'): void {
+function applyOscDetune(synth: SynthWithOscillator, detune: number, verb: 'apply' | 'set', time?: number): void {
   try {
-    const osc = (synth as unknown as { oscillator?: { detune?: { value: number } } })?.oscillator;
-    if (osc && osc.detune) osc.detune.value = detune;
+    const osc = (synth as unknown as { oscillator?: { detune?: Pick<RampableParam, 'setValueAtTime' | 'value'> } })?.oscillator;
+    if (osc && osc.detune) setOrPoint(osc.detune, detune, time);
   } catch (err) {
     devWarn(`[AudioEngine] Failed to ${verb} detune on composite layer`, err);
   }
@@ -102,7 +103,9 @@ export type LayerLivePatch = Partial<OscillatorLayer> & { adsr?: ADSREnvelope; p
 export interface CompositeVoice {
   output: Tone.Gain;
   triggerAttackRelease: (note: string, dur: NoteDuration | string, time?: number, velocity?: number) => void;
-  set: (params: { layers?: LayerLivePatch[]; outputGain?: number }) => void;
+  /** Live edit. `time` is the Transport tick's time when a swell writes (docs/specs/BEATCLOCK_TRANSPORT_TIME.md);
+   *  a UI edit passes none and lands now. */
+  set: (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => void;
   dispose?: () => void;
   /**
    * Per-layer live node references — synth (for oscillator.detune/width) and
@@ -208,7 +211,13 @@ export function createCompositeVoice(
     });
   };
 
-  const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }) => {
+  /**
+   * Live edit, matched to layers by index. With a `time` (a Transport tick's, docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3)
+   * the rule is: **a live Param or Signal takes the time; a setting does not.** Layer gain (a Tone.Param) and detune (a
+   * Signal) become a point at `time`; phase and pulse width (oscillator settings via synth.set), portamento and the ADSR
+   * (read at the next trigger) are written now either way. Without a time every write is exactly the pre-existing one.
+   */
+  const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => {
     if (params.outputGain !== undefined) out.gain.value = params.outputGain;
     if (params.layers) {
       // Match by index so multi-layer voices with duplicate waveform types are updated correctly.
@@ -218,13 +227,13 @@ export function createCompositeVoice(
         const { synth, gainNode } = node;
         if (p.gain !== undefined && gainNode) {
           try {
-            gainNode.gain.value = p.gain as number;
+            setOrPoint(gainNode.gain as unknown as RampableParam, p.gain as number, time);
           } catch (err) {
             devWarn('[AudioEngine] Failed to set layer gain on composite', err);
           }
         }
         if (p.detune !== undefined) {
-          applyOscDetune(synth as unknown as SynthWithOscillator, p.detune, 'set');
+          applyOscDetune(synth as unknown as SynthWithOscillator, p.detune, 'set', time);
         }
         if (p.phase !== undefined) {
           applyOscFieldViaSet(synth as unknown as SynthWithOscillator, 'phase', 'phase', p.phase, 'set');
