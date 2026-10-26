@@ -21,6 +21,7 @@ import {
   pearson,
   rotateList,
   summarizeBuckets,
+  tallyConsole,
   trend,
 } from './audio-load-lib.mjs';
 
@@ -673,6 +674,78 @@ describe('bucketSamples — budget columns', () => {
     const [bucket] = bucketSamples(samples, 15);
     expect(bucket.sounding).toBe(0);
     expect(bucket.maxSounding).toBe(0);
+  });
+});
+
+// ========================================
+// THE CONSOLE TALLY
+// ========================================
+
+describe('tallyConsole', () => {
+  /** The `params` of one `Runtime.consoleAPICalled` event whose first argument is a string. */
+  const say = (type, text) => ({ type, args: [{ type: 'string', value: text }] });
+  const TONE_WARNING =
+    'Events scheduled inside of scheduled callbacks should use the passed in scheduling time. See https://github.com/Tonejs/Tone.js/wiki/Accurate-Timing';
+
+  it('counts by type and by first line, most frequent first', () => {
+    const tally = tallyConsole([say('error', 'boom'), say('warning', 'w'), say('warning', 'w'), say('warning', 'w')]);
+    expect(tally.byType).toEqual({ warning: 3, error: 1 });
+    expect(tally.lines).toEqual([
+      { type: 'warning', text: 'w', count: 3 },
+      { type: 'error', text: 'boom', count: 1 },
+    ]);
+  });
+
+  it('names the Tone scheduling warning by its text, apart from another warning flood', () => {
+    const pulse = say('warning', 'pulseWidth is not a settable param');
+    const tally = tallyConsole([pulse, say('warning', TONE_WARNING), pulse, pulse]);
+    expect(tally.lines).toEqual([
+      { type: 'warning', text: 'pulseWidth is not a settable param', count: 3 },
+      { type: 'warning', text: TONE_WARNING, count: 1 },
+    ]);
+  });
+
+  it('keys a multi-line message by its first line only', () => {
+    const tally = tallyConsole([say('warning', 'first\nsecond'), say('warning', 'first\r\nother'), say('warning', 'first')]);
+    expect(tally.lines).toEqual([{ type: 'warning', text: 'first', count: 3 }]);
+  });
+
+  it('uses the description of a non-string first argument that has one, such as an Error', () => {
+    const error = { type: 'error', args: [{ type: 'object', subtype: 'error', description: 'Error: bad\n    at f (x.js:1)' }] };
+    expect(tallyConsole([error]).lines).toEqual([{ type: 'error', text: 'Error: bad', count: 1 }]);
+  });
+
+  it('keys a first argument with neither a string value nor a description as (non-string), and so an event with no arguments', () => {
+    const tally = tallyConsole([
+      { type: 'warning', args: [{ type: 'object' }] },
+      { type: 'warning', args: [{ type: 'number', value: 42 }] },
+      { type: 'warning', args: [] },
+      { type: 'warning' },
+    ]);
+    expect(tally.lines).toEqual([{ type: 'warning', text: '(non-string)', count: 4 }]);
+  });
+
+  it('counts log and info in byType but leaves them out of lines', () => {
+    const tally = tallyConsole([say('log', 'hello'), say('info', 'fyi'), say('log', 'hello'), say('warning', 'w')]);
+    expect(tally.byType).toEqual({ log: 2, info: 1, warning: 1, error: 0 });
+    expect(tally.lines).toEqual([{ type: 'warning', text: 'w', count: 1 }]);
+  });
+
+  it('keeps the same text under two types as two lines', () => {
+    const tally = tallyConsole([say('warning', 'same'), say('error', 'same')]);
+    expect(tally.lines).toEqual([
+      { type: 'warning', text: 'same', count: 1 },
+      { type: 'error', text: 'same', count: 1 },
+    ]);
+  });
+
+  it('keeps first-seen order between lines of equal count', () => {
+    const tally = tallyConsole([say('warning', 'b'), say('error', 'a'), say('warning', 'b'), say('error', 'a')]);
+    expect(tally.lines.map((l) => l.text)).toEqual(['b', 'a']);
+  });
+
+  it('returns zero warnings, zero errors and no lines for no events', () => {
+    expect(tallyConsole([])).toEqual({ byType: { warning: 0, error: 0 }, lines: [] });
   });
 });
 
