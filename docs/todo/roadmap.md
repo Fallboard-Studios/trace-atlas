@@ -524,7 +524,11 @@ end to end in the browser, at `aad1270e`). Checkpoint A's review box is not tick
   (T10). It had printed `random` for every world since Phase 21.
 - **Harness and docs.** `perf:audio`'s pin check reads the spec's `x:y` (T13). T14 re-minted 18 recorded `?session=`
   links in PERFORMANCE.md and scratchy-audio-phones.md with the shipped encoder (the plan said five) and opened each one
-  once in headless Chrome. T15 rewrote SESSION_STORAGE.md, PROCEDURAL_GENERATION.md and the Phase 21 spec's header.
+  once in headless Chrome. **Ten of them were broken as committed** (fixed 2026-10-26): the re-mint script left the old
+  value's URL-encoded padding (`%3D`, `%3D%3D`) after the new blob, which made the blob invalid, so those links loaded
+  the bare seed with the right name and coordinates but none of their edits. The HUD check could not see it (it reads
+  only the triple) and the probe had tested the links without the suffix. Each link is now checked exactly as written:
+  its blob applies and it decodes to the payload it replaced. T15 rewrote SESSION_STORAGE.md, PROCEDURAL_GENERATION.md and the Phase 21 spec's header.
 - **Fixed after the branch's code review (2026-10-25): an untouched world copied a blob, not its bare triple.** A save
   snaps the rig to its slider steps and rounds the LFO drifts; the seed baseline compared against the raw generators,
   so every untouched world carried a 225–350-character `s=` (measured on 20 of 20 fresh worlds). The baseline now goes
