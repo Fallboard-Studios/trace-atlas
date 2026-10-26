@@ -32,6 +32,12 @@ export const WORLD_LINK_PARAMS = {
 /** The blob's wire version, written before the `.` and outside the compression (spec assumption 2). */
 export const WORLD_LINK_BLOB_VERSION = 1;
 
+/** The longest `s` value decodeBlob reads. The blob is inflated synchronously at boot, so an unbounded one could inflate
+ *  to gigabytes; at this length (24,576 bytes) deflate's ~1,032:1 ceiling holds it to about 25 MB. Crawford's fully
+ *  edited world is 1,722 characters, and the dev and preview servers already refuse any URL over Node's default 16 KiB
+ *  header limit. */
+export const WORLD_LINK_BLOB_MAX_LENGTH = 32768;
+
 // ========================================
 // BASE64URL
 // ========================================
@@ -67,12 +73,15 @@ export function encodeBlob(diff: WorldDiff): string {
 }
 
 /**
- * The diff an `s` param's value carries, or null. A blob whose version is not 1, whose text is not base64url, which does
- * not inflate, which is not JSON, or whose JSON fails the shape check is dropped whole and the link loads as its bare
- * triple (spec assumption 2). Never throws: a link is untrusted, hand-editable input.
+ * The diff an `s` param's value carries, or null. A blob longer than WORLD_LINK_BLOB_MAX_LENGTH, whose version is not 1,
+ * whose text is not base64url, which does not inflate, which is not JSON, or whose JSON fails the shape check is dropped
+ * whole and the link loads as its bare triple (spec assumption 2). Never throws: a link is untrusted, hand-editable input.
  */
 export function decodeBlob(raw: string): WorldDiff | null {
   try {
+    // Before anything is decoded: the length is the only bound on what inflating it can allocate.
+    if (raw.length > WORLD_LINK_BLOB_MAX_LENGTH)
+      throw new Error(`${raw.length} characters, over the ${WORLD_LINK_BLOB_MAX_LENGTH} limit`);
     const dot = raw.indexOf('.');
     if (dot === -1) throw new Error('no wire version');
     const version = raw.slice(0, dot);

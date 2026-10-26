@@ -2,12 +2,14 @@
 // IMPORTS
 // ========================================
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import alea from 'alea';
 import { deflateSync, strToU8 } from 'fflate';
 
-// worldLink first of the app's modules (the two packages above reach no store): sessionShareUtils.ts is imported by two
+// worldLink first of the app's modules (the packages above reach no store): sessionShareUtils.ts is imported by two
 // stores at module init, so a store import creeping into the link's graph shows here as a failing import, not a silent
 // undefined (docs/specs/SHORT_WORLD_LINK.md risk 2).
 import {
+  WORLD_LINK_BLOB_MAX_LENGTH,
   WORLD_LINK_BLOB_VERSION,
   WORLD_LINK_PARAMS,
   decodeBlob,
@@ -147,6 +149,45 @@ describe('encodeBlob / decodeBlob', () => {
     warn.mockClear();
     expect(decodeBlob(blob)).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  // Review follow-up (2026-10-26): the blob is inflated synchronously at boot, so an unbounded one could inflate to
+  // gigabytes and take the tab down. A blob over WORLD_LINK_BLOB_MAX_LENGTH is refused before anything is decoded.
+  describe('the length limit', () => {
+    /** A valid blob longer than the limit: thousands of robot overrides under random ids, which deflate barely shrinks. */
+    function oversizedBlob(): string {
+      const random = alea('world-link-length-limit');
+      const robotOverrides: Record<string, { pan: number }> = {};
+      while (Object.keys(robotOverrides).length < 4000) {
+        robotOverrides[`robot-${random().toString(36).slice(2, 12)}`] = { pan: 0.5 };
+      }
+      return encodeBlob({ robotOverrides });
+    }
+
+    it('is far above a fully edited world, and well below a URL the dev server can serve', () => {
+      const diff = diffWorldAgainstSeed(
+        fullyEditedWorld(),
+        generateWorldSeedBaseline(FIXTURE_NAME)
+      );
+      expect(encodeBlob(diff).length * 10).toBeLessThan(WORLD_LINK_BLOB_MAX_LENGTH);
+      expect(WORLD_LINK_BLOB_MAX_LENGTH).toBe(32768);
+    });
+
+    it('a valid blob over the limit decodes to null and warns once', () => {
+      const blob = oversizedBlob();
+      expect(blob.length).toBeGreaterThan(WORLD_LINK_BLOB_MAX_LENGTH); // precondition
+      const warn = vi.spyOn(helpers, 'devWarn').mockImplementation(() => {});
+      expect(decodeBlob(blob)).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('a link carrying it loads its bare world', () => {
+      vi.spyOn(helpers, 'devWarn').mockImplementation(() => {});
+      const blob = oversizedBlob();
+      expect(decodeWorldLink(`?seed=${FIXTURE_NAME}&x=29&y=-14&s=${blob}`)).toEqual(
+        untouchedWorld(FIXTURE_NAME, { x: 29, y: -14 })
+      );
+    });
   });
 
   it('a blob with a second dot in its text is refused, not misread (the text alphabet has no dot)', () => {
