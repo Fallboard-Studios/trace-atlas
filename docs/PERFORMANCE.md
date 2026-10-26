@@ -2499,6 +2499,37 @@ Spec [specs/OSCILLATOR_LEAK_FIX.md](specs/OSCILLATOR_LEAK_FIX.md) §5.2, plan [t
 
 **Checkpoint B (Crawford, 2026-10-23):** the round 3 bucket accepted as noise, no more rounds; his listen on the desktop passed (no change to the sound, no click at a note's end).
 
+## BeatClock passes the Transport time — the console check (2026-10-26, backlog 35)
+
+Spec [specs/BEATCLOCK_TRANSPORT_TIME.md](specs/BEATCLOCK_TRANSPORT_TIME.md) §5.2, plan [tasks/BEATCLOCK_TRANSPORT_TIME.md](tasks/BEATCLOCK_TRANSPORT_TIME.md) Task 11. The question: is Tone's "Events scheduled inside of scheduled callbacks should use the passed in scheduling time" warning gone now that the swell tick passes the callback's time to every write? The tally is `perf:audio`'s `console:` line (T10): every `Runtime.consoleAPICalled` from navigation on, warnings and errors listed by first line. Tone warns once per page, on the first offending write, so stock must read 1 and the branch 0.
+
+**The links.** Two world links on `charlie` (200, −30), minted on `npm run dev` in headless Chrome by importing the app's own modules: `useAudioStore.getState().setSwellFrequency(f)` and `setSwellDuration(1)`, then `buildShareUrl(buildSessionPayload())`; each was reloaded and the store read back (16 / 1 and 0 / 1; the boot world's own values were 3 / 3). Swell Frequency 16 per measure is `SWELL_FREQUENCY_STEPS`' top step and Duration 1 measure `SWELL_DURATION_SCHEMA`'s minimum, so both swell pools run swells back to back. The control (Frequency 0) is Task 12's.
+
+| Link | Swell frequency / duration | URL (default `vite preview` host) |
+|---|---|---|
+| S1, swell-heavy | 16 / 1 | `http://localhost:4173/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMjTTUSpOAdK1AA` |
+| S0, control | 0 / 1 | `http://localhost:4173/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMtBRKk5RsjKsBQA` |
+
+**Builds.** Stock: `main` at `ff5155ce` (the branch's base), from a clean `git worktree` checkout, `npx vite build --outDir <scratch>`, bundle `index-DdMlmlwt.js`, `vite preview` on :4174. Branch: `fix/beatclock-transport-time` at `7435d138` (T10; `src/` as at T9's `7a4c7878`), built the same way, bundle `index-CGIdmOHf.js`, on :4173.
+
+**Command.** `npm run perf:audio -- --url http://localhost:<port>/trace-atlas/ --world "charlie:200:-30?s=1.q1YqTlOyMjTTUSpOAdK1AA" --seconds 120 --bucket 15` (the harness takes the link as a `name:x:y?s=` spec, not the URL). Headless Chrome, three rounds interleaved (stock branch, branch stock, stock branch), foreground, one run per call, orphaned Chrome 0 before and after. **Pin check** passed on all six: `charlie @ 200,-30`, `load 100%·fx 100%`, `latency interactive`.
+
+| Round | Build | warnings | errors | Tone scheduling line | mean cap | peak window | overall max |
+|---|---|---|---|---|---|---|---|
+| 1 | stock | 1 | 0 | 1 | 0.495 | 0.636 | 0.990 |
+| 1 | branch | 0 | 0 | absent | 0.505 | 0.651 | 0.990 |
+| 2 | branch | 0 | 0 | absent | 0.496 | 0.618 | 0.988 |
+| 2 | stock | 1 | 0 | 1 | 0.495 | 0.615 | 0.991 |
+| 3 | stock | 1 | 0 | 1 | 0.491 | 0.599 | 0.991 |
+| 3 | branch | 0 | 0 | absent | 0.483 | 0.623 | 0.903 |
+
+**Against the plan's criteria.**
+- **The metric is proven: met, 3 of 3.** Stock's only console line in every round is the Tone warning, count 1.
+- **The warning is gone: met, 3 of 3.** The branch logged nothing at all: 0 warnings, 0 errors.
+- Backlog 36's `pulseWidth` line did not appear on either build on this world, so it did not need telling apart here.
+
+The capacity columns are context, not a criterion (the change moves no sound): the branch's means (0.483–0.505) and peak windows (0.618–0.651) are each within 0.02 of stock's range (0.491–0.495, 0.599–0.636), run-to-run noise on this harness.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
