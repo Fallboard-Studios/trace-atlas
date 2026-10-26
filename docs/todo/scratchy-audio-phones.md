@@ -1418,3 +1418,56 @@ repeated `currentFrame` as a seam, not a gap.
 `IsVisibleOrHasPermission()`, rate-limited, and absorbs them only on a successful graph `TryLock`; why a visible page
 read 0 through a stall that must have starved the device is not known. The `?debug` overlay's underrun count reads
 the same API, so on the desktop its 0 is not evidence of no underrun. Not chased.
+
+## Backlog 27 on the Pixel — the sitting, Crawford's runs, 2026-10-26
+
+The phone half of plan.md Stage 1 ([backlog.md](backlog.md) item 27, "Update 2026-10-26"): the steady clicks at Light
+by ear on D1 and D5, with and without the oscillator leak fix, and whether the late collapse still comes. **Builds:**
+production `vite build`s served side by side on the LAN (`192.168.12.231`), each on its own port so their browser
+storage stays apart: `main` `286ee642` (`index-DdMlmlwt`, the leak fix in it since `4e0cb174`) on **4181**, and
+`main` as it stood just before the fix, `5bd7f593` (`index-BPtv2uVr`, the same bundle T10 above ran as the Output
+Headroom branch), on **4183** from a worktree. **Links:** `?debug&load=light` plus the world, pinned the way each build
+understands: the fixed build through roadmap 56's world links (PERFORMANCE.md "The seven links", D1 and D5), the
+pre-fix build through the older `?session=` payloads those links replaced (so its overlay labels the world `random`:
+that build's `?session=` loader never set the seed field, and the content, `links 43/91` on D1 and `25/91` on D5, two
+and four of twelve audible, is the same). A links page (`phone.html`, session scratchpad) in each build's `dist`. **Tier:**
+Light pinned, the phone's own default (T10), eight voices, `playback`. Every link was loaded headlessly over the LAN
+address first: right coordinates, powered on, `load 20%·fx 20%`, `latency playback`, `fx in 5/10`, `fin ok`.
+
+Protocol as before: Pixel 8, the phone rested before each run, a fresh tab per run, hands off to 3:00, read again at
+4:00. The overlay's `underruns` count is a pointer, not evidence (backlog 29: the API missed a forced 200 ms stall on
+the desktop); the ear is the measurement.
+
+| # | Build | World | `underruns` 3:00 → 4:00 | Collapse? | Crawford's words |
+|---|---|---|---|---|---|
+| 1 | `main` `286ee642` (fix in) | D1 | **191** → 261 | no, never dropped out | "too scratchy right out of the gate and throughout." |
+| 2 | pre-fix `5bd7f593` | D1 | **200** → 292 | no, never dropped out | "a little too scratchy throughout" |
+| 3 | `main` `286ee642` (fix in) | D5 | **136** → 180 | no, never dropped out | "too scratchy right out of the gate and throughout." |
+| 4 | pre-fix `5bd7f593` | D5 | **222** → 291 | no, never dropped out | "a little too scratchy throughout" |
+
+For comparison, the rested-phone readings of 2026-10-23 (T10, same tier, same worlds): `main` D1 190 → 254 ("clicks
+happen throughout", a tiny bit of distortion), the `index-BPtv2uVr` bundle D1 140 → 173 ("clicks happen throughout");
+D5 93 → 106 and 149 → 173.
+
+**Reading.**
+- **The leak fix changes nothing audible, as the desktop predicted.** Step 2's A/B (above) found the audio thread
+  unchanged with the leak closed, and the ear agrees: Crawford heard the fixed build as, if anything, slightly worse
+  ("too scratchy" against "a little too scratchy"), while its counts read lower in both pairs (191 against 200, 136
+  against 222). Neither direction is a result. The count's spread on this phone for one build in one sitting has
+  spanned 48–95 (T21) and D5 on `main` read 93 on 2026-10-23 against 136 today; the words are one listener's two
+  adjectives four minutes apart. What the four runs do say together: about two hundred underruns by 3:00 on either
+  world, with or without the leak, from the first seconds. The clicks are not an accumulation, and the ~500 nodes the
+  pre-fix build had leaked by 4:00 did not add to them.
+- **The late collapse did not come.** Four runs to 4:00 on a rested phone, none past 300 at 4:00, none out. That is the
+  second rested sitting in a row without one (T10 saw none either); the collapses of round 4 and T21 (2:50–4:00 into
+  a run) have not recurred since 2026-10-22. The Incognito tab and the cool-phone sine ramp, which priced heat against
+  carried state, were conditional on a collapse and did not run. The collapse stays unexplained and unreproduced;
+  nothing in the sitting list addresses it further.
+- **So the clicks at Light are the graph's standing cost on this phone**, which is what desktop step 1 measured
+  (bursts to 0.95–0.998 from the first bucket with four robots sounding, D1 and D5 alike) and what the Dark-Effect
+  Bypass (round 3) and the leak fix each failed to move. At Light the overlay still carries about 1 790 live nodes with
+  two to four robots sounding, `fx in 5/10`, eight voices. What Light does not cut is the question backlog 27 leaves,
+  and answering it changes how the audio graph is built, which under the Stage 1 agreement (2026-10-23) means an
+  interview, then a spec. The two sittings on `main` at Light, 2026-10-23 and today, are its baseline.
+- **Deviations:** one run per cell, no repeat; order as listed (fixed build first on each world); the phone's rest
+  between runs not timed.

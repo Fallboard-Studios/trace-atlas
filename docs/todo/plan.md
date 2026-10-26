@@ -9,13 +9,15 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 1 — The underruns: one phone sitting
+## Stage 1 — The underruns: what Light still carries
 
-The desktop half is done (backlog 27, "Update 2026-10-26"); what is left needs the Pixel.
+The measurement is done, desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks at Light are the
+graph's standing cost, not an accumulation, and the late collapse has not recurred. What is left is a design decision.
 
-- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The phone sitting** — the
-  Light-tier clicks by ear and whether the late collapse still comes, as 27's 2026-10-26 list sets out. **On hold**
-  (2026-10-24) until Crawford is back at his Pixel setup; Stage 2 goes ahead meanwhile.
+- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
+  Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
+  could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as
+  the baseline. Crawford's interview is next.
 
 ## Stage 2 — The powered-down state
 
