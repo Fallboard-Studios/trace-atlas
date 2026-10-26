@@ -2530,6 +2530,38 @@ Spec [specs/BEATCLOCK_TRANSPORT_TIME.md](specs/BEATCLOCK_TRANSPORT_TIME.md) §5.
 
 The capacity columns are context, not a criterion (the change moves no sound): the branch's means (0.483–0.505) and peak windows (0.618–0.651) are each within 0.02 of stock's range (0.491–0.495, 0.599–0.636), run-to-run noise on this harness.
 
+### The swell tick's main-thread share (Task 12)
+
+Spec §5.3, plan Task 12: the number behind spec §7 question 2, whether the pre-scheduled swell curve is ever built. **Threshold** (plan, Architecture Decisions): build it only if, at 4× throttle, the swell tick's inclusive share of the IDLE window exceeds **2 %** of sampled time with the store half (`updateRobot` and below) excluded, or any task ≥ 50 ms in the window is attributed to the tick.
+
+**Build.** `fix/beatclock-transport-time` at `2cf452df` (`src/` as at `7a4c7878`), `npx vite build --minify false --outDir <scratch>`, bundle `index--X0VW9Mz.js`, `vite preview` on :4174. **Command.** `npm run perf -- --url "http://localhost:4174/trace-atlas/?seed=charlie&x=200&y=-30&s=<S1 or S0>" --profile --throttle 4`, headless Chrome, six runs interleaved S1 S0 S1 S0 S1 S0, foreground, one per call, orphaned Chrome 0 before and after. `profile.mjs` prints only the top 20 inclusive functions, so the runs used a scratch copy that differs in one thing: after each window it also saves the raw CPU profile and the page's long-task entries inside the window (the `PerformanceObserver` `profile.mjs` already installs). The shares below are sample-weighted inclusive time over the **IDLE (blank hub)** window's sampled time (6811–7424 ms per run), counting a sample once when the function is anywhere on its stack, as `profile.mjs` does. A long task "holds" tick time when a sample with `tickAudioSwells` on its stack falls inside it.
+
+| Share of sampled time | S1 run 1 | S1 run 2 | S1 run 3 | **S1 median (min–max)** | S0 median (min–max) |
+|---|---|---|---|---|---|
+| `tickAudioSwells`, inclusive | 4.13 % | 4.21 % | 6.45 % | **4.21 % (4.13–6.45)** | 0.01 % (0.00–0.02) |
+| tick with the store half excluded | 3.35 % | 3.38 % | 5.68 % | **3.38 % (3.35–5.68)** | 0.01 % (0.00–0.02) |
+| store half: `updateRobot` under the tick | 0.78 % | 0.83 % | 0.77 % | **0.78 % (0.77–0.83)** | 0 |
+| Tone half: the four robot engine methods | 2.41 % | 2.22 % | 4.66 % | **2.41 % (2.22–4.66)** | 0 |
+| global pool: `setGlobalAudio` (its engine setters) | 0.59 (0.23) % | 0.96 (0.48) % | 0.72 (0.36) % | 0.72 (0.36) % | 0 |
+| long tasks in the window / holding tick time | 4 / 2 | 4 / 2 | 6 / 1 | | 1–2 / 0 |
+
+The long tasks that hold tick time: run 1 a 185 ms task (26.8 ms of tick) and a 92 ms one (8.1 ms); run 2 163 ms (22.9 ms) and 61 ms (15.9 ms); run 3 175 ms (36.2 ms). In each, Tone's clock callbacks (`forEachTickBetween`, which runs every scheduled callback, notes and the tick alike) hold 88–121 ms and React's render microtask 35–36 ms. The tick is part of those tasks, never all of them. Across the whole window, Tone's clock callbacks take 11.2–13.5 % on S1 and 7.2–7.4 % on S0. The 4–6 point difference is about the tick's own share.
+
+**Where the tick's time goes.** Each tick sample is put in one bucket, in this order: the store, then the oscillator setting path, then the envelope, then the param writes, then the global setters, then the rest.
+
+| Bucket, share of sampled time | S1 run 1 | S1 run 2 | S1 run 3 | Would a param curve remove it? |
+|---|---|---|---|---|
+| oscillator settings: `applyOscFieldViaSet` → Tone's oscillator `set` (phase, pulse width), of which native `createPeriodicWave` | 2.02 % (1.46) | 1.87 % (1.20) | 4.17 % (2.93) | No. Phase and pulse width are settings, which stay stepwise in the agreed design. |
+| robot param writes: volume, sends, layer gain and detune (`rampOrSet`, `setOrPoint`, `applyOscDetune`) | 0.21 % | 0.21 % | 0.24 % | Yes |
+| global setters: EQ, LPF, HPF | 0.23 % | 0.48 % | 0.36 % | Yes |
+| envelope: `updateVoiceEnvelope` | 0.18 % | 0.13 % | 0.25 % | No. The envelope is read at trigger. |
+| store: `updateRobot` | 0.78 % | 0.83 % | 0.77 % | Excluded by the threshold |
+| the rest: the tick's rolls, bookkeeping, `setGlobalAudio`'s store write | 0.71 % | 0.68 % | 0.66 % | Partly: the per-tick interpolation goes, the rolls stay |
+
+Inside `updateVoiceLayerParams` in run 3, 295 of 310 ms is the settings path, 210 ms of it `createPeriodicWave`. The param writes in the same method total about 12 ms.
+
+**Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase and pulse-width writes rebuilding a periodic wave on every `16n`, and the agreed design leaves those stepwise. Whether that means "build the curve", "build something for the phase path" or "leave it" is Crawford's call at Checkpoint C. Not decided here.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
