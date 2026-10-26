@@ -655,3 +655,64 @@ to be the same change.
 `next` tag. When a release with the fix becomes `latest`: upgrade on its own branch (read the changelog from 15.1.22,
 full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
 call and `oscillatorLeakPatched` in that change.
+
+### 33. Audio Rig: Exact Stepped Values, and Log Sliders That Read Cleanly
+
+**Raised by Crawford, 2026-10-25,** on `feature/short-world-link`, after its code review: "those values should be
+quantized when they're loaded in initially, then they should stick to the steps of the sliders … why are we rounding
+things on save/share?" Weighed the same day and cut down to the two small pieces below; the larger version (a value
+grid for every log slider) is parked at the end. Not yet specced. Waits for roadmap
+[56](roadmap.md#56-short-world-link) to merge (the finish-the-branch rule); nothing on that branch depends on it.
+
+**Background (verified 2026-10-25).** A save snaps the Audio Rig to slider steps and rounds the LFO drifts
+(`quantizeGlobalAudioForCapture` / `roundLfoBankForCapture`, `src/utils/sessionCapture.ts`, called by
+`buildSessionPayload`). Roadmap 56's review fix (`7cf54637`) runs the world link's seed baseline through the same step,
+so saves and links agree, and `src/utils/worldLinkBoot.test.ts` guards it through the real boot. The rounding is there
+for two reasons, and each piece below takes one of them.
+
+**1. `quantizeToStep` returns exact numbers.** Fields with a linear step are already snapped when they load:
+`sampleField` (`src/utils/globalAudioSeed.ts`) snaps every field whose `GLOBAL_AUDIO_SEED_RANGES` entry has a `step`,
+and `generateLfoBankSettings` snaps the drifts to 0.01. But `quantizeToStep` (`src/utils/math.ts`) is
+`min + Math.round((value - min) / step) * step`, so a drift of −0.4712 comes out as `-0.47000000000000003`, and the
+save's `roundToDecimals` is only there to clean that up.
+
+- Round the result to the step's own decimal places, so an on-step value is exact (`-0.47`).
+- One function, used by every generator and slider that snaps, so it fixes the noise everywhere at once. No value
+  moves by more than the noise itself.
+- Then check whether the capture step still changes anything for the stepped fields; if it doesn't, drop those lines
+  from it.
+
+**Piece 1 done 2026-10-25** (on `feature/short-world-link`, at Crawford's "if it's as simple as it sounds do it"):
+
+- `quantizeToStep` (`src/utils/math.ts`) rounds to the grid's own decimal places: the more of the step's and the
+  origin's, since a grid at min 0.05 with step 0.1 has two. It reads an exponent-form step too (`1e-7` → 7 places).
+- `tempoSync.ts` already had this as a private `quantizeClean` (step decimals only); it is deleted and its three calls
+  use `quantizeToStep`.
+- The seed oracle in `globalAudioSeed.test.ts` ("do not regenerate") held twelve literals with float tails
+  (`0.7000000000000001` …). They were amended by hand, each to its value without the tail, with a note in the oracle's
+  amendment log; no draw, band or grid moved. A colour-wet band check lost the `1e-9` slack it kept for that noise.
+- The capture step's `roundToDecimals` wrappers in `sessionCapture.ts` were redundant once `quantizeToStep` is exact,
+  and are gone (output identical on 20,000 random rigs, compared as JSON against the old function). The capture step
+  itself stays: it is still the only grid for the seven log fields it snaps, and the drift rounding still covers
+  dragged values.
+
+**2. Log sliders show sensible decimals.** Twelve log-scale fields have no step anywhere, so their values are whatever
+the seed or the drag produced: compressor attack and release, the LPF and HPF frequency and Q, reverb decay, the
+AutoWah's base frequency, Q and follower, and the Phaser's base frequency and Q. None of their `sliderLog` schemas
+(`src/data/audioRigConfig.ts`) has a `unit` or a `formatValue`, so the label falls back to `formatDisplayValue`
+(3 decimals, no unit) and a cutoff reads `3152.859`.
+
+- Give each a display format: for example whole hertz with a unit for the frequencies, 2 decimals for Q, milliseconds
+  for attack and release, 2 decimals of seconds for decay.
+- Display only, like `formatDisplayValue` itself: the stored value and the sound do not change.
+- Copy: any unit text goes through `src/content/` like every other label.
+
+**Parked: a value grid for the log sliders.** Giving the twelve fields a step at load, making `SliderLog` snap to it,
+and then deleting `sessionCapture.ts`. Weighed 2026-10-25 and not worth it now: nothing audible changes (every value
+moves by less than a step), links and saves already agree, and the risky part is the slider. A fixed step sticks at the
+low end of a log range: at attack's minimum one key press moves the value about 0.0000053 s, which snaps back to
+0.001 s, so the key never leaves the bottom step (a cutoff near 20 Hz on a 1 Hz grid sticks the same way). Revisit only
+if piece 2 leaves the decimals still bothering Crawford. Options then: every press moves at least one whole step, a
+relative grid (three significant figures), or `schema.steps`, the fixed list of allowed values `SliderLog` already
+supports for Automation Rate. The robot side of `sessionDiff.ts` (layer gain and the five sends rounded to 2 decimals,
+whose comment notes "a seed off the grid") would be the same question.

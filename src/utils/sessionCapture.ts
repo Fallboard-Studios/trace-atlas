@@ -3,7 +3,10 @@
 // ========================================
 // No store import: seedBaseline.ts reads this, and it sits under the boot seam (docs/specs/SHORT_WORLD_LINK.md risk 2).
 import { quantizeToStep, roundToDecimals } from './math';
-import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
+import {
+  GLOBAL_AUDIO_SEED_RANGES,
+  type GlobalAudioSeedFieldKey,
+} from '../data/globalAudioSeedRanges';
 import type { GlobalAudioSettings } from '../types/globalAudio';
 import { LFO_LANE_IDS, type BankLfoSettings, type LfoLaneId } from '../types/lfo';
 
@@ -14,146 +17,57 @@ import { LFO_LANE_IDS, type BankLfoSettings, type LfoLaneId } from '../types/lfo
 // generateWorldSeedBaseline applies it to the seed, so an untouched world diffs to nothing against its own seed and its
 // link is the bare triple.
 
-/** The Audio Rig with every slider-stepped field snapped to its step, which also clears floating-point artifacts. */
+/** One field onto its grid, anchored at its full range's min. quantizeToStep's result is exact (backlog 33). */
+function snap(value: number, key: GlobalAudioSeedFieldKey, step: number): number {
+  return quantizeToStep(value, GLOBAL_AUDIO_SEED_RANGES[key].min, step);
+}
+
+/** The Audio Rig with every slider-stepped field snapped to its step. The log-scale fields here (attack, release, both
+ *  filters, the reverb's decay) have no step anywhere else, so this is where theirs is applied (backlog 33). */
 export function quantizeGlobalAudioForCapture(
   globalAudio: GlobalAudioSettings
 ): GlobalAudioSettings {
-  const toCapture = { ...globalAudio };
-  toCapture.compressor = {
-    threshold: roundToDecimals(
-      quantizeToStep(
-        toCapture.compressor.threshold,
-        GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min,
-        1
-      ),
-      0
-    ),
-    ratio: roundToDecimals(
-      quantizeToStep(
-        toCapture.compressor.ratio,
-        GLOBAL_AUDIO_SEED_RANGES['compressor.ratio'].min,
-        1
-      ),
-      0
-    ),
-    attack: roundToDecimals(
-      quantizeToStep(
-        toCapture.compressor.attack,
-        GLOBAL_AUDIO_SEED_RANGES['compressor.attack'].min,
-        0.001
-      ),
-      3
-    ),
-    release: roundToDecimals(
-      quantizeToStep(
-        toCapture.compressor.release,
-        GLOBAL_AUDIO_SEED_RANGES['compressor.release'].min,
-        0.001
-      ),
-      3
-    ),
-    knee: roundToDecimals(
-      quantizeToStep(toCapture.compressor.knee, GLOBAL_AUDIO_SEED_RANGES['compressor.knee'].min, 1),
-      0
-    ),
+  const { compressor, eq3, filterLPF, filterHPF, delay, reverb, limiter } = globalAudio;
+  return {
+    ...globalAudio,
+    compressor: {
+      threshold: snap(compressor.threshold, 'compressor.threshold', 1),
+      ratio: snap(compressor.ratio, 'compressor.ratio', 1),
+      attack: snap(compressor.attack, 'compressor.attack', 0.001),
+      release: snap(compressor.release, 'compressor.release', 0.001),
+      knee: snap(compressor.knee, 'compressor.knee', 1),
+    },
+    eq3: {
+      low: snap(eq3.low, 'eq3.low', 0.5),
+      mid: snap(eq3.mid, 'eq3.mid', 0.5),
+      high: snap(eq3.high, 'eq3.high', 0.5),
+    },
+    filterLPF: {
+      ...filterLPF,
+      frequency: snap(filterLPF.frequency, 'filterLPF.frequency', 1),
+      Q: snap(filterLPF.Q, 'filterLPF.Q', 0.01),
+    },
+    filterHPF: {
+      ...filterHPF,
+      frequency: snap(filterHPF.frequency, 'filterHPF.frequency', 1),
+      Q: snap(filterHPF.Q, 'filterHPF.Q', 0.01),
+    },
+    delay: {
+      ...delay,
+      delayTime: snap(delay.delayTime, 'delay.delayTime', 0.001),
+      feedback: snap(delay.feedback, 'delay.feedback', 0.01),
+      wet: snap(delay.wet, 'delay.wet', 0.01),
+    },
+    reverb: {
+      ...reverb,
+      decay: snap(reverb.decay, 'reverb.decay', 0.01),
+      preDelay: snap(reverb.preDelay, 'reverb.preDelay', 0.01),
+      wet: snap(reverb.wet, 'reverb.wet', 0.01),
+    },
+    limiter: {
+      threshold: snap(limiter.threshold, 'limiter.threshold', 1),
+    },
   };
-  toCapture.eq3 = {
-    low: roundToDecimals(
-      quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5),
-      1
-    ),
-    mid: roundToDecimals(
-      quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5),
-      1
-    ),
-    high: roundToDecimals(
-      quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5),
-      1
-    ),
-  };
-  toCapture.filterLPF = {
-    ...toCapture.filterLPF,
-    frequency: roundToDecimals(
-      quantizeToStep(
-        toCapture.filterLPF.frequency,
-        GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min,
-        1
-      ),
-      0
-    ),
-    Q: roundToDecimals(
-      quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01),
-      2
-    ),
-  };
-  toCapture.filterHPF = {
-    ...toCapture.filterHPF,
-    frequency: roundToDecimals(
-      quantizeToStep(
-        toCapture.filterHPF.frequency,
-        GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min,
-        1
-      ),
-      0
-    ),
-    Q: roundToDecimals(
-      quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01),
-      2
-    ),
-  };
-  toCapture.delay = {
-    ...toCapture.delay,
-    delayTime: roundToDecimals(
-      quantizeToStep(
-        toCapture.delay.delayTime,
-        GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min,
-        0.001
-      ),
-      3
-    ),
-    feedback: roundToDecimals(
-      quantizeToStep(
-        toCapture.delay.feedback,
-        GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min,
-        0.01
-      ),
-      2
-    ),
-    wet: roundToDecimals(
-      quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01),
-      2
-    ),
-  };
-  toCapture.reverb = {
-    ...toCapture.reverb,
-    decay: roundToDecimals(
-      quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01),
-      2
-    ),
-    preDelay: roundToDecimals(
-      quantizeToStep(
-        toCapture.reverb.preDelay,
-        GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min,
-        0.01
-      ),
-      2
-    ),
-    wet: roundToDecimals(
-      quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01),
-      2
-    ),
-  };
-  toCapture.limiter = {
-    threshold: roundToDecimals(
-      quantizeToStep(
-        toCapture.limiter.threshold,
-        GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min,
-        1
-      ),
-      0
-    ),
-  };
-  return toCapture;
 }
 
 /** The LFO Bank with each lane's drifts rounded to 2 decimal places, the same cleanup every other seeded-then-hand-dragged

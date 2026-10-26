@@ -59,6 +59,30 @@ describe('math utilities', () => {
       expect(quantizeToStep(0, 0, 0.25)).toBe(0);
     });
 
+    // Backlog 33: the result is exact, never a grid point plus floating-point residue.
+    it('returns the exact grid value, without floating-point residue', () => {
+      expect(quantizeToStep(-0.4712, 0, 0.01)).toBe(-0.47); // not -0.47000000000000003
+      expect(quantizeToStep(1.35, 0, 0.05)).toBe(1.35); // not 1.3500000000000001
+      expect(quantizeToStep(0.333, 0, 0.001)).toBe(0.333);
+      expect(quantizeToStep(0.7, 0, 0.1)).toBe(0.7); // 7 * 0.1 is 0.7000000000000001
+    });
+
+    it('is exact when the grid origin has more decimal places than the step', () => {
+      // min 0.05, step 0.1: the grid is 0.05, 0.15, 0.25 … — two decimals, though the step has one.
+      expect(quantizeToStep(0.26, 0.05, 0.1)).toBe(0.25);
+      expect(quantizeToStep(3.57, 0.05, 0.1)).toBe(3.55);
+    });
+
+    it('is exact for a step written in exponent form', () => {
+      expect(quantizeToStep(0.00000033, 0, 1e-7)).toBe(0.0000003);
+    });
+
+    it('is exact for whole-number and large steps, and for large values', () => {
+      expect(quantizeToStep(17.4, 0, 5)).toBe(15);
+      expect(quantizeToStep(19999.9, 20, 1)).toBe(20000);
+      expect(quantizeToStep(-1001.2, -1000, 1)).toBe(-1001);
+    });
+
     it('quantizes correctly against a negative min', () => {
       const result = quantizeToStep(-3, -12, 0.5);
       const steps = (result - -12) / 0.5;

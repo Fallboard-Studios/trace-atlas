@@ -490,9 +490,10 @@ describe('the colour character (Global Colour)', () => {
         for (const node of NODE_KEYS) {
           const lit = COLOUR_CHARACTER_NODES[character!].includes(node);
           if (lit) {
-            // To within float noise at the top edge: a seed on the 0.35 edge is 35 * 0.01 = 0.35000000000000003.
-            expect(s[node].wet, `${node} style ${i}`).toBeGreaterThanOrEqual(wetBand[node].min - 1e-9);
-            expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(wetBand[node].max + 1e-9);
+            // Exactly inside the band, edges included: quantizeToStep returns 0.35, not 35 * 0.01 = 0.35000000000000003
+            // (backlog 33), so no float slack is needed at the top edge.
+            expect(s[node].wet, `${node} style ${i}`).toBeGreaterThanOrEqual(wetBand[node].min);
+            expect(s[node].wet, `${node} style ${i}`).toBeLessThanOrEqual(wetBand[node].max);
           } else {
             expect(s[node].wet, `${node} style ${i}`).toBe(0);
           }
@@ -2177,6 +2178,12 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // 0.25 * 1.2 ^ t = 0.290787 (was 0.220795); theta t 0.52140 -> 0.274932 (was 0.127262). The old band 0.05 * 6 ^ t
 // reproduces 0.220795 and 0.127262, which is the check; the hand derivation met the seeder's output to within 1e-16
 // (alpha's last digit is the seeder's own rounding). Nothing else moved.
+//
+// AMENDED BY HAND, backlog 33 (2026-10-25): quantizeToStep now rounds its result to the grid's own decimal places, so the
+// float tails described above are gone. Twelve literals changed, each to its old value without the tail and nothing else:
+// 0.7000000000000001 -> 0.7, 0.35000000000000003 -> 0.35 (three), 6.8500000000000005 -> 6.85, 0.41300000000000003 -> 0.413,
+// 1.7500000000000002 -> 1.75 (two), 1.5000000000000002 -> 1.5, 0.5700000000000001 -> 0.57, 3.4000000000000004 -> 3.4,
+// 0.6000000000000001 -> 0.6. Each difference is under 1e-15; no draw, band or grid moved.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2214,12 +2221,12 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Pedals T8: the Phaser is lit, the Chorus lit (synced), the shifter capped dark. Robot Effect Sends T8 (amended
       // by hand): the Chorus and shifter wets are their rooms' Returns, 1, and the Chorus keeps the Sync it already drew; the
       // Tremolo and Vibrato rolls are over their edges, so the smaller cap moved nothing else.
-      chorus: { rate: 0.7000000000000001, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
-      tremolo: { rate: 5.7, depth: 0.35000000000000003, spread: 90, wet: 0 },
-      vibrato: { rate: 6.8500000000000005, depth: 0.05, wet: 0 },
+      chorus: { rate: 0.7, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
+      tremolo: { rate: 5.7, depth: 0.35, spread: 90, wet: 0 },
+      vibrato: { rate: 6.85, depth: 0.05, wet: 0 },
       frequencyShifter: { shift: -11, wet: 1 },
       stereoWidener: { width: 0.64 },
-      delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 1 },
+      delay: { delayTime: 0.413, feedback: 0.36, wet: 1 },
       reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
       limiter: { threshold: -1 },
     });
@@ -2244,12 +2251,12 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       bitCrusher: { bits: 8, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
-      phaser: { rate: 1.7500000000000002, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
+      phaser: { rate: 1.75, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
       // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the Vibrato rolls dark. Robot Effect Sends T8
       // (amended by hand): the Chorus and shifter wets are their rooms' Returns, 1; this style's Chorus Sync roll is over its
       // odds, so it stays Free; nothing else moved.
-      chorus: { rate: 1.5000000000000002, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
-      tremolo: { rate: 1.7500000000000002, depth: 0.35000000000000003, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
+      chorus: { rate: 1.5, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
+      tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
       frequencyShifter: { shift: 14, wet: 1 },
       stereoWidener: { width: 0.51 },
@@ -2262,9 +2269,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
 
   it('generateLfoBankSettings("oracle-alpha")', () => {
     expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
-      a: { shape: 'sawtooth', rate: 0.35000000000000003, rateDrift: 0.59, depthDrift: 0.51 },
-      b: { shape: 'square', rate: 1.25, rateDrift: 0.15, depthDrift: 0.5700000000000001 },
-      c: { shape: 'sawtooth', rate: 3.4000000000000004, rateDrift: 0.19, depthDrift: 0.04 },
+      a: { shape: 'sawtooth', rate: 0.35, rateDrift: 0.59, depthDrift: 0.51 },
+      b: { shape: 'square', rate: 1.25, rateDrift: 0.15, depthDrift: 0.57 },
+      c: { shape: 'sawtooth', rate: 3.4, rateDrift: 0.19, depthDrift: 0.04 },
       d: { shape: 'square', rate: 7.25, rateDrift: 0.48, depthDrift: 0.08 },
     });
   });
@@ -2274,7 +2281,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     // expectation. b and d landed Free and stay byte-identical, with no `sync` key.
     expect(generateLfoBankSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
       a: { shape: 'triangle', rate: 0.25, rateDrift: 0.23, depthDrift: 0.02, sync: { division: '1', modifier: 'dotted' } },
-      b: { shape: 'sawtooth', rate: 0.6000000000000001, rateDrift: -0.15, depthDrift: 0.17 },
+      b: { shape: 'sawtooth', rate: 0.6, rateDrift: -0.15, depthDrift: 0.17 },
       c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3, sync: { division: '1/8', modifier: 'triplet' } },
       d: { shape: 'triangle', rate: 5.2, rateDrift: -0.42, depthDrift: -0.08 },
     });
