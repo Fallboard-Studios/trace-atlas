@@ -580,7 +580,20 @@ Param's Timeline capped at its newest 1 000 events), so it is bounded and satura
 sampling-profiler read on the dev server put it, the leaked oscillator wrappers and dev-only React bookkeeping at the
 top, and a direct read showed the context's timeout list flat. Closed as a cause; the one loose end is the prediction
 that a 30-minute production run flattens the heap. The leak fix is its own item now:
-[32](#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params).
+[32](archive/backlog-archive.md#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params).
+
+**Update 2026-10-26: the desktop half is done; only the phone sitting is left.** Steps 1 and 2 above are recorded, the
+leak fix merged (PR #577, archived as [32](archive/backlog-archive.md#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params)),
+and the other Stage 1 items that rode with this one are merged too (29, roadmap 17.2.8, roadmap 53's Checkpoints B and
+C). What the sitting still owes, on `main` (the leak fix in it), D1 and D5 at Light, reading the overlay's underrun
+count as a pointer and not as evidence (backlog 29):
+1. The steady clicks at Light on D1 and D5, by ear. Crawford's call of 2026-10-23 was to carry a build without the
+   leak fix beside the fixed one; with the fix merged, that is any `main` before `4e0cb174`.
+2. Whether the late collapse (2:50–4:00 into a run) still comes. Only if it does: the same link in an Incognito tab
+   right after it, then the sine ramp on a cool phone, to price heat against carried state.
+3. Optional, desktop, any time before the sitting: the step 2b prediction that a 30-minute production run flattens
+   the heap. It exceeds the agent's tool limit, so it is Crawford's terminal run: step 2's command with
+   `--seconds 1800`.
 
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
@@ -611,50 +624,6 @@ screens' and are not comparable.
 Params' five with its sub-tab row; the robot screen's), and `--smoothness` goes with its PERFORMANCE.md section: tabs do
 not tween height, so the empty-open flash and the height snap it measured cannot happen. Then a fresh baseline table.
 Half a day with a Look; only when a main-thread question needs per-section numbers.
-
-### 32. Audio: Oscillator Leak Fix — Disconnecting the Dead Note's Params
-
-**Found 2026-10-23** by backlog [27](#27-audio-phone-playback-underruns-at-light-load-main-included)'s desktop step 1
-([scratchy-audio-phones.md](scratchy-audio-phones.md), "Backlog 27, desktop step 1"). Every note the app plays leaves one
-native `OscillatorNode` alive for the life of the page. Tone 15.1.22's `Oscillator._start` connects the Oscillator's
-persistent `frequency` and `detune` Signals into a fresh node on each start, and nothing disconnects them when the note
-ends, so standardized-audio-context keeps both connections in the Signals' output Sets and scans them on every later
-connect. On D1 at Light that is about two a second (+324 nodes in four minutes). Step 2's 15-minute runs held the rate
-(D1 +1057, D5 +171), and its A/B against a throwaway build that disconnects the two params at `onended` took D1 to +48
-with nothing changed on the audio thread. The desktop never felt it; the fix is for the phone, and for correctness.
-
-**Route (A), Crawford 2026-10-23:** an in-app wrapper, `src/engine/tonePatches.ts`, applied once at boot by
-`src/engine/audioContextSetup.ts`; no new dependency. Spec [docs/specs/OSCILLATOR_LEAK_FIX.md](../specs/OSCILLATOR_LEAK_FIX.md),
-plan [docs/tasks/OSCILLATOR_LEAK_FIX.md](../tasks/OSCILLATOR_LEAK_FIX.md), branch `fix/oscillator-leak`. The number is
-the plan's proposal; Crawford may renumber it or make it a roadmap phase.
-
-**Progress 2026-10-23:** T1 built (`bda60dcc`, the wrapper and its tests). T2 built: `audioContextSetup.ts` applies it at boot
-and exports `oscillatorLeakPatched` (`13ee3b7d`). T3 run: the leak is closed (patched Oscillator +23 to +32 in 240 s on D1 at Light,
-stock +325 to +328) and max lag unchanged; one patched round read one 15 s bucket above the stock spread, so the "no
-cost" criterion is missed as written ([PERFORMANCE.md](../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run").
-Checkpoint B passed (Crawford 2026-10-23: the round 3 bucket accepted as noise, his listen passed).
-
-**Built 2026-10-23 on `fix/oscillator-leak`.** What shipped: `patchOscillatorEndedDisconnect` in
-`src/engine/tonePatches.ts`, applied at boot by `src/engine/audioContextSetup.ts`, which exports
-`oscillatorLeakPatched`; documented in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md), "Tone patch: the per-note oscillator
-leak". The proof is PERFORMANCE.md's T3 section above. Left: Crawford's PR; the Pixel sitting of plan.md Stage 1
-carries this build beside stock. Archive this item when the PR merges.
-
-**Upstream, 2026-10-23 (T5).** No report to file: Tone already has it as
-[#1379](https://github.com/Tonejs/Tone.js/issues/1379), fixed by [#1393](https://github.com/Tonejs/Tone.js/pull/1393)
-(the same two disconnects) in **15.3.11**, on npm's `next` tag; `latest` is still 15.1.22. On a fixed Tone the
-wrapper throws on every note (Tone's own cleanup disconnects a second time; a scratch repro on 15.5.61 read 120 uncaught
-errors and no `onstop` in 120 notes).
-
-**T6, 2026-10-23 (Crawford's option (b)):** the wrapper now runs Tone's `onended` first and the two disconnects after,
-each swallowing, so on a fixed Tone ours are the swallowed repeats. The repro on the real module: no error, every
-`onstop`, no retained oscillator, on 15.1.22 and 15.5.61 alike. The upgrade still deletes the patch; it no longer has
-to be the same change.
-
-**The Tone upgrade waits for the official release (Crawford, 2026-10-23).** No move to 15.3+ while it rides npm's
-`next` tag. When a release with the fix becomes `latest`: upgrade on its own branch (read the changelog from 15.1.22,
-full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
-call and `oscillatorLeakPatched` in that change.
 
 ### 33. Audio Rig: Exact Stepped Values, and Log Sliders That Read Cleanly
 
@@ -716,3 +685,19 @@ if piece 2 leaves the decimals still bothering Crawford. Options then: every pre
 relative grid (three significant figures), or `schema.steps`, the fixed list of allowed values `SliderLog` already
 supports for Automation Rate. The robot side of `sessionDiff.ts` (layer gain and the five sends rounded to 2 decimals,
 whose comment notes "a seed off the grid") would be the same question.
+
+### 34. Audio: Upgrade Tone Once the Leak Fix Is `latest`, Then Delete the Patch
+
+**Split out 2026-10-26** from [32](archive/backlog-archive.md#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params)
+when it was archived. Tone fixed the per-note oscillator leak upstream ([#1379](https://github.com/Tonejs/Tone.js/issues/1379),
+[#1393](https://github.com/Tonejs/Tone.js/pull/1393)) in **15.3.11**, which so far ships only on npm's `next` tag. The
+app pins `^15.1.22`, which resolves to `latest`, and works around the leak with `src/engine/tonePatches.ts`; since T6 the
+patch is safe on a fixed Tone too (its repeated disconnects are swallowed), so the upgrade does not have to hurry.
+
+**Waits on npm (Crawford, 2026-10-23):** no move to 15.3+ while the fix rides `next`. Checked 2026-10-26: `latest`
+15.1.22, `next` 15.5.62. Check with `npm view tone dist-tags`.
+
+**When a release with the fix becomes `latest`:** upgrade on its own branch: read the changelog from 15.1.22, run the
+full suite, listen, and run the perf runs against the old version. In the same change, delete
+`src/engine/tonePatches.ts`, its test, its call in `src/engine/audioContextSetup.ts` and `oscillatorLeakPatched`, and
+the "Tone patch: the per-note oscillator leak" section of [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md).

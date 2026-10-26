@@ -9,19 +9,13 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 1 — The underruns: desktop first, then one phone sitting
+## Stage 1 — The underruns: one phone sitting
 
-Measure before changing anything. The desktop answers what it can; the Pixel comes out once, at the end, for only what
-the desktop could not. The two rested Pixel sittings of 2026-10-22 and 2026-10-23 re-ordered this stage (backlog 27,
-"Next, re-ordered").
+The desktop half is done (backlog 27, "Update 2026-10-26"); what is left needs the Pixel.
 
-- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **Phone underruns, the
-  Light-tier clicks and the late collapse** — desktop first: D1 against D5 at Light on `perf:audio`, then the 15-minute
-  long run; the Incognito tab and the cool-phone sine ramp drop to the sitting, and only if the collapse is still
-  unexplained.
-- **The phone sitting**, last — whatever 27 still owes. **On hold** (2026-10-24) until Crawford is back at his Pixel
-  setup; Stage 2 goes ahead meanwhile. Carry `main` (the leak fix is in it), D1 and D5 at Light, and don't read the
-  overlay's underrun count as evidence ([scratchy-audio-phones.md](scratchy-audio-phones.md), "Backlog 29").
+- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The phone sitting** — the
+  Light-tier clicks by ear and whether the late collapse still comes, as 27's 2026-10-26 list sets out. **On hold**
+  (2026-10-24) until Crawford is back at his Pixel setup; Stage 2 goes ahead meanwhile.
 
 ## Stage 2 — The powered-down state
 
@@ -62,6 +56,8 @@ one is built.
 
 ## Parked (not sequenced)
 
+- Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
+  upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
 - Backlog [10](backlog.md#10-visuals-atmospheric-animations) **Fog, dust, precipitation** — unspecified; light shafts
   shipped, marine snow was cut.
 - Roadmap [53](roadmap.md#53-per-mover-compositor-layers) **The Safari look** — spec §5.3's manual list, passed in
