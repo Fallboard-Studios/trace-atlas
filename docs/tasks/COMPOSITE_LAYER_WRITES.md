@@ -382,11 +382,11 @@ T0 (docs slot)
   **Estimated scope:** XS
 
 ### Checkpoint B: The engine
-- [ ] `npx vitest run src/engine` passes.
-- [ ] `npm run build:types`, `npm run lint` clean.
-- [ ] A voice built with a muted layer routes edits and LFO targets by robot index; an envelope or portamento edit
+- [x] `npx vitest run src/engine` passes.
+- [x] `npm run build:types`, `npm run lint` clean.
+- [x] A voice built with a muted layer routes edits and LFO targets by robot index; an envelope or portamento edit
       writes no layer field; `updateVoiceLayerParams` reports the unmute case.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3.
 
 ---
 
