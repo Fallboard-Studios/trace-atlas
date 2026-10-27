@@ -186,7 +186,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
 ### Phase 1: The pool
 
-- [ ] **Task 1: `src/systems/robotSendsParity.test.ts`: case (e) narrows to the sends tail** *(§7 Q2 (a))*
+- [x] **Task 1: `src/systems/robotSendsParity.test.ts`: case (e) narrows to the sends tail** *(§7 Q2 (a))*
 
   **Description:**
   - Case (e), "the robot swell pool is the recorded 22 ids, the five sends its tail in table order", becomes "the five
@@ -200,15 +200,15 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   check is that it still fails for the thing it guards.
 
   **Acceptance criteria:**
-  - [ ] Case (e) passes on today's 22-id list.
-  - [ ] Every recording constant is byte-identical. `git diff` shows only case (e), `SWELL_POOL`, the self-check list
+  - [x] Case (e) passes on today's 22-id list.
+  - [x] Every recording constant is byte-identical. `git diff` shows only case (e), `SWELL_POOL`, the self-check list
         and the header sentence.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSendsParity.test.ts` passes.
-  - [ ] Mutation: swap two sends in `ROBOT_SEND_FIELDS`' order, or move `reverbSend` ahead of `adsr.release` in the
+  - [x] `npx vitest run src/systems/robotSendsParity.test.ts` passes.
+  - [x] Mutation: swap two sends in `ROBOT_SEND_FIELDS`' order, or move `reverbSend` ahead of `adsr.release` in the
         list, and case (e) fails. Then revert.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T0.
 
@@ -216,7 +216,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Estimated scope:** XS (one test case)
 
-- [ ] **Task 2: the layer swelling flags drop `phase` and `pulseWidth`**
+- [x] **Task 2: the layer swelling flags drop `phase` and `pulseWidth`**
 
   **Description:**
   - `useLayerSwellingFlags` (`src/components/robot/useSwellingFlags.ts`) returns `{ gain, detune }`, and
@@ -234,17 +234,18 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   with a swell mocked on `layer${index}.gain`. It fails on today's hook, which returns four keys.
 
   **Acceptance criteria:**
-  - [ ] The hook returns exactly `gain` and `detune` for each layer index, and `undefined` without a robot (existing
+  - [x] The hook returns exactly `gain` and `detune` for each layer index, and `undefined` without a robot (existing
         case, unchanged).
-  - [ ] The robot screen and the company options still forward a layer's gain and detune flags to their sliders.
-        Existing tests pass unmodified apart from the hook case above.
-  - [ ] `isRobotAttributeSwelling` is never asked about a `.phase` or `.pulseWidth` id from either screen.
+  - [x] The robot screen and the company options still forward a layer's gain and detune flags to their sliders.
+        Existing tests pass unmodified apart from the hook case above. *As run (1afa92f4): one more, the company options'
+        "are read from the first member only" case, probed with `layer2.phase` and now probes `layer2.detune`.*
+  - [x] `isRobotAttributeSwelling` is never asked about a `.phase` or `.pulseWidth` id from either screen.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/robot/useSwellingFlags.test.ts src/components/robot/SignatureArrayDrawer.test.tsx src/components/company/useCompanyOptions.test.ts`
+  - [x] `npx vitest run src/components/robot/useSwellingFlags.test.ts src/components/robot/SignatureArrayDrawer.test.tsx src/components/company/useCompanyOptions.test.ts`
         passes.
-  - [ ] Mutation: put `phase` back in the hook's object, and the case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Mutation: put `phase` back in the hook's object, and the case fails.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T0.
 
@@ -253,7 +254,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Estimated scope:** S (four files, all removals plus one expectation)
 
-- [ ] **Task 3: `src/utils/sessionDiff.ts`: the phase and pulse-width base lookups go**
+- [x] **Task 3: `src/utils/sessionDiff.ts`: the phase and pulse-width base lookups go**
 
   **Description:**
   - In `computeRobotAudioOverrideDiff`, `layersToCapture` reads `phase: layer.phase` and `pulseWidth: layer.pulseWidth`
@@ -266,12 +267,12 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   **Proof:** Read. A deletion, by CLAUDE.md. Existing sessionDiff tests are the parity check.
 
   **Acceptance criteria:**
-  - [ ] Only the two lookup expressions change.
-  - [ ] Every existing case in `sessionDiff.test.ts` passes unmodified, including "with a swell in flight".
+  - [x] Only the two lookup expressions change.
+  - [x] Every existing case in `sessionDiff.test.ts` passes unmodified, including "with a swell in flight".
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/sessionDiff.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/sessionDiff.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T0.
 
@@ -279,7 +280,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Estimated scope:** XS (two expressions)
 
-- [ ] **Task 4: the robot swell pool drops the six ids**
+- [x] **Task 4: the robot swell pool drops the six ids**
 
   **Description:**
   - Write the RED test first, in `src/systems/audioSwells.test.ts`, as a new `describe` named after spec §5.1 test 1:
@@ -319,21 +320,23 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   `layerN.pulseWidth` swells.
 
   **Acceptance criteria:**
-  - [ ] Both robot pickers start only the 16 remaining attributes across a full sweep, for a robot on which all 22 old
+  - [x] Both robot pickers start only the 16 remaining attributes across a full sweep, for a robot on which all 22 old
         ids would have been live.
-  - [ ] `SWELL_ROBOT_ATTRIBUTE_IDS` is the 16 ids in spec §3's order, with the five sends last. Case (e) from T1 passes.
-  - [ ] `npm run build:types` is clean. Any cast the compiler rejects is fixed here and listed as a deviation in the
+  - [x] `SWELL_ROBOT_ATTRIBUTE_IDS` is the 16 ids in spec §3's order, with the five sends last. Case (e) from T1 passes.
+  - [x] `npm run build:types` is clean. Any cast the compiler rejects is fixed here and listed as a deviation in the
         commit.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioSwells.test.ts src/types/audioSwell.test.ts src/data/audioSwellRanges.test.ts src/systems/robotSendsParity.test.ts`
+  - [x] `npx vitest run src/systems/audioSwells.test.ts src/types/audioSwell.test.ts src/data/audioSwellRanges.test.ts src/systems/robotSendsParity.test.ts`
         passes.
-  - [ ] Mutation: put `'layer1.phase'` back in the union, the list and the range, and the sweep fails. Revert.
-  - [ ] Test check: temporarily make the sweep's expected set `SWELL_ROBOT_ATTRIBUTE_IDS`, and on the mutant above it
-        passes. That shows the literal is what does the work. Revert.
-  - [ ] Narrowing `LAYER_FIELD_PATTERN` is tidy-up with no behaviour: once the type cannot name `.phase`, no id
+  - [x] Mutation: put `'layer1.phase'` back in the union, the list and the range, and the sweep fails. Revert.
+  - [x] Test check: temporarily make the sweep's expected set `SWELL_ROBOT_ATTRIBUTE_IDS`, and on the mutant above it
+        passes. That shows the literal is what does the work. Revert. *As run (d8e3fd9f): the sweep also asserts no
+        `.phase`/`.pulseWidth` id starts, which alone kills the mutant, so it passes only with that assertion removed too;
+        with the literal alone, it fails.*
+  - [x] Narrowing `LAYER_FIELD_PATTERN` is tidy-up with no behaviour: once the type cannot name `.phase`, no id
         matches the wider regex. No test can tell the two apart, so its proof is a Read, stated in the commit.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T1, T2, T3.
 
@@ -346,11 +349,12 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 - **Task 5: removed** (spec §7 Q1 (b), Crawford 2026-10-26: old saves are not cleaned on load). The number is kept so references stay stable.
 
 ### Checkpoint A: The pool
-- [ ] `npm run build:types`, `npm run lint`, `npm test` (full suite), `npm run build` all clean. Any pre-existing flaky
+- [x] `npm run build:types`, `npm run lint`, `npm test` (full suite), `npm run build` all clean. Any pre-existing flaky
       test is named, not chased.
-- [ ] The pool has 16 ids, both pickers are proven by T4's sweep, and no screen asks about a phase or pulse-width swell.
-- [ ] Every index-shift test update from T4 is listed for Crawford.
-- [ ] Reviewed with Crawford before 38.
+- [x] The pool has 16 ids, both pickers are proven by T4's sweep, and no screen asks about a phase or pulse-width swell.
+- [x] Every index-shift test update from T4 is listed for Crawford.
+- [x] Reviewed with Crawford before 38. *Passed, Crawford 2026-10-26.* T1-T4 are 1ba47a46, 1afa92f4, 37acdddc and
+      d8e3fd9f; d8e3fd9f is T7's middle build.
 
 ---
 
