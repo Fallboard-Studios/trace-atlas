@@ -217,7 +217,7 @@ T0 (docs slot)
 
   **Estimated scope:** S (one module and its test)
 
-- [ ] **Task 3: `compositeVoice.ts`: `setShared`, and `LayerLivePatch` loses `adsr` and `portamento`** *(§7 Q2)*
+- [x] **Task 3: `compositeVoice.ts`: `setShared`, and `LayerLivePatch` loses `adsr` and `portamento`** *(§7 Q2)*
 
   **Description:**
   - `setShared({ adsr?, portamento? }, time?)` applies either field to every built layer through T2's record-and-skip
@@ -235,14 +235,14 @@ T0 (docs slot)
   `setShared({ portamento: 0.3 })` sets `synth.portamento` on each and not again. Fails today: no `setShared`.
 
   **Acceptance criteria:**
-  - [ ] As the proof, plus: `setShared` writes no layer field (no gain, detune, phase or width write).
-  - [ ] `set({ layers: [{ adsr }] })` no longer type-checks (compiler, no test).
-  - [ ] All moved cases pass; the composite test file has no `set` call carrying `adsr` or `portamento`.
+  - [x] As the proof, plus: `setShared` writes no layer field (no gain, detune, phase or width write).
+  - [x] `set({ layers: [{ adsr }] })` no longer type-checks (compiler, no test).
+  - [x] All moved cases pass; the composite test file has no `set` call carrying `adsr` or `portamento`.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
-  - [ ] Mutation: make `setShared` write the ADSR to the first layer only, and the per-layer case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
+  - [x] Mutation: make `setShared` write the ADSR to the first layer only, and the per-layer case fails.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T2.
 

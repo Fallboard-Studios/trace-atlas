@@ -30,7 +30,7 @@ import { calculatePanFromPosition } from './audioEngine/panning';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
 import { robotBusGain } from './audioEngine/headroom';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
-import { createCompositeVoice, type CompositeVoice, type LayerLivePatch } from './audioEngine/compositeVoice';
+import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
 import {
@@ -1038,14 +1038,11 @@ export const AudioEngine = {
    * Apply an updated shared ADSR envelope to every audible layer's live synth, without rebuilding
    * the underlying node graph (Roadmap Phase 9 — Ping Contour drawer's live edits).
    *
-   * Reuses the exact same continuous-update path `updateVoiceLayerParams` already uses: rebuilds
-   * the layers-patch from the composite's already-exposed `layers` (each entry's own current
-   * config, since only audible — `gain !== 0` — layers were ever given a synth in the first
-   * place) with the new `adsr` stamped onto every entry, then calls `composite.set({ layers })` — the same
-   * `p.adsr → synth.set({ envelope: p.adsr })` path `compositeVoice.ts` already applies for a
-   * continuous param edit. No structural change, no audio gap.
+   * Sends only the envelope, through `composite.setShared({ adsr })`: one of the two robot-level fields; no layer
+   * field is written (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2). No structural change, no audio gap.
    *
-   * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not).
+   * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not). It is
+   * carried through; the composite ignores it, as the envelope is a setting.
    */
   updateVoiceEnvelope(robotId: string, adsr: ADSREnvelope, time?: number): void {
     try {
@@ -1055,11 +1052,7 @@ export const AudioEngine = {
         return;
       }
       try {
-        const patched: LayerLivePatch[] = [];
-        for (const { index, written: { gain, detune, phase, pulseWidth } } of entry.composite.layers) {
-          patched[index] = { gain, detune, phase, pulseWidth, adsr };
-        }
-        entry.composite.set({ layers: patched }, time);
+        entry.composite.setShared({ adsr }, time);
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply envelope on composite', err);
       }
@@ -1069,10 +1062,10 @@ export const AudioEngine = {
   },
 
   /**
-   * Set the glide time (seconds) on every audible layer's live synth - updateVoiceEnvelope's shape: the
-   * composite's own layers re-stamped with the new value and handed back through `composite.set`, so no
-   * node is rebuilt and nothing is cut off. 0 turns the glide off. A safe no-op (devWarn) when no composite
-   * is reserved: the store holds the value and every reservation path re-reads it.
+   * Set the glide time (seconds) on every audible layer's live synth - updateVoiceEnvelope's shape: only the
+   * portamento, through `composite.setShared`, so no layer field is written, no node is rebuilt and nothing is
+   * cut off. 0 turns the glide off. A safe no-op (devWarn) when no composite is reserved: the store holds the
+   * value and every reservation path re-reads it.
    */
   updateVoicePortamento(robotId: string, seconds: number): void {
     try {
@@ -1082,11 +1075,7 @@ export const AudioEngine = {
         return;
       }
       try {
-        const patched: LayerLivePatch[] = [];
-        for (const { index, written: { gain, detune, phase, pulseWidth } } of entry.composite.layers) {
-          patched[index] = { gain, detune, phase, pulseWidth, portamento: seconds };
-        }
-        entry.composite.set({ layers: patched });
+        entry.composite.setShared({ portamento: seconds });
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply portamento on composite', err);
       }

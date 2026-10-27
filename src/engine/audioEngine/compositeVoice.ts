@@ -100,13 +100,16 @@ function sameAdsr(a: ADSREnvelope, b: ADSREnvelope): boolean {
 }
 
 /**
- * A live-update patch entry for `set({ layers })`. `adsr` is not part of the persisted
- * `OscillatorLayer` shape (Roadmap Phase 9 moved ADSR to one shared robot-level envelope,
- * see docs/specs/archive/ROBOT_OPTIONS.md) — it's an ephemeral field this live-update RPC accepts so
- * AudioEngine.updateVoiceEnvelope can reuse this exact path for envelope edits, the same way it's
- * reused for gain/detune/phase/pulseWidth. Nothing here is ever written back to `Robot` state.
+ * A live-update patch entry for `set({ layers })`: the four per-layer fields only. The ADSR and portamento are
+ * robot-level and go through `setShared`, so each field has one way in (docs/specs/COMPOSITE_LAYER_WRITES.md §7 Q2).
  */
-export type LayerLivePatch = Partial<OscillatorLayer> & { adsr?: ADSREnvelope; portamento?: number };
+export type LayerLivePatch = Partial<Pick<OscillatorLayer, 'gain' | 'detune' | 'phase' | 'pulseWidth'>>;
+
+/** The two robot-level fields `setShared` applies to every built layer. */
+export interface SharedLivePatch {
+  adsr?: ADSREnvelope;
+  portamento?: number;
+}
 
 /** What the composite last wrote to one layer's synth: targets, never values read back from a node
  *  (docs/specs/COMPOSITE_LAYER_WRITES.md §3). */
@@ -135,6 +138,9 @@ export interface CompositeVoice {
   /** Live edit; patch `i` is for robot layer `i`. `time` is the Transport tick's time when a swell writes
    *  (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a UI edit passes none and lands now. */
   set: (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => void;
+  /** The ADSR and portamento, applied to every built layer with the same skip as `set`. Both are settings, so a
+   *  `time` is accepted and ignored. */
+  setShared: (params: SharedLivePatch, time?: number) => void;
   /** The record built from robot layer `index`, or undefined when that layer has no synth (muted at build). */
   layerAt: (index: number) => LayerRecord | undefined;
   dispose?: () => void;
@@ -257,12 +263,11 @@ export function createCompositeVoice(
    * Live edit. Patch `i` goes to the layer built from robot layer `i` (`layerAt`), never to position `i`
    * (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2). With a `time` (a Transport tick's, docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3)
    * the rule is: **a live Param or Signal takes the time; a setting does not.** Layer gain (a Tone.Param) and detune (a
-   * Signal) glide one tick from `time` (setOrGlide); phase and pulse width (oscillator settings via synth.set),
-   * portamento and the ADSR (read at the next trigger) are written now either way. Without a time every write is exactly
-   * the pre-existing one.
+   * Signal) glide one tick from `time` (setOrGlide); phase and pulse width (oscillator settings via synth.set) are
+   * written now either way. Without a time every write is exactly the pre-existing one.
    *
-   * A field whose value `===` its record in `written` is not written, timed or not (no epsilon; the ADSR compares
-   * field by field): docs/specs/COMPOSITE_LAYER_WRITES.md §1.2. Each record is updated in the same branch as its write.
+   * A field whose value `===` its record in `written` is not written, timed or not (no epsilon):
+   * docs/specs/COMPOSITE_LAYER_WRITES.md §1.2. Each record is updated in the same branch as its write.
    */
   const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => {
     if (params.outputGain !== undefined) out.gain.value = params.outputGain;
@@ -294,21 +299,30 @@ export function createCompositeVoice(
           applyOscFieldViaSet(synth as unknown as SynthWithOscillator, 'width', 'pulseWidth', p.pulseWidth, 'set');
           written.pulseWidth = p.pulseWidth;
         }
-        if (p.portamento !== undefined && p.portamento !== written.portamento && synth) {
-          try {
-            synth.portamento = p.portamento;
-            written.portamento = p.portamento;
-          } catch (err) {
-            devWarn('[AudioEngine] Failed to set portamento on composite layer', err);
-          }
+      }
+    }
+  };
+
+  /**
+   * The ADSR and portamento on every built layer, with `set`'s skip: portamento by `===`, the ADSR field by field and
+   * written whole when any field differs, its record a copy. Both are read at the next trigger, so `_time` is ignored.
+   */
+  const setShared = (params: SharedLivePatch, _time?: number) => {
+    for (const { synth, written } of layerNodes) {
+      if (params.portamento !== undefined && params.portamento !== written.portamento && synth) {
+        try {
+          synth.portamento = params.portamento;
+          written.portamento = params.portamento;
+        } catch (err) {
+          devWarn('[AudioEngine] Failed to set portamento on composite layer', err);
         }
-        if (p.adsr && !sameAdsr(p.adsr, written.adsr) && typeof (synth as unknown as { set?: (props: unknown) => void }).set === 'function') {
-          try {
-            (synth as unknown as { set?: (props: unknown) => void }).set?.({ envelope: toToneEnvelope(p.adsr) });
-            written.adsr = { ...p.adsr };
-          } catch (err) {
-            devWarn('[AudioEngine] Failed to set ADSR on composite layer', err);
-          }
+      }
+      if (params.adsr && !sameAdsr(params.adsr, written.adsr) && typeof (synth as unknown as { set?: (props: unknown) => void }).set === 'function') {
+        try {
+          (synth as unknown as { set?: (props: unknown) => void }).set?.({ envelope: toToneEnvelope(params.adsr) });
+          written.adsr = { ...params.adsr };
+        } catch (err) {
+          devWarn('[AudioEngine] Failed to set ADSR on composite layer', err);
         }
       }
     }
@@ -328,5 +342,5 @@ export function createCompositeVoice(
     try { (out as unknown as { dispose?: () => void })?.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing composite output'); }
   };
 
-  return { output: out, triggerAttackRelease, set, layerAt, dispose, layers: layerNodes };
+  return { output: out, triggerAttackRelease, set, setShared, layerAt, dispose, layers: layerNodes };
 }

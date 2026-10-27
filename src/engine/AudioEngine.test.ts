@@ -1852,7 +1852,7 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
     vi.resetModules();
   });
 
-  it('applies the new ADSR to every audible layer\'s live synth via the existing set({ layers }) path', async () => {
+  it('applies the new ADSR to every audible layer\'s live synth via setShared', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layers: any[] = [
@@ -1871,7 +1871,7 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
   });
 
   // BeatClock Transport time T3 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 4).
-  it('hands a Transport time to composite.set with the patched layers, and undefined without one', async () => {
+  it('hands a Transport time to composite.setShared({ adsr }), and undefined without one', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layers: any[] = [
@@ -1880,17 +1880,17 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
     ];
     AudioEngine.reserveVoice('envelope-timed-robot', layers as any, TEST_ADSR);
     const comp = AudioEngine.getVoiceForRobot('envelope-timed-robot') as any;
+    const setSharedSpy = vi.spyOn(comp, 'setShared');
     const setSpy = vi.spyOn(comp, 'set');
 
     const newAdsr = { attack: 0.5, decay: 0.4, sustain: 0.3, release: 0.2 };
     AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr, 3.25);
     AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr);
 
-    // The record keeps what was written, and `type` is never written live, so the patch carries no `type`.
-    const patched = { layers: layers.map(({ type: _type, ...layer }) => ({ ...layer, adsr: newAdsr })) };
-    expect(setSpy.mock.calls[0]).toEqual([patched, 3.25]);
-    expect(setSpy.mock.calls[1][0]).toEqual(patched);
-    expect(setSpy.mock.calls[1][1]).toBeUndefined();
+    expect(setSharedSpy.mock.calls[0]).toEqual([{ adsr: newAdsr }, 3.25]);
+    expect(setSharedSpy.mock.calls[1][0]).toEqual({ adsr: newAdsr });
+    expect(setSharedSpy.mock.calls[1][1]).toBeUndefined();
+    expect(setSpy).not.toHaveBeenCalled();
   });
 
   it('is a safe no-op when no composite voice is reserved for the robot', async () => {
