@@ -789,6 +789,10 @@ value for that field, the same way a missing layer slot already is, so the pool 
 finds a NaN, the write path refuses non-finite values too. Done when a world with non-pulse layers runs several swells
 with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on such a layer passes.
 
+**Superseded (Crawford, 2026-10-26):** pulse width comes off the swell targets in
+[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), which removes the only source of the flood; the fix
+above is not built. The store check moves to 37, and 36 closes when 37 ships.
+
 ### 37. Audio: Phase Swells Rebuild a Periodic Wave Every Tick
 
 **Found 2026-10-26** by backlog 35's measurement (Task 12, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
@@ -809,11 +813,18 @@ new value on nearly every tick, so nearly every tick misses: in one run 210 of t
 `createPeriodicWave`. A curve cannot carry it: phase is a setting, not a Param, so 35's agreed curve design leaves it
 stepwise.
 
-**To check first:** whether swapping the wave of a sounding oscillator every 16th is audible at all (a click, or nothing),
-which decides whether a phase swell is worth keeping; and how many distinct phase values a swell writes in practice.
+**Decided (Crawford, 2026-10-26): phase and pulse width come off the swell targets**, all six
+(`layer0`–`layer2` `.phase` and `.pulseWidth`). Desktop has been clipping lately and the aim is to remove everything that
+costs more than it plays: phase is most of the swell tick, and pulse width is the source of
+[36](#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s flood. The other options (write phase only
+when it moves a step, quantise it, keep a wave per layer) are not pursued.
 
-**Options for the interview** (not decided): write phase only when it has moved by at least a step, so the
-cache hits; quantise the swelled phase to a coarse grid that fits the cache; take `phase` off the swell targets; or keep
-a wave per layer and swap it less often. Then the same measurement as 35's Task 12 on the same link, before and after.
-[36](#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) touches the same layer-field swell path
-(`readRobotValue`, eligibility), so the two may share a branch.
+**To check first:** every place a robot swell target is listed or tested: `SwellRobotAttributeId` in
+`src/types/audioSwell.ts` and its tests, `ROBOT_SWELL_FIELD_RANGE`, the pool's eligible-target set, any UI that lists
+targets, and the docs that name them (AUDIO_SYSTEM.md's Audio Swells). Whether a saved session or world link can name a
+swell target, so a removed one is tested to load without error; and 36's store check, whether an earlier swell left a
+`pulseWidth: null` in a saved session.
+
+**Fix (behaviour, RED first):** the pool never picks a phase or pulse-width swell, and the type no longer has them.
+Done when a world runs swells with no `pulseWidth` warning, and the same measurement as 35's Task 12 on the same link
+shows the tick's share before and after. This removes 36's only source, so 36 closes with this branch.
