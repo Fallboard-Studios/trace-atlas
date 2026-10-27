@@ -327,6 +327,11 @@ function makeFakeAnalyser() {
 }
 const createAnalyser = vi.fn(() => makeFakeAnalyser());
 
+// One tick's length for the glide cases (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2). Undefined, as with no
+// transport, everywhere else, so the point and rampSeconds cases keep exercising the headless path.
+const tick = vi.hoisted(() => ({ seconds: undefined as number | undefined }));
+vi.mock('../beatClock', () => ({ getTickSeconds: () => tick.seconds }));
+
 vi.mock('@/utils/helpers', () => ({
   devLog: vi.fn(),
   devWarn: vi.fn(),
@@ -5554,6 +5559,81 @@ describe('globalFx', () => {
       globalFx.setGlobalEQ({ low: -6, mid: 1, high: 5 }, 8);
       expect([lpf.Q.value, hpf.Q.value]).toEqual([3, 4]);
       expect([eq.low.value, eq.mid.value, eq.high.value]).toEqual([-6, 1, 5]);
+    });
+  });
+
+  // docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.4 test 2: with a tick length, every timed write the global swell pool
+  // makes glides one tick from the time (frequency included, §8.6 Q6 (b)); untimed writes are today's.
+  describe('setGlobalFilterLPF / HPF / EQ with a Transport time glide one tick', () => {
+    /** globalFx.ts's FILTER_FREQUENCY_RAMP_SECONDS (module-private). */
+    const FILTER_RAMP = 0.05;
+
+    /** The built chain's LPF, HPF and EQ3, each live param given rampTo and setValueAtTime spies as a real Param has. */
+    async function glidingChain() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const lpf = secondLastInstance(Tone.Filter);
+      const hpf = lastInstance(Tone.Filter);
+      const eq = lastInstance(Tone.EQ3);
+      for (const param of [lpf.frequency, lpf.Q, hpf.frequency, hpf.Q, eq.low, eq.mid, eq.high]) {
+        param.rampTo = vi.fn();
+        param.setValueAtTime = vi.fn();
+      }
+      return { globalFx, lpf, hpf, eq };
+    }
+
+    beforeEach(() => {
+      tick.seconds = 0.137;
+    });
+
+    afterEach(() => {
+      tick.seconds = undefined;
+    });
+
+    it.each([
+      ['setGlobalFilterLPF', 'lpf'],
+      ['setGlobalFilterHPF', 'hpf'],
+    ] as const)('%s glides frequency and Q one tick from the time, with no point', async (setter, node) => {
+      const chain = await glidingChain();
+      const filter = chain[node];
+      filter.Q.value = 1;
+      chain.globalFx[setter]({ frequency: 900, Q: 2 }, 8);
+      expect(filter.frequency.rampTo.mock.calls).toEqual([[900, 0.137, 8]]);
+      expect(filter.Q.rampTo.mock.calls).toEqual([[2, 0.137, 8]]);
+      expect(filter.Q.setValueAtTime).not.toHaveBeenCalled();
+      expect(filter.Q.value).toBe(1);
+    });
+
+    it.each([
+      ['setGlobalFilterLPF', 'lpf'],
+      ['setGlobalFilterHPF', 'hpf'],
+    ] as const)('%s without a time ramps frequency over its own seconds, two arguments, and assigns Q', async (setter, node) => {
+      const chain = await glidingChain();
+      const filter = chain[node];
+      chain.globalFx[setter]({ frequency: 900, Q: 2 });
+      expect(filter.frequency.rampTo.mock.calls).toEqual([[900, FILTER_RAMP]]);
+      expect(filter.Q.rampTo).not.toHaveBeenCalled();
+      expect(filter.Q.value).toBe(2);
+    });
+
+    it('setGlobalEQ glides each given band one tick from the time and leaves the others alone', async () => {
+      const { globalFx, eq } = await glidingChain();
+      globalFx.setGlobalEQ({ low: -3, mid: 4, high: 2 }, 8);
+      expect([eq.low.rampTo.mock.calls, eq.mid.rampTo.mock.calls, eq.high.rampTo.mock.calls]).toEqual([
+        [[-3, 0.137, 8]], [[4, 0.137, 8]], [[2, 0.137, 8]],
+      ]);
+      globalFx.setGlobalEQ({ low: -1 }, 9);
+      expect(eq.mid.rampTo).toHaveBeenCalledTimes(1);
+      expect(eq.high.rampTo).toHaveBeenCalledTimes(1);
+      for (const band of [eq.low, eq.mid, eq.high]) expect(band.setValueAtTime).not.toHaveBeenCalled();
+      expect([eq.low.value, eq.mid.value, eq.high.value]).toEqual([0, 0, 0]);
+    });
+
+    it('setGlobalEQ without a time assigns and never ramps', async () => {
+      const { globalFx, eq } = await glidingChain();
+      globalFx.setGlobalEQ({ low: -3 });
+      expect(eq.low.value).toBe(-3);
+      expect(eq.low.rampTo).not.toHaveBeenCalled();
     });
   });
 

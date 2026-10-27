@@ -12,6 +12,8 @@ interface TransportLike {
   /** Tone hands each callback the audio-clock time (seconds) the tick is FOR, about `lookAhead` ahead of now. */
   scheduleRepeat(callback: (time: number) => void, interval: string, startTime?: unknown): string | number;
   clear(id: string | number): void;
+  /** Tone's Transport converts a musical time ('16n') to seconds at the live tempo. */
+  toSeconds?(time: string): number;
 }
 
 // Transport instance is provided by AudioEngine to avoid importing Tone here.
@@ -128,6 +130,25 @@ export function getCurrentMeasurePrecise(): number {
   return currentBeat / BEATS_PER_MEASURE;
 }
 
+/** The last tick length read for a time (getTickSeconds); cleared by resetBeatClock. */
+let keptTick: { time: number; seconds: number } | null = null;
+
+/**
+ * One tick's length in seconds: a `16n` at the live tempo. A timed per-tick write glides over it into the next tick
+ * (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2). Given the write's `time`, the length is read once per time: every
+ * write in one Transport callback carries that callback's time, so a tick reads the tempo once and all its writes
+ * glide the same length, and a tempo change reaches the next tick (plan Task 13). With no time it is read live.
+ * Undefined with no transport, a transport that cannot convert, or a length that is not finite and positive; a bad
+ * length is never kept.
+ */
+export function getTickSeconds(time?: number): number | undefined {
+  if (time !== undefined && keptTick !== null && keptTick.time === time) return keptTick.seconds;
+  const seconds = transportInstance?.toSeconds?.('16n');
+  if (seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return undefined;
+  if (time !== undefined) keptTick = { time, seconds };
+  return seconds;
+}
+
 /**
  * Schedule a callback to repeat at the given musical interval.
  * Registers with Tone.Transport and stores the event ID for later cancellation via cancelSchedule.
@@ -217,6 +238,7 @@ export function resetBeatClock(): void {
   // Null the transport reference so scheduleRepeat() doesn't register events
   // against a stale/cancelled transport between reset and the next initBeatClock().
   transportInstance = null;
+  keptTick = null;
 
   // Reset position counters so getters don't return stale values before the
   // first 16n tick fires after re-initialization.

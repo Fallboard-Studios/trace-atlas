@@ -4,7 +4,8 @@
  * from a run on the branch base, main at 608c5b92 (the Robot Effect Sends merge, PR #569), before any refactor commit.
  *
  * NEVER RE-RECORD. A red case here means the refactor changed what the five sends seed, prime, encode or clamp; fix the
- * code, not the recording (`git log -p` on this file must show one commit).
+ * code, not the recording (`git log -p` on this file must show one commit). Case (e) was narrowed on purpose when
+ * backlog 37 changed the swell pool (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §7 Q2); no recording was touched.
  *
  * Five groups: (a) seeds, (b) the updateRobotSends call sequence per entry point, (c) the share string, (d) the store
  * clamp, (e) the swell pool. Every hand-set fixture send is a distinct, non-default value, so a path that drops or
@@ -214,14 +215,6 @@ const SWELL_PRIMES: Prime[] = [
 const SHARE_WIRE_JSON =
   '{"v":2,"n":"Send Parity","c":{"x":31,"y":47},"g":{},"r":{"parity-robot":{"rd":37,"p":-0.35,"rs":0.62,"ds":0.18,"gr":0.47,"sm":0.09,"db":0.73,"dy":41}}}';
 const CLAMPED_SENDS: number[] = [1, 0.18, 0, 1, 0.73];
-const SWELL_POOL: string[] = [
-  'volume',
-  'layer0.gain', 'layer0.detune', 'layer0.phase', 'layer0.pulseWidth',
-  'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
-  'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
-  'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
-  'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend',
-];
 
 // ========================================
 // TESTS
@@ -342,13 +335,15 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
     expect(clamped).toEqual(CLAMPED_SENDS);
   });
 
-  it('(e) the robot swell pool is the recorded 22 ids, the five sends its tail in table order', () => {
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toEqual(SWELL_POOL);
+  it('(e) the five sends are the robot swell pool tail, in table order', () => {
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS.slice(-SEND_FIELDS.length)).toEqual([...SEND_FIELDS]);
+    const head: readonly string[] = SWELL_ROBOT_ATTRIBUTE_IDS.slice(0, -SEND_FIELDS.length);
+    for (const field of SEND_FIELDS) expect(head, field).not.toContain(field);
   });
 
   it('self-check: every recording is non-empty and the hand-set fixtures are distinct, non-default values', () => {
     for (const [name, recording] of Object.entries({
-      SPAWN_PRIMES, RE_REGISTER_PRIMES, RE_RESERVE_PRIMES, SESSION_RESTORE_PRIMES, SHARE_RESTORE_PRIMES, SWELL_PRIMES, CLAMPED_SENDS, SWELL_POOL,
+      SPAWN_PRIMES, RE_REGISTER_PRIMES, RE_RESERVE_PRIMES, SESSION_RESTORE_PRIMES, SHARE_RESTORE_PRIMES, SWELL_PRIMES, CLAMPED_SENDS,
     })) {
       expect(recording.length, name).toBeGreaterThan(0);
     }

@@ -786,7 +786,7 @@ describe('robot pool — trigger and selection', () => {
     expect(getActiveSwellSnapshot('robot')).toEqual([]);
   });
 
-  it('fills its first 5 (=cap) picks with exactly volume + layer0\'s 4 continuous fields — layer0.phase reachable, an explicitly-present-but-muted layer1 never picked', () => {
+  it('fills its first 5 (=cap) picks with exactly volume, layer0\'s gain and detune, then attack and decay — an explicitly-present-but-muted layer1 never picked', () => {
     const robot = makeRobot({
       audioAttributes: {
         adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 },
@@ -808,7 +808,7 @@ describe('robot pool — trigger and selection', () => {
     }
 
     expect([...picked].sort()).toEqual(
-      ['volume', 'layer0.gain', 'layer0.detune', 'layer0.phase', 'layer0.pulseWidth'].sort()
+      ['volume', 'layer0.gain', 'layer0.detune', 'adsr.attack', 'adsr.decay'].sort()
     );
   });
 
@@ -831,6 +831,73 @@ describe('robot pool — trigger and selection', () => {
     }
 
     expect([...picked].sort()).toEqual(['volume', 'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release'].sort());
+  });
+});
+
+// docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §5.1 test 1: a swell on a layer's phase rebuilt a periodic wave every
+// tick, and one on pulse width wrote NaN into the voice, so neither is a swell target. The expected set is a literal,
+// never SWELL_ROBOT_ATTRIBUTE_IDS, so a pool that grows a seventeenth id fails here instead of agreeing with itself.
+describe('robot pool — never picks a layer phase or pulse width, on either path', () => {
+  const SIXTEEN_TARGETS = [
+    'volume',
+    'layer0.gain', 'layer0.detune',
+    'layer1.gain', 'layer1.detune',
+    'layer2.gain', 'layer2.detune',
+    'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
+    'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend',
+  ];
+  /** Fine enough that every bucket of any list up to 80 ids gets at least one draw, both ends included. */
+  const SWEEP_STEPS = 160;
+
+  /** Three audible layers and five live sends: every id the pool has ever held is structurally live on this robot. */
+  function everythingLiveRobot(type: 'sine' | 'pulse'): Robot {
+    const layer = (gain: number) => (type === 'pulse' ? { type, gain, detune: 5, phase: 90, pulseWidth: 0.3 } : { type, gain, detune: 5, phase: 90 });
+    return makeRobot({
+      audioAttributes: {
+        adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 },
+        filterFreq: 0,
+        waveform: type,
+        layers: [layer(1), layer(0.6), layer(0.3)],
+      },
+      reverbSend: 0.2, delaySend: 0.3, gritSend: 0.4, shimmerSend: 0.5, doubleSend: 0.6,
+    } as Partial<Robot>);
+  }
+
+  function attributesStartedAcrossTheSweep(drawId: 'audioSwell.target.robot' | 'audioSwell.company.attribute', companySide: boolean): string[] {
+    const started: string[] = [];
+    for (let step = 0; step <= SWEEP_STEPS; step++) {
+      stopAudioSwells();
+      vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+        noiseMapForDataIds({
+          'audioSwell.trigger.robot': -1, // fires
+          'audioSwell.trigger.global': 1, // quiet
+          'audioSwell.company.chance': companySide ? -1 : 1,
+          [drawId]: -1 + (step * 2) / SWEEP_STEPS,
+        }),
+      );
+      tickAudioSwells(LOCALE_ID, 0);
+      expect(getActiveSwellSnapshot('global'), 'the global pool stays quiet').toEqual([]);
+      started.push(...getActiveSwellSnapshot('robot').map((s) => s.robotAttribute!));
+    }
+    return started;
+  }
+
+  function expectOnlyTheSixteen(started: string[]) {
+    expect(started.filter((attribute) => /\.(phase|pulseWidth)$/.test(attribute))).toEqual([]);
+    expect([...new Set(started)].sort()).toEqual([...SIXTEEN_TARGETS].sort());
+  }
+
+  it.each(['sine', 'pulse'] as const)('the single-robot pick starts only the 16, for a %s robot', (type) => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, everythingLiveRobot(type));
+    expectOnlyTheSixteen(attributesStartedAcrossTheSweep('audioSwell.target.robot', false));
+  });
+
+  it.each(['sine', 'pulse'] as const)('the company-wide pick starts only the 16, for a %s robot', (type) => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, everythingLiveRobot(type));
+    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1'] }));
+    const started = attributesStartedAcrossTheSweep('audioSwell.company.attribute', true);
+    expectOnlyTheSixteen(started);
+    expect(getActiveSwellSnapshot('robot').every((s) => s.companyId === 'c1'), 'the last start was company-wide').toBe(true);
   });
 });
 
@@ -1137,13 +1204,13 @@ describe('robot pool — reverbSend and delaySend', () => {
       tickAudioSwells(LOCALE_ID, 0);
     }
 
-    it('can pick reverbSend (index 17 of 22) and gives each live member its own base, skipping a member at 0', () => {
+    it('can pick reverbSend (index 11 of 16) and gives each live member its own base, skipping a member at 0', () => {
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', reverbSend: 0.2 }));
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', reverbSend: 0.7123456789 }));
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r3', reverbSend: 0 }));
       useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2', 'r3'] }));
 
-      startCompanySwell((17.5 / 22) * 2 - 1);
+      startCompanySwell((11.5 / 16) * 2 - 1);
 
       const swell = getActiveSwellSnapshot('robot')[0];
       expect(swell.robotAttribute).toBe('reverbSend');
@@ -1157,12 +1224,12 @@ describe('robot pool — reverbSend and delaySend', () => {
       expect(getActiveSwellSnapshot('robot')).toEqual([]);
     });
 
-    it('can pick delaySend (index 18 of 22), each member landing exactly on its own base', () => {
+    it('can pick delaySend (index 12 of 16), each member landing exactly on its own base', () => {
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r1', delaySend: 0.007 }));
       useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ id: 'r2', delaySend: 0.83 }));
       useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
 
-      startCompanySwell((18.5 / 22) * 2 - 1);
+      startCompanySwell((12.5 / 16) * 2 - 1);
 
       const swell = getActiveSwellSnapshot('robot')[0];
       expect(swell.robotAttribute).toBe('delaySend');
@@ -1195,9 +1262,9 @@ type EffectSendField = 'gritSend' | 'shimmerSend' | 'doubleSend';
 /** Each new send, its updateRobotSends key and its index in SWELL_ROBOT_ATTRIBUTE_IDS. Every tick writes through
  *  applySendValue with the field (Robot Send Table T7, docs/specs/ROBOT_SEND_TABLE.md §1.3). */
 const EFFECT_SENDS = [
-  { field: 'gritSend', key: 'grit', index: 19 },
-  { field: 'shimmerSend', key: 'shimmer', index: 20 },
-  { field: 'doubleSend', key: 'double', index: 21 },
+  { field: 'gritSend', key: 'grit', index: 13 },
+  { field: 'shimmerSend', key: 'shimmer', index: 14 },
+  { field: 'doubleSend', key: 'double', index: 15 },
 ] as const;
 
 describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, key, index }) => {
@@ -1336,7 +1403,7 @@ describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, key, index }) => 
     expect(isRobotAttributeSwelling('r1', field)).toBe(false);
   });
 
-  it(`a company-wide swell (index ${index} of 22) moves each live member from its own base and skips a member at 0`, () => {
+  it(`a company-wide swell (index ${index} of 16) moves each live member from its own base and skips a member at 0`, () => {
     useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.2, { id: 'r1' }));
     useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0.7123456789, { id: 'r2' }));
     useLocaleStore.getState().addRobot(LOCALE_ID, onlyThisSend(0, { id: 'r3' }));
@@ -1345,7 +1412,7 @@ describe.each(EFFECT_SENDS)('robot pool — $field', ({ field, key, index }) => 
       noiseMapForDataIds({
         'audioSwell.trigger.robot': -1,
         'audioSwell.company.chance': -1,
-        'audioSwell.company.attribute': ((index + 0.5) / 22) * 2 - 1,
+        'audioSwell.company.attribute': ((index + 0.5) / 16) * 2 - 1,
       }),
     );
     tickAudioSwells(LOCALE_ID, 0);
@@ -1449,7 +1516,7 @@ describe('robot pool — company-wide swells', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
       'audioSwell.company.chance': -1,
-      'audioSwell.company.attribute': -0.86, // index 1 of 22 -> 'layer0.gain'
+      'audioSwell.company.attribute': -0.86, // index 1 of 16 -> 'layer0.gain'
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
 
@@ -1472,7 +1539,7 @@ describe('robot pool — company-wide swells', () => {
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
       'audioSwell.company.chance': -1,
-      'audioSwell.company.attribute': -0.86, // index 1 of 22 -> 'layer0.gain', ineligible for r1
+      'audioSwell.company.attribute': -0.86, // index 1 of 16 -> 'layer0.gain', ineligible for r1
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
 
@@ -1557,7 +1624,7 @@ describe('robot pool — detune swing cap (25% of range = 25 cents, either direc
     useLocaleStore.getState().addRobot(LOCALE_ID, robot);
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
-      'audioSwell.target.robot': -0.5, // index 2 of 9 eligible -> 'layer0.detune'
+      'audioSwell.target.robot': (2.5 / 7) * 2 - 1, // index 2 of 7 eligible -> 'layer0.detune'
       [`audioSwell.peak.${robot.id}.layer0.detune`]: 1, // force the largest draw the capped range allows
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
@@ -1574,7 +1641,7 @@ describe('robot pool — detune swing cap (25% of range = 25 cents, either direc
     useLocaleStore.getState().addRobot(LOCALE_ID, robot);
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
-      'audioSwell.target.robot': -0.5,
+      'audioSwell.target.robot': (2.5 / 7) * 2 - 1,
       [`audioSwell.peak.${robot.id}.layer0.detune`]: -1, // force the largest downward draw the capped range allows
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
@@ -1591,7 +1658,7 @@ describe('robot pool — detune swing cap (25% of range = 25 cents, either direc
     useLocaleStore.getState().addRobot(LOCALE_ID, robot);
     const noiseMap = noiseMapForDataIds({
       'audioSwell.trigger.robot': -1,
-      'audioSwell.target.robot': -0.5,
+      'audioSwell.target.robot': (2.5 / 7) * 2 - 1,
       [`audioSwell.peak.${robot.id}.layer0.detune`]: 0, // midpoint fraction -> roughly half the cap
     });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);

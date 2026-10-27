@@ -2561,7 +2561,153 @@ The long tasks that hold tick time: run 1 a 185 ms task (26.8 ms of tick) and a 
 
 Inside `updateVoiceLayerParams` in run 3, 295 of 310 ms is the settings path, 210 ms of it `createPeriodicWave`. The param writes in the same method total about 12 ms.
 
-**Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase writes rebuilding a periodic wave on every `16n` (Tone's `phase` setter re-runs its `type` setter, which misses its wave cache for each new phase; pulse width, a Signal, is 0.05–0.12 %), and the agreed design leaves phase stepwise. The phase cost is backlog [37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). **Decided at Checkpoint C (Crawford, 2026-10-26): the curve is not built; the phase cost is backlog 37.**
+**Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase writes rebuilding a periodic wave on every `16n` (Tone's `phase` setter re-runs its `type` setter, which misses its wave cache for each new phase; pulse width, a Signal, is 0.05–0.12 %), and the agreed design leaves phase stepwise. The phase cost is backlog [37](todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). **Decided at Checkpoint C (Crawford, 2026-10-26): the curve is not built; the phase cost is backlog 37.**
+
+## Phase and pulse width off the swell targets — the console check (2026-10-26, backlog 36/37)
+
+Spec [specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](specs/SWELL_PHASE_PULSE_WIDTH_CUT.md) §5.2, plan [tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md](tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md) Task 6. The question: is backlog 36's flood, `[AudioEngine] Failed to set pulseWidth on composite layer`, gone now that no swell targets `layerN.pulseWidth`? The line is a `devWarn`, which prints only when `import.meta.env.DEV` is true, so both builds ran on the Vite dev server, not `vite preview`.
+
+**The harness on a dev server (step 1).** `perf:audio` drives `npm run dev` unchanged: a 15 s probe on stock passed the pin check (`charlie @ 200,-30`, `load 100%·fx 100%`, `latency interactive`) and read the `?debug` overlay. No harness change was needed.
+
+**Builds.** Stock: the branch base `main` at `12008fd9`, from a clean `git worktree` checkout (`node_modules` a junction to the main checkout's), `npx vite --port 5180 --strictPort`. Branch: `fix/swell-targets` at `2b094f68` (37 and 38, Checkpoint A2), its own checkout, `npx vite --port 5181 --strictPort`.
+
+**Command.** `npm run perf:audio -- --url http://localhost:<port>/trace-atlas/ --world "charlie:200:-30?s=1.q1YqTlOyMjTTUSpOAdK1AA" --seconds <n> --bucket <b>` on S1 (Swell Frequency 16, Duration 1; spec §7 Q3: no other world remembered). Headless Chrome, foreground, one run per call, orphaned Chrome 0 before and after. Pin check passed on all three runs.
+
+| Run | Build | Seconds | warnings | errors | pulse-width line | distinct first lines |
+|---|---|---|---|---|---|---|
+| 1 | stock | 120 | 0 | 0 | absent | none |
+| 2 | stock (§7 Q3 fallback) | 300 | 0 | 0 | absent | none |
+| 3 | branch | 300 | 0 | 0 | absent | none |
+
+**Against the plan's criteria.**
+- **The metric: unproven.** Stock did not print the pulse-width line on S1 in 120 s, nor in the fallback's 300 s. The line needs a pulse-width swell on a layer with no stored `pulseWidth`, and none occurred in either run; backlog 35's six `vite preview` runs on this world (above) did not show it either, though a production build could not have printed it. Per spec §7 Q3 the check is recorded as unproven, and the proof that the flood is gone is Task 4's test: no robot swell starts on `layerN.phase` or `layerN.pulseWidth`, and the started set equals a literal 16-id array.
+- **No new line on the branch: met.** The branch logged nothing at all, 0 warnings and 0 errors, so there is no first line stock lacks.
+
+Dev-mode capacity is not compared (spec §5.2); for the record, the overall means were 0.485 and 0.463 on stock's two runs and 0.480 on the branch's.
+
+### The swell tick's main-thread share: stock, 37, and 37 + 38 (Task 7)
+
+Spec §5.3 and §8.5, plan Task 7. Task 12's method above, repeated on three builds in one session. 37 is not gated. 38's criterion (spec §5.6): head's tick share stays within 37's spread, or the growth is stated as a number.
+
+**Builds.** Each was built with `npx vite build --minify false --outDir <scratch>` and served with `vite preview`:
+
+| Build | Commit | Bundle | Port |
+|---|---|---|---|
+| stock | `main` at `12008fd9` (the branch base), the T6 worktree | `index-CYpLI9xk.js` | 4174 |
+| 37 | `d8e3fd9f` (T4, the pool at 16), a second worktree | `index-DSl2dg7z.js` | 4175 |
+| head (37 + 38) | `43a451e9` (`src/` as at T12's `0bdf7562`) | `index-CQTj_4-g.js` | 4176 |
+
+**Command.** `node <scratch>/profile-raw.mjs --url "http://localhost:<port>/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMjTTUSpOAdK1AA" --profile --throttle 4` (S1). Headless Chrome, nine runs interleaved stock, 37, head, 37, head, stock, head, stock, 37, foreground, three per call, orphaned Chrome 0 before and after every call.
+
+**The scratch harness.** It is a copy of `profile.mjs`, rebuilt and not committed, that differs in one thing: after each window it also saves the raw CPU profile and the page's long-task entries. To place long tasks against samples it reads `NavigationStart` from CDP `Performance.getMetrics`, which uses the same monotonic clock as the profile. A page-side `performance.now()` read either side of `Profiler.start`/`stop` bracketed that mapping on all nine runs. The first version used only the `performance.now()` round trips, which took up to 1.5 s at 4× throttle. Its one stock run was a shakedown and was discarded.
+
+**Proving it against Task 12.** Stock's tick read **2.41 / 2.26 / 6.11 %**, and Task 12 read 4.13–6.45 %. The gap comes from whether a phase swell happens to be live in the 6 s window:
+- run 8 had one: its settings bucket was 3.98 %, with 2.84 % native `createPeriodicWave`;
+- runs 1 and 6 had none: settings 0.15–0.19 % and no `createPeriodicWave`;
+- the discarded shakedown had one: 4.42 % tick and 1.72 % `createPeriodicWave`, inside Task 12's range;
+- all three of Task 12's runs had one: settings 1.87–4.17 %.
+
+On the buckets a phase swell does not touch, stock matches Task 12:
+
+| Bucket | Stock here | Task 12 |
+|---|---|---|
+| store | 0.62–0.87 % | 0.77–0.83 % |
+| robot param writes | 0.24–0.30 % | 0.21–0.24 % |
+| global setters | 0.22–0.38 % | 0.23–0.48 % |
+| envelope | 0.04–0.19 % | 0.13–0.25 % |
+
+So the harness reproduces Task 12. Stock's median, though, depends on whether a phase swell lands in the window, which is the cost 37 removes.
+
+**Results.** These are shares of the IDLE (blank hub) window's sampled time (7113–7640 ms per run), sample-weighted and inclusive. Each tick sample goes into one bucket, in this order: store, oscillator settings, envelope, global setters, robot param writes, the rest. The global setters (`setGlobalEQ`, `setGlobalFilterLPF`/`HPF` under `setGlobalAudio`) come before the robot param writes because they write through the same `rampOrSet`/`setOrPoint` leaves. Task 12 split them the same way.
+
+| Share of sampled time | stock, median (min–max) | 37, median (min–max) | head, median (min–max) |
+|---|---|---|---|
+| `tickAudioSwells`, inclusive | 2.41 % (2.26–6.11) | **2.16 % (2.14–2.29)** | **2.97 % (2.90–3.07)** |
+| tick with the store half excluded | 1.64 % (1.54–5.43) | 1.49 % (1.46–1.50) | 2.18 % (2.13–2.28) |
+| store: `updateRobot` | 0.68 % (0.62–0.87) | 0.70 % (0.65–0.79) | 0.79 % (0.77–0.79) |
+| oscillator settings: `applyOscFieldViaSet` | 0.19 % (0.15–3.98) | 0.04 % (0.04–0.07) | 0.08 % (0.08–0.09) |
+| of which under Tone's `phase` setter | 0.08 % (0.04–3.92) | **0.03 % (0.01–0.04)** | 0.06 % (0.02–0.08) |
+| of which the rest | 0.11 % (0.07–0.11) | 0.03 % (0.00–0.04) | 0.03 % (0.00–0.06) |
+| native `createPeriodicWave` under the tick | 0.00 % (0.00–2.84) | **0.00 % (all three)** | **0.00 % (all three)** |
+| envelope: `updateVoiceEnvelope` | 0.15 % (0.04–0.19) | 0.22 % (0.20–0.24) | 0.49 % (0.47–0.68) |
+| global setters | 0.36 % (0.22–0.38) | 0.33 % (0.32–0.41) | 0.47 % (0.45–0.49) |
+| robot param writes: `rampOrSet`, `setOrPoint`/`setOrGlide`, `applyOscDetune` | 0.26 % (0.24–0.30) | 0.16 % (0.16–0.21) | 0.53 % (0.39–0.56) |
+| the rest | 0.75 % (0.53–0.86) | 0.69 % (0.64–0.71) | 0.62 % (0.54–0.66) |
+| Tone's clock callbacks (`forEachTickBetween`), whole window | 9.81 % (9.32–13.62) | 9.21 % (9.15–9.53) | 10.21 % (10.05–10.38) |
+| Auto pan's `rampOrSet` under `updateAllPanners`, whole window (outside the tick) | 0 | 0 | 0.12 % (0.03–0.14) |
+
+Per run, in run order, the tick's inclusive share was:
+- stock 2.41 / 2.26 / 6.11 %;
+- 37 2.14 / 2.16 / 2.29 %;
+- head 2.90 / 2.97 / 3.07 %.
+
+**Long tasks in the window, and how many hold tick time.** A task holds tick time when a sample with `tickAudioSwells` on its stack falls inside it. The figures in brackets are the tick's ms inside the task.
+
+| Build | Run | Long tasks / holding tick | The holding tasks |
+|---|---|---|---|
+| stock | 1 | 1 / 1 | 183 ms (26.6) |
+| stock | 6 | 2 / 1 | 196 ms (30.5) |
+| stock | 8 | 8 / 6 | 162 (56.6), 69 (15.0), 55 (26.3), 52 (23.8), 95 (29.7), 54 ms (25.2) |
+| 37 | 2 | 2 / 1 | 185 ms (19.7) |
+| 37 | 4 | 3 / 2 | 187 (31.6), 63 ms (4.1) |
+| 37 | 9 | 2 / 2 | 179 (28.6), 54 ms (5.4) |
+| head | 3 | 4 / 2 | 195 (37.6), 55 ms (5.9) |
+| head | 5 | 1 / 1 | 178 ms (33.3) |
+| head | 7 | 1 / 1 | 170 ms (35.1) |
+
+As in Task 12, the 170–196 ms task appears once in every run. The tick is part of it, never all of it.
+
+**Reading.**
+- **37: `createPeriodicWave` under the tick is 0 on all six branch runs**, as the spec expected. The only stock run with a phase swell live had 2.84 %. With no phase swell in the window, stock and 37 read the same (2.26–2.41 % against 2.14–2.29 %). 37 removes the phase-swell spikes and leaves the baseline alone.
+- **Backlog 40's size: the phase setter under the tick on 37 is 0.03 % (0.01–0.04 %)**, or 1.1–3.2 ms per window. All of it is under `applyOscFieldViaSet`, with no `createPeriodicWave`. That is gain, detune and ADSR writes re-applying an unchanged phase, which hit the wave cache.
+- **38: head is outside 37's spread. The tick grows by 0.81 points at the median (2.16 → 2.97 %, +38 %)**, and head's lowest run (2.90 %) sits above 37's highest (2.29 %). With the store half excluded, the growth is 0.69 points (1.49 → 2.18 %). It sits in three buckets:
+  - robot param writes, +0.37 points;
+  - envelope, +0.27 points;
+  - global setters, +0.14 points.
+
+  Per write leaf, under the tick, per run:
+
+  | Leaf | 37 | head |
+  |---|---|---|
+  | `setOrPoint` | 0.36 / 0.40 / 0.39 % | (none) |
+  | `setOrGlide` | (none) | 1.05 / 1.19 / 1.21 % |
+  | its `getTickSeconds` | (none) | 0.18 / 0.13 / 0.22 % |
+
+  A glide is Tone's `rampTo`, which reads the current value and sets a ramp point before the ramp. It costs about three times a point.
+  - **The envelope bucket grows because `updateVoiceEnvelope` re-applies each layer's gain and detune** through `setOrGlide` and `applyOscDetune`. That is backlog 41's stale envelope patch, which now glides too.
+  - **`getTickSeconds` (Transport `toSeconds('16n')`) runs once per write**, not once per tick.
+
+  Outside the tick, Auto pan's glide adds 0.12 % (0.03–0.14 %) in `updateAllPanners`. Tone's clock callbacks, which include the tick, run 10.05–10.38 % on head against 9.15–9.53 % on 37.
+- Stated, not tuned (spec §5.6). Head's tick, at 2.97 %, is still below stock's phase-swell run (6.11 %) and Task 12's range (4.13–6.45 %). Whether 0.8 points is acceptable for the glide is Crawford's call at Checkpoint B.
+
+### One tick-length read per tick (Task 14, 2026-10-27)
+
+Plan Task 13 made `getTickSeconds(time)` keep its answer for a time, so a tick reads the tempo once instead of once per write. This is T7's harness and method, run on two builds in a new session:
+
+| Build | Commit | Bundle | Port |
+|---|---|---|---|
+| head before T13 | T7's head build (`src/` as at `0bdf7562`; `5459e740` changes no `src/`) | `index-CQTj_4-g.js` | 4176 |
+| T13 | `0922f0df` | `index-DX6Ub-bi.js` | 4177 |
+
+Six runs alternated head, T13, head, T13, head, T13, with orphaned Chrome 0 before and after each call. The clock mapping bracketed on all six.
+
+| Share of sampled time, under the tick | head (runs 1 / 3 / 5) | T13 (runs 2 / 4 / 6) |
+|---|---|---|
+| `getTickSeconds` | 0.18 / 0.16 / 0.23 % | **0.03 / 0.00 / 0.02 %** |
+| `setOrGlide` | 1.08 / 0.85 / 0.72 % | 0.79 / 0.95 / 0.84 % |
+| `tickAudioSwells`, inclusive | 3.08 / 2.98 / 2.79 %, median 2.98 | 4.58 / 3.04 / 2.87 %, median 3.04 |
+| tick with the store half excluded | 2.29 / 2.29 / 2.12 %, median 2.29 | 3.61 / 2.16 / 2.11 %, median 2.16 |
+| long tasks in the window / holding tick time | 43 / 20, 11 / 9, 7 / 5 | 29 / 9, 15 / 4, 2 / 1 |
+
+**Reading.**
+- **The read itself is gone:** `getTickSeconds` falls from 0.16–0.23 % to 0.00–0.03 %, which is what T7 sized.
+- **The tick total does not show it in this session.** The noise is larger than the saving. Head's own three runs span 2.79–3.08 %, against about 0.2 saved. This session was also busier than T7's:
+  - the first two runs carried 43 and 29 long tasks (T7: 1–8);
+  - Tone's clock callbacks ran at 13.5 % in both (T7: 9–14 %);
+  - T13's run 2 is the outlier at 4.58 %, with 2.52 % in "the rest" bucket.
+
+  On the two quieter T13 runs (3.04 and 2.87 %), the tick sits inside head's spread.
+- Head's numbers here (median 2.98 %) repeat T7's head (2.97 %). The glide's +0.8 points over 37 stands. T13 takes 0.16–0.23 points of it off (a fifth to a quarter), but that is not resolvable in the tick total at three runs.
 
 ## Steady-state review — what runs continuously, and which of it can pop (2026-10-26)
 
@@ -2569,7 +2715,7 @@ Crawford, hearing cracks and pops on the desktop (not level distortion), asked f
 continuously while the world plays: the Transport ticks, the store writes they make, what React re-renders for them,
 and what GSAP writes per frame. A code read on `main` at `959a989b`, not a measurement; the one measured number it
 leans on is the swell tick's share above (Task 12). Two of the findings were not in the backlog and are now
-[38](todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) and
+[38](todo/archive/backlog-archive.md#38-audio-swell-writes-land-as-steps-not-ramps) and
 [39](todo/backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first).
 
 ### Two mechanisms, told apart by the overlay
@@ -2585,8 +2731,8 @@ the Audio Rig.
 
 | # | What runs | How often | Why it costs, or pops | Record |
 |---|---|---|---|---|
-| 1 | A phase swell's write | every `16n` per swelling layer | Tone's `phase` setter re-runs `type`, which builds a periodic wave (most of the tick's CPU, Task 12) and calls `setPeriodicWave` on the **sounding** native oscillator: a waveform jump mid-note. | [backlog 37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), decided |
-| 2 | Every other swell write through `setOrPoint` (`src/engine/audioEngine/voiceEntry.ts`) | every `16n` per active swell | A bare `setValueAtTime`: layer gain (range 0–2, minimum swing half the range, times Intensity), EQ3 low/mid/high (±12 dB), LPF/HPF Q and detune each move as 16 hard steps a measure, a staircase on a sustained note. Volume, the sends and the filter frequencies ramp (50 ms) and are fine. Backlog 35 dropped the pre-scheduled curve on a CPU criterion; the audible staircase was never the criterion. | [backlog 38](todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps), new |
+| 1 | A phase swell's write | every `16n` per swelling layer | Tone's `phase` setter re-runs `type`, which builds a periodic wave (most of the tick's CPU, Task 12) and calls `setPeriodicWave` on the **sounding** native oscillator: a waveform jump mid-note. | [backlog 37](todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), decided |
+| 2 | Every other swell write through `setOrPoint` (`src/engine/audioEngine/voiceEntry.ts`) | every `16n` per active swell | A bare `setValueAtTime`: layer gain (range 0–2, minimum swing half the range, times Intensity), EQ3 low/mid/high (±12 dB), LPF/HPF Q and detune each move as 16 hard steps a measure, a staircase on a sustained note. Volume, the sends and the filter frequencies ramp (50 ms) and are fine. Backlog 35 dropped the pre-scheduled curve on a CPU criterion; the audible staircase was never the criterion. | [backlog 38](todo/archive/backlog-archive.md#38-audio-swell-writes-land-as-steps-not-ramps), new |
 | 3 | `updateAllPanners` (`src/engine/AudioEngine.ts`) | every `16n` per swimming robot | Writes `pan.value` directly (cancel + `setValueAtTime`), a step on every sounding robot in motion; the slider path (`updateRobotPan`) ramps 50 ms. | folded into 38 |
 | 4 | The swell tick's store writes | 25–65 writes/s with both pools full | `updateRobot` rebuilds the locale, so every robot swell write re-renders Robot → RobotBody → RobotGem (RobotGem's memo is defeated: RobotBody hands it new `palette`, `orbiters` and `halo` objects each render), LightShafts and both TerrainLayers (they select the whole locale and recompute the terrain outline and facets), and a `layer1.gain`/`layer2.gain` swell rebuilds the strip-flicker timeline every tick because the gain is in the trigger tuple. EQ/filter swells re-render 6–9 ChargingStation fragments. The audio budget's `signature()` string runs per write. Zustand renders at the blocking lane, inside the Tone clock callback. Measured: the store half under 1 % and React about a third of the long tasks it sat in (Task 12). | [backlog 39](todo/backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first), new |
 | 5 | The 1 Hz clock tick (`AttenuationStyleView`'s `setInterval` → `activeLocaleLocalTime`) | once a second, powered off too | About 60 Factories (fills, facets, window grids), every scenery actor, the 12 world robots, water, shafts and terrain subscribe to the float; LocaleView → OceanScene (neither memo'd) cascades to every non-memo child. One burst a second: a long-task candidate only if the burst exceeds 100 ms, which is unmeasured. | 39 |

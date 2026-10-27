@@ -171,7 +171,7 @@ function writeGlobalValue(target: SwellGlobalTargetId, value: number, time?: num
 // ROBOT ATTRIBUTE READ/WRITE
 // ========================================
 
-const LAYER_FIELD_PATTERN = /^layer(\d)\.(gain|detune|phase|pulseWidth)$/;
+const LAYER_FIELD_PATTERN = /^layer(\d)\.(gain|detune)$/;
 const ADSR_FIELD_PATTERN = /^adsr\.(attack|decay|sustain|release)$/;
 
 /** The five per-robot sends, each a stored 0..1 fraction on Robot (docs/specs/ROBOT_SEND_TABLE.md §1.3). */

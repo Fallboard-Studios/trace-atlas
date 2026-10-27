@@ -157,7 +157,6 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
         value={paramValue(layer, 'phase')}
         onChange={handlePhaseChange}
         disabled={disabled}
-        swelling={swelling?.phase}
       />
     </div>
   );
@@ -213,7 +212,6 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
                 value={paramValue(layer, 'pulseWidth')}
                 onChange={handlePulseWidthChange}
                 disabled={disabled}
-                swelling={swelling?.pulseWidth}
               />
             </div>
           </DirectionalPanel>

@@ -1561,15 +1561,15 @@ describe('useCompanyOptions', () => {
     it('are read from the first member only, matching the value they sit beside', () => {
       twoDistinctMembers();
       vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation(
-        (id, attr) => (id === 'r1' && attr === 'volume') || (id === 'r2' && attr === 'adsr.attack') || (id === 'r1' && attr === 'layer2.phase'),
+        (id, attr) => (id === 'r1' && attr === 'volume') || (id === 'r2' && attr === 'adsr.attack') || (id === 'r1' && attr === 'layer2.detune'),
       );
 
       const { result } = renderHook(() => useCompanyOptions('c1'));
 
       expect(result.current.options.volumeSwelling).toBe(true);
       expect(result.current.options.adsrSwelling).toEqual({ attack: false, decay: false, sustain: false, release: false });
-      expect(result.current.options.layerSwelling[2]).toEqual({ gain: false, detune: false, phase: true, pulseWidth: false });
-      expect(result.current.options.layerSwelling[0]).toEqual({ gain: false, detune: false, phase: false, pulseWidth: false });
+      expect(result.current.options.layerSwelling[2]).toEqual({ gain: false, detune: true });
+      expect(result.current.options.layerSwelling[0]).toEqual({ gain: false, detune: false });
     });
 
     it.each([0, 1, 2])('layer %i\'s flags are recomputed when a swell tick writes that layer\'s value (the module-scope Map is not tracked by React)', (idx) => {

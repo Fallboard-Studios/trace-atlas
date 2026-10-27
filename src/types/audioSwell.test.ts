@@ -40,26 +40,24 @@ describe('SWELL_GLOBAL_TARGET_IDS', () => {
 });
 
 describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
-  // Its own explicit list since 2026-09-30 (docs/specs/LFO_LOAD_FIX.md assumption 9): the LFO
-  // target set dropped volume/pulseWidth, but swells keep ramping both. Every remaining LFO
-  // target is still a swell attribute; the swell set is a strict superset.
-  it('is volume + every layer field (gain/detune/phase/pulseWidth × 3) + the 4 adsr.* fields + the five sends', () => {
-    expect([...SWELL_ROBOT_ATTRIBUTE_IDS].sort()).toEqual(
-      [
-        'volume',
-        'layer0.gain', 'layer0.detune', 'layer0.phase', 'layer0.pulseWidth',
-        'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
-        'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
-        'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
-        'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend',
-      ].sort()
-    );
+  // Its own explicit list (docs/specs/LFO_LOAD_FIX.md assumption 9): the LFO target set has no volume, but
+  // swells ramp it. Every layer LFO target is a swell attribute. A layer's phase and pulse width are not
+  // (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md section 3, which also fixes this order).
+  it('is volume + every layer gain/detune (x 3) + the 4 adsr.* fields + the five sends, in that order', () => {
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toEqual([
+      'volume',
+      'layer0.gain', 'layer0.detune',
+      'layer1.gain', 'layer1.detune',
+      'layer2.gain', 'layer2.detune',
+      'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
+      'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend',
+    ]);
   });
 
-  it('lists the five sends after every pre-existing attribute, so no earlier index-based pick shifts', () => {
+  it('lists the five sends after every other attribute', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS.slice(-5)).toEqual(['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend']);
     expect(SWELL_ROBOT_ATTRIBUTE_IDS[0]).toBe('volume');
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS[16]).toBe('adsr.release');
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS[10]).toBe('adsr.release');
   });
 
   // bus.frequency (docs/specs/ROBOT_ARTICULATION.md assumption 10) is an LFO target with no swell apply
@@ -74,15 +72,9 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS as readonly string[]).not.toContain('bus.frequency');
   });
 
-  it('has exactly 22 members, no duplicates', () => {
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toHaveLength(22);
-    expect(new Set(SWELL_ROBOT_ATTRIBUTE_IDS).size).toBe(22);
-  });
-
-  it('includes layer0/1/2.phase — a real divergence from LFO/Drift, not an oversight (spec §1.3)', () => {
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer0.phase');
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer1.phase');
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer2.phase');
+  it('has exactly 16 members, no duplicates', () => {
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toHaveLength(16);
+    expect(new Set(SWELL_ROBOT_ATTRIBUTE_IDS).size).toBe(16);
   });
 
   it('never includes a Robot Ping Control field', () => {
@@ -92,10 +84,10 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).not.toContain('octaveRange');
   });
 
-  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 7 members, bus.frequency being the non-swell target (volume/pulseWidth/phase stay swell attributes even though they are no longer LFO targets)', () => {
+  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 7 members, bus.frequency being the non-swell target (volume stays a swell attribute though it is no LFO target, and pulseWidth is neither)', () => {
     expect(ROBOT_LFO_TARGET_IDS).toHaveLength(7);
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('volume');
-    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer0.pulseWidth');
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS as readonly string[]).not.toContain('layer0.pulseWidth');
   });
 });
 

@@ -10,7 +10,7 @@ Source of truth: [`src/engine/beatClock.ts`](../src/engine/beatClock.ts).
 
 ```typescript
 import {
-  initBeatClock, getCurrentBeat, getCurrentMeasure, getCurrentMeasurePrecise,
+  initBeatClock, getCurrentBeat, getCurrentMeasure, getCurrentMeasurePrecise, getTickSeconds,
   subscribeToMeasure, scheduleRepeat, cancelSchedule, resetBeatClock,
 } from '../engine/beatClock';
 ```
@@ -40,16 +40,21 @@ and fires every measure listener once per measure change, with the real, monoton
 getCurrentBeat(): number      // float, 0-based
 getCurrentMeasure(): number   // int, 0-based
 getCurrentMeasurePrecise(): number  // float, getCurrentBeat() / 4 — sub-measure resolution, still monotonic
+getTickSeconds(time?: number): number | undefined  // one '16n' in seconds at the live tempo; undefined with no transport
 subscribeToMeasure(callback: (measure: number) => void): () => void  // returns an UNSUBSCRIBE function — capture and call it on cleanup
 scheduleRepeat(interval: string, callback: (time: number) => void): string  // returns an opaque schedule ID
 cancelSchedule(scheduleId: string): void
 resetBeatClock(): void
 ```
 
-- `scheduleRepeat` forwards the time the Transport hands each tick: seconds on the audio clock, the moment the tick is *for*, which runs about `lookAhead` (100 ms) ahead of now. A consumer that reaches Tone places its writes at it: a param write (a ramp, a level) lands at `time` itself, a note at `time + MIN_LEAD`. A Tone call made from inside the callback with no time lands "now" instead, up to `lookAhead` early, and Tone warns once per page ("Events scheduled inside of scheduled callbacks should use the passed in scheduling time"). A consumer that makes no Tone call names it `_time` and says why (the harmony tick). `subscribeToMeasure` hands only the measure, no time.
+- `scheduleRepeat` forwards the time the Transport hands each tick: seconds on the audio clock, the moment the tick is *for*, which runs about `lookAhead` (100 ms) ahead of now. A consumer that reaches Tone places its writes at it: a param write (a ramp, a level) starts at `time` itself and glides one tick from there (`getTickSeconds`, below), and a note goes at `time + MIN_LEAD`. A Tone call made from inside the callback with no time lands "now" instead, up to `lookAhead` early, and Tone warns once per page ("Events scheduled inside of scheduled callbacks should use the passed in scheduling time"). A consumer that makes no Tone call names it `_time` and says why (the harmony tick). `subscribeToMeasure` hands only the measure, no time.
 - `scheduleRepeat` is safe to call before `initBeatClock` runs — it queues the request and registers it once a transport is available; the queued callback receives the time like any other. The interval is also passed as the tick's `startTime`, so the first firing happens after one full interval elapses, not at transport time zero.
+- `getTickSeconds(time?)` is one tick's length: the transport's `toSeconds('16n')` (an optional member of `TransportLike`, which Tone's Transport has), so it follows the live tempo. A per-tick write glides over it into the next tick instead of stepping (`setOrGlide` and `rampOrSet` in `audioEngine/voiceEntry.ts`; [specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](specs/SWELL_PHASE_PULSE_WIDTH_CUT.md) §8.2).
+  - **Given a time,** the length is read once for that time and kept. Every write in one Transport callback carries that callback's time, so a tick reads the tempo once, and all its writes glide the same length. A tempo change reaches the next tick, which has a new time.
+  - **With no time,** it is read live on every call.
+  - It is `undefined` with no transport, a transport without `toSeconds`, or a length that is not finite and positive. A bad length is never kept. With no length, a timed write falls back as it did before the glide: `setOrGlide` to a point at `time`, and `rampOrSet` to its own `rampSeconds` from `time` (the headless and test path).
 - There is no public one-shot helper (e.g. no `scheduleAtBeat`) — for one-shot beat-accurate callbacks, use the transport instance directly (`transport.scheduleOnce(...)`), obtained from wherever `AudioEngine` exposes it.
-- `resetBeatClock()` clears the internal `'16n'` tick, clears every tracked schedule (`transport.clear` on each), clears **all** measure listeners, and nulls the transport reference. Called from `AudioEngine.killAll()`, not from `AudioEngine.stop()`. After a reset, `initBeatClock(transport)` must run again before any scheduling API is used, and every `subscribeToMeasure` caller must re-subscribe.
+- `resetBeatClock()` clears the internal `'16n'` tick, clears every tracked schedule (`transport.clear` on each), clears **all** measure listeners, nulls the transport reference, and forgets the kept tick length. Called from `AudioEngine.killAll()`, not from `AudioEngine.stop()`. After a reset, `initBeatClock(transport)` must run again before any scheduling API is used, and every `subscribeToMeasure` caller must re-subscribe.
 - No `pause`/`seek`/`start`/`stop` here — lifecycle is entirely owned by whatever transport was passed in.
 
 ## Usage

@@ -760,104 +760,8 @@ the param at its start and rendered on the audio thread, with no per-tick engine
 behind a measurement and a threshold: build it only past **2 %**. The tick's 3.38 % clears that, but the param writes a
 curve would take off the main thread are **0.45–0.70 %**. Most of the tick is phase writes rebuilding a periodic wave,
 a setting a curve cannot carry, and that cost is
-[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). The design that would have been built is in the
+[37](archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). The design that would have been built is in the
 intent's Out of scope ([docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md#out-of-scope)).
-
-### 36. Audio: Swells on `pulseWidth` Write NaN Into the Voice Every Tick
-
-**Found 2026-10-26** (Crawford, dev and production): a flood of
-`[AudioEngine] Failed to set pulseWidth on composite layer Error: Invalid argument(s) to setValueAtTime: null, 14.2…`,
-one every 16th note, from `applyOscFieldViaSet` ← `composite.set` ← `AudioEngine.updateVoiceLayerParams` ←
-`applyLayersContinuous` (`robotOptionsActions.ts`). The `null` is `JSON.stringify(NaN)` (Tone's `Param.setValueAtTime`
-assert prints the value that way), so the value written is **NaN**, not null.
-
-**Cause.** A swell whose target is `layerN.pulseWidth` reads its base from the robot's stored layer
-(`readRobotValue` in `audioSwells.ts`: `layer[field]`), and `OscillatorLayer.pulseWidth` is optional
-(`src/types/layeredAudio.ts`: "meaningful for pulse/square oscillators"), so on a layer without one the base is
-`undefined`, the swell's arithmetic makes NaN, and `writeRobotValue` applies it through `applyLayersContinuous` on every
-tick for the swell's life. The eligibility check (`isRobotAttributeStructurallyLive`) asks only that the layer's gain be
-nonzero, not that the field exist or that the layer be a pulse type. The composite catches the throw and warns, so the
-voice keeps its old width and nothing is heard; the console is unusable while it runs.
-
-**To check first:** whether `applyLayersContinuous` also writes the NaN into the store (a NaN in Zustand serialises
-as `null`, so a saved session or world link could carry a `pulseWidth: null`), and whether `phase`, also optional on
-the type, can do the same.
-
-**Fix (behaviour, RED first):** a swell on a layer field is structurally unavailable when the robot's layer has no finite
-value for that field, the same way a missing layer slot already is, so the pool never selects it; and
-`readRobotValue` never returns a non-number (fall back or throw in a test, not NaN into the engine). If the store check
-finds a NaN, the write path refuses non-finite values too. Done when a world with non-pulse layers runs several swells
-with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on such a layer passes.
-
-**Superseded (Crawford, 2026-10-26):** pulse width comes off the swell targets in
-[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), which removes the only source of the flood; the fix
-above is not built. The store check moves to 37, and 36 closes when 37 ships.
-
-### 37. Audio: Phase Swells Rebuild a Periodic Wave Every Tick
-
-**Found 2026-10-26** by backlog 35's measurement (Task 12, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
-Crawford asked for it as its own item after the breakdown (2026-10-26) and dropped 35's pre-scheduled curve the same
-day: the curve would have removed only the 0.45–0.70 % of param writes, not this.
-
-**What was measured.** On the swell-heavy link (charlie, Swell Frequency 16, Duration 1), unminified build, 4× throttle,
-the IDLE window: the swell tick takes 4.13–6.45 % of sampled time. Writes to a layer's `phase` are **1.82–4.10 %** of
-that window, most of the tick, and every other part is smaller: pulse width 0.05–0.12 %, the robot param writes 0.21–0.24 %, the global setters
-0.23–0.48 %, the store 0.77–0.83 %. The ticks that write phase sit inside Tone clock tasks of 61–185 ms.
-
-**Cause.** A swell on `layerN.phase` (0–360°, `ROBOT_SWELL_FIELD_RANGE` in `src/data/audioSwellRanges.ts`) writes a new
-value every `16n` through `applyLayersContinuous` → `AudioEngine.updateVoiceLayerParams` → the composite's `set` →
-`applyOscFieldViaSet` → `synth.set({ oscillator: { phase } })`. Tone's `Oscillator` `phase` setter re-runs its `type`
-setter, which looks for a cached periodic wave with exactly that type and phase (`_periodicWaveCache`, 100 entries) and,
-on a miss, computes the partials (`_getRealImaginary`) and calls the native `createPeriodicWave`. A swelling phase is a
-new value on nearly every tick, so nearly every tick misses: in one run 210 of the layer method's 310 ms was
-`createPeriodicWave`. A curve cannot carry it: phase is a setting, not a Param, so 35's agreed curve design leaves it
-stepwise.
-
-**Decided (Crawford, 2026-10-26): phase and pulse width come off the swell targets**, all six
-(`layer0`–`layer2` `.phase` and `.pulseWidth`). Desktop has been clipping lately and the aim is to remove everything that
-costs more than it plays: phase is most of the swell tick, and pulse width is the source of
-[36](#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s flood. The other options (write phase only
-when it moves a step, quantise it, keep a wave per layer) are not pursued.
-
-**To check first:** every place a robot swell target is listed or tested: `SwellRobotAttributeId` in
-`src/types/audioSwell.ts` and its tests, `ROBOT_SWELL_FIELD_RANGE`, the pool's eligible-target set, any UI that lists
-targets, and the docs that name them (AUDIO_SYSTEM.md's Audio Swells). Whether a saved session or world link can name a
-swell target, so a removed one is tested to load without error; and 36's store check, whether an earlier swell left a
-`pulseWidth: null` in a saved session.
-
-**Fix (behaviour, RED first):** the pool never picks a phase or pulse-width swell, and the type no longer has them.
-Done when a world runs swells with no `pulseWidth` warning, and the same measurement as 35's Task 12 on the same link
-shows the tick's share before and after. This removes 36's only source, so 36 closes with this branch.
-
-### 38. Audio: Swell Writes Land as Steps, Not Ramps
-
-**Found 2026-10-26** by the steady-state review
-([PERFORMANCE.md](../PERFORMANCE.md#steady-state-review--what-runs-continuously-and-which-of-it-can-pop-2026-10-26)),
-asked for by Crawford after the desktop's cracks and pops.
-
-**Cause.** The swell tick writes a live Param or Signal through `setOrPoint` (`src/engine/audioEngine/voiceEntry.ts`),
-which is a bare `setValueAtTime` at the tick's time: a hard step, sixteen a measure, for the swell's whole life. The
-targets it reaches that way: layer gain (`ROBOT_SWELL_FIELD_RANGE` 0–2, a minimum swing of half the range times
-Intensity, so a one-measure swell steps a sounding layer's amplitude by several percent a tick), EQ3 low/mid/high (±12
-dB, through `setGlobalEQ`), LPF and HPF Q (`setGlobalFilterLPF`/`HPF`) and layer detune. Volume, the five sends and
-the two filter frequencies go through `rampOrSet` with a 50 ms ramp and are fine. Before backlog 35 these writes were
-`.value =`, which is the same step placed "now", so this is long-standing, not a regression; 35 dropped its
-pre-scheduled curve on the main-thread criterion alone (Task 12) and never weighed the staircase.
-
-**Also here: Auto pan.** `updateAllPanners` (`src/engine/AudioEngine.ts`) writes `entry.panner.pan.value` every `16n`
-while a robot swims (gated by `PAN_WRITE_EPSILON`), a cancel-and-set step on every sounding robot in motion;
-`updateRobotPan`, the slider's path, ramps over `PAN_RAMP_SECONDS`. One call.
-
-**To check first:** the tick's `time` is the audio-clock time the write is for, and the next tick is one `16n` later
-(`Tone.Time('16n').toSeconds()` at the live tempo); a ramp that ends at the next tick's time overlaps nothing. Whether
-Tone's `Param.linearRampToValueAtTime` needs a preceding `setRampPoint` (it does: `rampTo` makes one) so the ramp starts
-from the current value, not from the last scheduled event. The headless/test stubs that `setOrPoint` falls back on.
-
-**Fix (behaviour, RED first):** a timed swell write to a Param or Signal is a ramp from its current value to the new one,
-ending at the next tick's time, for every target `setOrPoint` serves today; Auto pan's per-tick write takes the same ramp
-`updateRobotPan` uses. Done when a layer-gain swell on a sustained note is a glide, not a staircase, by ear (Crawford),
-and Task 12's measurement on the same link shows the tick's share did not grow. Intended to ride
-[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s branch: same helper, same measurement, one listen.
 
 ### 39. Main Thread: Recurring Store Writes Fan Out to the World View (Measure First)
 
@@ -892,3 +796,66 @@ LightShafts and TerrainLayer select only what they draw; the flicker trigger tup
 an edit); the lifecycle tick writes its batteries in one store set; and the Factories subscribe to a quantised hour.
 Done when the same profile window shows the two ticks' React share gone from the long tasks, with the world looking the
 same.
+
+### 40. Audio: Every Layer Write Re-applies Every Layer's Phase
+
+**Found 2026-10-26** while writing [37](archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
+4 (i)). A code read, not yet measured or tested. Crawford placed it next in plan.md after 37 and 38.
+
+**Cause.** `AudioEngine.updateVoiceLayerParams` hands the composite the robot's whole `layers` array, and the
+composite's `set` (`src/engine/audioEngine/compositeVoice.ts`) writes a layer's `phase` whenever it is defined.
+`OscillatorLayer.phase` is required, so it is always defined. `pulseWidth` is written whenever it is present.
+`updateVoiceEnvelope` patches every layer the same way. So every layer gain or detune write and every ADSR write, by
+hand or by a swell tick (up to sixteen a measure per swelling robot), runs `applyOscFieldViaSet` →
+`synth.set({ oscillator: { phase } })` on every sounding layer, though phase did not change. Tone's `phase` setter
+re-runs its `type` setter:
+
+- with phase 0 and a basic type, that is a native `type` assignment;
+- otherwise it is a periodic-wave cache lookup and `setPeriodicWave` on the **sounding** oscillator.
+
+Before 37 the phase swells churned the 100-entry cache, so these lookups could also miss and rebuild a wave. After 37
+they should hit.
+
+**To check first:**
+
+- 37's T7 measurement: the branch's remaining phase-setter share under the swell tick. **Measured 2026-10-27:
+  0.03 % (0.01–0.04) of the IDLE window on the 37 build, 1.1–3.2 ms per 6 s window at 4× throttle**, all under
+  `applyOscFieldViaSet`, with no `createPeriodicWave`, so the lookups hit the cache
+  ([PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7)).
+- Whether swapping in an identical wave, or re-assigning the same native `type`, mid-note is audible. A headless probe,
+  or Crawford's ear on a gain swell over a sustained note.
+
+**Fix: not decided.** The candidate is that the composite writes a setting only when it differs from what that node
+holds. Crawford decides once the number is in.
+
+### 41. Audio: The Composite Voice's Layer Records Drift From the Robot's Layers
+
+**Found 2026-10-26** while writing [37](archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
+4 (ii)), and checked against the code the same day. A code read with no test yet. Crawford placed it next in plan.md
+after 37 and 38.
+
+**Cause.** `createCompositeVoice` keeps one record per layer it builds (`layerNodes`, exposed as `composite.layers`),
+holding the `OscillatorLayer` it was built from, and `set` never updates it. Two symptoms follow.
+
+- **An envelope edit restores old layer values.** `updateVoiceEnvelope` builds its patch from `composite.layers`
+  (`{ ...layer, adsr }`): the build-time gain, detune, phase and pulse width. `set` applies all of them. So an ADSR
+  edit, a hand drag or an ADSR swell tick, writes the build-time values back over any layer edit or swell made since.
+  The store and the sliders keep the new values, and the engine is wrong until that layer is written again. With an
+  ADSR swell and a gain swell running on one robot, the two writes would fight every tick.
+- **Layers are matched by position against a list with the muted ones removed.** `reserveVoice` builds only audible
+  layers (`filterAudibleLayers` drops `gain === 0`). `updateVoiceLayerParams` passes all of the robot's layers, and
+  `set` matches them by index. On a robot built with layer 1 muted, the nodes are `[layer 0, layer 2]`:
+  - an edit to layer 1 lands on layer 2's synth;
+  - an edit to layer 2 finds no node and is dropped;
+  - unmuting layer 1 by hand is a live `applyLayersContinuous`, not a rebuild, so it raises layer 2's gain instead.
+
+**To check first:** one test per symptom, a few lines each against `createCompositeVoice` and `AudioEngine`, to confirm
+or kill it before any design. Also whether anything the read missed rebuilds the voice on an unmute.
+
+**Fix: not decided.** Candidates:
+
+- `set` keeps its records current;
+- the engine maps robot layer index to node;
+- a gain change across 0 goes structural (`applyLayersStructural`).
+
+A change to how the voice is built is an interview first (CLAUDE.md: ask before changing the audio architecture).

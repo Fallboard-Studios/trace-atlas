@@ -42,11 +42,19 @@ describe('useAdsrSwellingFlags', () => {
 });
 
 describe('useLayerSwellingFlags', () => {
-  it.each([0, 1, 2] as const)('reads layer %i\'s four fields, and no other layer\'s', (index) => {
-    swelling.add(`r1:layer${index}.pulseWidth`);
+  it.each([0, 1, 2] as const)('reads layer %i\'s gain and detune, and no other layer\'s', (index) => {
     swelling.add('r1:layer1.gain');
     const { result } = renderHook(() => useLayerSwellingFlags('r1', index, {}));
-    expect(result.current).toEqual({ gain: index === 1, detune: false, phase: false, pulseWidth: true });
+    expect(result.current).toEqual({ gain: index === 1, detune: false });
+  });
+
+  it.each([0, 1, 2] as const)('asks about layer %i gain and detune only, never phase or pulse width', (index) => {
+    swelling.add(`r1:layer${index}.detune`);
+    vi.mocked(isRobotAttributeSwelling).mockClear();
+    const { result } = renderHook(() => useLayerSwellingFlags('r1', index, {}));
+    expect(result.current).toEqual({ gain: false, detune: true });
+    const asked = vi.mocked(isRobotAttributeSwelling).mock.calls.map(([id, attribute]) => `${id}:${attribute}`);
+    expect(new Set(asked)).toEqual(new Set([`r1:layer${index}.gain`, `r1:layer${index}.detune`]));
   });
 
   it('is undefined without a robot', () => {
