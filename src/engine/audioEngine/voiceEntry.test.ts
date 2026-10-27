@@ -1,7 +1,12 @@
 import type * as Tone from 'tone';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { disposeVoiceNodes, rampOrSet, setOrPoint, type VoiceEntry } from './voiceEntry';
+// One tick's length (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2), a value no ramp constant has, so a glide over it
+// cannot pass by matching a caller's rampSeconds.
+const tick = vi.hoisted(() => ({ seconds: 0.137 as number | undefined }));
+vi.mock('../beatClock', () => ({ getTickSeconds: () => tick.seconds }));
+
+import { disposeVoiceNodes, rampOrSet, setOrGlide, type VoiceEntry } from './voiceEntry';
 import type { CompositeVoice } from './compositeVoice';
 import type { SendEngineKey } from '../../data/robotSends';
 
@@ -71,18 +76,38 @@ describe('disposeVoiceNodes', () => {
 });
 
 // BeatClock Transport time T1 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 2): a Transport tick hands its own
-// time down; rampOrSet starts the ramp there, or places a point there, and with no time does exactly what it did before.
+// time down, and with no time rampOrSet does exactly what it did before. Since docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md
+// §8.2, a timed ramp lasts one tick (getTickSeconds), so a per-tick write glides into the next tick.
 describe('rampOrSet', () => {
-  it('a param with rampTo, given a time, ramps from that time', () => {
+  beforeEach(() => {
+    tick.seconds = 0.137;
+  });
+
+  it('a param with rampTo, given a time, glides one tick from that time', () => {
     const param = { rampTo: vi.fn(), setValueAtTime: vi.fn(), value: 0 };
     rampOrSet(param, 0.5, 0.1, 12.25);
     expect(param.rampTo).toHaveBeenCalledTimes(1);
-    expect(param.rampTo).toHaveBeenCalledWith(0.5, 0.1, 12.25);
+    expect(param.rampTo).toHaveBeenCalledWith(0.5, 0.137, 12.25);
     expect(param.setValueAtTime).not.toHaveBeenCalled();
     expect(param.value).toBe(0);
   });
 
-  it('a param with rampTo and no time gets exactly two arguments, as before', () => {
+  it('a timed ramp reads the tick length at write time, so a tempo change reaches the next write', () => {
+    const param = { rampTo: vi.fn(), value: 0 };
+    rampOrSet(param, 0.5, 0.1, 12.25);
+    tick.seconds = 0.25;
+    rampOrSet(param, 0.6, 0.1, 12.5);
+    expect(param.rampTo.mock.calls).toEqual([[0.5, 0.137, 12.25], [0.6, 0.25, 12.5]]);
+  });
+
+  it('a timed ramp with no tick length (no transport) keeps its own rampSeconds', () => {
+    tick.seconds = undefined;
+    const param = { rampTo: vi.fn(), value: 0 };
+    rampOrSet(param, 0.5, 0.1, 12.25);
+    expect(param.rampTo).toHaveBeenCalledWith(0.5, 0.1, 12.25);
+  });
+
+  it('a param with rampTo and no time gets exactly two arguments and its own rampSeconds, as before', () => {
     const param = { rampTo: vi.fn(), value: 0 };
     rampOrSet(param, 0.5, 0.1);
     expect(param.rampTo).toHaveBeenCalledWith(0.5, 0.1);
@@ -98,7 +123,7 @@ describe('rampOrSet', () => {
   it('a time of 0 is a time, not a missing one', () => {
     const param = { rampTo: vi.fn(), value: 0 };
     rampOrSet(param, 0.5, 0.1, 0);
-    expect(param.rampTo).toHaveBeenCalledWith(0.5, 0.1, 0);
+    expect(param.rampTo).toHaveBeenCalledWith(0.5, 0.137, 0);
   });
 
   it('a param with setValueAtTime but no rampTo, given a time, gets a timed point and its value is untouched', () => {
@@ -126,32 +151,55 @@ describe('rampOrSet', () => {
   });
 });
 
-// BeatClock Transport time T2: the no-glide twin, for writes that were `.value =` (layer gain, detune, filter Q, EQ bands).
-describe('setOrPoint', () => {
-  it('given a time and a setValueAtTime, places a point there and leaves value alone', () => {
+// BeatClock Transport time T2: the twin for writes that were `.value =` (layer gain, detune, filter Q, EQ bands). With
+// a time it glides one tick when the param can ramp (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2), else a point.
+describe('setOrGlide', () => {
+  beforeEach(() => {
+    tick.seconds = 0.137;
+  });
+
+  it('given a time and a rampTo, glides one tick from that time and places no point', () => {
+    const param = { rampTo: vi.fn(), setValueAtTime: vi.fn(), value: 1 };
+    setOrGlide(param, 0.25, 4.5);
+    expect(param.rampTo.mock.calls).toEqual([[0.25, 0.137, 4.5]]);
+    expect(param.setValueAtTime).not.toHaveBeenCalled();
+    expect(param.value).toBe(1);
+  });
+
+  it('given a time and a rampTo but no tick length, places a point there (the headless path)', () => {
+    tick.seconds = undefined;
+    const param = { rampTo: vi.fn(), setValueAtTime: vi.fn(), value: 1 };
+    setOrGlide(param, 0.25, 4.5);
+    expect(param.setValueAtTime).toHaveBeenCalledWith(0.25, 4.5);
+    expect(param.rampTo).not.toHaveBeenCalled();
+    expect(param.value).toBe(1);
+  });
+
+  it('given a time and only a setValueAtTime, places a point there and leaves value alone', () => {
     const param = { setValueAtTime: vi.fn(), value: 1 };
-    setOrPoint(param, 0.25, 4.5);
+    setOrGlide(param, 0.25, 4.5);
     expect(param.setValueAtTime).toHaveBeenCalledWith(0.25, 4.5);
     expect(param.value).toBe(1);
   });
 
-  it('given no time (or an explicit undefined), assigns and places no point', () => {
-    const param = { setValueAtTime: vi.fn(), value: 1 };
-    setOrPoint(param, 0.25);
-    setOrPoint(param, 0.5, undefined);
+  it('given no time (or an explicit undefined), assigns, even on a param that can ramp', () => {
+    const param = { rampTo: vi.fn(), setValueAtTime: vi.fn(), value: 1 };
+    setOrGlide(param, 0.25);
+    setOrGlide(param, 0.5, undefined);
+    expect(param.rampTo).not.toHaveBeenCalled();
     expect(param.setValueAtTime).not.toHaveBeenCalled();
     expect(param.value).toBe(0.5);
   });
 
-  it('given a time of 0, places a point at 0', () => {
-    const param = { setValueAtTime: vi.fn(), value: 1 };
-    setOrPoint(param, 0.25, 0);
-    expect(param.setValueAtTime).toHaveBeenCalledWith(0.25, 0);
+  it('given a time of 0, glides from 0', () => {
+    const param = { rampTo: vi.fn(), value: 1 };
+    setOrGlide(param, 0.25, 0);
+    expect(param.rampTo).toHaveBeenCalledWith(0.25, 0.137, 0);
   });
 
-  it('a stub without setValueAtTime is assigned even with a time', () => {
+  it('a stub with neither is assigned even with a time', () => {
     const param = { value: 1 };
-    setOrPoint(param, 0.25, 4.5);
+    setOrGlide(param, 0.25, 4.5);
     expect(param.value).toBe(0.25);
   });
 });

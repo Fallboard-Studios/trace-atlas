@@ -238,12 +238,16 @@ vi.mock('./harmonySystem', () => ({
 }));
 
 // Mock beat clock
+// One tick's length (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2): undefined, as with no transport, except in the
+// glide cases, which set it.
+const tick = vi.hoisted(() => ({ seconds: undefined as number | undefined }));
 vi.mock('./beatClock', () => ({
   initBeatClock: vi.fn((_transport?: unknown) => undefined),
   getCurrentMeasure: vi.fn(() => 0),
   getCurrentBeat: vi.fn(() => 0),
   subscribeToMeasure: vi.fn((_cb?: unknown) => undefined),  // ← add
   resetBeatClock: vi.fn(() => undefined),
+  getTickSeconds: () => tick.seconds,
 }));
 
 // Mock refs utility
@@ -1642,6 +1646,33 @@ describe('AudioEngine.updateRobotMasterVolume', () => {
 
     expect(rampTo.mock.calls).toEqual([
       [robotBusGain(0.5), 0.05, 3.25],
+      [robotBusGain(0.5), 0.05],
+    ]);
+  });
+
+  // docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.6 Q6 (b): a timed volume write (a swell tick) glides one tick.
+  it('with a Transport time and a tick length, glides the bus gain one tick; without a time, its own 0.05 s', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    AudioEngine.reserveVoice('volume-glide-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.55);
+    const gainResults = (Tone.Gain as unknown as { mock: { results: { value: { gain: { value: number; rampTo?: unknown } } }[] } }).mock.results;
+    const busGainInstance = gainResults[gainResults.length - BUS_GAIN_FROM_END].value;
+    const rampTo = vi.fn();
+    busGainInstance.gain.rampTo = rampTo;
+
+    tick.seconds = 0.137;
+    try {
+      AudioEngine.updateRobotMasterVolume('volume-glide-robot', 0.5, 3.25);
+      AudioEngine.updateRobotMasterVolume('volume-glide-robot', 0.5);
+    } finally {
+      tick.seconds = undefined;
+    }
+
+    expect(rampTo.mock.calls).toEqual([
+      [robotBusGain(0.5), 0.137, 3.25],
       [robotBusGain(0.5), 0.05],
     ]);
   });
@@ -4267,6 +4298,23 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       const { AudioEngine, sends } = await rampable();
       AudioEngine.updateRobotSends('r1', { reverb: 0.2 });
       expect(sends.reverb.gain.rampTo!.mock.calls).toEqual([[0.2, 0.05]]);
+    });
+
+    // docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.6 Q6 (b): a timed send write (a swell tick) glides one tick.
+    it('with a Transport time and a tick length, glides every given send one tick; untimed keeps 0.05 s', async () => {
+      const { AudioEngine, reserve } = await setup();
+      const sends = reserve('r1');
+      for (const key of KEYS) sends[key].gain.rampTo = vi.fn();
+      tick.seconds = 0.137;
+      try {
+        AudioEngine.updateRobotSends('r1', { reverb: 0.2, double: 0.4 }, 3.25);
+        AudioEngine.updateRobotSends('r1', { delay: 0.6 });
+      } finally {
+        tick.seconds = undefined;
+      }
+      expect(sends.reverb.gain.rampTo!.mock.calls).toEqual([[0.2, 0.137, 3.25]]);
+      expect(sends.double.gain.rampTo!.mock.calls).toEqual([[0.4, 0.137, 3.25]]);
+      expect(sends.delay.gain.rampTo!.mock.calls).toEqual([[0.6, 0.05]]);
     });
 
     it('with a time and a NaN, still skips the NaN and times the other key', async () => {

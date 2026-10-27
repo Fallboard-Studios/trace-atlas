@@ -29,7 +29,7 @@ import {
   type ChainSpan,
   type RoomKey,
 } from './bypassCell';
-import { rampOrSet, setOrPoint, type RampableParam } from './voiceEntry';
+import { rampOrSet, setOrGlide, type RampableParam } from './voiceEntry';
 import { devWarn } from '@/utils/helpers';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -792,13 +792,13 @@ export function setGlobalDelay(params: Partial<DelaySettings>): void {
 }
 
 /** `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a global swell passes it; a UI edit does not).
- *  Frequency ramps from it; Q (a live Signal) is a point at it. */
+ *  Frequency and Q (both live Signals) glide one tick from it (rampOrSet, setOrGlide). */
 export function setGlobalFilterLPF(params: Partial<FilterSettings>, time?: number): void {
   const lpf = _globalLPF;
   if (!lpf) return;
   try {
     if (params.frequency !== undefined) rampOrSet(lpf.frequency as unknown as RampableParam, params.frequency, FILTER_FREQUENCY_RAMP_SECONDS, time);
-    if (params.Q !== undefined) setOrPoint(lpf.Q, params.Q, time);
+    if (params.Q !== undefined) setOrGlide(lpf.Q, params.Q, time);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFilterLPF failed', err);
   }
@@ -810,7 +810,7 @@ export function setGlobalFilterHPF(params: Partial<FilterSettings>, time?: numbe
   if (!hpf) return;
   try {
     if (params.frequency !== undefined) rampOrSet(hpf.frequency as unknown as RampableParam, params.frequency, FILTER_FREQUENCY_RAMP_SECONDS, time);
-    if (params.Q !== undefined) setOrPoint(hpf.Q, params.Q, time);
+    if (params.Q !== undefined) setOrGlide(hpf.Q, params.Q, time);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFilterHPF failed', err);
   }
@@ -1162,14 +1162,14 @@ export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): 
 }
 
 /** `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a global swell passes it; a UI edit does not).
- *  The three bands are live Params in decibels, so each is a point at it. */
+ *  The three bands are live Params in decibels, so each glides one tick from it (setOrGlide). */
 export function setGlobalEQ(params: Partial<EQ3Settings>, time?: number): void {
   const eq = _globalEQ;
   if (!eq) return;
   try {
-    if (params.low !== undefined) setOrPoint(eq.low, params.low, time);
-    if (params.mid !== undefined) setOrPoint(eq.mid, params.mid, time);
-    if (params.high !== undefined) setOrPoint(eq.high, params.high, time);
+    if (params.low !== undefined) setOrGlide(eq.low, params.low, time);
+    if (params.mid !== undefined) setOrGlide(eq.mid, params.mid, time);
+    if (params.high !== undefined) setOrGlide(eq.high, params.high, time);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalEQ failed', err);
   }

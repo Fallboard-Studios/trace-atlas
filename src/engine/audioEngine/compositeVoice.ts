@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 
 import { getToneCtor, type MinimalToneNode, type SynthWithOscillator } from './toneHelpers';
-import { setOrPoint, type RampableParam } from './voiceEntry';
+import { setOrGlide, type RampableParam } from './voiceEntry';
 import { devWarn } from '@/utils/helpers';
 import type { ADSREnvelope, NoteDuration, WaveformType } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -19,12 +19,13 @@ function createLayerGain(value: number, out: Tone.Gain): Tone.Gain {
  * chain needed here — detune is always a real Signal (with a `.value`) on any real Tone
  * oscillator, unlike phase/width below. Shared by construction and the live-update `set({
  * layers })` path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 4) — previously duplicated verbatim
- * in both places. `time` (the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md) places the write as a point there.
+ * in both places. `time` (the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md) glides the write one
+ * tick from there (setOrGlide).
  */
 function applyOscDetune(synth: SynthWithOscillator, detune: number, verb: 'apply' | 'set', time?: number): void {
   try {
-    const osc = (synth as unknown as { oscillator?: { detune?: Pick<RampableParam, 'setValueAtTime' | 'value'> } })?.oscillator;
-    if (osc && osc.detune) setOrPoint(osc.detune, detune, time);
+    const osc = (synth as unknown as { oscillator?: { detune?: RampableParam } })?.oscillator;
+    if (osc && osc.detune) setOrGlide(osc.detune, detune, time);
   } catch (err) {
     devWarn(`[AudioEngine] Failed to ${verb} detune on composite layer`, err);
   }
@@ -214,8 +215,9 @@ export function createCompositeVoice(
   /**
    * Live edit, matched to layers by index. With a `time` (a Transport tick's, docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3)
    * the rule is: **a live Param or Signal takes the time; a setting does not.** Layer gain (a Tone.Param) and detune (a
-   * Signal) become a point at `time`; phase and pulse width (oscillator settings via synth.set), portamento and the ADSR
-   * (read at the next trigger) are written now either way. Without a time every write is exactly the pre-existing one.
+   * Signal) glide one tick from `time` (setOrGlide); phase and pulse width (oscillator settings via synth.set),
+   * portamento and the ADSR (read at the next trigger) are written now either way. Without a time every write is exactly
+   * the pre-existing one.
    */
   const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => {
     if (params.outputGain !== undefined) out.gain.value = params.outputGain;
@@ -227,7 +229,7 @@ export function createCompositeVoice(
         const { synth, gainNode } = node;
         if (p.gain !== undefined && gainNode) {
           try {
-            setOrPoint(gainNode.gain as unknown as RampableParam, p.gain as number, time);
+            setOrGlide(gainNode.gain as unknown as RampableParam, p.gain as number, time);
           } catch (err) {
             devWarn('[AudioEngine] Failed to set layer gain on composite', err);
           }

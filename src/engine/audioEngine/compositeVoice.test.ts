@@ -1,7 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// One tick's length for the glide cases (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2). Undefined, as with no
+// transport, everywhere else, so the point cases below keep exercising the headless path.
+const tick = vi.hoisted(() => ({ seconds: undefined as number | undefined }));
+vi.mock('../beatClock', () => ({ getTickSeconds: () => tick.seconds }));
 
 // Mock Tone.js the same way AudioEngine.test.ts does, scoped to what compositeVoice.ts uses.
 vi.mock('tone', () => ({
@@ -470,5 +475,60 @@ describe('createCompositeVoice: set(params, time) places live Param writes at th
     expect(() => voice.set({ layers: [{ gain: 0.4, detune: 9 }] }, 12.5)).not.toThrow();
     expect(gain.value).toBe(0.4);
     expect(detune.value).toBe(9);
+  });
+});
+
+// docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.4 test 2: on a live Param / Signal (it has rampTo), a timed layer gain
+// or detune glides one tick into the next instead of stepping; an untimed one is assigned as before.
+describe('createCompositeVoice: set(params, time) glides one tick on params that can ramp', () => {
+  type GlideParam = TimedParam & { rampTo: ReturnType<typeof vi.fn> };
+
+  function glidingVoice(layerCount = 1) {
+    const voice = createCompositeVoice(Array.from({ length: layerCount }, () => makeLayer()), SHARED_ADSR);
+    const withRamp = (param: TimedParam) => Object.assign(param, { rampTo: vi.fn(), setValueAtTime: vi.fn() }) as GlideParam;
+    const gains = voice.layers!.map((l) => withRamp(l.gainNode!.gain as unknown as TimedParam));
+    const detunes = synthInstances().map((s) => withRamp((s as unknown as { oscillator: { detune: TimedParam } }).oscillator.detune));
+    return { voice, gains, detunes };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tick.seconds = 0.137;
+  });
+
+  afterEach(() => {
+    tick.seconds = undefined;
+  });
+
+  it('a timed gain and detune each glide one tick from the time, with no point and no assignment', () => {
+    const { voice, gains: [gain], detunes: [detune] } = glidingVoice();
+    gain.value = 1;
+    voice.set({ layers: [{ gain: 0.4, detune: 7 }] }, 12.5);
+    expect(gain.rampTo.mock.calls).toEqual([[0.4, 0.137, 12.5]]);
+    expect(detune.rampTo.mock.calls).toEqual([[7, 0.137, 12.5]]);
+    expect(gain.setValueAtTime).not.toHaveBeenCalled();
+    expect(detune.setValueAtTime).not.toHaveBeenCalled();
+    expect([gain.value, detune.value]).toEqual([1, 0]);
+  });
+
+  it('an untimed gain and detune are assigned and never ramp', () => {
+    const { voice, gains: [gain], detunes: [detune] } = glidingVoice();
+    voice.set({ layers: [{ gain: 0.4, detune: 7 }] });
+    expect([gain.value, detune.value]).toEqual([0.4, 7]);
+    expect(gain.rampTo).not.toHaveBeenCalled();
+    expect(detune.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('each layer glides to its own value at the one time', () => {
+    const { voice, gains } = glidingVoice(2);
+    voice.set({ layers: [{ gain: 0.2 }, { gain: 0.6 }] }, 3.5);
+    expect(gains.map((g) => g.rampTo.mock.calls)).toEqual([[[0.2, 0.137, 3.5]], [[0.6, 0.137, 3.5]]]);
+  });
+
+  it('a time of 0 glides from 0', () => {
+    const { voice, gains: [gain], detunes: [detune] } = glidingVoice();
+    voice.set({ layers: [{ gain: 0.3, detune: 5 }] }, 0);
+    expect(gain.rampTo).toHaveBeenCalledWith(0.3, 0.137, 0);
+    expect(detune.rampTo).toHaveBeenCalledWith(5, 0.137, 0);
   });
 });
