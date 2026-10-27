@@ -2563,6 +2563,51 @@ Inside `updateVoiceLayerParams` in run 3, 295 of 310 ms is the settings path, 21
 
 **Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase writes rebuilding a periodic wave on every `16n` (Tone's `phase` setter re-runs its `type` setter, which misses its wave cache for each new phase; pulse width, a Signal, is 0.05–0.12 %), and the agreed design leaves phase stepwise. The phase cost is backlog [37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). **Decided at Checkpoint C (Crawford, 2026-10-26): the curve is not built; the phase cost is backlog 37.**
 
+## Steady-state review — what runs continuously, and which of it can pop (2026-10-26)
+
+Crawford, hearing cracks and pops on the desktop (not level distortion), asked for a review of everything that runs
+continuously while the world plays: the Transport ticks, the store writes they make, what React re-renders for them,
+and what GSAP writes per frame. A code read on `main` at `959a989b`, not a measurement; the one measured number it
+leans on is the swell tick's share above (Task 12). Two of the findings were not in the backlog and are now
+[38](todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) and
+[39](todo/backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first).
+
+### Two mechanisms, told apart by the overlay
+
+A pop is either a **discontinuity** (a parameter or waveform jumps while a note sounds; the audio thread is fine and
+`underruns` stays flat) or an **underrun** (the render thread misses its deadline, from its own standing load or from a
+main-thread task longer than Tone's 100 ms `lookAhead`). The `?debug` overlay separates them: pops with `underruns`
+flat and `lag` low are discontinuities; `underruns` rising with `max lag` under 100 ms is the audio thread;
+`underruns` rising with lag spikes is the main thread. The quickest A/B for the first kind is Swell Frequency at 0 in
+the Audio Rig.
+
+### Ranked
+
+| # | What runs | How often | Why it costs, or pops | Record |
+|---|---|---|---|---|
+| 1 | A phase swell's write | every `16n` per swelling layer | Tone's `phase` setter re-runs `type`, which builds a periodic wave (most of the tick's CPU, Task 12) and calls `setPeriodicWave` on the **sounding** native oscillator: a waveform jump mid-note. | [backlog 37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), decided |
+| 2 | Every other swell write through `setOrPoint` (`src/engine/audioEngine/voiceEntry.ts`) | every `16n` per active swell | A bare `setValueAtTime`: layer gain (range 0–2, minimum swing half the range, times Intensity), EQ3 low/mid/high (±12 dB), LPF/HPF Q and detune each move as 16 hard steps a measure, a staircase on a sustained note. Volume, the sends and the filter frequencies ramp (50 ms) and are fine. Backlog 35 dropped the pre-scheduled curve on a CPU criterion; the audible staircase was never the criterion. | [backlog 38](todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps), new |
+| 3 | `updateAllPanners` (`src/engine/AudioEngine.ts`) | every `16n` per swimming robot | Writes `pan.value` directly (cancel + `setValueAtTime`), a step on every sounding robot in motion; the slider path (`updateRobotPan`) ramps 50 ms. | folded into 38 |
+| 4 | The swell tick's store writes | 25–65 writes/s with both pools full | `updateRobot` rebuilds the locale, so every robot swell write re-renders Robot → RobotBody → RobotGem (RobotGem's memo is defeated: RobotBody hands it new `palette`, `orbiters` and `halo` objects each render), LightShafts and both TerrainLayers (they select the whole locale and recompute the terrain outline and facets), and a `layer1.gain`/`layer2.gain` swell rebuilds the strip-flicker timeline every tick because the gain is in the trigger tuple. EQ/filter swells re-render 6–9 ChargingStation fragments. The audio budget's `signature()` string runs per write. Zustand renders at the blocking lane, inside the Tone clock callback. Measured: the store half under 1 % and React about a third of the long tasks it sat in (Task 12). | [backlog 39](todo/backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first), new |
+| 5 | The 1 Hz clock tick (`AttenuationStyleView`'s `setInterval` → `activeLocaleLocalTime`) | once a second, powered off too | About 60 Factories (fills, facets, window grids), every scenery actor, the 12 world robots, water, shafts and terrain subscribe to the float; LocaleView → OceanScene (neither memo'd) cascades to every non-memo child. One burst a second: a long-task candidate only if the burst exceeds 100 ms, which is unmeasured. | 39 |
+| 6 | The battery tick (`tickRobotLifecycle`) | 10–12 separate `updateRobot` sets per measure | Each set carries the full fan-out of row 4, for a dimming overlay that is a step function and usually changes nothing visible. One batched set would do. | 39 |
+| 7 | The audio graph's standing cost | always | Audio-rate LFO modulation of biquads (global LPF/HPF frequency and Q, each robot's `bus.frequency` link, Phaser and AutoWah when lit) recomputes coefficients per sample; plus the node count. The only row that explains underruns proper. | [backlog 27](todo/backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included), the interview |
+| 8 | Per-frame rendering residue | per frame | Job decorations write SVG attributes per working robot, halo waves read `getScreenCTM` twice a frame during a station arc, bubble streams tween continuously, a camera pan re-rasters the marker sheet and shell layer (the 2026-10-18 section above). Roadmap 53 took the bulk; nothing measured points at the remainder. | none |
+
+Checked and fine: the melody tick's per-note work (two roster finds, three `alea` draws, one `Tone.Time` parse per
+note), bypass-cell connects (only on a Mix crossing zero), the reverb IR rebuild (coalesced), the deck camera at scroll
+range 0 (a no-op), session save and the URL mirror (user action only), the melody and harmony schedulers (module state,
+no store writes).
+
+### Verdict on rows 3–8 (asked the same day)
+
+Row 3 rides with 38: one call changed to the existing ramp, the same listen proves both. Row 7 stays where the plan has
+it. Rows 4–6 are worth about an hour between them, but only if the overlay shows lag spikes beside the pops; if the pops
+survive 37 + 38 with the lag line quiet, the remaining cause is a discontinuity not yet found and rows 4–6 will not help.
+Row 5 is measured first (one `npm run perf -- --profile` window over the idle world), fixed only if its burst shows as a
+long task. Row 6 is done opportunistically, next time that file is open. Row 8 is left until something measured points
+at it.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
