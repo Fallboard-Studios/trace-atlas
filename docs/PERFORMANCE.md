@@ -2552,6 +2552,7 @@ The long tasks that hold tick time: run 1 a 185 ms task (26.8 ms of tick) and a 
 | Bucket, share of sampled time | S1 run 1 | S1 run 2 | S1 run 3 | Would a param curve remove it? |
 |---|---|---|---|---|
 | oscillator settings: `applyOscFieldViaSet` → Tone's oscillator `set` (phase, pulse width), of which native `createPeriodicWave` | 2.02 % (1.46) | 1.87 % (1.20) | 4.17 % (2.93) | No. Phase and pulse width are settings, which stay stepwise in the agreed design. |
+| of the settings row, under Tone's `phase` setter / the rest (pulse width) | 1.90 / 0.12 % | 1.82 / 0.05 % | 4.10 / 0.07 % | |
 | robot param writes: volume, sends, layer gain and detune (`rampOrSet`, `setOrPoint`, `applyOscDetune`) | 0.21 % | 0.21 % | 0.24 % | Yes |
 | global setters: EQ, LPF, HPF | 0.23 % | 0.48 % | 0.36 % | Yes |
 | envelope: `updateVoiceEnvelope` | 0.18 % | 0.13 % | 0.25 % | No. The envelope is read at trigger. |
@@ -2560,7 +2561,7 @@ The long tasks that hold tick time: run 1 a 185 ms task (26.8 ms of tick) and a 
 
 Inside `updateVoiceLayerParams` in run 3, 295 of 310 ms is the settings path, 210 ms of it `createPeriodicWave`. The param writes in the same method total about 12 ms.
 
-**Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase and pulse-width writes rebuilding a periodic wave on every `16n`, and the agreed design leaves those stepwise. Whether that means "build the curve", "build something for the phase path" or "leave it" is Crawford's call at Checkpoint C. Not decided here.
+**Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase writes rebuilding a periodic wave on every `16n` (Tone's `phase` setter re-runs its `type` setter, which misses its wave cache for each new phase; pulse width, a Signal, is 0.05–0.12 %), and the agreed design leaves phase stepwise. The phase cost is backlog [37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). Whether that means "build the curve", "build something for the phase path" or "leave it" is Crawford's call at Checkpoint C. Not decided here.
 
 ## Recording a new baseline
 

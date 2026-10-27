@@ -770,3 +770,32 @@ value for that field, the same way a missing layer slot already is, so the pool 
 `readRobotValue` never returns a non-number (fall back or throw in a test, not NaN into the engine). If the store check
 finds a NaN, the write path refuses non-finite values too. Done when a world with non-pulse layers runs several swells
 with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on such a layer passes.
+
+### 37. Audio: Phase Swells Rebuild a Periodic Wave Every Tick
+
+**Found 2026-10-26** by backlog 35's measurement (Task 12, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
+Crawford asked for it as its own item after the breakdown (2026-10-26); whether 35's pre-scheduled curve is built at all
+is 35's Checkpoint C decision, not this item's.
+
+**What was measured.** On the swell-heavy link (charlie, Swell Frequency 16, Duration 1), unminified build, 4× throttle,
+the IDLE window: the swell tick takes 4.13–6.45 % of sampled time. Writes to a layer's `phase` are **1.82–4.10 %** of
+that window, most of the tick, and every other part is smaller: pulse width 0.05–0.12 %, the robot param writes 0.21–0.24 %, the global setters
+0.23–0.48 %, the store 0.77–0.83 %. The ticks that write phase sit inside Tone clock tasks of 61–185 ms.
+
+**Cause.** A swell on `layerN.phase` (0–360°, `ROBOT_SWELL_FIELD_RANGE` in `src/data/audioSwellRanges.ts`) writes a new
+value every `16n` through `applyLayersContinuous` → `AudioEngine.updateVoiceLayerParams` → the composite's `set` →
+`applyOscFieldViaSet` → `synth.set({ oscillator: { phase } })`. Tone's `Oscillator` `phase` setter re-runs its `type`
+setter, which looks for a cached periodic wave with exactly that type and phase (`_periodicWaveCache`, 100 entries) and,
+on a miss, computes the partials (`_getRealImaginary`) and calls the native `createPeriodicWave`. A swelling phase is a
+new value on nearly every tick, so nearly every tick misses: in one run 210 of the layer method's 310 ms was
+`createPeriodicWave`. A curve cannot carry it: phase is a setting, not a Param, so 35's agreed curve design leaves it
+stepwise.
+
+**To check first:** whether swapping the wave of a sounding oscillator every 16th is audible at all (a click, or nothing),
+which decides whether a phase swell is worth keeping; and how many distinct phase values a swell writes in practice.
+
+**Options for the interview** (not decided): write phase only when it has moved by at least a step, so the
+cache hits; quantise the swelled phase to a coarse grid that fits the cache; take `phase` off the swell targets; or keep
+a wave per layer and swap it less often. Then the same measurement as 35's Task 12 on the same link, before and after.
+[36](#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) touches the same layer-field swell path
+(`readRobotValue`, eligibility), so the two may share a branch.
