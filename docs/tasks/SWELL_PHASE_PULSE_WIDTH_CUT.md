@@ -711,11 +711,16 @@ head. Crawford asked for it to run once per tick.
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every task's acceptance criteria are met, and any not met are stated with the reason.
-- [ ] AUDIO_SYSTEM.md matches the shipped pool and the glide rule.
-- [ ] Crawford's listen (Checkpoint B) is recorded in backlog 37's and 38's Built lines.
-- [ ] Ready for Crawford's PR, which closes 36, 37 and 38. Next in plan.md: backlog 40 and 41.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. *As run (19e8a8b5): types clean;
+      lint 0 errors (the 4 known scenery warnings); build clean; the suite 12285 of 12286, the one failure the known
+      `sceneToOrbiterLocal` round-trip 5 s timeout, which passes alone (10/10), as at Checkpoint A2.*
+- [x] Every task's acceptance criteria are met, and any not met are stated with the reason. *Two are stated, not met:*
+      - *T6 ran on the fallback: stock never showed the line, so T4's test is the proof (spec §7 Q3).*
+      - *38's "the tick's share did not grow": head is +0.81 points over 37 (T7). T13 took 0.16–0.23 off (T14), and
+        Crawford accepted the cost (Checkpoint B).*
+- [x] AUDIO_SYSTEM.md matches the shipped pool and the glide rule. *And BEAT_CLOCK.md has `getTickSeconds` (T8).*
+- [x] Crawford's listen (Checkpoint B) is recorded in backlog 37's and 38's Built lines.
+- [x] Ready for Crawford's PR, which closes 36, 37 and 38. Next in plan.md: backlog 40 and 41.
 
 ## Risks and Mitigations
 
