@@ -18,16 +18,16 @@ at Light are the graph's standing cost, not an accumulation, and the late collap
 - Backlog [37](backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick) **Phase and pulse width come off
   the swell targets** — phase is most of the swell tick's main-thread cost; pulse width is
   [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s NaN flood, which closes with it.
-  Decided, so spec → plan, no interview. Next.
+  Decided, so spec → plan, no interview. In progress on `fix/swell-targets`.
+- Backlog [38](backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) **Swell writes become ramps, Auto pan too** —
+  the staircase under every remaining swell target (found 2026-10-26). Folded into 37's spec and branch by Crawford
+  (2026-10-26) as its §8: built after 37's tasks, with one measurement, one listen and one PR.
 - Backlog [40](backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
   [41](backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers) **The composite voice's
   layer writes** — every layer write re-applies every layer's phase (40, sized by 37's measurement), and the composite's
   per-layer records drift from the robot's layers (41: an envelope edit restores old layer values, and a layer muted at
   build shifts later edits onto the wrong oscillator). Both are code reads, so 41 starts with the tests that confirm it.
-  Crawford put them next after 37 (2026-10-26).
-- Backlog [38](backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) **Swell writes become ramps, Auto pan too** —
-  the staircase under every remaining swell target (found 2026-10-26); rides 37's branch: same helper, same
-  measurement, one listen.
+  Crawford put them next after 37 and 38 (2026-10-26).
 - Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
   Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
   could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as

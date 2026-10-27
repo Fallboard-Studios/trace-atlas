@@ -867,6 +867,12 @@ ending at the next tick's time, for every target `setOrPoint` serves today; Auto
 and Task 12's measurement on the same link shows the tick's share did not grow. Intended to ride
 [37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s branch: same helper, same measurement, one listen.
 
+**Folded into 37 (Crawford, 2026-10-26):** designed as §8 of
+[docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md), with tasks T10–T12 in
+[its plan](../tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md), on `fix/swell-targets`. A write with a time glides one `16n` from
+it (`rampTo(value, tick, time)`). Decided in spec §8.6 (Crawford, 2026-10-26): every timed write glides, robot volume,
+the sends and the filter cutoffs included, and a glide lasts one 16th note at the live tempo.
+
 ### 39. Main Thread: Recurring Store Writes Fan Out to the World View (Measure First)
 
 **Found 2026-10-26** by the steady-state review
@@ -904,7 +910,7 @@ same.
 ### 40. Audio: Every Layer Write Re-applies Every Layer's Phase
 
 **Found 2026-10-26** while writing [37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
-4 (i)). A code read, not yet measured or tested. Crawford placed it next in plan.md after 37.
+4 (i)). A code read, not yet measured or tested. Crawford placed it next in plan.md after 37 and 38.
 
 **Cause.** `AudioEngine.updateVoiceLayerParams` hands the composite the robot's whole `layers` array, and the
 composite's `set` (`src/engine/audioEngine/compositeVoice.ts`) writes a layer's `phase` whenever it is defined.
@@ -933,7 +939,7 @@ holds. Crawford decides once the number is in.
 
 **Found 2026-10-26** while writing [37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
 4 (ii)), and checked against the code the same day. A code read with no test yet. Crawford placed it next in plan.md
-after 37.
+after 37 and 38.
 
 **Cause.** `createCompositeVoice` keeps one record per layer it builds (`layerNodes`, exposed as `composite.layers`),
 holding the `OscillatorLayer` it was built from, and `set` never updates it. Two symptoms follow.

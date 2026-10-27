@@ -1,18 +1,24 @@
-# Implementation Plan: Phase and Pulse Width Come Off the Swell Targets
+# Implementation Plan: Phase and Pulse Width Come Off the Swell Targets, and Timed Swell Writes Glide
 
-Spec: [docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md). Backlog slot:
-[37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), the first line of plan.md's Stage 1.
-It closes [36](../todo/backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick). There is no intent
-file: Crawford decided this on 2026-10-26 with no interview. Build branch: `fix/swell-targets` off `main` (`959a989b` or
-later). Backlog 38 follows on the same branch under its own spec and plan.
+Spec: [docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md). Backlog slots:
+[37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), the first line of plan.md's Stage 1,
+and [38](../todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps), which Crawford folded in on 2026-10-26
+(spec §8). It closes [36](../todo/backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick). There is
+no intent file: Crawford decided 37 on 2026-10-26 with no interview, and 38's fix was in its backlog item. Build branch:
+`fix/swell-targets` off `main` at `12008fd9`. One PR closes 36, 37 and 38.
 
 **Spec §7 is resolved** (Crawford, 2026-10-26). The Architecture Decisions record each answer:
 
 - Q1 (b): old saves are left alone, so T5, the load guard, is removed.
 - Q2 (a): parity case (e) narrows.
 - Q3: S1 and the fallback.
-- Q4: the findings are backlog 40 and 41, next in plan.md after 37.
+- Q4: the findings are backlog 40 and 41, next in plan.md after this branch.
 - Q5: the doc range is fixed.
+
+**Spec §8.6 is resolved** (Crawford, 2026-10-26):
+
+- Q6 (b): every timed write glides, robot volume, the sends and the filter cutoffs included.
+- Q7 (a): a glide lasts one 16th note at the live tempo.
 
 Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run lint`, `npm run build`, `npm run dev`
 (the console check), `npm run perf:audio`, `npm run perf -- --profile --throttle 4`.
@@ -29,12 +35,20 @@ the per-layer "swelling" flags for those two fields and sessionDiff's base looku
 The work is ordered so **every commit type-checks and the suite stays green**. Three small tasks (T1–T3) first remove
 everything that names the six ids from outside the swell system. Then T4 shrinks the type, the list and the ranges
 behind a RED test that sweeps both robot pickers. T5 was the load guard and is removed (§7 Q1); its number is kept so
-references stay stable. Two runs follow: the console check (T6) and the before/after measurement (T7). Crawford listens
-at Checkpoint B. Docs (T8) and the backlog (T9) close it.
+references stay stable. Checkpoint A closes 37's code.
+
+Backlog 38 follows as T10–T12, numbered after T9 so that 37's numbers stay stable:
+
+- T10: a getter for one tick's length;
+- T11: the two write leaves glide, with their callers;
+- T12: Auto pan glides.
+
+Two runs follow: the console check (T6), and the measurement (T7) on three builds: stock, 37 alone, and 37 + 38.
+Crawford listens at Checkpoint B. Docs (T8) and the backlog (T9) close it.
 
 Each task names its **Proof** (TASK_TEMPLATE.md):
 
-- a RED test for the two that change behaviour (T2, T4);
+- a RED test for the five that change behaviour (T2, T4, T10, T11, T12);
 - a run for T6 and T7;
 - a Read for T0, T1, T3, T8 and T9.
 
@@ -81,8 +95,22 @@ One commit per task. No docs guards and no source scans (CLAUDE.md, 2026-10-23).
   [40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) (every layer write re-applies every
   layer's phase) and [41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers)
   (the composite's layer records drift: the stale envelope patch, plus the position mismatch found on the check). They
-  sit next in plan.md after 37. T9 adds T7's residual number to 40.
+  sit next in plan.md after this branch. T9 adds T7's residual number to 40.
 - **Resolves spec §7 question 5: the `[0, 24]` doc error is fixed in T8**, beside the paragraph T8 already edits.
+- **38: a write with a time glides one tick** (spec §8.2; resolves §8.6 Q6 (b) and Q7 (a)).
+  - **Where the change lands:** only Transport ticks pass a time (the swell tick since backlog 35, and Auto pan from
+    T12). So the time-carrying branch of the two leaves in `voiceEntry.ts` is where the change goes, and no caller
+    changes its logic:
+    - `setOrPoint` becomes `setOrGlide`;
+    - `rampOrSet`'s timed branch uses the tick length in place of `rampSeconds`;
+    - untimed calls stay byte-for-byte today's.
+  - **The tick length:** it comes from BeatClock (T10). `TransportLike` gains an optional `toSeconds(time)`, which Tone's
+    Transport already has, and `getTickSeconds()` returns `transportInstance.toSeconds('16n')`, or `undefined` without a
+    transport. That follows beatClock's "no Tone import here" rule.
+  - **Without a tick length, a timed write stays a point at `time`** (today's behaviour). A timed write with no
+    transport cannot happen in the app, so this exists only for the headless and test path.
+- **38 lands after Checkpoint A.** That keeps 37's code reviewable alone, and T7's middle build (the commit after T4)
+  isolates 37's number from 38's.
 
 ## Dependency Graph
 
@@ -97,17 +125,25 @@ T1 (parity (e)       T2 (layer swelling      T3 (sessionDiff's
             │
 T4 (the pool: RED sweep; union, list, ranges, pattern, doc comment)
             │
-      Checkpoint A (full suite, types, lint, build; Crawford reviews)
+      Checkpoint A (37's code: full suite, types, lint, build; Crawford reviews)
+            │
+T10 (BeatClock: getTickSeconds, one 16n at the live tempo)
+            │
+T11 (the leaves glide: setOrPoint → setOrGlide, rampOrSet's timed branch; composite + globalFx callers)
+            │
+T12 (Auto pan: updateAllPanners passes its time and glides)
+            │
+      Checkpoint A2 (38's code: full suite, types, lint, build)
             │
 T6 (console check on dev: stock shows the line, branch does not; recorded)
             │
-T7 (same-session A/B, S1, 3 + 3 runs; recorded)
+T7 (same-session measurement, S1: stock / 37 / 37+38, 3 runs each; recorded)
             │
-      Checkpoint B (Crawford reads T6/T7 and listens, stock against branch)
+      Checkpoint B (Crawford reads T6/T7 and listens: 37's part and 38's glide)
             │
-T8 (AUDIO_SYSTEM.md: the 16-target pool; [0, 24] → 16)
+T8 (AUDIO_SYSTEM.md: the 16-target pool; [0, 24] → 16; timed writes glide. BEAT_CLOCK.md if needed)
             │
-T9 (backlog: Built lines on 36 and 37; T7's number under 40)
+T9 (backlog: Built lines on 36, 37 and 38; T7's number under 40)
             │
       Checkpoint: Complete
 ```
@@ -314,7 +350,137 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
       test is named, not chased.
 - [ ] The pool has 16 ids, both pickers are proven by T4's sweep, and no screen asks about a phase or pulse-width swell.
 - [ ] Every index-shift test update from T4 is listed for Crawford.
-- [ ] Reviewed with Crawford before the runs.
+- [ ] Reviewed with Crawford before 38.
+
+---
+
+### Phase 1b: Backlog 38, timed writes glide (spec §8)
+
+- [ ] **Task 10: `src/engine/beatClock.ts`: `getTickSeconds()`, one `16n` at the live tempo**
+
+  **Description:**
+  - `TransportLike` gains an optional `toSeconds?(time: string): number`. Tone's Transport has it, so `AudioEngine`'s
+    `initBeatClock(transport)` call needs no change: check that this compiles without a cast.
+  - `getTickSeconds(): number | undefined` returns `transportInstance.toSeconds('16n')` when the transport has the
+    method and the result is a finite positive number, and `undefined` otherwise (no transport, a stub without it, a
+    non-finite result).
+  - Nothing calls it yet. T11 does.
+
+  **Proof:** RED test in `src/engine/beatClock.test.ts`:
+  - a mock transport whose `toSeconds('16n')` returns 0.137 gives 0.137;
+  - a mock that returns a different value after a "tempo change" gives the new value, read per call and never cached;
+  - no transport, a transport without `toSeconds`, and one returning `NaN`, `0` or a negative number each give
+    `undefined`.
+
+  It fails today because the export does not exist.
+
+  **Acceptance criteria:**
+  - [ ] The getter reads the live value on every call.
+  - [ ] Every degenerate case returns `undefined`, never a bad number.
+  - [ ] Existing BeatClock tests pass unmodified.
+
+  **Verification:**
+  - [ ] `npx vitest run src/engine/beatClock.test.ts` passes.
+  - [ ] Mutation: cache the first value, and the tempo-change case fails. Return `0` instead of `undefined`, and a
+        degenerate case fails.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Checkpoint A.
+
+  **Files:** `src/engine/beatClock.ts`, `src/engine/beatClock.test.ts`
+
+  **Estimated scope:** XS (one getter, one optional type member)
+
+- [ ] **Task 11: the write leaves glide one tick: `setOrPoint` → `setOrGlide`, `rampOrSet`'s timed branch, and their
+  callers** *(§8.6 Q6 (b), Q7 (a))*
+
+  **Description:**
+  - In `src/engine/audioEngine/voiceEntry.ts`:
+    - `setOrPoint` is renamed `setOrGlide`, and its param type becomes `RampableParam`, which includes `rampTo`. With a
+      time, a `rampTo` and a tick length from `getTickSeconds()`, it calls `rampTo(value, tick, time)`. With a time but
+      no `rampTo` or no tick length, it calls `setValueAtTime(value, time)` when the param has it, which is today's
+      point. With no time, it assigns `.value`.
+    - `rampOrSet`'s timed branch calls `rampTo(target, tick ?? rampSeconds, time)`. Its untimed branch is unchanged:
+      two arguments.
+    - Both doc comments say what the leaf does now, with one sentence on why: a per-tick write glides into the next
+      tick (spec §8.2). They do not narrate the change.
+  - **Callers:** `compositeVoice.ts`'s gain write and `applyOscDetune` (its `osc.detune` type widens to admit `rampTo`),
+    and `globalFx.ts`'s EQ bands and both Q writes, call `setOrGlide`.
+  - **No caller edit for the rest:** robot volume, the sends and the filter cutoffs already go through `rampOrSet`, so
+    its timed branch makes them glide too (Q6 (b), decided). The proof is in the callers' tests: `AudioEngine.test.ts`
+    for volume and the sends (one timed `updateRobotMasterVolume` and one `updateRobotSends` reaching `rampTo(…, tick,
+    t)`) and `globalFx.test.ts` for a timed LPF/HPF frequency.
+
+  **Proof:** RED tests, written first:
+  - `src/engine/audioEngine/voiceEntry.test.ts`: spec §8.4 test 1, with `getTickSeconds` mocked to 0.137 via
+    `vi.mock('../beatClock')`. Today's `setOrPoint` describe is renamed. The timed point cases become "glides when the
+    param can ramp", and the stub-only case stays a point.
+  - `compositeVoice.test.ts` and `globalFx.test.ts`: spec §8.4 test 2, on `rampTo`-shaped stubs.
+
+  The timed cases fail today: they get a point, or `rampSeconds`.
+
+  **Acceptance criteria:**
+  - [ ] Every timed write through either leaf, on a param that can ramp, is `rampTo(value, tick, time)`.
+  - [ ] Every untimed call is exactly today's call, and the existing untimed cases pass unmodified.
+  - [ ] Without a tick length, a timed write is still a point at `time`.
+
+  **Verification:**
+  - [ ] `npx vitest run src/engine/audioEngine/voiceEntry.test.ts src/engine/audioEngine/compositeVoice.test.ts src/engine/audioEngine/globalFx.test.ts src/engine/AudioEngine.test.ts src/systems/audioSwells.test.ts`
+        passes. The last two check that the engine methods and the swell tick are unaffected above the leaf.
+  - [ ] Mutation, three ways: put back the point in `setOrGlide`'s timed branch; put back `rampSeconds` in `rampOrSet`'s
+        timed branch; drop the time from the `rampTo` call. Each fails a test.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** T10.
+
+  **Files:** `src/engine/audioEngine/voiceEntry.ts`, `voiceEntry.test.ts`, `compositeVoice.ts`,
+  `compositeVoice.test.ts`, `globalFx.ts`, `globalFx.test.ts`, `src/engine/AudioEngine.test.ts` (the volume and sends
+  cases only)
+
+  **Estimated scope:** M (two leaves, three one-line caller renames, four test files). It is past the five-file guide,
+  but it stays one task because the rename and its callers must land together to type-check. The extra file is tests
+  only.
+
+- [ ] **Task 12: `src/engine/AudioEngine.ts`: Auto pan glides**
+
+  **Description:**
+  - `updateAllPanners(_time?)` becomes `updateAllPanners(time?)`, and the write becomes
+    `rampOrSet(entry.panner.pan as unknown as RampableParam, panValue, PAN_RAMP_SECONDS, time)`. With the time from the
+    engine's own `16n` loop, this glides one tick (T11).
+  - The `PAN_WRITE_EPSILON` skip, `lastPanByRobot`, and the readout store write are unchanged.
+  - The comment above the write changes from "Tone's Param value setter is cancelScheduledValues + setValueAtTime" to
+    why the skip still matters: each glide is a ramp point plus a ramp.
+
+  **Proof:** RED test, `src/engine/AudioEngine.test.ts`. In the "updateAllPanners write coalescing" cases, the panner
+  stub gains a `rampTo` spy:
+  - a moving robot's tick calls `rampTo(pan, tick, time)` and never the `value` setter;
+  - a move under `PAN_WRITE_EPSILON` writes nothing;
+  - the manual-pan cases ("Robot Pan T3/T4") pass unmodified.
+
+  It fails today, because the write is `pan.value =`.
+
+  **Acceptance criteria:**
+  - [ ] Auto pan's per-tick write is a glide at the tick's time.
+  - [ ] Coalescing and the readout are unchanged.
+  - [ ] Manual pan and back-to-Auto are unchanged.
+
+  **Verification:**
+  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [ ] Mutation: drop `time` from the call, so the write is untimed and becomes a 50 ms `rampTo` with two arguments,
+        and the case fails. Put back `pan.value =`, and the case fails.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** T11.
+
+  **Files:** `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`
+
+  **Estimated scope:** S (one function, one test group)
+
+### Checkpoint A2: 38's code
+- [ ] `npm run build:types`, `npm run lint`, `npm test` (full suite), `npm run build` all clean.
+- [ ] Every timed swell write and Auto pan glides one tick, and every untimed write is unchanged, both proven by T11 and
+      T12's tests.
+- [ ] The commit after T4 is noted as T7's middle build.
 
 ---
 
@@ -348,39 +514,48 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   - [ ] The PERFORMANCE.md section is read against the raw harness output, every number matching.
   - [ ] Orphaned Chrome is checked 0 after the last run.
 
-  **Dependencies:** Checkpoint A.
+  **Dependencies:** Checkpoint A2. The branch run is at the head; 38 does not touch the pulse-width path.
 
   **Files:** `docs/PERFORMANCE.md`
 
   **Estimated scope:** S (runs plus one doc section)
 
-- [ ] **Task 7: the before/after measurement, a same-session A/B (spec §5.3)**
+- [ ] **Task 7: the measurement, three builds in one session (spec §5.3, §8.5)**
 
   **Description:**
-  - **Builds:** stock (the branch base, from the T6 worktree) and the branch, each with `npx vite build --minify false
-    --outDir <scratch>`, served with `vite preview` on their own ports.
+  - **Builds:** each is built with `npx vite build --minify false --outDir <scratch>` and served with `vite preview` on
+    its own port:
+    - **stock**: the branch base, from the T6 worktree;
+    - **37**: the commit after T4, from a second worktree;
+    - **head**: 37 + 38.
   - **Scratch harness:** a copy of `scripts/perf/profile.mjs` in the scratchpad that also saves each window's raw CPU
     profile and its long-task entries. This is Task 12's method; that copy was not kept, so it is rebuilt here and not
     committed. **Prove it** before reading numbers: on stock, its `tickAudioSwells` inclusive share lands in Task 12's
     recorded range (4.13–6.45 %) or the gap is explained.
-  - **Runs:** S1 only, `--profile --throttle 4`, six runs interleaved stock, branch, branch, stock, stock, branch.
-    Foreground, one per call.
+  - **Runs:** S1 only, `--profile --throttle 4`, nine runs. Three each, interleaved so that no build runs twice in a
+    row: stock, 37, head, 37, head, stock, head, stock, 37. Foreground, one per call. Nine runs exceed one tool call's
+    limit, so they go over three calls, with the orphan check between.
   - **Read from the IDLE window, per run:**
     - `tickAudioSwells` inclusive;
     - the tick with `updateRobot` excluded;
     - `applyOscFieldViaSet` under the tick, split into Tone's `phase` setter and native `createPeriodicWave`;
     - long tasks in the window, and how many hold tick time.
-  - **Record** medians and min–max for both builds in PERFORMANCE.md, beside T6's section.
-  - **Name the remaining phase-setter share on the branch** as backlog 40's size. Every sample of it comes from
+    - for 38: the robot param writes and the global setters under the tick (Task 12's buckets), which is where a glide
+      costs more than a point.
+  - **Record** medians and min–max for all three builds in PERFORMANCE.md, beside T6's section.
+  - **Name the remaining phase-setter share on the 37 build** as backlog 40's size. Every sample of it comes from
     gain, detune or ADSR writes re-applying an unchanged phase.
 
-  **Proof:** the run, recorded. Not gated (spec §5.3).
+  **Proof:** the run, recorded. 37 is not gated (spec §5.3). 38's criterion is that head's tick share stays within 37's
+  spread, or the growth is stated as a number (spec §5.6).
 
   **Acceptance criteria:**
-  - [ ] Six runs recorded with both builds' bundle names, the link and the command.
-  - [ ] `createPeriodicWave` under the tick is reported for both builds. The spec expects about 0 on the branch, and
-        any other result is stated plainly.
-  - [ ] The branch's residual phase-setter share is stated as a number.
+  - [ ] Nine runs recorded with the three builds' bundle names, the link and the command.
+  - [ ] `createPeriodicWave` under the tick is reported for all three builds. The spec expects about 0 on 37 and head,
+        and any other result is stated plainly.
+  - [ ] The 37 build's residual phase-setter share is stated as a number.
+  - [ ] Head against 37: the tick share and the param-write buckets, with their spreads, and whether head sits inside
+        37's spread.
 
   **Verification:**
   - [ ] Every recorded figure is re-read against the saved raw profiles.
@@ -391,21 +566,28 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Files:** `docs/PERFORMANCE.md` (the scratch harness is not committed)
 
-  **Estimated scope:** M (six runs, analysis, one doc section)
+  **Estimated scope:** M (nine runs, analysis, one doc section)
 
 ### Checkpoint B: Crawford's read and listen
 - [ ] Crawford reads T6's and T7's sections.
-- [ ] Crawford listens on the desktop, stock against branch on S1 at Full (spec §5.4). Nothing new is heard. Gain and
-      detune still step, which is backlog 38. Whether pops changed is noted in his words.
+- [ ] Crawford listens on the desktop, stock against head on S1 at Full (spec §5.4). Nothing new is heard, and
+      whether pops changed is noted in his words. For 38: a gain or EQ swell over a sustained note glides rather than
+      steps, and a swimming robot's pan moves smoothly. A glide that seems to fight a step on the same robot is noted
+      as probably backlog 41, not 38.
 - [ ] Reviewed before docs.
 
 ---
 
 ### Phase 3: Docs and backlog
 
-- [ ] **Task 8: `docs/AUDIO_SYSTEM.md`: the 16-target robot pool**
+- [ ] **Task 8: `docs/AUDIO_SYSTEM.md` (and `BEAT_CLOCK.md`): the 16-target robot pool, and timed writes glide**
 
   **Description:**
+  - *(38)* Wherever AUDIO_SYSTEM.md or BEAT_CLOCK.md describes a timed write as "a point at `time`" or
+    "`setValueAtTime`" (backlog 35's Scheduling Patterns rule and the Audio Swells paragraph on writes), say instead
+    that a write with a time glides one `16n` from `time`, and name `setOrGlide`, `rampOrSet` and `getTickSeconds`.
+    Auto pan glides too. Untimed hand edits are unchanged. Find each place with
+    `grep -n "setOrPoint\|setValueAtTime\|a point" docs/AUDIO_SYSTEM.md docs/BEAT_CLOCK.md`.
   - In Audio Swells, rewrite the **Robot pool** bullet:
     - 16 attributes;
     - each layer's `gain` and `detune` (six fields);
@@ -422,16 +604,18 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   **Proof:** Read. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every id, count and function name in the edited paragraphs matches the source at T4's commit or later.
+  - [ ] Every id, count and function name in the edited paragraphs matches the source at the head.
   - [ ] No sentence elsewhere in AUDIO_SYSTEM.md still calls phase or pulse width a swell target.
+  - [ ] No sentence in either doc still says a timed write is a point, and none mentions `setOrPoint`.
 
   **Verification:**
-  - [ ] Manual read and `grep -n "phase\|pulseWidth" docs/AUDIO_SYSTEM.md`, each hit read in context.
+  - [ ] Manual read and both greps (`phase\|pulseWidth`; `setOrPoint\|setValueAtTime\|a point`), each hit read in
+        context.
   - [ ] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint B.
 
-  **Files:** `docs/AUDIO_SYSTEM.md`
+  **Files:** `docs/AUDIO_SYSTEM.md`, `docs/BEAT_CLOCK.md` (only if it says "point")
 
   **Estimated scope:** XS (docs only)
 
@@ -440,17 +624,19 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   **Description:**
   - Under 37, add a **Built** line: branch, commits, T6's and T7's results in one sentence each with a link to the
     PERFORMANCE.md sections, and Crawford's listen.
+  - Under 38, add a **Built** line: folded into 37's branch, T10–T12's commits, which writes glide (§8.6 Q6's answer),
+    T7's head-against-37 numbers, and Crawford's listen.
   - Under 36, add a line that it closes with 37's branch, plus one correction: the flood is `devWarn`, dev builds only,
     not "dev and production" as its Found line says.
   - Under 40, fill in its first "To check first" bullet with T7's residual phase-setter share, with a link. 40's Fix
     stays undecided.
-  - At merge (Crawford's PR, not this task): 36 and 37 move to the archive in the usual way, and 37's plan.md line is
-    deleted.
+  - At merge (Crawford's PR, not this task): 36, 37 and 38 move to the archive in the usual way, and the 37 and 38
+    plan.md lines are deleted.
 
   **Proof:** Read. No test file.
 
   **Acceptance criteria:**
-  - [ ] 36 and 37 each say what shipped and where the proof is recorded.
+  - [ ] 36, 37 and 38 each say what shipped and where the proof is recorded.
   - [ ] 40 carries T7's number and still decides nothing (cut-cruft rule: Crawford decides).
   - [ ] Every link and anchor resolves.
 
@@ -466,9 +652,9 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 ### Checkpoint: Complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] Every task's acceptance criteria are met, and any not met are stated with the reason.
-- [ ] AUDIO_SYSTEM.md matches the shipped pool.
-- [ ] Crawford's listen (Checkpoint B) is recorded in backlog 37's Built line.
-- [ ] Ready for Crawford's PR. Next in plan.md: backlog 40 and 41, then 38.
+- [ ] AUDIO_SYSTEM.md matches the shipped pool and the glide rule.
+- [ ] Crawford's listen (Checkpoint B) is recorded in backlog 37's and 38's Built lines.
+- [ ] Ready for Crawford's PR, which closes 36, 37 and 38. Next in plan.md: backlog 40 and 41.
 
 ## Risks and Mitigations
 
@@ -482,14 +668,23 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 | `perf:audio` does not work against a dev server (HMR client, unbundled modules, the pin check) | Low | T6's first step checks it and stops to report. A harness change becomes its own TDD'd task, not an edit in passing. |
 | T7's numbers drift from Task 12's, or the rebuilt scratch harness measures differently | Medium | Same-session A/B, interleaved. T7 proves the scratch harness against Task 12's stock range before reading the branch. |
 | The residual phase-setter share on the branch is read as 37 failing | Low | Spec §5.3 and T7 name it in advance as backlog 40's size. Not gated. |
+| A glide's `setRampPoint` (a value read, a cancel-and-hold and a point, plus the ramp) costs more per write than a point, and the tick grows | Medium | T7's head-against-37 comparison, on the param-write buckets specifically. A growth beyond 37's spread is reported with its number for Crawford, not tuned away. |
+| A hand edit or a manual-pan switch lands while a glide is in flight | Low | Hand edits cancel their field's swell first, and `.value =` cancels scheduled values from now. Manual pan's untimed `rampTo` cancels and holds at now. T12 keeps the manual-pan cases unmodified, and T11 keeps the untimed cases unmodified. |
+| A glide reaches its value one tick late, so the exact return to base lands a sixteenth later than before | Low | Accepted in spec §8.2 (a sweep shifted by a sixteenth cannot be heard; the no-lag alternative jumps at a swell's first tick). The existing return-to-base tests assert the store value, which is unchanged. |
+| A glide seems to fight a step on one robot at the listen | Low | That is backlog 41's stale envelope patch (an ADSR swell tick re-applies the build-time gain, which now also glides). Noted at Checkpoint B against 41, not fixed here. |
+| Tone exponentially ramps decibel and frequency params, and `setRampPoint` swaps a 0 for `minOutput` | Low | That is the same `rampTo` volume and the sends already use. Linear for gain, cents, Q and pan. Covered by the listen. |
 
 ## Open Questions
 
-All five from spec §7 are **resolved** (Crawford, 2026-10-26), and the Architecture Decisions record each.
+All five from spec §7 and both from spec §8.6 are **resolved** (Crawford, 2026-10-26), and the Architecture Decisions
+record each.
 
 1. **Clean old saves on load?** **Resolved: (b), no.** T5 is removed.
 2. **Parity case (e).** **Resolved: (a).** T1 narrows it.
 3. **The console check's world.** **Resolved:** none remembered, so S1 and the fallback (T6).
-4. **The two findings.** **Resolved:** recorded now as backlog 40 and 41 (T0) and placed next in plan.md after 37. They
-   get their own spec or interview when picked up, not tasks here.
+4. **The two findings.** **Resolved:** recorded now as backlog 40 and 41 (T0) and placed next in plan.md after this
+   branch. They get their own spec or interview when picked up, not tasks here.
 5. **The `[0, 24]` doc error.** **Resolved:** fixed in T8.
+6. **Which timed writes glide?** **Resolved: (b).** Every timed write, robot volume, the sends and the filter cutoffs
+   included (T11).
+7. **The glide length.** **Resolved: (a).** One 16th note at the live tempo (T10).
