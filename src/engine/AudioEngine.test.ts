@@ -1828,10 +1828,13 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
       { type: 'square', gain: 0, detune: 0, phase: 0 },
       { type: 'sawtooth', gain: 1, detune: 0, phase: 0 },
     ];
+    const Tone = await import('tone');
+    const synthCallsBefore = (Tone.Synth as unknown as any).mock.calls.length;
     AudioEngine.reserveVoice('active-filter-robot', layers as any, TEST_ADSR);
     const voice = AudioEngine.getVoiceForRobot('active-filter-robot');
     expect(voice?.layers?.length).toBe(2);
-    expect(voice?.layers?.map((l) => l.layer.type)).toEqual(['sine', 'sawtooth']);
+    const builtTypes = (Tone.Synth as unknown as any).mock.calls.slice(synthCallsBefore).map((c: any[]) => c[0].oscillator.type);
+    expect(builtTypes).toEqual(['sine', 'sawtooth']);
   });
 
   it('treats a layer with no gain field as audible (fixtures predating a real value stay audible)', async () => {
@@ -1849,7 +1852,7 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
     vi.resetModules();
   });
 
-  it('applies the new ADSR to every audible layer\'s live synth via the existing set({ layers }) path', async () => {
+  it('applies the new ADSR to every audible layer\'s live synth via setShared', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layers: any[] = [
@@ -1868,7 +1871,7 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
   });
 
   // BeatClock Transport time T3 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 4).
-  it('hands a Transport time to composite.set with the patched layers, and undefined without one', async () => {
+  it('hands a Transport time to composite.setShared({ adsr }), and undefined without one', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layers: any[] = [
@@ -1877,22 +1880,84 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
     ];
     AudioEngine.reserveVoice('envelope-timed-robot', layers as any, TEST_ADSR);
     const comp = AudioEngine.getVoiceForRobot('envelope-timed-robot') as any;
+    const setSharedSpy = vi.spyOn(comp, 'setShared');
     const setSpy = vi.spyOn(comp, 'set');
 
     const newAdsr = { attack: 0.5, decay: 0.4, sustain: 0.3, release: 0.2 };
     AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr, 3.25);
     AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr);
 
-    const patched = { layers: layers.map((layer) => ({ ...layer, adsr: newAdsr })) };
-    expect(setSpy.mock.calls[0]).toEqual([patched, 3.25]);
-    expect(setSpy.mock.calls[1][0]).toEqual(patched);
-    expect(setSpy.mock.calls[1][1]).toBeUndefined();
+    expect(setSharedSpy.mock.calls[0]).toEqual([{ adsr: newAdsr }, 3.25]);
+    expect(setSharedSpy.mock.calls[1][0]).toEqual({ adsr: newAdsr });
+    expect(setSharedSpy.mock.calls[1][1]).toBeUndefined();
+    expect(setSpy).not.toHaveBeenCalled();
   });
 
   it('is a safe no-op when no composite voice is reserved for the robot', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     expect(() => AudioEngine.updateVoiceEnvelope('never-reserved', TEST_ADSR)).not.toThrow();
+  });
+});
+
+// Composite Layer Writes T6 (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2): the ADSR and the glide are robot-level, so an
+// edit of either writes no layer field. A layer gain moved off its build value must stay where it was put.
+describe('AudioEngine - an envelope or glide edit writes no layer field', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** Replace `param.value` with an accessor that counts writes, keeping the value readable. */
+  const countWrites = (param: { value: number }) => {
+    let value = param.value;
+    const counter = { writes: 0 };
+    Object.defineProperty(param, 'value', {
+      get: () => value,
+      set: (v: number) => { value = v; counter.writes++; },
+    });
+    return counter;
+  };
+
+  const reserveWithMovedGain = async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const layers: any[] = [
+      { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+      { type: 'square', gain: 0.5, detune: 0, phase: 0 },
+    ];
+    AudioEngine.reserveVoice('shared-only', layers, TEST_ADSR);
+    AudioEngine.updateVoiceLayerParams('shared-only', [{ ...layers[0], gain: 0.3 }, layers[1]]);
+    const records = AudioEngine.getVoiceForRobot('shared-only')!.layers! as any[];
+    for (const { synth } of records) synth.set.mockClear();
+    const gainWrites = records.map((r) => countWrites(r.gainNode.gain));
+    const detuneWrites = records.map((r) => countWrites(r.synth.oscillator.detune));
+    return { AudioEngine, records, gainWrites, detuneWrites };
+  };
+
+  it('an envelope edit sets every synth envelope and writes no gain, detune or oscillator field', async () => {
+    const { AudioEngine, records, gainWrites, detuneWrites } = await reserveWithMovedGain();
+    const newAdsr = { attack: 0.5, decay: 0.4, sustain: 0.3, release: 0.2 };
+
+    AudioEngine.updateVoiceEnvelope('shared-only', newAdsr);
+
+    for (const { synth } of records) expect(synth.set.mock.calls).toEqual([[{ envelope: newAdsr }]]);
+    expect(gainWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(detuneWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(records[0].gainNode.gain.value).toBe(0.3);
+  });
+
+  it('a glide edit sets every synth portamento and writes no gain, detune or oscillator field', async () => {
+    const { AudioEngine, records, gainWrites, detuneWrites } = await reserveWithMovedGain();
+
+    AudioEngine.updateVoicePortamento('shared-only', 0.15);
+
+    for (const { synth } of records) {
+      expect(synth.portamento).toBe(0.15);
+      expect(synth.set).not.toHaveBeenCalled();
+    }
+    expect(gainWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(detuneWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(records[0].gainNode.gain.value).toBe(0.3);
   });
 });
 
@@ -2341,6 +2406,142 @@ describe('AudioEngine - getRobotModulationTarget', () => {
 
     expect(() => AudioEngine.getRobotModulationTarget('mod-target-oob', 'layer2.gain')).not.toThrow();
     expect(AudioEngine.getRobotModulationTarget('mod-target-oob', 'layer2.gain')).toBeNull();
+  });
+});
+
+// Composite Layer Writes T5 (docs/specs/COMPOSITE_LAYER_WRITES.md): a layer muted at build has no synth, so the
+// voice's records, its live edits, its reservation-time patch and its LFO targets are keyed by robot layer index.
+describe('AudioEngine - a voice built with a muted layer is keyed by robot layer index', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const MUTED_MIDDLE: any[] = [
+    { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+    { type: 'square', gain: 0, detune: 0, phase: 0 },
+    { type: 'sawtooth', gain: 0.6, detune: 0, phase: 0 },
+  ];
+  const withDetune = (index: number, detune: number) => MUTED_MIDDLE.map((l, i) => (i === index ? { ...l, detune } : l));
+  const detuneOf = (rec: any) => rec.synth.oscillator.detune.value;
+
+  const reserveMutedMiddle = async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('muted-middle', MUTED_MIDDLE, TEST_ADSR);
+    const records = AudioEngine.getVoiceForRobot('muted-middle')!.layers! as any[];
+    return { AudioEngine, records };
+  };
+
+  it('builds two records, at robot indices 0 and 2', async () => {
+    const { records } = await reserveMutedMiddle();
+    expect(records.map((r) => r.index)).toEqual([0, 2]);
+  });
+
+  it('routes an edit of layer 2 to the second synth', async () => {
+    const { AudioEngine, records } = await reserveMutedMiddle();
+    AudioEngine.updateVoiceLayerParams('muted-middle', withDetune(2, 7));
+    expect(detuneOf(records[1])).toBe(7);
+    expect(detuneOf(records[0])).toBe(0);
+  });
+
+  it('writes no synth for an edit of the muted layer 1', async () => {
+    const { AudioEngine, records } = await reserveMutedMiddle();
+    AudioEngine.updateVoiceLayerParams('muted-middle', withDetune(1, 9));
+    expect(detuneOf(records[0])).toBe(0);
+    expect(detuneOf(records[1])).toBe(0);
+  });
+
+  it('resolves layer2 LFO targets to the second record, and layer1 targets to null', async () => {
+    const { AudioEngine, records } = await reserveMutedMiddle();
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer0.gain')).toBe(records[0].gainNode.gain);
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer2.gain')).toBe(records[1].gainNode.gain);
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer2.detune')).toBe(records[1].synth.oscillator.detune);
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer1.gain')).toBeNull();
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer1.detune')).toBeNull();
+  });
+
+  it('lands the reservation-time detune and pulse width on the synths at robot indices 0 and 2', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const layers: any[] = [
+      { type: 'pulse', gain: 0.8, detune: -2, phase: 0, pulseWidth: 0.3 },
+      { type: 'square', gain: 0, detune: 50, phase: 0 },
+      { type: 'sine', gain: 0.6, detune: 3, phase: 0 },
+    ];
+    AudioEngine.reserveVoice('muted-middle-top', layers, TEST_ADSR, undefined, 4, 0.6);
+    const records = AudioEngine.getVoiceForRobot('muted-middle-top')!.layers! as any[];
+
+    expect(records.map(detuneOf)).toEqual([2, 7]);
+    for (const { synth } of records) expect(synth.set).toHaveBeenCalledWith({ oscillator: { width: 0.6 } });
+  });
+});
+
+// Composite Layer Writes T7 (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2): a non-zero gain for a layer with no synth can
+// only be honoured by a rebuild, so updateVoiceLayerParams reports it and the caller rebuilds.
+describe('AudioEngine.updateVoiceLayerParams - needsRebuild', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const MUTED_MIDDLE: any[] = [
+    { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+    { type: 'square', gain: 0, detune: 0, phase: 0 },
+    { type: 'sawtooth', gain: 0.6, detune: 0, phase: 0 },
+  ];
+  const withGain = (index: number, gain: number) => MUTED_MIDDLE.map((l, i) => (i === index ? { ...l, gain } : l));
+
+  const reserve = async (layers: any[]) => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('rebuild-robot', layers, TEST_ADSR);
+    return AudioEngine;
+  };
+
+  it('returns true when the muted-at-build layer 1 is given a non-zero gain', async () => {
+    const AudioEngine = await reserve(MUTED_MIDDLE);
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', withGain(1, 0.5))).toBe(true);
+  });
+
+  it('returns false when layer 1 stays at gain 0', async () => {
+    const AudioEngine = await reserve(MUTED_MIDDLE);
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', withGain(1, 0))).toBe(false);
+  });
+
+  it('returns false when a built layer is muted (a live update)', async () => {
+    const AudioEngine = await reserve(MUTED_MIDDLE);
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', withGain(0, 0))).toBe(false);
+  });
+
+  it('returns false for an edit of a voice with every layer built', async () => {
+    const AudioEngine = await reserve([
+      { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+      { type: 'square', gain: 0.4, detune: 0, phase: 0 },
+    ]);
+    const edited: any[] = [
+      { type: 'sine', gain: 0.2, detune: 5, phase: 0 },
+      { type: 'square', gain: 0.9, detune: 0, phase: 0 },
+    ];
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', edited)).toBe(false);
+  });
+
+  it('returns false, without throwing, for a robot with no reserved voice', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(AudioEngine.updateVoiceLayerParams('never-reserved', withGain(1, 0.5))).toBe(false);
+  });
+
+  it('returns false from the stub voice a failed construction leaves behind', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const Tone = await import('tone');
+    const realSynth = Tone.Synth;
+    (Tone as unknown as { Synth: unknown }).Synth = vi.fn(() => { throw new Error('simulated construction failure'); });
+    try {
+      expect(AudioEngine.reserveVoice('stub-rebuild-robot', MUTED_MIDDLE, TEST_ADSR)).toBe(false);
+    } finally {
+      (Tone as unknown as { Synth: unknown }).Synth = realSynth;
+    }
+    expect(AudioEngine.updateVoiceLayerParams('stub-rebuild-robot', withGain(1, 0.5))).toBe(false);
   });
 });
 

@@ -144,7 +144,7 @@ beforeEach(() => {
   // environment doesn't have — no-op them, matching robotOptionsActions.test.ts's
   // own established convention for these exact three methods.
   vi.spyOn(AudioEngine, 'updateRobotMasterVolume').mockImplementation(() => {});
-  vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+  vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
   vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
 });
 

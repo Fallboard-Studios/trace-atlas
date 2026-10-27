@@ -9,18 +9,12 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 1 — The audio engine: two console errors, then what Light still carries
+## Stage 1 — The audio engine: what Light still carries
 
-The composite voice's layer writes come first, then the underruns' design decision. The measurement for that is done,
-desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks at Light are the graph's standing cost, not an
-accumulation, and the late collapse has not recurred.
+The underruns' design decision. The measurement for it is done, desktop and phone (backlog 27, the two updates of
+2026-10-26): the clicks at Light are the graph's standing cost, not an accumulation, and the late collapse has not
+recurred.
 
-- Backlog [40](backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
-  [41](backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers) **The composite voice's
-  layer writes** — every layer write re-applies every layer's phase (40, sized by 37's measurement), and the composite's
-  per-layer records drift from the robot's layers (41: an envelope edit restores old layer values, and a layer muted at
-  build shifts later edits onto the wrong oscillator). Both are code reads, so 41 starts with the tests that confirm it.
-  Crawford put them next after 37 and 38 (2026-10-26).
 - Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
   Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
   could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as
