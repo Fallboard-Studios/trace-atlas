@@ -745,6 +745,24 @@ changes how the scheduling path is called, not what it schedules; Crawford asked
 [docs/tasks/BEATCLOCK_TRANSPORT_TIME.md](../tasks/BEATCLOCK_TRANSPORT_TIME.md); building on branch
 `fix/beatclock-transport-time`.
 
+**Built** 2026-10-26 on `fix/beatclock-transport-time` (T0–T14; Checkpoints A–C passed, Crawford's listen included).
+BeatClock's `scheduleRepeat` forwards the Transport time, and the swell tick carries it to every write in both pools;
+the harmony tick, the docking lifecycle and `setRoomFeeder` stay on "now" by decision
+([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#scheduling-patterns)). **The proof run:** with `perf:audio`'s new console tally,
+stock `main` logs Tone's warning once in each of three rounds and the branch logs nothing
+([PERFORMANCE.md](../PERFORMANCE.md#beatclock-passes-the-transport-time--the-console-check-2026-10-26-backlog-35)).
+**The measurement:** the swell tick takes 3.38 % of the idle window with the store half excluded (median, 3.35–5.68 %,
+4× throttle, swell-heavy link; 0.01 % with Swell Frequency 0)
+([PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
+
+**Curve: not built** (Crawford, 2026-10-26, Checkpoint C). The pre-scheduled swell curve (the whole swell scheduled on
+the param at its start and rendered on the audio thread, with no per-tick engine write) was left out of this item
+behind a measurement and a threshold: build it only past **2 %**. The tick's 3.38 % clears that, but the param writes a
+curve would take off the main thread are **0.45–0.70 %**. Most of the tick is phase writes rebuilding a periodic wave,
+a setting a curve cannot carry, and that cost is
+[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). The design that would have been built is in the
+intent's Out of scope ([docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md#out-of-scope)).
+
 ### 36. Audio: Swells on `pulseWidth` Write NaN Into the Voice Every Tick
 
 **Found 2026-10-26** (Crawford, dev and production): a flood of
