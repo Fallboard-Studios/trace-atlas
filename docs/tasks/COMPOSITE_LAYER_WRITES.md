@@ -478,7 +478,7 @@ T0 (docs slot)
 
 ### Phase 5: Docs and the backlog
 
-- [ ] **Task 10: `docs/AUDIO_SYSTEM.md`, `docs/PERFORMANCE.md`, doc comments — document the shipped behaviour**
+- [x] **Task 10: `docs/AUDIO_SYSTEM.md`, `docs/PERFORMANCE.md`, doc comments — document the shipped behaviour**
 
   **Description:**
   - AUDIO_SYSTEM.md, "Layered / Composite Voices": the records (`index`, `written`), routing by robot index, the
@@ -494,14 +494,14 @@ T0 (docs slot)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every documented name exists in the shipped source with the documented signature (`createCompositeVoice`'s
+  - [x] Every documented name exists in the shipped source with the documented signature (`createCompositeVoice`'s
         fourth parameter, `layerAt`, `setShared`, `set`'s return, `updateVoiceLayerParams`'s return, `rebuildVoice`).
-  - [ ] PERFORMANCE.md carries both tables with their methods, builds and dates.
-  - [ ] Links and anchors resolve (before/after count).
+  - [x] PERFORMANCE.md carries both tables with their methods, builds and dates.
+  - [x] Links and anchors resolve (before/after count).
 
   **Verification:**
-  - [ ] Manual review against the source.
-  - [ ] `npm run build:types`, `npm run lint` clean (doc comments only).
+  - [x] Manual review against the source.
+  - [x] `npm run build:types`, `npm run lint` clean (doc comments only).
 
   **Dependencies:** T9, Checkpoint D.
 

@@ -1024,7 +1024,9 @@ export const AudioEngine = {
 
   /**
    * Apply updated continuous-layer parameters to a reserved CompositeVoice
-   * without rebuilding the underlying node graph.
+   * without rebuilding the underlying node graph. Pass the robot's whole `layers`: the composite routes entry i to
+   * robot layer i and writes only the fields that differ from what it last wrote there
+   * (docs/specs/COMPOSITE_LAYER_WRITES.md).
    *
    * Two-tier update rule (documented):
    * - Continuous params (gain, detune, phase, pulseWidth): use this method — instant, no gap in audio.
@@ -1084,7 +1086,7 @@ export const AudioEngine = {
   /**
    * Set the glide time (seconds) on every audible layer's live synth - updateVoiceEnvelope's shape: only the
    * portamento, through `composite.setShared`, so no layer field is written, no node is rebuilt and nothing is
-   * cut off. 0 turns the glide off. A safe no-op (devWarn) when no composite is reserved: the store holds the
+   * cut off (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2). 0 turns the glide off. A safe no-op (devWarn) when no composite is reserved: the store holds the
    * value and every reservation path re-reads it.
    */
   updateVoicePortamento(robotId: string, seconds: number): void {

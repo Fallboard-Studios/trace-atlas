@@ -146,10 +146,10 @@ export interface CompositeVoice {
   layerAt: (index: number) => LayerRecord | undefined;
   dispose?: () => void;
   /**
-   * Per-layer live node references — synth (for oscillator.detune/width) and
-   * gain node (for gain). Exposed for AudioEngine.getRobotModulationTarget
-   * (docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 9) to resolve a connectable
-   * Signal without duplicating layer-construction logic outside this module.
+   * Every built layer's record, in build order: its robot index, its live synth (for oscillator.detune) and gain
+   * node (for gain), and what was last written to them. AudioEngine.getRobotModulationTarget
+   * (docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 9) resolves a connectable Signal from one through `layerAt`,
+   * without duplicating layer-construction logic outside this module.
    */
   layers?: ReadonlyArray<LayerRecord>;
 }
@@ -163,15 +163,16 @@ export interface CompositeVoice {
  * `adsr` is the robot's one shared envelope (Roadmap Phase 9) — applied
  * identically to every layer's synth at construction, the same "one shared
  * value applied across every layer" role `phase`/`detune`/`pulseWidth` play
- * elsewhere in AudioEngine.reserveVoice. There is no per-layer override
- * anymore; live envelope edits go through the unchanged `set({ layers })`
- * path below via AudioEngine.updateVoiceEnvelope.
+ * elsewhere in AudioEngine.reserveVoice. There is no per-layer override;
+ * live envelope edits go through `setShared` below via AudioEngine.updateVoiceEnvelope.
  *
  * `portamento` (seconds each layer glides into the next note; 0 = none, today's sound) is likewise one
  * shared robot-level value applied to every layer's synth.
  *
  * `indices[k]` is the robot layer index of the k-th layer built (reserveVoice builds only audible layers, so a
- * muted layer leaves a gap); absent, it is `k`. Each record also keeps what construction wrote, as `written`.
+ * muted layer leaves a gap); absent, it is `k`. Each record keeps its robot index and what was last written to it
+ * (`written`, seeded by construction), so a live edit lands on the layer it names and writes only the fields that
+ * changed (docs/specs/COMPOSITE_LAYER_WRITES.md).
  */
 export function createCompositeVoice(
   descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] },
