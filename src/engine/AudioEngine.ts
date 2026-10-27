@@ -121,7 +121,8 @@ const GROUP_ACCENT_MULTIPLIER = 1.25;
 const VOLUME_RAMP_SECONDS = 0.05;
 /** Ramp duration for a live updateRobotPan change (a slider edit or Auto switching either way) —
  *  the same short glide as VOLUME_RAMP_SECONDS, in a constant of its own so the two can be tuned
- *  apart. docs/specs/ROBOT_PAN.md §1.3. */
+ *  apart. docs/specs/ROBOT_PAN.md §1.3. Auto's per-tick write glides one tick instead, and uses this
+ *  only when no tick length is known (rampOrSet). */
 const PAN_RAMP_SECONDS = 0.05;
 /** Ramp duration for a live updateRobotSends change - the same short glide as VOLUME_RAMP_SECONDS and
  *  PAN_RAMP_SECONDS, in a constant of its own. docs/specs/ROBOT_SENDS.md §1.4. */
@@ -408,9 +409,10 @@ function scheduleVoiceRelease(duration: NoteDuration | number, time: number): vo
 /**
  * Update all reserved panners' pan values once per tick to avoid frequent DOM reads
  * and per-trigger panner updates which can cause main-thread jank.
- * Called from the Transport tick with the scheduled `time` for accuracy.
+ * Called from the Transport tick with the scheduled `time`; each write glides one tick from it
+ * (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2), so a swimming robot's pan moves smoothly.
  */
-function updateAllPanners(_time?: number): void {
+function updateAllPanners(time?: number): void {
   try {
     for (const [robotId, entry] of compositeVoices.entries()) {
       try {
@@ -418,12 +420,12 @@ function updateAllPanners(_time?: number): void {
         if (manualPanByRobot.has(robotId)) continue;
         const visualX = getRobotVisualX(robotId);
         const panValue = calculatePanFromPosition(visualX);
-        // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
-        // operations — and robots are stationary most of the time, so skip the write unless the
-        // pan actually moved. lastPanByRobot is cleared in releaseVoice.
+        // Each glide is a ramp point plus a ramp on the panner's timeline, and robots are stationary
+        // most of the time, so skip the write unless the pan actually moved. lastPanByRobot is
+        // cleared in releaseVoice.
         const previous = lastPanByRobot.get(robotId);
         if (previous !== undefined && Math.abs(previous - panValue) < PAN_WRITE_EPSILON) continue;
-        entry.panner.pan.value = panValue;
+        rampOrSet(entry.panner.pan as unknown as RampableParam, panValue, PAN_RAMP_SECONDS, time);
         lastPanByRobot.set(robotId, panValue);
         // The Pan slider's readout under Auto — only on a write this loop already makes, so Auto's
         // audio is unchanged and a stationary robot costs nothing.

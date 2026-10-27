@@ -3046,16 +3046,22 @@ describe('AudioEngine.start — primes robot LFO links via the bank roster helpe
 });
 
 describe('AudioEngine - updateAllPanners write coalescing', () => {
-  // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
-  // operations — and updateAllPanners runs for every reserved robot on every 16n tick. Robots
-  // are stationary most of the time (docked, idle, between swims), so the pan must only be
-  // written when it actually changed.
+  // updateAllPanners runs for every reserved robot on every 16n tick, and each write it makes is a ramp point plus a
+  // ramp on the panner's timeline. Robots are stationary most of the time (docked, idle, between swims), so the pan must
+  // only be written when it actually changed. A write glides one tick from the tick's time
+  // (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2), so a swimming robot's pan moves smoothly.
   type AnyMock = ReturnType<typeof vi.fn>;
+  const TICK_SECONDS = 0.137;
 
   beforeEach(() => {
     // Earlier describes reset modules too; a fresh engine must read the same fresh store
     // instance this test seeds, so everything below is imported dynamically.
     vi.resetModules();
+    tick.seconds = TICK_SECONDS;
+  });
+
+  afterEach(() => {
+    tick.seconds = undefined;
   });
 
   function spyOnPan(panner: { pan: { value: number } }) {
@@ -3069,6 +3075,7 @@ describe('AudioEngine - updateAllPanners write coalescing', () => {
     const Tone = await import('tone');
     const { AudioEngine } = await import('./AudioEngine');
     const storeMod = await import('../stores/localeStore');
+    const readoutMod = await import('../stores/robotPanReadoutStore');
     const attenuationStyleMod = await import('../stores/attenuationStyleStore');
     const helpers = await import('../utils/localeHelpers');
     const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
@@ -3087,6 +3094,8 @@ describe('AudioEngine - updateAllPanners write coalescing', () => {
     AudioEngine.reserveVoice(robotId, layered, TEST_ADSR);
     const panner = (Tone.Panner as unknown as AnyMock).mock.results.at(-1)!.value;
     const panSet = spyOnPan(panner);
+    const panRamp = vi.fn();
+    panner.pan.rampTo = panRamp;
 
     const moveTo = (nx: number) => {
       const robots = storeMod.useLocaleStore.getState().locales[localeId]?.robots ?? [];
@@ -3098,41 +3107,69 @@ describe('AudioEngine - updateAllPanners write coalescing', () => {
       AudioEngine.releaseVoice(robotId);
       AudioEngine.killAll();
     };
-    return { tick: () => ticks.forEach((t: (time: number) => void) => t(0)), panSet, moveTo, teardown };
+    const readout = () => readoutMod.useRobotPanReadoutStore.getState().pan[robotId];
+    return { tick: (time: number) => ticks.forEach((t: (time: number) => void) => t(time)), panSet, panRamp, moveTo, readout, teardown };
   }
 
-  it('writes the pan once for a stationary robot, not on every tick', async () => {
-    const { tick, panSet, teardown } = await setup('still-robot', 0);
+  it('glides the pan once for a stationary robot, from the tick time, not on every tick', async () => {
+    const { tick, panSet, panRamp, readout, teardown } = await setup('still-robot', 0);
 
-    tick();
-    tick();
-    tick();
+    tick(2.5);
+    tick(2.625);
+    tick(2.75);
 
     // x: 0 maps to -0.5 (calculatePanFromPosition); the first tick must land it, later ones must not re-write.
-    expect(panSet).toHaveBeenCalledTimes(1);
-    expect(panSet).toHaveBeenCalledWith(-0.5);
+    expect(panRamp.mock.calls).toEqual([[-0.5, TICK_SECONDS, 2.5]]);
+    expect(panSet).not.toHaveBeenCalled();
+    expect(readout()).toBe(-0.5);
     teardown();
   });
 
-  it('writes again once the robot has moved', async () => {
-    const { tick, panSet, moveTo, teardown } = await setup('moving-robot', 0);
+  it('glides again, from that tick time, once the robot has moved', async () => {
+    const { tick, panSet, panRamp, moveTo, readout, teardown } = await setup('moving-robot', 0);
 
-    tick();
-    expect(panSet).toHaveBeenCalledTimes(1);
-
+    tick(2.5);
     moveTo(1920); // WORLD_WIDTH -> +0.5
-    tick();
-    tick();
+    tick(2.625);
+    tick(2.75);
 
-    expect(panSet).toHaveBeenCalledTimes(2);
-    expect(panSet).toHaveBeenLastCalledWith(0.5);
+    expect(panRamp.mock.calls).toEqual([[-0.5, TICK_SECONDS, 2.5], [0.5, TICK_SECONDS, 2.625]]);
+    expect(panSet).not.toHaveBeenCalled();
+    expect(readout()).toBe(0.5);
+    teardown();
+  });
+
+  it('writes nothing for a move under PAN_WRITE_EPSILON, and glides once the move is past it', async () => {
+    const { tick, panRamp, moveTo, readout, teardown } = await setup('drifting-robot', 0);
+
+    tick(2.5);
+    moveTo(0.4); // pan -0.5 + 0.4 / 1920: a 0.0002 change, under the 0.0005 epsilon
+    tick(2.625);
+    expect(panRamp).toHaveBeenCalledTimes(1);
+    expect(readout()).toBe(-0.5);
+
+    moveTo(1.2); // a 0.000625 change from the last write: past it
+    tick(2.75);
+    expect(panRamp).toHaveBeenCalledTimes(2);
+    expect(panRamp.mock.calls[1][1]).toBe(TICK_SECONDS);
+    expect(panRamp.mock.calls[1][2]).toBe(2.75);
+    teardown();
+  });
+
+  it('with no tick length (no transport), keeps its own 0.05 s ramp from the tick time', async () => {
+    tick.seconds = undefined;
+    const { tick: runTick, panRamp, teardown } = await setup('headless-robot', 0);
+
+    runTick(2.5);
+
+    expect(panRamp.mock.calls).toEqual([[-0.5, 0.05, 2.5]]);
     teardown();
   });
 });
 
 describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sections 1.3 and 4)', () => {
   // updateRobotPan(id, number) pins a robot's panner and takes it out of the pan tick;
-  // updateRobotPan(id, null) hands it back. Auto's own writes must stay exactly what they were.
+  // updateRobotPan(id, null) hands it back. Auto's own writes are updateAllPanners' timed glides.
   type AnyMock = ReturnType<typeof vi.fn>;
   const WORLD_CENTRE = 960; // calculatePanFromPosition(960) === 0
   const WORLD_RIGHT = 1920; // -> +0.5
@@ -3277,14 +3314,17 @@ describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sectio
     });
 
     it('leaves every other robot following its x', async () => {
-      const { AudioEngine, tick, moveTo, panSet, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }, { id: 'a1', x: WORLD_LEFT }]);
+      const { AudioEngine, tick, moveTo, panSet, rampTo, teardown } = await setup([{ id: 'm1', x: WORLD_CENTRE }, { id: 'a1', x: WORLD_LEFT }]);
       AudioEngine.updateRobotPan('m1', 0.8);
 
       tick();
       moveTo('a1', WORLD_RIGHT);
       tick();
 
-      expect(panSet.a1.mock.calls).toEqual([[-0.5], [0.5]]);
+      // Auto's tick write is a timed glide (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2); the manual one is untimed.
+      expect(rampTo.a1.mock.calls).toEqual([[-0.5, 0.05, 0], [0.5, 0.05, 0]]);
+      expect(rampTo.m1.mock.calls).toEqual([[0.8, 0.05]]);
+      expect(panSet.a1).not.toHaveBeenCalled();
       expect(panSet.m1).not.toHaveBeenCalled();
       teardown();
     });
@@ -3366,17 +3406,18 @@ describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sectio
     });
 
     it('resumes writing once the robot moves again after handing back', async () => {
-      const { AudioEngine, tick, moveTo, panSet, teardown } = await setup([{ id: 'b1', x: WORLD_LEFT }]);
+      const { AudioEngine, tick, moveTo, panSet, rampTo, teardown } = await setup([{ id: 'b1', x: WORLD_LEFT }]);
       tick();
       AudioEngine.updateRobotPan('b1', 0.8);
       AudioEngine.updateRobotPan('b1', null);
       panSet.b1.mockClear();
+      rampTo.b1.mockClear();
 
       moveTo('b1', WORLD_RIGHT);
       tick();
 
-      expect(panSet.b1).toHaveBeenCalledTimes(1);
-      expect(panSet.b1).toHaveBeenCalledWith(0.5);
+      expect(rampTo.b1.mock.calls).toEqual([[0.5, 0.05, 0]]);
+      expect(panSet.b1).not.toHaveBeenCalled();
       teardown();
     });
 
@@ -3391,9 +3432,11 @@ describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sectio
     });
   });
 
-  describe('Auto is unchanged', () => {
-    it('writes the panner exactly as before and mirrors each write to the readout once', async () => {
-      const { tick, moveTo, panSet, readout, teardown } = await setup([{ id: 'u1', x: WORLD_LEFT }]);
+  // Auto glides from each tick's time (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2). This describe has no tick length
+  // (no transport), so the glide keeps PAN_RAMP_SECONDS; the tick hands time 0.
+  describe('Auto follows x', () => {
+    it('writes the panner once per move, a glide from the tick time, and mirrors each write to the readout once', async () => {
+      const { tick, moveTo, panSet, rampTo, readout, teardown } = await setup([{ id: 'u1', x: WORLD_LEFT }]);
       const realSetPan = readout.getState().setPan;
       const setPanSpy = vi.fn(realSetPan);
       readout.setState({ setPan: setPanSpy });
@@ -3407,37 +3450,39 @@ describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sectio
       moveTo('u1', WORLD_RIGHT);
       tick();
 
-      expect(panSet.u1.mock.calls).toEqual([[-0.5], [0], [0.5]]);
+      expect(rampTo.u1.mock.calls).toEqual([[-0.5, 0.05, 0], [0, 0.05, 0], [0.5, 0.05, 0]]);
+      expect(panSet.u1).not.toHaveBeenCalled();
       expect(setPanSpy.mock.calls).toEqual([['u1', -0.5], ['u1', 0], ['u1', 0.5]]);
       expect(readout.getState().pan.u1).toBe(0.5);
       teardown();
     });
 
-    it('never touches the rampTo of an Auto robot (Auto stays an instant set, as on main)', async () => {
-      const { tick, moveTo, rampTo, teardown } = await setup([{ id: 'u1', x: WORLD_LEFT }]);
+    it('falls back to a direct .value set when the panner has no rampTo (headless)', async () => {
+      const { tick, moveTo, panSet, teardown } = await setup([{ id: 'u1', x: WORLD_LEFT }], { withRamp: false });
 
       tick();
       moveTo('u1', WORLD_RIGHT);
       tick();
 
-      expect(rampTo.u1).not.toHaveBeenCalled();
+      expect(panSet.u1.mock.calls).toEqual([[-0.5], [0.5]]);
       teardown();
     });
   });
 
   describe('releaseVoice', () => {
     it('forgets the manual state: a re-reserved robot with no re-prime follows x again', async () => {
-      const { AudioEngine, tick, panSet, reserve, teardown } = await setup([{ id: 'r1', x: WORLD_RIGHT }]);
+      const { AudioEngine, tick, panSet, rampTo, reserve, teardown } = await setup([{ id: 'r1', x: WORLD_RIGHT }]);
       AudioEngine.updateRobotPan('r1', 0.2);
       tick();
-      expect(panSet.r1).not.toHaveBeenCalled(); // manual
+      expect(rampTo.r1.mock.calls).toEqual([[0.2, 0.05]]); // manual: the hand write only, no Auto glide
+      expect(panSet.r1).not.toHaveBeenCalled();
 
       AudioEngine.releaseVoice('r1');
       reserve('r1');
       tick();
 
-      expect(panSet.r1).toHaveBeenCalledTimes(1);
-      expect(panSet.r1).toHaveBeenCalledWith(0.5);
+      expect(rampTo.r1.mock.calls).toEqual([[0.5, 0.05, 0]]);
+      expect(panSet.r1).not.toHaveBeenCalled();
       teardown();
     });
 
@@ -3466,7 +3511,7 @@ describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sectio
     });
 
     it('does not leave a phantom manual entry: the robot reserved later follows x until it is re-primed', async () => {
-      const { AudioEngine, tick, panSet, reserve, teardown } = await setup([{ id: 'x1', x: WORLD_CENTRE }]);
+      const { AudioEngine, tick, panSet, rampTo, reserve, teardown } = await setup([{ id: 'x1', x: WORLD_CENTRE }]);
       AudioEngine.updateRobotPan('x1', 0.5);
       AudioEngine.releaseVoice('x1');
 
@@ -3474,8 +3519,8 @@ describe('AudioEngine - manual pan (Robot Pan T3, docs/specs/ROBOT_PAN.md sectio
       reserve('x1');
       tick();
 
-      expect(panSet.x1).toHaveBeenCalledTimes(1);
-      expect(panSet.x1).toHaveBeenCalledWith(0);
+      expect(rampTo.x1.mock.calls).toEqual([[0, 0.05, 0]]);
+      expect(panSet.x1).not.toHaveBeenCalled();
       teardown();
     });
   });
