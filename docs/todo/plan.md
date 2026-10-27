@@ -11,17 +11,14 @@ Reading the stages: each one ends at a point where Crawford listens or looks bef
 
 ## Stage 1 — The audio engine: two console errors, then what Light still carries
 
-Two console errors and the swell tick's phase cost first (found 2026-10-26, all in the scheduling and swell paths),
-then the underruns' design decision. The measurement for that is done, desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks
+The swell targets that cost more than they play come off first (found 2026-10-26, desktop clipping), then the
+underruns' design decision. The measurement for that is done, desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks
 at Light are the graph's standing cost, not an accumulation, and the late collapse has not recurred.
 
-- Backlog [35](backlog.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given) **BeatClock passes
-  the Transport time** — the measure-tick consumers schedule at "now" instead of the callback's time; Tone's
-  one-line warning. Next.
-- Backlog [37](backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick) **Phase swells rebuild a wave
-  every tick** — most of the swell tick's main-thread cost, measured by 35; interview the fix.
-- Backlog [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) **Swells write NaN into
-  `pulseWidth`** — a swell on a layer field the layer does not have; a warning every 16th note while it runs.
+- Backlog [37](backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick) **Phase and pulse width come off
+  the swell targets** — phase is most of the swell tick's main-thread cost; pulse width is
+  [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s NaN flood, which closes with it.
+  Decided, so spec → plan, no interview. Next.
 - Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
   Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
   could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as
