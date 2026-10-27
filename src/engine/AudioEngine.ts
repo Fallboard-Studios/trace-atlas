@@ -30,7 +30,7 @@ import { calculatePanFromPosition } from './audioEngine/panning';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
 import { robotBusGain } from './audioEngine/headroom';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
-import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
+import { createCompositeVoice, type CompositeVoice, type LayerLivePatch } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
 import {
@@ -1055,7 +1055,10 @@ export const AudioEngine = {
         return;
       }
       try {
-        const patched = entry.composite.layers.map(({ layer }) => ({ ...layer, adsr }));
+        const patched: LayerLivePatch[] = [];
+        for (const { index, written: { gain, detune, phase, pulseWidth } } of entry.composite.layers) {
+          patched[index] = { gain, detune, phase, pulseWidth, adsr };
+        }
         entry.composite.set({ layers: patched }, time);
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply envelope on composite', err);
@@ -1079,7 +1082,10 @@ export const AudioEngine = {
         return;
       }
       try {
-        const patched = entry.composite.layers.map(({ layer }) => ({ ...layer, portamento: seconds }));
+        const patched: LayerLivePatch[] = [];
+        for (const { index, written: { gain, detune, phase, pulseWidth } } of entry.composite.layers) {
+          patched[index] = { gain, detune, phase, pulseWidth, portamento: seconds };
+        }
         entry.composite.set({ layers: patched });
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply portamento on composite', err);

@@ -1828,10 +1828,13 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
       { type: 'square', gain: 0, detune: 0, phase: 0 },
       { type: 'sawtooth', gain: 1, detune: 0, phase: 0 },
     ];
+    const Tone = await import('tone');
+    const synthCallsBefore = (Tone.Synth as unknown as any).mock.calls.length;
     AudioEngine.reserveVoice('active-filter-robot', layers as any, TEST_ADSR);
     const voice = AudioEngine.getVoiceForRobot('active-filter-robot');
     expect(voice?.layers?.length).toBe(2);
-    expect(voice?.layers?.map((l) => l.layer.type)).toEqual(['sine', 'sawtooth']);
+    const builtTypes = (Tone.Synth as unknown as any).mock.calls.slice(synthCallsBefore).map((c: any[]) => c[0].oscillator.type);
+    expect(builtTypes).toEqual(['sine', 'sawtooth']);
   });
 
   it('treats a layer with no gain field as audible (fixtures predating a real value stay audible)', async () => {
@@ -1883,7 +1886,8 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
     AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr, 3.25);
     AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr);
 
-    const patched = { layers: layers.map((layer) => ({ ...layer, adsr: newAdsr })) };
+    // The record keeps what was written, and `type` is never written live, so the patch carries no `type`.
+    const patched = { layers: layers.map(({ type: _type, ...layer }) => ({ ...layer, adsr: newAdsr })) };
     expect(setSpy.mock.calls[0]).toEqual([patched, 3.25]);
     expect(setSpy.mock.calls[1][0]).toEqual(patched);
     expect(setSpy.mock.calls[1][1]).toBeUndefined();

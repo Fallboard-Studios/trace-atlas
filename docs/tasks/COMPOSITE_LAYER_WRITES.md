@@ -143,7 +143,7 @@ T0 (docs slot)
 
 ### Phase 1: The composite
 
-- [ ] **Task 1: `compositeVoice.ts`: records carry `index` and `written`, `layerAt`, and `set` routes by index**
+- [x] **Task 1: `compositeVoice.ts`: records carry `index` and `written`, `layerAt`, and `set` routes by index**
 
   **Description:**
   - `createCompositeVoice(descriptor, adsr, portamento = 0, indices?: number[])`. `indices[k]` is the robot layer
@@ -164,17 +164,17 @@ T0 (docs slot)
   fourth parameter does not exist and position matching puts 0.2 on the second node.
 
   **Acceptance criteria:**
-  - [ ] Routing by index as above; a sparse patch array (`const p = []; p[2] = { gain: 0.3 }`) routes the same as one
+  - [x] Routing by index as above; a sparse patch array (`const p = []; p[2] = { gain: 0.3 }`) routes the same as one
         with `undefined` holes.
-  - [ ] Without `indices`, every existing `compositeVoice.test.ts` case passes unmodified (position = index).
-  - [ ] `written` after construction equals the build values: a case builds `[gain 0.8, detune −5, phase 90, width
+  - [x] Without `indices`, every existing `compositeVoice.test.ts` case passes unmodified (position = index).
+  - [x] `written` after construction equals the build values: a case builds `[gain 0.8, detune −5, phase 90, width
         0.3]` with `adsr` and `portamento 0.2` and reads `layerAt(0).written` back, `adsr` by value not reference.
-  - [ ] The existing "match by index" comment on `set` is replaced by one sentence naming this spec.
+  - [x] The existing "match by index" comment on `set` is replaced by one sentence naming this spec.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
-  - [ ] Mutation: route by position (`layerNodes[i]`) and the RED case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
+  - [x] Mutation: route by position (`layerNodes[i]`) and the RED case fails.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T0.
 
