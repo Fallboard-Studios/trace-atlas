@@ -2563,6 +2563,28 @@ Inside `updateVoiceLayerParams` in run 3, 295 of 310 ms is the settings path, 21
 
 **Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase writes rebuilding a periodic wave on every `16n` (Tone's `phase` setter re-runs its `type` setter, which misses its wave cache for each new phase; pulse width, a Signal, is 0.05–0.12 %), and the agreed design leaves phase stepwise. The phase cost is backlog [37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). **Decided at Checkpoint C (Crawford, 2026-10-26): the curve is not built; the phase cost is backlog 37.**
 
+## Phase and pulse width off the swell targets — the console check (2026-10-26, backlog 36/37)
+
+Spec [specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](specs/SWELL_PHASE_PULSE_WIDTH_CUT.md) §5.2, plan [tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md](tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md) Task 6. The question: is backlog 36's flood, `[AudioEngine] Failed to set pulseWidth on composite layer`, gone now that no swell targets `layerN.pulseWidth`? The line is a `devWarn`, which prints only when `import.meta.env.DEV` is true, so both builds ran on the Vite dev server, not `vite preview`.
+
+**The harness on a dev server (step 1).** `perf:audio` drives `npm run dev` unchanged: a 15 s probe on stock passed the pin check (`charlie @ 200,-30`, `load 100%·fx 100%`, `latency interactive`) and read the `?debug` overlay. No harness change was needed.
+
+**Builds.** Stock: the branch base `main` at `12008fd9`, from a clean `git worktree` checkout (`node_modules` a junction to the main checkout's), `npx vite --port 5180 --strictPort`. Branch: `fix/swell-targets` at `2b094f68` (37 and 38, Checkpoint A2), its own checkout, `npx vite --port 5181 --strictPort`.
+
+**Command.** `npm run perf:audio -- --url http://localhost:<port>/trace-atlas/ --world "charlie:200:-30?s=1.q1YqTlOyMjTTUSpOAdK1AA" --seconds <n> --bucket <b>` on S1 (Swell Frequency 16, Duration 1; spec §7 Q3: no other world remembered). Headless Chrome, foreground, one run per call, orphaned Chrome 0 before and after. Pin check passed on all three runs.
+
+| Run | Build | Seconds | warnings | errors | pulse-width line | distinct first lines |
+|---|---|---|---|---|---|---|
+| 1 | stock | 120 | 0 | 0 | absent | none |
+| 2 | stock (§7 Q3 fallback) | 300 | 0 | 0 | absent | none |
+| 3 | branch | 300 | 0 | 0 | absent | none |
+
+**Against the plan's criteria.**
+- **The metric: unproven.** Stock did not print the pulse-width line on S1 in 120 s, nor in the fallback's 300 s. The line needs a pulse-width swell on a layer with no stored `pulseWidth`, and none occurred in either run; backlog 35's six `vite preview` runs on this world (above) did not show it either, though a production build could not have printed it. Per spec §7 Q3 the check is recorded as unproven, and the proof that the flood is gone is Task 4's test: no robot swell starts on `layerN.phase` or `layerN.pulseWidth`, and the started set equals a literal 16-id array.
+- **No new line on the branch: met.** The branch logged nothing at all, 0 warnings and 0 errors, so there is no first line stock lacks.
+
+Dev-mode capacity is not compared (spec §5.2); for the record, the overall means were 0.485 and 0.463 on stock's two runs and 0.480 on the branch's.
+
 ## Steady-state review — what runs continuously, and which of it can pop (2026-10-26)
 
 Crawford, hearing cracks and pops on the desktop (not level distortion), asked for a review of everything that runs

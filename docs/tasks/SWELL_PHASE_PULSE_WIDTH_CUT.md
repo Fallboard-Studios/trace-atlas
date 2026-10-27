@@ -493,7 +493,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
 ### Phase 2: The runs
 
-- [ ] **Task 6: the console check, on the dev server (spec §5.2)**
+- [x] **Task 6: the console check, on the dev server (spec §5.2)**
 
   **Description:**
   1. **Check first:** does `perf:audio` drive a dev server unchanged (`--url http://localhost:<port>/trace-atlas/`)? Do
@@ -513,13 +513,15 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   **Proof:** the run, recorded.
 
   **Acceptance criteria:**
-  - [ ] Stock shows the pulse-width line (the metric is proven), or the unproven fallback is recorded with both run
-        lengths.
-  - [ ] The branch's tally has no pulse-width line and no first line that stock lacks.
+  - [x] Stock shows the pulse-width line (the metric is proven), or the unproven fallback is recorded with both run
+        lengths. *As run: the fallback. Stock printed nothing in 120 s or 300 s (0 warnings, 0 errors); recorded as
+        unproven, T4's test as the proof.*
+  - [x] The branch's tally has no pulse-width line and no first line that stock lacks. *Branch, 300 s: 0 warnings,
+        0 errors.*
 
   **Verification:**
-  - [ ] The PERFORMANCE.md section is read against the raw harness output, every number matching.
-  - [ ] Orphaned Chrome is checked 0 after the last run.
+  - [x] The PERFORMANCE.md section is read against the raw harness output, every number matching.
+  - [x] Orphaned Chrome is checked 0 after the last run.
 
   **Dependencies:** Checkpoint A2. The branch run is at the head; 38 does not touch the pulse-width path.
 
