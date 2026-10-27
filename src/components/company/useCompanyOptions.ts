@@ -75,12 +75,10 @@ const DISABLED_BUS_FILTER: BusFilterValue = {
 const NO_ROBOTS: Robot[] = [];
 const NO_COMPANIES: Company[] = [];
 
-/** One layer's four swelling flags, for the layer panel's sliders. */
+/** One layer's gain and detune swelling flags, for the layer panel's sliders. */
 export interface LayerSwelling {
   gain: boolean;
   detune: boolean;
-  phase: boolean;
-  pulseWidth: boolean;
 }
 
 /** An envelope's four swelling flags. */

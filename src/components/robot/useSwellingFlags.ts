@@ -24,8 +24,6 @@ export interface AdsrSwellingFlags {
 export interface LayerSwellingFlags {
   gain: boolean;
   detune: boolean;
-  phase: boolean;
-  pulseWidth: boolean;
 }
 
 export function useAdsrSwellingFlags(robotId: string, source: unknown): AdsrSwellingFlags;
@@ -62,8 +60,6 @@ export function useLayerSwellingFlags(robotId: string | undefined, index: 0 | 1 
     () => (robotId === undefined ? undefined : {
       gain: isRobotAttributeSwelling(robotId, `layer${index}.gain`),
       detune: isRobotAttributeSwelling(robotId, `layer${index}.detune`),
-      phase: isRobotAttributeSwelling(robotId, `layer${index}.phase`),
-      pulseWidth: isRobotAttributeSwelling(robotId, `layer${index}.pulseWidth`),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `source` gates recompute timing, not read in the body (see above)
     [robotId, index, source],
