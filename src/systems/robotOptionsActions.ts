@@ -213,29 +213,34 @@ export function applyBusFilter(
 // SIGNATURE ARRAY (SignatureArrayDrawer.tsx today)
 // ========================================
 
+/** Rebuild the robot's voice from the store, then re-prime its LFO links (docs/specs/LFO_BANK.md — also the
+ *  stale-signal fix, inherited from LFO Load Fix §1.3): reReserveVoice disposes and reconstructs the composite
+ *  voice's Tone nodes, so any link connected to the old nodes points at disposed objects until re-wired. */
+function rebuildVoice(robot: Robot): void {
+  AudioEngine.reReserveVoice(robot.id);
+  primeRobotLinks(robot);
+}
+
 /** Continuous params (gain, detune, phase, pulseWidth): live, no gap in audio. Gain is also how
- *  Coaxial/Harmonic are muted (gain: 0) — a live update on the existing voice, not a rebuild;
- *  AudioEngine.ts's filterAudibleLayers only excludes a muted layer from the composite voice the
- *  next time something else triggers a real rebuild (applyLayersStructural). */
+ *  Coaxial/Harmonic are muted (gain: 0). Muting is live, and so is unmuting a layer that has a synth;
+ *  unmuting one that was muted when the voice was built has none (AudioEngine.ts's filterAudibleLayers
+ *  left it out), so the engine reports needsRebuild and the voice is rebuilt, after the store write so
+ *  the rebuild reads the new gain (docs/specs/COMPOSITE_LAYER_WRITES.md §7 Q1). */
 export function applyLayersContinuous(robot: Robot, localeId: string, layers: OscillatorLayer[], time?: number): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     audioAttributes: { ...robot.audioAttributes, layers },
   });
-  AudioEngine.updateVoiceLayerParams(robot.id, layers, ...timeArg(time));
+  if (AudioEngine.updateVoiceLayerParams(robot.id, layers, ...timeArg(time))) rebuildVoice(robot);
 }
 
-/** Structural changes (type) — may cause a brief audio gap while the voice rebuilds. Muting a
- *  layer (gain: 0) goes through applyLayersContinuous instead — see its own doc comment.
- *  Re-primes the robot's LFO links after the rebuild (docs/specs/LFO_BANK.md — also the
- *  stale-signal fix, inherited from LFO Load Fix §1.3): reReserveVoice disposes and reconstructs
- *  the composite voice's Tone nodes, so any link connected to the old nodes points at disposed
- *  objects until re-wired. */
+/** Structural changes (type) — may cause a brief audio gap while the voice rebuilds (rebuildVoice,
+ *  which also re-primes the LFO links). Muting a layer (gain: 0) goes through applyLayersContinuous
+ *  instead — see its own doc comment. */
 export function applyLayersStructural(robot: Robot, localeId: string, layers: OscillatorLayer[]): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     audioAttributes: { ...robot.audioAttributes, layers },
   });
-  AudioEngine.reReserveVoice(robot.id);
-  primeRobotLinks(robot);
+  rebuildVoice(robot);
 }
 
 /** The LFO Bank's per-layer link edit (docs/tasks/LFO_BANK.md) — routed through the bank

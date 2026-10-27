@@ -392,7 +392,7 @@ T0 (docs slot)
 
 ### Phase 3: The action
 
-- [ ] **Task 8: `robotOptionsActions.ts`: `applyLayersContinuous` rebuilds on `needsRebuild`** *(§7 Q1)*
+- [x] **Task 8: `robotOptionsActions.ts`: `applyLayersContinuous` rebuilds on `needsRebuild`** *(§7 Q1)*
 
   **Description:** A new `rebuildVoice(robot)` holds `applyLayersStructural`'s two engine calls (`reReserveVoice`,
   `primeRobotLinks`) and both actions use it. `applyLayersContinuous` writes the store, calls
@@ -405,17 +405,17 @@ T0 (docs slot)
   today: neither is called.
 
   **Acceptance criteria:**
-  - [ ] Mocked `true`: store write, then `reReserveVoice(robot.id)`, then `primeRobotLinks(robot)`, in that order.
-  - [ ] Mocked `false` (and the default `undefined`): neither is called; the existing continuous cases pass
+  - [x] Mocked `true`: store write, then `reReserveVoice(robot.id)`, then `primeRobotLinks(robot)`, in that order.
+  - [x] Mocked `false` (and the default `undefined`): neither is called; the existing continuous cases pass
         unmodified.
-  - [ ] `applyLayersStructural`'s existing cases pass unmodified (same two calls, now through `rebuildVoice`).
-  - [ ] The tick's time still reaches `updateVoiceLayerParams` last (the existing `audioSwells.test.ts` case passes
+  - [x] `applyLayersStructural`'s existing cases pass unmodified (same two calls, now through `rebuildVoice`).
+  - [x] The tick's time still reaches `updateVoiceLayerParams` last (the existing `audioSwells.test.ts` case passes
         unmodified).
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotOptionsActions.test.ts src/systems/audioSwells.test.ts` passes.
-  - [ ] Mutation: drop the `primeRobotLinks` call from `rebuildVoice`, and the ordered case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/robotOptionsActions.test.ts src/systems/audioSwells.test.ts` passes.
+  - [x] Mutation: drop the `primeRobotLinks` call from `rebuildVoice`, and the ordered case fails.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T7.
 
