@@ -2348,6 +2348,73 @@ describe('AudioEngine - getRobotModulationTarget', () => {
   });
 });
 
+// Composite Layer Writes T5 (docs/specs/COMPOSITE_LAYER_WRITES.md): a layer muted at build has no synth, so the
+// voice's records, its live edits, its reservation-time patch and its LFO targets are keyed by robot layer index.
+describe('AudioEngine - a voice built with a muted layer is keyed by robot layer index', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const MUTED_MIDDLE: any[] = [
+    { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+    { type: 'square', gain: 0, detune: 0, phase: 0 },
+    { type: 'sawtooth', gain: 0.6, detune: 0, phase: 0 },
+  ];
+  const withDetune = (index: number, detune: number) => MUTED_MIDDLE.map((l, i) => (i === index ? { ...l, detune } : l));
+  const detuneOf = (rec: any) => rec.synth.oscillator.detune.value;
+
+  const reserveMutedMiddle = async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('muted-middle', MUTED_MIDDLE, TEST_ADSR);
+    const records = AudioEngine.getVoiceForRobot('muted-middle')!.layers! as any[];
+    return { AudioEngine, records };
+  };
+
+  it('builds two records, at robot indices 0 and 2', async () => {
+    const { records } = await reserveMutedMiddle();
+    expect(records.map((r) => r.index)).toEqual([0, 2]);
+  });
+
+  it('routes an edit of layer 2 to the second synth', async () => {
+    const { AudioEngine, records } = await reserveMutedMiddle();
+    AudioEngine.updateVoiceLayerParams('muted-middle', withDetune(2, 7));
+    expect(detuneOf(records[1])).toBe(7);
+    expect(detuneOf(records[0])).toBe(0);
+  });
+
+  it('writes no synth for an edit of the muted layer 1', async () => {
+    const { AudioEngine, records } = await reserveMutedMiddle();
+    AudioEngine.updateVoiceLayerParams('muted-middle', withDetune(1, 9));
+    expect(detuneOf(records[0])).toBe(0);
+    expect(detuneOf(records[1])).toBe(0);
+  });
+
+  it('resolves layer2 LFO targets to the second record, and layer1 targets to null', async () => {
+    const { AudioEngine, records } = await reserveMutedMiddle();
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer0.gain')).toBe(records[0].gainNode.gain);
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer2.gain')).toBe(records[1].gainNode.gain);
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer2.detune')).toBe(records[1].synth.oscillator.detune);
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer1.gain')).toBeNull();
+    expect(AudioEngine.getRobotModulationTarget('muted-middle', 'layer1.detune')).toBeNull();
+  });
+
+  it('lands the reservation-time detune and pulse width on the synths at robot indices 0 and 2', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const layers: any[] = [
+      { type: 'pulse', gain: 0.8, detune: -2, phase: 0, pulseWidth: 0.3 },
+      { type: 'square', gain: 0, detune: 50, phase: 0 },
+      { type: 'sine', gain: 0.6, detune: 3, phase: 0 },
+    ];
+    AudioEngine.reserveVoice('muted-middle-top', layers, TEST_ADSR, undefined, 4, 0.6);
+    const records = AudioEngine.getVoiceForRobot('muted-middle-top')!.layers! as any[];
+
+    expect(records.map(detuneOf)).toEqual([2, 7]);
+    for (const { synth } of records) expect(synth.set).toHaveBeenCalledWith({ oscillator: { width: 0.6 } });
+  });
+});
+
 describe('AudioEngine - getGlobalModulationTarget', () => {
   beforeEach(() => {
     vi.resetModules();

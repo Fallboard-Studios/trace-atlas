@@ -289,7 +289,7 @@ T0 (docs slot)
 
 ### Phase 2: The engine
 
-- [ ] **Task 5: `AudioEngine.ts`: `filterAudibleLayers` keeps indices, `reserveVoice` passes them, the reservation
+- [x] **Task 5: `AudioEngine.ts`: `filterAudibleLayers` keeps indices, `reserveVoice` passes them, the reservation
   patch and `getRobotModulationTarget` are index-keyed** *(§7 Q5)*
 
   **Description:**
@@ -306,17 +306,17 @@ T0 (docs slot)
   today: l1's edit lands on the second synth and `'layer2.gain'` returns `null`.
 
   **Acceptance criteria:**
-  - [ ] As the proof, plus: the voice has two records with `index` `[0, 2]`.
-  - [ ] Reserving `[l0 (pulse, width 0.3), l1 (gain 0), l2]` with the reservation-time `pulseWidth` writes the width
+  - [x] As the proof, plus: the voice has two records with `index` `[0, 2]`.
+  - [x] Reserving `[l0 (pulse, width 0.3), l1 (gain 0), l2]` with the reservation-time `pulseWidth` writes the width
         to the synths at indices 0 and 2, none at 1 (today's copy-to-all behaviour, now at the right indices).
-  - [ ] The pinned node-count baseline ("builds today node counts for a plain two-layer reservation") and every other
+  - [x] The pinned node-count baseline ("builds today node counts for a plain two-layer reservation") and every other
         reservation case pass unmodified.
-  - [ ] The existing `getRobotModulationTarget` cases pass unmodified.
+  - [x] The existing `getRobotModulationTarget` cases pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] Mutation: pass no `indices` from `reserveVoice`, and the RED case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] Mutation: pass no `indices` from `reserveVoice`, and the RED case fails.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T1 (and T4 for the stub's return type if T4 landed first — it did, by order).
 

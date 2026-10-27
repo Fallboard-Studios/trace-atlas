@@ -278,17 +278,28 @@ function findActiveRobot(robotId: string): Robot | undefined {
  * (removed — see `OscillatorLayer`'s own doc comment). A layer with no `gain` field at all is
  * treated as audible (`!== 0`, not a strict truthy check), so callers/fixtures that predate
  * the field keep their existing audible behavior rather than silently going quiet.
+ *
+ * `indices[k]` is the robot layer index of the k-th audible layer, so the composite can key its records by it
+ * (docs/specs/COMPOSITE_LAYER_WRITES.md). A descriptor with no layers left builds its `base` alone, index 0, which is
+ * the composite's default for an empty `indices`.
  */
 function filterAudibleLayers(
   descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] },
-): OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] } {
+): { audible: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] }; indices: number[] } {
+  const keep = (layers: OscillatorLayer[]) => {
+    const indices: number[] = [];
+    layers.forEach((l, i) => { if (l.gain !== 0) indices.push(i); });
+    return { kept: indices.map((i) => layers[i]), indices };
+  };
   if (Array.isArray(descriptor)) {
-    return descriptor.filter((l) => l.gain !== 0);
+    const { kept, indices } = keep(descriptor);
+    return { audible: kept, indices };
   }
   if (descriptor.layers) {
-    return { ...descriptor, layers: descriptor.layers.filter((l) => l.gain !== 0) };
+    const { kept, indices } = keep(descriptor.layers);
+    return { audible: { ...descriptor, layers: kept }, indices };
   }
-  return descriptor;
+  return { audible: descriptor, indices: [] };
 }
 
 /**
@@ -816,8 +827,8 @@ export const AudioEngine = {
     articulation?: { portamento?: number; filterQ?: number; filterType?: RobotFilterType },
   ): boolean {
     try {
-      const audibleDescriptor = filterAudibleLayers(descriptor);
-      const composite = AudioEngine.createCompositeVoice(audibleDescriptor, adsr, articulation?.portamento);
+      const { audible: audibleDescriptor, indices } = filterAudibleLayers(descriptor);
+      const composite = AudioEngine.createCompositeVoice(audibleDescriptor, adsr, articulation?.portamento, indices);
 
       const PannerCtor = getToneCtor<Tone.Panner>('Panner');
       const GainCtorLocal = getToneCtor<Tone.Gain>('Gain');
@@ -867,18 +878,21 @@ export const AudioEngine = {
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
-          // Must match audibleDescriptor (what createCompositeVoice actually built), not the raw
-          // descriptor, so this index-matched application lands on the right layer.
+          // Over audibleDescriptor (what createCompositeVoice actually built), each entry placed at its layer's robot
+          // index, with holes for the muted ones, as `set` routes patch i to robot layer i.
           const effectiveLayers = Array.isArray(audibleDescriptor)
             ? audibleDescriptor
             : (audibleDescriptor.layers && audibleDescriptor.layers.length > 0 ? audibleDescriptor.layers : [{ type: audibleDescriptor.base ?? 'sine', gain: 1, detune: 0, phase: 0 } as OscillatorLayer]);
-          const layersParam = effectiveLayers.map((l) => ({
-            type: l.type,
-            detune: typeof detune === 'number' ? (l.detune ?? 0) + detune : undefined,
-            phase: typeof phase === 'number' ? phase : undefined,
-            pulseWidth: typeof pulseWidth === 'number' ? pulseWidth : l.pulseWidth,
-          }));
-          composite.set({ layers: layersParam as Partial<OscillatorLayer>[] });
+          const layersParam: Partial<OscillatorLayer>[] = [];
+          effectiveLayers.forEach((l, k) => {
+            layersParam[indices[k] ?? k] = {
+              type: l.type,
+              detune: typeof detune === 'number' ? (l.detune ?? 0) + detune : undefined,
+              phase: typeof phase === 'number' ? phase : undefined,
+              pulseWidth: typeof pulseWidth === 'number' ? pulseWidth : l.pulseWidth,
+            };
+          });
+          composite.set({ layers: layersParam });
         }
       } catch (e) {
         devWarn('[AudioEngine] Failed to apply composite phase/detune/width at reservation time', e);
@@ -926,7 +940,8 @@ export const AudioEngine = {
    * Resolve the live, connectable Tone Signal/Param for a robot-level LFO
    * modulation target (docs/tasks/archive/LFO_INTEGRATION_PLAN.md Task 9). Returns
    * null — never throws — for: an unreserved robotId, an out-of-range layer
-   * index, and any id outside the current RobotLfoTargetId set — including
+   * index, a layer muted at build (`layerN` is robot layer N, `layerAt`; it has no synth until the
+   * unmute rebuild re-primes it, docs/specs/COMPOSITE_LAYER_WRITES.md §7 Q5), and any id outside the current RobotLfoTargetId set — including
    * the removed 'volume', 'layerN.pulseWidth' (docs/specs/LFO_LOAD_FIX.md
    * assumption 9) and 'layerN.phase' (docs/specs/LFO_BANK.md Task 1 — Tone.js
    * never had a live Signal for oscillator phase in the first place) targets,
@@ -944,7 +959,7 @@ export const AudioEngine = {
 
       const match = /^layer(\d+)\.(gain|detune)$/.exec(target);
       if (!match) return null;
-      const layerEntry = voice.layers?.[Number(match[1])];
+      const layerEntry = voice.layerAt(Number(match[1]));
       if (!layerEntry) return null;
       const field = match[2];
 
