@@ -16,7 +16,7 @@ vi.mock('tone', () => ({
 }));
 
 let initBeatClock: (transport?: typeof mockTransport & { toSeconds?: (time: string) => number }) => void;
-let getTickSeconds: () => number | undefined;
+let getTickSeconds: (time?: number) => number | undefined;
 let getCurrentBeat: () => number;
 let getCurrentMeasure: () => number;
 let getCurrentMeasurePrecise: () => number;
@@ -92,6 +92,91 @@ describe('beatClock', () => {
     it.each([NaN, 0, -0.125, Infinity])('is undefined, never a bad length, when toSeconds gives %s', (bad) => {
       initWithToSeconds(() => bad);
       expect(getTickSeconds()).toBeUndefined();
+    });
+
+    // Plan Task 13: every write in one Transport callback carries that callback's time, so a tick reads the tempo once.
+    describe('given a time', () => {
+      it('reads toSeconds once for every call at that time', () => {
+        const toSeconds = vi.fn(() => 0.137);
+        initWithToSeconds(toSeconds);
+        const lengths = [1, 2, 3, 4, 5].map(() => getTickSeconds(12.5));
+        expect(lengths).toEqual([0.137, 0.137, 0.137, 0.137, 0.137]);
+        expect(toSeconds).toHaveBeenCalledTimes(1);
+        expect(toSeconds).toHaveBeenCalledWith('16n');
+      });
+
+      it('reads again at a new time, so a tempo change reaches the next tick', () => {
+        let seconds = 0.137;
+        const toSeconds = vi.fn(() => seconds);
+        initWithToSeconds(toSeconds);
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        seconds = 0.0625;
+        expect(getTickSeconds(12.637)).toBe(0.0625);
+        expect(toSeconds).toHaveBeenCalledTimes(2);
+      });
+
+      it('keeps one length for the whole tick: a tempo change within a time is not seen until the next time', () => {
+        let seconds = 0.137;
+        initWithToSeconds(() => seconds);
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        seconds = 0.0625;
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        expect(getTickSeconds(12.637)).toBe(0.0625);
+      });
+
+      it('treats a time of 0 as a time', () => {
+        const toSeconds = vi.fn(() => 0.137);
+        initWithToSeconds(toSeconds);
+        expect(getTickSeconds(0)).toBe(0.137);
+        expect(getTickSeconds(0)).toBe(0.137);
+        expect(toSeconds).toHaveBeenCalledTimes(1);
+      });
+
+      it('never keeps a bad length: the next call at the same time reads again', () => {
+        let seconds = NaN;
+        const toSeconds = vi.fn(() => seconds);
+        initWithToSeconds(toSeconds);
+        expect(getTickSeconds(12.5)).toBeUndefined();
+        seconds = 0.137;
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        expect(toSeconds).toHaveBeenCalledTimes(2);
+      });
+
+      it('forgets the kept length on reset, so a new transport is read even at the same time', () => {
+        initWithToSeconds(() => 0.137);
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        initWithToSeconds(() => 0.25);
+        expect(getTickSeconds(12.5)).toBe(0.25);
+      });
+
+      it('is undefined after a reset with no transport, even at a time it kept', () => {
+        initWithToSeconds(() => 0.137);
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        resetBeatClock();
+        expect(getTickSeconds(12.5)).toBeUndefined();
+      });
+
+      it('leaves an untimed call live: it reads toSeconds every time and sees a tempo change at once', () => {
+        let seconds = 0.137;
+        const toSeconds = vi.fn(() => seconds);
+        initWithToSeconds(toSeconds);
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        seconds = 0.0625;
+        expect(getTickSeconds()).toBe(0.0625);
+        expect(getTickSeconds()).toBe(0.0625);
+        expect(toSeconds).toHaveBeenCalledTimes(3);
+      });
+
+      it('an untimed call does not disturb the length kept for a tick', () => {
+        let seconds = 0.137;
+        const toSeconds = vi.fn(() => seconds);
+        initWithToSeconds(toSeconds);
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        seconds = 0.0625;
+        getTickSeconds();
+        expect(getTickSeconds(12.5)).toBe(0.137);
+        expect(toSeconds).toHaveBeenCalledTimes(2);
+      });
     });
   });
 

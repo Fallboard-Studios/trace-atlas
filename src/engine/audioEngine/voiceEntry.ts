@@ -59,7 +59,7 @@ export type RampableParam = {
  */
 export function rampOrSet(param: RampableParam, target: number, rampSeconds: number, time?: number): void {
   if (typeof param.rampTo === 'function') {
-    if (time !== undefined) param.rampTo(target, getTickSeconds() ?? rampSeconds, time);
+    if (time !== undefined) param.rampTo(target, getTickSeconds(time) ?? rampSeconds, time);
     else param.rampTo(target, rampSeconds);
   } else {
     setOrGlide(param, target, time);
@@ -74,7 +74,7 @@ export function rampOrSet(param: RampableParam, target: number, rampSeconds: num
  */
 export function setOrGlide(param: RampableParam, value: number, time?: number): void {
   if (time !== undefined) {
-    const tickSeconds = typeof param.rampTo === 'function' ? getTickSeconds() : undefined;
+    const tickSeconds = typeof param.rampTo === 'function' ? getTickSeconds(time) : undefined;
     if (tickSeconds !== undefined) {
       param.rampTo!(value, tickSeconds, time);
       return;

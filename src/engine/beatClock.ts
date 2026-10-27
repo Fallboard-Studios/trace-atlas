@@ -130,14 +130,23 @@ export function getCurrentMeasurePrecise(): number {
   return currentBeat / BEATS_PER_MEASURE;
 }
 
+/** The last tick length read for a time (getTickSeconds); cleared by resetBeatClock. */
+let keptTick: { time: number; seconds: number } | null = null;
+
 /**
- * One tick's length in seconds: a `16n` at the live tempo, read on every call so a tempo change reaches the next
- * write. A timed per-tick write glides over it into the next tick (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2).
- * Undefined with no transport, a transport that cannot convert, or a length that is not finite and positive.
+ * One tick's length in seconds: a `16n` at the live tempo. A timed per-tick write glides over it into the next tick
+ * (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2). Given the write's `time`, the length is read once per time: every
+ * write in one Transport callback carries that callback's time, so a tick reads the tempo once and all its writes
+ * glide the same length, and a tempo change reaches the next tick (plan Task 13). With no time it is read live.
+ * Undefined with no transport, a transport that cannot convert, or a length that is not finite and positive; a bad
+ * length is never kept.
  */
-export function getTickSeconds(): number | undefined {
+export function getTickSeconds(time?: number): number | undefined {
+  if (time !== undefined && keptTick !== null && keptTick.time === time) return keptTick.seconds;
   const seconds = transportInstance?.toSeconds?.('16n');
-  return seconds !== undefined && Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+  if (seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return undefined;
+  if (time !== undefined) keptTick = { time, seconds };
+  return seconds;
 }
 
 /**
@@ -229,6 +238,7 @@ export function resetBeatClock(): void {
   // Null the transport reference so scheduleRepeat() doesn't register events
   // against a stale/cancelled transport between reset and the next initBeatClock().
   transportInstance = null;
+  keptTick = null;
 
   // Reset position counters so getters don't return stale values before the
   // first 16n tick fires after re-initialization.

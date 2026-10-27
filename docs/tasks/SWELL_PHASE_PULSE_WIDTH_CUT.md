@@ -580,6 +580,49 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Estimated scope:** M (nine runs, analysis, one doc section)
 
+### Phase 2b: T7's follow-up (Crawford, 2026-10-27)
+
+T7 found `getTickSeconds` (Transport `toSeconds('16n')`) running once per write, 0.13–0.22 % of the IDLE window on
+head. Crawford asked for it to run once per tick.
+
+- [x] **Task 13: one tick-length read per tick**
+
+  **Description:** `getTickSeconds(time?)`. Given a time, it keeps the last answer for that exact time. Every write in
+  one Transport callback shares that callback's `time`, so a tick reads the tempo once, and the next tick, a new time,
+  reads it afresh. A tempo change therefore reaches the next tick, not the rest of the current one, so every write in
+  a tick glides the same length. With no time it reads live, as today. A bad length is never kept, and
+  `initBeatClock`/`resetBeatClock` clear the kept answer. `rampOrSet` and `setOrGlide` pass their `time`.
+
+  **Proof:** RED tests in `beatClock.test.ts`:
+  - repeated calls at one time read `toSeconds` once;
+  - a new time reads again;
+  - a tempo change within a time is not seen, and one at the next time is;
+  - a bad length is re-read;
+  - a reset clears the kept answer;
+  - an untimed call stays live.
+
+  `voiceEntry.test.ts` checks that both leaves pass their write's time.
+
+  **Acceptance criteria:**
+  - [x] Every case above passes, and mutating the time comparison, the reset clear or a leaf's argument fails one.
+        *Six mutants, all killed. One survived the first pass (an untimed read overwriting the kept length), and a
+        case was added for it: an untimed call does not disturb the tick's kept length.*
+  - [x] Types, lint and the engine tests pass. *`src/engine`, `src/systems`, `src/stores`: 4000/4000.*
+
+  **Files:** `src/engine/beatClock.ts`, `src/engine/beatClock.test.ts`, `src/engine/audioEngine/voiceEntry.ts`,
+  `src/engine/audioEngine/voiceEntry.test.ts`
+
+- [ ] **Task 14: the saving, measured**
+
+  **Description:** T7's harness and method, on the same S1 link, two builds: head before T13 (`5459e740`) and after.
+  Three runs each, interleaved. Record `getTickSeconds` and `setOrGlide` under the tick, and the tick's inclusive
+  share, beside T7's section.
+
+  **Proof:** the run, recorded.
+
+  **Acceptance criteria:**
+  - [ ] `getTickSeconds` under the tick, before and after, and the tick share with its spreads, stated as numbers.
+
 ### Checkpoint B: Crawford's read and listen
 - [ ] Crawford reads T6's and T7's sections.
 - [ ] Crawford listens on the desktop, stock against head on S1 at Full (spec §5.4). Nothing new is heard, and

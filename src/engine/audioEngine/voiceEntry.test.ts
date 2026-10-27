@@ -3,8 +3,14 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 // One tick's length (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2), a value no ramp constant has, so a glide over it
 // cannot pass by matching a caller's rampSeconds.
-const tick = vi.hoisted(() => ({ seconds: 0.137 as number | undefined }));
-vi.mock('../beatClock', () => ({ getTickSeconds: () => tick.seconds }));
+// `askedAt` records the time each read was for (plan Task 13: a tick reads its length once, keyed by its time).
+const tick = vi.hoisted(() => ({ seconds: 0.137 as number | undefined, askedAt: [] as Array<number | undefined> }));
+vi.mock('../beatClock', () => ({
+  getTickSeconds: (time?: number) => {
+    tick.askedAt.push(time);
+    return tick.seconds;
+  },
+}));
 
 import { disposeVoiceNodes, rampOrSet, setOrGlide, type VoiceEntry } from './voiceEntry';
 import type { CompositeVoice } from './compositeVoice';
@@ -81,6 +87,14 @@ describe('disposeVoiceNodes', () => {
 describe('rampOrSet', () => {
   beforeEach(() => {
     tick.seconds = 0.137;
+    tick.askedAt.length = 0;
+  });
+
+  it('asks for the tick length at its own write time, so writes in one tick share one read', () => {
+    const param = { rampTo: vi.fn(), value: 0 };
+    rampOrSet(param, 0.5, 0.1, 12.25);
+    rampOrSet(param, 0.5, 0.1, 0);
+    expect(tick.askedAt).toEqual([12.25, 0]);
   });
 
   it('a param with rampTo, given a time, glides one tick from that time', () => {
@@ -156,6 +170,14 @@ describe('rampOrSet', () => {
 describe('setOrGlide', () => {
   beforeEach(() => {
     tick.seconds = 0.137;
+    tick.askedAt.length = 0;
+  });
+
+  it('asks for the tick length at its own write time, so writes in one tick share one read', () => {
+    const param = { rampTo: vi.fn(), value: 0 };
+    setOrGlide(param, 0.25, 4.5);
+    setOrGlide(param, 0.25, 0);
+    expect(tick.askedAt).toEqual([4.5, 0]);
   });
 
   it('given a time and a rampTo, glides one tick from that time and places no point', () => {
