@@ -238,8 +238,8 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
     type: layer.type,
     gain: roundToDecimals(extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain, 2),
     detune: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.detune` as SwellRobotAttributeId) ?? layer.detune,
-    phase: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.phase` as SwellRobotAttributeId) ?? layer.phase,
-    pulseWidth: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.pulseWidth` as SwellRobotAttributeId) ?? layer.pulseWidth,
+    phase: layer.phase,
+    pulseWidth: layer.pulseWidth,
   }));
   if (!deepEqual(layersToCapture, baselineLayersNormalized)) diff.layers = layersToCapture;
 
