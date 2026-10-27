@@ -434,7 +434,7 @@ T0 (docs slot)
 
 ### Phase 4: The run and the listen
 
-- [ ] **Task 9: the measurement (spec §5.3) — recorded, not gated**
+- [x] **Task 9: the measurement (spec §5.3) — recorded, not gated**
 
   **Description:** T7's method, one session, two builds: the branch base (`main` at `a5d5944d`, a clean `git
   worktree`) and the branch head, each `npx vite build --minify false --outDir <scratch>` and `vite preview` on its
@@ -448,15 +448,15 @@ T0 (docs slot)
   **Proof:** the run. No test file.
 
   **Acceptance criteria:**
-  - [ ] Medians and min–max for both builds on spec §5.3's buckets: the tick inclusive and store-excluded, envelope,
+  - [x] Medians and min–max for both builds on spec §5.3's buckets: the tick inclusive and store-excluded, envelope,
         robot param writes, oscillator settings and its phase-setter share, long tasks and how many hold tick time.
-  - [ ] The expected direction is stated against the numbers: envelope toward 0.22 %, param writes toward 0.16 %,
+  - [x] The expected direction is stated against the numbers: envelope toward 0.22 %, param writes toward 0.16 %,
         phase setter toward 0. A miss is written as a number and a reason; the branch continues (§7 Q2 of the
         interview: recorded, not gated).
 
   **Verification:**
-  - [ ] The table is in the session notes, ready for T10, with the build commits, bundle names and ports.
-  - [ ] Worktrees removed; `git status` clean apart from the branch's own work.
+  - [x] The table is in the session notes, ready for T10, with the build commits, bundle names and ports.
+  - [x] Worktrees removed; `git status` clean apart from the branch's own work.
 
   **Dependencies:** Checkpoint C.
 
