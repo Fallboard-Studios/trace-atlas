@@ -360,7 +360,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
 ### Phase 1b: Backlog 38, timed writes glide (spec §8)
 
-- [ ] **Task 10: `src/engine/beatClock.ts`: `getTickSeconds()`, one `16n` at the live tempo**
+- [x] **Task 10: `src/engine/beatClock.ts`: `getTickSeconds()`, one `16n` at the live tempo**
 
   **Description:**
   - `TransportLike` gains an optional `toSeconds?(time: string): number`. Tone's Transport has it, so `AudioEngine`'s
@@ -379,15 +379,15 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   It fails today because the export does not exist.
 
   **Acceptance criteria:**
-  - [ ] The getter reads the live value on every call.
-  - [ ] Every degenerate case returns `undefined`, never a bad number.
-  - [ ] Existing BeatClock tests pass unmodified.
+  - [x] The getter reads the live value on every call.
+  - [x] Every degenerate case returns `undefined`, never a bad number.
+  - [x] Existing BeatClock tests pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/beatClock.test.ts` passes.
-  - [ ] Mutation: cache the first value, and the tempo-change case fails. Return `0` instead of `undefined`, and a
+  - [x] `npx vitest run src/engine/beatClock.test.ts` passes.
+  - [x] Mutation: cache the first value, and the tempo-change case fails. Return `0` instead of `undefined`, and a
         degenerate case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint A.
 
@@ -395,7 +395,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Estimated scope:** XS (one getter, one optional type member)
 
-- [ ] **Task 11: the write leaves glide one tick: `setOrPoint` → `setOrGlide`, `rampOrSet`'s timed branch, and their
+- [x] **Task 11: the write leaves glide one tick: `setOrPoint` → `setOrGlide`, `rampOrSet`'s timed branch, and their
   callers** *(§8.6 Q6 (b), Q7 (a))*
 
   **Description:**
@@ -424,16 +424,16 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   The timed cases fail today: they get a point, or `rampSeconds`.
 
   **Acceptance criteria:**
-  - [ ] Every timed write through either leaf, on a param that can ramp, is `rampTo(value, tick, time)`.
-  - [ ] Every untimed call is exactly today's call, and the existing untimed cases pass unmodified.
-  - [ ] Without a tick length, a timed write is still a point at `time`.
+  - [x] Every timed write through either leaf, on a param that can ramp, is `rampTo(value, tick, time)`.
+  - [x] Every untimed call is exactly today's call, and the existing untimed cases pass unmodified.
+  - [x] Without a tick length, a timed write is still a point at `time`.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/voiceEntry.test.ts src/engine/audioEngine/compositeVoice.test.ts src/engine/audioEngine/globalFx.test.ts src/engine/AudioEngine.test.ts src/systems/audioSwells.test.ts`
+  - [x] `npx vitest run src/engine/audioEngine/voiceEntry.test.ts src/engine/audioEngine/compositeVoice.test.ts src/engine/audioEngine/globalFx.test.ts src/engine/AudioEngine.test.ts src/systems/audioSwells.test.ts`
         passes. The last two check that the engine methods and the swell tick are unaffected above the leaf.
-  - [ ] Mutation, three ways: put back the point in `setOrGlide`'s timed branch; put back `rampSeconds` in `rampOrSet`'s
+  - [x] Mutation, three ways: put back the point in `setOrGlide`'s timed branch; put back `rampSeconds` in `rampOrSet`'s
         timed branch; drop the time from the `rampTo` call. Each fails a test.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T10.
 
@@ -445,7 +445,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   but it stays one task because the rename and its callers must land together to type-check. The extra file is tests
   only.
 
-- [ ] **Task 12: `src/engine/AudioEngine.ts`: Auto pan glides**
+- [x] **Task 12: `src/engine/AudioEngine.ts`: Auto pan glides**
 
   **Description:**
   - `updateAllPanners(_time?)` becomes `updateAllPanners(time?)`, and the write becomes
@@ -459,20 +459,22 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   stub gains a `rampTo` spy:
   - a moving robot's tick calls `rampTo(pan, tick, time)` and never the `value` setter;
   - a move under `PAN_WRITE_EPSILON` writes nothing;
-  - the manual-pan cases ("Robot Pan T3/T4") pass unmodified.
+  - the manual-pan cases ("Robot Pan T3/T4") pass unmodified. *As run (0bdf7562): this could not hold. Six T3 cases
+    observed Auto's tick write through `.value` on a stub with `rampTo`; only their Auto expectations changed (listed in
+    the commit), and "never touches the rampTo of an Auto robot" became a headless `.value` fallback case.*
 
   It fails today, because the write is `pan.value =`.
 
   **Acceptance criteria:**
-  - [ ] Auto pan's per-tick write is a glide at the tick's time.
-  - [ ] Coalescing and the readout are unchanged.
-  - [ ] Manual pan and back-to-Auto are unchanged.
+  - [x] Auto pan's per-tick write is a glide at the tick's time.
+  - [x] Coalescing and the readout are unchanged.
+  - [x] Manual pan and back-to-Auto are unchanged.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] Mutation: drop `time` from the call, so the write is untimed and becomes a 50 ms `rampTo` with two arguments,
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] Mutation: drop `time` from the call, so the write is untimed and becomes a 50 ms `rampTo` with two arguments,
         and the case fails. Put back `pan.value =`, and the case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T11.
 
@@ -481,10 +483,11 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   **Estimated scope:** S (one function, one test group)
 
 ### Checkpoint A2: 38's code
-- [ ] `npm run build:types`, `npm run lint`, `npm test` (full suite), `npm run build` all clean.
-- [ ] Every timed swell write and Auto pan glides one tick, and every untimed write is unchanged, both proven by T11 and
+- [x] `npm run build:types`, `npm run lint`, `npm test` (full suite), `npm run build` all clean. *As run (0bdf7562): 12274 of
+      12275 passed; the one failure was the known `sceneToOrbiterLocal` round-trip 5 s timeout, which passes alone (10/10).*
+- [x] Every timed swell write and Auto pan glides one tick, and every untimed write is unchanged, both proven by T11 and
       T12's tests.
-- [ ] The commit after T4 is noted as T7's middle build.
+- [x] The commit after T4 is noted as T7's middle build: d8e3fd9f. T10–T12 are 2c1bcfd6, 42c094f6 and 0bdf7562.
 
 ---
 
