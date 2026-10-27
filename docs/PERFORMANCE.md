@@ -2680,6 +2680,35 @@ As in Task 12, the 170–196 ms task appears once in every run. The tick is part
   Outside the tick, Auto pan's glide adds 0.12 % (0.03–0.14 %) in `updateAllPanners`. Tone's clock callbacks, which include the tick, run 10.05–10.38 % on head against 9.15–9.53 % on 37.
 - Stated, not tuned (spec §5.6). Head's tick, at 2.97 %, is still below stock's phase-swell run (6.11 %) and Task 12's range (4.13–6.45 %). Whether 0.8 points is acceptable for the glide is Crawford's call at Checkpoint B.
 
+### One tick-length read per tick (Task 14, 2026-10-27)
+
+Plan Task 13 made `getTickSeconds(time)` keep its answer for a time, so a tick reads the tempo once instead of once per write. This is T7's harness and method, run on two builds in a new session:
+
+| Build | Commit | Bundle | Port |
+|---|---|---|---|
+| head before T13 | T7's head build (`src/` as at `0bdf7562`; `5459e740` changes no `src/`) | `index-CQTj_4-g.js` | 4176 |
+| T13 | `0922f0df` | `index-DX6Ub-bi.js` | 4177 |
+
+Six runs alternated head, T13, head, T13, head, T13, with orphaned Chrome 0 before and after each call. The clock mapping bracketed on all six.
+
+| Share of sampled time, under the tick | head (runs 1 / 3 / 5) | T13 (runs 2 / 4 / 6) |
+|---|---|---|
+| `getTickSeconds` | 0.18 / 0.16 / 0.23 % | **0.03 / 0.00 / 0.02 %** |
+| `setOrGlide` | 1.08 / 0.85 / 0.72 % | 0.79 / 0.95 / 0.84 % |
+| `tickAudioSwells`, inclusive | 3.08 / 2.98 / 2.79 %, median 2.98 | 4.58 / 3.04 / 2.87 %, median 3.04 |
+| tick with the store half excluded | 2.29 / 2.29 / 2.12 %, median 2.29 | 3.61 / 2.16 / 2.11 %, median 2.16 |
+| long tasks in the window / holding tick time | 43 / 20, 11 / 9, 7 / 5 | 29 / 9, 15 / 4, 2 / 1 |
+
+**Reading.**
+- **The read itself is gone:** `getTickSeconds` falls from 0.16–0.23 % to 0.00–0.03 %, which is what T7 sized.
+- **The tick total does not show it in this session.** The noise is larger than the saving. Head's own three runs span 2.79–3.08 %, against about 0.2 saved. This session was also busier than T7's:
+  - the first two runs carried 43 and 29 long tasks (T7: 1–8);
+  - Tone's clock callbacks ran at 13.5 % in both (T7: 9–14 %);
+  - T13's run 2 is the outlier at 4.58 %, with 2.52 % in "the rest" bucket.
+
+  On the two quieter T13 runs (3.04 and 2.87 %), the tick sits inside head's spread.
+- Head's numbers here (median 2.98 %) repeat T7's head (2.97 %). The glide's +0.8 points over 37 stands. T13 takes 0.16–0.23 points of it off (a fifth to a quarter), but that is not resolvable in the tick total at three runs.
+
 ## Steady-state review — what runs continuously, and which of it can pop (2026-10-26)
 
 Crawford, hearing cracks and pops on the desktop (not level distortion), asked for a review of everything that runs

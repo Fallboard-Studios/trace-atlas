@@ -612,7 +612,7 @@ head. Crawford asked for it to run once per tick.
   **Files:** `src/engine/beatClock.ts`, `src/engine/beatClock.test.ts`, `src/engine/audioEngine/voiceEntry.ts`,
   `src/engine/audioEngine/voiceEntry.test.ts`
 
-- [ ] **Task 14: the saving, measured**
+- [x] **Task 14: the saving, measured**
 
   **Description:** T7's harness and method, on the same S1 link, two builds: head before T13 (`5459e740`) and after.
   Three runs each, interleaved. Record `getTickSeconds` and `setOrGlide` under the tick, and the tick's inclusive
@@ -621,7 +621,9 @@ head. Crawford asked for it to run once per tick.
   **Proof:** the run, recorded.
 
   **Acceptance criteria:**
-  - [ ] `getTickSeconds` under the tick, before and after, and the tick share with its spreads, stated as numbers.
+  - [x] `getTickSeconds` under the tick, before and after, and the tick share with its spreads, stated as numbers.
+        *`getTickSeconds` 0.16–0.23 % → 0.00–0.03 %. Tick 2.98 % (2.79–3.08) → 3.04 % (2.87–4.58): the saving is
+        below this session's noise (one outlier T13 run, two contaminated first runs), recorded as such.*
 
 ### Checkpoint B: Crawford's read and listen
 - [ ] Crawford reads T6's and T7's sections.
