@@ -891,7 +891,26 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
       const updatedLayers = [{ type: 'sine', gain: 0.5, detune: 3 }];
       AudioEngine.updateVoiceLayerParams('v1', updatedLayers as any);
 
-      expect(setSpy).toHaveBeenCalledWith({ layers: expect.arrayContaining([expect.objectContaining({ type: 'sine' })]) });
+      // `undefined`: no Transport time from a UI edit (docs/specs/BEATCLOCK_TRANSPORT_TIME.md).
+      expect(setSpy).toHaveBeenCalledWith({ layers: expect.arrayContaining([expect.objectContaining({ type: 'sine' })]) }, undefined);
+    });
+
+    // BeatClock Transport time T3 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 4).
+    it('hands a Transport time to composite.set as its second argument, and undefined without one', async () => {
+      vi.resetModules();
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('v1', [{ type: 'sine', gain: 0.8 }] as any, TEST_ADSR);
+      const comp = AudioEngine.getVoiceForRobot('v1') as any;
+      const setSpy = vi.spyOn(comp, 'set');
+
+      const updatedLayers = [{ type: 'sine', gain: 0.5, detune: 3 }];
+      AudioEngine.updateVoiceLayerParams('v1', updatedLayers as any, 3.25);
+      AudioEngine.updateVoiceLayerParams('v1', updatedLayers as any);
+
+      expect(setSpy.mock.calls[0]).toEqual([{ layers: updatedLayers }, 3.25]);
+      expect(setSpy.mock.calls[1][0]).toEqual({ layers: updatedLayers });
+      expect(setSpy.mock.calls[1][1]).toBeUndefined();
     });
 
     it('no-ops (does not throw) when no voice reserved', async () => {
@@ -1605,6 +1624,28 @@ describe('AudioEngine.updateRobotMasterVolume', () => {
     expect(HEADROOM_TRIM_GAIN).toBeLessThan(1);
   });
 
+  // BeatClock Transport time T3 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 4).
+  it('with a Transport time, ramps the bus gain from that time; without one, with exactly two arguments', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    AudioEngine.reserveVoice('volume-timed-robot', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.55);
+    const gainResults = (Tone.Gain as unknown as { mock: { results: { value: { gain: { value: number; rampTo?: unknown } } }[] } }).mock.results;
+    const busGainInstance = gainResults[gainResults.length - BUS_GAIN_FROM_END].value;
+    const rampTo = vi.fn();
+    busGainInstance.gain.rampTo = rampTo;
+
+    AudioEngine.updateRobotMasterVolume('volume-timed-robot', 0.5, 3.25);
+    AudioEngine.updateRobotMasterVolume('volume-timed-robot', 0.5);
+
+    expect(rampTo.mock.calls).toEqual([
+      [robotBusGain(0.5), 0.05, 3.25],
+      [robotBusGain(0.5), 0.05],
+    ]);
+  });
+
   it('is a safe no-op (no throw) when the robot has never had a note scheduled yet', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     expect(() => AudioEngine.updateRobotMasterVolume('never-scheduled-robot', 0.5)).not.toThrow();
@@ -1793,6 +1834,28 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
     voice?.layers?.forEach(({ synth }) => {
       expect((synth as any).set).toHaveBeenCalledWith({ envelope: newAdsr });
     });
+  });
+
+  // BeatClock Transport time T3 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 4).
+  it('hands a Transport time to composite.set with the patched layers, and undefined without one', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const layers: any[] = [
+      { type: 'sine', gain: 1, detune: 0, phase: 0 },
+      { type: 'square', gain: 1, detune: 0, phase: 0 },
+    ];
+    AudioEngine.reserveVoice('envelope-timed-robot', layers as any, TEST_ADSR);
+    const comp = AudioEngine.getVoiceForRobot('envelope-timed-robot') as any;
+    const setSpy = vi.spyOn(comp, 'set');
+
+    const newAdsr = { attack: 0.5, decay: 0.4, sustain: 0.3, release: 0.2 };
+    AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr, 3.25);
+    AudioEngine.updateVoiceEnvelope('envelope-timed-robot', newAdsr);
+
+    const patched = { layers: layers.map((layer) => ({ ...layer, adsr: newAdsr })) };
+    expect(setSpy.mock.calls[0]).toEqual([patched, 3.25]);
+    expect(setSpy.mock.calls[1][0]).toEqual(patched);
+    expect(setSpy.mock.calls[1][1]).toBeUndefined();
   });
 
   it('is a safe no-op when no composite voice is reserved for the robot', async () => {
@@ -4187,6 +4250,30 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
       AudioEngine.updateRobotSends('b', { reverb: 0.9 });
       expect(b.reverb.gain.rampTo).toHaveBeenCalledWith(0.9, 0.05);
       expect(a.reverb.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    // BeatClock Transport time T3 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 4).
+    it('with a Transport time, ramps every given send from that time', async () => {
+      const { AudioEngine, reserve } = await setup();
+      const sends = reserve('r1');
+      for (const key of KEYS) sends[key].gain.rampTo = vi.fn();
+      AudioEngine.updateRobotSends('r1', { reverb: 0.2, grit: 0.4 }, 3.25);
+      expect(sends.reverb.gain.rampTo!.mock.calls).toEqual([[0.2, 0.05, 3.25]]);
+      expect(sends.grit.gain.rampTo!.mock.calls).toEqual([[0.4, 0.05, 3.25]]);
+      expect(sends.delay.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('without a time, ramps with exactly two arguments', async () => {
+      const { AudioEngine, sends } = await rampable();
+      AudioEngine.updateRobotSends('r1', { reverb: 0.2 });
+      expect(sends.reverb.gain.rampTo!.mock.calls).toEqual([[0.2, 0.05]]);
+    });
+
+    it('with a time and a NaN, still skips the NaN and times the other key', async () => {
+      const { AudioEngine, sends } = await rampable();
+      AudioEngine.updateRobotSends('r1', { reverb: NaN, delay: 0.4 }, 3.25);
+      expect(sends.reverb.gain.rampTo).not.toHaveBeenCalled();
+      expect(sends.delay.gain.rampTo).toHaveBeenCalledWith(0.4, 0.05, 3.25);
     });
 
     // Robot Send Table T4 (docs/specs/ROBOT_SEND_TABLE.md §1.2, assumption 2): one loop over the table.

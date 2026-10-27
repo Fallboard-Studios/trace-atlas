@@ -41,12 +41,13 @@ getCurrentBeat(): number      // float, 0-based
 getCurrentMeasure(): number   // int, 0-based
 getCurrentMeasurePrecise(): number  // float, getCurrentBeat() / 4 — sub-measure resolution, still monotonic
 subscribeToMeasure(callback: (measure: number) => void): () => void  // returns an UNSUBSCRIBE function — capture and call it on cleanup
-scheduleRepeat(interval: string, callback: () => void): string       // returns an opaque schedule ID
+scheduleRepeat(interval: string, callback: (time: number) => void): string  // returns an opaque schedule ID
 cancelSchedule(scheduleId: string): void
 resetBeatClock(): void
 ```
 
-- `scheduleRepeat` is safe to call before `initBeatClock` runs — it queues the request and registers it once a transport is available. The interval is also passed as the tick's `startTime`, so the first firing happens after one full interval elapses, not at transport time zero.
+- `scheduleRepeat` forwards the time the Transport hands each tick: seconds on the audio clock, the moment the tick is *for*, which runs about `lookAhead` (100 ms) ahead of now. A consumer that reaches Tone places its writes at it: a param write (a ramp, a level) lands at `time` itself, a note at `time + MIN_LEAD`. A Tone call made from inside the callback with no time lands "now" instead, up to `lookAhead` early, and Tone warns once per page ("Events scheduled inside of scheduled callbacks should use the passed in scheduling time"). A consumer that makes no Tone call names it `_time` and says why (the harmony tick). `subscribeToMeasure` hands only the measure, no time.
+- `scheduleRepeat` is safe to call before `initBeatClock` runs — it queues the request and registers it once a transport is available; the queued callback receives the time like any other. The interval is also passed as the tick's `startTime`, so the first firing happens after one full interval elapses, not at transport time zero.
 - There is no public one-shot helper (e.g. no `scheduleAtBeat`) — for one-shot beat-accurate callbacks, use the transport instance directly (`transport.scheduleOnce(...)`), obtained from wherever `AudioEngine` exposes it.
 - `resetBeatClock()` clears the internal `'16n'` tick, clears every tracked schedule (`transport.clear` on each), clears **all** measure listeners, and nulls the transport reference. Called from `AudioEngine.killAll()`, not from `AudioEngine.stop()`. After a reset, `initBeatClock(transport)` must run again before any scheduling API is used, and every `subscribeToMeasure` caller must re-subscribe.
 - No `pause`/`seek`/`start`/`stop` here — lifecycle is entirely owned by whatever transport was passed in.
@@ -54,9 +55,12 @@ resetBeatClock(): void
 ## Usage
 
 ```typescript
-// Recurring, measure-based (e.g. factory production cycle)
-const scheduleId = scheduleRepeat('30m', () => spawnRobot());
+// Recurring, with the tick's time carried to every Tone write it makes (src/systems/audioSwells.ts)
+const scheduleId = scheduleRepeat('16n', (time) => tickAudioSwells(localeId, getCurrentMeasurePrecise(), time));
 cancelSchedule(scheduleId);
+
+// Recurring, no Tone call, so the time goes unused (src/engine/harmonySystem.ts)
+scheduleRepeat(`${MEASURES_PER_PALETTE_ENTRY}m`, (_time) => { /* pick the next palette entry */ });
 
 // Reading position
 const measure = getCurrentMeasure(); // int, 0-based, never wraps
@@ -67,7 +71,7 @@ Day/night is **not** derived from the beat clock: the lighting helpers take the 
 ## Forbidden
 
 - `setTimeout` / `setInterval` / `requestAnimationFrame` / `queueMicrotask` for anything music-timed — these drift from tempo and don't survive BPM changes.
-- Reading `Transport.seconds` (or any fresh wall-clock read) inside a beat-based callback — use the callback's `time` argument (or `AudioEngine.now() + MIN_LEAD`) instead.
+- Reading `Transport.seconds` (or any fresh wall-clock read) inside a beat-based callback, or calling Tone from one with no time — use the `time` argument `scheduleRepeat` hands the callback (above). `AudioEngine.now() + MIN_LEAD` is for work that starts outside a Transport callback.
 - Calling `AudioEngine.scheduleNote()` (or any audio scheduling) directly from a GSAP timeline callback — trigger a semantic handler instead; see [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md).
 - Treating `BeatClock` as an importable object — it doesn't exist. Use the named exports above.
 

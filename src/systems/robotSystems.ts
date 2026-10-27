@@ -221,7 +221,14 @@ export function tickRobotLifecycle(localeId: string, measure: number): void {
 
 /** Start the per-measure lifecycle tick for a locale. Idempotent — safe to call
  *  multiple times; only one subscription is active at a time. Mirrors
- *  spawnSystem.ts's former startSpawnScheduler singleton pattern. */
+ *  spawnSystem.ts's former startSpawnScheduler singleton pattern.
+ *
+ *  Stays on "now" by decision: subscribeToMeasure hands the measure and no
+ *  Transport time, because the lifecycle's audio consequences come out of store
+ *  subscriptions (audioBudgetSystem.ts) reacting to a semantic state change,
+ *  not out of a scheduling call this tick makes. Threading an audio time
+ *  through a store `set` would blur that line (docs/specs/BEATCLOCK_TRANSPORT_TIME.md
+ *  §1, and the intent docs/intent/beatclock-transport-time.md). */
 export function startRobotLifecycle(localeId: string): void {
   if (lifecycleUnsubscribe !== null) {
     return;

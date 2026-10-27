@@ -16,12 +16,16 @@ import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { PAN_DISPLAY_SCALE, PAN_MAX, PAN_MIN, SEND_DISPLAY_SCALE } from '@/constants';
 import { clampSend } from '@/utils/clampSend';
+import { timeArg } from '@/utils/timeArg';
 import { engineKeyOf, type RobotSendField } from '@/data/robotSends';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
+
+// applyVolume, applySendValue, applyAdsr and applyLayersContinuous take `time?`: the swell tick writes through them
+// with its Transport time (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a hand edit passes none (see timeArg).
 
 // ========================================
 // AUDIO SETTING / VOLUME (RobotDisplaySection.tsx today)
@@ -35,10 +39,10 @@ export function applyAudioMode(robot: Robot, localeId: string, value: Robot['aud
 // masterVolume cache directly (not just the store) — scheduleNote's velocity lookup caches
 // masterVolume on a robot's first note and never re-reads the store afterward, so without this
 // the slider moves but has no audible effect until the cache is separately invalidated.
-export function applyVolume(robot: Robot, localeId: string, pct: number): void {
+export function applyVolume(robot: Robot, localeId: string, pct: number, time?: number): void {
   const value = pct / 100;
   useLocaleStore.getState().updateRobot(localeId, robot.id, { masterVolume: value });
-  AudioEngine.updateRobotMasterVolume(robot.id, value);
+  AudioEngine.updateRobotMasterVolume(robot.id, value, ...timeArg(time));
 }
 
 // Pan displays -100..100 but stores -1..1 (Robot.pan), the same split as Volume. Only meaningful with
@@ -64,11 +68,11 @@ export function applySend(robot: Robot, localeId: string, field: RobotSendField,
 // The stored-fraction form, for the swell tick (docs/tasks/ROBOT_SENDS.md Task 12). A display percent does not
 // round-trip every double (0.007 * 100 / 100 is not 0.007), and a swell must land on its base exactly, so the
 // tick hands the 0..1 fraction over directly. A NaN is dropped whole, as above.
-export function applySendValue(robot: Robot, localeId: string, field: RobotSendField, fraction: number): void {
+export function applySendValue(robot: Robot, localeId: string, field: RobotSendField, fraction: number, time?: number): void {
   if (Number.isNaN(fraction)) return;
   const value = clampSend(fraction);
   useLocaleStore.getState().updateRobot(localeId, robot.id, { [field]: value });
-  AudioEngine.updateRobotSends(robot.id, { [engineKeyOf(field)]: value });
+  AudioEngine.updateRobotSends(robot.id, { [engineKeyOf(field)]: value }, ...timeArg(time));
 }
 
 // Auto off: hold the SOUND where the robot is now — the engine's live auto value becomes `pan` in the same
@@ -166,11 +170,11 @@ export function applyOctaveMax(robot: Robot, localeId: string, value: number): v
 
 /** Ping Contour edits the robot's one shared audioAttributes.adsr. Always calls
  *  updateVoiceEnvelope, never reReserveVoice/reserveVoice — no audio dropout on an envelope tweak. */
-export function applyAdsr(robot: Robot, localeId: string, adsr: ADSREnvelope): void {
+export function applyAdsr(robot: Robot, localeId: string, adsr: ADSREnvelope, time?: number): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     audioAttributes: { ...robot.audioAttributes, adsr },
   });
-  AudioEngine.updateVoiceEnvelope(robot.id, adsr);
+  AudioEngine.updateVoiceEnvelope(robot.id, adsr, ...timeArg(time));
 }
 
 /** Portamento (the Envelope drawer's glide row): seconds each layer slides into the next note. 0 is a real
@@ -213,11 +217,11 @@ export function applyBusFilter(
  *  Coaxial/Harmonic are muted (gain: 0) — a live update on the existing voice, not a rebuild;
  *  AudioEngine.ts's filterAudibleLayers only excludes a muted layer from the composite voice the
  *  next time something else triggers a real rebuild (applyLayersStructural). */
-export function applyLayersContinuous(robot: Robot, localeId: string, layers: OscillatorLayer[]): void {
+export function applyLayersContinuous(robot: Robot, localeId: string, layers: OscillatorLayer[], time?: number): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     audioAttributes: { ...robot.audioAttributes, layers },
   });
-  AudioEngine.updateVoiceLayerParams(robot.id, layers);
+  AudioEngine.updateVoiceLayerParams(robot.id, layers, ...timeArg(time));
 }
 
 /** Structural changes (type) — may cause a brief audio gap while the voice rebuilds. Muting a

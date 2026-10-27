@@ -29,6 +29,7 @@ import {
   type ChainSpan,
   type RoomKey,
 } from './bypassCell';
+import { rampOrSet, setOrPoint, type RampableParam } from './voiceEntry';
 import { devWarn } from '@/utils/helpers';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -158,16 +159,6 @@ function nodeSpan(node: Tone.ToneAudioNode | null): ChainSpan | null {
 /** clampColour for a field a partial update may leave out: an absent field stays undefined (and is not written). */
 function clampIfGiven(key: GlobalAudioSeedFieldKey, value: number | undefined): number | undefined {
   return value === undefined ? undefined : clampColour(key, value);
-}
-
-/** Ramp a Signal-backed AudioParam-like value to `target` when it supports .rampTo(), falling
- *  back to a direct .value assignment when it doesn't (headless/test environments). */
-function rampOrSet(param: { rampTo?: (value: number, rampTime: number) => void; value: unknown }, target: number, rampSeconds: number): void {
-  if (typeof param.rampTo === 'function') {
-    param.rampTo(target, rampSeconds);
-  } else {
-    param.value = target;
-  }
 }
 
 /** The room `key` is a branch of, or null for a chain cell (ROOM_BRANCHES). */
@@ -800,23 +791,26 @@ export function setGlobalDelay(params: Partial<DelaySettings>): void {
   }
 }
 
-export function setGlobalFilterLPF(params: Partial<FilterSettings>): void {
+/** `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a global swell passes it; a UI edit does not).
+ *  Frequency ramps from it; Q (a live Signal) is a point at it. */
+export function setGlobalFilterLPF(params: Partial<FilterSettings>, time?: number): void {
   const lpf = _globalLPF;
   if (!lpf) return;
   try {
-    if (params.frequency !== undefined) rampOrSet(lpf.frequency as unknown as { rampTo?: (value: number, rampTime: number) => void; value: number }, params.frequency, FILTER_FREQUENCY_RAMP_SECONDS);
-    if (params.Q !== undefined) lpf.Q.value = params.Q;
+    if (params.frequency !== undefined) rampOrSet(lpf.frequency as unknown as RampableParam, params.frequency, FILTER_FREQUENCY_RAMP_SECONDS, time);
+    if (params.Q !== undefined) setOrPoint(lpf.Q, params.Q, time);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFilterLPF failed', err);
   }
 }
 
-export function setGlobalFilterHPF(params: Partial<FilterSettings>): void {
+/** `time`: as setGlobalFilterLPF. */
+export function setGlobalFilterHPF(params: Partial<FilterSettings>, time?: number): void {
   const hpf = _globalHPF;
   if (!hpf) return;
   try {
-    if (params.frequency !== undefined) rampOrSet(hpf.frequency as unknown as { rampTo?: (value: number, rampTime: number) => void; value: number }, params.frequency, FILTER_FREQUENCY_RAMP_SECONDS);
-    if (params.Q !== undefined) hpf.Q.value = params.Q;
+    if (params.frequency !== undefined) rampOrSet(hpf.frequency as unknown as RampableParam, params.frequency, FILTER_FREQUENCY_RAMP_SECONDS, time);
+    if (params.Q !== undefined) setOrPoint(hpf.Q, params.Q, time);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFilterHPF failed', err);
   }
@@ -984,7 +978,7 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
     if (rebuilt) return;
 
-    if (rate !== undefined) rampOrSet(phaser.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (rate !== undefined) rampOrSet(phaser.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (octaves !== undefined) phaser.octaves = octaves;
     if (baseFrequency !== undefined) phaser.baseFrequency = baseFrequency;
     if (Q !== undefined) rampOrSet(phaser.Q, Q, COLOUR_RAMP_SECONDS);
@@ -995,7 +989,7 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
 
 /** The Tone 15 Chorus internals a ramped Delay / Depth change writes: the stored centre (SECONDS) and depth, and each
  *  LFO's Scale, whose `_add` (the range's floor) and `_mult` (its span) are Signals. */
-type ChorusScale = { _min: number; _max: number; _add: { rampTo?: (value: number, rampTime: number) => void; value: unknown }; _mult: { rampTo?: (value: number, rampTime: number) => void; value: unknown } };
+type ChorusScale = { _min: number; _max: number; _add: RampableParam; _mult: RampableParam };
 type ChorusSweep = { _delayTime: number; _depth: number; _lfoL?: { _scaler?: ChorusScale }; _lfoR?: { _scaler?: ChorusScale } };
 
 /**
@@ -1082,7 +1076,7 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     const spread = clampIfGiven('chorus.spread', params.spread);
     const feedback = clampIfGiven('chorus.feedback', params.feedback);
     const wet = clampIfGiven('chorus.wet', params.wet);
-    if (rate !== undefined) rampOrSet(chorus.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (rate !== undefined) rampOrSet(chorus.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
     if (spread !== undefined) writeSpread('chorus', chorus, spread);
     if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
@@ -1103,7 +1097,7 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
     const depth = clampIfGiven('tremolo.depth', params.depth);
     const spread = clampIfGiven('tremolo.spread', params.spread);
     const wet = clampIfGiven('tremolo.wet', params.wet);
-    if (rate !== undefined) rampOrSet(tremolo.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (rate !== undefined) rampOrSet(tremolo.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
     if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
     if (wet !== undefined) writeCellMix('tremolo', wet);
@@ -1122,7 +1116,7 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
     const rate = clampIfGiven('vibrato.rate', params.rate);
     const depth = clampIfGiven('vibrato.depth', params.depth);
     const wet = clampIfGiven('vibrato.wet', params.wet);
-    if (rate !== undefined) rampOrSet(vibrato.frequency, rate, COLOUR_RAMP_SECONDS);
+    if (rate !== undefined) rampOrSet(vibrato.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
     if (wet !== undefined) writeCellMix('vibrato', wet);
   } catch (err) {
@@ -1142,7 +1136,7 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
   try {
     const shift = clampIfGiven('frequencyShifter.shift', params.shift);
     const wet = clampIfGiven('frequencyShifter.wet', params.wet);
-    if (shift !== undefined) rampOrSet(shifter.frequency, shift, COLOUR_RAMP_SECONDS);
+    if (shift !== undefined) rampOrSet(shifter.frequency as unknown as RampableParam, shift, COLOUR_RAMP_SECONDS);
     if (wet !== undefined) setRoomReturn('shimmer', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);
@@ -1167,13 +1161,15 @@ export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): 
   }
 }
 
-export function setGlobalEQ(params: Partial<EQ3Settings>): void {
+/** `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a global swell passes it; a UI edit does not).
+ *  The three bands are live Params in decibels, so each is a point at it. */
+export function setGlobalEQ(params: Partial<EQ3Settings>, time?: number): void {
   const eq = _globalEQ;
   if (!eq) return;
   try {
-    if (params.low !== undefined) eq.low.value = params.low;
-    if (params.mid !== undefined) eq.mid.value = params.mid;
-    if (params.high !== undefined) eq.high.value = params.high;
+    if (params.low !== undefined) setOrPoint(eq.low, params.low, time);
+    if (params.mid !== undefined) setOrPoint(eq.mid, params.mid, time);
+    if (params.high !== undefined) setOrPoint(eq.high, params.high, time);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalEQ failed', err);
   }

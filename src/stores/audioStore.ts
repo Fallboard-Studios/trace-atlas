@@ -129,8 +129,9 @@ function definedKeys<T extends object>(partial: Partial<T>): Partial<T> {
   return Object.fromEntries(Object.entries(partial).filter(([, value]) => value !== undefined)) as Partial<T>;
 }
 
-/** Routes a setGlobalAudio(effect, partial) call to its matching AudioEngine setter. */
-const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]>) => void } = {
+/** Routes a setGlobalAudio(effect, partial, time?) call to its matching AudioEngine setter. Only the setters a global
+ *  swell reaches (EQ, LPF, HPF) declare the time; the rest take one parameter and are assignable as they are. */
+const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]>, time?: number) => void } = {
   compressor: AudioEngine.setGlobalCompressor,
   eq3: AudioEngine.setGlobalEQ,
   filterLPF: AudioEngine.setGlobalFilterLPF,
@@ -350,9 +351,15 @@ export interface AudioStore {
    * A coordinates-only retransmit never reaches it.
    */
   regenerateBpmFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
+  /**
+   * Merge `partial` into one effect block and push it to the engine. `time` is a pass-through for the swell tick (the
+   * Transport callback's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3), handed to the engine setter and never
+   * stored; a UI edit passes none and lands now.
+   */
   setGlobalAudio: <K extends EffectKey>(
     effect: K,
-    partial: Partial<GlobalAudioSettings[K]>
+    partial: Partial<GlobalAudioSettings[K]>,
+    time?: number
   ) => void;
   /**
    * Flips Delay Time between Free (Float) and Sync (Anchored) (docs/specs/FREE_SYNC_TOGGLE.md §1.5):
@@ -492,7 +499,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     get().setBPM(generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName));
   },
 
-  setGlobalAudio: (effect, partial) => {
+  setGlobalAudio: (effect, partial, time) => {
     // An undefined-valued key is not an edit (definedKeys above); a partial with nothing left
     // in it is a no-op — no state write, no engine push.
     const edit = definedKeys(partial);
@@ -511,7 +518,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // the same shape AudioEngine.ts's own ModulationTarget alias resolves for its
     // own unavoidable union return type.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (GLOBAL_SETTER[effect] as (params: any) => void)(edit);
+    const setter = GLOBAL_SETTER[effect] as (params: any, time?: number) => void;
+    // The swell tick's time goes to the setter as its second argument; without one the call is exactly the
+    // one-argument push a UI edit always made, so none of the setters that never take a time see a second argument.
+    if (time === undefined) setter(edit);
+    else setter(edit, time);
   },
 
   setDelaySyncMode: (synced) => {

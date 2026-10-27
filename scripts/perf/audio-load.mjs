@@ -10,7 +10,8 @@
  * peak window, the overall mean, and the correlation between audible robots and capacity. For a long run
  * (backlog 27) each bucket also carries the live AudioNode count, the renderer's JS heap and the pending Transport
  * events, and the summary says how each moved from the first bucket to the last; the overlay's text is printed
- * once after the warm-up, so the record says what the world carried.
+ * once after the warm-up, so the record says what the world carried. The page's console warnings and errors, from
+ * navigation on, are tallied by first line (backlog 35's proof that Tone's scheduling warning is gone).
  *
  *   npm run build && npx vite preview --port 4173      # terminal 1 — serve a production build
  *   npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15
@@ -41,6 +42,7 @@ import {
   parseWorldSpec,
   rotateList,
   summarizeBuckets,
+  tallyConsole,
   trend,
 } from './audio-load-lib.mjs';
 import { sleep, withChrome } from './cdp-lib.mjs';
@@ -107,11 +109,13 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
     const created = [];
     const destroyed = [];
     const nodes = createNodeTally();
+    const consoleEvents = []; // every console call from navigation on: Tone's scheduling warning fires once, often in the warm-up
     onEvent((msg) => {
       if (msg.method === 'WebAudio.contextCreated') created.push(msg.params.context);
       if (msg.method === 'WebAudio.contextWillBeDestroyed') destroyed.push(msg.params.contextId);
       if (msg.method === 'WebAudio.audioNodeCreated') nodes.created(msg.params.node.contextId, msg.params.node.nodeId, msg.params.node.nodeType);
       if (msg.method === 'WebAudio.audioNodeWillBeDestroyed') nodes.destroyed(msg.params.contextId, msg.params.nodeId);
+      if (msg.method === 'Runtime.consoleAPICalled') consoleEvents.push(msg.params);
     });
     await send('Page.enable');
     await send('Runtime.enable');
@@ -177,6 +181,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       bucketSec,
       samples: samples.length,
       carried,
+      consoleTally: tallyConsole(consoleEvents),
       buckets,
       summary: summarizeBuckets(buckets),
       audibleCorrelation: audibleCapacityCorrelation(buckets),
@@ -198,6 +203,9 @@ function report(run) {
     console.log('carried after warm-up:');
     for (const line of run.carried) console.log(`  ${line}`);
   }
+  const { byType, lines } = run.consoleTally;
+  console.log(`console: ${byType.warning} warnings, ${byType.error} errors`);
+  for (const { type, text, count } of lines) console.log(`  ${count}× ${type}: ${text}`);
   console.table(run.buckets.map((b) => ({
     't (s)': b.startSec,
     'mean cap': Number(fixed(b.meanCapacity, 3)),

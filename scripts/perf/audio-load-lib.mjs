@@ -292,3 +292,38 @@ export function chooseRealtimeContext(created, destroyedIds) {
   const live = created.filter((c) => c.contextType === 'realtime' && !gone.has(c.contextId));
   return live.length ? live[live.length - 1].contextId : null;
 }
+
+// ========================================
+// THE CONSOLE TALLY
+// ========================================
+
+/** The types a run's report lists line by line; every other type is only counted. */
+const LISTED_CONSOLE_TYPES = ['warning', 'error'];
+
+/** The first line of an event's first argument: its string value, else its string description (an Error), else `(non-string)`. */
+function consoleKey(params) {
+  const first = params?.args?.[0];
+  const text = typeof first?.value === 'string' ? first.value : typeof first?.description === 'string' ? first.description : '(non-string)';
+  return text.split(/\r?\n/, 1)[0];
+}
+
+/**
+ * Tally the `params` of `Runtime.consoleAPICalled` events (backlog 35's proof run, docs/specs/BEATCLOCK_TRANSPORT_TIME.md
+ * §5.2): `byType` counts every event by its type, with `warning` and `error` always present; `lines` lists the distinct
+ * warnings and errors by type and first line, most frequent first (first-seen order on a tie), so one message (Tone's
+ * scheduling warning) can be told apart from another's flood.
+ */
+export function tallyConsole(events) {
+  const byType = Object.fromEntries(LISTED_CONSOLE_TYPES.map((type) => [type, 0]));
+  const lines = new Map(); // `${type}\n${text}` -> { type, text, count }, insertion order = first seen
+  for (const params of events) {
+    const type = params?.type ?? 'unknown';
+    byType[type] = (byType[type] ?? 0) + 1;
+    if (!LISTED_CONSOLE_TYPES.includes(type)) continue;
+    const text = consoleKey(params);
+    const key = `${type}\n${text}`;
+    if (!lines.has(key)) lines.set(key, { type, text, count: 0 });
+    lines.get(key).count += 1;
+  }
+  return { byType, lines: [...lines.values()].sort((a, b) => b.count - a.count) };
+}

@@ -2499,6 +2499,70 @@ Spec [specs/OSCILLATOR_LEAK_FIX.md](specs/OSCILLATOR_LEAK_FIX.md) §5.2, plan [t
 
 **Checkpoint B (Crawford, 2026-10-23):** the round 3 bucket accepted as noise, no more rounds; his listen on the desktop passed (no change to the sound, no click at a note's end).
 
+## BeatClock passes the Transport time — the console check (2026-10-26, backlog 35)
+
+Spec [specs/BEATCLOCK_TRANSPORT_TIME.md](specs/BEATCLOCK_TRANSPORT_TIME.md) §5.2, plan [tasks/BEATCLOCK_TRANSPORT_TIME.md](tasks/BEATCLOCK_TRANSPORT_TIME.md) Task 11. The question: is Tone's "Events scheduled inside of scheduled callbacks should use the passed in scheduling time" warning gone now that the swell tick passes the callback's time to every write? The tally is `perf:audio`'s `console:` line (T10): every `Runtime.consoleAPICalled` from navigation on, warnings and errors listed by first line. Tone warns once per page, on the first offending write, so stock must read 1 and the branch 0.
+
+**The links.** Two world links on `charlie` (200, −30), minted on `npm run dev` in headless Chrome by importing the app's own modules: `useAudioStore.getState().setSwellFrequency(f)` and `setSwellDuration(1)`, then `buildShareUrl(buildSessionPayload())`; each was reloaded and the store read back (16 / 1 and 0 / 1; the boot world's own values were 3 / 3). Swell Frequency 16 per measure is `SWELL_FREQUENCY_STEPS`' top step and Duration 1 measure `SWELL_DURATION_SCHEMA`'s minimum, so both swell pools run swells back to back. The control (Frequency 0) is Task 12's.
+
+| Link | Swell frequency / duration | URL (default `vite preview` host) |
+|---|---|---|
+| S1, swell-heavy | 16 / 1 | `http://localhost:4173/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMjTTUSpOAdK1AA` |
+| S0, control | 0 / 1 | `http://localhost:4173/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMtBRKk5RsjKsBQA` |
+
+**Builds.** Stock: `main` at `ff5155ce` (the branch's base), from a clean `git worktree` checkout, `npx vite build --outDir <scratch>`, bundle `index-DdMlmlwt.js`, `vite preview` on :4174. Branch: `fix/beatclock-transport-time` at `7435d138` (T10; `src/` as at T9's `7a4c7878`), built the same way, bundle `index-CGIdmOHf.js`, on :4173.
+
+**Command.** `npm run perf:audio -- --url http://localhost:<port>/trace-atlas/ --world "charlie:200:-30?s=1.q1YqTlOyMjTTUSpOAdK1AA" --seconds 120 --bucket 15` (the harness takes the link as a `name:x:y?s=` spec, not the URL). Headless Chrome, three rounds interleaved (stock branch, branch stock, stock branch), foreground, one run per call, orphaned Chrome 0 before and after. **Pin check** passed on all six: `charlie @ 200,-30`, `load 100%·fx 100%`, `latency interactive`.
+
+| Round | Build | warnings | errors | Tone scheduling line | mean cap | peak window | overall max |
+|---|---|---|---|---|---|---|---|
+| 1 | stock | 1 | 0 | 1 | 0.495 | 0.636 | 0.990 |
+| 1 | branch | 0 | 0 | absent | 0.505 | 0.651 | 0.990 |
+| 2 | branch | 0 | 0 | absent | 0.496 | 0.618 | 0.988 |
+| 2 | stock | 1 | 0 | 1 | 0.495 | 0.615 | 0.991 |
+| 3 | stock | 1 | 0 | 1 | 0.491 | 0.599 | 0.991 |
+| 3 | branch | 0 | 0 | absent | 0.483 | 0.623 | 0.903 |
+
+**Against the plan's criteria.**
+- **The metric is proven: met, 3 of 3.** Stock's only console line in every round is the Tone warning, count 1.
+- **The warning is gone: met, 3 of 3.** The branch logged nothing at all: 0 warnings, 0 errors.
+- Backlog 36's `pulseWidth` line did not appear on either build on this world, so it did not need telling apart here.
+
+The capacity columns are context, not a criterion (the change moves no sound): the branch's means (0.483–0.505) and peak windows (0.618–0.651) are each within 0.02 of stock's range (0.491–0.495, 0.599–0.636), run-to-run noise on this harness.
+
+### The swell tick's main-thread share (Task 12)
+
+Spec §5.3, plan Task 12: the number behind spec §7 question 2, whether the pre-scheduled swell curve is ever built. **Threshold** (plan, Architecture Decisions): build it only if, at 4× throttle, the swell tick's inclusive share of the IDLE window exceeds **2 %** of sampled time with the store half (`updateRobot` and below) excluded, or any task ≥ 50 ms in the window is attributed to the tick.
+
+**Build.** `fix/beatclock-transport-time` at `2cf452df` (`src/` as at `7a4c7878`), `npx vite build --minify false --outDir <scratch>`, bundle `index--X0VW9Mz.js`, `vite preview` on :4174. **Command.** `npm run perf -- --url "http://localhost:4174/trace-atlas/?seed=charlie&x=200&y=-30&s=<S1 or S0>" --profile --throttle 4`, headless Chrome, six runs interleaved S1 S0 S1 S0 S1 S0, foreground, one per call, orphaned Chrome 0 before and after. `profile.mjs` prints only the top 20 inclusive functions, so the runs used a scratch copy that differs in one thing: after each window it also saves the raw CPU profile and the page's long-task entries inside the window (the `PerformanceObserver` `profile.mjs` already installs). The shares below are sample-weighted inclusive time over the **IDLE (blank hub)** window's sampled time (6811–7424 ms per run), counting a sample once when the function is anywhere on its stack, as `profile.mjs` does. A long task "holds" tick time when a sample with `tickAudioSwells` on its stack falls inside it.
+
+| Share of sampled time | S1 run 1 | S1 run 2 | S1 run 3 | **S1 median (min–max)** | S0 median (min–max) |
+|---|---|---|---|---|---|
+| `tickAudioSwells`, inclusive | 4.13 % | 4.21 % | 6.45 % | **4.21 % (4.13–6.45)** | 0.01 % (0.00–0.02) |
+| tick with the store half excluded | 3.35 % | 3.38 % | 5.68 % | **3.38 % (3.35–5.68)** | 0.01 % (0.00–0.02) |
+| store half: `updateRobot` under the tick | 0.78 % | 0.83 % | 0.77 % | **0.78 % (0.77–0.83)** | 0 |
+| Tone half: the four robot engine methods | 2.41 % | 2.22 % | 4.66 % | **2.41 % (2.22–4.66)** | 0 |
+| global pool: `setGlobalAudio` (its engine setters) | 0.59 (0.23) % | 0.96 (0.48) % | 0.72 (0.36) % | 0.72 (0.36) % | 0 |
+| long tasks in the window / holding tick time | 4 / 2 | 4 / 2 | 6 / 1 | | 1–2 / 0 |
+
+The long tasks that hold tick time: run 1 a 185 ms task (26.8 ms of tick) and a 92 ms one (8.1 ms); run 2 163 ms (22.9 ms) and 61 ms (15.9 ms); run 3 175 ms (36.2 ms). In each, Tone's clock callbacks (`forEachTickBetween`, which runs every scheduled callback, notes and the tick alike) hold 88–121 ms and React's render microtask 35–36 ms. The tick is part of those tasks, never all of them. Across the whole window, Tone's clock callbacks take 11.2–13.5 % on S1 and 7.2–7.4 % on S0. The 4–6 point difference is about the tick's own share.
+
+**Where the tick's time goes.** Each tick sample is put in one bucket, in this order: the store, then the oscillator setting path, then the envelope, then the param writes, then the global setters, then the rest.
+
+| Bucket, share of sampled time | S1 run 1 | S1 run 2 | S1 run 3 | Would a param curve remove it? |
+|---|---|---|---|---|
+| oscillator settings: `applyOscFieldViaSet` → Tone's oscillator `set` (phase, pulse width), of which native `createPeriodicWave` | 2.02 % (1.46) | 1.87 % (1.20) | 4.17 % (2.93) | No. Phase and pulse width are settings, which stay stepwise in the agreed design. |
+| of the settings row, under Tone's `phase` setter / the rest (pulse width) | 1.90 / 0.12 % | 1.82 / 0.05 % | 4.10 / 0.07 % | |
+| robot param writes: volume, sends, layer gain and detune (`rampOrSet`, `setOrPoint`, `applyOscDetune`) | 0.21 % | 0.21 % | 0.24 % | Yes |
+| global setters: EQ, LPF, HPF | 0.23 % | 0.48 % | 0.36 % | Yes |
+| envelope: `updateVoiceEnvelope` | 0.18 % | 0.13 % | 0.25 % | No. The envelope is read at trigger. |
+| store: `updateRobot` | 0.78 % | 0.83 % | 0.77 % | Excluded by the threshold |
+| the rest: the tick's rolls, bookkeeping, `setGlobalAudio`'s store write | 0.71 % | 0.68 % | 0.66 % | Partly: the per-tick interpolation goes, the rolls stay |
+
+Inside `updateVoiceLayerParams` in run 3, 295 of 310 ms is the settings path, 210 ms of it `createPeriodicWave`. The param writes in the same method total about 12 ms.
+
+**Verdict (spec §7 question 2): the threshold is cleared, by the rule as written.** With the store half excluded the tick reads **3.38 %** (median; 3.35–5.68), against **2 %**. The second condition is ambiguous: no ≥ 50 ms task is the tick's alone, but five tasks of 61–185 ms hold 8–36 ms of it each. The first condition decides it either way. The breakdown changes what building the curve would buy. The part a param curve takes off the main thread is the robot param writes and the global setters: **0.45 / 0.70 / 0.60 %** (median 0.60 %). Adding the whole "rest" bucket gives an upper bound of about 1.3 %, still under the threshold. Most of the tick is phase writes rebuilding a periodic wave on every `16n` (Tone's `phase` setter re-runs its `type` setter, which misses its wave cache for each new phase; pulse width, a Signal, is 0.05–0.12 %), and the agreed design leaves phase stepwise. The phase cost is backlog [37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). **Decided at Checkpoint C (Crawford, 2026-10-26): the curve is not built; the phase cost is backlog 37.**
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

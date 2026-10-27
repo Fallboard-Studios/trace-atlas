@@ -40,7 +40,7 @@ import {
   LPF_SWELL_DOWNWARD_FLOOR_HZ,
 } from './audioSwells';
 import * as robotOptionsActions from './robotOptionsActions';
-import { scheduleRepeat, cancelSchedule } from '@/engine/beatClock';
+import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
 import { precomputeDataX } from '@/utils/getSeededVal';
 import { useAudioStore } from '@/stores/audioStore';
@@ -1795,5 +1795,156 @@ describe('isGlobalTargetSwelling / isRobotAttributeSwelling (read-only swell-in-
 
     expect(isRobotAttributeSwelling('r1', 'volume')).toBe(true);
     expect(isRobotAttributeSwelling('r2', 'volume')).toBe(true);
+  });
+});
+
+// ========================================
+// BEATCLOCK TRANSPORT TIME (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 8, Task 8)
+// ========================================
+
+describe('the 16n callback carries the Transport time to every swell write', () => {
+  /** Start the swells and return a driver for the 16n callback they registered: each call is one Transport tick at
+   *  `measure` (what getCurrentMeasurePrecise reads) with the audio-clock `time` the Transport hands it. */
+  function registeredTick(): (measure: number, time: number) => void {
+    startAudioSwells(LOCALE_ID);
+    const callback = (vi.mocked(scheduleRepeat).mock.calls[0] as unknown[])[1] as (time: number) => void;
+    return (measure, time) => {
+      vi.mocked(getCurrentMeasurePrecise).mockReturnValueOnce(measure);
+      callback(time);
+    };
+  }
+
+  /** The last call's last argument of an engine / store spy. */
+  const lastTime = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.at(-1)?.at(-1);
+
+  it('a Volume swell write reaches updateRobotMasterVolume with the tick time last', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    const tick = registeredTick();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(0, 9); // creates the swell only
+    vi.mocked(AudioEngine.updateRobotMasterVolume).mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID); // advance only, start nothing
+    tick(1, 9.5);
+
+    const calls = vi.mocked(AudioEngine.updateRobotMasterVolume).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe('r1');
+    expect(calls[0][2]).toBe(9.5);
+  });
+
+  it('a layer gain swell write reaches updateVoiceLayerParams with the tick time last', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
+    const tick = registeredTick();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(0, 9); // picks 'volume'
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(1, 9.25); // 'volume' now excluded -> picks 'layer0.gain'
+    vi.mocked(AudioEngine.updateVoiceLayerParams).mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tick(2, 9.5);
+
+    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'layer0.gain')).toBe(true);
+    expect(vi.mocked(AudioEngine.updateVoiceLayerParams)).toHaveBeenCalled();
+    expect(lastTime(vi.mocked(AudioEngine.updateVoiceLayerParams))).toBe(9.5);
+  });
+
+  it('an ADSR swell write reaches updateVoiceEnvelope with the tick time last', () => {
+    // layer0 muted narrows the pool to volume + the four ADSR fields (as the applyAdsr write-path test does).
+    useLocaleStore.getState().addRobot(
+      LOCALE_ID,
+      makeRobot({ audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 0, detune: 0, phase: 0 }] } }),
+    );
+    const tick = registeredTick();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(0, 9); // picks 'volume'
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(1, 9.25); // 'volume' now excluded -> picks 'adsr.attack'
+    vi.mocked(AudioEngine.updateVoiceEnvelope).mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tick(2, 9.5);
+
+    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'adsr.attack')).toBe(true);
+    expect(vi.mocked(AudioEngine.updateVoiceEnvelope)).toHaveBeenCalled();
+    expect(lastTime(vi.mocked(AudioEngine.updateVoiceEnvelope))).toBe(9.5);
+  });
+
+  it('a send swell write reaches updateRobotSends with the tick time last', () => {
+    const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ reverbSend: 0.25, delaySend: 0 }));
+    const tick = registeredTick();
+    // The only live send is the last eligible item.
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(
+      noiseMapForDataIds({ 'audioSwell.trigger.robot': -1, 'audioSwell.company.chance': 1, 'audioSwell.target.robot': 1 }),
+    );
+    tick(0, 9);
+    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'reverbSend')).toBe(true);
+    sendsSpy.mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tick(1, 9.5);
+
+    expect(sendsSpy.mock.calls).toHaveLength(1);
+    expect(sendsSpy.mock.calls[0][0]).toBe('r1');
+    expect(sendsSpy.mock.calls[0][2]).toBe(9.5);
+  });
+
+  it('a global swell write reaches setGlobalAudio with the tick time last', () => {
+    const spy = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
+    const tick = registeredTick();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(0, 9); // eq3.low: base 0, peak 12, rising 3, falling 12
+    spy.mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tick(2, 9.5);
+
+    const eqCall = spy.mock.calls.find((call) => call[0] === 'eq3');
+    expect(eqCall).toBeDefined();
+    expect(eqCall![1]).toEqual({ low: expect.any(Number) });
+    expect(eqCall![2]).toBe(9.5);
+  });
+
+  it('the exact return-to-base writes carry the tick time too, robot and global alike', () => {
+    const setGlobal = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    const tick = registeredTick();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(0, 9); // an eq3.low and a volume swell, each rising 3, falling 12
+    vi.mocked(AudioEngine.updateRobotMasterVolume).mockClear();
+    setGlobal.mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tick(15, 20.5); // both complete
+
+    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
+    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(false);
+    expect(vi.mocked(AudioEngine.updateRobotMasterVolume).mock.calls.at(-1)).toEqual(['r1', 0.1, 20.5]);
+    expect(setGlobal.mock.calls.find((call) => call[0] === 'eq3')).toEqual(['eq3', { low: 0 }, 20.5]);
+  });
+
+  it('a time of 0 is passed through as 0', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    const tick = registeredTick();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(0, 0);
+    vi.mocked(AudioEngine.updateRobotMasterVolume).mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tick(1, 0);
+    expect(vi.mocked(AudioEngine.updateRobotMasterVolume).mock.calls[0][2]).toBe(0);
+  });
+
+  it('tickAudioSwells called directly with no time still writes, with no time at the engine', () => {
+    const setGlobal = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0);
+    vi.mocked(AudioEngine.updateRobotMasterVolume).mockClear();
+    setGlobal.mockClear();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
+    tickAudioSwells(LOCALE_ID, 1);
+
+    const volumeCalls = vi.mocked(AudioEngine.updateRobotMasterVolume).mock.calls as unknown[][];
+    expect(volumeCalls).toHaveLength(1);
+    expect(volumeCalls[0]).toHaveLength(2);
+    const eqCall = setGlobal.mock.calls.find((call) => call[0] === 'eq3') as unknown[] | undefined;
+    expect(eqCall).toBeDefined();
+    expect(eqCall![2]).toBeUndefined();
   });
 });

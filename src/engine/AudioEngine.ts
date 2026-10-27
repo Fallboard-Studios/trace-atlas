@@ -217,7 +217,9 @@ function sendTargetOf(key: SendEngineKey): Tone.ToneAudioNode | null {
  */
 const roomFeeders: Record<RoomKey, Set<string>> = { grit: new Set(), shimmer: new Set(), double: new Set() };
 
-/** Add or remove `robotId` as a feeder of `key`'s room, telling the room when that flips whether anyone feeds it. */
+/** Add or remove `robotId` as a feeder of `key`'s room, telling the room when that flips whether anyone feeds it.
+ *  Stays on "now" by decision: a room going light or dark is a room-state change, not a swell value, so the swell
+ *  tick's time is not passed here even when a send swell reaches 0 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3). */
 function setRoomFeeder(key: RoomKey, robotId: string, feeding: boolean): void {
   const feeders = roomFeeders[key];
   const was = feeders.size > 0;
@@ -1008,8 +1010,10 @@ export const AudioEngine = {
    * Two-tier update rule (documented):
    * - Continuous params (gain, detune, phase, pulseWidth): use this method — instant, no gap in audio.
    * - Structural changes (type/waveform, add/delete layer): use `reReserveVoice` — may cause brief silence.
+   *
+   * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not).
    */
-  updateVoiceLayerParams(robotId: string, layers: OscillatorLayer[]): void {
+  updateVoiceLayerParams(robotId: string, layers: OscillatorLayer[], time?: number): void {
     try {
       const entry = compositeVoices.get(robotId);
       if (!entry) {
@@ -1019,7 +1023,7 @@ export const AudioEngine = {
 
       try {
         // Pass the full layers array as required by the composite.set contract
-        entry.composite.set({ layers: layers as Partial<OscillatorLayer>[] });
+        entry.composite.set({ layers: layers as Partial<OscillatorLayer>[] }, time);
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply layer params on composite', err);
       }
@@ -1038,8 +1042,10 @@ export const AudioEngine = {
    * place) with the new `adsr` stamped onto every entry, then calls `composite.set({ layers })` — the same
    * `p.adsr → synth.set({ envelope: p.adsr })` path `compositeVoice.ts` already applies for a
    * continuous param edit. No structural change, no audio gap.
+   *
+   * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not).
    */
-  updateVoiceEnvelope(robotId: string, adsr: ADSREnvelope): void {
+  updateVoiceEnvelope(robotId: string, adsr: ADSREnvelope, time?: number): void {
     try {
       const entry = compositeVoices.get(robotId);
       if (!entry?.composite.layers) {
@@ -1048,7 +1054,7 @@ export const AudioEngine = {
       }
       try {
         const patched = entry.composite.layers.map(({ layer }) => ({ ...layer, adsr }));
-        entry.composite.set({ layers: patched });
+        entry.composite.set({ layers: patched }, time);
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply envelope on composite', err);
       }
@@ -1116,8 +1122,9 @@ export const AudioEngine = {
    * click; falls back to a direct value assignment in headless/test environments
    * where it doesn't. A safe no-op (with a devWarn, matching updateVoiceLayerParams/
    * updateVoiceEnvelope's existing pattern) when no composite voice is reserved for the robot.
+   * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not).
    */
-  updateRobotMasterVolume(robotId: string, masterVolume: number): void {
+  updateRobotMasterVolume(robotId: string, masterVolume: number, time?: number): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
       devWarn(`[AudioEngine] updateRobotMasterVolume: no composite reserved for ${robotId}`);
@@ -1125,7 +1132,7 @@ export const AudioEngine = {
     }
     try {
       const targetGain = robotBusGain(masterVolume);
-      rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS);
+      rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS, time);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);
     }
@@ -1140,10 +1147,12 @@ export const AudioEngine = {
    * Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.4): `grit`, `shimmer` and `double` ramp the effect room
    * sends the same way, and each also moves the robot in or out of its room's feeder set (roomFeeders).
    * One loop in table order whatever order the caller built `sends` in (docs/specs/ROBOT_SEND_TABLE.md §1.2).
+   * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not).
    */
   updateRobotSends(
     robotId: string,
     sends: Partial<Record<SendEngineKey, number>>,
+    time?: number,
   ): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
@@ -1155,7 +1164,7 @@ export const AudioEngine = {
         const requested = sends[key];
         if (requested === undefined || Number.isNaN(requested)) continue;
         const level = clampSend(requested);
-        rampOrSet(entry.sends[key].gain as unknown as RampableParam, level, SEND_RAMP_SECONDS);
+        rampOrSet(entry.sends[key].gain as unknown as RampableParam, level, SEND_RAMP_SECONDS, time);
         // Reverb and Delay are fixed rooms with no feeder set; the three effect rooms light only while someone feeds them.
         if (isRoomSendKey(key)) setRoomFeeder(key, robotId, level > 0);
       }

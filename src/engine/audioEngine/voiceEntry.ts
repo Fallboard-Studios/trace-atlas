@@ -42,14 +42,37 @@ export function disposeVoiceNodes(entry: VoiceEntry): void {
   for (const [name, node] of nodes) attempt(`${name}.dispose`, () => node.dispose?.());
 }
 
-/** A Tone AudioParam / Signal as far as a live edit needs it: `rampTo` when the real node has it. */
-export type RampableParam = { rampTo?: (value: number, rampTime: number) => void; value: number };
+/** A Tone Param / Signal as far as a live edit needs it: `rampTo` and `setValueAtTime` when the real node has them. */
+export type RampableParam = {
+  rampTo?: (value: number, rampTime: number, startTime?: number) => void;
+  setValueAtTime?: (value: number, time: number) => void;
+  value: number;
+};
 
-/** Glide `param` to `target` over `rampSeconds` when it can ramp, else assign it (headless / test stubs). */
-export function rampOrSet(param: RampableParam, target: number, rampSeconds: number): void {
+/**
+ * Glide `param` to `target` over `rampSeconds`, starting at `time` when the caller is a Transport tick (the callback's
+ * own time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3), else now. With no ramp, a timed point; with neither, assign
+ * (headless / test stubs). A missing time is never defaulted: the untimed calls are exactly the pre-existing ones
+ * (`rampTo` with two arguments, `.value =`), so a UI edit behaves as it always has.
+ */
+export function rampOrSet(param: RampableParam, target: number, rampSeconds: number, time?: number): void {
   if (typeof param.rampTo === 'function') {
-    param.rampTo(target, rampSeconds);
+    if (time !== undefined) param.rampTo(target, rampSeconds, time);
+    else param.rampTo(target, rampSeconds);
   } else {
-    param.value = target;
+    setOrPoint(param, target, time);
+  }
+}
+
+/**
+ * Write `value` to a live Param / Signal with no glide: a point at `time` when the caller is a Transport tick and the
+ * node can take one, else assign it now (no time, or a headless / test stub). For writes that were `.value =` before
+ * docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3; the untimed call is exactly that assignment.
+ */
+export function setOrPoint(param: Pick<RampableParam, 'setValueAtTime' | 'value'>, value: number, time?: number): void {
+  if (time !== undefined && typeof param.setValueAtTime === 'function') {
+    param.setValueAtTime(value, time);
+  } else {
+    param.value = value;
   }
 }

@@ -9,7 +9,8 @@ import { generateUUID } from '../utils/randomId';
 interface TransportLike {
   // Tone.Transport.position can be a Tone.Time (string/number-like), accept unknown
   position?: unknown;
-  scheduleRepeat(callback: (time?: unknown) => void, interval: string, startTime?: unknown): string | number;
+  /** Tone hands each callback the audio-clock time (seconds) the tick is FOR, about `lookAhead` ahead of now. */
+  scheduleRepeat(callback: (time: number) => void, interval: string, startTime?: unknown): string | number;
   clear(id: string | number): void;
 }
 
@@ -26,7 +27,7 @@ let initialized = false;
 // Internal transport tick id for the 16n scheduler so we can clear it on reset
 let internalTickId: string | number | null = null;
 /** Map of scheduleId -> schedule entry. Stores pending schedules when transport is not yet available. */
-const scheduleMap = new Map<string, { transportId?: string | number; interval: string; callback: () => void }>();
+const scheduleMap = new Map<string, { transportId?: string | number; interval: string; callback: (time: number) => void }>();
 const measureListeners: Array<(measure: number) => void> = [];
 
 // ========================================
@@ -64,8 +65,8 @@ export function initBeatClock(transport?: TransportLike): void {
   scheduleMap.forEach((entry, scheduleId) => {
     if (entry.transportId === undefined) {
       try {
-        const transportId = transportLocal.scheduleRepeat((_time: unknown) => {
-          entry.callback();
+        const transportId = transportLocal.scheduleRepeat((time) => {
+          entry.callback(time);
         }, entry.interval, entry.interval);
         entry.transportId = transportId;
       } catch (err) {
@@ -131,10 +132,12 @@ export function getCurrentMeasurePrecise(): number {
  * Schedule a callback to repeat at the given musical interval.
  * Registers with Tone.Transport and stores the event ID for later cancellation via cancelSchedule.
  * @param interval - Tone.js time notation, e.g. '4m', '8n', '60m'
- * @param callback - Called on each interval tick
+ * @param callback - Called on each interval tick with the Transport's `time` for that tick, in seconds on the audio
+ *   clock (docs/specs/BEATCLOCK_TRANSPORT_TIME.md). A consumer that reaches Tone places its writes at it; reaching
+ *   Tone with no time from inside the callback lands "now", up to `lookAhead` early, and Tone warns.
  * @returns A schedule ID that can be passed to cancelSchedule
  */
-export function scheduleRepeat(interval: string, callback: () => void): string {
+export function scheduleRepeat(interval: string, callback: (time: number) => void): string {
   const scheduleId = `schedule-${generateUUID()}`;
 
   // If transport isn't ready, persist the requested interval+callback so it
@@ -146,8 +149,8 @@ export function scheduleRepeat(interval: string, callback: () => void): string {
 
   // Pass interval as startTime so the first tick fires after one full interval,
   // not at T=0 when Transport starts.
-  const transportId = transportInstance.scheduleRepeat((_time: unknown) => {
-    callback();
+  const transportId = transportInstance.scheduleRepeat((time) => {
+    callback(time);
   }, interval, interval);
 
   scheduleMap.set(scheduleId, { transportId, interval, callback });

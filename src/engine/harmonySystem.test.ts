@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let currentMeasure = 0;
 
-const callbacks: Array<() => void> = [];
-const scheduleRepeatMock = vi.fn<(interval: string, cb: () => void) => string>((_interval, cb) => {
+const callbacks: Array<(time: number) => void> = [];
+const scheduleRepeatMock = vi.fn<(interval: string, cb: (time: number) => void) => string>((_interval, cb) => {
   callbacks.push(cb);
   return `schedule-${callbacks.length}`;
 });
@@ -14,7 +14,7 @@ const cancelScheduleMock = vi.fn<(id: string) => void>();
 // so this is the only mock this file needs — no more mockTransport, no more vi.mock('tone', ...).
 vi.mock('./beatClock', () => ({
   getCurrentMeasure: () => currentMeasure,
-  scheduleRepeat: (interval: string, cb: () => void) => scheduleRepeatMock(interval, cb),
+  scheduleRepeat: (interval: string, cb: (time: number) => void) => scheduleRepeatMock(interval, cb),
   cancelSchedule: (id: string) => cancelScheduleMock(id),
 }));
 
@@ -76,7 +76,7 @@ describe('harmonySystem', () => {
   it('advances the palette as the transport measure advances', () => {
     scheduleHarmonyCycle();
     currentMeasure = 10; // floor(10/2) % 12 = index 5
-    callbacks[0]?.();
+    callbacks[0]?.(0);
     expect(getAvailableNotes()[0]).toBe('A');
   });
 
@@ -84,7 +84,7 @@ describe('harmonySystem', () => {
     scheduleHarmonyCycle();
     setAvailableNotes(['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z']); // prove a no-op tick leaves this alone
     currentMeasure = 1; // floor(1/2) % 12 = 0 — same index the module already started on
-    callbacks[0]?.();
+    callbacks[0]?.(0);
     expect(getAvailableNotes()).toEqual(['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z']);
   });
 
@@ -95,15 +95,15 @@ describe('harmonySystem', () => {
     scheduleHarmonyCycle();
 
     currentMeasure = 22; // floor(22/2) % 12 = 11 — last entry before the wrap
-    callbacks[0]?.();
+    callbacks[0]?.(0);
     expect(getAvailableNotes()[0]).toBe('E');
 
     currentMeasure = 24; // floor(24/2) % 12 = 0 — one full lap, wraps back to the first entry
-    callbacks[0]?.();
+    callbacks[0]?.(0);
     expect(getAvailableNotes()).toEqual(['C', 'G', 'E', 'D', 'B', 'C', 'E', 'G']);
 
     currentMeasure = 30; // floor(30/2) % 12 = 3 — proves it keeps advancing past the wrap, not stuck
-    callbacks[0]?.();
+    callbacks[0]?.(0);
     expect(getAvailableNotes()[0]).toBe('F');
   });
 
