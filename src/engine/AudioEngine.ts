@@ -1029,26 +1029,29 @@ export const AudioEngine = {
    * Two-tier update rule (documented):
    * - Continuous params (gain, detune, phase, pulseWidth): use this method — instant, no gap in audio.
    * - Structural changes (type/waveform, add/delete layer): use `reReserveVoice` — may cause brief silence.
+   * - A non-zero gain on a layer muted at build (no synth to land on): this method returns `true`, and the caller
+   *   rebuilds (docs/specs/COMPOSITE_LAYER_WRITES.md §7 Q1). `false` otherwise, and when no voice is reserved.
    *
    * `time`: the tick's time, docs/specs/BEATCLOCK_TRANSPORT_TIME.md (a swell passes it; a UI edit does not).
    */
-  updateVoiceLayerParams(robotId: string, layers: OscillatorLayer[], time?: number): void {
+  updateVoiceLayerParams(robotId: string, layers: OscillatorLayer[], time?: number): boolean {
     try {
       const entry = compositeVoices.get(robotId);
       if (!entry) {
         devWarn(`[AudioEngine] updateVoiceLayerParams: no composite reserved for ${robotId}`);
-        return;
+        return false;
       }
 
       try {
         // Pass the full layers array as required by the composite.set contract
-        entry.composite.set({ layers: layers as Partial<OscillatorLayer>[] }, time);
+        return entry.composite.set({ layers: layers as Partial<OscillatorLayer>[] }, time).unrouted.length > 0;
       } catch (err) {
         devWarn('[AudioEngine] Failed to apply layer params on composite', err);
       }
     } catch (err) {
       devWarn('[AudioEngine] updateVoiceLayerParams failed', err);
     }
+    return false;
   },
 
   /**

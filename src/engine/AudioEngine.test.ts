@@ -2476,6 +2476,75 @@ describe('AudioEngine - a voice built with a muted layer is keyed by robot layer
   });
 });
 
+// Composite Layer Writes T7 (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2): a non-zero gain for a layer with no synth can
+// only be honoured by a rebuild, so updateVoiceLayerParams reports it and the caller rebuilds.
+describe('AudioEngine.updateVoiceLayerParams - needsRebuild', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const MUTED_MIDDLE: any[] = [
+    { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+    { type: 'square', gain: 0, detune: 0, phase: 0 },
+    { type: 'sawtooth', gain: 0.6, detune: 0, phase: 0 },
+  ];
+  const withGain = (index: number, gain: number) => MUTED_MIDDLE.map((l, i) => (i === index ? { ...l, gain } : l));
+
+  const reserve = async (layers: any[]) => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.reserveVoice('rebuild-robot', layers, TEST_ADSR);
+    return AudioEngine;
+  };
+
+  it('returns true when the muted-at-build layer 1 is given a non-zero gain', async () => {
+    const AudioEngine = await reserve(MUTED_MIDDLE);
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', withGain(1, 0.5))).toBe(true);
+  });
+
+  it('returns false when layer 1 stays at gain 0', async () => {
+    const AudioEngine = await reserve(MUTED_MIDDLE);
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', withGain(1, 0))).toBe(false);
+  });
+
+  it('returns false when a built layer is muted (a live update)', async () => {
+    const AudioEngine = await reserve(MUTED_MIDDLE);
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', withGain(0, 0))).toBe(false);
+  });
+
+  it('returns false for an edit of a voice with every layer built', async () => {
+    const AudioEngine = await reserve([
+      { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+      { type: 'square', gain: 0.4, detune: 0, phase: 0 },
+    ]);
+    const edited: any[] = [
+      { type: 'sine', gain: 0.2, detune: 5, phase: 0 },
+      { type: 'square', gain: 0.9, detune: 0, phase: 0 },
+    ];
+    expect(AudioEngine.updateVoiceLayerParams('rebuild-robot', edited)).toBe(false);
+  });
+
+  it('returns false, without throwing, for a robot with no reserved voice', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(AudioEngine.updateVoiceLayerParams('never-reserved', withGain(1, 0.5))).toBe(false);
+  });
+
+  it('returns false from the stub voice a failed construction leaves behind', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const Tone = await import('tone');
+    const realSynth = Tone.Synth;
+    (Tone as unknown as { Synth: unknown }).Synth = vi.fn(() => { throw new Error('simulated construction failure'); });
+    try {
+      expect(AudioEngine.reserveVoice('stub-rebuild-robot', MUTED_MIDDLE, TEST_ADSR)).toBe(false);
+    } finally {
+      (Tone as unknown as { Synth: unknown }).Synth = realSynth;
+    }
+    expect(AudioEngine.updateVoiceLayerParams('stub-rebuild-robot', withGain(1, 0.5))).toBe(false);
+  });
+});
+
 describe('AudioEngine - getGlobalModulationTarget', () => {
   beforeEach(() => {
     vi.resetModules();

@@ -352,7 +352,7 @@ T0 (docs slot)
 
   **Estimated scope:** XS (two method bodies and their cases)
 
-- [ ] **Task 7: `AudioEngine.ts`: `updateVoiceLayerParams` returns `needsRebuild`**
+- [x] **Task 7: `AudioEngine.ts`: `updateVoiceLayerParams` returns `needsRebuild`**
 
   **Description:** The method returns `set(...).unrouted.length > 0`; `false` when no composite is reserved (the
   existing `devWarn` no-op) and `false` from the failure-path stub. The doc comment's "two-tier update rule" gains the
@@ -362,17 +362,17 @@ T0 (docs slot)
   gain 0.5 returns `true`. Fails today: `void`.
 
   **Acceptance criteria:**
-  - [ ] `true` for l1 gain 0.5; `false` for l1 gain 0, for l0 gain 0 (muting a built layer), for a full-voice call,
+  - [x] `true` for l1 gain 0.5; `false` for l1 gain 0, for l0 gain 0 (muting a built layer), for a full-voice call,
         and for an unreserved robot (and no throw).
-  - [ ] The existing `updateVoiceLayerParams` cases pass unmodified.
-  - [ ] The actions test's spy `vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {})`
+  - [x] The existing `updateVoiceLayerParams` cases pass unmodified.
+  - [x] The actions test's spy `vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {})`
         (`robotOptionsActions.test.ts` ~973) becomes `() => false` so it type-checks against the new return; no
         other change there (T8 adds the `true` cases).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts src/systems/robotOptionsActions.test.ts` passes.
-  - [ ] Mutation: return `unrouted.length >= 0`, and the `false` cases fail.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/systems/robotOptionsActions.test.ts` passes.
+  - [x] Mutation: return `unrouted.length >= 0`, and the `false` cases fail.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T4, T5.
 

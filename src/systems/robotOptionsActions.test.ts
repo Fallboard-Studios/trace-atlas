@@ -970,7 +970,7 @@ describe('robotOptionsActions', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
-      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
       const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
       const nextLayers: OscillatorLayer[] = [{ type: 'sine', gain: 0.9, detune: 5, phase: 0 }];
 
@@ -989,7 +989,7 @@ describe('robotOptionsActions', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
-      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
       const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
       const nextLayers: OscillatorLayer[] = [{ type: 'square', gain: 1, detune: 0, phase: 0 }];
 
@@ -1022,7 +1022,7 @@ describe('robotOptionsActions', () => {
     it('applyLayersContinuous never primes LFO links — it never rebuilds the voice, so nothing needs re-wiring', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
-      vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+      vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
       const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
       const nextLayers: OscillatorLayer[] = [{ type: 'sine', gain: 0.5, detune: 0, phase: 0 }];
 
