@@ -2585,6 +2585,101 @@ Spec [specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](specs/SWELL_PHASE_PULSE_WIDTH_CUT.md
 
 Dev-mode capacity is not compared (spec §5.2); for the record, the overall means were 0.485 and 0.463 on stock's two runs and 0.480 on the branch's.
 
+### The swell tick's main-thread share: stock, 37, and 37 + 38 (Task 7)
+
+Spec §5.3 and §8.5, plan Task 7. Task 12's method above, repeated on three builds in one session. 37 is not gated. 38's criterion (spec §5.6): head's tick share stays within 37's spread, or the growth is stated as a number.
+
+**Builds.** Each was built with `npx vite build --minify false --outDir <scratch>` and served with `vite preview`:
+
+| Build | Commit | Bundle | Port |
+|---|---|---|---|
+| stock | `main` at `12008fd9` (the branch base), the T6 worktree | `index-CYpLI9xk.js` | 4174 |
+| 37 | `d8e3fd9f` (T4, the pool at 16), a second worktree | `index-DSl2dg7z.js` | 4175 |
+| head (37 + 38) | `43a451e9` (`src/` as at T12's `0bdf7562`) | `index-CQTj_4-g.js` | 4176 |
+
+**Command.** `node <scratch>/profile-raw.mjs --url "http://localhost:<port>/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMjTTUSpOAdK1AA" --profile --throttle 4` (S1). Headless Chrome, nine runs interleaved stock, 37, head, 37, head, stock, head, stock, 37, foreground, three per call, orphaned Chrome 0 before and after every call.
+
+**The scratch harness.** It is a copy of `profile.mjs`, rebuilt and not committed, that differs in one thing: after each window it also saves the raw CPU profile and the page's long-task entries. To place long tasks against samples it reads `NavigationStart` from CDP `Performance.getMetrics`, which uses the same monotonic clock as the profile. A page-side `performance.now()` read either side of `Profiler.start`/`stop` bracketed that mapping on all nine runs. The first version used only the `performance.now()` round trips, which took up to 1.5 s at 4× throttle. Its one stock run was a shakedown and was discarded.
+
+**Proving it against Task 12.** Stock's tick read **2.41 / 2.26 / 6.11 %**, and Task 12 read 4.13–6.45 %. The gap comes from whether a phase swell happens to be live in the 6 s window:
+- run 8 had one: its settings bucket was 3.98 %, with 2.84 % native `createPeriodicWave`;
+- runs 1 and 6 had none: settings 0.15–0.19 % and no `createPeriodicWave`;
+- the discarded shakedown had one: 4.42 % tick and 1.72 % `createPeriodicWave`, inside Task 12's range;
+- all three of Task 12's runs had one: settings 1.87–4.17 %.
+
+On the buckets a phase swell does not touch, stock matches Task 12:
+
+| Bucket | Stock here | Task 12 |
+|---|---|---|
+| store | 0.62–0.87 % | 0.77–0.83 % |
+| robot param writes | 0.24–0.30 % | 0.21–0.24 % |
+| global setters | 0.22–0.38 % | 0.23–0.48 % |
+| envelope | 0.04–0.19 % | 0.13–0.25 % |
+
+So the harness reproduces Task 12. Stock's median, though, depends on whether a phase swell lands in the window, which is the cost 37 removes.
+
+**Results.** These are shares of the IDLE (blank hub) window's sampled time (7113–7640 ms per run), sample-weighted and inclusive. Each tick sample goes into one bucket, in this order: store, oscillator settings, envelope, global setters, robot param writes, the rest. The global setters (`setGlobalEQ`, `setGlobalFilterLPF`/`HPF` under `setGlobalAudio`) come before the robot param writes because they write through the same `rampOrSet`/`setOrPoint` leaves. Task 12 split them the same way.
+
+| Share of sampled time | stock, median (min–max) | 37, median (min–max) | head, median (min–max) |
+|---|---|---|---|
+| `tickAudioSwells`, inclusive | 2.41 % (2.26–6.11) | **2.16 % (2.14–2.29)** | **2.97 % (2.90–3.07)** |
+| tick with the store half excluded | 1.64 % (1.54–5.43) | 1.49 % (1.46–1.50) | 2.18 % (2.13–2.28) |
+| store: `updateRobot` | 0.68 % (0.62–0.87) | 0.70 % (0.65–0.79) | 0.79 % (0.77–0.79) |
+| oscillator settings: `applyOscFieldViaSet` | 0.19 % (0.15–3.98) | 0.04 % (0.04–0.07) | 0.08 % (0.08–0.09) |
+| of which under Tone's `phase` setter | 0.08 % (0.04–3.92) | **0.03 % (0.01–0.04)** | 0.06 % (0.02–0.08) |
+| of which the rest | 0.11 % (0.07–0.11) | 0.03 % (0.00–0.04) | 0.03 % (0.00–0.06) |
+| native `createPeriodicWave` under the tick | 0.00 % (0.00–2.84) | **0.00 % (all three)** | **0.00 % (all three)** |
+| envelope: `updateVoiceEnvelope` | 0.15 % (0.04–0.19) | 0.22 % (0.20–0.24) | 0.49 % (0.47–0.68) |
+| global setters | 0.36 % (0.22–0.38) | 0.33 % (0.32–0.41) | 0.47 % (0.45–0.49) |
+| robot param writes: `rampOrSet`, `setOrPoint`/`setOrGlide`, `applyOscDetune` | 0.26 % (0.24–0.30) | 0.16 % (0.16–0.21) | 0.53 % (0.39–0.56) |
+| the rest | 0.75 % (0.53–0.86) | 0.69 % (0.64–0.71) | 0.62 % (0.54–0.66) |
+| Tone's clock callbacks (`forEachTickBetween`), whole window | 9.81 % (9.32–13.62) | 9.21 % (9.15–9.53) | 10.21 % (10.05–10.38) |
+| Auto pan's `rampOrSet` under `updateAllPanners`, whole window (outside the tick) | 0 | 0 | 0.12 % (0.03–0.14) |
+
+Per run, in run order, the tick's inclusive share was:
+- stock 2.41 / 2.26 / 6.11 %;
+- 37 2.14 / 2.16 / 2.29 %;
+- head 2.90 / 2.97 / 3.07 %.
+
+**Long tasks in the window, and how many hold tick time.** A task holds tick time when a sample with `tickAudioSwells` on its stack falls inside it. The figures in brackets are the tick's ms inside the task.
+
+| Build | Run | Long tasks / holding tick | The holding tasks |
+|---|---|---|---|
+| stock | 1 | 1 / 1 | 183 ms (26.6) |
+| stock | 6 | 2 / 1 | 196 ms (30.5) |
+| stock | 8 | 8 / 6 | 162 (56.6), 69 (15.0), 55 (26.3), 52 (23.8), 95 (29.7), 54 ms (25.2) |
+| 37 | 2 | 2 / 1 | 185 ms (19.7) |
+| 37 | 4 | 3 / 2 | 187 (31.6), 63 ms (4.1) |
+| 37 | 9 | 2 / 2 | 179 (28.6), 54 ms (5.4) |
+| head | 3 | 4 / 2 | 195 (37.6), 55 ms (5.9) |
+| head | 5 | 1 / 1 | 178 ms (33.3) |
+| head | 7 | 1 / 1 | 170 ms (35.1) |
+
+As in Task 12, the 170–196 ms task appears once in every run. The tick is part of it, never all of it.
+
+**Reading.**
+- **37: `createPeriodicWave` under the tick is 0 on all six branch runs**, as the spec expected. The only stock run with a phase swell live had 2.84 %. With no phase swell in the window, stock and 37 read the same (2.26–2.41 % against 2.14–2.29 %). 37 removes the phase-swell spikes and leaves the baseline alone.
+- **Backlog 40's size: the phase setter under the tick on 37 is 0.03 % (0.01–0.04 %)**, or 1.1–3.2 ms per window. All of it is under `applyOscFieldViaSet`, with no `createPeriodicWave`. That is gain, detune and ADSR writes re-applying an unchanged phase, which hit the wave cache.
+- **38: head is outside 37's spread. The tick grows by 0.81 points at the median (2.16 → 2.97 %, +38 %)**, and head's lowest run (2.90 %) sits above 37's highest (2.29 %). With the store half excluded, the growth is 0.69 points (1.49 → 2.18 %). It sits in three buckets:
+  - robot param writes, +0.37 points;
+  - envelope, +0.27 points;
+  - global setters, +0.14 points.
+
+  Per write leaf, under the tick, per run:
+
+  | Leaf | 37 | head |
+  |---|---|---|
+  | `setOrPoint` | 0.36 / 0.40 / 0.39 % | (none) |
+  | `setOrGlide` | (none) | 1.05 / 1.19 / 1.21 % |
+  | its `getTickSeconds` | (none) | 0.18 / 0.13 / 0.22 % |
+
+  A glide is Tone's `rampTo`, which reads the current value and sets a ramp point before the ramp. It costs about three times a point.
+  - **The envelope bucket grows because `updateVoiceEnvelope` re-applies each layer's gain and detune** through `setOrGlide` and `applyOscDetune`. That is backlog 41's stale envelope patch, which now glides too.
+  - **`getTickSeconds` (Transport `toSeconds('16n')`) runs once per write**, not once per tick.
+
+  Outside the tick, Auto pan's glide adds 0.12 % (0.03–0.14 %) in `updateAllPanners`. Tone's clock callbacks, which include the tick, run 10.05–10.38 % on head against 9.15–9.53 % on 37.
+- Stated, not tuned (spec §5.6). Head's tick, at 2.97 %, is still below stock's phase-swell run (6.11 %) and Task 12's range (4.13–6.45 %). Whether 0.8 points is acceptable for the glide is Crawford's call at Checkpoint B.
+
 ## Steady-state review — what runs continuously, and which of it can pop (2026-10-26)
 
 Crawford, hearing cracks and pops on the desktop (not level distortion), asked for a review of everything that runs

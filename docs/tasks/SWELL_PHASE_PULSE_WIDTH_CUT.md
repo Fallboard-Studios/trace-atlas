@@ -529,7 +529,7 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
 
   **Estimated scope:** S (runs plus one doc section)
 
-- [ ] **Task 7: the measurement, three builds in one session (spec §5.3, §8.5)**
+- [x] **Task 7: the measurement, three builds in one session (spec §5.3, §8.5)**
 
   **Description:**
   - **Builds:** each is built with `npx vite build --minify false --outDir <scratch>` and served with `vite preview` on
@@ -559,17 +559,20 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   spread, or the growth is stated as a number (spec §5.6).
 
   **Acceptance criteria:**
-  - [ ] Nine runs recorded with the three builds' bundle names, the link and the command.
-  - [ ] `createPeriodicWave` under the tick is reported for all three builds. The spec expects about 0 on 37 and head,
-        and any other result is stated plainly.
-  - [ ] The 37 build's residual phase-setter share is stated as a number.
-  - [ ] Head against 37: the tick share and the param-write buckets, with their spreads, and whether head sits inside
-        37's spread.
+  - [x] Nine runs recorded with the three builds' bundle names, the link and the command.
+  - [x] `createPeriodicWave` under the tick is reported for all three builds. The spec expects about 0 on 37 and head,
+        and any other result is stated plainly. *As run: 0 on all six branch runs; stock 0 / 0 / 2.84 %.*
+  - [x] The 37 build's residual phase-setter share is stated as a number. *0.03 % (0.01–0.04).*
+  - [x] Head against 37: the tick share and the param-write buckets, with their spreads, and whether head sits inside
+        37's spread. *Outside: tick 2.97 % (2.90–3.07) against 2.16 % (2.14–2.29), +0.81 points; the growth is in
+        `setOrGlide` (robot param writes, envelope re-applies, global setters). Crawford's call at Checkpoint B.*
 
   **Verification:**
-  - [ ] Every recorded figure is re-read against the saved raw profiles.
-  - [ ] The scratch harness's stock reading is compared with Task 12, and the comparison is stated.
-  - [ ] Orphaned Chrome is 0 before and after.
+  - [x] Every recorded figure is re-read against the saved raw profiles.
+  - [x] The scratch harness's stock reading is compared with Task 12, and the comparison is stated. *Stock is
+        bimodal on a 6 s window: a live phase swell (run 8, and the discarded shakedown) lands in Task 12's range, none
+        reads 2.26–2.41 %; the other buckets match Task 12.*
+  - [x] Orphaned Chrome is 0 before and after.
 
   **Dependencies:** T6. It uses T6's worktree. Its order relative to T6 is only for hygiene: one harness at a time.
 
