@@ -626,7 +626,8 @@ head. Crawford asked for it to run once per tick.
         below this session's noise (one outlier T13 run, two contaminated first runs), recorded as such.*
 
 ### Checkpoint B: Crawford's read and listen
-- [ ] Crawford reads T6's and T7's sections.
+- [x] Crawford reads T6's and T7's sections. *And T14's. Decided (Crawford, 2026-10-27): the glide's cost is
+      accepted, about +0.8 points of the IDLE window on head over 37 (T7), less the 0.16–0.23 that T13 removed (T14).*
 - [ ] Crawford listens on the desktop, stock against head on S1 at Full (spec §5.4). Nothing new is heard, and
       whether pops changed is noted in his words. For 38: a gain or EQ swell over a sustained note glides rather than
       steps, and a swimming robot's pan moves smoothly. A glide that seems to fight a step on the same robot is noted
