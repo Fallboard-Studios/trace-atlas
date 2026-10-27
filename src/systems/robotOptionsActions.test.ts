@@ -1098,7 +1098,7 @@ describe('robotOptionsActions', () => {
       expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
     });
 
-    it('applyLayersContinuous never primes LFO links — it never rebuilds the voice, so nothing needs re-wiring', () => {
+    it('applyLayersContinuous does not prime LFO links when the engine reports no rebuild', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
       vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
