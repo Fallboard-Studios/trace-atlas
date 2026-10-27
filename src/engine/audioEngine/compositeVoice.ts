@@ -91,6 +91,14 @@ export function toToneEnvelope(adsr: ADSREnvelope): Partial<Tone.EnvelopeOptions
   return envelope;
 }
 
+const ADSR_FIELDS = ['attack', 'decay', 'sustain', 'release', 'attackCurve', 'releaseCurve'] as const;
+
+/** Two envelopes are the same when every field is `===`, whatever their references (an absent curve equals an
+ *  explicitly undefined one). */
+function sameAdsr(a: ADSREnvelope, b: ADSREnvelope): boolean {
+  return ADSR_FIELDS.every((k) => a[k] === b[k]);
+}
+
 /**
  * A live-update patch entry for `set({ layers })`. `adsr` is not part of the persisted
  * `OscillatorLayer` shape (Roadmap Phase 9 moved ADSR to one shared robot-level envelope,
@@ -252,6 +260,9 @@ export function createCompositeVoice(
    * Signal) glide one tick from `time` (setOrGlide); phase and pulse width (oscillator settings via synth.set),
    * portamento and the ADSR (read at the next trigger) are written now either way. Without a time every write is exactly
    * the pre-existing one.
+   *
+   * A field whose value `===` its record in `written` is not written, timed or not (no epsilon; the ADSR compares
+   * field by field): docs/specs/COMPOSITE_LAYER_WRITES.md §1.2. Each record is updated in the same branch as its write.
    */
   const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => {
     if (params.outputGain !== undefined) out.gain.value = params.outputGain;
@@ -262,32 +273,40 @@ export function createCompositeVoice(
         if (!p) continue;
         const node = layerAt(i);
         if (!node) continue;
-        const { synth, gainNode } = node;
-        if (p.gain !== undefined && gainNode) {
+        const { synth, gainNode, written } = node;
+        if (p.gain !== undefined && p.gain !== written.gain && gainNode) {
           try {
-            setOrGlide(gainNode.gain as unknown as RampableParam, p.gain as number, time);
+            setOrGlide(gainNode.gain as unknown as RampableParam, p.gain, time);
+            written.gain = p.gain;
           } catch (err) {
             devWarn('[AudioEngine] Failed to set layer gain on composite', err);
           }
         }
-        if (p.detune !== undefined) {
+        if (p.detune !== undefined && p.detune !== written.detune) {
           applyOscDetune(synth as unknown as SynthWithOscillator, p.detune, 'set', time);
+          written.detune = p.detune;
         }
-        if (p.phase !== undefined) {
+        if (p.phase !== undefined && p.phase !== written.phase) {
           applyOscFieldViaSet(synth as unknown as SynthWithOscillator, 'phase', 'phase', p.phase, 'set');
+          written.phase = p.phase;
         }
-        if (p.pulseWidth !== undefined) {
+        if (p.pulseWidth !== undefined && p.pulseWidth !== written.pulseWidth) {
           applyOscFieldViaSet(synth as unknown as SynthWithOscillator, 'width', 'pulseWidth', p.pulseWidth, 'set');
+          written.pulseWidth = p.pulseWidth;
         }
-        if (p.portamento !== undefined && synth) {
+        if (p.portamento !== undefined && p.portamento !== written.portamento && synth) {
           try {
             synth.portamento = p.portamento;
+            written.portamento = p.portamento;
           } catch (err) {
             devWarn('[AudioEngine] Failed to set portamento on composite layer', err);
           }
         }
-        if (p.adsr && typeof (synth as unknown as { set?: (props: unknown) => void }).set === 'function') {
-          try { (synth as unknown as { set?: (props: unknown) => void }).set?.({ envelope: toToneEnvelope(p.adsr) }); } catch (err) {
+        if (p.adsr && !sameAdsr(p.adsr, written.adsr) && typeof (synth as unknown as { set?: (props: unknown) => void }).set === 'function') {
+          try {
+            (synth as unknown as { set?: (props: unknown) => void }).set?.({ envelope: toToneEnvelope(p.adsr) });
+            written.adsr = { ...p.adsr };
+          } catch (err) {
             devWarn('[AudioEngine] Failed to set ADSR on composite layer', err);
           }
         }

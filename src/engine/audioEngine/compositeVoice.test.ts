@@ -364,15 +364,17 @@ describe('createCompositeVoice: set({ layers }) portamento and curves', () => {
     });
     const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
     const synth = synthInstances()[0];
-    expect(() => voice.set({ layers: [{ portamento: 0.2, detune: 33, adsr: SHARED_ADSR }] })).not.toThrow();
+    const adsr = { ...SHARED_ADSR, sustain: 0.4 }; // differs from the build, so it is written
+    expect(() => voice.set({ layers: [{ portamento: 0.2, detune: 33, adsr }] })).not.toThrow();
     expect((synth as unknown as { oscillator: { detune: { value: number } } }).oscillator.detune.value).toBe(33);
-    expect(synth.set).toHaveBeenCalledWith({ envelope: SHARED_ADSR });
+    expect(synth.set).toHaveBeenCalledWith({ envelope: adsr });
   });
 
   it('sends the live adsr patch through toToneEnvelope: four keys, no undefined-valued curve key', () => {
     const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
     const synth = synthInstances()[0];
-    voice.set({ layers: [{ adsr: { ...SHARED_ADSR, attackCurve: undefined, releaseCurve: undefined } }] });
+    // attack differs from the build, so the envelope is written
+    voice.set({ layers: [{ adsr: { ...SHARED_ADSR, attack: 0.05, attackCurve: undefined, releaseCurve: undefined } }] });
     const call = synth.set.mock.calls.find((c) => (c[0] as { envelope?: unknown }).envelope);
     const sent = call![0] as { envelope: Record<string, unknown> };
     expect(Object.keys(sent.envelope).sort()).toEqual(['attack', 'decay', 'release', 'sustain']);
@@ -459,11 +461,12 @@ describe('createCompositeVoice: set(params, time) places live Param writes at th
   it('phase, pulseWidth, portamento and adsr are settings: the same calls with a time as without', () => {
     const { voice, synth } = timedVoice();
     synth.set.mockClear(); // construction already applied the layer's phase through synth.set
-    voice.set({ layers: [{ phase: 180, pulseWidth: 0.3, portamento: 0.2, adsr: SHARED_ADSR }] }, 12.5);
+    const adsr = { ...SHARED_ADSR, release: 0.8 }; // differs from the build, so it is written
+    voice.set({ layers: [{ phase: 180, pulseWidth: 0.3, portamento: 0.2, adsr }] }, 12.5);
     expect(synth.set.mock.calls).toEqual([
       [{ oscillator: { phase: 180 } }],
       [{ oscillator: { width: 0.3 } }],
-      [{ envelope: SHARED_ADSR }],
+      [{ envelope: adsr }],
     ]);
     expect(synth.portamento).toBe(0.2);
   });
@@ -631,5 +634,185 @@ describe('createCompositeVoice: written is seeded from what construction wrote',
     const voice = createCompositeVoice([makeLayer({ gain: 0.2, detune: 3 }), makeLayer({ gain: 0.7, phase: 45 })], SHARED_ADSR, 0, [0, 2]);
     expect(voice.layerAt(0)!.written).toMatchObject({ gain: 0.2, detune: 3, phase: 0 });
     expect(voice.layerAt(2)!.written).toMatchObject({ gain: 0.7, detune: 0, phase: 45 });
+  });
+});
+
+/** Count assignments to `obj[key]` from here on, keeping the value readable. */
+function countWrites<T extends object>(obj: T, key: string): { count: () => number } {
+  let current = (obj as Record<string, unknown>)[key];
+  let n = 0;
+  Object.defineProperty(obj, key, {
+    configurable: true,
+    get: () => current,
+    set: (v: unknown) => { n++; current = v; },
+  });
+  return { count: () => n };
+}
+
+describe('createCompositeVoice: a write equal to its record is skipped', () => {
+  type RampParam = { value: number; rampTo?: ReturnType<typeof vi.fn>; setValueAtTime?: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** One layer built as [type gain detune phase (width)], with write counters on gain, detune and portamento. */
+  function watchedVoice(layer: Partial<OscillatorLayer> = {}, portamento = 0, adsr: ADSREnvelope = SHARED_ADSR) {
+    const voice = createCompositeVoice([makeLayer({ gain: 0.8, detune: 0, phase: 90, ...layer })], adsr, portamento);
+    const synth = synthInstances()[0];
+    const gain = voice.layers![0].gainNode!.gain as unknown as RampParam;
+    const detune = (synth as unknown as { oscillator: { detune: RampParam } }).oscillator.detune;
+    synth.portamento = portamento;
+    const writes = { gain: countWrites(gain, 'value'), detune: countWrites(detune, 'value'), portamento: countWrites(synth, 'portamento') };
+    synth.set.mockClear();
+    return { voice, synth, gain, detune, writes };
+  }
+
+  it('equal gain, detune and phase write nothing', () => {
+    const { voice, synth, writes } = watchedVoice();
+    voice.set({ layers: [{ gain: 0.8, detune: 0, phase: 90 }] });
+    expect(writes.gain.count()).toBe(0);
+    expect(writes.detune.count()).toBe(0);
+    expect(synth.set).not.toHaveBeenCalled();
+  });
+
+  it('a changed gain writes once and nothing else', () => {
+    const { voice, synth, gain, writes } = watchedVoice();
+    voice.set({ layers: [{ gain: 0.5, detune: 0, phase: 90 }] });
+    expect(writes.gain.count()).toBe(1);
+    expect(gain.value).toBe(0.5);
+    expect(writes.detune.count()).toBe(0);
+    expect(synth.set).not.toHaveBeenCalled();
+  });
+
+  it('a changed detune writes once and nothing else', () => {
+    const { voice, synth, detune, writes } = watchedVoice();
+    voice.set({ layers: [{ gain: 0.8, detune: -7, phase: 90 }] });
+    expect(writes.detune.count()).toBe(1);
+    expect(detune.value).toBe(-7);
+    expect(writes.gain.count()).toBe(0);
+    expect(synth.set).not.toHaveBeenCalled();
+  });
+
+  it('a changed phase writes once and nothing else', () => {
+    const { voice, synth, writes } = watchedVoice();
+    voice.set({ layers: [{ gain: 0.8, detune: 0, phase: 180 }] });
+    expect(synth.set.mock.calls).toEqual([[{ oscillator: { phase: 180 } }]]);
+    expect(writes.gain.count() + writes.detune.count()).toBe(0);
+  });
+
+  it('pulse width: equal writes nothing, changed writes once', () => {
+    const { voice, synth } = watchedVoice({ type: 'pulse', pulseWidth: 0.3 });
+    voice.set({ layers: [{ pulseWidth: 0.3 }] });
+    expect(synth.set).not.toHaveBeenCalled();
+    voice.set({ layers: [{ pulseWidth: 0.4 }] });
+    expect(synth.set.mock.calls).toEqual([[{ oscillator: { width: 0.4 } }]]);
+  });
+
+  it('a pulse width on a layer built without one is written', () => {
+    const { voice, synth } = watchedVoice();
+    voice.set({ layers: [{ pulseWidth: 0.5 }] });
+    expect(synth.set.mock.calls).toEqual([[{ oscillator: { width: 0.5 } }]]);
+  });
+
+  it('portamento: equal writes nothing, changed writes once', () => {
+    const { voice, synth, writes } = watchedVoice({}, 0.2);
+    voice.set({ layers: [{ portamento: 0.2 }] });
+    expect(writes.portamento.count()).toBe(0);
+    voice.set({ layers: [{ portamento: 0.35 }] });
+    expect(writes.portamento.count()).toBe(1);
+    expect(synth.portamento).toBe(0.35);
+  });
+
+  it('the ADSR: an identical object with a different reference writes nothing', () => {
+    const { voice, synth } = watchedVoice();
+    voice.set({ layers: [{ adsr: { ...SHARED_ADSR } }] });
+    expect(synth.set).not.toHaveBeenCalled();
+  });
+
+  it('the ADSR: a one-field change writes the whole envelope once', () => {
+    const { voice, synth } = watchedVoice();
+    voice.set({ layers: [{ adsr: { ...SHARED_ADSR, release: 2.5 } }] });
+    expect(synth.set.mock.calls).toEqual([[{ envelope: { ...SHARED_ADSR, release: 2.5 } }]]);
+  });
+
+  it('the ADSR: a curve added or removed is a change', () => {
+    const { voice, synth } = watchedVoice({}, 0, { ...SHARED_ADSR, releaseCurve: 'ripple' });
+    voice.set({ layers: [{ adsr: { ...SHARED_ADSR, releaseCurve: 'ripple' } }] });
+    expect(synth.set).not.toHaveBeenCalled();
+    voice.set({ layers: [{ adsr: SHARED_ADSR } ] });
+    voice.set({ layers: [{ adsr: { ...SHARED_ADSR, attackCurve: 'sine' } }] });
+    expect(synth.set.mock.calls).toEqual([[{ envelope: SHARED_ADSR }], [{ envelope: { ...SHARED_ADSR, attackCurve: 'sine' } }]]);
+  });
+
+  it('the ADSR: an explicitly undefined curve equals an absent one', () => {
+    const { voice, synth } = watchedVoice();
+    voice.set({ layers: [{ adsr: { ...SHARED_ADSR, attackCurve: undefined, releaseCurve: undefined } }] });
+    expect(synth.set).not.toHaveBeenCalled();
+  });
+
+  it('timed: an equal gain or detune places no glide, a changed one places one', () => {
+    tick.seconds = 0.137;
+    try {
+      const { voice, gain, detune } = watchedVoice();
+      gain.rampTo = vi.fn();
+      detune.rampTo = vi.fn();
+      voice.set({ layers: [{ gain: 0.8, detune: 0 }] }, 4);
+      expect(gain.rampTo).not.toHaveBeenCalled();
+      expect(detune.rampTo).not.toHaveBeenCalled();
+      voice.set({ layers: [{ gain: 0.6, detune: 3 }] }, 4.5);
+      expect(gain.rampTo.mock.calls).toEqual([[0.6, 0.137, 4.5]]);
+      expect(detune.rampTo.mock.calls).toEqual([[3, 0.137, 4.5]]);
+    } finally {
+      tick.seconds = undefined;
+    }
+  });
+
+  it('records follow writes: the same new gain twice writes once', () => {
+    const { voice, writes } = watchedVoice();
+    voice.set({ layers: [{ gain: 0.5 }] });
+    voice.set({ layers: [{ gain: 0.5 }] });
+    expect(writes.gain.count()).toBe(1);
+    expect(voice.layerAt(0)!.written.gain).toBe(0.5);
+  });
+
+  it('records follow writes: every field, including a copy of the ADSR', () => {
+    const { voice, synth, writes } = watchedVoice();
+    const adsr = { ...SHARED_ADSR, decay: 0.9 };
+    const patch = { gain: 0.4, detune: 6, phase: 45, pulseWidth: 0.2, portamento: 0.1, adsr };
+    voice.set({ layers: [patch] });
+    voice.set({ layers: [{ ...patch, adsr: { ...adsr } }] });
+    expect(synth.set).toHaveBeenCalledTimes(3); // phase, width, envelope: once each
+    expect(writes.gain.count() + writes.detune.count() + writes.portamento.count()).toBe(3);
+    expect(voice.layerAt(0)!.written).toEqual(patch);
+    expect(voice.layerAt(0)!.written.adsr).not.toBe(adsr);
+  });
+
+  it('construction writes the phase once, and a following set with the same phase does not repeat it', () => {
+    const voice = createCompositeVoice([makeLayer({ phase: 90 })], SHARED_ADSR);
+    const synth = synthInstances()[0];
+    voice.set({ layers: [{ phase: 90 }] });
+    expect(synth.set.mock.calls).toEqual([[{ oscillator: { phase: 90 } }]]);
+  });
+
+  it('a gain write that throws is not recorded, so the next equal write tries again', () => {
+    const { voice, gain } = watchedVoice();
+    let throwOnce = true;
+    let current = 0.8;
+    let landed = 0;
+    Object.defineProperty(gain, 'value', {
+      configurable: true,
+      get: () => current,
+      set: (v: number) => {
+        if (throwOnce) { throwOnce = false; throw new Error('gain unavailable'); }
+        landed++;
+        current = v;
+      },
+    });
+    voice.set({ layers: [{ gain: 0.5 }] });
+    expect(voice.layerAt(0)!.written.gain).toBe(0.8);
+    voice.set({ layers: [{ gain: 0.5 }] });
+    expect(landed).toBe(1);
+    expect(voice.layerAt(0)!.written.gain).toBe(0.5);
   });
 });

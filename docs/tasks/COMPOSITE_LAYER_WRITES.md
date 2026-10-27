@@ -183,7 +183,7 @@ T0 (docs slot)
 
   **Estimated scope:** S (one module and its test, plus a mechanical rename in the engine)
 
-- [ ] **Task 2: `compositeVoice.ts`: a write equal to its record is skipped, timed or not**
+- [x] **Task 2: `compositeVoice.ts`: a write equal to its record is skipped, timed or not**
 
   **Description:**
   - In `set`, each field's branch becomes "if present and `!==` the record: write, then record". Gain and detune
@@ -196,20 +196,20 @@ T0 (docs slot)
   with the same three values: no gain write, no detune write, no `synth.set`. Fails today: all three are written.
 
   **Acceptance criteria:**
-  - [ ] Equal values write nothing; a changed gain writes exactly once and nothing else; the same for detune, phase,
+  - [x] Equal values write nothing; a changed gain writes exactly once and nothing else; the same for detune, phase,
         pulse width, portamento and the ADSR (one `synth.set({ envelope })` for a one-field change, none for an
         identical object with a different reference).
-  - [ ] Timed: with a `time` and a `rampTo` stub, an equal gain makes no `rampTo` call and a changed one makes one.
-  - [ ] Records follow writes: `set({ layers: [{ gain: 0.5 }] })` twice writes once; construction's phase write
+  - [x] Timed: with a `time` and a `rampTo` stub, an equal gain makes no `rampTo` call and a changed one makes one.
+  - [x] Records follow writes: `set({ layers: [{ gain: 0.5 }] })` twice writes once; construction's phase write
         happens once and a following `set` with the same phase does not repeat it.
-  - [ ] Every existing `set` case still passes; where one asserted a write of an unchanged value, its value changes to
+  - [x] Every existing `set` case still passes; where one asserted a write of an unchanged value, its value changes to
         one that differs from the build, named in the commit.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
-  - [ ] Mutation: drop the guard on one field (gain), the RED case fails; record before writing (so the write is
+  - [x] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
+  - [x] Mutation: drop the guard on one field (gain), the RED case fails; record before writing (so the write is
         skipped), the "records follow writes" case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T1.
 
