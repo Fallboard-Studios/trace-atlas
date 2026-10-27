@@ -136,8 +136,9 @@ export interface CompositeVoice {
   output: Tone.Gain;
   triggerAttackRelease: (note: string, dur: NoteDuration | string, time?: number, velocity?: number) => void;
   /** Live edit; patch `i` is for robot layer `i`. `time` is the Transport tick's time when a swell writes
-   *  (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a UI edit passes none and lands now. */
-  set: (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => void;
+   *  (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a UI edit passes none and lands now. Returns the robot indices whose
+   *  non-zero gain found no synth (a layer muted at build being unmuted), ascending: the caller rebuilds. */
+  set: (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => { unrouted: number[] };
   /** The ADSR and portamento, applied to every built layer with the same skip as `set`. Both are settings, so a
    *  `time` is accepted and ignored. */
   setShared: (params: SharedLivePatch, time?: number) => void;
@@ -268,8 +269,12 @@ export function createCompositeVoice(
    *
    * A field whose value `===` its record in `written` is not written, timed or not (no epsilon):
    * docs/specs/COMPOSITE_LAYER_WRITES.md §1.2. Each record is updated in the same branch as its write.
+   *
+   * A patch with no synth to land on is dropped; when it asks for a non-zero gain its index is returned in
+   * `unrouted`, as only a rebuild can honour it. Any other field there (detune, phase, width) is dropped silently.
    */
-  const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number) => {
+  const set = (params: { layers?: LayerLivePatch[]; outputGain?: number }, time?: number): { unrouted: number[] } => {
+    const unrouted: number[] = [];
     if (params.outputGain !== undefined) out.gain.value = params.outputGain;
     if (params.layers) {
       // An explicit loop so a sparse patch array and one with undefined holes are the same.
@@ -277,7 +282,10 @@ export function createCompositeVoice(
         const p = params.layers[i];
         if (!p) continue;
         const node = layerAt(i);
-        if (!node) continue;
+        if (!node) {
+          if (typeof p.gain === 'number' && p.gain > 0) unrouted.push(i);
+          continue;
+        }
         const { synth, gainNode, written } = node;
         if (p.gain !== undefined && p.gain !== written.gain && gainNode) {
           try {
@@ -301,6 +309,7 @@ export function createCompositeVoice(
         }
       }
     }
+    return { unrouted };
   };
 
   /**

@@ -251,7 +251,7 @@ T0 (docs slot)
 
   **Estimated scope:** S (one module and its test)
 
-- [ ] **Task 4: `compositeVoice.ts`: `set` returns `{ unrouted }`**
+- [x] **Task 4: `compositeVoice.ts`: `set` returns `{ unrouted }`**
 
   **Description:** `set` collects the indices of patches whose `gain` is a number `> 0` and whose `layerAt(i)` is
   `undefined`, and returns `{ unrouted }`. Any other field on a missing layer is dropped silently. `CompositeVoice.set`'s
@@ -261,15 +261,15 @@ T0 (docs slot)
   returns `{ unrouted: [1] }`. Fails today: `set` returns `undefined`.
 
   **Acceptance criteria:**
-  - [ ] `{ gain: 0.5 }` at a missing index → `[1]`; `{ gain: 0 }` or `{ detune: 5 }` there → `[]`; a full-voice `set`
+  - [x] `{ gain: 0.5 }` at a missing index → `[1]`; `{ gain: 0 }` or `{ detune: 5 }` there → `[]`; a full-voice `set`
         → `[]`; two missing non-zero gains → both indices, ascending.
-  - [ ] A `gain: 0.5` patch at a built index is never reported, even when equal to the record (skipped, not
+  - [x] A `gain: 0.5` patch at a built index is never reported, even when equal to the record (skipped, not
         unrouted).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
-  - [ ] Mutation: report any missing index regardless of gain, and the `{ detune: 5 }` case fails.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts` passes.
+  - [x] Mutation: report any missing index regardless of gain, and the `{ detune: 5 }` case fails.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T1 (routing); independent of T2–T3 but ordered after them.
 

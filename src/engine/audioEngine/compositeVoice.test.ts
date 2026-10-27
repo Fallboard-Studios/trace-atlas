@@ -877,3 +877,50 @@ describe('createCompositeVoice: setShared applies the two robot-level fields to 
     });
   });
 });
+
+describe('createCompositeVoice: set reports a non-zero gain that found no synth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** Robot layers 0 and 2 built, layer 1 muted at build. */
+  const voiceWithoutLayer1 = () => createCompositeVoice([makeLayer(), makeLayer()], SHARED_ADSR, 0, [0, 2]);
+
+  it('a non-zero gain for the unbuilt layer is unrouted', () => {
+    expect(voiceWithoutLayer1().set({ layers: [{}, { gain: 0.5 }, {}] })).toEqual({ unrouted: [1] });
+  });
+
+  it('a zero gain or a detune for the unbuilt layer is not', () => {
+    expect(voiceWithoutLayer1().set({ layers: [{}, { gain: 0 }, {}] })).toEqual({ unrouted: [] });
+    expect(voiceWithoutLayer1().set({ layers: [{}, { detune: 5 }, {}] })).toEqual({ unrouted: [] });
+    expect(voiceWithoutLayer1().set({ layers: [{}, { phase: 90, pulseWidth: 0.4 }, {}] })).toEqual({ unrouted: [] });
+  });
+
+  it('a full-voice set, a hole, no layers and an output gain alone report nothing', () => {
+    const full = createCompositeVoice([makeLayer(), makeLayer(), makeLayer()], SHARED_ADSR);
+    expect(full.set({ layers: [{ gain: 0.2 }, { gain: 0.3 }, { gain: 0.4 }] })).toEqual({ unrouted: [] });
+    const holes: { gain?: number }[] = [];
+    holes[2] = { gain: 0.3 };
+    expect(voiceWithoutLayer1().set({ layers: holes })).toEqual({ unrouted: [] });
+    expect(voiceWithoutLayer1().set({})).toEqual({ unrouted: [] });
+    expect(voiceWithoutLayer1().set({ outputGain: 0.5 })).toEqual({ unrouted: [] });
+  });
+
+  it('two missing non-zero gains are both reported, ascending', () => {
+    const voice = createCompositeVoice([makeLayer()], SHARED_ADSR, 0, [1]);
+    expect(voice.set({ layers: [{ gain: 0.3 }, { gain: 0.6 }, { gain: 0.4 }] })).toEqual({ unrouted: [0, 2] });
+  });
+
+  it('a gain at a built index is never reported, even when equal to its record', () => {
+    const voice = voiceWithoutLayer1();
+    expect(voice.set({ layers: [{ gain: 0.5 }, {}, { gain: 1 }] })).toEqual({ unrouted: [] });
+    expect(voice.set({ layers: [{ gain: 0.5 }] })).toEqual({ unrouted: [] });
+  });
+
+  it('the unrouted patch writes nothing to the built layers', () => {
+    const voice = voiceWithoutLayer1();
+    const gains = voice.layers!.map((l) => countWrites(l.gainNode!.gain as object, 'value'));
+    voice.set({ layers: [{}, { gain: 0.5 }, {}] });
+    expect(gains.map((g) => g.count())).toEqual([0, 0]);
+  });
+});

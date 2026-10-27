@@ -890,7 +890,9 @@ export const AudioEngine = {
       const stubComposite = {
         output: ({ connect: () => { } } as MinimalToneNode) as unknown as Tone.Gain,
         triggerAttackRelease: (_note: string, _dur: NoteDuration | string, _time?: number, _vel?: number) => { },
-        set: (_params: unknown) => { },
+        set: (_params: unknown) => ({ unrouted: [] }),
+        setShared: (_params: unknown) => { },
+        layerAt: (_index: number) => undefined,
         dispose: () => { },
       } as unknown as CompositeVoice;
       const panner = makeStubPanner() as unknown as Tone.Panner;
