@@ -829,6 +829,14 @@ swell target, so a removed one is tested to load without error; and 36's store c
 Done when a world runs swells with no `pulseWidth` warning, and the same measurement as 35's Task 12 on the same link
 shows the tick's share before and after. This removes 36's only source, so 36 closes with this branch.
 
+**Spec and plan (2026-10-26):** [docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md),
+[docs/tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md](../tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md), branch `fix/swell-targets`. No
+saved session or world link names a swell target (active swells are module state), so nothing needs testing to load. The
+store check: the NaN does reach the store mid-swell, and a save made then carries `pulseWidth: null`. Crawford decided
+old saves are left as they are. Spec §7 records all five decisions; two findings became
+[40](#40-audio-every-layer-write-re-applies-every-layers-phase) and
+[41](#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers).
+
 ### 38. Audio: Swell Writes Land as Steps, Not Ramps
 
 **Found 2026-10-26** by the steady-state review
@@ -892,3 +900,63 @@ LightShafts and TerrainLayer select only what they draw; the flicker trigger tup
 an edit); the lifecycle tick writes its batteries in one store set; and the Factories subscribe to a quantised hour.
 Done when the same profile window shows the two ticks' React share gone from the long tasks, with the world looking the
 same.
+
+### 40. Audio: Every Layer Write Re-applies Every Layer's Phase
+
+**Found 2026-10-26** while writing [37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
+4 (i)). A code read, not yet measured or tested. Crawford placed it next in plan.md after 37.
+
+**Cause.** `AudioEngine.updateVoiceLayerParams` hands the composite the robot's whole `layers` array, and the
+composite's `set` (`src/engine/audioEngine/compositeVoice.ts`) writes a layer's `phase` whenever it is defined.
+`OscillatorLayer.phase` is required, so it is always defined. `pulseWidth` is written whenever it is present.
+`updateVoiceEnvelope` patches every layer the same way. So every layer gain or detune write and every ADSR write, by
+hand or by a swell tick (up to sixteen a measure per swelling robot), runs `applyOscFieldViaSet` →
+`synth.set({ oscillator: { phase } })` on every sounding layer, though phase did not change. Tone's `phase` setter
+re-runs its `type` setter:
+
+- with phase 0 and a basic type, that is a native `type` assignment;
+- otherwise it is a periodic-wave cache lookup and `setPeriodicWave` on the **sounding** oscillator.
+
+Before 37 the phase swells churned the 100-entry cache, so these lookups could also miss and rebuild a wave. After 37
+they should hit.
+
+**To check first:**
+
+- 37's T7 measurement: the branch's remaining phase-setter share under the swell tick, recorded here when it is taken.
+- Whether swapping in an identical wave, or re-assigning the same native `type`, mid-note is audible. A headless probe,
+  or Crawford's ear on a gain swell over a sustained note.
+
+**Fix: not decided.** The candidate is that the composite writes a setting only when it differs from what that node
+holds. Crawford decides once the number is in.
+
+### 41. Audio: The Composite Voice's Layer Records Drift From the Robot's Layers
+
+**Found 2026-10-26** while writing [37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
+4 (ii)), and checked against the code the same day. A code read with no test yet. Crawford placed it next in plan.md
+after 37.
+
+**Cause.** `createCompositeVoice` keeps one record per layer it builds (`layerNodes`, exposed as `composite.layers`),
+holding the `OscillatorLayer` it was built from, and `set` never updates it. Two symptoms follow.
+
+- **An envelope edit restores old layer values.** `updateVoiceEnvelope` builds its patch from `composite.layers`
+  (`{ ...layer, adsr }`): the build-time gain, detune, phase and pulse width. `set` applies all of them. So an ADSR
+  edit, a hand drag or an ADSR swell tick, writes the build-time values back over any layer edit or swell made since.
+  The store and the sliders keep the new values, and the engine is wrong until that layer is written again. With an
+  ADSR swell and a gain swell running on one robot, the two writes would fight every tick.
+- **Layers are matched by position against a list with the muted ones removed.** `reserveVoice` builds only audible
+  layers (`filterAudibleLayers` drops `gain === 0`). `updateVoiceLayerParams` passes all of the robot's layers, and
+  `set` matches them by index. On a robot built with layer 1 muted, the nodes are `[layer 0, layer 2]`:
+  - an edit to layer 1 lands on layer 2's synth;
+  - an edit to layer 2 finds no node and is dropped;
+  - unmuting layer 1 by hand is a live `applyLayersContinuous`, not a rebuild, so it raises layer 2's gain instead.
+
+**To check first:** one test per symptom, a few lines each against `createCompositeVoice` and `AudioEngine`, to confirm
+or kill it before any design. Also whether anything the read missed rebuilds the voice on an unmute.
+
+**Fix: not decided.** Candidates:
+
+- `set` keeps its records current;
+- the engine maps robot layer index to node;
+- a gain change across 0 goes structural (`applyLayersStructural`).
+
+A change to how the voice is built is an interview first (CLAUDE.md: ask before changing the audio architecture).

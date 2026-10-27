@@ -19,6 +19,12 @@ at Light are the graph's standing cost, not an accumulation, and the late collap
   the swell targets** — phase is most of the swell tick's main-thread cost; pulse width is
   [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s NaN flood, which closes with it.
   Decided, so spec → plan, no interview. Next.
+- Backlog [40](backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
+  [41](backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers) **The composite voice's
+  layer writes** — every layer write re-applies every layer's phase (40, sized by 37's measurement), and the composite's
+  per-layer records drift from the robot's layers (41: an envelope edit restores old layer values, and a layer muted at
+  build shifts later edits onto the wrong oscillator). Both are code reads, so 41 starts with the tests that confirm it.
+  Crawford put them next after 37 (2026-10-26).
 - Backlog [38](backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) **Swell writes become ramps, Auto pan too** —
   the staircase under every remaining swell target (found 2026-10-26); rides 37's branch: same helper, same
   measurement, one listen.
