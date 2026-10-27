@@ -640,7 +640,7 @@ head. Crawford asked for it to run once per tick.
 
 ### Phase 3: Docs and backlog
 
-- [ ] **Task 8: `docs/AUDIO_SYSTEM.md` (and `BEAT_CLOCK.md`): the 16-target robot pool, and timed writes glide**
+- [x] **Task 8: `docs/AUDIO_SYSTEM.md` (and `BEAT_CLOCK.md`): the 16-target robot pool, and timed writes glide**
 
   **Description:**
   - *(38)* Wherever AUDIO_SYSTEM.md or BEAT_CLOCK.md describes a timed write as "a point at `time`" or
@@ -664,14 +664,15 @@ head. Crawford asked for it to run once per tick.
   **Proof:** Read. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every id, count and function name in the edited paragraphs matches the source at the head.
-  - [ ] No sentence elsewhere in AUDIO_SYSTEM.md still calls phase or pulse width a swell target.
-  - [ ] No sentence in either doc still says a timed write is a point, and none mentions `setOrPoint`.
+  - [x] Every id, count and function name in the edited paragraphs matches the source at the head.
+  - [x] No sentence elsewhere in AUDIO_SYSTEM.md still calls phase or pulse width a swell target.
+  - [x] No sentence in either doc still says a timed write is a point, and none mentions `setOrPoint`. *The two
+        remaining "point" sentences describe the no-tick-length fallback (headless and tests), which is accurate.*
 
   **Verification:**
-  - [ ] Manual read and both greps (`phase\|pulseWidth`; `setOrPoint\|setValueAtTime\|a point`), each hit read in
+  - [x] Manual read and both greps (`phase\|pulseWidth`; `setOrPoint\|setValueAtTime\|a point`), each hit read in
         context.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint B.
 
