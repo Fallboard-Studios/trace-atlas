@@ -834,6 +834,16 @@ Both checks above are answered. The size is 0.03 % of the IDLE window. The audib
 ([spec §5.4](../specs/COMPOSITE_LAYER_WRITES.md#54-the-audibility-probe-run-2026-10-27-recorded)) found an identical
 phase re-apply sample-exact silent, so 40 alone is inaudible and small; its value is the mechanism it shares with 41.
 
+**Built (2026-10-27)** on `fix/composite-layer-writes`, with 41: T1–T8 (`aebdb56d`..`e1bebc9a`), docs in T10
+(`f2ceb663`). The composite records what it last wrote to each layer field and skips a write equal to its record (T2,
+`36ed252e`); the ADSR and portamento reach it only through `setShared` (T3, `126ddcee`).
+- **Measurement** (T9, `398a666c`, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-base-and-head-task-9)):
+  Tone's `phase` setter under the swell tick goes from 0.08 % (0.03–0.11) on the base to 0.00 % (0.00–0.01), and the
+  oscillator settings bucket from 0.12 % to 0.00 %. The tick as a whole goes from 3.11 % to 2.33 %.
+- **Probe** ([PERFORMANCE.md](../PERFORMANCE.md#is-an-unchanged-phase-re-apply-audible-2026-10-27)): an identical
+  phase re-apply is sample-exact with the steady note, so the removed writes were never audible.
+- **Listen** (Checkpoint D, Crawford): passed, "I think it sounds good."
+
 ### 41. Audio: The Composite Voice's Layer Records Drift From the Robot's Layers
 
 **Found 2026-10-26** while writing [37](archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s spec (§7 question
@@ -867,3 +877,16 @@ position too, so on that robot a `layer1` link reaches layer 2's node. Nothing r
 fix gives each composite record its robot layer index and its last-written values. `set` routes by index, and
 `setShared` becomes the one path for the ADSR and portamento. A non-zero gain on a layer with no synth makes the
 action rebuild the voice and re-prime its links. Mute stays live.
+
+**Built (2026-10-27)** on `fix/composite-layer-writes`, with 40; docs in T10 (`f2ceb663`).
+- Each record carries its robot layer `index` and what was last `written`, and `set` routes by index (T1, `aebdb56d`).
+- The engine passes the indices at reservation, keys the reservation-time patch by them and resolves LFO targets
+  through `layerAt`, so a layer muted at build resolves `null` (T5, `47310ce0`).
+- Envelope and glide edits write no layer field (T3, `126ddcee`; tests T6, `5803edf1`).
+- `updateVoiceLayerParams` returns `needsRebuild` (T7, `cfede0b9`), and `applyLayersContinuous` rebuilds on it through
+  `rebuildVoice`, after the store write (T8, `e1bebc9a`).
+- **Measurement** (T9, `398a666c`, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-base-and-head-task-9)):
+  the envelope bucket goes from 0.60 % (0.35–0.79) to 0.15 % (0.10–0.16), the layer glides it re-applied from 0.26–0.55 %
+  to 0.00, and the robot param writes from 0.45 % to 0.15 %.
+- **Listen** (Checkpoint D, Crawford): passed, "I think it sounds good." The listen covered the gain-then-ADSR drag,
+  the muted layer's unmute, and a swell.

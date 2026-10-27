@@ -470,7 +470,7 @@ T0 (docs slot)
 - [x] A robot with one layer muted: detune drags move the right layers; raising the muted layer's gain makes it sound
       after a short gap; lowering a built layer to 0 and back is live.
 - [x] A swell on a sustained note: nothing new to hear.
-- [ ] Crawford's verdict recorded here and in T11's Built lines.
+- [x] Crawford's verdict recorded here and in T11's Built lines.
 
 **Verdict (Crawford, 2026-10-27):** passed. "I think it sounds good."
 
@@ -510,7 +510,7 @@ T0 (docs slot)
 
   **Estimated scope:** S (docs and comments)
 
-- [ ] **Task 11: `docs/todo/backlog.md`: Built lines on 40 and 41**
+- [x] **Task 11: `docs/todo/backlog.md`: Built lines on 40 and 41**
 
   **Description:** Each item gains a **Built** line: the branch, the commits, T9's numbers in one sentence, Checkpoint
   D's verdict, and for 40 the probe's verdict. At merge, both items move whole to `archive/backlog-archive.md` under
@@ -521,11 +521,11 @@ T0 (docs slot)
   **Proof:** Read. No test file.
 
   **Acceptance criteria:**
-  - [ ] Both Built lines name the branch, the listen's verdict and T9's numbers.
-  - [ ] Every link and anchor resolves (before/after count).
+  - [x] Both Built lines name the branch, the listen's verdict and T9's numbers.
+  - [x] Every link and anchor resolves (before/after count).
 
   **Verification:**
-  - [ ] Manual read.
+  - [x] Manual read.
 
   **Dependencies:** T10.
 
