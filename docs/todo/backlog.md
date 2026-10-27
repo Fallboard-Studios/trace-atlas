@@ -825,8 +825,14 @@ they should hit.
 - Whether swapping in an identical wave, or re-assigning the same native `type`, mid-note is audible. A headless probe,
   or Crawford's ear on a gain swell over a sustained note.
 
-**Fix: not decided.** The candidate is that the composite writes a setting only when it differs from what that node
-holds. Crawford decides once the number is in.
+**Fix: spec'd** (2026-10-27), with 41 on one branch because the fix is one mechanism. Intent
+[composite-layer-writes.md](../intent/composite-layer-writes.md), spec
+[COMPOSITE_LAYER_WRITES.md](../specs/COMPOSITE_LAYER_WRITES.md), plan
+[COMPOSITE_LAYER_WRITES.md](../tasks/COMPOSITE_LAYER_WRITES.md), branch `fix/composite-layer-writes`. The composite
+records what it last wrote to each layer field and skips a write equal to its record, timed or not, by exact equality.
+Both checks above are answered. The size is 0.03 % of the IDLE window. The audibility probe
+([spec §5.4](../specs/COMPOSITE_LAYER_WRITES.md#54-the-audibility-probe-run-2026-10-27-recorded)) found an identical
+phase re-apply sample-exact silent, so 40 alone is inaudible and small; its value is the mechanism it shares with 41.
 
 ### 41. Audio: The Composite Voice's Layer Records Drift From the Robot's Layers
 
@@ -852,10 +858,12 @@ holding the `OscillatorLayer` it was built from, and `set` never updates it. Two
 **To check first:** one test per symptom, a few lines each against `createCompositeVoice` and `AudioEngine`, to confirm
 or kill it before any design. Also whether anything the read missed rebuilds the voice on an unmute.
 
-**Fix: not decided.** Candidates:
-
-- `set` keeps its records current;
-- the engine maps robot layer index to node;
-- a gain change across 0 goes structural (`applyLayersStructural`).
-
-A change to how the voice is built is an interview first (CLAUDE.md: ask before changing the audio architecture).
+**Fix: spec'd** (2026-10-27, after the interview), with 40 on one branch. Intent
+[composite-layer-writes.md](../intent/composite-layer-writes.md), spec
+[COMPOSITE_LAYER_WRITES.md](../specs/COMPOSITE_LAYER_WRITES.md), plan
+[COMPOSITE_LAYER_WRITES.md](../tasks/COMPOSITE_LAYER_WRITES.md), branch `fix/composite-layer-writes`. Both symptoms
+are confirmed by a code read, with a fourth victim: `getRobotModulationTarget` resolves an LFO link's `layerN.*` by
+position too, so on that robot a `layer1` link reaches layer 2's node. Nothing rebuilds the voice on an unmute. The
+fix gives each composite record its robot layer index and its last-written values. `set` routes by index, and
+`setShared` becomes the one path for the ADSR and portamento. A non-zero gain on a layer with no synth makes the
+action rebuild the voice and re-prime its links. Mute stays live.
