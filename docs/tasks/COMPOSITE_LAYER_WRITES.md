@@ -424,11 +424,11 @@ T0 (docs slot)
   **Estimated scope:** S (one helper, one branch, cases)
 
 ### Checkpoint C: The code
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `sceneToOrbiterLocal`
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `sceneToOrbiterLocal`
       5 s timeout, which passes alone, is not this branch's; any other failure is).
-- [ ] Spec §5.6's first four boxes hold: tests 1–13, index routing, no layer field from an envelope edit, the unmute
+- [x] Spec §5.6's first four boxes hold: tests 1–13, index routing, no layer field from an envelope edit, the unmute
       rebuild.
-- [ ] Reviewed with Crawford before the measurement.
+- [x] Reviewed with Crawford before the measurement.
 
 ---
 
