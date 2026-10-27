@@ -774,8 +774,8 @@ with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on su
 ### 37. Audio: Phase Swells Rebuild a Periodic Wave Every Tick
 
 **Found 2026-10-26** by backlog 35's measurement (Task 12, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
-Crawford asked for it as its own item after the breakdown (2026-10-26); whether 35's pre-scheduled curve is built at all
-is 35's Checkpoint C decision, not this item's.
+Crawford asked for it as its own item after the breakdown (2026-10-26) and dropped 35's pre-scheduled curve the same
+day: the curve would have removed only the 0.45–0.70 % of param writes, not this.
 
 **What was measured.** On the swell-heavy link (charlie, Swell Frequency 16, Duration 1), unminified build, 4× throttle,
 the IDLE window: the swell tick takes 4.13–6.45 % of sampled time. Writes to a layer's `phase` are **1.82–4.10 %** of

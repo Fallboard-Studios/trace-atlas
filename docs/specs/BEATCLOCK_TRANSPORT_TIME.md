@@ -19,7 +19,7 @@ intent left to this spec; §3 and §7 question 1 decide it.
 
 §7's four questions are resolved with the recommendations (Crawford, 2026-10-26): (1) option (a), the time passes
 through `setGlobalAudio(effect, partial, time?)`; (2) the curve is built only past the 2 % threshold, store half
-excluded, or a ≥ 50 ms task attributed to the tick; (3) one `rampOrSet`, `globalFx.ts`'s copy removed; (4) the console
+excluded, or a ≥ 50 ms task attributed to the tick (measured past it, then dropped at Checkpoint C: §7 Q2); (3) one `rampOrSet`, `globalFx.ts`'s copy removed; (4) the console
 tally lives in `perf:audio`. The plan's Architecture Decisions record each.
 
 ---
@@ -113,7 +113,7 @@ docs/
 ├── BEAT_CLOCK.md                         # the API line and usage example carry the time
 ├── AUDIO_SYSTEM.md                       # Scheduling Patterns' critical rule; the Audio Swells paragraph on writes
 ├── PERFORMANCE.md                        # the swell-tick measurement (§5.3), beside the audio-load series
-└── todo/backlog.md                       # 35's line to the archive on merge; the new curve item (§6)
+└── todo/backlog.md                       # 35's line to the archive on merge; the curve decision under 35 (§7 Q2)
 ```
 
 No new file under `src/`. No new dependency.
@@ -300,8 +300,8 @@ hold a `.value =` cancel used to imply) would produce.
   three global setters and `setGlobalAudio`; the four `apply*` helpers; BeatClock's wrapper; the swell tick's threading;
   the harmony and lifecycle comments and `setRoomFeeder`'s (a Read); the console tally and the proof run (§5.2,
   recorded); the measurement (§5.3, recorded); docs (BEAT_CLOCK.md, AUDIO_SYSTEM.md, PERFORMANCE.md); the backlog
-  (35's line to the archive in the usual way; a **new backlog item**, next free number, "Audio: pre-scheduled swell
-  curves", carrying the §5.3 number, the §7 Q2 threshold, and the two-writer design from the intent's Out of scope).
+  (35's line to the archive in the usual way; the curve decision recorded under 35 with the §5.3 number and the §7 Q2
+  threshold. The new "pre-scheduled swell curves" item this bullet first asked for was dropped at Checkpoint C, §7 Q2).
   The PR is Crawford's.
 - Leaf before caller, so every intermediate commit type-checks: a function may accept a time nobody passes yet, never
   pass one nobody accepts.
@@ -324,6 +324,10 @@ hold a `.value =` cancel used to imply) would produce.
    idle window exceeds **2 %** of sampled time *with the store half excluded* (the curve cannot remove the store write),
    or any task ≥ 50 ms in the window is attributed to the tick. Below that the item records the number and closes.
    Crawford's number to set; the backlog item carries whatever it is.
+   **Decided (Crawford, 2026-10-26, Checkpoint C): not built.** The measurement cleared the threshold (3.38 % median,
+   [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)), but the param writes a curve would
+   remove are 0.45–0.70 %. Most of the tick is phase writes rebuilding a periodic wave, a setting the curve cannot carry;
+   that cost is backlog [37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick).
 3. **Unify `rampOrSet` now?** §3 says yes (delete `globalFx.ts`'s copy, import `voiceEntry.ts`'s). The alternative is to
    give both the parameter and leave the duplication for a nit. **Recommendation: unify**; the change is one import and
    a type that already fits.

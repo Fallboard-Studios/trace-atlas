@@ -37,8 +37,11 @@ One commit per task. No docs guards, no source scans (CLAUDE.md, 2026-10-23).
   (`audioBudgetSystem.ts`), not a call the tick makes.
 - **Resolves §7 question 2: the curve threshold.** Build the pre-scheduled swell curve only if, on T12's measurement at
   4× throttle, the swell tick's inclusive share of the idle window exceeds **2 %** of sampled time with the store half
-  (`updateRobot` and below) excluded, or any task ≥ 50 ms in the window is attributed to the tick. T14's new backlog item
-  carries the threshold and T12's number side by side.
+  (`updateRobot` and below) excluded, or any task ≥ 50 ms in the window is attributed to the tick. **Decided at
+  Checkpoint C (Crawford, 2026-10-26): the curve is not built.** T12 cleared the threshold (3.38 % median), but the
+  param writes a curve would take off the main thread are 0.45–0.70 %; most of the tick is phase writes, a setting the
+  curve cannot carry, now backlog [37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick).
+  T14 records the decision under 35 instead of opening a curve item.
 - **Resolves §7 question 3: one `rampOrSet`.** `globalFx.ts`'s private copy goes; the file imports `voiceEntry.ts`'s.
   `RampableParam`'s `value: number` covers every call site the copy served (its only difference was `value: unknown`).
   Done in T1 with the parameter, since both would have changed anyway.
@@ -100,7 +103,7 @@ T12 (the measurement: three runs + control — recorded)
             │
 T13 (BEAT_CLOCK.md, AUDIO_SYSTEM.md)
             │
-T14 (backlog: 35's Built line; the new curve item)
+T14 (backlog: 35's Built line; the curve decision)
             │
       Checkpoint: Complete
 ```
@@ -517,7 +520,8 @@ T14 (backlog: 35's Built line; the new curve item)
 - [ ] T11's table shows stock 1 / branch 0 in every round; T12's table and verdict are written.
 - [ ] Optional listen (spec §5.4): a few minutes on the swell-heavy world at Full on the desktop, no new click or jump at a
       swell's start or return-to-base.
-- [ ] Reviewed with human before proceeding to Phase 4.
+- [ ] Reviewed with human before proceeding to Phase 4. **Crawford, 2026-10-26:** the curve is dropped (Architecture
+      Decisions, §7 Q2) and the phase cost is split out as backlog 37; the optional listen is not yet done.
 
 ---
 
@@ -549,29 +553,29 @@ T14 (backlog: 35's Built line; the new curve item)
 
   **Estimated scope:** S
 
-- [ ] **Task 14: `docs/todo/backlog.md` — 35's Built line; the new curve item**
+- [ ] **Task 14: `docs/todo/backlog.md` — 35's Built line; the curve decision**
 
   **Description:** Under 35, a **Built** line: the branch, the date, the T11 result (stock 1 / branch 0), pointers to
-  T12's numbers. Add a new item, next free number (37 at the time of writing), **Audio: pre-scheduled swell curves**:
-  what it is (the whole curve scheduled on the param at the swell's start, rendered on the audio thread with no per-tick
-  engine write), the T12 number beside the 2 % threshold and the verdict, and the agreed design if it is built from the
-  intent's Out of scope (one swell engine, two writers; the param targets that take a curve; the setting targets that
-  stay stepwise; the mid-swell edit reconciliation and the LFO-link interaction as its open questions). Archiving 35
-  and deleting its plan.md line happen at merge in the usual way (todo-archive conventions), not here.
+  T12's numbers. Then a **Curve: not built** line (Crawford, 2026-10-26, at Checkpoint C): what the curve was (the whole
+  swell scheduled on the param at its start, rendered on the audio thread with no per-tick engine write), the T12 number
+  beside the 2 % threshold, the 0.45–0.70 % a curve would have removed, and the pointer to backlog 37 for the phase
+  cost that is most of the tick. No new curve item and no plan.md line: the decision, the number and the design stay
+  findable through 35's archive entry, the intent's Out of scope and PERFORMANCE.md. (Changed at Checkpoint C; the plan
+  first had T14 open a "pre-scheduled swell curves" item.) Archiving 35 and deleting its plan.md line happen at merge in
+  the usual way (todo-archive conventions), not here.
 
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
   - [ ] 35 carries the Built line with the two run results linked.
-  - [ ] The new item exists with the number, the measurement, the threshold, the verdict and the design; plan.md's
-        Parked section gains its one line.
+  - [ ] 35 carries the curve decision with T12's number, the threshold, the 0.45–0.70 % and the link to 37.
 
   **Verification:**
   - [ ] Manual read.
 
   **Dependencies:** Task 12 (the number), Task 13.
 
-  **Files:** `docs/todo/backlog.md`, `docs/todo/plan.md`
+  **Files:** `docs/todo/backlog.md`
 
   **Estimated scope:** XS
 
@@ -579,7 +583,7 @@ T14 (backlog: 35's Built line; the new curve item)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
 - [ ] T11: the Tone scheduling warning is absent on the branch and present once on stock, recorded.
 - [ ] T12: the swell tick's share is recorded with the verdict against the threshold.
-- [ ] Docs match the shipped code; backlog 35 has its Built line; the curve item exists.
+- [ ] Docs match the shipped code; backlog 35 has its Built line and the curve decision.
 - [ ] Ready for Crawford's PR.
 
 ## Risks and Mitigations
