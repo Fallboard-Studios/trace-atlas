@@ -465,12 +465,14 @@ T0 (docs slot)
   **Estimated scope:** M (two builds, six runs, the harness rebuilt; about an hour of wall clock)
 
 ### Checkpoint D: Crawford's listen (spec §5.5)
-- [ ] Engine files changed: hard-reload (`Ctrl+Shift+R`) on `npm run dev` before listening.
-- [ ] One robot alone, long Release: a gain drag then an ADSR drag leaves the gain where it was put.
-- [ ] A robot with one layer muted: detune drags move the right layers; raising the muted layer's gain makes it sound
+- [x] Engine files changed: hard-reload (`Ctrl+Shift+R`) on `npm run dev` before listening.
+- [x] One robot alone, long Release: a gain drag then an ADSR drag leaves the gain where it was put.
+- [x] A robot with one layer muted: detune drags move the right layers; raising the muted layer's gain makes it sound
       after a short gap; lowering a built layer to 0 and back is live.
-- [ ] A swell on a sustained note: nothing new to hear.
+- [x] A swell on a sustained note: nothing new to hear.
 - [ ] Crawford's verdict recorded here and in T11's Built lines.
+
+**Verdict (Crawford, 2026-10-27):** passed. "I think it sounds good."
 
 ---
 
