@@ -828,3 +828,67 @@ swell target, so a removed one is tested to load without error; and 36's store c
 **Fix (behaviour, RED first):** the pool never picks a phase or pulse-width swell, and the type no longer has them.
 Done when a world runs swells with no `pulseWidth` warning, and the same measurement as 35's Task 12 on the same link
 shows the tick's share before and after. This removes 36's only source, so 36 closes with this branch.
+
+### 38. Audio: Swell Writes Land as Steps, Not Ramps
+
+**Found 2026-10-26** by the steady-state review
+([PERFORMANCE.md](../PERFORMANCE.md#steady-state-review--what-runs-continuously-and-which-of-it-can-pop-2026-10-26)),
+asked for by Crawford after the desktop's cracks and pops.
+
+**Cause.** The swell tick writes a live Param or Signal through `setOrPoint` (`src/engine/audioEngine/voiceEntry.ts`),
+which is a bare `setValueAtTime` at the tick's time: a hard step, sixteen a measure, for the swell's whole life. The
+targets it reaches that way: layer gain (`ROBOT_SWELL_FIELD_RANGE` 0–2, a minimum swing of half the range times
+Intensity, so a one-measure swell steps a sounding layer's amplitude by several percent a tick), EQ3 low/mid/high (±12
+dB, through `setGlobalEQ`), LPF and HPF Q (`setGlobalFilterLPF`/`HPF`) and layer detune. Volume, the five sends and
+the two filter frequencies go through `rampOrSet` with a 50 ms ramp and are fine. Before backlog 35 these writes were
+`.value =`, which is the same step placed "now", so this is long-standing, not a regression; 35 dropped its
+pre-scheduled curve on the main-thread criterion alone (Task 12) and never weighed the staircase.
+
+**Also here: Auto pan.** `updateAllPanners` (`src/engine/AudioEngine.ts`) writes `entry.panner.pan.value` every `16n`
+while a robot swims (gated by `PAN_WRITE_EPSILON`), a cancel-and-set step on every sounding robot in motion;
+`updateRobotPan`, the slider's path, ramps over `PAN_RAMP_SECONDS`. One call.
+
+**To check first:** the tick's `time` is the audio-clock time the write is for, and the next tick is one `16n` later
+(`Tone.Time('16n').toSeconds()` at the live tempo); a ramp that ends at the next tick's time overlaps nothing. Whether
+Tone's `Param.linearRampToValueAtTime` needs a preceding `setRampPoint` (it does: `rampTo` makes one) so the ramp starts
+from the current value, not from the last scheduled event. The headless/test stubs that `setOrPoint` falls back on.
+
+**Fix (behaviour, RED first):** a timed swell write to a Param or Signal is a ramp from its current value to the new one,
+ending at the next tick's time, for every target `setOrPoint` serves today; Auto pan's per-tick write takes the same ramp
+`updateRobotPan` uses. Done when a layer-gain swell on a sustained note is a glide, not a staircase, by ear (Crawford),
+and Task 12's measurement on the same link shows the tick's share did not grow. Intended to ride
+[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s branch: same helper, same measurement, one listen.
+
+### 39. Main Thread: Recurring Store Writes Fan Out to the World View (Measure First)
+
+**Found 2026-10-26** by the steady-state review
+([PERFORMANCE.md](../PERFORMANCE.md#steady-state-review--what-runs-continuously-and-which-of-it-can-pop-2026-10-26)).
+Not built until the `?debug` overlay shows lag spikes beside the pops; if the pops survive 37 and 38 with the lag line
+quiet, this item does not help and stays parked.
+
+**What runs.** Three recurring writers each re-render far more than they change:
+
+- **The swell tick** (25–65 store writes a second with both pools full). `updateRobot` rebuilds the locale, so every robot
+  swell write re-renders that robot's Robot → RobotBody → RobotGem chain (RobotGem is memo'd, but RobotBody hands it
+  new `palette`, `orbiters` and `halo` objects every render, `src/components/robot/RobotBody.tsx`), LightShafts and both
+  TerrainLayers (`s.locales[localeId]`, the whole locale; TerrainLayer recomputes the terrain outline and facets), and
+  the audio budget's `signature()` string (`src/systems/audioBudgetSystem.ts`). A `layer1.gain` or `layer2.gain` swell
+  also rebuilds that robot's strip-flicker timeline every tick, because the gain sits in the flicker trigger tuple.
+  EQ/filter swells re-render 6–9 ChargingStation fragments (they select the swelled fields). Zustand renders at React's
+  blocking lane, inside the Tone clock callback; Task 12 measured the store half under 1 % and React about a third of
+  the 61–185 ms tasks it sat in (4× throttle).
+- **The 1 Hz clock tick** (`AttenuationStyleView`, `setInterval` → `activeLocaleLocalTime`, a float that changes every
+  second, running powered off too). About 60 Factories recompute fills, facets and window grids; every scenery actor,
+  the 12 world robots, WaterColumn, LightShafts and TerrainLayer subscribe; LocaleView → OceanScene (neither memo'd)
+  cascades to every non-memo child. One burst a second; whether it exceeds 100 ms is unmeasured.
+- **The battery tick** (`tickRobotLifecycle`): 10–12 separate `updateRobot` sets per measure, each carrying the fan-out
+  above, for a dimming overlay that is a step function.
+
+**To check first:** one `npm run perf -- --profile` idle window with swells on, read for long tasks attributed to
+`performWorkOnRoot` under the clock tick and under the swell tick, before any edit.
+
+**Fix (behaviour, RED first), if the measurement says so:** RobotBody memoises the three objects it hands RobotGem;
+LightShafts and TerrainLayer select only what they draw; the flicker trigger tuples lose the layer gains (a swell is not
+an edit); the lifecycle tick writes its batteries in one store set; and the Factories subscribe to a quantised hour.
+Done when the same profile window shows the two ticks' React share gone from the long tasks, with the world looking the
+same.

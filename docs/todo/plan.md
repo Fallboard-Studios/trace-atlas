@@ -19,6 +19,9 @@ at Light are the graph's standing cost, not an accumulation, and the late collap
   the swell targets** — phase is most of the swell tick's main-thread cost; pulse width is
   [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s NaN flood, which closes with it.
   Decided, so spec → plan, no interview. Next.
+- Backlog [38](backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) **Swell writes become ramps, Auto pan too** —
+  the staircase under every remaining swell target (found 2026-10-26); rides 37's branch: same helper, same
+  measurement, one listen.
 - Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
   Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
   could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as
@@ -65,6 +68,9 @@ one is built.
 
 - Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
   upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
+- Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
+  view's re-renders per tick** — the swell, clock and battery ticks; one profile window first, and built only if the
+  `?debug` overlay shows lag spikes beside the pops once 37 and 38 are in.
 - Backlog [10](backlog.md#10-visuals-atmospheric-animations) **Fog, dust, precipitation** — unspecified; light shafts
   shipped, marine snow was cut.
 - Roadmap [53](roadmap.md#53-per-mover-compositor-layers) **The Safari look** — spec §5.3's manual list, passed in
