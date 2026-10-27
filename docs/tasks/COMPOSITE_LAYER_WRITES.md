@@ -279,11 +279,11 @@ T0 (docs slot)
   **Estimated scope:** XS (one branch and a return)
 
 ### Checkpoint A: The composite
-- [ ] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts src/engine/AudioEngine.test.ts` passes.
-- [ ] `npm run build:types`, `npm run lint` clean.
-- [ ] The composite routes by index, skips equal writes, has `setShared`, reports `unrouted`; the engine still
+- [x] `npx vitest run src/engine/audioEngine/compositeVoice.test.ts src/engine/AudioEngine.test.ts` passes.
+- [x] `npm run build:types`, `npm run lint` clean.
+- [x] The composite routes by index, skips equal writes, has `setShared`, reports `unrouted`; the engine still
       compiles against it and behaves as before for full voices.
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] Reviewed with Crawford before Phase 2.
 
 ---
 
