@@ -324,7 +324,7 @@ T0 (docs slot)
 
   **Estimated scope:** S (one module and its test; three functions)
 
-- [ ] **Task 6: `AudioEngine.ts`: `updateVoiceEnvelope` and `updateVoicePortamento` go through `setShared`**
+- [x] **Task 6: `AudioEngine.ts`: `updateVoiceEnvelope` and `updateVoicePortamento` go through `setShared`**
 
   **Description:** Both methods call `entry.composite.setShared({ adsr }, time)` / `setShared({ portamento })` and
   stop mapping over the composite's records. Their doc comments say "the two robot-level fields; no layer field is
@@ -335,16 +335,16 @@ T0 (docs slot)
   T2 in place the build-time 0.8 differs from the written 0.3, so the stale patch writes it back).
 
   **Acceptance criteria:**
-  - [ ] As the proof, for the envelope and for portamento.
-  - [ ] The existing "hands a Transport time to composite.set with the patched layers" case becomes "hands it to
+  - [x] As the proof, for the envelope and for portamento.
+  - [x] The existing "hands a Transport time to composite.set with the patched layers" case becomes "hands it to
         `setShared({ adsr }, 3.25)`, and `undefined` without one".
-  - [ ] The "applies the new ADSR to every audible layer's live synth" and the portamento cases pass, adjusted only
+  - [x] The "applies the new ADSR to every audible layer's live synth" and the portamento cases pass, adjusted only
         in what call they spy on.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] Mutation: restore the `{ ...written, adsr }` map through `set`, and the RED case fails on the gain write.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] Mutation: restore the `{ ...written, adsr }` map through `set`, and the RED case fails on the gain write.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T3.
 

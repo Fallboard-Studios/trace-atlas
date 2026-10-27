@@ -1900,6 +1900,67 @@ describe('AudioEngine.updateVoiceEnvelope', () => {
   });
 });
 
+// Composite Layer Writes T6 (docs/specs/COMPOSITE_LAYER_WRITES.md §1.2): the ADSR and the glide are robot-level, so an
+// edit of either writes no layer field. A layer gain moved off its build value must stay where it was put.
+describe('AudioEngine - an envelope or glide edit writes no layer field', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** Replace `param.value` with an accessor that counts writes, keeping the value readable. */
+  const countWrites = (param: { value: number }) => {
+    let value = param.value;
+    const counter = { writes: 0 };
+    Object.defineProperty(param, 'value', {
+      get: () => value,
+      set: (v: number) => { value = v; counter.writes++; },
+    });
+    return counter;
+  };
+
+  const reserveWithMovedGain = async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const layers: any[] = [
+      { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+      { type: 'square', gain: 0.5, detune: 0, phase: 0 },
+    ];
+    AudioEngine.reserveVoice('shared-only', layers, TEST_ADSR);
+    AudioEngine.updateVoiceLayerParams('shared-only', [{ ...layers[0], gain: 0.3 }, layers[1]]);
+    const records = AudioEngine.getVoiceForRobot('shared-only')!.layers! as any[];
+    for (const { synth } of records) synth.set.mockClear();
+    const gainWrites = records.map((r) => countWrites(r.gainNode.gain));
+    const detuneWrites = records.map((r) => countWrites(r.synth.oscillator.detune));
+    return { AudioEngine, records, gainWrites, detuneWrites };
+  };
+
+  it('an envelope edit sets every synth envelope and writes no gain, detune or oscillator field', async () => {
+    const { AudioEngine, records, gainWrites, detuneWrites } = await reserveWithMovedGain();
+    const newAdsr = { attack: 0.5, decay: 0.4, sustain: 0.3, release: 0.2 };
+
+    AudioEngine.updateVoiceEnvelope('shared-only', newAdsr);
+
+    for (const { synth } of records) expect(synth.set.mock.calls).toEqual([[{ envelope: newAdsr }]]);
+    expect(gainWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(detuneWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(records[0].gainNode.gain.value).toBe(0.3);
+  });
+
+  it('a glide edit sets every synth portamento and writes no gain, detune or oscillator field', async () => {
+    const { AudioEngine, records, gainWrites, detuneWrites } = await reserveWithMovedGain();
+
+    AudioEngine.updateVoicePortamento('shared-only', 0.15);
+
+    for (const { synth } of records) {
+      expect(synth.portamento).toBe(0.15);
+      expect(synth.set).not.toHaveBeenCalled();
+    }
+    expect(gainWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(detuneWrites.map((c) => c.writes)).toEqual([0, 0]);
+    expect(records[0].gainNode.gain.value).toBe(0.3);
+  });
+});
+
 /** The return Gain a global room (Reverb / FeedbackDelay) feeds - whatever it most recently connected to. The
  *  global Reverb / Delay `wet` sliders drive this gain, not the room's own wet (docs/specs/ROBOT_SENDS.md §1.3). */
 function returnOf(room: { connect: { mock: { calls: unknown[][] } } }) {
