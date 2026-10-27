@@ -793,6 +793,10 @@ with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on su
 [37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), which removes the only source of the flood; the fix
 above is not built. The store check moves to 37, and 36 closes when 37 ships.
 
+**Closes with 37's branch** (`fix/swell-targets`, 2026-10-27): no robot swell can target `layerN.pulseWidth` any more
+(T4, `d8e3fd9f`). **Correction to Found:** the flood is a `devWarn`, which prints only in dev builds
+(`import.meta.env.DEV`), so it cannot have appeared in production as the Found line says.
+
 ### 37. Audio: Phase Swells Rebuild a Periodic Wave Every Tick
 
 **Found 2026-10-26** by backlog 35's measurement (Task 12, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
@@ -837,6 +841,17 @@ old saves are left as they are. Spec §7 records all five decisions; two finding
 [40](#40-audio-every-layer-write-re-applies-every-layers-phase) and
 [41](#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers).
 
+**Built (2026-10-27)** on `fix/swell-targets`: T1–T4 (`1ba47a46`..`d8e3fd9f`), the pool goes from 22 targets to 16;
+docs in T8 (`c44a00b3`).
+- **Console check** (T6, `43a451e9`, [PERFORMANCE.md](../PERFORMANCE.md#phase-and-pulse-width-off-the-swell-targets--the-console-check-2026-10-26-backlog-3637)):
+  stock never printed the pulse-width line on S1, in 120 s or 300 s, so the check is recorded as unproven and T4's test
+  is the proof. The branch logged nothing.
+- **Measurement** (T7, `5459e740`, [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7)):
+  `createPeriodicWave` under the tick is 0 on every branch run (stock's phase-swell run: 2.84 %). The tick reads 2.16 %
+  (2.14–2.29) on 37, against stock's 2.26–2.41 % without a phase swell and 6.11 % with one.
+- **Listen** (Crawford, 2026-10-27, stock against head, which carries 38 too): "it sounds better. there are still some
+  clicks here and there but it's markedly better i think." Nothing new, fewer pops.
+
 ### 38. Audio: Swell Writes Land as Steps, Not Ramps
 
 **Found 2026-10-26** by the steady-state review
@@ -872,6 +887,28 @@ and Task 12's measurement on the same link shows the tick's share did not grow. 
 [its plan](../tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md), on `fix/swell-targets`. A write with a time glides one `16n` from
 it (`rampTo(value, tick, time)`). Decided in spec §8.6 (Crawford, 2026-10-26): every timed write glides, robot volume,
 the sends and the filter cutoffs included, and a glide lasts one 16th note at the live tempo.
+
+**Built (2026-10-27)**, folded into 37's branch `fix/swell-targets`:
+- T10 (`2c1bcfd6`): BeatClock's `getTickSeconds`, one `16n` at the live tempo.
+- T11 (`42c094f6`): `setOrPoint` becomes `setOrGlide`, and `rampOrSet`'s timed ramp lasts one tick.
+- T12 (`0bdf7562`): Auto pan glides.
+- T13 (`0922f0df`): the tick length is read once per tick, not once per write.
+- T8 (`c44a00b3`): the docs.
+
+Every timed write glides: robot volume, the five sends, layer gain and detune (including the envelope's re-applied
+layer params), the global LPF/HPF cutoff and Q, the EQ bands, and Auto pan. Hand edits are unchanged.
+
+**The cost:**
+- **Did not meet "the tick's share did not grow"** (T7,
+  [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7)). Head's tick is
+  2.97 % (2.90–3.07) against 37's 2.16 % (2.14–2.29), +0.81 points. A glide is a `rampTo`, about three times a point.
+- **T13 removed the tick-length read,** 0.16–0.23 % → 0.00–0.03 % (T14, `8aceff32`,
+  [PERFORMANCE.md](../PERFORMANCE.md#one-tick-length-read-per-tick-task-14-2026-10-27)). In that session the tick
+  total did not resolve the saving.
+- **Crawford accepted the cost** (2026-10-27).
+
+**Listen** (Crawford, 2026-10-27): the glides, Auto pan, and no glide fighting a step "sound fine"; overall "markedly
+better", with some clicks left.
 
 ### 39. Main Thread: Recurring Store Writes Fan Out to the World View (Measure First)
 
@@ -928,7 +965,10 @@ they should hit.
 
 **To check first:**
 
-- 37's T7 measurement: the branch's remaining phase-setter share under the swell tick, recorded here when it is taken.
+- 37's T7 measurement: the branch's remaining phase-setter share under the swell tick. **Measured 2026-10-27:
+  0.03 % (0.01–0.04) of the IDLE window on the 37 build, 1.1–3.2 ms per 6 s window at 4× throttle**, all under
+  `applyOscFieldViaSet`, with no `createPeriodicWave`, so the lookups hit the cache
+  ([PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7)).
 - Whether swapping in an identical wave, or re-assigning the same native `type`, mid-note is audible. A headless probe,
   or Crawford's ear on a gain swell over a sustained note.
 

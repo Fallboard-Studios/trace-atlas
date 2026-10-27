@@ -680,7 +680,7 @@ head. Crawford asked for it to run once per tick.
 
   **Estimated scope:** XS (docs only)
 
-- [ ] **Task 9: `docs/todo/backlog.md`: Built lines, and 40's number**
+- [x] **Task 9: `docs/todo/backlog.md`: Built lines, and 40's number**
 
   **Description:**
   - Under 37, add a **Built** line: branch, commits, T6's and T7's results in one sentence each with a link to the
@@ -697,12 +697,12 @@ head. Crawford asked for it to run once per tick.
   **Proof:** Read. No test file.
 
   **Acceptance criteria:**
-  - [ ] 36, 37 and 38 each say what shipped and where the proof is recorded.
-  - [ ] 40 carries T7's number and still decides nothing (cut-cruft rule: Crawford decides).
-  - [ ] Every link and anchor resolves.
+  - [x] 36, 37 and 38 each say what shipped and where the proof is recorded.
+  - [x] 40 carries T7's number and still decides nothing (cut-cruft rule: Crawford decides).
+  - [x] Every link and anchor resolves.
 
   **Verification:**
-  - [ ] Manual read. Anchors checked against their headings.
+  - [x] Manual read. Anchors checked against their headings.
 
   **Dependencies:** T8.
 
