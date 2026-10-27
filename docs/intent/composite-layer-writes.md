@@ -1,8 +1,8 @@
 # Intent: Composite Layer Writes — the voice remembers what it was told, and addresses layers by their robot index
 
 Confirmed via `interview-me` on 2026-10-27 (3 questions, every guess confirmed), ahead of a `spec-driven-development`
-pass. Backlog items [40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
-[41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), the first line of
+pass. Backlog items [40](../todo/archive/backlog-archive.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
+[41](../todo/archive/backlog-archive.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), the first line of
 plan.md's Stage 1, taken together on one branch because their fixes are one mechanism. Not a roadmap entry; two
 bug-shaped items that stay in the backlog and archive at merge.
 

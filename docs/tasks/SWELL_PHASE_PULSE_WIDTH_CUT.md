@@ -92,8 +92,8 @@ One commit per task. No docs guards and no source scans (CLAUDE.md, 2026-10-23).
     because `devWarn` is silent in production.
   - T7 is a same-session A/B, because absolute numbers drift 15–35 % between sessions.
 - **Resolves spec §7 question 4: the findings are recorded, not built here.** They were opened with T0 as backlog
-  [40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) (every layer write re-applies every
-  layer's phase) and [41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers)
+  [40](../todo/archive/backlog-archive.md#40-audio-every-layer-write-re-applies-every-layers-phase) (every layer write re-applies every
+  layer's phase) and [41](../todo/archive/backlog-archive.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers)
   (the composite's layer records drift: the stale envelope patch, plus the position mismatch found on the check). They
   sit next in plan.md after this branch. T9 adds T7's residual number to 40.
 - **Resolves spec §7 question 5: the `[0, 24]` doc error is fixed in T8**, beside the paragraph T8 already edits.

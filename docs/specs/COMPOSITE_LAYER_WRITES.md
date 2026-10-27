@@ -13,8 +13,8 @@
 
 **Status:** spec written 2026-10-27 from the confirmed intent
 [docs/intent/composite-layer-writes.md](../intent/composite-layer-writes.md). Backlog items
-[40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
-[41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), the first line of
+[40](../todo/archive/backlog-archive.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
+[41](../todo/archive/backlog-archive.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), the first line of
 plan.md's Stage 1, on one branch because their fixes are one mechanism. They stay backlog items and archive at merge.
 Plan: [docs/tasks/COMPOSITE_LAYER_WRITES.md](../tasks/COMPOSITE_LAYER_WRITES.md).
 

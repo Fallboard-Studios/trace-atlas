@@ -2,8 +2,8 @@
 
 Spec: [docs/specs/COMPOSITE_LAYER_WRITES.md](../specs/COMPOSITE_LAYER_WRITES.md). Intent:
 [docs/intent/composite-layer-writes.md](../intent/composite-layer-writes.md). Backlog slots:
-[40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
-[41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), the first line of
+[40](../todo/archive/backlog-archive.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
+[41](../todo/archive/backlog-archive.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), the first line of
 plan.md's Stage 1, on one branch because their fixes are one mechanism. Build branch: `fix/composite-layer-writes` off
 `main` at `a5d5944d`. One PR closes 40 and 41.
 

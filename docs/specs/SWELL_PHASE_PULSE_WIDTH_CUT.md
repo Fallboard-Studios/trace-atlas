@@ -29,8 +29,8 @@ Plan: [docs/tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md](../tasks/SWELL_PHASE_PULSE_WID
 2. Parity case (e) narrows to the sends tail.
 3. No world is remembered, so the console check uses S1 and the fallback.
 4. The two findings are recorded as backlog
-   [40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
-   [41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), placed next in
+   [40](../todo/archive/backlog-archive.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
+   [41](../todo/archive/backlog-archive.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers), placed next in
    plan.md after 37 and 38.
 5. The `[0, 24]` doc error is fixed.
 
@@ -387,8 +387,8 @@ checkpoint, and types plus lint after each task.
    **Recommendation:** record both as backlog items after §5.3. Crawford decides whether either is fixed, per the
    finish-the-branch rule.
    **Decided (Crawford, 2026-10-26):** both are recorded now, as backlog
-   [40](../todo/backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) (i) and
-   [41](../todo/backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers) (ii), and they are
+   [40](../todo/archive/backlog-archive.md#40-audio-every-layer-write-re-applies-every-layers-phase) (i) and
+   [41](../todo/archive/backlog-archive.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers) (ii), and they are
    next in plan.md after this item. §5.3 adds its number to 40. Checking (ii) against the code found a third symptom
    with the same cause, which 41 carries. The composite builds no synth for a layer muted at build time, but later
    updates match layers by position. So on a robot whose middle layer started muted, an edit to a later layer can land
