@@ -17,8 +17,8 @@ describe('ROBOT_SWELL_FIELD_RANGE', () => {
     expect(Object.keys(ROBOT_SWELL_FIELD_RANGE).sort()).toEqual([...SWELL_ROBOT_ATTRIBUTE_IDS].sort());
   });
 
-  it('has exactly 22 keys', () => {
-    expect(Object.keys(ROBOT_SWELL_FIELD_RANGE)).toHaveLength(22);
+  it('has exactly 16 keys', () => {
+    expect(Object.keys(ROBOT_SWELL_FIELD_RANGE)).toHaveLength(16);
   });
 
   it('gives each send the stored 0..1 range (SEND_MIN..SEND_MAX), not the 0-100 display range', () => {
@@ -56,8 +56,6 @@ describe('ROBOT_SWELL_FIELD_RANGE', () => {
     for (const layer of ['layer0', 'layer1', 'layer2'] as const) {
       expect(ROBOT_SWELL_FIELD_RANGE[`${layer}.gain`]).toEqual({ min: 0, max: 2 });
       expect(ROBOT_SWELL_FIELD_RANGE[`${layer}.detune`]).toEqual({ min: -50, max: 50 });
-      expect(ROBOT_SWELL_FIELD_RANGE[`${layer}.phase`]).toEqual({ min: 0, max: 360 });
-      expect(ROBOT_SWELL_FIELD_RANGE[`${layer}.pulseWidth`]).toEqual({ min: 0, max: 1 });
     }
   });
 

@@ -31,41 +31,41 @@ export const SWELL_GLOBAL_TARGET_IDS: readonly SwellGlobalTargetId[] = [
 // ========================================
 
 /**
- * The 22 robot-scoped swell attributes: volume, every oscillator layer's
- * gain/detune/phase/pulseWidth (layerN.phase included — see
- * docs/specs/archive/AUDIO_SWELLS.md §1.3 for why phase is fine here even though it's
- * excluded from LFO/Drift), the 4 ADSR sub-fields, independently
+ * The 16 robot-scoped swell attributes: volume, every oscillator layer's
+ * gain/detune, the 4 ADSR sub-fields, independently
  * eligible (confirmed via /interview-me — never one atomic "envelope" move),
  * and the robot's own reverbSend / delaySend (the swells that used to ramp the
  * global delay.wet / reverb.wet; docs/specs/ROBOT_SENDS.md assumption 13),
  * then its gritSend / shimmerSend / doubleSend (docs/specs/ROBOT_EFFECT_SENDS.md
  * assumption 12: no ceiling, a rare swell on a Grit send is a roar).
- * The sends are listed last so no earlier index-based pick shifts.
+ * The sends are listed last. A layer's phase and pulse width are not swell
+ * targets: a phase write rebuilds the oscillator's periodic wave on every tick,
+ * and a pulse-width write on a layer without one wrote NaN into the voice
+ * (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md).
  *
- * Spelled out as its own union since 2026-09-30, no longer derived from
- * RobotLfoTargetId: that union dropped 'volume' and 'layerN.pulseWidth' as
- * LFO targets (docs/specs/LFO_LOAD_FIX.md assumption 9), but Audio Swells is
- * a separate system and keeps swelling both — a swell is a scheduled ramp of
+ * Spelled out as its own union, not derived from RobotLfoTargetId: that union
+ * has no 'volume' (docs/specs/LFO_LOAD_FIX.md assumption 9), but Audio Swells is
+ * a separate system and swells it — a swell is a scheduled ramp of
  * the stored attribute, not an audio-rate LFO connection, so none of the
  * LFO-cost reasoning applies here. Every layer-scoped RobotLfoTargetId is
- * still a member; 'bus.frequency' (the bus filter cutoff) is the one LFO
+ * a member; 'bus.frequency' (the bus filter cutoff) is the one LFO
  * target that is not, because there is no swell apply path for the bus
  * (docs/specs/ROBOT_ARTICULATION.md assumption 10).
  */
 export type SwellRobotAttributeId =
   | 'volume'
-  | 'layer0.gain' | 'layer0.detune' | 'layer0.phase' | 'layer0.pulseWidth'
-  | 'layer1.gain' | 'layer1.detune' | 'layer1.phase' | 'layer1.pulseWidth'
-  | 'layer2.gain' | 'layer2.detune' | 'layer2.phase' | 'layer2.pulseWidth'
+  | 'layer0.gain' | 'layer0.detune'
+  | 'layer1.gain' | 'layer1.detune'
+  | 'layer2.gain' | 'layer2.detune'
   | 'adsr.attack' | 'adsr.decay' | 'adsr.sustain' | 'adsr.release'
   | RobotSendField;
 
 // The sends come from the one field list, in its order, and stay last (docs/specs/ROBOT_SEND_TABLE.md §1.5).
 export const SWELL_ROBOT_ATTRIBUTE_IDS: readonly SwellRobotAttributeId[] = [
   'volume',
-  'layer0.gain', 'layer0.detune', 'layer0.phase', 'layer0.pulseWidth',
-  'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
-  'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
+  'layer0.gain', 'layer0.detune',
+  'layer1.gain', 'layer1.detune',
+  'layer2.gain', 'layer2.detune',
   'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
   ...ROBOT_SEND_FIELDS,
 ];
