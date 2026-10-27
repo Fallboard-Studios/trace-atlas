@@ -12,6 +12,8 @@ interface TransportLike {
   /** Tone hands each callback the audio-clock time (seconds) the tick is FOR, about `lookAhead` ahead of now. */
   scheduleRepeat(callback: (time: number) => void, interval: string, startTime?: unknown): string | number;
   clear(id: string | number): void;
+  /** Tone's Transport converts a musical time ('16n') to seconds at the live tempo. */
+  toSeconds?(time: string): number;
 }
 
 // Transport instance is provided by AudioEngine to avoid importing Tone here.
@@ -126,6 +128,16 @@ export function getCurrentMeasure(): number {
  */
 export function getCurrentMeasurePrecise(): number {
   return currentBeat / BEATS_PER_MEASURE;
+}
+
+/**
+ * One tick's length in seconds: a `16n` at the live tempo, read on every call so a tempo change reaches the next
+ * write. A timed per-tick write glides over it into the next tick (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2).
+ * Undefined with no transport, a transport that cannot convert, or a length that is not finite and positive.
+ */
+export function getTickSeconds(): number | undefined {
+  const seconds = transportInstance?.toSeconds?.('16n');
+  return seconds !== undefined && Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 /**

@@ -15,7 +15,8 @@ vi.mock('tone', () => ({
   getTransport: () => mockTransport,
 }));
 
-let initBeatClock: (transport?: typeof mockTransport) => void;
+let initBeatClock: (transport?: typeof mockTransport & { toSeconds?: (time: string) => number }) => void;
+let getTickSeconds: () => number | undefined;
 let getCurrentBeat: () => number;
 let getCurrentMeasure: () => number;
 let getCurrentMeasurePrecise: () => number;
@@ -42,6 +43,7 @@ describe('beatClock', () => {
       resetBeatClock,
       scheduleRepeat,
       cancelSchedule,
+      getTickSeconds,
     } = await import('./beatClock'));
     // Initialize the beatClock with the mocked transport for tests
     initBeatClock(mockTransport);
@@ -54,6 +56,43 @@ describe('beatClock', () => {
     callbacks[0]?.();
     expect(getCurrentMeasure()).toBe(2);
     expect(getCurrentBeat()).toBeCloseTo(9.5);
+  });
+
+  // docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2: a timed write glides one 16n at the live tempo.
+  describe('getTickSeconds', () => {
+    function initWithToSeconds(toSeconds: (time: string) => number) {
+      resetBeatClock();
+      initBeatClock({ ...mockTransport, toSeconds });
+    }
+
+    it('is the transport toSeconds of one 16n', () => {
+      const toSeconds = vi.fn(() => 0.137);
+      initWithToSeconds(toSeconds);
+      expect(getTickSeconds()).toBe(0.137);
+      expect(toSeconds).toHaveBeenCalledWith('16n');
+    });
+
+    it('reads the live value on every call, so a tempo change reaches the next write', () => {
+      let seconds = 0.137;
+      initWithToSeconds(() => seconds);
+      expect(getTickSeconds()).toBe(0.137);
+      seconds = 0.0625;
+      expect(getTickSeconds()).toBe(0.0625);
+    });
+
+    it('is undefined with no transport', () => {
+      resetBeatClock();
+      expect(getTickSeconds()).toBeUndefined();
+    });
+
+    it('is undefined for a transport without toSeconds', () => {
+      expect(getTickSeconds()).toBeUndefined();
+    });
+
+    it.each([NaN, 0, -0.125, Infinity])('is undefined, never a bad length, when toSeconds gives %s', (bad) => {
+      initWithToSeconds(() => bad);
+      expect(getTickSeconds()).toBeUndefined();
+    });
   });
 
   describe('getCurrentMeasurePrecise', () => {
