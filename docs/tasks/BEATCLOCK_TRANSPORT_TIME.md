@@ -521,7 +521,7 @@ T14 (backlog: 35's Built line; the curve decision)
 - [ ] Optional listen (spec §5.4): a few minutes on the swell-heavy world at Full on the desktop, no new click or jump at a
       swell's start or return-to-base.
 - [ ] Reviewed with human before proceeding to Phase 4. **Crawford, 2026-10-26:** the curve is dropped (Architecture
-      Decisions, §7 Q2) and the phase cost is split out as backlog 37; the optional listen is not yet done.
+      Decisions, §7 Q2) and the phase cost is split out as backlog 37. Checkpoint C passed (Crawford, 2026-10-26); the optional listen was not part of it.
 
 ---
 
