@@ -11,17 +11,10 @@ Reading the stages: each one ends at a point where Crawford listens or looks bef
 
 ## Stage 1 — The audio engine: two console errors, then what Light still carries
 
-The swell targets that cost more than they play come off first (found 2026-10-26, desktop clipping), then the
-underruns' design decision. The measurement for that is done, desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks
-at Light are the graph's standing cost, not an accumulation, and the late collapse has not recurred.
+The composite voice's layer writes come first, then the underruns' design decision. The measurement for that is done,
+desktop and phone (backlog 27, the two updates of 2026-10-26): the clicks at Light are the graph's standing cost, not an
+accumulation, and the late collapse has not recurred.
 
-- Backlog [37](backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick) **Phase and pulse width come off
-  the swell targets** — phase is most of the swell tick's main-thread cost; pulse width is
-  [36](backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s NaN flood, which closes with it.
-  Decided, so spec → plan, no interview. In progress on `fix/swell-targets`.
-- Backlog [38](backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) **Swell writes become ramps, Auto pan too** —
-  the staircase under every remaining swell target (found 2026-10-26). Folded into 37's spec and branch by Crawford
-  (2026-10-26) as its §8: built after 37's tasks, with one measurement, one listen and one PR.
 - Backlog [40](backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
   [41](backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers) **The composite voice's
   layer writes** — every layer write re-applies every layer's phase (40, sized by 37's measurement), and the composite's

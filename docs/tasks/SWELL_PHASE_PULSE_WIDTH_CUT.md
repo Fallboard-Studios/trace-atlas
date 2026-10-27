@@ -1,9 +1,9 @@
 # Implementation Plan: Phase and Pulse Width Come Off the Swell Targets, and Timed Swell Writes Glide
 
 Spec: [docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md). Backlog slots:
-[37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), the first line of plan.md's Stage 1,
-and [38](../todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps), which Crawford folded in on 2026-10-26
-(spec §8). It closes [36](../todo/backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick). There is
+[37](../todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), the first line of plan.md's Stage 1,
+and [38](../todo/archive/backlog-archive.md#38-audio-swell-writes-land-as-steps-not-ramps), which Crawford folded in on 2026-10-26
+(spec §8). It closes [36](../todo/archive/backlog-archive.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick). There is
 no intent file: Crawford decided 37 on 2026-10-26 with no interview, and 38's fix was in its backlog item. Build branch:
 `fix/swell-targets` off `main` at `12008fd9`. One PR closes 36, 37 and 38.
 
@@ -173,10 +173,13 @@ T1, T2 and T3 are independent and can land in any order, but each must land befo
   - [x] Each §7 question carries a dated Decided line.
   - [x] Backlog 37 links the spec, this plan and `fix/swell-targets`. 40 and 41 each have Found, Cause, To check first,
         and a Fix that is not decided.
-  - [ ] Every link and anchor resolves. Checked at the commit.
+  - [x] Every link and anchor resolves. Checked at the commit. *Checked 2026-10-27, after 36–38 moved to the archive:
+        every relative link and anchor in the spec, this plan, backlog.md, plan.md and backlog-archive.md resolves (a
+        GitHub-slug checker over all of `docs/`; 655 older broken links elsewhere, the same set before and after the
+        move).*
 
   **Verification:**
-  - [ ] Manual read of the four diffs. Anchors checked against the headings they target.
+  - [x] Manual read of the four diffs. Anchors checked against the headings they target. *Read 2026-10-27 (`d0974d3e`).*
 
   **Dependencies:** Crawford's answers to spec §7 (given 2026-10-26).
 
@@ -692,7 +695,7 @@ head. Crawford asked for it to run once per tick.
   - Under 40, fill in its first "To check first" bullet with T7's residual phase-setter share, with a link. 40's Fix
     stays undecided.
   - At merge (Crawford's PR, not this task): 36, 37 and 38 move to the archive in the usual way, and the 37 and 38
-    plan.md lines are deleted.
+    plan.md lines are deleted. *Done on the branch before the PR, at Crawford's request (2026-10-27).*
 
   **Proof:** Read. No test file.
 

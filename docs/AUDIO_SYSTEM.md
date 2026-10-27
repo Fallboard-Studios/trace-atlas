@@ -433,7 +433,7 @@ The inline `LfoLink` primitive (`src/components/ui/controls/LfoLink.tsx`) replac
   - the 4 ADSR sub-fields (`adsr.attack`/`decay`/`sustain`/`release`), each independently eligible, never one atomic "envelope" move;
   - last, the five sends spread from `ROBOT_SEND_FIELDS`: `reverbSend` and `delaySend` (Robot Sends), then `gritSend`, `shimmerSend` and `doubleSend` (Robot Effect Sends).
 
-  **Layer `phase` and `pulseWidth` are not targets** (backlog [37](todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), [specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](specs/SWELL_PHASE_PULSE_WIDTH_CUT.md)). Both are oscillator settings, not Params:
+  **Layer `phase` and `pulseWidth` are not targets** (backlog [37](todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), [specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](specs/SWELL_PHASE_PULSE_WIDTH_CUT.md)). Both are oscillator settings, not Params:
   - **Phase:** a write re-runs Tone's `type` setter. A swelling phase is a new value nearly every tick, so nearly every write misses Tone's periodic-wave cache, builds a new wave with the native `createPeriodicWave`, and swaps it onto the sounding oscillator. That was most of the swell tick's main-thread cost, and a mid-note waveform swap.
   - **Pulse width:** only a pulse oscillator reads it, and no generator seeds it per layer, so a swell on it wrote `NaN`.
 

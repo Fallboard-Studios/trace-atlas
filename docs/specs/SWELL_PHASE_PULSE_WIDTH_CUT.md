@@ -13,11 +13,11 @@
 >   `npm run perf -- --url "http://localhost:<port>/trace-atlas/?seed=charlie&x=200&y=-30&s=1.q1YqTlOyMjTTUSpOAdK1AA" --profile --throttle 4`
 
 **Status:** spec written 2026-10-26. Backlog item
-[37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), the first line of plan.md's
+[37](../todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), the first line of plan.md's
 Stage 1. It stays a backlog item. Crawford made the decision on 2026-10-26 ("phase and pulse width come off the
 swell targets", all six), so plan.md says spec → plan with no interview, and there is no intent file. Closes backlog
-[36](../todo/backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) with it. Backlog
-[38](../todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps) (swell writes become ramps) is folded in as §8
+[36](../todo/archive/backlog-archive.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) with it. Backlog
+[38](../todo/archive/backlog-archive.md#38-audio-swell-writes-land-as-steps-not-ramps) (swell writes become ramps) is folded in as §8
 (Crawford, 2026-10-26). It is built after 37's tasks on the same branch and shares 37's measurement and listen. §8.6's
 two questions are decided (Crawford, 2026-10-26): every timed write glides, robot volume, the sends and the filter
 cutoffs included, and a glide lasts one 16th note at the live tempo.
@@ -403,7 +403,7 @@ checkpoint, and types plus lint after each task.
 ## 8. Backlog 38, folded in: timed swell writes glide
 
 **Status:** folded into this branch by Crawford on 2026-10-26 ("if 38 is related, let's fold it in and finish it up
-with 37"). Backlog [38](../todo/backlog.md#38-audio-swell-writes-land-as-steps-not-ramps).
+with 37"). Backlog [38](../todo/archive/backlog-archive.md#38-audio-swell-writes-land-as-steps-not-ramps).
 
 It is related to 37 through the tick, not through code. Both change what the swell tick's sixteenth-note writes do:
 37 removes two targets and 38 changes how the rest land. So one before/after measurement (§5.3) and one listen (§5.4)

@@ -473,3 +473,156 @@ to be the same change.
 `next` tag. When a release with the fix becomes `latest`: upgrade on its own branch (read the changelog from 15.1.22,
 full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
 call and `oscillatorLeakPatched` in that change.
+
+## 36. Audio: Swells on `pulseWidth` Write NaN Into the Voice Every Tick
+
+**Closed** 2026-10-27 (with backlog 37 on `fix/swell-targets`, `d8e3fd9f`). No robot swell can target `layerN.pulseWidth` any more, which removes the flood's only source; the fix designed below was not built. The original request follows.
+
+**Found 2026-10-26** (Crawford, dev and production): a flood of
+`[AudioEngine] Failed to set pulseWidth on composite layer Error: Invalid argument(s) to setValueAtTime: null, 14.2…`,
+one every 16th note, from `applyOscFieldViaSet` ← `composite.set` ← `AudioEngine.updateVoiceLayerParams` ←
+`applyLayersContinuous` (`robotOptionsActions.ts`). The `null` is `JSON.stringify(NaN)` (Tone's `Param.setValueAtTime`
+assert prints the value that way), so the value written is **NaN**, not null.
+
+**Cause.** A swell whose target is `layerN.pulseWidth` reads its base from the robot's stored layer
+(`readRobotValue` in `audioSwells.ts`: `layer[field]`), and `OscillatorLayer.pulseWidth` is optional
+(`src/types/layeredAudio.ts`: "meaningful for pulse/square oscillators"), so on a layer without one the base is
+`undefined`, the swell's arithmetic makes NaN, and `writeRobotValue` applies it through `applyLayersContinuous` on every
+tick for the swell's life. The eligibility check (`isRobotAttributeStructurallyLive`) asks only that the layer's gain be
+nonzero, not that the field exist or that the layer be a pulse type. The composite catches the throw and warns, so the
+voice keeps its old width and nothing is heard; the console is unusable while it runs.
+
+**To check first:** whether `applyLayersContinuous` also writes the NaN into the store (a NaN in Zustand serialises
+as `null`, so a saved session or world link could carry a `pulseWidth: null`), and whether `phase`, also optional on
+the type, can do the same.
+
+**Fix (behaviour, RED first):** a swell on a layer field is structurally unavailable when the robot's layer has no finite
+value for that field, the same way a missing layer slot already is, so the pool never selects it; and
+`readRobotValue` never returns a non-number (fall back or throw in a test, not NaN into the engine). If the store check
+finds a NaN, the write path refuses non-finite values too. Done when a world with non-pulse layers runs several swells
+with no warning, and a seeded test that forces a `layerN.pulseWidth` swell on such a layer passes.
+
+**Superseded (Crawford, 2026-10-26):** pulse width comes off the swell targets in
+[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick), which removes the only source of the flood; the fix
+above is not built. The store check moves to 37, and 36 closes when 37 ships.
+
+**Closes with 37's branch** (`fix/swell-targets`, 2026-10-27): no robot swell can target `layerN.pulseWidth` any more
+(T4, `d8e3fd9f`). **Correction to Found:** the flood is a `devWarn`, which prints only in dev builds
+(`import.meta.env.DEV`), so it cannot have appeared in production as the Found line says.
+
+## 37. Audio: Phase Swells Rebuild a Periodic Wave Every Tick
+
+**Closed** 2026-10-27 (Crawford; `fix/swell-targets`, `1ba47a46`..`d8e3fd9f`, docs `c44a00b3`). The robot swell pool drops layer `phase` and `pulseWidth`, 22 targets to 16, and `createPeriodicWave` under the swell tick measured 0 on every branch run. The original request follows.
+
+**Found 2026-10-26** by backlog 35's measurement (Task 12, [PERFORMANCE.md](../../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
+Crawford asked for it as its own item after the breakdown (2026-10-26) and dropped 35's pre-scheduled curve the same
+day: the curve would have removed only the 0.45–0.70 % of param writes, not this.
+
+**What was measured.** On the swell-heavy link (charlie, Swell Frequency 16, Duration 1), unminified build, 4× throttle,
+the IDLE window: the swell tick takes 4.13–6.45 % of sampled time. Writes to a layer's `phase` are **1.82–4.10 %** of
+that window, most of the tick, and every other part is smaller: pulse width 0.05–0.12 %, the robot param writes 0.21–0.24 %, the global setters
+0.23–0.48 %, the store 0.77–0.83 %. The ticks that write phase sit inside Tone clock tasks of 61–185 ms.
+
+**Cause.** A swell on `layerN.phase` (0–360°, `ROBOT_SWELL_FIELD_RANGE` in `src/data/audioSwellRanges.ts`) writes a new
+value every `16n` through `applyLayersContinuous` → `AudioEngine.updateVoiceLayerParams` → the composite's `set` →
+`applyOscFieldViaSet` → `synth.set({ oscillator: { phase } })`. Tone's `Oscillator` `phase` setter re-runs its `type`
+setter, which looks for a cached periodic wave with exactly that type and phase (`_periodicWaveCache`, 100 entries) and,
+on a miss, computes the partials (`_getRealImaginary`) and calls the native `createPeriodicWave`. A swelling phase is a
+new value on nearly every tick, so nearly every tick misses: in one run 210 of the layer method's 310 ms was
+`createPeriodicWave`. A curve cannot carry it: phase is a setting, not a Param, so 35's agreed curve design leaves it
+stepwise.
+
+**Decided (Crawford, 2026-10-26): phase and pulse width come off the swell targets**, all six
+(`layer0`–`layer2` `.phase` and `.pulseWidth`). Desktop has been clipping lately and the aim is to remove everything that
+costs more than it plays: phase is most of the swell tick, and pulse width is the source of
+[36](#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick)'s flood. The other options (write phase only
+when it moves a step, quantise it, keep a wave per layer) are not pursued.
+
+**To check first:** every place a robot swell target is listed or tested: `SwellRobotAttributeId` in
+`src/types/audioSwell.ts` and its tests, `ROBOT_SWELL_FIELD_RANGE`, the pool's eligible-target set, any UI that lists
+targets, and the docs that name them (AUDIO_SYSTEM.md's Audio Swells). Whether a saved session or world link can name a
+swell target, so a removed one is tested to load without error; and 36's store check, whether an earlier swell left a
+`pulseWidth: null` in a saved session.
+
+**Fix (behaviour, RED first):** the pool never picks a phase or pulse-width swell, and the type no longer has them.
+Done when a world runs swells with no `pulseWidth` warning, and the same measurement as 35's Task 12 on the same link
+shows the tick's share before and after. This removes 36's only source, so 36 closes with this branch.
+
+**Spec and plan (2026-10-26):** [docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md),
+[docs/tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md](../../tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md), branch `fix/swell-targets`. No
+saved session or world link names a swell target (active swells are module state), so nothing needs testing to load. The
+store check: the NaN does reach the store mid-swell, and a save made then carries `pulseWidth: null`. Crawford decided
+old saves are left as they are. Spec §7 records all five decisions; two findings became
+[40](../backlog.md#40-audio-every-layer-write-re-applies-every-layers-phase) and
+[41](../backlog.md#41-audio-the-composite-voices-layer-records-drift-from-the-robots-layers).
+
+**Built (2026-10-27)** on `fix/swell-targets`: T1–T4 (`1ba47a46`..`d8e3fd9f`), the pool goes from 22 targets to 16;
+docs in T8 (`c44a00b3`).
+- **Console check** (T6, `43a451e9`, [PERFORMANCE.md](../../PERFORMANCE.md#phase-and-pulse-width-off-the-swell-targets--the-console-check-2026-10-26-backlog-3637)):
+  stock never printed the pulse-width line on S1, in 120 s or 300 s, so the check is recorded as unproven and T4's test
+  is the proof. The branch logged nothing.
+- **Measurement** (T7, `5459e740`, [PERFORMANCE.md](../../PERFORMANCE.md#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7)):
+  `createPeriodicWave` under the tick is 0 on every branch run (stock's phase-swell run: 2.84 %). The tick reads 2.16 %
+  (2.14–2.29) on 37, against stock's 2.26–2.41 % without a phase swell and 6.11 % with one.
+- **Listen** (Crawford, 2026-10-27, stock against head, which carries 38 too): "it sounds better. there are still some
+  clicks here and there but it's markedly better i think." Nothing new, fewer pops.
+
+## 38. Audio: Swell Writes Land as Steps, Not Ramps
+
+**Closed** 2026-10-27 (Crawford; folded into 37's `fix/swell-targets`, `2c1bcfd6`..`0922f0df`). Every timed write glides one 16th note from its tick time; the tick's share grew +0.81 points over 37, less the 0.16–0.23 T13 took off, and Crawford accepted it. The original request follows.
+
+**Found 2026-10-26** by the steady-state review
+([PERFORMANCE.md](../../PERFORMANCE.md#steady-state-review--what-runs-continuously-and-which-of-it-can-pop-2026-10-26)),
+asked for by Crawford after the desktop's cracks and pops.
+
+**Cause.** The swell tick writes a live Param or Signal through `setOrPoint` (`src/engine/audioEngine/voiceEntry.ts`),
+which is a bare `setValueAtTime` at the tick's time: a hard step, sixteen a measure, for the swell's whole life. The
+targets it reaches that way: layer gain (`ROBOT_SWELL_FIELD_RANGE` 0–2, a minimum swing of half the range times
+Intensity, so a one-measure swell steps a sounding layer's amplitude by several percent a tick), EQ3 low/mid/high (±12
+dB, through `setGlobalEQ`), LPF and HPF Q (`setGlobalFilterLPF`/`HPF`) and layer detune. Volume, the five sends and
+the two filter frequencies go through `rampOrSet` with a 50 ms ramp and are fine. Before backlog 35 these writes were
+`.value =`, which is the same step placed "now", so this is long-standing, not a regression; 35 dropped its
+pre-scheduled curve on the main-thread criterion alone (Task 12) and never weighed the staircase.
+
+**Also here: Auto pan.** `updateAllPanners` (`src/engine/AudioEngine.ts`) writes `entry.panner.pan.value` every `16n`
+while a robot swims (gated by `PAN_WRITE_EPSILON`), a cancel-and-set step on every sounding robot in motion;
+`updateRobotPan`, the slider's path, ramps over `PAN_RAMP_SECONDS`. One call.
+
+**To check first:** the tick's `time` is the audio-clock time the write is for, and the next tick is one `16n` later
+(`Tone.Time('16n').toSeconds()` at the live tempo); a ramp that ends at the next tick's time overlaps nothing. Whether
+Tone's `Param.linearRampToValueAtTime` needs a preceding `setRampPoint` (it does: `rampTo` makes one) so the ramp starts
+from the current value, not from the last scheduled event. The headless/test stubs that `setOrPoint` falls back on.
+
+**Fix (behaviour, RED first):** a timed swell write to a Param or Signal is a ramp from its current value to the new one,
+ending at the next tick's time, for every target `setOrPoint` serves today; Auto pan's per-tick write takes the same ramp
+`updateRobotPan` uses. Done when a layer-gain swell on a sustained note is a glide, not a staircase, by ear (Crawford),
+and Task 12's measurement on the same link shows the tick's share did not grow. Intended to ride
+[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick)'s branch: same helper, same measurement, one listen.
+
+**Folded into 37 (Crawford, 2026-10-26):** designed as §8 of
+[docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md](../../specs/SWELL_PHASE_PULSE_WIDTH_CUT.md), with tasks T10–T12 in
+[its plan](../../tasks/SWELL_PHASE_PULSE_WIDTH_CUT.md), on `fix/swell-targets`. A write with a time glides one `16n` from
+it (`rampTo(value, tick, time)`). Decided in spec §8.6 (Crawford, 2026-10-26): every timed write glides, robot volume,
+the sends and the filter cutoffs included, and a glide lasts one 16th note at the live tempo.
+
+**Built (2026-10-27)**, folded into 37's branch `fix/swell-targets`:
+- T10 (`2c1bcfd6`): BeatClock's `getTickSeconds`, one `16n` at the live tempo.
+- T11 (`42c094f6`): `setOrPoint` becomes `setOrGlide`, and `rampOrSet`'s timed ramp lasts one tick.
+- T12 (`0bdf7562`): Auto pan glides.
+- T13 (`0922f0df`): the tick length is read once per tick, not once per write.
+- T8 (`c44a00b3`): the docs.
+
+Every timed write glides: robot volume, the five sends, layer gain and detune (including the envelope's re-applied
+layer params), the global LPF/HPF cutoff and Q, the EQ bands, and Auto pan. Hand edits are unchanged.
+
+**The cost:**
+- **Did not meet "the tick's share did not grow"** (T7,
+  [PERFORMANCE.md](../../PERFORMANCE.md#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7)). Head's tick is
+  2.97 % (2.90–3.07) against 37's 2.16 % (2.14–2.29), +0.81 points. A glide is a `rampTo`, about three times a point.
+- **T13 removed the tick-length read,** 0.16–0.23 % → 0.00–0.03 % (T14, `8aceff32`,
+  [PERFORMANCE.md](../../PERFORMANCE.md#one-tick-length-read-per-tick-task-14-2026-10-27)). In that session the tick
+  total did not resolve the saving.
+- **Crawford accepted the cost** (2026-10-27).
+
+**Listen** (Crawford, 2026-10-27): the glides, Auto pan, and no glide fighting a step "sound fine"; overall "markedly
+better", with some clicks left.

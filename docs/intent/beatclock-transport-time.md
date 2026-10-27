@@ -83,7 +83,7 @@ the passed in scheduling time") stops as a consequence, not by suppression.
   reads later (layer `phase` and `pulseWidth`, the four ADSR fields, non-param global settings) keep the stepwise
   write at the callback time. ADSR fields are only read at note trigger, so a per-tick step is already the finest
   meaningful granularity for them.
-- Backlog [36](../todo/backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) (the
+- Backlog [36](../todo/archive/backlog-archive.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) (the
   `pulseWidth` NaN) stays its own item, even though it is the same swell path.
 - Any change to what the ticks schedule, to the harmony tick's cadence, or to the lifecycle's measure semantics.
 - The Stage 1 audio-engine interview (backlog 27) and anything about how the graph is built.

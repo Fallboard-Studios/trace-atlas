@@ -40,7 +40,7 @@ One commit per task. No docs guards, no source scans (CLAUDE.md, 2026-10-23).
   (`updateRobot` and below) excluded, or any task ≥ 50 ms in the window is attributed to the tick. **Decided at
   Checkpoint C (Crawford, 2026-10-26): the curve is not built.** T12 cleared the threshold (3.38 % median), but the
   param writes a curve would take off the main thread are 0.45–0.70 %; most of the tick is phase writes, a setting the
-  curve cannot carry, now backlog [37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick).
+  curve cannot carry, now backlog [37](../todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick).
   T14 records the decision under 35 instead of opening a curve item.
 - **Resolves §7 question 3: one `rampOrSet`.** `globalFx.ts`'s private copy goes; the file imports `voiceEntry.ts`'s.
   `RampableParam`'s `value: number` covers every call site the copy served (its only difference was `value: unknown`).

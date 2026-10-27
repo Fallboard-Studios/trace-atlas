@@ -168,7 +168,7 @@ No new file under `src/`. No new dependency.
   serialisable (nothing new is stored). Crawford asked for this change on 2026-10-26, so "ask before changing the audio
   architecture" is met for the call shape. What the ticks schedule does not change.
 - **Not in scope:** the pre-scheduled curve (§6), backlog
-  [36](../todo/backlog.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) (the `pulseWidth` NaN, the
+  [36](../todo/archive/backlog-archive.md#36-audio-swells-on-pulsewidth-write-nan-into-the-voice-every-tick) (the `pulseWidth` NaN, the
   same path, its own item), the harmony cadence, the lifecycle's measure semantics, and anything the Stage 1
   audio-engine interview (backlog 27) will decide about how the graph is built.
 
@@ -327,7 +327,7 @@ hold a `.value =` cancel used to imply) would produce.
    **Decided (Crawford, 2026-10-26, Checkpoint C): not built.** The measurement cleared the threshold (3.38 % median,
    [PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)), but the param writes a curve would
    remove are 0.45–0.70 %. Most of the tick is phase writes rebuilding a periodic wave, a setting the curve cannot carry;
-   that cost is backlog [37](../todo/backlog.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick).
+   that cost is backlog [37](../todo/archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick).
 3. **Unify `rampOrSet` now?** §3 says yes (delete `globalFx.ts`'s copy, import `voiceEntry.ts`'s). The alternative is to
    give both the parameter and leave the duplication for a nit. **Recommendation: unify**; the change is one import and
    a type that already fits.
