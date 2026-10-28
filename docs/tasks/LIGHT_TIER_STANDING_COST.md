@@ -584,7 +584,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   starts it. The restart is at `now + MIN_LEAD`; a stopped LFO holds its starting value, so the re-attached Gains see
   no step. The A4 ablation's price (the whole bank) included this running drift.
 
-- [ ] **Task 18: `docs/todo/scratchy-audio-phones.md` — H3's A/Bs**
+- [x] **Task 18: `docs/todo/scratchy-audio-phones.md` — H3's A/Bs** (2026-10-28)
 
   **Description:** One A/B per cut (T16's commit against its base, T17's against its base), as T15: Light and Full
   runs, kept on A3's / A4's price less noise on D1 and, on D5 where Phase A read both below noise, on D5 reading inside
@@ -594,16 +594,22 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] As T15, per cut, with T16's crossing figure.
+  - [x] As T15, per cut, with T16's crossing figure.
 
   **Verification:**
-  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
+  - [x] Hygiene as Phase A2; the record traces to the JSON files.
 
   **Dependencies:** Tasks 16, 17.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
   **Estimated scope:** S
+
+  **As run (2026-10-28):** recorded in the decomposition's §9, in T15's sitting and against its noise band (0.101 /
+  0.120). H3a reads D1 +0.008, D5 −0.009; H3b D1 −0.017, D5 −0.015 (cheaper every round on D5); all inside the band, so
+  the step-3 bar cannot fail in this sitting and says nothing. T16's crossings: the Phaser ≤ ×1.013, the Chorus
+  ≤ ×1.218, no gap. T18b also prices T17's drift fix (drift ran at Light from boot on T16). Whether to re-run Phase B's
+  A/Bs on an idle desktop is Crawford's call at Gate B.
 
 ### Gate B: Crawford's desktop listen (spec §5.3)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite; any pre-existing,

@@ -1807,8 +1807,8 @@ are this plan's Phase B.
 | **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13) | Yes, the pedals go silent | **Light only** |
 | **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B | Yes | **Light only** |
 | **4** | EQ3, LPF and HPF at neutral (H5, A6) | 6 of the 15 rendering biquads | **−0.041** | **−0.019** | 0 / 0 | Out of the chain while neutral: reopens backlog 28's decision to keep them in (Crawford's), written into T19 | Probably not at neutral (the EQ3's crossover split is not bit-flat); needs a listen | every tier, if inaudible |
-| 5 | The bank's lanes and drift (H3b, A4) | 8 of the 25–28 rendering oscillators | −0.038 | below noise | −28 / −24 | Stop the drift secondaries while drift is held off (T17, A/B T18). A4 also stopped the lanes, which are audible, so the drift-only saving is a part of −0.038 and unpriced | No | every tier |
-| 6 | Dark cells' effect LFOs (H3a, A3) | 4–5 LFOs | −0.026 | below noise | −5 / −4 | Stop a dark cell's LFOs at the darken crossing, start them at the light crossing (T16, A/B T18). With H1 kept, every LFO cell is dark at Light, so this saves more there than A3 measured | No | every tier |
+| 5 | The bank's lanes and drift (H3b, A4) | 8 of the 25–28 rendering oscillators | −0.038 | below noise | −28 / −24 | Stop the drift secondaries while drift is held off (T17, A/B T18). A4 also stopped the lanes, which are audible, so the drift-only saving is a part of −0.038 and unpriced. **A/B (§9): D1 −0.017, D5 −0.015**, inside that sitting's noise band | No | every tier |
+| 6 | Dark cells' effect LFOs (H3a, A3) | 4–5 LFOs | −0.026 | below noise | −5 / −4 | Stop a dark cell's LFOs at the darken crossing, start them at the light crossing (T16, A/B T18). With H1 kept, every LFO cell is dark at Light, so this saves more there than A3 measured. **A/B (§9): D1 +0.008, D5 −0.009**, inside that sitting's noise band | No | every tier |
 | — | Send and room fabric (H5, A8 less A5 and the lit branches) | A8 unrenders 87 of 909 rendering Gains on D1 | ≈ −0.01 (estimate) | ≈ 0 (estimate) | 0 / 0 | **None: not worth a cut** (at the size of the noise band) | — | — |
 | — | Compressor, Limiter, ceiling (H5, A7) | DynamicsCompressor 0.7 / 0.7 % | below noise | below noise | 0 / 0 | **None: not worth a cut** (and musical, spec §1.3) | — | — |
 | — | Signals and Params (H3c) | ConstantSource 14.0 / 13.7 % (mostly trace overhead) | not ablatable | not ablatable | 329 / 336 live | None inside Tone; H2 is the lever (it removes 142 / 108 of them) | — | — |
@@ -1917,8 +1917,8 @@ audible cuts are tried stacked in one sitting and the first clean build wins (sp
 | Piece | Gate A |
 |---|---|
 | Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15). A/B (§8): D1 −0.065, D5 +0.013, inside that sitting's noise band; crossing ×1.000, first note on time. Verdict at Gate B |
-| Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18) |
-| The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18) |
+| Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18). A/B (§9): D1 +0.008, D5 −0.009, inside that sitting's noise band; Phaser and Chorus crossings ≤ ×1.22, no gap. Verdict at Gate B |
+| The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18). A/B (§9): D1 −0.017, D5 −0.015, inside that sitting's noise band. Verdict at Gate B |
 | Lit effects (H1) | **Only on a phone miss**, the first of three Light-only cuts (T9–T13) |
 | The Reverb (H5) | **Only on a phone miss**, a decay cap, the second (T19, T24) |
 | Sounding robots (§6) | **Only on a phone miss**, three at Light instead of four, the third (T25, T26) |
@@ -2020,3 +2020,57 @@ on a fresh voice, starting at `now()` rather than the tick's time: at worst an a
 fade in over its first 50 ms. Not fixed; a fresh voice could take its sends with `setValueAtTime` at the tick's time.
 
 **Verdict:** Crawford's, at Gate B (§7's row).
+
+### 9. Phase B, H3's A/Bs — dark cells' LFOs and the drift secondaries stopped (T18, 2026-10-28)
+
+**Method.** §8's, in the same sitting and against §8's noise band (NB3: **0.101** D1, **0.120** D5), each cut against
+the build before it: **T18a** is T16 (d6e5eeb4, `dist-t16`, `index-CEVj3Q0k`, :4193) against T14 (:4192); **T18b** is
+T17 (ef0775fd, `dist-t17`, `index-CJ4I0byy`, :4194) against T16. Every run exit 0, orphaned Chrome 0 before and after.
+Phase A's prices: A3 −0.026 on D1, below noise on D5; A4 (the whole bank, of which T17's drift is an unpriced part)
+−0.038 on D1, below noise on D5.
+
+| | T18a, H3a (T16 − T14) | T18b, H3b (T17 − T16) |
+|---|---|---|
+| **D1 delta**, median (r1 · r2 · r3) | **+0.008** (+0.120 · +0.008 · −0.026) | **−0.017** (−0.120 · −0.017 · +0.102) |
+| **D5 delta** | **−0.009** (−0.106 · +0.002 · −0.009) | **−0.015** (−0.015 · −0.075 · −0.005) |
+| Base mean, D1 / D5 | 0.639 (0.638–0.649) / 0.623 (0.613–0.735) | 0.601 (0.508–0.611) / 0.587 (0.480–0.602) |
+| Peak window D1, base → cut | 0.788 → 0.880 · 0.706 → 0.716 · 0.717 → 0.732 (rises every round) | 0.735 → 0.542 · 0.722 → 0.764 · 0.678 → 0.831 |
+| Peak window D5 | 0.851 → 0.732 · 0.701 → 0.713 · 0.786 → 0.695 | 0.527 → 0.511 · 0.677 → 0.611 · 0.734 → 0.687 (falls every round) |
+| `max lag` D1, base / cut | 32 · 26 · 20 / 26 · 26 · 30 ms | 33 · 25 · 22 / 22 · 47 · 35 ms |
+| `max lag` D5 | 28 · 23 · 34 / 26 · 30 · 31 ms | 19 · 24 · 34 / 22 · 22 · 26 ms |
+| Full, D1 / D5 | −0.046 / +0.004 | −0.019 / +0.091 (drift is on at Full, so the two builds run the same graph there) |
+| Mean live nodes, cut − base, D1 / D5 | −3 · −8 · −10 / −3 · −9 · −1 | −12 · −14 · −6 / −14 · −13 · −13 |
+
+**Reading.** Every median is inside the sitting's band, and three of the four round sets straddle zero; the one that
+does not, T18b on D5 (cheaper in all three rounds), is still inside the band. Spec §1.5 step 3's bar, read as
+written, is passed by both cuts on both worlds, but only because each price less a 0.1 band is below zero: the bar
+cannot fail in this sitting, so it says nothing. `max lag` is inside the base's spread except T18b's D1 47 ms (base
+22–33), and T18a's D1 peak window rises in all three rounds, by 0.010–0.092; both are inside the noise this sitting
+shows elsewhere (NB3's own D1 `max lag` reached 52 ms). The census falls a little with each, as built (a stopped Tone oscillator's native node ends and is let go; Tone makes
+a new one at the next start).
+
+**What T17 also fixed.** T16 is T17's base, and on it the drift secondaries ran **and were attached** at Light from
+boot (plan T17's "As built": `primeLfoBank` attached and started them whatever the tier, and the budget held drift off
+before the first power-on). So T18b's base had drift modulating the lanes at Light and T17 has none: T18b prices that fix as well
+as the stop, and Gate B's listen is where it can be heard.
+
+**T16's crossing** (spec §1.5 step 4; §8's probe and its stereo tone): the Phaser lit from dark at Mix 0.3 (its LFOs
+start before the connect) and darkened (they stop when the darken timer's disconnect runs); the Chorus, pinned in the
+Double room, lit by its room going live (a send ramp, then `setRoomFed`) and dark again. Each cell read lit after the
+light and dark after the darken in every run.
+
+| Crossing | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Phaser lit | ×1.012 · ×1.001 · ×1.000 | none | 1.0 · 1.0 · 0.7 ms |
+| Phaser darkened | ×1.000 · ×0.999 · ×1.013 | none | 0.1 · 0.2 · 0.2 ms |
+| Chorus lit | ×1.000 · ×1.159 · ×0.984 | none | 0.8 · 1.1 · 1.0 ms |
+| Chorus darkened | ×1.168 · ×1.218 · ×1.025 | none | 0.2 · 0.1 · 0.3 ms |
+
+The mono version of the probe (§8) read the same crossings at ×0.90–×1.14, also clean: neither effect changes the
+chain entry's channel count.
+
+**Verdict:** Crawford's, at Gate B (§7's rows). **Across Phase B,** no A/B in this sitting can show a saving below
+about 0.1 of capacity. H3a's and H3b's Phase A prices are a quarter to a third of that, and §8 shows H2 as specified
+is worth well under A2's 0.124. A re-run of §8 and §9 on an idle
+desktop (the browser closed, NB first) would take about four and a half hours; whether it is wanted, or whether the
+phone sitting (Phase C) is the measure that counts, is Crawford's call.
