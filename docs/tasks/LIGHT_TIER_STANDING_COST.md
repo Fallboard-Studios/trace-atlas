@@ -236,8 +236,8 @@ T3 (census line on perf:audio) ─────────┤
   **Estimated scope:** XS
 
 ### Checkpoint A1: The tools work
-- [ ] `npm run build:types`, `npm run lint`, `npx vitest run scripts/perf` clean.
-- [ ] One handler run and one `perf:audio` run on D1 at Light both complete against the served production build; Q1's
+- [x] `npm run build:types`, `npm run lint`, `npx vitest run scripts/perf` clean.
+- [x] One handler run and one `perf:audio` run on D1 at Light both complete against the served production build; Q1's
       answer (category live, or the fallback) is written in T2's commit and carried into T4.
 - [ ] Reviewed with human before the runs (the runs are long; the tool should not change under them).
 
