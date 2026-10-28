@@ -6,8 +6,10 @@
  * Chrome's shape (blink/renderer/modules/webaudio): every render quantum is one `webaudio`
  * `RealtimeAudioDestinationHandler::Render`, and inside it every node that renders traces one
  * `disabled-by-default-webaudio.audionode` `AudioHandler::ProcessIfNecessary`, with the node's pointer in
- * `args.this` and its class in `args['node type']`. A node pulls its inputs from inside its own event, so the
- * events nest: a handler's cost is its SELF time, its `dur` less the `dur` of the events directly inside it.
+ * `args.this` and its class in `args['node type']`. Inside it some handlers trace their own step
+ * (`GainHandler::Process`, mostly with no args), and a node pulls its inputs, and the sources driving its params,
+ * from inside its own event, so the events nest. Each event's SELF time (its `dur` less the `dur` of the events
+ * directly inside it) goes to the node event that encloses it: a node's cost is its own work, less the nodes it pulls.
  *
  * Tracing inflates the audio thread's load (~3x seen), so the tally reports shares of the same trace's Render
  * total, never absolute cost: the inflation cancels in the ratio.
@@ -30,10 +32,25 @@ export const NOTE_NO_HANDLERS =
 const threadKey = (ev) => `${ev.pid}:${ev.tid}`;
 
 /**
+ * Which node an event's self time belongs to: `{ name, instance, typed }`, or null. A node event (one carrying
+ * `node type`, Chrome's ProcessIfNecessary) owns itself. Anything inside a node event belongs to that node (its own
+ * `XxxHandler::Process` step, an FFT inside that). Without a node event above it, a Process-shaped event owns itself
+ * by its name (a Chrome that traces only the handler steps); anything else inside one belongs to it; the rest is not
+ * a handler's.
+ */
+function ownerOf({ ev, depth }, parentOwner, key) {
+  const nodeType = ev.args?.['node type'];
+  if (nodeType !== undefined) return { name: nodeType, instance: ev.args.this ?? `${ev.name}|${key}|${depth}`, typed: true };
+  if (parentOwner?.typed) return parentOwner;
+  if (PROCESS_SHAPED.test(ev.name)) return { name: ev.name, instance: ev.args?.this ?? `${ev.name}|${key}|${depth}`, typed: false };
+  return parentOwner;
+}
+
+/**
  * Tally raw trace events into handler classes. Returns
  * `{ renderTotalUs, renderCount, classes: [{ name, selfUs, share, instances, perInstanceShare }], note }`,
- * the classes sorted by share (largest first, ties by name). Only complete ('X') events count; only handler
- * events on a thread that carries Render, and inside one of its Render events, are tallied. `note` is null when
+ * the classes sorted by share (largest first, ties by name). Only complete ('X') events count; only events inside
+ * a Render, and owned by a node (`ownerOf`), are tallied. `note` is null when
  * the breakdown is there, else one of the two exported notes.
  */
 export function tallyHandlers(events) {
@@ -72,20 +89,22 @@ export function tallyHandlers(events) {
         childUs: 0,
         depth: parent ? parent.depth + 1 : 0,
         inRender: ev.name === RENDER || Boolean(parent?.inRender),
+        owner: null,
       };
+      frame.owner = ownerOf(frame, parent?.owner ?? null, key);
       if (parent) parent.childUs += ev.dur ?? 0;
       stack.push(frame);
       frames.push(frame);
     }
 
-    for (const { ev, childUs, depth, inRender } of frames) {
-      if (!inRender || !PROCESS_SHAPED.test(ev.name)) continue;
-      const name = ev.args?.['node type'] ?? ev.name;
-      const instance = ev.args?.this ?? `${ev.name}|${key}|${depth}`;
-      const entry = classes.get(name) ?? { selfUs: 0, ids: new Set() };
+    // Every event's self time goes to the node that owns it, so a node's cost is its own step and everything inside
+    // it, less the nodes it pulls (which own their own time).
+    for (const { ev, childUs, inRender, owner } of frames) {
+      if (!inRender || !owner) continue;
+      const entry = classes.get(owner.name) ?? { selfUs: 0, ids: new Set() };
       entry.selfUs += (ev.dur ?? 0) - childUs;
-      entry.ids.add(instance);
-      classes.set(name, entry);
+      entry.ids.add(owner.instance);
+      classes.set(owner.name, entry);
     }
   }
 

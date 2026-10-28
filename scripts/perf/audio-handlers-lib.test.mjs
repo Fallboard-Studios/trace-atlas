@@ -106,6 +106,54 @@ describe('tallyHandlers', () => {
     expect(byName(tally, 'BiquadFilterNode').selfUs).toBe(200);
   });
 
+  // Chrome nests a handler's own step (GainHandler::Process, mostly with no args) inside its node's
+  // ProcessIfNecessary, and a modulator's ProcessIfNecessary inside the Process of the node whose param it drives.
+  const step = (name, ts, dur, args = {}) => ({ ...AUDIO, ph: 'X', cat: 'disabled-by-default-webaudio.audionode', name, ts, dur, args });
+
+  it('counts a handler step nested in its node toward that node, with no row of its own', () => {
+    const tally = tallyHandlers([
+      render(0, 1000),
+      handler('GainNode', '0xa', 100, 300),
+      step('GainHandler::Process', 120, 260),
+    ]);
+    expect(tally.classes.map((c) => c.name)).toEqual(['GainNode']);
+    expect(byName(tally, 'GainNode').selfUs).toBe(300);
+    expect(byName(tally, 'GainNode').instances).toBe(1);
+  });
+
+  it('subtracts a node pulled from inside a handler step, and counts it as its own class', () => {
+    const tally = tallyHandlers([
+      render(0, 1000),
+      handler('GainNode', '0xa', 0, 600),
+      step('GainHandler::Process', 50, 500),
+      handler('ConstantSourceNode', '0xc', 100, 200),
+    ]);
+    expect(byName(tally, 'GainNode').selfUs).toBe(400);
+    expect(byName(tally, 'ConstantSourceNode').selfUs).toBe(200);
+    expect(tally.classes).toHaveLength(2);
+  });
+
+  it('counts any event inside a node toward it, however deep, when no other node sits between', () => {
+    const tally = tallyHandlers([
+      render(0, 1000),
+      handler('ConvolverNode', '0xv', 0, 800),
+      step('ConvolverHandler::Process', 10, 700),
+      step('FFTConvolver::ExecuteFFT', 20, 300),
+    ]);
+    expect(tally.classes.map((c) => c.name)).toEqual(['ConvolverNode']);
+    expect(byName(tally, 'ConvolverNode').selfUs).toBe(800);
+  });
+
+  it('without a node event, counts what sits inside a bare handler step toward that step', () => {
+    const tally = tallyHandlers([
+      render(0, 1000),
+      step('ConvolverHandler::Process', 10, 700),
+      step('FFTConvolver::ExecuteFFT', 20, 300),
+    ]);
+    expect(tally.classes.map((c) => c.name)).toEqual(['ConvolverHandler::Process']);
+    expect(byName(tally, 'ConvolverHandler::Process').selfUs).toBe(700);
+  });
+
   it('divides each class by the Render total of the same trace', () => {
     const tally = tallyHandlers(fixture());
     expect(byName(tally, 'GainNode').share).toBeCloseTo(0.2, 10);
