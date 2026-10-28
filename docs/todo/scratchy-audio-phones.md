@@ -1803,7 +1803,7 @@ are this plan's Phase B.
 
 | Order | Piece (hypothesis) | Breakdown | D1 delta | D5 delta | Census, D1 / D5 | The cut it implies | Audible? | Tier |
 |---|---|---|---|---|---|---|---|---|
-| **1** | Standing-by robots' voices (H2, A2) | not separable: its nodes are Gains and ConstantSources | **−0.124** | **−0.107** | −678 / −499 (Gains −506 / −374, ConstantSources −142 / −108) | Release a robot's voice when it leaves the sounding set, re-reserve and re-prime its links when it enters (T14, A/B T15) | No: Full has no standing-by robots; at Light an admitted robot's first note must not be late or clicked | **every tier** |
+| **1** | Standing-by robots' voices (H2, A2) | not separable: its nodes are Gains and ConstantSources | **−0.124** | **−0.107** | −678 / −499 (Gains −506 / −374, ConstantSources −142 / −108) | Release a robot's voice when it leaves the sounding set, re-reserve and re-prime its links when it enters (T14, A/B T15). **A/B (§8): D1 −0.065, D5 +0.013**, inside that sitting's noise band (0.101 / 0.120); A2's price was the docked robots, not H2 | No: Full has no standing-by robots; at Light an admitted robot's first note must not be late or clicked | **every tier** |
 | **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13) | Yes, the pedals go silent | **Light only** |
 | **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B | Yes | **Light only** |
 | **4** | EQ3, LPF and HPF at neutral (H5, A6) | 6 of the 15 rendering biquads | **−0.041** | **−0.019** | 0 / 0 | Out of the chain while neutral: reopens backlog 28's decision to keep them in (Crawford's), written into T19 | Probably not at neutral (the EQ3's crossover split is not bit-flat); needs a listen | every tier, if inaudible |
@@ -1916,7 +1916,7 @@ audible cuts are tried stacked in one sitting and the first clean build wins (sp
 
 | Piece | Gate A |
 |---|---|
-| Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15) |
+| Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15). A/B (§8): D1 −0.065, D5 +0.013, inside that sitting's noise band; crossing ×1.000, first note on time. Verdict at Gate B |
 | Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18) |
 | The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18) |
 | Lit effects (H1) | **Only on a phone miss**, the first of three Light-only cuts (T9–T13) |
@@ -1926,3 +1926,97 @@ audible cuts are tried stacked in one sitting and the first clean build wins (sp
 | Send and room fabric (A8 less A5 and the lit branches) | **Dropped**: at the size of the noise band |
 | Compressor, Limiter, ceiling (H5) | **Dropped**: below noise on both worlds |
 | Signals and Params (H3c), audio-rate biquads (H4) | No cut of their own |
+
+### 8. Phase B, H2's A/B — standing-by voices released (T15, 2026-10-28)
+
+**Method.** As §3, in a new sitting, at plan T15's length: `npm run perf:audio`, **240 s** per run, three rounds, each
+round D1 then D5 at Light, the order alternating by round (odd rounds base first), then one Full run per world per arm.
+**Base** is the stock build (`index-BpSIkiTM`, 357d06de's `src/`) on :4191; **T14** is 47012de5 built to the
+scratchpad (`dist-t14`, `index-MjmwUmp9`) on :4192. The noise band (NB3) was run last in the same sitting, the stock
+build against a byte-identical copy on :4195. 64 runs in all, every one exit 0, orphaned Chrome 0 before and after.
+Labels `<set>-r<round>-<d1|d5>-<base|cut>` and `<set>-full-<d1|d5>-<base|cut>`; the aggregates are
+`agg-T15-T18a-T18b.json` and `agg-NB3.json` beside the runs. **Delta** = cut mean capacity − the same round's base mean,
+so negative is cheaper.
+
+**The noise band, this sitting:**
+
+| World | Same-round deltas, r1 · r2 · r3 | Band (largest \|delta\|) | Full, same build |
+|---|---|---|---|
+| D1 | −0.035 · −0.101 · −0.019 | **0.101** | −0.008 |
+| D5 | +0.017 · +0.017 · −0.120 | **0.120** | +0.124 |
+
+**This sitting is roughly eight to thirty times noisier than §3's and §6's** (bands 0.004 and 0.013, then 0.003 and
+0.025). The stock mean moved between rounds by up to 0.32 on D1 (0.514–0.831 over NB3's six D1 runs) where §3 saw
+about 0.04. Two things differ from Phase A: the runs are twice as long, so each one crosses a whole wave of robots
+waking and docking (eligible robots about 1 → 9 → 1 on D1); and the desktop was not idle. After the last run, Crawford's
+own Chrome (the default profile, not the harness) had a renderer at about half a core and its GPU process busy. The
+desktop underruns are raster-bound on this iGPU ([PERFORMANCE.md](../PERFORMANCE.md), "Desktop full-screen underruns are
+raster-bound", backlog 26), so a busy
+browser competes for exactly the resource that drives capacity. That is the likely cause; it is not proven. **No delta
+below about 0.1 in this sitting can be told from noise.**
+
+**H2's A/B** (T14 against the stock build):
+
+| | D1, median (r1 · r2 · r3) | D5, median (r1 · r2 · r3) |
+|---|---|---|
+| Base mean, this set | 0.687 (0.633 · 0.687 · 0.700) | 0.627 (0.627 · 0.709 · 0.626) |
+| **Delta** | **−0.065** (−0.096 · −0.040 · −0.065) | **+0.013** (+0.013 · −0.006 · +0.022) |
+| Peak window, base → T14 | 0.894 → 0.605 · 0.850 → 0.760 · 0.864 → 0.714: **falls every round** | 0.765 → 0.831 · 0.865 → 0.947 · 0.796 → 0.905: **rises every round** |
+| `max lag` (15 s buckets), base / T14 | 42 · 23 · 27 / 22 · 29 · 31 ms | 23 · 25 · 27 / 25 · 28 · **275** ms |
+| Full, base → T14 | 0.777 → 0.722 (−0.055) | 0.807 → 0.714 (−0.094) |
+| Mean live nodes, T14 − base | −115 · −114 · −110 | −152 · −153 · −159 |
+| … at the wave's crest | −318 · −332 · −319 | −349 · −340 · −361 |
+| Standing by, mean (most in a 15 s bucket) | 1.8 (5.3–5.4) | 2.6 (6.5–6.6) |
+
+- **At Full nothing changed**, as built: nobody stands by, the node counts match (1 829 / 1 828, 1 845 / 1 845), and
+  the two Full deltas are inside NB3's Full pair (+0.124).
+- **The 275 ms** is one bucket (150–165 s on D5, round 3), the moment eligible robots went from 4 to 6.5 and the first
+  of them stood down. It is the only bucket over 52 ms in the 64 runs (NB3, stock against stock, reached 52).
+- **Against spec §1.5 step 3's bar**, read as written: D1's −0.065 is past A2's price less this sitting's band
+  (0.124 − 0.101 = 0.023), the peak window falls, `max lag` is inside the base's spread and Full is inside the band.
+  D5 fails twice: the peak window rises every round, and the 275 ms is outside the base's spread. With a band this
+  close to the price itself, the bar's arithmetic says little either way.
+
+**Why T14 saves about a sixth of A2's census.** A2 released every robot outside the sounding set; T14 releases only
+the robots **standing by** (eligible, outside the set: spec §1.3's H2). The difference is the **docked** robots: docking
+mutes a robot, so it is not eligible, never stands by, and keeps its voice under T14. §3's census was read after the
+8 s warm-up, where every stock run's overlay read `standing by 0`, so **A2's whole −678 / −499 at that read was docked
+robots**, none of them H2's. Over a 240 s run T14's saving follows the wave: nothing while four or fewer robots are
+eligible, −320 to −360 nodes at the crest, −110 / −155 on average. A2's −0.124 / −0.107 is therefore not H2's price, and
+no A/B of H2 alone can reach it. Releasing a docked robot's voice as well is a different cut, outside the spec's H2
+and Gate A's pick; it is Crawford's to take or not.
+
+**The admission and stand-down crossing** (spec §1.5 step 4, the recorder recipe of DARK_EFFECT_BYPASS.md §5 step 2;
+`probe-crossing.mjs` in the scratchpad, against the branch's source on a dev server): a sustained 220 Hz tone into the
+real FX chain, then `reserveVoice` + `updateRobotSends` for a three-layer robot (what admission's `reReserveVoice`
+does), then 1.6 s later `releaseVoice` (a stand-down). Three runs:
+
+| Event | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Admission | ×1.000 · ×1.000 · ×1.000 | none | 7.9 · 5.1 · 5.0 ms |
+| Stand-down | ×1.000 · ×0.999 · ×1.000 | none | 1.6 · 1.2 · 1.5 ms |
+| Control (no change) | ×1.000 · ×1.000 · ×1.000 | none | — |
+| Abrupt step (the metric's own check) | ×233 – ×1 049 | 5 376 – 15 190 samples | — |
+
+**The first note is not late.** A note triggered at `now + 0.05` straight after the admission's build, against the same
+note on a voice reserved 1.5 s earlier, the onset read by block position as the first sample over 10⁻⁴, four runs each:
+onset − scheduled **12.33 ms** every time after admission, and 9.67–12.35 ms on the warm voice. The 12 ms is the
+measurement's own offset (it is in both arms); the arms agree to within one render quantum (2.67 ms).
+
+**One probe artifact, found and fixed.** The first version fed the tone in **mono**, so the first stereo voice (every
+voice ends in a `Panner`) changed the chain entry's channel count, which makes Chrome rebuild its filter and delay
+kernels: ×500–×1 075 on admission and stand-down alike, the same samples to four places in every run. A 7 ms
+main-thread loop and 300 unconnected `Gain`s built and disposed both read ×1.000, so it was not the recorder or the
+graph lock. With the tone through a centred `Panner`, as in the app, the same events read ×1.000. In the app the chain
+entry is stereo whenever any robot has a voice, which at Light is always. The mono version is kept as
+`probe-crossing-mono.mjs`.
+
+**A Tone warning T14 adds.** Every Light run with T14 in logs one "Events scheduled inside of scheduled callbacks should
+use the passed in scheduling time" (the stock build: none; Full: none; A2 logged the same one). Its stack, reproduced
+with the admission inside a `Transport.scheduleOnce`: `updateRobotSends` → `rampOrSet` (`voiceEntry.ts`) →
+`Param.rampTo` with no start time. Admission now runs from the budget's reconcile, on the measure tick, inside a
+Transport callback; before T14 the sends were primed only from UI events. The ramp is `SEND_RAMP_SECONDS` (50 ms) from 0
+on a fresh voice, starting at `now()` rather than the tick's time: at worst an admitted robot's first note has its sends
+fade in over its first 50 ms. Not fixed; a fresh voice could take its sends with `setValueAtTime` at the tick's time.
+
+**Verdict:** Crawford's, at Gate B (§7's row).

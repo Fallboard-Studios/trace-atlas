@@ -482,7 +482,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
     a robot silenced by a solo is never named". The test file's `lfoEngine` mock gained `disposeRobotLinks`, and
     `devWarn` is mocked as a spy; no existing assertion changed.
 
-- [ ] **Task 15: `docs/todo/scratchy-audio-phones.md` — H2's A/B**
+- [x] **Task 15: `docs/todo/scratchy-audio-phones.md` — H2's A/B** (2026-10-28)
 
   **Description:** Spec §1.5 steps 3–4 for H2: the branch (T14 in) against its base, same session, three interleaved
   rounds, D1 and D5 at Light, 240 s, kept on A2's price less the noise band with the peak window not rising and `max lag`
@@ -493,17 +493,24 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] The four numbers (mean delta, peak, `max lag`, Full) and the admission timing figure stated with spreads; the
+  - [x] The four numbers (mean delta, peak, `max lag`, Full) and the admission timing figure stated with spreads; the
         verdict is Crawford's on them.
 
   **Verification:**
-  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
+  - [x] Hygiene as Phase A2; the record traces to the JSON files.
 
   **Dependencies:** Task 14.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
   **Estimated scope:** S
+
+  **As run (2026-10-28):** recorded in the decomposition's §8. The sitting's own noise band (NB3, stock against
+  stock) came out at 0.101 (D1) and 0.120 (D5), roughly eight to thirty times Phase A's, so D1's −0.065 and D5's +0.013
+  are both inside it; a busy browser on the desktop is the likely cause, unproven. A2's price was the docked robots
+  (§3's warm-up read had nobody standing by), which H2 as specified never releases. The crossing reads ×1.000 and the
+  first note is on time; the probe's first, mono version read ×500–×1 075 from a channel-count change, not the cut.
+  T14 adds one Tone schedule-time warning per Light page (the admission's send ramp, inside the measure tick).
 
 **H3 — oscillators that run for nothing** (spec §1.3 H3a, H3b; inaudible → every tier)
 
