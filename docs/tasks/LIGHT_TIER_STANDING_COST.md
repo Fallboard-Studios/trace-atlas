@@ -273,7 +273,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
   **Estimated scope:** S (one docs section; ~40 minutes of runs)
 
-- [ ] **Task 5: `docs/todo/scratchy-audio-phones.md` — fact (a): what D1 and D5 light**
+- [x] **Task 5: `docs/todo/scratchy-audio-phones.md` — fact (a): what D1 and D5 light** (2026-10-27)
 
   **Description:** On `npm run dev` in headless Chrome, a fresh page per world, over CDP `Runtime.evaluate` with
   dynamic imports of the app's own modules (the "seven links" recipe): read `useAudioStore.getState().globalAudio` for

@@ -1560,3 +1560,54 @@ quantum, and each class's share is its self time over `RealtimeAudioDestinationH
 - **So the decomposition rests on the ablations** (§3, T6–T7), with the breakdown giving the node counts the census
   turns into totals and an early pointer at the Reverb (A5). This is the plan's Q1 risk in a milder form than "the
   category is gone": the category is live, but per-event tracing swamps the cheap nodes.
+
+### 2. Fact (a) — what D1 and D5 light at Light (T5)
+
+**Method.** `npm run dev` of the same `src/` on :5191, headless Chrome through the harness's own `withPoweredWorld`
+(the world link at `?load=light`, power on, 8 s warm-up, then 2 s for any darken timer), and one `Runtime.evaluate`
+that dynamically imports the app's `stores/audioStore.ts`, `stores/localeStore.ts` and
+`engine/audioEngine/bypassCell.ts` and reads the store's ten Mixes, the Phaser's stages, every robot's five sends,
+and the engine's own cells (`getCell(key).connected`) and rooms (`getRoom(key).fed`, `returnLevel`). A throwaway probe
+(`probe-lit.mjs`, scratchpad; output `runs/lit-D1.json`, `runs/lit-D5.json`); nothing of it committed. A cell is lit
+when its effect's two edges are connected. A chain cell is lit at a Mix above 0, or Width away from 0.5. A room's
+branch is lit while the room is fed (some robot's send above 0, standing-by robots included, since every robot's
+voice is reserved), its Return is above 0, and the branch's own depth is above 0. The Chorus's and the Shifter's `wet`
+is their room's Return (each is pinned at depth 1); the Grit room's Return is never written and stays 1.
+
+| Effect | Where | D1 Mix | D1 lit | D5 Mix | D5 lit |
+|---|---|---|---|---|---|
+| Distortion | Grit branch | 0 | — | 0 | — |
+| Chebyshev | Grit branch | 0.11 | **lit** | 0.13 | **lit** |
+| BitCrusher | Grit branch | 0 | — | 0 | — |
+| AutoWah | chain cell | 0.35 | **lit** | 0.44 | **lit** |
+| Phaser (stages 5 on both) | chain cell | 0 | — | 0 | — |
+| Chorus | Double branch (`wet` = Return) | 1 | **lit** | 1 | **lit** |
+| Tremolo | chain cell | 0 | — | 0 | — |
+| Vibrato | chain cell | 0 | — | 0.88 | **lit** |
+| Frequency Shifter | Shimmer branch (`wet` = Return) | 1 | **lit** | 1 | — (room unfed) |
+| Width | chain cell (`width`) | 0.59 | **lit** | 0.62 | **lit** |
+| **lit** | | | **5** | | **5** |
+
+| Room | D1 fed by | D5 fed by |
+|---|---|---|
+| Grit (Return 1) | 4 of 12 robots (sends 0.45–0.74) | 2 of 12 (0.76, 0.77) |
+| Shimmer (Return 1) | 1 of 12 (0.40) | **none** (unfed, so its branch is dark) |
+| Double (Return 1) | 2 of 12 (0.40, 0.59) | 3 of 12 (0.43–0.57) |
+| Reverb (always on) | 12 of 12 | 12 of 12 |
+| Delay (always on) | 10 of 12 | 9 of 12 |
+
+Each world's lit list sums to its overlay's `fx in 5/10` and to the engine's `getConnectedEffectCount()` (5 on both).
+
+**Reading.**
+- **The two worlds light the same four, plus one each:** Chebyshev, AutoWah, Chorus and Width on both; D1 adds the
+  Frequency Shifter, D5 the Vibrato. **The Phaser is dark on both**, so H1's "the Phaser alone costs what four lean
+  pedals cost" does not apply to these two worlds at Light: their lit set is the cheaper pedals.
+- **What the 2026-10-20 per-effect prices predict for A1** ("What a lit effect costs", above: each lit in a cell, raw Tone in
+  an OfflineContext, extra render ms per audio second, i.e. ‰ of one desktop core): D1 AutoWah 24.9 + Chorus 16.7 + Shifter 15.8 + Width 11.8 + Chebyshev 5.9 ≈ **75 ‰**; D5
+  AutoWah 24.9 + Chorus 16.7 + Width 11.8 + Vibrato 9.8 + Chebyshev 5.9 ≈ **69 ‰**, about 0.07 of a core each, which
+  is about 0.07 of render capacity, less what the same five cost dark. Those prices were taken one effect at a time,
+  offline, at default settings; A1 (§3) measures
+  these five together, at Light, on these worlds.
+- The rooms' feeding is seeded per robot and includes the eight standing-by robots: a room stays fed (and its lit
+  branches cost) while only standing-by robots send into it. A2 releases those robots' voices, which also unfeeds any
+  room only they fed.
