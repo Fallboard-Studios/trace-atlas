@@ -612,8 +612,9 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   A/Bs on an idle desktop is Crawford's call at Gate B.
 
 ### Gate B: Crawford's desktop listen (spec §5.3)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite; any pre-existing,
-      unrelated failure named).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite; any pre-existing,
+      unrelated failure named). (2026-10-28, 2e2927c0: types 0 errors, lint 0 errors and 4 react-refresh
+      warnings, 332 files and 12 363 tests passed, build clean.)
 - [ ] D1 and D5 at Full and at Light: nothing changed by ear, no click at any note, the Audio Load panel as before.
 - [ ] At Light: no click when a robot is admitted or stands down; a dark pedal lit from its Mix (0 → 0.3) and back
       without a click; Robot Load and Effects Load dragged across their thresholds both ways (drift back on and off);
