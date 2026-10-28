@@ -1611,3 +1611,92 @@ Each world's lit list sums to its overlay's `fx in 5/10` and to the engine's `ge
 - The rooms' feeding is seeded per robot and includes the eight standing-by robots: a room stays fed (and its lit
   branches cost) while only standing-by robots send into it. A2 releases those robots' voices, which also unfeeds any
   room only they fed.
+
+### 3. The ablations — the noise band, the census, A1–A4 (T6)
+
+**Method.** `npm run perf:audio`, 120 s per run (plan OQ8), the stock build on :4191 against a second port. The
+**noise band** serves a byte-identical copy of the stock build on :4192. Each **variant** is one `src/` edit on the
+stock commit, built to the scratchpad (`dist-A<n>`) and served on :419(2+n); `src/` is restored with
+`git checkout --` after every build and `git status --porcelain src` checked empty by the build script. Nothing of
+any variant is committed; each one's diff is kept as `variants/A<n>.diff` in the scratchpad. Three rounds per set;
+each round D1 then D5; inside a round the order alternates (odd rounds stock first, even rounds variant first).
+Foreground, one run at a time, orphaned Chrome 0 before and after every one of the 60 runs, every run exit 0. **Delta**
+= variant mean capacity − the same round's stock mean capacity (the 2026-09-20 method), so negative is cheaper.
+Labels `<set>-r<round>-<d1|d5>-<stock|var>`; the aggregate is `agg-NB-A1-A2-A3-A4.json` beside them.
+
+**The stock, over the task's 15 stock runs per world:** mean capacity D1 **0.559** (0.544–0.581), D5 **0.495**
+(0.474–0.507). Every stock run's overlay read `load 20%·fx 20%`, `fx in 5/10`, `standing by 0`, `bank 4/4`, with
+mean sounding 3.8 (D1) and 3.5 (D5) and links 43/91 (D1) and 25/91 (D5). The stock drifts about 0.04 between rounds
+on its own; the same-round pairing is what makes deltas of 0.01–0.03 readable at all.
+
+**The noise band** (stock :4191 against the stock copy :4192):
+
+| World | Same-round deltas, r1 · r2 · r3 | Band (largest \|delta\|) |
+|---|---|---|
+| D1 | +0.002 · +0.000 · +0.004 | **0.004** |
+| D5 | −0.009 · −0.002 · −0.013 | **0.013** |
+
+A delta whose median sits inside its world's band, or whose three rounds straddle zero, is **below noise**.
+
+**The census** (T3's line, read after the 8 s warm-up on the stock runs):
+- **D1** (12 of 15 runs; two read 1 789 and one 1 777, a few nodes still being made or collected at the read):
+  `census after warm-up (1793): Gain 1257 · ConstantSource 329 · WaveShaper 40 · BiquadFilter 35 · AudioBufferSource 32 · StereoPanner 25 · Oscillator 22 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+- **D5** (all 15 runs):
+  `census after warm-up (1815): Gain 1273 · ConstantSource 336 · WaveShaper 37 · BiquadFilter 32 · AudioBufferSource 31 · Oscillator 28 · StereoPanner 25 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+
+Beside §1: about 1 390 of D1's 1 793 live nodes render every quantum, and about 1 410 of D5's 1 815.
+
+**The variants** (file, function, and the stock source line each edit follows):
+- **A1, every effect dark.** `src/engine/audioEngine/bypassCell.ts`, `writeCellMix` (one line added after line 317): every
+  Mix write is forced to 0 and Width's to 0.5, so every path that writes a Mix (power-on, swells, the panel) leaves
+  every cell and branch dark. The plan put the edit in `applyGlobalAudioToEngine`; every Mix goes through
+  `writeCellMix`, so the edit there covers the swells too. Every variant run read `fx in 0/10`.
+- **A2, the standing-by robots' voices released.** `src/engine/AudioEngine.ts`: in `setSoundingRobots` (after line 1402,
+  five lines added) every robot outside the new set has its voice released, and a robot joining the set is
+  re-reserved once the instruments are loaded; in `reserveVoice` (one line added after line 817) a robot outside the set is
+  refused, so `loadInstruments` (which reserves every robot) cannot bring them back. The plan's one-off release from
+  `applySet` would have been undone by that reserve and would have left joiners silent. Two side effects, both in the
+  delta: a re-reserved robot comes back without its LFO links (`primeRobotLinks` is not re-run), and every variant run
+  logged one Tone warning ("Events scheduled inside of scheduled callbacks should use the passed in scheduling time")
+  from the re-reserve inside a transport callback. Census D1 1 793 → **1 115**, D5 1 815 → **1 316**; mean sounding
+  unchanged.
+- **A3, a dark cell's effect LFOs stopped.** `src/engine/audioEngine/bypassCell.ts`: two helpers (after line 111) that
+  stop or start an effect's `_lfoL`/`_lfoR` (Chorus, Tremolo, Phaser) and `_lfo` (Vibrato); a stop at the end of `buildCell`
+  (after line 158) and of `buildBranch` (after line 454) and in `disconnectEffect` (after line 290), a start in `connectEffect` (after line 269);
+  `src/engine/audioEngine/globalFx.ts`, `rebuildPhaser` (after line 912, a stop when the rebuilt Phaser is dark) and the
+  import (after line 25). **Dark cells only**, the cut spec §1.3 names for H3a, not the plan's "every cell": stopping a lit
+  cell's LFO changes what it sounds like, so it is not a piece a cut would remove. D1 stops five LFOs (Phaser 2,
+  Tremolo 2, Vibrato 1), D5 four (Phaser, Tremolo; its Vibrato is lit).
+- **A4, the bank not started.** `src/engine/lfoEngine.ts`, `primeLfoBank` (lines 255–256): the `lfo.start` and
+  `drift.start` calls removed, so the four lanes and the four drift secondaries are built (`bank 4/4`) and never run.
+  This stops the bank's modulation, which is audible: wider than the drift-only cut T17 would make (spec §1.3, H3b).
+  Census −28 on D1 (22 → 14 oscillators), −24 on D5.
+
+**Results** (peak window and `max lag` per run are in the aggregate):
+
+| Piece | D1 delta, median (r1 · r2 · r3) | D5 delta, median (r1 · r2 · r3) | Census, D1 / D5 | Read |
+|---|---|---|---|---|
+| Noise band | +0.002 (+0.002 · +0.000 · +0.004) | −0.009 (−0.009 · −0.002 · −0.013) | 0 / 0 | the band |
+| A1 every effect dark | **−0.093** (−0.109 · −0.093 · −0.087) | **−0.083** (−0.072 · −0.083 · −0.088) | 0 / 0 | far outside, both |
+| A2 standing-by voices released | **−0.124** (−0.121 · −0.124 · −0.154) | **−0.107** (−0.094 · −0.107 · −0.124) | −678 / −499 | far outside, both |
+| A3 dark cells' LFOs stopped | **−0.026** (−0.022 · −0.026 · −0.029) | −0.016 (+0.012 · −0.016 · −0.046) | −5 / −4 | D1 outside; D5 **below noise** (straddles zero) |
+| A4 the bank not started | **−0.038** (−0.047 · −0.038 · −0.035) | −0.004 (+0.009 · −0.004 · −0.024) | −28 / −24 | D1 outside; D5 **below noise** |
+
+**Reading.**
+- **A2 is the biggest single piece on both worlds:** about 0.12 of capacity on D1 and 0.11 on D5, from releasing
+  about eight silent robots' voices (12 robots, mean sounding 3.8 and 3.5), so roughly **0.013–0.016 per
+  standing-by robot**, and 60–85 live nodes each. Its peak window falls as far (D1 0.58–0.62 → 0.45–0.46). On D1 it
+  overlaps A1: two of D1's five lit branches go dark with their rooms (`fx in 5/10` → `3/10`; the overlay does not say
+  which), so part of D1's A2 delta is effect cost A1 also counts. D5 keeps `fx in 5/10`, so its A2 delta is voices
+  only.
+- **A1 measures a little above the 2026-10-20 prices' prediction** (§2): 0.093 against about 0.075 on D1, 0.083
+  against about 0.069 on D5. Same sign and size; the five effects cost somewhat more together, in the app, than the
+  sum of their offline one-at-a-time prices. Its peak window falls by about as much as its mean.
+- **A3 and A4 are small.** A3 is about 0.026 on D1 for five stopped LFOs (about 0.005 each) and unresolved on D5. A4
+  is 0.038 on D1 and below noise on D5. D1 drives 43 of the 91 links against D5's 25, which may be why the bank costs
+  more on D1; that is a reading, not measured. A4 also prices more than any cut would remove (it stops the lanes,
+  which are audible); the drift secondaries alone are a part of it, not separately priced.
+- **`max lag`** stayed 14–28 ms in every run but one (A2 r2 D1, variant, 58 ms, once), so no main-thread change rides
+  along with any variant.
+- **So far:** the four sum to 0.281 of D1's 0.559 (50 %) and 0.210 of D5's 0.495 (42 %), before A5–A8 and before
+  allowing for A1's overlap with A2 on D1. The sum and the 70 % criterion are T7's.

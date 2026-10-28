@@ -298,7 +298,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
   **Estimated scope:** XS
 
-- [ ] **Task 6: `docs/todo/scratchy-audio-phones.md` — ablations A1–A4, with the noise band and the census**
+- [x] **Task 6: `docs/todo/scratchy-audio-phones.md` — ablations A1–A4, with the noise band and the census** (2026-10-28)
 
   **Description:** First the **noise band**: stock against stock, both ports serving the same build, three interleaved
   pairs per world at 120 s — the spread of the same-round difference is the band every delta below is read against.
@@ -317,11 +317,11 @@ preview servers idle. Every number recorded with its spread and the commit it wa
   **Proof:** A run (noise band 12 runs; four variants × 12 runs), recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] The noise band is stated per world before any delta; each delta is read as above, inside or below the band.
-  - [ ] Each variant's edit is reproducible from the record; nothing of it is committed.
+  - [x] The noise band is stated per world before any delta; each delta is read as above, inside or below the band.
+  - [x] Each variant's edit is reproducible from the record; nothing of it is committed.
 
   **Verification:**
-  - [ ] `git status` clean after the task; the record's numbers trace to the saved `--json` files.
+  - [x] `git status` clean after the task; the record's numbers trace to the saved `--json` files.
 
   **Dependencies:** Task 3 (the census line), Checkpoint A1.
 
