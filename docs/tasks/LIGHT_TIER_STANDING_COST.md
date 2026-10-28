@@ -625,7 +625,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
 
 ### Phase C: The phone
 
-- [ ] **Task 20: the sitting, prepared**
+- [x] **Task 20: the sitting, prepared** (2026-10-28)
 
   **Description:** Two production builds on the LAN, each on its own port (browser storage apart): the branch at Gate
   B's commit and `main` at its merge-base; a `phone.html` links page in each `dist` with D1 and D5 at
@@ -637,16 +637,26 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   **Proof:** A run (the headless pre-checks). No test file.
 
   **Acceptance criteria:**
-  - [ ] Eight links pre-checked; the branch's Light links show the lower census.
+  - [x] Eight links pre-checked; the branch's Light links show the lower census.
 
   **Verification:**
-  - [ ] The pre-check lines pasted into the record's draft.
+  - [x] The pre-check lines pasted into the record's draft.
 
   **Dependencies:** Gate B.
 
   **Files:** none in the repo (scratchpad only)
 
   **Estimated scope:** XS
+
+  **As run (2026-10-28):** Crawford went to the phone before Gate B's listen ("let's go to the phone tests"); Gate B's
+  listen boxes stay open. The branch a0728358 (`index-CJ4I0byy`, :4197) and `main`'s merge-base
+  a5d5944d (`index-BpSIkiTM`, :4199; `origin/main` has since moved to 12f1642a) on 192.168.12.231, `phone.html` on both.
+  All eight links passed headless over the LAN: pin check, powered on, Light `load 20%·fx 20%` + `latency playback`,
+  Full 100 % + `latency interactive`, `fin ok`, orphaned Chrome 0. **Deviation:** the census after warm-up cannot show
+  the release (nobody stands by at 8 s, and the 680 / 500 was A2's docked robots, §8), so the Light pre-checks ran 60 s
+  and read the `nodes` column instead: the branch 1 773 → 1 480 (D1) and 1 767 → 1 447 (D5) as robots began waiting,
+  `main` 1 793 → 1 802 and 1 813 → 1 813. The branch's Light pages log T14's one Tone warning (§8). Lines in the
+  session scratchpad's `runs/pre-*.txt`; commands and cleanup in its `commands.txt`.
 
 - [ ] **Task 21: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the sitting, recorded (Gate C)**
 
