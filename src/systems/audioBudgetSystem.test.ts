@@ -83,6 +83,7 @@ const update = (id: string, patch: Partial<Robot>): void =>
 const sounding = (): string[] => useAudioStore.getState().soundingRobotIds;
 
 const engineSet = vi.spyOn(AudioEngine, 'setSoundingRobots');
+const engineStandBy = vi.spyOn(AudioEngine, 'setStandingByRobots');
 const enginePoly = vi.spyOn(AudioEngine, 'setPolyphonyCap');
 
 // ========================================
@@ -366,6 +367,124 @@ describe('audioBudgetSystem', () => {
         const robot = finalRobots.find((r) => r.id === id)!;
         expect(isRobotAudible(robot.audioMode, false)).toBe(true);
       });
+    });
+  });
+
+  // docs/specs/LIGHT_TIER_STANDING_COST.md H2 (Task 14): the eligible robots outside the sounding set stand by and
+  // carry no voice. The system names them to the engine; the engine releases and rebuilds, and hands back the robots it
+  // rebuilt so their links are primed here, before any trigger.
+  describe('standing-by voices (Light tier standing cost T14)', () => {
+    const LINK = { lane: 'b' as const, depth: 40 };
+
+    it('names the eligible robots outside the sounding set as standing by, in arrival order', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6));
+      startAudioBudget();
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5', 'r6']);
+    });
+
+    it('names a robot arriving over the budget even though the sounding set did not change', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(4));
+      startAudioBudget();
+      engineSet.mockClear();
+
+      setRoster(roster(5));
+
+      expect(engineSet).not.toHaveBeenCalled();
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5']);
+    });
+
+    it('names them again on a restart after a stop, though the list is the same (null stood everyone back)', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6));
+      startAudioBudget();
+      stopAudioBudget();
+      engineStandBy.mockClear();
+
+      startAudioBudget();
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5', 'r6']);
+    });
+
+    it('never names a muted robot or one silenced by a solo', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6));
+      startAudioBudget();
+
+      update('r6', { audioMode: 'mute' });
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5']);
+
+      update('r2', { audioMode: 'solo' });
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+    });
+
+    it('stands a solo by when every slot already holds a solo', () => {
+      useAudioStore.setState({ robotLoad: 0 }); // 2 slots
+      setRoster([makeRobot('a', { audioMode: 'solo' }), makeRobot('b', { audioMode: 'solo' }), makeRobot('c', { audioMode: 'solo' }), makeRobot('d')]);
+      startAudioBudget();
+
+      expect(sounding()).toEqual(['a', 'b']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['c']);
+    });
+
+    it('names nobody at Full, mutes and all', () => {
+      setRoster([...roster(5), makeRobot('m', { audioMode: 'mute' })]);
+      startAudioBudget();
+
+      expect(engineStandBy).toHaveBeenCalled();
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+    });
+
+    it('names nobody again for churn that cannot change who stands by', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6));
+      startAudioBudget();
+      engineStandBy.mockClear();
+
+      update('r5', { batteryLevel: 10, position: { x: 3, y: 4 } });
+      useAudioStore.getState().setRobotLoad(0.21); // still 4 robots
+
+      expect(engineStandBy).not.toHaveBeenCalled();
+    });
+
+    it('primes the links of every robot the engine rebuilt on admission, from the store', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster([...roster(4), makeRobot('r5', { lfoLinks: { 'layer0.gain': LINK } as Robot['lfoLinks'] })]);
+      startAudioBudget();
+      const link = vi.spyOn(lfoEngine, 'linkTarget');
+      engineSet.mockReturnValueOnce(['r5']);
+
+      update('r1', { audioMode: 'mute' });
+
+      expect(sounding()).toEqual(['r2', 'r3', 'r4', 'r5']);
+      expect(link).toHaveBeenCalledWith('layer0.gain', LINK, 'r5');
+      expect(link.mock.calls.every((call) => call[2] === 'r5')).toBe(true);
+    });
+
+    it('primes nothing when the engine rebuilt nothing', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6).map((r) => ({ ...r, lfoLinks: { 'layer0.gain': LINK } as Robot['lfoLinks'] })));
+      startAudioBudget();
+      const link = vi.spyOn(lfoEngine, 'linkTarget');
+
+      update('r1', { audioMode: 'mute' }); // r5 admitted, but this engine had no voice to take from it
+
+      expect(link).not.toHaveBeenCalled();
+    });
+
+    it('stopAudioBudget primes every robot the engine rebuilt when the budget lifted', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6).map((r) => ({ ...r, lfoLinks: { 'layer0.detune': LINK } as Robot['lfoLinks'] })));
+      startAudioBudget();
+      const link = vi.spyOn(lfoEngine, 'linkTarget');
+      engineSet.mockReturnValueOnce(['r5', 'r6']);
+
+      stopAudioBudget();
+
+      expect(engineSet).toHaveBeenLastCalledWith(null);
+      expect(link.mock.calls.map((call) => call[2])).toEqual(['r5', 'r6']);
     });
   });
 

@@ -421,7 +421,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
 
 **H2 — standing-by voices released** (spec §1.3 H2; inaudible at Full → every tier by construction)
 
-- [ ] **Task 14: `src/systems/audioBudgetSystem.ts`, `src/engine/AudioEngine.ts` — release on leaving, re-reserve on entering**
+- [x] **Task 14: `src/systems/audioBudgetSystem.ts`, `src/engine/AudioEngine.ts` — release on leaving, re-reserve on entering** (2026-10-28)
 
   **Description:** `applySet(next)` diffs `sounding` against `next`: for each robot that left, the one voice-teardown
   helper `localeStore`'s remove path uses (`AudioEngine.releaseVoice` plus the robot's links disposed); for each that
@@ -439,20 +439,48 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   voice counter after a release mid-note.
 
   **Acceptance criteria:**
-  - [ ] No robot is ever released while in the set or re-reserved while out of it; Full's graph is byte-for-byte the
-        roster's (pinned by the node-count case in `AudioEngine.test.ts`); existing tests pass unmodified.
+  - [x] No robot is ever released while in the set or re-reserved while out of it; Full's graph is byte-for-byte the
+        roster's (pinned by the node-count case in `AudioEngine.test.ts`); existing tests pass unmodified. (Full is
+        pinned by "releases nothing when nobody stands by": every voice is the same object before and after.)
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioBudgetSystem.test.ts src/engine/AudioEngine.test.ts` passes; the mutation gate
-        on the diff; `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/audioBudgetSystem.test.ts src/engine/AudioEngine.test.ts` passes; the mutation gate
+        on the diff; `npm run build:types`, `npm run lint` clean. (436 pass; 28 mutants, 5 survived the first pass and
+        a case was added for each, all 28 killed.)
   - [ ] Manual: `?debug&load=light` on D1 — the overlay's node count falls after the warm-up and rises by one chain on
-        an admission; no click at the admitted robot's first note on speakers.
+        an admission; no click at the admitted robot's first note on speakers. (The node count is read by T15's runs;
+        the speakers are Crawford's, at Gate B.)
 
   **Dependencies:** Gate A.
 
   **Files:** `src/systems/audioBudgetSystem.ts`, `src/systems/audioBudgetSystem.test.ts`, `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`
 
   **Estimated scope:** M (two modules; the re-reserve path exists, the diff and the timing are new)
+
+  **As built (2026-10-28):** three deviations, each from a fact the plan had wrong.
+  - *Who is released.* At Full the sounding set is every eligible robot, not `null` (`reconcileSounding` returns the
+    whole list; only `stopAudioBudget` pushes `null`), so diffing the set would release a muted or solo-silenced robot
+    at Full too, and rebuild up to eleven at once on an un-solo. Built instead: only a robot **standing by** (eligible,
+    outside the set: spec §1.3's H2) gives up its voice. Mute and solo never do, so at Full nothing is released. A
+    released robot that is then muted stays released until it is admitted.
+  - *Where.* Four paths reserve voices (`spawnRobot`, the power cycle's `reRegisterAllRobotsAudio`, the post-load pass
+    in `loadInstruments`, `reReserveVoice` on an edit), so a diff in the budget system alone would be undone by the
+    next power cycle. The engine holds the rule: `AudioEngine.setStandingByRobots(ids)` (new, beside
+    `setSoundingRobots`, pushed by `audioBudgetSystem` only when the list changes) stands robots down, and
+    `reserveVoice` refuses a robot standing by. `setSoundingRobots` rebuilds every released robot it admits (all of
+    them on `null`) through `reReserveVoice` and returns their ids, and the budget system primes their links
+    (`primeRobotLinks`). A robot in the sounding set is never standing by, whichever call comes first. It is a
+    separate call, not a second argument, so the existing `setSoundingRobots` assertions pass unmodified.
+  - *Mid-note.* Neither of the plan's two options. A stand-down waits for the robot's last scheduled note to end, plus
+    its envelope release, plus 50 ms, on the AudioContext clock (`context.setTimeout`, with the lookahead added back,
+    since that clock fires against `now()` = current time + lookahead). A quiet robot goes at once. The links are
+    disposed with the voice, not before, so no tail loses its modulation. A re-admission or `null` before the timer
+    cancels it (one token per stand-down). A release never touches the voice counter (its own timers drain it), which
+    the test pins.
+  - Also: the seven "no composite reserved" dev warnings are silent for a robot the budget released (swell writes reach
+    standing-by robots on every tick). The proof's solo case became "a solo stands by when every slot holds a solo;
+    a robot silenced by a solo is never named". The test file's `lfoEngine` mock gained `disposeRobotLinks`, and
+    `devWarn` is mocked as a spy; no existing assertion changed.
 
 - [ ] **Task 15: `docs/todo/scratchy-audio-phones.md` — H2's A/B**
 

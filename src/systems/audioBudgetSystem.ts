@@ -21,6 +21,7 @@ import {
 } from '../utils/audioBudget';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { isRobotAudible } from '../utils/robotAudibility';
+import { primeRobotLinks } from './robotLfoLinks';
 
 // ========================================
 // MODULE STATE (runtime-only — never in Zustand)
@@ -36,6 +37,8 @@ let lastSignature = '';
 let arrivalOrder: readonly string[] = [];
 /** The set currently pushed to the engine and the store. */
 let sounding: readonly string[] = [];
+/** The standing-by robots last pushed to the engine (docs/specs/LIGHT_TIER_STANDING_COST.md H2), joined. */
+let pushedStandingBy = '';
 let pushedPolyphony: number | null = null;
 /** URL mirror (decision H), one pair per axis: the load the device would default to, and whether a valid
  *  ?load=/?fxLoad= was in the URL at boot. */
@@ -67,8 +70,28 @@ function signature(): string {
 
 function applySet(next: readonly string[]): void {
   sounding = next;
-  AudioEngine.setSoundingRobots(next);
+  primeRebuilt(AudioEngine.setSoundingRobots(next));
   useAudioStore.getState().setSoundingRobotIds(next);
+}
+
+/**
+ * A rebuilt voice starts with no LFO links (its params are new): prime each robot the engine rebuilt, from the store,
+ * before any trigger — the rebuildVoice pair, reReserveVoice then primeRobotLinks (docs/specs/LIGHT_TIER_STANDING_COST.md H2).
+ */
+function primeRebuilt(ids: readonly string[]): void {
+  const robots = activeRobots();
+  for (const id of ids) {
+    const robot = robots.find((r) => r.id === id);
+    if (robot) primeRobotLinks(robot);
+  }
+}
+
+/** The eligible robots outside the sounding set stand by and carry no voice (H2); pushed only when that list changes. */
+function applyStandingBy(next: readonly string[], force: boolean): void {
+  const key = next.join(',');
+  if (!force && key === pushedStandingBy) return;
+  pushedStandingBy = key;
+  AudioEngine.setStandingByRobots(next);
 }
 
 /** Recompute the sounding set and the ceiling from the current roster and dial; push only what changed. */
@@ -83,6 +106,8 @@ function reconcile(force = false): void {
   arrivalOrder = orderByArrival(arrivalOrder, eligible);
   const next = reconcileSounding(sounding, arrivalOrder, soloIds, limits.maxAudibleRobots);
   if (force || next !== sounding) applySet(next);
+  const soundingNow = new Set(next);
+  applyStandingBy(arrivalOrder.filter((id) => !soundingNow.has(id)), force);
 
   if (limits.maxPolyphony !== pushedPolyphony) {
     pushedPolyphony = limits.maxPolyphony;
@@ -201,7 +226,8 @@ export function stopAudioBudget(): void {
   pushedPolyphony = null;
   appliedTierKey = '';
   lastSignature = '';
-  AudioEngine.setSoundingRobots(null);
+  // null also stands nobody by; every robot the budget released is rebuilt, and primed here.
+  primeRebuilt(AudioEngine.setSoundingRobots(null));
   AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
   useAudioStore.getState().setSoundingRobotIds([]);
   // Lift every LFO tier too: drift back on, every suspended filter link reconnected.
