@@ -239,7 +239,7 @@ T3 (census line on perf:audio) ─────────┤
 - [x] `npm run build:types`, `npm run lint`, `npx vitest run scripts/perf` clean.
 - [x] One handler run and one `perf:audio` run on D1 at Light both complete against the served production build; Q1's
       answer (category live, or the fallback) is written in T2's commit and carried into T4.
-- [ ] Reviewed with human before the runs (the runs are long; the tool should not change under them).
+- [x] Reviewed with human before the runs (the runs are long; the tool should not change under them). (Crawford's go-ahead for Phase A2, 2026-10-27)
 
 ---
 
@@ -250,7 +250,7 @@ variant), D1 and D5 pinned by their world links at `?load=light` (PERFORMANCE.md
 call at a time (≤ 2 four-minute runs per call; 120 s runs allow 4), orphaned Chrome 0 before and after, the phone
 preview servers idle. Every number recorded with its spread and the commit it was measured on.
 
-- [ ] **Task 4: `docs/todo/scratchy-audio-phones.md` — the handler breakdown, D1 and D5 at Light**
+- [x] **Task 4: `docs/todo/scratchy-audio-phones.md` — the handler breakdown, D1 and D5 at Light** (2026-10-27)
 
   **Description:** Three 60 s handler runs per world, interleaved (D1 D5 D1 D5 D1 D5). Record the per-class shares
   (median and min–max over the three), instance counts and per-instance shares as one table per world in a new section

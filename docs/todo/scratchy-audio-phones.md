@@ -1471,3 +1471,92 @@ D5 93 → 106 and 149 → 173.
   interview, then a spec. The two sittings on `main` at Light, 2026-10-23 and today, are its baseline.
 - **Deviations:** one run per cell, no repeat; order as listed (fixed build first on each world); the phone's rest
   between runs not timed.
+
+## Backlog 27, the decomposition — what Light carries, priced on the desktop (2026-10-27)
+
+Phase A of [specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md) (plan
+[tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md), T4–T8): what the audio thread does at Light
+on D1 and D5, by kind of work (the handler breakdown), by piece of the app (the ablations) and by count (the census),
+closed by the decision table for Gate A. **Stock build** for every run in this section: a production `vite build` of
+`perf/light-tier-standing-cost`, whose `src/` is `main`'s merge base `a5d5944d` unchanged (`index-BpSIkiTM`), from the
+session scratchpad, `vite preview` on :4191. Headless Chrome 155.0.8059.84. D1 = `56c2t2t8` (−116, −2), D5 = `bravo`
+(−150, 90), both by their "seven links" `s=` blobs (PERFORMANCE.md) at `?load=light`. Run outputs (`.txt` and `.json`)
+are kept in the session scratchpad
+(`C:\Users\Crawford\AppData\Local\Temp\claude\c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7\881a1af9-4412-4344-a271-4a69d646e2be\scratchpad\runs\`),
+named as below.
+
+### 1. The handler breakdown (T4) — `npm run perf:audio-handlers`, D1 and D5 at Light
+
+**Method.** Three 8 s traces per world after the 8 s warm-up, interleaved D1 D5 D1 D5 D1 D5 (`h-d1-1` … `h-d5-3`),
+foreground, one run at a time, orphaned Chrome 0 before and after every run. 8 s, not the spec's 60 s: Chrome's trace
+buffer holds about 9 s of these worlds (plan T2, "As built"). Every trace covered its whole window (Render spans 8.0 s
+of 8, buffer peak 75–78 %, no data lost). Every run's overlay read `load 20%·fx 20%`, `fx in 5/10`, sounding 2/4 on D1
+and 4/4 on D5, `standing by 0`. The trace category is live (plan Q1): every rendering node traces one
+`AudioHandler::ProcessIfNecessary` per quantum, so **Instances** is the number of nodes that actually render each
+quantum, and each class's share is its self time over `RealtimeAudioDestinationHandler::Render` in the same trace.
+
+**D1** (`56c2t2t8`, Render 1 559–1 613 events, 4.95–5.12 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 56.5 % (56.3–56.6) | 909 | 0.062 % |
+| ConstantSourceNode | 14.0 % (13.9–14.0) | 329 | 0.042 % |
+| OscillatorNode | 4.5 % (4.5–4.6) | 25 | 0.182 % |
+| AudioBufferSourceNode | 3.8 % (3.8–3.9) | 31 | 0.123 % |
+| BiquadFilterNode | 3.6 % (3.6–3.7) | 15 | 0.242 % |
+| ConvolverNode | 3.5 % (3.4–3.6) | 1 | 3.451 % |
+| WaveShaperNode | 3.3 % (3.3–3.3) | 24 | 0.137 % |
+| StereoPannerNode | 1.1 % (1.1–1.1) | 12 | 0.093 % |
+| DelayNode | 1.1 % (1.1–1.1) | 13 | 0.081 % |
+| ChannelSplitterNode | 0.7 % (0.7–0.7) | 10 | 0.074 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.357 % |
+| IIRFilterNode | 0.4 % (0.4–0.4) | 10 | 0.040 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.073 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.058 % |
+| **all handlers** | 93.5 % (93.5–93.6) | | |
+
+**D5** (`bravo`, Render 1 453–1 485 events, 5.37–5.49 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 58.4 % (58.3–58.5) | 933 | 0.063 % |
+| ConstantSourceNode | 13.7 % (13.6–13.7) | 336 | 0.041 % |
+| OscillatorNode | 5.4 % (5.4–5.4) | 28 | 0.191 % |
+| WaveShaperNode | 3.5 % (3.5–3.5) | 27 | 0.131 % |
+| AudioBufferSourceNode | 3.5 % (3.5–3.5) | 30 | 0.118 % |
+| BiquadFilterNode | 3.5 % (3.5–3.5) | 15 | 0.234 % |
+| ConvolverNode | 1.7 % (1.7–1.8) | 1 | 1.698 % |
+| StereoPannerNode | 1.2 % (1.1–1.2) | 12 | 0.096 % |
+| DelayNode | 1.1 % (1.1–1.1) | 13 | 0.085 % |
+| ChannelSplitterNode | 0.7 % (0.7–0.7) | 10 | 0.070 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.332 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.070 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.061 % |
+| IIRFilterNode | 0.1 % (0.1–0.1) | 1 | 0.086 % |
+| **all handlers** | 93.8 % (93.8–93.8) | | |
+
+(One stray `GainHandler::Process` row at 0.0 % per world, a step whose node event fell outside the window, is left out.)
+
+**Reading.**
+- **The shares are steady but they are mostly the tracer's own cost, so they rank by event count, not by work.** A
+  traced quantum takes 4.95–5.49 ms; untraced, the same worlds' `perf:audio` capacity of about 0.52–0.59 at 1 024-frame
+  callbacks is about 1.4–1.6 ms per 128-frame quantum. The difference, about 3.6 ms, is spread over about 2 300 trace
+  events per quantum (3.56–3.65 million events per 8 s run): roughly **1.6 µs per traced event**, about what a cheap node
+  costs in all. So a class of many cheap nodes (909 Gains, 329 ConstantSources) reads high mainly because it emits
+  many events, and these two shares cannot be read as "Gains carry half the thread". The per-instance column is the
+  per-node price **plus** the trace's per-event cost, and is an upper bound for the cheap classes.
+- **What the breakdown does say reliably:** (1) **how many nodes render every quantum** — about 1 390 on D1 and 1 410
+  on D5, against 1 793 live on D1 (the census, §3), including 909–933 Gains and 329–336 ConstantSources (on D1 every
+  one of its 329 live)
+  (the Signal/Param sources behind every Tone parameter, H3c); about 350 of D1's 1 257 live Gains do not render
+  (which ones, the trace does not say); (2) **the heavy single nodes**, where the
+  trace's cost is negligible beside the work: the **one ConvolverNode** (the Reverb) is 3.5 % of traced Render on D1,
+  about 0.17 ms per quantum, roughly a tenth of D1's untraced quantum, and half that on D5 (1.7 %: the two worlds seed
+  different Reverb decays, and a convolver's cost follows its impulse length); the two DynamicsCompressors (Compressor,
+  Limiter) together 0.7 %, small.
+- **No biquad or oscillator story at Light:** 15 biquads, 25–28 oscillators, 24–27 wave shapers between them under
+  13 % of traced Render, each class small per instance. H4's audio-rate biquads (lit Phaser, AutoWah) do not stand out
+  in this kind of read; A1 prices them directly.
+- **So the decomposition rests on the ablations** (§3, T6–T7), with the breakdown giving the node counts the census
+  turns into totals and an early pointer at the Reverb (A5). This is the plan's Q1 risk in a milder form than "the
+  category is gone": the category is live, but per-event tracing swamps the cheap nodes.
