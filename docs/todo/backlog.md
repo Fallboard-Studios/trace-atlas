@@ -628,6 +628,11 @@ chase the remainder.
 robot costs about 0.06 of desktop capacity, roughly four times a standing-by one and three times what spec §1.6 assumed
 for the robot-count lever. The cuts and order of §5 stand; the sounding cap at Light joins the table for Crawford to place.
 
+**Update 2026-10-28, Gate A passed** ([intent](../intent/light-tier-standing-cost.md) "Gate A — the cuts"; the record's
+decomposition §7). Inaudible first and alone: standing-by voices released and the dark cells' and drift's LFOs stopped,
+every tier, then the phone. Only if it still clicks, three Light-only cuts tried stacked in one sitting: pedals off, a
+shorter Reverb, three sounding robots. EQ3/LPF/HPF out at neutral dropped (the EQ is seeded); backlog 28 stands.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):

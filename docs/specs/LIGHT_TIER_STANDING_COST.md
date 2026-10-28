@@ -20,7 +20,9 @@ measurements on backlog [27](../todo/backlog.md#27-audio-phone-playback-underrun
 [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md)). **Approved by Crawford 2026-10-27**, with the plan's two
 deviations (ablation runs at 120 s; H2's mid-note release path decided in T14). Plan:
 [docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md). This is backlog 27's own fix, so it
-carries no new number (§7 Q6); plan.md Stage 1's line points here.
+carries no new number (§7 Q6); plan.md Stage 1's line points here. **Gate A, 2026-10-28:** Crawford picked the
+cuts (the intent's "Gate A — the cuts"): the inaudible ones first and alone, the audible ones only on a phone miss,
+tried stacked in one sitting; §1.3, §1.5, §1.6 and §5 follow it.
 
 ---
 
@@ -42,13 +44,15 @@ Three phases, each gated:
 
 - **Phase A, the decomposition** (no product change): the desktop at Light, D1 and D5, priced piece by piece until the
   pieces account for the standing mean; plus the facts the sittings did not record (which five effects D1 and D5 light).
-  **Gate A:** Crawford reads the table and picks the cuts, biggest first.
+  **Gate A:** Crawford reads the table and picks the cuts (2026-10-28: the inaudible ones first, §1.5).
 - **Phase B, the cuts**: one task per cut, each a RED test where there is behaviour, a same-session desktop A/B, and
   kept or dropped on its number. A cut nobody can hear applies to every tier; an audible one is gated below a threshold
-  on the Audio Load sliders, so Light takes it and Full never does. **Gate B:** Crawford's desktop listen at Full (nothing
-  changed) and at Light (plainer, not broken).
+  on the Audio Load sliders, so Light takes it and Full never does. Gate A put only the inaudible cuts here; the
+  audible ones wait for a phone miss (§1.6). **Gate B:** Crawford's desktop listen at Full and at Light (nothing
+  changed: Phase B holds only inaudible cuts).
 - **Phase C, the phone**: the sitting protocol, read the other way. **Gate C:** clean by ear on D1 and D5 at Light for
-  four minutes on a rested phone. On a miss, Light cuts deeper (§1.6) and Phase C repeats.
+  four minutes on a rested phone. On a miss, three audible Light-only cuts are built and tried stacked in one sitting
+  (§1.6).
 
 ### 1.1 What Light carries today (the facts the decomposition prices)
 
@@ -138,6 +142,12 @@ keeps or drops each on its price.
 | **H4** | Biquads driven at audio rate recompute coefficients per sample: at Light the LPF/HPF and bus links are suspended, so this bites only through a lit Phaser or AutoWah. | the breakdown's `BiquadFilterHandler` share, with and without A1 | **None of its own in this spec.** H1's hold-off removes it at Light. k-rate is unreachable through Tone's wrapper (the native param sits in a module-private WeakMap in Tone's bundled deps), so the every-tier version is a Phaser and AutoWah built on native nodes — a build of its own, recorded for Gate A and not carried here unless the decomposition says the lit pedals dominate even after H1. | — |
 | **H5** | The base chain (EQ3, LPF, HPF, two compressors, ceiling, Reverb, Delay, rooms, cuts) is small, as September found. | A5–A8; the breakdown's convolver and compressor shares | **Only if a piece reads large:** a Reverb decay cap at Light (audible → Light only), or reopening backlog 28's decision to keep EQ3/LPF/HPF in at neutral (Crawford's, archived; reopened only on a number). The Compressor and Limiter are musical and stay. | per piece |
 
+**Gate A's verdicts (2026-10-28,** the intent's "Gate A — the cuts"; the record's decomposition §7): H2, H3a and H3b
+kept for Phase B (inaudible, every tier); H1 and H5's Reverb decay cap kept for a phone miss only, with the sounding
+cap (§1.6); H5's EQ3/LPF/HPF removal at neutral dropped (the EQ levels are seeded, so the worlds are not at neutral;
+backlog 28's decision stands), as are the Compressor, Limiter and ceiling and the send/room fabric (below noise); H3c
+and H4 have no cut of their own.
+
 ### 1.4 The tier rule
 
 - **Inaudible → everywhere, unconditional.** A change nobody can hear is not a change to the sound (pre-v1: no
@@ -157,7 +167,9 @@ keeps or drops each on its price.
 
 ### 1.5 Phase B — the cut protocol
 
-Cuts go **biggest first by Phase A's price**, one task each, in this shape:
+Cuts go in **Gate A's order** (2026-10-28): the inaudible ones first and alone (H2, standing-by voices released; H3a,
+the dark cells' LFOs; H3b, the drift secondaries), each kept or dropped on its own A/B, then the phone (§1.6). One task
+each, in this shape:
 
 1. **RED test first** where the cut has behaviour (a tier flag, a release/re-reserve, a stop/start at a crossing);
    none where it has only a number (a constant's value is pinned by the test of the flag it drives).
@@ -165,15 +177,16 @@ Cuts go **biggest first by Phase A's price**, one task each, in this shape:
 3. **The desktop A/B:** branch against the branch's own base (the previous cut in), same session, three interleaved
    rounds, D1 and D5 at Light, 240 s. **Kept** when the mean capacity drops by at least the piece's Phase A price less
    the noise band, the peak window does not rise, `max lag` is inside the base's spread, and (for a tier cut) a Full
-   run reads inside the base's spread. **Dropped** otherwise — the commit reverted, the number recorded.
+   run reads inside the base's spread. A piece Phase A read below noise on one world (H3a and H3b on D5) is kept there
+   when that world reads inside its noise band, not worse. **Dropped** otherwise — the commit reverted, the number recorded.
 4. **A crossing, where the cut has one** (an effects hold-off as the slider crosses the threshold; an LFO stop at a
    darken): the real-time-context recorder recipe (DARK_EFFECT_BYPASS.md §5 step 2), three runs, ≤ ×1.6, no gap.
 5. **Recorded** in `scratchy-audio-phones.md` under the decomposition section, and the Phase A decision table updated.
 
 Each cut's keep/drop is Crawford's call on the number, not the agent's on the reading; a dropped cut stays in the
-table with its measured price so it is not re-proposed. Phase B ends at **Gate B**, Crawford's desktop listen: D1 and D5
-at Full, a few minutes each, nothing changed; then at Light, plainer and nothing broken (no click at a robot's
-admission, no stutter in a pedal, the Audio Load panel reading what is held off).
+table with its measured price so it is not re-proposed. Phase B ends at **Gate B**, Crawford's desktop listen: D1 and D5 at Full
+and at Light, a few minutes each, nothing changed (Phase B holds only inaudible cuts): no click at a robot's admission
+or stand-down, none when a dark pedal lights or drift comes back on.
 
 ### 1.6 Phase C — the phone, and what happens on a miss
 
@@ -185,12 +198,17 @@ four minutes — no clicks, no distortion, no dropout; the count recorded and ex
 ~200 at 3:00 but not gated. Also one branch run per world at **Full**, by ear, to confirm the every-tier cuts changed
 nothing audible on the phone either.
 
-**On a miss, Light cuts deeper** rather than accept clicks. The order, each its own Phase B task against the new base,
-then Phase C again: (1) any H1–H5 cut Gate A left out, biggest first; (2) `LOAD_AUDIBLE_ROBOTS_MIN` 2 → the sounding
-cap at Light from 4 to 3 (the robot-count lever, measured at about 2 capacity points per sounding robot on the desktop);
-(3) the effects tier's threshold raised so Standard holds effects off too, if Standard is also heard to click; (4) a
-Reverb decay cap at Light. Past (4) the item returns to Crawford with the numbers: the graph's floor on this phone is then
-known, and the next move (a robot's voice built on fewer nodes, native-node pedals) is a spec of its own.
+**On a miss, Light cuts deeper** rather than accept clicks, in Gate A's order (2026-10-28): decoration before the
+music. Three audible, Light-only cuts, each its own Phase B-shaped task (RED test, build, desktop A/B) on top of the one
+before: (1) **pedals off at Light**, H1's effects tier; (2) **a shorter Reverb at Light**, a decay cap below an
+Effects Load threshold; (3) **three sounding robots at Light instead of four**, `LOAD_AUDIBLE_ROBOTS_MIN` 2 → 1
+(Light's cap `round(1 + 11 × 0.2)` = 3; Standard stays 8, Full 12). A sounding robot costs about 0.06 of desktop
+capacity (scratchy-audio-phones.md, the decomposition's §6); the "about 2 capacity points" this section first cited came
+from a smaller graph. All three are built before the phone, then **one rested sitting** tries three stacked builds in
+that order, (1), then (1)+(2), then (1)+(2)+(3), and stops at the first that is clean on both worlds; only the cuts up
+to it are kept, any past it reverted. If none is clean, the item returns to Crawford with the numbers: the graph's
+floor on this phone is then known, and the next move (a robot's voice built on fewer nodes, native-node pedals) is a
+spec of its own. Standard holding effects off too (the effects threshold raised past 0.6) is out of this work.
 
 ### 1.7 What does not change
 
@@ -215,13 +233,13 @@ scripts/perf/
 ├── audio-load.mjs                   # Phase A: prints the full live-nodes-by-type line after the warm-up (census)
 └── audio-load-lib.mjs / .test.mjs   # the census formatter, if any pure part is added
 
-src/constants/index.ts               # H1: LOAD_EFFECTS_MIN beside the three LFO thresholds (only if Gate A keeps H1)
+src/constants/index.ts               # on a miss: LOAD_EFFECTS_MIN (H1), the Reverb cap's threshold and value, LOAD_AUDIBLE_ROBOTS_MIN 2 → 1
 src/utils/audioBudget.ts             # H1: effectsEnabled on EffectsLoadLimits; describeLimits names it
 src/utils/audioBudget.test.ts
 src/systems/audioBudgetSystem.ts     # H1: push the flag (globalFx + store); H2: release/re-reserve on the sounding set's changes
 src/systems/audioBudgetSystem.test.ts
 src/store/audioStore.ts              # H1: effectsHeldOff + setter (the three existing booleans' pattern)
-src/engine/audioEngine/globalFx.ts   # H1: setEffectsHeldOff → every cell and branch through writeCellMix; H3a: LFO stop/start at the crossing
+src/engine/audioEngine/globalFx.ts   # H3a: LFO stop/start at the crossing; on a miss, H1: setEffectsHeldOff, and the Reverb decay cap
 src/engine/audioEngine/bypassCell.ts # H1: a held-off cell keeps its stored Mix and reads dark; H3a: the effect's LFOs stopped while dark
 src/engine/audioEngine/globalFx.test.ts, bypassCell.test.ts
 src/engine/lfoEngine.ts              # H3b: drift secondaries stopped while drift is held off
@@ -327,7 +345,7 @@ export function setEffectsHeldOff(heldOff: boolean): void {
 
 ### 5.2 Phase B — per cut (RED first, one task each)
 
-- **H1, the effects tier:** `effectsLoadToLimits(0.2).effectsEnabled` false, `(0.4)` and `(1)` true; `describeLimits`
+- **H1, the effects tier** (only on a phone miss): `effectsLoadToLimits(0.2).effectsEnabled` false, `(0.4)` and `(1)` true; `describeLimits`
   names "no pedals or colour" when off; `applyTiers` pushes `setEffectsHeldOff(true)` once on the crossing down and
   `(false)` once on the crossing up, idempotent on a re-send, forced on reconcile; `setEffectsHeldOff(true)` drives every
   lit cell and branch through `writeCellMix` to 0 (ramp, timer, disconnect) and leaves the stored Mix untouched;
@@ -347,22 +365,27 @@ export function setEffectsHeldOff(heldOff: boolean): void {
   cancels the stop; an effect with no LFO is untouched; the Vibrato (starts its own) is covered.
 - **H3b, drift secondaries stopped:** `setDriftEnabled(false)` stops the four secondaries and `(true)` starts them,
   idempotent, before and after `primeLfoBank`; the drift Gains' detach/attach unchanged.
-- **H5, if any:** per piece, pinned as above.
+- **The Reverb decay cap** (only on a phone miss): the limit set below its threshold and `null` above; the engine
+  writes `min(stored decay, cap)` through the coalesced impulse path and restores the stored decay exactly on the
+  crossing up; a decay write while capped records the value; one push per crossing.
+- **The sounding cap** (only on a phone miss): `robotLoadToLimits(0.2).maxAudibleRobots` 3, `(0.6)` 8, `(1)` 12,
+  `(0)` 1.
 - **Every cut:** `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean; the mutation gate on the pure
   parts (the TDD workflow); the desktop A/B of §1.5 step 3 recorded; the crossing recipe of step 4 where there is one.
 
 ### 5.3 Gate B — Crawford's desktop listen
 
-D1 and D5 at Full: nothing changed, no click at any note, the Audio Load panel reading as before. Then at Light: the
-pedals gone and nothing else, no click when a robot is admitted or stands down, the panel naming what is held off, the
-Mix rows greyed with their values kept; a slider drag across the threshold both ways; save, reload and a share link
-across it.
+D1 and D5 at Full and at Light, a few minutes each: nothing changed by ear (Phase B holds only inaudible cuts); no
+click when a robot is admitted or stands down; a dark pedal lit from its Mix (0 → 0.3) and back without a click;
+Robot Load and Effects Load dragged across their thresholds both ways; save, reload and a share link across them. The
+audible cuts' listen (the pedals gone, the Mix rows greyed with their values kept, the Reverb shorter, three robots)
+belongs to §1.6's miss path, before its sitting.
 
 ### 5.4 Phase C — the phone (Gate C)
 
 §1.6's protocol. **Pass:** clean by ear on D1 and D5 at Light for four minutes on a rested Pixel 8, and Full by ear
 unchanged. Recorded in `scratchy-audio-phones.md` as the closing section of backlog 27, with the counts, Crawford's
-words, the builds' hashes and the links. On a miss, §1.6's order.
+words, the builds' hashes and the links. On a miss, §1.6's three stacked builds in one sitting.
 
 ### 5.5 Checks
 
@@ -376,7 +399,8 @@ Every task: types, lint, tests, build clean. Docs tasks: a read.
   Crawford's. **Build** on `perf/light-tier-standing-cost`, off `main` once the docs merge (else off the docs branch).
 - **Order:** Phase A tooling (two tasks: the handler script with its lib and tests; the census line), then the runs
   (one task per instrument, each a recorded section), then fact (a), then the decision table → **Gate A**; Phase B one
-  task per kept cut, biggest first, each with its A/B → **Gate B**; Phase C → **Gate C**; then docs (AUDIO_SYSTEM.md,
+  task per inaudible cut in Gate A's order, each with its A/B → **Gate B**; Phase C → **Gate C** (on a miss, §1.6's
+  three audible cuts and one stacked sitting); then docs (AUDIO_SYSTEM.md,
   PERFORMANCE.md, backlog 27's Built line, plan.md's Stage 1 line deleted) and the archive move at merge.
 - One commit per task, short imperative messages naming the proof ("the A/B", "a run", "a read"). Throwaway ablation
   builds are never committed. The PR is Crawford's.
@@ -392,16 +416,21 @@ Every task: types, lint, tests, build clean. Docs tasks: a read.
    run of the script.
 2. **H1's threshold.** 0.4 (Light holds effects off, Standard keeps them, matching the filter tier) is the
    recommendation: the phone's own default is Light, and Standard was heard clean at `playback` on `charlie` in
-   September. Raising it to hold Standard off too is §1.6's lever (3), taken only on a Standard miss.
+   September. Raising it to hold Standard off too is §1.6's lever (3), taken only on a Standard miss. **Gate A
+   (2026-10-28):** 0.4 stands, for the miss path only; holding Standard off is out of this work.
 3. **H2's admission.** Build a robot's voice when it *enters* the sounding set (one connect into the live graph, before
    its first trigger) or keep a small pool of warm chains? Recommendation: build on entry — the set changes on the
    measure tick, `MIN_LEAD` covers the first note, and backlog 29 found no lost quantum on a connect. Pinned by the plan.
 4. **Reopening backlog 28** (EQ3, LPF, HPF stay in at neutral). Only if A6 reads large; Crawford's archived decision,
-   reopened on a number or not at all.
+   reopened on a number or not at all. **Resolved at Gate A (2026-10-28): not reopened.** The EQ levels are seeded, so
+   the worlds are not at neutral and the cut would rarely apply.
 5. **The Reverb at Light.** Only if A5 reads large; a decay cap is audible and Light-gated. September read it at 2–7
-   points on a smaller graph.
+   points on a smaller graph. **Resolved at Gate A:** a decay cap at Light, the second of §1.6's three miss-path cuts;
+   its value is set by that task's sweep and Crawford's ear.
 6. **Numbering.** This is backlog 27's own fix: no new number, 27 gets the Built line and archives at merge, and
    plan.md Stage 1's line points at this spec. A roadmap phase instead would be warranted only if Gate A picks H2, which
    changes how voices are managed; recommendation: stay on 27 either way.
 7. **The 70 % criterion for Phase A.** A judgement: enough to order the cuts, not a claim the parts sum. Crawford may
-   set it higher or drop it to "ordered, with spreads".
+   set it higher or drop it to "ordered, with spreads". **Gate A:** under 70 % on D5 after T7, so Crawford had the
+   remainder chased: A9 (every robot's voice refused) split Light's load into the robots (about 70 %) and the floor
+   (about 30 %), every part priced or named (the decomposition's §6).

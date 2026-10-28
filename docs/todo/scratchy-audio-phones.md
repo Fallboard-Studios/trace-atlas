@@ -1907,3 +1907,22 @@ music as it is. One row joins the table, for Crawford to place:
 **The 70 % criterion, revisited.** A9 alone explains 70 % of D1's stock mean and 68 % of D5's, at the line rather than
 clearly past it. With the floor's pieces priced in §3 and §4, nothing large is left unnamed: about 0.03 of overhead on
 D5, and the sounding robots, which are the music.
+
+### 7. Gate A's call (2026-10-28)
+
+Crawford's verdict on each row of §5 and §6 ([intent](../intent/light-tier-standing-cost.md), "Gate A — the cuts"):
+inaudible first and alone, so the phone hears Phase B before anything audible leaves Light; on a miss, the three
+audible cuts are tried stacked in one sitting and the first clean build wins (spec §1.6, plan Phase C2).
+
+| Piece | Gate A |
+|---|---|
+| Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15) |
+| Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18) |
+| The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18) |
+| Lit effects (H1) | **Only on a phone miss**, the first of three Light-only cuts (T9–T13) |
+| The Reverb (H5) | **Only on a phone miss**, a decay cap, the second (T19, T24) |
+| Sounding robots (§6) | **Only on a phone miss**, three at Light instead of four, the third (T25, T26) |
+| EQ3, LPF and HPF (H5) | **Dropped**: the EQ levels are seeded, so the worlds are not at neutral and the cut would rarely apply; backlog 28's decision stands |
+| Send and room fabric (A8 less A5 and the lit branches) | **Dropped**: at the size of the noise band |
+| Compressor, Limiter, ceiling (H5) | **Dropped**: below noise on both worlds |
+| Signals and Params (H3c), audio-rate biquads (H4) | No cut of their own |

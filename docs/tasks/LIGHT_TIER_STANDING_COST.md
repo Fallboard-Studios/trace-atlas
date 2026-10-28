@@ -18,11 +18,12 @@ Three gated phases and a docs tail. **Phase A** builds two small measurement too
 a unit-tested tally, and a census line on `perf:audio`), then runs them: the breakdown on D1 and D5 at Light, the lit
 effects of each world read from the running app, and eight ablation A/Bs on throwaway builds; it ends in one dated
 section of `scratchy-audio-phones.md` with a decision table for **Gate A**, where Crawford picks the cuts. **Phase B**
-is one small task per kept cut — a RED test, the build, a same-session desktop A/B, kept or dropped on its number —
-written here for the three hypotheses whose cuts the spec already shapes (H1 the effects tier, H2 standing-by voices
-released, H3 dark LFOs and drift secondaries stopped), with a placeholder for anything Gate A adds (H5); it ends at
-**Gate B**, Crawford's desktop listen. **Phase C** is the Pixel sitting, **Gate C** = clean by ear at Light on D1 and
-D5; a miss appends deeper cuts in the spec's §1.6 order and repeats. Docs last. Every task names its **Proof**
+is the inaudible batch Gate A picked (2026-10-28): standing-by voices released (H2) and the dark cells' and the
+drift's LFOs stopped (H3), each a RED test, the build and a same-session desktop A/B, kept or dropped on its number;
+it ends at **Gate B**, Crawford's desktop listen. **Phase C** is the Pixel sitting, **Gate C** = clean by ear at Light
+on D1 and D5. Only on a miss, **Phase C2** builds three audible Light-only cuts in Gate A's order (pedals off, a
+shorter Reverb, three sounding robots), each on the one before, and one sitting tries them stacked (**Gate C2**: the
+first clean build wins). Docs last. Every task names its **Proof**
 (TASK_TEMPLATE.md): RED tests where behaviour changes, a run for every measurement, a Read for records and docs. No
 file-text tests, no docs guards (CLAUDE.md, 2026-10-23). One commit per task; throwaway ablation builds are never
 committed.
@@ -57,8 +58,9 @@ committed.
   only while not held off, and `setEffectsHeldOff(true)` writes every cell to 0 while `(false)` writes `lastMix` back —
   one source of truth for "what the user set", and the crossing stays `writeCellMix`'s own (its ramp, its audio-clock
   timer, its re-light cancel). The Width cell's "dark" is 0.5, so the hold-off writes `0.5` to it, not `0`.
-- **H1's threshold is `LOAD_EFFECTS_MIN = 0.4`** (spec §7 Q2, recommendation adopted pending Gate A): Light holds
-  every effect off, Standard and Full keep theirs — the filter tier's placement. Raising it is §1.6's lever (3).
+- **H1's threshold is `LOAD_EFFECTS_MIN = 0.4`** (spec §7 Q2; Gate A: built only on a phone miss): Light holds
+  every effect off, Standard and Full keep theirs — the filter tier's placement. Raising it, so Standard holds effects
+  off too, is out of this work (Gate A).
 - **H2 builds a robot's voice on entry to the sounding set** (spec §7 Q3, recommendation adopted): `audioBudgetSystem`'s
   `applySet` diffs the old and new sets; a robot leaving gets the existing `AudioEngine.releaseVoice` and
   `lfoEngine.disposeRobotLinks`-equivalent through the one helper `localeStore`'s remove path already uses; a robot
@@ -71,11 +73,15 @@ committed.
   cannot drift apart; the effect's LFOs are found once at build (`Tone.Chorus`/`Tremolo`/`Vibrato`/`Phaser` expose
   theirs; the AutoWah's follower is not an LFO and is left alone). The drift secondaries stop and start in
   `setDriftEnabled` beside the Gain detach/attach that already lives there.
+- **Gate A's order (2026-10-28,** the intent's "Gate A — the cuts"). Inaudible first and alone (Phase B: H2, H3a,
+  H3b), then the phone; only on a miss, the three audible Light-only cuts, stacked, in one sitting (Phase C2). The task
+  numbers stay as first written so earlier references hold: T9–T13 (H1) and T19 (now the Reverb cap) sit in Phase
+  C2, and T24–T28 are new.
 - **Order.** T0 first so the docs point at the plan from the first commit. T1 → T2 → T3 (tooling, each needing the
   one before only where it imports it) → Checkpoint A1 (the tools work on one smoke run) → T4, T5 in either order → T6
-  → T7 (the ablations share the stock build and the noise band) → T8 the decision table → Gate A. Phase B's tasks are
-  independent of each other and ordered biggest-first by Gate A; within H1, T9 → T10 → T11 → T12 → T13 (constant,
-  limits, engine, system, UI, then the A/B). Phase C needs every kept cut. Docs last.
+  → T7 (the ablations share the stock build and the noise band) → T8 the decision table → Gate A. Phase B: T14 → T15, then T16, T17 →
+  T18 (independent of each other; H2 first as the biggest). Phase C needs every kept cut. Phase C2, only on a miss:
+  T9 → T10 → T11 → T12 → T13 → T19 → T24 → T25 → T26 → T27 → T28, each cut on the one before. Docs last.
 
 ## Dependency Graph
 
@@ -96,16 +102,21 @@ T3 (census line on perf:audio) ─────────┤
                                         │
                            T8 (Phase A section + decision table)
                                         │
-                              Gate A — Crawford picks the cuts
+                              Gate A — Crawford picks the cuts (2026-10-28)
                                         │
-     ┌───────────────────┬──────────────┼─────────────────┬────────────────────┐
-  H1: T9 → T10 → T11 → T12 → T13    H2: T14 → T15    H3: T16, T17 → T18    H5: T19 (placeholder)
-     └───────────────────┴──────────────┼─────────────────┴────────────────────┘
+                  H2: T14 → T15    H3: T16, T17 → T18     (Phase B, the inaudible batch)
                                         │
                               Gate B — Crawford's desktop listen
                                         │
                          T20 (the sitting, prepared) → T21 (the sitting, recorded) → Gate C
-                                        │                    (miss → §1.6 tasks appended, back to T20)
+                                        │
+                ┌──────────── clean ────┴──── miss ─────────────┐
+                │                                               │
+                │     Phase C2: H1 T9 → T10 → T11 → T12 → T13 → Reverb cap T19 → T24
+                │               → three robots T25 → T26 → T27 (stacked builds) → T28 → Gate C2
+                │                                               │
+                └───────────────────────┬───────────────────────┘
+                                        │
                          T22 (PERFORMANCE.md, AUDIO_SYSTEM.md) → T23 (backlog 27, plan.md)
                                         │
                               Checkpoint: Complete
@@ -377,10 +388,14 @@ preview servers idle. Every number recorded with its spread and the commit it wa
   **Estimated scope:** XS
 
 ### Gate A: Crawford picks the cuts
-- [ ] The decision table read; the cuts to build named, in order, and the dropped ones marked in the table with the
-      reason (below noise, audible and not wanted, out of scope).
+- [x] The decision table read; the cuts to build named, in order, and the dropped ones marked in the table with the
+      reason (below noise, audible and not wanted, out of scope). (2026-10-28: the intent's "Gate A — the cuts";
+      marked in the record's decomposition §7.)
 - [x] If the ablations explain under 70 % of the stock mean: chase the remainder (a further ablation task appended
       here) or cut what is priced — Crawford's call, recorded on backlog 27. (Chased, Crawford 2026-10-28: Task 8a.)
+- [x] Phase B's tasks below re-ordered to the picked order; any H5 piece written into T19. (2026-10-28: Phase B =
+      H2, H3; H1 and the Reverb cap, T19, moved to Phase C2 with the sounding cap, T25.)
+- [x] No product code has changed; `git status` clean on the build branch. (2026-10-28)
 
 - [x] **Task 8a: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — ablation A9, the robots against the floor** (2026-10-28)
 
@@ -396,12 +411,218 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
   **Verification:**
   - [x] `git status` clean after the task; the numbers trace to the saved `--json` files.
-- [ ] Phase B's tasks below re-ordered to the picked order; any H5 piece written into T19.
-- [ ] No product code has changed; `git status` clean on the build branch.
 
 ---
 
-### Phase B: The cuts (each only if Gate A keeps it; biggest first by the table)
+### Phase B: The inaudible batch (Gate A, 2026-10-28: H2, then H3; every tier)
+
+Gate A's order (the intent's "Gate A — the cuts"): only cuts nobody can hear, alone, each kept or dropped on its own
+A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots) wait for a Gate C miss (Phase C2).
+
+**H2 — standing-by voices released** (spec §1.3 H2; inaudible at Full → every tier by construction)
+
+- [ ] **Task 14: `src/systems/audioBudgetSystem.ts`, `src/engine/AudioEngine.ts` — release on leaving, re-reserve on entering**
+
+  **Description:** `applySet(next)` diffs `sounding` against `next`: for each robot that left, the one voice-teardown
+  helper `localeStore`'s remove path uses (`AudioEngine.releaseVoice` plus the robot's links disposed); for each that
+  entered, `rebuildVoice`'s pair (`reReserveVoice` from the robot's stored layers, sends, bus filter and portamento,
+  then `primeRobotLinks`). `setSoundingRobots(null)` (and `stopAudioBudget`) re-reserves every robot the system
+  released, so Full and a stopped budget carry every chain as today. A robot released while a note sounds: its release
+  waits for `scheduleVoiceRelease`'s tail (the voice counter never strands) — or, if that path cannot be reused
+  cleanly, the release is deferred to the next measure tick; the plan pins whichever the build finds, in the test.
+  `triggerWithCap` on a standing-by robot still returns false before any build. Mute/solo paths unchanged.
+
+  **Proof:** RED test — `src/systems/audioBudgetSystem.test.ts` (the engine mocked): a set change from `[a,b,c,d]` to
+  `[a,b,c,e]` releases `d` once and re-reserves `e` once with its stored fields, before any trigger; a `null` set
+  re-reserves `d`; `stopAudioBudget` re-reserves everything released; a set with no change releases and reserves
+  nothing; a soloed robot's admission evicts and releases the newest non-solo. `src/engine/AudioEngine.test.ts`: the
+  voice counter after a release mid-note.
+
+  **Acceptance criteria:**
+  - [ ] No robot is ever released while in the set or re-reserved while out of it; Full's graph is byte-for-byte the
+        roster's (pinned by the node-count case in `AudioEngine.test.ts`); existing tests pass unmodified.
+
+  **Verification:**
+  - [ ] `npx vitest run src/systems/audioBudgetSystem.test.ts src/engine/AudioEngine.test.ts` passes; the mutation gate
+        on the diff; `npm run build:types`, `npm run lint` clean.
+  - [ ] Manual: `?debug&load=light` on D1 — the overlay's node count falls after the warm-up and rises by one chain on
+        an admission; no click at the admitted robot's first note on speakers.
+
+  **Dependencies:** Gate A.
+
+  **Files:** `src/systems/audioBudgetSystem.ts`, `src/systems/audioBudgetSystem.test.ts`, `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`
+
+  **Estimated scope:** M (two modules; the re-reserve path exists, the diff and the timing are new)
+
+- [ ] **Task 15: `docs/todo/scratchy-audio-phones.md` — H2's A/B**
+
+  **Description:** Spec §1.5 steps 3–4 for H2: the branch (T14 in) against its base, same session, three interleaved
+  rounds, D1 and D5 at Light, 240 s, kept on A2's price less the noise band with the peak window not rising and `max lag`
+  inside the base's spread; one Full run per world inside the base's spread (nothing is released at Full); and the admission crossing through
+  the recorder recipe on a robot entering the set (≤ ×1.6, no gap, no late first note: the first trigger's time against
+  its scheduled time). Decision table updated.
+
+  **Proof:** A run, recorded. No test file.
+
+  **Acceptance criteria:**
+  - [ ] The four numbers (mean delta, peak, `max lag`, Full) and the admission timing figure stated with spreads; the
+        verdict is Crawford's on them.
+
+  **Verification:**
+  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
+
+  **Dependencies:** Task 14.
+
+  **Files:** `docs/todo/scratchy-audio-phones.md`
+
+  **Estimated scope:** S
+
+**H3 — oscillators that run for nothing** (spec §1.3 H3a, H3b; inaudible → every tier)
+
+- [ ] **Task 16: `src/engine/audioEngine/bypassCell.ts`, `globalFx.ts` — a dark cell's LFOs stopped**
+
+  **Description:** `buildCell`/`buildBranch` record the effect's LFOs on the `Cell` (`lfos: Array<{ start, stop }>`,
+  found once at build from Tone's own fields: the Chorus's and Tremolo's two, the Vibrato's one, the Phaser's two; the
+  others empty) and stop them at build, since every cell is built dark. `connectEffect` starts them before the edge is
+  made; the darken timer in `writeCellMix` stops them after `disconnectEffect`; a re-light that cancels the timer
+  leaves them running. `rebuildPhaser` carries the new node's LFOs into the cell. The Vibrato's `start()` in Tone's
+  constructor is undone by the build-time stop and restored by the first light.
+
+  **Proof:** RED test — `src/engine/audioEngine/bypassCell.test.ts`: after build every recorded LFO has `stop` called
+  once; Mix 0 → 0.3 calls `start` before `connect`; 0.3 → 0 calls `stop` only when the timer fires, after
+  `disconnect`; 0.3 → 0 → 0.2 before the timer calls no `stop`; an effect with no LFO is unaffected; the Phaser
+  rebuild swaps the recorded LFOs. The existing crossing cases pass unmodified.
+
+  **Acceptance criteria:**
+  - [ ] "In the path" and "running" never differ once a timer has fired; a lit effect's sound is unchanged (the LFO
+        restarts at phase 0 while the cell is still silent).
+
+  **Verification:**
+  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes;
+        `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Gate A.
+
+  **Files:** `src/engine/audioEngine/bypassCell.ts`, `src/engine/audioEngine/bypassCell.test.ts`, `src/engine/audioEngine/globalFx.ts`
+
+  **Estimated scope:** S
+
+- [ ] **Task 17: `src/engine/lfoEngine.ts` — the drift secondaries stopped while drift is held off**
+
+  **Description:** `setDriftEnabled(false)` calls `stop()` on each lane's drift secondary beside detaching its two
+  Gains; `(true)` starts them beside re-attaching; idempotent; a lane primed while drift is held off is primed stopped;
+  `refreshLaneDrift` is untouched.
+
+  **Proof:** RED test — `src/engine/lfoEngine.test.ts` (the Tone.LFO mock, instances scoped to the test): after
+  `primeLfoBank` then `setDriftEnabled(false)` each secondary's `stop` is called once; `(false)` again calls nothing;
+  `(true)` calls `start` once; priming after `(false)` leaves the secondaries stopped; the lane LFOs themselves are never
+  stopped.
+
+  **Acceptance criteria:**
+  - [ ] The lanes keep running at every tier; only the four secondaries stop; the drift amounts stored are untouched.
+
+  **Verification:**
+  - [ ] `npx vitest run src/engine/lfoEngine.test.ts` passes; `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Gate A.
+
+  **Files:** `src/engine/lfoEngine.ts`, `src/engine/lfoEngine.test.ts`
+
+  **Estimated scope:** XS
+
+- [ ] **Task 18: `docs/todo/scratchy-audio-phones.md` — H3's A/Bs**
+
+  **Description:** One A/B per cut (T16's commit against its base, T17's against its base), as T15: Light and Full
+  runs, kept on A3's / A4's price less noise on D1 and, on D5 where Phase A read both below noise, on D5 reading inside
+  its band (spec §1.5 step 3); for T16 the light crossing through the recorder on a Phaser and a Chorus
+  (≤ ×1.6, no gap). Decision table updated.
+
+  **Proof:** A run, recorded. No test file.
+
+  **Acceptance criteria:**
+  - [ ] As T15, per cut, with T16's crossing figure.
+
+  **Verification:**
+  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
+
+  **Dependencies:** Tasks 16, 17.
+
+  **Files:** `docs/todo/scratchy-audio-phones.md`
+
+  **Estimated scope:** S
+
+### Gate B: Crawford's desktop listen (spec §5.3)
+- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite; any pre-existing,
+      unrelated failure named).
+- [ ] D1 and D5 at Full and at Light: nothing changed by ear, no click at any note, the Audio Load panel as before.
+- [ ] At Light: no click when a robot is admitted or stands down; a dark pedal lit from its Mix (0 → 0.3) and back
+      without a click; Robot Load and Effects Load dragged across their thresholds both ways (drift back on and off);
+      save, reload and a share link across them.
+- [ ] Every kept cut's row in the decision table says "kept" with its number; every dropped one "dropped" with its.
+
+---
+
+### Phase C: The phone
+
+- [ ] **Task 20: the sitting, prepared**
+
+  **Description:** Two production builds on the LAN, each on its own port (browser storage apart): the branch at Gate
+  B's commit and `main` at its merge-base; a `phone.html` links page in each `dist` with D1 and D5 at
+  `?debug&load=light` and at `?debug&load=full`; every link loaded headlessly over the LAN address first (pin check,
+  powered on, `load 20%·fx 20%`, `latency playback`, `fin ok`, and on the branch the standing-by voices released: `perf:audio`'s census line about 680 nodes under
+  `main`'s on D1 and 500 on D5).
+  The commands, cleanup included, in the session scratchpad's `commands.txt` (the 2026-10-26 recipe).
+
+  **Proof:** A run (the headless pre-checks). No test file.
+
+  **Acceptance criteria:**
+  - [ ] Eight links pre-checked; the branch's Light links show the lower census.
+
+  **Verification:**
+  - [ ] The pre-check lines pasted into the record's draft.
+
+  **Dependencies:** Gate B.
+
+  **Files:** none in the repo (scratchpad only)
+
+  **Estimated scope:** XS
+
+- [ ] **Task 21: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the sitting, recorded (Gate C)**
+
+  **Description:** Crawford's runs: rested Pixel 8, a fresh tab per run, hands off to 3:00, read at 4:00 — the branch
+  on D1 and D5 at Light (twice each if time allows), `main` once per world at Light in the same sitting, the branch once
+  per world at Full by ear. Recorded as the closing section of backlog 27 in the sitting's table shape (build, world,
+  count 3:00 → 4:00, collapse?, Crawford's words), with the reading against the two baseline sittings. **Pass:** clean
+  by ear on D1 and D5 at Light for four minutes, Full unchanged by ear; the count recorded, not gated. On a miss: Phase C2 (spec
+  §1.6), the three audible cuts built and tried stacked in one sitting.
+
+  **Proof:** A run (Crawford's), recorded. No test file.
+
+  **Acceptance criteria:**
+  - [ ] Gate C's verdict stated in Crawford's words, per run; the deviations (one run per cell, rest untimed) listed.
+
+  **Verification:**
+  - [ ] Manual read; `npm run lint` clean.
+
+  **Dependencies:** Task 20.
+
+  **Files:** `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md`
+
+  **Estimated scope:** XS (the record; the runs are Crawford's)
+
+### Gate C: The phone is clean
+- [ ] Clean by ear on D1 and D5 at Light, rested Pixel 8, four minutes; Full unchanged.
+- [ ] On a miss, Phase C2 is built and its sitting (T27–T28) decides at Gate C2; past its last build the item returns
+      to Crawford with the floor's numbers (spec §1.6).
+
+---
+
+### Phase C2: Only on a Gate C miss — the audible cuts for Light, stacked
+
+Gate A's order (2026-10-28): decoration before the music. Three Light-only cuts, each built on the one before with its
+own RED tests and desktop A/B: pedals off (H1, T9–T13), a shorter Reverb (T19, T24), three sounding robots (T25, T26).
+Then one rested sitting tries the three stacked builds in that order and stops at the first clean one (T27, T28, Gate
+C2). None of it starts unless Gate C misses.
 
 **H1 — the effects tier** (spec §1.3 H1; audible → Light only)
 
@@ -420,7 +641,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
   **Verification:**
   - [ ] `npx vitest run src/utils/audioBudget.test.ts` passes; `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Gate A.
+  **Dependencies:** Gate C missed.
 
   **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts`, `src/utils/audioBudget.test.ts`, `src/content/…` (the phrase)
 
@@ -530,212 +751,161 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
   **Estimated scope:** S (~30 minutes of runs plus the recorder)
 
-**H2 — standing-by voices released** (spec §1.3 H2; inaudible at Full → every tier by construction)
+**The Reverb, shorter at Light** (spec §1.3 H5, §1.6 (2); audible → Light only)
 
-- [ ] **Task 14: `src/systems/audioBudgetSystem.ts`, `src/engine/AudioEngine.ts` — release on leaving, re-reserve on entering**
+- [ ] **Task 19: `src/constants/index.ts`, `src/utils/audioBudget.ts`, `globalFx.ts`, `audioBudgetSystem.ts`, `audioStore.ts`, the Reverb's Decay row — the Reverb decay cap**
 
-  **Description:** `applySet(next)` diffs `sounding` against `next`: for each robot that left, the one voice-teardown
-  helper `localeStore`'s remove path uses (`AudioEngine.releaseVoice` plus the robot's links disposed); for each that
-  entered, `rebuildVoice`'s pair (`reReserveVoice` from the robot's stored layers, sends, bus filter and portamento,
-  then `primeRobotLinks`). `setSoundingRobots(null)` (and `stopAudioBudget`) re-reserves every robot the system
-  released, so Full and a stopped budget carry every chain as today. A robot released while a note sounds: its release
-  waits for `scheduleVoiceRelease`'s tail (the voice counter never strands) — or, if that path cannot be reused
-  cleanly, the release is deferred to the next measure tick; the plan pins whichever the build finds, in the test.
-  `triggerWithCap` on a standing-by robot still returns false before any build. Mute/solo paths unchanged.
+  **Description:** `LOAD_REVERB_CAP_BELOW = 0.4` (Effects Load: Light capped, Standard and Full not, H1's placement)
+  and `REVERB_DECAY_CAP_S`, the cap in seconds (provisional 1.5; T24 sets it). `EffectsLoadLimits` gains
+  `reverbDecayCap: number | null` (the cap below the threshold, `null` above). `globalFx.ts` keeps the stored decay
+  (`setGlobalReverb` records it first, as T10's `lastMix` does for a Mix) and pushes `min(stored, cap)` through the
+  existing coalesced impulse path (`flushReverbIr`, a `Reverb.generate()`); lifting the cap pushes the stored decay
+  back, exact. `applyTiers` (T11) pushes the cap beside the effects flag; `audioStore` gains `reverbCapped`, true only
+  while the stored decay exceeds the cap; the Reverb's Decay row shows the `HeldOffNote` with its value kept while
+  capped; `describeLimits` names a shorter reverb (the phrase through the content layer).
 
-  **Proof:** RED test — `src/systems/audioBudgetSystem.test.ts` (the engine mocked): a set change from `[a,b,c,d]` to
-  `[a,b,c,e]` releases `d` once and re-reserves `e` once with its stored fields, before any trigger; a `null` set
-  re-reserves `d`; `stopAudioBudget` re-reserves everything released; a set with no change releases and reserves
-  nothing; a soloed robot's admission evicts and releases the newest non-solo. `src/engine/AudioEngine.test.ts`: the
-  voice counter after a release mid-note.
+  **Proof:** RED test — `src/utils/audioBudget.test.ts`: `effectsLoadToLimits(0.2).reverbDecayCap` is the cap,
+  `(0.4)`, `(0.6)` and `(1)` null. `src/engine/audioEngine/globalFx.test.ts`: capped with a stored 3 s decay writes
+  the cap; a stored decay under the cap writes the stored value; a decay write while capped records it and writes the
+  `min`; lifting restores the stored decay exactly; a re-send writes nothing. `src/systems/audioBudgetSystem.test.ts`:
+  one push per crossing. The Decay row's rendering test with `reverbCapped` true.
 
   **Acceptance criteria:**
-  - [ ] No robot is ever released while in the set or re-reserved while out of it; Full's graph is byte-for-byte the
-        roster's (pinned by the node-count case in `AudioEngine.test.ts`); existing tests pass unmodified.
+  - [ ] Light's Reverb never runs past the cap; Standard and Full untouched; the stored decay (session, share link)
+        never changes.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioBudgetSystem.test.ts src/engine/AudioEngine.test.ts` passes; the mutation gate
-        on the diff; `npm run build:types`, `npm run lint` clean.
-  - [ ] Manual: `?debug&load=light` on D1 — the overlay's node count falls after the warm-up and rises by one chain on
-        an admission; no click at the admitted robot's first note on speakers.
+  - [ ] The touched tests pass; the mutation gate on the `min` and the restore; `npm run build:types`, `npm run lint`
+        clean.
 
-  **Dependencies:** Gate A.
+  **Dependencies:** Task 13 (stacked on H1).
 
-  **Files:** `src/systems/audioBudgetSystem.ts`, `src/systems/audioBudgetSystem.test.ts`, `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`
+  **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts` + test, `src/engine/audioEngine/globalFx.ts` + test,
+  `src/systems/audioBudgetSystem.ts` + test, `src/store/audioStore.ts` + test, the Reverb's Decay row, `src/content/…`
 
-  **Estimated scope:** M (two modules; the re-reserve path exists, the diff and the timing are new)
+  **Estimated scope:** M
 
-- [ ] **Task 15: `docs/todo/scratchy-audio-phones.md` — H2's A/B**
+- [ ] **Task 24: `docs/todo/scratchy-audio-phones.md` — the Reverb cap's value, A/B and crossing**
 
-  **Description:** As T13 for H2: the A/B at Light (kept on A2's price less noise, peak and `max lag` inside the
-  spread), one Full run per world inside the spread (nothing is released at Full), and the admission crossing through
-  the recorder recipe on a robot entering the set (≤ ×1.6, no gap, no late first note: the first trigger's time against
-  its scheduled time). Decision table updated.
+  **Description:** First the cap's value: T19's build at 1.0, 1.5 and 2.0 s on D1 (the longer seeded decay) at
+  Light, one 120 s run each against T13's commit, with Crawford's ear on the three; Crawford picks, and
+  `REVERB_DECAY_CAP_S` is set to it (one commit, the constant only). Then spec §1.5 steps 3–4 against T13's commit:
+  D1 and D5 at Light, 240 s, kept on any drop outside the noise band (a cap saves part of A5's price, not all of it;
+  D5's seeded decay may already sit under the cap, so its delta may be nil, stated); one Full run per world; the
+  crossing (Effects Load dragged 0.6 → 0.2 and back, an impulse swap on a live Reverb) through the recorder recipe,
+  three runs, ≤ ×1.6, no gap.
 
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] As T13, plus the admission timing figure.
+  - [ ] The cap's value is Crawford's; the four numbers and the crossing figure stated with spreads.
 
   **Verification:**
-  - [ ] As T13.
+  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
 
-  **Dependencies:** Task 14.
+  **Dependencies:** Task 19.
 
-  **Files:** `docs/todo/scratchy-audio-phones.md`
+  **Files:** `docs/todo/scratchy-audio-phones.md`, `src/constants/index.ts` (the value)
 
   **Estimated scope:** S
 
-**H3 — oscillators that run for nothing** (spec §1.3 H3a, H3b; inaudible → every tier)
+**Three sounding robots at Light** (spec §1.6 (3); audible → Light only)
 
-- [ ] **Task 16: `src/engine/audioEngine/bypassCell.ts`, `globalFx.ts` — a dark cell's LFOs stopped**
+- [ ] **Task 25: `src/constants/index.ts`, `src/utils/audioBudget.ts` — `LOAD_AUDIBLE_ROBOTS_MIN` 2 → 1**
 
-  **Description:** `buildCell`/`buildBranch` record the effect's LFOs on the `Cell` (`lfos: Array<{ start, stop }>`,
-  found once at build from Tone's own fields: the Chorus's and Tremolo's two, the Vibrato's one, the Phaser's two; the
-  others empty) and stop them at build, since every cell is built dark. `connectEffect` starts them before the edge is
-  made; the darken timer in `writeCellMix` stops them after `disconnectEffect`; a re-light that cancels the timer
-  leaves them running. `rebuildPhaser` carries the new node's LFOs into the cell. The Vibrato's `start()` in Tone's
-  constructor is undone by the build-time stop and restored by the first light.
+  **Description:** The Robot Load floor lowered by one: `maxAudibleRobots = round(lerp(1, 12, load))`, so Light (0.2)
+  caps three sounding robots (3.2 → 3), Standard (0.6) stays eight (7.6 → 8), Full twelve, and the slider's bottom
+  reads one. With T14 in, the fourth robot's voice is released when it stands by. `describeLimits` reads "Up to 3
+  robots" by itself.
 
-  **Proof:** RED test — `src/engine/audioEngine/bypassCell.test.ts`: after build every recorded LFO has `stop` called
-  once; Mix 0 → 0.3 calls `start` before `connect`; 0.3 → 0 calls `stop` only when the timer fires, after
-  `disconnect`; 0.3 → 0 → 0.2 before the timer calls no `stop`; an effect with no LFO is unaffected; the Phaser
-  rebuild swaps the recorded LFOs. The existing crossing cases pass unmodified.
+  **Proof:** RED test — `src/utils/audioBudget.test.ts`: `robotLoadToLimits(0.2).maxAudibleRobots` 3, `(0.6)` 8,
+  `(1)` 12, `(0)` 1; any existing case pinned to four at Light updated and named in the commit.
 
   **Acceptance criteria:**
-  - [ ] "In the path" and "running" never differ once a timer has fired; a lit effect's sound is unchanged (the LFO
-        restarts at phase 0 while the cell is still silent).
+  - [ ] Light caps three; Standard and Full unchanged; admission order (`orderByArrival`, `reconcileSounding`)
+        unchanged.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes;
+  - [ ] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts` passes;
         `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Gate A.
+  **Dependencies:** Task 24.
 
-  **Files:** `src/engine/audioEngine/bypassCell.ts`, `src/engine/audioEngine/bypassCell.test.ts`, `src/engine/audioEngine/globalFx.ts`
-
-  **Estimated scope:** S
-
-- [ ] **Task 17: `src/engine/lfoEngine.ts` — the drift secondaries stopped while drift is held off**
-
-  **Description:** `setDriftEnabled(false)` calls `stop()` on each lane's drift secondary beside detaching its two
-  Gains; `(true)` starts them beside re-attaching; idempotent; a lane primed while drift is held off is primed stopped;
-  `refreshLaneDrift` is untouched.
-
-  **Proof:** RED test — `src/engine/lfoEngine.test.ts` (the Tone.LFO mock, instances scoped to the test): after
-  `primeLfoBank` then `setDriftEnabled(false)` each secondary's `stop` is called once; `(false)` again calls nothing;
-  `(true)` calls `start` once; priming after `(false)` leaves the secondaries stopped; the lane LFOs themselves are never
-  stopped.
-
-  **Acceptance criteria:**
-  - [ ] The lanes keep running at every tier; only the four secondaries stop; the drift amounts stored are untouched.
-
-  **Verification:**
-  - [ ] `npx vitest run src/engine/lfoEngine.test.ts` passes; `npm run build:types`, `npm run lint` clean.
-
-  **Dependencies:** Gate A.
-
-  **Files:** `src/engine/lfoEngine.ts`, `src/engine/lfoEngine.test.ts`
+  **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts`, `src/utils/audioBudget.test.ts`
 
   **Estimated scope:** XS
 
-- [ ] **Task 18: `docs/todo/scratchy-audio-phones.md` — H3's A/Bs**
+- [ ] **Task 26: `docs/todo/scratchy-audio-phones.md` — the sounding cap's A/B**
 
-  **Description:** One A/B per cut (T16's commit against its base, T17's against its base), as T13: Light and Full
-  runs, kept on A3's / A4's price less noise; for T16 the light crossing through the recorder on a Phaser and a Chorus
-  (≤ ×1.6, no gap). Decision table updated.
+  **Description:** Spec §1.5 step 3 against T24's commit: D1 and D5 at Light, 240 s, kept on any drop outside the
+  noise band (about 0.06 a robot by the decomposition's §6); one Full run per world inside the base's spread. No
+  crossing of its own: a robot standing down is H2's release path, measured in T15.
 
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] As T13, per cut.
+  - [ ] The four numbers stated with spreads; the verdict is Crawford's on them.
 
   **Verification:**
-  - [ ] As T13.
+  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
 
-  **Dependencies:** Tasks 16, 17.
+  **Dependencies:** Task 25.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
   **Estimated scope:** S
 
-**H5 — the base chain** (placeholder)
+**The stacked sitting**
 
-- [ ] **Task 19: written at Gate A, only if a base-chain piece is picked**
+- [ ] **Task 27: the stacked sitting, prepared**
 
-  **Description:** A Reverb decay cap at Light (`LOAD_REVERB_DECAY_MAX` behind an Effects Load threshold, audible →
-  Light only; a RED test on the limit and the engine write) or the EQ3/LPF/HPF removal at neutral (reopening backlog
-  28, Crawford's decision first). Shaped like T9–T13 for whichever it is, with its own A/B task.
-
-  **Proof:** decided when written.
-
-  **Dependencies:** Gate A.
-
-  **Estimated scope:** S–M
-
-### Gate B: Crawford's desktop listen (spec §5.3)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite; any pre-existing,
-      unrelated failure named).
-- [ ] D1 and D5 at Full: nothing changed, no click at any note, the Audio Load panel as before.
-- [ ] D1 and D5 at Light: the pedals gone and nothing else; no click on a robot's admission or stand-down; the panel
-      and the ten Mix rows reading held off with their values kept; Effects Load dragged across 40 % both ways; save,
-      reload and a share link across it.
-- [ ] Every kept cut's row in the decision table says "kept" with its number; every dropped one "dropped" with its.
-
----
-
-### Phase C: The phone
-
-- [ ] **Task 20: the sitting, prepared**
-
-  **Description:** Two production builds on the LAN, each on its own port (browser storage apart): the branch at Gate
-  B's commit and `main` at its merge-base; a `phone.html` links page in each `dist` with D1 and D5 at
-  `?debug&load=light` and at `?debug&load=full`; every link loaded headlessly over the LAN address first (pin check,
-  powered on, `load 20%·fx 20%`, `latency playback`, `fin ok`, and on the branch `fx in 0/10` once the timers fire).
-  The commands, cleanup included, in the session scratchpad's `commands.txt` (the 2026-10-26 recipe).
+  **Description:** Three production builds on the LAN, each on its own port: T13's commit (pedals off), T24's (plus
+  the shorter Reverb) and T26's (plus three robots), with `main` at its merge-base beside them. A `phone.html` links
+  page in each `dist` with D1 and D5 at `?debug&load=light`, and the last build at `?debug&load=full` too; every link
+  pre-checked headlessly over the LAN (pin check, powered on, Light, `latency playback`, `fin ok`, `fx in 0/10` on all
+  three once the timers fire, the Reverb at the cap on the second and third, three sounding at most on the third). The
+  commands, cleanup included, in the session scratchpad's `commands.txt`.
 
   **Proof:** A run (the headless pre-checks). No test file.
 
   **Acceptance criteria:**
-  - [ ] Eight links pre-checked; the branch's Light links show the held-off state on the overlay.
+  - [ ] Every link pre-checked; each build shows its own cuts on the overlay.
 
   **Verification:**
   - [ ] The pre-check lines pasted into the record's draft.
 
-  **Dependencies:** Gate B.
+  **Dependencies:** Task 26.
 
   **Files:** none in the repo (scratchpad only)
 
   **Estimated scope:** XS
 
-- [ ] **Task 21: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the sitting, recorded (Gate C)**
+- [ ] **Task 28: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the stacked sitting, recorded (Gate C2)**
 
-  **Description:** Crawford's runs: rested Pixel 8, a fresh tab per run, hands off to 3:00, read at 4:00 — the branch
-  on D1 and D5 at Light (twice each if time allows), `main` once per world at Light in the same sitting, the branch once
-  per world at Full by ear. Recorded as the closing section of backlog 27 in the sitting's table shape (build, world,
-  count 3:00 → 4:00, collapse?, Crawford's words), with the reading against the two baseline sittings. **Pass:** clean
-  by ear on D1 and D5 at Light for four minutes, Full unchanged by ear; the count recorded, not gated. On a miss: the
-  §1.6 order — tasks appended under this one (the next leftover cut from the table; `LOAD_AUDIBLE_ROBOTS_MIN` → cap 3
-  at Light; `LOAD_EFFECTS_MIN` raised past 0.6; a Reverb decay cap), each shaped like T9–T13, then T20–T21 again.
+  **Description:** Crawford's runs on a rested Pixel 8, a fresh tab per run, hands off to 3:00, read at 4:00: `main`
+  once per world at Light for the baseline, then the three builds in order on D1 and D5 at Light, stopping at the
+  first build that is clean on both worlds; that build once per world at Full by ear. Recorded in T21's table shape.
+  The cuts past the first clean build are reverted, one commit per revert, named.
 
   **Proof:** A run (Crawford's), recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] Gate C's verdict stated in Crawford's words, per run; the deviations (one run per cell, rest untimed) listed.
+  - [ ] Gate C2's verdict stated in Crawford's words, per run; the reverted cuts listed with their desktop numbers.
 
   **Verification:**
   - [ ] Manual read; `npm run lint` clean.
 
-  **Dependencies:** Task 20.
+  **Dependencies:** Task 27.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md`
 
   **Estimated scope:** XS (the record; the runs are Crawford's)
 
-### Gate C: The phone is clean
-- [ ] Clean by ear on D1 and D5 at Light, rested Pixel 8, four minutes; Full unchanged.
-- [ ] On a miss, the appended §1.6 tasks are built and measured in order and this gate is re-run; past the last lever
-      the item returns to Crawford with the floor's numbers (spec §1.6).
+### Gate C2: The first clean build
+- [ ] The first stacked build that is clean by ear on D1 and D5 at Light named; the cuts past it reverted and recorded
+      with their numbers.
+- [ ] If none is clean: the item returns to Crawford with the floor's numbers (spec §1.6); a cheaper robot voice or
+      native-node pedals is a spec of its own.
 
 ---
 
@@ -759,7 +929,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
   **Verification:**
   - [ ] Manual review against source; `npm run lint` clean.
 
-  **Dependencies:** Gate C.
+  **Dependencies:** Gate C, or Gate C2 after a miss.
 
   **Files:** `docs/PERFORMANCE.md`, `docs/AUDIO_SYSTEM.md`
 
@@ -790,7 +960,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] Every kept cut's acceptance criteria met; every dropped cut reverted and recorded.
 - [ ] Docs reflect the shipped behaviour, every name spot-checked.
-- [ ] Gate C passed, or the item is back with Crawford with the floor's numbers (stated here, never silent).
+- [ ] Gate C or Gate C2 passed, or the item is back with Crawford with the floor's numbers (stated here, never silent).
 - [ ] Ready for Crawford's PR.
 
 ## Risks and Mitigations
@@ -806,6 +976,9 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 | H2 at Full releases nothing but the diff path still runs on every set change | Low | `setSoundingRobots(null)` short-circuits the diff (pinned); the set changes only on the signature, not on every tick. |
 | H3a: a restarted LFO at phase 0 is audible on a lit pedal | Low | The start lands before the connect while the wet gain is 0, so the phase reset happens in silence; T18's crossing run measures it (≤ ×1.6). |
 | H3a: Tone's `Vibrato` starts its own LFO in its constructor and may not expose it the way the others do | Low | T16 feature-detects per effect and leaves an effect with no reachable LFO alone (empty `lfos`), recorded in the task. |
+| H2's admission re-primes the robot's LFO links, which A2 did not price, so the cut saves less than A2 measured | Low | T15's A/B is of the real cut; kept on A2's price less noise, or Crawford's call on a smaller saving. |
+| The Reverb cap's crossing swaps the impulse on a live convolver and clicks | Medium | T24's recorder run on the crossing; the swap is Tone's own `generate()` path the Decay slider already uses. |
+| The stacked sitting runs long on one phone and heat skews the later builds | Medium | A rested phone; `main`'s baseline first; a build that reads worse than the one before it is repeated after a rest. |
 | A kept cut passes the desktop A/B and the phone still clicks (the desktop is a proxy) | High | Gate C is the only pass; §1.6's deeper-cut order is pre-written so a miss is a next task, not a new design; the floor is reported, never papered over. |
 | The 10-minute tool limit on an agent's shell truncates a run | Low | ≤ 2 four-minute or 4 two-minute runs per call (PERFORMANCE.md hygiene); the phone and any 15-minute run are Crawford's terminal. |
 
@@ -813,17 +986,15 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
 1. **Trace category live?** (spec §7 Q1) **Resolved by construction** (Architecture Decisions): T2's first run
    answers it; the fallback is built into T1's note and T4's record.
-2. **H1's threshold.** (spec §7 Q2) **Resolved** pending Gate A: `LOAD_EFFECTS_MIN = 0.4`, Light off, Standard on;
-   raising it is §1.6's lever (3) on a Standard miss.
+2. **H1's threshold.** (spec §7 Q2) **Resolved**: `LOAD_EFFECTS_MIN = 0.4`, Light off, Standard on, built only on a phone miss (Gate A); raising it for Standard is out of this work.
 3. **H2's admission: build on entry or a warm pool?** (spec §7 Q3) **Resolved**: build on entry (T14); a warm pool is
    not built.
-4. **Reopen backlog 28 (EQ3/LPF/HPF at neutral)?** (spec §7 Q4) **Open** — only on A6's number at Gate A; Crawford's.
-5. **A Reverb decay cap at Light?** (spec §7 Q5) **Open** — only on A5's number at Gate A; Crawford's.
+4. **Reopen backlog 28 (EQ3/LPF/HPF at neutral)?** (spec §7 Q4) **Resolved at Gate A (2026-10-28): not reopened.** The EQ levels are seeded, so the worlds are not at neutral; backlog 28's decision stands.
+5. **A Reverb decay cap at Light?** (spec §7 Q5) **Resolved at Gate A:** a decay cap at Light, the second of Phase C2's three cuts (T19, T24); its value set by T24's sweep and Crawford's ear.
 6. **Numbering.** (spec §7 Q6) **Resolved**: stays backlog 27 (T0, T23); no roadmap phase.
 7. **The 70 % criterion.** (spec §7 Q7) **Resolved** as a reporting rule: T7 states the explained share; Gate A
    decides what to do under 70 %.
-8. **Ablation runs at 120 s instead of the spec's 240 s** (Architecture Decisions). **Open** — a plan deviation for
-   Crawford's yes; the reason is the series length (96 runs); the full 240 s stays for every Phase B A/B. If Crawford
-   prefers 240 s throughout, T6 and T7 double in run time and nothing else changes.
+8. **Ablation runs at 120 s instead of the spec's 240 s** (Architecture Decisions). **Resolved**: Crawford's yes, 2026-10-27; T6, T7 and T8a ran at 120 s, and every Phase B
+   A/B runs at 240 s.
 9. **H2's mid-note release: wait for the tail or defer to the measure tick?** **Open** until T14 finds which path
    reuses `scheduleVoiceRelease` cleanly; pinned in T14's test either way, named in its commit.
