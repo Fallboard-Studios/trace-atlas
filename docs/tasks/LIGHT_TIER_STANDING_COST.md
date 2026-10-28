@@ -139,7 +139,7 @@ T3 (census line on perf:audio) ─────────┤
 
 ### Phase A1: The tools
 
-- [ ] **Task 1: `scripts/perf/audio-handlers-lib.mjs` — the per-handler tally, pure**
+- [x] **Task 1: `scripts/perf/audio-handlers-lib.mjs` — the per-handler tally, pure** (2026-10-27)
 
   **Description:** A pure module in the `audio-load-lib.mjs` shape. `tallyHandlers(events)` takes raw trace events and
   returns `{ renderTotalUs, renderCount, classes: [{ name, selfUs, share, instances, perInstanceShare }], note }`:
