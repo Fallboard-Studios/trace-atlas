@@ -22,6 +22,7 @@ import {
   getRoom,
   needsDuck,
   roomNodes,
+  setCellEffect,
   setRoomReturn,
   wireCells,
   writeCellMix,
@@ -282,8 +283,9 @@ export function buildGlobalFxChain(): void {
   }
   // Global Pedals: built pinned fully wet at the stored defaults, in dark cells that carry the Mix
   // (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). Tone's Chorus and Tremolo do NOT start their LFOs in the
-  // constructor, so each is started once here and runs for the chain's life: a dark pedal is Mix 0, not a stopped LFO
-  // (docs/specs/GLOBAL_PEDALS.md assumption 4). A failed construction leaves the slot empty and the chain whole.
+  // constructor, so each is started once here (docs/specs/GLOBAL_PEDALS.md assumption 4); its bypass cell then stops them
+  // while it is dark and starts them at each light (docs/specs/LIGHT_TIER_STANDING_COST.md H3a, bypassCell.ts's
+  // effectLfos). A failed construction leaves the slot empty and the chain whole.
   resetSpreadTargets();
   _globalChorus = null;
   if (ChorusCtor) {
@@ -909,7 +911,8 @@ function rebuildPhaser(stages: number): boolean {
     if (lit && old) disconnectEffect('phaser', cell, old);
     // The old node is about to be released, so its edges count as gone even if dropping them failed.
     cell.connected = false;
-    cell.effect = fresh;
+    // The new node's LFOs (Tone's constructor started them) recorded and stopped; the connect below starts them.
+    setCellEffect(cell, fresh);
     if (lit && !connectEffect('phaser', cell, fresh)) {
       // The new node is out, so the cell goes fully dry: the wet gain has no input left and is set to 0 at once
       // (silent), the dry gain ramps up to 1, and the Mix is 0, so the next Mix write lights it from wet 0 like any

@@ -523,5 +523,145 @@ describe('bypassCell', () => {
       expect(edgesFrom(cell.in)).toEqual([cell.dry]);
       expect(edgesFrom(cell.dry)).toEqual([cell.cut]);
     });
+
+    // docs/specs/LIGHT_TIER_STANDING_COST.md H3a (Task 16): a dark cell's effect LFOs are stopped. They start before the
+    // light crossing's connect and stop when the darken timer's disconnect has run, so "in the path" and "running" agree.
+    describe('dark LFOs stopped (Light tier standing cost T16)', () => {
+      type FakeLfo = { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+      const lfo = (): FakeLfo => ({ start: vi.fn(), stop: vi.fn() });
+      /** A Chorus / Tremolo / Phaser: two LFOs, Tone's `_lfoL` and `_lfoR`. */
+      const twoLfoEffect = (name: string) => Object.assign(fakeNode(name), { _lfoL: lfo(), _lfoR: lfo() });
+      /** The Vibrato: one, Tone's `_lfo`. */
+      const oneLfoEffect = (name: string) => Object.assign(fakeNode(name), { _lfo: lfo() });
+      const order = (fn: ReturnType<typeof vi.fn>, k = 0) => fn.mock.invocationCallOrder[k];
+
+      async function chainCell(key: 'tremolo' | 'vibrato' | 'autoWah', effectNode: FakeNode) {
+        const cells = await import('./bypassCell');
+        cells.buildCell(key, effectNode as unknown as Tone.ToneAudioNode, GainCtor, DelayCtor);
+        cells.wireCells();
+        return { cells, cell: cells.getCell(key)! };
+      }
+
+      it('records the effect LFOs on the cell and stops each once at build (every cell is built dark)', async () => {
+        const tremolo = twoLfoEffect('tremolo');
+        const { cell } = await chainCell('tremolo', tremolo);
+        expect(cell.lfos).toEqual([tremolo._lfoL, tremolo._lfoR]);
+        for (const l of [tremolo._lfoL, tremolo._lfoR]) {
+          expect(l.stop).toHaveBeenCalledTimes(1);
+          expect(l.start).not.toHaveBeenCalled();
+        }
+
+        const vibrato = oneLfoEffect('vibrato');
+        const built = await chainCell('vibrato', vibrato);
+        expect(built.cell.lfos).toEqual([vibrato._lfo]);
+        expect(vibrato._lfo.stop).toHaveBeenCalledTimes(1); // undoes the start in Tone's own constructor
+      });
+
+      it('starts the LFOs before the effect edge is made when the cell lights', async () => {
+        const tremolo = twoLfoEffect('tremolo');
+        const { cells, cell } = await chainCell('tremolo', tremolo);
+
+        cells.writeCellMix('tremolo', 0.3);
+
+        const inConnect = fake(cell.in).connect;
+        const toEffect = inConnect.mock.calls.findIndex((c: unknown[]) => c[0] === tremolo);
+        expect(toEffect).toBeGreaterThanOrEqual(0);
+        for (const l of [tremolo._lfoL, tremolo._lfoR]) {
+          expect(l.start).toHaveBeenCalledTimes(1);
+          expect(order(l.start)).toBeLessThan(order(inConnect, toEffect));
+        }
+      });
+
+      it('stops them only when the darken timer fires, after the effect is disconnected', async () => {
+        const tremolo = twoLfoEffect('tremolo');
+        const { cells, cell } = await chainCell('tremolo', tremolo);
+        cells.writeCellMix('tremolo', 0.3);
+
+        cells.writeCellMix('tremolo', 0);
+        expect(tremolo._lfoL.stop).toHaveBeenCalledTimes(1); // the build's, nothing yet
+        context.fireAll();
+
+        expect(cell.connected).toBe(false);
+        for (const l of [tremolo._lfoL, tremolo._lfoR]) {
+          expect(l.stop).toHaveBeenCalledTimes(2);
+          expect(order(l.stop, 1)).toBeGreaterThan(order(tremolo.disconnect));
+        }
+      });
+
+      it('a re-light before the timer fires leaves them running: no stop, no second start', async () => {
+        const tremolo = twoLfoEffect('tremolo');
+        const { cells } = await chainCell('tremolo', tremolo);
+        cells.writeCellMix('tremolo', 0.3);
+        cells.writeCellMix('tremolo', 0);
+
+        cells.writeCellMix('tremolo', 0.2);
+        context.fireAll();
+
+        expect(tremolo._lfoL.stop).toHaveBeenCalledTimes(1);
+        expect(tremolo._lfoL.start).toHaveBeenCalledTimes(1);
+      });
+
+      it('lights and darkens an effect with no LFO as before', async () => {
+        const wah = fakeNode('autoWah');
+        const { cells, cell } = await chainCell('autoWah', wah);
+        expect(cell.lfos).toEqual([]);
+        cells.writeCellMix('autoWah', 0.4);
+        expect(cell.connected).toBe(true);
+        cells.writeCellMix('autoWah', 0);
+        context.fireAll();
+        expect(cell.connected).toBe(false);
+      });
+
+      it('stops them again when Tone refuses the connect, so an unconnected cell never runs its LFOs', async () => {
+        const tremolo = twoLfoEffect('tremolo');
+        const { cells, cell } = await chainCell('tremolo', tremolo);
+        fake(cell.in).connect.mockImplementationOnce(() => {
+          throw new Error('refused');
+        });
+
+        cells.writeCellMix('tremolo', 0.3);
+
+        expect(cell.connected).toBe(false);
+        expect(tremolo._lfoL.start).toHaveBeenCalledTimes(1);
+        expect(tremolo._lfoL.stop).toHaveBeenCalledTimes(2);
+        expect(order(tremolo._lfoL.stop, 1)).toBeGreaterThan(order(tremolo._lfoL.start));
+      });
+
+      it('a room branch (the Chorus) is built with its LFOs stopped and starts them as its room goes live', async () => {
+        const cells = await import('./bypassCell');
+        cells.buildRoom('double', GainCtor, DelayCtor);
+        const chorus = twoLfoEffect('chorus');
+        cells.buildBranch('chorus', 'double', chorus as unknown as Tone.ToneAudioNode, GainCtor);
+        cells.wireCells();
+        expect(chorus._lfoR.stop).toHaveBeenCalledTimes(1);
+
+        cells.writeCellMix('chorus', 1);
+        expect(chorus._lfoR.start).not.toHaveBeenCalled(); // pinned at depth 1, but unfed: still dark
+        cells.setRoomFed('double', true);
+        expect(chorus._lfoR.start).toHaveBeenCalledTimes(1);
+
+        cells.setRoomFed('double', false);
+        context.fireAll();
+        expect(chorus._lfoR.stop).toHaveBeenCalledTimes(2);
+      });
+
+      it('swapping a cell effect (the Phaser rebuild) records the new LFOs and stops them; the next light starts those', async () => {
+        const cells = await import('./bypassCell');
+        const old = twoLfoEffect('phaser');
+        cells.buildCell('phaser', old as unknown as Tone.ToneAudioNode, GainCtor, DelayCtor);
+        cells.wireCells();
+        const cell = cells.getCell('phaser')!;
+        const fresh = twoLfoEffect('phaser');
+
+        cells.setCellEffect(cell, fresh as unknown as Tone.ToneAudioNode);
+
+        expect(cell.effect).toBe(fresh);
+        expect(cell.lfos).toEqual([fresh._lfoL, fresh._lfoR]);
+        expect(fresh._lfoL.stop).toHaveBeenCalledTimes(1);
+        expect(cells.connectEffect('phaser', cell, fresh as unknown as Tone.ToneAudioNode)).toBe(true);
+        expect(fresh._lfoL.start).toHaveBeenCalledTimes(1);
+        expect(old._lfoL.start).not.toHaveBeenCalled();
+      });
+    });
   });
 });

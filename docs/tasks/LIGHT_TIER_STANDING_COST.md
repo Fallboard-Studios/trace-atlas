@@ -507,7 +507,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
 
 **H3 — oscillators that run for nothing** (spec §1.3 H3a, H3b; inaudible → every tier)
 
-- [ ] **Task 16: `src/engine/audioEngine/bypassCell.ts`, `globalFx.ts` — a dark cell's LFOs stopped**
+- [x] **Task 16: `src/engine/audioEngine/bypassCell.ts`, `globalFx.ts` — a dark cell's LFOs stopped** (2026-10-28)
 
   **Description:** `buildCell`/`buildBranch` record the effect's LFOs on the `Cell` (`lfos: Array<{ start, stop }>`,
   found once at build from Tone's own fields: the Chorus's and Tremolo's two, the Vibrato's one, the Phaser's two; the
@@ -522,18 +522,28 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   rebuild swaps the recorded LFOs. The existing crossing cases pass unmodified.
 
   **Acceptance criteria:**
-  - [ ] "In the path" and "running" never differ once a timer has fired; a lit effect's sound is unchanged (the LFO
-        restarts at phase 0 while the cell is still silent).
+  - [x] "In the path" and "running" never differ once a timer has fired; a lit effect's sound is unchanged (the LFO
+        restarts at phase 0 while the cell is still silent). (The first half pinned by the tests; the sound is read by
+        T18's recorder runs and Crawford's ear at Gate B.)
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes;
-        `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes;
+        `npm run build:types`, `npm run lint` clean. (485 pass; mutation gate 11/11 killed.)
 
   **Dependencies:** Gate A.
 
   **Files:** `src/engine/audioEngine/bypassCell.ts`, `src/engine/audioEngine/bypassCell.test.ts`, `src/engine/audioEngine/globalFx.ts`
 
   **Estimated scope:** S
+
+  **As built (2026-10-28):** the stop and start sit inside the two crossing primitives themselves: `connectEffect`
+  starts the LFOs before its two edges, and `disconnectEffect` stops them once its edges are gone (the darken timer is
+  its only caller besides the Phaser rebuild). A crossing can't drift from its LFOs, whoever calls it. Two additions:
+  a connect Tone refuses stops the LFOs again, so an unconnected cell never runs them; and the rebuild goes through a
+  new `setCellEffect(cell, effect)`, which records the new node's LFOs and stops them (Tone's Phaser constructor started
+  them), so the connect that follows starts them. `globalFx.ts` keeps the Chorus's and Tremolo's `start()` at build
+  (existing tests pin it); the build-time stop undoes it. `globalFx.test.ts`'s Phaser mock gained `_lfoL`/`_lfoR`, plus
+  one rebuild case.
 
 - [ ] **Task 17: `src/engine/lfoEngine.ts` — the drift secondaries stopped while drift is held off**
 

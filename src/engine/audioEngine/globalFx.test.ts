@@ -35,6 +35,9 @@ const toneFlags = vi.hoisted(() => ({
       frequency: { value: opts.frequency ?? 0.5, rampTo: vi.fn() },
       Q: { value: opts.Q ?? 10, rampTo: vi.fn() },
       wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+      // Tone's two LFOs, started in the real constructor; the bypass cell stops them while dark (Light tier T16).
+      _lfoL: { start: vi.fn(), stop: vi.fn() },
+      _lfoR: { start: vi.fn(), stop: vi.fn() },
     }),
   ),
   wahAbsent: false,
@@ -2017,6 +2020,27 @@ describe('globalFx', () => {
         expect(ctorOptions()).toStrictEqual({ frequency: 2, octaves: 4, stages: 6, Q: 5, baseFrequency: 500, wet: 1 });
         // The duck returns the cell to the same Mix.
         expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+      });
+
+      it('stops the new node’s LFOs in the cell; a lit Phaser’s rebuild starts them with its connect (Light tier T16)', async () => {
+        const { globalFx, phaser: old } = await built();
+        const cell = cellOf(old);
+        globalFx.setGlobalPhaser({ stages: 4 }); // dark: rebuilt at once
+        const darkFresh = lastInstance(toneFlags.phaserCtor);
+        expect(cell.lfos).toEqual([darkFresh._lfoL, darkFresh._lfoR]);
+        expect(darkFresh._lfoL.stop).toHaveBeenCalledTimes(1);
+        expect(darkFresh._lfoL.start).not.toHaveBeenCalled();
+
+        globalFx.setGlobalPhaser({ wet: 1 });
+        expect(darkFresh._lfoL.start).toHaveBeenCalledTimes(1); // the light
+        globalFx.setGlobalPhaser({ stages: 8 });
+        fireTimeouts();
+        const litFresh = lastInstance(toneFlags.phaserCtor);
+        expect(cell.lfos).toEqual([litFresh._lfoL, litFresh._lfoR]);
+        expect(darkFresh._lfoR.stop).toHaveBeenCalledTimes(2); // dropped with the old node's edges
+        expect(litFresh._lfoR.stop).toHaveBeenCalledTimes(1);
+        expect(litFresh._lfoR.start).toHaveBeenCalledTimes(1);
+        expect(litFresh._lfoR.start.mock.invocationCallOrder[0]).toBeGreaterThan(litFresh._lfoR.stop.mock.invocationCallOrder[0]);
       });
 
       it('wires the new node into the cell only while the Phaser is lit', async () => {
