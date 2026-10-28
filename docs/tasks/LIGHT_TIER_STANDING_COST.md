@@ -379,8 +379,23 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 ### Gate A: Crawford picks the cuts
 - [ ] The decision table read; the cuts to build named, in order, and the dropped ones marked in the table with the
       reason (below noise, audible and not wanted, out of scope).
-- [ ] If the ablations explain under 70 % of the stock mean: chase the remainder (a further ablation task appended
-      here) or cut what is priced — Crawford's call, recorded on backlog 27.
+- [x] If the ablations explain under 70 % of the stock mean: chase the remainder (a further ablation task appended
+      here) or cut what is priced — Crawford's call, recorded on backlog 27. (Chased, Crawford 2026-10-28: Task 8a.)
+
+- [x] **Task 8a: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — ablation A9, the robots against the floor** (2026-10-28)
+
+  **Description:** Appended at Gate A. One more throwaway variant, A9: `reserveVoice` refuses every robot, so no robot
+  has a voice and the base chain, effects and bank stay. A fresh noise band first (NB2, a new sitting), then three
+  interleaved rounds per world at 120 s, as T6. Recorded as §6 of the decomposition section, with the split of the
+  robots' share and the row it adds to the decision table.
+
+  **Proof:** A run (24 runs), recorded. No test file.
+
+  **Acceptance criteria:**
+  - [x] The fresh noise band stated before the delta; the floor and the robots' share stated per world.
+
+  **Verification:**
+  - [x] `git status` clean after the task; the numbers trace to the saved `--json` files.
 - [ ] Phase B's tasks below re-ordered to the picked order; any H5 piece written into T19.
 - [ ] No product code has changed; `git status` clean on the build branch.
 

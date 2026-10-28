@@ -623,6 +623,11 @@ EQ3, LPF and HPF are moderate; the dynamics and the send/room fabric are below n
 D5 (55–69 % explained); the remainder is the sounding robots and the fixed floor. Crawford picks the cuts and whether to
 chase the remainder.
 
+**Update 2026-10-28, later: the remainder chased (§6).** With no robot voices at all (A9), Light's load falls from
+0.557 to 0.167 on D1 and from 0.519 to 0.163 on D5: the robots are about 70 % of it, the floor about 30 %. A playing
+robot costs about 0.06 of desktop capacity, roughly four times a standing-by one and three times what spec §1.6 assumed
+for the robot-count lever. The cuts and order of §5 stand; the sounding cap at Light joins the table for Crawford to place.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):

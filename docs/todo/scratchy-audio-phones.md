@@ -1844,3 +1844,66 @@ one of two:
 - chase the remainder with one more ablation: every robot silenced, the base chain kept, to split the robots from the
   floor;
 - or cut what is priced: H2 and H1 alone are about a third of the stock mean on both worlds.
+
+### 6. A9, the robots against the floor (Gate A, Task 8a)
+
+Crawford's call at Gate A (2026-10-28): chase the remainder §5 left unexplained, with one more ablation that splits the
+robots from the floor.
+
+**Method.** As §3, in a new sitting, so the noise band was measured again first (NB2). **A9:**
+`src/engine/AudioEngine.ts`, `reserveVoice`, one line added after stock line 817: `return false`, so no robot is given
+a voice. Notes then find no voice and are skipped (the engine's own no-voice path). The base chain, the global effects,
+the rooms and the LFO bank are built as usual. Build `index-CSKyqXQf`, served on :4201, `src/` clean after. 24 runs at
+120 s, every one exit 0 with orphaned Chrome 0 before and after and a clean console. The aggregate is
+`agg-NB2-A9.json` beside the runs. Stock this sitting: D1 0.561 (0.550–0.573), D5 0.517 (0.505–0.529).
+
+| | D1, median (r1 · r2 · r3) | D5, median (r1 · r2 · r3) |
+|---|---|---|
+| Noise band, this sitting | −0.001 (+0.002 · −0.001 · −0.003); band **0.003** | −0.010 (+0.003 · −0.025 · −0.010); band **0.025** |
+| **A9, no robot voices** | **−0.389** (−0.383 · −0.404 · −0.389) | **−0.354** (−0.354 · −0.349 · −0.367) |
+| A9's own mean, the floor | **0.167** (0.166–0.168) | **0.163** (0.162–0.165) |
+| Census | 1 793 → 944 | 1 815 → 940 |
+| `fx in` | 5 → 2 (AutoWah, Width) | 5 → 3 (AutoWah, Width, Vibrato) |
+
+Peak window fell with the mean (D1 0.58–0.61 → 0.17; D5 0.59–0.61 → 0.17); `max lag` 15–22 ms on both arms. The
+`fx in` drop is the room branches going dark: with no voices nothing feeds the rooms, so Chebyshev, Chorus and Shifter
+stop rendering. The chain cells stay lit.
+
+**Reading.**
+- **The robots are about 70 % of Light's load on this desktop**: 0.389 of D1's 0.557 (70 %) and 0.354 of D5's 0.519
+  (68 %), far outside both bands and the steadiest delta of the series. What is left, **the floor**, is about 0.17 on
+  both worlds: the base chain with the Reverb, EQ3, filters and dynamics; the lit chain cells; the bank and the dark
+  cells' LFOs; the worklet, the `?debug` analysers and the render overhead. A9's variant is the floor itself, so the
+  two parts add to the stock mean by construction.
+- **Inside the robots' share** (D1 / D5):
+
+  | Part | D1 | D5 | Source |
+  |---|---|---|---|
+  | Standing-by voices | 0.124 | 0.107 | A2, measured |
+  | Room branches lit only because robots feed them | ≈ 0.048 | ≈ 0.027 | A1's branch share by the offline prices (§4), an estimate |
+  | **The sounding robots** (voices, notes, sends, links) | **≈ 0.22** | **≈ 0.22** | the rest |
+  | **Per sounding robot** (3.8 and 3.5 sounding) | **≈ 0.057** | **≈ 0.063** | |
+
+  **A playing robot costs about four times a standing-by one** (0.013–0.016, §3). That is roughly three times what
+  spec §1.6 step (2) assumes for the robot-count lever ("about 2 capacity points per sounding robot"). That figure came
+  from an earlier, smaller graph. This one is an estimate by subtraction, but on both worlds alike.
+- **The floor is covered by pieces already priced.** On D5, the Reverb, filters, bank, dark LFOs and the lit chain
+  cells (AutoWah, Width and Vibrato, about 0.056 of A1 by the offline prices) come to about 0.14 of the 0.163. That
+  leaves about 0.03 of overhead no cut reaches. On D1 the same pieces come to about 0.22, more than the floor's 0.167:
+  each was priced against the full graph, where a piece costs more than it does in a near-empty one.
+- **So §5's unexplained remainder is the sounding robots**, about 0.22 of capacity on both worlds, some 40 % of
+  stock: the music itself. The spec names two levers on it:
+  - fewer sounding robots at Light (§1.6 step 2: the sounding cap from 4 to 3), worth about 0.06 a robot on the desktop
+    by this estimate. Audible, so Light only;
+  - a robot's voice built on fewer nodes, a spec of its own (§1.6, past step 4).
+
+**What this changes in §5.** The cuts and their order stand. H2 and H1 are still the largest cuts that leave the
+music as it is. One row joins the table, for Crawford to place:
+
+| Piece | D1 | D5 | Census, D1 / D5 | The cut it implies | Audible? | Tier |
+|---|---|---|---|---|---|---|
+| Sounding robots (A9 less A2 and the fed branches) | ≈ −0.22 (≈ −0.057 each) | ≈ −0.22 (≈ −0.063 each) | A9 −849 / −875, of which A2 −678 / −499 | The sounding cap at Light 4 → 3 (spec §1.6 step 2), or a cheaper voice (own spec) | Yes, fewer robots play | Light only |
+
+**The 70 % criterion, revisited.** A9 alone explains 70 % of D1's stock mean and 68 % of D5's, at the line rather than
+clearly past it. With the floor's pieces priced in §3 and §4, nothing large is left unnamed: about 0.03 of overhead on
+D5, and the sounding robots, which are the music.
