@@ -102,3 +102,44 @@ D5 `bravo` at (−150, 90)), for a four-minute run. What the Light tier carries 
   with pieces ablated, or both.
 - How a cut that holds off a lit effect at Light is heard crossing the threshold on a live slider (the bypass cells'
   crossing already exists for Mix; a tier hold-off would reuse it).
+
+## Gate A — the cuts, confirmed 2026-10-28
+
+Confirmed via `interview-me` on 2026-10-28 (5 questions; three guesses confirmed, two corrected), after Phase A's
+decomposition: [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md) "Backlog 27, the decomposition", the
+decision table in §5 and the robots-against-the-floor ablation in §6. This section records which cuts Crawford wants
+built and in what order. Where it differs from spec §1.6's order or the plan's Phase B, this section wins, and the spec
+and plan are re-ordered from it (plan, Gate A's third box).
+
+- **Outcome, unchanged:** Light clean by ear on the Pixel 8, D1 and D5, four minutes, giving up as little of the sound
+  as possible. "I want performance to be better."
+- **Inaudible first, alone.** The first batch holds only cuts nobody can hear. They apply on every setting, and each is
+  kept or dropped on its own desktop A/B:
+  1. **Release a standing-by robot's voice** and re-reserve it, with its links, when it is admitted (H2; −0.124 D1,
+     −0.107 D5). An admitted robot's first note must not be late or clicked.
+  2. **EQ3, LPF and HPF out of the chain while all three sit at neutral**, back in when one moves (H5, A6; −0.041,
+     −0.019). This reopens backlog 28's decision to keep them in. Crawford: "if they're inaudible then let's give them
+     the treatment." It needs a listen that neutral-out is inaudible as well as the A/B, and is dropped if it is heard.
+  3. **Stop a dark cell's effect LFOs**, and start them when it lights (H3a; −0.026 D1, below noise D5).
+  4. **Stop the drift secondaries while drift is held off** (H3b; part of A4's −0.038 D1, unpriced on its own).
+  The two small ones ride in the batch although each is small on D1 and below noise on D5: the phone has less headroom
+  than the desktop.
+- **Then the phone.** If the inaudible batch alone is clean on D1 and D5 at Light, the work stops there and Light
+  loses nothing audible.
+- **If it still clicks, three audible cuts for Light only, in this order:**
+  1. **Pedals off at Light**: every chain cell and room branch held dark below the effects threshold, the stored Mix
+     kept (H1; −0.093, −0.083).
+  2. **A shorter Reverb at Light**: a decay cap (H5, A5; the whole Reverb is −0.074, −0.043; what a cap saves is
+     unmeasured).
+  3. **Three sounding robots at Light instead of four** (spec §1.6 step 2; about −0.06 per sounding robot on the
+     desktop, §6, about three times what the spec assumed).
+  Decoration goes before the music: the pedals and the Reverb before a robot. Going to three robots is the last
+  resort, even though it saves the most per step.
+- **One sitting for the audible cuts, not one each.** All three are built, then served as three stacked builds side by
+  side (pedals off; pedals off plus the shorter Reverb; all three). Crawford tries them in that order in one rested
+  sitting and stops at the first that is clean. Only the cuts up to that one are kept; any cut past it is reverted.
+- **Dropped at Gate A:** the Compressor, Limiter and ceiling (below noise on both worlds) and the send and room fabric
+  (about 0.01 on D1 and nothing on D5 once the Reverb and the lit branches are taken out).
+- **Out of scope:** any audible change to Full or Standard; a robot voice built on fewer nodes (a spec of its own,
+  spec §1.6 past step 4); Standard holding effects off too (spec §1.6 step 3, only if Standard is heard to click,
+  which this work does not test); the late collapse, as above.
