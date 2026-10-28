@@ -170,7 +170,17 @@ T3 (census line on perf:audio) ─────────┤
 
   **Estimated scope:** S (two new files, pure)
 
-- [ ] **Task 2: `scripts/perf/audio-handlers.mjs`, `scripts/perf/cdp-lib.mjs`, `scripts/perf/audio-load.mjs`, `package.json` — the runner, on the shared open-the-world helper**
+- [x] **Task 2: `scripts/perf/audio-handlers.mjs`, `scripts/perf/cdp-lib.mjs`, `scripts/perf/audio-load.mjs`, `package.json` — the runner, on the shared open-the-world helper** (2026-10-27)
+
+  **As built (2026-10-27).** Q1: the category is **live** on headless Chrome. Each node traces one
+  `AudioHandler::ProcessIfNecessary` per quantum (`args.this`, `args['node type']`), and some handlers trace their
+  own step inside it (`GainHandler::Process`, mostly with no args); the T1 follow-up commit counts a step toward its
+  node. Two deviations for T4: (1) the window is **8 s, not 60 s** — Chrome's trace buffer filled at ~9 s on D1 at
+  Light (~4 million events, data lost on a 10 s window), so `--seconds` defaults to 8 and the run prints "DATA LOST"
+  and the Render span when it overflows; (2) tracing **saturates** the audio thread (Render busy 100 % of the span,
+  5.0 ms per 128-frame quantum), so quanta are dropped and the trace's own per-event cost weighs most on classes with
+  many cheap instances (909 Gains, 329 ConstantSources) — T4 reads the shares with that, beside the ablations.
+  The helper is `withPoweredWorld` in `cdp-lib.mjs`.
 
   **Description:** Move `audio-load.mjs`'s open-the-world sequence (fresh Chrome via `withChrome`, `WebAudio.enable`
   before navigation, navigate to the world URL with `?debug`, power on, the pin check, the warm-up wait) into one

@@ -27,14 +27,10 @@ import { parseArgs } from 'node:util';
 import {
   audibleCapacityCorrelation,
   bucketSamples,
-  buildPageUrl,
-  chooseRealtimeContext,
   createNodeTally,
   diffByType,
-  expectedCoordinates,
   parseAudibleFromHud,
   parseBudgetFromHud,
-  parseCoordinatesFromHud,
   parseHeapMb,
   parseLagFromHud,
   parseTransportEventsFromHud,
@@ -45,7 +41,7 @@ import {
   tallyConsole,
   trend,
 } from './audio-load-lib.mjs';
-import { sleep, withChrome } from './cdp-lib.mjs';
+import { sleep, withPoweredWorld } from './cdp-lib.mjs';
 
 /** How often the DevTools realtime data is polled. `contextRealtimeDataChanged` events do not arrive on their own. */
 const POLL_MS = 500;
@@ -105,49 +101,24 @@ function positiveNumber(name, raw) {
 
 /** One fresh Chrome, one world, one measured series. Returns the run's buckets and summary. */
 async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
-  return withChrome({ chromePath: opts.chrome, port: opts.port }, async ({ send, evaluate, onEvent }) => {
-    const created = [];
-    const destroyed = [];
-    const nodes = createNodeTally();
-    const consoleEvents = []; // every console call from navigation on: Tone's scheduling warning fires once, often in the warm-up
-    onEvent((msg) => {
-      if (msg.method === 'WebAudio.contextCreated') created.push(msg.params.context);
-      if (msg.method === 'WebAudio.contextWillBeDestroyed') destroyed.push(msg.params.contextId);
-      if (msg.method === 'WebAudio.audioNodeCreated') nodes.created(msg.params.node.contextId, msg.params.node.nodeId, msg.params.node.nodeType);
-      if (msg.method === 'WebAudio.audioNodeWillBeDestroyed') nodes.destroyed(msg.params.contextId, msg.params.nodeId);
-      if (msg.method === 'Runtime.consoleAPICalled') consoleEvents.push(msg.params);
-    });
-    await send('Page.enable');
-    await send('Runtime.enable');
-    await send('WebAudio.enable');
-    await send('Performance.enable');
-
-    const url = buildPageUrl(opts.url, world, { debug: !opts['no-debug'] });
-    await send('Page.navigate', { url });
-    for (let i = 0; i < 75; i++) {
-      if (await evaluate(`!!document.querySelector('button[aria-label="Power on"]')`)) break;
-      if (i === 74) throw new Error(`Power button never appeared at ${url} — is the server running and is the base path right?`);
-      await sleep(200);
-    }
-    await sleep(1500);
-    await evaluate(`document.querySelector('button[aria-label="Power on"]').click()`);
-    await sleep(warmupSec * 1000);
-
-    const contextId = chooseRealtimeContext(created, destroyed);
-    if (contextId === null) throw new Error('No realtime AudioContext was created — did the page power on?');
-
-    // What the world carries, as the overlay states it after the warm-up (one line per overlay row).
-    const carried = await evaluate(`[...document.querySelectorAll('.audio-debug-hud > div')].map((d) => d.textContent)`);
-
-    // The pin check: a world measured somewhere other than its label has misled this harness before
-    // (docs/PERFORMANCE.md, "Pre-change baseline for roadmap 17.2.6", the retraction).
-    const landed = parseCoordinatesFromHud(carried.join('\n'));
-    const expected = expectedCoordinates(world);
-    if (landed && (landed.x !== expected.x || landed.y !== expected.y)) {
-      const hint = 'the page did not honour ?seed=&x=&y= (a build older than the world link, roadmap 56?)';
-      throw new Error(`World not pinned: the page landed at (${landed.x}, ${landed.y}), expected (${expected.x}, ${expected.y}) — ${hint}.`);
-    }
-
+  const nodes = createNodeTally();
+  const consoleEvents = []; // every console call from navigation on: Tone's scheduling warning fires once, often in the warm-up
+  const listen = (msg) => {
+    if (msg.method === 'WebAudio.audioNodeCreated') nodes.created(msg.params.node.contextId, msg.params.node.nodeId, msg.params.node.nodeType);
+    if (msg.method === 'WebAudio.audioNodeWillBeDestroyed') nodes.destroyed(msg.params.contextId, msg.params.nodeId);
+    if (msg.method === 'Runtime.consoleAPICalled') consoleEvents.push(msg.params);
+  };
+  const open = {
+    chromePath: opts.chrome,
+    port: opts.port,
+    baseUrl: opts.url,
+    world,
+    debug: !opts['no-debug'],
+    warmupSec,
+    domains: ['Performance'],
+    listen,
+  };
+  return withPoweredWorld(open, async ({ send, evaluate, url, contextId, carried }) => {
     const nodesAtStart = nodes.liveByType(contextId);
     const samples = [];
     const start = performance.now();
