@@ -1700,3 +1700,94 @@ Beside §1: about 1 390 of D1's 1 793 live nodes render every quantum, and about
   along with any variant.
 - **So far:** the four sum to 0.281 of D1's 0.559 (50 %) and 0.210 of D5's 0.495 (42 %), before A5–A8 and before
   allowing for A1's overlap with A2 on D1. The sum and the 70 % criterion are T7's.
+
+### 4. The ablations A5–A8, and the sum (T7)
+
+**Method.** As §3: the same stock build on :4191, the same noise band, three interleaved rounds per world at 120 s,
+48 runs, every one exit 0 with orphaned Chrome 0 before and after and a clean console. The aggregate is
+`agg-A5-A6-A7-A8.json` beside the runs. The stock over these 12 runs per world: D1 0.554 (0.531–0.569), D5 0.502
+(0.489–0.510); over all 27 stock runs of §3 and §4, **D1 0.557** (0.531–0.581) and **D5 0.498** (0.474–0.510), the
+stock means the sum is read against.
+
+**The variants.** All four edit `wireGlobalFxChain` in `src/engine/audioEngine/globalFx.ts` (stock lines named). Each
+**unwires** its piece rather than not building it: the nodes stay built and live, and the pull model (only what the
+destination reaches renders) takes them out of rendering. So the census reads unchanged on all four (1 793 and 1 815),
+and the price recorded is the rendering, which is what the thread pays. This is the plan's "unbuilt" in effect, at a
+one-place edit; the deltas include whatever a piece's own sends and LFO links cost, since those go unrendered with it.
+- **A5, the Reverb room.** Lines 543–544 removed (the Reverb's and its Return's connects). Its twelve send Gains stay
+  connected into it and go unrendered with it. The T6 smoke run's trace renders no Convolver.
+- **A6, EQ3, LPF and HPF.** Lines 496–498 removed from the chain's span list (the entry cut joins the filter cut), and
+  `connectTapsIfWanted` line 640 moved the `?debug` pre tap from the EQ3 to the entry cut, so the analyser cannot keep
+  the EQ3 rendering. Their LFO links are unrendered with them rather than unlinked. The smoke trace renders 9 biquads
+  against stock's 15.
+- **A7, the Compressor, Limiter and ceiling.** Lines 504–507 replaced by the Width cell's span alone (Width → master
+  gain), and line 541 makes the rooms join at the Width cell's input in both decay modes.
+- **A8, the five rooms.** Lines 543–548 removed: the Reverb's, the Delay's and the three effect rooms' return
+  connects. Every robot's five send Gains, the rooms and their branches go unrendered (the smoke trace renders 822
+  Gains against 909, no Convolver, 7 Delays against 13). The overlay still reads `fx in 5/10`, because it counts
+  connected cells, not rendering ones.
+
+**Results:**
+
+| Piece | D1 delta, median (r1 · r2 · r3) | D5 delta, median (r1 · r2 · r3) | Read |
+|---|---|---|---|
+| A5 the Reverb | **−0.074** (−0.074 · −0.076 · −0.074) | **−0.043** (−0.055 · −0.043 · −0.028) | outside, both |
+| A6 EQ3, LPF, HPF | **−0.041** (−0.041 · −0.043 · −0.011) | **−0.019** (−0.046 · −0.014 · −0.019) | outside, both |
+| A7 Compressor, Limiter, ceiling | −0.008 (−0.013 · +0.002 · −0.008) | −0.003 (−0.000 · −0.015 · −0.003) | **below noise**, both |
+| A8 the five rooms | **−0.134** (−0.139 · −0.110 · −0.134) | **−0.070** (−0.088 · −0.070 · −0.062) | outside, both; contains A5 and the lit branches |
+
+`max lag` stayed 16–25 ms in every run. Peak windows fall with the means (A5 D1 0.57–0.59 → 0.50–0.52; A8 D1
+0.57–0.61 → 0.44–0.46).
+
+**Reading.**
+- **The Reverb is the base chain's one large piece:** 0.074 on D1, 0.043 on D5. That is the ratio §1's breakdown
+  gave the one Convolver (3.5 % against 1.7 % of traced Render): the two worlds seed different decays, and a
+  convolver's cost follows its impulse length. H5's "the base chain is small" holds for everything **but** the Reverb.
+- **The filters are moderate, the dynamics are free.** EQ3, LPF and HPF at neutral cost 0.041 on D1 and 0.019 on D5;
+  D1's third round read only 0.011, so this one is the least steady of the outside-the-band deltas. The Compressor,
+  Limiter and ceiling are below noise on both worlds.
+- **A8 is mostly A5 and the lit branches.** It removes the Reverb (A5) and the room branches A1 also darkens. On D1
+  three of A1's five lit effects are branches (Chebyshev, Chorus, Shifter), on D5 two (Chebyshev, Chorus). Split by the
+  2026-10-20 offline prices (§2), those branches are about half of D1's A1 (38 of 75 ‰, about 0.048) and a third of
+  D5's (23 of 69 ‰, about 0.027). What is left for the fabric itself (the sixty send Gains, the Delay and the room
+  buses) is about **0.134 − 0.074 − 0.048 ≈ 0.01** on D1 and **0.070 − 0.043 − 0.027 ≈ 0** on D5: an estimate, not a
+  measured delta, and at the size of the noise band. The sends and rooms are not where the cost is.
+
+**The sum** (spec §1.2's 70 % criterion). The ablations overlap, so the raw sum counts some cost twice: A8 contains
+A5 and the lit branches of A1, and on D1 A2 darkens two of A1's lit branches with the rooms only standing-by robots
+fed (§3). Both readings are given; below-noise medians are counted as measured.
+
+| | D1 | D5 |
+|---|---|---|
+| A1 every effect dark | 0.093 | 0.083 |
+| A2 standing-by voices released | 0.124 | 0.107 |
+| A3 dark cells' LFOs | 0.026 | 0.016 (below noise) |
+| A4 the bank | 0.038 | 0.004 (below noise) |
+| A5 the Reverb | 0.074 | 0.043 |
+| A6 EQ3, LPF, HPF | 0.041 | 0.019 |
+| A7 Compressor, Limiter, ceiling | 0.008 (below noise) | 0.003 (below noise) |
+| A8 the five rooms | 0.134 | 0.070 |
+| **Raw sum** | **0.538** | **0.345** |
+| Stock mean | 0.557 | 0.498 |
+| **Raw share explained** | **97 %** | **69 %** |
+| A8 counted as its fabric only (≈ 0.01 / ≈ 0, above) | 0.416 | 0.275 |
+| **Share without A8's overlap** | **75 %** | **55 %** |
+| Less A2's overlap with A1 on D1 (the two branches its rooms lose, if Chorus and Shifter: ≈ 0.04) | ≈ 0.38 | — |
+| **Share without either overlap** | **≈ 68 %** | **55 %** |
+
+**The 70 % criterion is not met on D5 by either reading**: 69 % raw, 55 % without A8's overlap. On D1 it is met on the
+raw sum and is about at the line (68–75 %) once the overlaps are taken out. The overlap figures lean on the offline
+prices' proportions and on which two branches A2 darkens on D1 (the overlay does not say); they are estimates and are
+marked so.
+
+**What is unexplained** is about 0.22 of capacity on D5 (45 % of its stock mean) and 0.13–0.18 on D1 (25–32 %), by the
+overlap-free reading. No ablation removed it; what is left in the graph when every piece above is gone is:
+- **the sounding robots themselves**: about 3.5 (D5) to 3.8 (D1) robots' voices, which A2 left in place. At A2's
+  price of a standing-by robot (0.013–0.016 each) that is roughly 0.05–0.06 of capacity, more with their notes, LFO
+  links and filter work while they play. This is the music, not a cut;
+- **the fixed per-quantum overhead**: the destination, the AudioWorklet and the two analysers the `?debug` overlay
+  taps, the Signals behind the master and chain parameters, and Chrome's own render bookkeeping at 1 024-frame
+  callbacks. No ablation here measures it.
+
+Neither is a hypothesis H1–H5 prices. Chasing it would take one more ablation (every robot silenced, with the base
+chain kept) to split the robots from the floor; whether that is worth running is Gate A's call (§5).

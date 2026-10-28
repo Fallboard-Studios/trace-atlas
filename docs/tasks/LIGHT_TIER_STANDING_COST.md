@@ -329,7 +329,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
   **Estimated scope:** M (one docs section; ~60 runs of 2 min, split across sessions as needed)
 
-- [ ] **Task 7: `docs/todo/scratchy-audio-phones.md` — ablations A5–A8**
+- [x] **Task 7: `docs/todo/scratchy-audio-phones.md` — ablations A5–A8** (2026-10-28)
 
   **Description:** As T6, four more variants against the same stock build and noise band:
   - **A5** the Reverb room unbuilt (its send gains made, its `in` connected to nothing).
@@ -342,11 +342,11 @@ preview servers idle. Every number recorded with its spread and the commit it wa
   **Proof:** A run (four variants × 12 runs), recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] Eight deltas per world with spreads; the sum and its share stated; "below noise" used where a delta sits
+  - [x] Eight deltas per world with spreads; the sum and its share stated; "below noise" used where a delta sits
         inside the band.
 
   **Verification:**
-  - [ ] As T6.
+  - [x] As T6.
 
   **Dependencies:** Task 6.
 
