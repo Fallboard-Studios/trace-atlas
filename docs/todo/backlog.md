@@ -616,6 +616,13 @@ Light first (no product change), Crawford picks the cuts from its table, each cu
 inaudible cuts every tier and audible ones Light's, and the Pixel sitting — clean by ear on D1 and D5 at Light — the
 one criterion. The item stays 27 (no new number); its Built line comes with the plan's T23.
 
+**Update 2026-10-28: Phase A done, the decision table is ready for Gate A** ([scratchy-audio-phones.md](scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §5). On the desktop at Light, the largest pieces are the standing-by robots' voices
+(−0.124 D1, −0.107 D5 of capacity, inaudible to cut), the lit effects (−0.093, −0.083) and the Reverb (−0.074, −0.043).
+EQ3, LPF and HPF are moderate; the dynamics and the send/room fabric are below noise. The 70 % criterion is not met on
+D5 (55–69 % explained); the remainder is the sounding robots and the fixed floor. Crawford picks the cuts and whether to
+chase the remainder.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):

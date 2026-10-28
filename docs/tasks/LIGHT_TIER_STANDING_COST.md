@@ -354,7 +354,7 @@ preview servers idle. Every number recorded with its spread and the commit it wa
 
   **Estimated scope:** M
 
-- [ ] **Task 8: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the decision table for Gate A**
+- [x] **Task 8: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the decision table for Gate A** (2026-10-28)
 
   **Description:** Close the "Backlog 27, the decomposition" section with the **decision table** (spec §1.2): one row
   per piece — its breakdown share, its ablation delta on D1 and D5, the census count behind it, the cut it implies
@@ -364,11 +364,11 @@ preview servers idle. Every number recorded with its spread and the commit it wa
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every row's numbers trace to T4–T7; the recommended order is stated with its reason; a piece below noise is
+  - [x] Every row's numbers trace to T4–T7; the recommended order is stated with its reason; a piece below noise is
         marked as not worth a cut.
 
   **Verification:**
-  - [ ] Manual read; `npm run lint` clean.
+  - [x] Manual read; `npm run lint` clean. (Lint run 2026-10-28; the read is Gate A's first box.)
 
   **Dependencies:** Tasks 4, 5, 6, 7.
 

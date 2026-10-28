@@ -1791,3 +1791,56 @@ overlap-free reading. No ablation removed it; what is left in the graph when eve
 
 Neither is a hypothesis H1–H5 prices. Chasing it would take one more ablation (every robot silenced, with the base
 chain kept) to split the robots from the floor; whether that is worth running is Gate A's call (§5).
+
+### 5. The decision table for Gate A (T8)
+
+One row per piece, biggest first by its ablation delta on both worlds. **Delta** is §3's and §4's same-round median
+(capacity, negative is cheaper), the most a cut of that piece can save; a cut that removes less than the whole piece
+saves less, and the pieces do not add (§4). **Breakdown** is §1's share of traced Render, which is mostly the tracer's
+own cost for the cheap classes and is given only where a piece owns a class. **Census** is the change in live nodes
+(§3); an unwired piece leaves its nodes live and reads 0. Cuts and tiers are spec §1.3's and §1.4's; the task numbers
+are this plan's Phase B.
+
+| Order | Piece (hypothesis) | Breakdown | D1 delta | D5 delta | Census, D1 / D5 | The cut it implies | Audible? | Tier |
+|---|---|---|---|---|---|---|---|---|
+| **1** | Standing-by robots' voices (H2, A2) | not separable: its nodes are Gains and ConstantSources | **−0.124** | **−0.107** | −678 / −499 (Gains −506 / −374, ConstantSources −142 / −108) | Release a robot's voice when it leaves the sounding set, re-reserve and re-prime its links when it enters (T14, A/B T15) | No: Full has no standing-by robots; at Light an admitted robot's first note must not be late or clicked | **every tier** |
+| **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13) | Yes, the pedals go silent | **Light only** |
+| **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B | Yes | **Light only** |
+| **4** | EQ3, LPF and HPF at neutral (H5, A6) | 6 of the 15 rendering biquads | **−0.041** | **−0.019** | 0 / 0 | Out of the chain while neutral: reopens backlog 28's decision to keep them in (Crawford's), written into T19 | Probably not at neutral (the EQ3's crossover split is not bit-flat); needs a listen | every tier, if inaudible |
+| 5 | The bank's lanes and drift (H3b, A4) | 8 of the 25–28 rendering oscillators | −0.038 | below noise | −28 / −24 | Stop the drift secondaries while drift is held off (T17, A/B T18). A4 also stopped the lanes, which are audible, so the drift-only saving is a part of −0.038 and unpriced | No | every tier |
+| 6 | Dark cells' effect LFOs (H3a, A3) | 4–5 LFOs | −0.026 | below noise | −5 / −4 | Stop a dark cell's LFOs at the darken crossing, start them at the light crossing (T16, A/B T18). With H1 kept, every LFO cell is dark at Light, so this saves more there than A3 measured | No | every tier |
+| — | Send and room fabric (H5, A8 less A5 and the lit branches) | A8 unrenders 87 of 909 rendering Gains on D1 | ≈ −0.01 (estimate) | ≈ 0 (estimate) | 0 / 0 | **None: not worth a cut** (at the size of the noise band) | — | — |
+| — | Compressor, Limiter, ceiling (H5, A7) | DynamicsCompressor 0.7 / 0.7 % | below noise | below noise | 0 / 0 | **None: not worth a cut** (and musical, spec §1.3) | — | — |
+| — | Signals and Params (H3c) | ConstantSource 14.0 / 13.7 % (mostly trace overhead) | not ablatable | not ablatable | 329 / 336 live | None inside Tone; H2 is the lever (it removes 142 / 108 of them) | — | — |
+| — | Audio-rate biquads (H4) | BiquadFilter 3.6 / 3.5 % in all | in A1 and A6 | in A1 and A6 | 15 rendering | None of its own; H1 removes the lit Phaser's and AutoWah's at Light | — | — |
+
+**The recommended order, and why.**
+1. **H2 first.** It is the largest piece on both worlds, it is inaudible, so it ships on every tier with no gate, store
+   flag or copy, and it is the only lever on the ConstantSources nothing else can cut. Two things A2 did not price: the
+   cut re-primes a joining robot's links (A2 did not), and every admission is a connect into the live graph (backlog 29: about one connect in six loses one
+   quantum headless, inaudible on speakers). T15's A/B prices both.
+2. **H1 second.** Nearly as large, but audible, so it takes the Light-only tier and the UI work (T9–T12). On D1 it
+   overlaps H2 by about 0.04 (§3), so after H2 it may save nearer 0.05 there; on D5 there is no overlap.
+3. **The Reverb third**, as a new T19 piece, if a cap is wanted. It is the base chain's one large piece. A decay cap
+   saves an unknown part of −0.074 / −0.043. Turning the Reverb off at Light would save it all, but it is audible and
+   is not in the spec's list.
+4. **EQ3, LPF and HPF fourth**, only if Crawford reopens backlog 28. The number is −0.041 on D1 and −0.019 on D5. The
+   D1 rounds were the least steady of the outside-the-band deltas (−0.011 to −0.043).
+5. **H3b and H3a last.** Each is under 0.04 on D1 and below noise on D5. H3a grows if H1 is kept. Both are cheap and
+   inaudible, so they are worth building only after the large pieces, on their own A/Bs (T18).
+6. **Drop** the send and room fabric and the Compressor, Limiter and ceiling: below noise, or at its size.
+
+**What the top pieces might leave, as an estimate.** H2 and H1 together, less D1's overlap, come to about 0.18 on D1
+and 0.19 on D5. That would put Light near 0.38 and 0.31 against stock's 0.557 and 0.498 on this desktop. With the whole
+Reverb out as well, it would be near 0.31 and 0.27. These are estimates from deltas that do not add. Only the cuts'
+own A/Bs measure them, and only the Pixel sitting (Gate C) says whether that is enough.
+
+**The 70 % criterion is not met** (§4). The ablations explain 97 % (D1) and 69 % (D5) of the stock mean on the raw sum,
+and about 68–75 % and 55 % once the overlaps are taken out. The unexplained part is about 0.13–0.18 of capacity on D1
+and 0.22 on D5. What is left in the graph is the sounding robots' own voices (about 0.05–0.06 at A2's per-robot price,
+more while they play) and the fixed per-quantum floor (the destination, the worklet, the `?debug` analysers, the base
+Signals, Chrome's render bookkeeping). Neither is a cut H1–H5 names. **Gate A's choice** (plan, Gate A, second box) is
+one of two:
+- chase the remainder with one more ablation: every robot silenced, the base chain kept, to split the robots from the
+  floor;
+- or cut what is priced: H2 and H1 alone are about a third of the stock mean on both worlds.
