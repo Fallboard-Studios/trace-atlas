@@ -17,8 +17,10 @@
 [docs/intent/light-tier-standing-cost.md](../intent/light-tier-standing-cost.md) (interview 2026-10-27) and the
 measurements on backlog [27](../todo/backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included)
 (desktop steps 1, 2 and 2b of 2026-10-23; the Pixel sitting of 2026-10-26, both in
-[scratchy-audio-phones.md](../todo/scratchy-audio-phones.md)). Awaiting Crawford's approval; the plan follows it. This is
-backlog 27's own fix, so it carries no new number (§7 Q6); plan.md Stage 1's line points here once approved.
+[scratchy-audio-phones.md](../todo/scratchy-audio-phones.md)). **Approved by Crawford 2026-10-27**, with the plan's two
+deviations (ablation runs at 120 s; H2's mid-note release path decided in T14). Plan:
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md). This is backlog 27's own fix, so it
+carries no new number (§7 Q6); plan.md Stage 1's line points here.
 
 ---
 

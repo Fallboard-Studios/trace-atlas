@@ -115,7 +115,7 @@ T3 (census line on perf:audio) ─────────┤
 
 ### Phase 0: The slot
 
-- [ ] **Task 0: `docs/specs/LIGHT_TIER_STANDING_COST.md`, `docs/todo/plan.md`, `docs/todo/backlog.md` — the pointers**
+- [x] **Task 0: `docs/specs/LIGHT_TIER_STANDING_COST.md`, `docs/todo/plan.md`, `docs/todo/backlog.md` — the pointers** (2026-10-27)
 
   **Description:** The spec's **Status** line records approval and links this plan; plan.md's Stage 1 line for 27
   gains the spec and plan links (one sentence, the stage's wording kept); backlog 27's last update ("the sitting is

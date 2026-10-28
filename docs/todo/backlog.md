@@ -608,6 +608,14 @@ two to four robots sounding, `fx in 5/10`) and what else it could cut is a chang
 per the Stage 1 agreement it goes interview → spec → plan, with the two `main` sittings at Light (2026-10-23 and today)
 as the baseline. Where that sits in [plan.md](plan.md) is Crawford's call.
 
+**Update 2026-10-27: interviewed, specified and planned.** Intent
+[docs/intent/light-tier-standing-cost.md](../intent/light-tier-standing-cost.md), spec
+[docs/specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md), plan
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md): a decomposition of the standing cost at
+Light first (no product change), Crawford picks the cuts from its table, each cut kept or dropped on a desktop A/B,
+inaudible cuts every tier and audible ones Light's, and the Pixel sitting — clean by ear on D1 and D5 at Light — the
+one criterion. The item stays 27 (no new number); its Built line comes with the plan's T23.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
