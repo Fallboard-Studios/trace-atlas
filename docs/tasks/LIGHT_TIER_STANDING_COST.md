@@ -545,7 +545,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   (existing tests pin it); the build-time stop undoes it. `globalFx.test.ts`'s Phaser mock gained `_lfoL`/`_lfoR`, plus
   one rebuild case.
 
-- [ ] **Task 17: `src/engine/lfoEngine.ts` — the drift secondaries stopped while drift is held off**
+- [x] **Task 17: `src/engine/lfoEngine.ts` — the drift secondaries stopped while drift is held off** (2026-10-28)
 
   **Description:** `setDriftEnabled(false)` calls `stop()` on each lane's drift secondary beside detaching its two
   Gains; `(true)` starts them beside re-attaching; idempotent; a lane primed while drift is held off is primed stopped;
@@ -557,16 +557,25 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   stopped.
 
   **Acceptance criteria:**
-  - [ ] The lanes keep running at every tier; only the four secondaries stop; the drift amounts stored are untouched.
+  - [x] The lanes keep running at every tier; only the four secondaries stop; the drift amounts stored are untouched.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoEngine.test.ts` passes; `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/lfoEngine.test.ts` passes; `npm run build:types`, `npm run lint` clean. (Mutation
+        gate 6/6 killed.)
 
   **Dependencies:** Gate A.
 
   **Files:** `src/engine/lfoEngine.ts`, `src/engine/lfoEngine.test.ts`
 
   **Estimated scope:** XS
+
+  **As built (2026-10-28), a bug found on the way:** `primeLfoBank` attached and started the drift secondaries whatever
+  the tier, and `setDriftEnabled` is idempotent. So when the budget held drift off before the first power-on (Light,
+  the phone's default), the bank primed with drift **attached and running**, and it stayed that way until the drift
+  tier changed. Drift was audible at Light from boot, against the tier's own "no drift". A bank primed while drift is
+  held off is now built detached as well as stopped, the state `setDriftEnabled(false)` leaves; `(true)` attaches and
+  starts it. The restart is at `now + MIN_LEAD`; a stopped LFO holds its starting value, so the re-attached Gains see
+  no step. The A4 ablation's price (the whole bank) included this running drift.
 
 - [ ] **Task 18: `docs/todo/scratchy-audio-phones.md` — H3's A/Bs**
 

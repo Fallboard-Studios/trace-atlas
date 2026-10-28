@@ -244,16 +244,20 @@ function primeLfoBank(settings: Record<LfoLaneId, BankLfoSettings>): void {
     const rateDriftGain = new Tone.Gain(0);
     const depthDriftGain = new Tone.Gain(0);
     drift.connect(rateDriftGain);
-    connectAdditively(rateDriftGain, lfo.frequency);
     drift.connect(depthDriftGain);
-    connectAdditively(depthDriftGain, trunk.gain);
+    // Drift held off before the first power-on (the budget at Light): the secondary is built detached and stopped, as
+    // setDriftEnabled(false) leaves it; setDriftEnabled(true) attaches and starts it. Light tier standing cost H3b.
+    if (driftEnabled) {
+      connectAdditively(rateDriftGain, lfo.frequency);
+      connectAdditively(depthDriftGain, trunk.gain);
+    }
 
     bank.set(lane, { lfo, trunk, drift, rateDriftGain, depthDriftGain });
     bankSettings.set(lane, { ...laneSettings });
     refreshLaneDrift(lane);
 
     lfo.start(startAt);
-    drift.start(startAt);
+    if (driftEnabled) drift.start(startAt);
   });
   primed = true;
 }
@@ -370,8 +374,10 @@ function disposeRobotLinks(robotId: string): void {
 // PUBLIC API — LOAD DIAL
 // ========================================
 
-/** Detach/re-attach every lane's drift secondary (the Audio Load Budget's drift tier). Idempotent;
- *  the seeded/edited drift amounts themselves are never touched — only the links are suspended. */
+/** Detach and stop / re-attach and start every lane's drift secondary (the Audio Load Budget's drift tier; stopping it,
+ *  not only detaching it, is Light tier standing cost H3b). Idempotent; the lanes themselves keep running, and the
+ *  seeded/edited drift amounts are never touched. A stopped LFO holds its starting value, so the restart at
+ *  now + MIN_LEAD carries on from what the re-attached Gains already see. */
 function setDriftEnabled(enabled: boolean): void {
   if (enabled === driftEnabled) return;
   driftEnabled = enabled;
@@ -387,10 +393,20 @@ function setDriftEnabled(enabled: boolean): void {
       } catch (err) {
         devWarn('[lfoBank] setDriftEnabled: depth-drift disconnect failed', err);
       }
+      try {
+        nodes.drift.stop();
+      } catch (err) {
+        devWarn('[lfoBank] setDriftEnabled: drift stop failed', err);
+      }
     } else {
       connectAdditively(nodes.rateDriftGain, nodes.lfo.frequency);
       connectAdditively(nodes.depthDriftGain, nodes.trunk.gain);
       refreshLaneDrift(lane);
+      try {
+        nodes.drift.start(Tone.now() + MIN_LEAD);
+      } catch (err) {
+        devWarn('[lfoBank] setDriftEnabled: drift start failed', err);
+      }
     }
   }
 }
