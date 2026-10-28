@@ -212,7 +212,7 @@ T3 (census line on perf:audio) ─────────┤
 
   **Estimated scope:** M (one new runner, one helper extracted, one script line)
 
-- [ ] **Task 3: `scripts/perf/audio-load-lib.mjs`, `scripts/perf/audio-load.mjs` — the census line**
+- [x] **Task 3: `scripts/perf/audio-load-lib.mjs`, `scripts/perf/audio-load.mjs` — the census line** (2026-10-27)
 
   **Description:** `formatCensus(liveByType)` in the lib renders the full live-nodes-by-type snapshot as one line
   (`census after warm-up (1812): Gain 611 · ConstantSource 290 · BiquadFilter 41 · …`, largest first, the total in

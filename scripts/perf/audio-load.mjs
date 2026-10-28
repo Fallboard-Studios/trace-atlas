@@ -29,6 +29,7 @@ import {
   bucketSamples,
   createNodeTally,
   diffByType,
+  formatCensus,
   parseAudibleFromHud,
   parseBudgetFromHud,
   parseHeapMb,
@@ -174,6 +175,7 @@ function report(run) {
     console.log('carried after warm-up:');
     for (const line of run.carried) console.log(`  ${line}`);
   }
+  console.log(formatCensus(run.nodesByType.atStart));
   const { byType, lines } = run.consoleTally;
   console.log(`console: ${byType.warning} warnings, ${byType.error} errors`);
   for (const { type, text, count } of lines) console.log(`  ${count}× ${type}: ${text}`);
