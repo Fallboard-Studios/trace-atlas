@@ -117,11 +117,8 @@ and plan are re-ordered from it (plan, Gate A's third box).
   kept or dropped on its own desktop A/B:
   1. **Release a standing-by robot's voice** and re-reserve it, with its links, when it is admitted (H2; −0.124 D1,
      −0.107 D5). An admitted robot's first note must not be late or clicked.
-  2. **EQ3, LPF and HPF out of the chain while all three sit at neutral**, back in when one moves (H5, A6; −0.041,
-     −0.019). This reopens backlog 28's decision to keep them in. Crawford: "if they're inaudible then let's give them
-     the treatment." It needs a listen that neutral-out is inaudible as well as the A/B, and is dropped if it is heard.
-  3. **Stop a dark cell's effect LFOs**, and start them when it lights (H3a; −0.026 D1, below noise D5).
-  4. **Stop the drift secondaries while drift is held off** (H3b; part of A4's −0.038 D1, unpriced on its own).
+  2. **Stop a dark cell's effect LFOs**, and start them when it lights (H3a; −0.026 D1, below noise D5).
+  3. **Stop the drift secondaries while drift is held off** (H3b; part of A4's −0.038 D1, unpriced on its own).
   The two small ones ride in the batch although each is small on D1 and below noise on D5: the phone has less headroom
   than the desktop.
 - **Then the phone.** If the inaudible batch alone is clean on D1 and D5 at Light, the work stops there and Light
@@ -138,8 +135,11 @@ and plan are re-ordered from it (plan, Gate A's third box).
 - **One sitting for the audible cuts, not one each.** All three are built, then served as three stacked builds side by
   side (pedals off; pedals off plus the shorter Reverb; all three). Crawford tries them in that order in one rested
   sitting and stops at the first that is clean. Only the cuts up to that one are kept; any cut past it is reverted.
-- **Dropped at Gate A:** the Compressor, Limiter and ceiling (below noise on both worlds) and the send and room fabric
-  (about 0.01 on D1 and nothing on D5 once the Reverb and the lit branches are taken out).
+- **Dropped at Gate A:** the Compressor, Limiter and ceiling (below noise on both worlds); the send and room fabric
+  (about 0.01 on D1 and nothing on D5 once the Reverb and the lit branches are taken out); and **EQ3, LPF and HPF out
+  at neutral** (A6; −0.041, −0.019). Crawford first wanted the filters cut if inaudible, then dropped it: the EQ levels
+  are seeded, so the worlds are not at neutral and the cut would rarely apply. Backlog 28's decision to keep them in
+  stands.
 - **Out of scope:** any audible change to Full or Standard; a robot voice built on fewer nodes (a spec of its own,
   spec §1.6 past step 4); Standard holding effects off too (spec §1.6 step 3, only if Standard is heard to click,
   which this work does not test); the late collapse, as above.
