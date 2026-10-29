@@ -1804,7 +1804,7 @@ are this plan's Phase B.
 | Order | Piece (hypothesis) | Breakdown | D1 delta | D5 delta | Census, D1 / D5 | The cut it implies | Audible? | Tier |
 |---|---|---|---|---|---|---|---|---|
 | **1** | Standing-by robots' voices (H2, A2) | not separable: its nodes are Gains and ConstantSources | **−0.124** | **−0.107** | −678 / −499 (Gains −506 / −374, ConstantSources −142 / −108) | Release a robot's voice when it leaves the sounding set, re-reserve and re-prime its links when it enters (T14, A/B T15). **A/B (§8): D1 −0.065, D5 +0.013**, inside that sitting's noise band (0.101 / 0.120); A2's price was the docked robots, not H2 | No: Full has no standing-by robots; at Light an admitted robot's first note must not be late or clicked | **every tier** |
-| **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13) | Yes, the pedals go silent | **Light only** |
+| **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13). **A/B (§11): D1 −0.289, D5 −0.096**, cheaper in all six rounds; crossings ≤ ×1.014 | Yes, the pedals go silent | **Light only** |
 | **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B | Yes | **Light only** |
 | **4** | EQ3, LPF and HPF at neutral (H5, A6) | 6 of the 15 rendering biquads | **−0.041** | **−0.019** | 0 / 0 | Out of the chain while neutral: reopens backlog 28's decision to keep them in (Crawford's), written into T19 | Probably not at neutral (the EQ3's crossover split is not bit-flat); needs a listen | every tier, if inaudible |
 | 5 | The bank's lanes and drift (H3b, A4) | 8 of the 25–28 rendering oscillators | −0.038 | below noise | −28 / −24 | Stop the drift secondaries while drift is held off (T17, A/B T18). A4 also stopped the lanes, which are audible, so the drift-only saving is a part of −0.038 and unpriced. **A/B (§9): D1 −0.017, D5 −0.015**, inside that sitting's noise band | No | every tier |
@@ -2122,3 +2122,49 @@ recorded, not gated).
   whether Phase C2 starts, are Crawford's.
 - **Deviations:** one run per cell; the branch's Light runs were not repeated; run 5 was read at 5:00 instead of 4:00;
   order as listed; the phone's rest between runs not timed; Gate B's desktop listen was not run first (T20).
+
+### 11. Phase C2, H1's A/B — the pedals and colour held off at Light (T13, 2026-10-29)
+
+Gate C missed (Crawford, 2026-10-29: "turn off the pedals and reverb on light"), so Phase C2 started with H1. **Method:**
+§8's driver and aggregator, in one sitting: the cut is T12's commit `1b117e3a` (`index-pklsL_s5`, T9–T12 in, :4223)
+against the branch's base `8de20e21` (no `src` change since `a0728358`, so the build is §10's `index-CJ4I0byy`,
+:4221). D1 and D5 at Light, 240 s, 15 s buckets, three rounds with the order inside each pair alternating by round,
+then one Full run per world per arm. Every run exit 0, orphaned Chrome 0 before and after. Phase A's price: A1 −0.093
+on D1, −0.083 on D5. **No fresh noise band:** the sitting was not idle (Crawford's own Chrome was open, 49 processes),
+and the base's own round-to-round spread is given instead. The overlay confirms the cut: the base reads `fx in 5/10`
+at Light on both worlds, the cut `fx in 0/10` and `· fx off`; at Full both read `fx in 5/10`.
+
+| | D1 | D5 |
+|---|---|---|
+| **Delta**, median (r1 · r2 · r3) | **−0.289** (−0.245 · −0.289 · −0.333) | **−0.096** (−0.096 · −0.191 · −0.073) |
+| Base mean, median (range) | 0.776 (0.734–0.836) | 0.614 (0.431–0.825) |
+| Cut mean, r1 · r2 · r3 | 0.531 · 0.547 · 0.401 | 0.518 · 0.634 · 0.359 |
+| Peak window, base → cut | 0.933 → 0.655 · 0.929 → 0.686 · 0.866 → 0.500 (falls every round) | 0.701 → 0.643 · 0.985 → 0.868 · 0.501 → 0.462 (falls every round) |
+| `max lag`, base / cut | 31 · 57 · 33 / 22 · 34 · 24 ms | 30 · 36 · 22 / 26 · 38 · 24 ms |
+| Full, base → cut | 0.623 → 0.622 (−0.001) | 0.598 → 0.579 (−0.020) |
+| Mean live nodes, base / cut | 1 691 · 1 689 · 1 688 / 1 682 · 1 686 · 1 684 | 1 671 · 1 662 · 1 669 / 1 663 · 1 665 · 1 666 |
+
+**Reading against spec §1.5 step 3.** The mean drops by more than A1's price on both worlds (by about three times on D1)
+and in every one of the six rounds; the peak window falls in every round; the cut's `max lag` sits inside the base's
+spread except D5 round 2's 38 ms against a base high of 36; Full reads the same within 0.02. The census barely moves,
+as A1's did (a dark cell's nodes stay live; its effect is simply not rendered). Two cautions. The base reads far
+higher here than in Phase A or §8 (D1 0.78 against 0.56–0.64), and D5's base spans 0.43–0.83, so absolute numbers
+from this sitting are not comparable with earlier ones; only the paired deltas are, and they all point one way. Why
+D1's delta is three times A1's is not known: the two worlds light different sets (D1 the Frequency Shifter, D5 the Vibrato; §2), and lit effects may cost more on a busy machine; neither is tested.
+
+**The crossing** (spec §1.5 step 4; §8's probe and its stereo tone, run against the dev server at T12's tree, three
+rounds; the probe calls `setEffectsHeldOff` directly, the function the budget's push reaches): a Phaser lit at Mix 0.3,
+then held off and lifted; the Colour room fed (a 0.5 send) with the Distortion lit at 0.5 in it, held off and lifted.
+Each cell read out of the path after the hold-off and back in after the lift, in every run.
+
+| Crossing | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Phaser held off | ×1.014 · ×1.001 · ×1.000 | none | 0.3 · 0.3 · 0.2 ms |
+| Phaser lifted | ×1.000 · ×1.001 · ×1.000 | none | 0.9 · 0.6 · 1.0 ms |
+| Colour room held off | ×0.998 · ×0.998 · ×0.998 | none | 0.1 · 0.2 · 0.0 ms |
+| Colour room lifted | ×0.996 · ×0.996 · ×0.996 | none | 0.3 · 0.2 · 0.1 ms |
+| Control (no change) | ×0.999–×1.000 | none | — |
+| Abrupt (the metric's check) | ×264–×1 044 | 5 376–15 427 samples | — |
+
+**Verdict:** Crawford's, on these numbers; by the bar as written H1 is kept. Next in Phase C2 is the Reverb, off at
+Light (T19 and T24, rewritten before they are built).

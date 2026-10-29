@@ -856,7 +856,7 @@ C2). None of it starts unless Gate C misses.
   `load=full` `fx in 5/10`; `fin ok` on all three. The box stays open for the look: the ten rows greyed on screen and
   Effects Load dragged past 40 % live (Crawford's, with Gate B's listen).
 
-- [ ] **Task 13: `docs/todo/scratchy-audio-phones.md` — H1's A/B and crossing**
+- [x] **Task 13: `docs/todo/scratchy-audio-phones.md` — H1's A/B and crossing** (2026-10-29)
 
   **Description:** Spec §1.5 steps 3–4. The branch (T9–T12 in) against the branch's base, same session, three
   interleaved rounds, D1 and D5 at Light, 240 s: kept when the mean drops by at least A1's price less the noise band,
@@ -868,17 +868,24 @@ C2). None of it starts unless Gate C misses.
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] The four numbers (mean delta, peak, `max lag`, Full) and the crossing figure stated with spreads; the verdict
+  - [x] The four numbers (mean delta, peak, `max lag`, Full) and the crossing figure stated with spreads; the verdict
         is Crawford's on them.
 
   **Verification:**
-  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
+  - [x] Hygiene as Phase A2; the record traces to the JSON files.
 
   **Dependencies:** Task 12.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
   **Estimated scope:** S (~30 minutes of runs plus the recorder)
+
+  **As run (2026-10-29):** the decomposition's §11; T12's commit `1b117e3a` against the base `8de20e21` (the
+  `a0728358` build), 16 runs, every exit 0, orphaned Chrome 0. Light: D1 **−0.289** (−0.245 to −0.333), D5
+  **−0.096** (−0.073 to −0.191), cheaper in all six rounds, the peak window lower in all six; `max lag` inside the
+  base's spread but D5 round 2 (38 ms against 36); Full −0.001 / −0.020. Crossings ≤ ×1.014, no gap. Deviations: no
+  fresh noise band (Crawford's Chrome was open; the base's spread is given instead, D5's 0.43–0.83), and the sitting's
+  absolute numbers sit far above earlier ones, so only its paired deltas compare. About 75 minutes of runs, not 30.
 
 **The Reverb, shorter at Light** (spec §1.3 H5, §1.6 (2); audible → Light only)
 
