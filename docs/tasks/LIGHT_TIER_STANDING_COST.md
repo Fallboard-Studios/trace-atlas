@@ -987,11 +987,15 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   cancel, the zeroed return, the reconnect, the ramp target, the Amount written or not recorded while held, the wire's
   hold check and reset, the drop's edge guard; limits 3; budget 5; store 1; hook 2; panel 3; overlay 2). Full suite:
   12 479 of 12 480, the one failure `sceneToOrbiterLocal`'s 6 s timeout under the parallel run (known; 10/10 alone).
+  **Follow-up (T24's finding, Crawford's go-ahead 2026-10-29):** the lift after a drop resets the Convolver first
+  (`resetReverbConvolver`: its native buffer set again, through Tone's private `_convolver`, skipped without it) and
+  the return ramps up over `REVERB_LIFT_RAMP_SECONDS` = 1 s, not 50 ms; a lift before the drop fired skips the reset.
+  RED 4 of 16; 7 mutants killed. The probe on the committed code: lift ×0.985 / ×1.427 / ×1.015, ghost 0 (§12).
   **Headless (production build `index-QdwFf1-U`, D1):** `load=light` reads `fx in 0/10` and
   `lfo drift off · filter off · bus off · fx+rev off`; `load=light&fxLoad=standard` and `load=full` read
   `fx in 5/10` and neither tail; `fin ok` on all three.
 
-- [ ] **Task 24: `docs/todo/scratchy-audio-phones.md` — the Reverb off: A/B and crossing**
+- [x] **Task 24: `docs/todo/scratchy-audio-phones.md` — the Reverb off: A/B and crossing** (2026-10-29)
 
   **Description:** Spec §1.5 steps 3–4 against T13's commit: D1 and D5 at Light, 240 s, three interleaved rounds; kept
   when the mean drops by at least A5's price (D1 −0.074, D5 −0.043) less the noise band, the peak window does not rise,
@@ -1006,12 +1010,12 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] The four numbers and the crossing figure stated with spreads; the ghost-tail reading and Crawford's ear on the
-        lift recorded; the verdict is Crawford's on them. (2026-10-29: numbers, crossing and ghost reading recorded;
-        Crawford's ear and the verdict open.)
+  - [x] The four numbers and the crossing figure stated with spreads; the ghost-tail reading and Crawford's ear on the
+        lift recorded; the verdict is Crawford's on them. (2026-10-29: recorded; Crawford: "listen is fine", the
+        reset + 1 s lift added to T19, re-probed inside the bar.)
 
   **Verification:**
-  - [ ] Hygiene as Phase A2; the record traces to the JSON files.
+  - [x] Hygiene as Phase A2; the record traces to the JSON files.
 
   **Dependencies:** Task 19.
 

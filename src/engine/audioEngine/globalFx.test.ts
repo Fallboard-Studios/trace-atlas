@@ -4196,7 +4196,60 @@ describe('globalFx', () => {
       globalFx.setReverbHeldOff(false);
       expect(connectsTo(reverb, ret)).toBe(edges + 1);
       expect(returnAtConnect).toBe(0);
-      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0.37, live.COLOUR_RAMP_SECONDS);
+      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0.37, globalFx.REVERB_LIFT_RAMP_SECONDS);
+    });
+
+    // T24's follow-up (Crawford, 2026-10-29): the lift resets the Convolver and ramps up over a second. An unrendered
+    // Convolver keeps its tail and replayed it on the lift (the decomposition's §12); re-setting its impulse buffer builds a
+    // fresh kernel, and the slower ramp hides the send's signal entering it at once.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function withConvolver(reverb: any) {
+      const buffer = { length: 1 };
+      let current: unknown = buffer;
+      const set = vi.fn((value: unknown) => { current = value; });
+      reverb._convolver = Object.defineProperty({}, 'buffer', { configurable: true, get: () => current, set });
+      return { buffer, set };
+    }
+
+    it('ramps up over REVERB_LIFT_RAMP_SECONDS, a second, slower than the 50 ms the hold-off ramps down', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.REVERB_LIFT_RAMP_SECONDS).toBe(1);
+    });
+
+    it('resets the Convolver (its own buffer set again) on a lift after the drop, before the edge is re-made', async () => {
+      const { globalFx, reverb, ret } = await built();
+      const { buffer, set } = withConvolver(reverb);
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      let resetBeforeConnect = false;
+      reverb.connect.mockImplementationOnce(function (this: unknown) { resetBeforeConnect = set.mock.calls.length === 1; return this; });
+      globalFx.setReverbHeldOff(false);
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledWith(buffer);
+      expect(resetBeforeConnect).toBe(true);
+      expect(connectsTo(reverb, ret)).toBeGreaterThan(0);
+    });
+
+    it('does not reset a Convolver that never stopped rendering (a lift before the drop fired)', async () => {
+      const { globalFx, reverb } = await built();
+      const { set } = withConvolver(reverb);
+      globalFx.setReverbHeldOff(true);
+      globalFx.setReverbHeldOff(false);
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it('lifts all the same, without a reset, when Tone keeps no Convolver where it is looked for, or it has no buffer yet', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      expect(() => globalFx.setReverbHeldOff(false)).not.toThrow();
+      expect(connectsTo(reverb, ret)).toBeGreaterThan(0);
+      const { set } = withConvolver(reverb);
+      reverb._convolver = Object.defineProperty({}, 'buffer', { configurable: true, get: () => null, set });
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      globalFx.setReverbHeldOff(false);
+      expect(set).not.toHaveBeenCalled();
     });
 
     it('a lift before the drop fires cancels the drop and keeps the edge, ramping back up', async () => {
@@ -4209,7 +4262,7 @@ describe('globalFx', () => {
       fireTimeouts();
       expect(disconnectsFrom(reverb, ret)).toBe(0);
       expect(connectsTo(reverb, ret)).toBe(edges);
-      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0.4, live.COLOUR_RAMP_SECONDS);
+      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0.4, globalFx.REVERB_LIFT_RAMP_SECONDS);
     });
 
     it('writes nothing on a re-sent hold-off, and nothing on a lift that was never held', async () => {

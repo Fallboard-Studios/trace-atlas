@@ -2216,3 +2216,9 @@ most of that. Both together read ×1.12–×1.70, one round just over the bar.
 **Verdict:** Crawford's. Open: his ear on a desktop lift (Effects Load dragged 0.2 → 0.6 with notes ringing), and
 whether the lift becomes AB (a follow-up commit on T19, as T24 allows for the ghost; the 1 s ramp is a change T24 did
 not foresee).
+
+**Crawford, 2026-10-29:** "listen is fine"; AB goes in as T19's follow-up (`REVERB_LIFT_RAMP_SECONDS` = 1 and
+`resetReverbConvolver` on a lift after the drop). **The committed lift, same probe, three rounds:** hold-off ×0.912 ·
+×1.020 · ×0.922; lift **×0.985 · ×1.427 · ×1.015**; ghost RMS **0 · 0 · 0** (steady 0.125 · 0.033 · 0.012); control
+×0.999–×1.000; abrupt ×234–×1 044. Inside the bar in every run. The A/B above is unaffected: the follow-up changes only
+the lift, which no Light run crosses.

@@ -643,6 +643,27 @@ export function getEffectsHeldOff(): boolean {
 // THE REVERB HOLD-OFF (docs/specs/LIGHT_TIER_STANDING_COST.md §1.6 (2), T19)
 // ========================================
 
+/** How long the Reverb's return ramps up on a lift. Slower than the 50 ms it ramps down: the robots' sends reach a
+ *  freshly reset Convolver at once, and a 50 ms ramp let that onset through (×3.3–×3.9 with the reset alone; ×1.1–×1.7
+ *  with this ramp; docs/todo/scratchy-audio-phones.md, the decomposition's §12). Crawford, 2026-10-29. */
+export const REVERB_LIFT_RAMP_SECONDS = 1;
+
+/** Reset the Reverb's Convolver by setting its impulse buffer again, which makes the browser build a fresh kernel. An
+ *  unrendered Convolver keeps the tail it held when its edge was dropped, and replayed it on the lift at a fifth to a
+ *  half of its steady level (§12). Tone keeps the native ConvolverNode on its private `_convolver` (Tone 15's
+ *  Reverb.generate() sets that field's buffer the same way); without it, or before it has a buffer, the lift goes ahead
+ *  without the reset. */
+function resetReverbConvolver(): void {
+  const convolver = (_globalReverb as unknown as { _convolver?: { buffer: AudioBuffer | null } } | null)?._convolver;
+  const buffer = convolver?.buffer;
+  if (!convolver || !buffer) return;
+  try {
+    convolver.buffer = buffer;
+  } catch (err) {
+    devWarn('[AudioEngine] the Reverb could not be reset on its lift; its old tail may replay', err);
+  }
+}
+
 /** Make the Reverb's edge to where its output goes (its return), if it is not there. */
 function connectReverbEdge(): void {
   const reverb = _globalReverb;
@@ -672,8 +693,9 @@ function dropReverbEdge(): void {
 /**
  * The budget's word on the Reverb (audioBudgetSystem, below LOAD_REVERB_MIN). Held off, the return ramps to 0 over
  * COLOUR_RAMP_SECONDS and, once the audio clock has run the ramp (writeCellMix's timing), the Reverb's edge to it is
- * dropped: the Reverb and every robot's reverb send stop being rendered. Lifted, a pending drop is cancelled, the edge
- * is re-made while the return is at 0, and the return ramps to the recorded Amount. A re-sent value writes nothing.
+ * dropped: the Reverb and every robot's reverb send stop being rendered. Lifted, a pending drop is cancelled; if the
+ * edge was dropped, the Convolver is reset (resetReverbConvolver) and the edge re-made while the return is at 0; then
+ * the return ramps to the recorded Amount over REVERB_LIFT_RAMP_SECONDS. A re-sent value writes nothing.
  * Length and Pre-Delay keep reaching the node, so the lift is exact; the Delay is untouched.
  */
 export function setReverbHeldOff(heldOff: boolean): void {
@@ -697,10 +719,14 @@ export function setReverbHeldOff(heldOff: boolean): void {
     context.clearTimeout(_reverbDrop);
     _reverbDrop = null;
   }
-  // A dropped edge is re-made silent: the return goes to 0 first (nothing feeds it yet), then ramps up.
-  if (ret && !_reverbEdge) ret.gain.value = 0;
+  // A dropped edge is re-made silent and clean: the Convolver's kept tail is cleared, the return goes to 0 (nothing feeds
+  // it yet), and then it ramps up. An edge that was never dropped kept rendering, so there is nothing to clear.
+  if (!_reverbEdge) {
+    resetReverbConvolver();
+    if (ret) ret.gain.value = 0;
+  }
   connectReverbEdge();
-  if (ret) rampOrSet(ret.gain, _reverbWet, COLOUR_RAMP_SECONDS);
+  if (ret) rampOrSet(ret.gain, _reverbWet, REVERB_LIFT_RAMP_SECONDS);
 }
 
 /** Whether the Reverb is held off, for the `?debug` overlay. */
