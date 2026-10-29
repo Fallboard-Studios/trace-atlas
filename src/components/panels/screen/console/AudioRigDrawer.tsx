@@ -8,6 +8,7 @@ import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { Stepper } from '@/components/ui/controls/Stepper';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
+import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
 import { TempoSyncSlider } from '@/components/ui/controls/TempoSyncSlider';
 import type { NoteValue } from '@/data/noteValues';
@@ -73,21 +74,37 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   limiter: 'output',
 };
 
+/** The ten effects the Effects Load dial holds dark below LOAD_EFFECTS_MIN (docs/specs/LIGHT_TIER_STANDING_COST.md H1),
+ *  each with the one field that is its Mix: `wet` (for the Chorus and the Shifter, their room's Return), Width's `width`.
+ *  While `effectsHeldOff`, that row greys out with a HeldOffNote and keeps its stored value; every other row stays live. */
+const EFFECT_MIX_FIELD: Partial<Record<AudioRigEffectKey, string>> = {
+  distortion: 'wet',
+  chebyshev: 'wet',
+  bitCrusher: 'wet',
+  autoWah: 'wet',
+  phaser: 'wet',
+  chorus: 'wet',
+  tremolo: 'wet',
+  vibrato: 'wet',
+  frequencyShifter: 'wet',
+  stereoWidener: 'width',
+};
+
 /** Dispatches a param's ControlSchema to its matching primitive. Covers only
  *  the 4 variants GLOBAL_CHAIN_GRID.md's UI column actually uses for this
  *  drawer — audioRigConfig.test.ts is what guards the closed set in practice.
  *  No verticalHeight is forwarded: every Audio Rig slider is horizontal since
  *  docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 (pinned in audioRigConfig.test.ts). */
-function renderParamControl(param: AudioRigParamSchema, value: number, onChange: (v: number) => void, swelling: boolean) {
+function renderParamControl(param: AudioRigParamSchema, value: number, onChange: (v: number) => void, swelling: boolean, disabled: boolean) {
   switch (param.schema.type) {
     case 'sliderLinear':
-      return <SliderLinear schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
+      return <SliderLinear schema={param.schema} value={value} onChange={onChange} swelling={swelling} disabled={disabled} />;
     case 'sliderLog':
-      return <SliderLog schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
+      return <SliderLog schema={param.schema} value={value} onChange={onChange} swelling={swelling} disabled={disabled} />;
     case 'sliderCenteredZero':
-      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
+      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} swelling={swelling} disabled={disabled} />;
     case 'stepper':
-      return <Stepper schema={param.schema} value={value} onChange={onChange} />;
+      return <Stepper schema={param.schema} value={value} onChange={onChange} disabled={disabled} />;
     default:
       return null;
   }
@@ -100,12 +117,14 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
  *  rather than building `(v) => updateParam(param.field, v)` inline here — that inline arrow was a
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
  *  regardless of how many of them got memoized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
- *  Task 12). */
-function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode) {
+ *  Task 12). `heldOff` (the Effects Load dial holding this effect's Mix row dark) disables the control, greys the row
+ *  and adds the HeldOffNote, the stored value kept on the control. */
+function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode, heldOff = false) {
   return (
-    <div className="audio-rig-drawer__param-row" key={param.field}>
-      {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field))}
+    <div className={withHeldOffClass('audio-rig-drawer__param-row', heldOff)} key={param.field}>
+      {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field), heldOff)}
       {lfoLink}
+      {heldOff && <HeldOffNote />}
     </div>
   );
 }
@@ -217,6 +236,11 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // a flip it doesn't care about (the existing per-frame re-render guard, applied to a store-wide flag now).
   const isFilterBlock = effectKey === 'filterLPF' || effectKey === 'filterHPF';
   const filterLinksHeldOff = useAudioStore((s) => isFilterBlock && s.filterLinksHeldOff);
+  // The effects tier (docs/specs/LIGHT_TIER_STANDING_COST.md H1), the same stable-`false` shape: only the ten effects'
+  // panels subscribe to the flip, and only their Mix row greys.
+  const mixField = EFFECT_MIX_FIELD[effectKey];
+  const effectsHeldOff = useAudioStore((s) => mixField !== undefined && s.effectsHeldOff);
+  const isHeldOffMix = (field: string): boolean => effectsHeldOff && field === mixField;
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
   // Delay Time's Tempo Sync (docs/specs/FREE_SYNC_TOGGLE.md §1.4): `sync` and `bpm` get their own selectors
@@ -374,7 +398,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
                 swelling={isGlobalTargetSwelling(effectKey, 'rate')}
               />
             </div>
-            {block.params.filter((param) => param.field !== 'rate').map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey))}
+            {block.params.filter((param) => param.field !== 'rate').map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey, undefined, isHeldOffMix(param.field)))}
           </>
         ) : block.key === 'reverb' ? (
           // Reverb Length beside Pre-Delay on a responsive top row; Reverb Amount its own full-width row
@@ -400,6 +424,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
                 {isFilterBlock && filterLinksHeldOff && <HeldOffNote />}
               </>
             ) : undefined,
+            isHeldOffMix(param.field),
           ))
         )}
       </DirectionalPanel>

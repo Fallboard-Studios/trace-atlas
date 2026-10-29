@@ -813,7 +813,7 @@ C2). None of it starts unless Gate C misses.
   store), the flag inverted, the store's no-op guard, and `effectsEnabled` dropped from the key (it survived until a
   test moved `LOAD_EFFECTS_MIN` to 0.5 through a mocked constant: today it shares 0.4 with the filter tier).
 
-- [ ] **Task 12: the ten Mix rows, `AudioLoadPanel.tsx`, `hudLines.ts`, `audioDiagnostics.ts`, `src/content/` — the UI and the overlay**
+- [x] **Task 12: the ten Mix rows, `AudioLoadPanel.tsx`, `hudLines.ts`, `audioDiagnostics.ts`, `src/content/` — the UI and the overlay** (2026-10-29)
 
   **Description:** Each of the ten Mix controls (the Colour drawer's three, the six Modulation sub-tabs' Mix/Return
   rows that are cells or branches, Width) disables with a `HeldOffNote` while `effectsHeldOff`, the stored value kept
@@ -826,10 +826,10 @@ C2). None of it starts unless Gate C misses.
   with `effectsHeldOff` true the Mix control is disabled and the note rendered, the slider value unchanged.
 
   **Acceptance criteria:**
-  - [ ] All ten rows grey together and un-grey together; no literal string in a component (`content.test.ts`).
+  - [x] All ten rows grey together and un-grey together; no literal string in a component (`content.test.ts`).
 
   **Verification:**
-  - [ ] `npx vitest run src/components` passes; `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components` passes; `npm run build:types`, `npm run lint` clean.
   - [ ] Manual: `?debug&load=light` on D1 — the ten rows greyed with the note, the overlay line ending `fx off`,
         `fx in 0/10` once the timers fire; drag Effects Load past 40 % — rows un-grey, `fx in` returns to the world's count.
 
@@ -839,6 +839,22 @@ C2). None of it starts unless Gate C misses.
   `src/components/.../AudioLoadPanel.tsx`, `src/components/debug/hudLines.ts` + test, `src/engine/audioDiagnostics.ts`, `src/content/…`
 
   **Estimated scope:** M (several panels, one line each, plus the overlay)
+
+  **As built (2026-10-29):** the ten rows are not ten panels: every one renders through `AudioRigEffectPanel`'s one
+  `paramRow` (`AudioRigDrawer.tsx`), so the change is one map (`EFFECT_MIX_FIELD`: the ten effects and their Mix field,
+  Width's `width`) and a `heldOff` argument on `paramRow` (the control disabled, `withHeldOffClass` on the row, the
+  existing `ui.heldOff` note), no new copy. The selector returns a stable `false` for the seven other panels, so they
+  never re-render on the flip (a Profiler test pins it). The Chorus's and the Shifter's rows grey too, though they
+  write their room's Return. `AudioLoadPanel.tsx` needed no change: its readout is `describeLimits` (T9); its test
+  gained the Light/Standard phrase (green on arrival, from T9). The overlay: `DiagInfo.effectsHeldOff` reads
+  `getEffectsHeldOff()`; `tiersLine` appends ` · fx off` from it, beside a dash for an unknown dial too. RED: the
+  panel's 21 held-off cases, the HUD's 2, the diagnostics' 2. 10 mutants killed (never held, every row held, no note,
+  no class, no disable, the synced-rate branch unwired, every panel subscribed, the HUD token, the diagnostics read).
+  **Manual, headless half (2026-10-29):** a production build of this commit's tree on :4213, D1 through
+  `withPoweredWorld`: `load=light` reads `fx in 0/10` and `lfo drift off · filter off · bus off · fx off` after the
+  4 s warm-up and 2 s later; `load=light&fxLoad=standard` reads `fx in 5/10` (D1's five, T5) and no `fx off`;
+  `load=full` `fx in 5/10`; `fin ok` on all three. The box stays open for the look: the ten rows greyed on screen and
+  Effects Load dragged past 40 % live (Crawford's, with Gate B's listen).
 
 - [ ] **Task 13: `docs/todo/scratchy-audio-phones.md` — H1's A/B and crossing**
 

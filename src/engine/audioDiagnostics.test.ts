@@ -123,8 +123,11 @@ const tapSpies = {
 // Dark-Effect Bypass T9: the bypass cells' connected count, and whether the chain exists at all.
 let fakeFxConnected = 2;
 let fakeChainBuilt = true;
+// Light tier standing cost T12: the engine's effects hold-off.
+let fakeEffectsHeldOff = false;
 vi.mock('./audioEngine/globalFx', () => ({
   getConnectedEffectCount: () => fakeFxConnected,
+  getEffectsHeldOff: () => fakeEffectsHeldOff,
   getGlobalChainEntry: () => (fakeChainBuilt ? {} : null),
   getMasterVolume: () => tapSpies.volume(),
   attachOutputTaps: () => tapSpies.attach(),
@@ -182,6 +185,7 @@ describe('audioDiagnostics runtime', () => {
     fakeLfoBank = { a: { rate: 0.2 }, b: { rate: 0.8 }, c: { rate: 0 }, d: { rate: 0 } };
     fakeFxConnected = 2;
     fakeChainBuilt = true;
+    fakeEffectsHeldOff = false;
     tapSpies.volume.mockReset();
     tapSpies.attach.mockClear();
     tapSpies.detach.mockClear();
@@ -377,6 +381,27 @@ describe('audioDiagnostics runtime', () => {
       fakeChainBuilt = true;
       fakeFxConnected = 1;
       expect(fxConnected()).toBe(1);
+    });
+  });
+
+  describe('the effects hold-off (Light tier standing cost T12)', () => {
+    const effectsHeldOff = () => {
+      advance();
+      return diag.getDiagnosticsSnapshot().info.effectsHeldOff;
+    };
+
+    it('reads the engine’s hold-off, and follows a live change within one sample', () => {
+      expect(effectsHeldOff()).toBe(false);
+      fakeEffectsHeldOff = true;
+      expect(effectsHeldOff()).toBe(true);
+      fakeEffectsHeldOff = false;
+      expect(effectsHeldOff()).toBe(false);
+    });
+
+    it('is false in the snapshot published before the first sample', async () => {
+      vi.resetModules();
+      const fresh = await import('./audioDiagnostics');
+      expect(fresh.getDiagnosticsSnapshot().info.effectsHeldOff).toBe(false);
     });
   });
 

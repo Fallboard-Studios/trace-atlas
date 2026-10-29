@@ -141,6 +141,10 @@ describe('Audio Load panel', () => {
     fireEvent.click(presetRadio('Light'));
     expect(panel.textContent).toContain('Up to 4 robots · 8 notes · no drift or filter LFOs');
     expect(panel.textContent).toContain('latency: Playback (applies on next load)');
+    // Light tier standing cost T9/T12: Light holds the pedals and colour effects dark, and the readout says so.
+    expect(panel.textContent).toContain('no drift or filter LFOs or pedals or colour');
+    fireEvent.click(presetRadio('Standard'));
+    expect(panel.textContent).not.toContain('pedals or colour');
   });
 
   it('is a plain store write: no engine call from the panel (the budget system reacts)', () => {

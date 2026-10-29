@@ -29,6 +29,7 @@ const baseInfo: DiagInfo = {
   soundingRobots: 5,
   maxAudibleRobots: 12,
   fxConnected: 2,
+  effectsHeldOff: false,
   transportEvents: 37,
 };
 
@@ -310,6 +311,19 @@ describe('buildHudLines', () => {
 
     it('fits the HUD width', () => {
       for (const effectsLoad of [0, 0.2, 0.6, 1]) expect(tiersLine({ effectsLoad })!.length).toBeLessThanOrEqual(52);
+      expect(tiersLine({ effectsLoad: 0.2, effectsHeldOff: true })!.length).toBeLessThanOrEqual(52);
+    });
+
+    // Light tier standing cost T12: the engine's word on the effects hold-off, so a dropout read says whether the pedals ran.
+    it('ends with fx off while the engine holds the effects off, and says nothing of them otherwise', () => {
+      expect(tiersLine({ effectsLoad: 0.2, effectsHeldOff: true })).toBe('lfo drift off · filter off · bus off · fx off');
+      expect(tiersLine({ effectsLoad: 0.2, effectsHeldOff: false })).toBe('lfo drift off · filter off · bus off');
+      expect(tiersLine({ effectsLoad: 1 })).toBe('lfo drift on · filter on · bus on');
+    });
+
+    it('reads fx off from the engine, not the dial, and keeps it beside an unknown dial', () => {
+      expect(tiersLine({ effectsLoad: 1, effectsHeldOff: true })).toBe('lfo drift on · filter on · bus on · fx off');
+      expect(tiersLine({ effectsLoad: NaN, effectsHeldOff: true })).toBe('lfo drift - · filter - · bus - · fx off');
     });
 
     it('shows a dash for an unknown dial, never guessing a tier or printing NaN, null or undefined', () => {

@@ -9,6 +9,7 @@ import {
   attachOutputTaps,
   detachOutputTaps,
   getConnectedEffectCount,
+  getEffectsHeldOff,
   getGlobalChainEntry,
   getMasterVolume,
   readOutputTaps,
@@ -64,6 +65,9 @@ export interface DiagInfo {
   /** How many of the ten global effects are in the signal path (docs/specs/DARK_EFFECT_BYPASS.md assumption 13).
    *  NaN before the global chain exists. */
   fxConnected: number;
+  /** Whether the engine holds every pedal and colour effect dark (globalFx's effects hold-off, Light tier standing cost
+   *  H1): the overlay's ` · fx off`. False before the first sample. */
+  effectsHeldOff: boolean;
   /** Events pending on Tone's Transport (one-shots plus repeats), the long-run column of backlog 27: a count that
    *  climbs through a run is scheduling that is never cleared. Null when Tone's private timelines cannot be read. */
   transportEvents: number | null;
@@ -122,6 +126,7 @@ function emptyInfo(): DiagInfo {
     soundingRobots: NaN,
     maxAudibleRobots: NaN,
     fxConnected: NaN,
+    effectsHeldOff: false,
     transportEvents: null,
     outputPre: null,
     outputMaster: null,
@@ -230,6 +235,7 @@ function readInfo(): DiagInfo {
     soundingRobots: audio.soundingRobotIds.length,
     maxAudibleRobots: robotLoadToLimits(audio.robotLoad).maxAudibleRobots,
     fxConnected: getGlobalChainEntry() ? getConnectedEffectCount() : NaN,
+    effectsHeldOff: getEffectsHeldOff(),
     transportEvents: readTransportEvents(),
     outputPre: outputLevels.pre,
     outputMaster: outputLevels.master,
