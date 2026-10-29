@@ -93,7 +93,7 @@ const enginePoly = vi.spyOn(AudioEngine, 'setPolyphonyCap');
 describe('audioBudgetSystem', () => {
   beforeEach(() => {
     stopAudioBudget();
-    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false, driftHeldOff: false, effectsHeldOff: false });
+    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false, driftHeldOff: false, effectsHeldOff: false, reverbHeldOff: false });
     setRoster([]);
     AudioEngine.setSoundingRobots(null);
     AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
@@ -884,6 +884,70 @@ describe('audioBudgetSystem', () => {
       expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
       expect(store().filterLinksHeldOff).toBe(false);
       expect(store().driftHeldOff).toBe(false);
+    });
+  });
+
+  describe('the Reverb tier (Light tier standing cost T19)', () => {
+    const engineReverb = vi.spyOn(AudioEngine, 'setReverbHeldOff');
+    const store = () => useAudioStore.getState();
+
+    it('at boot on Light pushes held off once, the engine before the store', () => {
+      useAudioStore.setState({ effectsLoad: 0.2 });
+      let engineCallsAtStoreWrite = -1;
+      const unsubscribe = useAudioStore.subscribe((state, prev) => {
+        if (state.reverbHeldOff !== prev.reverbHeldOff) engineCallsAtStoreWrite = engineReverb.mock.calls.length;
+      });
+      startAudioBudget();
+      unsubscribe();
+      expect(engineReverb.mock.calls).toEqual([[true]]);
+      expect(store().reverbHeldOff).toBe(true);
+      expect(engineCallsAtStoreWrite).toBe(1);
+    });
+
+    it('at Full the Reverb runs; crossing 0.4 pushes once each way; a nudge inside pushes nothing', () => {
+      startAudioBudget();
+      expect(engineReverb).toHaveBeenLastCalledWith(false);
+      expect(store().reverbHeldOff).toBe(false);
+      vi.clearAllMocks();
+      useAudioStore.getState().setEffectsLoad(0.39);
+      useAudioStore.getState().setEffectsLoad(0.3);
+      expect(engineReverb.mock.calls).toEqual([[true]]);
+      expect(store().reverbHeldOff).toBe(true);
+      useAudioStore.getState().setEffectsLoad(0.4);
+      expect(engineReverb.mock.calls).toEqual([[true], [false]]);
+      expect(store().reverbHeldOff).toBe(false);
+    });
+
+    it('stopAudioBudget lifts it on both sides', () => {
+      useAudioStore.setState({ effectsLoad: 0.2 });
+      startAudioBudget();
+      vi.clearAllMocks();
+      stopAudioBudget();
+      expect(engineReverb.mock.calls).toEqual([[false]]);
+      expect(store().reverbHeldOff).toBe(false);
+    });
+
+    it('follows its own threshold, not the effects tier it shares 0.4 with today', async () => {
+      vi.resetModules();
+      vi.doMock('../constants', async (importOriginal) => ({ ...(await importOriginal<typeof import('../constants')>()), LOAD_REVERB_MIN: 0.5 }));
+      try {
+        const system = await import('./audioBudgetSystem');
+        const { AudioEngine: engine } = await import('../engine/AudioEngine');
+        const { useAudioStore: freshStore } = await import('../stores/audioStore');
+        const pushed = vi.spyOn(engine, 'setReverbHeldOff');
+        freshStore.setState({ effectsLoad: 0.45 });
+        system.startAudioBudget();
+        expect(pushed).toHaveBeenLastCalledWith(true);
+        expect(freshStore.getState().effectsHeldOff).toBe(false);
+        pushed.mockClear();
+        freshStore.getState().setEffectsLoad(0.5);
+        expect(pushed.mock.calls).toEqual([[false]]);
+        expect(freshStore.getState().reverbHeldOff).toBe(false);
+        system.stopAudioBudget();
+      } finally {
+        vi.doUnmock('../constants');
+        vi.resetModules();
+      }
     });
   });
 

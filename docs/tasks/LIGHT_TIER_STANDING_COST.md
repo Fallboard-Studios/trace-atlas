@@ -931,7 +931,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
 **The Reverb, off at Light** (spec §1.3 H5, §1.6 (2); Crawford at Gate C, 2026-10-29: off, not capped; audible → Light only)
 
-- [ ] **Task 19: `src/constants/index.ts`, `src/utils/audioBudget.ts`, `globalFx.ts`, `audioBudgetSystem.ts`, `audioStore.ts`, the Reverb panel, the send rows, the overlay — the Reverb off at Light**
+- [x] **Task 19: `src/constants/index.ts`, `src/utils/audioBudget.ts`, `globalFx.ts`, `audioBudgetSystem.ts`, `audioStore.ts`, the Reverb panel, the send rows, the overlay — the Reverb off at Light** (2026-10-29)
 
   **Description:** `LOAD_REVERB_MIN = 0.4` beside `LOAD_EFFECTS_MIN` (the same placement: Light off, Standard and Full
   on; its own constant so Gate C2 can revert it alone, Crawford 2026-10-29). `EffectsLoadLimits` gains
@@ -961,12 +961,12 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   with `reverbHeldOff` alone. `hudLines.test.ts` / `audioDiagnostics.test.ts`: the three tails.
 
   **Acceptance criteria:**
-  - [ ] Light's Reverb is out of the signal path (its edge to the return dropped); Standard and Full untouched; the
+  - [x] Light's Reverb is out of the signal path (its edge to the return dropped); Standard and Full untouched; the
         stored Amount, Length and Pre-Delay (session, share link) never change.
 
   **Verification:**
-  - [ ] The touched tests pass; the mutation gate on the hold-off branch; `npm run build:types`, `npm run lint` clean.
-  - [ ] Headless: D1 `load=light` reads ` · fx+rev off`; `load=light&fxLoad=standard` reads neither.
+  - [x] The touched tests pass; the mutation gate on the hold-off branch; `npm run build:types`, `npm run lint` clean.
+  - [x] Headless: D1 `load=light` reads ` · fx+rev off`; `load=light&fxLoad=standard` reads neither.
 
   **Dependencies:** Task 13 (stacked on H1), Task 12b (the send-row hook).
 
@@ -977,6 +977,19 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   `src/components/debug/hudLines.ts` + test
 
   **Estimated scope:** M
+
+  **As built (2026-10-29):** as described. The wiring records where the Reverb's output goes (`_reverbOut`, its return)
+  and whether the edge is there (`_reverbEdge`); a rewire resets both, so a drop armed before a Decay flip finds nothing
+  to drop, and a chain built while held off makes no edge until the lift. The lift sets the return to 0 only when the
+  edge was dropped (a lift before the drop fires just ramps back). The overlay joins the two tails as `fx+rev off`.
+  Light's readout now reads `no drift or filter LFOs or pedals or colour or reverb`. RED: 24 cases across the layers
+  plus the store and budget files; 29 mutants killed (globalFx 13: the re-send guard, the ramp down, the drop, the
+  cancel, the zeroed return, the reconnect, the ramp target, the Amount written or not recorded while held, the wire's
+  hold check and reset, the drop's edge guard; limits 3; budget 5; store 1; hook 2; panel 3; overlay 2). Full suite:
+  12 479 of 12 480, the one failure `sceneToOrbiterLocal`'s 6 s timeout under the parallel run (known; 10/10 alone).
+  **Headless (production build `index-QdwFf1-U`, D1):** `load=light` reads `fx in 0/10` and
+  `lfo drift off · filter off · bus off · fx+rev off`; `load=light&fxLoad=standard` and `load=full` read
+  `fx in 5/10` and neither tail; `fin ok` on all three.
 
 - [ ] **Task 24: `docs/todo/scratchy-audio-phones.md` — the Reverb off: A/B and crossing**
 

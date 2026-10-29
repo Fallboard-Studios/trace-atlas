@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import { softCeilingCurve } from './headroom';
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
 import {
+  BYPASS_DISCONNECT_MARGIN_SECONDS,
   BYPASS_KEYS,
   CHAIN_CUT_OPTIONS,
   COLOUR_RAMP_SECONDS,
@@ -111,6 +112,15 @@ let _masterTap: OutputTap | null = null;
 // and branch dark. Each Mix write records what the user set here first, and reaches its cell only while not held off.
 let _effectsHeldOff = false;
 const _lastMix: Partial<Record<BypassKey, number>> = {};
+// The Reverb hold-off (docs/specs/LIGHT_TIER_STANDING_COST.md §1.6 (2), T19): below LOAD_REVERB_MIN the Reverb's own
+// edge to its return is dropped, so it and every robot's reverb send stop being rendered. The Amount is recorded here
+// and reaches the return only while not held off; the wiring records where the Reverb's output goes and whether the
+// edge is there now.
+let _reverbHeldOff = false;
+let _reverbWet = 1;
+let _reverbOut: Tone.ToneAudioNode | null = null;
+let _reverbEdge = false;
+let _reverbDrop: number | null = null;
 
 /** Ramp duration for a live LPF/HPF frequency change — same declick rationale as
  *  AudioEngine.ts's own VOLUME_RAMP_SECONDS: short enough to feel instant while dragging, long
@@ -497,6 +507,8 @@ function disconnectAllFxNodes(): void {
  */
 export function wireGlobalFxChain(controlledDecay: boolean): void {
   disconnectAllFxNodes();
+  _reverbEdge = false;
+  _reverbOut = null;
 
   const chainNodes = [
     nodeSpan(_entryCut),
@@ -547,7 +559,9 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
     // through to the Limiter, as it was before the widener existed.
     const join = (controlledDecay ? getCell('stereoWidener')?.in : _globalCompressor) ?? _globalLimiter ?? _globalCompressor;
     if (join) {
-      _globalReverb?.connect(_globalReverbReturn ?? join);
+      // The Reverb's own edge is the one its hold-off drops: made here only while it is not held off.
+      _reverbOut = _globalReverbReturn ?? join;
+      if (!_reverbHeldOff) connectReverbEdge();
       _globalReverbReturn?.connect(join);
       _globalDelay?.connect(_globalDelayReturn ?? join);
       _globalDelayReturn?.connect(join);
@@ -623,6 +637,75 @@ export function setEffectsHeldOff(heldOff: boolean): void {
 /** Whether the effects are held off, for the `?debug` overlay. */
 export function getEffectsHeldOff(): boolean {
   return _effectsHeldOff;
+}
+
+// ========================================
+// THE REVERB HOLD-OFF (docs/specs/LIGHT_TIER_STANDING_COST.md §1.6 (2), T19)
+// ========================================
+
+/** Make the Reverb's edge to where its output goes (its return), if it is not there. */
+function connectReverbEdge(): void {
+  const reverb = _globalReverb;
+  const out = _reverbOut;
+  if (!reverb || !out || _reverbEdge) return;
+  try {
+    reverb.connect(out);
+    _reverbEdge = true;
+  } catch (err) {
+    devWarn('[AudioEngine] the Reverb could not be connected to its return', err);
+  }
+}
+
+/** Drop the Reverb's edge to its return, if it is there; a rewire since the drop was armed leaves nothing to drop. */
+function dropReverbEdge(): void {
+  const reverb = _globalReverb;
+  const out = _reverbOut;
+  if (!reverb || !out || !_reverbEdge) return;
+  try {
+    reverb.disconnect(out);
+    _reverbEdge = false;
+  } catch (err) {
+    devWarn('[AudioEngine] the Reverb could not be disconnected from its return', err);
+  }
+}
+
+/**
+ * The budget's word on the Reverb (audioBudgetSystem, below LOAD_REVERB_MIN). Held off, the return ramps to 0 over
+ * COLOUR_RAMP_SECONDS and, once the audio clock has run the ramp (writeCellMix's timing), the Reverb's edge to it is
+ * dropped: the Reverb and every robot's reverb send stop being rendered. Lifted, a pending drop is cancelled, the edge
+ * is re-made while the return is at 0, and the return ramps to the recorded Amount. A re-sent value writes nothing.
+ * Length and Pre-Delay keep reaching the node, so the lift is exact; the Delay is untouched.
+ */
+export function setReverbHeldOff(heldOff: boolean): void {
+  if (heldOff === _reverbHeldOff) return;
+  _reverbHeldOff = heldOff;
+  const ret = _globalReverbReturn;
+  const context = Tone.getContext();
+  if (heldOff) {
+    if (ret) rampOrSet(ret.gain, 0, COLOUR_RAMP_SECONDS);
+    if (!_globalReverb) return;
+    _reverbDrop = context.setTimeout(
+      () => {
+        _reverbDrop = null;
+        dropReverbEdge();
+      },
+      context.lookAhead + COLOUR_RAMP_SECONDS + BYPASS_DISCONNECT_MARGIN_SECONDS,
+    );
+    return;
+  }
+  if (_reverbDrop !== null) {
+    context.clearTimeout(_reverbDrop);
+    _reverbDrop = null;
+  }
+  // A dropped edge is re-made silent: the return goes to 0 first (nothing feeds it yet), then ramps up.
+  if (ret && !_reverbEdge) ret.gain.value = 0;
+  connectReverbEdge();
+  if (ret) rampOrSet(ret.gain, _reverbWet, COLOUR_RAMP_SECONDS);
+}
+
+/** Whether the Reverb is held off, for the `?debug` overlay. */
+export function getReverbHeldOff(): boolean {
+  return _reverbHeldOff;
 }
 
 // ========================================
@@ -800,8 +883,12 @@ export function setGlobalReverb(params: Partial<ReverbSettings>): void {
   const reverb = _globalReverb;
   if (!reverb) return;
   try {
-    // wet is the room's return level (the room itself stays fully wet, docs/specs/ROBOT_SENDS.md §1.3).
-    if (params.wet !== undefined && _globalReverbReturn) _globalReverbReturn.gain.value = params.wet;
+    // wet is the room's return level (the room itself stays fully wet, docs/specs/ROBOT_SENDS.md §1.3). Recorded first, and
+    // written only while the Reverb is not held off (setReverbHeldOff ramps to it on the lift).
+    if (params.wet !== undefined) {
+      _reverbWet = params.wet;
+      if (!_reverbHeldOff && _globalReverbReturn) _globalReverbReturn.gain.value = params.wet;
+    }
   } catch (err) {
     devWarn('[AudioEngine] setGlobalReverb failed', err);
   }

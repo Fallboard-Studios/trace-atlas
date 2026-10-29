@@ -30,6 +30,7 @@ const baseInfo: DiagInfo = {
   maxAudibleRobots: 12,
   fxConnected: 2,
   effectsHeldOff: false,
+  reverbHeldOff: false,
   transportEvents: 37,
 };
 
@@ -312,6 +313,14 @@ describe('buildHudLines', () => {
     it('fits the HUD width', () => {
       for (const effectsLoad of [0, 0.2, 0.6, 1]) expect(tiersLine({ effectsLoad })!.length).toBeLessThanOrEqual(52);
       expect(tiersLine({ effectsLoad: 0.2, effectsHeldOff: true })!.length).toBeLessThanOrEqual(52);
+      expect(tiersLine({ effectsLoad: 0.2, effectsHeldOff: true, reverbHeldOff: true })!.length).toBeLessThanOrEqual(52);
+    });
+
+    // Light tier standing cost T19: the Reverb's tail, and the two together in the 52 columns.
+    it('ends with rev off for the Reverb alone, and fx+rev off for both', () => {
+      expect(tiersLine({ effectsLoad: 0.2, reverbHeldOff: true })).toBe('lfo drift off · filter off · bus off · rev off');
+      expect(tiersLine({ effectsLoad: 0.2, effectsHeldOff: true, reverbHeldOff: true })).toBe('lfo drift off · filter off · bus off · fx+rev off');
+      expect(tiersLine({ effectsLoad: NaN, effectsHeldOff: true, reverbHeldOff: true })).toBe('lfo drift - · filter - · bus - · fx+rev off');
     });
 
     // Light tier standing cost T12: the engine's word on the effects hold-off, so a dropout read says whether the pedals ran.

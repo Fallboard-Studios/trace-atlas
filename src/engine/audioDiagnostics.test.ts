@@ -125,9 +125,11 @@ let fakeFxConnected = 2;
 let fakeChainBuilt = true;
 // Light tier standing cost T12: the engine's effects hold-off.
 let fakeEffectsHeldOff = false;
+let fakeReverbHeldOff = false;
 vi.mock('./audioEngine/globalFx', () => ({
   getConnectedEffectCount: () => fakeFxConnected,
   getEffectsHeldOff: () => fakeEffectsHeldOff,
+  getReverbHeldOff: () => fakeReverbHeldOff,
   getGlobalChainEntry: () => (fakeChainBuilt ? {} : null),
   getMasterVolume: () => tapSpies.volume(),
   attachOutputTaps: () => tapSpies.attach(),
@@ -186,6 +188,7 @@ describe('audioDiagnostics runtime', () => {
     fakeFxConnected = 2;
     fakeChainBuilt = true;
     fakeEffectsHeldOff = false;
+    fakeReverbHeldOff = false;
     tapSpies.volume.mockReset();
     tapSpies.attach.mockClear();
     tapSpies.detach.mockClear();
@@ -402,6 +405,18 @@ describe('audioDiagnostics runtime', () => {
       vi.resetModules();
       const fresh = await import('./audioDiagnostics');
       expect(fresh.getDiagnosticsSnapshot().info.effectsHeldOff).toBe(false);
+    });
+
+    it('reads the engine Reverb hold-off too, independently (T19)', async () => {
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.reverbHeldOff).toBe(false);
+      fakeReverbHeldOff = true;
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.reverbHeldOff).toBe(true);
+      expect(diag.getDiagnosticsSnapshot().info.effectsHeldOff).toBe(false);
+      vi.resetModules();
+      const fresh = await import('./audioDiagnostics');
+      expect(fresh.getDiagnosticsSnapshot().info.reverbHeldOff).toBe(false);
     });
   });
 

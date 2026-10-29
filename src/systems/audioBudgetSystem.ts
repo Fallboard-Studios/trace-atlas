@@ -122,23 +122,26 @@ function reconcile(force = false): void {
  * links and each robot's bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
  * docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap and Task 4 moved the filter rule itself into the engine;
  * the bus tier is Robot Articulation T14b. The effects tier (docs/specs/LIGHT_TIER_STANDING_COST.md H1): every pedal
- * and colour effect held dark, its Mix kept. Then publish the held-off state the UI greys out from.
+ * and colour effect held dark, its Mix kept; and the Reverb tier (the same spec, §1.6 (2)): the Reverb's output unwired.
+ * Then publish the held-off state the UI greys out from.
  * Only when a tier limit has actually changed (or on force) — the roster changing, or a dial nudge inside one
  * tier, changes none of it.
  */
 function applyTiers(limits: LoadLimits, force = false): void {
-  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled, limits.effectsEnabled].join('|');
+  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled, limits.effectsEnabled, limits.reverbEnabled].join('|');
   if (!force && key === appliedTierKey) return;
   appliedTierKey = key;
   lfoEngine.setDriftEnabled(limits.driftEnabled);
   lfoEngine.setFilterLinksEnabled(limits.filterLfosEnabled);
   lfoEngine.setBusFilterLinksEnabled(limits.busFilterLfosEnabled);
   AudioEngine.setEffectsHeldOff(!limits.effectsEnabled);
+  AudioEngine.setReverbHeldOff(!limits.reverbEnabled);
   useAudioStore.getState().setDriftHeldOff(!limits.driftEnabled);
   useAudioStore.getState().setFilterLinksHeldOff(!limits.filterLfosEnabled);
   // busFilterLfosEnabled is already false whenever the global filter tier is, so the UI greys the link for the same reason it goes quiet.
   useAudioStore.getState().setBusFilterLinksHeldOff(!limits.busFilterLfosEnabled);
   useAudioStore.getState().setEffectsHeldOff(!limits.effectsEnabled);
+  useAudioStore.getState().setReverbHeldOff(!limits.reverbEnabled);
 }
 
 /**
@@ -233,13 +236,15 @@ export function stopAudioBudget(): void {
   primeRebuilt(AudioEngine.setSoundingRobots(null));
   AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
   useAudioStore.getState().setSoundingRobotIds([]);
-  // Lift every Effects Load tier too: drift back on, every suspended filter link reconnected, the effects relit.
+  // Lift every Effects Load tier too: drift back on, every suspended filter link reconnected, the effects and the Reverb relit.
   lfoEngine.setDriftEnabled(true);
   lfoEngine.setFilterLinksEnabled(true);
   lfoEngine.setBusFilterLinksEnabled(true);
   AudioEngine.setEffectsHeldOff(false);
+  AudioEngine.setReverbHeldOff(false);
   useAudioStore.getState().setDriftHeldOff(false);
   useAudioStore.getState().setFilterLinksHeldOff(false);
   useAudioStore.getState().setBusFilterLinksHeldOff(false);
   useAudioStore.getState().setEffectsHeldOff(false);
+  useAudioStore.getState().setReverbHeldOff(false);
 }

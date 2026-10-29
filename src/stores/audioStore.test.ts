@@ -1393,6 +1393,27 @@ describe('useAudioStore - filterLinksHeldOff / driftHeldOff (docs/tasks/LFO_BANK
   });
 });
 
+describe('useAudioStore - reverbHeldOff (Light tier standing cost T19)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('starts not held off; setReverbHeldOff writes once and a repeat is a no-op write', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    expect(useAudioStore.getState().reverbHeldOff).toBe(false);
+    const listener = vi.fn();
+    const unsubscribe = useAudioStore.subscribe(listener);
+    useAudioStore.getState().setReverbHeldOff(true);
+    expect(useAudioStore.getState().reverbHeldOff).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    useAudioStore.getState().setReverbHeldOff(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(useAudioStore.getState().effectsHeldOff).toBe(false);
+    expect(JSON.parse(JSON.stringify(useAudioStore.getState())).reverbHeldOff).toBe(true);
+    unsubscribe();
+  });
+});
+
 describe('useAudioStore - effectsHeldOff (Light tier standing cost T11)', () => {
   beforeEach(() => {
     vi.resetModules();

@@ -2099,7 +2099,7 @@ describe('AudioRigEffectPanel - Audio Load: effectsHeldOff on the ten Mix rows (
 
   beforeEach(() => {
     resetAudioStore();
-    useAudioStore.setState({ effectsHeldOff: false });
+    useAudioStore.setState({ effectsHeldOff: false, reverbHeldOff: false });
   });
 
   function withStoredValue(key: (typeof MIX_ROWS)[number]['key'], field: string, value: number) {
@@ -2203,6 +2203,47 @@ describe('AudioRigEffectPanel - Audio Load: effectsHeldOff on the ten Mix rows (
     const before = commits();
     act(() => useAudioStore.setState({ effectsHeldOff: true }));
     expect(commits()).toBeGreaterThan(before);
+  });
+
+  // Light tier standing cost T19: the Reverb off at Light dims its three rows, values kept, one note.
+  it('Reverb: held off, its three rows grey with their values kept, and one note', () => {
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, reverb: { ...s.globalAudio.reverb, wet: 0.37 } }, reverbHeldOff: true }));
+    const { container } = render(<AudioRigEffectPanel effectKey="reverb" />);
+    const sliders = within(container).getAllByRole('slider');
+    expect(sliders).toHaveLength(3);
+    for (const slider of sliders) {
+      expect(slider.getAttribute('data-disabled'), slider.getAttribute('aria-label') ?? '').not.toBeNull();
+      expect(slider.closest('.audio-rig-drawer__param-row')!.classList.contains('sc-held-off')).toBe(true);
+    }
+    expect(mixSlider('fleet.reverb.amount').getAttribute('aria-valuenow')).toBe('0.37');
+    expect(within(container).getAllByText(HELD_OFF)).toHaveLength(1);
+    expect(within(rowOfSlider(mixSlider('fleet.reverb.amount'))).getByText(HELD_OFF)).toBeTruthy();
+  });
+
+  it('Reverb: the effects hold-off alone does not dim it, nor does the Reverb hold-off dim a pedal or the Delay', () => {
+    useAudioStore.setState({ effectsHeldOff: true });
+    const reverb = render(<AudioRigEffectPanel effectKey="reverb" />);
+    for (const slider of within(reverb.container).getAllByRole('slider')) expect(slider.getAttribute('data-disabled')).toBeNull();
+    reverb.unmount();
+    useAudioStore.setState({ effectsHeldOff: false, reverbHeldOff: true });
+    for (const key of ['phaser', 'delay'] as const) {
+      const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+      for (const slider of within(container).getAllByRole('slider')) expect(slider.getAttribute('data-disabled'), key).toBeNull();
+      unmount();
+    }
+  });
+
+  it('does not re-render a panel with nothing to hold off when the Reverb flag flips (the Delay never reads it)', () => {
+    let commits = 0;
+    render(
+      <Profiler id="panel" onRender={() => { commits += 1; }}>
+        <AudioRigEffectPanel effectKey="delay" />
+      </Profiler>,
+    );
+    const before = commits;
+    act(() => useAudioStore.setState({ reverbHeldOff: true }));
+    act(() => useAudioStore.setState({ reverbHeldOff: false }));
+    expect(commits).toBe(before);
   });
 
   it.each(['eq3', 'filterLPF', 'delay', 'reverb', 'compressor', 'limiter'] as const)(

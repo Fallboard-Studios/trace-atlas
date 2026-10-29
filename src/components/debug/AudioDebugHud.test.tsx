@@ -49,6 +49,7 @@ const makeSnapshot = (ctxState = 'running'): DiagSnapshot => ({
     maxAudibleRobots: 12,
     fxConnected: 2,
     effectsHeldOff: false,
+    reverbHeldOff: false,
     transportEvents: 37,
   },
 });

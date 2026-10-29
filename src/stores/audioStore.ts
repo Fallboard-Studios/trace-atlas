@@ -344,6 +344,9 @@ export interface AudioStore {
   /** Whether the dial currently holds the pedals and colour effects dark (below LOAD_EFFECTS_MIN) — their Mix rows grey
    *  out while it does, the stored Mix kept. Derived; written only by audioBudgetSystem. docs/specs/LIGHT_TIER_STANDING_COST.md H1. */
   effectsHeldOff: boolean;
+  /** Whether the dial currently holds the global Reverb off (below LOAD_REVERB_MIN) — its rows and every Reverb send row
+   *  grey out while it does, the stored values kept. Derived; written only by audioBudgetSystem. */
+  reverbHeldOff: boolean;
   setBPM: (bpm: number) => void;
   /**
    * Reseed `bpm` for the given Attenuation Style — draws a fresh value via
@@ -419,6 +422,8 @@ export interface AudioStore {
   setDriftHeldOff: (heldOff: boolean) => void;
   /** Writes whether the effects are held off; skips the write when unchanged. */
   setEffectsHeldOff: (heldOff: boolean) => void;
+  /** Writes whether the Reverb is held off; skips the write when unchanged. */
+  setReverbHeldOff: (heldOff: boolean) => void;
   /**
    * Swap the compressor's chain position — false (default) = "Natural Decay"
    * (compressor after Delay+Reverb), true = "Controlled Decay" (compressor
@@ -492,6 +497,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   busFilterLinksHeldOff: false,
   driftHeldOff: false,
   effectsHeldOff: false,
+  reverbHeldOff: false,
 
   setBPM: (bpm) => {
     set({ bpm });
@@ -596,6 +602,9 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
   setEffectsHeldOff: (heldOff) => {
     if (get().effectsHeldOff !== heldOff) set({ effectsHeldOff: heldOff });
+  },
+  setReverbHeldOff: (heldOff) => {
+    if (get().reverbHeldOff !== heldOff) set({ reverbHeldOff: heldOff });
   },
 
   regenerateGlobalAudioFromSeed: (attenuationStyleId, attenuationStyleName) => {

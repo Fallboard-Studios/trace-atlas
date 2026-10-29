@@ -54,6 +54,8 @@ export const LOAD_FILTER_LFOS_MIN = 0.4;
 export const LOAD_BUS_FILTER_LFOS_MIN = 0.8;
 /** The pedals and colour effects (every chain cell and room branch) are on at/above this dial position; below it they are held dark, their Mix kept (docs/specs/LIGHT_TIER_STANDING_COST.md H1). */
 export const LOAD_EFFECTS_MIN = 0.4;
+/** The global Reverb is on at/above this dial position; below it its output is unwired, its Amount, Length and Pre-Delay kept (docs/specs/LIGHT_TIER_STANDING_COST.md §1.6 (2)). Its own constant so the effects tier and it can be reverted apart. */
+export const LOAD_REVERB_MIN = 0.4;
 /**
  * Below this dial position the AudioContext latency hint is "playback"; at/above it, "interactive".
  * Above Standard's anchor (0.6) so Light AND Standard both get it (decision J,

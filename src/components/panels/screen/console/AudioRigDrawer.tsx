@@ -243,6 +243,8 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   const mixField = EFFECT_MIX_FIELD[effectKey];
   const effectsHeldOff = useAudioStore((s) => mixField !== undefined && s.effectsHeldOff);
   const notesHeldOff = (field: string): boolean => effectsHeldOff && field === mixField;
+  // The Reverb tier (T19), the same shape: only the Reverb's panel subscribes; its three rows grey, Amount carries the note.
+  const reverbHeldOff = useAudioStore((s) => effectKey === 'reverb' && s.reverbHeldOff);
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
   // Delay Time's Tempo Sync (docs/specs/FREE_SYNC_TOGGLE.md §1.4): `sync` and `bpm` get their own selectors
@@ -408,10 +410,10 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
           // (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
           <>
             <DirectionalPanel schema={REVERB_TOP_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'decay'), effect, fieldOnChange.decay, effectKey)}
-              {paramRow(findParam(block.params, 'preDelay'), effect, fieldOnChange.preDelay, effectKey)}
+              {paramRow(findParam(block.params, 'decay'), effect, fieldOnChange.decay, effectKey, undefined, reverbHeldOff)}
+              {paramRow(findParam(block.params, 'preDelay'), effect, fieldOnChange.preDelay, effectKey, undefined, reverbHeldOff)}
             </DirectionalPanel>
-            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
+            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey, undefined, reverbHeldOff, reverbHeldOff)}
           </>
         ) : (
           block.params.map((param) => paramRow(

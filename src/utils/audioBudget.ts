@@ -10,6 +10,7 @@ import {
   LOAD_EFFECTS_MIN,
   LOAD_FILTER_LFOS_MIN,
   LOAD_PLAYBACK_BELOW,
+  LOAD_REVERB_MIN,
   LOAD_POLYPHONY_MIN,
   MAX_POLYPHONY,
   MAX_ROBOTS,
@@ -40,6 +41,8 @@ export interface RobotLoadLimits {
 export interface EffectsLoadLimits {
   /** The pedals and colour effects: every chain cell and room branch lit from its Mix (false = held dark, Mix kept). */
   effectsEnabled: boolean;
+  /** The global Reverb: its output wired to its return (false = unwired, Amount, Length and Pre-Delay kept). */
+  reverbEnabled: boolean;
   /** Drift ("stacked" LFOs). */
   driftEnabled: boolean;
   /** Global lpf/hpf frequency + Q LFOs (EQ-gain LFOs are always allowed). */
@@ -82,6 +85,7 @@ export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
   const load = clampAudioLoad(effectsLoad);
   return {
     effectsEnabled: load >= LOAD_EFFECTS_MIN,
+    reverbEnabled: load >= LOAD_REVERB_MIN,
     driftEnabled: load >= LOAD_DRIFT_MIN,
     filterLfosEnabled: load >= LOAD_FILTER_LFOS_MIN,
     // Effective, not raw: a bus link is also held off whenever the global filter tier is, so consumers read one flag.
@@ -109,6 +113,7 @@ export function describeLimits(limits: LoadLimits): string {
   if (!limits.filterLfosEnabled) off.push('filter LFOs');
   else if (!limits.busFilterLfosEnabled) off.push('robot filter LFOs');
   if (!limits.effectsEnabled) off.push('pedals or colour');
+  if (!limits.reverbEnabled) off.push('reverb');
   parts.push(off.length === 0 ? 'all LFOs and drift' : `no ${off.join(' or ')}`);
   if (limits.latencyHint !== 'interactive') parts.push(`latency: ${LATENCY_LABELS[limits.latencyHint]} (applies on next load)`);
   return parts.join(' · ');
