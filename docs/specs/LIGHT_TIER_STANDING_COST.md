@@ -140,11 +140,11 @@ keeps or drops each on its price.
 | **H2** | Eight standing-by robots' full voice chains cost the thread for nothing: 3 synths, a filter, a panner and 7 gains each, every Signal a running `ConstantSource`. | A2; census × per-node price | **Release standing-by voices.** `audioBudgetSystem` already knows the sounding set; a robot leaving it gets `releaseVoice` (its links disposed by the existing path), a robot entering it gets `reReserveVoice` + `primeRobotLinks` before its first trigger, within `MIN_LEAD`. A `null` sounding set (Full) releases nothing, so Full is unchanged by construction. Risk: the admission build is a connect into the live graph (backlog 29: no lost quantum; T19: about one connect in six loses one quantum headless, inaudible on speakers). September priced the idle chains low on a smaller graph; Phase A re-prices them. | Inaudible at Full (no standing-by robots); at Light a robot's first note after admission must not be late or clicked → **every tier, by construction** |
 | **H3** | Oscillators that run for nothing: (a) the dark pedals' own LFOs, (b) the drift secondaries while drift is held off, (c) the `ConstantSource` behind every Signal and Param. | A3, A4, the census | (a) **Stop a dark cell's LFOs at the darken crossing and start them at the light crossing** (`Tone.LFO.stop()`/`start()`; a restarted LFO begins at phase 0, which on a dark pedal nobody hears). (b) **Stop the drift secondaries while `driftEnabled` is false**, not only detach their Gains. (c) has no cut inside Tone — a `Signal` is a running `ConstantSource` by design; it is priced so the census's number is known, and the only lever against it is H2 (fewer chains). | (a), (b) inaudible → **every tier**; (c) none |
 | **H4** | Biquads driven at audio rate recompute coefficients per sample: at Light the LPF/HPF and bus links are suspended, so this bites only through a lit Phaser or AutoWah. | the breakdown's `BiquadFilterHandler` share, with and without A1 | **None of its own in this spec.** H1's hold-off removes it at Light. k-rate is unreachable through Tone's wrapper (the native param sits in a module-private WeakMap in Tone's bundled deps), so the every-tier version is a Phaser and AutoWah built on native nodes — a build of its own, recorded for Gate A and not carried here unless the decomposition says the lit pedals dominate even after H1. | — |
-| **H5** | The base chain (EQ3, LPF, HPF, two compressors, ceiling, Reverb, Delay, rooms, cuts) is small, as September found. | A5–A8; the breakdown's convolver and compressor shares | **Only if a piece reads large:** a Reverb decay cap at Light (audible → Light only), or reopening backlog 28's decision to keep EQ3/LPF/HPF in at neutral (Crawford's, archived; reopened only on a number). The Compressor and Limiter are musical and stay. | per piece |
+| **H5** | The base chain (EQ3, LPF, HPF, two compressors, ceiling, Reverb, Delay, rooms, cuts) is small, as September found. | A5–A8; the breakdown's convolver and compressor shares | **Only if a piece reads large:** the Reverb off at Light — its output unwired below an Effects Load threshold (A5's own ablation), its Amount, Length and Pre-Delay kept (audible → Light only; a decay cap at Gate A, off since Gate C, 2026-10-29) — or reopening backlog 28's decision to keep EQ3/LPF/HPF in at neutral (Crawford's, archived; reopened only on a number). The Compressor and Limiter are musical and stay. | per piece |
 
 **Gate A's verdicts (2026-10-28,** the intent's "Gate A — the cuts"; the record's decomposition §7): H2, H3a and H3b
 kept for Phase B (inaudible, every tier); H1 and H5's Reverb decay cap kept for a phone miss only, with the sounding
-cap (§1.6); H5's EQ3/LPF/HPF removal at neutral dropped (the EQ levels are seeded, so the worlds are not at neutral;
+cap (§1.6; at Gate C, 2026-10-29, the cap became the Reverb off at Light, and the sounding cap a last resort); H5's EQ3/LPF/HPF removal at neutral dropped (the EQ levels are seeded, so the worlds are not at neutral;
 backlog 28's decision stands), as are the Compressor, Limiter and ceiling and the send/room fabric (below noise); H3c
 and H4 have no cut of their own.
 
@@ -160,7 +160,9 @@ and H4 have no cut of their own.
   decision** — it falls on whichever side the threshold's value puts it, as the filter tier (0.4: Standard keeps its
   links) and the drift tier (0.8: Standard loses drift) already do.
 - **No new tier, dial or control.** The three preset buttons and the two sliders stay; a held-off thing reads as the
-  three existing ones do (a greyed control with "Held off by Audio Load", the stored value kept).
+  three existing ones do (a greyed control with "Held off by Audio Load", the stored value kept). **Every control the
+  hold-off makes inert is dimmed**, not only the one that names the effect: the effect's other params, and the robots'
+  and companies' sends into it (Crawford, 2026-10-29: "if they don't do anything they should be dimmed").
 - **Reaching inside Tone** is allowed in the shape of the leak fix: a wrapper in `src/engine/tonePatches.ts`, applied
   once at boot, feature-detected, a `devWarn`ed no-op on a Tone that moved, documented as deletable at the Tone upgrade
   (backlog 34). Forking Tone, `patch-package`, or any new dependency is a question for Crawford first.
@@ -200,12 +202,14 @@ nothing audible on the phone either.
 
 **On a miss, Light cuts deeper** rather than accept clicks, in Gate A's order (2026-10-28): decoration before the
 music. Three audible, Light-only cuts, each its own Phase B-shaped task (RED test, build, desktop A/B) on top of the one
-before: (1) **pedals off at Light**, H1's effects tier; (2) **a shorter Reverb at Light**, a decay cap below an
-Effects Load threshold; (3) **three sounding robots at Light instead of four**, `LOAD_AUDIBLE_ROBOTS_MIN` 2 → 1
-(Light's cap `round(1 + 11 × 0.2)` = 3; Standard stays 8, Full 12). A sounding robot costs about 0.06 of desktop
+before: (1) **pedals off at Light**, H1's effects tier; (2) **the Reverb off at Light**, its output unwired below its
+own Effects Load threshold, `LOAD_REVERB_MIN` (A5's ablation, priced at −0.074 on D1 and −0.043 on D5; a decay cap
+until Gate C, 2026-10-29); (3) **three sounding robots at Light instead of four**, `LOAD_AUDIBLE_ROBOTS_MIN` 2 → 1
+(Light's cap `round(1 + 11 × 0.2)` = 3; Standard stays 8, Full 12), **a last resort, built only on Crawford's
+say-so** ("i still really want four robots playing, that's the last thing i want to cut", Gate C). A sounding robot costs about 0.06 of desktop
 capacity (scratchy-audio-phones.md, the decomposition's §6); the "about 2 capacity points" this section first cited came
-from a smaller graph. All three are built before the phone, then **one rested sitting** tries three stacked builds in
-that order, (1), then (1)+(2), then (1)+(2)+(3), and stops at the first that is clean on both worlds; only the cuts up
+from a smaller graph. The cuts are built before the phone, then **one rested sitting** tries the stacked builds in
+that order, (1), then (1)+(2), then (1)+(2)+(3) if (3) was built, and stops at the first that is clean on both worlds; only the cuts up
 to it are kept, any past it reverted. If none is clean, the item returns to Crawford with the numbers: the graph's
 floor on this phone is then known, and the next move (a robot's voice built on fewer nodes, native-node pedals) is a
 spec of its own. Standard holding effects off too (the effects threshold raised past 0.6) is out of this work.
@@ -233,13 +237,13 @@ scripts/perf/
 ├── audio-load.mjs                   # Phase A: prints the full live-nodes-by-type line after the warm-up (census)
 └── audio-load-lib.mjs / .test.mjs   # the census formatter, if any pure part is added
 
-src/constants/index.ts               # on a miss: LOAD_EFFECTS_MIN (H1), the Reverb cap's threshold and value, LOAD_AUDIBLE_ROBOTS_MIN 2 → 1
+src/constants/index.ts               # on a miss: LOAD_EFFECTS_MIN (H1), LOAD_REVERB_MIN (the Reverb off), LOAD_AUDIBLE_ROBOTS_MIN 2 → 1 (last resort)
 src/utils/audioBudget.ts             # H1: effectsEnabled on EffectsLoadLimits; describeLimits names it
 src/utils/audioBudget.test.ts
 src/systems/audioBudgetSystem.ts     # H1: push the flag (globalFx + store); H2: release/re-reserve on the sounding set's changes
 src/systems/audioBudgetSystem.test.ts
 src/store/audioStore.ts              # H1: effectsHeldOff + setter (the three existing booleans' pattern)
-src/engine/audioEngine/globalFx.ts   # H3a: LFO stop/start at the crossing; on a miss, H1: setEffectsHeldOff, and the Reverb decay cap
+src/engine/audioEngine/globalFx.ts   # H3a: LFO stop/start at the crossing; on a miss, H1: setEffectsHeldOff, and setReverbHeldOff
 src/engine/audioEngine/bypassCell.ts # H1: a held-off cell keeps its stored Mix and reads dark; H3a: the effect's LFOs stopped while dark
 src/engine/audioEngine/globalFx.test.ts, bypassCell.test.ts
 src/engine/lfoEngine.ts              # H3b: drift secondaries stopped while drift is held off
@@ -247,7 +251,7 @@ src/engine/lfoEngine.test.ts
 src/engine/AudioEngine.ts            # H2: a standing-by robot's voice released; re-reserved on admission (existing APIs)
 src/engine/AudioEngine.test.ts
 src/engine/audioDiagnostics.ts, src/components/debug/hudLines.ts   # H1: `fx off` on the overlay's lfo line
-src/components/.../AudioLoadPanel.tsx, the ten Mix rows' panels      # H1: HeldOffNote against effectsHeldOff
+src/components/.../AudioLoadPanel.tsx, the effect panels, the robots' send rows   # H1 and the Reverb: every inert control dimmed, HeldOffNote
 src/content/...                      # H1: the held-off copy and describeLimits' phrase (never a literal in a component)
 src/engine/tonePatches.ts            # only if a cut needs a wrapper (none of H1–H5 does as written)
 
@@ -365,9 +369,10 @@ export function setEffectsHeldOff(heldOff: boolean): void {
   cancels the stop; an effect with no LFO is untouched; the Vibrato (starts its own) is covered.
 - **H3b, drift secondaries stopped:** `setDriftEnabled(false)` stops the four secondaries and `(true)` starts them,
   idempotent, before and after `primeLfoBank`; the drift Gains' detach/attach unchanged.
-- **The Reverb decay cap** (only on a phone miss): the limit set below its threshold and `null` above; the engine
-  writes `min(stored decay, cap)` through the coalesced impulse path and restores the stored decay exactly on the
-  crossing up; a decay write while capped records the value; one push per crossing.
+- **The Reverb off** (only on a phone miss): `reverbEnabled` false below `LOAD_REVERB_MIN`, true at and above it; held
+  off, the return ramps to 0 and the Reverb's edge to it drops on the audio clock; an Amount write while held off is
+  recorded and writes nothing; the lift re-makes the edge and ramps to the recorded Amount exactly; a Decay flip while
+  held off makes no edge; one push per crossing; the Reverb panel's rows and every Reverb send row dimmed while held off.
 - **The sounding cap** (only on a phone miss): `robotLoadToLimits(0.2).maxAudibleRobots` 3, `(0.6)` 8, `(1)` 12,
   `(0)` 1.
 - **Every cut:** `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean; the mutation gate on the pure
@@ -426,7 +431,8 @@ Every task: types, lint, tests, build clean. Docs tasks: a read.
    the worlds are not at neutral and the cut would rarely apply.
 5. **The Reverb at Light.** Only if A5 reads large; a decay cap is audible and Light-gated. September read it at 2–7
    points on a smaller graph. **Resolved at Gate A:** a decay cap at Light, the second of §1.6's three miss-path cuts;
-   its value is set by that task's sweep and Crawford's ear.
+   its value is set by that task's sweep and Crawford's ear. **Changed at Gate C (2026-10-29):** the Reverb off at
+   Light, not capped (Crawford: "turn off the pedals and reverb on light"); no value to set.
 6. **Numbering.** This is backlog 27's own fix: no new number, 27 gets the Built line and archives at merge, and
    plan.md Stage 1's line points at this spec. A roadmap phase instead would be warranted only if Gate A picks H2, which
    changes how voices are managed; recommendation: stay on 27 either way.

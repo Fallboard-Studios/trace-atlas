@@ -21,9 +21,9 @@ section of `scratchy-audio-phones.md` with a decision table for **Gate A**, wher
 is the inaudible batch Gate A picked (2026-10-28): standing-by voices released (H2) and the dark cells' and the
 drift's LFOs stopped (H3), each a RED test, the build and a same-session desktop A/B, kept or dropped on its number;
 it ends at **Gate B**, Crawford's desktop listen. **Phase C** is the Pixel sitting, **Gate C** = clean by ear at Light
-on D1 and D5. Only on a miss, **Phase C2** builds three audible Light-only cuts in Gate A's order (pedals off, a
-shorter Reverb, three sounding robots), each on the one before, and one sitting tries them stacked (**Gate C2**: the
-first clean build wins). Docs last. Every task names its **Proof**
+on D1 and D5. Only on a miss, **Phase C2** builds the audible Light-only cuts in Gate A's order (pedals off, the
+Reverb off; three sounding robots only as a last resort on Crawford's say-so, Gate C 2026-10-29), each on the one
+before, and one sitting tries them stacked (**Gate C2**: the first clean build wins). Docs last. Every task names its **Proof**
 (TASK_TEMPLATE.md): RED tests where behaviour changes, a run for every measurement, a Read for records and docs. No
 file-text tests, no docs guards (CLAUDE.md, 2026-10-23). One commit per task; throwaway ablation builds are never
 committed.
@@ -75,8 +75,8 @@ committed.
   `setDriftEnabled` beside the Gain detach/attach that already lives there.
 - **Gate A's order (2026-10-28,** the intent's "Gate A — the cuts"). Inaudible first and alone (Phase B: H2, H3a,
   H3b), then the phone; only on a miss, the three audible Light-only cuts, stacked, in one sitting (Phase C2). The task
-  numbers stay as first written so earlier references hold: T9–T13 (H1) and T19 (now the Reverb cap) sit in Phase
-  C2, and T24–T28 are new.
+  numbers stay as first written so earlier references hold: T9–T13 (H1) and T19 (the Reverb: a decay cap at Gate A, off at
+  Light since Gate C) sit in Phase C2, and T24–T28 are new; T12b (Crawford, 2026-10-29) follows T12.
 - **Order.** T0 first so the docs point at the plan from the first commit. T1 → T2 → T3 (tooling, each needing the
   one before only where it imports it) → Checkpoint A1 (the tools work on one smoke run) → T4, T5 in either order → T6
   → T7 (the ablations share the stock build and the noise band) → T8 the decision table → Gate A. Phase B: T14 → T15, then T16, T17 →
@@ -112,8 +112,8 @@ T3 (census line on perf:audio) ─────────┤
                                         │
                 ┌──────────── clean ────┴──── miss ─────────────┐
                 │                                               │
-                │     Phase C2: H1 T9 → T10 → T11 → T12 → T13 → Reverb cap T19 → T24
-                │               → three robots T25 → T26 → T27 (stacked builds) → T28 → Gate C2
+                │     Phase C2: H1 T9 → T10 → T11 → T12 → T12b → T13 → Reverb off T19 → T24
+                │               → (three robots T25 → T26, last resort) → T27 (stacked builds) → T28 → Gate C2
                 │                                               │
                 └───────────────────────┬───────────────────────┘
                                         │
@@ -703,11 +703,10 @@ Gate A's order (2026-10-28): decoration before the music. Three Light-only cuts,
 own RED tests and desktop A/B: pedals off (H1, T9–T13), a shorter Reverb (T19, T24), three sounding robots (T25, T26).
 
 **Crawford at Gate C (2026-10-29) changes this phase:** pedals off (H1, T9–T13) as written; **the Reverb off at Light,
-not capped**, so T19 and T24 are to be rewritten before they are built (spec §1.3 H5 and §1.6 amended with them); four
-sounding robots stay, so T25–T26 are the last resort and are not built unless the two cuts above miss and Crawford says
-so. The stacked sitting (T27–T28) then carries the builds that exist.
-Then one rested sitting tries the three stacked builds in that order and stops at the first clean one (T27, T28, Gate
-C2). None of it starts unless Gate C misses.
+not capped**, so T19 and T24 were rewritten before they were built (spec §1.3 H5 and §1.6 amended with them; the
+rewrite approved 2026-10-29, with its own constant, the Reverb send rows dimmed, and the `fx+rev off` overlay tail); T12b (every inert control dimmed) joins H1. Four sounding robots stay, so T25–T26 are the
+last resort and are not built unless the two cuts above miss and Crawford says so. One rested sitting then tries the
+stacked builds that exist, in order, and stops at the first clean one (T27, T28, Gate C2).
 
 **H1 — the effects tier** (spec §1.3 H1; audible → Light only)
 
@@ -887,61 +886,111 @@ C2). None of it starts unless Gate C misses.
   fresh noise band (Crawford's Chrome was open; the base's spread is given instead, D5's 0.43–0.83), and the sitting's
   absolute numbers sit far above earlier ones, so only its paired deltas compare. About 75 minutes of runs, not 30.
 
-**The Reverb, shorter at Light** (spec §1.3 H5, §1.6 (2); audible → Light only)
+- [ ] **Task 12b: the ten effect panels, `AudioSettingSection.tsx`, `RobotScreen.tsx`, `CompanyOptionsSection.tsx` — every inert control dimmed**
 
-- [ ] **Task 19: `src/constants/index.ts`, `src/utils/audioBudget.ts`, `globalFx.ts`, `audioBudgetSystem.ts`, `audioStore.ts`, the Reverb's Decay row — the Reverb decay cap**
+  **Description:** Crawford at the T19 review (2026-10-29): "if they don't do anything they should be dimmed." While
+  `effectsHeldOff`, a held-off effect's other rows do nothing either, so **every row of the ten effect panels** (Drive,
+  Rate, Depth, Stages, Spread and the rest, the Free | Sync rate rows included, not only the Mix) disables with the
+  held-off look, its value kept, with one `HeldOffNote` per panel (on the Mix row, where T12 put it). And **every
+  robot's and company's Grit, Shimmer and Double send rows** (`AudioSettingSection`'s `SendRow`s) disable the same way,
+  with one note under the send rows: a send into a dark room does nothing. `AudioSettingSection` stays store-free:
+  both call sites (the robot screen's wrapper, `CompanyOptionsSection`) pass a `heldOffSends` record from one hook,
+  `useHeldOffSends()`, that reads the store's flags and returns a stable record (T19 adds the Reverb send to it).
+  Delay, Volume, Pan and Dynamics stay live.
 
-  **Description:** `LOAD_REVERB_CAP_BELOW = 0.4` (Effects Load: Light capped, Standard and Full not, H1's placement)
-  and `REVERB_DECAY_CAP_S`, the cap in seconds (provisional 1.5; T24 sets it). `EffectsLoadLimits` gains
-  `reverbDecayCap: number | null` (the cap below the threshold, `null` above). `globalFx.ts` keeps the stored decay
-  (`setGlobalReverb` records it first, as T10's `lastMix` does for a Mix) and pushes `min(stored, cap)` through the
-  existing coalesced impulse path (`flushReverbIr`, a `Reverb.generate()`); lifting the cap pushes the stored decay
-  back, exact. `applyTiers` (T11) pushes the cap beside the effects flag; `audioStore` gains `reverbCapped`, true only
-  while the stored decay exceeds the cap; the Reverb's Decay row shows the `HeldOffNote` with its value kept while
-  capped; `describeLimits` names a shorter reverb (the phrase through the content layer).
-
-  **Proof:** RED test — `src/utils/audioBudget.test.ts`: `effectsLoadToLimits(0.2).reverbDecayCap` is the cap,
-  `(0.4)`, `(0.6)` and `(1)` null. `src/engine/audioEngine/globalFx.test.ts`: capped with a stored 3 s decay writes
-  the cap; a stored decay under the cap writes the stored value; a decay write while capped records it and writes the
-  `min`; lifting restores the stored decay exactly; a re-send writes nothing. `src/systems/audioBudgetSystem.test.ts`:
-  one push per crossing. The Decay row's rendering test with `reverbCapped` true.
+  **Proof:** RED test — `AudioRigEffectPanel.test.tsx`: held off, every slider in each of the ten panels disabled and
+  greyed and exactly one note; the other seven panels untouched. `AudioSettingSection.test.tsx`: with the three room
+  sends held off, those three sliders disabled and greyed, the Reverb, Delay, Volume, Pan and Dynamics rows live, one
+  note; none held off, no note. The hook: the record follows the flag and keeps its reference across unrelated store
+  writes. One rendering test each on the robot screen and the company screen with the store flag set.
 
   **Acceptance criteria:**
-  - [ ] Light's Reverb never runs past the cap; Standard and Full untouched; the stored decay (session, share link)
-        never changes.
+  - [ ] Nothing the hold-off makes inert looks live; nothing still live is dimmed.
 
   **Verification:**
-  - [ ] The touched tests pass; the mutation gate on the `min` and the restore; `npm run build:types`, `npm run lint`
-        clean.
+  - [ ] `npx vitest run src/components` passes; the mutation gate; `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Task 13 (stacked on H1).
+  **Dependencies:** Task 12.
+
+  **Files:** `src/components/panels/screen/console/AudioRigDrawer.tsx` + `AudioRigEffectPanel.test.tsx`,
+  `src/components/robot/AudioSettingSection.tsx` + test, `src/components/robot/useHeldOffSends.ts` + test (new),
+  `src/components/panels/screen/screens/RobotScreen.tsx`, `src/components/company/CompanyOptionsSection.tsx` + tests
+
+  **Estimated scope:** S
+
+**The Reverb, off at Light** (spec §1.3 H5, §1.6 (2); Crawford at Gate C, 2026-10-29: off, not capped; audible → Light only)
+
+- [ ] **Task 19: `src/constants/index.ts`, `src/utils/audioBudget.ts`, `globalFx.ts`, `audioBudgetSystem.ts`, `audioStore.ts`, the Reverb panel, the send rows, the overlay — the Reverb off at Light**
+
+  **Description:** `LOAD_REVERB_MIN = 0.4` beside `LOAD_EFFECTS_MIN` (the same placement: Light off, Standard and Full
+  on; its own constant so Gate C2 can revert it alone, Crawford 2026-10-29). `EffectsLoadLimits` gains
+  `reverbEnabled`; `describeLimits` adds `reverb` to its `no …` list. `globalFx.ts` gains
+  `setReverbHeldOff(heldOff)`: held off, the Reverb's return gain ramps to 0 over `COLOUR_RAMP_SECONDS` and, on the
+  audio clock (`lookAhead` + the ramp + the bypass margin, `writeCellMix`'s timing), the `_globalReverb →
+  _globalReverbReturn` edge is dropped, so the Reverb and every robot's reverb send stop being rendered (A5's ablation,
+  the same edge); lifted, a pending drop is cancelled, the edge is re-made while the return is at 0, and the return
+  ramps to the stored Amount. `setGlobalReverb` records `wet` first and writes the return only while not held off;
+  Length and Pre-Delay keep reaching the node (the impulse render is main-thread work), so the lift is exact.
+  `wireGlobalFxChain` (a Decay flip) re-makes the edge only while not held off. `getReverbHeldOff()` for the overlay.
+  `applyTiers` pushes it beside the effects flag (its key gains `reverbEnabled`); `stopAudioBudget` lifts it;
+  `audioStore` gains `reverbHeldOff` (the `effectsHeldOff` pattern, not persisted). The UI, by T12b's rule: the
+  Reverb panel's three rows (Amount, Length, Pre-Delay) disable with the held-off look and one note, values kept, and
+  every robot's and company's Reverb send row joins `useHeldOffSends`. The overlay's `lfo` line ends ` · fx off`,
+  ` · rev off`, or ` · fx+rev off` when both are held (two tokens would take the line past the HUD's 52 columns;
+  Crawford: "let's give it a try"). The Delay is untouched.
+
+  **Proof:** RED test — `audioBudget.test.ts`: `effectsLoadToLimits(0.2).reverbEnabled` false, `(0.4)`, `(0.6)`,
+  `(1)` true; `describeLimits` names it. `globalFx.test.ts`: held off, the return ramps to 0 and the reverb → return
+  edge drops when the timer fires; an Amount write while held off is recorded and writes nothing; the lift re-makes the
+  edge and ramps to the recorded Amount exactly; a lift before the timer cancels the drop; a Decay flip while held off
+  makes no reverb → return edge; a Length write while held off still reaches the node. `audioBudgetSystem.test.ts`:
+  one push per crossing, its own threshold (a mocked `LOAD_REVERB_MIN`), lifted on stop. `audioStore.test.ts`: the
+  boolean. `AudioRigEffectPanel.test.tsx`: the three Reverb rows disabled with one note while `reverbHeldOff`, values
+  kept, no other panel re-rendered by the flip. `useHeldOffSends` / `AudioSettingSection`: the Reverb send row dims
+  with `reverbHeldOff` alone. `hudLines.test.ts` / `audioDiagnostics.test.ts`: the three tails.
+
+  **Acceptance criteria:**
+  - [ ] Light's Reverb is out of the signal path (its edge to the return dropped); Standard and Full untouched; the
+        stored Amount, Length and Pre-Delay (session, share link) never change.
+
+  **Verification:**
+  - [ ] The touched tests pass; the mutation gate on the hold-off branch; `npm run build:types`, `npm run lint` clean.
+  - [ ] Headless: D1 `load=light` reads ` · fx+rev off`; `load=light&fxLoad=standard` reads neither.
+
+  **Dependencies:** Task 13 (stacked on H1), Task 12b (the send-row hook).
 
   **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts` + test, `src/engine/audioEngine/globalFx.ts` + test,
-  `src/systems/audioBudgetSystem.ts` + test, `src/store/audioStore.ts` + test, the Reverb's Decay row, `src/content/…`
+  `src/engine/AudioEngine.ts`, `src/systems/audioBudgetSystem.ts` + test, `src/stores/audioStore.ts` + test,
+  `src/components/panels/screen/console/AudioRigDrawer.tsx` + `AudioRigEffectPanel.test.tsx`,
+  `src/components/robot/useHeldOffSends.ts` + test, `src/engine/audioDiagnostics.ts` + test,
+  `src/components/debug/hudLines.ts` + test
 
   **Estimated scope:** M
 
-- [ ] **Task 24: `docs/todo/scratchy-audio-phones.md` — the Reverb cap's value, A/B and crossing**
+- [ ] **Task 24: `docs/todo/scratchy-audio-phones.md` — the Reverb off: A/B and crossing**
 
-  **Description:** First the cap's value: T19's build at 1.0, 1.5 and 2.0 s on D1 (the longer seeded decay) at
-  Light, one 120 s run each against T13's commit, with Crawford's ear on the three; Crawford picks, and
-  `REVERB_DECAY_CAP_S` is set to it (one commit, the constant only). Then spec §1.5 steps 3–4 against T13's commit:
-  D1 and D5 at Light, 240 s, kept on any drop outside the noise band (a cap saves part of A5's price, not all of it;
-  D5's seeded decay may already sit under the cap, so its delta may be nil, stated); one Full run per world; the
-  crossing (Effects Load dragged 0.6 → 0.2 and back, an impulse swap on a live Reverb) through the recorder recipe,
-  three runs, ≤ ×1.6, no gap.
+  **Description:** Spec §1.5 steps 3–4 against T13's commit: D1 and D5 at Light, 240 s, three interleaved rounds; kept
+  when the mean drops by at least A5's price (D1 −0.074, D5 −0.043) less the noise band, the peak window does not rise,
+  `max lag` inside the base's spread; one Full run per world inside the base's spread. The crossing, through the
+  recorder recipe: a steady tone with a 0.3 reverb send into a 2 s decay, `setReverbHeldOff(true)` then `(false)`,
+  three runs, ≤ ×1.6, no gap. And the one risk the recipe does not catch: a Convolver that stops being rendered keeps
+  its internal tail, so the lift may replay up to a decay's worth of old reverb; the lift's window is read for it
+  (energy against the steady state) and Crawford listens to a desktop lift (Effects Load dragged 0.2 → 0.6 with notes
+  ringing). If it is heard, the fix is a fresh impulse on the lift (one `generate()`, which resets the Convolver), a
+  follow-up commit on T19, not a new task. There is no value to sweep: the Reverb is off, not capped.
 
   **Proof:** A run, recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] The cap's value is Crawford's; the four numbers and the crossing figure stated with spreads.
+  - [ ] The four numbers and the crossing figure stated with spreads; the ghost-tail reading and Crawford's ear on the
+        lift recorded; the verdict is Crawford's on them.
 
   **Verification:**
   - [ ] Hygiene as Phase A2; the record traces to the JSON files.
 
   **Dependencies:** Task 19.
 
-  **Files:** `docs/todo/scratchy-audio-phones.md`, `src/constants/index.ts` (the value)
+  **Files:** `docs/todo/scratchy-audio-phones.md`
 
   **Estimated scope:** S
 
@@ -995,11 +1044,11 @@ C2). None of it starts unless Gate C misses.
 
 - [ ] **Task 27: the stacked sitting, prepared**
 
-  **Description:** Three production builds on the LAN, each on its own port: T13's commit (pedals off), T24's (plus
-  the shorter Reverb) and T26's (plus three robots), with `main` at its merge-base beside them. A `phone.html` links
+  **Description:** Three production builds on the LAN, each on its own port: T13's commit (pedals off) and T24's (plus
+  the Reverb off), and T26's (plus three robots) only if T25–T26 were built, with `main` at its merge-base beside them. A `phone.html` links
   page in each `dist` with D1 and D5 at `?debug&load=light`, and the last build at `?debug&load=full` too; every link
   pre-checked headlessly over the LAN (pin check, powered on, Light, `latency playback`, `fin ok`, `fx in 0/10` on all
-  three once the timers fire, the Reverb at the cap on the second and third, three sounding at most on the third). The
+  builds once the timers fire, `fx+rev off` on the second, three sounding at most on the third if it exists). The
   commands, cleanup included, in the session scratchpad's `commands.txt`.
 
   **Proof:** A run (the headless pre-checks). No test file.
@@ -1113,7 +1162,7 @@ C2). None of it starts unless Gate C misses.
 | H3a: a restarted LFO at phase 0 is audible on a lit pedal | Low | The start lands before the connect while the wet gain is 0, so the phase reset happens in silence; T18's crossing run measures it (≤ ×1.6). |
 | H3a: Tone's `Vibrato` starts its own LFO in its constructor and may not expose it the way the others do | Low | T16 feature-detects per effect and leaves an effect with no reachable LFO alone (empty `lfos`), recorded in the task. |
 | H2's admission re-primes the robot's LFO links, which A2 did not price, so the cut saves less than A2 measured | Low | T15's A/B is of the real cut; kept on A2's price less noise, or Crawford's call on a smaller saving. |
-| The Reverb cap's crossing swaps the impulse on a live convolver and clicks | Medium | T24's recorder run on the crossing; the swap is Tone's own `generate()` path the Decay slider already uses. |
+| The Reverb's lift clicks, or replays the old tail the unrendered Convolver kept | Medium | T24's recorder run on the crossing and a read of the lift's window for the tail, plus Crawford's ear; if the tail is heard, a fresh impulse on the lift (`generate()` resets the Convolver). |
 | The stacked sitting runs long on one phone and heat skews the later builds | Medium | A rested phone; `main`'s baseline first; a build that reads worse than the one before it is repeated after a rest. |
 | A kept cut passes the desktop A/B and the phone still clicks (the desktop is a proxy) | High | Gate C is the only pass; §1.6's deeper-cut order is pre-written so a miss is a next task, not a new design; the floor is reported, never papered over. |
 | The 10-minute tool limit on an agent's shell truncates a run | Low | ≤ 2 four-minute or 4 two-minute runs per call (PERFORMANCE.md hygiene); the phone and any 15-minute run are Crawford's terminal. |
@@ -1126,7 +1175,7 @@ C2). None of it starts unless Gate C misses.
 3. **H2's admission: build on entry or a warm pool?** (spec §7 Q3) **Resolved**: build on entry (T14); a warm pool is
    not built.
 4. **Reopen backlog 28 (EQ3/LPF/HPF at neutral)?** (spec §7 Q4) **Resolved at Gate A (2026-10-28): not reopened.** The EQ levels are seeded, so the worlds are not at neutral; backlog 28's decision stands.
-5. **A Reverb decay cap at Light?** (spec §7 Q5) **Resolved at Gate A:** a decay cap at Light, the second of Phase C2's three cuts (T19, T24); its value set by T24's sweep and Crawford's ear.
+5. **A Reverb decay cap at Light?** (spec §7 Q5) **Resolved at Gate A:** a decay cap at Light, the second of Phase C2's three cuts (T19, T24); its value set by T24's sweep and Crawford's ear. **Changed at Gate C (2026-10-29):** the Reverb off at Light, not capped; no value to set.
 6. **Numbering.** (spec §7 Q6) **Resolved**: stays backlog 27 (T0, T23); no roadmap phase.
 7. **The 70 % criterion.** (spec §7 Q7) **Resolved** as a reporting rule: T7 states the explained share; Gate A
    decides what to do under 70 %.
