@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import { softCeilingCurve } from './headroom';
 import { getToneCtor, type ModulationTarget } from './toneHelpers';
 import {
+  BYPASS_KEYS,
   CHAIN_CUT_OPTIONS,
   COLOUR_RAMP_SECONDS,
   ROOM_BRANCHES,
@@ -106,6 +107,10 @@ let _masterVolume = 1;
 let _tapsWanted = false;
 let _preTap: OutputTap | null = null;
 let _masterTap: OutputTap | null = null;
+// The effects hold-off (docs/specs/LIGHT_TIER_STANDING_COST.md H1): below LOAD_EFFECTS_MIN the budget holds every cell
+// and branch dark. Each Mix write records what the user set here first, and reaches its cell only while not held off.
+let _effectsHeldOff = false;
+const _lastMix: Partial<Record<BypassKey, number>> = {};
 
 /** Ramp duration for a live LPF/HPF frequency change — same declick rationale as
  *  AudioEngine.ts's own VOLUME_RAMP_SECONDS: short enough to feel instant while dragging, long
@@ -373,8 +378,8 @@ export function buildGlobalFxChain(): void {
       if (room) buildBranch(key, room, effect, GainCtorFX);
       else buildCell(key, effect, GainCtorFX, ChainCutCtor);
     }
-    writeCellMix('frequencyShifter', 1);
-    writeCellMix('chorus', 1);
+    writeMix('frequencyShifter', 1);
+    writeMix('chorus', 1);
   } else if (effects.some(([, , effect]) => effect)) {
     devWarn(
       '[AudioEngine] no Gain or Delay constructor for the bypass cells; the ten global effects are left out of the chain',
@@ -587,6 +592,38 @@ export function getGlobalRoomInput(key: RoomKey): Tone.Gain | null {
 
 /** The bypass cells' count for the diagnostics, which read the global chain through this module. */
 export { getConnectedEffectCount } from './bypassCell';
+
+// ========================================
+// THE EFFECTS HOLD-OFF (docs/specs/LIGHT_TIER_STANDING_COST.md H1)
+// ========================================
+
+/** Every Mix write's one way in (a colour or pedal Mix, Width's width, the Shimmer and Double branches' pinned depth):
+ *  recorded as what the user set, then written through the cell's crossing unless the effects are held off. */
+function writeMix(key: BypassKey, mix: number): void {
+  _lastMix[key] = mix;
+  if (!_effectsHeldOff) writeCellMix(key, mix);
+}
+
+/**
+ * The budget's word on the effects tier (audioBudgetSystem, below LOAD_EFFECTS_MIN). Held off, every chain cell and room
+ * branch is written dark through writeCellMix's own crossing (ramp to dry, then the disconnect on the audio clock; Width
+ * to 0.5, its unity); lifted, each is written back to its recorded Mix through the same crossing, exactly. A re-sent
+ * value writes nothing (writeCellMix's own re-send rule). A room's liveness is left alone: a held-off branch is dark at
+ * depth 0, so feeding its room or moving its Return lights nothing, and a Decay flip re-wires the cells as they are. The
+ * record outlives a chain rebuild, as the store's Mixes do.
+ */
+export function setEffectsHeldOff(heldOff: boolean): void {
+  _effectsHeldOff = heldOff;
+  for (const key of BYPASS_KEYS) {
+    if (heldOff) writeCellMix(key, key === 'stereoWidener' ? 0.5 : 0);
+    else if (_lastMix[key] !== undefined) writeCellMix(key, _lastMix[key]);
+  }
+}
+
+/** Whether the effects are held off, for the `?debug` overlay. */
+export function getEffectsHeldOff(): boolean {
+  return _effectsHeldOff;
+}
 
 // ========================================
 // OUTPUT TAPS (read-only diagnostics)
@@ -825,7 +862,7 @@ export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
     const amount = params.amount === undefined ? undefined : clampColour('distortion.amount', params.amount);
     const wet = params.wet === undefined ? undefined : clampColour('distortion.wet', params.wet);
     if (amount !== undefined) distortion.distortion = amount;
-    if (wet !== undefined) writeCellMix('distortion', wet);
+    if (wet !== undefined) writeMix('distortion', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalDistortion failed', err);
   }
@@ -838,7 +875,7 @@ export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
     const order = params.order === undefined ? undefined : clampColour('chebyshev.order', Math.round(params.order));
     const wet = params.wet === undefined ? undefined : clampColour('chebyshev.wet', params.wet);
     if (order !== undefined) chebyshev.order = order;
-    if (wet !== undefined) writeCellMix('chebyshev', wet);
+    if (wet !== undefined) writeMix('chebyshev', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChebyshev failed', err);
   }
@@ -851,7 +888,7 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
     const bits = params.bits === undefined ? undefined : clampColour('bitCrusher.bits', params.bits);
     const wet = params.wet === undefined ? undefined : clampColour('bitCrusher.wet', params.wet);
     if (bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeCellMix('bitCrusher', wet);
+    if (wet !== undefined) writeMix('bitCrusher', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
   }
@@ -880,7 +917,7 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
     if (follower !== undefined) wah.follower = follower;
     if (Q !== undefined) rampOrSet(wah.Q, Q, COLOUR_RAMP_SECONDS);
     if (gain !== undefined) rampOrSet(wah.gain, gain, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeCellMix('autoWah', wet);
+    if (wet !== undefined) writeMix('autoWah', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalAutoWah failed', err);
   }
@@ -976,7 +1013,7 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     // already heading for, does nothing (a whole-block apply re-sends it).
     const rebuilt =
       stages !== undefined && stages !== (_phaserDuckStages ?? _phaserStages) && writePhaserStages(stages);
-    if (wet !== undefined) writeCellMix('phaser', wet);
+    if (wet !== undefined) writeMix('phaser', wet);
 
     // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
     if (rebuilt) return;
@@ -1103,7 +1140,7 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
     if (rate !== undefined) rampOrSet(tremolo.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
     if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
-    if (wet !== undefined) writeCellMix('tremolo', wet);
+    if (wet !== undefined) writeMix('tremolo', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalTremolo failed', err);
   }
@@ -1121,7 +1158,7 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
     const wet = clampIfGiven('vibrato.wet', params.wet);
     if (rate !== undefined) rampOrSet(vibrato.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
-    if (wet !== undefined) writeCellMix('vibrato', wet);
+    if (wet !== undefined) writeMix('vibrato', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalVibrato failed', err);
   }
@@ -1157,7 +1194,7 @@ export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): 
   try {
     const width = clampIfGiven('stereoWidener.width', params.width);
     if (width === undefined) return;
-    writeCellMix('stereoWidener', width);
+    writeMix('stereoWidener', width);
     rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalStereoWidener failed', err);

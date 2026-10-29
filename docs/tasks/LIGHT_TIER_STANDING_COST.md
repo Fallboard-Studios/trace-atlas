@@ -740,7 +740,7 @@ C2). None of it starts unless Gate C misses.
   nothing else. RED 5 of 103 for the missing constant and field; 3 mutants killed (`>=` → `>`, flag always true,
   the phrase dropped).
 
-- [ ] **Task 10: `src/engine/audioEngine/globalFx.ts` — `setEffectsHeldOff` and the stored Mix**
+- [x] **Task 10: `src/engine/audioEngine/globalFx.ts` — `setEffectsHeldOff` and the stored Mix** (2026-10-29)
 
   **Description:** A module-level `lastMix: Partial<Record<BypassKey, number>>` that every Mix setter writes before
   it calls `writeCellMix` (Width records its width); the setters call `writeCellMix` only while not held off.
@@ -757,11 +757,11 @@ C2). None of it starts unless Gate C misses.
   Decay flip while held off connects no effect; `applyGlobalAudioToEngine` while held off connects nothing.
 
   **Acceptance criteria:**
-  - [ ] No second path: every edge change goes through `writeCellMix`; `getConnectedEffectCount` reads 0 once the
+  - [x] No second path: every edge change goes through `writeCellMix`; `getConnectedEffectCount` reads 0 once the
         timers fire; the stored Mix is exact on restore (no epsilon).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/bypassCell.test.ts` passes;
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/bypassCell.test.ts` passes;
         the mutation gate on the hold-off branch; `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 9 (for the name only; buildable in parallel).
@@ -769,6 +769,17 @@ C2). None of it starts unless Gate C misses.
   **Files:** `src/engine/audioEngine/globalFx.ts`, `src/engine/audioEngine/globalFx.test.ts`
 
   **Estimated scope:** S
+
+  **As built (2026-10-29):** `writeMix(key, mix)` is the one way in: it records `_lastMix[key]` and calls
+  `writeCellMix` only while not held off; the seven Mix setters, Width and the build's two pinned branch depths
+  (Shimmer, Double at 1) all go through it, so a chain built while held off lights nothing either. Three deviations.
+  (1) No early return on a re-sent value: `writeCellMix`'s own re-send rule already writes nothing (the guard was a
+  surviving mutant, so it went). (2) The record outlives a chain rebuild, as the store's Mixes do (pinned by a test).
+  (3) `applyGlobalAudioToEngine` is the store's; the test sends every setter's Mix as it does, every room fed. Worth
+  knowing for T12: the Chorus's and the Shifter's "Mix" rows write their room's **Return** (`setRoomReturn`), not a
+  cell Mix; the hold-off darkens their branches (pinned depth 1) all the same, and the Return keeps being written.
+  RED 12 of 12 (missing exports); 13 tests; 7 mutants killed (writes while held, no record, Width dark at 0, an
+  unrecorded key lifted as 0, nothing lifted, a pinned depth written directly, the flag never set).
 
 - [ ] **Task 11: `src/systems/audioBudgetSystem.ts`, `src/store/audioStore.ts` — the push and `effectsHeldOff`**
 

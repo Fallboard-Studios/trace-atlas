@@ -4137,6 +4137,213 @@ describe('globalFx', () => {
     });
   });
 
+  describe('setEffectsHeldOff (Light tier standing cost T10, H1)', () => {
+    // A chain cell (the Vibrato), a colour branch (the Distortion, in the fed Colour room) and Width, lit.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function lightThree(globalFx: any) {
+      feedRooms('grit');
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalDistortion({ wet: 0.5 });
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lastWetRamp = (effect: any) => cellOf(effect).wet.gain.rampTo.mock.calls.at(-1)?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const wetRampCount = (effect: any) => cellOf(effect).wet.gain.rampTo.mock.calls.length;
+
+    it('is not held off until told, and reports what it was told', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.getEffectsHeldOff()).toBe(false);
+      globalFx.setEffectsHeldOff(true);
+      expect(globalFx.getEffectsHeldOff()).toBe(true);
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getEffectsHeldOff()).toBe(false);
+    });
+
+    it('ramps every lit cell and branch to dry and disconnects each when its timer fires, Width to 0.5', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      const distortion = lastInstance(Tone.Distortion);
+      const widener = lastInstance(toneFlags.widenerCtor);
+      globalFx.setEffectsHeldOff(true);
+      expect(lastWetRamp(vibrato)).toBe(0);
+      expect(lastWetRamp(distortion)).toBe(0);
+      expect(lastWetRamp(widener)).toBe(0);
+      expect(live.getCell('stereoWidener')!.mix).toBe(0);
+      // Still in the path until the audio clock has run the ramp.
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      expect(cellOf(vibrato).in.disconnect).toHaveBeenCalledWith(vibrato);
+      expect(cellOf(distortion).in.disconnect).toHaveBeenCalledWith(distortion);
+      expect(cellOf(widener).in.disconnect).toHaveBeenCalledWith(widener);
+    });
+
+    it('records a Mix written while held off and connects nothing', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('grit');
+      globalFx.setEffectsHeldOff(true);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      globalFx.setGlobalVibrato({ wet: 0.4 });
+      globalFx.setGlobalDistortion({ wet: 0.3 });
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      expect(wetRampCount(vibrato)).toBe(0);
+      expect(toneFlags.timeouts).toHaveLength(0);
+    });
+
+    it('lights exactly the recorded Mixes when lifted, the last write while held off winning, and nothing never lit', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      globalFx.setGlobalVibrato({ wet: 0.6 });
+      globalFx.setGlobalVibrato({ wet: 0.37 });
+      globalFx.setGlobalDistortion({ wet: 0.21 });
+      globalFx.setGlobalStereoWidener({ width: 0.15 });
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      expect(live.getCell('vibrato')!.mix).toBe(colourWetGain(0.37));
+      expect(live.getCell('distortion')!.depth).toBe(0.21);
+      expect(live.getCell('distortion')!.mix).toBe(colourWetGain(0.21));
+      expect(live.getCell('stereoWidener')!.mix).toBe(1);
+      expect(live.getCell('tremolo')!.connected).toBe(false);
+      expect(live.getCell('phaser')!.connected).toBe(false);
+    });
+
+    it('lifts back to the Mix lit before the hold-off when nothing was written during it', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      expect(live.getCell('vibrato')!.mix).toBe(colourWetGain(0.3));
+      expect(live.getCell('distortion')!.depth).toBe(0.5);
+    });
+
+    it('leaves a dark Width dark across a hold-off and its lift (0.5 is its dark)', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalStereoWidener({ width: 0.5 });
+      globalFx.setEffectsHeldOff(true);
+      globalFx.setEffectsHeldOff(false);
+      fireTimeouts();
+      expect(live.getCell('stereoWidener')!.connected).toBe(false);
+    });
+
+    it('writes nothing on a re-sent hold-off, and nothing on a lift that was never held', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      globalFx.setEffectsHeldOff(false);
+      expect(wetRampCount(vibrato)).toBe(1);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      const ramps = wetRampCount(vibrato);
+      globalFx.setEffectsHeldOff(true);
+      expect(wetRampCount(vibrato)).toBe(ramps);
+      expect(toneFlags.timeouts).toHaveLength(0);
+    });
+
+    it('a Decay flip while held off connects no effect', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      const connects = vibrato.connect.mock.calls.length;
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(vibrato.connect.mock.calls.length).toBe(connects);
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('a whole-block apply while held off connects nothing, every room fed', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setEffectsHeldOff(true);
+      // Every setter's Mix, as applyGlobalAudioToEngine sends them, with every room fed.
+      feedRooms();
+      for (const setter of [
+        'setGlobalDistortion',
+        'setGlobalChebyshev',
+        'setGlobalBitCrusher',
+        'setGlobalAutoWah',
+        'setGlobalPhaser',
+        'setGlobalChorus',
+        'setGlobalTremolo',
+        'setGlobalVibrato',
+        'setGlobalFrequencyShifter',
+      ] as const) {
+        (globalFx[setter] as unknown as (params: { wet: number }) => void)({ wet: 0.3 });
+      }
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getConnectedEffectCount()).toBe(10);
+    });
+
+    it('a fed room or a Return crossing 0 while held off lights no branch', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      feedRooms();
+      globalFx.setGlobalChorus({ wet: 0 });
+      globalFx.setGlobalChorus({ wet: 0.5 });
+      globalFx.setGlobalFrequencyShifter({ wet: 0.4 });
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('a chain built while held off lights nothing, its pinned Shimmer and Double branches included, until lifted', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.setEffectsHeldOff(true);
+      globalFx.buildGlobalFxChain();
+      feedRooms();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      globalFx.setEffectsHeldOff(false);
+      expect(live.getCell('chorus')!.connected).toBe(true);
+      expect(live.getCell('frequencyShifter')!.connected).toBe(true);
+      expect(globalFx.getConnectedEffectCount()).toBe(2);
+    });
+
+    it('keeps the recorded Mixes across a chain rebuild, as the store keeps them, so a lift lights the new cells', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setEffectsHeldOff(true);
+      globalFx.buildGlobalFxChain();
+      globalFx.setEffectsHeldOff(false);
+      expect(live.getCell('vibrato')!.effect).toBe(lastInstance(toneFlags.vibratoCtor));
+      expect(live.getCell('vibrato')!.mix).toBe(colourWetGain(0.3));
+    });
+
+    it('a Phaser Stages change while held off rebuilds it dark', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      globalFx.setGlobalPhaser({ wet: 0.4, stages: 12 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      globalFx.setEffectsHeldOff(false);
+      expect(live.getCell('phaser')!.effect).toBe(lastInstance(toneFlags.phaserCtor));
+      expect(live.getCell('phaser')!.mix).toBe(colourWetGain(0.4));
+    });
+  });
+
   describe('setGlobalFrequencyShifter (Global Pedals)', () => {
     async function built() {
       const globalFx = await import('./globalFx');
