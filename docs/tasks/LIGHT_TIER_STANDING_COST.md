@@ -1007,7 +1007,8 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
   **Acceptance criteria:**
   - [ ] The four numbers and the crossing figure stated with spreads; the ghost-tail reading and Crawford's ear on the
-        lift recorded; the verdict is Crawford's on them.
+        lift recorded; the verdict is Crawford's on them. (2026-10-29: numbers, crossing and ghost reading recorded;
+        Crawford's ear and the verdict open.)
 
   **Verification:**
   - [ ] Hygiene as Phase A2; the record traces to the JSON files.
@@ -1017,6 +1018,14 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
   **Estimated scope:** S
+
+  **As run (2026-10-29):** the decomposition's §12; T19 `3648697d` against T13 `1b117e3a`, 16 runs, every exit 0,
+  orphans 0. Light: D1 **−0.021** (−0.018 to −0.109), D5 **−0.059** (−0.046 to −0.084), cheaper in all six rounds;
+  D5 beats A5's price, D1 does not; Full ±0.05 (the same graph, so this sitting's noise). The hold-off crossing is
+  clean (≤ ×1.0). **The lift is not:** ×1.09 / ×6.83 / ×10.02, and the ghost tail is real (RMS 0.013–0.015 after the
+  lift with nothing fed, against 0.03–0.06 steady). Throwaway variants of the lift: a Convolver reset removes the ghost
+  (0 in all runs) but clicks ×3.3–×3.9; reset plus a 1 s ramp up reads ×1.12 / ×1.70 / ×1.24 with no ghost. Stopped
+  here for Crawford: his ear on the lift, and whether T19 gets the reset-plus-1-s-ramp lift as a follow-up commit.
 
 **Three sounding robots at Light** (spec §1.6 (3); audible → Light only)
 

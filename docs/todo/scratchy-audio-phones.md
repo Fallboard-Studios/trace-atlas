@@ -1805,7 +1805,7 @@ are this plan's Phase B.
 |---|---|---|---|---|---|---|---|---|
 | **1** | Standing-by robots' voices (H2, A2) | not separable: its nodes are Gains and ConstantSources | **−0.124** | **−0.107** | −678 / −499 (Gains −506 / −374, ConstantSources −142 / −108) | Release a robot's voice when it leaves the sounding set, re-reserve and re-prime its links when it enters (T14, A/B T15). **A/B (§8): D1 −0.065, D5 +0.013**, inside that sitting's noise band (0.101 / 0.120); A2's price was the docked robots, not H2 | No: Full has no standing-by robots; at Light an admitted robot's first note must not be late or clicked | **every tier** |
 | **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13). **A/B (§11): D1 −0.289, D5 −0.096**, cheaper in all six rounds; crossings ≤ ×1.014 | Yes, the pedals go silent | **Light only** |
-| **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B | Yes | **Light only** |
+| **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B. **Gate C (2026-10-29): off at Light instead** (T19); **A/B (§12): D1 −0.021, D5 −0.059**, cheaper in all six rounds; the lift clicks and replays the old tail as built | Yes | **Light only** |
 | **4** | EQ3, LPF and HPF at neutral (H5, A6) | 6 of the 15 rendering biquads | **−0.041** | **−0.019** | 0 / 0 | Out of the chain while neutral: reopens backlog 28's decision to keep them in (Crawford's), written into T19 | Probably not at neutral (the EQ3's crossover split is not bit-flat); needs a listen | every tier, if inaudible |
 | 5 | The bank's lanes and drift (H3b, A4) | 8 of the 25–28 rendering oscillators | −0.038 | below noise | −28 / −24 | Stop the drift secondaries while drift is held off (T17, A/B T18). A4 also stopped the lanes, which are audible, so the drift-only saving is a part of −0.038 and unpriced. **A/B (§9): D1 −0.017, D5 −0.015**, inside that sitting's noise band | No | every tier |
 | 6 | Dark cells' effect LFOs (H3a, A3) | 4–5 LFOs | −0.026 | below noise | −5 / −4 | Stop a dark cell's LFOs at the darken crossing, start them at the light crossing (T16, A/B T18). With H1 kept, every LFO cell is dark at Light, so this saves more there than A3 measured. **A/B (§9): D1 +0.008, D5 −0.009**, inside that sitting's noise band | No | every tier |
@@ -2168,3 +2168,51 @@ Each cell read out of the path after the hold-off and back in after the lift, in
 
 **Verdict:** Crawford's, on these numbers; by the bar as written H1 is kept. Next in Phase C2 is the Reverb, off at
 Light (T19 and T24, rewritten before they are built).
+
+### 12. Phase C2, the Reverb off at Light — A/B, crossing and the ghost tail (T24, 2026-10-29)
+
+**Method:** §11's, in one sitting: the cut is T19's commit `3648697d` (`index-QdwFf1-U`, :4223) against T13's commit
+`1b117e3a` (`index-pklsL_s5`, :4221; T12b between them changed only the UI). D1 and D5 at Light, 240 s, three rounds
+alternating inside each pair, then one Full run per world per arm. Every run exit 0, orphaned Chrome 0. Phase A's
+price for the whole Reverb: A5 −0.074 on D1, −0.043 on D5. The overlay confirms the cut: the base reads
+`· fx off`, the cut `· fx+rev off`, both `fx in 0/10`. No fresh noise band again (Crawford's Chrome open); the
+sitting was quieter than §11's (D1's base 0.479–0.501).
+
+| | D1 | D5 |
+|---|---|---|
+| **Delta**, median (r1 · r2 · r3) | **−0.021** (−0.018 · −0.021 · −0.109) | **−0.059** (−0.084 · −0.046 · −0.059) |
+| Base mean, median (range) | 0.480 (0.479–0.501) | 0.470 (0.453–0.547) |
+| Peak window, base → cut | 0.609 → 0.626 · 0.645 → 0.607 · 0.628 → 0.489 | 0.757 → 0.573 · 0.652 → 0.512 · 0.551 → 0.537 |
+| `max lag`, base / cut | 42 · 26 · 27 / 30 · 24 · 26 ms | 33 · 33 · 20 / 29 · 24 · 22 ms |
+| Full, base → cut | 0.807 → 0.759 (−0.049) | 0.590 → 0.641 (+0.051) |
+
+**Reading against spec §1.5 step 3.** Cheaper in all six rounds. D5's median beats A5's price; D1's (−0.021) is well
+under its −0.074, with one round at −0.109. The peak window falls in five rounds of six (D1 round 1 rises by 0.017);
+`max lag` is inside the base's spread. At Full the two builds run the same graph (the Reverb is on), so the ±0.05
+there is this sitting's own noise: by that yardstick D1's median is inside noise and D5's just outside it.
+
+**The crossing and the ghost tail** (§11's probe with the Reverb: a steady tone dry and through a 0.3 send into a 2 s
+decay at Amount 0.5, `setReverbHeldOff(true)` then `(false)`; and a "ghost" run with no dry path, the send cut to 0
+0.3 s into the hold-off, so whatever the Reverb outputs after the lift is tail it kept). Three rounds each, the dev
+server at T19's tree; variants A, B and AB were throwaway edits of `setReverbHeldOff`'s lift, restored after
+(`git status` clean).
+
+| Lift as | Hold-off ratio | Lift ratio (bar ≤ ×1.6) | Ghost RMS after the lift (0–0.5 s), against steady |
+|---|---|---|---|
+| **T19 as built** (50 ms ramp up) | ×0.914 · ×0.995 · ×0.942 | **×1.089 · ×6.831 · ×10.022** | **0.0151 · 0.0130 · 0.0129** against 0.034 · 0.033 · 0.064 |
+| A: a 1 s ramp up | ×0.885 · ×0.964 · ×0.917 | ×1.304 · ×0.934 · ×2.170 | 0.0020 · 0.0016 · 0.0012 (faded in, not gone) |
+| B: the Convolver reset first (its buffer re-set) | ×0.908 · ×0.942 · ×1.000 | ×3.753 · ×3.252 · ×3.939 | **0 · 0 · 0** |
+| **AB: both** | ×0.914 · ×0.919 · ×0.862 | ×1.115 · ×1.702 · ×1.239 | **0 · 0 · 0** |
+
+Control ×0.999–×1.000; abrupt ×233–×1 049 (the metric's check). Held, the Reverb's output is 0 in every run, so the
+drop itself works.
+
+**What it says.** The hold-off is clean. The lift as built fails the bar in two runs of three and replays the tail the
+unrendered Convolver kept, at a fifth to a half of its steady level: the risk T24 was written to look for, measured.
+Resetting the Convolver (re-setting its impulse buffer, which makes Chrome build a new kernel) removes the ghost
+entirely but leaves a click, which is the send's live signal entering a fresh Reverb at once; a 1 s ramp up hides
+most of that. Both together read ×1.12–×1.70, one round just over the bar.
+
+**Verdict:** Crawford's. Open: his ear on a desktop lift (Effects Load dragged 0.2 → 0.6 with notes ringing), and
+whether the lift becomes AB (a follow-up commit on T19, as T24 allows for the ghost; the 1 s ramp is a change T24 did
+not foresee).
