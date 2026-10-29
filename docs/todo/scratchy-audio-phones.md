@@ -2074,3 +2074,51 @@ about 0.1 of capacity. H3a's and H3b's Phase A prices are a quarter to a third o
 is worth well under A2's 0.124. A re-run of §8 and §9 on an idle
 desktop (the browser closed, NB first) would take about four and a half hours; whether it is wanted, or whether the
 phone sitting (Phase C) is the measure that counts, is Crawford's call.
+
+### 10. Phase C, the Pixel sitting — Crawford's runs (T21, 2026-10-29)
+
+Plan T20 and T21. **Builds:** production `vite build`s served side by side on the LAN (`192.168.12.231`), each on its
+own port so their browser storage stays apart: the branch `perf/light-tier-standing-cost` at `a0728358`
+(`index-CJ4I0byy`, T14, T16 and T17 in it) on **4197**, and `main`'s merge-base `a5d5944d` (`index-BpSIkiTM`, the
+build every Phase A and Phase B base ran as) on **4199**. **Links:** D1 (`56c2t2t8` at (−116, −2)) and D5 (`bravo` at
+(−150, 90)) through roadmap 56's world links, `?debug` and `load=` pinned, from a links page (`phone.html`, session
+scratchpad) in each build's `dist`. Every link was loaded headlessly over the LAN address first (T20). Protocol as
+before: Pixel 8, the phone rested before each run, a fresh tab per run, hands off to 3:00, read again at 4:00. The
+`underruns` count is a pointer, not evidence (backlog 29); the ear is the measurement.
+
+| # | Build | Tier | World | `underruns` 3:00 → 4:00 | Collapse? | Crawford's words |
+|---|---|---|---|---|---|---|
+| 1 | branch `a0728358` | Light | D1 | **136** → 240 | no dropout | "a little too scratchy throughout" |
+| 2 | branch `a0728358` | Light | D5 | **115** → 135 | no dropout | "pretty good, a few scratches but passable" |
+| 3 | `main` `a5d5944d` | Light | D1 | **262** → 164 (as read) | no dropout | "too scratchy" |
+| 4 | `main` `a5d5944d` | Light | D5 | **194** → 254 | no dropout | "too scratchy" |
+| 5 | branch `a0728358` | Full | D1 | **380** → about 1 000 at 5:00 | **took off at about 4:30** | "too scratchy" |
+| 6 | branch `a0728358` | Full | D5 | **254** → 800 | **took off at about 3:30** | "too scratchy" |
+| 7 | `main` `a5d5944d` | Full | D1 | **202** → 234 | no | "a little too scratchy" |
+| 8 | `main` `a5d5944d` | Full | D5 | **425** → 560 | no | "too scratchy" |
+
+For comparison, `main` at Light on a rested phone in the two baseline sittings: D1 190 → 254 ("clicks happen
+throughout", 2026-10-23) and 191 → 261 ("too scratchy right out of the gate and throughout", 2026-10-26); D5 93 → 106
+("acceptable pass") and 136 → 180 ("too scratchy right out of the gate and throughout").
+
+**Reading against Gate C** (clean by ear on D1 and D5 at Light for four minutes, Full unchanged by ear; the count
+recorded, not gated).
+- **D1 at Light is not clean.** "A little too scratchy throughout" is one adjective better than `main`'s "too scratchy"
+  in the same sitting, and the same words the pre-fix build drew on both worlds on 2026-10-26, where a one-adjective
+  gap was read as no result. Its 136 at 3:00 is the lowest D1 reading on this phone but one (140, 2026-10-23).
+- **D5 at Light is "passable".** That is the best word D5 has had since `main`'s "acceptable pass" of 2026-10-23, and
+  `main` drew "too scratchy" beside it today. Its 115 at 3:00 is inside `main`'s earlier range (93–136) and below
+  today's 194. Whether "passable" is the gate's "clean" is Crawford's to say.
+- **Full did not stay unchanged: the branch took off on both worlds and `main` did not.** Runs 5 and 6 are the first
+  collapses since 2026-10-22, the same take-off round 3 saw at Full around 3:30 (2026-10-20). At Full, Phase B changes
+  only the dark cells' LFOs (T16): Full has no standing-by robots and drift is on. On the desktop the branch's Full
+  capacity read lower than the base's (§8, §9). One
+  run per cell cannot tell the build from the phone's state: the collapse of round 4 followed the run's place in the
+  sitting, not the build, and runs 5 and 6 ran fifth and sixth. But `main`'s Full runs came seventh and eighth and did
+  not take off, so place alone does not fit this sitting the way it fitted round 4.
+- **Run 3's count fell from 3:00 to 4:00.** The overlay's count is a running total and cannot fall, so one of the two
+  readings is a slip; which one is not known. The ear's "too scratchy" stands.
+- **By the gate's wording Gate C misses on D1, and on Full unless the take-off is the phone's state.** The verdict, and
+  whether Phase C2 starts, are Crawford's.
+- **Deviations:** one run per cell; the branch's Light runs were not repeated; run 5 was read at 5:00 instead of 4:00;
+  order as listed; the phone's rest between runs not timed; Gate B's desktop listen was not run first (T20).

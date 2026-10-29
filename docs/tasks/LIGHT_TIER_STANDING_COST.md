@@ -658,7 +658,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   `main` 1 793 → 1 802 and 1 813 → 1 813. The branch's Light pages log T14's one Tone warning (§8). Lines in the
   session scratchpad's `runs/pre-*.txt`; commands and cleanup in its `commands.txt`.
 
-- [ ] **Task 21: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the sitting, recorded (Gate C)**
+- [x] **Task 21: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the sitting, recorded (Gate C)**
 
   **Description:** Crawford's runs: rested Pixel 8, a fresh tab per run, hands off to 3:00, read at 4:00 — the branch
   on D1 and D5 at Light (twice each if time allows), `main` once per world at Light in the same sitting, the branch once
@@ -670,7 +670,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   **Proof:** A run (Crawford's), recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] Gate C's verdict stated in Crawford's words, per run; the deviations (one run per cell, rest untimed) listed.
+  - [x] Gate C's verdict stated in Crawford's words, per run; the deviations (one run per cell, rest untimed) listed.
 
   **Verification:**
   - [ ] Manual read; `npm run lint` clean.
@@ -680,6 +680,12 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   **Files:** `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md`
 
   **Estimated scope:** XS (the record; the runs are Crawford's)
+
+  **As run (2026-10-29):** the record's decomposition §10. Eight runs, one per cell, the branch's Light runs not
+  repeated. At Light, D5 "pretty good, a few scratches but passable" (115 → 135) and D1 "a little too scratchy
+  throughout" (136 → 240), against `main`'s "too scratchy" on both; at Full the branch took off on both worlds (about
+  4:30 on D1, 3:30 on D5) and `main` did not. By the gate's wording a miss on D1, and on Full unless the take-off is
+  the phone's state; Gate C's boxes stay open for Crawford's verdict and the Phase C2 call.
 
 ### Gate C: The phone is clean
 - [ ] Clean by ear on D1 and D5 at Light, rested Pixel 8, four minutes; Full unchanged.

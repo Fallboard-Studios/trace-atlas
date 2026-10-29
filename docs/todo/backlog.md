@@ -633,6 +633,15 @@ decomposition §7). Inaudible first and alone: standing-by voices released and t
 every tier, then the phone. Only if it still clicks, three Light-only cuts tried stacked in one sitting: pedals off, a
 shorter Reverb, three sounding robots. EQ3/LPF/HPF out at neutral dropped (the EQ is seeded); backlog 28 stands.
 
+**Update 2026-10-29: Phase B built, the phone sitting run** ([scratchy-audio-phones.md](scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §8–§10). The three inaudible cuts (standing-by voices released, the dark cells' and
+drift's LFOs stopped) are on `perf/light-tier-standing-cost`; their desktop A/Bs are all inside that sitting's
+noise. On a rested Pixel 8 at Light, D5 drew "pretty good, a few scratches but passable" against `main`'s "too
+scratchy", and D1 "a little too scratchy throughout" against "too scratchy". At Full the branch took off on both
+worlds (about 4:30 and 3:30) and `main` did not, one run each. By the gate's wording Gate C misses on D1; the
+verdict, whether the Full take-off is the build or the phone's state, and whether Phase C2 (the three audible Light
+cuts) starts, are Crawford's.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
