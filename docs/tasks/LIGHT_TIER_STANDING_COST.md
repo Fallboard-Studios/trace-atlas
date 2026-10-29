@@ -689,6 +689,9 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
 
 ### Gate C: The phone is clean
 - [ ] Clean by ear on D1 and D5 at Light, rested Pixel 8, four minutes; Full unchanged.
+      **Missed (Crawford, 2026-10-29):** "i recognize now that we need to have a very watered down mobile version. and
+      that's ok. let's turn off the pedals and reverb on light. i still really want four robots playing, that's the last
+      thing i want to cut." The branch's Full take-off (T21) was not re-checked and is not decided.
 - [ ] On a miss, Phase C2 is built and its sitting (T27–T28) decides at Gate C2; past its last build the item returns
       to Crawford with the floor's numbers (spec §1.6).
 
@@ -698,6 +701,11 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
 
 Gate A's order (2026-10-28): decoration before the music. Three Light-only cuts, each built on the one before with its
 own RED tests and desktop A/B: pedals off (H1, T9–T13), a shorter Reverb (T19, T24), three sounding robots (T25, T26).
+
+**Crawford at Gate C (2026-10-29) changes this phase:** pedals off (H1, T9–T13) as written; **the Reverb off at Light,
+not capped**, so T19 and T24 are to be rewritten before they are built (spec §1.3 H5 and §1.6 amended with them); four
+sounding robots stay, so T25–T26 are the last resort and are not built unless the two cuts above miss and Crawford says
+so. The stacked sitting (T27–T28) then carries the builds that exist.
 Then one rested sitting tries the three stacked builds in that order and stops at the first clean one (T27, T28, Gate
 C2). None of it starts unless Gate C misses.
 
