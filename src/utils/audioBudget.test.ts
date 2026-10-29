@@ -7,6 +7,7 @@ import {
   AUDIO_LOAD_PRESETS,
   LOAD_BUS_FILTER_LFOS_MIN,
   LOAD_DRIFT_MIN,
+  LOAD_EFFECTS_MIN,
   LOAD_FILTER_LFOS_MIN,
   LOAD_PLAYBACK_BELOW,
   MAX_POLYPHONY,
@@ -47,7 +48,7 @@ const loadToLimits = (load: number) => ({ ...robotLoadToLimits(load), ...effects
 // ========================================
 
 describe('the two axes at one shared dial position', () => {
-  it('at Full (1): 12 robots, 16 notes, drift and filter LFOs on, interactive', () => {
+  it('at Full (1): 12 robots, 16 notes, drift, filter LFOs and effects on, interactive', () => {
     // Literal numbers as well as the constants, so a constant that drifts away from today is caught here.
     expect(loadToLimits(1)).toEqual({
       maxAudibleRobots: 12,
@@ -55,30 +56,33 @@ describe('the two axes at one shared dial position', () => {
       driftEnabled: true,
       filterLfosEnabled: true,
       busFilterLfosEnabled: true,
+      effectsEnabled: true,
       latencyHint: 'interactive',
     });
     expect(MAX_ROBOTS).toBe(12);
     expect(MAX_POLYPHONY).toBe(16);
   });
 
-  it('at Light (0.2) is 4 robots, 8 notes, no drift, no filter LFOs, playback latency', () => {
+  it('at Light (0.2) is 4 robots, 8 notes, no drift, no filter LFOs, no effects, playback latency', () => {
     expect(loadToLimits(AUDIO_LOAD_PRESETS.light)).toEqual({
       maxAudibleRobots: 4,
       maxPolyphony: 8,
       driftEnabled: false,
       filterLfosEnabled: false,
       busFilterLfosEnabled: false,
+      effectsEnabled: false,
       latencyHint: 'playback',
     });
   });
 
-  it('at Standard (0.6) is 8 robots, 12 notes, no drift, filter LFOs on, playback latency (decision J)', () => {
+  it('at Standard (0.6) is 8 robots, 12 notes, no drift, filter LFOs and effects on, playback latency (decision J)', () => {
     expect(loadToLimits(AUDIO_LOAD_PRESETS.standard)).toEqual({
       maxAudibleRobots: 8,
       maxPolyphony: 12,
       driftEnabled: false,
       filterLfosEnabled: true,
       busFilterLfosEnabled: false,
+      effectsEnabled: true,
       latencyHint: 'playback',
     });
   });
@@ -90,6 +94,7 @@ describe('the two axes at one shared dial position', () => {
       driftEnabled: false,
       filterLfosEnabled: false,
       busFilterLfosEnabled: false,
+      effectsEnabled: false,
       latencyHint: 'playback',
     });
   });
@@ -164,6 +169,21 @@ describe('the two axes at one shared dial position', () => {
         vi.doUnmock('../constants');
         vi.resetModules();
       }
+    });
+
+    it('switches the effects (pedals and colour) on at exactly LOAD_EFFECTS_MIN (0.4): Light off, Standard and Full on', () => {
+      expect(LOAD_EFFECTS_MIN).toBe(0.4);
+      expect(effectsLoadToLimits(0.2).effectsEnabled).toBe(false);
+      expect(effectsLoadToLimits(LOAD_EFFECTS_MIN - 1e-9).effectsEnabled).toBe(false);
+      expect(effectsLoadToLimits(0.4).effectsEnabled).toBe(true);
+      expect(effectsLoadToLimits(0.6).effectsEnabled).toBe(true);
+      expect(effectsLoadToLimits(1).effectsEnabled).toBe(true);
+      expect(effectsLoadToLimits(Number.NaN).effectsEnabled).toBe(true);
+    });
+
+    it('rides the Effects Load axis only: the Robot Load limits carry no effects flag', () => {
+      expect(robotLoadToLimits(0)).not.toHaveProperty('effectsEnabled');
+      expect(robotLoadToLimits(1)).not.toHaveProperty('effectsEnabled');
     });
 
     it('switches drift on at exactly LOAD_DRIFT_MIN (0.8)', () => {
@@ -345,8 +365,18 @@ describe('presetForLoad', () => {
 describe('describeLimits', () => {
   it('at Light reads what is capped, what is off, and that latency changes on the next load', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.light))).toBe(
-      'Up to 4 robots · 8 notes · no drift or filter LFOs · latency: Playback (applies on next load)',
+      'Up to 4 robots · 8 notes · no drift or filter LFOs or pedals or colour · latency: Playback (applies on next load)',
     );
+  });
+
+  it('names the effects tier when it is off, on its own or beside the LFO tiers, and never when it is on', () => {
+    const full = loadToLimits(1);
+    expect(describeLimits({ ...full, effectsEnabled: false })).toBe('Up to 12 robots · 16 notes · no pedals or colour');
+    expect(describeLimits({ ...full, driftEnabled: false, effectsEnabled: false })).toContain('no drift or pedals or colour');
+    for (const t of dial) {
+      const limits = loadToLimits(t);
+      expect(describeLimits(limits).includes('pedals or colour'), `${t}`).toBe(!limits.effectsEnabled);
+    }
   });
 
   it('at Standard names drift and the robot filter LFOs as off (the global filter tier is on) and keeps the latency clause (decision J: Standard is playback too)', () => {

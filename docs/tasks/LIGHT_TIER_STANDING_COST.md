@@ -711,7 +711,7 @@ C2). None of it starts unless Gate C misses.
 
 **H1 — the effects tier** (spec §1.3 H1; audible → Light only)
 
-- [ ] **Task 9: `src/constants/index.ts`, `src/utils/audioBudget.ts` — `LOAD_EFFECTS_MIN` and `effectsEnabled`**
+- [x] **Task 9: `src/constants/index.ts`, `src/utils/audioBudget.ts` — `LOAD_EFFECTS_MIN` and `effectsEnabled`** (2026-10-29)
 
   **Description:** `LOAD_EFFECTS_MIN = 0.4` beside the three LFO thresholds, with the one-line comment the others
   carry; `EffectsLoadLimits` gains `effectsEnabled: load >= LOAD_EFFECTS_MIN`; `describeLimits` adds `pedals or
@@ -721,16 +721,24 @@ C2). None of it starts unless Gate C misses.
   `(0.6)` and `(1)` true; `describeLimits` with it off names it; the existing cases pass unmodified.
 
   **Acceptance criteria:**
-  - [ ] Light reads effects off, Standard and Full on; the readout names it; the preset buttons' values are untouched.
+  - [x] Light reads effects off, Standard and Full on; the readout names it; the preset buttons' values are untouched.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/audioBudget.test.ts` passes; `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/audioBudget.test.ts` passes; `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Gate C missed.
 
   **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts`, `src/utils/audioBudget.test.ts`, `src/content/…` (the phrase)
 
   **Estimated scope:** XS
+
+  **As built (2026-10-29):** two deviations. (1) The phrase is a literal in `describeLimits`, beside `drift` and
+  `filter LFOs`: those words never went through the content layer (`src/utils` sits outside the content lint), so
+  "as the existing words are" means a literal; moving the whole readout to `src/content/` is its own change. Light
+  reads `no drift or filter LFOs or pedals or colour`. (2) "The existing cases pass unmodified" cannot hold for the
+  four `toEqual` presets (a new field) or Light's exact readout: those five gained `effectsEnabled` / the phrase and
+  nothing else. RED 5 of 103 for the missing constant and field; 3 mutants killed (`>=` → `>`, flag always true,
+  the phrase dropped).
 
 - [ ] **Task 10: `src/engine/audioEngine/globalFx.ts` — `setEffectsHeldOff` and the stored Mix**
 
