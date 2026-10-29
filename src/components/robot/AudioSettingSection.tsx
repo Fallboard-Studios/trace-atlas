@@ -5,6 +5,8 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
+import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
+import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
@@ -77,6 +79,10 @@ interface AudioSettingSectionProps {
    *  `swelling` so a swell tick is not eased a second time (docs/tasks/ROBOT_SENDS.md Task 13,
    *  docs/specs/ROBOT_SEND_TABLE.md §1.4). Absent means no row is swelling. */
   sendSwelling?: Readonly<Record<RobotSendField, boolean>>;
+  /** Per send, true while the Audio Load dial holds the send's room dark, so the row does nothing: it is dimmed, its value
+   *  kept, with one HeldOffNote under the send rows (useHeldOffSends; docs/specs/LIGHT_TIER_STANDING_COST.md §1.4).
+   *  Absent means every send is live. */
+  heldOffSends?: Readonly<Record<RobotSendField, boolean>>;
   /** Optional inline style forwarded to this section's own root — trait-color scoping
    *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
@@ -97,6 +103,8 @@ interface SendRowProps {
   onSendChange: (field: RobotSendField, pct: number) => void;
   swelling?: boolean;
   disabled?: boolean;
+  /** The row's room is held dark by the Audio Load dial: dimmed and disabled, its value kept. */
+  heldOff?: boolean;
 }
 
 /**
@@ -106,14 +114,14 @@ interface SendRowProps {
  * hand-written rows did; the memo is what keeps the row's onChange closure stable (it is rebuilt only when a prop of this
  * row changes, when the slider re-renders anyway), so no useCallback. Exported for its memo test only.
  */
-export const SendRow = memo(function SendRow({ spec, display, onSendChange, swelling, disabled }: SendRowProps) {
+export const SendRow = memo(function SendRow({ spec, display, onSendChange, swelling, disabled, heldOff = false }: SendRowProps) {
   return (
-    <div className={`audio-setting-section__${spec.engineKey}-row`}>
+    <div className={withHeldOffClass(`audio-setting-section__${spec.engineKey}-row`, heldOff)}>
       <SliderLinear
         schema={ROBOT_SEND_SCHEMAS[spec.field]}
         value={display}
         onChange={(pct) => onSendChange(spec.field, pct)}
-        disabled={disabled}
+        disabled={disabled || heldOff}
         swelling={swelling}
       />
     </div>
@@ -139,7 +147,7 @@ export const SendRow = memo(function SendRow({ spec, display, onSendChange, swel
  */
 function AudioSettingSectionInner({
   value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDynamicsChange, livePan, disabled,
-  volumeSwelling, sendSwelling, style,
+  volumeSwelling, sendSwelling, heldOffSends, style,
 }: AudioSettingSectionProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
@@ -201,8 +209,10 @@ function AudioSettingSectionInner({
               onSendChange={onSendChange}
               swelling={sendSwelling?.[spec.field]}
               disabled={disabled}
+              heldOff={heldOffSends?.[spec.field]}
             />
           ))}
+          {ROBOT_SENDS.some((spec) => heldOffSends?.[spec.field]) && <HeldOffNote />}
           {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6): the last row, after the sends, in a wrapper with no display rule for
               the Volume row's reason. No `swelling`: Dynamics is not a swell attribute. */}
           <div className="audio-setting-section__dynamics-row">

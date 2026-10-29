@@ -5,6 +5,7 @@ import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
+import { useHeldOffSends } from '@/components/robot/useHeldOffSends';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
@@ -183,7 +184,8 @@ const RobotAudioSettingSection = memo(function RobotAudioSettingSection({
   robotId, ...props
 }: ComponentProps<typeof AudioSettingSection> & { robotId: string }) {
   const livePan = useRobotPanReadoutStore((s) => (props.value.panAuto ? s.pan[robotId] : undefined));
-  return <AudioSettingSection {...props} livePan={livePan} />;
+  const heldOffSends = useHeldOffSends();
+  return <AudioSettingSection {...props} livePan={livePan} heldOffSends={heldOffSends} />;
 });
 
 /**

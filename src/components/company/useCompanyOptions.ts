@@ -5,6 +5,7 @@ import type { SignatureArrayValue } from '@/components/robot/SignatureArrayDrawe
 import type { BusFilterPatch, BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
+import { useHeldOffSends } from '@/components/robot/useHeldOffSends';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
@@ -107,6 +108,8 @@ export interface CompanyOptions {
   busFilterValue: BusFilterValue;
   /** The Audio Load dial is holding the robot bus-filter links off (the robot screen reads the same flag). */
   busFilterLinksHeldOff: boolean;
+  /** Per send, the Audio Load dial holds its room dark, so the row is dimmed (useHeldOffSends, as the robot screen). */
+  heldOffSends: Readonly<Record<RobotSendField, boolean>>;
   volumeSwelling: boolean;
   /** Per send, the first member's send is being swelled (a company-wide swell shares the flag across members). All
    *  false with no members. docs/specs/ROBOT_SEND_TABLE.md §1.4. */
@@ -308,6 +311,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   );
   // Only the robot bus-filter links are held off here, and only while the Audio Load dial says so.
   const busFilterLinksHeldOff = useAudioStore((s) => s.busFilterLinksHeldOff);
+  const heldOffSends = useHeldOffSends();
 
   // Every handler below reads from this ref instead of closing over `members`/`resolved`/
   // `company`/`all`/`allRobotsLastEditedOptions` directly — those change reference
@@ -514,6 +518,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     portamentoValue,
     busFilterValue,
     busFilterLinksHeldOff,
+    heldOffSends,
     volumeSwelling,
     sendSwelling,
     adsrSwelling,
@@ -541,7 +546,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onLayerLfoFieldChange,
   }), [
     active, audioSettingValue, pingControlsValue, adsrValue, signatureArrayValue, portamentoValue, busFilterValue, busFilterLinksHeldOff,
-    volumeSwelling, sendSwelling,
+    heldOffSends, volumeSwelling, sendSwelling,
     adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onDynamicsChange, onRestsChange, onAccentsChange,

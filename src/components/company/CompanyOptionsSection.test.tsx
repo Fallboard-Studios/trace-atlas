@@ -27,6 +27,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     onVolumeLfoChange?: unknown;
     volumeSwelling?: boolean;
     sendSwelling?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
+    heldOffSends?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
     // Captured only so a case can prove the section no longer passes the old per-field props.
     onReverbSendChange?: unknown;
     reverbSendSwelling?: unknown;
@@ -52,6 +53,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-has-send-swelling={props.sendSwelling ? '' : undefined}
         data-has-old-send-props={props.onReverbSendChange !== undefined || props.reverbSendSwelling !== undefined ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
+        data-held-off-sends={Object.entries(props.heldOffSends ?? {}).filter(([, on]) => on).map(([field]) => field).join(',')}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
@@ -226,7 +228,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
   const localeId = getActiveLocaleId();
 
   beforeEach(() => {
-    useAudioStore.setState({ filterLinksHeldOff: false, busFilterLinksHeldOff: false });
+    useAudioStore.setState({ filterLinksHeldOff: false, busFilterLinksHeldOff: false, effectsHeldOff: false });
     useLocaleStore.getState().setLocaleData(localeId, {
       robots: [], companies: [], allRobotsLastEditedOptions: undefined,
     } as unknown as Partial<Locale>);
@@ -250,6 +252,15 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('Levels is the audio-setting panel', () => {
       render(<Sections target="all" ids={['audioSettings']} />);
       expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+    });
+
+    // Light tier standing cost T12b: the company's sends into rooms the Audio Load dial holds dark dim too.
+    it('Levels gets the held-off sends, following the store', () => {
+      render(<Sections target="all" ids={['audioSettings']} />);
+      const stub = () => screen.getByTestId('audio-setting-section-stub');
+      expect(stub().getAttribute('data-held-off-sends')).toBe('');
+      act(() => useAudioStore.setState({ effectsHeldOff: true }));
+      expect(stub().getAttribute('data-held-off-sends')).toBe('gritSend,shimmerSend,doubleSend');
     });
 
     it('Composition (the \'rhythm\' id) is the merged Rhythm-and-Pitches panel', () => {

@@ -76,7 +76,9 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
 
 /** The ten effects the Effects Load dial holds dark below LOAD_EFFECTS_MIN (docs/specs/LIGHT_TIER_STANDING_COST.md H1),
  *  each with the one field that is its Mix: `wet` (for the Chorus and the Shifter, their room's Return), Width's `width`.
- *  While `effectsHeldOff`, that row greys out with a HeldOffNote and keeps its stored value; every other row stays live. */
+ *  While `effectsHeldOff`, every row of the panel greys out and keeps its stored value (a held-off effect's other
+ *  params do nothing either: Crawford, 2026-10-29, "if they don't do anything they should be dimmed"), and the Mix row
+ *  carries the one HeldOffNote. */
 const EFFECT_MIX_FIELD: Partial<Record<AudioRigEffectKey, string>> = {
   distortion: 'wet',
   chebyshev: 'wet',
@@ -117,14 +119,14 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
  *  rather than building `(v) => updateParam(param.field, v)` inline here — that inline arrow was a
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
  *  regardless of how many of them got memoized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
- *  Task 12). `heldOff` (the Effects Load dial holding this effect's Mix row dark) disables the control, greys the row
- *  and adds the HeldOffNote, the stored value kept on the control. */
-function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode, heldOff = false) {
+ *  Task 12). `heldOff` (the Effects Load dial holding this effect dark) disables the control and greys the row, the
+ *  stored value kept on the control; `note` adds the panel's one HeldOffNote under it. */
+function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode, heldOff = false, note = false) {
   return (
     <div className={withHeldOffClass('audio-rig-drawer__param-row', heldOff)} key={param.field}>
       {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field), heldOff)}
       {lfoLink}
-      {heldOff && <HeldOffNote />}
+      {note && <HeldOffNote />}
     </div>
   );
 }
@@ -237,10 +239,10 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   const isFilterBlock = effectKey === 'filterLPF' || effectKey === 'filterHPF';
   const filterLinksHeldOff = useAudioStore((s) => isFilterBlock && s.filterLinksHeldOff);
   // The effects tier (docs/specs/LIGHT_TIER_STANDING_COST.md H1), the same stable-`false` shape: only the ten effects'
-  // panels subscribe to the flip, and only their Mix row greys.
+  // panels subscribe to the flip; every row of theirs greys, and the Mix row carries the note.
   const mixField = EFFECT_MIX_FIELD[effectKey];
   const effectsHeldOff = useAudioStore((s) => mixField !== undefined && s.effectsHeldOff);
-  const isHeldOffMix = (field: string): boolean => effectsHeldOff && field === mixField;
+  const notesHeldOff = (field: string): boolean => effectsHeldOff && field === mixField;
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
   // Delay Time's Tempo Sync (docs/specs/FREE_SYNC_TOGGLE.md §1.4): `sync` and `bpm` get their own selectors
@@ -385,7 +387,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
           // follows the Tempo; the toggle is in a row of its own under the slider, inside this one param-row), first
           // in the block; the other rows are plain, in block order. No LfoLink on any of them: no pedal is an LFO target.
           <>
-            <div className="audio-rig-drawer__param-row">
+            <div className={withHeldOffClass('audio-rig-drawer__param-row', effectsHeldOff)}>
               <TempoSyncSlider
                 // Safe cast: audioRigConfig.ts declares every synced rate as a sliderLinear (the Free-mode schema).
                 schema={findParam(block.params, 'rate').schema as SliderLinearSchema}
@@ -396,9 +398,10 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
                 onSyncChange={handleRateSyncChange}
                 onModeChange={handleRateModeChange}
                 swelling={isGlobalTargetSwelling(effectKey, 'rate')}
+                disabled={effectsHeldOff}
               />
             </div>
-            {block.params.filter((param) => param.field !== 'rate').map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey, undefined, isHeldOffMix(param.field)))}
+            {block.params.filter((param) => param.field !== 'rate').map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey, undefined, effectsHeldOff, notesHeldOff(param.field)))}
           </>
         ) : block.key === 'reverb' ? (
           // Reverb Length beside Pre-Delay on a responsive top row; Reverb Amount its own full-width row
@@ -424,7 +427,8 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
                 {isFilterBlock && filterLinksHeldOff && <HeldOffNote />}
               </>
             ) : undefined,
-            isHeldOffMix(param.field),
+            effectsHeldOff,
+            notesHeldOff(param.field),
           ))
         )}
       </DirectionalPanel>

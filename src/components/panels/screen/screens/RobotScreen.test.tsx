@@ -74,6 +74,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     livePan?: number;
     volumeSwelling?: boolean;
     sendSwelling?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
+    heldOffSends?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
     // The five old per-field props, captured only so a case can prove the screen no longer passes them.
     onReverbSendChange?: unknown;
     reverbSendSwelling?: unknown;
@@ -105,6 +106,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-grit-swelling={String(props.sendSwelling?.gritSend)}
         data-shimmer-swelling={String(props.sendSwelling?.shimmerSend)}
         data-double-swelling={String(props.sendSwelling?.doubleSend)}
+        data-held-off-sends={Object.entries(props.heldOffSends ?? {}).filter(([, on]) => on).map(([field]) => field).join(',')}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
@@ -386,7 +388,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   useUIStore.getState().setActiveLocaleLocalTime(null);
-  useAudioStore.setState({ soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false });
+  useAudioStore.setState({ soundingRobotIds: [], filterLinksHeldOff: false, busFilterLinksHeldOff: false, effectsHeldOff: false });
 });
 
 describe('RobotScreen — fallbacks', () => {
@@ -488,6 +490,17 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
     expect(useUIStore.getState().selectedSection).toBe(name === LEVELS ? 'volume' : name === COMPOSITION ? 'melody' : 'envelope');
     expect(useUIStore.getState().selectedSubsection).toBeNull();
     expect(mounted()).toEqual([stub]);
+  });
+
+  // Light tier standing cost T12b: the Levels panel dims the sends into rooms the Audio Load dial holds dark.
+  it('hands the Levels panel the held-off sends, following the store', () => {
+    selectRobot(makeRobot());
+    render(<RobotScreen />);
+    pick(LEVELS);
+    const stub = () => screen.getByTestId('audio-setting-section-stub');
+    expect(stub().getAttribute('data-held-off-sends')).toBe('');
+    act(() => useAudioStore.setState({ effectsHeldOff: true }));
+    expect(stub().getAttribute('data-held-off-sends')).toBe('gritSend,shimmerSend,doubleSend');
   });
 
   it('a sub-tab pick writes the subsection and swaps the oscillator layer', () => {

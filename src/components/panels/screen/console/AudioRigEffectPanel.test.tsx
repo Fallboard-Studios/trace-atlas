@@ -2132,15 +2132,37 @@ describe('AudioRigEffectPanel - Audio Load: effectsHeldOff on the ten Mix rows (
     expect(within(row).queryByText(HELD_OFF)).toBeNull();
   });
 
-  it.each(MIX_ROWS)('$key: only the Mix row greys; every other row of the panel stays live', ({ key, label }) => {
+  // T12b (Crawford, 2026-10-29: "if they don't do anything they should be dimmed"): a held-off effect's other rows do
+  // nothing either, so every row of its panel greys, the Free | Sync rate rows included, with one note on the Mix row.
+  it.each(MIX_ROWS)('$key: every row of the panel greys with its value kept, and one note sits on the Mix row', ({ key, label }) => {
     useAudioStore.setState({ effectsHeldOff: true });
     const { container } = render(<AudioRigEffectPanel effectKey={key} />);
-    const mix = mixSlider(label);
-    for (const slider of within(container).getAllByRole('slider')) {
-      if (slider === mix) continue;
-      expect(slider.getAttribute('data-disabled'), slider.getAttribute('aria-label') ?? '').toBeNull();
+    const sliders = within(container).getAllByRole('slider');
+    for (const slider of sliders) {
+      const name = slider.getAttribute('aria-label') ?? '';
+      expect(slider.getAttribute('data-disabled'), name).not.toBeNull();
+      expect(slider.closest('.audio-rig-drawer__param-row')!.classList.contains('sc-held-off'), name).toBe(true);
     }
     expect(within(container).getAllByText(HELD_OFF)).toHaveLength(1);
+    expect(within(rowOfSlider(mixSlider(label))).getByText(HELD_OFF)).toBeTruthy();
+  });
+
+  it.each(MIX_ROWS)('$key: not held off, no row of the panel greys', ({ key }) => {
+    const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+    for (const slider of within(container).getAllByRole('slider')) expect(slider.getAttribute('data-disabled')).toBeNull();
+    expect(container.querySelector('.sc-held-off')).toBeNull();
+  });
+
+  it('greys the Free | Sync toggle of a synced-rate pedal too', () => {
+    useAudioStore.setState({ effectsHeldOff: true });
+    const { container } = render(<AudioRigEffectPanel effectKey="tremolo" />);
+    const toggle = container.querySelector('.sc-tempo-sync') as HTMLElement;
+    const controls = toggle.querySelectorAll('[role="switch"]');
+    expect(controls.length).toBeGreaterThan(0);
+    for (const control of controls) {
+      const off = control.hasAttribute('disabled') || control.getAttribute('data-disabled') !== null || control.getAttribute('aria-disabled') === 'true';
+      expect(off).toBe(true);
+    }
   });
 
   it('un-greys the moment effectsHeldOff goes false, with no reload, and greys again when it returns', () => {

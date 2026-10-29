@@ -886,7 +886,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   fresh noise band (Crawford's Chrome was open; the base's spread is given instead, D5's 0.43–0.83), and the sitting's
   absolute numbers sit far above earlier ones, so only its paired deltas compare. About 75 minutes of runs, not 30.
 
-- [ ] **Task 12b: the ten effect panels, `AudioSettingSection.tsx`, `RobotScreen.tsx`, `CompanyOptionsSection.tsx` — every inert control dimmed**
+- [x] **Task 12b: the ten effect panels, `AudioSettingSection.tsx`, `RobotScreen.tsx`, `CompanyOptionsSection.tsx` — every inert control dimmed** (2026-10-29)
 
   **Description:** Crawford at the T19 review (2026-10-29): "if they don't do anything they should be dimmed." While
   `effectsHeldOff`, a held-off effect's other rows do nothing either, so **every row of the ten effect panels** (Drive,
@@ -905,10 +905,10 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   writes. One rendering test each on the robot screen and the company screen with the store flag set.
 
   **Acceptance criteria:**
-  - [ ] Nothing the hold-off makes inert looks live; nothing still live is dimmed.
+  - [x] Nothing the hold-off makes inert looks live; nothing still live is dimmed.
 
   **Verification:**
-  - [ ] `npx vitest run src/components` passes; the mutation gate; `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components` passes; the mutation gate; `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 12.
 
@@ -917,6 +917,17 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   `src/components/panels/screen/screens/RobotScreen.tsx`, `src/components/company/CompanyOptionsSection.tsx` + tests
 
   **Estimated scope:** S
+
+  **As built (2026-10-29):** the panel side is one change in `AudioRigEffectPanel`: every row of the ten panels takes the
+  flag, the Mix row alone the note, and the synced pedals' Free | Sync rate row is disabled too (slider and toggle). T12's
+  "only the Mix row greys" case became "every row greys, one note on the Mix row". The send side: `useHeldOffSends()`
+  (new, `src/components/robot/`) returns a record that keeps its reference until the flag changes; the robot screen's
+  existing store-reading wrapper (`RobotAudioSettingSection`) and `useCompanyOptions` (beside `busFilterLinksHeldOff`)
+  pass it to `AudioSettingSection`, whose `SendRow` dims and disables a held-off row and which renders one note under
+  the sends. RED: 10 panel cases, 3 send-row cases, the hook's file, one each on the two screens. 13 mutants killed
+  (panel: the rate row not disabled, its row class, a note on every row, the synced rows left live; sends: not
+  disabled, no class, no note, not wired, every send held, no memo, the two call sites unwired, the company memo's
+  deps). The no-memo mutant first survived: the test had nothing that re-rendered the hook; it re-renders now.
 
 **The Reverb, off at Light** (spec §1.3 H5, §1.6 (2); Crawford at Gate C, 2026-10-29: off, not capped; audible → Light only)
 
