@@ -1393,6 +1393,49 @@ describe('useAudioStore - filterLinksHeldOff / driftHeldOff (docs/tasks/LFO_BANK
   });
 });
 
+describe('useAudioStore - effectsHeldOff (Light tier standing cost T11)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('starts with the effects not held off', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    expect(useAudioStore.getState().effectsHeldOff).toBe(false);
+  });
+
+  it('setEffectsHeldOff writes once, and a repeat with the same value is a no-op write', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const listener = vi.fn();
+    const unsubscribe = useAudioStore.subscribe(listener);
+
+    useAudioStore.getState().setEffectsHeldOff(true);
+    expect(useAudioStore.getState().effectsHeldOff).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    useAudioStore.getState().setEffectsHeldOff(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    useAudioStore.getState().setEffectsHeldOff(false);
+    expect(useAudioStore.getState().effectsHeldOff).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it('is independent of the LFO held-off flags', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setEffectsHeldOff(true);
+    expect(useAudioStore.getState().driftHeldOff).toBe(false);
+    expect(useAudioStore.getState().filterLinksHeldOff).toBe(false);
+    expect(useAudioStore.getState().busFilterLinksHeldOff).toBe(false);
+  });
+
+  it('stays JSON-serialisable', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setEffectsHeldOff(true);
+    expect(JSON.parse(JSON.stringify(useAudioStore.getState())).effectsHeldOff).toBe(true);
+  });
+});
+
 describe('useAudioStore - busFilterLinksHeldOff (Robot Articulation T14b)', () => {
   beforeEach(() => {
     vi.resetModules();

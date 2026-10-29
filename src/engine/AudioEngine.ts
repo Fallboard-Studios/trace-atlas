@@ -61,6 +61,7 @@ import {
   setGlobalFrequencyShifter,
   setGlobalStereoWidener,
   getGlobalModulationTarget,
+  setEffectsHeldOff,
 } from './audioEngine/globalFx';
 
 // ========================================
@@ -1643,4 +1644,6 @@ export const AudioEngine = {
   setGlobalVibrato,
   setGlobalFrequencyShifter,
   setGlobalStereoWidener,
+  // The effects hold-off (docs/specs/LIGHT_TIER_STANDING_COST.md H1): audioBudgetSystem pushes the Effects Load tier here.
+  setEffectsHeldOff,
 };

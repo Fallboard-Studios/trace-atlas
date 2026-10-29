@@ -781,7 +781,7 @@ C2). None of it starts unless Gate C misses.
   RED 12 of 12 (missing exports); 13 tests; 7 mutants killed (writes while held, no record, Width dark at 0, an
   unrecorded key lifted as 0, nothing lifted, a pinned depth written directly, the flag never set).
 
-- [ ] **Task 11: `src/systems/audioBudgetSystem.ts`, `src/store/audioStore.ts` — the push and `effectsHeldOff`**
+- [x] **Task 11: `src/systems/audioBudgetSystem.ts`, `src/store/audioStore.ts` — the push and `effectsHeldOff`** (2026-10-29)
 
   **Description:** `applyLfoTiers` becomes `applyTiers`: its key gains `effectsEnabled`; it calls
   `setEffectsHeldOff(!limits.effectsEnabled)` (globalFx) and `useAudioStore.getState().setEffectsHeldOff(…)` beside
@@ -793,16 +793,25 @@ C2). None of it starts unless Gate C misses.
   lifts it; `force` re-pushes. `src/store/audioStore.test.ts`: the boolean defaults false and the setter writes it.
 
   **Acceptance criteria:**
-  - [ ] Exactly one engine call per crossing; the store boolean mirrors the limit; Robot Load changes never touch it.
+  - [x] Exactly one engine call per crossing; the store boolean mirrors the limit; Robot Load changes never touch it.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioBudgetSystem.test.ts src/store/audioStore.test.ts` passes; `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/audioBudgetSystem.test.ts src/store/audioStore.test.ts` passes; `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 9, 10.
 
   **Files:** `src/systems/audioBudgetSystem.ts`, `src/systems/audioBudgetSystem.test.ts`, `src/store/audioStore.ts`, `src/store/audioStore.test.ts`
 
   **Estimated scope:** S
+
+  **As built (2026-10-29):** the store is `src/stores/audioStore.ts` (the plan's `src/store/` is a typo). The system
+  calls `AudioEngine.setEffectsHeldOff`, a new entry on the engine's public surface beside the `setGlobal*` setters,
+  not globalFx directly (systems reach the chain through AudioEngine). As planned, the key is shared with the LFO
+  tiers, so a drift or bus crossing re-sends the unchanged effects flag (a no-op in globalFx, as it is for the LFO
+  calls); "one call per crossing" holds for the effects tier's own crossing. RED: the store's 4 cases, the system's
+  file failing on the missing engine method. 7 mutants killed: no engine push, no store push, no stop lift (engine,
+  store), the flag inverted, the store's no-op guard, and `effectsEnabled` dropped from the key (it survived until a
+  test moved `LOAD_EFFECTS_MIN` to 0.5 through a mocked constant: today it shares 0.4 with the filter tier).
 
 - [ ] **Task 12: the ten Mix rows, `AudioLoadPanel.tsx`, `hudLines.ts`, `audioDiagnostics.ts`, `src/content/` — the UI and the overlay**
 

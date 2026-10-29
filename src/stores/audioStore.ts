@@ -341,6 +341,9 @@ export interface AudioStore {
   busFilterLinksHeldOff: boolean;
   /** Whether the dial currently holds drift ("stacked" LFOs) off — the drift sliders grey out while it does. Derived. */
   driftHeldOff: boolean;
+  /** Whether the dial currently holds the pedals and colour effects dark (below LOAD_EFFECTS_MIN) — their Mix rows grey
+   *  out while it does, the stored Mix kept. Derived; written only by audioBudgetSystem. docs/specs/LIGHT_TIER_STANDING_COST.md H1. */
+  effectsHeldOff: boolean;
   setBPM: (bpm: number) => void;
   /**
    * Reseed `bpm` for the given Attenuation Style — draws a fresh value via
@@ -414,6 +417,8 @@ export interface AudioStore {
   setBusFilterLinksHeldOff: (heldOff: boolean) => void;
   /** Writes whether drift is held off; skips the write when unchanged. */
   setDriftHeldOff: (heldOff: boolean) => void;
+  /** Writes whether the effects are held off; skips the write when unchanged. */
+  setEffectsHeldOff: (heldOff: boolean) => void;
   /**
    * Swap the compressor's chain position — false (default) = "Natural Decay"
    * (compressor after Delay+Reverb), true = "Controlled Decay" (compressor
@@ -486,6 +491,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   filterLinksHeldOff: false,
   busFilterLinksHeldOff: false,
   driftHeldOff: false,
+  effectsHeldOff: false,
 
   setBPM: (bpm) => {
     set({ bpm });
@@ -587,6 +593,9 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
   setDriftHeldOff: (heldOff) => {
     if (get().driftHeldOff !== heldOff) set({ driftHeldOff: heldOff });
+  },
+  setEffectsHeldOff: (heldOff) => {
+    if (get().effectsHeldOff !== heldOff) set({ effectsHeldOff: heldOff });
   },
 
   regenerateGlobalAudioFromSeed: (attenuationStyleId, attenuationStyleName) => {

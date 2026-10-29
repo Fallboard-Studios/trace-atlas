@@ -46,7 +46,7 @@ let defaultRobotLoad = 1;
 let bootHadLoadParam = false;
 let defaultEffectsLoad = 1;
 let bootHadFxLoadParam = false;
-/** The tier-relevant part of the limits last applied to lfoEngine, so roster churn and irrelevant dial nudges do nothing. */
+/** The tier-relevant part of the limits last applied to lfoEngine and the effects hold-off, so roster churn and irrelevant dial nudges do nothing. */
 let appliedTierKey = '';
 
 // ========================================
@@ -114,28 +114,31 @@ function reconcile(force = false): void {
     AudioEngine.setPolyphonyCap(limits.maxPolyphony);
   }
 
-  applyLfoTiers(limits, force);
+  applyTiers(limits, force);
 }
 
 /**
- * The LFO tiers (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO links and each robot's
- * bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
+ * The Effects Load tiers. The LFO tiers (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO
+ * links and each robot's bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
  * docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap and Task 4 moved the filter rule itself into the engine;
- * the bus tier is Robot Articulation T14b — and publish the held-off state the UI greys out from.
+ * the bus tier is Robot Articulation T14b. The effects tier (docs/specs/LIGHT_TIER_STANDING_COST.md H1): every pedal
+ * and colour effect held dark, its Mix kept. Then publish the held-off state the UI greys out from.
  * Only when a tier limit has actually changed (or on force) — the roster changing, or a dial nudge inside one
  * tier, changes none of it.
  */
-function applyLfoTiers(limits: LoadLimits, force = false): void {
-  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled].join('|');
+function applyTiers(limits: LoadLimits, force = false): void {
+  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled, limits.effectsEnabled].join('|');
   if (!force && key === appliedTierKey) return;
   appliedTierKey = key;
   lfoEngine.setDriftEnabled(limits.driftEnabled);
   lfoEngine.setFilterLinksEnabled(limits.filterLfosEnabled);
   lfoEngine.setBusFilterLinksEnabled(limits.busFilterLfosEnabled);
+  AudioEngine.setEffectsHeldOff(!limits.effectsEnabled);
   useAudioStore.getState().setDriftHeldOff(!limits.driftEnabled);
   useAudioStore.getState().setFilterLinksHeldOff(!limits.filterLfosEnabled);
   // busFilterLfosEnabled is already false whenever the global filter tier is, so the UI greys the link for the same reason it goes quiet.
   useAudioStore.getState().setBusFilterLinksHeldOff(!limits.busFilterLfosEnabled);
+  useAudioStore.getState().setEffectsHeldOff(!limits.effectsEnabled);
 }
 
 /**
@@ -230,11 +233,13 @@ export function stopAudioBudget(): void {
   primeRebuilt(AudioEngine.setSoundingRobots(null));
   AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
   useAudioStore.getState().setSoundingRobotIds([]);
-  // Lift every LFO tier too: drift back on, every suspended filter link reconnected.
+  // Lift every Effects Load tier too: drift back on, every suspended filter link reconnected, the effects relit.
   lfoEngine.setDriftEnabled(true);
   lfoEngine.setFilterLinksEnabled(true);
   lfoEngine.setBusFilterLinksEnabled(true);
+  AudioEngine.setEffectsHeldOff(false);
   useAudioStore.getState().setDriftHeldOff(false);
   useAudioStore.getState().setFilterLinksHeldOff(false);
   useAudioStore.getState().setBusFilterLinksHeldOff(false);
+  useAudioStore.getState().setEffectsHeldOff(false);
 }
