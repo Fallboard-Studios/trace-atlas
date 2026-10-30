@@ -1208,10 +1208,12 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   H2's scope and home, H3a/H3b, H1's dimming, the Reverb off and its lift, what was not built, the gates).
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every kept cut's acceptance criteria met; every dropped cut reverted and recorded.
-- [ ] Docs reflect the shipped behaviour, every name spot-checked.
-- [ ] Gate C or Gate C2 passed, or the item is back with Crawford with the floor's numbers (stated here, never silent).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (2026-10-29, 4b6f858e: types 0
+      errors, lint 0 errors and 4 react-refresh warnings, 333 files and 12 484 tests passed, build clean.)
+- [ ] Every kept cut's acceptance criteria met; every dropped cut reverted and recorded. (Open: Gate B's desktop
+      listen and T14's manual speakers box, Crawford's; nothing to revert, T25–T26 never built.)
+- [x] Docs reflect the shipped behaviour, every name spot-checked. (T22, T23.)
+- [x] Gate C or Gate C2 passed, or the item is back with Crawford with the floor's numbers (stated here, never silent).
 - [ ] Ready for Crawford's PR.
 
 ## Risks and Mitigations
