@@ -34,6 +34,7 @@ import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type Minimal
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
+import { createStandingBy } from './audioEngine/standingBy';
 import {
   buildGlobalFxChain,
   getGlobalChainEntry,
@@ -153,9 +154,6 @@ export function performanceRoll(compositionSeed: number, purpose: PerformanceRol
 // module scope, same "precompute once, not per-note" discipline as VELOCITY_ROLL_X/
 // VELOCITY_VARIANCE_X above, since triggerWithCap runs on the per-note hot path.
 const NOTE_RE = /^[A-Ga-g][b#]{0,2}\d+$/;
-// A stand-down waits this long past a note's end plus its release: the composite voice starts the release 10 ms after
-// the note's end (compositeVoice.ts), and the clock's tick granularity only ever makes the timer late.
-const STAND_DOWN_MARGIN_SECONDS = 0.05;
 
 // ========================================
 // MODULE STATE
@@ -172,16 +170,6 @@ let activeVoices = 0;
 // restriction", so the engine behaves exactly as before until something pushes them.
 // Robots allowed to sound; null = every robot (no budget running).
 let soundingRobots: ReadonlySet<string> | null = null;
-// Light tier standing cost H2 (docs/specs/LIGHT_TIER_STANDING_COST.md): robots standing by (eligible, over the
-// budget) carry no voice. Pushed beside the sounding set; empty = nobody stands by. Mute/solo never put a robot here.
-let standingByRobots: ReadonlySet<string> = new Set();
-// Robots whose voice the budget took (or refused): rebuilt when admitted to the sounding set, or when it is lifted.
-const releasedByBudget = new Set<string>();
-// A stand-down waiting out its robot's last note, by token, so a stale timer from an earlier stand-down does nothing.
-const pendingStandDown = new Map<string, number>();
-let standDownToken = 0;
-// The audio time each robot's latest scheduled note ends (cleared on release), for a stand-down to wait out.
-const noteEndByRobot = new Map<string, number>();
 // Simultaneous-note ceiling; MAX_POLYPHONY = Full.
 let polyphonyCap = MAX_POLYPHONY;
 // Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): how far, in ms, a note may land off the grid. Pushed in
@@ -423,61 +411,19 @@ function scheduleVoiceRelease(duration: NoteDuration | number, time: number): nu
   return time + durSec;
 }
 
-/**
- * Release a standing-by robot's voice and dispose its LFO links (their targets are the voice's own params), and
- * remember the budget took it, so admission or a lifted budget rebuilds it. docs/specs/LIGHT_TIER_STANDING_COST.md H2.
- */
-function standDown(robotId: string): void {
-  pendingStandDown.delete(robotId);
-  // Only a voice actually taken is owed back; a robot with none yet is marked when reserveVoice refuses it.
-  if (compositeVoices.has(robotId)) {
-    releasedByBudget.add(robotId);
-    AudioEngine.releaseVoice(robotId);
-  }
-  lfoEngine.disposeRobotLinks(robotId);
-}
-
-/**
- * Stand a robot down once its last scheduled note and that note's release have ended, so no note is cut; at once when
- * it is quiet. The timer is the AudioContext clock's (as scheduleVoiceRelease's), which fires against `now()` — the
- * current time plus the lookahead — so the lookahead is added back: the voice goes when the audio has passed the tail.
- */
-function scheduleStandDown(robotId: string): void {
-  const release = findActiveRobot(robotId)?.audioAttributes?.adsr?.release ?? 0;
-  const quietAt = (noteEndByRobot.get(robotId) ?? -Infinity) + release + STAND_DOWN_MARGIN_SECONDS;
-  try {
-    const context = Tone.getContext();
-    const delay = quietAt - Tone.now() + (context.lookAhead ?? 0);
-    if (!(delay > 0)) {
-      standDown(robotId);
-      return;
-    }
-    const token = ++standDownToken;
-    pendingStandDown.set(robotId, token);
-    context.setTimeout(() => {
-      if (pendingStandDown.get(robotId) === token) standDown(robotId);
-    }, delay);
-  } catch (err) {
-    devWarn('[AudioEngine] scheduleStandDown failed, standing down at once', err);
-    standDown(robotId);
-  }
-}
-
-/** The standing-by set (AudioEngine.setStandingByRobots): a robot no longer in it keeps the voice a pending stand-down
- *  would have taken; a newcomer that still has a voice is stood down. */
-function applyStandingBy(ids: Iterable<string>): void {
-  standingByRobots = new Set(ids);
-  for (const id of [...pendingStandDown.keys()]) {
-    if (!standingByRobots.has(id)) pendingStandDown.delete(id);
-  }
-  for (const id of standingByRobots) {
-    if (!releasedByBudget.has(id) && !pendingStandDown.has(id)) scheduleStandDown(id);
-  }
-}
+// The Audio Load budget's ledger of voices (docs/specs/LIGHT_TIER_STANDING_COST.md H2, audioEngine/standingBy.ts):
+// who stands by and carries no voice, and whose voice is owed back. The voice work stays here.
+const standingBy = createStandingBy({
+  hasVoice: (robotId) => compositeVoices.has(robotId),
+  releaseVoice: (robotId) => AudioEngine.releaseVoice(robotId),
+  disposeLinks: (robotId) => lfoEngine.disposeRobotLinks(robotId),
+  releaseSeconds: (robotId) => findActiveRobot(robotId)?.audioAttributes?.adsr?.release ?? 0,
+  rebuildVoice: (robotId) => AudioEngine.reReserveVoice(robotId),
+});
 
 /** A write to a robot with no voice warns in dev, except for one the budget released: it has none by design. */
 function warnNoVoice(where: string, robotId: string): void {
-  if (!releasedByBudget.has(robotId)) devWarn(`[AudioEngine] ${where}: no composite reserved for ${robotId}`);
+  if (!standingBy.isReleased(robotId)) devWarn(`[AudioEngine] ${where}: no composite reserved for ${robotId}`);
 }
 
 /**
@@ -588,8 +534,7 @@ export function triggerWithCap(params: NoteParams): boolean {
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
     synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8);
-    const noteEnd = scheduleVoiceRelease(duration, scheduleTime);
-    if (noteEnd > (noteEndByRobot.get(robotId) ?? -Infinity)) noteEndByRobot.set(robotId, noteEnd);
+    standingBy.recordNoteEnd(robotId, scheduleVoiceRelease(duration, scheduleTime));
     return true;
   } catch (err) {
     console.error('[AudioEngine] Failed to trigger note:', err);
@@ -893,10 +838,7 @@ export const AudioEngine = {
     filterFreq?: number,
     articulation?: { portamento?: number; filterQ?: number; filterType?: RobotFilterType },
   ): boolean {
-    if (standingByRobots.has(robotId)) {
-      releasedByBudget.add(robotId);
-      return false;
-    }
+    if (standingBy.refuseReservation(robotId)) return false;
     try {
       const audibleDescriptor = filterAudibleLayers(descriptor);
       const composite = AudioEngine.createCompositeVoice(audibleDescriptor, adsr, articulation?.portamento);
@@ -991,7 +933,7 @@ export const AudioEngine = {
     compositeVoices.delete(robotId);
     unfeedRooms(robotId);
     robotNoteIndex.delete(robotId);
-    noteEndByRobot.delete(robotId);
+    standingBy.forgetNoteEnd(robotId);
     lastPanByRobot.delete(robotId);
     manualPanByRobot.delete(robotId);
     useRobotPanReadoutStore.getState().clearPan(robotId);
@@ -1488,15 +1430,7 @@ export const AudioEngine = {
    */
   setSoundingRobots(ids: Iterable<string> | null): string[] {
     soundingRobots = ids === null ? null : new Set(ids);
-    const admitted = soundingRobots;
-    applyStandingBy(admitted === null ? [] : [...standingByRobots].filter((id) => !admitted.has(id)));
-    const rebuilt: string[] = [];
-    for (const id of [...releasedByBudget]) {
-      if (admitted !== null && !admitted.has(id)) continue;
-      releasedByBudget.delete(id);
-      if (!compositeVoices.has(id) && AudioEngine.reReserveVoice(id)) rebuilt.push(id);
-    }
-    return rebuilt;
+    return standingBy.admit(soundingRobots);
   },
 
   /**
@@ -1507,7 +1441,7 @@ export const AudioEngine = {
    * nobody over the budget (Full) nothing is released. Copies the ids; re-sending the same set does nothing.
    */
   setStandingByRobots(ids: Iterable<string>): void {
-    applyStandingBy(ids);
+    standingBy.setStandingBy(ids);
   },
 
   /**
