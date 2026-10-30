@@ -2268,5 +2268,5 @@ the first clean build.
 - **Deviations:** one run per cell; run 8 not run; no `main` Full run; the rest between runs not timed; T27's
   commands kept in the scratchpad's `precheck-c2.sh` and `make-phone-page.mjs` rather than a `commands.txt`.
 
-**Gate C2:** build 2 (`c54f9c87`), the pedals, colour and Reverb off at Light: "sounds great" on D1 and D5. Full's
-verdict is open with Crawford.
+**Gate C2:** build 2 (`c54f9c87`), the pedals, colour and Reverb off at Light: "sounds great" on D1 and D5. Full
+unchanged (Crawford, 2026-10-29: "No need to change full.").

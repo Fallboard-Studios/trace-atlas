@@ -692,6 +692,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
       **Missed (Crawford, 2026-10-29):** "i recognize now that we need to have a very watered down mobile version. and
       that's ok. let's turn off the pedals and reverb on light. i still really want four robots playing, that's the last
       thing i want to cut." The branch's Full take-off (T21) was not re-checked and is not decided.
+      **Full, re-checked at T28:** no take-off on either world; Crawford, 2026-10-29: "No need to change full." Full is unchanged.
 - [x] On a miss, Phase C2 is built and its sitting (T27–T28) decides at Gate C2; past its last build the item returns
       to Crawford with the floor's numbers (spec §1.6).
 
@@ -1138,7 +1139,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 ### Gate C2: The first clean build
 - [x] The first stacked build that is clean by ear on D1 and D5 at Light named; the cuts past it reverted and recorded
       with their numbers. **Build 2, `c54f9c87`** (pedals, colour and Reverb off at Light): "sounds great" on both
-      worlds (Crawford, 2026-10-29). No cuts past it to revert. Gate C's "Full unchanged" is Crawford's to call (§13).
+      worlds (Crawford, 2026-10-29). No cuts past it to revert. Full unchanged (Crawford, 2026-10-29: "No need to change full.").
 - [ ] *(Not needed: build 2 is clean.)* If none is clean: the item returns to Crawford with the floor's numbers (spec §1.6); a cheaper robot voice or
       native-node pedals is a spec of its own.
 

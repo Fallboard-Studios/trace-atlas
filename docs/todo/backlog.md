@@ -649,8 +649,8 @@ held off (`LOAD_EFFECTS_MIN`, T9–T13) and the Reverb off (`LOAD_REVERB_MIN`, T
 lift), every inert control dimmed (T12b); three sounding robots (T25–T26) not built. On a rested Pixel 8 at Light,
 pedals and Reverb off drew "sounds great" on D1 and D5 (`underruns` 17 and 15 at 4:00) against `main`'s "too
 scratchy" (281, 250); pedals off alone drew "sounds great" on D5 and "a little scratchy" on D1. At Full nothing took
-off; D5 "not too bad, actually", D1 "scratchy throughout". Whether Full counts as unchanged is Crawford's; then the
-docs (T22, T23).
+off; D5 "not too bad, actually", D1 "scratchy throughout". Full accepted as
+unchanged (Crawford, 2026-10-29: "No need to change full."). Next: the docs (T22, T23).
 
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
