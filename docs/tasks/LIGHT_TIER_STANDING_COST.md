@@ -1147,7 +1147,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
 ### Phase D: Docs
 
-- [ ] **Task 22: `docs/PERFORMANCE.md`, `docs/AUDIO_SYSTEM.md` — document the tools and the shipped behaviour**
+- [x] **Task 22: `docs/PERFORMANCE.md`, `docs/AUDIO_SYSTEM.md` — document the tools and the shipped behaviour** (2026-10-29)
 
   **Description:** PERFORMANCE.md: a "Handler breakdown — `npm run perf:audio-handlers`" subsection under the audio
   series (what it reads, the ~3× caveat, the shares rule, the flags, Q1's answer), the census line under "The long-run
@@ -1160,16 +1160,26 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every documented name exists in the shipped source; dropped cuts are not described as shipped.
+  - [x] Every documented name exists in the shipped source; dropped cuts are not described as shipped.
 
   **Verification:**
-  - [ ] Manual review against source; `npm run lint` clean.
+  - [x] Manual review against source; `npm run lint` clean.
 
   **Dependencies:** Gate C, or Gate C2 after a miss.
 
   **Files:** `docs/PERFORMANCE.md`, `docs/AUDIO_SYSTEM.md`
 
   **Estimated scope:** S (docs only)
+
+  **As built (2026-10-29):** PERFORMANCE.md gains "Handler breakdown — `npm run perf:audio-handlers`" (before
+  Measurement hygiene), the census line in "The long-run columns" and `withPoweredWorld` named. AUDIO_SYSTEM.md
+  "Audio Load Budget": `EffectsLoadLimits` at five fields, "Standing-by robots give up their voice" (H2; who keeps a
+  voice: sounding, muted, docked, solo-silenced), "The effects tiers" (the pedals and colour **and the Reverb**, which
+  shipped in Phase C2 after this task was written; what dims; the overlay's `fx off` / `rev off` / `fx+rev off`),
+  `applyLfoTiers` renamed `applyTiers`; "The bypass cells": a dark cell's LFOs stop (H3a); "LFO Modulation": drift
+  secondaries stop with the tier (H3b) and the priming bug T17 fixed. One correction outside the list: Global
+  Pedals' "The LFOs run always" bullet was false after H3a and now reads "while the pedal is lit". Dropped cuts (the
+  Reverb decay cap, three sounding robots, EQ3/LPF/HPF out) are not described. Every identifier grepped in `src/`.
 
 - [ ] **Task 23: `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/specs/LIGHT_TIER_STANDING_COST.md` — the Built line**
 
