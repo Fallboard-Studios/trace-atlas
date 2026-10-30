@@ -21,13 +21,12 @@
 import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-import { formatHandlerTable, tallyHandlers } from './audio-handlers-lib.mjs';
+import { RENDER, formatHandlerTable, tallyHandlers } from './audio-handlers-lib.mjs';
 import { parseWorldSpec } from './audio-load-lib.mjs';
 import { sleep } from './cdp-lib.mjs';
 import { withPoweredWorld } from './powered-world.mjs';
 
 const CATEGORIES = ['webaudio', 'disabled-by-default-webaudio.audionode'];
-const RENDER = 'RealtimeAudioDestinationHandler::Render';
 
 /** The warm-up after powering on, as `perf:audio`'s default, so both tools read the same moment of a world. */
 const WARMUP_SEC = 8;

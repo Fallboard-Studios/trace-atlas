@@ -15,7 +15,8 @@
  * total, never absolute cost: the inflation cancels in the ratio.
  */
 
-const RENDER = 'RealtimeAudioDestinationHandler::Render';
+/** The event Chrome traces once per render quantum: the total every share is of. */
+export const RENDER = 'RealtimeAudioDestinationHandler::Render';
 
 /** A per-node event: Chrome's `AudioHandler::ProcessIfNecessary`, or any `Xxx::Process` a handler may trace. */
 const PROCESS_SHAPED = /::Process(IfNecessary)?$/;
