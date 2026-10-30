@@ -114,6 +114,11 @@ vi.mock('gsap', () => {
       return noop(config?.paused === true);
     },
     set: () => { },
+    // The ticker's clock and its frame listeners, as a shape only: workLoop.ts reads `gsap.ticker.time`
+    // for its default clock (now also at pauseWorkLoop(), docs/specs/OFF_SCREEN.md assumption 4 — the
+    // first read any test reached without injecting `now`, 2026-10-30) and adds/removes a dissolve
+    // copy's follow listener. Time never advances here; tests that care about the clock inject one.
+    ticker: { time: 0, add: () => { }, remove: () => { } },
     // Module-level to()/fromTo() (distinct from a timeline instance's own .to()/.fromTo() above)
     // return a real GSAP Tween whose .progress()/.kill()/.pause()/.play() callers may chain off
     // immediately and synchronously — useOrbiterMotion.ts's drift setup does exactly this

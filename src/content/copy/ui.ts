@@ -8,7 +8,6 @@ import type { ContentEntry } from '../types';
  */
 export const ui = {
   'ui.cancel': { human: 'Cancel' },
-  'ui.confirm': { human: 'Confirm' },
   'ui.consolePanel': { human: 'Console Panel' },
   'ui.heldOff': { human: 'Held off by Audio Load' },
   /** The "?" on a control's label (docs/specs/LAYOUT_REWORK.md §1.4): its accessible name, filled with
@@ -23,8 +22,6 @@ export const ui = {
   'ui.power.controls': { human: 'Device power controls' },
   'ui.power.on': { human: 'Power on' },
   'ui.power.off': { human: 'Power off' },
-  'ui.power.confirmTitle': { human: 'Power off?' },
-  'ui.power.confirmBody': { human: 'All audio will stop.' },
   /** The phone bar's well while the nav sheet is open (docs/specs/LAYOUT_REWORK.md §1.1). The sketch's
    *  "menu open — tap outside or pick to close" cut short at 320 px; the open sheet and the menu's ✕
    *  already say it is open (Crawford, 2026-10-09: "shorter copy"). The bar's menu button is the nav

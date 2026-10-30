@@ -4,7 +4,7 @@ import { render, fireEvent } from '@testing-library/react';
 vi.mock('@/systems/powerController', () => ({
   powerController: {
     start: vi.fn(),
-    shutdown: vi.fn().mockResolvedValue(undefined),
+    pause: vi.fn(),
     powerOnSequence: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -66,6 +66,21 @@ describe('PowerRockerSwitch', () => {
     // The rocker's own sequence is UI chrome — registered with the default scope (two arguments, no 'world'), so it
     // keeps running while the world is paused (OFF_SCREEN assumption 3).
     expect(setTimeline).toHaveBeenCalledWith('power-rocker-sequence', expect.anything());
+  });
+
+  // Power is a pause (docs/specs/OFF_SCREEN.md assumption 6, docs/tasks/OFF_SCREEN.md Task 7): the rocker's off-click
+  // mirrors its on-click — hold, then pause, then return — with no confirm dialog, because pausing loses nothing.
+  it('clicking when on pauses the world after the hold, registers the same sequence, and shows no dialog', async () => {
+    mockIsPoweredOn = true;
+    const { getByRole, queryByRole } = render(<PowerRockerSwitch />);
+    await fireEvent.click(getByRole('button', { name: /Power off/i }));
+
+    expect(powerController.pause).toHaveBeenCalledTimes(1);
+    expect(setTimeline).toHaveBeenCalledWith('power-rocker-sequence', expect.anything());
+    expect(setTimeline).not.toHaveBeenCalledWith('power-rocker-confirm-delay', expect.anything());
+    expect(queryByRole('dialog')).toBeNull();
+    expect(queryByRole('alertdialog')).toBeNull();
+    expect(powerController.powerOnSequence).not.toHaveBeenCalled();
   });
 
   it('colors the light red (via statusLightColors) when powered off', () => {

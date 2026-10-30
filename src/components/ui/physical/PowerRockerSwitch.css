@@ -118,8 +118,7 @@
   outline: none;
 }
 
-.rocker-el:focus-visible,
-.power-confirm__btn:focus-visible {
+.rocker-el:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
@@ -182,84 +181,8 @@
 /* Power symbol nested SVG — no additional styles needed; all visual
    properties are set inline on the SVG paths */
 
-/* ----------------------------------------
-   Power-off confirmation modal
-   (moved from TransportBar.css)
-   ---------------------------------------- */
-.power-confirm__overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: var(--z-overlay);
-}
-
-.power-confirm__content {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: var(--z-popover);
-  background: var(--color-surface);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-lg, 24px);
-  min-width: 300px;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md, 12px);
-}
-
-.power-confirm__title {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-label);
-  color: var(--color-text-primary-fixed);
-  margin: 0;
-}
-
-/* --font-size-label-lore, not --font-size-label (the title's own token,
-   above) — preserves this dialog's existing size hierarchy (title reads
-   bigger than the description/buttons below it, matching the old
-   --font-size-md/--font-size-sm split). No font-family here, before or
-   after — this rule has never had one, unlike the title; it inherits the
-   document default (--font-sans/Rajdhani). */
-.power-confirm__description {
-  font-size: var(--font-size-label-lore);
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.power-confirm__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-sm, 8px);
-  margin-top: var(--spacing-sm, 8px);
-}
-
-.power-confirm__btn {
-  min-width: 80px;
-  min-height: 36px;
-  padding: 0 var(--spacing-md, 12px);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: var(--border-radius);
-  background: transparent;
-  color: var(--color-text-primary-fixed);
-  /* --font-size-label-lore, matching .power-confirm__description above —
-     same reasoning, same "smaller than the title" role. */
-  font-size: var(--font-size-label-lore);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.power-confirm__btn:hover {
-  background: var(--color-border);
-}
-
-.power-confirm__btn--confirm {
-  --danger: var(--color-danger, #e05555);
-  color: var(--danger);
-  border-color: var(--danger);
-}
+/* The power-off confirmation modal that lived here retired with docs/specs/OFF_SCREEN.md assumption 6:
+   the rocker pauses the world, which loses nothing, so there is nothing to confirm. */
 
 /* Accessibility: reduce motion */
 @media (prefers-reduced-motion: reduce) {

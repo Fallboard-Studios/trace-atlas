@@ -69,11 +69,6 @@ export const powerController = {
     return worldState;
   },
 
-  /** @deprecated Task 6 alias for the rocker's confirm flow until Task 7 removes the dialog; `pause()` is the call. */
-  async shutdown() {
-    this.pause();
-  },
-
   // High-level power-on sequence, two ways (spec assumption 5). From a pause: resume, nothing starts. Otherwise
   // the world was built as a still frame (WorldView mounts in both power states and its mount effect builds it with
   // its systems held back), so this is where it comes alive: audio first, every robot's voice registered by start(),

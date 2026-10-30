@@ -141,6 +141,10 @@ describe('powerController', () => {
     });
   });
 
+  it('has no shutdown() any more — the rocker pauses (docs/tasks/OFF_SCREEN.md Task 7)', () => {
+    expect((powerController as unknown as Record<string, unknown>).shutdown).toBeUndefined();
+  });
+
   it('getWorldState() is cold on a fresh page, running after a start', async () => {
     expect(powerController.getWorldState()).toBe('cold');
     await powerController.powerOnSequence();
