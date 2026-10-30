@@ -1,0 +1,642 @@
+<!doctype html>
+<!-- The off screen — six stories (arrival × device), each with the off screen drawn in that story's state, plus the three
+     in-app views the proposal touches. Built 2026-10-30 on docs/themes-and-aspects (backlog 5 "The off screen: themes,
+     aspects, sessions, presets", plan.md Stage 1), BEFORE the interview, so Crawford can see each piece of each view.
+     Static HTML + a little JS; nothing here touches the app.
+
+     DECIDED 2026-10-30 (Crawford, on reading this page: "I love it"): the ROLL button stays; FIVE themes; aspect rows
+     FLAT (no disclosure); the TWO-AXIS chooser (Transmission / Loading, two columns on desktop); the VEIL; the LORE
+     FOOTER. Presets as pasted share links of worlds he saved was his own ask the same day. The fixed panel's defaults
+     are those decisions; the alternatives stay as the comparison. Everything else is still a lean or an open question
+     (the boxes at the top), drawn on top of what the layout rework decided and built. Every piece carries a numbered
+     callout; the legend under a frame says what the piece is and whether it is built, built-but-changed, decided,
+     proposed or open.
+
+     The six stories (Crawford, 2026-10-30): no params first visit · no params second visit · no params + saved ·
+     shared params first visit · shared params second visit · shared params + saved. "Second visit" is drawn as "the
+     device has heard a world" — true from the first power-on, so also right after a power-off in visit one.
+
+     The pieces (one numbering across the whole page):
+       1 top strip · 2 power corner · 3 faint world · 4 etched label · 5 power hint · 6 bottom strip
+       7 Transmission group · 8 Current row · 9 Roll · 10 saves · 11 divider · 12 presets (as links)
+       13 Loading group · 14 theme row · 15 description line (the Guide's part) · 16 aspect rows · 17 readout well
+       18 lore footer · 19 veil · 20 confirm dialog · 21 Foundry status line · 22 shortcut buttons · 23 Retransmit
+       24 Comms rows · 25 factory reset · 26 heard-a-world flag · 27 curation flow
+
+     Copy: the app's current strings where one exists (src/content/copy/home.ts, ui.ts, settings.ts, session.ts);
+     everything else — theme names beyond Classic, every aspect family and option except Hypnotic / Mechanical, the
+     description lines, the footer — is a STAND-IN. Names are copy and live in src/content/ when built.
+
+     Page rules (memory: sketch-toggles-sticky-bar): each frame is section.frame whose first child is the sticky div.bar
+     holding the h2 and that frame's own options; page-wide options live in the fixed panel, bottom-right. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Off screen — six stories (sketch)</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
+    --ac: #41ad9f; --ac2: #68cb97; --wire: #7c8893; --wire2: #4a545d; --call: #e8b84a;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px 24px 180px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  h2 small { font-weight: 400; color: var(--mut); font-size: 12px; margin-left: 10px; font-family: var(--fc); }
+  h2 .story { display: inline-block; background: var(--call); color: #1a1408; font-size: 12px; padding: 1px 8px; border-radius: 3px; margin-right: 10px; vertical-align: 2px; font-family: var(--fc); }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  p.note b { color: var(--txt); }
+  .pending, .decided, .leans { border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; }
+  .pending b { color: #e8b84a; }
+  .decided { background: #10302a; border: 1px solid #41ad9f; }
+  .decided b { color: #68cb97; }
+  .leans { background: #1b2230; border: 1px solid #5a7fb0; }
+  .leans b { color: #9cc0f0; }
+  .pending ol, .decided ol, .leans ol { margin: 6px 0 0 18px; padding: 0; }
+  .pending li, .decided li, .leans li { margin: 2px 0; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #c9d4de; }
+
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+  .controls .grp { display: inline-flex; gap: 4px; align-items: center; }
+  .controls .lbl { color: var(--mut); margin-right: 2px; }
+  .controls .none { color: var(--mut); font-style: italic; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #0b0f14; border: 1px solid #41ad9f; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .7); max-width: 520px; font-family: var(--fc); }
+  .fixedpanel .ttl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #68cb97; margin-bottom: 6px; }
+  .fixedpanel .controls { margin: 4px 0; }
+
+  /* ---------- frames: a sticky bar (heading + that frame's options), then the story strip, the drawings, the legend ---------- */
+  .frame { margin: 36px 0 0; }
+  .frame > .bar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: 8px 0 4px; border-bottom: 1px solid #333; box-shadow: 0 8px 16px rgba(18, 22, 26, .9); }
+  .frame > .bar h2 { border: 0; padding: 0; }
+  .frame > .bar .controls { margin: 6px 0 0; }
+  .pair { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; margin-top: 14px; }
+  .legend { columns: 2; column-gap: 32px; max-width: 1500px; margin: 14px 0 0; padding: 0 0 0 36px; font-family: var(--fc); font-size: 13px; }
+  .legend li { break-inside: avoid; margin: 0 0 8px; position: relative; list-style: none; }
+  .legend li .co { position: absolute; left: -34px; top: 1px; }
+  .legend li b { font-weight: 600; }
+  .legend .st { display: inline-block; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; padding: 0 6px; margin: 0 6px 0 4px; border-radius: 3px; vertical-align: 1px; }
+  .st.built { background: #15463a; color: #8fe0b8; }
+  .st.changed { background: #1d3a5c; color: #9cc0f0; }
+  .st.proposed { background: #4a3410; color: #f0c860; }
+  .st.open { background: #5a2420; color: #ffb0a0; }
+  .st.decided { background: #0f3d4a; color: #7fd8e8; }
+  .legend .why { color: var(--mut); }
+
+  /* callouts: an amber badge hung in the gutter to the left of the piece it names */
+  .co { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--call); color: #1a1408; font: 700 11px/1 var(--fc); box-shadow: 0 0 0 2px #1a1408; }
+  .piece { position: relative; }
+  .piece > .co { position: absolute; left: -30px; top: 50%; transform: translateY(-50%); z-index: 8; }
+  body.nocall .co { display: none; }
+
+  /* ---------- the tablet shells (the two strips, the power corner hanging from the top one) ---------- */
+  .desk { --st: 16px; --sb: 48px; width: 1600px; height: 900px; position: relative; overflow: hidden; background: #0b0f14; border: 12px solid #1e2126; border-radius: 6px; zoom: .68; box-shadow: 0 0 0 1px #000; font-family: var(--fc); }
+  .phone { --st: 12px; --sb: 32px; width: 375px; height: 812px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid #1e2126; border-radius: 28px; font-family: var(--fc); }
+  .strip { position: absolute; left: 0; right: 0; background: #1e2126; z-index: 6; box-sizing: border-box; }
+  .strip.top { top: 0; height: var(--st); border-bottom: 1px solid #0a0c0f; }
+  .strip.top .co { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); }
+  .strip.bot { bottom: 0; height: var(--sb); border-top: 1px solid #0a0c0f; display: flex; align-items: center; padding-left: 24px; }
+  .strip.bot .wm { font-size: 11px; letter-spacing: .3em; color: #6b7680; }
+  .strip.bot .co { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); }
+  .pwr { position: absolute; top: var(--st); right: 28px; width: 118px; height: 42px; background: #1e2126; border-radius: 0 0 10px 10px; z-index: 7; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 4px 10px rgba(0, 0, 0, .5); }
+  .pwr .rocker { width: 44px; height: 18px; border: 1px solid var(--wire); border-radius: 9px; position: relative; }
+  .pwr .rocker::after { content: ''; position: absolute; left: 2px; top: 2px; width: 18px; height: 12px; border-radius: 6px; background: var(--wire2); }
+  .pwr.on .rocker::after { left: auto; right: 2px; background: var(--ac); }
+  .pwr .lamp { width: 10px; height: 10px; border-radius: 50%; background: #c0392b; box-shadow: 0 0 8px #c0392b; animation: breathe 2.4s ease-in-out infinite; }
+  .pwr.on .lamp { background: var(--ac2); box-shadow: 0 0 8px var(--ac2); animation: none; }
+  .pwr .co { position: absolute; left: -30px; top: 50%; transform: translateY(-50%); }
+  @keyframes breathe { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+  .phone .pwr { right: 14px; width: 86px; height: 32px; gap: 8px; }
+  .phone .pwr .rocker { width: 34px; height: 14px; }
+  .phone .pwr .rocker::after { width: 14px; height: 8px; }
+
+  /* the world: a hatched placeholder, faint while off, bright while on; never a real drawing */
+  .world { position: absolute; left: 0; right: 0; top: var(--st); bottom: var(--sb); background: repeating-linear-gradient(135deg, #0f151b 0 14px, #121a21 14px 28px); }
+  .world.on { background: repeating-linear-gradient(135deg, #16222b 0 14px, #1b2a35 14px 28px); }
+  .world.dim { filter: brightness(.55); }
+  .world .wl { position: absolute; right: 18px; bottom: 12px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #3f4a55; }
+  .world .co { position: absolute; left: 14px; top: 14px; }
+  .world .linkchip { position: absolute; left: 44px; top: 12px; font-size: 11px; color: #7c8893; border: 1px dashed #3f4a55; padding: 2px 8px; border-radius: 4px; max-width: 60%; }
+  .phone .world .linkchip { top: 44px; left: 14px; max-width: 80%; }
+  .veil { position: absolute; inset: var(--st) 0 var(--sb); background: rgba(8, 12, 16, .55); backdrop-filter: blur(3px); z-index: 2; }
+  .veil .co { position: absolute; right: 60px; top: 14px; }
+  .phone .veil .co { right: 14px; top: 44px; }
+
+  /* the off screen's content column */
+  .screen { position: absolute; left: 0; right: 0; top: var(--st); bottom: var(--sb); z-index: 3; overflow: auto; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; padding: 40px 48px; }
+  .screen.first { justify-content: center; }
+  .phone .screen { padding: 28px 16px 28px 40px; align-items: stretch; }
+  .etch { text-align: center; color: #8d98a2; margin-bottom: 22px; }
+  .etch h3 { font-family: var(--fs); font-size: 34px; letter-spacing: .32em; margin: 0; color: #a5b0ba; }
+  .etch p { margin: 6px 0 0; font-size: 14px; letter-spacing: .08em; }
+  .etch p.go { margin-top: 18px; color: var(--txt); font-size: 15px; letter-spacing: 0; }
+  .etch.piece > .co { left: -30px; top: 16px; transform: none; }
+  .etch .go.piece { display: inline-block; }
+  .phone .etch h3 { font-size: 24px; letter-spacing: .24em; }
+  .phone .etch p { font-size: 12.5px; }
+  .phone .etch p.go { font-size: 14px; }
+
+  .chooser { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 18px; }
+  .chooser.two { max-width: 1240px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px 64px; align-items: start; }
+  .chooser.two .well, .chooser.two .foot { grid-column: 1 / -1; }
+  .grp { display: flex; flex-direction: column; gap: 6px; }
+  .grp .head { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8d98a2; margin: 4px 0 2px; }
+  .grp .head .sub { letter-spacing: 0; text-transform: none; color: #5f6a74; margin-left: 8px; }
+  .r { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 12px; border: 1px dashed var(--wire2); border-radius: 4px; color: #aab4bd; font-size: 14px; }
+  .r .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--wire); flex: none; }
+  .r.on { border: 1px solid var(--wire); color: var(--txt); background: rgba(255, 255, 255, .03); }
+  .r.on .dot { background: var(--wire); box-shadow: inset 0 0 0 3px #0b0f14; }
+  .r .meta { margin-left: auto; color: #6b7680; font-size: 12px; }
+  .r .roll { margin-left: auto; border: 1px dashed var(--wire); background: transparent; color: #aab4bd; font: 600 12px var(--fc); padding: 3px 10px; border-radius: 4px; position: relative; }
+  .r .roll .co { position: absolute; right: -28px; top: 50%; transform: translateY(-50%); }
+  .divider { height: 1px; background: var(--wire2); margin: 4px 8px; }
+  .line { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border: 1px dashed var(--wire2); border-radius: 15px; color: #aab4bd; font-size: 13px; }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--wire); }
+  .chip.on { border: 1px solid var(--wire); color: var(--txt); }
+  .chip.on .dot { background: var(--wire); box-shadow: inset 0 0 0 2px #0b0f14; }
+  .desc { font-size: 12.5px; color: #7c8893; padding: 0 6px; font-style: italic; }
+  .fam { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .fam .famname { width: 76px; flex: none; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8d98a2; }
+  .fam .chip { height: 26px; font-size: 12px; padding: 0 10px; }
+  .disc { font-size: 13px; color: #aab4bd; padding: 6px 12px; border: 1px dashed var(--wire2); border-radius: 4px; }
+  .disc .mut { color: #6b7680; }
+  .well { border: 1px solid var(--wire2); background: rgba(0, 0, 0, .35); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .6); border-radius: 4px; padding: 10px 14px; font-size: 14px; color: var(--txt); letter-spacing: .02em; }
+  .well .lbl { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #6b7680; display: block; margin-bottom: 3px; }
+  .foot { font-size: 9.5px; color: #4a545d; letter-spacing: .04em; text-align: center; max-width: 760px; margin: 6px auto 0; }
+  .phone .chooser { max-width: none; }
+  .phone .r { font-size: 13px; min-height: 32px; }
+  .phone .fam .famname { width: 100%; }
+
+  /* ---------- the powered-on chrome, as wire boxes only ---------- */
+  .hdr { position: absolute; top: var(--st); left: 0; right: 170px; height: 44px; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 0 20px; color: #7c8893; font-size: 12px; }
+  .hdr .box { border: 1px dashed var(--wire2); padding: 4px 10px; border-radius: 4px; }
+  .nav { position: absolute; top: calc(var(--st) + 44px); bottom: var(--sb); left: 0; width: 96px; z-index: 4; border-right: 1px dashed var(--wire2); display: flex; flex-direction: column; gap: 10px; padding: 14px 10px; box-sizing: border-box; }
+  .nav .box { border: 1px dashed var(--wire2); border-radius: 4px; height: 40px; font-size: 11px; color: #7c8893; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .nav .box.on { border-style: solid; color: var(--txt); }
+  .meta { position: absolute; left: 116px; bottom: calc(var(--sb) + 16px); z-index: 4; border: 1px dashed var(--wire2); border-radius: 4px; padding: 8px 12px; font-size: 12px; color: #aab4bd; background: rgba(0, 0, 0, .3); }
+  .content { position: absolute; top: calc(var(--st) + 44px); bottom: var(--sb); left: 96px; right: 0; z-index: 4; background: #10151b; border-left: 1px solid var(--line); padding: 20px 40px; box-sizing: border-box; overflow: auto; }
+  .content .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .content .tabs .box { border: 1px dashed var(--wire2); padding: 6px 14px; border-radius: 4px; font-size: 13px; color: #7c8893; }
+  .content .tabs .box.on { border-style: solid; color: var(--txt); }
+  .content .lbl { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #6b7680; margin: 18px 0 6px; }
+  .content .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+  .content .input { border: 1px solid var(--wire2); background: rgba(0, 0, 0, .35); padding: 6px 10px; border-radius: 4px; font-size: 13px; color: var(--txt); min-width: 180px; }
+  .content .input.small { min-width: 70px; }
+  .content .btn { border: 1px dashed var(--wire); padding: 5px 12px; border-radius: 4px; font-size: 13px; color: #aab4bd; }
+  .content .btn.solid { border-style: solid; color: var(--txt); }
+  .content .gone { text-decoration: line-through; opacity: .45; }
+  .content .later { border: 1px dashed #4a3410; color: #a08440; padding: 8px 12px; border-radius: 4px; font-size: 12.5px; margin-top: 16px; }
+  .content .status { font-size: 15px; color: var(--txt); }
+  .content .srow { display: flex; align-items: center; gap: 10px; border: 1px dashed var(--wire2); border-radius: 4px; padding: 6px 12px; margin: 6px 0; font-size: 13px; max-width: 760px; }
+  .content .srow .meta2 { color: #6b7680; font-size: 12px; margin-left: 8px; }
+  .content .srow .acts { margin-left: auto; display: flex; gap: 6px; }
+  .content .srow .acts span { border: 1px dashed var(--wire2); padding: 2px 8px; border-radius: 3px; font-size: 11.5px; color: #8d98a2; }
+  .content .empty { color: #6b7680; font-size: 13px; font-style: italic; }
+  .content .danger { margin-top: 28px; }
+
+  .modalveil { position: absolute; inset: var(--st) 0 var(--sb); background: rgba(0, 0, 0, .55); z-index: 9; display: flex; align-items: center; justify-content: center; }
+  .dialog { width: 460px; border: 1px solid var(--wire); background: #10151b; border-radius: 6px; padding: 22px 26px; position: relative; }
+  .dialog h4 { font-family: var(--fs); font-size: 22px; margin: 0 0 6px; }
+  .dialog p { margin: 0 0 18px; color: #aab4bd; font-size: 14px; }
+  .dialog .btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .dialog .btns span { border: 1px dashed var(--wire); padding: 6px 14px; border-radius: 4px; font-size: 13px; color: #aab4bd; }
+  .dialog .btns span.solid { border-style: solid; color: var(--txt); }
+  .dialog > .co { position: absolute; left: -30px; top: 24px; }
+
+  /* ---------- diagrams: the boot timeline, the story strips, the gate, the rules, the curation flow ---------- */
+  .timeline { display: flex; gap: 4px; max-width: 1100px; font-family: var(--fc); font-size: 12.5px; margin-top: 14px; }
+  .timeline .seg { border: 1px solid var(--wire2); border-radius: 4px; padding: 8px 10px; min-height: 64px; box-sizing: border-box; }
+  .timeline .seg b { display: block; color: var(--txt); margin-bottom: 3px; }
+  .timeline .seg.dark { background: #000; }
+  .timeline .seg.flick { background: repeating-linear-gradient(90deg, #0b0f14 0 6px, #1a2229 6px 9px); }
+  .timeline .seg.ready { background: #10151b; }
+  .timeline.was { opacity: .5; }
+  .timeline.was .seg { text-decoration: line-through; }
+  .tl-cap { font-family: var(--fc); font-size: 12.5px; color: var(--mut); margin: 6px 0 0; }
+  .flow { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; margin-top: 14px; font-family: var(--fc); font-size: 13px; max-width: 1500px; }
+  .flow .node { border: 1px solid var(--wire2); border-radius: 6px; padding: 10px 14px; min-width: 190px; max-width: 300px; background: #10151b; position: relative; flex: 1; }
+  .flow .node.hi { border-color: var(--call); }
+  .flow .node b { display: block; margin-bottom: 4px; color: var(--txt); }
+  .flow .node .co { position: absolute; left: -10px; top: -10px; }
+  .flow .arrow { align-self: center; color: var(--mut); font-size: 12px; text-align: center; max-width: 150px; }
+  .flow .arrow::before { content: '\2192'; display: block; font-size: 22px; color: var(--wire); line-height: 1; }
+  table.rules { border-collapse: collapse; font-family: var(--fc); font-size: 13px; margin-top: 14px; max-width: 1100px; }
+  table.rules th, table.rules td { border: 1px solid var(--line); padding: 6px 12px; text-align: left; vertical-align: top; }
+  table.rules th { color: var(--mut); font-weight: 600; background: #0f1419; }
+  .curation { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; margin-top: 14px; font-family: var(--fc); font-size: 12.5px; max-width: 1500px; }
+  .curation .step { border: 1px dashed var(--wire2); border-radius: 6px; padding: 10px 14px; max-width: 250px; position: relative; }
+  .curation .step b { display: block; color: var(--txt); margin-bottom: 3px; }
+  .curation .step .co { position: absolute; left: -10px; top: -10px; }
+  .curation .arr { align-self: center; color: var(--wire); font-size: 22px; }
+</style>
+</head>
+<body>
+
+<h1>The off screen — six stories, every piece</h1>
+<p class="note">Wireframes for backlog 5 (plan.md Stage 1), drawn 2026-10-30 before the interview. Six stories — how you arrived (a bare URL or a shared
+  link) × what the device knows (first visit; returning; returning with saves) — each with the off screen drawn in that story's state. Numbered callouts
+  name each piece; the legend under a frame says what the piece is and whether it is <span class="st built">built</span> today,
+  <span class="st changed">built → changed</span> by the proposal, <span class="st decided">decided</span> on 2026-10-30, <span class="st proposed">proposed</span>, or <span class="st open">open</span>.
+  Boxes are dashed where the app would draw a muted radio or a button; the world is a hatch. Nothing is styled — this is for shape and content, not look.
+  <b>Every theme name but Classic, every aspect family and option but Hypnotic / Mechanical, and every description line is a stand-in.</b></p>
+
+<div class="decided"><b>Decided earlier (layout rework, 2026-10-09, built):</b>
+  <ol>
+    <li>The world is built before power and shows faintly behind the glass; the rocker is the only way to start sound.</li>
+    <li>Pickers on the off screen are silent: a pick retransmits the faint world, nothing pops, nothing plays.</li>
+    <li>The Transmission row: presets, a divider, then the user's saves (newest first), as a muted RadioButton with a readout well.</li>
+    <li>Power off keeps the world and robots; power on plays the same world from the top. (Today's dialog: "Power off?" / "All audio will stop.")</li>
+    <li>No manual on the off screen (roadmap 51's Not Doing) — the Guide is a window inside the app.</li>
+  </ol></div>
+
+<div class="decided"><b>Decided 2026-10-30 (Crawford, on reading this page):</b>
+  <ol>
+    <li><b>Roll stays</b> — the action beside Current (piece 9).</li>
+    <li><b>Five themes</b> — standard / calm / bold / adventurous / perilous (piece 14; the names are copy, still his).</li>
+    <li><b>Aspect rows flat</b>, one per family — not behind a disclosure (piece 16).</li>
+    <li><b>The two axes</b> — Transmission and Loading, two columns on desktop, one on the phone (pieces 7 and 13).</li>
+    <li><b>The veil</b> over the world until the flip (piece 19).</li>
+    <li><b>The lore footer</b> (piece 18; the legalese is his copy).</li>
+    <li><b>Presets are pasted share links</b> of worlds he saved — his own ask the same day (piece 12; frame D's curation flow).</li>
+  </ol></div>
+
+<div class="leans"><b>Leans from the 2026-10-29/30 discussion (drawn here, not decided):</b>
+  <ol>
+    <li><b>One gate, a fact not a count:</b> "has this device heard a world". Closed → the hint only (stories 1 and 4). Open → the chooser (stories 2, 3, 5, 6). It opens at the first power-on — so a power-off in the same visit shows the chooser at once — and Factory Reset closes it.</li>
+    <li><b>A theme is bands only</b> (Crawford's clarification, 2026-10-30): AS + coords stay the identity, so the same world sounds similar, not identical, across themes. Preset, save and link arrival become one path.</li>
+    <li><b>Current = continue.</b> The loaded world is the top row and the default; the flip plays it. No Continue / New row.</li>
+    <li><b>First run stays hint-only</b>; the first world is Classic — or the link's. A curious first-timer who flips off finds the chooser waiting.</li>
+    <li><b>The Guide's small part</b> is the one-line description under the picked theme / aspect — the same content entry the Guide page reads.</li>
+  </ol></div>
+
+<div class="pending"><b>Open for the interview (each is drawn somewhere below):</b>
+  <ol>
+    <li>Gate: heard-a-world flag (as drawn) — or the chooser present on first run but collapsed under one line?</li>
+    <li>The five themes' names — standard / calm / bold / adventurous / perilous as Crawford wrote them; does the default read "standard" or "Classic"?</li>
+    <li>Aspect families and option names (only Hypnotic / Mechanical are real).</li>
+    <li>Does Roll keep the chosen theme + aspects? (Drawn: yes — it rolls AS + coords only.)</li>
+    <li>Rows show <code>savedAt</code> (exists) or "last played" (a new write on every load)?</li>
+    <li>Confirm-dialog copy: today's, or Crawford's draft (frame B's switch)? With Current = continue, nothing is lost at power-off.</li>
+    <li>Should an off-screen pick mirror into the address bar (<code>replaceState</code>, as the load sliders do) so a reload keeps what you chose? Stories 5 and 6 show the wrinkle.</li>
+    <li>Foundry: do the theme / aspect rows also live there in v1 (a live retransmit, as AS + coords already are), or later?</li>
+    <li>The shortcut buttons in Foundry and the three placeholder payloads: removed?</li>
+  </ol>
+  <p style="margin: 8px 0 0">Closed 2026-10-30: Roll stays; five themes; flat aspect rows; the veil and the lore footer stay (their text and exact look are copy and styling, not questions).</p></div>
+
+<!-- ================= A · BOOT ================= -->
+<section class="frame" id="f-boot">
+  <div class="bar"><h2>A · Boot theatre <small>a timeline, not a frame — what happens between the URL and the off screen, in every story</small></h2></div>
+  <div class="timeline">
+    <div class="seg dark" style="flex: 1"><b>0 – 0.5 s · dark</b>the screen is off; the strips and the power corner are lit</div>
+    <div class="seg flick" style="flex: 2"><b>0.5 – 1.5 s · flicker-on</b>the off screen fades in with a flicker; the world is already built beneath it</div>
+    <div class="seg ready" style="flex: 7"><b>ready</b>the hint, or the chooser. The rocker works from t = 0 — a flip during the theatre just goes. Any tap skips to ready. Reduced motion: no flicker, no wait.</div>
+  </div>
+  <div class="timeline was">
+    <div class="seg dark" style="flex: 1"><b>0.5 s dark</b></div>
+    <div class="seg flick" style="flex: 3"><b>1.5 s flicker</b></div>
+    <div class="seg ready" style="flex: 6"><b>3 s splash text</b>TRACE ATLAS · product line · loading mark</div>
+    <div class="seg ready" style="flex: 4"><b>then the options</b></div>
+  </div>
+  <p class="tl-cap">Struck: Crawford's original (0.5 + 1.5 + 3 s before anything is pickable). The splash text is the etched label, which is already on the
+    off screen, so the 3 s becomes the label fading in with the rest. GSAP timelines in <code>timelineMap</code>; no timers.</p>
+</section>
+
+<!-- ================= THE SIX STORIES (rendered by the script) ================= -->
+<section class="frame" id="s1"></section>
+<section class="frame" id="s2"></section>
+<section class="frame" id="s3"></section>
+<section class="frame" id="s4"></section>
+<section class="frame" id="s5"></section>
+<section class="frame" id="s6"></section>
+
+<!-- ================= B · POWER OFF ================= -->
+<section class="frame" id="f-off">
+  <div class="bar"><h2>B · Powering off <small>the on state (chrome as wire boxes) with the confirm dialog; confirming lands on the chooser with Current selected — every story's step 4</small></h2>
+    <div class="controls"><span class="lbl">Copy:</span><span class="grp"><button data-radio="copy" data-val="app" class="on">today's (ui.power.*)</button><button data-radio="copy" data-val="draft">Crawford's draft</button></span></div>
+  </div>
+  <div class="pair">
+    <div><div class="desk" id="off-desk"></div></div>
+  </div>
+  <ol class="legend" id="off-legend"></ol>
+</section>
+
+<!-- ================= C · FOUNDRY ================= -->
+<section class="frame" id="f-foundry">
+  <div class="bar"><h2>C · Settings → Seeds (Foundry) <small>the in-app world tab; what the proposal changes there</small></h2>
+    <div class="controls"><span class="lbl">Show:</span><span class="grp"><button data-radio="foundry" data-val="before">today</button><button data-radio="foundry" data-val="after" class="on">proposed</button></span></div>
+  </div>
+  <div class="pair">
+    <div><div class="desk" id="foundry-desk"></div></div>
+  </div>
+  <ol class="legend" id="foundry-legend"></ol>
+</section>
+
+<!-- ================= D · COMMS ================= -->
+<section class="frame" id="f-comms">
+  <div class="bar"><h2>D · Settings → Save &amp; Share (Comms) <small>unchanged in shape; where a save — and so a preset — is born</small></h2>
+    <div class="controls"><span class="lbl">Saves:</span><span class="grp"><button data-radio="commsSaves" data-val="0">none</button><button data-radio="commsSaves" data-val="3" class="on">three</button><button data-radio="commsSaves" data-val="6">six</button></span></div>
+  </div>
+  <div class="pair">
+    <div><div class="desk" id="comms-desk"></div></div>
+  </div>
+  <div class="curation" id="curation"></div>
+  <ol class="legend" id="comms-legend"></ol>
+</section>
+
+<!-- ================= E · THE GATE AND THE RULES ================= -->
+<section class="frame" id="f-rules">
+  <div class="bar"><h2>E · The gate, and what a pick does <small>the state machine behind the six stories</small></h2></div>
+  <div class="flow">
+    <div class="node hi"><b>First visit (stories 1, 4)</b>gate closed · hint only · the first world is Classic, random — or the link's</div>
+    <div class="arrow">first power-on writes the flag</div>
+    <div class="node"><i class="co">26</i><b>heard-a-world = true</b>one boolean in localStorage, the second key beside <code>trace-atlas.sessions.v1</code>. Not a session, not an autosave.</div>
+    <div class="arrow">next visit, or the next power-off in this one</div>
+    <div class="node hi"><b>Returning (stories 2, 3, 5, 6)</b>gate open · the chooser · Current selected</div>
+    <div class="arrow">Factory Reset clears localStorage</div>
+    <div class="node"><b>First visit again</b>the flag is gone with the saves</div>
+  </div>
+  <table class="rules">
+    <tr><th>You do</th><th>World row</th><th>Loading rows</th><th>Seed + coords</th><th>Tweaks (the <code>s=</code> blob)</th><th>Readout</th></tr>
+    <tr><td>nothing — flip</td><td>Current stays</td><td>as they are</td><td>kept</td><td>kept</td><td>the loaded world's name</td></tr>
+    <tr><td>pick a save or a preset</td><td>that row</td><td>follow it (it carries theme + aspects)</td><td>its</td><td>its</td><td><code>Dusk run · tr3nch-2 (−30, −30) · Calm · Hypnotic</code></td></tr>
+    <tr><td>change the theme or an aspect</td><td>drops back to Current</td><td>your pick</td><td>kept</td><td>discarded (themes.md: retransmit, tweaks discarded)</td><td><code>tr3nch-2 · (−30, −30) · Perilous · Hypnotic</code></td></tr>
+    <tr><td>Roll</td><td>Current, renamed</td><td>kept (open question 4)</td><td>fresh random</td><td>none</td><td>the new name</td></tr>
+    <tr><td>arrive by a shared link</td><td>Current = the link's world</td><td>the link's (plain params)</td><td>the link's</td><td>the link's</td><td>its name; a link is not a save until you Save it</td></tr>
+  </table>
+  <p class="note">Every row above is a silent retransmit of the faint world. Nothing on this screen plays sound; the rocker does.</p>
+</section>
+
+<div class="fixedpanel"><div class="ttl">Page-wide · defaults = the 2026-10-30 decisions; alternatives kept for comparison</div>
+  <div class="controls"><span class="lbl">Themes:</span><span class="grp"><button data-radio="themes" data-val="5" class="on">five (Crawford)</button><button data-radio="themes" data-val="3">three (themes.md)</button></span></div>
+  <div class="controls"><span class="lbl">Aspects:</span><span class="grp"><button data-radio="aspects" data-val="flat" class="on">flat rows</button><button data-radio="aspects" data-val="disc">behind a disclosure</button></span></div>
+  <div class="controls"><span class="lbl">Desktop chooser:</span><span class="grp"><button data-radio="layout" data-val="two" class="on">two columns (the two axes)</button><button data-radio="layout" data-val="one">one column</button></span></div>
+  <div class="controls"><button data-opt="roll" class="on">Roll</button><button data-opt="veil" class="on">Veil</button><button data-opt="footer" class="on">Lore footer</button><button data-opt="callouts" class="on">Callouts</button></div>
+</div>
+
+<script>
+// ---------- state: page-wide, plus a selection per story ----------
+const S = { themes: '5', aspects: 'flat', layout: 'two', roll: true, veil: true, footer: true, callouts: true, copy: 'app', foundry: 'after', commsSaves: 3 };
+const ST = { 1: {}, 2: { sel: 'current' }, 3: { sel: 'current', saves: 3 }, 4: {}, 5: { sel: 'current' }, 6: { sel: 'current', saves: 3 } };
+const $ = (s) => document.querySelector(s);
+const co = (n) => `<i class="co">${n}</i>`;
+
+// ---------- stand-in data (names are copy; every one of these is a placeholder except the app's own strings) ----------
+const THEMES5 = [['Classic', 'the bands the world has always loaded with'], ['Calm', 'fewer notes, longer ones, quieter sends'], ['Bold', 'denser, brighter, louder'], ['Adventurous', 'wide bands — anything can land'], ['Perilous', 'the extremes only']];
+const THEMES3 = [['Calm', 'fewer notes, longer ones, quieter sends'], ['Classic', 'the bands the world has always loaded with'], ['Active', 'denser, brighter']];
+const FAMILIES = [['Melody', ['Hypnotic', 'Mechanical', 'Wandering']], ['Voice', ['Glassy', 'Woody', 'Hollow']], ['Envelope', ['Plucked', 'Swelling', 'Held']], ['Space', ['Dry', 'Hall', 'Cavern']]];
+const SAVES = [['Dusk run', '28 Oct'], ['Night, all freelance', '26 Oct'], ['Six companies', '24 Oct'], ['Trench test', '21 Oct'], ['Loud one', '19 Oct'], ['First keeper', '15 Oct']];
+const PRESETS = [['Kryndara', 'kr1nd4ra (12, 68)'], ['Vessport Null', 'v3ssp0rt (−4, 21)'], ['Halcyon Drift', 'h4lcy0n (77, 5)']];
+const HINT = 'Press the power switch to begin. Sound will play.';
+const FOOTER = 'Meridia Telemetry Group · Trace Atlas receiver firmware · unauthorised retransmission of any trace is an offence under the Deep Charter · no warranty is expressed or implied · (stand-in legalese)';
+const LINK = '?seed=kr1nd4ra&amp;x=12&amp;y=68&amp;s=1.…&amp;theme=calm';
+
+const themes = () => (S.themes === '5' ? THEMES5 : THEMES3);
+const fixTheme = (t) => (themes().some(([n]) => n === t) ? t : t === 'Bold' ? 'Active' : 'Classic');
+
+// ---------- the six stories ----------
+const STORIES = [
+  { n: 1, title: 'no params, first visit', arrive: 'random', gate: false, steps: [
+    ['Arrive', 'a bare URL. The device has never heard a world: no flag, no saves. A random Classic world is built, faint.'],
+    ['The screen', 'the label and the hint. Nothing else — nothing on this screen is answerable yet.'],
+    ['Flip', 'the world plays. The first power-on writes the heard-a-world flag.'],
+    ['Power off', 'the dialog (frame B), then this screen again — now with the chooser (Story 2), Current = the world that was playing.'],
+    ['Tomorrow', 'a reload is Story 2 (or 3, once something is saved).'],
+  ] },
+  { n: 2, title: 'no params, returning, nothing saved', arrive: 'random', gate: true, steps: [
+    ['Arrive', 'a bare URL; the flag is set, no saves. A fresh random Classic world is built, faint — it is Current.'],
+    ['The screen', 'label, hint, Transmission (Current, Roll, the three presets) and Loading (theme, aspects), one readout. No saves section: nothing to show.'],
+    ['Pick, or not', 'nothing → the flip plays Current. A preset → silent preview → flip. A theme → the same seed + coords under new bands.'],
+    ['Power off', 'the same screen, Current = what was playing. Flip = from the top.'],
+  ] },
+  { n: 3, title: 'no params, returning, with saves', arrive: 'random', gate: true, steps: [
+    ['Arrive', 'as Story 2; the saves sit in localStorage beside the flag.'],
+    ['The screen', 'Story 2 plus the saves, newest first, between Current and the presets. None selected.'],
+    ['Pick a save', 'its theme + aspects follow it into the Loading rows; the readout names it; flip.'],
+    ['Then change the theme', 'the save row drops back to Current: its seed + coords kept, its tweaks discarded.'],
+  ] },
+  { n: 4, title: 'shared params, first visit', arrive: 'link', gate: false, steps: [
+    ['Arrive', `<code>${LINK}</code> — someone’s world. The device has never heard one. The link’s world, tweaks included, is built faint.`],
+    ['The screen', 'the label and the hint. The friend’s world needs no choice — the best first run there is.'],
+    ['Flip', 'the friend’s world plays. Flag written. The URL stays as it is.'],
+    ['Power off', 'the chooser, Current = kr1nd4ra · (12, 68), the Loading rows at the link’s theme. Not a save until they Save it in Comms.'],
+  ] },
+  { n: 5, title: 'shared params, returning, nothing saved', arrive: 'link', gate: true, steps: [
+    ['Arrive', 'by the link; the flag is set. The link’s world is Current — selected and named; the Loading rows show the link’s theme + aspects.'],
+    ['The screen', 'the chooser. The link’s world is one flip away; the presets one pick away.'],
+    ['Change the theme', 'same seed + coords, the link’s tweaks discarded; the readout shows the new theme.'],
+    ['Reload', 'the address bar still names the link, so a reload returns to it whatever was picked (open question 7).'],
+  ] },
+  { n: 6, title: 'shared params, returning, with saves', arrive: 'link', gate: true, steps: [
+    ['Arrive', 'as Story 5, with the saves listed; none selected, Current is the link’s world.'],
+    ['Keep it', 'if the linked world is worth keeping: flip, Comms → Save; next visit it is a row here.'],
+    ['Pick a save instead', 'the linked world stays Current, unselected, until a reload brings it back (open question 7).'],
+  ] },
+];
+
+// what is selected, and what the readout says, for a story's selection state
+function selState(story) {
+  const st = ST[story.n];
+  const T = themes();
+  const last = T[T.length - 1][0];
+  const link = story.arrive === 'link';
+  const cur = link ? { curName: 'kr1nd4ra', curCode: '(12, 68)', curTheme: 'Calm' } : { curName: 'q7-sh0al', curCode: '(3, −41)', curTheme: 'Classic' };
+  let r;
+  switch (st.sel) {
+    case 'save': r = { world: 'save', theme: 'Calm', asp: { Melody: 'Hypnotic' }, name: 'Dusk run', code: 'tr3nch-2 (−30, −30)' }; break;
+    case 'preset': r = { world: 'preset', theme: fixTheme('Bold'), asp: {}, name: PRESETS[1][0], code: PRESETS[1][1] }; break;
+    case 'retheme': r = st.saves
+      ? { world: 'current', curName: 'tr3nch-2', curCode: '(−30, −30)', theme: last, asp: { Melody: 'Hypnotic' }, name: 'tr3nch-2', code: '(−30, −30)' }
+      : { world: 'current', theme: last, asp: {}, name: cur.curName, code: cur.curCode }; break;
+    default: r = { world: 'current', theme: cur.curTheme, asp: {}, name: cur.curName, code: cur.curCode };
+  }
+  r = { ...cur, ...r };
+  const aspText = Object.values(r.asp).join(' · ');
+  r.readout = `${r.name} · ${r.code} · ${r.theme}${aspText ? ' · ' + aspText : ''}`;
+  r.desc = (T.find(([n]) => n === r.theme) || T[0])[1];
+  return r;
+}
+
+// ---------- shells ----------
+const shell = () => `<div class="strip top">${co(1)}</div><div class="strip bot"><span class="wm">TRACE ATLAS</span>${co(6)}</div>`;
+const power = (on) => `<div class="pwr${on ? ' on' : ''}">${co(2)}<span class="rocker"></span><span class="lamp"></span></div>`;
+const world = (mode, arrive) => `<div class="world${mode === 'on' ? ' on' : mode === 'dim' ? ' on dim' : ''}">${co(3)}${arrive === 'link' ? `<span class="linkchip">the link’s world: ${LINK}</span>` : ''}<span class="wl">${mode === 'off' ? 'faint world · built before power · a still frame' : 'world'}</span></div>`;
+const veil = () => (S.veil ? `<div class="veil">${co(19)}</div>` : '');
+const etch = () => `<div class="etch piece">${co(4)}<h3>TRACE ATLAS</h3><p>A Meridia Telemetry Group product</p><p class="go piece">${co(5)}${HINT}</p></div>`;
+const footer = () => (S.footer ? `<div class="foot piece">${co(18)}${FOOTER}</div>` : '');
+
+// ---------- the chooser ----------
+const radio = (label, on, extra = '', call = '') => `<div class="r piece${on ? ' on' : ''}">${call}<span class="dot"></span><span class="lab">${label}</span>${extra}</div>`;
+const chip = (label, on) => `<span class="chip${on ? ' on' : ''}"><span class="dot"></span>${label}</span>`;
+function chooser(story, phone) {
+  const st = ST[story.n];
+  const r = selState(story);
+  const nSaves = st.saves || 0;
+  const saves = SAVES.slice(0, nSaves).map(([n, d], i) => radio(n, r.world === 'save' && i === 0, `<span class="meta">saved ${d}</span>`, i === 0 ? co(10) : '')).join('');
+  const presets = PRESETS.map(([n], i) => radio(n, r.world === 'preset' && i === 1, '', i === 0 ? co(12) : '')).join('');
+  const roll = S.roll ? `<button class="roll">↻ Roll${co(9)}</button>` : '';
+  const trans = `<div class="grp"><div class="head piece">${co(7)}Transmission<span class="sub">which world</span></div>
+    ${radio(`Current — ${r.curName} · ${r.curCode}`, r.world === 'current', roll, co(8))}
+    ${saves}${nSaves ? '<div class="divider piece">' + co(11) + '</div>' : ''}${presets}</div>`;
+  const themeRow = `<div class="line piece">${co(14)}${themes().map(([n]) => chip(n, n === r.theme)).join('')}</div>`;
+  const desc = `<div class="desc piece">${co(15)}${r.theme} — ${r.desc}</div>`;
+  let aspects;
+  if (S.aspects === 'flat') {
+    aspects = FAMILIES.map(([f, opts], i) => `<div class="fam piece">${i === 0 ? co(16) : ''}<span class="famname">${f}</span>${chip('as theme', !r.asp[f])}${opts.map((o) => chip(o, r.asp[f] === o)).join('')}</div>`).join('');
+  } else {
+    const picked = Object.entries(r.asp).map(([f, o]) => `${f}: ${o}`).join(', ');
+    aspects = `<div class="disc piece">${co(16)}▸ Aspects <span class="mut">— ${picked || 'as theme'} · tap opens the four family rows</span></div>`;
+  }
+  const loading = `<div class="grp"><div class="head piece">${co(13)}Loading<span class="sub">how it loads</span></div>${themeRow}${desc}${aspects}</div>`;
+  const well = `<div class="well piece">${co(17)}<span class="lbl">Selected transmission</span>${r.readout}</div>`;
+  const two = !phone && S.layout === 'two';
+  return `<div class="chooser ${two ? 'two' : 'one'}">${trans}${loading}${well}${footer()}</div>`;
+}
+
+// the off screen for a story: hint only (gate closed) or the chooser (gate open)
+function offScreen(story, phone) {
+  const inner = story.gate ? `<div class="screen">${etch()}${chooser(story, phone)}</div>` : `<div class="screen first">${etch()}${footer()}</div>`;
+  return `${shell()}${world('off', story.arrive)}${veil()}${power(false)}${inner}`;
+}
+
+// ---------- the legend ----------
+const P = {
+  1: ['Top strip', 'built', 'Tablet.tsx’s sleeve strip; the power corner hangs from it.'],
+  2: ['Power corner', 'built', 'the rocker and its lamp, red breathing while off. The only way to start sound; live from t = 0 of the boot theatre.'],
+  3: ['Faint world', 'built', 'built before power as a still frame (systems off) — the link’s world when the URL names one. Every pick on this screen retransmits it silently.'],
+  4: ['Etched label', 'built', 'home.off.label — “Trace Atlas” / “A Meridia Telemetry Group product”. This is the splash text, so the splash is just this fading in.'],
+  5: ['Power hint', 'built', 'home.off.powerHint, unchanged. On a first visit it is the only instruction on the screen.'],
+  6: ['Bottom strip + wordmark', 'built', ''],
+  7: ['Transmission — which world', 'changed', 'today: 3 presets, divider, saves, one muted RadioButton. Proposed: a Current row on top; the presets become links.'],
+  8: ['Current row', 'proposed', 'names the world that is loaded (random boot, the link’s, or the one you were playing). Selected by default = “continue”: the flip plays it from the top.'],
+  9: ['Roll', 'decided', 'stays (Crawford, 2026-10-30). A fresh random AS + coords under the chosen Loading. An action, not a radio (Crawford’s “New Session”). Whether it keeps the theme + aspects is open question 4.'],
+  10: ['Saves', 'built', 'newest first, only when any exist, read once on mount. Rows show savedAt; “last played” would be a new write on every load (open question 5).'],
+  11: ['Divider', 'built', ''],
+  12: ['Presets', 'decided', 'still three curated worlds, now stored as pasted share links of worlds Crawford saved (his ask, 2026-10-30): seed, x, y, s, theme + aspects later as plain params, decoded by decodeWorldLink. Frame D shows how one is made.'],
+  13: ['Loading — how it loads', 'decided', 'the second axis (the two axes decided 2026-10-30). A save or preset sets these rows; changing them keeps the seed + coords.'],
+  14: ['Theme row', 'decided', 'single-line muted radios, five (decided 2026-10-30: standard / calm / bold / adventurous / perilous; the names, and whether the default reads “standard” or “Classic”, are open question 2). The fixed panel keeps the three-theme comparison. Classic = today’s bands.'],
+  15: ['Description line', 'proposed', 'one muted sentence under the picked theme — the Guide’s “small part”: the content entry the Guide page reads later. Stand-in text.'],
+  16: ['Aspect rows', 'decided', 'flat rows, one per family, one pick each, “as theme” first (flat decided 2026-10-30; the disclosure stays as the comparison). Families and names are stand-ins except Hypnotic / Mechanical — open question 3.'],
+  17: ['Readout well', 'changed', 'home.off.readout today: {name} · {code}. Proposed: + theme + aspects, so one line names whatever is selected.'],
+  18: ['Lore footer', 'decided', 'stays (Crawford, 2026-10-30): a prop in tiny etched type. The legalese is his copy; this line is a stand-in.'],
+  19: ['Veil', 'decided', 'stays (Crawford, 2026-10-30): blur / opacity over the world until the flip, fading on power. Inside ScreenViewport; a blur that also covers the sleeve is decoration and allowed.'],
+  20: ['Confirm dialog', 'open', 'built with today’s copy (ui.power.confirmTitle / confirmBody). Crawford’s draft warns of loss, but with Current = continue nothing is lost at power-off — only when a different row is picked afterwards.'],
+  21: ['Status line', 'changed', 'SectorSettingsDrawer’s line, AS · (x, y); gains theme + aspects — the same readout as the off screen.'],
+  22: ['Shortcut buttons', 'open', 'ATTENUATION_STYLE_PRESETS / COORDINATE_PRESETS — the old “favorites”. Themes + presets-as-links supersede them; removal is Crawford’s call.'],
+  23: ['Retransmit', 'built', 'drafts apply on the button, not on change — unchanged.'],
+  24: ['Save / Share / rows', 'built', 'Save overwrites by name; Share copies the world link; per-row Load / Share / Delete. Unchanged.'],
+  25: ['Factory reset', 'changed', 'localStorage.clear() — now also clears the heard-a-world flag, returning the device to a first visit.'],
+  26: ['Heard-a-world flag', 'proposed', 'one boolean, written at the first power-on.'],
+  27: ['Curation flow', 'proposed', 'how a preset gets made — no tooling, just the existing Share.'],
+};
+const STATUS = { built: 'built', changed: 'built → changed', decided: 'decided 2026-10-30', proposed: 'proposed', open: 'open' };
+const legend = (nums) => `<ol class="legend">${nums.map((n) => { const [t, s, w] = P[n]; return `<li>${co(n)}<b>${t}</b><span class="st ${s}">${STATUS[s]}</span><span class="why">${w}</span></li>`; }).join('')}</ol>`;
+
+// ---------- a story section: sticky bar, step strip, desk + phone, legend ----------
+const rb = (story, key, val, label, on) => `<button data-story="${story}" data-radio="${key}" data-val="${val}"${on ? ' class="on"' : ''}>${label}</button>`;
+function storyControls(story) {
+  const st = ST[story.n];
+  if (!story.gate) return '<div class="controls"><span class="none">No options: the gate is closed, the screen is the hint. The page-wide panel still applies (veil, footer, callouts).</span></div>';
+  const withSaves = 'saves' in st;
+  const sel = [['current', 'Current (default)']].concat(withSaves ? [['save', 'a save picked']] : [], [['preset', 'a preset picked']], [['retheme', withSaves ? 'theme changed after a save' : 'theme changed']]);
+  let html = `<div class="controls"><span class="lbl">Selection:</span><span class="grp">${sel.map(([v, l]) => rb(story.n, 'sel', v, l, st.sel === v)).join('')}</span>`;
+  if (withSaves) html += `<span class="lbl">Saves:</span><span class="grp">${rb(story.n, 'saves', 3, 'three', st.saves === 3)}${rb(story.n, 'saves', 6, 'six', st.saves === 6)}</span>`;
+  return html + '</div>';
+}
+function storyHtml(story) {
+  const st = ST[story.n];
+  const bar = `<div class="bar"><h2><span class="story">Story ${story.n}</span>${story.title}<small>${story.arrive === 'link' ? 'arrived by a shared link' : 'arrived by a bare URL'} · gate ${story.gate ? 'open: the device has heard a world' : 'closed: it has not'}</small></h2>${storyControls(story)}</div>`;
+  const flow = `<div class="flow">${story.steps.map(([t, d], i) => `${i ? '<div class="arrow"></div>' : ''}<div class="node${i === 1 ? ' hi' : ''}"><b>${t}</b>${d}</div>`).join('')}</div>`;
+  const pair = `<div class="pair"><div><div class="desk">${offScreen(story, false)}</div></div><div><div class="phone">${offScreen(story, true)}</div></div></div>`;
+  const nums = story.gate
+    ? [7, 8].concat(S.roll ? [9] : [], st.saves ? [10, 11] : [], [12, 13, 14, 15, 16, 17], S.footer ? [18] : [], S.veil ? [19] : [])
+    : [1, 2, 3, 4, 5, 6].concat(S.veil ? [19] : [], S.footer ? [18] : []);
+  const cap = story.gate ? '<p class="note">The phone’s screen scrolls (try it): what sits below its bottom edge is the fold — the Loading axis lands there, which is the un-arbitrary answer to “that’s a lot on the second visit”.</p>' : '';
+  return bar + flow + pair + cap + legend(nums);
+}
+
+// ---------- the in-app frames ----------
+const chrome = (tab) => `<div class="hdr"><span class="box">🔊</span><span class="box">▁▂▃▄ volume</span></div>
+  <div class="nav">${['Deck', 'Fleet', 'Probes', 'Companies', 'Settings'].map((n) => `<span class="box${n === tab ? ' on' : ''}">${n}</span>`).join('')}</div>`;
+function offDesk() {
+  const app = S.copy === 'app';
+  const dlg = app
+    ? `<h4>Power off?</h4><p>All audio will stop.</p><div class="btns"><span>Cancel</span><span class="solid">Power off</span></div>`
+    : `<h4>Are you sure?</h4><p>Any unsaved changes will be lost.</p><div class="btns"><span>cancel</span><span class="solid">power down without saving</span></div>`;
+  return `${shell()}${world('on')}${power(true)}${chrome('Deck')}<div class="meta">22:17 · −57 °C · 6/12 emitting · q7-sh0al (3, −41)</div>
+    <div class="modalveil"><div class="dialog">${co(20)}${dlg}</div></div>`;
+}
+function foundryDesk() {
+  const after = S.foundry === 'after';
+  const gone = after ? ' gone' : '';
+  return `${shell()}${world('dim')}${power(true)}${chrome('Settings')}<div class="content">
+    <div class="tabs"><span class="box">Audio Quality</span><span class="box on">Seeds</span><span class="box">Save &amp; Share</span></div>
+    <div class="lbl">Status</div>
+    <div class="row piece">${co(21)}<span class="status">q7-sh0al · (3, −41)${after ? ' · Classic · Melody: Hypnotic' : ''}</span><span class="btn">Copy link</span></div>
+    <div class="lbl">Attenuation Style</div>
+    <div class="row"><span class="input">q7-sh0al</span></div>
+    <div class="row piece">${co(22)}<span class="btn${gone}">Kryndara</span><span class="btn${gone}">Vessport Null</span><span class="btn${gone}">Halcyon Drift</span><span class="btn${gone}">The Rusting</span></div>
+    <div class="lbl">Coordinates</div>
+    <div class="row"><span class="input small">3</span><span class="input small">−41</span></div>
+    <div class="row"><span class="btn${gone}">The Trench</span><span class="btn${gone}">Shallow Reach</span><span class="btn${gone}">Far Shoal</span><span class="btn${gone}">Null Basin</span></div>
+    ${after ? '<div class="later">Theme · Aspects — follow-up, not v1: the same rows as the off screen, applied by Retransmit like AS + coords (open question 8).</div>' : ''}
+    <div class="row piece" style="margin-top:18px">${co(23)}<span class="btn solid">Retransmit</span></div>
+  </div>`;
+}
+function commsDesk() {
+  const rows = S.commsSaves
+    ? SAVES.slice(0, S.commsSaves).map(([n, d]) => `<div class="srow">${n}<span class="meta2">saved ${d}</span><span class="acts"><span>Load</span><span>Share</span><span>Delete</span></span></div>`).join('')
+    : '<div class="empty">No saved sessions yet. (stand-in empty-state line)</div>';
+  return `${shell()}${world('dim')}${power(true)}${chrome('Settings')}<div class="content">
+    <div class="tabs"><span class="box">Audio Quality</span><span class="box">Seeds</span><span class="box on">Save &amp; Share</span></div>
+    <div class="lbl">This session</div>
+    <div class="row piece">${co(24)}<span class="input">Dusk run</span><span class="btn solid">Save</span><span class="btn">Share live</span></div>
+    <div class="lbl">Saved Sessions</div>
+    ${rows}
+    <div class="row piece danger">${co(25)}<span class="btn">Clear Local Storage</span><span class="empty">— wipes every save and, now, the heard-a-world flag</span></div>
+  </div>`;
+}
+function curation() {
+  return `<div class="step"><i class="co">27</i><b>1 · Play</b>until a world is worth keeping</div><div class="arr">→</div>
+    <div class="step"><b>2 · Save, then Share</b>or Share live; the clipboard gets <code>…/${LINK}</code></div><div class="arr">→</div>
+    <div class="step"><b>3 · Paste the link</b>into <code>src/data/transmissionPresets.ts</code> as <code>{ id, nameKey, link }</code> — the three ~200-line payload constants become three lines</div><div class="arr">→</div>
+    <div class="step"><b>4 · Name it</b>in <code>src/content/copy/home.ts</code> (<code>home.off.presets.*</code>)</div><div class="arr">→</div>
+    <div class="step"><b>5 · It is a preset row</b>decoded on pick by <code>decodeWorldLink</code> and applied by <code>applySessionPayload</code> — the path a shared link already takes</div>`;
+}
+
+// ---------- render + wiring (one delegated click handler: page-wide keys on S, per-story keys on ST[n]) ----------
+function render() {
+  document.body.classList.toggle('nocall', !S.callouts);
+  STORIES.forEach((story) => { $(`#s${story.n}`).innerHTML = storyHtml(story); });
+  $('#off-desk').innerHTML = offDesk();
+  $('#foundry-desk').innerHTML = foundryDesk();
+  $('#comms-desk').innerHTML = commsDesk();
+  $('#curation').innerHTML = curation();
+  $('#off-legend').innerHTML = legend([20]).replace(/^<ol class="legend">|<\/ol>$/g, '');
+  $('#foundry-legend').innerHTML = legend([21, 22, 23]).replace(/^<ol class="legend">|<\/ol>$/g, '');
+  $('#comms-legend').innerHTML = legend([24, 25, 27]).replace(/^<ol class="legend">|<\/ol>$/g, '');
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-radio], button[data-opt]');
+  if (!b) return;
+  if (b.dataset.opt) {
+    S[b.dataset.opt] = !S[b.dataset.opt];
+    b.classList.toggle('on', S[b.dataset.opt]);
+  } else {
+    const key = b.dataset.radio;
+    const val = key === 'saves' || key === 'commsSaves' ? Number(b.dataset.val) : b.dataset.val;
+    const target = b.dataset.story ? ST[Number(b.dataset.story)] : S;
+    target[key] = val;
+    const scope = b.dataset.story ? `[data-story="${b.dataset.story}"][data-radio="${key}"]` : `[data-radio="${key}"]:not([data-story])`;
+    document.querySelectorAll(scope).forEach((x) => x.classList.toggle('on', x === b));
+  }
+  render();
+});
+render();
+</script>
+</body>
+</html>

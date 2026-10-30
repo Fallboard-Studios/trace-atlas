@@ -68,6 +68,22 @@ selection UI is expected to live here too (its progression engine stays item 7's
 work), and item [19](archive/backlog-archive.md#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
 a preset entry. Still needs its own `/interview-me`.
 
+**Brainstormed 2026-10-29 (Crawford):** the off screen also offers **aspects** — named band sets for a handful of
+robot attributes (Hypnotic, Mechanical, …), applied over the theme's bands, one pick per family; recorded with
+the leans from the discussion in [docs/ideas/themes.md](../ideas/themes.md#aspects-brainstorm-2026-10-29). The
+interview therefore covers four things — presets, sessions, themes and aspects — in two halves: the screen (the
+surface) and the single band table with its resolver (the engine, shared by themes and aspects, built first). It
+may split them into two phases.
+
+**Sketched 2026-10-30:** the off screen drawn as six stories — arrival (bare URL / shared link) × device (first visit /
+returning / returning with saves) — in [docs/sketches/off-screen.html](../sketches/off-screen.html), every piece
+called out and tagged built / changed / proposed / open, with the power-off dialog, Foundry and Comms beside it.
+Crawford decided on it: the Roll button stays, five themes, flat aspect rows, the two-axis chooser (Transmission /
+Loading), the veil and the lore footer; presets are pasted share links of worlds he saved (his ask the same day).
+Clarified: a theme or aspect changes only loading bands — AS + coords stay the identity — and both are chosen before
+sound, on the off screen. The sketch's "Open for the interview" box is the live question list (nine items); the
+decisions are recorded in [docs/ideas/themes.md](../ideas/themes.md#decided-crawford-2026-10-30-on-the-six-story-sketch).
+
 ### 6. Audio: Groove Feature
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
