@@ -8,14 +8,9 @@ import { startLocaleSystems } from './worldTransition';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
+import { getWorldState, setWorldState, type WorldState } from './worldState';
 
-/**
- * Where the world is (docs/specs/OFF_SCREEN.md assumption 5): `cold` — built as a still frame, nothing has started
- * (a fresh page, or a world loaded while the tablet was off); `running`; `paused` — frozen in place by the rocker,
- * waiting to resume. Module state, not Zustand: it mirrors the audio graph, which is runtime, and must never persist.
- */
-export type WorldState = 'cold' | 'running' | 'paused';
-let worldState: WorldState = 'cold';
+export type { WorldState };
 
 /**
  * powerController centralizes power on/off side effects so components stay thin.
@@ -37,36 +32,37 @@ export const powerController = {
    * released, no robot moves. The rocker's return animation is the caller's. A no-op unless the world is running.
    */
   pause() {
-    if (worldState !== 'running') return;
+    if (getWorldState() !== 'running') return;
     pauseWorkLoop();
     pauseWorldTimelines();
     AudioEngine.pause();
     useUIStore.getState().setPowerOff();
-    worldState = 'paused';
+    setWorldState('paused');
   },
 
   /** The other half of pause(): the context first (sound returns from where it stopped), then the world timelines,
    *  then the loop clock, then the power flag — the reverse of pause(). A no-op unless the world is paused. */
   resume() {
-    if (worldState !== 'paused') return;
+    if (getWorldState() !== 'paused') return;
     AudioEngine.resume();
     resumeWorldTimelines();
     resumeWorkLoop();
     useUIStore.getState().setPowerOn();
-    worldState = 'running';
+    setWorldState('running');
   },
 
   /**
-   * A different world was loaded (a pick on the off screen, Roll, Retransmit, a session Load): whatever was running or
-   * paused has been torn down by worldTransition's own paths, so the next flip starts cold. Called by those paths
-   * (docs/tasks/OFF_SCREEN.md Task 8), never by the screen.
+   * A different world was loaded (a pick on the off screen, Roll, Retransmit, a session Load) while the tablet was off:
+   * whatever was paused has been torn down, so the next flip starts cold. worldTransition's `initializeLocale` writes
+   * this itself through worldState.ts whenever it rebuilds a world with its systems held (docs/tasks/OFF_SCREEN.md
+   * Task 8); this is the same fact for a caller that tears down without it. Never called by the screen.
    */
   noteWorldReplaced() {
-    worldState = 'cold';
+    setWorldState('cold');
   },
 
   getWorldState(): WorldState {
-    return worldState;
+    return getWorldState();
   },
 
   // High-level power-on sequence, two ways (spec assumption 5). From a pause: resume, nothing starts. Otherwise
@@ -76,21 +72,24 @@ export const powerController = {
   // the chrome. The first cold start on a device also writes the heard-a-world flag — the off screen's gate
   // (assumption 7) — so from the next power-off on, the chooser shows.
   async powerOnSequence() {
-    if (worldState === 'paused') {
+    if (getWorldState() === 'paused') {
       this.resume();
       return;
     }
     await this.start();
+    // start() returns early once the engine is initialised, so after a pause-and-replace the context would stay
+    // suspended; resume() wakes it (a no-op on a running context, a no-op before start()).
+    AudioEngine.resume();
     startLocaleSystems(getActiveLocaleId());
     if (!hasHeardWorld()) markHeardWorld();
     useUIStore.getState().setPowerOn();
-    worldState = 'running';
+    setWorldState('running');
   }
 };
 
 /** Test seam: back to a fresh page's `cold`. Never called by the app. */
 export function __resetPowerControllerForTest(): void {
-  worldState = 'cold';
+  setWorldState('cold');
 }
 
 export default powerController;

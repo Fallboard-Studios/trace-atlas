@@ -26,6 +26,7 @@ import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/loc
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAudioStore } from '../stores/audioStore';
+import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
@@ -191,6 +192,41 @@ describe('worldTransition', () => {
       const companiesAfterSecond = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.companies;
 
       expect(companiesAfterSecond).toBe(companiesAfterFirst);
+    });
+  });
+
+  // Power is a pause (docs/specs/OFF_SCREEN.md assumption 5, docs/tasks/OFF_SCREEN.md Task 8): the world's run state
+  // follows the one place that builds it — systems held means a cold world (the next flip starts), systems started
+  // means a running one — so a world replaced while the tablet was paused is cold, and a live Retransmit stays running.
+  describe('the world state the power rocker reads', () => {
+    beforeEach(() => setWorldState('paused'));
+
+    it('initializeLocale with the systems held leaves a cold world', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      expect(getWorldState()).toBe('cold');
+    });
+
+    it('initializeLocale that starts the systems leaves a running world', () => {
+      initializeLocale(DEFAULT_LOCALE_ID);
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('a coordinates retransmit while the tablet is off (a pick on the off screen during a pause) leaves a cold world', () => {
+      useUIStore.setState({ isPoweredOn: false });
+      retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
+      expect(getWorldState()).toBe('cold');
+    });
+
+    it('a coordinates retransmit while the tablet is on (Foundry\'s Retransmit) leaves a running world', () => {
+      useUIStore.setState({ isPoweredOn: true });
+      retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('an Attenuation-Style-only retransmit rebuilds nothing and leaves the state as it was', () => {
+      useUIStore.setState({ isPoweredOn: false });
+      retransmitWorld({ attenuationStyleName: 'another-style' });
+      expect(getWorldState()).toBe('paused');
     });
   });
 

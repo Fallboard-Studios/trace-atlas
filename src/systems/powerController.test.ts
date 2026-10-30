@@ -119,11 +119,21 @@ describe('powerController', () => {
 
       await powerController.powerOnSequence();
 
-      expect(AudioEngine.resume).not.toHaveBeenCalled();
       expect(AudioEngine.start).toHaveBeenCalledTimes(1);
       expect(startLocaleSystems).toHaveBeenCalledTimes(1);
+      // The pause left the AudioContext suspended and start() returns early once initialised, so the cold path
+      // wakes the context too — otherwise the replaced world would come back silent.
+      expect(AudioEngine.resume).toHaveBeenCalledTimes(1);
+      expect(resumeWorldTimelines).not.toHaveBeenCalled();
+      expect(resumeWorkLoop).not.toHaveBeenCalled();
       expect(powerController.getWorldState()).toBe('running');
     });
+  });
+
+  it('a fresh page\'s first start also wakes the context — a no-op on a running one, the only safe order', async () => {
+    await powerController.powerOnSequence();
+    expect(AudioEngine.resume).toHaveBeenCalledTimes(1);
+    expect(order(AudioEngine.start)).toBeLessThan(order(AudioEngine.resume));
   });
 
   describe('the heard-a-world flag (the off screen\'s gate)', () => {

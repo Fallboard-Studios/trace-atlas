@@ -14,6 +14,7 @@ import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells } from './audioSwells';
+import { setWorldState } from './worldState';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { DAY_DURATION_MS } from '../constants/time';
@@ -114,7 +115,12 @@ export function initializeLocale(localeId: string, { startSystems = true }: { st
     spawnInitialCompanies(localeId); // Roadmap Phase 10 — same guard as the roster it depends on
   }
 
+  // The world's run state follows this call (docs/specs/OFF_SCREEN.md assumption 5, docs/tasks/OFF_SCREEN.md Task 8):
+  // systems held — a fresh page's still frame, or a world rebuilt by a pick while the tablet is off — is a cold world
+  // the next flip starts; systems started (below) is a running one. The Attenuation-Style-only retransmit never
+  // reaches here, rebuilds nothing, and leaves the state as it was.
   if (startSystems) startLocaleSystems(localeId);
+  else setWorldState('cold');
 }
 
 /**
@@ -136,6 +142,7 @@ export function startLocaleSystems(localeId: string): void {
   startWorkLoop(localeId);
   stopAudioSwells();
   startAudioSwells(localeId);
+  setWorldState('running');
 }
 
 /**
