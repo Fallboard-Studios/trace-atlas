@@ -2732,6 +2732,75 @@ Six runs alternated head, T13, head, T13, head, T13, with orphaned Chrome 0 befo
   On the two quieter T13 runs (3.04 and 2.87 %), the tick sits inside head's spread.
 - Head's numbers here (median 2.98 %) repeat T7's head (2.97 %). The glide's +0.8 points over 37 stands. T13 takes 0.16–0.23 points of it off (a fifth to a quarter), but that is not resolvable in the tick total at three runs.
 
+## Composite layer writes — backlog 40 and 41 (2026-10-27)
+
+[docs/specs/COMPOSITE_LAYER_WRITES.md](specs/COMPOSITE_LAYER_WRITES.md): the composite voice keeps what it last wrote to each layer and skips an equal write, routes edits by robot layer index, and sends the ADSR and portamento through `setShared` alone. Two records: the tick's share before and after (spec §5.3, plan Task 9), and the probe that answered whether the removed writes were ever audible (spec §5.4).
+
+### The swell tick's main-thread share: base and head (Task 9)
+
+Recorded, not gated. [Task 7's method](#the-swell-ticks-main-thread-share-stock-37-and-37--38-task-7) on two builds in one session.
+
+**Builds.** Each was built with `npx vite build --minify false --outDir <scratch>` and served with `vite preview --strictPort`:
+
+| Build | Commit | Bundle | Port |
+|---|---|---|---|
+| base | `main` at `a5d5944d` (the branch point), a clean worktree | `index-BjMAwPBE.js` | 4174 |
+| head | `373f5688` (`src/` as at `7ff82656`, Tasks 1–8) | `index-QgkrXb8B.js` | 4175 |
+
+**Command.** As Task 7, S1 at 4×. Six runs alternated base, head, base, head, base, head, foreground, one per call, with orphaned Chrome 0 before and after every call. The clock mapping bracketed on all six. The harness is Task 7's own scratch `profile-raw.mjs` and analyzer, copied unchanged from that session rather than rebuilt; it is still not committed.
+
+**Proving it.** The plan asked for the base inside Task 7's head ranges. The base is not that build: it is Task 7's head plus Task 13 (`0922f0df`, the tick length read once per tick), which took `getTickSeconds` (0.04–0.10 % in Task 7's head) out of the envelope and param buckets. Against Task 7's head the param writes are in on all three runs, the tick on one (two above), the envelope on one (one below, one above). Against [Task 14's T13 build](#one-tick-length-read-per-tick-task-14-2026-10-27), the same `src/` as the base, the base's tick (T13 2.87–4.58 %) and envelope (0.34–0.81 %, re-read from Task 14's raw profiles) sit inside. This session was busy like Task 14's: 10–30 long tasks per window (Task 7: 1–8), Tone's clock callbacks at 11.7–12.5 %.
+
+**Results.** Shares of the IDLE (blank hub) window's sampled time (7891–8344 ms per run), sample-weighted and inclusive, bucketed in Task 7's order: store, oscillator settings, envelope, global setters, robot param writes, the rest.
+
+| Share of sampled time | base runs 1 / 3 / 5 | **base, median (min–max)** | head runs 2 / 4 / 6 | **head, median (min–max)** |
+|---|---|---|---|---|
+| `tickAudioSwells`, inclusive | 3.07 / 3.11 / 3.38 % | **3.11 % (3.07–3.38)** | 2.03 / 2.45 / 2.33 % | **2.33 % (2.03–2.45)** |
+| tick with the store half excluded | 2.18 / 2.52 / 2.54 % | 2.52 % (2.18–2.54) | 1.33 / 1.72 / 1.47 % | 1.47 % (1.33–1.72) |
+| store: `updateRobot` | 0.89 / 0.59 / 0.84 % | 0.84 % (0.59–0.89) | 0.70 / 0.73 / 0.86 % | 0.73 % (0.70–0.86) |
+| oscillator settings: `applyOscFieldViaSet` | 0.12 / 0.12 / 0.16 % | 0.12 % (0.12–0.16) | 0.00 / 0.00 / 0.01 % | 0.00 % (0.00–0.01) |
+| of which under Tone's `phase` setter | 0.03 / 0.08 / 0.11 % | 0.08 % (0.03–0.11) | 0.00 / 0.00 / 0.01 % | **0.00 % (0.00–0.01)** |
+| native `createPeriodicWave` under the tick | 0 | 0 | 0 | 0 |
+| envelope: `updateVoiceEnvelope` | 0.35 / 0.79 / 0.60 % | 0.60 % (0.35–0.79) | 0.10 / 0.16 / 0.15 % | **0.15 % (0.10–0.16)** |
+| of which layer gain and detune glides under it | 0.26 / 0.55 / 0.42 % | 0.42 % | 0.00 / 0.00 / 0.00 % | 0.00 % |
+| global setters | 0.43 / 0.35 / 0.53 % | 0.43 % (0.35–0.53) | 0.40 / 0.59 / 0.37 % | 0.40 % (0.37–0.59) |
+| robot param writes: `rampOrSet`, `setOrPoint`/`setOrGlide`, `applyOscDetune` | 0.49 / 0.43 / 0.45 % | 0.45 % (0.43–0.49) | 0.14 / 0.15 / 0.23 % | **0.15 % (0.14–0.23)** |
+| the rest | 0.79 / 0.84 / 0.80 % | 0.80 % (0.79–0.84) | 0.69 / 0.81 / 0.69 % | 0.69 % (0.69–0.81) |
+| Tone's clock callbacks (`forEachTickBetween`), whole window | 12.28 / 11.74 / 12.48 % | 12.28 % | 10.52 / 12.19 / 11.66 % | 11.66 % |
+| long tasks in the window / holding tick time | 10 / 3, 23 / 11, 30 / 9 | | 18 / 7, 28 / 13, 28 / 13 | |
+
+The phase setter under the tick is 2.0 / 6.5 / 9.3 ms per window on base and 0.0 / 0.0 / 1.0 ms on head. The one 197–295 ms task each run carries holds 49.6–72.5 ms of tick on base and 26.3–39.0 ms on head. The rest of the holding tasks are 50–112 ms and hold 3–11 ms each, on both builds.
+
+**Reading.** The spec's three expected directions all hold:
+- **Envelope:** 0.60 → **0.15 %**, below 37's 0.22 %. The layer glides `updateVoiceEnvelope` used to re-apply (backlog 41's stale patch) read 0.00 on every head run. What is left is one `synth.set({ envelope })` per built layer per ADSR tick, by design: the envelope is a setting.
+- **Robot param writes:** 0.45 → **0.15 %**, at 37's 0.16 %. Only the swelled field's glide is left.
+- **Phase setter under the tick:** 0.08 → **0.00 %**. This is backlog 40's re-apply, gone.
+
+The tick falls **3.11 → 2.33 %** (−0.78 points, −25 %), **2.52 → 1.47 %** with the store excluded, and every head run sits below every base run. Head's 2.33 % is close to 37's 2.16 % in Task 7's session: most of 38's +0.8-point growth was glides re-writing unchanged values. Long tasks show no difference this busy session can resolve.
+
+### Is an unchanged phase re-apply audible? (2026-10-27)
+
+The question backlog 40 left open, answered before the spec (§5.4). The probe stays in a session scratchpad (`probe40.mjs` + `probe-40.html`), not committed.
+
+**Method.** Headless Chrome (new headless) and a native `AudioContext` at 48 kHz handed to `Tone.setContext`. One `Tone.Synth` at 250 Hz (a 192-sample period), attack 5 ms, sustain 1, recorded by an `AudioWorkletNode` (blob-URL module) on the synth's output. Ten `synth.set({ oscillator: { phase } })` writes, the app's call, go out 100 ms apart from 0.5 s into the sustain. The metric is the periodicity residual `|x[n] − x[n−192]|` over the settled sustain: about 0 on a steady note, large only at a discontinuity. A max-sample-jump metric cannot work on a square. Peak ≈ 0.99.
+
+| Case | Quiet max | Max in the ten write windows (−5…+30 ms) |
+|---|---|---|
+| square phase 90, no writes (baseline) | 1.35e-5 | — |
+| square phase 0, re-apply 0 (native `type` reassign) | 1.52e-5 | 1.52e-5, all ten |
+| square phase 90, re-apply 90 (cache hit, `setPeriodicWave`, same wave) | 1.35e-5 | 1.35e-5, all ten |
+| sine phase 90, re-apply 90 | 3.9e-7 | 3.8e-7, all ten |
+| pulse phase 90 width 0.3, re-apply 90 (inner triangle) | 0 | 0, all ten |
+| square phase 90, drift 91→100 (positive control) | 1.67e-5 | 0.58–0.75 at every write |
+| square phase 0, drift 1→10 (positive control) | 1.67e-5 | 0.58–0.75 at every write |
+
+**Reading.** An identical re-apply leaves the output sample-exact with the steady note, on both of Tone's paths. A real phase change is a 58–75 % full-scale step per write: the click a hand drag of phase makes, and the cost backlog 37 took off the swells. So backlog 40's removed writes were never audible, and the fix is worth its CPU and its shared mechanism with 41. Crawford's ear the same day agreed: a detune drag at phase 90 was clean, a phase drag on a square clicked.
+
+**Recipe notes, for a rerun:**
+- `Tone.Offline` cannot test a setting write mid-note: its scheduled callbacks run in a pre-pass before `startRendering`, so the last value wins. Run in real time.
+- Tone 15's `rawContext` is a standardized-audio-context wrapper, not a native `BaseAudioContext`, so give the recorder a native context through `Tone.setContext`.
+- Drive the page with `withChrome` (`scripts/perf/cdp-lib.mjs`) against Vite serving the scratch page from the repo root. Vite's first load may re-optimise deps and reload the page, so warm the server first.
+
 ## Steady-state review — what runs continuously, and which of it can pop (2026-10-26)
 
 Crawford, hearing cracks and pops on the desktop (not level distortion), asked for a review of everything that runs

@@ -970,7 +970,7 @@ describe('robotOptionsActions', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
-      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
       const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
       const nextLayers: OscillatorLayer[] = [{ type: 'sine', gain: 0.9, detune: 5, phase: 0 }];
 
@@ -982,6 +982,85 @@ describe('robotOptionsActions', () => {
       expect(paramsSpy).toHaveBeenCalledWith(robot.id, nextLayers);
       expect(reReserveSpy).not.toHaveBeenCalled();
     });
+
+    // Composite Layer Writes T8 (docs/specs/COMPOSITE_LAYER_WRITES.md §7 Q1): unmuting a layer that was muted when the
+    // voice was built has no synth to land on, so the engine reports needsRebuild and the action rebuilds.
+    describe('when the engine reports needsRebuild', () => {
+      const unmuted: OscillatorLayer[] = [
+        { type: 'sine', gain: 0.8, detune: 0, phase: 0 },
+        { type: 'square', gain: 0.5, detune: 0, phase: 0 },
+      ];
+
+      it('writes the store, then rebuilds the voice, then re-primes its LFO links, in that order', () => {
+        const robot = makeRobot();
+        useLocaleStore.getState().addRobot(localeId, robot);
+        const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+        const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => true);
+        const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+        const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+        applyLayersContinuous(robot, localeId, unmuted);
+
+        expect(reReserveSpy).toHaveBeenCalledTimes(1);
+        expect(reReserveSpy).toHaveBeenCalledWith(robot.id);
+        expect(primeSpy).toHaveBeenCalledTimes(1);
+        expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
+        const order = [updateSpy, paramsSpy, reReserveSpy, primeSpy].map((s) => s.mock.invocationCallOrder[0]);
+        expect(order).toEqual([...order].sort((a, b) => a - b));
+      });
+
+      it('rebuilds from the stored layers, so the new gain is what the rebuild reads', () => {
+        const robot = makeRobot();
+        useLocaleStore.getState().addRobot(localeId, robot);
+        vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => true);
+        vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        let layersAtRebuild: OscillatorLayer[] | undefined;
+        vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation((id) => {
+          layersAtRebuild = useLocaleStore.getState().getLocaleById(localeId)!.robots.find((r) => r.id === id)!.audioAttributes.layers;
+          return true;
+        });
+
+        applyLayersContinuous(robot, localeId, unmuted);
+
+        expect(layersAtRebuild).toEqual(unmuted);
+      });
+
+      it('does not rebuild when the engine returns false', () => {
+        const robot = makeRobot();
+        useLocaleStore.getState().addRobot(localeId, robot);
+        vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
+        const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+        const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+        applyLayersContinuous(robot, localeId, unmuted);
+
+        expect(reReserveSpy).not.toHaveBeenCalled();
+        expect(primeSpy).not.toHaveBeenCalled();
+      });
+
+      it('does not rebuild when a stubbed engine returns undefined', () => {
+        const robot = makeRobot();
+        useLocaleStore.getState().addRobot(localeId, robot);
+        vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => undefined as unknown as boolean);
+        const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+        const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+        applyLayersContinuous(robot, localeId, unmuted);
+
+        expect(reReserveSpy).not.toHaveBeenCalled();
+        expect(primeSpy).not.toHaveBeenCalled();
+      });
+
+      it('does not rebuild a robot with no reserved voice (the real engine reports false)', () => {
+        const robot = makeRobot({ id: 'layers-never-reserved' });
+        useLocaleStore.getState().addRobot(localeId, robot);
+        const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+
+        expect(() => applyLayersContinuous(robot, localeId, unmuted)).not.toThrow();
+
+        expect(reReserveSpy).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('applyLayersStructural', () => {
@@ -989,7 +1068,7 @@ describe('robotOptionsActions', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
-      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+      const paramsSpy = vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
       const reReserveSpy = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
       const nextLayers: OscillatorLayer[] = [{ type: 'square', gain: 1, detune: 0, phase: 0 }];
 
@@ -1019,10 +1098,10 @@ describe('robotOptionsActions', () => {
       expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
     });
 
-    it('applyLayersContinuous never primes LFO links — it never rebuilds the voice, so nothing needs re-wiring', () => {
+    it('applyLayersContinuous does not prime LFO links when the engine reports no rebuild', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
-      vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
+      vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => false);
       const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
       const nextLayers: OscillatorLayer[] = [{ type: 'sine', gain: 0.5, detune: 0, phase: 0 }];
 
