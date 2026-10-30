@@ -1512,21 +1512,30 @@ export const AudioEngine = {
     } catch (err) { devWarn('[AudioEngine] setBPM failed', err); }
   },
 
-  /** Pause transport without resetting position (soft pause). */
+  /**
+   * Power is a pause (docs/specs/OFF_SCREEN.md assumption 2): suspend the AudioContext itself, so the transport, the
+   * BeatClock's 16n tick (and with it the battery lifecycle, the harmony and the swells), every LFO, every sounding
+   * voice and every tail freeze together — and resume() continues them all from where they stopped, mid-note. The
+   * transport is never told anything. A no-op before start(); a rejected suspend (the context already closed) is logged.
+   */
   pause(): void {
+    if (!initialized) return;
     try {
-      const transport = _transport ?? Tone.getTransport();
-      transport.pause();
+      const raw = Tone.getContext().rawContext as unknown as { suspend?: () => Promise<void> } | undefined;
+      void raw?.suspend?.()?.catch((err: unknown) => devWarn('[AudioEngine] pause failed', err));
     } catch (err) {
       devWarn('[AudioEngine] pause failed', err);
     }
   },
 
-  /** Resume transport from current position. */
+  /** The other half of pause(): resume the suspended AudioContext in place. A no-op before start(); a rejected resume
+   *  (a browser's autoplay policy, a context dropped during a long suspend) is logged — powerController falls back to a
+   *  cold start when the world does not come back (docs/tasks/OFF_SCREEN.md Checkpoint A). */
   resume(): void {
+    if (!initialized) return;
     try {
-      const transport = _transport ?? Tone.getTransport();
-      transport.start();
+      const raw = Tone.getContext().rawContext as unknown as { resume?: () => Promise<void> } | undefined;
+      void raw?.resume?.()?.catch((err: unknown) => devWarn('[AudioEngine] resume failed', err));
     } catch (err) {
       devWarn('[AudioEngine] resume failed', err);
     }

@@ -7,6 +7,14 @@ import { MAX_POLYPHONY, MIN_LEAD } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
+// The raw AudioContext under Tone's context, one object shared by every getContext() call, so the pause()/resume()
+// cases below can watch it being suspended and resumed (docs/specs/OFF_SCREEN.md assumption 2).
+const rawContextMock = vi.hoisted(() => ({
+  suspend: vi.fn(() => Promise.resolve()),
+  resume: vi.fn(() => Promise.resolve()),
+  state: 'running' as string,
+}));
+
 // Mock Tone.js to avoid audio context initialization in tests
 vi.mock('tone', () => ({
   start: vi.fn().mockResolvedValue(undefined),
@@ -35,6 +43,7 @@ vi.mock('tone', () => ({
     now: vi.fn(() => 0),
     setTimeout: vi.fn(() => 1),
     clearTimeout: vi.fn(),
+    rawContext: rawContextMock,
   })),
   PolySynth: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -2442,36 +2451,18 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
     vi.resetModules();
   });
 
-  // ── pause ──────────────────────────────────────────────── //
+  // ── pause / resume ─────────────────────────────────────── //
+  // The transport contract these once pinned ("pause() calls Transport.pause()", "resume() calls Transport.start()")
+  // retired with docs/specs/OFF_SCREEN.md assumption 2: both now suspend / resume the AudioContext and never touch the
+  // transport — see "AudioEngine.pause / resume — the AudioContext suspends and resumes" at the end of this file.
   describe('pause()', () => {
-    it('calls Transport.pause()', async () => {
-      const Tone = await import('tone');
-      const { AudioEngine } = await import('./AudioEngine');
-      await AudioEngine.start();
-      const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
-      AudioEngine.pause();
-      expect(transport.pause).toHaveBeenCalled();
-    });
-
     it('does not throw when called before start', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       expect(() => AudioEngine.pause()).not.toThrow();
     });
   });
 
-  // ── resume ─────────────────────────────────────────────── //
   describe('resume()', () => {
-    it('calls Transport.start()', async () => {
-      const Tone = await import('tone');
-      const { AudioEngine } = await import('./AudioEngine');
-      await AudioEngine.start();
-      const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
-      // Reset call count so only the resume call is counted
-      transport.start.mockClear();
-      AudioEngine.resume();
-      expect(transport.start).toHaveBeenCalled();
-    });
-
     it('does not throw when called before start', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       expect(() => AudioEngine.resume()).not.toThrow();
@@ -6231,5 +6222,68 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect(durations).toEqual(['0.075']);
       expect(getContext).toHaveBeenCalled();
     });
+  });
+});
+
+// Power is a pause (docs/specs/OFF_SCREEN.md assumption 2, docs/tasks/OFF_SCREEN.md Task 1): the rocker suspends the
+// AudioContext itself, so the transport, the BeatClock's tick, every LFO, every sounding voice and every tail freeze
+// together and resume together. The transport is never told anything.
+describe('AudioEngine.pause / resume — the AudioContext suspends and resumes', () => {
+  type TransportMock = { pause: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn> };
+  const transportsOf = (Tone: typeof import('tone')) =>
+    (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.map((r) => r.value as TransportMock);
+
+  beforeEach(() => {
+    vi.resetModules();
+    rawContextMock.suspend.mockClear();
+    rawContextMock.resume.mockClear();
+  });
+
+  it('pause() after start() suspends the raw context once and never pauses the transport', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const Tone = await import('tone');
+    await AudioEngine.start();
+
+    AudioEngine.pause();
+
+    expect(rawContextMock.suspend).toHaveBeenCalledTimes(1);
+    const transports = transportsOf(Tone);
+    expect(transports.length).toBeGreaterThan(0);
+    for (const transport of transports) expect(transport.pause).not.toHaveBeenCalled();
+  });
+
+  it('resume() after start() resumes the raw context once and does not start the transport a second time', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const Tone = await import('tone');
+    await AudioEngine.start();
+    const startsBefore = transportsOf(Tone).reduce((n, t) => n + t.start.mock.calls.length, 0);
+
+    AudioEngine.resume();
+
+    expect(rawContextMock.resume).toHaveBeenCalledTimes(1);
+    const startsAfter = transportsOf(Tone).reduce((n, t) => n + t.start.mock.calls.length, 0);
+    expect(startsAfter).toBe(startsBefore);
+  });
+
+  it('neither pause() nor resume() touches the context before start()', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+
+    AudioEngine.pause();
+    AudioEngine.resume();
+
+    expect(rawContextMock.suspend).not.toHaveBeenCalled();
+    expect(rawContextMock.resume).not.toHaveBeenCalled();
+  });
+
+  it('never throws when the context exposes no rawContext', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const Tone = await import('tone');
+    await AudioEngine.start();
+    const bare = { now: vi.fn(() => 0), setTimeout: vi.fn(() => 1), clearTimeout: vi.fn() };
+    vi.mocked(Tone.getContext).mockReturnValueOnce(bare as never);
+    vi.mocked(Tone.getContext).mockReturnValueOnce(bare as never);
+
+    expect(() => AudioEngine.pause()).not.toThrow();
+    expect(() => AudioEngine.resume()).not.toThrow();
   });
 });
