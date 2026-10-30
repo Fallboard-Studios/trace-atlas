@@ -1054,6 +1054,19 @@ describe('AudioEngine - Polyphony Management', () => {
         expect((await timerDelays()).some((d) => d >= 2.5 && d <= 2.6)).toBe(true); // 2 + release 0.5 + margin
       });
 
+      it('waits for a later note that ends later: each note in a sequence moves the stand-down on', async () => {
+        await setup();
+        push(['test', 'waiting'], []);
+        const { triggerWithCap } = await import('./AudioEngine');
+        triggerWithCap({ robotId: 'waiting', note: 'C4', duration: '8n', time: 0, velocity: 0.8 }); // ends at 0.5 s
+        triggerWithCap({ robotId: 'waiting', note: 'E4', duration: '2n', time: 1, velocity: 0.8 }); // ends at 3 s
+
+        push(['test'], ['waiting']);
+
+        // 3 + release 0.5 + margin; keeping the first note's end would give 0.5 + 0.5 + margin instead
+        expect((await timerDelays()).some((d) => d >= 3.5 && d <= 3.6)).toBe(true);
+      });
+
       it('forgets a released voice note: a rebuilt voice that stands by quiet goes at once', async () => {
         const { AudioEngine } = await setup();
         push(['test', 'waiting'], []);
