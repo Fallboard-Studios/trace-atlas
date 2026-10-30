@@ -57,6 +57,10 @@ The off screen was drawn as six stories — arrival (bare URL / shared link) × 
 - **Presets stay on the off screen and are pasted share links** of worlds Crawford saved (`decodeWorldLink` reads the params; nothing navigates). A preset, a save and a shared-link arrival become one path.
 - **The Roll button stays** — a fresh random AS + coords, an action beside the Current row, not a radio.
 - **The veil** over the faint world until the flip, and **the lore footer**, both stay.
+- **Aspects are multi-select, dealt round-robin** (spec review, same day): the picked set of a family is dealt over the
+  seeded companies in spawn order, then each freelance robot alone, until every group has one — one pick is the whole
+  fleet, two alternate, "as theme" is a pickable member for plain groups. Per robot still one aspect per family. The
+  multi-select radio wears the cabinetry like Button and Toggle (`docs/specs/OFF_SCREEN.md` assumptions 21–24).
 
 Still leans, drawn in the sketch but not decided: one gate ("has this device heard a world", a localStorage flag written at first power-on) separating a hint-only first visit from the chooser; Current = continue (power-on replays the loaded world from the top, no Continue / New row); the Guide's only part on the off screen is the one-line description under the picked theme. The sketch's "Open for the interview" box is the live question list.
 
