@@ -692,7 +692,7 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
       **Missed (Crawford, 2026-10-29):** "i recognize now that we need to have a very watered down mobile version. and
       that's ok. let's turn off the pedals and reverb on light. i still really want four robots playing, that's the last
       thing i want to cut." The branch's Full take-off (T21) was not re-checked and is not decided.
-- [ ] On a miss, Phase C2 is built and its sitting (T27–T28) decides at Gate C2; past its last build the item returns
+- [x] On a miss, Phase C2 is built and its sitting (T27–T28) decides at Gate C2; past its last build the item returns
       to Crawford with the floor's numbers (spec §1.6).
 
 ---
@@ -1079,7 +1079,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
 **The stacked sitting**
 
-- [ ] **Task 27: the stacked sitting, prepared**
+- [x] **Task 27: the stacked sitting, prepared** (2026-10-29)
 
   **Description:** Three production builds on the LAN, each on its own port: T13's commit (pedals off) and T24's (plus
   the Reverb off), and T26's (plus three robots) only if T25–T26 were built, with `main` at its merge-base beside them. A `phone.html` links
@@ -1091,10 +1091,10 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   **Proof:** A run (the headless pre-checks). No test file.
 
   **Acceptance criteria:**
-  - [ ] Every link pre-checked; each build shows its own cuts on the overlay.
+  - [x] Every link pre-checked; each build shows its own cuts on the overlay.
 
   **Verification:**
-  - [ ] The pre-check lines pasted into the record's draft.
+  - [x] The pre-check lines pasted into the record's draft.
 
   **Dependencies:** Task 26.
 
@@ -1102,7 +1102,14 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
   **Estimated scope:** XS
 
-- [ ] **Task 28: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the stacked sitting, recorded (Gate C2)**
+  **As run (2026-10-29):** two builds, not three (T25–T26 not built): T13's `1b117e3a` on :4201 and `c54f9c87`
+  (T19's follow-up) on :4203, `main`'s `a5d5944d` on :4205, all `--host` on `192.168.12.231`; `phone.html` in
+  each `dist` with both builds at Full (the first clean build was not known beforehand). Ten links, ten exit 0,
+  `fin ok`, orphaned Chrome 0: build 1 at Light `fx in 0/10 · fx off`, build 2 `fx in 0/10 · fx+rev off`, `main`
+  `fx in 5/10`; Full `latency interactive`, `fx in 5/10`, nothing held. Deviation: the commands live in the
+  scratchpad's `precheck-c2.sh` and `make-phone-page.mjs`, not a `commands.txt`. The lines are in the record's §13.
+
+- [x] **Task 28: `docs/todo/scratchy-audio-phones.md`, `docs/todo/backlog.md` — the stacked sitting, recorded (Gate C2)**
 
   **Description:** Crawford's runs on a rested Pixel 8, a fresh tab per run, hands off to 3:00, read at 4:00: `main`
   once per world at Light for the baseline, then the three builds in order on D1 and D5 at Light, stopping at the
@@ -1112,10 +1119,10 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   **Proof:** A run (Crawford's), recorded. No test file.
 
   **Acceptance criteria:**
-  - [ ] Gate C2's verdict stated in Crawford's words, per run; the reverted cuts listed with their desktop numbers.
+  - [x] Gate C2's verdict stated in Crawford's words, per run; the reverted cuts listed with their desktop numbers.
 
   **Verification:**
-  - [ ] Manual read; `npm run lint` clean.
+  - [x] Manual read; `npm run lint` clean.
 
   **Dependencies:** Task 27.
 
@@ -1123,10 +1130,16 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
   **Estimated scope:** XS (the record; the runs are Crawford's)
 
+  **As run (2026-10-29):** the record's §13. Nine runs: `main`, build 1 and build 2 at Light on both worlds, then
+  Full on build 1 D1 (run 7) and build 2 D1 and D5. Build 2 "sounds great" on D1 and D5 (17 and 15 at 4:00) against
+  `main`'s "too scratchy" (281, 250); build 1 "sounds great" on D5, "a little scratchy" on D1. Nothing reverted:
+  build 2 is the last build. At Full nothing took off; D5 "not too bad, actually", D1 "scratchy throughout".
+
 ### Gate C2: The first clean build
-- [ ] The first stacked build that is clean by ear on D1 and D5 at Light named; the cuts past it reverted and recorded
-      with their numbers.
-- [ ] If none is clean: the item returns to Crawford with the floor's numbers (spec §1.6); a cheaper robot voice or
+- [x] The first stacked build that is clean by ear on D1 and D5 at Light named; the cuts past it reverted and recorded
+      with their numbers. **Build 2, `c54f9c87`** (pedals, colour and Reverb off at Light): "sounds great" on both
+      worlds (Crawford, 2026-10-29). No cuts past it to revert. Gate C's "Full unchanged" is Crawford's to call (§13).
+- [ ] *(Not needed: build 2 is clean.)* If none is clean: the item returns to Crawford with the floor's numbers (spec §1.6); a cheaper robot voice or
       native-node pedals is a spec of its own.
 
 ---

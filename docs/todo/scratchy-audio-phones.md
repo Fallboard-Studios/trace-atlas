@@ -2222,3 +2222,51 @@ not foresee).
 ×1.020 · ×0.922; lift **×0.985 · ×1.427 · ×1.015**; ghost RMS **0 · 0 · 0** (steady 0.125 · 0.033 · 0.012); control
 ×0.999–×1.000; abrupt ×234–×1 044. Inside the bar in every run. The A/B above is unaffected: the follow-up changes only
 the lift, which no Light run crosses.
+
+### 13. Phase C2, the stacked sitting — Crawford's runs (T28, 2026-10-29)
+
+Plan T27 and T28. **Builds:** production `vite build`s on the LAN (`192.168.12.231`), each on its own port: build 1,
+T13's commit `1b117e3a` (`index-pklsL_s5`, the pedals and colour held off at Light) on **4201**; build 2, T19's
+follow-up `c54f9c87` (`index-CXkZfawk`, the Reverb off at Light as well) on **4203**; `main`'s merge-base `a5d5944d`
+(`index-BpSIkiTM`) on **4205**. No third build: T25–T26 (three sounding robots) were not built (Crawford at Gate C:
+"i still really want four robots playing"). **Links:** D1 and D5 as §10, `?debug` and `load=` pinned, from a
+`phone.html` in each build's `dist` (session scratchpad). **Pre-checks (T27):** every link loaded headlessly over
+the LAN address for 20 s; all ten exit 0 with `fin ok`, orphaned Chrome 0. At Light all three builds read
+`latency playback` and `sounding 2/4` (D1) or `4/4` (D5); builds 1 and 2 `fx in 0/10`, their LFO line ending
+`fx off` (build 1) and `fx+rev off` (build 2); `main` `fx in 5/10`, nothing held. At Full both builds read
+`latency interactive`, `fx in 5/10`, nothing held. Protocol as §10: Pixel 8 rested before each run, a fresh tab,
+hands off to 3:00, read again at 4:00; the count a pointer (backlog 29), the ear the measurement.
+
+| # | Build | Tier | World | `underruns` 3:00 → 4:00 | Collapse? | Crawford's words |
+|---|---|---|---|---|---|---|
+| 1 | `main` `a5d5944d` | Light | D1 | **222** → 281 | none reported | "too scratchy" |
+| 2 | `main` `a5d5944d` | Light | D5 | **195** → 250 | none reported | "too scratchy" |
+| 3 | build 1 `1b117e3a` | Light | D1 | **57** → 92 | none reported | "a little scratchy" |
+| 4 | build 1 `1b117e3a` | Light | D5 | **35** → 39 | none reported | "sounds great" |
+| 5 | build 2 `c54f9c87` | Light | D1 | **11** → 17 | none reported | "sounds great" |
+| 6 | build 2 `c54f9c87` | Light | D5 | **12** → 15 | none reported | "sounds great" |
+| 7 | build 1 `1b117e3a` | Full | D1 | **428** → 522 | none reported | "scratchy throughout" |
+| 9 | build 2 `c54f9c87` | Full | D1 | **470** → 538 | none reported | "scratchy throughout" |
+| 10 | build 2 `c54f9c87` | Full | D5 | **157** → 216 | none reported | "not too bad, actually" |
+
+Numbered as on the links page. Run 8 (build 1 at Full on D5) was not run; run 7 was, before build 2 was known to be
+the first clean build.
+
+**Reading against Gate C2** (the first stacked build clean by ear on D1 and D5 at Light for four minutes).
+- **Build 2 is the first clean build: "sounds great" on both worlds.** Build 1 was clean on D5 ("sounds great") but
+  not on D1 ("a little scratchy"); the Reverb off is what moved D1. The counts follow the ear: `main` 250–281 at
+  4:00, build 1 39–92, build 2 15–17, the lowest this phone has read in any sitting (§10's lowest was 115 at 3:00).
+- **Nothing past build 2 to revert.** It is the last build of the stack, so both cuts stay: the pedals and colour
+  (`LOAD_EFFECTS_MIN`, §11) and the Reverb (`LOAD_REVERB_MIN`, §12), each held off at Light. Four robots stay.
+- **Full (Gate C's "Full unchanged").** The cuts are Light-only, so at Full builds 1 and 2 run §10's branch graph;
+  the pre-checks read `fx in 5/10` and nothing held, as `main`. No run took off inside four minutes, where §10's
+  branch took off on both worlds (about 4:30 on D1, 3:30 on D5), which points at that sitting's phone state rather
+  than the build. D5 at Full drew "not too bad, actually", its best Full word yet (§10: "too scratchy" on the branch
+  and on `main`). D1 at Full is "scratchy throughout" on both builds against `main`'s "a little too scratchy" in
+  §10, a one-adjective gap of the kind §10 read as no result. With no `main` Full run in this sitting, Full is
+  compared across sittings only; whether it counts as unchanged is Crawford's.
+- **Deviations:** one run per cell; run 8 not run; no `main` Full run; the rest between runs not timed; T27's
+  commands kept in the scratchpad's `precheck-c2.sh` and `make-phone-page.mjs` rather than a `commands.txt`.
+
+**Gate C2:** build 2 (`c54f9c87`), the pedals, colour and Reverb off at Light: "sounds great" on D1 and D5. Full's
+verdict is open with Crawford.

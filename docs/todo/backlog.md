@@ -642,6 +642,16 @@ worlds (about 4:30 and 3:30) and `main` did not, one run each. By the gate's wor
 verdict, whether the Full take-off is the build or the phone's state, and whether Phase C2 (the three audible Light
 cuts) starts, are Crawford's.
 
+**Update 2026-10-29, later: Phase C2 built, Gate C2 passed** ([scratchy-audio-phones.md](scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §11–§13). Crawford at Gate C: "let's turn off the pedals and reverb on light. i still
+really want four robots playing". Two Light-only cuts on the branch, each with its own constant: the pedals and colour
+held off (`LOAD_EFFECTS_MIN`, T9–T13) and the Reverb off (`LOAD_REVERB_MIN`, T19, with a Convolver reset and a 1 s
+lift), every inert control dimmed (T12b); three sounding robots (T25–T26) not built. On a rested Pixel 8 at Light,
+pedals and Reverb off drew "sounds great" on D1 and D5 (`underruns` 17 and 15 at 4:00) against `main`'s "too
+scratchy" (281, 250); pedals off alone drew "sounds great" on D5 and "a little scratchy" on D1. At Full nothing took
+off; D5 "not too bad, actually", D1 "scratchy throughout". Whether Full counts as unchanged is Crawford's; then the
+docs (T22, T23).
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
