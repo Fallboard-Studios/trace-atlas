@@ -117,7 +117,10 @@ interface LoopRun {
   midground: Box[];
   siteState: Map<string, SiteSlot>;
   stations: Station[];
+  /** The loop's clock: `baseNow` minus every paused span (pauseWorkLoop / resumeWorkLoop), frozen while paused. */
   now: () => number;
+  /** Wall-clock seconds as given (`WorkLoopOptions.now`, default `gsap.ticker.time`); only `now` above reads it. */
+  baseNow: () => number;
   rand: () => number;
 }
 
@@ -149,6 +152,11 @@ const SETTLE_EPSILON = 0.01;
 // STATE
 // ========================================
 let run: LoopRun | null = null;
+/** Power is a pause (docs/specs/OFF_SCREEN.md assumption 4): the base clock reading at which the current pause began
+ *  (null while running), and the seconds every finished pause took, which the loop's clock subtracts — so a `readyAt`
+ *  stamped before a pause means the same thing after it. Both reset with the run. */
+let pauseAtBase: number | null = null;
+let pausedSeconds = 0;
 
 /** Each dissolve copy's per-frame follower, by robot id (startFollowing). Runtime only. */
 const followers = new Map<string, () => void>();
@@ -743,13 +751,18 @@ function adopt(loop: LoopRun, robot: Robot): void {
  */
 export function startWorkLoop(localeId: string, options: WorkLoopOptions = {}): void {
   if (run) return;
+  pauseAtBase = null;
+  pausedSeconds = 0;
+  const baseNow = options.now ?? (() => gsap.ticker.time);
   const loop: LoopRun = {
     localeId,
     sites: eligibleSites(localeId, options.backHosts ?? BACK_HOSTS_ENABLED),
     midground: getMidgroundSilhouettes(localeId),
     siteState: new Map(),
     stations: getStations(localeId),
-    now: options.now ?? (() => gsap.ticker.time),
+    baseNow,
+    // Frozen at the pause's start while paused; otherwise wall time less every paused span.
+    now: () => (pauseAtBase ?? baseNow()) - pausedSeconds,
     rand: options.rand ?? Alea(`${localeId}:work`),
   };
   run = loop;
@@ -768,6 +781,8 @@ export function startWorkLoop(localeId: string, options: WorkLoopOptions = {}): 
 export function stopWorkLoop(): void {
   if (!run) return;
   run = null;
+  pauseAtBase = null;
+  pausedSeconds = 0;
   for (const key of [...timelineMap.keys()]) {
     if (!LOOP_KEY_PREFIXES.some((p) => key.startsWith(p))) continue;
     if (key.startsWith('work-')) finishJobSilently(key.slice('work-'.length));
@@ -775,6 +790,25 @@ export function stopWorkLoop(): void {
   }
   for (const robotId of [...followers.keys()]) stopFollowing(robotId);
   dissolveLayer()?.querySelectorAll('.mover--dissolve[data-dissolve-copy]').forEach((copy) => copy.remove());
+}
+
+/**
+ * Freeze the loop's clock (docs/specs/OFF_SCREEN.md assumption 4): from here until resumeWorkLoop(), `now()` returns
+ * the moment the pause began, so no site cooldown runs out while the tablet is off. Only the clock — the loop's own
+ * timelines pause through their `'world'` scope (timelineMap.ts), which powerController drives beside this call.
+ * Idempotent; a no-op with no loop running.
+ */
+export function pauseWorkLoop(): void {
+  if (!run || pauseAtBase !== null) return;
+  pauseAtBase = run.baseNow();
+}
+
+/** The other half of pauseWorkLoop(): add the paused span to the clock's offset and let `now()` run again from where it
+ *  stopped. A no-op when not paused or with no loop running. */
+export function resumeWorkLoop(): void {
+  if (!run || pauseAtBase === null) return;
+  pausedSeconds += run.baseNow() - pauseAtBase;
+  pauseAtBase = null;
 }
 
 /**
