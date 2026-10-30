@@ -1221,6 +1221,33 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 - [x] Gate C or Gate C2 passed, or the item is back with Crawford with the floor's numbers (stated here, never silent).
 - [x] Ready for Crawford's PR.
 
+**Review follow-ups (2026-10-29, Crawford: "take care of 1 - 7"):** the five-axis code review's seven findings (two
+required, two to consider, three nits), one commit each, the third as two.
+
+- `d7184f6c` (1, test gap): a later note that ends later moves the stand-down on. The review's one surviving mutant
+  (the note end recorded once, so the first note's end is kept) now fails it.
+- `a31c90df` (2): `AudioEngine.start()` uses the top-level `lfoEngine` import T14 added, not a second, dynamic one; the
+  comment that called a static import circular now says the cycle is safe, and the robot-links priming comment gives
+  its own reason.
+- `b0542bf6` (3a): the standing-by ledger is `createStandingBy` in `src/engine/audioEngine/standingBy.ts`, the voice
+  work handed in as five hooks. AudioEngine.ts 1 652 → 1 585 lines. The review's 12 stand-down mutants, re-aimed at the
+  new file, are all killed.
+- `9af86165` (3b): the effects and Reverb hold-offs are `src/engine/audioEngine/holdOffs.ts`; globalFx keeps the Reverb
+  and its return, hands them in on each call, and re-exports the public names. globalFx.ts 1 386 → 1 251 lines. 12
+  hold-off mutants, all killed.
+- `8cdc6ca0` (4): the Audio Load readout reads every word from five `settings.quality.limits.*` entries. **Copy
+  change:** what is off is one list, "no drift, filter LFOs, pedals, colour or reverb" (was "no drift or filter LFOs or
+  pedals or colour or reverb"); and the Effects Limit help, which named only drift and the filter LFOs, now ends "the
+  pedals, the colour effects and the Reverb". RED first: the new strings failed 6 tests on the old code.
+- `9fe2388c` (5): `withPoweredWorld` moved from `cdp-lib.mjs` to `scripts/perf/powered-world.mjs`, and cdp-lib.mjs is
+  main's again. Verified by one short run of each tool on a fresh build (D1 at Light: the pin check passed, the overlay
+  read `fx+rev off`), no orphaned Chrome.
+- `42dab29c` (6): one `RENDER` constant, exported by audio-handlers-lib.mjs.
+- `1e4fa751` (7): `EFFECT_MIX_FIELD` typed to each effect's settings; Width's field written `'wet'` now fails
+  `build:types`.
+- After them: types 0 errors, lint 0 errors and the 4 react-refresh warnings, 333 files and 12 486 tests passed, build
+  clean.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
