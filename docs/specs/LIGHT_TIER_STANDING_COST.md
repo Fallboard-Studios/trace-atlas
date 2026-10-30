@@ -15,7 +15,7 @@
 
 **Status:** spec written 2026-10-27 from the confirmed intent
 [docs/intent/light-tier-standing-cost.md](../intent/light-tier-standing-cost.md) (interview 2026-10-27) and the
-measurements on backlog [27](../todo/backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included)
+measurements on backlog [27](../todo/archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included)
 (desktop steps 1, 2 and 2b of 2026-10-23; the Pixel sitting of 2026-10-26, both in
 [scratchy-audio-phones.md](../todo/scratchy-audio-phones.md)). **Approved by Crawford 2026-10-27**, with the plan's two
 deviations (ablation runs at 120 s; H2's mid-note release path decided in T14). Plan:

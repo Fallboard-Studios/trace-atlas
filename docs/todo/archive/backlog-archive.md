@@ -339,6 +339,201 @@ Control Panel / Lenovo Vantage discrete-mode routes were not tried.
 
 **How to start:** `interview-me` from this item for candidate 1; candidate 2 can go straight to a RED test.
 
+## 27. Audio: Phone Playback Underruns at Light Load, `main` Included
+
+**Closed** 2026-10-29 (Crawford; `perf/light-tier-standing-cost`, merged via PR #590, `296079a5`; its merge of `main` repaired by PR #591, `0de23cfe`). Standing-by robots give up their voices and the dark effects' and drift's LFOs stop, every tier; at Light the pedals, the colour effects and the Reverb are held off too, and every control the hold-offs make inert is dimmed. On a rested Pixel 8 at Light, D1 and D5 drew "sounds great" (17 and 15 underruns at 4:00) against `main`'s "too scratchy" (281, 250); Full unchanged. The original request follows.
+
+**Found 2026-10-18** during the per-mover Pixel A/B (PERFORMANCE.md "the Pixel A/B: not separable on the phone"). On the
+Pixel 8 at **Light** Audio Load (`load 20%·fx 20%`, latency `playback`, every LFO tier off), the Task 20 world crackles
+on both builds: `main` about 22 playback underruns in three minutes, the branch 41 to about 88 depending on the run. The
+`?debug` overlay rules out a broken signal (`fin ok`, master peak −3 to −11 dB, no clipping) and the main thread (57–60
+fps, low lag): the audio thread misses its deadline in bursts of one to four, and keeps doing so with only one robot
+sounding, so most of the cost does not scale with notes played. Related history:
+[scratchy-audio-phones.md](../scratchy-audio-phones.md) (the Audio Load Budget was its mitigation).
+
+**First candidate, unmeasured:** the five colour and modulation effects in the global chain (Distortion, Chebyshev,
+BitCrusher, AutoWah, Phaser; `src/engine/audioEngine/globalFx.ts`) sit in series and are never disconnected, so at wet 0
+each still processes every sample; Tone's dry/wet mix only discards the result. The Phaser runs ten all-pass stages per
+channel and the BitCrusher is an AudioWorklet. Disconnecting an effect at wet 0, the way an LFO at rate 0 Hz disconnects
+(roadmap: LFO Active toggle removed), would take that cost off a world that does not use them. Changing how the chain is
+wired is an audio-architecture change (CLAUDE.md: ask first).
+
+**How to start:** measure before changing anything: the audio thread's render capacity with the five effects in the chain
+against out of it (a scratch build), on the desktop with `npm run perf:audio` and on the Pixel through Chrome's remote
+DevTools WebAudio panel over USB, which reads a continuous load figure rather than counting failures. The phone's
+underrun count alone proved too noisy to separate two builds (the A/B above). Then Crawford's call.
+
+**Update 2026-10-20: the first candidate is built; the item stays open.** On `feature/pedals`, every dark global effect
+now leaves the signal path (the Dark-Effect Bypass, [docs/specs/DARK_EFFECT_BYPASS.md](../../specs/DARK_EFFECT_BYPASS.md)
+§8; numbers in [scratchy-audio-phones.md](../scratchy-audio-phones.md), T12 and rounds 3 and 4).
+
+**Measured.**
+- **Desktop:** all ten dark cost 38.3 ‰ in their cells, against 150.6 inline in the same sitting. `perf:audio`: branch
+  0.431 / 0.502, `main` 0.460 / 0.580.
+- **Pixel 8, Full, at 3:00 / 4:00:** a dark world 31 / 54 against `main`'s 48 / 75; four lit 59 / 69 and 53 / 110 on
+  a fresh phone.
+
+**Still open: a run late in a sitting collapses on both builds.**
+- In round 4, `main`'s baseline ran fifth: 26 at 3:00, then out at 4:13 with 2 000+ underruns. The branch's third and
+  fourth runs collapsed the same way.
+- A collapse survives a Chrome restart.
+- A sine-only page on the same hot phone still carried 700 oscillators before underruns climbed. So the audio path
+  works, and the app sits near the phone's limit.
+- In every round the collapses come 2:50–4:00 into a run.
+- Not yet separated: heat against state accumulating across runs.
+
+**Next.**
+1. A desktop long run: 15 minutes headless, logging render capacity, live node count, Transport events, voices and
+   memory, looking for load that grows during a run.
+2. On the phone, the same link in an Incognito tab right after a collapse, and the sine ramp on a cool phone, to price
+   what heat costs.
+
+**Update 2026-10-22 (Robot Effect Sends T21, [scratchy-audio-phones.md](../scratchy-audio-phones.md)):** the first
+collapse on a rested phone. With the phone off for at least 20 minutes before each run, the second run of the sitting
+(the 50.7 branch, Full) spiked at 3:30 and was out at about 4:20; its repeat, run 7, was fine, and the base's run 6 rose
+95 → 250 with clipping at 4:20. A heavier world on the same build and tier (7 lit, run 5) did not collapse. So heat or
+state left over from earlier runs explains it less well than it did in round 4.
+
+**Update 2026-10-23 (Output Headroom T10, [scratchy-audio-phones.md](../scratchy-audio-phones.md)):** clicks at Light, the
+tier a phone picks by itself, on a rested Pixel 8. `56c2t2t8` at (−116, −2) "clicks throughout" on `main` (190
+underruns at 3:00, 254 at 4:00) and on the Output Headroom branch (140 → 173); `bravo` read 93 (`main`) and 149
+(branch) at 3:00. The two builds swap order between the worlds, so the clicks are not that branch's; its output is
+never at full scale, so they are not clipping either. Crawford: chase them here, after roadmap 54 merges.
+
+**Next, re-ordered 2026-10-23** ([plan.md](../plan.md) Stage 1: the desktop first, the Pixel once at the end). The two
+rested sittings changed the list above. T21's run 2 collapsed after 20 minutes off, and run 7, the same link on the same
+build and storage later in the sitting, did not; so heat and carried state each explain the collapse less well, and the
+Incognito tab and the cool-phone sine ramp drop to last, run only if the desktop leaves the collapse unexplained. T10
+added a second symptom the list did not have, steady clicks at Light, which no phone-side step addresses.
+1. Desktop: `npm run perf:audio` on D1 (`56c2t2t8` at (−116, −2)) against D5 (`bravo` at (−150, 90)) at Light, and a
+   read of what D1 carries. Light on D1 (190 at 3:00) read worse than Full on D5 did in T21 (48–95): the world costs
+   more than the tier saves. What is it, and why does Light not cut it?
+2. Desktop: the 15-minute long run as written above, for the late collapse.
+3. Pixel, in the sitting: 29's lighting by ear; and the Incognito tab after a collapse and the cool-phone sine ramp
+   only if 1 and 2 leave the collapse unexplained.
+
+**Update 2026-10-23 (Stage 1 step 1 done, desktop; [scratchy-audio-phones.md](../scratchy-audio-phones.md) "Backlog 27,
+desktop step 1").** D1 and D5 at Light read alike on steady load (means 0.49–0.52, both bursting to 0.95–0.998 from the
+first bucket), so the tier is not what separates them. What separates them is **notes**: D1 plays about ten times as
+many with the same four robots sounding, and **every note leaks one native OscillatorNode** — Tone 15's `Oscillator`
+connects its persistent frequency and detune Signals into a fresh node per start and never disconnects them when the
+note ends, and standardized-audio-context keeps each such connection as a strong reference in the Signal's output Set,
+scanned on every later connect. Forced GC frees the matching Gains and not one oscillator: retention, not lag. About
+two a second on D1 (+324 nodes in four minutes, identical across three rounds; D5 +55). Pending Transport events hold
+at 12. Not yet tied to the underruns (the bursts predate any accumulation); the two settling measurements are the
+15-minute long run (step 2, unchanged, now with `nodes`/`heap`/`events` columns) and a same-session A/B against a
+scratch build whose `Oscillator.onstop` disconnects the dead node's params. A fix is a dependency patch or an upstream
+change: Crawford's call, then a spec.
+
+**Update 2026-10-23, later (step 2 done; [scratchy-audio-phones.md](../scratchy-audio-phones.md) "Backlog 27, desktop step
+2").** The 15-minute runs: the leak holds its rate (D1 +1057 nodes, D5 +171) and capacity shows no trend on either
+world; the heap climbs the same 12 MB on both, so most of that is a **second, world-independent accumulation of about
+0.8 MB/min, unidentified**. The A/B (a throwaway build that disconnects the dead node's two params at `onended`) proves
+the mechanism, taking D1 from +324 to +48 nodes, and changes nothing on the audio thread: stock 0.526–0.579 against
+patched 0.541–0.558, same bursts, same max lag (9–26 ms), heap still climbing. **The desktop has answered what it can**:
+the bursts at Light are the graph's standing cost with four robots sounding; the collapse does not reproduce in fifteen
+minutes; two things accumulate that only the phone can price. Open for Crawford: carry the one-line disconnect as a
+dependency patch or an upstream Tone PR (a spec either way); name the heap growth (a heap-snapshot diff) before the
+sitting or not; take the patched build to the sitting beside stock.
+
+**Update 2026-10-23, later still (Crawford's calls, and the heap growth named; [scratchy-audio-phones.md](../scratchy-audio-phones.md)
+"step 2b").** Decisions: the leak fix goes as a dependency patch, spec at
+[docs/specs/OSCILLATOR_LEAK_FIX.md](../../specs/OSCILLATOR_LEAK_FIX.md); the heap growth was named; the Pixel sitting comes
+after both. **The heap growth is Tone's per-Param automation history** (`Param.setValueAtTime` on every note, each
+Param's Timeline capped at its newest 1 000 events), so it is bounded and saturates after tens of minutes; a
+sampling-profiler read on the dev server put it, the leaked oscillator wrappers and dev-only React bookkeeping at the
+top, and a direct read showed the context's timeout list flat. Closed as a cause; the one loose end is the prediction
+that a 30-minute production run flattens the heap. The leak fix is its own item now:
+[32](#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params).
+
+**Update 2026-10-26: the desktop half is done; only the phone sitting is left.** Steps 1 and 2 above are recorded, the
+leak fix merged (PR #577, archived as [32](#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params)),
+and the other Stage 1 items that rode with this one are merged too (29, roadmap 17.2.8, roadmap 53's Checkpoints B and
+C). What the sitting still owes, on `main` (the leak fix in it), D1 and D5 at Light, reading the overlay's underrun
+count as a pointer and not as evidence (backlog 29):
+1. The steady clicks at Light on D1 and D5, by ear. Crawford's call of 2026-10-23 was to carry a build without the
+   leak fix beside the fixed one; with the fix merged, that is any `main` before `4e0cb174`.
+2. Whether the late collapse (2:50–4:00 into a run) still comes. Only if it does: the same link in an Incognito tab
+   right after it, then the sine ramp on a cool phone, to price heat against carried state.
+3. Optional, desktop, any time before the sitting: the step 2b prediction that a 30-minute production run flattens
+   the heap. It exceeds the agent's tool limit, so it is Crawford's terminal run: step 2's command with
+   `--seconds 1800`.
+
+**Update 2026-10-26, later: the sitting is done ([scratchy-audio-phones.md](../scratchy-audio-phones.md) "Backlog 27 on
+the Pixel — the sitting"). Both halves of the measurement are in; what is left is a design decision.** Four runs on a
+rested Pixel 8 at Light, `main` `286ee642` beside `main` just before the leak fix (`5bd7f593`), D1 and D5: every run
+"scratchy throughout" from the first seconds, about two hundred underruns by 3:00 (191 / 200 on D1, 136 / 222 on D5),
+no audible difference the leak fix makes in either direction, and **no collapse in any run**, the second rested sitting
+without one. So the clicks are the graph's standing cost at Light on this phone, not an accumulation; the Dark-Effect
+Bypass, the leak fix and the tier's own cuts (four sounding robots, eight voices) have each left them in place, and the
+collapse of round 4 and T21 has not recurred since 2026-10-22 and stays unexplained. Step 3 (the 30-minute heap run)
+was not run; it is optional and settles nothing here. **Next:** what Light still carries (about 1 790 live nodes with
+two to four robots sounding, `fx in 5/10`) and what else it could cut is a change to how the audio graph is built, so
+per the Stage 1 agreement it goes interview → spec → plan, with the two `main` sittings at Light (2026-10-23 and today)
+as the baseline. Where that sits in [plan.md](../plan.md) is Crawford's call.
+
+**Update 2026-10-27: interviewed, specified and planned.** Intent
+[docs/intent/light-tier-standing-cost.md](../../intent/light-tier-standing-cost.md), spec
+[docs/specs/LIGHT_TIER_STANDING_COST.md](../../specs/LIGHT_TIER_STANDING_COST.md), plan
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../../tasks/LIGHT_TIER_STANDING_COST.md): a decomposition of the standing cost at
+Light first (no product change), Crawford picks the cuts from its table, each cut kept or dropped on a desktop A/B,
+inaudible cuts every tier and audible ones Light's, and the Pixel sitting — clean by ear on D1 and D5 at Light — the
+one criterion. The item stays 27 (no new number); its Built line comes with the plan's T23.
+
+**Update 2026-10-28: Phase A done, the decision table is ready for Gate A** ([scratchy-audio-phones.md](../scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §5). On the desktop at Light, the largest pieces are the standing-by robots' voices
+(−0.124 D1, −0.107 D5 of capacity, inaudible to cut), the lit effects (−0.093, −0.083) and the Reverb (−0.074, −0.043).
+EQ3, LPF and HPF are moderate; the dynamics and the send/room fabric are below noise. The 70 % criterion is not met on
+D5 (55–69 % explained); the remainder is the sounding robots and the fixed floor. Crawford picks the cuts and whether to
+chase the remainder.
+
+**Update 2026-10-28, later: the remainder chased (§6).** With no robot voices at all (A9), Light's load falls from
+0.557 to 0.167 on D1 and from 0.519 to 0.163 on D5: the robots are about 70 % of it, the floor about 30 %. A playing
+robot costs about 0.06 of desktop capacity, roughly four times a standing-by one and three times what spec §1.6 assumed
+for the robot-count lever. The cuts and order of §5 stand; the sounding cap at Light joins the table for Crawford to place.
+
+**Update 2026-10-28, Gate A passed** ([intent](../../intent/light-tier-standing-cost.md) "Gate A — the cuts"; the record's
+decomposition §7). Inaudible first and alone: standing-by voices released and the dark cells' and drift's LFOs stopped,
+every tier, then the phone. Only if it still clicks, three Light-only cuts tried stacked in one sitting: pedals off, a
+shorter Reverb, three sounding robots. EQ3/LPF/HPF out at neutral dropped (the EQ is seeded); backlog 28 stands.
+
+**Update 2026-10-29: Phase B built, the phone sitting run** ([scratchy-audio-phones.md](../scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §8–§10). The three inaudible cuts (standing-by voices released, the dark cells' and
+drift's LFOs stopped) are on `perf/light-tier-standing-cost`; their desktop A/Bs are all inside that sitting's
+noise. On a rested Pixel 8 at Light, D5 drew "pretty good, a few scratches but passable" against `main`'s "too
+scratchy", and D1 "a little too scratchy throughout" against "too scratchy". At Full the branch took off on both
+worlds (about 4:30 and 3:30) and `main` did not, one run each. By the gate's wording Gate C misses on D1; the
+verdict, whether the Full take-off is the build or the phone's state, and whether Phase C2 (the three audible Light
+cuts) starts, are Crawford's.
+
+**Update 2026-10-29, later: Phase C2 built, Gate C2 passed** ([scratchy-audio-phones.md](../scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §11–§13). Crawford at Gate C: "let's turn off the pedals and reverb on light. i still
+really want four robots playing". Two Light-only cuts on the branch, each with its own constant: the pedals and colour
+held off (`LOAD_EFFECTS_MIN`, T9–T13) and the Reverb off (`LOAD_REVERB_MIN`, T19, with a Convolver reset and a 1 s
+lift), every inert control dimmed (T12b); three sounding robots (T25–T26) not built. On a rested Pixel 8 at Light,
+pedals and Reverb off drew "sounds great" on D1 and D5 (`underruns` 17 and 15 at 4:00) against `main`'s "too
+scratchy" (281, 250); pedals off alone drew "sounds great" on D5 and "a little scratchy" on D1. At Full nothing took
+off; D5 "not too bad, actually", D1 "scratchy throughout". Full accepted as
+unchanged (Crawford, 2026-10-29: "No need to change full."). Next: the docs (T22, T23).
+
+**Built** 2026-10-29 on `perf/light-tier-standing-cost` (spec
+[docs/specs/LIGHT_TIER_STANDING_COST.md](../../specs/LIGHT_TIER_STANDING_COST.md), plan
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../../tasks/LIGHT_TIER_STANDING_COST.md), record
+[scratchy-audio-phones.md](../scratchy-audio-phones.md) "Backlog 27, the decomposition" §1–§13). Desktop capacity
+deltas are D1 / D5 at Light. **Kept, every tier (inaudible):** standing-by robots' voices released (H2, T14; −0.065 /
++0.013, inside that sitting's noise band of 0.10 / 0.12; docked robots keep theirs); a dark cell's LFOs stopped (H3a,
+T16; +0.008 / −0.009); the drift secondaries stopped while drift is held off (H3b, T17; −0.017 / −0.015; it also fixed
+drift running at Light from boot). **Kept, Light only (audible):** the pedals and colour held off (H1,
+`LOAD_EFFECTS_MIN` 0.4, T9–T13; −0.289 / −0.096) and the Reverb off (`LOAD_REVERB_MIN` 0.4, T19; −0.021 / −0.059;
+a lift resets the Convolver and ramps up over 1 s), every control they make inert dimmed (T12b). **Dropped or not
+built:** EQ3/LPF/HPF out at neutral (A6 −0.041 / −0.019; Gate A, the EQ is seeded, backlog 28 stands), the send/room fabric and the dynamics (below noise),
+the Reverb decay cap (replaced by off at Gate C), three sounding robots (about 0.06 a robot, A9; T25–T26 not built, Crawford wants four). **The phone
+(Gate C2):** on a rested Pixel 8 at Light, "sounds great" on D1 and D5 against `main`'s "too scratchy"; Full
+unchanged. Tools: `npm run perf:audio-handlers` and `perf:audio`'s census line
+([PERFORMANCE.md](../../PERFORMANCE.md#handler-breakdown--npm-run-perfaudio-handlers)); behaviour in
+[AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md#audio-load-budget). Gate B's desktop listen passed after
+the phone (Crawford, 2026-10-29: "Gate B sounds good").
+
 ## 28. Audio: EQ3 and the Two Filters Stay in the Chain at Neutral
 
 **Closed** 2026-10-24 (Crawford, on the recommendation in backlog 29's close: plan.md said it "closes itself if nothing in 27 or 29 points at them", and neither does. Backlog 27's desktop steps put the Light-tier bursts on the graph's standing cost with four robots sounding and the late collapse not reproduced; 29 turned out to be no lost quantum at all). Nothing built. The original request follows.
@@ -432,7 +627,7 @@ through power-on and Fleet Params, then throws; the new teardown cleaned up afte
 
 **Closed** 2026-10-26 (Crawford; `fix/oscillator-leak`, merged via PR #577, `4e0cb174`). Every note's two param connections are disconnected when it ends: `patchOscillatorEndedDisconnect` in `src/engine/tonePatches.ts`, applied at boot by `src/engine/audioContextSetup.ts` (`oscillatorLeakPatched`), documented in [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md), "Tone patch: the per-note oscillator leak"; proof in [PERFORMANCE.md](../../PERFORMANCE.md), "Oscillator Leak Fix — the T3 proof run". The Tone upgrade that deletes the patch waits on npm and is its own item: [34](../backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch). The original request follows.
 
-**Found 2026-10-23** by backlog [27](../backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included)'s desktop step 1
+**Found 2026-10-23** by backlog [27](#27-audio-phone-playback-underruns-at-light-load-main-included)'s desktop step 1
 ([scratchy-audio-phones.md](../scratchy-audio-phones.md), "Backlog 27, desktop step 1"). Every note the app plays leaves one
 native `OscillatorNode` alive for the life of the page. Tone 15.1.22's `Oscillator._start` connects the Oscillator's
 persistent `frequency` and `detune` Signals into a fresh node on each start, and nothing disconnects them when the note
