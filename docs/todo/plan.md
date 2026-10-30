@@ -11,9 +11,9 @@ Reading the stages: each one ends at a point where Crawford listens or looks bef
 
 ## Stage 1 — The powered-down state
 
-- Backlog [5](backlog.md#5-sector-settings-ascoordsfavorites-reorganization) **The off screen: themes, sessions,
-  presets** — Crawford's plan for the powered-down state; the interview fixes the surface, including where item 7's
-  selection UI goes.
+- Backlog [5](backlog.md#5-sector-settings-ascoordsfavorites-reorganization) **The off screen: themes, aspects,
+  sessions, presets** — Crawford's plan for the powered-down state; the interview fixes the surface and the band
+  table under it, including where item 7's selection UI goes.
 - Backlog [1](backlog.md#1-onload-better-power-off-background) and [3](backlog.md#3-onload-sleeve-logo) **Off
   background art, sleeve logo** — blocked on artwork, but they land on this screen, so decided here.
 
