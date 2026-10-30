@@ -307,7 +307,7 @@ function createCameraTween(x: number, robotId: string): void {
     // and slow-out than sine, short of power2's sharper curve.
     ease: 'power1.inOut',
   });
-  setTimeline(DECK_CAMERA_TIMELINE_ID, tl);
+  setTimeline(DECK_CAMERA_TIMELINE_ID, tl, 'world');
   tl.play();
 }
 

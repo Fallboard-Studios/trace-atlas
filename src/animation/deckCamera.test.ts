@@ -15,7 +15,7 @@ import {
   __deckCameraStateForTest,
   __resetDeckCameraForTest,
 } from './deckCamera';
-import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
+import { getTimeline, getTimelineScope, timelineMap, killAllTimelines } from './timelineMap';
 import { setRef, getRef, clearRefs } from '../utils/refs';
 import {
   DECK_CAMERA_COOLDOWN_MS,
@@ -226,6 +226,7 @@ describe('deckCamera', () => {
       moveCameraTo('alpha');
       const tl = getTimeline(DECK_CAMERA_TIMELINE_ID);
       expect(tl).toBeDefined();
+      expect(getTimelineScope(DECK_CAMERA_TIMELINE_ID)).toBe('world'); // the camera follows the world, so it pauses with it
 
       registerDeckScroller(null);
 
