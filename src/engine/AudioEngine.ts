@@ -735,13 +735,12 @@ export const AudioEngine = {
     // underlying Tone.LFO lane nodes. AS-sync's regenerateLfoBankFromSeed/
     // regenerateGlobalLfoLinksFromSeed (audioStore.ts) are deliberately data-only for exactly this
     // reason — they run before any user gesture.
-    // Dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads AudioEngine.setGlobal*
-    // eagerly at its own module scope (see this function's own earlier verified-by-trying note),
-    // and lfoEngine.ts imports AudioEngine itself (for its modulation-target resolvers) — a static
-    // top-level import of either here would be circular/premature.
+    // The store by dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads AudioEngine.setGlobal*
+    // eagerly at its own module scope (see this function's own earlier verified-by-trying note), so a
+    // static top-level import of it here would be premature. lfoEngine.ts and this module import each
+    // other at the top; that cycle is safe because each only calls into the other inside functions.
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
-      const { lfoEngine } = await import('./lfoEngine');
       const { globalAudio, lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
@@ -765,8 +764,8 @@ export const AudioEngine = {
     // already had its composite voice reserved by the post-load reservation pass in
     // loadInstruments() above, but nothing linked its seeded lane links into the bank until now.
     // Runs after the bank priming above for the same reason that block's own comment gives:
-    // linkTarget's swing math reads live state. Dynamic import for the same reason as lfoBank.ts
-    // above — robotLfoLinks.ts imports it.
+    // linkTarget's swing math reads live state. Dynamic import: robotLfoLinks.ts is a system
+    // (src/systems), and the engine imports nothing from there at the top.
     try {
       const { primeRosterLinks } = await import('../systems/robotLfoLinks');
       primeRosterLinks(getActiveLocaleRobots());
