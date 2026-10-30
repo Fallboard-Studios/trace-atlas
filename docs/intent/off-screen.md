@@ -70,6 +70,13 @@ ids join the Attenuation Style and coordinates as the world's identity in the pa
 - Themes and aspects change **only what a fresh seed is allowed to roll**: the same AS + coords under Classic and under
   Calm sound similar, not identical. Sliders' ranges, LFO swing ranges (`GLOBAL_AUDIO_SEED_RANGES`) and hand edits are
   untouched.
+- **Amended 2026-10-30, at the spec review (Crawford):** a family's aspects are **multi-select**. The picked set is
+  dealt **round-robin** over the fleet's seeded groups — the companies in spawn order, then each freelance robot on its
+  own — until every group has one: one pick is the whole fleet, two alternate, "as theme" can be picked as a member to
+  keep plain groups in a mixed fleet; all seeded, so a link reproduces the deal. Per robot nothing changes: at most one
+  aspect per family, replace-not-widen. The multi-select is a `RadioButton` `multiple` variant that wears the cabinetry
+  like Button and Toggle do. The company and robot details show what a robot loaded under (a readout, not a control).
+  Supersedes "one pick per family" below and the parked "per-aspect share" in Out of scope.
 - **Narrow first cut.** Each theme bands a short list of attributes — BPM, note density, envelopes, the reverb / delay
   sends, filter brightness are the candidates; the spec fixes the list — tuned by ear against Classic; every other band
   keeps Classic's column. Melody's three aspects band the Melody family's attributes (`rhythmicDensity`, `noteVariance`,
