@@ -652,6 +652,24 @@ scratchy" (281, 250); pedals off alone drew "sounds great" on D5 and "a little s
 off; D5 "not too bad, actually", D1 "scratchy throughout". Full accepted as
 unchanged (Crawford, 2026-10-29: "No need to change full."). Next: the docs (T22, T23).
 
+**Built** 2026-10-29 on `perf/light-tier-standing-cost` (spec
+[docs/specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md), plan
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md), record
+[scratchy-audio-phones.md](scratchy-audio-phones.md) "Backlog 27, the decomposition" §1–§13). Desktop capacity
+deltas are D1 / D5 at Light. **Kept, every tier (inaudible):** standing-by robots' voices released (H2, T14; −0.065 /
++0.013, inside that sitting's noise band of 0.10 / 0.12; docked robots keep theirs); a dark cell's LFOs stopped (H3a,
+T16; +0.008 / −0.009); the drift secondaries stopped while drift is held off (H3b, T17; −0.017 / −0.015; it also fixed
+drift running at Light from boot). **Kept, Light only (audible):** the pedals and colour held off (H1,
+`LOAD_EFFECTS_MIN` 0.4, T9–T13; −0.289 / −0.096) and the Reverb off (`LOAD_REVERB_MIN` 0.4, T19; −0.021 / −0.059;
+a lift resets the Convolver and ramps up over 1 s), every control they make inert dimmed (T12b). **Dropped or not
+built:** EQ3/LPF/HPF out at neutral (A6 −0.041 / −0.019; Gate A, the EQ is seeded, backlog 28 stands), the send/room fabric and the dynamics (below noise),
+the Reverb decay cap (replaced by off at Gate C), three sounding robots (about 0.06 a robot, A9; T25–T26 not built, Crawford wants four). **The phone
+(Gate C2):** on a rested Pixel 8 at Light, "sounds great" on D1 and D5 against `main`'s "too scratchy"; Full
+unchanged. Tools: `npm run perf:audio-handlers` and `perf:audio`'s census line
+([PERFORMANCE.md](../PERFORMANCE.md#handler-breakdown--npm-run-perfaudio-handlers)); behaviour in
+[AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget). Open: Gate B's desktop listen (the phone went first); the
+archive move at merge.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):

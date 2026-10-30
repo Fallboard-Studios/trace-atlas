@@ -22,7 +22,8 @@ deviations (ablation runs at 120 s; H2's mid-note release path decided in T14). 
 [docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md). This is backlog 27's own fix, so it
 carries no new number (§7 Q6); plan.md Stage 1's line points here. **Gate A, 2026-10-28:** Crawford picked the
 cuts (the intent's "Gate A — the cuts"): the inaudible ones first and alone, the audible ones only on a phone miss,
-tried stacked in one sitting; §1.3, §1.5, §1.6 and §5 follow it.
+tried stacked in one sitting; §1.3, §1.5, §1.6 and §5 follow it. **Built 2026-10-29**, Gate C2 passed on the Pixel;
+what shipped differs from §1.3's shapes as §8 lists.
 
 ---
 
@@ -440,3 +441,33 @@ Every task: types, lint, tests, build clean. Docs tasks: a read.
    set it higher or drop it to "ordered, with spreads". **Gate A:** under 70 % on D5 after T7, so Crawford had the
    remainder chased: A9 (every robot's voice refused) split Light's load into the robots (about 70 %) and the floor
    (about 30 %), every part priced or named (the decomposition's §6).
+
+## 8. As built
+
+Built 2026-10-29 on `perf/light-tier-standing-cost`; the plan's As-built notes carry the detail, the record
+([scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), "Backlog 27, the decomposition" §8–§13) the numbers.
+Where the shipped cut differs from §1.3's shape:
+
+- **H2 releases only robots standing by, not every robot that leaves the set.** At Full the sounding set is every
+  eligible robot, not `null`, so a set diff would have released muted and solo-silenced robots at Full too. Muted,
+  docked (docking mutes) and solo-silenced robots keep their voices, so H2 saves about a sixth of A2's census: A2's
+  price was mostly docked robots (§8 of the record).
+- **H2's rule lives in the engine.** Four paths reserve voices, so `AudioEngine.setStandingByRobots(ids)` stands robots
+  down and `reserveVoice` refuses them; `setSoundingRobots` rebuilds the released robots it admits and returns their
+  ids for `primeRobotLinks`. A stand-down waits for the last scheduled note, its release and 50 ms on the audio
+  clock (§7 Q3's build-on-entry holds; no pool).
+- **H3a's stop and start sit inside `connectEffect` / `disconnectEffect`**, not `writeCellMix`'s callers, and the
+  Phaser's Stages rebuild goes through `setCellEffect`. **H3b also fixed a bug:** the bank primed drift attached and
+  running at Light from boot.
+- **H1 dims more than the ten Mix rows.** Every row of the ten effect panels, and the robots' and companies' Grit,
+  Shimmer and Double send rows (`useHeldOffSends`), per §1.4's dim rule (T12b). `applyLfoTiers`'s successor is
+  `applyTiers`; the Mix is kept by `writeMix`'s record (`_lastMix`), Width held at 0.5.
+- **H5's Reverb is off, not capped** (Gate C): its own `LOAD_REVERB_MIN` (0.4), the return ramped to 0 and the
+  Reverb → return edge dropped on the audio clock; the Reverb panel and the robots' Reverb send rows dim. **The lift
+  was not in any shape:** the Convolver kept its tail and replayed it, so a lift after the drop resets it
+  (`resetReverbConvolver`, through Tone's private `_convolver`) and ramps the return over 1 s
+  (`REVERB_LIFT_RAMP_SECONDS`; record §12). The overlay reads ` · fx+rev off` with both held.
+- **Not built:** the sounding cap 4 → 3 (§1.6 (3); Crawford wants four robots), EQ3/LPF/HPF out at neutral (Gate A),
+  H3c and H4 (no cut of their own). The Reverb decay cap was replaced by the Reverb off.
+- **Gates:** Gate B's desktop listen was not run (Crawford went to the phone first); Gate C missed on D1; Gate C2
+  passed with both Light cuts ("sounds great" on D1 and D5); Full unchanged (Crawford, 2026-10-29).

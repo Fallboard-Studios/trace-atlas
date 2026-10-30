@@ -21,13 +21,6 @@ accumulation, and the late collapse has not recurred.
   per-layer records drift from the robot's layers (41: an envelope edit restores old layer values, and a layer muted at
   build shifts later edits onto the wrong oscillator). Both are code reads, so 41 starts with the tests that confirm it.
   Crawford put them next after 37 and 38 (2026-10-26).
-- Backlog [27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included) **The interview** — what the
-  Light tier still carries on the phone (about 1 790 live nodes with two to four robots sounding) and what else it
-  could cut; a change to how the audio graph is built, so interview → spec → plan, the two `main` sittings at Light as
-  the baseline. Interviewed, specified and planned 2026-10-27:
-  [intent](../intent/light-tier-standing-cost.md), [spec](../specs/LIGHT_TIER_STANDING_COST.md),
-  [plan](../tasks/LIGHT_TIER_STANDING_COST.md) (decomposition first, Gate A picks the cuts, the Pixel sitting is the
-  criterion). Next: the plan's Phase A on `perf/light-tier-standing-cost`.
 
 ## Stage 2 — The powered-down state
 

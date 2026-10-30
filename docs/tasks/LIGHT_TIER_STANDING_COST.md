@@ -1181,7 +1181,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   Pedals' "The LFOs run always" bullet was false after H3a and now reads "while the pedal is lit". Dropped cuts (the
   Reverb decay cap, three sounding robots, EQ3/LPF/HPF out) are not described. Every identifier grepped in `src/`.
 
-- [ ] **Task 23: `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/specs/LIGHT_TIER_STANDING_COST.md` — the Built line**
+- [x] **Task 23: `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/specs/LIGHT_TIER_STANDING_COST.md` — the Built line**
 
   **Description:** Backlog 27 gains its **Built** line (the cuts kept, with their desktop numbers and the sitting's
   verdict, links to the spec, this plan and the records); plan.md's Stage 1 line is deleted (the stage's heading stays
@@ -1191,16 +1191,21 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] The Built line names every kept and dropped cut with its number; plan.md no longer lists 27.
+  - [x] The Built line names every kept and dropped cut with its number; plan.md no longer lists 27.
 
   **Verification:**
-  - [ ] Manual read; `npm run lint` clean.
+  - [x] Manual read; `npm run lint` clean.
 
   **Dependencies:** Task 22.
 
   **Files:** `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/specs/LIGHT_TIER_STANDING_COST.md`
 
   **Estimated scope:** XS (docs only)
+
+  **As built (2026-10-29):** backlog 27's **Built** line after its last update (kept, dropped and not-built cuts
+  with their desktop numbers, the phone's verdict, Gate B's listen named as open); plan.md Stage 1's 27 line deleted,
+  the heading and intro left for the archive move; the spec's Status points at a new §8 "As built" (seven bullets:
+  H2's scope and home, H3a/H3b, H1's dimming, the Reverb off and its lift, what was not built, the gates).
 
 ### Checkpoint: Complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
