@@ -78,8 +78,8 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
  *  each with the one field that is its Mix: `wet` (for the Chorus and the Shifter, their room's Return), Width's `width`.
  *  While `effectsHeldOff`, every row of the panel greys out and keeps its stored value (a held-off effect's other
  *  params do nothing either: Crawford, 2026-10-29, "if they don't do anything they should be dimmed"), and the Mix row
- *  carries the one HeldOffNote. */
-const EFFECT_MIX_FIELD: Partial<Record<AudioRigEffectKey, string>> = {
+ *  carries the one HeldOffNote. Each field is typed to its own effect's settings, so a misspelt one fails to compile. */
+const EFFECT_MIX_FIELD: { readonly [K in AudioRigEffectKey]?: Extract<keyof GlobalAudioSettings[K], string> } = {
   distortion: 'wet',
   chebyshev: 'wet',
   bitCrusher: 'wet',
