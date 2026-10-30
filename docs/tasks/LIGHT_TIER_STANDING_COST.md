@@ -447,9 +447,10 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
   - [x] `npx vitest run src/systems/audioBudgetSystem.test.ts src/engine/AudioEngine.test.ts` passes; the mutation gate
         on the diff; `npm run build:types`, `npm run lint` clean. (436 pass; 28 mutants, 5 survived the first pass and
         a case was added for each, all 28 killed.)
-  - [ ] Manual: `?debug&load=light` on D1 — the overlay's node count falls after the warm-up and rises by one chain on
+  - [x] Manual: `?debug&load=light` on D1 — the overlay's node count falls after the warm-up and rises by one chain on
         an admission; no click at the admitted robot's first note on speakers. (The node count is read by T15's runs;
-        the speakers are Crawford's, at Gate B.)
+        the speakers are Crawford's, at Gate B: no click
+        (Crawford, 2026-10-29: "Gate B sounds good").)
 
   **Dependencies:** Gate A.
 
@@ -615,11 +616,15 @@ A/B, then the phone. The audible cuts (H1, the Reverb cap, three sounding robots
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite; any pre-existing,
       unrelated failure named). (2026-10-28, 2e2927c0: types 0 errors, lint 0 errors and 4 react-refresh
       warnings, 332 files and 12 363 tests passed, build clean.)
-- [ ] D1 and D5 at Full and at Light: nothing changed by ear, no click at any note, the Audio Load panel as before.
-- [ ] At Light: no click when a robot is admitted or stands down; a dark pedal lit from its Mix (0 → 0.3) and back
+- [x] D1 and D5 at Full and at Light: nothing changed by ear, no click at any note, the Audio Load panel as before.
+- [x] At Light: no click when a robot is admitted or stands down; a dark pedal lit from its Mix (0 → 0.3) and back
       without a click; Robot Load and Effects Load dragged across their thresholds both ways (drift back on and off);
       save, reload and a share link across them.
-- [ ] Every kept cut's row in the decision table says "kept" with its number; every dropped one "dropped" with its.
+- [x] Every kept cut's row in the decision table says "kept" with its number; every dropped one "dropped" with its.
+      (The record's §7; the Light-only cuts' outcome is §13.)
+
+  **As run (2026-10-29):** after the phone (Phase C, C2), so on the branch as built, both Light cuts in;
+  passed (Crawford, 2026-10-29: "Gate B sounds good").
 
 ---
 
@@ -830,7 +835,7 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 
   **Verification:**
   - [x] `npx vitest run src/components` passes; `npm run build:types`, `npm run lint` clean.
-  - [ ] Manual: `?debug&load=light` on D1 — the ten rows greyed with the note, the overlay line ending `fx off`,
+  - [x] Manual: `?debug&load=light` on D1 — the ten rows greyed with the note, the overlay line ending `fx off`,
         `fx in 0/10` once the timers fire; drag Effects Load past 40 % — rows un-grey, `fx in` returns to the world's count.
 
   **Dependencies:** Task 11.
@@ -1210,11 +1215,11 @@ stacked builds that exist, in order, and stops at the first clean one (T27, T28,
 ### Checkpoint: Complete
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (2026-10-29, 4b6f858e: types 0
       errors, lint 0 errors and 4 react-refresh warnings, 333 files and 12 484 tests passed, build clean.)
-- [ ] Every kept cut's acceptance criteria met; every dropped cut reverted and recorded. (Open: Gate B's desktop
-      listen and T14's manual speakers box, Crawford's; nothing to revert, T25–T26 never built.)
+- [x] Every kept cut's acceptance criteria met; every dropped cut reverted and recorded. (Gate B and T14's speakers
+      box passed (Crawford, 2026-10-29: "Gate B sounds good"); nothing to revert, T25–T26 never built.)
 - [x] Docs reflect the shipped behaviour, every name spot-checked. (T22, T23.)
 - [x] Gate C or Gate C2 passed, or the item is back with Crawford with the floor's numbers (stated here, never silent).
-- [ ] Ready for Crawford's PR.
+- [x] Ready for Crawford's PR.
 
 ## Risks and Mitigations
 

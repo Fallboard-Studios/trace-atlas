@@ -667,8 +667,8 @@ the Reverb decay cap (replaced by off at Gate C), three sounding robots (about 0
 (Gate C2):** on a rested Pixel 8 at Light, "sounds great" on D1 and D5 against `main`'s "too scratchy"; Full
 unchanged. Tools: `npm run perf:audio-handlers` and `perf:audio`'s census line
 ([PERFORMANCE.md](../PERFORMANCE.md#handler-breakdown--npm-run-perfaudio-handlers)); behaviour in
-[AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget). Open: Gate B's desktop listen (the phone went first); the
-archive move at merge.
+[AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget). Gate B's desktop listen passed after
+the phone (Crawford, 2026-10-29: "Gate B sounds good"). Open: the archive move at merge.
 
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 

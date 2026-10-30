@@ -469,5 +469,5 @@ Where the shipped cut differs from §1.3's shape:
   (`REVERB_LIFT_RAMP_SECONDS`; record §12). The overlay reads ` · fx+rev off` with both held.
 - **Not built:** the sounding cap 4 → 3 (§1.6 (3); Crawford wants four robots), EQ3/LPF/HPF out at neutral (Gate A),
   H3c and H4 (no cut of their own). The Reverb decay cap was replaced by the Reverb off.
-- **Gates:** Gate B's desktop listen was not run (Crawford went to the phone first); Gate C missed on D1; Gate C2
+- **Gates:** Gate B's desktop listen ran last, after the phone, and passed (Crawford, 2026-10-29: "Gate B sounds good"); Gate C missed on D1; Gate C2
   passed with both Light cuts ("sounds great" on D1 and D5); Full unchanged (Crawford, 2026-10-29).

@@ -1916,9 +1916,9 @@ audible cuts are tried stacked in one sitting and the first clean build wins (sp
 
 | Piece | Gate A |
 |---|---|
-| Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15). A/B (§8): D1 −0.065, D5 +0.013, inside that sitting's noise band; crossing ×1.000, first note on time. Verdict at Gate B |
-| Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18). A/B (§9): D1 +0.008, D5 −0.009, inside that sitting's noise band; Phaser and Chorus crossings ≤ ×1.22, no gap. Verdict at Gate B |
-| The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18). A/B (§9): D1 −0.017, D5 −0.015, inside that sitting's noise band. Verdict at Gate B |
+| Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15). A/B (§8): D1 −0.065, D5 +0.013, inside that sitting's noise band; crossing ×1.000, first note on time. Gate B passed |
+| Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18). A/B (§9): D1 +0.008, D5 −0.009, inside that sitting's noise band; Phaser and Chorus crossings ≤ ×1.22, no gap. Gate B passed |
+| The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18). A/B (§9): D1 −0.017, D5 −0.015, inside that sitting's noise band. Gate B passed |
 | Lit effects (H1) | **Only on a phone miss**, the first of three Light-only cuts (T9–T13) |
 | The Reverb (H5) | **Only on a phone miss**, a decay cap, the second (T19, T24) |
 | Sounding robots (§6) | **Only on a phone miss**, three at Light instead of four, the third (T25, T26) |
@@ -2019,7 +2019,7 @@ Transport callback; before T14 the sends were primed only from UI events. The ra
 on a fresh voice, starting at `now()` rather than the tick's time: at worst an admitted robot's first note has its sends
 fade in over its first 50 ms. Not fixed; a fresh voice could take its sends with `setValueAtTime` at the tick's time.
 
-**Verdict:** Crawford's, at Gate B (§7's row).
+**Verdict:** kept; Gate B passed (Crawford, 2026-10-29: "Gate B sounds good").
 
 ### 9. Phase B, H3's A/Bs — dark cells' LFOs and the drift secondaries stopped (T18, 2026-10-28)
 
@@ -2069,7 +2069,7 @@ light and dark after the darken in every run.
 The mono version of the probe (§8) read the same crossings at ×0.90–×1.14, also clean: neither effect changes the
 chain entry's channel count.
 
-**Verdict:** Crawford's, at Gate B (§7's rows). **Across Phase B,** no A/B in this sitting can show a saving below
+**Verdict:** kept; Gate B passed (Crawford, 2026-10-29: "Gate B sounds good"). **Across Phase B,** no A/B in this sitting can show a saving below
 about 0.1 of capacity. H3a's and H3b's Phase A prices are a quarter to a third of that, and §8 shows H2 as specified
 is worth well under A2's 0.124. A re-run of §8 and §9 on an idle
 desktop (the browser closed, NB first) would take about four and a half hours; whether it is wanted, or whether the
@@ -2270,3 +2270,5 @@ the first clean build.
 
 **Gate C2:** build 2 (`c54f9c87`), the pedals, colour and Reverb off at Light: "sounds great" on D1 and D5. Full
 unchanged (Crawford, 2026-10-29: "No need to change full.").
+
+**Gate B** (Crawford's desktop listen, run after this sitting on the branch as built): passed (Crawford, 2026-10-29: "Gate B sounds good").
