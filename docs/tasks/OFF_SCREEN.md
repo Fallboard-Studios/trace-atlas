@@ -150,8 +150,24 @@ Every task names its **Proof**: **RED test** for behaviour (a test that imports 
   **Estimated scope:** XS (an experiment)
 
 ### Checkpoint 0: The spike
-- [ ] Record: browser(s), `main` hash, the five observations, the decision (context path / fallback).
-- [ ] Reviewed with human before Task 1.
+- [x] Record: browser(s), `main` hash, the five observations, the decision (context path / fallback).
+- [ ] Reviewed with human before Task 1 (the Pixel half runs at Checkpoint A; the desktop half decided the path).
+
+**Checkpoint 0 record (2026-10-30, headless Chrome 'new' on Windows via `scripts/perf/powered-world.mjs`, dev server,
+code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `rawContext.suspend()` after a 10 s warm-up,
+20 s suspended, `resume()`, sampled at +3 s and +8 s.
+- *Measure count:* 1 before; still 1 at +5 s and +20 s suspended (transport `seconds` 9.50 → 9.51, context time
+  12.22 → 12.23 — both frozen); 2 at +3 s after resume and 3 at +8 s, i.e. advancing at the 43-bpm rate from where it
+  stopped (a 5.58 s measure; no jump — 25 s of wall time would have been four or five measures). The BeatClock's `16n`
+  `scheduleRepeat` survived; swells ride the same primitive (`audioSwells.ts:426`), so the swell ramp itself was not
+  watched separately. The HUD logged `context running → suspended` and `suspended → running`, `clock x0.00` meanwhile.
+- *Sound:* master rms 0.162 before, 0.133 at +3 s and 0.143 at +8 s after resume; voices 2 → 2 → 3; `notesSounding`
+  stayed true through the suspension (the held voices are on the frozen graph, as expected).
+- *Playback stats:* `underrunEvents` stayed at 1 (the warm-up's), `totalDuration` paused with the context (12.02 s
+  through the suspension, 14.25 s at +3 s); no stall and no silence event logged — the diagnostics flip `expectSound`
+  off while the context is suspended.
+- *Pixel:* not run here — Crawford's, at Checkpoint A (a 30 s and a 10-minute pause).
+- **Decision: the context path (assumption 2) stands; Task 1 builds it.** Fallback unneeded on desktop.
 
 ---
 
