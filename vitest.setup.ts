@@ -23,7 +23,7 @@ vi.mock('@/utils/seedUtils', async (importOriginal) => {
 
 // Minimal GSAP mock for unit tests to avoid DOM queries and timing issues.
 vi.mock('gsap', () => {
-  type TimelineConfig = { onComplete?: () => void } | undefined;
+  type TimelineConfig = { onComplete?: () => void; paused?: boolean } | undefined;
   interface TimelineObj {
     set(target?: unknown, vars?: unknown): TimelineObj;
     to(target?: unknown, config?: TimelineConfig): TimelineObj;
@@ -34,9 +34,17 @@ vi.mock('gsap', () => {
     play(): TimelineObj;
     add(child?: unknown, position?: unknown): TimelineObj;
     pause(time?: number): TimelineObj;
+    paused(): boolean;
   }
 
-  const noop = (): TimelineObj => {
+  const noop = (startPaused = false): TimelineObj => {
+    // The one piece of state this stub keeps: whether the timeline is paused, as real GSAP's
+    // paused() getter reports it — set by `{ paused: true }` at creation, pause() and play().
+    // timelineMap.ts's pauseWorldTimelines() / resumeWorldTimelines() (docs/specs/OFF_SCREEN.md
+    // assumption 3) read it to pause only the world timelines that are playing and to play
+    // only those again; missing until 2026-10-30, the same masking pattern as .kill() and
+    // .play() below — no consumer read paused() before the power rocker became a pause.
+    let paused = startPaused;
     const obj = {
       // No onComplete on tl.set() (real GSAP's .set() vars don't take one
       // either) — it's an immediate, synchronous step, unlike .to()/.fromTo()
@@ -85,13 +93,14 @@ vi.mock('gsap', () => {
       // swimAnimation.test.ts (docs/tasks/TEST_COVERAGE_CORE_MODULES.md
       // Task 8) became the first test to invoke createSwimTimeline for real
       // rather than mocking swimAnimation.ts itself.
-      play: () => obj as TimelineObj,
+      play: () => { paused = false; return obj as TimelineObj; },
       // BubbleStream.tsx nests one child timeline per bubble via tl.add() and rewinds with
       // tl.pause(0) when its building is inactive. Its own test file swaps in a recording
       // mock, but any file that renders a real Factory without stubbing BubbleStream (see
       // FactoryBubbleStream.test.tsx for the stub) hits these through this mock.
       add: (_child?: unknown, _position?: unknown) => obj as TimelineObj,
-      pause: (_time?: number) => obj as TimelineObj,
+      pause: (_time?: number) => { paused = true; return obj as TimelineObj; },
+      paused: () => paused,
     };
     return obj as TimelineObj;
   };
@@ -102,7 +111,7 @@ vi.mock('gsap', () => {
         // call on next microtask to emulate async completion
         Promise.resolve().then(() => config.onComplete && config.onComplete());
       }
-      return noop();
+      return noop(config?.paused === true);
     },
     set: () => { },
     // Module-level to()/fromTo() (distinct from a timeline instance's own .to()/.fromTo() above)

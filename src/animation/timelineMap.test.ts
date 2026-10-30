@@ -1,6 +1,82 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import gsap from 'gsap';
-import { setTimeline, getTimeline, killTimeline, killAllTimelines, timelineMap } from './timelineMap';
+import {
+  setTimeline,
+  getTimeline,
+  getTimelineScope,
+  killTimeline,
+  killAllTimelines,
+  pauseWorldTimelines,
+  resumeWorldTimelines,
+  timelineMap,
+} from './timelineMap';
+
+// Power is a pause (docs/specs/OFF_SCREEN.md assumption 3, docs/tasks/OFF_SCREEN.md Task 2): every registered timeline
+// carries a scope, and the world's pause and play as one set while the UI's keep running.
+describe('timeline scope', () => {
+  afterEach(() => killAllTimelines());
+
+  it('registers as ui by default, reports world when asked, and undefined for an unknown id', () => {
+    setTimeline('ui-thing', gsap.timeline());
+    setTimeline('world-thing', gsap.timeline(), 'world');
+
+    expect(getTimelineScope('ui-thing')).toBe('ui');
+    expect(getTimelineScope('world-thing')).toBe('world');
+    expect(getTimelineScope('nothing-here')).toBeUndefined();
+  });
+
+  it('pauseWorldTimelines pauses every world timeline and no ui one; resumeWorldTimelines plays the world ones again', () => {
+    const swim = gsap.timeline();
+    const rocker = gsap.timeline();
+    setTimeline('swim-r1', swim, 'world');
+    setTimeline('power-rocker', rocker);
+
+    pauseWorldTimelines();
+    expect(swim.paused()).toBe(true);
+    expect(rocker.paused()).toBe(false);
+
+    resumeWorldTimelines();
+    expect(swim.paused()).toBe(false);
+    expect(rocker.paused()).toBe(false);
+  });
+
+  it('pauses a world timeline registered while the world is paused, and plays it on resume', () => {
+    pauseWorldTimelines();
+    const late = gsap.timeline();
+    setTimeline('swim-late', late, 'world');
+    expect(late.paused()).toBe(true);
+
+    resumeWorldTimelines();
+    expect(late.paused()).toBe(false);
+  });
+
+  it('leaves a world timeline that was already paused before the world pause paused after the resume', () => {
+    const held = gsap.timeline({ paused: true });
+    setTimeline('bob-wait-r2', held, 'world');
+
+    pauseWorldTimelines();
+    resumeWorldTimelines();
+
+    expect(held.paused()).toBe(true);
+  });
+
+  it('killTimeline forgets the scope with the timeline', () => {
+    setTimeline('swim-r3', gsap.timeline(), 'world');
+    killTimeline('swim-r3');
+    expect(getTimelineScope('swim-r3')).toBeUndefined();
+  });
+
+  it('killAllTimelines empties the map and ends the world pause, so a later world timeline plays', () => {
+    setTimeline('swim-r4', gsap.timeline(), 'world');
+    pauseWorldTimelines();
+    killAllTimelines();
+    expect(timelineMap.size).toBe(0);
+
+    const fresh = gsap.timeline();
+    setTimeline('swim-r5', fresh, 'world');
+    expect(fresh.paused()).toBe(false);
+  });
+});
 
 afterEach(() => {
   timelineMap.clear();
