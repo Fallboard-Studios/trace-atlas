@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { BubbleStream } from './BubbleStream';
-import { timelineMap, killAllTimelines } from '../../animation/timelineMap';
+import { getTimelineScope, timelineMap, killAllTimelines } from '../../animation/timelineMap';
 
 // ----------------------------------------
 // RECORDING GSAP MOCK
@@ -181,6 +181,8 @@ describe('BubbleStream', () => {
       const { container } = renderStream();
       expect(container.querySelectorAll('circle').length).toBe(count);
       expect(registeredParent().children.length).toBe(count);
+      // A world mover: the power rocker's pause freezes the bubbles with the robots (OFF_SCREEN assumption 3).
+      expect(getTimelineScope(`bubble-${baseProps.actorId}`)).toBe('world');
     });
 
     it('kills and unregisters the timeline on unmount', () => {

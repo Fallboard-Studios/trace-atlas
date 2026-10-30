@@ -16,7 +16,7 @@ import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, type Station } from './stations';
 import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import * as stationsModule from './stations';
-import { getTimeline, killAllTimelines, timelineMap } from '../animation/timelineMap';
+import { getTimeline, getTimelineScope, killAllTimelines, timelineMap } from '../animation/timelineMap';
 import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
 import * as buildJobTimelineModule from '../animation/jobMoves/buildJobTimeline';
 import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
@@ -188,6 +188,7 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(r.job).toBe(job);
     expect(getSiteState(a.id)?.heldBy).toBe('r1');
     expect(getTimeline('swim-r1')).toBeDefined();
+    expect(getTimelineScope('swim-r1')).toBe('world'); // a world mover: the power rocker's pause freezes it
   });
 
   it("arrival writes the park position and starts 'working' with the orbiters locked", () => {
@@ -207,6 +208,7 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(control.unlock).not.toHaveBeenCalled();
     expect(Number(gsap.getProperty(el, 'x'))).toBeCloseTo(park.x, 3); // GSAP rounds transforms to 4 places
     expect(getTimeline('work-r1')).toBeDefined();
+    expect(getTimelineScope('work-r1')).toBe('world');
     expect(getTimeline('work-r1')!.duration()).toBeCloseTo(jobDuration(BPM), 6);
   });
 
@@ -250,6 +252,7 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(get('r1').activity).toBe('waiting');
     expect(get('r1').siteId).toBeUndefined();
     const bob = getTimeline('bob-wait-r1')!;
+    expect(getTimelineScope('bob-wait-r1')).toBe('world');
     expect(bob.duration()).toBeCloseTo(WAIT_RETRY_SECONDS, 6);
     const y0 = get('r1').position.y;
     bob.progress(0.5); // the yoyo's peak

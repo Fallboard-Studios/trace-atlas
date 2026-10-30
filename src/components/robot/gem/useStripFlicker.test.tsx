@@ -69,7 +69,7 @@ vi.mock('gsap', () => {
 // OTHER IMPORTS (after the gsap mock — vitest hoists vi.mock calls above these anyway)
 // ========================================
 import { useStripFlicker, type StripLine, type FlickerTrigger } from './useStripFlicker';
-import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
+import { getTimelineScope, timelineMap, killAllTimelines } from '../../../animation/timelineMap';
 import { FLICKER_WINDOW, FLICKER_LOW } from './stripFlicker';
 
 // ========================================
@@ -156,6 +156,7 @@ describe('useStripFlicker — per-line flicker timelines (Phase 41, Task 12)', (
 
     const key = keyFor('world', 'r1', 'top');
     expect(timelineMap.has(key)).toBe(true);
+    expect(getTimelineScope(key)).toBe('world'); // a world mover: the power rocker's pause freezes it (OFF_SCREEN assumption 3)
     const tl = timelineMap.get(key) as unknown as FakeTimeline;
 
     const topStrip = stripsFor(container, 'top')[0];

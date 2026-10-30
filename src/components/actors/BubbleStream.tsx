@@ -240,7 +240,7 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
       tl.add(bubbleTl, i * burstStagger);
     });
 
-    setTimeline(timelineKey, tl);
+    setTimeline(timelineKey, tl, 'world');
     return () => killTimeline(timelineKey);
     // The vent position lives on the strip's left/top, not in the timeline, so
     // ventX/ventY aren't dependencies here — `config` already covers seed/depth/count.

@@ -63,6 +63,9 @@ describe('PowerRockerSwitch', () => {
     await fireEvent.click(btn);
     expect(powerController.powerOnSequence).toHaveBeenCalled();
     expect(setTimeline).toHaveBeenCalled();
+    // The rocker's own sequence is UI chrome — registered with the default scope (two arguments, no 'world'), so it
+    // keeps running while the world is paused (OFF_SCREEN assumption 3).
+    expect(setTimeline).toHaveBeenCalledWith('power-rocker-sequence', expect.anything());
   });
 
   it('colors the light red (via statusLightColors) when powered off', () => {

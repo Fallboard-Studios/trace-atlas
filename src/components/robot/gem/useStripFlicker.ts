@@ -106,7 +106,7 @@ function useFlickerLine({
           tl.set(el, { opacity: base }, blink.at + blink.len);
         });
       });
-      setTimeline(key, tl);
+      setTimeline(key, tl, 'world');
       return () => killTimeline(key);
     },
     { scope: root, dependencies: [...trigger, enabled, reducedMotion], revertOnUpdate: true },

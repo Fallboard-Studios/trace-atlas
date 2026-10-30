@@ -400,7 +400,7 @@ function dissolve(loop: LoopRun, robot: Robot, kind: 'out' | 'in', onDone: () =>
     }),
   });
   tl.fromTo(copy, { opacity: out ? 1 : 0 }, { opacity: out ? 0 : 1, duration: LAYER_DISSOLVE_SECONDS, ease: 'none' }, 0);
-  setTimeline(`dissolve-${robot.id}`, tl);
+  setTimeline(`dissolve-${robot.id}`, tl, 'world');
   tl.play();
 }
 
@@ -457,7 +457,7 @@ function swimTo(loop: LoopRun, robot: Robot, destination: Vec2, scale: number, o
   // can't kill): the same travel time, keyed like a swim.
   const distance = Math.hypot(destination.x - robot.position.x, destination.y - robot.position.y);
   const tl = timed(distance / SWIM_SPEED, arrive);
-  setTimeline(`swim-${robot.id}`, tl);
+  setTimeline(`swim-${robot.id}`, tl, 'world');
   tl.play();
 }
 
@@ -538,7 +538,7 @@ function work(loop: LoopRun, robotId: string, site: WorkSite): void {
   const robotEl = bodyOf(robotId);
   if (!robotEl) {
     const tl = timed(jobDuration(bpm), done);
-    setTimeline(`work-${robotId}`, tl);
+    setTimeline(`work-${robotId}`, tl, 'world');
     tl.play();
     return;
   }
@@ -577,7 +577,7 @@ function wait(loop: LoopRun, robot: Robot): void {
       repeat: 1,
     })
     : timed(WAIT_RETRY_SECONDS, again);
-  setTimeline(`bob-wait-${robot.id}`, tl);
+  setTimeline(`bob-wait-${robot.id}`, tl, 'world');
   tl.play();
 }
 
@@ -599,7 +599,7 @@ function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station
   const el = bodyOf(robot.id);
   if (!el) {
     const tl = timed(duration, done);
-    setTimeline(key, tl);
+    setTimeline(key, tl, 'world');
     tl.play();
     return;
   }
@@ -619,7 +619,7 @@ function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station
   }
   getArcDecorator(robot.id)?.(kind, duration, tl);
   if (!reduced && station) playStationRipple(station.id, kind, robot.identityColor, duration);
-  setTimeline(key, tl);
+  setTimeline(key, tl, 'world');
   tl.play();
 }
 

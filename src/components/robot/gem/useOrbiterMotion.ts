@@ -139,7 +139,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       if (!locals.length) return;
       const key = `orbiter-size-${context}-${robotId}`;
       const tween = gsap.to(locals, { scale: dials.size, duration: reducedMotion ? 0 : ORBITER_SIZE_TWEEN, ease: 'power2.out' });
-      setTimeline(key, tween as unknown as ReturnType<typeof gsap.timeline>);
+      setTimeline(key, tween as unknown as ReturnType<typeof gsap.timeline>, 'world');
       return () => killTimeline(key);
     },
     { scope: root, dependencies: [dials.size, enabled, reducedMotion], revertOnUpdate: true },
@@ -297,7 +297,10 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       // would just be a standing, never-used GSAP object per robot per context (the exact category
       // of cost the Task 13 perf investigation flagged). `timelineMap` only ever calls `.kill()` on
       // what's stored, so a plain stub satisfies the contract (same pattern the old per-pair
-      // scheduler keys used, code review 2026-10-05).
+      // scheduler keys used, code review 2026-10-05). It stays in the default 'ui' scope on
+      // purpose: the power rocker's world pause calls paused() / pause() / play() on every 'world'
+      // entry (docs/specs/OFF_SCREEN.md assumption 3), and a token has none of them. The hop
+      // tweens it owns are short and never registered, so an in-flight hop finishes under a pause.
       setTimeline(masterKey, { kill: () => {} } as unknown as ReturnType<typeof gsap.timeline>);
       return () => {
         killTimeline(masterKey);
