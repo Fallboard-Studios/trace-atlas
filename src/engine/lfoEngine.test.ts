@@ -463,6 +463,80 @@ describe('lfoBank (lfoEngine)', () => {
       expect(lanes.a.rateDriftGain.connect.mock.calls.length).toBeGreaterThan(connectCallsBefore);
       expect(lanes.a.rateDriftGain.gain.value).toBe(0); // rate still 0 -> swing max 0 -> 0.5 * 0
     });
+
+    // docs/specs/LIGHT_TIER_STANDING_COST.md H3b (Task 17): while drift is held off its four secondaries are stopped,
+    // not only detached; the lanes themselves keep running at every tier.
+    describe('the drift secondaries stopped while drift is held off (Light tier standing cost T17)', () => {
+      const drifts = (lanes: Record<string, LaneNodeSet>) => Object.values(lanes).map((lane) => lane.drift);
+
+      it('setDriftEnabled(false) stops each secondary once; a second (false) does nothing', async () => {
+        const { lfoEngine, lanes } = await primeBankRunning();
+
+        lfoEngine.setDriftEnabled(false);
+        lfoEngine.setDriftEnabled(false);
+
+        for (const drift of drifts(lanes)) expect(drift.stop).toHaveBeenCalledTimes(1);
+      });
+
+      it('setDriftEnabled(true) starts each secondary once, at now + MIN_LEAD, beside the re-attach', async () => {
+        const { MIN_LEAD } = await import('../constants');
+        const { lfoEngine, lanes } = await primeBankRunning();
+        lfoEngine.setDriftEnabled(false);
+        mockToneNow = 20;
+
+        lfoEngine.setDriftEnabled(true);
+        lfoEngine.setDriftEnabled(true);
+
+        for (const drift of drifts(lanes)) {
+          expect(drift.start).toHaveBeenCalledTimes(2); // the prime's, then this one
+          expect(drift.start).toHaveBeenLastCalledWith(20 + MIN_LEAD);
+        }
+      });
+
+      it('never stops or restarts the lane LFOs themselves', async () => {
+        const { lfoEngine, lanes } = await primeBankRunning();
+
+        lfoEngine.setDriftEnabled(false);
+        lfoEngine.setDriftEnabled(true);
+
+        for (const lane of Object.values(lanes)) {
+          expect(lane.lfo.stop).not.toHaveBeenCalled();
+          expect(lane.lfo.start).toHaveBeenCalledTimes(1);
+        }
+      });
+
+      it('a bank primed while drift is held off builds its secondaries stopped and detached', async () => {
+        const { lfoEngine } = await import('./lfoEngine');
+        lfoEngine.setDriftEnabled(false); // the budget at Light, before the first power-on
+
+        const { lanes } = await primeBankRunning();
+
+        for (const lane of Object.values(lanes)) {
+          expect(lane.drift.start).not.toHaveBeenCalled();
+          expect(lane.rateDriftGain.connect).not.toHaveBeenCalled();
+          expect(lane.depthDriftGain.connect).not.toHaveBeenCalled();
+          expect(lane.lfo.start).toHaveBeenCalledTimes(1);
+        }
+
+        lfoEngine.setDriftEnabled(true);
+
+        for (const lane of Object.values(lanes)) {
+          expect(lane.drift.start).toHaveBeenCalledTimes(1);
+          expect(lane.rateDriftGain.connect).toHaveBeenCalledTimes(1);
+          expect(lane.depthDriftGain.connect).toHaveBeenCalledTimes(1);
+        }
+      });
+
+      it('leaves the stored drift amounts untouched', async () => {
+        const { lfoEngine, lanes } = await primeBankRunning();
+        lfoEngine.setBankDepthDrift('c', -0.4);
+
+        lfoEngine.setDriftEnabled(false);
+
+        expect(lfoEngine.getBankSettings('c').depthDrift).toBe(-0.4);
+        expect(lanes.c.depthDriftGain.gain.value).toBe(-0.4);
+      });
+    });
   });
 
   describe('setFilterLinksEnabled', () => {

@@ -1373,6 +1373,58 @@ describe('AudioSettingSection', () => {
     });
   });
 
+  // Light tier standing cost T12b (Crawford, 2026-10-29: "if they don't do anything they should be dimmed").
+  describe('held-off send rows (Light tier standing cost T12b)', () => {
+    const baseProps = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, ...LEVEL_NOOPS };
+    const HELD_OFF = CONTENT['ui.heldOff'].human;
+    const held = (...fields: RobotSendField[]) => swells(...fields);
+    const sendSlider = (field: RobotSendField) =>
+      screen.getByRole('slider', { name: new RegExp('^' + CONTENT[ROBOT_SENDS.find((s) => s.field === field)!.contentKey].human, 'i') });
+    const dynamicsSlider = () => screen.getByRole('slider', { name: new RegExp('^' + CONTENT['probe.levels.dynamics'].human, 'i') });
+
+    it('dims the held-off send rows, keeps their values, and leaves every other row live', () => {
+      render(<AudioSettingSection value={makeValue({ panAuto: false, gritSend: 0.6 })} {...baseProps} heldOffSends={held('gritSend', 'shimmerSend', 'doubleSend')} />);
+      for (const field of ['gritSend', 'shimmerSend', 'doubleSend'] as const) {
+        const slider = sendSlider(field);
+        expect(slider.getAttribute('data-disabled'), field).not.toBeNull();
+        expect(slider.closest('.sc-held-off'), field).not.toBeNull();
+      }
+      expect(sendSlider('gritSend').getAttribute('aria-valuenow')).toBe('60');
+      for (const field of ['reverbSend', 'delaySend'] as const) {
+        expect(sendSlider(field).getAttribute('data-disabled'), field).toBeNull();
+        expect(sendSlider(field).closest('.sc-held-off'), field).toBeNull();
+      }
+      expect(screen.getByRole('slider', { name: /volume/i }).getAttribute('data-disabled')).toBeNull();
+      expect(screen.getByRole('slider', { name: new RegExp('^' + CONTENT['probe.pan'].human, 'i') }).getAttribute('data-disabled')).toBeNull();
+      expect(dynamicsSlider().getAttribute('data-disabled')).toBeNull();
+    });
+
+    it('says why once, under the send rows and before Dynamics', () => {
+      render(<AudioSettingSection value={makeValue()} {...baseProps} heldOffSends={held('gritSend', 'shimmerSend', 'doubleSend')} />);
+      const notes = screen.getAllByText(HELD_OFF);
+      expect(notes).toHaveLength(1);
+      expect(!!(sendSlider('doubleSend').compareDocumentPosition(notes[0]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(!!(notes[0].compareDocumentPosition(dynamicsSlider()) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    });
+
+    it('dims any one send on its own (the Reverb, for the Reverb hold-off)', () => {
+      render(<AudioSettingSection value={makeValue()} {...baseProps} heldOffSends={held('reverbSend')} />);
+      expect(sendSlider('reverbSend').getAttribute('data-disabled')).not.toBeNull();
+      expect(sendSlider('gritSend').getAttribute('data-disabled')).toBeNull();
+      expect(screen.getAllByText(HELD_OFF)).toHaveLength(1);
+    });
+
+    it('dims nothing and says nothing with no record, or with every send live', () => {
+      const { unmount } = render(<AudioSettingSection value={makeValue()} {...baseProps} />);
+      expect(screen.queryByText(HELD_OFF)).toBeNull();
+      expect(document.querySelector('.sc-held-off')).toBeNull();
+      unmount();
+      render(<AudioSettingSection value={makeValue()} {...baseProps} heldOffSends={held()} />);
+      expect(screen.queryByText(HELD_OFF)).toBeNull();
+      for (const spec of ROBOT_SENDS) expect(sendSlider(spec.field).getAttribute('data-disabled'), spec.field).toBeNull();
+    });
+  });
+
   describe('React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((AudioSettingSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));

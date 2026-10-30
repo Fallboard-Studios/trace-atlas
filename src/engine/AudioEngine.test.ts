@@ -274,6 +274,12 @@ vi.mock('../constants', async () => {
   return { ...actual, DEV_TUNING: false };
 });
 
+// devWarn as a spy (DEV_TUNING is off above, so console.warn never shows what it would say), call-through otherwise.
+vi.mock('../utils/helpers', async () => {
+  const actual = await vi.importActual<typeof import('../utils/helpers')>('../utils/helpers');
+  return { ...actual, devWarn: vi.fn() };
+});
+
 // Mock the LFO Bank engine (docs/tasks/LFO_BANK.md Task 10) — AudioEngine.start() primes/links
 // the bank through this, but exercising the real engine here would mean also mocking a real
 // Tone.LFO, which is out of scope for testing AudioEngine's own orchestration logic (which
@@ -282,6 +288,7 @@ vi.mock('./lfoEngine', () => ({
   lfoEngine: {
     primeLfoBank: vi.fn(),
     linkTarget: vi.fn(() => true),
+    disposeRobotLinks: vi.fn(),
   },
 }));
 
@@ -759,6 +766,339 @@ describe('AudioEngine - Polyphony Management', () => {
       expect(await play('waiting')).toBe(false);
 
       expect(AudioEngine.getPolyphonyStats().voices).toBe(1);
+    });
+
+    // docs/specs/LIGHT_TIER_STANDING_COST.md H2 (Task 14): a robot standing by (eligible, over the budget) carries no
+    // voice. Its release waits for its last note's tail; it is rebuilt only when it enters the sounding set or the
+    // budget is lifted. Robots silenced by mute/solo are never standing by, so they keep their voices as before.
+    describe('standing-by voices (Light tier standing cost T14)', () => {
+      const ROBOT_ADSR = { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 };
+      const robot = (id: string) => ({
+        id,
+        name: id,
+        position: { x: 960, y: 0 },
+        melody: [],
+        octaveRange: [3, 4],
+        masterVolume: 0.8,
+        audioMode: 'none',
+        panAuto: true,
+        pan: 0,
+        audioAttributes: { waveform: 'sine', adsr: ROBOT_ADSR, filterFreq: 1850, layers: [{ type: 'sine', gain: 1 }] },
+      });
+
+      let engine: typeof import('./AudioEngine').AudioEngine;
+      /** The budget system's push (audioBudgetSystem applySet): the sounding set, its rebuilds returned, then who stands by. */
+      const push = (soundingIds: string[], standingBy: string[]) => {
+        const rebuilt = engine.setSoundingRobots(soundingIds);
+        engine.setStandingByRobots(standingBy);
+        return rebuilt;
+      };
+
+      /** The fresh engine with 'test', 'waiting' and 'late' in the active locale, each with a reserved voice. */
+      const setup = async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        engine = AudioEngine;
+        const { useLocaleStore } = await import('../stores/localeStore');
+        const { lfoEngine } = await import('./lfoEngine');
+        useLocaleStore.setState({ locales: { testLocale: { robots: [robot('test'), robot('waiting'), robot('late')] } } } as any);
+        AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR);
+        AudioEngine.reserveVoice('late', TEST_LAYERED, TEST_ADSR);
+        vi.mocked(lfoEngine.disposeRobotLinks).mockClear(); // the mock module outlives resetModules
+        return { AudioEngine, lfoEngine };
+      };
+
+      /** Every delay handed to an AudioContext-clock timer so far, in seconds. */
+      const timerDelays = async () => {
+        const Tone = await import('tone');
+        const contexts = (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results as Array<{ value: { setTimeout: ReturnType<typeof vi.fn> } }>;
+        return contexts.flatMap((result) => result.value.setTimeout.mock.calls.map((call: unknown[]) => call[1] as number));
+      };
+
+      it('releases a quiet standing-by robot at once and disposes its links', async () => {
+        const { AudioEngine, lfoEngine } = await setup();
+
+        push(['test'], ['waiting']);
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+        expect(lfoEngine.disposeRobotLinks).toHaveBeenCalledWith('waiting');
+        expect(lfoEngine.disposeRobotLinks).toHaveBeenCalledTimes(1);
+      });
+
+      it('releases nothing when nobody stands by: every voice is the one reserved before (Full)', async () => {
+        const { AudioEngine, lfoEngine } = await setup();
+        const before = ['test', 'waiting', 'late'].map((id) => AudioEngine.getVoiceForRobot(id));
+
+        push(['test', 'waiting', 'late'], []);
+        push(['test'], []); // the other two silenced by mute/solo: not standing by
+
+        expect(['test', 'waiting', 'late'].map((id) => AudioEngine.getVoiceForRobot(id))).toEqual(before);
+        expect(before.every((voice) => voice !== null)).toBe(true);
+        expect(lfoEngine.disposeRobotLinks).not.toHaveBeenCalled();
+      });
+
+      it('a sounding set alone stands nobody by', async () => {
+        const { AudioEngine } = await setup();
+        AudioEngine.setSoundingRobots(['test']);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+      });
+
+      it('admits a released robot whichever of the two pushes comes first: a sounding robot never stands by', async () => {
+        const { AudioEngine } = await setup();
+        AudioEngine.setStandingByRobots(['waiting', 'late']);
+
+        AudioEngine.setStandingByRobots(['waiting', 'late']); // the stale standing-by set still names it…
+        const rebuilt = AudioEngine.setSoundingRobots(['test', 'waiting']); // …when the admission arrives
+
+        expect(rebuilt).toEqual(['waiting']);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+        expect(AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR)).toBe(true);
+        expect(AudioEngine.getVoiceForRobot('late')).toBeNull();
+      });
+
+      it('keeps a standing-by robot sounding its last note until the note and its release have ended', async () => {
+        const { AudioEngine, lfoEngine } = await setup();
+        push(['test', 'waiting'], []);
+        expect(await play('waiting')).toBe(true); // a 4n (1 s here) at time 0, release 0.5 s
+        const voice = AudioEngine.getVoiceForRobot('waiting');
+
+        push(['test'], ['waiting']);
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBe(voice);
+        expect(lfoEngine.disposeRobotLinks).not.toHaveBeenCalled();
+        const delays = await timerDelays();
+        expect(delays.some((d) => d >= 1.5 && d <= 1.6)).toBe(true); // note end + release + a margin, on the audio clock
+
+        await fireAllReleases();
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+        expect(lfoEngine.disposeRobotLinks).toHaveBeenCalledWith('waiting');
+      });
+
+      it('never strands the voice counter when a robot stands by with notes in flight', async () => {
+        const { AudioEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        await play('waiting');
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(2);
+
+        push(['test'], ['waiting']);
+        await fireAllReleases();
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(0);
+      });
+
+      it('a robot admitted again before its pending release fires keeps the same voice, and the late timer does nothing', async () => {
+        const { AudioEngine, lfoEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        const voice = AudioEngine.getVoiceForRobot('waiting');
+        push(['test'], ['waiting']);
+
+        const rebuilt = push(['test', 'waiting'], []);
+        await fireAllReleases();
+
+        expect(rebuilt).toEqual([]);
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBe(voice);
+        expect(lfoEngine.disposeRobotLinks).not.toHaveBeenCalled();
+      });
+
+      it('a stale timer from an earlier stand-down does not cut a later one short', async () => {
+        const { AudioEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        push(['test'], ['waiting']); // timer 1
+        const Tone = await import('tone');
+        const contexts = (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results as Array<{ value: { setTimeout: ReturnType<typeof vi.fn> } }>;
+        const firstTimers = contexts.flatMap((result) => result.value.setTimeout.mock.calls.map((call: unknown[]) => call[0] as () => void));
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        push(['test'], ['waiting']); // timer 2, for the newer note
+
+        firstTimers.forEach((fire) => fire());
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+      });
+
+      it('refuses to reserve a voice for a standing-by robot (a power cycle or an edit cannot rebuild it)', async () => {
+        const { AudioEngine } = await setup();
+        push(['test'], ['waiting']);
+
+        expect(AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR)).toBe(false);
+        expect(AudioEngine.reReserveVoice('waiting')).toBe(false);
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+      });
+
+      it('rebuilds a released robot from its stored fields when it enters the sounding set, and names it', async () => {
+        const { AudioEngine } = await setup();
+        push(['test'], ['waiting', 'late']);
+        const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice');
+
+        const rebuilt = push(['test', 'waiting'], ['late']);
+
+        expect(rebuilt).toEqual(['waiting']);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+        expect(AudioEngine.getVoiceForRobot('late')).toBeNull();
+        expect(reserveSpy).toHaveBeenCalledTimes(1);
+        expect(reserveSpy).toHaveBeenCalledWith('waiting', [{ type: 'sine', gain: 1 }], ROBOT_ADSR, undefined, undefined, undefined, 0.8, 1850, expect.any(Object));
+      });
+
+      it('a released robot that leaves standing-by without being admitted (muted) stays released until it is admitted', async () => {
+        const { AudioEngine } = await setup();
+        push(['test'], ['waiting']);
+
+        expect(push(['test'], [])).toEqual([]);
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+
+        expect(push(['test', 'waiting'], [])).toEqual(['waiting']);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+      });
+
+      it('null rebuilds every robot the budget released, and only those', async () => {
+        const { AudioEngine } = await setup();
+        push(['test'], ['waiting', 'late']);
+        const testVoice = AudioEngine.getVoiceForRobot('test');
+
+        const rebuilt = AudioEngine.setSoundingRobots(null);
+
+        expect([...rebuilt].sort()).toEqual(['late', 'waiting']);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+        expect(AudioEngine.getVoiceForRobot('late')).not.toBeNull();
+        expect(AudioEngine.getVoiceForRobot('test')).toBe(testVoice);
+        expect(AudioEngine.setSoundingRobots(null)).toEqual([]); // nothing left to rebuild
+      });
+
+      it('null also cancels a pending release', async () => {
+        const { AudioEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        const voice = AudioEngine.getVoiceForRobot('waiting');
+        push(['test'], ['waiting']);
+
+        AudioEngine.setSoundingRobots(null);
+        await fireAllReleases();
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBe(voice);
+      });
+
+      it('re-sending the same standing-by set releases nothing twice', async () => {
+        const { lfoEngine } = await setup();
+        push(['test'], ['waiting']);
+        push(['test'], ['waiting']);
+        expect(lfoEngine.disposeRobotLinks).toHaveBeenCalledTimes(1);
+      });
+
+      it('a write to a released robot is a silent no-op; one to a robot that never had a voice still warns', async () => {
+        const { AudioEngine } = await setup();
+        const { devWarn } = await import('../utils/helpers');
+        push(['test'], ['waiting']);
+        vi.mocked(devWarn).mockClear();
+
+        AudioEngine.updateRobotSends('waiting', { reverb: 0.4 });
+        AudioEngine.updateRobotMasterVolume('waiting', 0.5);
+        AudioEngine.updateVoiceLayerParams('waiting', [{ type: 'sine', gain: 0.5 }] as any);
+        expect(devWarn).not.toHaveBeenCalled();
+
+        AudioEngine.updateRobotSends('nobody', { reverb: 0.4 });
+        expect(devWarn).toHaveBeenCalledTimes(1);
+        expect(devWarn).toHaveBeenCalledWith('[AudioEngine] updateRobotSends: no composite reserved for nobody');
+      });
+
+      it('adds the context lookahead back, since the clock fires its timers against now() + lookahead', async () => {
+        const Tone = await import('tone');
+        const { AudioEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting'); // ends at 1 s, release 0.5 s
+        const setTimeout = vi.fn(() => 1);
+        vi.mocked(Tone.getContext).mockReturnValueOnce({ now: vi.fn(() => 0), setTimeout, clearTimeout: vi.fn(), lookAhead: 0.1 } as any);
+
+        push(['test'], ['waiting']);
+
+        expect(setTimeout).toHaveBeenCalledTimes(1);
+        expect((setTimeout.mock.calls[0] as unknown[])[1]).toBeCloseTo(1 + 0.5 + 0.1 + 0.05, 6);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+      });
+
+      it('a robot refused a reservation while its stand-down is pending keeps that voice when admitted', async () => {
+        const { AudioEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        const voice = AudioEngine.getVoiceForRobot('waiting');
+        push(['test'], ['waiting']);
+        expect(AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR)).toBe(false); // e.g. a spawn pass
+
+        expect(push(['test', 'waiting'], [])).toEqual([]);
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBe(voice);
+      });
+
+      it('rebuilds on admission a robot whose reservation was refused while it stood by (a spawn over the budget)', async () => {
+        const { AudioEngine } = await setup();
+        AudioEngine.releaseVoice('late'); // as if never reserved
+        push(['test'], ['late']);
+        expect(AudioEngine.reserveVoice('late', TEST_LAYERED, TEST_ADSR)).toBe(false); // spawnRobot, refused
+
+        expect(push(['test', 'late'], [])).toEqual(['late']);
+        expect(AudioEngine.getVoiceForRobot('late')).not.toBeNull();
+      });
+
+      it('waits for the latest-ending note, not the last one scheduled', async () => {
+        await setup();
+        push(['test', 'waiting'], []);
+        const { triggerWithCap } = await import('./AudioEngine');
+        triggerWithCap({ robotId: 'waiting', note: 'C4', duration: '2n', time: 0, velocity: 0.8 }); // ends at 2 s
+        triggerWithCap({ robotId: 'waiting', note: 'E4', duration: '8n', time: 0, velocity: 0.8 }); // ends at 0.5 s
+
+        push(['test'], ['waiting']);
+
+        expect((await timerDelays()).some((d) => d >= 2.5 && d <= 2.6)).toBe(true); // 2 + release 0.5 + margin
+      });
+
+      it('waits for a later note that ends later: each note in a sequence moves the stand-down on', async () => {
+        await setup();
+        push(['test', 'waiting'], []);
+        const { triggerWithCap } = await import('./AudioEngine');
+        triggerWithCap({ robotId: 'waiting', note: 'C4', duration: '8n', time: 0, velocity: 0.8 }); // ends at 0.5 s
+        triggerWithCap({ robotId: 'waiting', note: 'E4', duration: '2n', time: 1, velocity: 0.8 }); // ends at 3 s
+
+        push(['test'], ['waiting']);
+
+        // 3 + release 0.5 + margin; keeping the first note's end would give 0.5 + 0.5 + margin instead
+        expect((await timerDelays()).some((d) => d >= 3.5 && d <= 3.6)).toBe(true);
+      });
+
+      it('forgets a released voice note: a rebuilt voice that stands by quiet goes at once', async () => {
+        const { AudioEngine } = await setup();
+        push(['test', 'waiting'], []);
+        await play('waiting');
+        AudioEngine.releaseVoice('waiting'); // an edit's rebuild cuts the note…
+        AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR); // …and builds a quiet voice
+
+        push(['test'], ['waiting']);
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+      });
+
+      it('stands a robot down again after it was admitted: admission clears what the budget owed', async () => {
+        const { AudioEngine } = await setup();
+        push(['test'], ['waiting']);
+        push(['test', 'waiting'], []);
+        expect(AudioEngine.getVoiceForRobot('waiting')).not.toBeNull();
+
+        push(['test'], ['waiting']);
+
+        expect(AudioEngine.getVoiceForRobot('waiting')).toBeNull();
+      });
+
+      it('owes nothing back to a robot that had no voice when it stood by', async () => {
+        const { AudioEngine } = await setup();
+        AudioEngine.releaseVoice('late'); // gone by another path
+
+        push(['test'], ['late']);
+
+        expect(push(['test', 'late'], [])).toEqual([]);
+        expect(AudioEngine.getVoiceForRobot('late')).toBeNull();
+      });
     });
   });
 

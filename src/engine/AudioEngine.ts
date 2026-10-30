@@ -26,6 +26,7 @@ import { devWarn } from '../utils/helpers';
 import { clampSend } from '../utils/clampSend';
 import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
+import { lfoEngine } from './lfoEngine';
 import { calculatePanFromPosition } from './audioEngine/panning';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
 import { robotBusGain } from './audioEngine/headroom';
@@ -33,6 +34,7 @@ import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type Minimal
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
+import { createStandingBy } from './audioEngine/standingBy';
 import {
   buildGlobalFxChain,
   getGlobalChainEntry,
@@ -60,6 +62,8 @@ import {
   setGlobalFrequencyShifter,
   setGlobalStereoWidener,
   getGlobalModulationTarget,
+  setEffectsHeldOff,
+  setReverbHeldOff,
 } from './audioEngine/globalFx';
 
 // ========================================
@@ -400,7 +404,7 @@ async function loadInstruments(): Promise<void> {
  * genuinely tempo-independent: it fires `delayFromNow` real seconds later
  * regardless of anything `Transport.bpm` does in between.
  */
-function scheduleVoiceRelease(duration: NoteDuration | number, time: number): void {
+function scheduleVoiceRelease(duration: NoteDuration | number, time: number): number {
   const durSec = Tone.Time(duration).toSeconds();
   // `time` is an absolute AudioContext timestamp; `Tone.now()` is the current
   // AudioContext time, so their difference is the lookahead until the note fires.
@@ -415,6 +419,22 @@ function scheduleVoiceRelease(duration: NoteDuration | number, time: number): vo
     activeVoices = Math.max(0, activeVoices - 1);
     devWarn('[AudioEngine] Failed to schedule voice release, immediate fallback', err);
   }
+  return time + durSec;
+}
+
+// The Audio Load budget's ledger of voices (docs/specs/LIGHT_TIER_STANDING_COST.md H2, audioEngine/standingBy.ts):
+// who stands by and carries no voice, and whose voice is owed back. The voice work stays here.
+const standingBy = createStandingBy({
+  hasVoice: (robotId) => compositeVoices.has(robotId),
+  releaseVoice: (robotId) => AudioEngine.releaseVoice(robotId),
+  disposeLinks: (robotId) => lfoEngine.disposeRobotLinks(robotId),
+  releaseSeconds: (robotId) => findActiveRobot(robotId)?.audioAttributes?.adsr?.release ?? 0,
+  rebuildVoice: (robotId) => AudioEngine.reReserveVoice(robotId),
+});
+
+/** A write to a robot with no voice warns in dev, except for one the budget released: it has none by design. */
+function warnNoVoice(where: string, robotId: string): void {
+  if (!standingBy.isReleased(robotId)) devWarn(`[AudioEngine] ${where}: no composite reserved for ${robotId}`);
 }
 
 /**
@@ -525,7 +545,7 @@ export function triggerWithCap(params: NoteParams): boolean {
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
     synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8);
-    scheduleVoiceRelease(duration, scheduleTime);
+    standingBy.recordNoteEnd(robotId, scheduleVoiceRelease(duration, scheduleTime));
     return true;
   } catch (err) {
     console.error('[AudioEngine] Failed to trigger note:', err);
@@ -671,13 +691,12 @@ export const AudioEngine = {
     // underlying Tone.LFO lane nodes. AS-sync's regenerateLfoBankFromSeed/
     // regenerateGlobalLfoLinksFromSeed (audioStore.ts) are deliberately data-only for exactly this
     // reason — they run before any user gesture.
-    // Dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads AudioEngine.setGlobal*
-    // eagerly at its own module scope (see this function's own earlier verified-by-trying note),
-    // and lfoEngine.ts imports AudioEngine itself (for its modulation-target resolvers) — a static
-    // top-level import of either here would be circular/premature.
+    // The store by dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads AudioEngine.setGlobal*
+    // eagerly at its own module scope (see this function's own earlier verified-by-trying note), so a
+    // static top-level import of it here would be premature. lfoEngine.ts and this module import each
+    // other at the top; that cycle is safe because each only calls into the other inside functions.
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
-      const { lfoEngine } = await import('./lfoEngine');
       const { globalAudio, lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
@@ -701,8 +720,8 @@ export const AudioEngine = {
     // already had its composite voice reserved by the post-load reservation pass in
     // loadInstruments() above, but nothing linked its seeded lane links into the bank until now.
     // Runs after the bank priming above for the same reason that block's own comment gives:
-    // linkTarget's swing math reads live state. Dynamic import for the same reason as lfoBank.ts
-    // above — robotLfoLinks.ts imports it.
+    // linkTarget's swing math reads live state. Dynamic import: robotLfoLinks.ts is a system
+    // (src/systems), and the engine imports nothing from there at the top.
     try {
       const { primeRosterLinks } = await import('../systems/robotLfoLinks');
       primeRosterLinks(getActiveLocaleRobots());
@@ -814,6 +833,10 @@ export const AudioEngine = {
    * @param articulation - The robot's optional `portamento` (seconds of glide per layer synth), `filterQ`
    *   and `filterType` (the bus filter's resonance and shape). Every field absent resolves to the sound
    *   this engine always had: no glide, Q 1, lowpass. docs/specs/ROBOT_ARTICULATION.md §1.3.
+   *
+   * Refused (false, nothing built) for a robot standing by — every reservation site (spawn, the power cycle, the
+   * post-load pass, an edit's rebuild) goes through here, so none can hand it a voice; admission rebuilds it
+   * (`setSoundingRobots`). docs/specs/LIGHT_TIER_STANDING_COST.md H2.
    */
   reserveVoice(
     robotId: string,
@@ -826,6 +849,7 @@ export const AudioEngine = {
     filterFreq?: number,
     articulation?: { portamento?: number; filterQ?: number; filterType?: RobotFilterType },
   ): boolean {
+    if (standingBy.refuseReservation(robotId)) return false;
     try {
       const { audible: audibleDescriptor, indices } = filterAudibleLayers(descriptor);
       const composite = AudioEngine.createCompositeVoice(audibleDescriptor, adsr, articulation?.portamento, indices);
@@ -925,6 +949,7 @@ export const AudioEngine = {
     compositeVoices.delete(robotId);
     unfeedRooms(robotId);
     robotNoteIndex.delete(robotId);
+    standingBy.forgetNoteEnd(robotId);
     lastPanByRobot.delete(robotId);
     manualPanByRobot.delete(robotId);
     useRobotPanReadoutStore.getState().clearPan(robotId);
@@ -1040,8 +1065,8 @@ export const AudioEngine = {
     try {
       const entry = compositeVoices.get(robotId);
       if (!entry) {
-        devWarn(`[AudioEngine] updateVoiceLayerParams: no composite reserved for ${robotId}`);
-        return false;
+        warnNoVoice('updateVoiceLayerParams', robotId);
+        return;
       }
 
       try {
@@ -1070,7 +1095,7 @@ export const AudioEngine = {
     try {
       const entry = compositeVoices.get(robotId);
       if (!entry?.composite.layers) {
-        devWarn(`[AudioEngine] updateVoiceEnvelope: no composite reserved for ${robotId}`);
+        warnNoVoice('updateVoiceEnvelope', robotId);
         return;
       }
       try {
@@ -1093,7 +1118,7 @@ export const AudioEngine = {
     try {
       const entry = compositeVoices.get(robotId);
       if (!entry?.composite.layers) {
-        devWarn(`[AudioEngine] updateVoicePortamento: no composite reserved for ${robotId}`);
+        warnNoVoice('updateVoicePortamento', robotId);
         return;
       }
       try {
@@ -1115,7 +1140,7 @@ export const AudioEngine = {
   updateRobotBusFilter(robotId: string, patch: { frequency?: number; Q?: number; type?: RobotFilterType }): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
-      devWarn(`[AudioEngine] updateRobotBusFilter: no composite reserved for ${robotId}`);
+      warnNoVoice('updateRobotBusFilter', robotId);
       return;
     }
     try {
@@ -1146,7 +1171,7 @@ export const AudioEngine = {
   updateRobotMasterVolume(robotId: string, masterVolume: number, time?: number): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
-      devWarn(`[AudioEngine] updateRobotMasterVolume: no composite reserved for ${robotId}`);
+      warnNoVoice('updateRobotMasterVolume', robotId);
       return;
     }
     try {
@@ -1175,7 +1200,7 @@ export const AudioEngine = {
   ): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
-      devWarn(`[AudioEngine] updateRobotSends: no composite reserved for ${robotId}`);
+      warnNoVoice('updateRobotSends', robotId);
       return;
     }
     try {
@@ -1205,7 +1230,7 @@ export const AudioEngine = {
   updateRobotPan(robotId: string, value: number | null): void {
     const entry = compositeVoices.get(robotId);
     if (!entry) {
-      devWarn(`[AudioEngine] updateRobotPan: no composite reserved for ${robotId}`);
+      warnNoVoice('updateRobotPan', robotId);
       return;
     }
     try {
@@ -1414,9 +1439,26 @@ export const AudioEngine = {
    * Audio Load Budget: the robots allowed to sound. Standing-by robots are refused in triggerWithCap (no
    * trigger, no polyphony slot). `null` lifts the restriction; an empty list silences everyone. Copies the
    * ids, so later mutation of the caller's array changes nothing. Survives killAll() (a power cycle).
+   *
+   * A robot the budget released (`setStandingByRobots`) is rebuilt here when it enters the set, and every one of them
+   * on `null`, which also stands nobody by; a robot in the set is never standing by, whichever of the two calls came
+   * first. Returns the robots this call rebuilt, for the caller to prime their links
+   * (docs/specs/LIGHT_TIER_STANDING_COST.md H2).
    */
-  setSoundingRobots(ids: Iterable<string> | null): void {
+  setSoundingRobots(ids: Iterable<string> | null): string[] {
     soundingRobots = ids === null ? null : new Set(ids);
+    return standingBy.admit(soundingRobots);
+  },
+
+  /**
+   * Light tier standing cost H2 (docs/specs/LIGHT_TIER_STANDING_COST.md): the eligible robots outside the sounding set.
+   * Each gives up its voice and its LFO links once its last note has rung out, and `reserveVoice` refuses it while it
+   * stands by. One that stops standing by without being admitted (mute, solo) keeps a voice it still has and stays
+   * released if it had none, until `setSoundingRobots` admits it. Mute and solo never stand a robot by, so with
+   * nobody over the budget (Full) nothing is released. Copies the ids; re-sending the same set does nothing.
+   */
+  setStandingByRobots(ids: Iterable<string>): void {
+    standingBy.setStandingBy(ids);
   },
 
   /**
@@ -1553,4 +1595,8 @@ export const AudioEngine = {
   setGlobalVibrato,
   setGlobalFrequencyShifter,
   setGlobalStereoWidener,
+  // The effects hold-off (docs/specs/LIGHT_TIER_STANDING_COST.md H1): audioBudgetSystem pushes the Effects Load tier here.
+  setEffectsHeldOff,
+  // The Reverb hold-off (the same spec, §1.6 (2)), pushed beside it.
+  setReverbHeldOff,
 };

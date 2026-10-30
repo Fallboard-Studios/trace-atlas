@@ -59,13 +59,17 @@ function bankLine({ bankRunning, linksOn, linksTotal }: DiagInfo): string {
  * Which LFO tiers the Effects dial is holding off, in one line: drift, the global filter (LPF/HPF) links, and each
  * robot's own bus-filter links (Robot Articulation T14b). Derived from the dial through the same thresholds the budget
  * system applies, so reading it at a dropout says whether the bus links were running. A dash for an unknown dial,
- * since `effectsLoadToLimits` would read NaN as Full and the HUD must not guess.
+ * since `effectsLoadToLimits` would read NaN as Full and the HUD must not guess. Ends ` · fx off` while the engine holds
+ * the pedals and colour effects dark (Light tier standing cost H1), ` · rev off` while it holds the Reverb off (T19),
+ * and ` · fx+rev off` for both (two tokens would run past the HUD's 52 columns); read from the engine, not the dial.
  */
-function tiersLine({ effectsLoad }: DiagInfo): string {
-  if (!isKnown(effectsLoad)) return 'lfo drift - · filter - · bus -';
+function tiersLine({ effectsLoad, effectsHeldOff, reverbHeldOff }: DiagInfo): string {
+  const held = [effectsHeldOff && 'fx', reverbHeldOff && 'rev'].filter(Boolean).join('+');
+  const fx = held ? ` · ${held} off` : '';
+  if (!isKnown(effectsLoad)) return `lfo drift - · filter - · bus -${fx}`;
   const { driftEnabled, filterLfosEnabled, busFilterLfosEnabled } = effectsLoadToLimits(effectsLoad);
   const state = (on: boolean): string => (on ? 'on' : 'off');
-  return `lfo drift ${state(driftEnabled)} · filter ${state(filterLfosEnabled)} · bus ${state(busFilterLfosEnabled)}`;
+  return `lfo drift ${state(driftEnabled)} · filter ${state(filterLfosEnabled)} · bus ${state(busFilterLfosEnabled)}${fx}`;
 }
 
 /** A linear level as dB with one decimal; `-inf` for silence, `-` when there is no reading. */

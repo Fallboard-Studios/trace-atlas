@@ -1,18 +1,21 @@
 // ========================================
 // IMPORTS
 // ========================================
-// Constants only — no Tone, no stores — so audioContextSetup can use this before any Tone node exists.
+// Constants and copy only — no Tone, no stores — so audioContextSetup can use this before any Tone node exists.
 import {
   AUDIO_LOAD_PRESETS,
   LOAD_AUDIBLE_ROBOTS_MIN,
   LOAD_BUS_FILTER_LFOS_MIN,
   LOAD_DRIFT_MIN,
+  LOAD_EFFECTS_MIN,
   LOAD_FILTER_LFOS_MIN,
   LOAD_PLAYBACK_BELOW,
+  LOAD_REVERB_MIN,
   LOAD_POLYPHONY_MIN,
   MAX_POLYPHONY,
   MAX_ROBOTS,
 } from '../constants';
+import { CONTENT, fill, optionsRecord } from '@/content';
 
 // ========================================
 // TYPES
@@ -35,8 +38,12 @@ export interface RobotLoadLimits {
   latencyHint: LoadLatencyHint;
 }
 
-/** The caps the Effects Load slider sets: LFO/drift modulation cost. */
+/** The caps the Effects Load slider sets: LFO/drift modulation cost, and whether the pedals and colour run. */
 export interface EffectsLoadLimits {
+  /** The pedals and colour effects: every chain cell and room branch lit from its Mix (false = held dark, Mix kept). */
+  effectsEnabled: boolean;
+  /** The global Reverb: its output wired to its return (false = unwired, Amount, Length and Pre-Delay kept). */
+  reverbEnabled: boolean;
   /** Drift ("stacked" LFOs). */
   driftEnabled: boolean;
   /** Global lpf/hpf frequency + Q LFOs (EQ-gain LFOs are always allowed). */
@@ -78,6 +85,8 @@ export function robotLoadToLimits(robotLoad: number): RobotLoadLimits {
 export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
   const load = clampAudioLoad(effectsLoad);
   return {
+    effectsEnabled: load >= LOAD_EFFECTS_MIN,
+    reverbEnabled: load >= LOAD_REVERB_MIN,
     driftEnabled: load >= LOAD_DRIFT_MIN,
     filterLfosEnabled: load >= LOAD_FILTER_LFOS_MIN,
     // Effective, not raw: a bus link is also held off whenever the global filter tier is, so consumers read one flag.
@@ -90,22 +99,40 @@ export function latencyForLoad(audioLoad: number): LoadLatencyHint {
   return robotLoadToLimits(audioLoad).latencyHint;
 }
 
-const LATENCY_LABELS: Record<LoadLatencyHint, string> = { playback: 'Playback', interactive: 'Interactive' };
+/** What describeLimits names as switched off: the option keys of `settings.quality.limits.off`. */
+type OffItem = 'drift' | 'filterLfos' | 'robotFilterLfos' | 'pedals' | 'colour' | 'reverb';
+
+// "a or b", "a, b or c": the copy's British English, the conjunction the platform's own.
+const OFF_LIST = new Intl.ListFormat('en-GB', { type: 'disjunction' });
 
 /**
- * One line saying what a dial position means, for the Audio Load readout — e.g. "Up to 4 robots · 8 notes · no drift
- * or filter LFOs · latency: Playback (applies on next load)". The latency clause only when the hint differs from
- * interactive, with the caveat that a context's latency is fixed at load. Never prints Infinity or NaN.
+ * One line saying what a dial position means, for the Audio Load readout — e.g. "Up to 4 robots · 8 notes · no drift,
+ * filter LFOs, pedals, colour or reverb · latency: Playback (applies on next load)", every word from
+ * `settings.quality.limits.*`. The latency clause only when the hint differs from interactive, with the caveat that a
+ * context's latency is fixed at load. Never prints Infinity or NaN.
  */
 export function describeLimits(limits: LoadLimits): string {
-  const parts = [`Up to ${limits.maxAudibleRobots} robots`, `${limits.maxPolyphony} notes`];
+  const parts = [
+    fill('settings.quality.limits.robots', { n: String(limits.maxAudibleRobots) }),
+    fill('settings.quality.limits.notes', { n: String(limits.maxPolyphony) }),
+  ];
   // The bus tier is only named when the global filter tier is on: with it off, "filter LFOs" already covers both.
-  const off: string[] = [];
+  const off: OffItem[] = [];
   if (!limits.driftEnabled) off.push('drift');
-  if (!limits.filterLfosEnabled) off.push('filter LFOs');
-  else if (!limits.busFilterLfosEnabled) off.push('robot filter LFOs');
-  parts.push(off.length === 0 ? 'all LFOs and drift' : `no ${off.join(' or ')}`);
-  if (limits.latencyHint !== 'interactive') parts.push(`latency: ${LATENCY_LABELS[limits.latencyHint]} (applies on next load)`);
+  if (!limits.filterLfosEnabled) off.push('filterLfos');
+  else if (!limits.busFilterLfosEnabled) off.push('robotFilterLfos');
+  if (!limits.effectsEnabled) off.push('pedals', 'colour');
+  if (!limits.reverbEnabled) off.push('reverb');
+  const offNames = optionsRecord('settings.quality.limits.off');
+  parts.push(
+    off.length === 0
+      ? CONTENT['settings.quality.limits.allOn'].human
+      : fill('settings.quality.limits.off', { list: OFF_LIST.format(off.map((item) => offNames[item].humanLabel)) }),
+  );
+  if (limits.latencyHint !== 'interactive') {
+    const hint = optionsRecord('settings.quality.limits.latency')[limits.latencyHint].humanLabel;
+    parts.push(fill('settings.quality.limits.latency', { hint }));
+  }
   return parts.join(' · ');
 }
 

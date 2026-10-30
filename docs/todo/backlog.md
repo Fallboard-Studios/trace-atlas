@@ -608,6 +608,68 @@ two to four robots sounding, `fx in 5/10`) and what else it could cut is a chang
 per the Stage 1 agreement it goes interview → spec → plan, with the two `main` sittings at Light (2026-10-23 and today)
 as the baseline. Where that sits in [plan.md](plan.md) is Crawford's call.
 
+**Update 2026-10-27: interviewed, specified and planned.** Intent
+[docs/intent/light-tier-standing-cost.md](../intent/light-tier-standing-cost.md), spec
+[docs/specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md), plan
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md): a decomposition of the standing cost at
+Light first (no product change), Crawford picks the cuts from its table, each cut kept or dropped on a desktop A/B,
+inaudible cuts every tier and audible ones Light's, and the Pixel sitting — clean by ear on D1 and D5 at Light — the
+one criterion. The item stays 27 (no new number); its Built line comes with the plan's T23.
+
+**Update 2026-10-28: Phase A done, the decision table is ready for Gate A** ([scratchy-audio-phones.md](scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §5). On the desktop at Light, the largest pieces are the standing-by robots' voices
+(−0.124 D1, −0.107 D5 of capacity, inaudible to cut), the lit effects (−0.093, −0.083) and the Reverb (−0.074, −0.043).
+EQ3, LPF and HPF are moderate; the dynamics and the send/room fabric are below noise. The 70 % criterion is not met on
+D5 (55–69 % explained); the remainder is the sounding robots and the fixed floor. Crawford picks the cuts and whether to
+chase the remainder.
+
+**Update 2026-10-28, later: the remainder chased (§6).** With no robot voices at all (A9), Light's load falls from
+0.557 to 0.167 on D1 and from 0.519 to 0.163 on D5: the robots are about 70 % of it, the floor about 30 %. A playing
+robot costs about 0.06 of desktop capacity, roughly four times a standing-by one and three times what spec §1.6 assumed
+for the robot-count lever. The cuts and order of §5 stand; the sounding cap at Light joins the table for Crawford to place.
+
+**Update 2026-10-28, Gate A passed** ([intent](../intent/light-tier-standing-cost.md) "Gate A — the cuts"; the record's
+decomposition §7). Inaudible first and alone: standing-by voices released and the dark cells' and drift's LFOs stopped,
+every tier, then the phone. Only if it still clicks, three Light-only cuts tried stacked in one sitting: pedals off, a
+shorter Reverb, three sounding robots. EQ3/LPF/HPF out at neutral dropped (the EQ is seeded); backlog 28 stands.
+
+**Update 2026-10-29: Phase B built, the phone sitting run** ([scratchy-audio-phones.md](scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §8–§10). The three inaudible cuts (standing-by voices released, the dark cells' and
+drift's LFOs stopped) are on `perf/light-tier-standing-cost`; their desktop A/Bs are all inside that sitting's
+noise. On a rested Pixel 8 at Light, D5 drew "pretty good, a few scratches but passable" against `main`'s "too
+scratchy", and D1 "a little too scratchy throughout" against "too scratchy". At Full the branch took off on both
+worlds (about 4:30 and 3:30) and `main` did not, one run each. By the gate's wording Gate C misses on D1; the
+verdict, whether the Full take-off is the build or the phone's state, and whether Phase C2 (the three audible Light
+cuts) starts, are Crawford's.
+
+**Update 2026-10-29, later: Phase C2 built, Gate C2 passed** ([scratchy-audio-phones.md](scratchy-audio-phones.md)
+"Backlog 27, the decomposition", §11–§13). Crawford at Gate C: "let's turn off the pedals and reverb on light. i still
+really want four robots playing". Two Light-only cuts on the branch, each with its own constant: the pedals and colour
+held off (`LOAD_EFFECTS_MIN`, T9–T13) and the Reverb off (`LOAD_REVERB_MIN`, T19, with a Convolver reset and a 1 s
+lift), every inert control dimmed (T12b); three sounding robots (T25–T26) not built. On a rested Pixel 8 at Light,
+pedals and Reverb off drew "sounds great" on D1 and D5 (`underruns` 17 and 15 at 4:00) against `main`'s "too
+scratchy" (281, 250); pedals off alone drew "sounds great" on D5 and "a little scratchy" on D1. At Full nothing took
+off; D5 "not too bad, actually", D1 "scratchy throughout". Full accepted as
+unchanged (Crawford, 2026-10-29: "No need to change full."). Next: the docs (T22, T23).
+
+**Built** 2026-10-29 on `perf/light-tier-standing-cost` (spec
+[docs/specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md), plan
+[docs/tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md), record
+[scratchy-audio-phones.md](scratchy-audio-phones.md) "Backlog 27, the decomposition" §1–§13). Desktop capacity
+deltas are D1 / D5 at Light. **Kept, every tier (inaudible):** standing-by robots' voices released (H2, T14; −0.065 /
++0.013, inside that sitting's noise band of 0.10 / 0.12; docked robots keep theirs); a dark cell's LFOs stopped (H3a,
+T16; +0.008 / −0.009); the drift secondaries stopped while drift is held off (H3b, T17; −0.017 / −0.015; it also fixed
+drift running at Light from boot). **Kept, Light only (audible):** the pedals and colour held off (H1,
+`LOAD_EFFECTS_MIN` 0.4, T9–T13; −0.289 / −0.096) and the Reverb off (`LOAD_REVERB_MIN` 0.4, T19; −0.021 / −0.059;
+a lift resets the Convolver and ramps up over 1 s), every control they make inert dimmed (T12b). **Dropped or not
+built:** EQ3/LPF/HPF out at neutral (A6 −0.041 / −0.019; Gate A, the EQ is seeded, backlog 28 stands), the send/room fabric and the dynamics (below noise),
+the Reverb decay cap (replaced by off at Gate C), three sounding robots (about 0.06 a robot, A9; T25–T26 not built, Crawford wants four). **The phone
+(Gate C2):** on a rested Pixel 8 at Light, "sounds great" on D1 and D5 against `main`'s "too scratchy"; Full
+unchanged. Tools: `npm run perf:audio-handlers` and `perf:audio`'s census line
+([PERFORMANCE.md](../PERFORMANCE.md#handler-breakdown--npm-run-perfaudio-handlers)); behaviour in
+[AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget). Gate B's desktop listen passed after
+the phone (Crawford, 2026-10-29: "Gate B sounds good"). Open: the archive move at merge.
+
 ### 31. Tooling: `profile.mjs` Against the Layout Rework
 
 **Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):

@@ -70,6 +70,7 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onDynamicsChange={options.onDynamicsChange}
             volumeSwelling={options.volumeSwelling}
             sendSwelling={options.sendSwelling}
+            heldOffSends={options.heldOffSends}
           />
         );
       case 'rhythm':

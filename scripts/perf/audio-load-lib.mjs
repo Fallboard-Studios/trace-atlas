@@ -283,6 +283,17 @@ export function diffByType(before, after) {
 }
 
 /**
+ * A `liveByType` snapshot as one line (backlog 27 T3): `census after warm-up (1812): Gain 611 · ConstantSource 290 · …`,
+ * largest first (ties by name), the total in brackets; `none` when nothing is live. The snapshot is not modified.
+ */
+export function formatCensus(liveByType) {
+  const sorted = [...liveByType].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const total = sorted.reduce((sum, [, n]) => sum + n, 0);
+  const types = sorted.length ? sorted.map(([type, n]) => `${type} ${n}`).join(' · ') : 'none';
+  return `census after warm-up (${total}): ${types}`;
+}
+
+/**
  * Which AudioContext to poll: the most recently created realtime one that has not been destroyed.
  * (`?latency=` replaces Tone's default context with a second one, so "the first" would be wrong.)
  * `created` is `WebAudio.contextCreated` payloads in arrival order; `destroyedIds` the destroyed ids.

@@ -21,6 +21,7 @@ import {
 } from '../utils/audioBudget';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { isRobotAudible } from '../utils/robotAudibility';
+import { primeRobotLinks } from './robotLfoLinks';
 
 // ========================================
 // MODULE STATE (runtime-only — never in Zustand)
@@ -36,6 +37,8 @@ let lastSignature = '';
 let arrivalOrder: readonly string[] = [];
 /** The set currently pushed to the engine and the store. */
 let sounding: readonly string[] = [];
+/** The standing-by robots last pushed to the engine (docs/specs/LIGHT_TIER_STANDING_COST.md H2), joined. */
+let pushedStandingBy = '';
 let pushedPolyphony: number | null = null;
 /** URL mirror (decision H), one pair per axis: the load the device would default to, and whether a valid
  *  ?load=/?fxLoad= was in the URL at boot. */
@@ -43,7 +46,7 @@ let defaultRobotLoad = 1;
 let bootHadLoadParam = false;
 let defaultEffectsLoad = 1;
 let bootHadFxLoadParam = false;
-/** The tier-relevant part of the limits last applied to lfoEngine, so roster churn and irrelevant dial nudges do nothing. */
+/** The tier-relevant part of the limits last applied to lfoEngine and the effects hold-off, so roster churn and irrelevant dial nudges do nothing. */
 let appliedTierKey = '';
 
 // ========================================
@@ -67,8 +70,28 @@ function signature(): string {
 
 function applySet(next: readonly string[]): void {
   sounding = next;
-  AudioEngine.setSoundingRobots(next);
+  primeRebuilt(AudioEngine.setSoundingRobots(next));
   useAudioStore.getState().setSoundingRobotIds(next);
+}
+
+/**
+ * A rebuilt voice starts with no LFO links (its params are new): prime each robot the engine rebuilt, from the store,
+ * before any trigger — the rebuildVoice pair, reReserveVoice then primeRobotLinks (docs/specs/LIGHT_TIER_STANDING_COST.md H2).
+ */
+function primeRebuilt(ids: readonly string[]): void {
+  const robots = activeRobots();
+  for (const id of ids) {
+    const robot = robots.find((r) => r.id === id);
+    if (robot) primeRobotLinks(robot);
+  }
+}
+
+/** The eligible robots outside the sounding set stand by and carry no voice (H2); pushed only when that list changes. */
+function applyStandingBy(next: readonly string[], force: boolean): void {
+  const key = next.join(',');
+  if (!force && key === pushedStandingBy) return;
+  pushedStandingBy = key;
+  AudioEngine.setStandingByRobots(next);
 }
 
 /** Recompute the sounding set and the ceiling from the current roster and dial; push only what changed. */
@@ -83,34 +106,42 @@ function reconcile(force = false): void {
   arrivalOrder = orderByArrival(arrivalOrder, eligible);
   const next = reconcileSounding(sounding, arrivalOrder, soloIds, limits.maxAudibleRobots);
   if (force || next !== sounding) applySet(next);
+  const soundingNow = new Set(next);
+  applyStandingBy(arrivalOrder.filter((id) => !soundingNow.has(id)), force);
 
   if (limits.maxPolyphony !== pushedPolyphony) {
     pushedPolyphony = limits.maxPolyphony;
     AudioEngine.setPolyphonyCap(limits.maxPolyphony);
   }
 
-  applyLfoTiers(limits, force);
+  applyTiers(limits, force);
 }
 
 /**
- * The LFO tiers (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO links and each robot's
- * bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
+ * The Effects Load tiers. The LFO tiers (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.4): turn drift, filter (LPF/HPF) LFO
+ * links and each robot's bus-filter cutoff link on or off — EQ-gain links and every other robot LFO are always allowed,
  * docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap and Task 4 moved the filter rule itself into the engine;
- * the bus tier is Robot Articulation T14b — and publish the held-off state the UI greys out from.
+ * the bus tier is Robot Articulation T14b. The effects tier (docs/specs/LIGHT_TIER_STANDING_COST.md H1): every pedal
+ * and colour effect held dark, its Mix kept; and the Reverb tier (the same spec, §1.6 (2)): the Reverb's output unwired.
+ * Then publish the held-off state the UI greys out from.
  * Only when a tier limit has actually changed (or on force) — the roster changing, or a dial nudge inside one
  * tier, changes none of it.
  */
-function applyLfoTiers(limits: LoadLimits, force = false): void {
-  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled].join('|');
+function applyTiers(limits: LoadLimits, force = false): void {
+  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.busFilterLfosEnabled, limits.effectsEnabled, limits.reverbEnabled].join('|');
   if (!force && key === appliedTierKey) return;
   appliedTierKey = key;
   lfoEngine.setDriftEnabled(limits.driftEnabled);
   lfoEngine.setFilterLinksEnabled(limits.filterLfosEnabled);
   lfoEngine.setBusFilterLinksEnabled(limits.busFilterLfosEnabled);
+  AudioEngine.setEffectsHeldOff(!limits.effectsEnabled);
+  AudioEngine.setReverbHeldOff(!limits.reverbEnabled);
   useAudioStore.getState().setDriftHeldOff(!limits.driftEnabled);
   useAudioStore.getState().setFilterLinksHeldOff(!limits.filterLfosEnabled);
   // busFilterLfosEnabled is already false whenever the global filter tier is, so the UI greys the link for the same reason it goes quiet.
   useAudioStore.getState().setBusFilterLinksHeldOff(!limits.busFilterLfosEnabled);
+  useAudioStore.getState().setEffectsHeldOff(!limits.effectsEnabled);
+  useAudioStore.getState().setReverbHeldOff(!limits.reverbEnabled);
 }
 
 /**
@@ -201,14 +232,19 @@ export function stopAudioBudget(): void {
   pushedPolyphony = null;
   appliedTierKey = '';
   lastSignature = '';
-  AudioEngine.setSoundingRobots(null);
+  // null also stands nobody by; every robot the budget released is rebuilt, and primed here.
+  primeRebuilt(AudioEngine.setSoundingRobots(null));
   AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
   useAudioStore.getState().setSoundingRobotIds([]);
-  // Lift every LFO tier too: drift back on, every suspended filter link reconnected.
+  // Lift every Effects Load tier too: drift back on, every suspended filter link reconnected, the effects and the Reverb relit.
   lfoEngine.setDriftEnabled(true);
   lfoEngine.setFilterLinksEnabled(true);
   lfoEngine.setBusFilterLinksEnabled(true);
+  AudioEngine.setEffectsHeldOff(false);
+  AudioEngine.setReverbHeldOff(false);
   useAudioStore.getState().setDriftHeldOff(false);
   useAudioStore.getState().setFilterLinksHeldOff(false);
   useAudioStore.getState().setBusFilterLinksHeldOff(false);
+  useAudioStore.getState().setEffectsHeldOff(false);
+  useAudioStore.getState().setReverbHeldOff(false);
 }

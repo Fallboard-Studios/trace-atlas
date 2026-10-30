@@ -1471,3 +1471,804 @@ D5 93 → 106 and 149 → 173.
   interview, then a spec. The two sittings on `main` at Light, 2026-10-23 and today, are its baseline.
 - **Deviations:** one run per cell, no repeat; order as listed (fixed build first on each world); the phone's rest
   between runs not timed.
+
+## Backlog 27, the decomposition — what Light carries, priced on the desktop (2026-10-27)
+
+Phase A of [specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md) (plan
+[tasks/LIGHT_TIER_STANDING_COST.md](../tasks/LIGHT_TIER_STANDING_COST.md), T4–T8): what the audio thread does at Light
+on D1 and D5, by kind of work (the handler breakdown), by piece of the app (the ablations) and by count (the census),
+closed by the decision table for Gate A. **Stock build** for every run in this section: a production `vite build` of
+`perf/light-tier-standing-cost`, whose `src/` is `main`'s merge base `a5d5944d` unchanged (`index-BpSIkiTM`), from the
+session scratchpad, `vite preview` on :4191. Headless Chrome 155.0.8059.84. D1 = `56c2t2t8` (−116, −2), D5 = `bravo`
+(−150, 90), both by their "seven links" `s=` blobs (PERFORMANCE.md) at `?load=light`. Run outputs (`.txt` and `.json`)
+are kept in the session scratchpad
+(`C:\Users\Crawford\AppData\Local\Temp\claude\c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7\881a1af9-4412-4344-a271-4a69d646e2be\scratchpad\runs\`),
+named as below.
+
+### 1. The handler breakdown (T4) — `npm run perf:audio-handlers`, D1 and D5 at Light
+
+**Method.** Three 8 s traces per world after the 8 s warm-up, interleaved D1 D5 D1 D5 D1 D5 (`h-d1-1` … `h-d5-3`),
+foreground, one run at a time, orphaned Chrome 0 before and after every run. 8 s, not the spec's 60 s: Chrome's trace
+buffer holds about 9 s of these worlds (plan T2, "As built"). Every trace covered its whole window (Render spans 8.0 s
+of 8, buffer peak 75–78 %, no data lost). Every run's overlay read `load 20%·fx 20%`, `fx in 5/10`, sounding 2/4 on D1
+and 4/4 on D5, `standing by 0`. The trace category is live (plan Q1): every rendering node traces one
+`AudioHandler::ProcessIfNecessary` per quantum, so **Instances** is the number of nodes that actually render each
+quantum, and each class's share is its self time over `RealtimeAudioDestinationHandler::Render` in the same trace.
+
+**D1** (`56c2t2t8`, Render 1 559–1 613 events, 4.95–5.12 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 56.5 % (56.3–56.6) | 909 | 0.062 % |
+| ConstantSourceNode | 14.0 % (13.9–14.0) | 329 | 0.042 % |
+| OscillatorNode | 4.5 % (4.5–4.6) | 25 | 0.182 % |
+| AudioBufferSourceNode | 3.8 % (3.8–3.9) | 31 | 0.123 % |
+| BiquadFilterNode | 3.6 % (3.6–3.7) | 15 | 0.242 % |
+| ConvolverNode | 3.5 % (3.4–3.6) | 1 | 3.451 % |
+| WaveShaperNode | 3.3 % (3.3–3.3) | 24 | 0.137 % |
+| StereoPannerNode | 1.1 % (1.1–1.1) | 12 | 0.093 % |
+| DelayNode | 1.1 % (1.1–1.1) | 13 | 0.081 % |
+| ChannelSplitterNode | 0.7 % (0.7–0.7) | 10 | 0.074 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.357 % |
+| IIRFilterNode | 0.4 % (0.4–0.4) | 10 | 0.040 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.073 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.058 % |
+| **all handlers** | 93.5 % (93.5–93.6) | | |
+
+**D5** (`bravo`, Render 1 453–1 485 events, 5.37–5.49 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 58.4 % (58.3–58.5) | 933 | 0.063 % |
+| ConstantSourceNode | 13.7 % (13.6–13.7) | 336 | 0.041 % |
+| OscillatorNode | 5.4 % (5.4–5.4) | 28 | 0.191 % |
+| WaveShaperNode | 3.5 % (3.5–3.5) | 27 | 0.131 % |
+| AudioBufferSourceNode | 3.5 % (3.5–3.5) | 30 | 0.118 % |
+| BiquadFilterNode | 3.5 % (3.5–3.5) | 15 | 0.234 % |
+| ConvolverNode | 1.7 % (1.7–1.8) | 1 | 1.698 % |
+| StereoPannerNode | 1.2 % (1.1–1.2) | 12 | 0.096 % |
+| DelayNode | 1.1 % (1.1–1.1) | 13 | 0.085 % |
+| ChannelSplitterNode | 0.7 % (0.7–0.7) | 10 | 0.070 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.332 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.070 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.061 % |
+| IIRFilterNode | 0.1 % (0.1–0.1) | 1 | 0.086 % |
+| **all handlers** | 93.8 % (93.8–93.8) | | |
+
+(One stray `GainHandler::Process` row at 0.0 % per world, a step whose node event fell outside the window, is left out.)
+
+**Reading.**
+- **The shares are steady but they are mostly the tracer's own cost, so they rank by event count, not by work.** A
+  traced quantum takes 4.95–5.49 ms; untraced, the same worlds' `perf:audio` capacity of about 0.52–0.59 at 1 024-frame
+  callbacks is about 1.4–1.6 ms per 128-frame quantum. The difference, about 3.6 ms, is spread over about 2 300 trace
+  events per quantum (3.56–3.65 million events per 8 s run): roughly **1.6 µs per traced event**, about what a cheap node
+  costs in all. So a class of many cheap nodes (909 Gains, 329 ConstantSources) reads high mainly because it emits
+  many events, and these two shares cannot be read as "Gains carry half the thread". The per-instance column is the
+  per-node price **plus** the trace's per-event cost, and is an upper bound for the cheap classes.
+- **What the breakdown does say reliably:** (1) **how many nodes render every quantum** — about 1 390 on D1 and 1 410
+  on D5, against 1 793 live on D1 (the census, §3), including 909–933 Gains and 329–336 ConstantSources (on D1 every
+  one of its 329 live)
+  (the Signal/Param sources behind every Tone parameter, H3c); about 350 of D1's 1 257 live Gains do not render
+  (which ones, the trace does not say); (2) **the heavy single nodes**, where the
+  trace's cost is negligible beside the work: the **one ConvolverNode** (the Reverb) is 3.5 % of traced Render on D1,
+  about 0.17 ms per quantum, roughly a tenth of D1's untraced quantum, and half that on D5 (1.7 %: the two worlds seed
+  different Reverb decays, and a convolver's cost follows its impulse length); the two DynamicsCompressors (Compressor,
+  Limiter) together 0.7 %, small.
+- **No biquad or oscillator story at Light:** 15 biquads, 25–28 oscillators, 24–27 wave shapers between them under
+  13 % of traced Render, each class small per instance. H4's audio-rate biquads (lit Phaser, AutoWah) do not stand out
+  in this kind of read; A1 prices them directly.
+- **So the decomposition rests on the ablations** (§3, T6–T7), with the breakdown giving the node counts the census
+  turns into totals and an early pointer at the Reverb (A5). This is the plan's Q1 risk in a milder form than "the
+  category is gone": the category is live, but per-event tracing swamps the cheap nodes.
+
+### 2. Fact (a) — what D1 and D5 light at Light (T5)
+
+**Method.** `npm run dev` of the same `src/` on :5191, headless Chrome through the harness's own `withPoweredWorld`
+(the world link at `?load=light`, power on, 8 s warm-up, then 2 s for any darken timer), and one `Runtime.evaluate`
+that dynamically imports the app's `stores/audioStore.ts`, `stores/localeStore.ts` and
+`engine/audioEngine/bypassCell.ts` and reads the store's ten Mixes, the Phaser's stages, every robot's five sends,
+and the engine's own cells (`getCell(key).connected`) and rooms (`getRoom(key).fed`, `returnLevel`). A throwaway probe
+(`probe-lit.mjs`, scratchpad; output `runs/lit-D1.json`, `runs/lit-D5.json`); nothing of it committed. A cell is lit
+when its effect's two edges are connected. A chain cell is lit at a Mix above 0, or Width away from 0.5. A room's
+branch is lit while the room is fed (some robot's send above 0, standing-by robots included, since every robot's
+voice is reserved), its Return is above 0, and the branch's own depth is above 0. The Chorus's and the Shifter's `wet`
+is their room's Return (each is pinned at depth 1); the Grit room's Return is never written and stays 1.
+
+| Effect | Where | D1 Mix | D1 lit | D5 Mix | D5 lit |
+|---|---|---|---|---|---|
+| Distortion | Grit branch | 0 | — | 0 | — |
+| Chebyshev | Grit branch | 0.11 | **lit** | 0.13 | **lit** |
+| BitCrusher | Grit branch | 0 | — | 0 | — |
+| AutoWah | chain cell | 0.35 | **lit** | 0.44 | **lit** |
+| Phaser (stages 5 on both) | chain cell | 0 | — | 0 | — |
+| Chorus | Double branch (`wet` = Return) | 1 | **lit** | 1 | **lit** |
+| Tremolo | chain cell | 0 | — | 0 | — |
+| Vibrato | chain cell | 0 | — | 0.88 | **lit** |
+| Frequency Shifter | Shimmer branch (`wet` = Return) | 1 | **lit** | 1 | — (room unfed) |
+| Width | chain cell (`width`) | 0.59 | **lit** | 0.62 | **lit** |
+| **lit** | | | **5** | | **5** |
+
+| Room | D1 fed by | D5 fed by |
+|---|---|---|
+| Grit (Return 1) | 4 of 12 robots (sends 0.45–0.74) | 2 of 12 (0.76, 0.77) |
+| Shimmer (Return 1) | 1 of 12 (0.40) | **none** (unfed, so its branch is dark) |
+| Double (Return 1) | 2 of 12 (0.40, 0.59) | 3 of 12 (0.43–0.57) |
+| Reverb (always on) | 12 of 12 | 12 of 12 |
+| Delay (always on) | 10 of 12 | 9 of 12 |
+
+Each world's lit list sums to its overlay's `fx in 5/10` and to the engine's `getConnectedEffectCount()` (5 on both).
+
+**Reading.**
+- **The two worlds light the same four, plus one each:** Chebyshev, AutoWah, Chorus and Width on both; D1 adds the
+  Frequency Shifter, D5 the Vibrato. **The Phaser is dark on both**, so H1's "the Phaser alone costs what four lean
+  pedals cost" does not apply to these two worlds at Light: their lit set is the cheaper pedals.
+- **What the 2026-10-20 per-effect prices predict for A1** ("What a lit effect costs", above: each lit in a cell, raw Tone in
+  an OfflineContext, extra render ms per audio second, i.e. ‰ of one desktop core): D1 AutoWah 24.9 + Chorus 16.7 + Shifter 15.8 + Width 11.8 + Chebyshev 5.9 ≈ **75 ‰**; D5
+  AutoWah 24.9 + Chorus 16.7 + Width 11.8 + Vibrato 9.8 + Chebyshev 5.9 ≈ **69 ‰**, about 0.07 of a core each, which
+  is about 0.07 of render capacity, less what the same five cost dark. Those prices were taken one effect at a time,
+  offline, at default settings; A1 (§3) measures
+  these five together, at Light, on these worlds.
+- The rooms' feeding is seeded per robot and includes the eight standing-by robots: a room stays fed (and its lit
+  branches cost) while only standing-by robots send into it. A2 releases those robots' voices, which also unfeeds any
+  room only they fed.
+
+### 3. The ablations — the noise band, the census, A1–A4 (T6)
+
+**Method.** `npm run perf:audio`, 120 s per run (plan OQ8), the stock build on :4191 against a second port. The
+**noise band** serves a byte-identical copy of the stock build on :4192. Each **variant** is one `src/` edit on the
+stock commit, built to the scratchpad (`dist-A<n>`) and served on :419(2+n); `src/` is restored with
+`git checkout --` after every build and `git status --porcelain src` checked empty by the build script. Nothing of
+any variant is committed; each one's diff is kept as `variants/A<n>.diff` in the scratchpad. Three rounds per set;
+each round D1 then D5; inside a round the order alternates (odd rounds stock first, even rounds variant first).
+Foreground, one run at a time, orphaned Chrome 0 before and after every one of the 60 runs, every run exit 0. **Delta**
+= variant mean capacity − the same round's stock mean capacity (the 2026-09-20 method), so negative is cheaper.
+Labels `<set>-r<round>-<d1|d5>-<stock|var>`; the aggregate is `agg-NB-A1-A2-A3-A4.json` beside them.
+
+**The stock, over the task's 15 stock runs per world:** mean capacity D1 **0.559** (0.544–0.581), D5 **0.495**
+(0.474–0.507). Every stock run's overlay read `load 20%·fx 20%`, `fx in 5/10`, `standing by 0`, `bank 4/4`, with
+mean sounding 3.8 (D1) and 3.5 (D5) and links 43/91 (D1) and 25/91 (D5). The stock drifts about 0.04 between rounds
+on its own; the same-round pairing is what makes deltas of 0.01–0.03 readable at all.
+
+**The noise band** (stock :4191 against the stock copy :4192):
+
+| World | Same-round deltas, r1 · r2 · r3 | Band (largest \|delta\|) |
+|---|---|---|
+| D1 | +0.002 · +0.000 · +0.004 | **0.004** |
+| D5 | −0.009 · −0.002 · −0.013 | **0.013** |
+
+A delta whose median sits inside its world's band, or whose three rounds straddle zero, is **below noise**.
+
+**The census** (T3's line, read after the 8 s warm-up on the stock runs):
+- **D1** (12 of 15 runs; two read 1 789 and one 1 777, a few nodes still being made or collected at the read):
+  `census after warm-up (1793): Gain 1257 · ConstantSource 329 · WaveShaper 40 · BiquadFilter 35 · AudioBufferSource 32 · StereoPanner 25 · Oscillator 22 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+- **D5** (all 15 runs):
+  `census after warm-up (1815): Gain 1273 · ConstantSource 336 · WaveShaper 37 · BiquadFilter 32 · AudioBufferSource 31 · Oscillator 28 · StereoPanner 25 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+
+Beside §1: about 1 390 of D1's 1 793 live nodes render every quantum, and about 1 410 of D5's 1 815.
+
+**The variants** (file, function, and the stock source line each edit follows):
+- **A1, every effect dark.** `src/engine/audioEngine/bypassCell.ts`, `writeCellMix` (one line added after line 317): every
+  Mix write is forced to 0 and Width's to 0.5, so every path that writes a Mix (power-on, swells, the panel) leaves
+  every cell and branch dark. The plan put the edit in `applyGlobalAudioToEngine`; every Mix goes through
+  `writeCellMix`, so the edit there covers the swells too. Every variant run read `fx in 0/10`.
+- **A2, the standing-by robots' voices released.** `src/engine/AudioEngine.ts`: in `setSoundingRobots` (after line 1402,
+  five lines added) every robot outside the new set has its voice released, and a robot joining the set is
+  re-reserved once the instruments are loaded; in `reserveVoice` (one line added after line 817) a robot outside the set is
+  refused, so `loadInstruments` (which reserves every robot) cannot bring them back. The plan's one-off release from
+  `applySet` would have been undone by that reserve and would have left joiners silent. Two side effects, both in the
+  delta: a re-reserved robot comes back without its LFO links (`primeRobotLinks` is not re-run), and every variant run
+  logged one Tone warning ("Events scheduled inside of scheduled callbacks should use the passed in scheduling time")
+  from the re-reserve inside a transport callback. Census D1 1 793 → **1 115**, D5 1 815 → **1 316**; mean sounding
+  unchanged.
+- **A3, a dark cell's effect LFOs stopped.** `src/engine/audioEngine/bypassCell.ts`: two helpers (after line 111) that
+  stop or start an effect's `_lfoL`/`_lfoR` (Chorus, Tremolo, Phaser) and `_lfo` (Vibrato); a stop at the end of `buildCell`
+  (after line 158) and of `buildBranch` (after line 454) and in `disconnectEffect` (after line 290), a start in `connectEffect` (after line 269);
+  `src/engine/audioEngine/globalFx.ts`, `rebuildPhaser` (after line 912, a stop when the rebuilt Phaser is dark) and the
+  import (after line 25). **Dark cells only**, the cut spec §1.3 names for H3a, not the plan's "every cell": stopping a lit
+  cell's LFO changes what it sounds like, so it is not a piece a cut would remove. D1 stops five LFOs (Phaser 2,
+  Tremolo 2, Vibrato 1), D5 four (Phaser, Tremolo; its Vibrato is lit).
+- **A4, the bank not started.** `src/engine/lfoEngine.ts`, `primeLfoBank` (lines 255–256): the `lfo.start` and
+  `drift.start` calls removed, so the four lanes and the four drift secondaries are built (`bank 4/4`) and never run.
+  This stops the bank's modulation, which is audible: wider than the drift-only cut T17 would make (spec §1.3, H3b).
+  Census −28 on D1 (22 → 14 oscillators), −24 on D5.
+
+**Results** (peak window and `max lag` per run are in the aggregate):
+
+| Piece | D1 delta, median (r1 · r2 · r3) | D5 delta, median (r1 · r2 · r3) | Census, D1 / D5 | Read |
+|---|---|---|---|---|
+| Noise band | +0.002 (+0.002 · +0.000 · +0.004) | −0.009 (−0.009 · −0.002 · −0.013) | 0 / 0 | the band |
+| A1 every effect dark | **−0.093** (−0.109 · −0.093 · −0.087) | **−0.083** (−0.072 · −0.083 · −0.088) | 0 / 0 | far outside, both |
+| A2 standing-by voices released | **−0.124** (−0.121 · −0.124 · −0.154) | **−0.107** (−0.094 · −0.107 · −0.124) | −678 / −499 | far outside, both |
+| A3 dark cells' LFOs stopped | **−0.026** (−0.022 · −0.026 · −0.029) | −0.016 (+0.012 · −0.016 · −0.046) | −5 / −4 | D1 outside; D5 **below noise** (straddles zero) |
+| A4 the bank not started | **−0.038** (−0.047 · −0.038 · −0.035) | −0.004 (+0.009 · −0.004 · −0.024) | −28 / −24 | D1 outside; D5 **below noise** |
+
+**Reading.**
+- **A2 is the biggest single piece on both worlds:** about 0.12 of capacity on D1 and 0.11 on D5, from releasing
+  about eight silent robots' voices (12 robots, mean sounding 3.8 and 3.5), so roughly **0.013–0.016 per
+  standing-by robot**, and 60–85 live nodes each. Its peak window falls as far (D1 0.58–0.62 → 0.45–0.46). On D1 it
+  overlaps A1: two of D1's five lit branches go dark with their rooms (`fx in 5/10` → `3/10`; the overlay does not say
+  which), so part of D1's A2 delta is effect cost A1 also counts. D5 keeps `fx in 5/10`, so its A2 delta is voices
+  only.
+- **A1 measures a little above the 2026-10-20 prices' prediction** (§2): 0.093 against about 0.075 on D1, 0.083
+  against about 0.069 on D5. Same sign and size; the five effects cost somewhat more together, in the app, than the
+  sum of their offline one-at-a-time prices. Its peak window falls by about as much as its mean.
+- **A3 and A4 are small.** A3 is about 0.026 on D1 for five stopped LFOs (about 0.005 each) and unresolved on D5. A4
+  is 0.038 on D1 and below noise on D5. D1 drives 43 of the 91 links against D5's 25, which may be why the bank costs
+  more on D1; that is a reading, not measured. A4 also prices more than any cut would remove (it stops the lanes,
+  which are audible); the drift secondaries alone are a part of it, not separately priced.
+- **`max lag`** stayed 14–28 ms in every run but one (A2 r2 D1, variant, 58 ms, once), so no main-thread change rides
+  along with any variant.
+- **So far:** the four sum to 0.281 of D1's 0.559 (50 %) and 0.210 of D5's 0.495 (42 %), before A5–A8 and before
+  allowing for A1's overlap with A2 on D1. The sum and the 70 % criterion are T7's.
+
+### 4. The ablations A5–A8, and the sum (T7)
+
+**Method.** As §3: the same stock build on :4191, the same noise band, three interleaved rounds per world at 120 s,
+48 runs, every one exit 0 with orphaned Chrome 0 before and after and a clean console. The aggregate is
+`agg-A5-A6-A7-A8.json` beside the runs. The stock over these 12 runs per world: D1 0.554 (0.531–0.569), D5 0.502
+(0.489–0.510); over all 27 stock runs of §3 and §4, **D1 0.557** (0.531–0.581) and **D5 0.498** (0.474–0.510), the
+stock means the sum is read against.
+
+**The variants.** All four edit `wireGlobalFxChain` in `src/engine/audioEngine/globalFx.ts` (stock lines named). Each
+**unwires** its piece rather than not building it: the nodes stay built and live, and the pull model (only what the
+destination reaches renders) takes them out of rendering. So the census reads unchanged on all four (1 793 and 1 815),
+and the price recorded is the rendering, which is what the thread pays. This is the plan's "unbuilt" in effect, at a
+one-place edit; the deltas include whatever a piece's own sends and LFO links cost, since those go unrendered with it.
+- **A5, the Reverb room.** Lines 543–544 removed (the Reverb's and its Return's connects). Its twelve send Gains stay
+  connected into it and go unrendered with it. The T6 smoke run's trace renders no Convolver.
+- **A6, EQ3, LPF and HPF.** Lines 496–498 removed from the chain's span list (the entry cut joins the filter cut), and
+  `connectTapsIfWanted` line 640 moved the `?debug` pre tap from the EQ3 to the entry cut, so the analyser cannot keep
+  the EQ3 rendering. Their LFO links are unrendered with them rather than unlinked. The smoke trace renders 9 biquads
+  against stock's 15.
+- **A7, the Compressor, Limiter and ceiling.** Lines 504–507 replaced by the Width cell's span alone (Width → master
+  gain), and line 541 makes the rooms join at the Width cell's input in both decay modes.
+- **A8, the five rooms.** Lines 543–548 removed: the Reverb's, the Delay's and the three effect rooms' return
+  connects. Every robot's five send Gains, the rooms and their branches go unrendered (the smoke trace renders 822
+  Gains against 909, no Convolver, 7 Delays against 13). The overlay still reads `fx in 5/10`, because it counts
+  connected cells, not rendering ones.
+
+**Results:**
+
+| Piece | D1 delta, median (r1 · r2 · r3) | D5 delta, median (r1 · r2 · r3) | Read |
+|---|---|---|---|
+| A5 the Reverb | **−0.074** (−0.074 · −0.076 · −0.074) | **−0.043** (−0.055 · −0.043 · −0.028) | outside, both |
+| A6 EQ3, LPF, HPF | **−0.041** (−0.041 · −0.043 · −0.011) | **−0.019** (−0.046 · −0.014 · −0.019) | outside, both |
+| A7 Compressor, Limiter, ceiling | −0.008 (−0.013 · +0.002 · −0.008) | −0.003 (−0.000 · −0.015 · −0.003) | **below noise**, both |
+| A8 the five rooms | **−0.134** (−0.139 · −0.110 · −0.134) | **−0.070** (−0.088 · −0.070 · −0.062) | outside, both; contains A5 and the lit branches |
+
+`max lag` stayed 16–25 ms in every run. Peak windows fall with the means (A5 D1 0.57–0.59 → 0.50–0.52; A8 D1
+0.57–0.61 → 0.44–0.46).
+
+**Reading.**
+- **The Reverb is the base chain's one large piece:** 0.074 on D1, 0.043 on D5. That is the ratio §1's breakdown
+  gave the one Convolver (3.5 % against 1.7 % of traced Render): the two worlds seed different decays, and a
+  convolver's cost follows its impulse length. H5's "the base chain is small" holds for everything **but** the Reverb.
+- **The filters are moderate, the dynamics are free.** EQ3, LPF and HPF at neutral cost 0.041 on D1 and 0.019 on D5;
+  D1's third round read only 0.011, so this one is the least steady of the outside-the-band deltas. The Compressor,
+  Limiter and ceiling are below noise on both worlds.
+- **A8 is mostly A5 and the lit branches.** It removes the Reverb (A5) and the room branches A1 also darkens. On D1
+  three of A1's five lit effects are branches (Chebyshev, Chorus, Shifter), on D5 two (Chebyshev, Chorus). Split by the
+  2026-10-20 offline prices (§2), those branches are about half of D1's A1 (38 of 75 ‰, about 0.048) and a third of
+  D5's (23 of 69 ‰, about 0.027). What is left for the fabric itself (the sixty send Gains, the Delay and the room
+  buses) is about **0.134 − 0.074 − 0.048 ≈ 0.01** on D1 and **0.070 − 0.043 − 0.027 ≈ 0** on D5: an estimate, not a
+  measured delta, and at the size of the noise band. The sends and rooms are not where the cost is.
+
+**The sum** (spec §1.2's 70 % criterion). The ablations overlap, so the raw sum counts some cost twice: A8 contains
+A5 and the lit branches of A1, and on D1 A2 darkens two of A1's lit branches with the rooms only standing-by robots
+fed (§3). Both readings are given; below-noise medians are counted as measured.
+
+| | D1 | D5 |
+|---|---|---|
+| A1 every effect dark | 0.093 | 0.083 |
+| A2 standing-by voices released | 0.124 | 0.107 |
+| A3 dark cells' LFOs | 0.026 | 0.016 (below noise) |
+| A4 the bank | 0.038 | 0.004 (below noise) |
+| A5 the Reverb | 0.074 | 0.043 |
+| A6 EQ3, LPF, HPF | 0.041 | 0.019 |
+| A7 Compressor, Limiter, ceiling | 0.008 (below noise) | 0.003 (below noise) |
+| A8 the five rooms | 0.134 | 0.070 |
+| **Raw sum** | **0.538** | **0.345** |
+| Stock mean | 0.557 | 0.498 |
+| **Raw share explained** | **97 %** | **69 %** |
+| A8 counted as its fabric only (≈ 0.01 / ≈ 0, above) | 0.416 | 0.275 |
+| **Share without A8's overlap** | **75 %** | **55 %** |
+| Less A2's overlap with A1 on D1 (the two branches its rooms lose, if Chorus and Shifter: ≈ 0.04) | ≈ 0.38 | — |
+| **Share without either overlap** | **≈ 68 %** | **55 %** |
+
+**The 70 % criterion is not met on D5 by either reading**: 69 % raw, 55 % without A8's overlap. On D1 it is met on the
+raw sum and is about at the line (68–75 %) once the overlaps are taken out. The overlap figures lean on the offline
+prices' proportions and on which two branches A2 darkens on D1 (the overlay does not say); they are estimates and are
+marked so.
+
+**What is unexplained** is about 0.22 of capacity on D5 (45 % of its stock mean) and 0.13–0.18 on D1 (25–32 %), by the
+overlap-free reading. No ablation removed it; what is left in the graph when every piece above is gone is:
+- **the sounding robots themselves**: about 3.5 (D5) to 3.8 (D1) robots' voices, which A2 left in place. At A2's
+  price of a standing-by robot (0.013–0.016 each) that is roughly 0.05–0.06 of capacity, more with their notes, LFO
+  links and filter work while they play. This is the music, not a cut;
+- **the fixed per-quantum overhead**: the destination, the AudioWorklet and the two analysers the `?debug` overlay
+  taps, the Signals behind the master and chain parameters, and Chrome's own render bookkeeping at 1 024-frame
+  callbacks. No ablation here measures it.
+
+Neither is a hypothesis H1–H5 prices. Chasing it would take one more ablation (every robot silenced, with the base
+chain kept) to split the robots from the floor; whether that is worth running is Gate A's call (§5).
+
+### 5. The decision table for Gate A (T8)
+
+One row per piece, biggest first by its ablation delta on both worlds. **Delta** is §3's and §4's same-round median
+(capacity, negative is cheaper), the most a cut of that piece can save; a cut that removes less than the whole piece
+saves less, and the pieces do not add (§4). **Breakdown** is §1's share of traced Render, which is mostly the tracer's
+own cost for the cheap classes and is given only where a piece owns a class. **Census** is the change in live nodes
+(§3); an unwired piece leaves its nodes live and reads 0. Cuts and tiers are spec §1.3's and §1.4's; the task numbers
+are this plan's Phase B.
+
+| Order | Piece (hypothesis) | Breakdown | D1 delta | D5 delta | Census, D1 / D5 | The cut it implies | Audible? | Tier |
+|---|---|---|---|---|---|---|---|---|
+| **1** | Standing-by robots' voices (H2, A2) | not separable: its nodes are Gains and ConstantSources | **−0.124** | **−0.107** | −678 / −499 (Gains −506 / −374, ConstantSources −142 / −108) | Release a robot's voice when it leaves the sounding set, re-reserve and re-prime its links when it enters (T14, A/B T15). **A/B (§8): D1 −0.065, D5 +0.013**, inside that sitting's noise band (0.101 / 0.120); A2's price was the docked robots, not H2 | No: Full has no standing-by robots; at Light an admitted robot's first note must not be late or clicked | **every tier** |
+| **2** | Lit effects (H1, A1) | inside Biquad 3.6 / 3.5 %, Oscillator 4.5 / 5.4 %, WaveShaper 3.3 / 3.5 % | **−0.093** | **−0.083** | 0 / 0 | The effects tier: every cell and branch held dark below `LOAD_EFFECTS_MIN`, the stored Mix kept (T9–T12, A/B T13). **A/B (§11): D1 −0.289, D5 −0.096**, cheaper in all six rounds; crossings ≤ ×1.014 | Yes, the pedals go silent | **Light only** |
+| **3** | The Reverb (H5, A5) | Convolver 3.5 / 1.7 % | **−0.074** | **−0.043** | 0 / 0 (1 Convolver, 12 sends) | A Reverb decay cap at Light (spec §1.3, H5), written into T19. The delta is the whole Reverb's price; what a cap saves depends on how far it shortens the impulse, and needs its own A/B. **Gate C (2026-10-29): off at Light instead** (T19); **A/B (§12): D1 −0.021, D5 −0.059**, cheaper in all six rounds; the lift clicks and replays the old tail as built | Yes | **Light only** |
+| **4** | EQ3, LPF and HPF at neutral (H5, A6) | 6 of the 15 rendering biquads | **−0.041** | **−0.019** | 0 / 0 | Out of the chain while neutral: reopens backlog 28's decision to keep them in (Crawford's), written into T19 | Probably not at neutral (the EQ3's crossover split is not bit-flat); needs a listen | every tier, if inaudible |
+| 5 | The bank's lanes and drift (H3b, A4) | 8 of the 25–28 rendering oscillators | −0.038 | below noise | −28 / −24 | Stop the drift secondaries while drift is held off (T17, A/B T18). A4 also stopped the lanes, which are audible, so the drift-only saving is a part of −0.038 and unpriced. **A/B (§9): D1 −0.017, D5 −0.015**, inside that sitting's noise band | No | every tier |
+| 6 | Dark cells' effect LFOs (H3a, A3) | 4–5 LFOs | −0.026 | below noise | −5 / −4 | Stop a dark cell's LFOs at the darken crossing, start them at the light crossing (T16, A/B T18). With H1 kept, every LFO cell is dark at Light, so this saves more there than A3 measured. **A/B (§9): D1 +0.008, D5 −0.009**, inside that sitting's noise band | No | every tier |
+| — | Send and room fabric (H5, A8 less A5 and the lit branches) | A8 unrenders 87 of 909 rendering Gains on D1 | ≈ −0.01 (estimate) | ≈ 0 (estimate) | 0 / 0 | **None: not worth a cut** (at the size of the noise band) | — | — |
+| — | Compressor, Limiter, ceiling (H5, A7) | DynamicsCompressor 0.7 / 0.7 % | below noise | below noise | 0 / 0 | **None: not worth a cut** (and musical, spec §1.3) | — | — |
+| — | Signals and Params (H3c) | ConstantSource 14.0 / 13.7 % (mostly trace overhead) | not ablatable | not ablatable | 329 / 336 live | None inside Tone; H2 is the lever (it removes 142 / 108 of them) | — | — |
+| — | Audio-rate biquads (H4) | BiquadFilter 3.6 / 3.5 % in all | in A1 and A6 | in A1 and A6 | 15 rendering | None of its own; H1 removes the lit Phaser's and AutoWah's at Light | — | — |
+
+**The recommended order, and why.**
+1. **H2 first.** It is the largest piece on both worlds, it is inaudible, so it ships on every tier with no gate, store
+   flag or copy, and it is the only lever on the ConstantSources nothing else can cut. Two things A2 did not price: the
+   cut re-primes a joining robot's links (A2 did not), and every admission is a connect into the live graph (backlog 29: about one connect in six loses one
+   quantum headless, inaudible on speakers). T15's A/B prices both.
+2. **H1 second.** Nearly as large, but audible, so it takes the Light-only tier and the UI work (T9–T12). On D1 it
+   overlaps H2 by about 0.04 (§3), so after H2 it may save nearer 0.05 there; on D5 there is no overlap.
+3. **The Reverb third**, as a new T19 piece, if a cap is wanted. It is the base chain's one large piece. A decay cap
+   saves an unknown part of −0.074 / −0.043. Turning the Reverb off at Light would save it all, but it is audible and
+   is not in the spec's list.
+4. **EQ3, LPF and HPF fourth**, only if Crawford reopens backlog 28. The number is −0.041 on D1 and −0.019 on D5. The
+   D1 rounds were the least steady of the outside-the-band deltas (−0.011 to −0.043).
+5. **H3b and H3a last.** Each is under 0.04 on D1 and below noise on D5. H3a grows if H1 is kept. Both are cheap and
+   inaudible, so they are worth building only after the large pieces, on their own A/Bs (T18).
+6. **Drop** the send and room fabric and the Compressor, Limiter and ceiling: below noise, or at its size.
+
+**What the top pieces might leave, as an estimate.** H2 and H1 together, less D1's overlap, come to about 0.18 on D1
+and 0.19 on D5. That would put Light near 0.38 and 0.31 against stock's 0.557 and 0.498 on this desktop. With the whole
+Reverb out as well, it would be near 0.31 and 0.27. These are estimates from deltas that do not add. Only the cuts'
+own A/Bs measure them, and only the Pixel sitting (Gate C) says whether that is enough.
+
+**The 70 % criterion is not met** (§4). The ablations explain 97 % (D1) and 69 % (D5) of the stock mean on the raw sum,
+and about 68–75 % and 55 % once the overlaps are taken out. The unexplained part is about 0.13–0.18 of capacity on D1
+and 0.22 on D5. What is left in the graph is the sounding robots' own voices (about 0.05–0.06 at A2's per-robot price,
+more while they play) and the fixed per-quantum floor (the destination, the worklet, the `?debug` analysers, the base
+Signals, Chrome's render bookkeeping). Neither is a cut H1–H5 names. **Gate A's choice** (plan, Gate A, second box) is
+one of two:
+- chase the remainder with one more ablation: every robot silenced, the base chain kept, to split the robots from the
+  floor;
+- or cut what is priced: H2 and H1 alone are about a third of the stock mean on both worlds.
+
+### 6. A9, the robots against the floor (Gate A, Task 8a)
+
+Crawford's call at Gate A (2026-10-28): chase the remainder §5 left unexplained, with one more ablation that splits the
+robots from the floor.
+
+**Method.** As §3, in a new sitting, so the noise band was measured again first (NB2). **A9:**
+`src/engine/AudioEngine.ts`, `reserveVoice`, one line added after stock line 817: `return false`, so no robot is given
+a voice. Notes then find no voice and are skipped (the engine's own no-voice path). The base chain, the global effects,
+the rooms and the LFO bank are built as usual. Build `index-CSKyqXQf`, served on :4201, `src/` clean after. 24 runs at
+120 s, every one exit 0 with orphaned Chrome 0 before and after and a clean console. The aggregate is
+`agg-NB2-A9.json` beside the runs. Stock this sitting: D1 0.561 (0.550–0.573), D5 0.517 (0.505–0.529).
+
+| | D1, median (r1 · r2 · r3) | D5, median (r1 · r2 · r3) |
+|---|---|---|
+| Noise band, this sitting | −0.001 (+0.002 · −0.001 · −0.003); band **0.003** | −0.010 (+0.003 · −0.025 · −0.010); band **0.025** |
+| **A9, no robot voices** | **−0.389** (−0.383 · −0.404 · −0.389) | **−0.354** (−0.354 · −0.349 · −0.367) |
+| A9's own mean, the floor | **0.167** (0.166–0.168) | **0.163** (0.162–0.165) |
+| Census | 1 793 → 944 | 1 815 → 940 |
+| `fx in` | 5 → 2 (AutoWah, Width) | 5 → 3 (AutoWah, Width, Vibrato) |
+
+Peak window fell with the mean (D1 0.58–0.61 → 0.17; D5 0.59–0.61 → 0.17); `max lag` 15–22 ms on both arms. The
+`fx in` drop is the room branches going dark: with no voices nothing feeds the rooms, so Chebyshev, Chorus and Shifter
+stop rendering. The chain cells stay lit.
+
+**Reading.**
+- **The robots are about 70 % of Light's load on this desktop**: 0.389 of D1's 0.557 (70 %) and 0.354 of D5's 0.519
+  (68 %), far outside both bands and the steadiest delta of the series. What is left, **the floor**, is about 0.17 on
+  both worlds: the base chain with the Reverb, EQ3, filters and dynamics; the lit chain cells; the bank and the dark
+  cells' LFOs; the worklet, the `?debug` analysers and the render overhead. A9's variant is the floor itself, so the
+  two parts add to the stock mean by construction.
+- **Inside the robots' share** (D1 / D5):
+
+  | Part | D1 | D5 | Source |
+  |---|---|---|---|
+  | Standing-by voices | 0.124 | 0.107 | A2, measured |
+  | Room branches lit only because robots feed them | ≈ 0.048 | ≈ 0.027 | A1's branch share by the offline prices (§4), an estimate |
+  | **The sounding robots** (voices, notes, sends, links) | **≈ 0.22** | **≈ 0.22** | the rest |
+  | **Per sounding robot** (3.8 and 3.5 sounding) | **≈ 0.057** | **≈ 0.063** | |
+
+  **A playing robot costs about four times a standing-by one** (0.013–0.016, §3). That is roughly three times what
+  spec §1.6 step (2) assumes for the robot-count lever ("about 2 capacity points per sounding robot"). That figure came
+  from an earlier, smaller graph. This one is an estimate by subtraction, but on both worlds alike.
+- **The floor is covered by pieces already priced.** On D5, the Reverb, filters, bank, dark LFOs and the lit chain
+  cells (AutoWah, Width and Vibrato, about 0.056 of A1 by the offline prices) come to about 0.14 of the 0.163. That
+  leaves about 0.03 of overhead no cut reaches. On D1 the same pieces come to about 0.22, more than the floor's 0.167:
+  each was priced against the full graph, where a piece costs more than it does in a near-empty one.
+- **So §5's unexplained remainder is the sounding robots**, about 0.22 of capacity on both worlds, some 40 % of
+  stock: the music itself. The spec names two levers on it:
+  - fewer sounding robots at Light (§1.6 step 2: the sounding cap from 4 to 3), worth about 0.06 a robot on the desktop
+    by this estimate. Audible, so Light only;
+  - a robot's voice built on fewer nodes, a spec of its own (§1.6, past step 4).
+
+**What this changes in §5.** The cuts and their order stand. H2 and H1 are still the largest cuts that leave the
+music as it is. One row joins the table, for Crawford to place:
+
+| Piece | D1 | D5 | Census, D1 / D5 | The cut it implies | Audible? | Tier |
+|---|---|---|---|---|---|---|
+| Sounding robots (A9 less A2 and the fed branches) | ≈ −0.22 (≈ −0.057 each) | ≈ −0.22 (≈ −0.063 each) | A9 −849 / −875, of which A2 −678 / −499 | The sounding cap at Light 4 → 3 (spec §1.6 step 2), or a cheaper voice (own spec) | Yes, fewer robots play | Light only |
+
+**The 70 % criterion, revisited.** A9 alone explains 70 % of D1's stock mean and 68 % of D5's, at the line rather than
+clearly past it. With the floor's pieces priced in §3 and §4, nothing large is left unnamed: about 0.03 of overhead on
+D5, and the sounding robots, which are the music.
+
+### 7. Gate A's call (2026-10-28)
+
+Crawford's verdict on each row of §5 and §6 ([intent](../intent/light-tier-standing-cost.md), "Gate A — the cuts"):
+inaudible first and alone, so the phone hears Phase B before anything audible leaves Light; on a miss, the three
+audible cuts are tried stacked in one sitting and the first clean build wins (spec §1.6, plan Phase C2).
+
+| Piece | Gate A |
+|---|---|
+| Standing-by robots' voices (H2) | **Kept**, Phase B, every tier (T14, T15). A/B (§8): D1 −0.065, D5 +0.013, inside that sitting's noise band; crossing ×1.000, first note on time. Gate B passed |
+| Dark cells' effect LFOs (H3a) | **Kept**, Phase B, every tier (T16, T18). A/B (§9): D1 +0.008, D5 −0.009, inside that sitting's noise band; Phaser and Chorus crossings ≤ ×1.22, no gap. Gate B passed |
+| The bank's drift secondaries (H3b) | **Kept**, Phase B, every tier (T17, T18). A/B (§9): D1 −0.017, D5 −0.015, inside that sitting's noise band. Gate B passed |
+| Lit effects (H1) | **Only on a phone miss**, the first of three Light-only cuts (T9–T13) |
+| The Reverb (H5) | **Only on a phone miss**, a decay cap, the second (T19, T24) |
+| Sounding robots (§6) | **Only on a phone miss**, three at Light instead of four, the third (T25, T26) |
+| EQ3, LPF and HPF (H5) | **Dropped**: the EQ levels are seeded, so the worlds are not at neutral and the cut would rarely apply; backlog 28's decision stands |
+| Send and room fabric (A8 less A5 and the lit branches) | **Dropped**: at the size of the noise band |
+| Compressor, Limiter, ceiling (H5) | **Dropped**: below noise on both worlds |
+| Signals and Params (H3c), audio-rate biquads (H4) | No cut of their own |
+
+### 8. Phase B, H2's A/B — standing-by voices released (T15, 2026-10-28)
+
+**Method.** As §3, in a new sitting, at plan T15's length: `npm run perf:audio`, **240 s** per run, three rounds, each
+round D1 then D5 at Light, the order alternating by round (odd rounds base first), then one Full run per world per arm.
+**Base** is the stock build (`index-BpSIkiTM`, 357d06de's `src/`) on :4191; **T14** is 47012de5 built to the
+scratchpad (`dist-t14`, `index-MjmwUmp9`) on :4192. The noise band (NB3) was run last in the same sitting, the stock
+build against a byte-identical copy on :4195. 64 runs in all, every one exit 0, orphaned Chrome 0 before and after.
+Labels `<set>-r<round>-<d1|d5>-<base|cut>` and `<set>-full-<d1|d5>-<base|cut>`; the aggregates are
+`agg-T15-T18a-T18b.json` and `agg-NB3.json` beside the runs. **Delta** = cut mean capacity − the same round's base mean,
+so negative is cheaper.
+
+**The noise band, this sitting:**
+
+| World | Same-round deltas, r1 · r2 · r3 | Band (largest \|delta\|) | Full, same build |
+|---|---|---|---|
+| D1 | −0.035 · −0.101 · −0.019 | **0.101** | −0.008 |
+| D5 | +0.017 · +0.017 · −0.120 | **0.120** | +0.124 |
+
+**This sitting is roughly eight to thirty times noisier than §3's and §6's** (bands 0.004 and 0.013, then 0.003 and
+0.025). The stock mean moved between rounds by up to 0.32 on D1 (0.514–0.831 over NB3's six D1 runs) where §3 saw
+about 0.04. Two things differ from Phase A: the runs are twice as long, so each one crosses a whole wave of robots
+waking and docking (eligible robots about 1 → 9 → 1 on D1); and the desktop was not idle. After the last run, Crawford's
+own Chrome (the default profile, not the harness) had a renderer at about half a core and its GPU process busy. The
+desktop underruns are raster-bound on this iGPU ([PERFORMANCE.md](../PERFORMANCE.md), "Desktop full-screen underruns are
+raster-bound", backlog 26), so a busy
+browser competes for exactly the resource that drives capacity. That is the likely cause; it is not proven. **No delta
+below about 0.1 in this sitting can be told from noise.**
+
+**H2's A/B** (T14 against the stock build):
+
+| | D1, median (r1 · r2 · r3) | D5, median (r1 · r2 · r3) |
+|---|---|---|
+| Base mean, this set | 0.687 (0.633 · 0.687 · 0.700) | 0.627 (0.627 · 0.709 · 0.626) |
+| **Delta** | **−0.065** (−0.096 · −0.040 · −0.065) | **+0.013** (+0.013 · −0.006 · +0.022) |
+| Peak window, base → T14 | 0.894 → 0.605 · 0.850 → 0.760 · 0.864 → 0.714: **falls every round** | 0.765 → 0.831 · 0.865 → 0.947 · 0.796 → 0.905: **rises every round** |
+| `max lag` (15 s buckets), base / T14 | 42 · 23 · 27 / 22 · 29 · 31 ms | 23 · 25 · 27 / 25 · 28 · **275** ms |
+| Full, base → T14 | 0.777 → 0.722 (−0.055) | 0.807 → 0.714 (−0.094) |
+| Mean live nodes, T14 − base | −115 · −114 · −110 | −152 · −153 · −159 |
+| … at the wave's crest | −318 · −332 · −319 | −349 · −340 · −361 |
+| Standing by, mean (most in a 15 s bucket) | 1.8 (5.3–5.4) | 2.6 (6.5–6.6) |
+
+- **At Full nothing changed**, as built: nobody stands by, the node counts match (1 829 / 1 828, 1 845 / 1 845), and
+  the two Full deltas are inside NB3's Full pair (+0.124).
+- **The 275 ms** is one bucket (150–165 s on D5, round 3), the moment eligible robots went from 4 to 6.5 and the first
+  of them stood down. It is the only bucket over 52 ms in the 64 runs (NB3, stock against stock, reached 52).
+- **Against spec §1.5 step 3's bar**, read as written: D1's −0.065 is past A2's price less this sitting's band
+  (0.124 − 0.101 = 0.023), the peak window falls, `max lag` is inside the base's spread and Full is inside the band.
+  D5 fails twice: the peak window rises every round, and the 275 ms is outside the base's spread. With a band this
+  close to the price itself, the bar's arithmetic says little either way.
+
+**Why T14 saves about a sixth of A2's census.** A2 released every robot outside the sounding set; T14 releases only
+the robots **standing by** (eligible, outside the set: spec §1.3's H2). The difference is the **docked** robots: docking
+mutes a robot, so it is not eligible, never stands by, and keeps its voice under T14. §3's census was read after the
+8 s warm-up, where every stock run's overlay read `standing by 0`, so **A2's whole −678 / −499 at that read was docked
+robots**, none of them H2's. Over a 240 s run T14's saving follows the wave: nothing while four or fewer robots are
+eligible, −320 to −360 nodes at the crest, −110 / −155 on average. A2's −0.124 / −0.107 is therefore not H2's price, and
+no A/B of H2 alone can reach it. Releasing a docked robot's voice as well is a different cut, outside the spec's H2
+and Gate A's pick; it is Crawford's to take or not.
+
+**The admission and stand-down crossing** (spec §1.5 step 4, the recorder recipe of DARK_EFFECT_BYPASS.md §5 step 2;
+`probe-crossing.mjs` in the scratchpad, against the branch's source on a dev server): a sustained 220 Hz tone into the
+real FX chain, then `reserveVoice` + `updateRobotSends` for a three-layer robot (what admission's `reReserveVoice`
+does), then 1.6 s later `releaseVoice` (a stand-down). Three runs:
+
+| Event | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Admission | ×1.000 · ×1.000 · ×1.000 | none | 7.9 · 5.1 · 5.0 ms |
+| Stand-down | ×1.000 · ×0.999 · ×1.000 | none | 1.6 · 1.2 · 1.5 ms |
+| Control (no change) | ×1.000 · ×1.000 · ×1.000 | none | — |
+| Abrupt step (the metric's own check) | ×233 – ×1 049 | 5 376 – 15 190 samples | — |
+
+**The first note is not late.** A note triggered at `now + 0.05` straight after the admission's build, against the same
+note on a voice reserved 1.5 s earlier, the onset read by block position as the first sample over 10⁻⁴, four runs each:
+onset − scheduled **12.33 ms** every time after admission, and 9.67–12.35 ms on the warm voice. The 12 ms is the
+measurement's own offset (it is in both arms); the arms agree to within one render quantum (2.67 ms).
+
+**One probe artifact, found and fixed.** The first version fed the tone in **mono**, so the first stereo voice (every
+voice ends in a `Panner`) changed the chain entry's channel count, which makes Chrome rebuild its filter and delay
+kernels: ×500–×1 075 on admission and stand-down alike, the same samples to four places in every run. A 7 ms
+main-thread loop and 300 unconnected `Gain`s built and disposed both read ×1.000, so it was not the recorder or the
+graph lock. With the tone through a centred `Panner`, as in the app, the same events read ×1.000. In the app the chain
+entry is stereo whenever any robot has a voice, which at Light is always. The mono version is kept as
+`probe-crossing-mono.mjs`.
+
+**A Tone warning T14 adds.** Every Light run with T14 in logs one "Events scheduled inside of scheduled callbacks should
+use the passed in scheduling time" (the stock build: none; Full: none; A2 logged the same one). Its stack, reproduced
+with the admission inside a `Transport.scheduleOnce`: `updateRobotSends` → `rampOrSet` (`voiceEntry.ts`) →
+`Param.rampTo` with no start time. Admission now runs from the budget's reconcile, on the measure tick, inside a
+Transport callback; before T14 the sends were primed only from UI events. The ramp is `SEND_RAMP_SECONDS` (50 ms) from 0
+on a fresh voice, starting at `now()` rather than the tick's time: at worst an admitted robot's first note has its sends
+fade in over its first 50 ms. Not fixed; a fresh voice could take its sends with `setValueAtTime` at the tick's time.
+
+**Verdict:** kept; Gate B passed (Crawford, 2026-10-29: "Gate B sounds good").
+
+### 9. Phase B, H3's A/Bs — dark cells' LFOs and the drift secondaries stopped (T18, 2026-10-28)
+
+**Method.** §8's, in the same sitting and against §8's noise band (NB3: **0.101** D1, **0.120** D5), each cut against
+the build before it: **T18a** is T16 (d6e5eeb4, `dist-t16`, `index-CEVj3Q0k`, :4193) against T14 (:4192); **T18b** is
+T17 (ef0775fd, `dist-t17`, `index-CJ4I0byy`, :4194) against T16. Every run exit 0, orphaned Chrome 0 before and after.
+Phase A's prices: A3 −0.026 on D1, below noise on D5; A4 (the whole bank, of which T17's drift is an unpriced part)
+−0.038 on D1, below noise on D5.
+
+| | T18a, H3a (T16 − T14) | T18b, H3b (T17 − T16) |
+|---|---|---|
+| **D1 delta**, median (r1 · r2 · r3) | **+0.008** (+0.120 · +0.008 · −0.026) | **−0.017** (−0.120 · −0.017 · +0.102) |
+| **D5 delta** | **−0.009** (−0.106 · +0.002 · −0.009) | **−0.015** (−0.015 · −0.075 · −0.005) |
+| Base mean, D1 / D5 | 0.639 (0.638–0.649) / 0.623 (0.613–0.735) | 0.601 (0.508–0.611) / 0.587 (0.480–0.602) |
+| Peak window D1, base → cut | 0.788 → 0.880 · 0.706 → 0.716 · 0.717 → 0.732 (rises every round) | 0.735 → 0.542 · 0.722 → 0.764 · 0.678 → 0.831 |
+| Peak window D5 | 0.851 → 0.732 · 0.701 → 0.713 · 0.786 → 0.695 | 0.527 → 0.511 · 0.677 → 0.611 · 0.734 → 0.687 (falls every round) |
+| `max lag` D1, base / cut | 32 · 26 · 20 / 26 · 26 · 30 ms | 33 · 25 · 22 / 22 · 47 · 35 ms |
+| `max lag` D5 | 28 · 23 · 34 / 26 · 30 · 31 ms | 19 · 24 · 34 / 22 · 22 · 26 ms |
+| Full, D1 / D5 | −0.046 / +0.004 | −0.019 / +0.091 (drift is on at Full, so the two builds run the same graph there) |
+| Mean live nodes, cut − base, D1 / D5 | −3 · −8 · −10 / −3 · −9 · −1 | −12 · −14 · −6 / −14 · −13 · −13 |
+
+**Reading.** Every median is inside the sitting's band, and three of the four round sets straddle zero; the one that
+does not, T18b on D5 (cheaper in all three rounds), is still inside the band. Spec §1.5 step 3's bar, read as
+written, is passed by both cuts on both worlds, but only because each price less a 0.1 band is below zero: the bar
+cannot fail in this sitting, so it says nothing. `max lag` is inside the base's spread except T18b's D1 47 ms (base
+22–33), and T18a's D1 peak window rises in all three rounds, by 0.010–0.092; both are inside the noise this sitting
+shows elsewhere (NB3's own D1 `max lag` reached 52 ms). The census falls a little with each, as built (a stopped Tone oscillator's native node ends and is let go; Tone makes
+a new one at the next start).
+
+**What T17 also fixed.** T16 is T17's base, and on it the drift secondaries ran **and were attached** at Light from
+boot (plan T17's "As built": `primeLfoBank` attached and started them whatever the tier, and the budget held drift off
+before the first power-on). So T18b's base had drift modulating the lanes at Light and T17 has none: T18b prices that fix as well
+as the stop, and Gate B's listen is where it can be heard.
+
+**T16's crossing** (spec §1.5 step 4; §8's probe and its stereo tone): the Phaser lit from dark at Mix 0.3 (its LFOs
+start before the connect) and darkened (they stop when the darken timer's disconnect runs); the Chorus, pinned in the
+Double room, lit by its room going live (a send ramp, then `setRoomFed`) and dark again. Each cell read lit after the
+light and dark after the darken in every run.
+
+| Crossing | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Phaser lit | ×1.012 · ×1.001 · ×1.000 | none | 1.0 · 1.0 · 0.7 ms |
+| Phaser darkened | ×1.000 · ×0.999 · ×1.013 | none | 0.1 · 0.2 · 0.2 ms |
+| Chorus lit | ×1.000 · ×1.159 · ×0.984 | none | 0.8 · 1.1 · 1.0 ms |
+| Chorus darkened | ×1.168 · ×1.218 · ×1.025 | none | 0.2 · 0.1 · 0.3 ms |
+
+The mono version of the probe (§8) read the same crossings at ×0.90–×1.14, also clean: neither effect changes the
+chain entry's channel count.
+
+**Verdict:** kept; Gate B passed (Crawford, 2026-10-29: "Gate B sounds good"). **Across Phase B,** no A/B in this sitting can show a saving below
+about 0.1 of capacity. H3a's and H3b's Phase A prices are a quarter to a third of that, and §8 shows H2 as specified
+is worth well under A2's 0.124. A re-run of §8 and §9 on an idle
+desktop (the browser closed, NB first) would take about four and a half hours; whether it is wanted, or whether the
+phone sitting (Phase C) is the measure that counts, is Crawford's call.
+
+### 10. Phase C, the Pixel sitting — Crawford's runs (T21, 2026-10-29)
+
+Plan T20 and T21. **Builds:** production `vite build`s served side by side on the LAN (`192.168.12.231`), each on its
+own port so their browser storage stays apart: the branch `perf/light-tier-standing-cost` at `a0728358`
+(`index-CJ4I0byy`, T14, T16 and T17 in it) on **4197**, and `main`'s merge-base `a5d5944d` (`index-BpSIkiTM`, the
+build every Phase A and Phase B base ran as) on **4199**. **Links:** D1 (`56c2t2t8` at (−116, −2)) and D5 (`bravo` at
+(−150, 90)) through roadmap 56's world links, `?debug` and `load=` pinned, from a links page (`phone.html`, session
+scratchpad) in each build's `dist`. Every link was loaded headlessly over the LAN address first (T20). Protocol as
+before: Pixel 8, the phone rested before each run, a fresh tab per run, hands off to 3:00, read again at 4:00. The
+`underruns` count is a pointer, not evidence (backlog 29); the ear is the measurement.
+
+| # | Build | Tier | World | `underruns` 3:00 → 4:00 | Collapse? | Crawford's words |
+|---|---|---|---|---|---|---|
+| 1 | branch `a0728358` | Light | D1 | **136** → 240 | no dropout | "a little too scratchy throughout" |
+| 2 | branch `a0728358` | Light | D5 | **115** → 135 | no dropout | "pretty good, a few scratches but passable" |
+| 3 | `main` `a5d5944d` | Light | D1 | **262** → 164 (as read) | no dropout | "too scratchy" |
+| 4 | `main` `a5d5944d` | Light | D5 | **194** → 254 | no dropout | "too scratchy" |
+| 5 | branch `a0728358` | Full | D1 | **380** → about 1 000 at 5:00 | **took off at about 4:30** | "too scratchy" |
+| 6 | branch `a0728358` | Full | D5 | **254** → 800 | **took off at about 3:30** | "too scratchy" |
+| 7 | `main` `a5d5944d` | Full | D1 | **202** → 234 | no | "a little too scratchy" |
+| 8 | `main` `a5d5944d` | Full | D5 | **425** → 560 | no | "too scratchy" |
+
+For comparison, `main` at Light on a rested phone in the two baseline sittings: D1 190 → 254 ("clicks happen
+throughout", 2026-10-23) and 191 → 261 ("too scratchy right out of the gate and throughout", 2026-10-26); D5 93 → 106
+("acceptable pass") and 136 → 180 ("too scratchy right out of the gate and throughout").
+
+**Reading against Gate C** (clean by ear on D1 and D5 at Light for four minutes, Full unchanged by ear; the count
+recorded, not gated).
+- **D1 at Light is not clean.** "A little too scratchy throughout" is one adjective better than `main`'s "too scratchy"
+  in the same sitting, and the same words the pre-fix build drew on both worlds on 2026-10-26, where a one-adjective
+  gap was read as no result. Its 136 at 3:00 is the lowest D1 reading on this phone but one (140, 2026-10-23).
+- **D5 at Light is "passable".** That is the best word D5 has had since `main`'s "acceptable pass" of 2026-10-23, and
+  `main` drew "too scratchy" beside it today. Its 115 at 3:00 is inside `main`'s earlier range (93–136) and below
+  today's 194. Whether "passable" is the gate's "clean" is Crawford's to say.
+- **Full did not stay unchanged: the branch took off on both worlds and `main` did not.** Runs 5 and 6 are the first
+  collapses since 2026-10-22, the same take-off round 3 saw at Full around 3:30 (2026-10-20). At Full, Phase B changes
+  only the dark cells' LFOs (T16): Full has no standing-by robots and drift is on. On the desktop the branch's Full
+  capacity read lower than the base's (§8, §9). One
+  run per cell cannot tell the build from the phone's state: the collapse of round 4 followed the run's place in the
+  sitting, not the build, and runs 5 and 6 ran fifth and sixth. But `main`'s Full runs came seventh and eighth and did
+  not take off, so place alone does not fit this sitting the way it fitted round 4.
+- **Run 3's count fell from 3:00 to 4:00.** The overlay's count is a running total and cannot fall, so one of the two
+  readings is a slip; which one is not known. The ear's "too scratchy" stands.
+- **By the gate's wording Gate C misses on D1, and on Full unless the take-off is the phone's state.** The verdict, and
+  whether Phase C2 starts, are Crawford's.
+- **Deviations:** one run per cell; the branch's Light runs were not repeated; run 5 was read at 5:00 instead of 4:00;
+  order as listed; the phone's rest between runs not timed; Gate B's desktop listen was not run first (T20).
+
+### 11. Phase C2, H1's A/B — the pedals and colour held off at Light (T13, 2026-10-29)
+
+Gate C missed (Crawford, 2026-10-29: "turn off the pedals and reverb on light"), so Phase C2 started with H1. **Method:**
+§8's driver and aggregator, in one sitting: the cut is T12's commit `1b117e3a` (`index-pklsL_s5`, T9–T12 in, :4223)
+against the branch's base `8de20e21` (no `src` change since `a0728358`, so the build is §10's `index-CJ4I0byy`,
+:4221). D1 and D5 at Light, 240 s, 15 s buckets, three rounds with the order inside each pair alternating by round,
+then one Full run per world per arm. Every run exit 0, orphaned Chrome 0 before and after. Phase A's price: A1 −0.093
+on D1, −0.083 on D5. **No fresh noise band:** the sitting was not idle (Crawford's own Chrome was open, 49 processes),
+and the base's own round-to-round spread is given instead. The overlay confirms the cut: the base reads `fx in 5/10`
+at Light on both worlds, the cut `fx in 0/10` and `· fx off`; at Full both read `fx in 5/10`.
+
+| | D1 | D5 |
+|---|---|---|
+| **Delta**, median (r1 · r2 · r3) | **−0.289** (−0.245 · −0.289 · −0.333) | **−0.096** (−0.096 · −0.191 · −0.073) |
+| Base mean, median (range) | 0.776 (0.734–0.836) | 0.614 (0.431–0.825) |
+| Cut mean, r1 · r2 · r3 | 0.531 · 0.547 · 0.401 | 0.518 · 0.634 · 0.359 |
+| Peak window, base → cut | 0.933 → 0.655 · 0.929 → 0.686 · 0.866 → 0.500 (falls every round) | 0.701 → 0.643 · 0.985 → 0.868 · 0.501 → 0.462 (falls every round) |
+| `max lag`, base / cut | 31 · 57 · 33 / 22 · 34 · 24 ms | 30 · 36 · 22 / 26 · 38 · 24 ms |
+| Full, base → cut | 0.623 → 0.622 (−0.001) | 0.598 → 0.579 (−0.020) |
+| Mean live nodes, base / cut | 1 691 · 1 689 · 1 688 / 1 682 · 1 686 · 1 684 | 1 671 · 1 662 · 1 669 / 1 663 · 1 665 · 1 666 |
+
+**Reading against spec §1.5 step 3.** The mean drops by more than A1's price on both worlds (by about three times on D1)
+and in every one of the six rounds; the peak window falls in every round; the cut's `max lag` sits inside the base's
+spread except D5 round 2's 38 ms against a base high of 36; Full reads the same within 0.02. The census barely moves,
+as A1's did (a dark cell's nodes stay live; its effect is simply not rendered). Two cautions. The base reads far
+higher here than in Phase A or §8 (D1 0.78 against 0.56–0.64), and D5's base spans 0.43–0.83, so absolute numbers
+from this sitting are not comparable with earlier ones; only the paired deltas are, and they all point one way. Why
+D1's delta is three times A1's is not known: the two worlds light different sets (D1 the Frequency Shifter, D5 the Vibrato; §2), and lit effects may cost more on a busy machine; neither is tested.
+
+**The crossing** (spec §1.5 step 4; §8's probe and its stereo tone, run against the dev server at T12's tree, three
+rounds; the probe calls `setEffectsHeldOff` directly, the function the budget's push reaches): a Phaser lit at Mix 0.3,
+then held off and lifted; the Colour room fed (a 0.5 send) with the Distortion lit at 0.5 in it, held off and lifted.
+Each cell read out of the path after the hold-off and back in after the lift, in every run.
+
+| Crossing | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Phaser held off | ×1.014 · ×1.001 · ×1.000 | none | 0.3 · 0.3 · 0.2 ms |
+| Phaser lifted | ×1.000 · ×1.001 · ×1.000 | none | 0.9 · 0.6 · 1.0 ms |
+| Colour room held off | ×0.998 · ×0.998 · ×0.998 | none | 0.1 · 0.2 · 0.0 ms |
+| Colour room lifted | ×0.996 · ×0.996 · ×0.996 | none | 0.3 · 0.2 · 0.1 ms |
+| Control (no change) | ×0.999–×1.000 | none | — |
+| Abrupt (the metric's check) | ×264–×1 044 | 5 376–15 427 samples | — |
+
+**Verdict:** Crawford's, on these numbers; by the bar as written H1 is kept. Next in Phase C2 is the Reverb, off at
+Light (T19 and T24, rewritten before they are built).
+
+### 12. Phase C2, the Reverb off at Light — A/B, crossing and the ghost tail (T24, 2026-10-29)
+
+**Method:** §11's, in one sitting: the cut is T19's commit `3648697d` (`index-QdwFf1-U`, :4223) against T13's commit
+`1b117e3a` (`index-pklsL_s5`, :4221; T12b between them changed only the UI). D1 and D5 at Light, 240 s, three rounds
+alternating inside each pair, then one Full run per world per arm. Every run exit 0, orphaned Chrome 0. Phase A's
+price for the whole Reverb: A5 −0.074 on D1, −0.043 on D5. The overlay confirms the cut: the base reads
+`· fx off`, the cut `· fx+rev off`, both `fx in 0/10`. No fresh noise band again (Crawford's Chrome open); the
+sitting was quieter than §11's (D1's base 0.479–0.501).
+
+| | D1 | D5 |
+|---|---|---|
+| **Delta**, median (r1 · r2 · r3) | **−0.021** (−0.018 · −0.021 · −0.109) | **−0.059** (−0.084 · −0.046 · −0.059) |
+| Base mean, median (range) | 0.480 (0.479–0.501) | 0.470 (0.453–0.547) |
+| Peak window, base → cut | 0.609 → 0.626 · 0.645 → 0.607 · 0.628 → 0.489 | 0.757 → 0.573 · 0.652 → 0.512 · 0.551 → 0.537 |
+| `max lag`, base / cut | 42 · 26 · 27 / 30 · 24 · 26 ms | 33 · 33 · 20 / 29 · 24 · 22 ms |
+| Full, base → cut | 0.807 → 0.759 (−0.049) | 0.590 → 0.641 (+0.051) |
+
+**Reading against spec §1.5 step 3.** Cheaper in all six rounds. D5's median beats A5's price; D1's (−0.021) is well
+under its −0.074, with one round at −0.109. The peak window falls in five rounds of six (D1 round 1 rises by 0.017);
+`max lag` is inside the base's spread. At Full the two builds run the same graph (the Reverb is on), so the ±0.05
+there is this sitting's own noise: by that yardstick D1's median is inside noise and D5's just outside it.
+
+**The crossing and the ghost tail** (§11's probe with the Reverb: a steady tone dry and through a 0.3 send into a 2 s
+decay at Amount 0.5, `setReverbHeldOff(true)` then `(false)`; and a "ghost" run with no dry path, the send cut to 0
+0.3 s into the hold-off, so whatever the Reverb outputs after the lift is tail it kept). Three rounds each, the dev
+server at T19's tree; variants A, B and AB were throwaway edits of `setReverbHeldOff`'s lift, restored after
+(`git status` clean).
+
+| Lift as | Hold-off ratio | Lift ratio (bar ≤ ×1.6) | Ghost RMS after the lift (0–0.5 s), against steady |
+|---|---|---|---|
+| **T19 as built** (50 ms ramp up) | ×0.914 · ×0.995 · ×0.942 | **×1.089 · ×6.831 · ×10.022** | **0.0151 · 0.0130 · 0.0129** against 0.034 · 0.033 · 0.064 |
+| A: a 1 s ramp up | ×0.885 · ×0.964 · ×0.917 | ×1.304 · ×0.934 · ×2.170 | 0.0020 · 0.0016 · 0.0012 (faded in, not gone) |
+| B: the Convolver reset first (its buffer re-set) | ×0.908 · ×0.942 · ×1.000 | ×3.753 · ×3.252 · ×3.939 | **0 · 0 · 0** |
+| **AB: both** | ×0.914 · ×0.919 · ×0.862 | ×1.115 · ×1.702 · ×1.239 | **0 · 0 · 0** |
+
+Control ×0.999–×1.000; abrupt ×233–×1 049 (the metric's check). Held, the Reverb's output is 0 in every run, so the
+drop itself works.
+
+**What it says.** The hold-off is clean. The lift as built fails the bar in two runs of three and replays the tail the
+unrendered Convolver kept, at a fifth to a half of its steady level: the risk T24 was written to look for, measured.
+Resetting the Convolver (re-setting its impulse buffer, which makes Chrome build a new kernel) removes the ghost
+entirely but leaves a click, which is the send's live signal entering a fresh Reverb at once; a 1 s ramp up hides
+most of that. Both together read ×1.12–×1.70, one round just over the bar.
+
+**Verdict:** Crawford's. Open: his ear on a desktop lift (Effects Load dragged 0.2 → 0.6 with notes ringing), and
+whether the lift becomes AB (a follow-up commit on T19, as T24 allows for the ghost; the 1 s ramp is a change T24 did
+not foresee).
+
+**Crawford, 2026-10-29:** "listen is fine"; AB goes in as T19's follow-up (`REVERB_LIFT_RAMP_SECONDS` = 1 and
+`resetReverbConvolver` on a lift after the drop). **The committed lift, same probe, three rounds:** hold-off ×0.912 ·
+×1.020 · ×0.922; lift **×0.985 · ×1.427 · ×1.015**; ghost RMS **0 · 0 · 0** (steady 0.125 · 0.033 · 0.012); control
+×0.999–×1.000; abrupt ×234–×1 044. Inside the bar in every run. The A/B above is unaffected: the follow-up changes only
+the lift, which no Light run crosses.
+
+### 13. Phase C2, the stacked sitting — Crawford's runs (T28, 2026-10-29)
+
+Plan T27 and T28. **Builds:** production `vite build`s on the LAN (`192.168.12.231`), each on its own port: build 1,
+T13's commit `1b117e3a` (`index-pklsL_s5`, the pedals and colour held off at Light) on **4201**; build 2, T19's
+follow-up `c54f9c87` (`index-CXkZfawk`, the Reverb off at Light as well) on **4203**; `main`'s merge-base `a5d5944d`
+(`index-BpSIkiTM`) on **4205**. No third build: T25–T26 (three sounding robots) were not built (Crawford at Gate C:
+"i still really want four robots playing"). **Links:** D1 and D5 as §10, `?debug` and `load=` pinned, from a
+`phone.html` in each build's `dist` (session scratchpad). **Pre-checks (T27):** every link loaded headlessly over
+the LAN address for 20 s; all ten exit 0 with `fin ok`, orphaned Chrome 0. At Light all three builds read
+`latency playback` and `sounding 2/4` (D1) or `4/4` (D5); builds 1 and 2 `fx in 0/10`, their LFO line ending
+`fx off` (build 1) and `fx+rev off` (build 2); `main` `fx in 5/10`, nothing held. At Full both builds read
+`latency interactive`, `fx in 5/10`, nothing held. Protocol as §10: Pixel 8 rested before each run, a fresh tab,
+hands off to 3:00, read again at 4:00; the count a pointer (backlog 29), the ear the measurement.
+
+| # | Build | Tier | World | `underruns` 3:00 → 4:00 | Collapse? | Crawford's words |
+|---|---|---|---|---|---|---|
+| 1 | `main` `a5d5944d` | Light | D1 | **222** → 281 | none reported | "too scratchy" |
+| 2 | `main` `a5d5944d` | Light | D5 | **195** → 250 | none reported | "too scratchy" |
+| 3 | build 1 `1b117e3a` | Light | D1 | **57** → 92 | none reported | "a little scratchy" |
+| 4 | build 1 `1b117e3a` | Light | D5 | **35** → 39 | none reported | "sounds great" |
+| 5 | build 2 `c54f9c87` | Light | D1 | **11** → 17 | none reported | "sounds great" |
+| 6 | build 2 `c54f9c87` | Light | D5 | **12** → 15 | none reported | "sounds great" |
+| 7 | build 1 `1b117e3a` | Full | D1 | **428** → 522 | none reported | "scratchy throughout" |
+| 9 | build 2 `c54f9c87` | Full | D1 | **470** → 538 | none reported | "scratchy throughout" |
+| 10 | build 2 `c54f9c87` | Full | D5 | **157** → 216 | none reported | "not too bad, actually" |
+
+Numbered as on the links page. Run 8 (build 1 at Full on D5) was not run; run 7 was, before build 2 was known to be
+the first clean build.
+
+**Reading against Gate C2** (the first stacked build clean by ear on D1 and D5 at Light for four minutes).
+- **Build 2 is the first clean build: "sounds great" on both worlds.** Build 1 was clean on D5 ("sounds great") but
+  not on D1 ("a little scratchy"); the Reverb off is what moved D1. The counts follow the ear: `main` 250–281 at
+  4:00, build 1 39–92, build 2 15–17, the lowest this phone has read in any sitting (§10's lowest was 115 at 3:00).
+- **Nothing past build 2 to revert.** It is the last build of the stack, so both cuts stay: the pedals and colour
+  (`LOAD_EFFECTS_MIN`, §11) and the Reverb (`LOAD_REVERB_MIN`, §12), each held off at Light. Four robots stay.
+- **Full (Gate C's "Full unchanged").** The cuts are Light-only, so at Full builds 1 and 2 run §10's branch graph;
+  the pre-checks read `fx in 5/10` and nothing held, as `main`. No run took off inside four minutes, where §10's
+  branch took off on both worlds (about 4:30 on D1, 3:30 on D5), which points at that sitting's phone state rather
+  than the build. D5 at Full drew "not too bad, actually", its best Full word yet (§10: "too scratchy" on the branch
+  and on `main`). D1 at Full is "scratchy throughout" on both builds against `main`'s "a little too scratchy" in
+  §10, a one-adjective gap of the kind §10 read as no result. With no `main` Full run in this sitting, Full is
+  compared across sittings only; whether it counts as unchanged is Crawford's.
+- **Deviations:** one run per cell; run 8 not run; no `main` Full run; the rest between runs not timed; T27's
+  commands kept in the scratchpad's `precheck-c2.sh` and `make-phone-page.mjs` rather than a `commands.txt`.
+
+**Gate C2:** build 2 (`c54f9c87`), the pedals, colour and Reverb off at Light: "sounds great" on D1 and D5. Full
+unchanged (Crawford, 2026-10-29: "No need to change full.").
+
+**Gate B** (Crawford's desktop listen, run after this sitting on the branch as built): passed (Crawford, 2026-10-29: "Gate B sounds good").

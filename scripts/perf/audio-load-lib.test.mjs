@@ -10,6 +10,7 @@ import {
   createNodeTally,
   diffByType,
   expectedCoordinates,
+  formatCensus,
   parseAudibleFromHud,
   parseBudgetFromHud,
   parseCoordinatesFromHud,
@@ -776,5 +777,36 @@ describe('chooseRealtimeContext', () => {
   it('is null when nothing has been created yet, or everything is gone', () => {
     expect(chooseRealtimeContext([], [])).toBeNull();
     expect(chooseRealtimeContext([created('a')], ['a'])).toBeNull();
+  });
+});
+
+describe('formatCensus', () => {
+  it('renders the live nodes by type as one line, largest first, the total in brackets', () => {
+    const census = formatCensus([['Gain', 611], ['ConstantSource', 290], ['BiquadFilter', 41]]);
+    expect(census).toBe('census after warm-up (942): Gain 611 · ConstantSource 290 · BiquadFilter 41');
+  });
+
+  it('sorts the snapshot itself, by count then by name', () => {
+    const census = formatCensus([['Oscillator', 7], ['Gain', 20], ['Delay', 7]]);
+    expect(census).toBe('census after warm-up (34): Gain 20 · Delay 7 · Oscillator 7');
+  });
+
+  it('leaves the snapshot it is given unchanged', () => {
+    const snapshot = [['Oscillator', 7], ['Gain', 20]];
+    formatCensus(snapshot);
+    expect(snapshot).toEqual([['Oscillator', 7], ['Gain', 20]]);
+  });
+
+  it('says none for an empty snapshot', () => {
+    expect(formatCensus([])).toBe('census after warm-up (0): none');
+  });
+
+  it('formats the tally it would be given in a run', () => {
+    const tally = createNodeTally();
+    tally.created('ctx-1', 1, 'Gain');
+    tally.created('ctx-1', 2, 'Gain');
+    tally.created('ctx-1', 3, 'Oscillator');
+    tally.destroyed('ctx-1', 3);
+    expect(formatCensus(tally.liveByType('ctx-1'))).toBe('census after warm-up (2): Gain 2');
   });
 });

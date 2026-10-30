@@ -35,6 +35,9 @@ const toneFlags = vi.hoisted(() => ({
       frequency: { value: opts.frequency ?? 0.5, rampTo: vi.fn() },
       Q: { value: opts.Q ?? 10, rampTo: vi.fn() },
       wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+      // Tone's two LFOs, started in the real constructor; the bypass cell stops them while dark (Light tier T16).
+      _lfoL: { start: vi.fn(), stop: vi.fn() },
+      _lfoR: { start: vi.fn(), stop: vi.fn() },
     }),
   ),
   wahAbsent: false,
@@ -2017,6 +2020,27 @@ describe('globalFx', () => {
         expect(ctorOptions()).toStrictEqual({ frequency: 2, octaves: 4, stages: 6, Q: 5, baseFrequency: 500, wet: 1 });
         // The duck returns the cell to the same Mix.
         expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(expect.closeTo(lawWet(0.25), 9), 0.02);
+      });
+
+      it('stops the new node’s LFOs in the cell; a lit Phaser’s rebuild starts them with its connect (Light tier T16)', async () => {
+        const { globalFx, phaser: old } = await built();
+        const cell = cellOf(old);
+        globalFx.setGlobalPhaser({ stages: 4 }); // dark: rebuilt at once
+        const darkFresh = lastInstance(toneFlags.phaserCtor);
+        expect(cell.lfos).toEqual([darkFresh._lfoL, darkFresh._lfoR]);
+        expect(darkFresh._lfoL.stop).toHaveBeenCalledTimes(1);
+        expect(darkFresh._lfoL.start).not.toHaveBeenCalled();
+
+        globalFx.setGlobalPhaser({ wet: 1 });
+        expect(darkFresh._lfoL.start).toHaveBeenCalledTimes(1); // the light
+        globalFx.setGlobalPhaser({ stages: 8 });
+        fireTimeouts();
+        const litFresh = lastInstance(toneFlags.phaserCtor);
+        expect(cell.lfos).toEqual([litFresh._lfoL, litFresh._lfoR]);
+        expect(darkFresh._lfoR.stop).toHaveBeenCalledTimes(2); // dropped with the old node's edges
+        expect(litFresh._lfoR.stop).toHaveBeenCalledTimes(1);
+        expect(litFresh._lfoR.start).toHaveBeenCalledTimes(1);
+        expect(litFresh._lfoR.start.mock.invocationCallOrder[0]).toBeGreaterThan(litFresh._lfoR.stop.mock.invocationCallOrder[0]);
       });
 
       it('wires the new node into the cell only while the Phaser is lit', async () => {
@@ -4110,6 +4134,418 @@ describe('globalFx', () => {
       lightAll(globalFx);
       globalFx.buildGlobalFxChain();
       expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+  });
+
+  describe('setReverbHeldOff (Light tier standing cost T19)', () => {
+    // The Reverb and the Gain it returns through; the edge the hold-off drops is reverb -> return.
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const reverb = lastInstance(Tone.Reverb);
+      const ret = returnOf(reverb);
+      return { globalFx, reverb, ret };
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const connectsTo = (node: any, target: unknown) => node.connect.mock.calls.filter(([to]: unknown[]) => to === target).length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const disconnectsFrom = (node: any, target: unknown) => node.disconnect.mock.calls.filter(([to]: unknown[]) => to === target).length;
+
+    it('is not held off until told, and reports what it was told', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.getReverbHeldOff()).toBe(false);
+      globalFx.setReverbHeldOff(true);
+      expect(globalFx.getReverbHeldOff()).toBe(true);
+      globalFx.setReverbHeldOff(false);
+      expect(globalFx.getReverbHeldOff()).toBe(false);
+    });
+
+    it('ramps the return to 0, then drops the reverb -> return edge once the audio clock has run the ramp', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setGlobalReverb({ wet: 0.4 });
+      globalFx.setReverbHeldOff(true);
+      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0, live.COLOUR_RAMP_SECONDS);
+      expect(disconnectsFrom(reverb, ret)).toBe(0);
+      expect(toneFlags.timeouts).toHaveLength(1);
+      expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.1 + live.COLOUR_RAMP_SECONDS + live.BYPASS_DISCONNECT_MARGIN_SECONDS, 9);
+      fireTimeouts();
+      expect(disconnectsFrom(reverb, ret)).toBe(1);
+    });
+
+    it('records an Amount written while held off and writes nothing to the return', async () => {
+      const { globalFx, ret } = await built();
+      globalFx.setGlobalReverb({ wet: 0.4 });
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      const value = ret.gain.value;
+      const ramps = ret.gain.rampTo.mock.calls.length;
+      globalFx.setGlobalReverb({ wet: 0.7 });
+      expect(ret.gain.value).toBe(value);
+      expect(ret.gain.rampTo.mock.calls.length).toBe(ramps);
+    });
+
+    it('lifts by re-making the edge while the return is at 0, then ramping it to the recorded Amount exactly', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setGlobalReverb({ wet: 0.4 });
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      globalFx.setGlobalReverb({ wet: 0.37 });
+      const edges = connectsTo(reverb, ret);
+      let returnAtConnect: number | undefined;
+      reverb.connect.mockImplementationOnce(function (this: unknown) { returnAtConnect = ret.gain.value; return this; });
+      globalFx.setReverbHeldOff(false);
+      expect(connectsTo(reverb, ret)).toBe(edges + 1);
+      expect(returnAtConnect).toBe(0);
+      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0.37, globalFx.REVERB_LIFT_RAMP_SECONDS);
+    });
+
+    // T24's follow-up (Crawford, 2026-10-29): the lift resets the Convolver and ramps up over a second. An unrendered
+    // Convolver keeps its tail and replayed it on the lift (the decomposition's §12); re-setting its impulse buffer builds a
+    // fresh kernel, and the slower ramp hides the send's signal entering it at once.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function withConvolver(reverb: any) {
+      const buffer = { length: 1 };
+      let current: unknown = buffer;
+      const set = vi.fn((value: unknown) => { current = value; });
+      reverb._convolver = Object.defineProperty({}, 'buffer', { configurable: true, get: () => current, set });
+      return { buffer, set };
+    }
+
+    it('ramps up over REVERB_LIFT_RAMP_SECONDS, a second, slower than the 50 ms the hold-off ramps down', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.REVERB_LIFT_RAMP_SECONDS).toBe(1);
+    });
+
+    it('resets the Convolver (its own buffer set again) on a lift after the drop, before the edge is re-made', async () => {
+      const { globalFx, reverb, ret } = await built();
+      const { buffer, set } = withConvolver(reverb);
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      let resetBeforeConnect = false;
+      reverb.connect.mockImplementationOnce(function (this: unknown) { resetBeforeConnect = set.mock.calls.length === 1; return this; });
+      globalFx.setReverbHeldOff(false);
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledWith(buffer);
+      expect(resetBeforeConnect).toBe(true);
+      expect(connectsTo(reverb, ret)).toBeGreaterThan(0);
+    });
+
+    it('does not reset a Convolver that never stopped rendering (a lift before the drop fired)', async () => {
+      const { globalFx, reverb } = await built();
+      const { set } = withConvolver(reverb);
+      globalFx.setReverbHeldOff(true);
+      globalFx.setReverbHeldOff(false);
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it('lifts all the same, without a reset, when Tone keeps no Convolver where it is looked for, or it has no buffer yet', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      expect(() => globalFx.setReverbHeldOff(false)).not.toThrow();
+      expect(connectsTo(reverb, ret)).toBeGreaterThan(0);
+      const { set } = withConvolver(reverb);
+      reverb._convolver = Object.defineProperty({}, 'buffer', { configurable: true, get: () => null, set });
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      globalFx.setReverbHeldOff(false);
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it('a lift before the drop fires cancels the drop and keeps the edge, ramping back up', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setGlobalReverb({ wet: 0.4 });
+      globalFx.setReverbHeldOff(true);
+      const edges = connectsTo(reverb, ret);
+      globalFx.setReverbHeldOff(false);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      fireTimeouts();
+      expect(disconnectsFrom(reverb, ret)).toBe(0);
+      expect(connectsTo(reverb, ret)).toBe(edges);
+      expect(ret.gain.rampTo).toHaveBeenLastCalledWith(0.4, globalFx.REVERB_LIFT_RAMP_SECONDS);
+    });
+
+    it('writes nothing on a re-sent hold-off, and nothing on a lift that was never held', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setReverbHeldOff(false);
+      expect(ret.gain.rampTo).not.toHaveBeenCalled();
+      expect(toneFlags.timeouts).toHaveLength(0);
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      const ramps = ret.gain.rampTo.mock.calls.length;
+      const drops = disconnectsFrom(reverb, ret);
+      globalFx.setReverbHeldOff(true);
+      expect(ret.gain.rampTo.mock.calls.length).toBe(ramps);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(disconnectsFrom(reverb, ret)).toBe(drops);
+    });
+
+    it.each([false, true])('a Decay flip (controlledDecay=%s) while held off makes no reverb -> return edge, and a lift makes it', async (controlled) => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      const edges = connectsTo(reverb, ret);
+      globalFx.wireGlobalFxChain(controlled);
+      expect(connectsTo(reverb, ret)).toBe(edges);
+      expect(returnOf(reverb)).toBe(ret);
+      globalFx.setReverbHeldOff(false);
+      expect(connectsTo(reverb, ret)).toBe(edges + 1);
+    });
+
+    it('a Decay flip while a drop is pending leaves the drop with nothing to do', async () => {
+      const { globalFx, reverb, ret } = await built();
+      globalFx.setReverbHeldOff(true);
+      globalFx.wireGlobalFxChain(false);
+      const drops = disconnectsFrom(reverb, ret);
+      fireTimeouts();
+      expect(disconnectsFrom(reverb, ret)).toBe(drops);
+      globalFx.setReverbHeldOff(false);
+      expect(connectsTo(reverb, ret)).toBeGreaterThan(0);
+    });
+
+    it('a chain built while held off makes no reverb -> return edge until lifted', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.setReverbHeldOff(true);
+      globalFx.buildGlobalFxChain();
+      const reverb = lastInstance(Tone.Reverb);
+      const ret = toneFlags.gainCtor.mock.results.map((r) => r.value).find((g) => connectsTo(reverb, g) > 0);
+      expect(ret).toBeUndefined();
+      globalFx.setReverbHeldOff(false);
+      expect(reverb.connect).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps Length and Pre-Delay reaching the node while held off, so the lift is exact', async () => {
+      vi.useFakeTimers();
+      try {
+        const { globalFx, reverb } = await built();
+        globalFx.setReverbHeldOff(true);
+        globalFx.setGlobalReverb({ decay: 3, preDelay: 0.1 });
+        vi.advanceTimersByTime(globalFx.REVERB_IR_COALESCE_MS);
+        expect(reverb.decay).toBe(3);
+        expect(reverb.preDelay).toBe(0.1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('leaves the Delay room alone', async () => {
+      const { globalFx } = await built();
+      const delay = lastInstance(Tone.FeedbackDelay);
+      const delayRet = returnOf(delay);
+      globalFx.setGlobalDelay({ wet: 0.3 });
+      const disconnects = delay.disconnect.mock.calls.length;
+      globalFx.setReverbHeldOff(true);
+      fireTimeouts();
+      expect(delayRet.gain.rampTo).not.toHaveBeenCalled();
+      expect(delay.disconnect.mock.calls.length).toBe(disconnects);
+      expect(delayRet.gain.value).toBe(0.3);
+    });
+  });
+
+  describe('setEffectsHeldOff (Light tier standing cost T10, H1)', () => {
+    // A chain cell (the Vibrato), a colour branch (the Distortion, in the fed Colour room) and Width, lit.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function lightThree(globalFx: any) {
+      feedRooms('grit');
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setGlobalDistortion({ wet: 0.5 });
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lastWetRamp = (effect: any) => cellOf(effect).wet.gain.rampTo.mock.calls.at(-1)?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const wetRampCount = (effect: any) => cellOf(effect).wet.gain.rampTo.mock.calls.length;
+
+    it('is not held off until told, and reports what it was told', async () => {
+      const globalFx = await import('./globalFx');
+      expect(globalFx.getEffectsHeldOff()).toBe(false);
+      globalFx.setEffectsHeldOff(true);
+      expect(globalFx.getEffectsHeldOff()).toBe(true);
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getEffectsHeldOff()).toBe(false);
+    });
+
+    it('ramps every lit cell and branch to dry and disconnects each when its timer fires, Width to 0.5', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      const distortion = lastInstance(Tone.Distortion);
+      const widener = lastInstance(toneFlags.widenerCtor);
+      globalFx.setEffectsHeldOff(true);
+      expect(lastWetRamp(vibrato)).toBe(0);
+      expect(lastWetRamp(distortion)).toBe(0);
+      expect(lastWetRamp(widener)).toBe(0);
+      expect(live.getCell('stereoWidener')!.mix).toBe(0);
+      // Still in the path until the audio clock has run the ramp.
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      expect(cellOf(vibrato).in.disconnect).toHaveBeenCalledWith(vibrato);
+      expect(cellOf(distortion).in.disconnect).toHaveBeenCalledWith(distortion);
+      expect(cellOf(widener).in.disconnect).toHaveBeenCalledWith(widener);
+    });
+
+    it('records a Mix written while held off and connects nothing', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('grit');
+      globalFx.setEffectsHeldOff(true);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      globalFx.setGlobalVibrato({ wet: 0.4 });
+      globalFx.setGlobalDistortion({ wet: 0.3 });
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      expect(wetRampCount(vibrato)).toBe(0);
+      expect(toneFlags.timeouts).toHaveLength(0);
+    });
+
+    it('lights exactly the recorded Mixes when lifted, the last write while held off winning, and nothing never lit', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      globalFx.setGlobalVibrato({ wet: 0.6 });
+      globalFx.setGlobalVibrato({ wet: 0.37 });
+      globalFx.setGlobalDistortion({ wet: 0.21 });
+      globalFx.setGlobalStereoWidener({ width: 0.15 });
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      expect(live.getCell('vibrato')!.mix).toBe(colourWetGain(0.37));
+      expect(live.getCell('distortion')!.depth).toBe(0.21);
+      expect(live.getCell('distortion')!.mix).toBe(colourWetGain(0.21));
+      expect(live.getCell('stereoWidener')!.mix).toBe(1);
+      expect(live.getCell('tremolo')!.connected).toBe(false);
+      expect(live.getCell('phaser')!.connected).toBe(false);
+    });
+
+    it('lifts back to the Mix lit before the hold-off when nothing was written during it', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getConnectedEffectCount()).toBe(3);
+      expect(live.getCell('vibrato')!.mix).toBe(colourWetGain(0.3));
+      expect(live.getCell('distortion')!.depth).toBe(0.5);
+    });
+
+    it('leaves a dark Width dark across a hold-off and its lift (0.5 is its dark)', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalStereoWidener({ width: 0.5 });
+      globalFx.setEffectsHeldOff(true);
+      globalFx.setEffectsHeldOff(false);
+      fireTimeouts();
+      expect(live.getCell('stereoWidener')!.connected).toBe(false);
+    });
+
+    it('writes nothing on a re-sent hold-off, and nothing on a lift that was never held', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      globalFx.setEffectsHeldOff(false);
+      expect(wetRampCount(vibrato)).toBe(1);
+      expect(toneFlags.timeouts).toHaveLength(0);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      const ramps = wetRampCount(vibrato);
+      globalFx.setEffectsHeldOff(true);
+      expect(wetRampCount(vibrato)).toBe(ramps);
+      expect(toneFlags.timeouts).toHaveLength(0);
+    });
+
+    it('a Decay flip while held off connects no effect', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      lightThree(globalFx);
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      const connects = vibrato.connect.mock.calls.length;
+      globalFx.wireGlobalFxChain(true);
+      globalFx.wireGlobalFxChain(false);
+      expect(vibrato.connect.mock.calls.length).toBe(connects);
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('a whole-block apply while held off connects nothing, every room fed', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setEffectsHeldOff(true);
+      // Every setter's Mix, as applyGlobalAudioToEngine sends them, with every room fed.
+      feedRooms();
+      for (const setter of [
+        'setGlobalDistortion',
+        'setGlobalChebyshev',
+        'setGlobalBitCrusher',
+        'setGlobalAutoWah',
+        'setGlobalPhaser',
+        'setGlobalChorus',
+        'setGlobalTremolo',
+        'setGlobalVibrato',
+        'setGlobalFrequencyShifter',
+      ] as const) {
+        (globalFx[setter] as unknown as (params: { wet: number }) => void)({ wet: 0.3 });
+      }
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      globalFx.setEffectsHeldOff(false);
+      expect(globalFx.getConnectedEffectCount()).toBe(10);
+    });
+
+    it('a fed room or a Return crossing 0 while held off lights no branch', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      feedRooms();
+      globalFx.setGlobalChorus({ wet: 0 });
+      globalFx.setGlobalChorus({ wet: 0.5 });
+      globalFx.setGlobalFrequencyShifter({ wet: 0.4 });
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+    });
+
+    it('a chain built while held off lights nothing, its pinned Shimmer and Double branches included, until lifted', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.setEffectsHeldOff(true);
+      globalFx.buildGlobalFxChain();
+      feedRooms();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      globalFx.setEffectsHeldOff(false);
+      expect(live.getCell('chorus')!.connected).toBe(true);
+      expect(live.getCell('frequencyShifter')!.connected).toBe(true);
+      expect(globalFx.getConnectedEffectCount()).toBe(2);
+    });
+
+    it('keeps the recorded Mixes across a chain rebuild, as the store keeps them, so a lift lights the new cells', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalVibrato({ wet: 0.3 });
+      globalFx.setEffectsHeldOff(true);
+      globalFx.buildGlobalFxChain();
+      globalFx.setEffectsHeldOff(false);
+      expect(live.getCell('vibrato')!.effect).toBe(lastInstance(toneFlags.vibratoCtor));
+      expect(live.getCell('vibrato')!.mix).toBe(colourWetGain(0.3));
+    });
+
+    it('a Phaser Stages change while held off rebuilds it dark', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      globalFx.setEffectsHeldOff(true);
+      fireTimeouts();
+      globalFx.setGlobalPhaser({ wet: 0.4, stages: 12 });
+      fireTimeouts();
+      expect(globalFx.getConnectedEffectCount()).toBe(0);
+      globalFx.setEffectsHeldOff(false);
+      expect(live.getCell('phaser')!.effect).toBe(lastInstance(toneFlags.phaserCtor));
+      expect(live.getCell('phaser')!.mix).toBe(colourWetGain(0.4));
     });
   });
 

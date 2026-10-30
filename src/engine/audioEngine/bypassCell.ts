@@ -63,7 +63,42 @@ export type Cell = {
   room: RoomKey | null;
   /** A branch's own Mix, the law input while its room is live (recorded on every write, lit or not). 0 on a chain cell. */
   depth: number;
+  /** The effect's own LFOs (effectLfos), running only while the effect is connected. docs/specs/LIGHT_TIER_STANDING_COST.md H3a. */
+  lfos: EffectLfo[];
 };
+
+/** A Tone LFO inside an effect, as far as the cell needs it. */
+export type EffectLfo = { start: (time?: number) => unknown; stop: (time?: number) => unknown };
+
+/**
+ * The LFOs a Tone effect runs, read once from Tone's own fields: the Chorus, the Tremolo and the Phaser keep two
+ * (`_lfoL`, `_lfoR`), the Vibrato one (`_lfo`); the others none (the AutoWah's follower is not an LFO). A dark effect is
+ * out of the signal path, so its LFOs only cost the audio thread: the cell stops them while it is dark (Light tier
+ * standing cost H3a). A restarted LFO begins at phase 0 while the cell's wet gain is still 0, so nobody hears it.
+ */
+function effectLfos(effect: Tone.ToneAudioNode | null): EffectLfo[] {
+  const fields = effect as unknown as { _lfoL?: unknown; _lfoR?: unknown; _lfo?: unknown } | null;
+  if (!fields) return [];
+  return [fields._lfoL, fields._lfoR, fields._lfo].filter(
+    (lfo): lfo is EffectLfo => typeof (lfo as EffectLfo | undefined)?.start === 'function' && typeof (lfo as EffectLfo).stop === 'function',
+  );
+}
+
+function startLfos(cell: Cell): void {
+  for (const lfo of cell.lfos) lfo.start();
+}
+
+function stopLfos(cell: Cell): void {
+  for (const lfo of cell.lfos) lfo.stop();
+}
+
+/** Put `effect` in `cell` (the Phaser's Stages rebuild) with its LFOs recorded and stopped: the new node is out of the
+ *  path until the caller connects it, and connectEffect starts them. */
+export function setCellEffect(cell: Cell, effect: Tone.ToneAudioNode): void {
+  cell.effect = effect;
+  cell.lfos = effectLfos(effect);
+  stopLfos(cell);
+}
 
 /** The live cells, rebuilt by every buildGlobalFxChain. An absent key is an effect left out of the chain: its
  *  constructor is missing, its cell could not be built, or the Gain / Delay constructors are missing altogether. */
@@ -155,7 +190,9 @@ export function buildCell(
       darken: null,
       room: null,
       depth: 0,
+      lfos: effectLfos(effect),
     };
+    stopLfos(_cells[key]); // built dark; undoes a start in Tone's constructor (Vibrato, Phaser) or the build's (Chorus, Tremolo)
   } catch (err) {
     devWarn(
       '[AudioEngine] the ' + key + ' bypass cell could not be constructed; the chain runs without the ' + key,
@@ -264,9 +301,11 @@ function rampCell(key: BypassKey, cell: Cell, from: number, to: number, seconds:
   }
 }
 
-/** Make the effect's two edges. Only ever called while the cell's wet gain is 0, so the new path is silent. False, with
- *  a warning, if Tone refused: the cell stays dry and unconnected, and the next light tries again. */
+/** Make the effect's two edges, its LFOs started first. Only ever called while the cell's wet gain is 0, so the new path
+ *  is silent. False, with a warning, if Tone refused: the cell stays dry and unconnected with its LFOs stopped again, and
+ *  the next light tries again. */
 export function connectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): boolean {
+  startLfos(cell);
   try {
     cell.in.connect(effect);
     effect.connect(cell.wet);
@@ -277,17 +316,20 @@ export function connectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudio
       '[AudioEngine] the ' + key + ' effect could not be connected into its bypass cell; it stays dry',
       err,
     );
+    stopLfos(cell);
     return false;
   }
 }
 
-/** Break the effect's two edges, once the wet gain has reached 0 on the audio thread. On a failure the cell keeps
- *  `connected`, so a later light only ramps (the edges that are still there carry it) and a rewire re-makes them. */
+/** Break the effect's two edges, once the wet gain has reached 0 on the audio thread, then stop its LFOs. On a failure
+ *  the cell keeps `connected` (and its LFOs), so a later light only ramps (the edges that are still there carry it) and
+ *  a rewire re-makes them. */
 export function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): void {
   try {
     cell.in.disconnect(effect);
     effect.disconnect(cell.wet);
     cell.connected = false;
+    stopLfos(cell);
   } catch (err) {
     devWarn(
       '[AudioEngine] the ' + key + ' effect could not be disconnected from its bypass cell',
@@ -451,7 +493,9 @@ export function buildBranch(
       darken: null,
       room,
       depth: 0,
+      lfos: effectLfos(effect),
     };
+    stopLfos(_cells[key]); // built dark, as a chain cell
   } catch (err) {
     devWarn('[AudioEngine] the ' + key + ' branch of the ' + room + ' room could not be constructed; it is left out', err);
     disposeQuietly(effect);
