@@ -1,10 +1,10 @@
 # Idea: Themes — one named set of loading bands, system-wide
 
-**Status:** idea, 2026-10-09; extended with **aspects** 2026-10-29 (brainstorm, see the Aspects section). Not interviewed, not specced; the powered-down state's interview (backlog 5) covers themes and aspects together. Came out of the layout-rework sketching session (docs/sketches/layout-rework.html, Off tab) the moment the powered-off screen was approved with the world faintly visible behind the glass: if the world is built before power-on, the splash becomes a place to choose things before any sound plays.
+**Status:** idea, 2026-10-09; extended with **aspects** 2026-10-29 (brainstorm, see the Aspects section); the off screen that carries both sketched as six stories 2026-10-30 (docs/sketches/off-screen.html) and six decisions taken on it (see Decided, 2026-10-30). Not interviewed, not specced; the powered-down state's interview (backlog 5) covers themes and aspects together. Came out of the layout-rework sketching session (docs/sketches/layout-rework.html, Off tab) the moment the powered-off screen was approved with the world faintly visible behind the glass: if the world is built before power-on, the splash becomes a place to choose things before any sound plays.
 
 ## What
 
-A **theme** is a named set of min / max **loading bands** applied system-wide at generation time. Picking one changes what a fresh seed is allowed to roll for every seeded attribute, not what the UI can reach afterwards. Three to start:
+A **theme** is a named set of min / max **loading bands** applied system-wide at generation time. Picking one changes what a fresh seed is allowed to roll for every seeded attribute, not what the UI can reach afterwards. The first sketch had three (the table below; bands illustrative, never tuned); five are decided as of 2026-10-30 — see Decided below:
 
 | Theme | Intent | Illustrative bands (placeholders, not tuned) |
 |---|---|---|
@@ -45,6 +45,21 @@ So "Classic = today" is literally the current tables; Calm and Active are two mo
 - **Themes only impact generation.** They set the loading bands a fresh seed rolls within; they never change a slider's range, never clamp an edit, and never touch the LFO swing ranges (`GLOBAL_AUDIO_SEED_RANGES` stays as is).
 - **Switching a theme has the same result as changing coordinates or loading a new session:** the world is retransmitted inside the new bands and live tweaks are discarded. No override-preserving merge.
 
+## Decided (Crawford, 2026-10-30, on the six-story sketch)
+
+The off screen was drawn as six stories — arrival (bare URL / shared link) × device (first visit / returning / returning with saves) — in `docs/sketches/off-screen.html`, every piece called out and tagged built / changed / proposed / open. Crawford's clarifications and decisions on it:
+
+- **A theme or aspect changes only the min / max loading bands.** The Attenuation Style and coordinates stay the world's identity, so the same AS + coords under Classic and under Calm sound similar, not identical.
+- **Themes and aspects are chosen before any sound plays** — on the off screen, not in Foundry, in v1. (Whether Foundry also gets the rows later is an interview question.)
+- **Five themes:** standard / calm / bold / adventurous / perilous, as Crawford wrote them. Names are copy and still his; whether the default reads "standard" or "Classic" is open.
+- **Aspect rows are flat** — one single-line radio row per family, "as theme" first — not folded behind a disclosure.
+- **The chooser has two axes:** *Transmission* (which world: the current one, the user's saves, the presets) and *Loading* (how it loads: the theme row, the aspect rows), two columns on desktop, one on the phone, one readout well naming the whole pick.
+- **Presets stay on the off screen and are pasted share links** of worlds Crawford saved (`decodeWorldLink` reads the params; nothing navigates). A preset, a save and a shared-link arrival become one path.
+- **The Roll button stays** — a fresh random AS + coords, an action beside the Current row, not a radio.
+- **The veil** over the faint world until the flip, and **the lore footer**, both stay.
+
+Still leans, drawn in the sketch but not decided: one gate ("has this device heard a world", a localStorage flag written at first power-on) separating a hint-only first visit from the chooser; Current = continue (power-on replays the loaded world from the top, no Continue / New row); the Guide's only part on the off screen is the one-line description under the picked theme. The sketch's "Open for the interview" box is the live question list.
+
 ## Aspects (brainstorm, 2026-10-29)
 
 Brainstormed with Crawford 2026-10-29, not interviewed. Extends the mechanism above with a second layer of bands.
@@ -65,9 +80,9 @@ Brainstormed with Crawford 2026-10-29, not interviewed. Extends the mechanism ab
 
 - **Does the theme tint anything visible?** A theme could change nothing but sound; or the splash readout; or, later, the world's pacing (robot activity speed is wall-clock, Phase 43). Lean: sound only, v1.
 - **Audio Load Budget interaction:** Active (faster, denser) costs more on phones. Does Active imply a floor on Robot / Effects Load, or stay independent? Lean: independent, documented.
-- **How many themes, and are they fixed or user-authored?** Three fixed to start. A user-authored theme is a band editor — out of scope.
+- **How many themes, and are they fixed or user-authored?** Five fixed, decided 2026-10-30 (standard / calm / bold / adventurous / perilous); their names and bands are still to write. A user-authored theme is a band editor — out of scope.
 - **Where the tuning happens:** the bands need real listening, per theme, per grid row. That is the bulk of the work, not the plumbing.
-- **Aspects: the family list,** the aspects in each, and how many rows the off screen carries before it is crowded.
+- **Aspects: the family list** and the aspects in each. The rows are flat, one per family (decided 2026-10-30), so the family count is the row count; the sketch draws four.
 - **Aspects: robot-side only?** Lean: yes — the theme owns the global bands and BPM; an aspect never names a global attribute.
 - **Aspects: names.** Hypnotic and Mechanical are working names; the lore voice (`docs/reference/copy-tone-guide.md`) may rename them.
 

@@ -4,9 +4,13 @@
      aspects, sessions, presets", plan.md Stage 1), BEFORE the interview, so Crawford can see each piece of each view.
      Static HTML + a little JS; nothing here touches the app.
 
-     NOTHING ON THIS PAGE IS DECIDED. It draws the leans from the 2026-10-29/30 discussion (the "Leans" box) on top of
-     what the layout rework decided and built (the "Decided earlier" box). Every piece carries a numbered callout; the
-     legend under a frame says what the piece is and whether it is built, built-but-changed, proposed or open.
+     DECIDED 2026-10-30 (Crawford, on reading this page: "I love it"): the ROLL button stays; FIVE themes; aspect rows
+     FLAT (no disclosure); the TWO-AXIS chooser (Transmission / Loading, two columns on desktop); the VEIL; the LORE
+     FOOTER. Presets as pasted share links of worlds he saved was his own ask the same day. The fixed panel's defaults
+     are those decisions; the alternatives stay as the comparison. Everything else is still a lean or an open question
+     (the boxes at the top), drawn on top of what the layout rework decided and built. Every piece carries a numbered
+     callout; the legend under a frame says what the piece is and whether it is built, built-but-changed, decided,
+     proposed or open.
 
      The six stories (Crawford, 2026-10-30): no params first visit · no params second visit · no params + saved ·
      shared params first visit · shared params second visit · shared params + saved. "Second visit" is drawn as "the
@@ -80,6 +84,7 @@
   .st.changed { background: #1d3a5c; color: #9cc0f0; }
   .st.proposed { background: #4a3410; color: #f0c860; }
   .st.open { background: #5a2420; color: #ffb0a0; }
+  .st.decided { background: #0f3d4a; color: #7fd8e8; }
   .legend .why { color: var(--mut); }
 
   /* callouts: an amber badge hung in the gutter to the left of the piece it names */
@@ -236,7 +241,7 @@
 <p class="note">Wireframes for backlog 5 (plan.md Stage 1), drawn 2026-10-30 before the interview. Six stories — how you arrived (a bare URL or a shared
   link) × what the device knows (first visit; returning; returning with saves) — each with the off screen drawn in that story's state. Numbered callouts
   name each piece; the legend under a frame says what the piece is and whether it is <span class="st built">built</span> today,
-  <span class="st changed">built → changed</span> by the proposal, <span class="st proposed">proposed</span>, or <span class="st open">open</span>.
+  <span class="st changed">built → changed</span> by the proposal, <span class="st decided">decided</span> on 2026-10-30, <span class="st proposed">proposed</span>, or <span class="st open">open</span>.
   Boxes are dashed where the app would draw a muted radio or a button; the world is a hatch. Nothing is styled — this is for shape and content, not look.
   <b>Every theme name but Classic, every aspect family and option but Hypnotic / Mechanical, and every description line is a stand-in.</b></p>
 
@@ -249,11 +254,21 @@
     <li>No manual on the off screen (roadmap 51's Not Doing) — the Guide is a window inside the app.</li>
   </ol></div>
 
+<div class="decided"><b>Decided 2026-10-30 (Crawford, on reading this page):</b>
+  <ol>
+    <li><b>Roll stays</b> — the action beside Current (piece 9).</li>
+    <li><b>Five themes</b> — standard / calm / bold / adventurous / perilous (piece 14; the names are copy, still his).</li>
+    <li><b>Aspect rows flat</b>, one per family — not behind a disclosure (piece 16).</li>
+    <li><b>The two axes</b> — Transmission and Loading, two columns on desktop, one on the phone (pieces 7 and 13).</li>
+    <li><b>The veil</b> over the world until the flip (piece 19).</li>
+    <li><b>The lore footer</b> (piece 18; the legalese is his copy).</li>
+    <li><b>Presets are pasted share links</b> of worlds he saved — his own ask the same day (piece 12; frame D's curation flow).</li>
+  </ol></div>
+
 <div class="leans"><b>Leans from the 2026-10-29/30 discussion (drawn here, not decided):</b>
   <ol>
     <li><b>One gate, a fact not a count:</b> "has this device heard a world". Closed → the hint only (stories 1 and 4). Open → the chooser (stories 2, 3, 5, 6). It opens at the first power-on — so a power-off in the same visit shows the chooser at once — and Factory Reset closes it.</li>
-    <li><b>Two axes:</b> <i>Transmission</i> (which world: current · saves · presets) and <i>Loading</i> (how it loads: theme · aspects). A theme is bands, so the same AS + coords sound similar, not identical, across themes.</li>
-    <li><b>Presets are pasted share links</b> (seed, x, y, s; theme + aspects later as plain params), decoded by the link reader. Preset, save and link arrival become one path.</li>
+    <li><b>A theme is bands only</b> (Crawford's clarification, 2026-10-30): AS + coords stay the identity, so the same world sounds similar, not identical, across themes. Preset, save and link arrival become one path.</li>
     <li><b>Current = continue.</b> The loaded world is the top row and the default; the flip plays it. No Continue / New row.</li>
     <li><b>First run stays hint-only</b>; the first world is Classic — or the link's. A curious first-timer who flips off finds the chooser waiting.</li>
     <li><b>The Guide's small part</b> is the one-line description under the picked theme / aspect — the same content entry the Guide page reads.</li>
@@ -262,17 +277,16 @@
 <div class="pending"><b>Open for the interview (each is drawn somewhere below):</b>
   <ol>
     <li>Gate: heard-a-world flag (as drawn) — or the chooser present on first run but collapsed under one line?</li>
-    <li>Five themes (Crawford's standard / calm / bold / adventurous / perilous) or three (themes.md)? Names.</li>
-    <li>Aspect families and option names; flat rows or behind one disclosure (fixed panel switches both).</li>
-    <li>Roll: keep it on the off screen (an action beside Current), or leave a fresh random world to reload / Foundry?</li>
+    <li>The five themes' names — standard / calm / bold / adventurous / perilous as Crawford wrote them; does the default read "standard" or "Classic"?</li>
+    <li>Aspect families and option names (only Hypnotic / Mechanical are real).</li>
     <li>Does Roll keep the chosen theme + aspects? (Drawn: yes — it rolls AS + coords only.)</li>
     <li>Rows show <code>savedAt</code> (exists) or "last played" (a new write on every load)?</li>
     <li>Confirm-dialog copy: today's, or Crawford's draft (frame B's switch)? With Current = continue, nothing is lost at power-off.</li>
     <li>Should an off-screen pick mirror into the address bar (<code>replaceState</code>, as the load sliders do) so a reload keeps what you chose? Stories 5 and 6 show the wrinkle.</li>
     <li>Foundry: do the theme / aspect rows also live there in v1 (a live retransmit, as AS + coords already are), or later?</li>
     <li>The shortcut buttons in Foundry and the three placeholder payloads: removed?</li>
-    <li>The lore footer: a prop, or nothing. The veil: blur, opacity, or neither.</li>
-  </ol></div>
+  </ol>
+  <p style="margin: 8px 0 0">Closed 2026-10-30: Roll stays; five themes; flat aspect rows; the veil and the lore footer stay (their text and exact look are copy and styling, not questions).</p></div>
 
 <!-- ================= A · BOOT ================= -->
 <section class="frame" id="f-boot">
@@ -351,22 +365,22 @@
     <tr><td>nothing — flip</td><td>Current stays</td><td>as they are</td><td>kept</td><td>kept</td><td>the loaded world's name</td></tr>
     <tr><td>pick a save or a preset</td><td>that row</td><td>follow it (it carries theme + aspects)</td><td>its</td><td>its</td><td><code>Dusk run · tr3nch-2 (−30, −30) · Calm · Hypnotic</code></td></tr>
     <tr><td>change the theme or an aspect</td><td>drops back to Current</td><td>your pick</td><td>kept</td><td>discarded (themes.md: retransmit, tweaks discarded)</td><td><code>tr3nch-2 · (−30, −30) · Perilous · Hypnotic</code></td></tr>
-    <tr><td>Roll</td><td>Current, renamed</td><td>kept (open question 5)</td><td>fresh random</td><td>none</td><td>the new name</td></tr>
+    <tr><td>Roll</td><td>Current, renamed</td><td>kept (open question 4)</td><td>fresh random</td><td>none</td><td>the new name</td></tr>
     <tr><td>arrive by a shared link</td><td>Current = the link's world</td><td>the link's (plain params)</td><td>the link's</td><td>the link's</td><td>its name; a link is not a save until you Save it</td></tr>
   </table>
   <p class="note">Every row above is a silent retransmit of the faint world. Nothing on this screen plays sound; the rocker does.</p>
 </section>
 
-<div class="fixedpanel"><div class="ttl">Page-wide</div>
+<div class="fixedpanel"><div class="ttl">Page-wide · defaults = the 2026-10-30 decisions; alternatives kept for comparison</div>
   <div class="controls"><span class="lbl">Themes:</span><span class="grp"><button data-radio="themes" data-val="5" class="on">five (Crawford)</button><button data-radio="themes" data-val="3">three (themes.md)</button></span></div>
   <div class="controls"><span class="lbl">Aspects:</span><span class="grp"><button data-radio="aspects" data-val="flat" class="on">flat rows</button><button data-radio="aspects" data-val="disc">behind a disclosure</button></span></div>
   <div class="controls"><span class="lbl">Desktop chooser:</span><span class="grp"><button data-radio="layout" data-val="two" class="on">two columns (the two axes)</button><button data-radio="layout" data-val="one">one column</button></span></div>
-  <div class="controls"><button data-opt="roll" class="on">Roll</button><button data-opt="veil" class="on">Veil</button><button data-opt="footer">Lore footer</button><button data-opt="callouts" class="on">Callouts</button></div>
+  <div class="controls"><button data-opt="roll" class="on">Roll</button><button data-opt="veil" class="on">Veil</button><button data-opt="footer" class="on">Lore footer</button><button data-opt="callouts" class="on">Callouts</button></div>
 </div>
 
 <script>
 // ---------- state: page-wide, plus a selection per story ----------
-const S = { themes: '5', aspects: 'flat', layout: 'two', roll: true, veil: true, footer: false, callouts: true, copy: 'app', foundry: 'after', commsSaves: 3 };
+const S = { themes: '5', aspects: 'flat', layout: 'two', roll: true, veil: true, footer: true, callouts: true, copy: 'app', foundry: 'after', commsSaves: 3 };
 const ST = { 1: {}, 2: { sel: 'current' }, 3: { sel: 'current', saves: 3 }, 4: {}, 5: { sel: 'current' }, 6: { sel: 'current', saves: 3 } };
 const $ = (s) => document.querySelector(s);
 const co = (n) => `<i class="co">${n}</i>`;
@@ -415,12 +429,12 @@ const STORIES = [
     ['Arrive', 'by the link; the flag is set. The link’s world is Current — selected and named; the Loading rows show the link’s theme + aspects.'],
     ['The screen', 'the chooser. The link’s world is one flip away; the presets one pick away.'],
     ['Change the theme', 'same seed + coords, the link’s tweaks discarded; the readout shows the new theme.'],
-    ['Reload', 'the address bar still names the link, so a reload returns to it whatever was picked (open question 8).'],
+    ['Reload', 'the address bar still names the link, so a reload returns to it whatever was picked (open question 7).'],
   ] },
   { n: 6, title: 'shared params, returning, with saves', arrive: 'link', gate: true, steps: [
     ['Arrive', 'as Story 5, with the saves listed; none selected, Current is the link’s world.'],
     ['Keep it', 'if the linked world is worth keeping: flip, Comms → Save; next visit it is a row here.'],
-    ['Pick a save instead', 'the linked world stays Current, unselected, until a reload brings it back (open question 8).'],
+    ['Pick a save instead', 'the linked world stays Current, unselected, until a reload brings it back (open question 7).'],
   ] },
 ];
 
@@ -499,17 +513,17 @@ const P = {
   6: ['Bottom strip + wordmark', 'built', ''],
   7: ['Transmission — which world', 'changed', 'today: 3 presets, divider, saves, one muted RadioButton. Proposed: a Current row on top; the presets become links.'],
   8: ['Current row', 'proposed', 'names the world that is loaded (random boot, the link’s, or the one you were playing). Selected by default = “continue”: the flip plays it from the top.'],
-  9: ['Roll', 'proposed', 'optional. A fresh random AS + coords under the chosen Loading. An action, not a radio (Crawford’s “New Session”). Could be left to reload / Foundry in v1.'],
-  10: ['Saves', 'built', 'newest first, only when any exist, read once on mount. Rows show savedAt; “last played” would be a new write on every load (open question 6).'],
+  9: ['Roll', 'decided', 'stays (Crawford, 2026-10-30). A fresh random AS + coords under the chosen Loading. An action, not a radio (Crawford’s “New Session”). Whether it keeps the theme + aspects is open question 4.'],
+  10: ['Saves', 'built', 'newest first, only when any exist, read once on mount. Rows show savedAt; “last played” would be a new write on every load (open question 5).'],
   11: ['Divider', 'built', ''],
-  12: ['Presets', 'changed', 'still three curated worlds, now stored as pasted share links (seed, x, y, s; theme + aspects later as plain params) and decoded by decodeWorldLink. Frame D shows how one is made.'],
-  13: ['Loading — how it loads', 'proposed', 'the second axis. A save or preset sets these rows; changing them keeps the seed + coords.'],
-  14: ['Theme row', 'proposed', 'single-line muted radios. Five (Crawford) or three (themes.md) — the fixed panel switches. Classic = today’s bands.'],
+  12: ['Presets', 'decided', 'still three curated worlds, now stored as pasted share links of worlds Crawford saved (his ask, 2026-10-30): seed, x, y, s, theme + aspects later as plain params, decoded by decodeWorldLink. Frame D shows how one is made.'],
+  13: ['Loading — how it loads', 'decided', 'the second axis (the two axes decided 2026-10-30). A save or preset sets these rows; changing them keeps the seed + coords.'],
+  14: ['Theme row', 'decided', 'single-line muted radios, five (decided 2026-10-30: standard / calm / bold / adventurous / perilous; the names, and whether the default reads “standard” or “Classic”, are open question 2). The fixed panel keeps the three-theme comparison. Classic = today’s bands.'],
   15: ['Description line', 'proposed', 'one muted sentence under the picked theme — the Guide’s “small part”: the content entry the Guide page reads later. Stand-in text.'],
-  16: ['Aspect rows', 'proposed', 'one row per family, one pick each, “as theme” first. Families and names are stand-ins except Hypnotic / Mechanical (the recorded examples). Flat, or behind one disclosure (fixed panel).'],
+  16: ['Aspect rows', 'decided', 'flat rows, one per family, one pick each, “as theme” first (flat decided 2026-10-30; the disclosure stays as the comparison). Families and names are stand-ins except Hypnotic / Mechanical — open question 3.'],
   17: ['Readout well', 'changed', 'home.off.readout today: {name} · {code}. Proposed: + theme + aspects, so one line names whatever is selected.'],
-  18: ['Lore footer', 'open', 'Crawford’s “unauthorized usage legalese” — a prop in tiny etched type, or nothing.'],
-  19: ['Veil', 'proposed', 'blur / opacity over the world until the flip, fading on power. Inside ScreenViewport; a blur that also covers the sleeve is decoration and allowed.'],
+  18: ['Lore footer', 'decided', 'stays (Crawford, 2026-10-30): a prop in tiny etched type. The legalese is his copy; this line is a stand-in.'],
+  19: ['Veil', 'decided', 'stays (Crawford, 2026-10-30): blur / opacity over the world until the flip, fading on power. Inside ScreenViewport; a blur that also covers the sleeve is decoration and allowed.'],
   20: ['Confirm dialog', 'open', 'built with today’s copy (ui.power.confirmTitle / confirmBody). Crawford’s draft warns of loss, but with Current = continue nothing is lost at power-off — only when a different row is picked afterwards.'],
   21: ['Status line', 'changed', 'SectorSettingsDrawer’s line, AS · (x, y); gains theme + aspects — the same readout as the off screen.'],
   22: ['Shortcut buttons', 'open', 'ATTENUATION_STYLE_PRESETS / COORDINATE_PRESETS — the old “favorites”. Themes + presets-as-links supersede them; removal is Crawford’s call.'],
@@ -519,7 +533,7 @@ const P = {
   26: ['Heard-a-world flag', 'proposed', 'one boolean, written at the first power-on.'],
   27: ['Curation flow', 'proposed', 'how a preset gets made — no tooling, just the existing Share.'],
 };
-const STATUS = { built: 'built', changed: 'built → changed', proposed: 'proposed', open: 'open' };
+const STATUS = { built: 'built', changed: 'built → changed', decided: 'decided 2026-10-30', proposed: 'proposed', open: 'open' };
 const legend = (nums) => `<ol class="legend">${nums.map((n) => { const [t, s, w] = P[n]; return `<li>${co(n)}<b>${t}</b><span class="st ${s}">${STATUS[s]}</span><span class="why">${w}</span></li>`; }).join('')}</ol>`;
 
 // ---------- a story section: sticky bar, step strip, desk + phone, legend ----------
@@ -569,7 +583,7 @@ function foundryDesk() {
     <div class="lbl">Coordinates</div>
     <div class="row"><span class="input small">3</span><span class="input small">−41</span></div>
     <div class="row"><span class="btn${gone}">The Trench</span><span class="btn${gone}">Shallow Reach</span><span class="btn${gone}">Far Shoal</span><span class="btn${gone}">Null Basin</span></div>
-    ${after ? '<div class="later">Theme · Aspects — follow-up, not v1: the same rows as the off screen, applied by Retransmit like AS + coords (open question 9).</div>' : ''}
+    ${after ? '<div class="later">Theme · Aspects — follow-up, not v1: the same rows as the off screen, applied by Retransmit like AS + coords (open question 8).</div>' : ''}
     <div class="row piece" style="margin-top:18px">${co(23)}<span class="btn solid">Retransmit</span></div>
   </div>`;
 }
