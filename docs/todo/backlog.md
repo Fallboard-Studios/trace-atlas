@@ -84,6 +84,14 @@ Clarified: a theme or aspect changes only loading bands — AS + coords stay the
 sound, on the off screen. The sketch's "Open for the interview" box is the live question list (nine items); the
 decisions are recorded in [docs/ideas/themes.md](../ideas/themes.md#decided-crawford-2026-10-30-on-the-six-story-sketch).
 
+**Intent confirmed 2026-10-30** via `/interview-me` (6 questions): [docs/intent/off-screen.md](../intent/off-screen.md).
+Two turns on the sketch's leans — power is a **pause**, not a stop (transport, robot animations and batteries freeze;
+the day clock and day / night light keep running, and run from load), and the off screen gains one **Keep** button
+beside the Current row instead of any save prompt or confirm dialog. Also fixed: the first visit is hint-only behind a
+heard-a-world flag; themes ship audibly in this phase as a narrow by-ear first cut, with Melody the only aspect family;
+the address bar follows the loaded world. Next: `spec-driven-development`, two halves (screen / band table + resolver),
+likely three phases.
+
 ### 6. Audio: Groove Feature
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
