@@ -1066,7 +1066,7 @@ export const AudioEngine = {
       const entry = compositeVoices.get(robotId);
       if (!entry) {
         warnNoVoice('updateVoiceLayerParams', robotId);
-        return;
+        return false;
       }
 
       try {
