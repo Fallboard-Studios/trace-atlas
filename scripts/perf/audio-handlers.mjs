@@ -3,9 +3,9 @@
  * Per-handler breakdown of the audio thread (backlog 27 T2, docs/specs/LIGHT_TIER_STANDING_COST.md §1.2).
  *
  * Opens one pinned world in a fresh headless Chrome exactly as `npm run perf:audio` does (`withPoweredWorld` in
- * cdp-lib.mjs: WebAudio before navigation, power on, the warm-up, the pin check), then records a Chrome trace of the
- * `webaudio` and `disabled-by-default-webaudio.audionode` categories for `--seconds`, and prints which Web Audio
- * handler classes carry the audio thread: each class's self time as a share of the same trace's
+ * powered-world.mjs: WebAudio before navigation, power on, the warm-up, the pin check), then records a Chrome trace
+ * of the `webaudio` and `disabled-by-default-webaudio.audionode` categories for `--seconds`, and prints which Web
+ * Audio handler classes carry the audio thread: each class's self time as a share of the same trace's
  * `RealtimeAudioDestinationHandler::Render` total, its instance count, and the share per instance.
  *
  * Tracing inflates the audio thread's load (~3x seen), so read proportions only: the shares are of Render in the
@@ -23,7 +23,8 @@ import { parseArgs } from 'node:util';
 
 import { formatHandlerTable, tallyHandlers } from './audio-handlers-lib.mjs';
 import { parseWorldSpec } from './audio-load-lib.mjs';
-import { sleep, withPoweredWorld } from './cdp-lib.mjs';
+import { sleep } from './cdp-lib.mjs';
+import { withPoweredWorld } from './powered-world.mjs';
 
 const CATEGORIES = ['webaudio', 'disabled-by-default-webaudio.audionode'];
 const RENDER = 'RealtimeAudioDestinationHandler::Render';

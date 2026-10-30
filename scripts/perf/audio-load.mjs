@@ -18,7 +18,7 @@
  *   npm run perf:audio -- --world bravo:-150:90?load=light --seconds 900 --bucket 60   # the long run
  *
  * The pure parts (world specs, URLs, bucketing, correlation) live in audio-load-lib.mjs and are unit-tested;
- * the Chrome plumbing lives in cdp-lib.mjs and is verified by real runs. Run with --help for flags.
+ * the Chrome plumbing lives in cdp-lib.mjs and powered-world.mjs and is verified by real runs. Run with --help for flags.
  * Measurement hygiene (foreground, one call at a time, orphaned-Chrome check, same-session A/B): docs/PERFORMANCE.md.
  */
 import { writeFileSync } from 'node:fs';
@@ -42,7 +42,8 @@ import {
   tallyConsole,
   trend,
 } from './audio-load-lib.mjs';
-import { sleep, withPoweredWorld } from './cdp-lib.mjs';
+import { sleep } from './cdp-lib.mjs';
+import { withPoweredWorld } from './powered-world.mjs';
 
 /** How often the DevTools realtime data is polled. `contextRealtimeDataChanged` events do not arrive on their own. */
 const POLL_MS = 500;

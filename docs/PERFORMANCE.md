@@ -392,7 +392,7 @@ One row per time bucket — mean and max capacity, mean callback interval, and t
 | `--no-debug` | Leave `?debug` off: no overlay, so no audible column. (The overlay's own cost is one 500 ms timer and one GSAP ticker callback.) |
 | `--json path` | Also write each run's buckets and summary to a file, e.g. to pool the correlation across runs. |
 
-Only the bucketing, statistics and URL/world handling are unit-tested (`scripts/perf/audio-load-lib.mjs`); the Chrome plumbing is verified by real runs. Opening the world is one helper shared with `perf:audio-handlers` (below): `withPoweredWorld` in `scripts/perf/cdp-lib.mjs` starts a fresh Chrome (`withChrome`), enables `WebAudio` before navigating, loads the world with `?debug`, powers on, waits out the warm-up and runs the pin check. The audio context polled is the most recently created, not-yet-destroyed *realtime* one, so `?latency=` (which replaces Tone's default context with a second one) polls the right context.
+Only the bucketing, statistics and URL/world handling are unit-tested (`scripts/perf/audio-load-lib.mjs`); the Chrome plumbing is verified by real runs. Opening the world is one helper shared with `perf:audio-handlers` (below): `withPoweredWorld` in `scripts/perf/powered-world.mjs` starts a fresh Chrome (cdp-lib.mjs's `withChrome`), enables `WebAudio` before navigating, loads the world with `?debug`, powers on, waits out the warm-up and runs the pin check. The audio context polled is the most recently created, not-yet-destroyed *realtime* one, so `?latency=` (which replaces Tone's default context with a second one) polls the right context.
 
 ### Handler breakdown — `npm run perf:audio-handlers`
 
