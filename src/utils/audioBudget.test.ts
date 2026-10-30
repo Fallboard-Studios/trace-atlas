@@ -382,14 +382,23 @@ describe('presetForLoad', () => {
 describe('describeLimits', () => {
   it('at Light reads what is capped, what is off, and that latency changes on the next load', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.light))).toBe(
-      'Up to 4 robots · 8 notes · no drift or filter LFOs or pedals or colour or reverb · latency: Playback (applies on next load)',
+      'Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb · latency: Playback (applies on next load)',
+    );
+  });
+
+  it('lists what is off as one list: two things joined by "or", more by commas and a final "or"', () => {
+    const full = loadToLimits(1);
+    expect(describeLimits({ ...full, driftEnabled: false })).toBe('Up to 12 robots · 16 notes · no drift');
+    expect(describeLimits({ ...full, driftEnabled: false, reverbEnabled: false })).toBe('Up to 12 robots · 16 notes · no drift or reverb');
+    expect(describeLimits({ ...full, driftEnabled: false, filterLfosEnabled: false, reverbEnabled: false })).toBe(
+      'Up to 12 robots · 16 notes · no drift, filter LFOs or reverb',
     );
   });
 
   it('names the Reverb when it is off, on its own or after the effects, and never when it is on', () => {
     const full = loadToLimits(1);
     expect(describeLimits({ ...full, reverbEnabled: false })).toBe('Up to 12 robots · 16 notes · no reverb');
-    expect(describeLimits({ ...full, effectsEnabled: false, reverbEnabled: false })).toContain('no pedals or colour or reverb');
+    expect(describeLimits({ ...full, effectsEnabled: false, reverbEnabled: false })).toContain('no pedals, colour or reverb');
     for (const t of dial) {
       const limits = loadToLimits(t);
       expect(/\breverb\b/.test(describeLimits(limits)), `${t}`).toBe(!limits.reverbEnabled);
@@ -399,10 +408,11 @@ describe('describeLimits', () => {
   it('names the effects tier when it is off, on its own or beside the LFO tiers, and never when it is on', () => {
     const full = loadToLimits(1);
     expect(describeLimits({ ...full, effectsEnabled: false })).toBe('Up to 12 robots · 16 notes · no pedals or colour');
-    expect(describeLimits({ ...full, driftEnabled: false, effectsEnabled: false })).toContain('no drift or pedals or colour');
+    expect(describeLimits({ ...full, driftEnabled: false, effectsEnabled: false })).toContain('no drift, pedals or colour');
     for (const t of dial) {
       const limits = loadToLimits(t);
-      expect(describeLimits(limits).includes('pedals or colour'), `${t}`).toBe(!limits.effectsEnabled);
+      const text = describeLimits(limits);
+      expect(/\bpedals\b/.test(text) && /\bcolour\b/.test(text), `${t}`).toBe(!limits.effectsEnabled);
     }
   });
 
@@ -442,7 +452,7 @@ describe('describeLimits', () => {
   });
 
   it('names each LFO tier correctly on both sides of the thresholds', () => {
-    expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN - 0.01))).toContain('no drift or filter LFOs');
+    expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN - 0.01))).toContain('no drift, filter LFOs');
     expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN))).toContain('no drift or robot filter LFOs');
     expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN - 0.01))).toContain('no drift');
     expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN))).toContain('all LFOs and drift');

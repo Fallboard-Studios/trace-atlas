@@ -46,7 +46,32 @@ export const settings = {
     human: 'Effects Limit',
     lore: 'Trace Budget',
     unit: '%',
-    help: { human: 'How much automatic motion the effects can run at once. Lowering it switches off the LFO lanes’ drift first, then the LFOs on the filters. Lower it if the sound crackles or cuts out.' },
+    help: { human: 'How much automatic motion the effects can run at once. Lowering it switches off the LFO lanes’ drift first, then the LFOs on the filters, the pedals, the colour effects and the Reverb. Lower it if the sound crackles or cuts out.' },
+  },
+  // The readout beside the Preset radio (utils/audioBudget.ts describeLimits): what the two limits allow right now, as
+  // "Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb · latency: Playback (applies on next load)".
+  'settings.quality.limits.robots': { human: 'Robots', template: 'Up to {n} robots' },
+  'settings.quality.limits.notes': { human: 'Notes', template: '{n} notes' },
+  'settings.quality.limits.allOn': { human: 'all LFOs and drift' },
+  'settings.quality.limits.off': {
+    human: 'Switched off',
+    template: 'no {list}',
+    options: {
+      drift: { human: 'drift' },
+      filterLfos: { human: 'filter LFOs' },
+      robotFilterLfos: { human: 'robot filter LFOs' },
+      pedals: { human: 'pedals' },
+      colour: { human: 'colour' },
+      reverb: { human: 'reverb' },
+    },
+  },
+  'settings.quality.limits.latency': {
+    human: 'Latency',
+    template: 'latency: {hint} (applies on next load)',
+    options: {
+      playback: { human: 'Playback' },
+      interactive: { human: 'Interactive' },
+    },
   },
   'settings.seeds': {
     human: 'Seeds',
