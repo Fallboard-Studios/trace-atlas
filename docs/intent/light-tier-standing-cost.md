@@ -1,7 +1,7 @@
 # Intent: The Light Tier's Standing Cost — What Light Still Carries on the Phone
 
 Confirmed via `interview-me` on 2026-10-27 (5 questions, five guesses confirmed), ahead of a `spec-driven-development`
-pass. Backlog [27](../todo/backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included), plan.md
+pass. Backlog [27](../todo/archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included), plan.md
 [Stage 1](../todo/plan.md) — the one item left in that stage. The measurement behind it is finished: desktop steps 1, 2
 and 2b (2026-10-23) and the Pixel sitting (2026-10-26), all in
 [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md); the decisions they produced are on the backlog

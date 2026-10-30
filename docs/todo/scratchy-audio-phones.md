@@ -1190,7 +1190,7 @@ and on the branch (140 → 173), and D5 reads 93–149 at 3:00. Crawford: chase 
 
 ## Backlog 27, desktop step 1 — D1 against D5 at Light, and what grows (2026-10-23)
 
-plan.md Stage 1's first step ([backlog 27](backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included),
+plan.md Stage 1's first step ([backlog 27](archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included),
 "Next, re-ordered"): the two worlds of the T10 round, on the desktop, with a read of what D1 carries. **Build:** a
 production `vite build` of `perf/underruns-desktop` at `87b205c3` (`index-DekV9Q83`; `src/` is `main` `5bd7f593` plus
 the overlay's new `events` token), `vite preview` on :4173. **Harness:** `npm run perf:audio` with the long-run columns

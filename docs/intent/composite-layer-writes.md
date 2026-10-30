@@ -90,7 +90,7 @@ envelope. The three symptoms go with one change, and the re-applied writes T7 me
   on; hiding it would take a rebuild at note release or a crossfade, neither on the table.
 - **The pre-scheduled swell curve** (backlog 35's deferred item): the composite diff does not change that decision.
 - **Any change to the swell tick** — it keeps sending whole layers through `applyLayersContinuous` and `applyAdsr`.
-- **Backlog [27](../todo/backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included)'s Light-tier
+- **Backlog [27](../todo/archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included)'s Light-tier
   interview** and anything else about how the graph is built.
 
 ## Known implementation notes (not yet spec'd)

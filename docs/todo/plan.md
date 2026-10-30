@@ -9,13 +9,7 @@ moves to the archives in the usual way and its line here is deleted.
 Reading the stages: each one ends at a point where Crawford listens or looks before the next begins. "Interview" means
 `/interview-me` → spec → plan before any code, as CLAUDE.md's workflow skills require.
 
-## Stage 1 — The audio engine: what Light still carries
-
-The underruns' design decision. The measurement for it is done, desktop and phone (backlog 27, the two updates of
-2026-10-26): the clicks at Light are the graph's standing cost, not an accumulation, and the late collapse has not
-recurred.
-
-## Stage 2 — The powered-down state
+## Stage 1 — The powered-down state
 
 - Backlog [5](backlog.md#5-sector-settings-ascoordsfavorites-reorganization) **The off screen: themes, sessions,
   presets** — Crawford's plan for the powered-down state; the interview fixes the surface, including where item 7's
@@ -23,15 +17,15 @@ recurred.
 - Backlog [1](backlog.md#1-onload-better-power-off-background) and [3](backlog.md#3-onload-sleeve-logo) **Off
   background art, sleeve logo** — blocked on artwork, but they land on this screen, so decided here.
 
-## Stage 3 — The Guide
+## Stage 2 — The Guide
 
 - Roadmap [51](roadmap.md#51-guide-a-read-only-branch-that-teaches-the-whole-app) **The Guide** — large; likely one
-  tabbed window that shows everything. After Stage 3 so it describes the off screen as it will be.
+  tabbed window that shows everything. After Stage 1 so it describes the off screen as it will be.
 
-## Stage 4 — The music
+## Stage 3 — The music
 
 - Backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) **Tagged progressions,
-  seeded mood chain** — the engine, catalogue and chain (large); its UI was decided in Stage 3. Backlog
+  seeded mood chain** — the engine, catalogue and chain (large); its UI was decided in Stage 1. Backlog
   [17](backlog.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings)'s audit notes feed its
   determinism design and archive once the spec absorbs them.
 - Backlog [24](backlog.md#24-audio-palette-trials-transport-groove-and-tempo-walk) **Swing, then maybe a tempo walk** —
@@ -40,7 +34,7 @@ recurred.
 - Backlog [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) **User-authored progressions**
   — a maybe; only if 7 earns it, and then its own roadmap phase.
 
-## Stage 5 — Observe the world
+## Stage 4 — Observe the world
 
 Interview these three together: they share one decision about what to record and what survives a reload, even if only
 one is built.

@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/LIGHT_TIER_STANDING_COST.md](../specs/LIGHT_TIER_STANDING_COST.md). Source intent:
 [docs/intent/light-tier-standing-cost.md](../intent/light-tier-standing-cost.md). Backlog slot: this is backlog
-[27](../todo/backlog.md#27-audio-phone-playback-underruns-at-light-load-main-included)'s own fix (spec §7 Q6), plan.md
+[27](../todo/archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included)'s own fix (spec §7 Q6), plan.md
 Stage 1. Docs branch `docs/backlog-27-intent` (this file, the intent, the spec); build branch
 `perf/light-tier-standing-cost` off `main` once the docs merge, else off the docs branch.
 
