@@ -81,9 +81,25 @@ export function fadeOffScreen(): Promise<void> {
   const screen = getRef(OFF_SCREEN_REF_KEY);
   if (!screen) return Promise.resolve();
   killTimeline(OFF_SCREEN_BOOT_TIMELINE);
+  // From the fade's first frame the screen takes no input, through the transparent wait of a slow first start too:
+  // nothing the eye has lost can still be clicked (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19).
+  screen.setAttribute('inert', '');
   return new Promise<void>((resolve) => {
     const tl = gsap.timeline({ onComplete: () => resolve() });
     tl.to(screen, { opacity: 0, duration: FADE_SECONDS, ease: 'power1.out' });
     setTimeline(OFF_SCREEN_FADE_TIMELINE, tl);
   });
+}
+
+/**
+ * The fade undone (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19): the fade killed, the screen opaque and taking input
+ * again. powerController calls it when the start after the fade fails, so a failed power-on leaves the off screen as it
+ * was rather than invisible and still mounted over the glass. A no-op with no screen mounted.
+ */
+export function restoreOffScreen(): void {
+  const screen = getRef(OFF_SCREEN_REF_KEY);
+  if (!screen) return;
+  killTimeline(OFF_SCREEN_FADE_TIMELINE);
+  gsap.set(screen, { opacity: 1 });
+  screen.removeAttribute('inert');
 }

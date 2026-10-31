@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import gsap from 'gsap';
 
 import {
   OFF_SCREEN_BOOT_TIMELINE,
   OFF_SCREEN_FADE_TIMELINE,
   OFF_SCREEN_REF_KEY,
   fadeOffScreen,
+  restoreOffScreen,
   skipOffScreenBoot,
   startOffScreenBoot,
 } from './offScreenTheatre';
@@ -99,5 +101,35 @@ describe('fadeOffScreen', () => {
     startOffScreenBoot(document.createElement('div'));
     await fadeOffScreen();
     expect(getTimeline(OFF_SCREEN_BOOT_TIMELINE)).toBeUndefined();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19: a screen fading out, and the transparent one left behind it through
+  // a slow first start, takes no input: nothing on it that the eye has lost can still be clicked.
+  it('makes the screen inert as the fade starts, before the tween completes', () => {
+    const root = document.createElement('div');
+    setRef(OFF_SCREEN_REF_KEY, root);
+    expect(root.hasAttribute('inert')).toBe(false);
+    void fadeOffScreen();
+    expect(root.hasAttribute('inert')).toBe(true);
+  });
+});
+
+// R19: a power-on that fails after the fade gives the screen back, opaque and taking input, rather than leaving it
+// invisible and mounted over the glass.
+describe('restoreOffScreen (review R19)', () => {
+  it('brings a faded screen back: the fade killed, the screen opaque and taking input again', () => {
+    const root = document.createElement('div');
+    setRef(OFF_SCREEN_REF_KEY, root);
+    const set = vi.spyOn(gsap, 'set');
+    void fadeOffScreen();
+    restoreOffScreen();
+    expect(root.hasAttribute('inert')).toBe(false);
+    expect(set).toHaveBeenCalledWith(root, { opacity: 1 });
+    expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeUndefined();
+    set.mockRestore();
+  });
+
+  it('is a no-op when the screen is not mounted', () => {
+    expect(() => restoreOffScreen()).not.toThrow();
   });
 });

@@ -7,7 +7,7 @@ import { useUIStore } from '../stores/uiStore';
 import { startLocaleSystems } from './worldTransition';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
-import { fadeOffScreen } from '../animation/offScreenTheatre';
+import { fadeOffScreen, restoreOffScreen } from '../animation/offScreenTheatre';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
 import { getWorldState, setWorldState, type WorldState } from './worldState';
 
@@ -93,7 +93,14 @@ export const powerController = {
       this.resume();
       return;
     }
-    await this.start();
+    try {
+      await this.start();
+    } catch (err) {
+      // The screen faded for a start that did not happen: give it back, opaque and taking input, rather than leave it
+      // invisible over the glass (R19). The failure is still the caller's.
+      restoreOffScreen();
+      throw err;
+    }
     startLocaleSystems(getActiveLocaleId());
     if (!hasHeardWorld()) markHeardWorld();
     useUIStore.getState().setPowerOn();

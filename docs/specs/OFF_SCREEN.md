@@ -295,6 +295,11 @@ worth a second look):
     veil and the dark layer, so the veil stays put while the column moves; the fade and the theatre keep their
     targets. The desk column scrolls too, centred while it fits (`justify-content: safe center`), and the phone's
     column's top padding is `calc(var(--power-corner-height) + 12px)`, clear of the power corner.
+    *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R19):* the screen takes
+    no tap it cannot show. The dark layer takes the tap while it is up (it was `pointer-events: none`, so a tap in the
+    dark phase picked the unseen row under it); the root still skips the theatre on it. `fadeOffScreen` makes the root
+    `inert` from the fade's start. A `start()` that rejects calls `restoreOffScreen()`: the screen opaque and taking
+    input again, not invisible and mounted.
 19. **Foundry's status line and Comms.** `SectorSettingsDrawer`'s line becomes `describeWorld(identity)`; the shortcut
     rows go (assumption 13); nothing else moves. `session.clearStorage.confirmBody` loses "and autosaved".
 20. **Pre-v1: nothing is kept for sound's sake.** Classic is today's bands by definition at the moment of the lift (§5.2

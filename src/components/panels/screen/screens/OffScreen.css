@@ -48,15 +48,16 @@
 
 /* The boot theatre's dark layer (docs/tasks/OFF_SCREEN.md Task 16b): opaque black over the whole screen at first
    paint — the tablet is off; the strips and the power corner outside the screen are lit — faded through a flicker
-   and hidden by the 'off-screen-boot' timeline (animation/offScreenTheatre.ts). Takes no clicks, so a tap during
-   the theatre reaches the screen and skips it. Under reduced motion the timeline jumps to ready; this rule is the
-   belt to that brace, so the layer never shows even if the timeline is late to the first paint. */
+   and hidden by the 'off-screen-boot' timeline (animation/offScreenTheatre.ts). It takes the tap while it is up, so a
+   tap during the theatre lands on nothing it hides; the tap still reaches the screen's root, which skips the theatre
+   (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19). Hidden at the end, it takes nothing. Under reduced motion the
+   timeline jumps to ready; this rule is the belt to that brace, so the layer never shows even if the timeline is late
+   to the first paint. */
 .off-screen__dark {
   position: absolute;
   inset: 0;
   z-index: 2;
   background: #000;
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

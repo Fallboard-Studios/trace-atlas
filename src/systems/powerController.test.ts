@@ -9,7 +9,7 @@ vi.mock('./workLoop', () => ({ stopWorkLoop: vi.fn(), pauseWorkLoop: vi.fn(), re
 vi.mock('./worldTransition', () => ({ startLocaleSystems: vi.fn() }));
 vi.mock('../animation/timelineMap', () => ({ pauseWorldTimelines: vi.fn(), resumeWorldTimelines: vi.fn() }));
 vi.mock('../utils/deviceFlags', () => ({ hasHeardWorld: vi.fn(() => false), markHeardWorld: vi.fn() }));
-vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve()) }));
+vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve()), restoreOffScreen: vi.fn() }));
 const setPowerOnSpy = vi.fn();
 const setPowerOffSpy = vi.fn();
 vi.mock('../stores/uiStore', () => ({ useUIStore: { getState: () => ({ setPowerOn: setPowerOnSpy, setPowerOff: setPowerOffSpy }) } }));
@@ -26,7 +26,7 @@ import { stopWorkLoop, pauseWorkLoop, resumeWorkLoop } from './workLoop';
 import { startLocaleSystems } from './worldTransition';
 import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
-import { fadeOffScreen } from '../animation/offScreenTheatre';
+import { fadeOffScreen, restoreOffScreen } from '../animation/offScreenTheatre';
 import { useUIStore } from '../stores/uiStore';
 import { useLocaleStore } from '../stores/localeStore';
 
@@ -192,6 +192,24 @@ describe('powerController', () => {
       vi.clearAllMocks();
       powerController.pause();
       expect(fadeOffScreen).not.toHaveBeenCalled();
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19: a start that fails after the fade gives the screen back - opaque,
+    // taking input - instead of leaving it invisible and mounted over the glass. The failure still reaches the caller.
+    it('a rejected start restores the screen after its fade, and the world stays cold with the power off', async () => {
+      vi.mocked(AudioEngine.start).mockRejectedValueOnce(new Error('no audio context'));
+      await expect(powerController.powerOnSequence()).rejects.toThrow('no audio context');
+      expect(restoreOffScreen).toHaveBeenCalledTimes(1);
+      expect(order(fadeOffScreen)).toBeLessThan(order(restoreOffScreen));
+      expect(powerController.getWorldState()).toBe('cold');
+      expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
+    });
+
+    it('a start that succeeds, and a resume, never restore the screen: it goes with the power flag', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+      await powerController.powerOnSequence();
+      expect(restoreOffScreen).not.toHaveBeenCalled();
     });
   });
 
