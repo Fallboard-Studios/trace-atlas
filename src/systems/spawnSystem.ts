@@ -516,7 +516,7 @@ const LFO_DEPTH_STEP = 1;
 /** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth in the band
  *  table, band-table T21): its depth window in percent, with a never-zero floor so a lit link is always audible, and as
  *  `lit` the lit share — 1 - the old LFO_QUIET_THRESHOLD (0.7, docs/specs/LFO_LOAD_FIX.md assumption 5) for the six
- *  layer targets and 1 - LFO_BUS_QUIET_THRESHOLD (0.8) for the bus filter's rarer sweep. classic.ts records why 0.7
+ *  layer targets and 1 - the old LFO_BUS_QUIET_THRESHOLD (0.8) for the bus filter's rarer sweep. classic.ts records why 0.7
  *  and not 0.75 for "25 % on": the draw is a smooth simplex sample, not a coin, so the on-rate is not 1 - threshold. */
 function robotLfoBandForTarget(target: RobotLfoTargetId): SendBand {
   if (target === 'bus.frequency') return getBand('robot.lfoBusDepth');

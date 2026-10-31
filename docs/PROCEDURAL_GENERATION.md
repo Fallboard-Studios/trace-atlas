@@ -83,19 +83,19 @@ If a noise map isn't available yet (locale not registered, or no `noiseMap` pass
 
 ### Robot Articulation dataIds (roadmap 50.1)
 
-Added to `generateAudioAttributes` and `generateRobotLfoLinks` in `spawnSystem.ts`, all at the robot's spawn `offset` unless noted. Each is a minority trait: most robots keep today's plain sound.
+Added to `generateAudioAttributes` and `generateRobotLfoLinks` in `spawnSystem.ts`, all at the robot's spawn `offset` unless noted. Each is a minority trait: most robots keep today's plain sound. Every range and share they draw against is a band in `src/data/bands/classic.ts`, read through `getBand(key)` at the draw (`AUDIO_SYSTEM.md`'s "The band table"); a band's `lit` is the share of robots that take the trait. The numbers below are Classic's. A theme or aspect may move a band (`docs/reference/ROBOT_DATA_GRID.md`, "Loading ranges by theme and aspect").
 
 | dataId | What it decides |
 |---|---|
-| `robot.audio.attackCurve.shaped`, `robot.audio.releaseCurve.shaped` | Whether the stage takes a non-linear curve at all, against `ATTACK_CURVE_SHAPED_THRESHOLD` / `RELEASE_CURVE_SHAPED_THRESHOLD` |
+| `robot.audio.attackCurve.shaped`, `robot.audio.releaseCurve.shaped` | Whether the stage takes a non-linear curve at all: a draw under the shaped band's `lit` (`robot.shapedAttack` 0.21 / `robot.shapedRelease` 0.275) |
 | `robot.audio.attackCurve.which`, `robot.audio.releaseCurve.which` | Which of the six non-linear curves; sampled at `offset * 10 + 1`, because a robot only gets there when the shaped draw came out low and a neighbouring sample of the same smooth noise is low too |
-| `robot.audio.attack`, `robot.audio.release` | Now spread over `SHAPED_ATTACK_RANGE` / `SHAPED_RELEASE_RANGE` when the stage is shaped, else the plain 0–2 s range (same sample, same dataId) |
-| `robot.audio.portamento.glider`, `robot.audio.portamento` | Whether the robot glides (`GLIDER_THRESHOLD`), then how long (`PORTAMENTO_SEED_RANGE`, quantized to 0.01) |
-| `robot.audio.filter.accent` | Whether the robot gets the resonant "accent" bus filter (`FILTER_ACCENT_THRESHOLD`) |
-| `robot.audio.filterFreq` | The cutoff, in `OPEN_FILTER_FREQ_RANGE` or `ACCENT_FILTER_FREQ_RANGE` (same dataId in both tiers) |
-| `robot.audio.filterQ`, `robot.audio.filter.type` | An accent robot's resonance (`ACCENT_FILTER_Q_RANGE`) and whether it is bandpass (`ACCENT_BANDPASS_SHARE`) |
-| `robot.lfo.bus.frequency.quiet`, `.lane`, `.depth` | The bus cutoff's LFO link, with its own quiet threshold (`LFO_BUS_QUIET_THRESHOLD`) and depth window (`ROBOT_LFO_BUS_DEPTH_SEED_RANGE`) via the existing `robot.lfo.<target>.*` pattern |
-| `robot.dynamics`, `robot.rests`, `robot.accents` | Robot Performance (roadmap 50.5): the three 0–100 performance fields, plain draws at the spawn `offset`, rounded to whole numbers, over `DYNAMICS_SEED_RANGE` (25–75), `RESTS_SEED_RANGE` (10–60) and `ACCENTS_SEED_RANGE` (20–80). Fleet-wide traits, not minority ones — every robot gets some of each |
+| `robot.audio.attack`, `robot.audio.release` | Now spread over the shaped band (`robot.shapedAttack` 0.03–0.25 s / `robot.shapedRelease` 0.15–0.8 s) when the stage is shaped, else the plain band (`robot.attack` / `robot.release`, 0–2 s) (same sample, same dataId) |
+| `robot.audio.portamento.glider`, `robot.audio.portamento` | Whether the robot glides (a draw under `robot.portamento`'s `lit`, 0.23), then how long (that band's 0.05–0.2 s, quantized to 0.01) |
+| `robot.audio.filter.accent` | Whether the robot gets the resonant "accent" bus filter (a draw under `robot.accentFilterFreq`'s `lit`, 0.27) |
+| `robot.audio.filterFreq` | The cutoff, in `robot.filterFreq` (2000–8000 Hz) or, for an accent robot, `robot.accentFilterFreq` (400–2500 Hz) (same dataId in both tiers) |
+| `robot.audio.filterQ`, `robot.audio.filter.type` | An accent robot's resonance (`robot.accentFilterQ`, 3–8) and whether it is bandpass (`ACCENT_BANDPASS_SHARE`, a plain coin in `spawnSystem.ts`, not a band) |
+| `robot.lfo.bus.frequency.quiet`, `.lane`, `.depth` | The bus cutoff's LFO link, with its own band, `robot.lfoBusDepth`: quiet on a draw under 1 − its `lit` (0.2, so under 0.8), else a depth in its 1–40 % window, via the existing `robot.lfo.<target>.*` pattern |
+| `robot.dynamics`, `robot.rests`, `robot.accents` | Robot Performance (roadmap 50.5): the three 0–100 performance fields, plain draws at the spawn `offset`, rounded to whole numbers, over the `robot.dynamics` (25–75), `robot.rests` (10–60) and `robot.accents` (20–80) bands. Fleet-wide traits, not minority ones — every robot gets some of each |
 | `globalAudio.humanize` | The Pacing "Humanize" value, ms, seeded once per session in `HUMANIZE_SEED_RANGE` (2–6, whole ms) by `generateHumanize` and carried forward across style switches like the swell fields. A **uniform** draw (`getUniformSeededVal`): the plain draw gave three distinct values over 300 styles |
 
 **Not noise-map draws any more:** the per-note rolls the playback loop makes — the velocity roll and its variance, and the Humanize

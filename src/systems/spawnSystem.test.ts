@@ -311,7 +311,8 @@ describe('spawnSystem', () => {
   // and the bus filter's Q / type / two-tier cutoff are seeded minority traits.
   describe('generateAudioAttributes — articulation seeding (Robot Articulation T5)', () => {
     // 10 worlds x 40 offsets = 400 robots. Spread across worlds because one noise map's draws are
-    // strongly correlated per offset (see LFO_QUIET_THRESHOLD's doc comment) and can land on a band edge.
+    // strongly correlated per offset (every dataId samples the map at the same y, the spawn offset, with its x
+    // inside [0, 1)) and can land on a band edge.
     const WORLDS = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`articulation-seed-world-${i}`)));
     const SAMPLE = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateAudioAttributes(noiseMap, offset)));
     const share = (count: number) => count / SAMPLE.length;
