@@ -18,7 +18,7 @@ import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells } from '../systems/audioSwells';
-import { CONTENT, fill, labels } from '../content';
+import { CONTENT, labels } from '../content';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 
@@ -244,13 +244,5 @@ describe('the off-screen content', () => {
 
   it('says pressing power will play sound', () => {
     expect(labels('home.off.powerHint').humanLabel.toLowerCase()).toContain('sound');
-  });
-
-  it('fills the readout well from a preset name and its code', () => {
-    expect(fill('home.off.readout', { name: 'Kryndara', code: 'kr1nd4ra' })).toBe('Kryndara · kr1nd4ra');
-  });
-
-  it('refuses to fill the readout without its slots', () => {
-    expect(() => fill('home.off.readout', { name: 'Kryndara' })).toThrow();
   });
 });

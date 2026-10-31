@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 27 (spec §1.9): the powered-off screen — the etched label and power hint
- * over the dimmed still world, and the Transmission row: three presets, a divider, then the user's saves,
- * as a muted RadioButton (nothing comes off the plate while the power is off) with a well naming the pick.
- * Picking retransmits through applySessionPayload and never starts audio; only the rocker starts sound.
+ * over the dimmed still world, and the Transmission row as a muted RadioButton (nothing comes off the plate
+ * while the power is off) with a well naming the pick. Picking retransmits through applySessionPayload and
+ * never starts audio; only the rocker starts sound.
+ *
+ * docs/tasks/OFF_SCREEN.md Task 10 (spec assumptions 7 and 8): the gate — a device that has never heard a world
+ * sees the label and the hint only; one that has sees the chooser — and the Current row on top, selected by
+ * default and named by describeWorld (the loaded world, fronted by the loaded save's name when there is one),
+ * then the saves, a divider, then the presets. The readout names the pick through the same helper.
  */
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: vi.fn(),
@@ -19,13 +24,27 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS } from '@/data/transmissionPresets';
 import { saveNamedSession } from '@/utils/sessionStorageEngine';
+import { markHeardWorld } from '@/utils/deviceFlags';
+import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
-import { CONTENT, fill } from '@/content';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
+import { useLocaleStore } from '@/stores/localeStore';
+import { CONTENT } from '@/content';
 import type { SessionPayload } from '@/types/session';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
 const presetName = (i: number) => human(TRANSMISSION_PRESETS[i].nameKey);
 const picker = () => screen.getByRole('group', { name: human('home.off.transmission') });
+const radioNames = () => within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
+const readout = () => screen.getByTestId('off-screen-readout');
+
+/** The world the stores hold — what Current names (the stores' module-level defaults, in these tests). */
+function liveIdentity() {
+  const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+  const locale = useLocaleStore.getState().getLocaleById(style.currentLocaleId!)!;
+  return { attenuationStyleName: style.name, coordinates: locale.coordinates };
+}
+const currentLabel = (loadedName?: string) => describeWorld(liveIdentity(), loadedName);
 
 // A save is a plain SessionPayload; the off screen only reads its name and hands the payload on.
 const savedPayload = (style: string): SessionPayload => ({ ...TRANSMISSION_PRESETS[0].payload, attenuationStyleName: style });
@@ -33,9 +52,38 @@ const savedPayload = (style: string): SessionPayload => ({ ...TRANSMISSION_PRESE
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  useSessionStore.setState({ currentLoadedSessionName: null });
+});
+
+describe('OffScreen — the gate (spec assumption 7)', () => {
+  it('a device that has never heard a world sees the label, its lore line and the hint, and no chooser', () => {
+    render(<OffScreen />);
+    expect(screen.getByText(human('home.off.label'))).toBeTruthy();
+    expect(screen.getByText(CONTENT['home.off.label'].lore!)).toBeTruthy();
+    expect(screen.getByText(human('home.off.powerHint'))).toBeTruthy();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('group')).toBeNull();
+    expect(screen.queryByTestId('off-screen-readout')).toBeNull();
+  });
+
+  it('a device that has heard a world sees the chooser, with Current selected', () => {
+    markHeardWorld();
+    render(<OffScreen />);
+    expect(screen.getByText(human('home.off.powerHint'))).toBeTruthy();
+    const current = screen.getByRole('radio', { name: currentLabel() });
+    expect(current.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('reads the flag once, on mount: a flag set after mount does not open the chooser until the next mount', () => {
+    render(<OffScreen />);
+    act(() => markHeardWorld());
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
 });
 
 describe('OffScreen — content', () => {
+  beforeEach(() => markHeardWorld());
+
   it('shows the etched label, its lore line and the power hint', () => {
     render(<OffScreen />);
     expect(screen.getByText(human('home.off.label'))).toBeTruthy();
@@ -49,30 +97,80 @@ describe('OffScreen — content', () => {
   });
 });
 
+describe('OffScreen — the Current row (spec assumption 8)', () => {
+  beforeEach(() => markHeardWorld());
+
+  it('is the first option, named by describeWorld of the loaded world, under the Current eyebrow', () => {
+    render(<OffScreen />);
+    const current = screen.getByRole('radio', { name: currentLabel() });
+    expect(radioNames()[0]).toBe(currentLabel());
+    expect(within(current).getByText(human('home.off.current'))).toBeTruthy();
+  });
+
+  it("is named after the loaded save when one is loaded: '<save> · AS (x, y)'", () => {
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(radioNames()[0]).toBe(currentLabel('Dusk Run'));
+    expect(currentLabel('Dusk Run').startsWith('Dusk Run · ')).toBe(true);
+  });
+
+  it('follows the loaded world: a change of Attenuation Style renames the row and the readout', () => {
+    render(<OffScreen />);
+    const before = currentLabel();
+    const { attenuationStyles, currentAttenuationStyleId } = useAttenuationStyleStore.getState();
+    act(() => {
+      useAttenuationStyleStore.setState({
+        attenuationStyles: attenuationStyles.map((s) => (s.id === currentAttenuationStyleId ? { ...s, name: 'rolled-1' } : s)),
+      });
+    });
+    expect(currentLabel()).not.toBe(before);
+    expect(currentLabel().startsWith('rolled-1 · ')).toBe(true);
+    expect(radioNames()[0]).toBe(currentLabel());
+    expect(readout().textContent).toBe(currentLabel());
+  });
+
+  it('picking Current retransmits nothing: it is the loaded world already', () => {
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
+    fireEvent.click(screen.getByRole('radio', { name: currentLabel() }));
+    expect(applySessionPayload).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: presetName(0) }).getAttribute('aria-checked')).toBe('false');
+    expect(readout().textContent).toBe(currentLabel());
+  });
+});
+
 describe('OffScreen — the Transmission row', () => {
-  it('lists the three presets, in order, under the Transmission label, with no divider when there are no saves', () => {
+  beforeEach(() => markHeardWorld());
+
+  it('lists Current, then the three presets in order, under the Transmission label, with no divider when there are no saves', () => {
     const { container } = render(<OffScreen />);
-    const radios = within(picker()).getAllByRole('radio');
-    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([presetName(0), presetName(1), presetName(2)]);
+    expect(radioNames()).toEqual([currentLabel(), presetName(0), presetName(1), presetName(2)]);
     expect(container.querySelector('.sc-radio-button__divider')).toBeNull();
   });
 
-  it("lists the user's saves after the presets, behind exactly one divider", () => {
+  it("lists the user's saves between Current and the presets, newest first, with exactly one divider ahead of the presets", () => {
+    // Two saves in one millisecond would tie on savedAt; give the second a later clock so "newest first" is testable.
+    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     saveNamedSession('Night, all freelance', savedPayload('night'));
+    now.mockRestore();
     const { container } = render(<OffScreen />);
-    const radios = within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
-    expect(radios.slice(0, 3)).toEqual([presetName(0), presetName(1), presetName(2)]);
-    expect(radios.slice(3).sort()).toEqual(['Dusk Run', 'Night, all freelance']);
+    const names = radioNames();
+    expect(names[0]).toBe(currentLabel());
+    expect(names.slice(1, 3)).toEqual(['Night, all freelance', 'Dusk Run']);
+    expect(names.slice(3)).toEqual([presetName(0), presetName(1), presetName(2)]);
     const dividers = container.querySelectorAll('.sc-radio-button__divider');
     expect(dividers).toHaveLength(1);
-    expect(dividers[0].nextElementSibling).toBe(screen.getAllByRole('radio')[3]);
+    expect(dividers[0].nextElementSibling).toBe(screen.getByRole('radio', { name: presetName(0) }));
   });
 
-  it('has nothing selected before a pick', () => {
+  it('has Current selected before a pick, and nothing else', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
-    for (const radio of screen.getAllByRole('radio')) expect(radio.getAttribute('aria-checked')).toBe('false');
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(radio.getAttribute('aria-checked')).toBe(radio.getAttribute('aria-label') === currentLabel() ? 'true' : 'false');
+    }
   });
 
   it("keeps a save that shares a preset's name apart from it: both render, and picking the save applies the save", () => {
@@ -81,11 +179,11 @@ describe('OffScreen — the Transmission row', () => {
     render(<OffScreen />);
     const radios = screen.getAllByRole('radio').filter((r) => r.getAttribute('aria-label') === presetName(0));
     expect(radios).toHaveLength(2);
-    fireEvent.click(radios[1]);
+    fireEvent.click(radios[0]); // the save sits ahead of the presets now
     expect(applySessionPayload).toHaveBeenCalledWith(save);
   });
 
-  it("keeps a save named like a preset id apart from the preset", () => {
+  it('keeps a save named like a preset id apart from the preset', () => {
     const save = savedPayload('id-clash');
     saveNamedSession(TRANSMISSION_PRESETS[0].id, save);
     render(<OffScreen />);
@@ -96,6 +194,8 @@ describe('OffScreen — the Transmission row', () => {
 });
 
 describe('OffScreen — picking', () => {
+  beforeEach(() => markHeardWorld());
+
   it("applies the preset's payload, once, on picking a preset", () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
@@ -127,6 +227,7 @@ describe('OffScreen — picking', () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     expect(useSessionStore.getState().currentSessionName).toBe(before);
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
   });
 
   it('never starts the AudioEngine: only the power switch starts sound', () => {
@@ -134,14 +235,16 @@ describe('OffScreen — picking', () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    fireEvent.click(screen.getByRole('radio', { name: currentLabel('Dusk Run') }));
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
-  it('marks the picked option selected, and only it', () => {
+  it('marks the picked option selected, and only it — Current included', () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(2) }));
     expect(screen.getByRole('radio', { name: presetName(2) }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(0) }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('false');
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     expect(screen.getByRole('radio', { name: presetName(2) }).getAttribute('aria-checked')).toBe('false');
     expect(applySessionPayload).toHaveBeenCalledTimes(2);
@@ -162,30 +265,37 @@ describe('OffScreen — picking', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(screen.getByRole('radio', { name: 'Dusk Run' }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
   });
 });
 
 describe('OffScreen — the well naming the pick', () => {
-  const readout = () => screen.getByTestId('off-screen-readout');
+  beforeEach(() => markHeardWorld());
 
-  it('names nothing before a pick, but the well is already in place so the row does not shift', () => {
+  it('names Current before a pick, the same string as the Current row', () => {
     render(<OffScreen />);
-    expect(readout().textContent).toBe('');
+    expect(readout().textContent).toBe(currentLabel());
   });
 
-  it('names a preset by its copy and its Attenuation Style code', () => {
+  it('names the loaded save before a pick, as the Current row does', () => {
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(readout().textContent).toBe(currentLabel('Dusk Run'));
+  });
+
+  it("names a preset by its copy and its world: '<name> · AS (x, y)'", () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
-    expect(readout().textContent).toBe(
-      fill('home.off.readout', { name: presetName(1), code: TRANSMISSION_PRESETS[1].payload.attenuationStyleName }),
-    );
+    expect(readout().textContent).toBe(describeWorld(TRANSMISSION_PRESETS[1].payload, presetName(1)));
   });
 
-  it('names a save by its own name and its Attenuation Style code', () => {
-    saveNamedSession('Dusk Run', savedPayload('dusk'));
+  it("names a save by its own name and its world: '<save> · AS (x, y)'", () => {
+    const save = savedPayload('dusk');
+    saveNamedSession('Dusk Run', save);
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
-    expect(readout().textContent).toBe(fill('home.off.readout', { name: 'Dusk Run', code: 'dusk' }));
+    expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
+    expect(readout().textContent!.startsWith('Dusk Run · dusk (')).toBe(true);
   });
 
   it('is labelled for assistive tech and announced politely', () => {
@@ -196,6 +306,8 @@ describe('OffScreen — the well naming the pick', () => {
 });
 
 describe('OffScreen — muted: nothing comes off the plate', () => {
+  beforeEach(() => markHeardWorld());
+
   it('has no cabinet box, wall or popped class anywhere in its DOM, picked or not', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     const { container } = render(<OffScreen />);
@@ -207,8 +319,10 @@ describe('OffScreen — muted: nothing comes off the plate', () => {
 });
 
 describe('OffScreen — on the phone shell (Task 28)', () => {
+  beforeEach(() => markHeardWorld());
+
   // jsdom computes no layout, so "no horizontal overflow" is not checked here; the phone shell's DOM is: ScreenViewport marks
-  // itself with data-shell, and every preset, and a save with the longest legal name, is still in the picker.
+  // itself with data-shell, and Current, every preset, and a save with the longest legal name, is still in the picker.
   const renderOnPhone = () =>
     render(
       <main id="screen-viewport" data-shell="phone">
@@ -216,9 +330,9 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
       </main>,
     );
 
-  it('renders all three presets in the picker', () => {
+  it('renders Current and all three presets in the picker', () => {
     renderOnPhone();
-    expect(within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual([presetName(0), presetName(1), presetName(2)]);
+    expect(radioNames()).toEqual([currentLabel(), presetName(0), presetName(1), presetName(2)]);
   });
 
   it('keeps a 128-character save name whole in its accessible name, drawn in the single-line label that ends in an ellipsis', () => {
@@ -233,9 +347,10 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
 
   it('names a long pick in the readout whole, so the wrapping readout can take a second line', () => {
     const longName = 'N'.repeat(128);
-    saveNamedSession(longName, savedPayload('long'));
+    const save = savedPayload('long');
+    saveNamedSession(longName, save);
     renderOnPhone();
     fireEvent.click(screen.getByRole('radio', { name: longName }));
-    expect(screen.getByTestId('off-screen-readout').textContent).toBe(fill('home.off.readout', { name: longName, code: 'long' }));
+    expect(screen.getByTestId('off-screen-readout').textContent).toBe(describeWorld(save, longName));
   });
 });
