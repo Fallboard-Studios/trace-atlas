@@ -225,6 +225,29 @@ describe('mirrorWorldToUrl', () => {
     expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }, loading));
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R9: every family is mirrored (the cases around this one carry Melody only),
+  // and a name that needs escaping reads back as itself, with no param of its own leaking out of it.
+  it('writes every family param after the one before it, each a bare comma list in canonical order', () => {
+    mirrorWorldToUrl({
+      ...identity,
+      theme: 'calm',
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+    });
+    expect(window.location.search).toBe(
+      '?seed=Pelagos%207!&x=29&y=-14&theme=calm&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody',
+    );
+  });
+
+  it('a name that needs escaping reads back from the bar as itself, and x stands', () => {
+    const name = 'a&x=999#b+c%';
+    mirrorWorldToUrl({ ...identity, attenuationStyleName: name });
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('seed')).toBe(name);
+    expect(params.getAll('x')).toEqual(['29']);
+    expect(params.get('y')).toBe('-14');
+    expect(window.location.hash).toBe('');
+  });
+
   it('removes theme and melody when the world is Classic with no picks, so the bar never carries a stale loading', () => {
     window.history.replaceState({}, '', '/?seed=old&x=1&y=2&theme=calm&melody=hypnotic&debug');
     mirrorWorldToUrl(identity);

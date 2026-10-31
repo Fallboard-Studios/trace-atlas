@@ -333,6 +333,28 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
       expect(throughLink(payload)).toEqual(payload);
     });
 
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R9: every family's param in both directions; the cases above carry Melody
+    // only, so a link that wrote or read Melody alone passed them.
+    it('a world with picks in all four families writes a param per family, and reads every one back', () => {
+      const loading: LoadingIdentity = {
+        theme: 'calm',
+        aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+      };
+      const payload = untouchedWorld(undefined, undefined, loading);
+      const params = encodeWorldLinkParams(payload);
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 'envelope', 'distance', 'voice']);
+      expect(params.get('envelope')).toBe('plucked,held');
+      expect(params.get('distance')).toBe('remote');
+      expect(params.get('voice')).toBe('woody');
+      expect(throughLink(payload)).toEqual(payload);
+      const { coordinates } = payload;
+      const decoded = decodeWorldLink(
+        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&theme=calm&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody`,
+      )!;
+      expect(decoded.theme).toBe('calm');
+      expect(decoded.aspects).toEqual(loading.aspects);
+    });
+
     // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone, so a link still carrying
     // one reads it as any unknown id - dropped, the rest kept.
     it('a stale theme pick is dropped as any unknown id: melody=theme,hypnotic decodes to hypnotic, under Classic', () => {
