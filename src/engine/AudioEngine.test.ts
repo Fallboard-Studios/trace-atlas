@@ -314,6 +314,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { HEADROOM_TRIM_GAIN, robotBusGain } from './audioEngine/headroom';
 import { precomputeDataX } from '../utils/getSeededVal';
+import { robotSendLevels } from '../data/robotSends';
 
 /** Shared placeholder ADSR for tests that don't care about specific envelope values —
  * reserveVoice's adsr parameter is required (Roadmap Phase 9), so every call needs one. */
@@ -379,6 +380,76 @@ describe('AudioEngine.reReserveVoice', () => {
       // The 9th: the articulation object, every field non-default for the same reason (Robot Articulation T3).
       { portamento: 0.2, filterQ: 6, filterType: 'bandpass' },
     );
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4: a rebuild deals its robots before their locale is current, so the deal
+  // hands its robot over. A robot passed in is built from ahead of the lookup in the active locale.
+  it('builds from a robot passed in, ahead of the active locale: one the locale lacks, and one it holds in an older state', () => {
+    const inLocale = {
+      id: 'r1',
+      position: { x: 960, y: 0 },
+      melody: [],
+      octaveRange: [3, 4],
+      masterVolume: 0.8,
+      audioMode: 'none',
+      pan: 0,
+      panAuto: true,
+      audioAttributes: { waveform: 'sine', adsr: TEST_ADSR, filterFreq: 1850, layers: [{ type: 'sine' }] },
+    };
+    vi.spyOn(useLocaleStore, 'getState').mockReturnValue({ locales: { testLocale: { robots: [inLocale] } } } as any);
+    const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockImplementation(() => true);
+    vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => { });
+    const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => { });
+    const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => { });
+
+    // Not in the active locale (a robot dealt in a locale that is not current yet): built from the robot given, its
+    // manual pan and its sends handed back from it as well.
+    const elsewhere = {
+      ...inLocale,
+      id: 'r2',
+      masterVolume: 0.6,
+      panAuto: false,
+      pan: -0.4,
+      reverbSend: 0.3,
+      delaySend: 0.2,
+      gritSend: 0.1,
+      shimmerSend: 0.05,
+      doubleSend: 0.4,
+      audioAttributes: {
+        waveform: 'square',
+        adsr: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1.1 },
+        filterFreq: 3100,
+        portamento: 0.1,
+        filterQ: 4,
+        filterType: 'bandpass',
+        layers: [{ type: 'square', pulseWidth: 0.3 }],
+        phase: 12,
+        detune: -3,
+      },
+    };
+    expect(AudioEngine.reReserveVoice('r2', elsewhere as any)).toBe(true);
+    expect(reserveSpy).toHaveBeenLastCalledWith(
+      'r2',
+      [{ type: 'square', pulseWidth: 0.3 }],
+      { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1.1 },
+      12,
+      -3,
+      0.3,
+      0.6,
+      3100,
+      { portamento: 0.1, filterQ: 4, filterType: 'bandpass' },
+    );
+    expect(panSpy).toHaveBeenCalledWith('r2', -0.4);
+    expect(sendsSpy).toHaveBeenLastCalledWith('r2', robotSendLevels(elsewhere as any));
+
+    // The same id as the locale's robot, in a newer state: the copy given wins over the lookup.
+    const newer = { ...inLocale, audioAttributes: { ...inLocale.audioAttributes, layers: [{ type: 'triangle' }] } };
+    expect(AudioEngine.reReserveVoice('r1', newer as any)).toBe(true);
+    expect(reserveSpy.mock.calls.at(-1)?.[1]).toEqual([{ type: 'triangle' }]);
+
+    // Nothing given: the lookup in the active locale, as before.
+    expect(AudioEngine.reReserveVoice('r1')).toBe(true);
+    expect(reserveSpy.mock.calls.at(-1)?.[1]).toEqual([{ type: 'sine' }]);
   });
 });
 

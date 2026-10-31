@@ -428,6 +428,41 @@ describe('worldTransition', () => {
     });
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4: a rebuild builds its locale under a fresh id and makes it current only
+  // afterwards, so a lookup in the active locale misses every new robot while the deal runs. The deal hands its robot to
+  // reReserveVoice, so each Voice-dealt robot's voice is rebuilt from the dealt layers the store now holds.
+  describe('retransmitWorld — the deal rebuilds every Voice-dealt voice during the rebuild (review R4)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/');
+    });
+
+    it.each([
+      ['a coordinates retransmit', { coordinates: { x: 500, y: 500 } }],
+      ['a theme change, which rebuilds the plot in place', { theme: 'calm' as const }],
+    ])('%s: reserveVoice runs a second time for each robot, with the dealt layers the store holds', (_label, input) => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { voice: ['glassy'] } });
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const reserve = vi.spyOn(AudioEngine, 'reserveVoice').mockImplementation(() => true);
+
+      retransmitWorld(input);
+
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      expect(style.currentLocaleId).not.toBe(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(style.currentLocaleId!)!.robots;
+      expect(robots).toHaveLength(MAX_ROBOTS);
+      const layersPassed = (id: string) => reserve.mock.calls.filter(([robotId]) => robotId === id).map((call) => call[1]);
+      for (const robot of robots) {
+        expect(robot.loadedUnder, robot.id).toEqual({ voice: 'glassy' });
+        const passed = layersPassed(robot.id);
+        expect(passed, robot.id).toHaveLength(2);
+        expect(passed[1], robot.id).toEqual(robot.audioAttributes.layers);
+      }
+      // The parity rule: Glassy moves some robot off its spawn layers, so the second call cannot match by coincidence.
+      expect(robots.some((robot) => JSON.stringify(layersPassed(robot.id)[0]) !== JSON.stringify(robot.audioAttributes.layers))).toBe(true);
+    });
+  });
+
   describe('retransmitWorld — Attenuation Style changed, coordinates preserved', () => {
     it('re-parents the SAME locale record onto the new Attenuation Style, unchanged', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('kept-robot'));

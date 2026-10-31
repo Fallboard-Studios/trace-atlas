@@ -1015,10 +1015,14 @@ export const AudioEngine = {
    * freshly-read `phase`, `detune`, and `pulseWidth` values so
    * updates from the store are applied immediately to the reserved voice.
    * Returns true when reservation succeeded.
+   *
+   * `given` is the store robot when the caller already has it, used ahead of the lookup in the active locale: a
+   * rebuild deals its robots before their new locale is current, so the lookup would miss every one of them
+   * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4).
    */
-  reReserveVoice(robotId: string): boolean {
+  reReserveVoice(robotId: string, given?: Robot): boolean {
     try {
-      const robot = findActiveRobot(robotId);
+      const robot = given ?? findActiveRobot(robotId);
       if (!robot) return false;
       const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
       if (!Array.isArray(layers) || layers.length === 0) return false;

@@ -929,11 +929,12 @@ export function generateDealtRosterBaseline(
  * edit of its fields does (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody
  * re-registers it, applyDensity's path), Envelope hands the new adsr to updateVoiceEnvelope (applyAdsr's path: a live
  * write, curves included, no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the
- * prime every reservation makes), Voice rebuilds the voice from the store and re-primes its LFO links (the structural
- * edit's rebuildVoice, robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions
- * Task 10). Before the engine starts - the off screen - those engine calls are the same no-ops they are at spawn. With
- * nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same noise map, so the two agree
- * field for field.
+ * prime every reservation makes), Voice rebuilds the voice from the dealt robot and re-primes its LFO links (the
+ * structural edit's rebuildVoice, robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to;
+ * revisions Task 10). The robot is handed to reReserveVoice because a rebuild deals before its locale is current, where
+ * the engine's own lookup finds nothing (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4). Before the engine starts - the
+ * off screen - those engine calls are the same no-ops they are at spawn. With nothing dealt, nothing is written. The
+ * baseline runs applyDealToBaselines from the same noise map, so the two agree field for field.
  */
 export function applyAspectDeal(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
@@ -951,7 +952,7 @@ export function applyAspectDeal(localeId: string): void {
     if (robotAspects.envelope) AudioEngine.updateVoiceEnvelope(updated.id, updated.audioAttributes.adsr);
     if (robotAspects.distance) AudioEngine.updateRobotSends(updated.id, robotSendLevels(updated));
     if (robotAspects.voice) {
-      AudioEngine.reReserveVoice(updated.id);
+      AudioEngine.reReserveVoice(updated.id, updated);
       primeRobotLinks(updated);
     }
   });

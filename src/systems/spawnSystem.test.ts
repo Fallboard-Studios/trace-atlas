@@ -4083,7 +4083,8 @@ describe('spawnSystem', () => {
         expect(rebuild).toHaveBeenCalledTimes(robots.length);
         expect(prime).toHaveBeenCalledTimes(robots.length);
         for (const robot of robots) {
-          expect(rebuild).toHaveBeenCalledWith(robot.id);
+          // The dealt robot rides along: a rebuild deals before its locale is current (review R4).
+          expect(rebuild).toHaveBeenCalledWith(robot.id, robot);
           expect(prime).toHaveBeenCalledWith(robot);
         }
         // The rebuild reads the store, so it runs after the write: the store already holds the dealt voice.
