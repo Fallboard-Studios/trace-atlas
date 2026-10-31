@@ -125,7 +125,7 @@ Every task names its **Proof**: **RED test** for behaviour (a test that imports 
 
 ### Phase 0: The spike
 
-- [ ] **Task 0: Suspend and resume the raw context by hand — does Tone 15 come back whole?**
+- [x] **Task 0: Suspend and resume the raw context by hand — does Tone 15 come back whole?** (a00471aa, record below)
 
   **Description:** With a world running on desktop Chrome and on the Pixel, in the console:
   `Tone.getContext().rawContext.suspend()`, wait 20 s, `…resume()`. Watch the `?debug` HUD's measure count, a swell in
@@ -173,7 +173,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Phase 1: `power-pause`
 
-- [ ] **Task 1: `AudioEngine.ts` — `pause()` / `resume()` suspend and resume the raw context**
+- [x] **Task 1: `AudioEngine.ts` — `pause()` / `resume()` suspend and resume the raw context** (0d992a36)
 
   **Description:** Rewrite the two unused soft-transport methods (`AudioEngine.ts:1515–1532`) to
   `Tone.getContext().rawContext.suspend()` / `.resume()` (the accessor `audioDiagnostics.ts:156` already uses); the
@@ -200,7 +200,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S (two methods and their tests)
 
-- [ ] **Task 2: `timelineMap.ts` — a scope per timeline, `pauseWorldTimelines()`, `resumeWorldTimelines()`, `getTimelineScope()`**
+- [x] **Task 2: `timelineMap.ts` — a scope per timeline, `pauseWorldTimelines()`, `resumeWorldTimelines()`, `getTimelineScope()`** (329e6efb; the shared GSAP stub in `vitest.setup.ts` gained `paused()` and `{ paused: true }`)
 
   **Description:** `setTimeline(id, timeline, scope: 'world' | 'ui' = 'ui')` stores the scope beside the timeline;
   `pauseWorldTimelines()` pauses every `'world'` entry and sets a module flag; `resumeWorldTimelines()` plays them and
@@ -226,7 +226,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 3a: The animation modules register as `'world'` — `swimAnimation`, `buildJobTimeline`, `stationRipple`, `deckCamera`**
+- [x] **Task 3a: The animation modules register as `'world'` — `swimAnimation`, `buildJobTimeline`, `stationRipple`, `deckCamera`** (90f16d3d)
 
   **Description:** Pass `'world'` at `swimAnimation.ts:122`, `buildJobTimeline.ts:207`, `stationRipple.ts:91`,
   `deckCamera.ts:310`. One-line changes; the proof is by scope lookup.
@@ -249,7 +249,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S (four one-liners and four assertions)
 
-- [ ] **Task 3b: The component hooks and the work loop register as `'world'`**
+- [x] **Task 3b: The component hooks and the work loop register as `'world'`** (e0da3eb7; `useOrbiterMotion`'s master key is a kill-only token, not motion, and stays `'ui'` on purpose — said beside it and pinned in its test)
 
   **Description:** Pass `'world'` at `BubbleStream.tsx:243`, `useHaloMotion.ts:68`, `useOrbiterMotion.ts:142` and `:301`,
   `useStripFlicker.ts:109`, and the six `setTimeline` calls in `workLoop.ts` (`:403`, `:460`, `:541`, `:580`, `:602`,
@@ -275,7 +275,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M (five files, one-line edits, three assertions)
 
-- [ ] **Task 4: `workLoop.ts` — `pauseWorkLoop()` / `resumeWorkLoop()` with a shifted clock**
+- [x] **Task 4: `workLoop.ts` — `pauseWorkLoop()` / `resumeWorkLoop()` with a shifted clock** (168412f6)
 
   **Description:** The loop's `now` (`workLoop.ts:94`, `:752`) becomes `baseNow() - pausedSeconds`; `pauseWorkLoop()`
   records the pause start and calls `pauseWorldTimelines()` is **not** its job (the controller does that) — it only
@@ -301,7 +301,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 5: `deviceFlags.ts` — the heard-a-world flag**
+- [x] **Task 5: `deviceFlags.ts` — the heard-a-world flag** (fcb4524a)
 
   **Description:** New `src/utils/deviceFlags.ts`: `hasHeardWorld()` reads `localStorage['trace-atlas.device.v1']`
   (JSON `{ heardWorld: true }`), false on absence, bad JSON or a throwing storage; `markHeardWorld()` writes it,
@@ -324,7 +324,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** XS
 
-- [ ] **Task 6: `powerController.ts` — `worldState`, `pause()`, `resume()`, the two-way `powerOnSequence()`**
+- [x] **Task 6: `powerController.ts` — `worldState`, `pause()`, `resume()`, the two-way `powerOnSequence()`** (cca64ccd; the "pick is Current" condition turned out unnecessary — any pick rebuilds the world, which Task 8 marks cold, so `'paused'` alone means "resume")
 
   **Description:** Module state `worldState: 'cold' | 'running' | 'paused'` with `getWorldState()`. `pause()` =
   `pauseWorkLoop()` → `pauseWorldTimelines()` → `AudioEngine.pause()` → `setPowerOff()` → `'paused'`; the lifecycle
@@ -355,7 +355,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 7: `PowerRockerSwitch.tsx` — no dialog; the off-branch mirrors the on-branch**
+- [x] **Task 7: `PowerRockerSwitch.tsx` — no dialog; the off-branch mirrors the on-branch** (f87fa344; `ui.confirm` went too — the dialog was its only reader; the GSAP stub gained a `ticker` shape, the real work loop's default clock being first read at `pauseWorkLoop()`)
 
   **Description:** Remove `showConfirm`, the dialog markup and `handlePowerOffConfirm`; the off-branch of
   `handleRockerClick` (`:189–194`) becomes a `power-rocker-sequence`-style timeline: 0.18 s hold →
@@ -382,7 +382,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 8: `worldTransition.ts` — a replaced world is `'cold'`**
+- [x] **Task 8: `worldTransition.ts` — a replaced world is `'cold'`** (a3699da5; the state lives in a two-function `worldState.ts` both modules import — no `worldTransition ↔ powerController` cycle — and `initializeLocale` writes it: systems held → cold, `startLocaleSystems` → running, the AS-only path leaves it alone; the controller's cold path also wakes the suspended context, since `AudioEngine.start()` returns early once initialised)
 
   **Description:** `initializeLocale(..., { startSystems: false })` and both `retransmit*` teardowns call
   `powerController.noteWorldReplaced()` after `stopWorkLoop` / `killAll`, so a world changed while `'paused'` (a pick,
@@ -407,13 +407,27 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
   **Estimated scope:** S
 
 ### Checkpoint A: Power is a pause
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [ ] Browser (desktop + Pixel): flip off mid-phrase, wait 30 s, flip on — the music resumes mid-phrase, every robot is
       where it was, batteries unchanged, the day light has moved; a second cycle behaves the same; a fresh reload's first
       flip still starts from measure 0; Retransmit while off, then flip → the new world starts.
 - [ ] `npm run perf:audio` Pixel A/B against `main`: no rise in underruns in the worst-case run; HUD counts recorded here.
-- [ ] `npm run perf` off-state busy recorded against `main`'s off state (expected lower).
+- [x] `npm run perf` off-state busy recorded against `main`'s off state (expected lower) — measured as below; the harness
+      has no powered-off-after-on step, so the running / paused / resumed comparison stood in for it.
 - [ ] Reviewed with human before Phase 2.
+
+**Checkpoint A record (2026-10-30, `feature/off-screen` at `a3699da5`, automated half):**
+- `npm run build:types` clean. `npm run lint`: 0 errors, 4 warnings — all `react-refresh/only-export-components` in
+  `Scenery.tsx` and `gemShape.tsx`, which this branch does not touch (pre-existing).
+- `npm test`: 334 files / 12 573 tests. Three full runs: the first had one failing test whose name the output filter did
+  not capture; the second and third were clean (12 572 → 12 573 as Task 8's cases landed). Not chased, per the repo's rule
+  on flakes; if it recurs under a name, it is recorded here.
+- Main-thread busy (headless Chrome 'new', dev server, `kr1nd4ra` 12 68, CDP `Performance.getMetrics` TaskDuration over
+  20 s windows, the rocker clicked through the real `power-rocker-sequence`): **running 34.3 % → paused 12.0 % →
+  resumed 37.3 %**; `rawContext.state` `running → suspended → running`; `isPoweredOn` followed. The pause takes about
+  two thirds of the main-thread work away while the tablet is off.
+- Pending Crawford: the browser list above on desktop and the Pixel (a 30 s and a 10-minute pause), and the
+  `perf:audio` Pixel A/B. The dev server was left running on `http://localhost:5173/trace-atlas/` for it.
 
 ---
 
