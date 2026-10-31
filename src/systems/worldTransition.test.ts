@@ -461,6 +461,30 @@ describe('worldTransition', () => {
       // The parity rule: Glassy moves some robot off its spawn layers, so the second call cannot match by coincidence.
       expect(robots.some((robot) => JSON.stringify(layersPassed(robot.id)[0]) !== JSON.stringify(robot.audioAttributes.layers))).toBe(true);
     });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5: the same lookup used to strip every melody registered during a rebuild
+    // of its motif accents. A window's opening note, with no mark or rest of its own, schedules the group accent alone.
+    it('after a live retransmit, every motif-active robot\'s window opening carries the group accent', () => {
+      useUIStore.setState({ isPoweredOn: true });
+      initializeLocale(DEFAULT_LOCALE_ID);
+      retransmitWorld({ coordinates: { x: 500, y: 500 } });
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const robots = useLocaleStore.getState().getLocaleById(style.currentLocaleId!)!.robots;
+      const openings = robots.flatMap((robot) => {
+        const motif = robot.rhythmicMotifLength;
+        if (!motif?.active || robot.clickTrackActive) return [];
+        const opening = robot.melody.filter((e) => e.startStep <= motif.value).sort((a, b) => a.startStep - b.startStep)[0];
+        return opening && opening.mark === undefined && opening.rest === undefined ? [{ robot, step: opening.startStep }] : [];
+      });
+      expect(openings.length, 'a motif-active robot whose first window opens on a plain note').toBeGreaterThan(0);
+      const schedule = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
+      for (const { robot, step } of openings) {
+        schedule.mockClear();
+        AudioEngine.processMelodyStep(step, 0);
+        const note = schedule.mock.calls.map(([params]) => params).find((params) => params.robotId === robot.id);
+        expect(note?.accentMultiplier, robot.id).toBe(1.25);
+      }
+    });
   });
 
   describe('retransmitWorld — Attenuation Style changed, coordinates preserved', () => {

@@ -14,7 +14,7 @@ vi.mock('./AudioEngine', () => ({
 
 vi.mock('../stores/localeStore', () => ({
   useLocaleStore: {
-    getState: () => ({ updateRobot: updateRobotMock }),
+    getState: () => ({ updateRobot: updateRobotMock, getLocaleById: getLocaleByIdMock }),
   },
 }));
 
@@ -27,6 +27,8 @@ import type { Robot } from '../types/Robot';
 
 // Hoisted mock spy references — resolved after imports so vi.mocked() works.
 const updateRobotMock = vi.fn();
+// The robot's own locale, read back after the write (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5); none by default.
+const getLocaleByIdMock = vi.fn((_localeId: string): { robots: Robot[] } | undefined => undefined);
 
 // ========================================
 // HELPERS
@@ -85,6 +87,22 @@ describe('regenerateMelody', () => {
     // The melody passed to AudioEngine must be the same object as stored
     const storedMelody = updateRobotMock.mock.calls[0][2].melody;
     expect(registeredMelody).toBe(storedMelody);
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5: the engine reads the robot's click track and motif from the robot it is
+  // given, so it gets the robot as stored in its own locale - found there even during a rebuild, and fresh where the
+  // caller's copy is a stale prop with one field spread in.
+  it('hands the engine the robot as stored in its own locale, read back after the write; the copy given when it is not there', () => {
+    const stale = makeRobot({ rhythmicMotifLength: { active: true, value: 4 } });
+    const stored = makeRobot({ rhythmicMotifLength: { active: true, value: 4 }, clickTrackActive: true });
+    getLocaleByIdMock.mockImplementation((localeId) => (localeId === 'locale-1' ? { robots: [stored] } : undefined));
+    regenerateMelody(stale, 'locale-1');
+    expect(getLocaleByIdMock).toHaveBeenCalledWith('locale-1');
+    expect(vi.mocked(AudioEngine.registerRobotMelody).mock.calls[0][2]).toBe(stored);
+
+    regenerateMelody(stale, 'locale-2');
+    expect(vi.mocked(AudioEngine.registerRobotMelody).mock.calls[1][2]).toBe(stale);
+    getLocaleByIdMock.mockImplementation(() => undefined);
   });
 
   it('store update is called before AudioEngine registration', () => {

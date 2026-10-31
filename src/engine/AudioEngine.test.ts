@@ -1663,6 +1663,60 @@ describe('AudioEngine - Motif Group Accent', () => {
     spy.mockRestore();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5: a rebuild registers its robots' melodies before their locale is
+  // current, so the caller hands the robot over, and it is read ahead of the lookup in the active locale.
+  describe('a robot passed in (review R5)', () => {
+    const melody = [
+      { id: 'e1', startStep: 2, length: '8n' as const, noteIndex: 0, octave: 4 },
+      { id: 'e2', startStep: 3, length: '8n' as const, noteIndex: 0, octave: 4 },
+      { id: 'e3', startStep: 6, length: '8n' as const, noteIndex: 0, octave: 4 },
+    ];
+    /** The accent multiplier each of steps 2, 3 and 6 schedules for `robotId`, 1 when none. */
+    const accentsOf = (AudioEngine: typeof import('./AudioEngine').AudioEngine, robotId: string) => {
+      const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
+      for (const step of [2, 3, 6]) AudioEngine.processMelodyStep(step, 0);
+      const out = spy.mock.calls.map((c) => c[0]).filter((p) => p.robotId === robotId).map((p) => p.accentMultiplier ?? 1);
+      spy.mockRestore();
+      return out;
+    };
+    const load = async (robots: unknown[]) => {
+      const { AudioEngine } = await import('./AudioEngine');
+      const storeMod = await import('../stores/localeStore');
+      const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+      const helpers = await import('../utils/localeHelpers');
+      (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(attenuationStyleMod.DEFAULT_LOCALE_ID);
+      storeMod.useLocaleStore.getState().setLocaleData(attenuationStyleMod.DEFAULT_LOCALE_ID, { robots: robots as any });
+      return AudioEngine;
+    };
+
+    it('accents each window\'s first step for a motif-active robot the active locale does not hold', async () => {
+      const AudioEngine = await load([]);
+      AudioEngine.registerRobotMelody('elsewhere-robot', melody, makeRobot('elsewhere-robot', { active: true, value: 4 }) as any);
+      const [step2, step3, step6] = accentsOf(AudioEngine, 'elsewhere-robot');
+      expect(step2).toBeGreaterThan(1);
+      expect(step3).toBe(1);
+      expect(step6).toBeGreaterThan(1);
+    });
+
+    it('registers the click track for a robot passed in with it on, from that robot\'s own register', async () => {
+      const AudioEngine = await load([]);
+      const robot = { ...makeRobot('elsewhere-click', { active: true, value: 4 }), clickTrackActive: true, octaveRange: [2, 5] };
+      AudioEngine.registerRobotMelody('elsewhere-click', melody, robot as any);
+      const registered = AudioEngine.getRegisteredMelody('elsewhere-click');
+      expect(registered.map((e) => e.id).sort()).toEqual(['click-track-0', 'click-track-1', 'click-track-2', 'click-track-3']);
+      expect(registered.every((e) => e.octave === 2)).toBe(true);
+    });
+
+    it('the robot passed in wins over the active locale\'s own copy; with none passed, the lookup as before', async () => {
+      const AudioEngine = await load([makeRobot('shared-robot', { active: false, value: 4 })]);
+      AudioEngine.registerRobotMelody('shared-robot', melody, makeRobot('shared-robot', { active: true, value: 4 }) as any);
+      expect(accentsOf(AudioEngine, 'shared-robot')).toEqual([expect.any(Number), 1, expect.any(Number)]);
+      expect(accentsOf(AudioEngine, 'shared-robot')[0]).toBeGreaterThan(1);
+      AudioEngine.registerRobotMelody('shared-robot', melody);
+      expect(accentsOf(AudioEngine, 'shared-robot')).toEqual([1, 1, 1]);
+    });
+  });
+
   it('accents through the LIVE transport tick, not only the processMelodyStep test helper', async () => {
     // Regression: startMelodyPlayback carried its own copy of the per-step loop that dropped
     // isGroupAccent, so the accent only ever worked through processMelodyStep (which every

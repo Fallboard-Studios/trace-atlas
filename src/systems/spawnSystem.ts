@@ -1311,7 +1311,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   } catch (err) {
     if (DEV_TUNING) console.warn('[SpawnSystem] reserveVoice failed', err);
   }
-  AudioEngine.registerRobotMelody(robot.id, robot.melody);
+  // The robot rides along: a rebuild spawns into a locale that is not current yet, where the engine's own lookup would
+  // find no robot and register the melody without its motif accents (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
+  AudioEngine.registerRobotMelody(robot.id, robot.melody, robot);
 }
 
 /**

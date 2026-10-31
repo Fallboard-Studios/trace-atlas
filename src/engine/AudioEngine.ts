@@ -1295,8 +1295,12 @@ export const AudioEngine = {
    * @param robotId - Unique robot identifier
    * @param melody - Array of `MelodyEvent` describing start steps and notes; superseded by
    *   the click-track pattern while this robot's `clickTrackActive` is true.
+   * @param given - The store robot when the caller already has it, read ahead of the lookup in the
+   *   active locale for the click-track flag and the motif accent: a rebuild registers its robots'
+   *   melodies before their new locale is current, where the lookup finds none
+   *   (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
    */
-  registerRobotMelody(robotId: string, melody: MelodyEvent[]): void {
+  registerRobotMelody(robotId: string, melody: MelodyEvent[], given?: Robot): void {
     // Purge any existing entries for this robot before adding new ones so this
     // method is idempotent regardless of call site — prevents duplicate triggers.
     stepRegistry.forEach((entries, step) => {
@@ -1310,7 +1314,7 @@ export const AudioEngine = {
       }
     });
 
-    const robot = findActiveRobot(robotId);
+    const robot = given ?? findActiveRobot(robotId);
     const effectiveMelody = robot?.clickTrackActive
       ? buildClickTrackMelody(robot.octaveRange[0])
       : melody;

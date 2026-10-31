@@ -35,6 +35,26 @@ import { getStations, type Station } from './stations';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { chargingColorsKey, parseColorsKey } from '../components/stations/stationOccupancy';
 
+/** Each motif-active robot whose first motif window opens on a plain note (no mark, no rest), with that step: where the
+ *  group accent is all the scheduled note's accent multiplier holds (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5). */
+function windowOpenings(robots: readonly Robot[]): { robot: Robot; step: number }[] {
+  return robots.flatMap((robot) => {
+    const motif = robot.rhythmicMotifLength;
+    if (!motif?.active || robot.clickTrackActive) return [];
+    const opening = robot.melody.filter((e) => e.startStep <= motif.value).sort((a, b) => a.startStep - b.startStep)[0];
+    return opening && opening.mark === undefined && opening.rest === undefined ? [{ robot, step: opening.startStep }] : [];
+  });
+}
+
+/** The accent multiplier `robotId`'s note at `step` schedules (1 for none), through the engine's own per-step loop. */
+function accentAt(robotId: string, step: number): number | undefined {
+  const schedule = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
+  AudioEngine.processMelodyStep(step, 0);
+  const note = schedule.mock.calls.map(([params]) => params).find((params) => params.robotId === robotId);
+  schedule.mockRestore();
+  return note ? (note.accentMultiplier ?? 1) : undefined;
+}
+
 // Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
 // worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
 // force spawnRobot's own 'robot.copyChance' seeded roll to a known side without disturbing every
@@ -1145,7 +1165,8 @@ describe('spawnSystem', () => {
       expect(robot.lfoLinks).toBeDefined();
       expect(Object.keys(robot.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
 
-      expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
+      // The robot rides along (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5): a rebuild spawns before its locale is current.
+      expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody, robot);
     });
 
     // Roadmap 48: both fields were never read (createdAt was stamped "for removal ordering";
@@ -4156,6 +4177,45 @@ describe('spawnSystem', () => {
         expect(pushes.get(robot.id), robot.id).toEqual(['melody', 'envelope', 'distance', 'voice']);
       }
       for (const spy of [register, envelope, sends, rebuild, prime]) expect(spy).toHaveBeenCalledTimes(robots.length);
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5: every rebuild spawns, and deals, into a locale that is not current yet,
+  // so a melody registered then must carry its robot, or it loses its motif accents (and a click track its pattern).
+  describe('melodies registered outside the active locale keep their accents (review R5)', () => {
+    let worlds = 0;
+    const freshWorld = () => {
+      const localeId = `review-r5-${worlds++}`;
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x: 7, y: 11 }, robots: [], companies: [] } },
+      }));
+      return localeId;
+    };
+    const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
+
+    afterEach(() => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      vi.restoreAllMocks();
+    });
+
+    it('spawnRobot registers with the robot it spawned: a motif window\'s opening note carries the group accent', () => {
+      const localeId = freshWorld();
+      expect(localeId).not.toBe(DEFAULT_LOCALE_ID); // precondition: the robots are not in the active locale
+      spawnInitialRoster(localeId);
+      const openings = windowOpenings(robotsOf(localeId));
+      expect(openings.length, 'a motif-active robot whose first window opens on a plain note').toBeGreaterThan(0);
+      for (const { robot, step } of openings) expect(accentAt(robot.id, step), robot.id).toBe(1.25);
+    });
+
+    it('the deal\'s Melody push registers with the robot as stored in its own locale: the dealt melodies carry their accents', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['mechanical'] } }); // the motif always on
+      const localeId = freshWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const openings = windowOpenings(robotsOf(localeId));
+      expect(openings.length).toBeGreaterThan(0);
+      for (const { robot, step } of openings) expect(accentAt(robot.id, step), robot.id).toBe(1.25);
     });
   });
 
