@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { AspectFamilyId, AspectId, AspectPick } from '../data/bands/aspects';
+import { ASPECT_FAMILY_IDS, type AspectFamilyId, type AspectId, type AspectPick } from '../data/bands/aspects';
 import type { ThemeId } from '../data/bands/themes';
 import { labels, type ContentKey, type SchemaLabels } from '@/content';
 
@@ -76,6 +76,20 @@ export function asThemeLabel(): string {
 /** A pick's one-line description, from content — the as-theme sentence for the as-theme member. */
 export function aspectDescription(family: AspectFamilyId, pick: AspectPick): string {
   return labels(ASPECT_DESCRIPTION_KEY[family][pick]).humanLabel;
+}
+
+/** What a robot was loaded under (Robot.loadedUnder, written by the deal pass — docs/specs/OFF_SCREEN.md assumption
+ *  22), as the detail screens' readout says it (assumption 24; docs/tasks/OFF_SCREEN.md Task 32): the dealt aspects'
+ *  names in family order, joined with ` + ` as describeWorld joins a family's picks; null for an absent or empty record
+ *  (a robot loaded as the theme) and for an id the content does not know (a stale save), so the line is left out
+ *  rather than shown blank. */
+export function describeLoadedUnder(loadedUnder: Partial<Record<AspectFamilyId, AspectId>> | undefined): string | null {
+  if (!loadedUnder) return null;
+  const names = ASPECT_FAMILY_IDS.flatMap((family) => {
+    const id = loadedUnder[family];
+    return id !== undefined && id in ASPECT_NAME_KEY[family] ? [aspectName(family, id)] : [];
+  });
+  return names.length > 0 ? names.join(' + ') : null;
 }
 
 /** A theme's name, from content. */

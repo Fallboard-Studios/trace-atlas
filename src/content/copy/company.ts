@@ -81,4 +81,7 @@ export const company = {
   },
   /** The All form's eyebrow over its title (the title itself is `probe.all`). */
   'company.detail.allForm': { human: 'Fleet-wide edit' },
+  /** The "loaded under" readout (docs/specs/OFF_SCREEN.md assumption 24; docs/tasks/OFF_SCREEN.md Task 32): the
+   *  aspect the deal seated this company under, shown when every member carries it. Stand-in copy until Crawford's pass. */
+  'company.loadedUnder': { human: 'Loaded Under', lore: 'Mesh Loading' },
 } as const satisfies Record<string, ContentEntry>;

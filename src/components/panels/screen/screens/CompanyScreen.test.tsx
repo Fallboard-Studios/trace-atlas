@@ -501,3 +501,85 @@ describe('CompanyScreen', () => {
     });
   });
 });
+
+describe('CompanyScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Task 32; spec assumption 24)', () => {
+  beforeEach(() => {
+    shell.current = 'desk';
+    useUIStore.setState(useUIStore.getInitialState(), true);
+    seedFleet();
+  });
+
+  /** Writes the deal's record (Robot.loadedUnder) on one company's robots — or the freelancers, for undefined — as the
+   *  deal pass does; `only` narrows it to some of them, for a company whose members disagree. */
+  function dealTo(companyId: string | undefined, aspect: string, only: (index: number) => boolean = () => true) {
+    const robots = useLocaleStore.getState().locales[localeId]!.robots.map((r, i) =>
+      r.companyId === companyId && only(i) ? { ...r, loadedUnder: { melody: aspect } } : r,
+    );
+    useLocaleStore.getState().setLocaleData(localeId, { robots } as unknown as Partial<Locale>);
+  }
+  const wells = (container: HTMLElement) => [...container.querySelectorAll('.robot-screen__meta > .robot-screen__well')];
+  const caption = CONTENT['company.loadedUnder'];
+
+  it('shows the dealt aspect, by name, under its caption when every member carries it', () => {
+    dealTo(RUST.id, 'hypnotic');
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)).toHaveLength(3);
+    const well = wells(container)[2] as HTMLElement;
+    expect(well.querySelector('.robot-screen__meta-value')?.textContent).toBe(human('home.off.melody.hypnotic'));
+    expect(well.textContent).toContain(caption.human);
+    expect(well.textContent).toContain(caption.lore);
+  });
+
+  it('is text, not a control', () => {
+    dealTo(RUST.id, 'mechanical');
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    const well = wells(container)[2] as HTMLElement;
+    expect(within(well).queryAllByRole('button')).toHaveLength(0);
+    expect(within(well).queryAllByRole('radio')).toHaveLength(0);
+    expect(within(well).queryByRole('textbox')).toBeNull();
+  });
+
+  it('is absent for a company loaded as the theme: two wells, no caption', () => {
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)).toHaveLength(2);
+    expect(screen.queryByText(caption.human)).toBeNull();
+  });
+
+  it('is absent when the members disagree: a robot moved in afterwards keeps what it rolled', () => {
+    dealTo(RUST.id, 'hypnotic', (i) => i !== 3);
+    dealTo(RUST.id, 'wandering', (i) => i === 3);
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)).toHaveLength(2);
+    expect(screen.queryByText(human('home.off.melody.hypnotic'))).toBeNull();
+    expect(screen.queryByText(human('home.off.melody.wandering'))).toBeNull();
+  });
+
+  it('the All form shows nothing, even when every robot in the fleet carries the same aspect', () => {
+    for (const companyId of [RUST.id, 'blue', undefined]) dealTo(companyId, 'hypnotic');
+    openAll();
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)).toHaveLength(2);
+    expect(screen.queryByText(caption.human)).toBeNull();
+    expect(screen.queryByText(human('home.off.melody.hypnotic'))).toBeNull();
+  });
+
+  it('follows the roster: a deal written after mount brings the line', () => {
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)).toHaveLength(2);
+    act(() => dealTo(RUST.id, 'wandering'));
+    expect(wells(container)).toHaveLength(3);
+    expect(wells(container)[2].querySelector('.robot-screen__meta-value')?.textContent).toBe(human('home.off.melody.wandering'));
+  });
+
+  it('a record naming an aspect the app does not know shows nothing', () => {
+    dealTo(RUST.id, 'frantic');
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)).toHaveLength(2);
+  });
+});

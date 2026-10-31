@@ -42,6 +42,7 @@ import {
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
 import type { RobotSendField } from '@/data/robotSends';
+import { describeLoadedUnder } from '@/utils/loadingNames';
 import { CONTENT, fill, introProps, labels } from '@/content';
 import type { DualLabelSchema, LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -434,10 +435,16 @@ function AvatarGem({ robot }: { robot: Robot }) {
   );
 }
 
-/** Desk: the gem, the name, the meta as wells (in = read), the battery readout and the company radio. No
- *  job reassignment and no docking override: both stay system-driven. */
+/** The "loaded under" well's caption (docs/specs/OFF_SCREEN.md assumption 24; docs/tasks/OFF_SCREEN.md Task 32). */
+const LOADED_UNDER_LABELS = labels('probe.loadedUnder');
+
+/** Desk: the gem, the name, the meta as wells (in = read) — and, when the deal loaded this robot under an aspect, one
+ *  more well naming it (Task 32): a member's is its company's, a freelancer's its own, a robot loaded as the theme has
+ *  none — then the battery readout and the company radio. No job reassignment and no docking override: both stay
+ *  system-driven. */
 const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: RobotPanelProps) {
   const meta = useRobotMeta(robot, localeId);
+  const loadedUnder = describeLoadedUnder(robot.loadedUnder);
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
   const companyAssignmentSchema = useMemo(() => buildCompanyAssignmentSchema(companies), [companies]);
   const handleCompanyChange = useCallback((value: string) => {
@@ -455,6 +462,12 @@ const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: R
             <span className="robot-screen__meta-value">{meta[field]}</span>
           </div>
         ))}
+        {loadedUnder !== null && (
+          <div className="robot-screen__well">
+            <DualLabel {...LOADED_UNDER_LABELS} />
+            <span className="robot-screen__meta-value">{loadedUnder}</span>
+          </div>
+        )}
       </div>
       <SliderLinear
         schema={BATTERY_READOUT_SCHEMA}
