@@ -210,6 +210,47 @@ describe('startSceneWash (revisions Task 13)', () => {
     expect(noon.top).not.toBe(night.top);
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R21: a request while the wash is still fading out covers again from where
+  // it is, in the colours it already shows: repainting there would swap the old hour's sea for the new world's under a
+  // half-opaque wash. Only a cover that starts from clear is painted.
+  describe('the colour holds through a re-cover (review R21)', () => {
+    const paints = () => recorded.sets.filter((s) => 'backgroundImage' in s.vars);
+
+    it('covering, covered, uncovering, covering again paints the gradient once', async () => {
+      useUIStore.setState({ activeLocaleLocalTime: 0 });
+      requestWorldChange(vi.fn());
+      await coverAndStartUncover();
+      expect(wash()).toBe('uncovering');
+      useUIStore.setState({ activeLocaleLocalTime: 12 }); // the new world's hour, which the re-cover must not show
+      requestWorldChange(vi.fn());
+      expect(wash()).toBe('covering');
+      const night = waterColumnColors(0);
+      expect(paints()).toEqual([{ target: el, vars: { backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` } }]);
+    });
+
+    it('a re-cover before the fade-out has started paints nothing either', async () => {
+      requestWorldChange(vi.fn());
+      await finish(last());
+      expect(wash()).toBe('uncovering');
+      requestWorldChange(vi.fn());
+      expect(paints()).toHaveLength(1);
+    });
+
+    it('a cover from clear is painted every time: after a whole cycle, and after a reduced-motion snap to clear', async () => {
+      requestWorldChange(vi.fn());
+      await finish(await coverAndStartUncover());
+      expect(wash()).toBe('clear');
+      requestWorldChange(vi.fn());
+      expect(paints()).toHaveLength(2);
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion: reduce') }));
+      requestWorldChange(vi.fn());
+      expect(wash()).toBe('clear');
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      requestWorldChange(vi.fn());
+      expect(paints()).toHaveLength(3);
+    });
+  });
+
   it('a new state kills the running tween first: a request while uncovering kills the fade-out and covers again', async () => {
     requestWorldChange(vi.fn());
     const uncover = await coverAndStartUncover();

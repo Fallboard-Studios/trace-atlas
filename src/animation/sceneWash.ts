@@ -43,7 +43,8 @@ function fade(wash: Element, opacity: number, then: Extract<SceneWash, 'covered'
  * The scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13; Crawford's note 7, his answer 4): a smooth cut between
  * worlds. WorldView registers its wash element - over the scene, under MetaBox, taking no clicks - and starts this on
  * mount; it attaches to the request module (systems/worldChange.ts), so a user-gesture world change waits for it, and
- * follows uiStore.sceneWash: 'covering' paints the wash in the sea's colours at this hour and fades it in over 0.5 s,
+ * follows uiStore.sceneWash: 'covering' paints the wash in the sea's colours at this hour - from clear only; a re-cover
+ * while uncovering keeps the colours it shows - and fades it in over 0.5 s,
  * setting 'covered' when opaque - which runs the change; 'uncovering' fades it out over 0.5 s and sets 'clear'; a 'clear'
  * set from outside (a reduced-motion request, the request module letting go) snaps it transparent. Each state is acted
  * on once, however the store's listeners nest. The timelines only set semantic state (CLAUDE.md, Strict Separation):
@@ -79,10 +80,13 @@ export function startSceneWash(): () => void {
   };
   const unsubscribe = useUIStore.subscribe(({ sceneWash }) => {
     if (sceneWash === shown) return;
+    const was = shown;
     shown = sceneWash;
     stopWaiting();
     if (sceneWash === 'covering') {
-      gsap.set(wash, { backgroundImage: seaGradient() });
+      // Painted only from clear: a re-cover while uncovering keeps the colours it already shows, rather than swap the
+      // old hour's sea for the new world's under a half-opaque wash (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R21).
+      if (was === 'clear') gsap.set(wash, { backgroundImage: seaGradient() });
       fade(wash, 1, 'covered');
     } else if (sceneWash === 'uncovering') {
       afterThisFrame(() => fade(wash, 0, 'clear'));
