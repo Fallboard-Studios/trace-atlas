@@ -433,7 +433,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Phase 2: `off-screen-chooser`
 
-- [ ] **Task 9: `describeWorld.ts` — one name for a world**
+- [x] **Task 9: `describeWorld.ts` — one name for a world** (78cb7b5c)
 
   **Description:** New `src/utils/describeWorld.ts`: `describeWorld({ attenuationStyleName, coordinates }, label?)`
   returns `AS · (x, y)` or `<label> · AS (x, y)` when a save or preset name is given. Pure; the theme and aspects tail is
@@ -455,7 +455,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** XS
 
-- [ ] **Task 10: `OffScreen.tsx` — the gate, and the Current row**
+- [x] **Task 10: `OffScreen.tsx` — the gate, and the Current row** (e0725eb9; the plan's `isCurrentPick()` is not built — a pick rebuilds the world, which Task 8 marks cold, so `'paused'` alone means resume and the controller is untouched; the readout well shows `describeWorld`'s string, so `home.off.readout` lost its template; the divider draws only when there are saves, as the sketch has it; `home.off.loading` waits in `content.test.ts`'s `AWAITING_CONSUMER` for Task 30)
 
   **Description:** On mount read `hasHeardWorld()`: false → render only the etched label and the hint (today's markup
   minus the Transmission row); true → the chooser. The Transmission `RadioButton` gains a first option `current`
@@ -486,7 +486,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 11: `transmissionPresets.ts` — presets are links**
+- [x] **Task 11: `transmissionPresets.ts` — presets are links** (61ab2c8a; `presetPayload` returns `null` for a link naming no world at all, which the screen treats as a pick that applies nothing — a malformed part is filled as a shared link's is)
 
   **Description:** `TransmissionPreset = { id, nameKey, link }`; `presetPayload(preset)` =
   `decodeWorldLink(searchOf(preset.link))`, with `searchOf(link)` in `sessionShareUtils.ts` accepting a full URL or a
@@ -513,7 +513,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 12: `SectorSettingsDrawer.tsx` — the shortcut buttons go**
+- [x] **Task 12: `SectorSettingsDrawer.tsx` — the shortcut buttons go** (f91a4dad; `sectorSettingsConfig.test.ts`, not in the Files list, pinned the two arrays and now pins their absence; the two Random buttons stay)
 
   **Description:** Delete `ATTENUATION_STYLE_PRESETS` and `COORDINATE_PRESETS` from `sectorSettingsConfig.ts`
   (`:66–80`), their button rows in the drawer (`:95–135`) and their content keys (`settings.ts` / `sector.ts`). The AS
@@ -537,7 +537,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 13: `OffScreen.tsx` — Roll**
+- [x] **Task 13: `OffScreen.tsx` — Roll** (404794b6; `Button` gained `appearance: 'muted'` — the primitive always rendered cabinetry and nothing pops on the off screen (spec §3, and the screen's own test), so Roll and Keep are flat faces that dim when disabled; they sit in an actions row right under the Transmission options, the RadioButton's row being its own — Checkpoint B decides whether that reads as "beside Current"; `docs/COMPONENT_LIBRARY.md` owes the variant a line in Task 36)
 
   **Description:** A `Button` beside the Current row (`home.off.roll`) calling `rollWorld()` in `worldTransition.ts`:
   `retransmitWorld({ attenuationStyleName: generateRandomAttenuationStyleName(), coordinates: { x: randomCoordinate(),
@@ -561,7 +561,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 14: Keep — `sessionStore.keepCurrentWorld()` and the button**
+- [x] **Task 14: Keep — `sessionStore.keepCurrentWorld()` and the button** (d5cce9b3; beyond the plan, `sessionStore.detachLoadedSession()`: a preset pick or a Roll forgets the loaded save and refreshes the name suggestion if it still carried that save's name — without it Current read "Dusk Run · <new world>" after a Roll and Keep overwrote Dusk Run with a different world; `keepCurrentWorld` trims the name and a blank suggestion falls back to a fresh one; dirty is also recomputed after a Roll)
 
   **Description:** `keepCurrentWorld()` in `sessionStore.ts`: `name = currentLoadedSessionName ?? currentSessionName`,
   `saveNamedSession(name, buildSessionPayload())`, `setCurrentLoadedSessionName(name)`; returns the name. `isWorldDirty()`
@@ -591,7 +591,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 15: `sessionShareUtils.ts` — the address bar follows the loaded world**
+- [x] **Task 15: `sessionShareUtils.ts` — the address bar follows the loaded world** (f6797426; no `mirrorUrl` option on `applySessionPayload` — it always hands `retransmitWorld` coordinates, so every apply rebuilds, and the mirror at the end of `retransmitWorld` covers picks, Loads, Roll and Retransmit alike, while the boot-time apply skips the rebuild and leaves the arrival URL standing; the bare-boot mirror is the new `systems/worldBoot.ts`, which `OceanScene`'s mount effect now calls, and a remount after a link arrival neither re-applies nor mirrors (the getter says whether the page load arrived by a link at all); `currentWorldIdentity()` lives in `utils/worldIdentity.ts` so a wholesale mock of `worldTransition` or `localeHelpers` keeps it)
 
   **Description:** `mirrorWorldToUrl(identity)`: rewrite `seed`, `x`, `y` (theme and family params join in Task 24)
   through `withParam` (`audioBudget.ts:189`), remove `s`, `history.replaceState`; a no-op outside a browser or when the
@@ -620,7 +620,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 16a: `OffScreen.css` / `.tsx` — the veil and the lore footer**
+- [x] **Task 16a: `OffScreen.css` / `.tsx` — the veil and the lore footer** (24d75281; the earlier plain scrim on `.off-screen` went — the veil is the backdrop now; Look pending Crawford at Checkpoint B)
 
   **Description:** `off-screen__veil` as the screen's own backdrop element (`backdrop-filter: blur(3px)` over
   `rgba(8, 12, 16, .55)`, inside `ScreenViewport`, under the content); `off-screen__footer` under the chooser (and under
@@ -647,7 +647,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 16b: `OffScreen.tsx` — the boot theatre and the power-on fade**
+- [x] **Task 16b: `OffScreen.tsx` — the boot theatre and the power-on fade** (2408f7e5; the timelines live in `animation/offScreenTheatre.ts`, called from `OffScreen` through `useGSAP`; the dark stage is an element, `off-screen__dark`, not the plan's root modifier, so GSAP owns it without a class toggle; `powerOnSequence` awaits the fade FIRST, before the wake on either path — while it runs the world is still paused or cold, so a second flip cannot cross the states; the shared GSAP stub gained `progress()` and a `matchMedia` shape; Look pending Crawford at Checkpoint B)
 
   **Description:** On mount a `'ui'` timeline `off-screen-boot` in `timelineMap`: 0–0.5 s dark (`off-screen--dark`),
   0.5–1.5 s flicker to full, then ready; `gsap.matchMedia` jumps to ready under `prefers-reduced-motion`; a
@@ -676,7 +676,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 17: `session.ts` — the Factory Reset copy loses "and autosaved"**
+- [x] **Task 17: `session.ts` — the Factory Reset copy loses "and autosaved"** (538e6eb3; a stand-in until Crawford's words)
 
   **Description:** `session.clearStorage.confirmBody` says every saved and autosaved session is deleted; autosave is
   gone. Reword to the saves and the device's flag (Crawford's words).
@@ -696,13 +696,51 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
   **Estimated scope:** XS (copy only)
 
 ### Checkpoint B: The six stories
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [ ] Browser, desktop and phone, the sketch's six stories by hand: bare first visit (hint only → flip → flip off →
       chooser); returning with no saves; with saves (pick → preview → flip); link first visit (hint only, the friend's
       world); link returning (Current named; the URL stands until a pick); link with saves (Keep makes a row). Keep dims
       after a keep; the URL follows picks and Roll and drops `s`; Factory Reset returns the device to a first visit.
-- [ ] `npm run perf:idle` on the off state against the Checkpoint A figure: no rise with the veil.
+      (A headless pass over most of this is recorded below; the look, the phone and the link stories are Crawford's.)
+- [x] `npm run perf:idle` on the off state against the Checkpoint A figure: no rise with the veil — measured as below
+      against the Phase 1 tip, since Checkpoint A recorded `npm run perf` busy, not idle paint: redrawn area flat,
+      rastered area +0.05 screens/frame from the veil's blur; whether that holds on the Pixel is Crawford's run.
 - [ ] Reviewed with human before Phase 3.
+
+**Checkpoint B record (2026-10-30, `feature/off-screen` at `538e6eb3`, automated half):**
+- `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`
+  warnings as Checkpoint A (`Scenery.tsx`, `gemShape.tsx`).
+- `npm test`: 337 files / 12 653 tests, one run, all green (12 573 at Checkpoint A; Tasks 9–17 added 80).
+- Headless smoke (Chrome 'new' through `scripts/perf/cdp-lib.mjs`, the dev server, a fresh profile — the script lives
+  outside the repo): 22 of 23 checks. A bare first visit showed the hint only, the veil (`backdrop-filter: blur(3px)`
+  computed) and the footer, mirrored `?seed=&x=&y=` with no `s`, and had the dark layer opaque at first paint and hidden
+  after 1.5 s; the first flip wrote `{"heardWorld":true}`; power off showed the chooser with Current first and selected,
+  named as the URL's world, the readout equal to it, Roll and Keep flat, Keep lit and the warning shown; Roll changed the
+  URL (no `s`) and renamed Current; Keep wrote one row, listed it at once, fronted Current with the kept name, dimmed and
+  hid the warning, and left the URL alone; a preset pick selected, followed in the URL and re-lit Keep; the flip after a
+  pick powered on; under emulated `prefers-reduced-motion: reduce` the dark layer never showed. The one miss is Tone's
+  `The AudioContext is "suspended". Invoke Tone.start()…` console warning — 5× on Roll, 2× on the preset pick, none at
+  boot or on a flip: every world rebuild while the context is paused (Phase 1's pause plus a rebuild; the Phase 1 build's
+  boot, first flip and power-off log nothing, and its screen has no chooser to rebuild from). A warning, not an error —
+  the rebuilt world came up on the next flip — and the thing to listen for in Crawford's "Retransmit while off, then
+  flip" check; a backlog line if it is to be silenced.
+- `npm run perf:idle --stay-off` (headless Chrome, 4× throttle, 1280 px, 6 s windows, each tip as a production build on
+  `vite preview`, the served bundle checked for a Phase 2 string before the Phase 2 run), the two stock windows per tip:
+
+  | tip | main busy | paint | compositor | redrawn screens/frame | rastered screens/frame | frames | long tasks |
+  |---|---|---|---|---|---|---|---|
+  | `8adbe43e` (Phase 1, no veil) stock | 5572 ms | 74 ms | 1952 ms | 0.07 | 0.08 | 254 | 6 |
+  | `8adbe43e` stock (again) | 5941 ms | 84 ms | 1693 ms | 0.10 | 0.09 | 200 | 9 |
+  | `538e6eb3` (veil + theatre) stock | 5140 ms | 27 ms | 424 ms | 0.08 | 0.13 | 251 | 6 |
+  | `538e6eb3` stock (again) | 4955 ms | 25 ms | 405 ms | 0.10 | 0.13 | 246 | 6 |
+
+  Redrawn area flat; rastered area 0.08–0.09 → 0.13 screens/frame — the blur re-rasters its region whenever the world
+  under it changes, and a cold world is not quite a still frame (its bubble and halo timelines run until the first
+  pause); main busy and paint not higher. An earlier Phase 2 window, served by an orphaned preview process, was flagged by
+  the harness (17 fps, "do not record") and is not recorded.
+- Pending Crawford: the six stories on desktop and the Pixel (the link stories in particular), the Looks of Tasks 16a and
+  16b, the Pixel `perf:idle`, and the review before Phase 3. The dev server was left running on
+  `http://localhost:5173/trace-atlas/`.
 
 ---
 
