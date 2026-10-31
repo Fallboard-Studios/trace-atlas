@@ -10,10 +10,8 @@ import { getRobotColorStyle } from '@/utils/traitColors';
 import type { RadioButtonSchema } from '@/types/controls';
 import './RadioButton.css';
 
-interface RadioButtonProps {
+interface RadioButtonBaseProps {
   schema: RadioButtonSchema;
-  value: string;
-  onChange: (value: string) => void;
   disabled?: boolean;
   /** Optional — called on a deselect-to-empty event (Radix's single-mode
    *  ToggleGroup emitting '' when the active item is clicked again), the
@@ -21,7 +19,8 @@ interface RadioButtonProps {
    *  existing consumer omits this and keeps today's swallow-and-ignore
    *  behavior; Header's nav group (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md
    *  §1.4) is the first to need it, to tell "re-click the active option"
-   *  apart from "no interaction at all". */
+   *  apart from "no interaction at all". Single-value only: the multiple
+   *  variant has no such event — clearing its last option is onChange([]). */
   onDeselect?: () => void;
   /** Optional fixed square size for every option's CabinetBox, overriding
    *  the responsive useCabinetBoxHeight() tier RadioButton otherwise
@@ -30,6 +29,18 @@ interface RadioButtonProps {
    *  CompanyButtonRow, ...) omits this and is unaffected.
    *  docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4. */
   boxSize?: number;
+}
+
+/** One option's value for the single control, or the selected values under `schema.multiple`. */
+type RadioButtonValue = string | readonly string[];
+
+/** Generic over the value's shape so an inline `onChange={(v) => …}` still infers `v` from `value`:
+ *  a `string` value pairs with `onChange(string)` (every consumer before Task 29), a `string[]`
+ *  value with `onChange(string[])` (the multiple variant). A union of two props shapes would have
+ *  left such an arrow's parameter implicitly `any`. */
+interface RadioButtonProps<V extends RadioButtonValue = string> extends RadioButtonBaseProps {
+  value: V;
+  onChange: (value: V extends readonly string[] ? string[] : string) => void;
 }
 
 /** Single-select control wrapping @radix-ui/react-toggle-group (type="single")
@@ -113,8 +124,27 @@ interface RadioButtonProps {
  *  `schema.appearance === 'muted'` (docs/tasks/LAYOUT_REWORK.md Task 27) swaps each CabinetBox for a
  *  flat `.sc-radio-button__flat` face of the same height: no walls, no pop timeline, no hover pop, no
  *  glow, the selected one a monochrome fill (RadioButton.css). It is the powered-off screen's picker —
- *  nothing there comes off the plate. */
-function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSize }: RadioButtonProps) {
+ *  nothing there comes off the plate.
+ *
+ *  `schema.multiple` (docs/specs/OFF_SCREEN.md assumption 23; docs/tasks/OFF_SCREEN.md Task 29) is the
+ *  set variant: `value` is a `string[]`, the Root is Radix's `type="multiple"` (a `group` of
+ *  `aria-pressed` buttons — Radix only gives items the `radio` role in single mode), and every option
+ *  is on or off on its own. The selected-state rendering is shared with the single control — the pop
+ *  and the muted fill both key off Radix's `data-state='on'`, which is per item in either mode — so a
+ *  multiple group with two options on shows two popped boxes. `onChange` receives the selected values
+ *  **in schema option order**, restricted to values the schema has, so one set is always one list and
+ *  the value prop round-trips; clearing the last option is `onChange([])` (there is no
+ *  deselect-to-empty event to swallow, and `onDeselect` is never called). The stale-hover reset above
+ *  compares the selection by content, not array identity, so a parent re-render handing a fresh array
+ *  of the same values does not drop a live hover. The off screen's Melody row is the first consumer,
+ *  in `muted`. */
+function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>) {
+  const { schema, disabled, onDeselect, boxSize } = props;
+  // The conditional parameter type is opaque inside the generic body, so the two call sites below
+  // name the shape they hand over; the runtime switch is the schema's own `multiple` flag.
+  const onChangeSingle = props.onChange as (value: string) => void;
+  const onChangeMultiple = props.onChange as (value: string[]) => void;
+  const rawValue: RadioButtonValue = props.value;
   // Reuses the same breakpoint-tier gap VoxelTrack (11.1.3) uses between its
   // own boxes — not renamed to something RadioButton-neutral; see
   // docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.5 for why.
@@ -123,6 +153,11 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
   const instanceId = useId();
   const tierBoxHeight = useCabinetBoxHeight();
   const muted = schema.appearance === 'muted';
+  const multiple = schema.multiple === true;
+  // The selected values in either mode — one or none for the single control, any number for the
+  // multiple variant. A single-mode value of '' selects nothing, as it always has.
+  const selected: readonly string[] = typeof rawValue === 'string' ? [rawValue] : rawValue;
+  const isSelected = (optionValue: string) => selected.includes(optionValue);
   const [hoveredValue, setHoveredValue] = useState<string | null>(null);
 
   // See the bugfix note above — clears a stale hover left behind by a
@@ -130,62 +165,94 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
   // previously-hovered option. Adjusts state during render (React's own
   // recommended pattern for "reset when a prop changes") rather than a
   // useEffect, which would commit the stale-hover frame to the DOM first.
-  const [prevValue, setPrevValue] = useState(value);
-  if (value !== prevValue) {
-    setPrevValue(value);
+  // Keyed by content (the joined list) so the multiple variant's arrays
+  // compare by value: a new array of the same picks is not a change.
+  const selectionKey = selected.join('\u0000');
+  const [prevSelectionKey, setPrevSelectionKey] = useState(selectionKey);
+  if (selectionKey !== prevSelectionKey) {
+    setPrevSelectionKey(selectionKey);
     setHoveredValue(null);
   }
 
-  return (
-    <div className={muted ? 'sc-radio-button sc-radio-button--muted' : 'sc-radio-button'}>
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
-      <ToggleGroup.Root
-        type="single"
-        className="sc-radio-button__root"
-        style={rowTokens}
-        value={value}
-        onValueChange={(next) => { if (next) onChange(next); else onDeselect?.(); }}
-        aria-label={resolveAccessibleName(schema)}
-        disabled={disabled}
-      >
-        {schema.options.map((option) => {
-          const face = (
-            <span className="sc-radio-button__face">
-              {option.loreLabel && <span className="sc-radio-button__lore">{option.loreLabel}</span>}
-              <span className="sc-radio-button__label">{option.humanLabel}</span>
+  const className = [
+    'sc-radio-button',
+    muted ? 'sc-radio-button--muted' : null,
+    multiple ? 'sc-radio-button--multiple' : null,
+  ].filter(Boolean).join(' ');
+
+  const items = schema.options.map((option) => {
+    const face = (
+      <span className="sc-radio-button__face">
+        {option.loreLabel && <span className="sc-radio-button__lore">{option.loreLabel}</span>}
+        <span className="sc-radio-button__label">{option.humanLabel}</span>
+      </span>
+    );
+    return (
+      <Fragment key={option.value}>
+        {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" />}
+        <ToggleGroup.Item
+          className="sc-radio-button__item"
+          value={option.value}
+          aria-label={option.humanLabel}
+          style={option.color ? getRobotColorStyle(option.color) : undefined}
+          onMouseEnter={muted ? undefined : () => setHoveredValue(option.value)}
+          onMouseLeave={muted ? undefined : () => setHoveredValue((current) => (current === option.value ? null : current))}
+        >
+          {muted ? (
+            <span className="sc-radio-button__flat" style={{ '--cabinet-box-height': `${boxSize ?? tierBoxHeight}px` } as CSSProperties}>
+              {face}
             </span>
-          );
-          return (
-            <Fragment key={option.value}>
-              {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" />}
-              <ToggleGroup.Item
-                className="sc-radio-button__item"
-                value={option.value}
-                aria-label={option.humanLabel}
-                style={option.color ? getRobotColorStyle(option.color) : undefined}
-                onMouseEnter={muted ? undefined : () => setHoveredValue(option.value)}
-                onMouseLeave={muted ? undefined : () => setHoveredValue((current) => (current === option.value ? null : current))}
-              >
-                {muted ? (
-                  <span className="sc-radio-button__flat" style={{ '--cabinet-box-height': `${boxSize ?? tierBoxHeight}px` } as CSSProperties}>
-                    {face}
-                  </span>
-                ) : (
-                  <CabinetBox
-                    popped={
-                      option.value === value || (!disabled && option.value === hoveredValue) ? true : CABINET_REST_POP
-                    }
-                    timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
-                    {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
-                  >
-                    {face}
-                  </CabinetBox>
-                )}
-              </ToggleGroup.Item>
-            </Fragment>
-          );
-        })}
-      </ToggleGroup.Root>
+          ) : (
+            <CabinetBox
+              popped={
+                isSelected(option.value) || (!disabled && option.value === hoveredValue) ? true : CABINET_REST_POP
+              }
+              timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
+              {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
+            >
+              {face}
+            </CabinetBox>
+          )}
+        </ToggleGroup.Item>
+      </Fragment>
+    );
+  });
+
+  // Radix's multiple-mode list is in toggle order (an activated item is appended); the contract
+  // here is schema option order, with any value the schema does not know dropped.
+  const emitMultiple = (next: string[]) => {
+    const chosen = new Set(next);
+    onChangeMultiple(schema.options.filter((option) => chosen.has(option.value)).map((option) => option.value));
+  };
+
+  return (
+    <div className={className}>
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
+      {multiple ? (
+        <ToggleGroup.Root
+          type="multiple"
+          className="sc-radio-button__root"
+          style={rowTokens}
+          value={selected as string[]}
+          onValueChange={emitMultiple}
+          aria-label={resolveAccessibleName(schema)}
+          disabled={disabled}
+        >
+          {items}
+        </ToggleGroup.Root>
+      ) : (
+        <ToggleGroup.Root
+          type="single"
+          className="sc-radio-button__root"
+          style={rowTokens}
+          value={selected[0]}
+          onValueChange={(next) => { if (next) onChangeSingle(next); else onDeselect?.(); }}
+          aria-label={resolveAccessibleName(schema)}
+          disabled={disabled}
+        >
+          {items}
+        </ToggleGroup.Root>
+      )}
     </div>
   );
 }
@@ -193,5 +260,9 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
 // React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9) — every prop is a primitive,
 // a callback, or a stable schema object (schema.options included — a static config array, per
 // every real consumer). `onDeselect` is optional and, when a caller passes it inline, defeats
-// this memo the same way any unstabilized callback does elsewhere (docs/COMPONENT_LIBRARY.md).
-export const RadioButton = memo(RadioButtonInner);
+// this memo the same way any unstabilized callback does elsewhere (docs/COMPONENT_LIBRARY.md). The
+// multiple variant's `value` is an array: a consumer that builds it per render defeats the memo the
+// same way, so hold it in state or a `useMemo`. The cast keeps the generic signature `memo` would
+// otherwise collapse (the usual pattern for a memoized generic component); the runtime object is
+// still React's memo wrapper.
+export const RadioButton = memo(RadioButtonInner) as typeof RadioButtonInner;

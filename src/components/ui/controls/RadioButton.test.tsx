@@ -482,3 +482,198 @@ describe('RadioButton — appearance "muted" (docs/tasks/LAYOUT_REWORK.md Task 2
     expect(container.querySelectorAll('.sc-radio-button__divider')).toHaveLength(1);
   });
 });
+
+describe('RadioButton — the multiple variant (docs/specs/OFF_SCREEN.md assumption 23, docs/tasks/OFF_SCREEN.md Task 29)', () => {
+  // The off screen's Melody row: a set of picks, each independently on or off. `schema.multiple` makes the
+  // value a string[] and the group a Radix ToggleGroup of type "multiple" — a `group` of `aria-pressed`
+  // buttons, never a radiogroup of radios.
+  const multi: RadioButtonSchema = {
+    id: 'offMelody',
+    type: 'radio',
+    humanLabel: 'Melody',
+    appearance: 'muted',
+    multiple: true,
+    options: [
+      { value: 'theme', humanLabel: 'As theme' },
+      { value: 'hypnotic', humanLabel: 'Hypnotic', dividerBefore: true },
+      { value: 'mechanical', humanLabel: 'Mechanical' },
+      { value: 'wandering', humanLabel: 'Wandering' },
+    ],
+  };
+  const cabinetMulti: RadioButtonSchema = { ...schema, id: 'lfoShapes', multiple: true };
+
+  const pressed = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-pressed');
+
+  it('renders the options as aria-pressed buttons inside a group — no radio, no radiogroup', () => {
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={() => {}} />);
+    expect(screen.getByRole('group', { name: 'Melody' })).toBeTruthy();
+    expect(screen.queryByRole('radiogroup')).toBeNull();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(pressed('Hypnotic')).toBe('true');
+    expect(pressed('As theme')).toBe('false');
+    expect(pressed('Mechanical')).toBe('false');
+    expect(pressed('Wandering')).toBe('false');
+  });
+
+  it('holds several options on at once, each carrying the selected state the muted fill keys off', () => {
+    const { container } = render(<RadioButton schema={multi} value={['hypnotic', 'wandering']} onChange={() => {}} />);
+    expect(pressed('Hypnotic')).toBe('true');
+    expect(pressed('Wandering')).toBe('true');
+    expect(pressed('As theme')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Hypnotic' }).getAttribute('data-state')).toBe('on');
+    expect(screen.getByRole('button', { name: 'Mechanical' }).getAttribute('data-state')).toBe('off');
+    expect(container.querySelector('.sc-radio-button--muted')).not.toBeNull();
+    expect(container.querySelector('.sc-radio-button--multiple')).not.toBeNull();
+    expect(container.querySelectorAll('.sc-radio-button__item[data-state="on"] .sc-radio-button__flat')).toHaveLength(2);
+    expect(container.querySelectorAll('.sc-radio-button__flat')).toHaveLength(4);
+  });
+
+  it('shows nothing selected for an empty list', () => {
+    render(<RadioButton schema={multi} value={[]} onChange={() => {}} />);
+    for (const name of ['As theme', 'Hypnotic', 'Mechanical', 'Wandering']) {
+      expect(pressed(name)).toBe('false');
+    }
+  });
+
+  it('clicking an unselected option calls onChange with it added to the list', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Wandering' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(['hypnotic', 'wandering']);
+  });
+
+  it('clicking a selected option calls onChange with it removed — a re-click is a toggle out, not a swallowed deselect', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic', 'wandering']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hypnotic' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(['wandering']);
+  });
+
+  it('emits the list in schema option order whatever the toggle order, so the same set is always the same list', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['wandering']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'As theme' }));
+    expect(onChange).toHaveBeenCalledWith(['theme', 'wandering']);
+  });
+
+  it('drops a value no option has from the emitted list', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['ghost', 'hypnotic']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mechanical' }));
+    expect(onChange).toHaveBeenCalledWith(['hypnotic', 'mechanical']);
+  });
+
+  it('clearing the last selected option calls onChange([]) and never onDeselect — an empty set is a value here', () => {
+    const onChange = vi.fn();
+    const onDeselect = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={onChange} onDeselect={onDeselect} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hypnotic' }));
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(onDeselect).not.toHaveBeenCalled();
+  });
+
+  it('is controlled: the pressed state follows value, not the click', () => {
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Wandering' }));
+    expect(pressed('Wandering')).toBe('false');
+    expect(pressed('Hypnotic')).toBe('true');
+  });
+
+  it('a disabled multiple group marks every item and calls no onChange', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={onChange} disabled />);
+    expect(screen.getByRole('button', { name: 'Wandering' }).getAttribute('data-disabled')).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Wandering' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('draws a divider before the option that asks for one, in the multiple variant too', () => {
+    const { container } = render(<RadioButton schema={multi} value={[]} onChange={() => {}} />);
+    const dividers = container.querySelectorAll('.sc-radio-button__divider');
+    expect(dividers).toHaveLength(1);
+    expect(dividers[0].getAttribute('aria-hidden')).toBe('true');
+    expect(dividers[0].nextElementSibling).toBe(screen.getByRole('button', { name: 'Hypnotic' }));
+  });
+
+  it('keeps each option its own size: the muted face still takes the cabinet tier height', () => {
+    const { container } = render(<RadioButton schema={multi} value={['hypnotic']} onChange={() => {}} boxSize={50} />);
+    for (const flat of container.querySelectorAll<HTMLElement>('.sc-radio-button__flat')) {
+      expect(flat.style.getPropertyValue('--cabinet-box-height')).toBe('50px');
+    }
+  });
+
+  describe('cabinet appearance', () => {
+    const boxFor = (name: string) =>
+      screen.getByRole('button', { name }).querySelector('[data-testid="cabinet-box"]');
+
+    it('pops a CabinetBox for every selected option and rests every other at CABINET_REST_POP', () => {
+      render(<RadioButton schema={cabinetMulti} value={['triangle', 'square']} onChange={() => {}} />);
+      expect(screen.getAllByTestId('cabinet-box')).toHaveLength(4);
+      expect(boxFor('TRIANGLE')?.getAttribute('data-popped')).toBe('true');
+      expect(boxFor('SQUARE')?.getAttribute('data-popped')).toBe('true');
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('0.5');
+      expect(boxFor('SAWTOOTH')?.getAttribute('data-popped')).toBe('0.5');
+      expect(screen.getByRole('button', { name: 'TRIANGLE' }).getAttribute('data-state')).toBe('on');
+    });
+
+    it('hover pops an unselected option and rests it again; the selected ones keep their pop throughout', () => {
+      render(<RadioButton schema={cabinetMulti} value={['triangle', 'square']} onChange={() => {}} />);
+      const sawtooth = screen.getByRole('button', { name: 'SAWTOOTH' });
+      fireEvent.mouseEnter(sawtooth);
+      expect(boxFor('SAWTOOTH')?.getAttribute('data-popped')).toBe('true');
+      expect(boxFor('TRIANGLE')?.getAttribute('data-popped')).toBe('true');
+      fireEvent.mouseLeave(sawtooth);
+      expect(boxFor('SAWTOOTH')?.getAttribute('data-popped')).toBe('0.5');
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SQUARE' }));
+      fireEvent.mouseLeave(screen.getByRole('button', { name: 'SQUARE' }));
+      expect(boxFor('SQUARE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('a change of the selected set clears a stale hover, as a single-value change does', () => {
+      const { rerender } = render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} />);
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SINE' }));
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('true');
+      rerender(<RadioButton schema={cabinetMulti} value={['triangle', 'square']} onChange={() => {}} />);
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('0.5');
+      expect(boxFor('SQUARE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('a re-render with a new array of the same values is not a change: a live hover survives it', () => {
+      const { rerender } = render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} />);
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SINE' }));
+      rerender(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} />);
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('never pops beyond CABINET_REST_POP on hover while disabled', () => {
+      render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} disabled />);
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SINE' }));
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('0.5');
+      expect(boxFor('TRIANGLE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('toggles in and out through the cabinet path too', () => {
+      const onChange = vi.fn();
+      render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={onChange} />);
+      fireEvent.click(screen.getByRole('button', { name: 'SAWTOOTH' }));
+      expect(onChange).toHaveBeenCalledWith(['triangle', 'sawtooth']);
+      fireEvent.click(screen.getByRole('button', { name: 'TRIANGLE' }));
+      expect(onChange).toHaveBeenLastCalledWith([]);
+    });
+  });
+
+  it('types the two shapes apart: a string[] value needs a string[] onChange', () => {
+    // @ts-expect-error — the multiple variant's onChange receives the whole list, never one value
+    const element = <RadioButton schema={multi} value={['hypnotic']} onChange={(next: string) => void next} />;
+    expect(element).toBeTruthy();
+  });
+
+  it('leaves the single-value control as it was: without multiple the options are radios and value is one string', () => {
+    render(<RadioButton schema={schema} value="sine" onChange={() => {}} />);
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByRole('radio', { name: 'SINE' }).getAttribute('aria-checked')).toBe('true');
+  });
+});

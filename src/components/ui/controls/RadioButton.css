@@ -70,7 +70,10 @@
    momentary control, not a multi-way selection) and Toggle (never
    accent-tinted, bare box). Matches today's existing [data-state='on']
    color swap this rule replaces. See
-   docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.4. */
+   docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.4.
+   The multiple variant (.sc-radio-button--multiple, docs/tasks/OFF_SCREEN.md Task 29) needs no rule
+   of its own: Radix sets data-state per item in either mode, so this tint, the label colour below
+   and the muted fill all mark every selected option at once. */
 .sc-radio-button__item[data-state='on'] .sc-cabinet-box__front {
   background: var(--color-accent-gradient);
 }

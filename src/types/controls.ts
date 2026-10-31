@@ -139,6 +139,13 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  `dividerBefore` on an option draws a thin rule ahead of it in either appearance — the off screen's
    *  line between the three presets and the user's saves. */
   appearance?: 'cabinet' | 'muted';
+  /** The multiple variant (docs/specs/OFF_SCREEN.md assumption 23; docs/tasks/OFF_SCREEN.md Task 29): the
+   *  control's `value` is a `string[]` and `onChange` receives the whole list, each option independently
+   *  on or off — a Radix ToggleGroup of type "multiple", a `group` of `aria-pressed` buttons rather than
+   *  a radiogroup. In the cabinet appearance every selected option is popped; in `muted` each carries
+   *  the selected fill. The off screen's Melody row is the first consumer; omitted (every other
+   *  consumer), the control is the single-value radio it always was. */
+  multiple?: true;
 }
 
 export interface ToggleSchema extends ControlSchemaBase {
