@@ -550,3 +550,104 @@ end to end in the browser, at `aad1270e`). Checkpoint A's review box is not tick
   branch, or `main` after the merge, not today's `main`.
 - The PR.
 
+## 57. The Off Screen: Power as Pause, the Two-Axis Chooser, Keep, and the Band Table
+
+Backlog [5](archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization), reframed by Crawford on
+2026-10-22 from a Sector Settings refresh into the powered-down state, brainstormed (aspects, 2026-10-29), sketched as six
+stories ([docs/sketches/off-screen.html](../sketches/off-screen.html), 2026-10-30, six decisions taken on it) and
+interviewed the same day (intent [off-screen.md](../intent/off-screen.md)). The power rocker becomes a **pause**; the
+powered-down screen becomes the place a listener chooses what plays before any sound — their saves, three preset
+worlds, a **theme** and the **Melody aspects** as band sets over the same seed — and the scattered loading bands become
+one table with one resolver, so a theme is a column, not code. Themes and aspects join the Attenuation Style and the
+coordinates as the world's identity, in the payload and on the link. Plan.md's whole Stage 1.
+
+**Status: built 2026-10-30/31 on `feature/off-screen`, off `docs/off-screen-intent`, PR pending** (Crawford opens it;
+spec [OFF_SCREEN.md](../specs/OFF_SCREEN.md), plan [OFF_SCREEN.md](../tasks/OFF_SCREEN.md)). Tasks 0–38 done in four
+modules — `power-pause` (T0–8), `off-screen-chooser` (T9–17), `band-table` (T18–28), `themes-and-aspects` (T29–35) —
+and the docs (T36–38), one commit per task, RED first, every new gate mutation-checked by hand. Crawford passed the
+listen and every checkpoint's browser half on 2026-10-31 ("checkpoints passed, everything sounds good"); the automated
+halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files / 12 884 tests).
+
+### About
+
+- **Power is a pause** (spec §1.2). `AudioEngine.pause()` / `resume()` suspend and resume the raw `AudioContext`, so
+  the transport, the `16n` tick (measures, battery, harmony, swells), every LFO, voice and tail freeze together and
+  continue mid-note; `timelineMap` entries carry a scope and every world mover registers `'world'`, paused as a set;
+  the work loop's clock shifts by the paused span; `powerController` is `cold / running / paused` with two power-on
+  paths (resume, or a cold start), awaiting the off screen's fade first; the rocker's confirm dialog is gone. The day is
+  wall clock and keeps running. A world changed while off is rebuilt cold. Desktop: main-thread busy 34 % running →
+  12 % paused.
+- **The chooser** (`OffScreen.tsx`; [UI_SHELL.md](../UI_SHELL.md)). Behind a heard-a-world device flag (hint only on a
+  first visit): the Transmission axis — Current (the loaded world, named by `describeWorld`), the saves, a divider, the
+  presets as pasted world links — with Roll and Keep under it; the Loading axis — the theme row and the multi-select
+  Melody row, each with a description line; a readout spanning both. A veil blurs the still world, a boot theatre
+  flickers the screen on, a lore footer ends the column. Every control is `muted`; nothing pops or plays. The address
+  bar follows the loaded world (identity only, never on arrival); a bare boot mirrors its random world, so a reload
+  brings it back and Roll is how you get another.
+- **The band table** (`src/data/bands/`; [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md)). 78 keys, three band kinds, Classic
+  lifted byte for byte (pinned to a literal table and a pre-lift fixture), `resolveBands` replacing never widening, a
+  loading context every generator reads at the draw, `loadingStore` the context follows. Payload v3 carries
+  `theme` / `aspects`; the link carries `theme=` and `melody=`; a theme change is the `loadingOnly` retransmit.
+- **Themes and aspects** ([reference/ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md),
+  [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md)). Five themes on the v1 key list (tempo, Density, Rests,
+  the envelope times and shaped stages, the Reverb and Delay sends, the Low-Pass cutoff); three Melody aspects over the
+  four Melody keys, dealt round-robin over the fleet's companies then the freelancers from a seeded rotation and applied
+  by re-deriving the dealt fields from each robot's own index ([COMPANIES.md](../COMPANIES.md)); `Robot.loadedUnder`
+  and a "Loaded Under" line on the company and robot screens. `RadioButton` gained its `multiple` variant
+  ([COMPONENT_LIBRARY.md](../COMPONENT_LIBRARY.md)).
+
+### Decisions
+
+- Pause suspends the context rather than pausing the transport and releasing voices — the T0 spike watched 20 s of
+  suspension land on the next measure at the tempo's rate with no jump (spec assumption 2; the fallback is written down
+  in §7 and was not needed).
+- The `'ui'` scope is the default and world movers opt in with `'world'`: a forgotten scope keeps moving, which is
+  visible, rather than freezing chrome (§7 Q7). One master key (`useOrbiterMotion`'s kill-only token) stays `'ui'`.
+- `worldState` is written by `initializeLocale` (held systems → cold, started → running), not by the screen; so a pick
+  while paused needs no "pick is Current" test — `'paused'` alone means resume.
+- Presets are world links, not payload constants; a preset pick detaches the loaded save, a theme or Melody pick keeps
+  it attached (the seed is still the save's), Roll detaches.
+- Keep is a store action with a dirty test that deep-equals the stored payload against the live one through the capture
+  normalisation; a pre-v1 save (version 2) reads dirty once. No autosave returns in any form.
+- The address bar mirrors at the end of every `retransmitWorld` and on a bare boot, never on a link arrival, never on
+  Keep or an edit; the blob is never written to the bar.
+- Thresholds ride the `SendBand` shape as `lit` shares (the quiet thresholds are `1 − threshold`, exact in doubles), so
+  there are three band kinds, not four; the Reverb row gained a quiet roll inert under Classic.
+- `ThemeColumn` is confined to the v1 key list by type; widening is ask-first. Themes are world-wide, aspects robot-side,
+  enforced by the family type.
+- The deal lives inside the generator and runs in two places from one noise map — live after `spawnInitialCompanies`,
+  and inside the regenerated baseline — so an untweaked dealt world diffs to `{}` (the spec's assumption 22 was amended
+  at planning: robot baselines are regenerated at diff time, not stored).
+- A copied-baseline robot re-derives from its own index. `'theme'` in a pick list deals nothing, so a mixed fleet keeps
+  plain robots.
+- The loading context follows the store by subscription (one write, two readers); the store boots from the page's
+  link, so a `?theme=` locale is built under its theme before the payload applies.
+- Pick lists are canonical (as-theme first, then option order, deduped) everywhere — store, payload, link, `onChange`.
+- The off screen stays `muted` (§7 Q10): no cabinetry pops on it; one attribute per row to flip.
+- The content grammar's four segments put the aspect names at `home.off.melody.<id>` and the sentences at
+  `home.off.melodyDescription.<id>`, not the spec's five-segment keys.
+- The theme and aspect numbers are the plan's Task 34 placeholders, kept by Crawford's listen as the final bands.
+
+### Not Doing (and why)
+
+- **No resume into a different world.** A pick, Roll, theme change or Retransmit while paused tears down and leaves
+  `'cold'`; the next flip starts. One lifecycle table (§1.2), no third path.
+- **No confirm dialog, no autosave, no save prompt.** Pausing loses nothing; Keep is the one button.
+- **No UI-range, LFO-swing or clamp changes.** Themes move loading bands only; `GLOBAL_AUDIO_SEED_RANGES` and every
+  slider stay as they are; the LFO engine never reads the table.
+- **No fourth band kind, no key outside the v1 list, no second aspect family** in this phase — each is ask-first.
+- **No compatibility code** beyond "absent reads as Classic": a version 2 save loads as Classic and reads dirty once.
+- **No manual on the off screen** (roadmap 51's rule stands); the description lines are the Guide's only part here.
+- **No curated preset content yet**: the three presets are bare triples until Crawford pastes his links.
+
+### Open
+
+- The PR (Crawford's).
+- Copy, all stand-ins marked in `src/content/`: the five theme sentences, the Melody label, the as-theme label and four
+  Melody sentences (`home.ts`), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body
+  (`session.ts`).
+- The three preset links (`src/data/transmissionPresets.ts`), one-line edits.
+- Checkpoint A's and D's Pixel `perf:audio` A/B counts were not handed over; the boxes are ticked on Crawford's word.
+- Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or Roll) — a
+  warning, not an error; a backlog line if it is to be silenced.
+

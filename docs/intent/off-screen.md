@@ -2,10 +2,14 @@
 
 Confirmed via `interview-me` on 2026-10-30 (6 questions; one guess overturned — "power-on replays the world from the
 top" became a true pause — and one redirected — "no power-off dialog" became the Keep button), ahead of a
-`spec-driven-development` pass. Backlog item 5 ([docs/todo/backlog.md](../todo/backlog.md#5-sector-settings-ascoordsfavorites-reorganization)),
+`spec-driven-development` pass. Backlog item 5 ([docs/todo/archive/backlog-archive.md](../todo/archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization)),
 plan.md Stage 1. Builds on the six-story sketch ([docs/sketches/off-screen.html](../sketches/off-screen.html)) and the
-decisions in [docs/ideas/themes.md](../ideas/themes.md) (2026-10-09 and 2026-10-30). Not yet a roadmap entry; the spec
-pass gives it a number.
+decisions in [docs/ideas/themes.md](../ideas/themes.md) (2026-10-09 and 2026-10-30). Roadmap
+[57](../todo/roadmap.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table), numbered by the spec.
+
+**Built 2026-10-30/31 on `feature/off-screen`** (spec [docs/specs/OFF_SCREEN.md](../specs/OFF_SCREEN.md), plan
+[docs/tasks/OFF_SCREEN.md](../tasks/OFF_SCREEN.md)); Crawford passed the checkpoints and the listen on 2026-10-31. Every
+outcome below shipped as written; the deviations are on the plan's ticks and in the roadmap entry's Decisions.
 
 ## Outcome
 

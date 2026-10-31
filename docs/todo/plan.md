@@ -11,12 +11,11 @@ Reading the stages: each one ends at a point where Crawford listens or looks bef
 
 ## Stage 1 — The powered-down state
 
-- Backlog [5](backlog.md#5-sector-settings-ascoordsfavorites-reorganization) **The off screen: themes, aspects,
-  sessions, presets** — Crawford's plan for the powered-down state; the interview fixes the surface and the band
-  table under it, including where item 7's selection UI goes. Sketched as six stories 2026-10-30
-  ([docs/sketches/off-screen.html](../sketches/off-screen.html)), with six decisions taken on it (the sketch header);
-  intent confirmed the same day ([docs/intent/off-screen.md](../intent/off-screen.md)) — power is a pause, one Keep
-  button, item 7's Mood row gets a slot in the Loading axis. Next: the spec.
+- **Done — built 2026-10-30/31 on `feature/off-screen` as roadmap
+  [57](roadmap.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table), PR pending.** Backlog
+  [5](archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization) **The off screen: themes, aspects,
+  sessions, presets** — power is a pause, the two-axis chooser, Keep, the band table; Crawford passed every checkpoint
+  and the listen on 2026-10-31. Item 7's Mood row has its slot in the Loading axis. This line goes when the PR merges.
 - Backlog [1](backlog.md#1-onload-better-power-off-background) and [3](backlog.md#3-onload-sleeve-logo) **Off
   background art, sleeve logo** — blocked on artwork, but they land on this screen, so decided here.
 

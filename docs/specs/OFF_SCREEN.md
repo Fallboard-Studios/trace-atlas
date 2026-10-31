@@ -12,11 +12,18 @@
 
 Source of intent: [docs/intent/off-screen.md](../intent/off-screen.md) (confirmed 2026-10-30 via `interview-me`, six
 questions; one guess overturned — power-on no longer replays from the top, the rocker pauses — and one redirected — the
-confirm dialog became the Keep button). Backlog item [5](../todo/backlog.md#5-sector-settings-ascoordsfavorites-reorganization),
+confirm dialog became the Keep button). Backlog item [5](../todo/archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization),
 the whole of [plan.md](../todo/plan.md)'s Stage 1. Drawn first as six stories in
 [docs/sketches/off-screen.html](../sketches/off-screen.html); the band mechanism is the idea in
-[docs/ideas/themes.md](../ideas/themes.md). **Proposed roadmap number: 57** (56 is the highest in use; the archive holds
-nothing above 55) — this spec gives the item its number; the plan's last task moves backlog 5 to the archive under it.
+[docs/ideas/themes.md](../ideas/themes.md). **Roadmap number: 57** (56 was the highest in use; the archive held nothing
+above 55) — this spec gave the item its number; the plan's last task moved backlog 5 to the archive under it.
+
+**Built 2026-10-30/31 on `feature/off-screen`** — roadmap
+[57](../todo/roadmap.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table), plan
+[docs/tasks/OFF_SCREEN.md](../tasks/OFF_SCREEN.md). Every §7 recommendation was taken as written; assumption 22's
+wording was amended at planning (robot baselines are regenerated at diff time, so the deal runs inside the generator);
+the deviations from the task descriptions are on the plan's ticks and summarised in the roadmap entry's Decisions.
+Crawford passed every checkpoint and the Task 35 listen on 2026-10-31, keeping Task 34's placeholder bands.
 Roadmap [51](../todo/roadmap.md) (the Guide) is untouched: its "Not Doing — no manual on the off screen" stands; the only
 thing this phase leaves for it is the description strings (§1.6).
 

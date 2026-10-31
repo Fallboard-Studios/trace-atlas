@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/OFF_SCREEN.md](../specs/OFF_SCREEN.md). Source intent:
 [docs/intent/off-screen.md](../intent/off-screen.md). Roadmap slot: proposed **57** (the spec's call; backlog
-[5](../todo/backlog.md#5-sector-settings-ascoordsfavorites-reorganization) moves to the archive under it in Task 38).
+[5](../todo/archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization) moved to the archive under it in Task 38).
 
 Written 2026-10-30 against `main` at `cc9a01f2`. The spec's §7 recommendations were accepted as written the same day
 (Crawford: "your recs are fine"), so every task below builds the spec's default; Open Questions names which task moves
@@ -1425,7 +1425,11 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 38: `roadmap.md` 57, backlog 5 archived, plan.md Stage 1, the headers**
+- [x] **Task 38: `roadmap.md` 57, backlog 5 archived, plan.md Stage 1, the headers** (57 was unclaimed in the live
+  roadmap and the archive; backlog 5 moved whole with its links rebased and no stub, its four inbound links — the
+  intent, the spec, this plan, plan.md — repointed to the archive; plan.md's Stage 1 line is marked done rather than
+  deleted, since the convention deletes it at the merge; the sketch's header comment and h1 note carry the BUILT line
+  and what shipped differently from the drawing; the idea's status line points at 57)
 
   **Description:** Roadmap entry 57 (About / Decisions / Not Doing) written from the spec's assumptions and the
   checkpoint records; backlog 5 moved to `backlog-archive.md` with its links rebased (todo-archive conventions);

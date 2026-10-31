@@ -46,52 +46,6 @@ Crawford wants a real image logo, bottom-right — open question whether it repl
 text wordmark or sits alongside it. Blocked only on the logo artwork itself (a favicon
 cube, `public/favicon.svg`, exists but isn't a wordmark-scale logo).
 
-### 5. Sector Settings: AS/Coords/Favorites Reorganization
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority. Today's
-`ATTENUATION_STYLE_PRESETS` (`sectorSettingsConfig.ts`) is what Crawford means by
-"favorites" — same concept, different name; not a new feature so much as a reframing
-plus a data refresh. Crawford has been separately keeping his own list of good
-Attenuation Style + coordinate combinations; once roadmap Phase 21 (Sector Settings:
-Shareable Link Import/Export) lands, he wants to update the in-app preset list with
-current, shareable links, alongside reorganizing how AS/coordinates/presets are laid
-out in the Sector Settings panel. Depends on Phase 21 for the "shareable link" half —
-Session Storage (Phase 20) alone only makes a link possible via the address bar, not
-an in-app Export/Import action.
-
-**Reframed 2026-10-22 (Crawford):** this item is now about the **powered-down state**, not the Sector
-Settings panel. The off screen's Transmission row from roadmap 45 (three preset worlds and the user's
-saves; [backlog archive 2](archive/backlog-archive.md#2-onload-power-off-intro-text)) is the partial
-start; Crawford has a plan for how that screen shows the themes ([docs/ideas/themes.md](../ideas/themes.md)),
-the sessions and the presets. Item [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s
-selection UI is expected to live here too (its progression engine stays item 7's own, large, piece of
-work), and item [19](archive/backlog-archive.md#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
-a preset entry. Still needs its own `/interview-me`.
-
-**Brainstormed 2026-10-29 (Crawford):** the off screen also offers **aspects** — named band sets for a handful of
-robot attributes (Hypnotic, Mechanical, …), applied over the theme's bands, one pick per family; recorded with
-the leans from the discussion in [docs/ideas/themes.md](../ideas/themes.md#aspects-brainstorm-2026-10-29). The
-interview therefore covers four things — presets, sessions, themes and aspects — in two halves: the screen (the
-surface) and the single band table with its resolver (the engine, shared by themes and aspects, built first). It
-may split them into two phases.
-
-**Sketched 2026-10-30:** the off screen drawn as six stories — arrival (bare URL / shared link) × device (first visit /
-returning / returning with saves) — in [docs/sketches/off-screen.html](../sketches/off-screen.html), every piece
-called out and tagged built / changed / proposed / open, with the power-off dialog, Foundry and Comms beside it.
-Crawford decided on it: the Roll button stays, five themes, flat aspect rows, the two-axis chooser (Transmission /
-Loading), the veil and the lore footer; presets are pasted share links of worlds he saved (his ask the same day).
-Clarified: a theme or aspect changes only loading bands — AS + coords stay the identity — and both are chosen before
-sound, on the off screen. The sketch's "Open for the interview" box is the live question list (nine items); the
-decisions are recorded in [docs/ideas/themes.md](../ideas/themes.md#decided-crawford-2026-10-30-on-the-six-story-sketch).
-
-**Intent confirmed 2026-10-30** via `/interview-me` (6 questions): [docs/intent/off-screen.md](../intent/off-screen.md).
-Two turns on the sketch's leans — power is a **pause**, not a stop (transport, robot animations and batteries freeze;
-the day clock and day / night light keep running, and run from load), and the off screen gains one **Keep** button
-beside the Current row instead of any save prompt or confirm dialog. Also fixed: the first visit is hint-only behind a
-heard-a-world flag; themes ship audibly in this phase as a narrow by-ear first cut, with Melody the only aspect family;
-the address bar follows the loaded world. Next: `spec-driven-development`, two halves (screen / band table + resolver),
-likely three phases.
-
 ### 6. Audio: Groove Feature
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
