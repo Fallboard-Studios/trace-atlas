@@ -69,6 +69,26 @@ export const home = {
   'home.off.melodyDescription.hypnotic': { human: 'Hypnotic probes circle a note or two at a steady, middling pace.' },
   'home.off.melodyDescription.mechanical': { human: 'Mechanical probes drive one long, fixed motif at high density.' },
   'home.off.melodyDescription.wandering': { human: 'Wandering probes roam wide and sparse, rarely repeating a phrase.' },
+  // The Envelope and Distance families (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7; Crawford's note 3, the wireframe's
+  // Space renamed Distance in his answer 6): each family's label, its three names (Near / Far / Remote are Claude's words
+  // for his "distance", one line each to rename), and one sentence per option plus one for a row with nothing on.
+  // STAND-INS for Crawford's pass. Distance is how far off a probe sounds, never a room: a room's size is the theme's.
+  'home.off.envelope': { human: 'Envelope' },
+  'home.off.envelope.plucked': { human: 'Plucked' },
+  'home.off.envelope.swelling': { human: 'Swelling' },
+  'home.off.envelope.held': { human: 'Held' },
+  'home.off.envelopeDescription.none': { human: 'Every probe shapes its notes as the theme does.' },
+  'home.off.envelopeDescription.plucked': { human: 'Plucked probes strike at once and die away, with hardly a sustain.' },
+  'home.off.envelopeDescription.swelling': { human: 'Swelling probes rise slowly into each note and hold it high.' },
+  'home.off.envelopeDescription.held': { human: 'Held probes sound in full and let each note ring on long after.' },
+  'home.off.distance': { human: 'Distance' },
+  'home.off.distance.near': { human: 'Near' },
+  'home.off.distance.far': { human: 'Far' },
+  'home.off.distance.remote': { human: 'Remote' },
+  'home.off.distanceDescription.none': { human: 'Every probe sounds as far off as the theme sets it.' },
+  'home.off.distanceDescription.near': { human: 'Near probes sound close and dry, right at the receiver.' },
+  'home.off.distanceDescription.far': { human: 'Far probes sound well off, deep in the wash, with little echo.' },
+  'home.off.distanceDescription.remote': { human: 'Remote probes sound at the edge of range, washed out and echoing.' },
   // The readout well's accessible name; what it shows is describeWorld's string for the pick, so it carries no
   // template of its own (docs/tasks/OFF_SCREEN.md Task 10).
   'home.off.readout': {

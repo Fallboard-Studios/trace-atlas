@@ -8,7 +8,7 @@ import { overlayBands, resolveBands } from './resolveBands';
 import { CLASSIC } from './classic';
 import { ROBOT_LIT_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
 import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
-import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS, type AspectId } from './aspects';
+import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectId, type AspectIdOf } from './aspects';
 
 // ========================================
 // MOCKS
@@ -256,16 +256,42 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(THEMES.classic).toStrictEqual({});
   });
 
-  it('names one family, melody, with three options in canonical order and the four Melody keys', () => {
-    expect(ASPECT_FAMILY_IDS).toEqual(['melody']);
-    expect(ASPECT_IDS).toEqual(['hypnotic', 'mechanical', 'wandering']);
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7 (Crawford's note 3; Space renamed Distance, his answer 6): three families.
+  it('names three families in order - melody, envelope, distance - each with three options in canonical order and its key set', () => {
+    expect(ASPECT_FAMILY_IDS).toEqual(['melody', 'envelope', 'distance']);
+    expect(ASPECT_IDS_BY_FAMILY).toEqual({
+      melody: ['hypnotic', 'mechanical', 'wandering'],
+      envelope: ['plucked', 'swelling', 'held'],
+      distance: ['near', 'far', 'remote'],
+    });
     expect(ASPECT_FAMILIES.melody.keys).toEqual([
       'robot.rhythmicDensity',
       'robot.noteVariance',
       'robot.rhythmicMotifLength',
       'robot.pitchRepeat',
     ]);
-    expect(Object.keys(ASPECT_FAMILIES.melody.options).sort()).toEqual([...ASPECT_IDS].sort());
+    expect(ASPECT_FAMILIES.envelope.keys).toEqual([
+      'robot.attack',
+      'robot.decay',
+      'robot.sustain',
+      'robot.release',
+      'robot.shapedAttack',
+      'robot.shapedRelease',
+    ]);
+    expect(ASPECT_FAMILIES.distance.keys).toEqual(['reverbSend', 'delaySend']);
+    for (const family of ASPECT_FAMILY_IDS) {
+      expect(Object.keys(ASPECT_FAMILIES[family].options).sort()).toEqual([...ASPECT_IDS_BY_FAMILY[family]].sort());
+    }
+  });
+
+  it('no key belongs to two families, and every key is robot-side: a robot band or a send, never the tempo or a global row', () => {
+    const keys = ASPECT_FAMILY_IDS.flatMap((family) => [...ASPECT_FAMILIES[family].keys] as string[]);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const key of keys) expect(key.startsWith('robot.') || key.endsWith('Send'), key).toBe(true);
+  });
+
+  it('an id from another family resolves to nothing in this one: melody given plucked is no aspect', () => {
+    expect(resolveBands('classic', { melody: 'plucked' })).toStrictEqual(CLASSIC);
   });
 
   it('a theme column with one key replaces only it: Calm differs from Classic at bpm and nowhere else', () => {
@@ -326,6 +352,25 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     const asTheme: AspectId = 'theme';
     expect(asTheme).toBe('theme');
   });
+
+  it('types: an Envelope or Distance option cannot name a key outside its family (revisions Task 7)', () => {
+    type DistanceOption = (typeof ASPECT_FAMILIES)['distance']['options']['near'];
+    type EnvelopeOption = (typeof ASPECT_FAMILIES)['envelope']['options']['plucked'];
+    const near: DistanceOption = { reverbSend: { min: 0, max: 0.1, lit: 0.5 } };
+    expect(near).toBeDefined();
+    // @ts-expect-error - bpm is a world band, not a Distance key (spec §3: themes world-wide, aspects robot-side)
+    const tempo: DistanceOption = { bpm: { min: 1, max: 2 } };
+    expect(tempo).toBeDefined();
+    // @ts-expect-error - a room's size is the theme's (reverb.decay is a global band), never an aspect's
+    const room: DistanceOption = { 'reverb.decay': { min: 1, max: 2 } };
+    expect(room).toBeDefined();
+    // @ts-expect-error - reverbSend is a Distance key, not an Envelope one
+    const crossed: EnvelopeOption = { reverbSend: { min: 0, max: 0.1, lit: 0.5 } };
+    expect(crossed).toBeDefined();
+    // @ts-expect-error - an Envelope id is not a Melody option
+    const wrongFamily: AspectIdOf<'melody'> = 'plucked';
+    expect(wrongFamily).toBe('plucked');
+  });
 });
 
 // ========================================
@@ -338,7 +383,9 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
   const movedKeys = (table: BandTable) => (Object.keys(table) as (keyof BandTable)[]).filter((key) => !same(table[key], CLASSIC[key]));
   const themeColumn = (theme: ThemeId) => realThemes.THEMES[theme];
-  const melodyColumn = (option: (typeof ASPECT_IDS)[number]) => realAspects.ASPECT_FAMILIES.melody.options[option];
+  const melodyColumn = (option: AspectIdOf<'melody'>) => realAspects.ASPECT_FAMILIES.melody.options[option];
+  const envelopeColumn = (option: AspectIdOf<'envelope'>) => realAspects.ASPECT_FAMILIES.envelope.options[option];
+  const distanceColumn = (option: AspectIdOf<'distance'>) => realAspects.ASPECT_FAMILIES.distance.options[option];
 
   it.each(['calm', 'bold', 'adventurous', 'perilous'] as const)(
     '%s differs from Classic on a non-empty subset of the v1 key list and nowhere else',
@@ -394,6 +441,75 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(wandering['robot.rhythmicMotifLength']!.offShare).toBeGreaterThanOrEqual(0.5);
   });
 
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7: the two new families' placeholder columns, until the listen (Task 11). Each
+  // option moves only its family's keys, and the intent checks fail a wrong-way edit.
+  it.each(['plucked', 'swelling', 'held'] as const)(
+    'Envelope %s differs from Classic on a non-empty subset of the six Envelope keys and nowhere else',
+    (option) => {
+      const column = envelopeColumn(option);
+      const moved = movedKeys(overlayBands(CLASSIC, column));
+      expect(moved.length).toBeGreaterThan(0);
+      for (const key of moved) expect(realAspects.ENVELOPE_BAND_KEYS as readonly string[]).toContain(key);
+      expect([...moved].sort()).toEqual(Object.keys(column).sort());
+    },
+  );
+
+  it.each(['near', 'far', 'remote'] as const)(
+    'Distance %s differs from Classic on a non-empty subset of the two Distance keys and nowhere else',
+    (option) => {
+      const column = distanceColumn(option);
+      const moved = movedKeys(overlayBands(CLASSIC, column));
+      expect(moved.length).toBeGreaterThan(0);
+      for (const key of moved) expect(realAspects.DISTANCE_BAND_KEYS as readonly string[]).toContain(key);
+      expect([...moved].sort()).toEqual(Object.keys(column).sort());
+    },
+  );
+
+  it('Plucked is a pluck: a near-instant attack (shaped or not) and a low sustain', () => {
+    const plucked = envelopeColumn('plucked');
+    expect(plucked['robot.attack']!.max).toBeLessThanOrEqual(0.05);
+    expect(plucked['robot.sustain']!.max).toBeLessThanOrEqual(0.3);
+    // A shaped attack is drawn from its own band (generateAudioAttributes), so a long one there would undo the pluck.
+    expect(plucked['robot.shapedAttack']?.max ?? CLASSIC['robot.shapedAttack'].max).toBeLessThanOrEqual(0.05);
+  });
+
+  it('Swelling swells: a long attack, shaped or not, and a high sustain', () => {
+    const swelling = envelopeColumn('swelling');
+    expect(swelling['robot.attack']!.min).toBeGreaterThanOrEqual(0.2);
+    expect(swelling['robot.shapedAttack']?.min ?? CLASSIC['robot.shapedAttack'].min).toBeGreaterThanOrEqual(0.2);
+    expect(swelling['robot.sustain']!.min).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('Held holds: a full sustain and a long release, shaped or not', () => {
+    const held = envelopeColumn('held');
+    expect(held['robot.sustain']!.min).toBeGreaterThanOrEqual(0.85);
+    expect(held['robot.release']!.min).toBeGreaterThanOrEqual(0.5);
+    expect(held['robot.shapedRelease']?.min ?? CLASSIC['robot.shapedRelease'].min).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('Near is close: both sends low and mostly unlit', () => {
+    const near = distanceColumn('near');
+    expect(near.reverbSend!.max).toBeLessThanOrEqual(0.15);
+    expect(near.reverbSend!.lit).toBeLessThan(0.5);
+    expect(near.delaySend!.max).toBeLessThanOrEqual(0.1);
+    expect(near.delaySend!.lit).toBeLessThan(0.5);
+  });
+
+  it('Far is deep in the reverb with little delay', () => {
+    const far = distanceColumn('far');
+    expect(far.reverbSend!.min).toBeGreaterThanOrEqual(0.4);
+    expect(far.reverbSend!.lit).toBe(1);
+    expect(far.delaySend!.max).toBeLessThanOrEqual(0.15);
+  });
+
+  it('Remote is deep in both rooms: reverb from 0.6 up, and a deep delay', () => {
+    const remote = distanceColumn('remote');
+    expect(remote.reverbSend!.min).toBeGreaterThanOrEqual(0.6);
+    expect(remote.reverbSend!.lit).toBe(1);
+    expect(remote.delaySend!.min).toBeGreaterThanOrEqual(0.3);
+    expect(remote.delaySend!.lit).toBe(1);
+  });
+
   it('every placeholder band is well formed and inside what its field can hold', () => {
     // The field's own bounds, per key the v1 list and the Melody family allow (spec assumption 16); a key missing here
     // is a key the list did not have when this was written, so it fails loudly rather than passing unbounded.
@@ -401,6 +517,8 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       bpm: [20, 200], // the tempo the clock runs (src/constants/index.ts)
       'filterLPF.frequency': [20, 20000],
       'robot.attack': [0, ENVELOPE_TIME_MAX_SECONDS],
+      'robot.decay': [0, ENVELOPE_TIME_MAX_SECONDS],
+      'robot.sustain': [0, 1],
       'robot.release': [0, ENVELOPE_TIME_MAX_SECONDS],
       'robot.shapedAttack': [0, ENVELOPE_TIME_MAX_SECONDS],
       'robot.shapedRelease': [0, ENVELOPE_TIME_MAX_SECONDS],
@@ -415,8 +533,10 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     const columns: Partial<BandTable>[] = [
       ...Object.values(realThemes.THEMES),
       ...Object.values(realAspects.ASPECT_FAMILIES.melody.options),
+      ...Object.values(realAspects.ASPECT_FAMILIES.envelope.options),
+      ...Object.values(realAspects.ASPECT_FAMILIES.distance.options),
     ];
-    expect(columns.length).toBe(8);
+    expect(columns.length).toBe(14);
     for (const column of columns) {
       for (const [key, band] of Object.entries(column) as [keyof BandTable, BandTable[keyof BandTable]][]) {
         const bounds = BOUNDS[key];

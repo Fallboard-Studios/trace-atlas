@@ -49,7 +49,7 @@ import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/tim
 import { getRef } from '@/utils/refs';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { CONTENT, fill } from '@/content';
-import type { AspectId } from '@/data/bands/aspects';
+import type { AspectId, AspectIdOf } from '@/data/bands/aspects';
 import type { SessionPayload } from '@/types/session';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
@@ -433,7 +433,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   } as const;
   const melodyDescription = () => document.querySelector('.off-screen__description--melody');
   // An aspect's sentence, or the family's own for a row with nothing on (revisions Task 6: no as-theme member).
-  const sentence = (id: AspectId | 'none') => human(`home.off.melodyDescription.${id}`);
+  const sentence = (id: AspectIdOf<'melody'> | 'none') => human(`home.off.melodyDescription.${id}`);
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
   /** The real retransmitWorld writes the loading store before it rebuilds (band-table T25); this double does that half,
    *  so a second toggle sees the first on the row as it does in the app. */

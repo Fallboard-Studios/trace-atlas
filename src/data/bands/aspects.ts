@@ -7,19 +7,29 @@ import type { BandKey, BandTable } from './bandKeys';
 // IDS
 // ========================================
 
-/** The aspect families (docs/specs/OFF_SCREEN.md assumption 15): v1 has Melody alone; 'voice' | 'envelope' | 'space'
- *  are later families. A family is a key set and its options' columns; the deal (dealAspects.ts) seats one option per
- *  family per robot. Aspects are robot-side (spec §3): a family's keys are robot bands, never `bpm` or a global row. */
-export const ASPECT_FAMILY_IDS = ['melody'] as const;
+/** The aspect families (docs/specs/OFF_SCREEN.md assumption 15), in family order: Melody, then Envelope and Distance
+ *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, Crawford's note 3; the wireframe's Space became Distance in his answer 6).
+ *  A family is a key set and its options' columns; the deal (dealAspects.ts) seats one option per family per robot.
+ *  Aspects are robot-side (spec §3): a family's keys are robot bands or sends, never `bpm` or a global row. */
+export const ASPECT_FAMILY_IDS = ['melody', 'envelope', 'distance'] as const;
 export type AspectFamilyId = (typeof ASPECT_FAMILY_IDS)[number];
 
-/** The aspect option ids in canonical option order (assumption 17): the Melody row lists them so, and every pick list
- *  and link param is sorted so (canonicalPicks). The ids are code; names and descriptions are content
- *  (`home.off.melody.<id>`, `home.off.melodyDescription.<id>`). A pick list holds these and nothing else: the "as theme"
- *  member is gone (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6, Crawford's note 4) — an empty list is every robot as theme,
- *  and a stale `theme` in a payload or a link is dropped as any unknown id is. */
-export const ASPECT_IDS = ['hypnotic', 'mechanical', 'wandering'] as const;
-export type AspectId = (typeof ASPECT_IDS)[number];
+/** Each family's option ids in canonical option order (assumption 17): a family's row lists them so, and every pick list
+ *  and link param is sorted so (canonicalPicks). The ids are code, unique across families; names and descriptions are
+ *  content (`home.off.<family>.<id>`, `home.off.<family>Description.<id>`). A pick list holds its family's ids and
+ *  nothing else: the "as theme" member is gone (revisions Task 6, Crawford's note 4) — an empty list is every robot as
+ *  theme, and a stale `theme`, or another family's id, is dropped as any unknown id is. */
+export const ASPECT_IDS_BY_FAMILY = {
+  melody: ['hypnotic', 'mechanical', 'wandering'],
+  envelope: ['plucked', 'swelling', 'held'],
+  distance: ['near', 'far', 'remote'],
+} as const satisfies Record<AspectFamilyId, readonly string[]>;
+
+/** One family's option ids. */
+export type AspectIdOf<F extends AspectFamilyId> = (typeof ASPECT_IDS_BY_FAMILY)[F][number];
+/** Any family's option id. A record keyed by family (a pick list, Robot.loadedUnder) holds only that family's ids; the
+ *  readers below check membership rather than trust the type. */
+export type AspectId = AspectIdOf<AspectFamilyId>;
 
 // ========================================
 // FAMILIES
@@ -34,23 +44,55 @@ export const MELODY_BAND_KEYS = [
 ] as const;
 export type MelodyBandKey = (typeof MELODY_BAND_KEYS)[number];
 
+/** The six Envelope keys (revisions Task 7): the four stages and the two shaped stages. A shaped stage is drawn from its
+ *  own band instead of the plain one (generateAudioAttributes), so an option that moves a stage moves its shaped band
+ *  with it, or a curved robot would undo the option; the shaped stages' `lit` rides along. */
+export const ENVELOPE_BAND_KEYS = [
+  'robot.attack',
+  'robot.decay',
+  'robot.sustain',
+  'robot.release',
+  'robot.shapedAttack',
+  'robot.shapedRelease',
+] as const;
+export type EnvelopeBandKey = (typeof ENVELOPE_BAND_KEYS)[number];
+
+/** The two Distance keys (revisions Task 7): a robot's depth into the Reverb and the Delay - how far off it sounds. A
+ *  room's own size (`reverb.decay`, `delay.delayTime`) is a global band, a theme's and never an aspect's (spec §3), so
+ *  Distance sinks robots into the rooms but cannot lengthen them. Grit, Shimmer and Double stay the theme's. */
+export const DISTANCE_BAND_KEYS = ['reverbSend', 'delaySend'] as const;
+export type DistanceBandKey = (typeof DISTANCE_BAND_KEYS)[number];
+
 /** A family: its key set, and per option a column over those keys only. The option type is
  *  `Partial<Pick<BandTable, K>>`, so an aspect cannot reach outside its family (spec §1.5) and no conflict rule is
- *  needed. */
-export interface AspectFamily<K extends BandKey> {
+ *  needed; the option ids are the family's own. */
+export interface AspectFamily<F extends AspectFamilyId, K extends BandKey> {
   readonly keys: readonly K[];
-  readonly options: Readonly<Record<AspectId, Partial<Pick<BandTable, K>>>>;
+  readonly options: Readonly<Record<AspectIdOf<F>, Partial<Pick<BandTable, K>>>>;
 }
 
 /**
- * The families and their options' columns. Every number is a PLACEHOLDER (plan Task 34) until the listen (Task 35) sets
- * it with Crawford, on assumption 16's sketch: Hypnotic is low variance (the toggle always on, 1-2) at medium density
- * (40-60), circling a note or two (a high pitch repeat); Mechanical is low variance (1-3) at high density (70-95) with a
- * long motif always on (6-8); Wandering is high variance (6-8) at low-medium density (20-50) with the motif mostly off
- * and little repeat. Each column names only keys it moves, inside the family. resolveBands.test.ts pins the key set,
- * the bounds and the intent.
+ * The families and their options' columns. Every number is a PLACEHOLDER until a listen sets it with Crawford.
+ *
+ * Melody (plan Task 34; Task 35's listen kept them) on assumption 16's sketch: Hypnotic is low variance (the toggle
+ * always on, 1-2) at medium density (40-60), circling a note or two (a high pitch repeat); Mechanical is low variance
+ * (1-3) at high density (70-95) with a long motif always on (6-8); Wandering is high variance (6-8) at low-medium density
+ * (20-50) with the motif mostly off and little repeat.
+ *
+ * Envelope and Distance (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, for Task 11's listen): Plucked strikes at once (an
+ * attack under 30 ms, its shaped band as short), decays fast to a low sustain and lets go quickly, the shaped shares up;
+ * Swelling rises over 0.3-1.2 s, shaped or not, into a high sustain; Held starts promptly, sustains in full and rings
+ * 0.8-2 s after, shaped or not. Near keeps both sends low and mostly unlit; Far sinks deep into the Reverb with little
+ * Delay; Remote sinks deep into both.
+ *
+ * Each column names only keys it moves, inside its family. resolveBands.test.ts pins the key sets, the bounds and the
+ * intent.
  */
-export const ASPECT_FAMILIES: { readonly melody: AspectFamily<MelodyBandKey> } = {
+export const ASPECT_FAMILIES: {
+  readonly melody: AspectFamily<'melody', MelodyBandKey>;
+  readonly envelope: AspectFamily<'envelope', EnvelopeBandKey>;
+  readonly distance: AspectFamily<'distance', DistanceBandKey>;
+} = {
   melody: {
     keys: MELODY_BAND_KEYS,
     options: {
@@ -73,16 +115,62 @@ export const ASPECT_FAMILIES: { readonly melody: AspectFamily<MelodyBandKey> } =
       },
     },
   },
+  envelope: {
+    keys: ENVELOPE_BAND_KEYS,
+    options: {
+      plucked: {
+        'robot.attack': { min: 0, max: 0.03 },
+        'robot.decay': { min: 0.1, max: 0.6 },
+        'robot.sustain': { min: 0, max: 0.25 },
+        'robot.release': { min: 0.05, max: 0.4 },
+        'robot.shapedAttack': { min: 0.005, max: 0.04, lit: 0.5 },
+        'robot.shapedRelease': { min: 0.1, max: 0.4, lit: 0.6 },
+      },
+      swelling: {
+        'robot.attack': { min: 0.3, max: 1.2 },
+        'robot.sustain': { min: 0.7, max: 1 },
+        'robot.shapedAttack': { min: 0.3, max: 1.2, lit: 0.4 },
+      },
+      held: {
+        'robot.attack': { min: 0.02, max: 0.15 },
+        'robot.sustain': { min: 0.9, max: 1 },
+        'robot.release': { min: 0.8, max: 2 },
+        'robot.shapedRelease': { min: 0.8, max: 2, lit: 0.275 },
+      },
+    },
+  },
+  distance: {
+    keys: DISTANCE_BAND_KEYS,
+    options: {
+      near: {
+        reverbSend: { min: 0, max: 0.1, lit: 0.3 },
+        delaySend: { min: 0, max: 0.05, lit: 0.1 },
+      },
+      far: {
+        reverbSend: { min: 0.45, max: 0.8, lit: 1 },
+        delaySend: { min: 0, max: 0.1, lit: 0.3 },
+      },
+      remote: {
+        reverbSend: { min: 0.65, max: 0.95, lit: 1 },
+        delaySend: { min: 0.35, max: 0.6, lit: 1 },
+      },
+    },
+  },
 };
 
 // ========================================
 // FUNCTIONS
 // ========================================
 
-/** A family's picks in canonical order: its options in ASPECT_IDS order (assumption 9). */
+/** A family's picks in canonical order: its own option ids, in ASPECT_IDS_BY_FAMILY order (assumption 9). */
 export function pickOrderOf(family: AspectFamilyId): AspectId[] {
-  const options = ASPECT_FAMILIES[family].options;
-  return ASPECT_IDS.filter((id) => id in options);
+  return [...ASPECT_IDS_BY_FAMILY[family]];
+}
+
+/** Whether `id` is one of `family`'s options - the membership a family-keyed record's readers check, since the union
+ *  type would admit another family's id. */
+export function isAspectOf(family: AspectFamilyId, id: string): id is AspectId {
+  return (ASPECT_IDS_BY_FAMILY[family] as readonly string[]).includes(id);
 }
 
 /** A pick list as the store, the payload and the link carry it (assumptions 9, 11): sorted into the family's canonical

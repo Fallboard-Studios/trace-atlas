@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from './loadingStore';
-import { canonicalPicks, type AspectId } from '@/data/bands/aspects';
+import { canonicalAspects, canonicalPicks, type AspectId } from '@/data/bands/aspects';
 import { getBand } from '@/data/bands/loadingContext';
 import { CLASSIC } from '@/data/bands/classic';
 
@@ -151,5 +151,29 @@ describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical op
 
   it('the same set in any order gives the same list, so a link encodes one way', () => {
     expect(canonicalPicks('melody', ['mechanical', 'hypnotic'])).toEqual(canonicalPicks('melody', ['hypnotic', 'mechanical']));
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVISIONS.md Task 7: Envelope and Distance join Melody, each its own list.
+describe('canonicalAspects over the three families (revisions Task 7)', () => {
+  it('keeps every family, each list canonical, the families in family order', () => {
+    const out = canonicalAspects({ distance: ['remote', 'near'], melody: ['wandering'], envelope: ['held', 'plucked', 'held'] });
+    expect(out).toStrictEqual({ melody: ['wandering'], envelope: ['plucked', 'held'], distance: ['near', 'remote'] });
+    expect(Object.keys(out)).toEqual(['melody', 'envelope', 'distance']);
+  });
+
+  it('drops an id from another family: hypnotic is no Envelope pick, plucked no Distance one', () => {
+    expect(canonicalAspects({ envelope: ['hypnotic', 'held'], distance: ['plucked'] })).toStrictEqual({ envelope: ['held'] });
+  });
+
+  it('canonicalPicks orders each family by its own options', () => {
+    expect(canonicalPicks('envelope', ['held', 'swelling', 'plucked'])).toEqual(['plucked', 'swelling', 'held']);
+    expect(canonicalPicks('distance', ['remote', 'far', 'near'])).toEqual(['near', 'far', 'remote']);
+  });
+
+  it('the store holds all three families through setLoading, as JSON', () => {
+    state().setLoading({ theme: 'calm', aspects: { envelope: ['swelling'], distance: ['far'], melody: ['mechanical'] } });
+    expect(state().aspects).toStrictEqual({ melody: ['mechanical'], envelope: ['swelling'], distance: ['far'] });
+    expect(JSON.parse(JSON.stringify(state().aspects))).toStrictEqual(state().aspects);
   });
 });

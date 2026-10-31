@@ -67,6 +67,21 @@ describe('describeWorld', () => {
       expect(describeWorld({ ...plot, theme: 'classic', aspects: { melody: ['wandering'] } })).toBe('tr3nch-2 · (-30, -30) · Wandering');
     });
 
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7: Envelope and Distance join the tail, one segment per family, in family
+    // order whatever order the record lists them in. The names are stand-in content, read from it.
+    it('joins every family in family order, each its own segment', () => {
+      const name = (key: Parameters<typeof labels>[0]) => labels(key).humanLabel;
+      expect(
+        describeWorld({ ...plot, theme: 'bold', aspects: { distance: ['remote'], melody: ['hypnotic'], envelope: ['plucked', 'held'] } }),
+      ).toBe(
+        `tr3nch-2 · (-30, -30) · Bold · Hypnotic · ${name('home.off.envelope.plucked')} + ${name('home.off.envelope.held')} · ${name('home.off.distance.remote')}`,
+      );
+    });
+
+    it('an id from another family is left out of a family segment, as an unknown id is', () => {
+      expect(describeWorld({ ...plot, theme: 'classic', aspects: { envelope: ['hypnotic'] } })).toBe('tr3nch-2 · (-30, -30)');
+    });
+
     it('a labelled world carries the tail after the plot', () => {
       expect(describeWorld({ attenuationStyleName: 'dusk', coordinates: { x: 12, y: 68 }, theme: 'bold', aspects: { melody: ['hypnotic'] } }, 'Dusk Run')).toBe(
         'Dusk Run · dusk (12, 68) · Bold · Hypnotic',

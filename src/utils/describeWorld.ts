@@ -1,8 +1,8 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, type AspectId } from '../data/bands/aspects';
-import { ASPECT_NAME_KEY, THEME_NAME_KEY, aspectName, themeName } from './loadingNames';
+import { ASPECT_FAMILY_IDS, isAspectOf } from '../data/bands/aspects';
+import { THEME_NAME_KEY, aspectName, themeName } from './loadingNames';
 import type { WorldIdentity } from './seedBaseline';
 
 // ========================================
@@ -37,7 +37,7 @@ export function describeWorld(identity: DescribedWorld, label?: string): string 
   if (theme !== 'classic' && theme in THEME_NAME_KEY) tail.push(themeName(theme));
   for (const family of ASPECT_FAMILY_IDS) {
     const names = (aspects[family] ?? [])
-      .filter((pick): pick is AspectId => pick in ASPECT_NAME_KEY[family])
+      .filter((pick) => isAspectOf(family, pick))
       .map((pick) => aspectName(family, pick));
     if (names.length > 0) tail.push(names.join(' + '));
   }
