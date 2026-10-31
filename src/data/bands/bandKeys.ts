@@ -3,6 +3,7 @@
 // ========================================
 import type { LoadingRangeKey } from '../globalAudioSeedRanges';
 import type { RobotSendField } from '../robotSends';
+import type { WaveformType } from '../../types/Robot';
 
 // ========================================
 // TYPES
@@ -11,8 +12,9 @@ import type { RobotSendField } from '../robotSends';
 /*
  * The band table under the themes (docs/specs/OFF_SCREEN.md assumption 15, §1.3): every value a FRESH world or robot may
  * seed, keyed by what it seeds. A band bounds a draw - getSeededVal maps the same noise into [min, max] - never what a
- * slider exposes or what the app can do; a theme or an aspect moves a band, never the draw. Three kinds, no more
- * (a fourth is an "ask first", spec §3).
+ * slider exposes or what the app can do; a theme or an aspect moves a band, never the draw. Four kinds: the three the
+ * spec named, and the waveform pick (PickBand), the "ask first" of spec §3 that Crawford answered for the Voice family
+ * on 2026-10-31 (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10).
  */
 
 /** A plain band: a fresh draw lands in [min, max]. */
@@ -46,6 +48,16 @@ export interface ToggleBand {
   max: number;
 }
 
+/**
+ * A weighted pick among the waveforms (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a fresh draw lands on waveform w with
+ * a share of weights[w] / the total. The draw spans [0, total] and picks the first waveform, in WAVEFORMS order, whose
+ * cumulative weight it falls under (spawnSystem.ts's pickWaveform), so Classic's five equal unit weights - cumulative
+ * edges 1 to 5 - give exactly the index Math.floor of the old [0, 5] draw gave. A zero weight is never drawn.
+ */
+export interface PickBand {
+  weights: Record<WaveformType, number>;
+}
+
 /** The robot bands that are plain ranges, named for the robot field each seeds. */
 export const ROBOT_RANGE_KEYS = [
   'robot.attack',
@@ -77,10 +89,14 @@ export const ROBOT_LIT_KEYS = [
 /** The two 1-8 toggle fields (ToggleBand). */
 export const ROBOT_TOGGLE_KEYS = ['robot.rhythmicMotifLength', 'robot.noteVariance'] as const;
 
+/** The weighted picks (PickBand): the waveform the base and the three Signature Array layers draw. */
+export const ROBOT_PICK_KEYS = ['robot.waveform'] as const;
+
 export type RobotRangeKey = (typeof ROBOT_RANGE_KEYS)[number];
 export type RobotLitKey = (typeof ROBOT_LIT_KEYS)[number];
 export type RobotToggleKey = (typeof ROBOT_TOGGLE_KEYS)[number];
-export type RobotBandKey = RobotRangeKey | RobotLitKey | RobotToggleKey;
+export type RobotPickKey = (typeof ROBOT_PICK_KEYS)[number];
+export type RobotBandKey = RobotRangeKey | RobotLitKey | RobotToggleKey | RobotPickKey;
 
 /** Every key in the table: the tempo, the global chain's loading rows, the robot bands and the five sends. */
 export type BandKey = 'bpm' | LoadingRangeKey | RobotBandKey | RobotSendField;
@@ -88,9 +104,11 @@ export type BandKey = 'bpm' | LoadingRangeKey | RobotBandKey | RobotSendField;
 /** The kind of band a key holds. */
 export type BandFor<K extends BandKey> = K extends RobotToggleKey
   ? ToggleBand
-  : K extends RobotLitKey | RobotSendField
-    ? SendBand
-    : RangeBand;
+  : K extends RobotPickKey
+    ? PickBand
+    : K extends RobotLitKey | RobotSendField
+      ? SendBand
+      : RangeBand;
 
 /** The whole table: one band per key, each of its key's kind. */
 export type BandTable = { [K in BandKey]: BandFor<K> };

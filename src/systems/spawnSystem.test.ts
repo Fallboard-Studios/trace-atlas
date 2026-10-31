@@ -7,7 +7,7 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, deriveEnvelopeFields, deriveSendFields, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, deriveEnvelopeFields, deriveSendFields, deriveVoiceFields, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { resolveBands } from '../data/bands/resolveBands';
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { getRobotGem } from '../components/robot/gem/polygon';
@@ -3924,6 +3924,175 @@ describe('spawnSystem', () => {
       expect(envelope).not.toHaveBeenCalled();
       const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
       robots.forEach((robot, i) => expect(sendsOf(robot), `robot ${i}`).toEqual(sendsOf(baselines[i])));
+    });
+
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: the Voice family. The waveform draws read a PickBand; Classic's five equal
+    // weights must reproduce Math.floor's index exactly, so every existing world keeps its waveforms.
+    describe('Voice (revisions Task 10)', () => {
+      const WAVEFORMS = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'] as const;
+      const CLASSIC_ACCENT = resolveBands('classic', {})['robot.accentFilterFreq'];
+      const onlyWeight = (wave: (typeof WAVEFORMS)[number]) =>
+        ({ weights: Object.fromEntries(WAVEFORMS.map((w) => [w, w === wave ? 1 : 0])) }) as BandTable['robot.waveform'];
+      const voiceOf = (a: AudioAttributes) => ({
+        waveform: a.waveform,
+        filterFreq: a.filterFreq,
+        filterQ: a.filterQ,
+        filterType: a.filterType,
+        layers: a.layers,
+      });
+
+      it('Classic parity: over 400 robots the base and the three layer waveforms are what Math.floor of the old draw picked', async () => {
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const map = createNoise2D(alea('revisions-t10-parity'));
+        const seen = new Set<string>();
+        for (let i = 0; i < 400; i++) {
+          const attrs = generateAudioAttributes(map, i);
+          const base = WAVEFORMS[Math.min(4, Math.floor(real(map, 'robot.audio.waveform', i, 0, 5)))];
+          expect(attrs.waveform, `robot ${i}`).toBe(base);
+          seen.add(attrs.waveform);
+          (attrs.layers ?? []).forEach((layer, l) => {
+            expect(layer.type, `robot ${i} layer ${l}`).toBe(WAVEFORMS[Math.floor(real(map, 'robot.audio.layer.waveform', i * 10 + l, 0, 5))]);
+          });
+        }
+        expect(seen.size).toBe(5); // every waveform drawn, so the check covers every edge
+      });
+
+      it('a PickBand of one waveform gives every robot and every layer that waveform', () => {
+        for (const wave of WAVEFORMS) {
+          const bands = { ...resolveBands('classic', {}), 'robot.waveform': onlyWeight(wave) };
+          for (let i = 0; i < 40; i++) {
+            const voice = deriveVoiceFields(noiseMap, i, bands);
+            expect(voice.waveform, `${wave} robot ${i}`).toBe(wave);
+            for (const layer of voice.layers ?? []) expect(layer.type, `${wave} robot ${i}`).toBe(wave);
+          }
+        }
+      });
+
+      it('a moved weight is applied: sine and pulse alone share the fleet, a zero-weight waveform never drawn', () => {
+        const bands = {
+          ...resolveBands('classic', {}),
+          'robot.waveform': { weights: { sine: 1, square: 0, triangle: 0, sawtooth: 0, pulse: 1 } },
+        };
+        const drawn = Array.from({ length: 200 }, (_, i) => deriveVoiceFields(noiseMap, i, bands).waveform);
+        expect(new Set(drawn)).toEqual(new Set(['sine', 'pulse']));
+      });
+
+      it('the draw spans the whole weight: two equal weights split 400 robots near half and half', () => {
+        const map = createNoise2D(alea('revisions-t10-shares'));
+        const bands = {
+          ...resolveBands('classic', {}),
+          'robot.waveform': { weights: { sine: 1, square: 1, triangle: 0, sawtooth: 0, pulse: 0 } },
+        };
+        const drawn = Array.from({ length: 400 }, (_, i) => deriveVoiceFields(map, i, bands).waveform);
+        const sineShare = drawn.filter((w) => w === 'sine').length / drawn.length;
+        expect(sineShare).toBeGreaterThan(0.35);
+        expect(sineShare).toBeLessThan(0.65);
+      });
+
+      it('a draw at the very top of the weight lands on the last weighted waveform, never on a zero-weight one or off the end', async () => {
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
+          dataId === 'robot.audio.waveform' || dataId === 'robot.audio.layer.waveform' ? (max ?? 1) : real(nm, dataId, offset, min, max),
+        );
+        const bands = { ...resolveBands('classic', {}), 'robot.waveform': { weights: { sine: 1, square: 2, triangle: 0, sawtooth: 0, pulse: 0 } } };
+        const voice = deriveVoiceFields(noiseMap, 3, bands);
+        expect(voice.waveform).toBe('square');
+        for (const layer of voice.layers ?? []) expect(layer.type).toBe('square');
+        expect(generateAudioAttributes(noiseMap, 3).waveform).toBe('pulse'); // Classic: the old clamp's last waveform
+      });
+
+      it('generateAudioAttributes draws its voice through deriveVoiceFields under the installed bands', () => {
+        for (let i = 0; i < 6; i++) {
+          expect(voiceOf(generateAudioAttributes(noiseMap, i))).toEqual(deriveVoiceFields(noiseMap, i, resolveBands('classic', {})));
+        }
+      });
+
+      it('a robot dealt Woody has the waveform, filter and layers deriveVoiceFields draws under Woody; its adsr, sends and the rest untouched', () => {
+        const { undealt, dealt } = deal({ voice: ['woody'] });
+        const bands = resolveBands('classic', { voice: 'woody' });
+        dealt.forEach((baseline, i) => {
+          expect(baseline.loadedUnder, `robot ${i}`).toEqual({ voice: 'woody' });
+          expect(voiceOf(baseline.audioAttributes), `robot ${i}`).toEqual(deriveVoiceFields(noiseMap, i, bands));
+          // Everything outside the voice - the adsr, the register, the glide, the phase, detune and pulse width - as it was.
+          const { filterFreq: _f, filterQ: _q, filterType: _t, waveform: _w, layers: _l, ...outside } = baseline.audioAttributes;
+          const { filterFreq: _uf, filterQ: _uq, filterType: _ut, waveform: _uw, layers: _ul, ...outsideUndealt } = undealt[i].audioAttributes;
+          expect(outside, `robot ${i}`).toEqual(outsideUndealt);
+          expect(sendsOf(baseline)).toEqual(sendsOf(undealt[i]));
+        });
+        // The parity rule: Woody's bands move some robot off its Classic voice, so the equality cannot hold by coincidence.
+        expect(dealt.some((b, i) => JSON.stringify(voiceOf(b.audioAttributes)) !== JSON.stringify(voiceOf(undealt[i].audioAttributes)))).toBe(true);
+        // The bands themselves, not only the derivation: every open (non-accent, Q 1) robot's cutoff is inside Woody's
+        // 1200-3500 Hz, where Classic's open band (2000-8000) put some above it.
+        const open = dealt.filter((b) => b.audioAttributes.filterQ === 1);
+        expect(open.length).toBeGreaterThan(0);
+        for (const b of open) {
+          expect(b.audioAttributes.filterFreq).toBeGreaterThanOrEqual(1200);
+          expect(b.audioAttributes.filterFreq).toBeLessThanOrEqual(3500);
+        }
+        expect(undealt.some((b) => b.audioAttributes.filterQ === 1 && b.audioAttributes.filterFreq > 3500)).toBe(true);
+        // And the layer gain: every sounding layer inside Woody's 0.6-1.0, where Classic's 0.2-1.2 put some outside it.
+        const sounding = (b: RobotAudioBaseline) => (b.audioAttributes.layers ?? []).filter((layer) => layer.gain > 0);
+        for (const b of dealt) {
+          for (const layer of sounding(b)) {
+            expect(layer.gain).toBeGreaterThanOrEqual(0.6);
+            expect(layer.gain).toBeLessThanOrEqual(1);
+          }
+        }
+        expect(undealt.some((b) => sounding(b).some((layer) => layer.gain < 0.6 || layer.gain > 1))).toBe(true);
+      });
+
+      it('a robot dealt Hollow takes Hollow\'s accent filter: every resonant robot inside its 600-2000 Hz cutoff and 6-12 Q', () => {
+        const { dealt } = deal({ voice: ['hollow'] });
+        const accents = dealt.filter((b) => b.audioAttributes.filterQ !== 1);
+        expect(accents.length).toBeGreaterThan(0);
+        for (const b of accents) {
+          expect(b.audioAttributes.filterFreq).toBeGreaterThanOrEqual(600);
+          expect(b.audioAttributes.filterFreq).toBeLessThanOrEqual(2000);
+          expect(b.audioAttributes.filterQ).toBeGreaterThanOrEqual(6);
+          expect(b.audioAttributes.filterQ).toBeLessThanOrEqual(12);
+        }
+        // The parity rule: Classic's accent band (400-2500 Hz, Q 3-8), at Hollow's accent share, lands some robot outside
+        // Hollow's, so the bounds above cannot hold by coincidence.
+        const classicAtHollowShare = { ...resolveBands('classic', {}), 'robot.accentFilterFreq': { ...CLASSIC_ACCENT, lit: 0.45 } };
+        const classicAccents = dealt.map((_, i) => deriveVoiceFields(noiseMap, i, classicAtHollowShare)).filter((v) => v.filterQ !== 1);
+        expect(classicAccents.some((v) => v.filterFreq < 600 || v.filterFreq > 2000 || (v.filterQ ?? 0) < 6)).toBe(true);
+      });
+
+      it('a robot dealt Held and Woody carries both: the Held adsr and the Woody voice in one set of audio attributes', () => {
+        const { dealt } = deal({ envelope: ['held'], voice: ['woody'] });
+        dealt.forEach((baseline, i) => {
+          expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'held', voice: 'woody' });
+          expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
+          expect(voiceOf(baseline.audioAttributes)).toEqual(deriveVoiceFields(noiseMap, i, resolveBands('classic', { voice: 'woody' })));
+        });
+      });
+
+      it('applyAspectDeal, live: a Voice deal rebuilds each voice from the store and re-primes its links, as a structural edit does', () => {
+        useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { voice: ['glassy', 'hollow'] } });
+        const localeId = 'revisions-t10-live-voice';
+        freshLocale(localeId, { x: 7, y: 11 });
+        spawnInitialRoster(localeId);
+        spawnInitialCompanies(localeId);
+        const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+        const prime = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+
+        applyAspectDeal(localeId);
+
+        const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        expect(rebuild).toHaveBeenCalledTimes(robots.length);
+        expect(prime).toHaveBeenCalledTimes(robots.length);
+        for (const robot of robots) {
+          expect(rebuild).toHaveBeenCalledWith(robot.id);
+          expect(prime).toHaveBeenCalledWith(robot);
+        }
+        // The rebuild reads the store, so it runs after the write: the store already holds the dealt voice.
+        expect(rebuild.mock.invocationCallOrder[0]).toBeLessThan(prime.mock.invocationCallOrder[0]);
+        expect(envelope).not.toHaveBeenCalled();
+        const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+        robots.forEach((robot, i) => expect(voiceOf(robot.audioAttributes), `robot ${i}`).toEqual(voiceOf(baselines[i].audioAttributes)));
+        expect(new Set(robots.map((r) => r.loadedUnder?.voice))).toEqual(new Set(['glassy', 'hollow']));
+      });
     });
 
     it('applyAspectDeal, live: a Melody-only deal pushes no envelope and no sends', () => {

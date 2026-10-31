@@ -8,10 +8,11 @@ import type { BandKey, BandTable } from './bandKeys';
 // ========================================
 
 /** The aspect families (docs/specs/OFF_SCREEN.md assumption 15), in family order: Melody, then Envelope and Distance
- *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, Crawford's note 3; the wireframe's Space became Distance in his answer 6).
+ *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, Crawford's note 3; the wireframe's Space became Distance in his answer 6),
+ *  then Voice (revisions Task 10, through the waveform pick).
  *  A family is a key set and its options' columns; the deal (dealAspects.ts) seats one option per family per robot.
  *  Aspects are robot-side (spec §3): a family's keys are robot bands or sends, never `bpm` or a global row. */
-export const ASPECT_FAMILY_IDS = ['melody', 'envelope', 'distance'] as const;
+export const ASPECT_FAMILY_IDS = ['melody', 'envelope', 'distance', 'voice'] as const;
 export type AspectFamilyId = (typeof ASPECT_FAMILY_IDS)[number];
 
 /** Each family's option ids in canonical option order (assumption 17): a family's row lists them so, and every pick list
@@ -23,6 +24,7 @@ export const ASPECT_IDS_BY_FAMILY = {
   melody: ['hypnotic', 'mechanical', 'wandering'],
   envelope: ['plucked', 'swelling', 'held'],
   distance: ['near', 'far', 'remote'],
+  voice: ['glassy', 'woody', 'hollow'],
 } as const satisfies Record<AspectFamilyId, readonly string[]>;
 
 /** One family's option ids. */
@@ -63,6 +65,17 @@ export type EnvelopeBandKey = (typeof ENVELOPE_BAND_KEYS)[number];
 export const DISTANCE_BAND_KEYS = ['reverbSend', 'delaySend'] as const;
 export type DistanceBandKey = (typeof DISTANCE_BAND_KEYS)[number];
 
+/** The five Voice keys (revisions Task 10): the waveform pick (the base and the three layers draw it), the open and the
+ *  accent bus filter with the accent's resonance, and the Coaxial / Harmonic layer gain. */
+export const VOICE_BAND_KEYS = [
+  'robot.waveform',
+  'robot.filterFreq',
+  'robot.accentFilterFreq',
+  'robot.accentFilterQ',
+  'robot.layerGain',
+] as const;
+export type VoiceBandKey = (typeof VOICE_BAND_KEYS)[number];
+
 /** A family: its key set, and per option a column over those keys only. The option type is
  *  `Partial<Pick<BandTable, K>>`, so an aspect cannot reach outside its family (spec §1.5) and no conflict rule is
  *  needed; the option ids are the family's own. */
@@ -85,6 +98,10 @@ export interface AspectFamily<F extends AspectFamilyId, K extends BandKey> {
  * 0.8-2 s after, shaped or not. Near keeps both sends low and mostly unlit; Far sinks deep into the Reverb with little
  * Delay; Remote sinks deep into both.
  *
+ * Voice (revisions Task 10, for the same listen): Glassy leans sine and triangle under an open cutoff, few dark accent
+ * robots and quiet partials; Woody leans triangle and square under a lower cutoff with warm, mostly sounding layers;
+ * Hollow leans square and pulse under a lower cutoff, with more robots on the resonant accent filter and a higher Q.
+ *
  * Each column names only keys it moves, inside its family. resolveBands.test.ts pins the key sets, the bounds and the
  * intent.
  */
@@ -92,6 +109,7 @@ export const ASPECT_FAMILIES: {
   readonly melody: AspectFamily<'melody', MelodyBandKey>;
   readonly envelope: AspectFamily<'envelope', EnvelopeBandKey>;
   readonly distance: AspectFamily<'distance', DistanceBandKey>;
+  readonly voice: AspectFamily<'voice', VoiceBandKey>;
 } = {
   melody: {
     keys: MELODY_BAND_KEYS,
@@ -153,6 +171,28 @@ export const ASPECT_FAMILIES: {
       remote: {
         reverbSend: { min: 0.65, max: 0.95, lit: 1 },
         delaySend: { min: 0.35, max: 0.6, lit: 1 },
+      },
+    },
+  },
+  voice: {
+    keys: VOICE_BAND_KEYS,
+    options: {
+      glassy: {
+        'robot.waveform': { weights: { sine: 4, square: 0.5, triangle: 4, sawtooth: 0.5, pulse: 1 } },
+        'robot.filterFreq': { min: 5000, max: 9000 },
+        'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.1 },
+        'robot.layerGain': { min: 0.2, max: 0.5, lit: 0.3 },
+      },
+      woody: {
+        'robot.waveform': { weights: { sine: 1, square: 3, triangle: 4, sawtooth: 1, pulse: 1 } },
+        'robot.filterFreq': { min: 1200, max: 3500 },
+        'robot.layerGain': { min: 0.6, max: 1, lit: 0.7 },
+      },
+      hollow: {
+        'robot.waveform': { weights: { sine: 0.5, square: 4, triangle: 0.5, sawtooth: 1, pulse: 4 } },
+        'robot.filterFreq': { min: 1500, max: 5000 },
+        'robot.accentFilterFreq': { min: 600, max: 2000, lit: 0.45 },
+        'robot.accentFilterQ': { min: 6, max: 12 },
       },
     },
   },

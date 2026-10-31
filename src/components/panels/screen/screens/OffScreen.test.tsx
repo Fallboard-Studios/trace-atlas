@@ -469,6 +469,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
       human('home.off.melody'),
       human('home.off.envelope'),
       human('home.off.distance'),
+      human('home.off.voice'), // revisions Task 10: the fifth row of the column, Voice
     ]);
   });
 
@@ -600,7 +601,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   it("the description lines are text, one under each row, and the three aspect sentences and the row's own are distinct", () => {
     const { container } = render(<OffScreen />);
     const lines = container.querySelectorAll('.off-screen__description');
-    expect(lines).toHaveLength(4); // the theme's, then one per family (revisions Task 9)
+    expect(lines).toHaveLength(5); // the theme's, then one per family (revisions Tasks 9 and 10)
     expect(lines[0].classList.contains('off-screen__description--theme')).toBe(true);
     expect(lines[1].classList.contains('off-screen__description--melody')).toBe(true);
     expect(lines[1].tagName).toBe('P');
@@ -724,6 +725,13 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(description('envelope')).toBe(sentence('envelope', 'swelling')); // the save's set, the last in canonical order
     expect(description('distance')).toBe(sentence('distance', 'none'));
+  });
+
+  it('toggling Woody sends the Voice set with every other family carried (revisions Task 10)', () => {
+    load({ envelope: ['held'], distance: ['far'] });
+    render(<OffScreen />);
+    fireEvent.click(option('voice', name('voice', 'woody')));
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'], distance: ['far'], voice: ['woody'] } });
   });
 
   it('Roll leaves every family alone', () => {

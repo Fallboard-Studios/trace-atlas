@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
 import { overlayBands, resolveBands } from './resolveBands';
 import { CLASSIC } from './classic';
-import { ROBOT_LIT_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
+import { ROBOT_LIT_KEYS, ROBOT_PICK_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
 import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
 import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectId, type AspectIdOf } from './aspects';
 
@@ -141,6 +141,8 @@ const EXPECTED: BandTable = {
   'robot.dynamics': { min: 25, max: 75 },
   'robot.rests': { min: 10, max: 60 },
   'robot.accents': { min: 20, max: 80 },
+  // The waveform pick (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): WAVEFORMS' even ~20 % each, as five equal weights.
+  'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
 
   // The sends (ROBOT_SEND_LOADING_RANGES).
   reverbSend: { min: 0.1, max: 0.6, lit: 1 },
@@ -163,13 +165,19 @@ describe('resolveBands - Classic parity (docs/specs/OFF_SCREEN.md §5.2, plan Ta
     expect(CLASSIC).toStrictEqual(EXPECTED);
   });
 
-  it('holds 78 bands: one tempo, fifty global rows, twenty-two robot bands and five sends', () => {
-    expect(Object.keys(CLASSIC)).toHaveLength(78);
-    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length).toBe(22);
+  it('holds 79 bands: one tempo, fifty global rows, twenty-three robot bands (the waveform pick since revisions Task 10) and five sends', () => {
+    expect(Object.keys(CLASSIC)).toHaveLength(79);
+    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(23);
   });
 
-  it('keeps every lit share and off share a real share in (0, 1], and every band min <= max', () => {
+  it('keeps every lit share and off share a real share in (0, 1], every band min <= max, and every pick a real weighting', () => {
     for (const [key, band] of Object.entries(CLASSIC)) {
+      if ('weights' in band) {
+        const weights = Object.values(band.weights);
+        expect(weights.every((w) => w >= 0), `${key} weights`).toBe(true);
+        expect(weights.reduce((a, b) => a + b, 0), `${key} total`).toBeGreaterThan(0);
+        continue;
+      }
       expect(band.min, `${key} min <= max`).toBeLessThanOrEqual(band.max);
       if ('lit' in band) {
         expect(band.lit, `${key} lit`).toBeGreaterThan(0);
@@ -182,15 +190,26 @@ describe('resolveBands - Classic parity (docs/specs/OFF_SCREEN.md §5.2, plan Ta
     }
   });
 
-  it('shapes the three robot kinds by key: a toggle key has offShare, a lit key has lit, a range key has neither', () => {
+  it('shapes the four robot kinds by key: a toggle key has offShare, a lit key has lit, a pick key has weights, a range key has min and max alone', () => {
     for (const key of ROBOT_TOGGLE_KEYS) expect(Object.keys(CLASSIC[key]).sort(), key).toEqual(['max', 'min', 'offShare']);
     for (const key of ROBOT_LIT_KEYS) expect(Object.keys(CLASSIC[key]).sort(), key).toEqual(['lit', 'max', 'min']);
+    for (const key of ROBOT_PICK_KEYS) expect(Object.keys(CLASSIC[key]), key).toEqual(['weights']);
     for (const key of ROBOT_RANGE_KEYS) expect(Object.keys(CLASSIC[key]).sort(), key).toEqual(['max', 'min']);
+  });
+
+  it('Classic weights the five waveforms equally, in WAVEFORMS order', () => {
+    expect(Object.keys(CLASSIC['robot.waveform'].weights)).toEqual(['sine', 'square', 'triangle', 'sawtooth', 'pulse']);
+    expect(new Set(Object.values(CLASSIC['robot.waveform'].weights))).toEqual(new Set([1]));
   });
 
   it('types each key to its kind, so a range band has no lit share and a toggle band is not a range', () => {
     expect(CLASSIC['robot.noteVariance'].offShare).toBe(0.15);
     expect(CLASSIC.reverbSend.lit).toBe(1);
+    // @ts-expect-error - a pick band has weights, not a range
+    expect(CLASSIC['robot.waveform'].min).toBeUndefined();
+    // @ts-expect-error - a pick's weights name the waveforms and nothing else
+    const unknownWave: BandTable['robot.waveform'] = { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1, noise: 1 } };
+    expect(unknownWave).toBeDefined();
     // @ts-expect-error - a range band carries no lit share
     expect(CLASSIC.bpm.lit).toBeUndefined();
     // @ts-expect-error - a column cannot name a key outside the table
@@ -229,7 +248,7 @@ describe('overlayBands - replace, never widen (spec §1.5)', () => {
     expect(out['robot.rests']).toStrictEqual({ min: 0, max: 10 });
     expect(out['robot.noteVariance']).toStrictEqual({ offShare: 0.5, min: 1, max: 2 });
     expect(out['robot.rhythmicMotifLength']).toStrictEqual(CLASSIC['robot.rhythmicMotifLength']);
-    expect(Object.keys(out)).toHaveLength(78);
+    expect(Object.keys(out)).toHaveLength(Object.keys(CLASSIC).length);
   });
 
   it('an empty column is the base, value for value', () => {
@@ -256,14 +275,23 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(THEMES.classic).toStrictEqual({});
   });
 
-  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7 (Crawford's note 3; Space renamed Distance, his answer 6): three families.
-  it('names three families in order - melody, envelope, distance - each with three options in canonical order and its key set', () => {
-    expect(ASPECT_FAMILY_IDS).toEqual(['melody', 'envelope', 'distance']);
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 7 and 10 (Crawford's note 3; Space renamed Distance, his answer 6; Voice
+  // through the fourth band kind, his answer 3): four families.
+  it('names four families in order - melody, envelope, distance, voice - each with three options in canonical order and its key set', () => {
+    expect(ASPECT_FAMILY_IDS).toEqual(['melody', 'envelope', 'distance', 'voice']);
     expect(ASPECT_IDS_BY_FAMILY).toEqual({
       melody: ['hypnotic', 'mechanical', 'wandering'],
       envelope: ['plucked', 'swelling', 'held'],
       distance: ['near', 'far', 'remote'],
+      voice: ['glassy', 'woody', 'hollow'],
     });
+    expect(ASPECT_FAMILIES.voice.keys).toEqual([
+      'robot.waveform',
+      'robot.filterFreq',
+      'robot.accentFilterFreq',
+      'robot.accentFilterQ',
+      'robot.layerGain',
+    ]);
     expect(ASPECT_FAMILIES.melody.keys).toEqual([
       'robot.rhythmicDensity',
       'robot.noteVariance',
@@ -318,7 +346,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     const both = resolveBands('calm', { melody: 'hypnotic' });
     expect(both.bpm).toStrictEqual({ min: 150, max: 160 });
     expect(both['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
-    expect(Object.keys(both)).toHaveLength(78);
+    expect(Object.keys(both)).toHaveLength(Object.keys(CLASSIC).length);
   });
 
   it('an aspect with an empty option column (Wandering, injected empty) leaves the theme\'s table as it was', () => {
@@ -371,6 +399,18 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     const wrongFamily: AspectIdOf<'melody'> = 'plucked';
     expect(wrongFamily).toBe('plucked');
   });
+
+  it('types: a Voice option names its own keys, the waveform pick among them, and nothing else (revisions Task 10)', () => {
+    type VoiceOption = (typeof ASPECT_FAMILIES)['voice']['options']['glassy'];
+    const own: VoiceOption = { 'robot.waveform': { weights: { sine: 1, square: 0, triangle: 1, sawtooth: 0, pulse: 0 } } };
+    expect(own).toBeDefined();
+    // @ts-expect-error - robot.attack is an Envelope key, not a Voice one
+    const envelopeKey: VoiceOption = { 'robot.attack': { min: 0, max: 0.1 } };
+    expect(envelopeKey).toBeDefined();
+    // @ts-expect-error - a waveform band is a pick, never a range
+    const rangeWave: VoiceOption = { 'robot.waveform': { min: 0, max: 4 } };
+    expect(rangeWave).toBeDefined();
+  });
 });
 
 // ========================================
@@ -386,6 +426,12 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   const melodyColumn = (option: AspectIdOf<'melody'>) => realAspects.ASPECT_FAMILIES.melody.options[option];
   const envelopeColumn = (option: AspectIdOf<'envelope'>) => realAspects.ASPECT_FAMILIES.envelope.options[option];
   const distanceColumn = (option: AspectIdOf<'distance'>) => realAspects.ASPECT_FAMILIES.distance.options[option];
+  const voiceColumn = (option: AspectIdOf<'voice'>) => realAspects.ASPECT_FAMILIES.voice.options[option];
+  /** A waveform pick's share for the named waveforms, of the band's whole weight. */
+  const shareOf = (band: BandTable['robot.waveform'], waves: (keyof BandTable['robot.waveform']['weights'])[]) => {
+    const total = Object.values(band.weights).reduce((a, b) => a + b, 0);
+    return waves.reduce((sum, wave) => sum + band.weights[wave], 0) / total;
+  };
 
   it.each(['calm', 'bold', 'adventurous', 'perilous'] as const)(
     '%s differs from Classic on a non-empty subset of the v1 key list and nowhere else',
@@ -510,6 +556,38 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(remote.delaySend!.lit).toBe(1);
   });
 
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: the Voice family, its waveform through the fourth band kind (PickBand).
+  it.each(['glassy', 'woody', 'hollow'] as const)(
+    'Voice %s differs from Classic on a non-empty subset of the five Voice keys and nowhere else, its waveform pick moved',
+    (option) => {
+      const column = voiceColumn(option);
+      const moved = movedKeys(overlayBands(CLASSIC, column));
+      expect(moved.length).toBeGreaterThan(0);
+      for (const key of moved) expect(realAspects.VOICE_BAND_KEYS as readonly string[]).toContain(key);
+      expect([...moved].sort()).toEqual(Object.keys(column).sort());
+      expect(moved).toContain('robot.waveform');
+    },
+  );
+
+  it('Glassy leans sine and triangle (at least 0.7 of the weight), with the cutoff opened above Classic\'s floor', () => {
+    const glassy = voiceColumn('glassy');
+    expect(shareOf(glassy['robot.waveform']!, ['sine', 'triangle'])).toBeGreaterThanOrEqual(0.7);
+    expect(glassy['robot.filterFreq']!.min).toBeGreaterThan(CLASSIC['robot.filterFreq'].min);
+  });
+
+  it('Woody leans triangle and square (at least 0.6), under a lower cutoff than Classic\'s', () => {
+    const woody = voiceColumn('woody');
+    expect(shareOf(woody['robot.waveform']!, ['triangle', 'square'])).toBeGreaterThanOrEqual(0.6);
+    expect(woody['robot.filterFreq']!.max).toBeLessThan(CLASSIC['robot.filterFreq'].max);
+  });
+
+  it('Hollow leans square and pulse (at least 0.6), its filter max below Classic\'s and more robots taking the resonant accent', () => {
+    const hollow = voiceColumn('hollow');
+    expect(shareOf(hollow['robot.waveform']!, ['square', 'pulse'])).toBeGreaterThanOrEqual(0.6);
+    expect(hollow['robot.filterFreq']!.max).toBeLessThan(CLASSIC['robot.filterFreq'].max);
+    expect(hollow['robot.accentFilterFreq']!.lit).toBeGreaterThan(CLASSIC['robot.accentFilterFreq'].lit);
+  });
+
   it('every placeholder band is well formed and inside what its field can hold', () => {
     // The field's own bounds, per key the v1 list and the Melody family allow (spec assumption 16); a key missing here
     // is a key the list did not have when this was written, so it fails loudly rather than passing unbounded.
@@ -529,16 +607,30 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       'robot.rhythmicMotifLength': [1, 8],
       reverbSend: [0, 1],
       delaySend: [0, 1],
+      // The Voice keys (revisions Task 10): the bus filter's own slider ranges (ROBOT_BUS_FILTER_FREQ_RANGE,
+      // ROBOT_BUS_FILTER_Q_RANGE) and the Signature Array's Gain slider (0-2).
+      'robot.filterFreq': [20, 20000],
+      'robot.accentFilterFreq': [20, 20000],
+      'robot.accentFilterQ': [0.1, 20],
+      'robot.layerGain': [0, 2],
     };
     const columns: Partial<BandTable>[] = [
       ...Object.values(realThemes.THEMES),
       ...Object.values(realAspects.ASPECT_FAMILIES.melody.options),
       ...Object.values(realAspects.ASPECT_FAMILIES.envelope.options),
       ...Object.values(realAspects.ASPECT_FAMILIES.distance.options),
+      ...Object.values(realAspects.ASPECT_FAMILIES.voice.options),
     ];
-    expect(columns.length).toBe(14);
+    expect(columns.length).toBe(17);
     for (const column of columns) {
       for (const [key, band] of Object.entries(column) as [keyof BandTable, BandTable[keyof BandTable]][]) {
+        if ('weights' in band) {
+          // A pick: every weight a non-negative number, at least one above zero, and only the five waveforms named.
+          expect(Object.keys(band.weights).sort(), key).toEqual(['pulse', 'sawtooth', 'sine', 'square', 'triangle']);
+          expect(Object.values(band.weights).every((w) => Number.isFinite(w) && w >= 0), key).toBe(true);
+          expect(Object.values(band.weights).some((w) => w > 0), key).toBe(true);
+          continue;
+        }
         const bounds = BOUNDS[key];
         expect(bounds, `${key} has no bound here`).toBeDefined();
         expect(band.min, key).toBeLessThanOrEqual(band.max);

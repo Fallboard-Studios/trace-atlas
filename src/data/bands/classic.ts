@@ -205,6 +205,11 @@ export const CLASSIC: BandTable = {
   'robot.dynamics': { min: 25, max: 75 },
   'robot.rests': { min: 10, max: 60 },
   'robot.accents': { min: 20, max: 80 },
+  // The waveform the base and the three Signature Array layers draw (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a pick
+  // (PickBand), five equal unit weights in WAVEFORMS order - the even ~20 % each the draw always gave. Equal unit weights
+  // put the cumulative edges at 1-5, so the pick is exactly Math.floor of the old [0, 5] draw (spawnSystem.test.ts pins it
+  // over 400 robots); the Voice family's options move the weights.
+  'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
 
   // ---- The sends (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1) ---------------------------------------------
   // What a FRESH robot may seed for each of its five sends, never what the slider exposes (SEND_MIN..SEND_MAX). The

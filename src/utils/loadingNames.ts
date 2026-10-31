@@ -48,6 +48,11 @@ export const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<
     far: 'home.off.distance.far',
     remote: 'home.off.distance.remote',
   },
+  voice: {
+    glassy: 'home.off.voice.glassy',
+    woody: 'home.off.voice.woody',
+    hollow: 'home.off.voice.hollow',
+  },
 };
 
 /** A family's label: the heading of its row on the off screen (docs/tasks/OFF_SCREEN.md Task 31). */
@@ -55,6 +60,7 @@ export const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
   melody: 'home.off.melody',
   envelope: 'home.off.envelope',
   distance: 'home.off.distance',
+  voice: 'home.off.voice',
 };
 
 /** One sentence per option, per family, and the family's own for a row with nothing on (`none`) — the line under a
@@ -81,6 +87,12 @@ export const ASPECT_DESCRIPTION_KEY: {
     near: 'home.off.distanceDescription.near',
     far: 'home.off.distanceDescription.far',
     remote: 'home.off.distanceDescription.remote',
+  },
+  voice: {
+    none: 'home.off.voiceDescription.none',
+    glassy: 'home.off.voiceDescription.glassy',
+    woody: 'home.off.voiceDescription.woody',
+    hollow: 'home.off.voiceDescription.hollow',
   },
 };
 

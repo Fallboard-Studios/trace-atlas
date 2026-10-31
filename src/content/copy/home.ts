@@ -89,6 +89,16 @@ export const home = {
   'home.off.distanceDescription.near': { human: 'Near probes sound close and dry, right at the receiver.' },
   'home.off.distanceDescription.far': { human: 'Far probes sound well off, deep in the wash, with little echo.' },
   'home.off.distanceDescription.remote': { human: 'Remote probes sound at the edge of range, washed out and echoing.' },
+  // The Voice family (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10; the wireframe's names): its label, three names and four
+  // sentences, as Envelope's and Distance's. STAND-INS for Crawford's pass.
+  'home.off.voice': { human: 'Voice' },
+  'home.off.voice.glassy': { human: 'Glassy' },
+  'home.off.voice.woody': { human: 'Woody' },
+  'home.off.voice.hollow': { human: 'Hollow' },
+  'home.off.voiceDescription.none': { human: 'Every probe speaks in the voice the theme gives it.' },
+  'home.off.voiceDescription.glassy': { human: 'Glassy probes ring clear and pure, round tones under an open filter.' },
+  'home.off.voiceDescription.woody': { human: 'Woody probes sound warm and soft-edged, their layers full and low.' },
+  'home.off.voiceDescription.hollow': { human: 'Hollow probes sound reedy and resonant, as if through a tube.' },
   // The readout well's accessible name; what it shows is describeWorld's string for the pick, so it carries no
   // template of its own (docs/tasks/OFF_SCREEN.md Task 10).
   'home.off.readout': {

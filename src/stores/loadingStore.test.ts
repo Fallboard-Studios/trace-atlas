@@ -71,7 +71,7 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
     expect(state().aspects).toStrictEqual({});
     state().setLoading({
       theme: 'calm',
-      aspects: { melody: ['hypnotic'], voice: ['warm'] } as unknown as LoadingIdentity['aspects'],
+      aspects: { melody: ['hypnotic'], texture: ['warm'] } as unknown as LoadingIdentity['aspects'],
     });
     expect(state().aspects).toStrictEqual({ melody: ['hypnotic'] });
   });

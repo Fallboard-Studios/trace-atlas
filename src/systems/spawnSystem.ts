@@ -37,8 +37,8 @@ import { robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
 import { resolveBands } from '../data/bands/resolveBands';
 import { dealAspects, type RobotAspects } from '../data/bands/dealAspects';
-import type { BandTable, SendBand, ToggleBand } from '../data/bands/bandKeys';
-import { ASPECT_FAMILY_IDS, type AspectFamilyId, type EnvelopeBandKey, type MelodyBandKey } from '../data/bands/aspects';
+import type { BandTable, PickBand, SendBand, ToggleBand } from '../data/bands/bandKeys';
+import { ASPECT_FAMILY_IDS, type AspectFamilyId, type EnvelopeBandKey, type MelodyBandKey, type VoiceBandKey } from '../data/bands/aspects';
 import type { ThemeId } from '../data/bands/themes';
 import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import { useLoadingStore } from '../stores/loadingStore';
@@ -176,8 +176,27 @@ function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands
   return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
 }
 
-// Waveform types — even distribution gives ~20% each (includes pulse)
+// Waveform types, in the pick's order (robot.waveform's PickBand: Classic's equal weights give ~20 % each, pulse included)
 const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
+
+/**
+ * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one draw over [0, total weight] at `dataId` /
+ * `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under. Classic's five unit
+ * weights make this the same getSeededVal call the old pick made - [0, 5] - and its integer edges 1-5 the exact index
+ * Math.floor gave, so no Classic robot changes waveform. A zero weight is never drawn; a draw at the very top of the
+ * range (the simplex sample at its maximum) lands on the last waveform with a weight, as the old base draw's clamp
+ * did, where the old layer draw would have indexed past the end.
+ */
+function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
+  const total = WAVEFORMS.reduce((sum, wave) => sum + band.weights[wave], 0);
+  const draw = getSeededVal(noiseMap, dataId, offset, 0, total);
+  let edge = 0;
+  for (const wave of WAVEFORMS) {
+    edge += band.weights[wave];
+    if (draw < edge) return wave;
+  }
+  return [...WAVEFORMS].reverse().find((wave) => band.weights[wave] > 0) ?? WAVEFORMS[WAVEFORMS.length - 1];
+}
 
 // Simple word lists for deterministic-looking robot names. ADJECTIVES is exported — reused by
 // generateCompanyName below (Roadmap Phase 10), the same "sounds like this universe" half, paired
@@ -383,6 +402,69 @@ export function deriveEnvelopeFields(
   };
 }
 
+/** The theme's Voice bands as the loading context holds them now (getBand at the draw, band-table T21). */
+function currentVoiceBands(): Pick<BandTable, VoiceBandKey> {
+  return {
+    'robot.waveform': getBand('robot.waveform'),
+    'robot.filterFreq': getBand('robot.filterFreq'),
+    'robot.accentFilterFreq': getBand('robot.accentFilterFreq'),
+    'robot.accentFilterQ': getBand('robot.accentFilterQ'),
+    'robot.layerGain': getBand('robot.layerGain'),
+  };
+}
+
+/** The voice a robot draws: its bus filter, its base waveform and its fixed 3-layer Signature Array. */
+type VoiceFields = Pick<AudioAttributes, 'filterFreq' | 'filterQ' | 'filterType' | 'waveform' | 'layers'>;
+
+/**
+ * A robot's seeded voice at `offset` under `bands` - the theme's at spawn (currentVoiceBands), a Voice aspect's when the
+ * deal re-derives it (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: resolveBands(theme, { voice })). Extracted from
+ * generateAudioAttributes with its dataIds and offsets unchanged: the bus filter (an accent robot a darker, resonant one,
+ * lowpass or bandpass; the cutoff keeps its own dataId in both tiers), the base waveform and the three layers (type, gain,
+ * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune and
+ * phase follow no band and re-derive unchanged.
+ */
+export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceBandKey>): VoiceFields {
+  // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
+  // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
+  // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
+  const accentFilter = bands['robot.accentFilterFreq'];
+  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
+  const filterRange = accent ? accentFilter : bands['robot.filterFreq'];
+  const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
+  const accentQ = bands['robot.accentFilterQ'];
+  const filterQ = accent
+    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
+    : ROBOT_BUS_FILTER_Q;
+  const filterType: RobotFilterType = accent && getSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
+    ? 'bandpass'
+    : 'lowpass';
+
+  // Seeded waveform, through the pick (~20 % each under Classic)
+  const waveform = pickWaveform(noiseMap, 'robot.audio.waveform', offset, bands['robot.waveform']);
+
+  // Generate the fixed 3-layer Signature Array (Baseline/Coaxial/Harmonic, Roadmap Phase 9).
+  // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope.
+  const layers: OscillatorLayer[] = [];
+  const layerGain = bands['robot.layerGain'];
+  for (let i = 0; i < LAYER_COUNT; i++) {
+    const layerOffset = offset * 10 + i;
+    // Baseline (layers[0]) always seeds a real, audible gain from the band; Coaxial/Harmonic (layers[1]/[2]) each go
+    // quiet on a draw under 1 - the band's `lit` (a plain 50/50 under Classic), forcing gain to 0 instead of sampling
+    // one — muting doesn't discard the rest of the layer's configuration (see AudioEngine.ts's filterAudibleLayers),
+    // so a muted layer still gets a full, ready-to-resume config here.
+    const quiet = i !== 0 && getSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
+    const layerWave: OscillatorLayer = {
+      type: pickWaveform(noiseMap, 'robot.audio.layer.waveform', layerOffset, bands['robot.waveform']),
+      gain: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
+      detune: quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
+      phase: Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
+    };
+    layers.push(layerWave);
+  }
+  return { filterFreq, filterQ, filterType, waveform, layers };
+}
+
 export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: number): AudioAttributes {
   // Seeded ADSR envelope, every band from the loading context (band-table T21), through the Envelope family's one
   // derivation (revisions Task 8).
@@ -399,43 +481,9 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   // Seeded octave register — direct [min, max] tuple, no Hz indirection
   const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
 
-  // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
-  // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
-  // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
-  const accentFilter = getBand('robot.accentFilterFreq');
-  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
-  const filterRange = accent ? accentFilter : getBand('robot.filterFreq');
-  const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
-  const accentQ = getBand('robot.accentFilterQ');
-  const filterQ = accent
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
-    : ROBOT_BUS_FILTER_Q;
-  const filterType: RobotFilterType = accent && getSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
-    ? 'bandpass'
-    : 'lowpass';
-
-  // Seeded waveform — evenly distributed (~20% each)
-  const waveform = WAVEFORMS[Math.min(WAVEFORMS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.waveform', offset, 0, WAVEFORMS.length)))];
-
-  // Generate the fixed 3-layer Signature Array (Baseline/Coaxial/Harmonic, Roadmap Phase 9).
-  // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope above.
-  const layers: OscillatorLayer[] = [];
-  const layerGain = getBand('robot.layerGain');
-  for (let i = 0; i < LAYER_COUNT; i++) {
-    const layerOffset = offset * 10 + i;
-    // Baseline (layers[0]) always seeds a real, audible gain from the band; Coaxial/Harmonic (layers[1]/[2]) each go
-    // quiet on a draw under 1 - the band's `lit` (a plain 50/50 under Classic), forcing gain to 0 instead of sampling
-    // one — muting doesn't discard the rest of the layer's configuration (see AudioEngine.ts's filterAudibleLayers),
-    // so a muted layer still gets a full, ready-to-resume config here.
-    const quiet = i !== 0 && getSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
-    const layerWave: OscillatorLayer = {
-      type: WAVEFORMS[Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.waveform', layerOffset, 0, WAVEFORMS.length))],
-      gain: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
-      detune: quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
-      phase: Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
-    };
-    layers.push(layerWave);
-  }
+  // The voice - the bus filter, the waveform and the 3-layer Signature Array - through the Voice family's one
+  // derivation (revisions Task 10).
+  const { filterFreq, filterQ, filterType, waveform, layers } = deriveVoiceFields(noiseMap, offset, currentVoiceBands());
 
   // Phase: 0..360 degrees (used for oscillator phase)
   const phase = Math.floor(getSeededVal(noiseMap, 'robot.audio.phase', offset, 0, 361));
@@ -791,8 +839,9 @@ type DealIdentity = Pick<LoadingIdentity, 'theme' | 'aspects'>;
 type DealtFields = Partial<MelodyFields & Pick<RobotAudioBaseline, 'audioAttributes' | RobotSendField>>;
 
 /** One family's re-derivation for one robot at `spawnIndex` under `bands` (resolveBands(theme, { [family]: aspect })):
- *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes, Distance its five sends. A
- *  switch, so a new family is a compile error until it has its case. */
+ *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes, Distance its five sends, Voice
+ *  its filter, waveform and layers inside its audio attributes. `robot` is the robot as dealt so far, so Envelope and
+ *  Voice both land in one set of audio attributes. A switch, so a new family is a compile error until it has its case. */
 function deriveFamilyFields(
   family: AspectFamilyId,
   noiseMap: NoiseFunction2D,
@@ -807,6 +856,8 @@ function deriveFamilyFields(
       return { audioAttributes: { ...robot.audioAttributes, adsr: deriveEnvelopeFields(noiseMap, spawnIndex, bands) } };
     case 'distance':
       return deriveSendFields(noiseMap, spawnIndex, bands);
+    case 'voice':
+      return { audioAttributes: { ...robot.audioAttributes, ...deriveVoiceFields(noiseMap, spawnIndex, bands) } };
   }
 }
 
@@ -826,7 +877,7 @@ function dealtFields(
     const aspect = aspects[family];
     if (aspect === undefined) continue;
     const bands = resolveBands(theme, { [family]: aspect });
-    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, robot) };
+    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }) };
   }
   return fields;
 }
@@ -878,9 +929,11 @@ export function generateDealtRosterBaseline(
  * edit of its fields does (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody
  * re-registers it, applyDensity's path), Envelope hands the new adsr to updateVoiceEnvelope (applyAdsr's path: a live
  * write, curves included, no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the
- * prime every reservation makes). Before the engine starts - the off screen - those engine calls are the same no-ops
- * they are at spawn. With nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same noise
- * map, so the two agree field for field.
+ * prime every reservation makes), Voice rebuilds the voice from the store and re-primes its LFO links (the structural
+ * edit's rebuildVoice, robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions
+ * Task 10). Before the engine starts - the off screen - those engine calls are the same no-ops they are at spawn. With
+ * nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same noise map, so the two agree
+ * field for field.
  */
 export function applyAspectDeal(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
@@ -897,6 +950,10 @@ export function applyAspectDeal(localeId: string): void {
     if (robotAspects.melody) regenerateMelody(updated, localeId);
     if (robotAspects.envelope) AudioEngine.updateVoiceEnvelope(updated.id, updated.audioAttributes.adsr);
     if (robotAspects.distance) AudioEngine.updateRobotSends(updated.id, robotSendLevels(updated));
+    if (robotAspects.voice) {
+      AudioEngine.reReserveVoice(updated.id);
+      primeRobotLinks(updated);
+    }
   });
 }
 
