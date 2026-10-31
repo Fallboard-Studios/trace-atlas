@@ -38,7 +38,7 @@ import { getBand } from '../data/bands/loadingContext';
 import { resolveBands } from '../data/bands/resolveBands';
 import { dealAspects, type RobotAspects } from '../data/bands/dealAspects';
 import type { BandTable, SendBand, ToggleBand } from '../data/bands/bandKeys';
-import type { MelodyBandKey } from '../data/bands/aspects';
+import { ASPECT_FAMILY_IDS, type AspectFamilyId, type EnvelopeBandKey, type MelodyBandKey } from '../data/bands/aspects';
 import type { ThemeId } from '../data/bands/themes';
 import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import { useLoadingStore } from '../stores/loadingStore';
@@ -341,18 +341,39 @@ export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number)
  * Generate random audio attributes
  * Controls both sound synthesis and visual appearance
  */
-export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: number): AudioAttributes {
-  // Seeded ADSR envelope, every band from the loading context (band-table T21). The curves are drawn first: a shaped
-  // stage is seeded short, from its own band, whose `lit` is the shaped share (robot.shapedAttack, robot.shapedRelease).
-  const shapedAttack = getBand('robot.shapedAttack');
-  const shapedRelease = getBand('robot.shapedRelease');
+/** The theme's Envelope bands as the loading context holds them now (getBand at the draw, band-table T21). */
+function currentEnvelopeBands(): Pick<BandTable, EnvelopeBandKey> {
+  return {
+    'robot.attack': getBand('robot.attack'),
+    'robot.decay': getBand('robot.decay'),
+    'robot.sustain': getBand('robot.sustain'),
+    'robot.release': getBand('robot.release'),
+    'robot.shapedAttack': getBand('robot.shapedAttack'),
+    'robot.shapedRelease': getBand('robot.shapedRelease'),
+  };
+}
+
+/**
+ * A robot's seeded ADSR envelope at `offset` under `bands` - the theme's at spawn (currentEnvelopeBands), an Envelope
+ * aspect's when the deal re-derives it (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: resolveBands(theme, { envelope })).
+ * Extracted from generateAudioAttributes with its dataIds and offsets unchanged, so a dealt robot is exactly what it
+ * would have been had it spawned under the aspect, and Classic parity holds. The curves are drawn first: a shaped stage
+ * is seeded short, from its own band, whose `lit` is the shaped share (robot.shapedAttack, robot.shapedRelease).
+ */
+export function deriveEnvelopeFields(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  bands: Pick<BandTable, EnvelopeBandKey>,
+): AudioAttributes['adsr'] {
+  const shapedAttack = bands['robot.shapedAttack'];
+  const shapedRelease = bands['robot.shapedRelease'];
   const attackCurve = seedCurve(noiseMap, 'robot.audio.attackCurve', offset, shapedAttack.lit);
   const releaseCurve = seedCurve(noiseMap, 'robot.audio.releaseCurve', offset, shapedRelease.lit);
-  const attackRange = attackCurve === 'linear' ? getBand('robot.attack') : shapedAttack;
-  const releaseRange = releaseCurve === 'linear' ? getBand('robot.release') : shapedRelease;
-  const decayRange = getBand('robot.decay');
-  const sustainRange = getBand('robot.sustain');
-  const adsr = {
+  const attackRange = attackCurve === 'linear' ? bands['robot.attack'] : shapedAttack;
+  const releaseRange = releaseCurve === 'linear' ? bands['robot.release'] : shapedRelease;
+  const decayRange = bands['robot.decay'];
+  const sustainRange = bands['robot.sustain'];
+  return {
     attack: getSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
     decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, decayRange.min, decayRange.max),
     sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, sustainRange.min, sustainRange.max),
@@ -360,6 +381,12 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
     attackCurve,
     releaseCurve,
   };
+}
+
+export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: number): AudioAttributes {
+  // Seeded ADSR envelope, every band from the loading context (band-table T21), through the Envelope family's one
+  // derivation (revisions Task 8).
+  const adsr = deriveEnvelopeFields(noiseMap, offset, currentEnvelopeBands());
 
   // Seeded portamento — most robots don't glide; a glider slurs each note into the next. The band's `lit` is the
   // gliding share (robot.portamento).
@@ -491,14 +518,32 @@ function quantizeSend(raw: number): number {
   return quantizeToStep(raw * 100, 0, SEND_STEP_PERCENT) / 100;
 }
 
+/** The five send bands as the loading context holds them now (getBand at the draw, band-table T22). */
+function currentSendBands(): Pick<BandTable, RobotSendField> {
+  return {
+    reverbSend: getBand('reverbSend'),
+    delaySend: getBand('delaySend'),
+    gritSend: getBand('gritSend'),
+    shimmerSend: getBand('shimmerSend'),
+    doubleSend: getBand('doubleSend'),
+  };
+}
+
 /** Turn the four raw draws into the two stored sends: a quiet roll under 1 - the row's `lit` leaves the robot without
  *  that send at all - the Delay row's 0.25 under Classic; the Reverb row's lit of 1 is never quiet, so its roll, added at
  *  band-table T22 so a theme's Reverb share is honoured like every other row's, moves no Classic robot. The bands are the
- *  loaded world's (getBand). Shared by the noise-map draw and spawnRobot's alea fallback. */
-function composeSends(reverbRaw: number, delayRaw: number, reverbQuietRoll: number, delayQuietRoll: number): { reverbSend: number; delaySend: number } {
+ *  caller's: the loaded world's (currentSendBands) at spawn, a Distance aspect's in the deal. Shared by the noise-map draw
+ *  and spawnRobot's alea fallback. */
+function composeSends(
+  reverbRaw: number,
+  delayRaw: number,
+  reverbQuietRoll: number,
+  delayQuietRoll: number,
+  bands: Pick<BandTable, RobotSendField>,
+): { reverbSend: number; delaySend: number } {
   return {
-    reverbSend: reverbQuietRoll < 1 - getBand('reverbSend').lit ? 0 : quantizeSend(reverbRaw),
-    delaySend: delayQuietRoll < 1 - getBand('delaySend').lit ? 0 : quantizeSend(delayRaw),
+    reverbSend: reverbQuietRoll < 1 - bands.reverbSend.lit ? 0 : quantizeSend(reverbRaw),
+    delaySend: delayQuietRoll < 1 - bands.delaySend.lit ? 0 : quantizeSend(delayRaw),
   };
 }
 
@@ -506,13 +551,17 @@ function composeSends(reverbRaw: number, delayRaw: number, reverbQuietRoll: numb
  * The three effect room sends from their uniform draws (docs/specs/ROBOT_EFFECT_SENDS.md assumption 7): in the order
  * Grit -> Shimmer -> Double, a send lands when its roll is under its row's `lit`, unless an earlier one of the three
  * already landed; a landed send is its value draw mapped into its band, on the 1 % grid. The rest are exactly 0. Both
- * draws of every send are taken by the caller before this runs, so the draw set never depends on what lands.
+ * draws of every send are taken by the caller before this runs, so the draw set never depends on what lands. The bands
+ * are the caller's, as composeSends' are.
  */
-function composeExclusiveSends(draw: Record<ExclusiveSendField, { roll: number; t: number }>): Record<ExclusiveSendField, number> {
+function composeExclusiveSends(
+  draw: Record<ExclusiveSendField, { roll: number; t: number }>,
+  bands: Pick<BandTable, RobotSendField>,
+): Record<ExclusiveSendField, number> {
   const sends = { gritSend: 0, shimmerSend: 0, doubleSend: 0 };
   let taken = false;
   for (const field of EXCLUSIVE_SEND_FIELDS) {
-    const band = getBand(field);
+    const band = bands[field];
     if (draw[field].roll < band.lit && !taken) {
       sends[field] = quantizeSend(band.min + draw[field].t * (band.max - band.min));
       taken = true;
@@ -533,13 +582,29 @@ function composeExclusiveSends(draw: Record<ExclusiveSendField, { roll: number; 
  * both, so a copied robot shares its sibling's voice but not its depths, and the two cannot drift.
  */
 export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): Record<RobotSendField, number> {
-  const reverb = getBand('reverbSend');
-  const delay = getBand('delaySend');
+  return deriveSendFields(noiseMap, offset, currentSendBands());
+}
+
+/**
+ * A robot's five seeded sends at `offset` under `bands` - the loaded world's at spawn (generateRobotSends), a Distance
+ * aspect's when the deal re-derives them (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: resolveBands(theme, { distance })).
+ * Extracted from generateRobotSends with its dataIds, offsets and draw order unchanged, so a dealt robot is exactly what
+ * it would have been had it spawned under the aspect. The three effect room sends are re-derived too and come out as
+ * they were: a Distance column cannot name them (DISTANCE_BAND_KEYS).
+ */
+export function deriveSendFields(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  bands: Pick<BandTable, RobotSendField>,
+): Record<RobotSendField, number> {
+  const reverb = bands.reverbSend;
+  const delay = bands.delaySend;
   const firstTwo = composeSends(
     getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
     getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
     getSeededVal(noiseMap, 'robot.send.reverb.quiet', offset, 0, 1),
     getSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
+    bands,
   );
   const draw = (field: ExclusiveSendField) => {
     const room = SEND_FIELD_ROOM[field];
@@ -548,26 +613,31 @@ export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): R
       t: getUniformSeededVal(noiseMap, `robot.send.${room}`, offset),
     };
   };
-  return { ...firstTwo, ...composeExclusiveSends({ gritSend: draw('gritSend'), shimmerSend: draw('shimmerSend'), doubleSend: draw('doubleSend') }) };
+  return {
+    ...firstTwo,
+    ...composeExclusiveSends({ gritSend: draw('gritSend'), shimmerSend: draw('shimmerSend'), doubleSend: draw('doubleSend') }, bands),
+  };
 }
 
 /** spawnRobot's no-noise-map path (a locale that does not exist yet): the same bands, drawn from alea as
  *  Volume's fallback is. Four draws for Reverb and Delay, since each quiet roll needs its own, then a roll and a value
  *  for each effect room send (`sendGritLit`, `sendGrit`, ...). */
 function generateRobotSendsFallback(localeId: string, spawnCount: number): Record<RobotSendField, number> {
-  const reverb = getBand('reverbSend');
-  const delay = getBand('delaySend');
+  const bands = currentSendBands();
+  const reverb = bands.reverbSend;
+  const delay = bands.delaySend;
   const firstTwo = composeSends(
     reverb.min + alea(`${localeId}:${spawnCount}:sendReverb`)() * (reverb.max - reverb.min),
     delay.min + alea(`${localeId}:${spawnCount}:sendDelay`)() * (delay.max - delay.min),
     alea(`${localeId}:${spawnCount}:sendReverbQuiet`)(),
     alea(`${localeId}:${spawnCount}:sendQuiet`)(),
+    bands,
   );
   const draw = (name: string) => ({
     roll: alea(`${localeId}:${spawnCount}:send${name}Lit`)(),
     t: alea(`${localeId}:${spawnCount}:send${name}`)(),
   });
-  return { ...firstTwo, ...composeExclusiveSends({ gritSend: draw('Grit'), shimmerSend: draw('Shimmer'), doubleSend: draw('Double') }) };
+  return { ...firstTwo, ...composeExclusiveSends({ gritSend: draw('Grit'), shimmerSend: draw('Shimmer'), doubleSend: draw('Double') }, bands) };
 }
 
 /**
@@ -716,12 +786,49 @@ export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotId
 /** The identity the deal reads: the theme the fleet was built under and the picks to seat. */
 type DealIdentity = Pick<LoadingIdentity, 'theme' | 'aspects'>;
 
-/** A dealt robot's re-derived fields: per dealt family, its keys from the robot's own index under
- *  resolveBands(theme, { [family]: aspect }) - the same draws as at spawn, into the aspect's bands (assumption 22). One
- *  family in v1; a later family adds its branch here. */
-function dealtFields(noiseMap: NoiseFunction2D, spawnIndex: number, theme: ThemeId, aspects: RobotAspects): Partial<MelodyFields> {
-  if (!aspects.melody) return {};
-  return deriveMelodyFields(noiseMap, spawnIndex, resolveBands(theme, { melody: aspects.melody }));
+/** What the deal re-derives on a robot: the Melody fields, the audio attributes (Envelope's adsr inside them) and the
+ *  five sends. */
+type DealtFields = Partial<MelodyFields & Pick<RobotAudioBaseline, 'audioAttributes' | RobotSendField>>;
+
+/** One family's re-derivation for one robot at `spawnIndex` under `bands` (resolveBands(theme, { [family]: aspect })):
+ *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes, Distance its five sends. A
+ *  switch, so a new family is a compile error until it has its case. */
+function deriveFamilyFields(
+  family: AspectFamilyId,
+  noiseMap: NoiseFunction2D,
+  spawnIndex: number,
+  bands: BandTable,
+  robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+): DealtFields {
+  switch (family) {
+    case 'melody':
+      return deriveMelodyFields(noiseMap, spawnIndex, bands);
+    case 'envelope':
+      return { audioAttributes: { ...robot.audioAttributes, adsr: deriveEnvelopeFields(noiseMap, spawnIndex, bands) } };
+    case 'distance':
+      return deriveSendFields(noiseMap, spawnIndex, bands);
+  }
+}
+
+/** A dealt robot's re-derived fields (assumption 22; per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): for each
+ *  dealt family in family order, its keys from the robot's own index under resolveBands(theme, { [family]: aspect }) -
+ *  the same draws as at spawn, into the aspect's bands - so a dealt robot is what it would have been had it spawned
+ *  under the aspect. A family not dealt keeps its fields. */
+function dealtFields(
+  noiseMap: NoiseFunction2D,
+  spawnIndex: number,
+  theme: ThemeId,
+  aspects: RobotAspects,
+  robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+): DealtFields {
+  let fields: DealtFields = {};
+  for (const family of ASPECT_FAMILY_IDS) {
+    const aspect = aspects[family];
+    if (aspect === undefined) continue;
+    const bands = resolveBands(theme, { [family]: aspect });
+    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, robot) };
+  }
+  return fields;
 }
 
 /**
@@ -744,7 +851,7 @@ export function applyDealToBaselines(
   return baselines.map((baseline, i) => {
     const aspects = dealt.get(robotIds[i]);
     if (!aspects) return baseline;
-    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects), loadedUnder: aspects };
+    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects, baseline), loadedUnder: aspects };
   });
 }
 
@@ -767,9 +874,13 @@ export function generateDealtRosterBaseline(
  * The deal pass on the live roster (assumption 22): after spawnInitialCompanies, in initializeLocale
  * (worldTransition.ts). Reads the loading store's theme and picks, deals over the locale's companies and robots, and for
  * every dealt robot writes its re-derived fields and `loadedUnder` through updateRobot (the roster position is the spawn
- * index: the initial roster spawns in order from 0) and regenerates its melody from them (regenerateMelody re-registers
- * it with the engine). With nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same
- * noise map, so the two agree field for field.
+ * index: the initial roster spawns in order from 0). Then each dealt family reaches the running engine the way a hand
+ * edit of its fields does (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody
+ * re-registers it, applyDensity's path), Envelope hands the new adsr to updateVoiceEnvelope (applyAdsr's path: a live
+ * write, curves included, no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the
+ * prime every reservation makes). Before the engine starts - the off screen - those engine calls are the same no-ops
+ * they are at spawn. With nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same noise
+ * map, so the two agree field for field.
  */
 export function applyAspectDeal(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
@@ -780,9 +891,12 @@ export function applyAspectDeal(localeId: string): void {
   locale.robots.forEach((robot, i) => {
     const robotAspects = dealt.get(robot.id);
     if (!robotAspects) return;
-    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...dealtFields(noiseMap, i, theme, robotAspects), loadedUnder: robotAspects });
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...dealtFields(noiseMap, i, theme, robotAspects, robot), loadedUnder: robotAspects });
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
-    if (updated) regenerateMelody(updated, localeId);
+    if (!updated) return;
+    if (robotAspects.melody) regenerateMelody(updated, localeId);
+    if (robotAspects.envelope) AudioEngine.updateVoiceEnvelope(updated.id, updated.audioAttributes.adsr);
+    if (robotAspects.distance) AudioEngine.updateRobotSends(updated.id, robotSendLevels(updated));
   });
 }
 

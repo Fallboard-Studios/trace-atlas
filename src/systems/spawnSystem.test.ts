@@ -7,7 +7,8 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, deriveEnvelopeFields, deriveSendFields, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { resolveBands } from '../data/bands/resolveBands';
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { getRobotGem } from '../components/robot/gem/polygon';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
@@ -3737,6 +3738,205 @@ describe('spawnSystem', () => {
       expect(after).toBe(before);
       expect(register).not.toHaveBeenCalled();
       for (const robot of after) expect(robot.loadedUnder).toBeUndefined();
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: the deal per family. Envelope re-derives the robot's adsr, Distance its sends,
+  // each through the same draws spawn makes (deriveEnvelopeFields, deriveSendFields), under resolveBands(theme, aspect);
+  // live, each dealt family is pushed to the engine as a hand edit would push it.
+  describe('the deal pass per family (revisions Task 8)', () => {
+    const noiseMap = createNoise2D(alea('revisions-t8'));
+    const ROSTER = 12;
+    const ids = Array.from({ length: ROSTER }, (_, i) => `robot-${i}`);
+    const companies = generateCompanyRosterBaseline(noiseMap, ids);
+    const deal = (aspects: LoadingIdentity['aspects'], theme: LoadingIdentity['theme'] = 'classic') => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      return { undealt, dealt: applyDealToBaselines(undealt, ids, companies, { theme, aspects }, noiseMap) };
+    };
+    const sendsOf = (r: Pick<RobotAudioBaseline, 'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend'>) => ({
+      reverbSend: r.reverbSend,
+      delaySend: r.delaySend,
+      gritSend: r.gritSend,
+      shimmerSend: r.shimmerSend,
+      doubleSend: r.doubleSend,
+    });
+    /** Every field but the adsr, the five sends and loadedUnder: what an Envelope or Distance deal must leave alone. */
+    const restOf = (r: RobotAudioBaseline) => {
+      const { reverbSend: _r, delaySend: _d, gritSend: _g, shimmerSend: _s, doubleSend: _o, loadedUnder: _l, audioAttributes, ...rest } = r;
+      const { adsr: _a, ...attributes } = audioAttributes;
+      return { ...rest, attributes };
+    };
+    const freshLocale = (localeId: string, coordinates: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [], companies: [] } },
+      }));
+
+    afterEach(async () => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+      vi.restoreAllMocks();
+    });
+
+    it('generateAudioAttributes draws its adsr through deriveEnvelopeFields under the installed bands, value for value', () => {
+      for (let i = 0; i < 6; i++) {
+        expect(generateAudioAttributes(noiseMap, i).adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', {})));
+      }
+      const perilous = withLoading({ theme: 'perilous', aspects: {} }, () => generateAudioAttributes(noiseMap, 2).adsr);
+      expect(perilous).toEqual(deriveEnvelopeFields(noiseMap, 2, resolveBands('perilous', {})));
+    });
+
+    it('generateRobotSends is deriveSendFields under the installed bands, value for value', () => {
+      for (let i = 0; i < 6; i++) expect(generateRobotSends(noiseMap, i)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', {})));
+      const adventurous = withLoading({ theme: 'adventurous', aspects: {} }, () => generateRobotSends(noiseMap, 3));
+      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('adventurous', {})));
+    });
+
+    it('a robot dealt Plucked has the adsr deriveEnvelopeFields draws at its index under Plucked; its sends and every other field are untouched', () => {
+      const { undealt, dealt } = deal({ envelope: ['plucked'] });
+      const bands = resolveBands('classic', { envelope: 'plucked' });
+      dealt.forEach((baseline, i) => {
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'plucked' });
+        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(deriveEnvelopeFields(noiseMap, i, bands));
+        expect(baseline.audioAttributes.adsr.attack, `robot ${i}`).toBeLessThanOrEqual(0.04);
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(sendsOf(undealt[i]));
+        expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
+      });
+      // The parity rule: Classic's own draws break the pluck somewhere, so the equality cannot hold by coincidence.
+      expect(undealt.some((b) => b.audioAttributes.adsr.attack > 0.04)).toBe(true);
+    });
+
+    it('a robot dealt Remote has the sends deriveSendFields draws at its index under Remote; its adsr and every other field are untouched', () => {
+      const { undealt, dealt } = deal({ distance: ['remote'] });
+      const bands = resolveBands('classic', { distance: 'remote' });
+      dealt.forEach((baseline, i) => {
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'remote' });
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, bands));
+        expect(baseline.reverbSend, `robot ${i}`).toBeGreaterThanOrEqual(0.65);
+        expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.35);
+        // The three effect room sends are the theme's: re-derived, they come out as they were.
+        const { gritSend, shimmerSend, doubleSend } = undealt[i];
+        expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
+        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(undealt[i].audioAttributes.adsr);
+        expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
+      });
+      expect(undealt.some((b) => b.reverbSend < 0.65)).toBe(true);
+    });
+
+    it('the deal reads every band from its own theme, never the installed context: Remote under Adventurous carries Adventurous\'s grit while Classic is loaded', () => {
+      expect(useLoadingStore.getState().theme).toBe('classic');
+      const { dealt } = deal({ distance: ['remote'] }, 'adventurous');
+      dealt.forEach((baseline, i) => {
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('adventurous', { distance: 'remote' })));
+        // This file's Adventurous seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
+        expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
+      });
+    });
+
+    it('a robot dealt one of each family carries all three, and loadedUnder has one key per dealt family', () => {
+      const { dealt } = deal({ melody: ['hypnotic'], envelope: ['held'], distance: ['near'] });
+      dealt.forEach((baseline, i) => {
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'near' });
+        expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
+        expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', { distance: 'near' })));
+        // Calm carries Hypnotic's column in this file's mock: a fresh robot at this index under Calm is the Melody re-derivation.
+        const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+        expect(baseline.rhythmicDensity).toBe(expected.rhythmicDensity);
+        expect(baseline.noteVariance).toEqual(expected.noteVariance);
+      });
+      const { dealt: two } = deal({ envelope: ['swelling'], distance: ['far'] });
+      for (const baseline of two) expect(Object.keys(baseline.loadedUnder ?? {}).sort()).toEqual(['distance', 'envelope']);
+    });
+
+    it('an aspect composes over the theme: Perilous plus Swelling takes Swelling\'s attack and sustain and Perilous\'s decay and release', () => {
+      const { dealt } = deal({ envelope: ['swelling'] }, 'perilous');
+      dealt.forEach((baseline, i) => {
+        const { adsr } = baseline.audioAttributes;
+        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('perilous', { envelope: 'swelling' })));
+        // Perilous (this file's mock) seeds attacks of 1.5-2 s; Swelling's 0.3-1.2 wins.
+        expect(adsr.attack, `robot ${i}`).toBeLessThanOrEqual(1.2);
+        expect(adsr.decay, `robot ${i}`).toBeGreaterThanOrEqual(1);
+        expect(adsr.decay, `robot ${i}`).toBeLessThanOrEqual(1.2);
+        expect(adsr.sustain, `robot ${i}`).toBeGreaterThanOrEqual(0.7);
+      });
+    });
+
+    it('a copied-baseline robot re-derives its adsr from its own index, keeping the rest of the copy', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.copyChance') return 0;
+        if (dataId === 'robot.copySource') return min ?? 0;
+        return real(nm, dataId, offset, min, max);
+      });
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      expect(undealt[3].audioAttributes).toEqual(undealt[0].audioAttributes); // precondition: robot 3 copies robot 0
+      const bands = resolveBands('classic', { envelope: 'held' });
+      const own = deriveEnvelopeFields(noiseMap, 3, bands);
+      expect(own).not.toEqual(deriveEnvelopeFields(noiseMap, 0, bands)); // precondition: the two indices draw apart
+      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
+      expect(dealt[3].audioAttributes.adsr).toEqual(own);
+      expect(dealt[3].audioAttributes.waveform).toBe(undealt[0].audioAttributes.waveform);
+      expect(dealt[3].audioAttributes.layers).toEqual(undealt[0].audioAttributes.layers);
+    });
+
+    it('applyAspectDeal, live: an Envelope deal writes each adsr and hands it to the engine as a hand edit does, once a robot, and agrees with the baseline', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['plucked', 'held'] } });
+      const localeId = 'revisions-t8-live-envelope';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+
+      applyAspectDeal(localeId);
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(envelope).toHaveBeenCalledTimes(robots.length);
+      for (const robot of robots) expect(envelope).toHaveBeenCalledWith(robot.id, robot.audioAttributes.adsr);
+      expect(sends).not.toHaveBeenCalled();
+      expect(register).not.toHaveBeenCalled();
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+      robots.forEach((robot, i) => {
+        expect(robot.audioAttributes.adsr, `robot ${i}`).toEqual(baselines[i].audioAttributes.adsr);
+        expect(robot.loadedUnder, `robot ${i}`).toEqual(baselines[i].loadedUnder);
+      });
+      expect(new Set(robots.map((r) => r.loadedUnder?.envelope))).toEqual(new Set(['plucked', 'held']));
+    });
+
+    it('applyAspectDeal, live: a Distance deal writes each robot\'s sends and hands all five to the engine, once a robot, and agrees with the baseline', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+      const localeId = 'revisions-t8-live-distance';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      applyAspectDeal(localeId);
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(sends).toHaveBeenCalledTimes(robots.length);
+      for (const robot of robots) {
+        expect(sends).toHaveBeenCalledWith(robot.id, robotSendLevels(robot));
+        expect(robot.reverbSend).toBeGreaterThanOrEqual(0.65);
+      }
+      expect(envelope).not.toHaveBeenCalled();
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+      robots.forEach((robot, i) => expect(sendsOf(robot), `robot ${i}`).toEqual(sendsOf(baselines[i])));
+    });
+
+    it('applyAspectDeal, live: a Melody-only deal pushes no envelope and no sends', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['wandering'] } });
+      const localeId = 'revisions-t8-live-melody';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      applyAspectDeal(localeId);
+      expect(envelope).not.toHaveBeenCalled();
+      expect(sends).not.toHaveBeenCalled();
     });
   });
 });

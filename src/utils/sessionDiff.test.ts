@@ -921,6 +921,28 @@ describe('applySessionPayload', () => {
       expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0);
     });
 
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: the baseline re-derives every dealt family, so a world dealt across all three
+    // diffs empty; the control (Envelope and Distance only, never dealt live) shows the adsr and the sends do move.
+    it('an untweaked world dealt across three families has no robot overrides, where the same picks never dealt live read as edited adsr and sends', () => {
+      const aspects = { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] } as const;
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: [...aspects.melody], envelope: [...aspects.envelope], distance: [...aspects.distance] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const payload = buildSessionPayload();
+      expect(payload.aspects).toEqual({ melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] });
+      expect(payload.robotOverrides).toEqual({});
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['plucked'], distance: ['remote'] } });
+      const control = setupWorld();
+      spawnInitialRoster(control);
+      spawnInitialCompanies(control);
+      const overrides = Object.values(buildSessionPayload().robotOverrides);
+      expect(overrides.length).toBeGreaterThan(0);
+      expect(overrides.some((diff) => diff.adsr !== undefined)).toBe(true);
+      expect(overrides.some((diff) => diff.reverbSend !== undefined)).toBe(true);
+    });
+
     it('a dealt world round-trips: its payload applied again rebuilds a roster that diffs empty too', () => {
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'] } });
       const localeId = setupWorld();
