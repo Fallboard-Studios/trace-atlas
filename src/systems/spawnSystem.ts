@@ -922,19 +922,52 @@ export function generateDealtRosterBaseline(
 }
 
 /**
+ * One family's fields, already in the store, to the running engine, the way a hand edit of those fields reaches it
+ * (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody re-registers it,
+ * applyDensity's path), Envelope hands the adsr to updateVoiceEnvelope (applyAdsr's path: a live write, curves included,
+ * no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the prime every reservation
+ * makes), Voice rebuilds the voice from the robot and re-primes its LFO links (the structural edit's rebuildVoice,
+ * robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions Task 10). The robot is
+ * handed to reReserveVoice because a rebuild deals before its locale is current, where the engine's own lookup finds
+ * nothing (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4). `robot` is the store's robot after the write. Guarded as
+ * spawnRobot's reservation is, so a push that throws costs only itself, never the rest of the deal
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R14). A switch with a never check, as deriveFamilyFields is a switch: a new
+ * family is a compile error until it has its push.
+ */
+function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: string): void {
+  try {
+    switch (family) {
+      case 'melody':
+        regenerateMelody(robot, localeId);
+        break;
+      case 'envelope':
+        AudioEngine.updateVoiceEnvelope(robot.id, robot.audioAttributes.adsr);
+        break;
+      case 'distance':
+        AudioEngine.updateRobotSends(robot.id, robotSendLevels(robot));
+        break;
+      case 'voice':
+        AudioEngine.reReserveVoice(robot.id, robot);
+        primeRobotLinks(robot);
+        break;
+      default: {
+        const unpushed: never = family;
+        throw new Error(`no engine push for the ${String(unpushed)} family`);
+      }
+    }
+  } catch (err) {
+    if (DEV_TUNING) console.warn('[SpawnSystem] the deal could not push', family, 'for', robot.id, err);
+  }
+}
+
+/**
  * The deal pass on the live roster (assumption 22): after spawnInitialCompanies, in initializeLocale
  * (worldTransition.ts). Reads the loading store's theme and picks, deals over the locale's companies and robots, and for
  * every dealt robot writes its re-derived fields and `loadedUnder` through updateRobot (the roster position is the spawn
- * index: the initial roster spawns in order from 0). Then each dealt family reaches the running engine the way a hand
- * edit of its fields does (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody
- * re-registers it, applyDensity's path), Envelope hands the new adsr to updateVoiceEnvelope (applyAdsr's path: a live
- * write, curves included, no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the
- * prime every reservation makes), Voice rebuilds the voice from the dealt robot and re-primes its LFO links (the
- * structural edit's rebuildVoice, robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to;
- * revisions Task 10). The robot is handed to reReserveVoice because a rebuild deals before its locale is current, where
- * the engine's own lookup finds nothing (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4). Before the engine starts - the
- * off screen - those engine calls are the same no-ops they are at spawn. With nothing dealt, nothing is written. The
- * baseline runs applyDealToBaselines from the same noise map, so the two agree field for field.
+ * index: the initial roster spawns in order from 0). Then each dealt family, in family order, reaches the running engine
+ * through pushFamilyToEngine. Before the engine starts - the off screen - those engine calls are the same no-ops they are
+ * at spawn. With nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same noise map, so
+ * the two agree field for field.
  */
 export function applyAspectDeal(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
@@ -948,12 +981,8 @@ export function applyAspectDeal(localeId: string): void {
     useLocaleStore.getState().updateRobot(localeId, robot.id, { ...dealtFields(noiseMap, i, theme, robotAspects, robot), loadedUnder: robotAspects });
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
-    if (robotAspects.melody) regenerateMelody(updated, localeId);
-    if (robotAspects.envelope) AudioEngine.updateVoiceEnvelope(updated.id, updated.audioAttributes.adsr);
-    if (robotAspects.distance) AudioEngine.updateRobotSends(updated.id, robotSendLevels(updated));
-    if (robotAspects.voice) {
-      AudioEngine.reReserveVoice(updated.id, updated);
-      primeRobotLinks(updated);
+    for (const family of ASPECT_FAMILY_IDS) {
+      if (robotAspects[family] !== undefined) pushFamilyToEngine(family, updated, localeId);
     }
   });
 }

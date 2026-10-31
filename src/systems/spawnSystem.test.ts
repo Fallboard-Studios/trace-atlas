@@ -4108,5 +4108,53 @@ describe('spawnSystem', () => {
       expect(envelope).not.toHaveBeenCalled();
       expect(sends).not.toHaveBeenCalled();
     });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R14: one push per family, each guarded as spawnRobot's reservation is, so
+    // a push that throws leaves the deal running. Every mocked push also checks that the store already holds its robot
+    // dealt, so a push moved above the write fails here.
+    it('applyAspectDeal, live: a push that throws for one robot leaves every robot dealt and every other push made, each after its write', () => {
+      useLoadingStore.getState().setLoading({
+        theme: 'classic',
+        aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['far'], voice: ['woody'] },
+      });
+      const localeId = 'review-r14-throwing-push';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const ids = useLocaleStore.getState().getLocaleById(localeId)!.robots.map((r) => r.id);
+      const victim = ids[3];
+      const stored = (id: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots.find((r) => r.id === id)!;
+      /** Per robot, its pushes in call order: the family, or the family marked when the store did not yet hold the robot
+       *  dealt with the very value pushed. */
+      const pushes = new Map<string, string[]>();
+      const note = (id: string, family: string, dealt: boolean) =>
+        pushes.set(id, [...(pushes.get(id) ?? []), dealt ? family : family + ' before the write']);
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation((id) => {
+        note(id, 'melody', stored(id).loadedUnder?.melody === 'hypnotic');
+      });
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation((id, adsr) => {
+        note(id, 'envelope', stored(id).loadedUnder?.envelope === 'plucked' && JSON.stringify(stored(id).audioAttributes.adsr) === JSON.stringify(adsr));
+        if (id === victim) throw new Error('the engine refused this envelope');
+      });
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation((id, levels) => {
+        note(id, 'distance', stored(id).loadedUnder?.distance === 'far' && JSON.stringify(robotSendLevels(stored(id))) === JSON.stringify(levels));
+      });
+      const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation((id) => {
+        note(id, 'voice', stored(id).loadedUnder?.voice === 'woody');
+        return true;
+      });
+      const prime = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+      expect(() => applyAspectDeal(localeId)).not.toThrow();
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots).toHaveLength(ids.length);
+      for (const robot of robots) {
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'plucked', distance: 'far', voice: 'woody' });
+        // Each family once, in family order, after the write: the victim's two families after the throw included.
+        expect(pushes.get(robot.id), robot.id).toEqual(['melody', 'envelope', 'distance', 'voice']);
+      }
+      for (const spy of [register, envelope, sends, rebuild, prime]) expect(spy).toHaveBeenCalledTimes(robots.length);
+    });
   });
 });
