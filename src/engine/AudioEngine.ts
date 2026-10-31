@@ -1537,8 +1537,10 @@ export const AudioEngine = {
   },
 
   /** The other half of pause(): resume the suspended AudioContext in place. A no-op before start(); a rejected resume
-   *  (a browser's autoplay policy, a context dropped during a long suspend) is logged — powerController falls back to a
-   *  cold start when the world does not come back (docs/tasks/OFF_SCREEN.md Checkpoint A). */
+   *  (a browser's autoplay policy, a context dropped during a long suspend) is logged, in dev builds only (devWarn),
+   *  and nothing falls back: powerController.resume() is unconditional, so the world reads 'running' over a context
+   *  that may still be suspended. Whether a long pause on iOS Safari refuses the resume is unmeasured
+   *  (docs/todo/backlog.md item 42; docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R24). */
   resume(): void {
     if (!initialized) return;
     try {

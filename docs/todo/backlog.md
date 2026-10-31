@@ -643,3 +643,21 @@ LightShafts and TerrainLayer select only what they draw; the flicker trigger tup
 an edit); the lifecycle tick writes its batteries in one store set; and the Factories subscribe to a quantised hour.
 Done when the same profile window shows the two ticks' React share gone from the long tasks, with the world looking the
 same.
+
+### 42. Audio: Does a Long Pause on iOS Safari Come Back? (Measure First)
+
+**Found 2026-10-31** by the off-screen review ([OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)
+R24). Power is a pause: `AudioEngine.pause()` suspends the AudioContext and `AudioEngine.resume()` resumes it
+(`src/engine/AudioEngine.ts`). A rejected resume is only logged, in dev builds only (`devWarn`), and nothing falls back:
+`powerController.resume()` is unconditional, so the world reads `'running'` over a context that may still be suspended,
+and the tablet comes back silent. The engine's comment used to promise a cold-start fallback that was never built.
+Whether iOS Safari refuses, or quietly drops, a resume after a long suspend is unmeasured.
+
+**To check first:** on an iPhone in Safari, power on and let it play, power off for 10 minutes (once with the screen on,
+once locked), then power on. Read `Tone.getContext().rawContext.state` right after the resume and again a second later,
+and listen.
+
+**If it stays suspended, build the fallback:** `powerOnSequence` reads the context's state after the resume, and if it is
+not `'running'`, tears the paused world down (`tearDownPausedWorld`, worldTransition.ts) and starts cold. The power-on
+is a user gesture, so `Tone.start()` may unlock the context there; a plain retry of `resume()` inside the gesture is the
+cheaper first try. Done when a 10-minute pause on iOS comes back with sound.
