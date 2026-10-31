@@ -156,7 +156,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
 ### Phase 1: Quick fixes (notes 8, 6)
 
-- [ ] **Task 1: `OffScreen.css` — the phone's top padding clears the power corner**
+- [x] **Task 1: `OffScreen.css` — the phone's top padding clears the power corner** (f093df66; Crawford's value as given — measured headless, the label sits **24 px** under the corner's bottom at 375 × 812, 360 × 640 and 640 × 360, not 12: the screen's top edge is 12 px below the corner's top, so `var(--power-corner-height)` alone would give 12 px if that was the intent; the sideways phone scrolls)
 
   **Description:** `#screen-viewport[data-shell='phone'] .off-screen { padding-top: calc(var(--power-corner-height) + 12px) }`
   in place of `12vh`. `--power-corner-height` is `src/index.css`'s `calc(var(--power-switch-height) + (var(--power-corner-margin) * 2))`,
@@ -180,7 +180,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
   **Estimated scope:** XS (one declaration)
 
-- [ ] **Task 2: `OffScreen.tsx` / `.css` — the veil stays put while the phone's column scrolls**
+- [x] **Task 2: `OffScreen.tsx` / `.css` — the veil stays put while the phone's column scrolls** (ba9a57b8; the scroll child is `position: absolute; inset: 0; z-index: 1`, between the veil and the dark layer, so the old `:not()` stacking rule is gone rather than moved; the two veil-order cases that read `root.lastElementChild` now read the column's last child; headless at 375 × 812 the column scrolls 174 px while the veil's rect does not move)
 
   **Description:** The root `.off-screen` stops scrolling and keeps `inset: 0` with the veil and the dark layer as its
   first children; a new `div.off-screen__scroll` wraps the etch, the picker and the footer and takes the phone's
@@ -211,15 +211,24 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
   **Estimated scope:** S
 
 ### Checkpoint A: Quick fixes
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Phone: the label clears the power corner; the veil stays while the column scrolls. Desktop unchanged.
-- [ ] Reviewed with human before Phase 2.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [ ] Phone: the label clears the power corner; the veil stays while the column scrolls. Desktop unchanged. (Headless
+      self-check passed, record below; Crawford's own look pending.)
+- [ ] Reviewed with human before Phase 2. (Crawford asked for an unattended run on 2026-10-31 — "don't stop to wait for
+      my approval" — so the build went on; his review of A is pending.)
+
+**Checkpoint A record (2026-10-31, `feature/off-screen` at `ba9a57b8`, automated half):** `npm run build:types` clean;
+`npm run lint` 0 errors (the 4 pre-existing `react-refresh` warnings in `Scenery.tsx` / `gemShape.tsx`); `npx vitest run`
+342 files, 12 888 tests, all passed (the parent plan's 12 884 plus Task 2's four). Headless Chrome on a private dev
+server (`look.mjs`, a scratchpad script over `scripts/perf/cdp-lib.mjs`): the label 24 px under the power corner at
+375 × 812, 360 × 640 and 640 × 360 (see Task 1); the phone column scrolls under a still veil; the desk at 1600 × 900
+unchanged, no overflow.
 
 ---
 
 ### Phase 2: The list (notes 1, 2)
 
-- [ ] **Task 3: `RadioButton.tsx` / `.css` / `controls.ts` — the `list` appearance and the trailing slot**
+- [x] **Task 3: `RadioButton.tsx` / `.css` / `controls.ts` — the `list` appearance and the trailing slot** (09dea0ac; the row mirrors its item's `data-state` itself, so the CSS needs no `:has()`; `meta` is wired as the item's `aria-describedby`, its id from `useId` and the option index since a save's value may hold spaces; a trailing result of `null`, `undefined`, a boolean or `''` draws no slot; `cabinet` and `muted` never call `trailing` nor draw `meta`; 10 mutants, all killed)
 
   **Description:** `RadioButtonSchema.appearance` gains `'list'`; each option may carry `meta?: string`. In `list`
   every option is a full-width row (`.sc-radio-button__row`): the Radix item (`.sc-radio-button__list-item`) holding a
@@ -251,7 +260,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
   **Estimated scope:** M
 
-- [ ] **Task 4: `OffScreen.tsx` — the Transmission list; Roll in the Current row**
+- [x] **Task 4: `OffScreen.tsx` — the Transmission list; Roll in the Current row** (7b84ac6a; **the meta is absolute, not relative** — the helper the Sessions panel uses, `formatSessionTimestamp`, prints "Sep 28, 2:14 PM", so a save row reads "saved Sep 28, 2:14 PM", the time the Sessions list shows, and the key is `home.off.savedAt`, not `savedAgo`; a relative "2 days ago" needs a new helper — Crawford's call; Roll carries no `accessibleName` override, its schema name being "Roll" already; the divider case and the phone's long-name case read the list's row and item; 7 mutants, all killed)
 
   **Description:** The Transmission schema becomes `appearance: 'list'`; each save option carries `meta` from its
   `savedAt` (a relative "saved …" through a content template, `home.off.savedAgo`, with the date-formatting helper the
@@ -280,7 +289,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
   **Estimated scope:** S
 
-- [ ] **Task 5: `OffScreen.css` / `RadioButton.css` — the list's look on the desk and the phone**
+- [x] **Task 5: `OffScreen.css` / `RadioButton.css` — the list's look on the desk and the phone** (80a14c07; Roll takes the sketch's small flat button, a 26 px face and the lore-size label, 6 px in from the row's end; an unselected row's border brightens faintly on hover, the muted button's engaged state for a row, never a lift — beyond the plan's list; the phone's rows take the boxes' 10 px padding; headless: rows 36 px, Current 50 px, no sideways scroll at 360 px, long names ellipsise; Crawford's look pending)
 
   **Description:** Row height, the dot, the meta's type, the rule, the selected fill, Roll's seat at the row's end, the
   Transmission column's width inside `.off-screen__axes` (the list wants the column's full width where the boxes
@@ -303,10 +312,20 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
   **Estimated scope:** S (CSS only)
 
 ### Checkpoint B: The list
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 - [ ] Browser, desk and phone: the Transmission list; Roll on the Current row rolls and leaves the pick on Current; a
-      save pick, a preset pick and Keep behave as before.
-- [ ] Reviewed with human before Phase 3 — and the two list questions below answered.
+      save pick, a preset pick and Keep behave as before. (Headless pass recorded below; Crawford's own look pending.)
+- [ ] Reviewed with human before Phase 3 — and the two list questions below answered. (The questions were answered
+      before the build; the review is pending, as at Checkpoint A.)
+
+**Checkpoint B record (2026-10-31, `feature/off-screen` at `80a14c07`, automated half):** `npm run build:types` clean;
+`npm run lint` 0 errors (the 4 pre-existing warnings). `npx vitest run`: 340 files passed outright; the other two
+(`loadingStore.test.ts`, `dealAspects.test.ts`) failed only on Task 6's new RED cases, which the run picked up mid-edit —
+so the committed versions of the five files Task 6 had touched were run on their own at `80a14c07`: 5 files, 155 tests,
+all passed. Headless Chrome, 1600 × 900, the real app: Roll renamed Current and kept it selected; a preset pick
+(Vessport Null) selected its row and the readout named it; "Save the last session" was lit, saved a row ("Drift
+Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selected it; no console errors. 375 × 812 and
+360 × 640: the list full width, no sideways scroll, long names ellipsised.
 
 ---
 
