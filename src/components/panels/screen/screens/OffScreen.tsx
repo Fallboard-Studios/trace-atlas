@@ -37,6 +37,7 @@ const READOUT_LABEL = labels('home.off.readout').humanLabel;
 const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
 const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
+const FOOTER = labels('home.off.footer').humanLabel;
 
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
@@ -71,8 +72,9 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * chooser only while it does not. Dirty is read on mount, after a pick, after a Roll and after a Keep — never per
  * render (it builds the live payload). A preset pick or a Roll detaches the loaded save (sessionStore
  * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
- * writes a new row rather than overwriting the save. The Loading axis (the theme and Melody rows) is the themes
- * phase's.
+ * writes a new row rather than overwriting the save. The veil (assumption 18) is the screen's own backdrop — the
+ * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
+ * column in both gate states. The Loading axis (the theme and Melody rows) is the themes phase's.
  */
 export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
@@ -163,6 +165,7 @@ export function OffScreen() {
 
   return (
     <div className="off-screen">
+      <div className="off-screen__veil" aria-hidden="true" />
       <div className="off-screen__etch">
         <h2 className="off-screen__label">{LABEL.humanLabel}</h2>
         {LABEL.loreLabel && <p className="off-screen__lore">{LABEL.loreLabel}</p>}
@@ -181,6 +184,7 @@ export function OffScreen() {
           {dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>}
         </div>
       )}
+      <p className="off-screen__footer">{FOOTER}</p>
     </div>
   );
 }

@@ -96,6 +96,41 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
   });
 });
 
+// docs/tasks/OFF_SCREEN.md Task 16a (spec assumption 18): the veil is the screen's own backdrop, under the content, and
+// the lore footer is the last thing in the column — on a first visit (under the hint) and on a returning one (under
+// the chooser) alike. Presence and order only here; the blur and the dim are Crawford's look.
+describe('OffScreen — the veil and the lore footer', () => {
+  const veil = (container: HTMLElement) => container.querySelector('.off-screen__veil');
+  const footer = () => screen.getByText(human('home.off.footer'));
+
+  it('a first visit has the veil as the first child, decorative, and the footer as the last', () => {
+    const { container } = render(<OffScreen />);
+    const root = container.querySelector('.off-screen')!;
+    expect(veil(container)).not.toBeNull();
+    expect(veil(container)!.getAttribute('aria-hidden')).toBe('true');
+    expect(root.firstElementChild).toBe(veil(container));
+    expect(root.lastElementChild).toBe(footer());
+    expect(footer().classList.contains('off-screen__footer')).toBe(true);
+  });
+
+  it('a returning visit has both too, the footer after the chooser', () => {
+    markHeardWorld();
+    const { container } = render(<OffScreen />);
+    const root = container.querySelector('.off-screen')!;
+    expect(root.firstElementChild).toBe(veil(container));
+    expect(root.lastElementChild).toBe(footer());
+    const picker = container.querySelector('.off-screen__picker')!;
+    expect(picker.compareDocumentPosition(footer()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('the footer is one line of etched text, not a control, and the veil takes no clicks', () => {
+    const { container } = render(<OffScreen />);
+    expect(footer().tagName).toBe('P');
+    expect(footer().closest('button')).toBeNull();
+    expect(veil(container)!.querySelector('*')).toBeNull();
+  });
+});
+
 describe('OffScreen — content', () => {
   beforeEach(() => markHeardWorld());
 

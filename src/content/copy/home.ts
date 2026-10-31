@@ -29,6 +29,11 @@ export const home = {
   'home.off.keep': { human: 'Keep' },
   // The one warning worth having, shown under the chooser only while the loaded world is unkept.
   'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
+  // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's
+  // copy; this is the sketch's stand-in (docs/sketches/off-screen.html) until he writes it.
+  'home.off.footer': {
+    human: 'Meridia Telemetry Group · Trace Atlas receiver firmware · unauthorised retransmission of any trace is an offence under the Deep Charter · no warranty is expressed or implied',
+  },
   'home.off.presets.a': { human: 'Kryndara' },
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },
