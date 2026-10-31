@@ -48,6 +48,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
 import { CONTENT } from '@/content';
+import type { AspectPick } from '@/data/bands/aspects';
 import type { SessionPayload } from '@/types/session';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
@@ -373,6 +374,202 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     render(<OffScreen />);
     expect(screen.queryByRole('group', { name: human('home.off.loading') })).toBeNull();
     expect(description()).toBeNull();
+  });
+});
+
+describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.md Task 31; spec assumptions 9, 17, 21)', () => {
+  beforeEach(() => markHeardWorld());
+  // vi.clearAllMocks (the file's beforeEach) clears calls, not implementations: the store-writing double below must not
+  // outlive the test that installed it.
+  afterEach(() => vi.mocked(retransmitWorld).mockReset());
+  const melodyRow = () => screen.getByRole('group', { name: human('home.off.melody') });
+  const melodyNames = () => within(melodyRow()).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+  const option = (name: string) => within(melodyRow()).getByRole('button', { name });
+  const pressed = (name: string) => option(name).getAttribute('aria-pressed');
+  const NAME = {
+    theme: human('home.off.asTheme'),
+    hypnotic: human('home.off.melody.hypnotic'),
+    mechanical: human('home.off.melody.mechanical'),
+    wandering: human('home.off.melody.wandering'),
+  } as const;
+  const melodyDescription = () => document.querySelector('.off-screen__description--melody');
+  const sentence = (id: AspectPick) => human(`home.off.melodyDescription.${id}`);
+  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
+  /** The real retransmitWorld writes the loading store before it rebuilds (band-table T25); this double does that half,
+   *  so a second toggle sees the first on the row as it does in the app. */
+  const retransmitSetsStore = () =>
+    vi.mocked(retransmitWorld).mockImplementation((input) => {
+      const { theme, aspects, setLoading } = useLoadingStore.getState();
+      setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
+    });
+  const setMelody = (picks: AspectPick[]) =>
+    act(() => useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: picks } }));
+
+  it('lists As theme, then the three options in canonical order, under the Melody label, nothing pressed for a plain world', () => {
+    render(<OffScreen />);
+    expect(melodyNames()).toEqual([NAME.theme, NAME.hypnotic, NAME.mechanical, NAME.wandering]);
+    for (const name of melodyNames()) expect(pressed(name!)).toBe('false');
+    expect(within(melodyRow()).queryAllByRole('radio')).toHaveLength(0);
+  });
+
+  it('is a muted multiple RadioButton in the Loading column, under the theme row', () => {
+    const { container } = render(<OffScreen />);
+    const root = melodyRow().closest('.sc-radio-button')!;
+    expect(root.classList.contains('sc-radio-button--muted')).toBe(true);
+    expect(root.classList.contains('sc-radio-button--multiple')).toBe(true);
+    const column = container.querySelectorAll('.off-screen__axis')[1] as HTMLElement;
+    expect(column.contains(melodyRow())).toBe(true);
+    expect(within(column).getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual([
+      human('home.off.loading'),
+      human('home.off.melody'),
+    ]);
+    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+  });
+
+  it('toggling two aspects calls retransmitWorld with both, in canonical order whatever the click order', () => {
+    retransmitSetsStore();
+    render(<OffScreen />);
+    fireEvent.click(option(NAME.wandering));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'] } });
+    fireEvent.click(option(NAME.hypnotic));
+    expect(retransmitWorld).toHaveBeenCalledTimes(2);
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['hypnotic', 'wandering'] } });
+    expect(pressed(NAME.hypnotic)).toBe('true');
+    expect(pressed(NAME.wandering)).toBe('true');
+    expect(pressed(NAME.mechanical)).toBe('false');
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(rollWorld).not.toHaveBeenCalled();
+    expect(AudioEngine.start).not.toHaveBeenCalled();
+  });
+
+  it('As theme alongside one aspect sends both, the as-theme member first', () => {
+    setMelody(['hypnotic']);
+    render(<OffScreen />);
+    fireEvent.click(option(NAME.theme));
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['theme', 'hypnotic'] } });
+  });
+
+  it('clearing the row sends an empty list', () => {
+    setMelody(['hypnotic']);
+    render(<OffScreen />);
+    expect(pressed(NAME.hypnotic)).toBe('true');
+    fireEvent.click(option(NAME.hypnotic));
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: [] } });
+  });
+
+  it('a change drops the world row to Current, and the readout names the loaded world', () => {
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
+    expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(option(NAME.hypnotic));
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('false');
+    expect(readout().textContent).toBe(currentLabel());
+  });
+
+  it('a change reads dirty again and keeps the loaded save attached: Keep lights, the warning shows', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(keep().disabled).toBe(true);
+    live.payload = live.marker('dealt');
+    fireEvent.click(option(NAME.mechanical));
+    expect(keep().disabled).toBe(false);
+    expect(screen.queryByText(human('home.off.unsavedWarning'))).not.toBeNull();
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+  });
+
+  it('a save with a set selects it: the as-theme member and the picks pressed, the rest not, and the readout tails them', () => {
+    const save: SessionPayload = { ...savedPayload('dusk'), aspects: { melody: ['theme', 'wandering'] } };
+    saveNamedSession('Dusk Run', save);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(pressed(NAME.theme)).toBe('true');
+    expect(pressed(NAME.wandering)).toBe('true');
+    expect(pressed(NAME.hypnotic)).toBe('false');
+    expect(pressed(NAME.mechanical)).toBe('false');
+    expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
+    expect(readout().textContent!.endsWith(' · ' + NAME.wandering)).toBe(true);
+  });
+
+  it('a save with a pick the app does not know keeps the known ones, as loadingOf reads it', () => {
+    saveNamedSession('Dusk Run', { ...savedPayload('dusk'), aspects: { melody: ['frantic', 'mechanical'] } } as unknown as SessionPayload);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(melodyNames().filter((n) => pressed(n!) === 'true')).toEqual([NAME.mechanical]);
+  });
+
+  it('follows the loading store for Current: the row and the readout tail take the store picks', () => {
+    render(<OffScreen />);
+    setMelody(['hypnotic', 'wandering']);
+    expect(pressed(NAME.hypnotic)).toBe('true');
+    expect(pressed(NAME.wandering)).toBe('true');
+    expect(pressed(NAME.theme)).toBe('false');
+    const expected = describeWorld({ ...liveIdentity(), theme: 'classic', aspects: { melody: ['hypnotic', 'wandering'] } });
+    expect(expected.endsWith(' · ' + NAME.hypnotic + ' + ' + NAME.wandering)).toBe(true);
+    expect(readout().textContent).toBe(expected);
+    expect(radioNames()[0]).toBe(expected);
+  });
+
+  it('Roll leaves the loading alone: the row keeps its picks and no loading change is sent', () => {
+    setMelody(['hypnotic']);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
+    expect(rollWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(pressed(NAME.hypnotic)).toBe('true');
+    expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic'] });
+  });
+
+  it('describes the last aspect toggled on under the row; with none on, the as-theme sentence', () => {
+    retransmitSetsStore();
+    render(<OffScreen />);
+    expect(melodyDescription()?.textContent).toBe(sentence('theme'));
+    fireEvent.click(option(NAME.wandering));
+    expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
+    fireEvent.click(option(NAME.hypnotic));
+    expect(melodyDescription()?.textContent).toBe(sentence('hypnotic')); // the last toggled on, not the last in order
+    fireEvent.click(option(NAME.hypnotic)); // off again: the one still on
+    expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
+    fireEvent.click(option(NAME.theme)); // the as-theme member is not an aspect: the line stays
+    expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
+    fireEvent.click(option(NAME.wandering)); // only As theme left
+    expect(melodyDescription()?.textContent).toBe(sentence('theme'));
+  });
+
+  it('a save pick describes the last of its picks in canonical order, whatever was toggled before; Current again returns to the loaded world', () => {
+    retransmitSetsStore();
+    const save: SessionPayload = { ...savedPayload('dusk'), aspects: { melody: ['hypnotic', 'mechanical'] } };
+    saveNamedSession('Dusk Run', save);
+    render(<OffScreen />);
+    fireEvent.click(option(NAME.hypnotic));
+    expect(melodyDescription()?.textContent).toBe(sentence('hypnotic'));
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(melodyDescription()?.textContent).toBe(sentence('mechanical'));
+    const current = describeWorld({ ...liveIdentity(), theme: 'classic', aspects: { melody: ['hypnotic'] } }, 'Dusk Run');
+    fireEvent.click(screen.getByRole('radio', { name: current }));
+    expect(melodyDescription()?.textContent).toBe(sentence('hypnotic'));
+  });
+
+  it('the two description lines are text, one under each row, and the four Melody sentences are distinct', () => {
+    const { container } = render(<OffScreen />);
+    const lines = container.querySelectorAll('.off-screen__description');
+    expect(lines).toHaveLength(2);
+    expect(lines[0].classList.contains('off-screen__description--theme')).toBe(true);
+    expect(lines[1].classList.contains('off-screen__description--melody')).toBe(true);
+    expect(lines[1].tagName).toBe('P');
+    expect(melodyRow().closest('.sc-radio-button')!.nextElementSibling).toBe(lines[1]);
+    const sentences = (['theme', 'hypnotic', 'mechanical', 'wandering'] as const).map(sentence);
+    expect(new Set(sentences).size).toBe(4);
+    expect(sentences.every((s) => s.trim().length > 0)).toBe(true);
+  });
+
+  it('is behind the gate: no Melody row on a first visit', () => {
+    localStorage.clear();
+    render(<OffScreen />);
+    expect(screen.queryByRole('group', { name: human('home.off.melody') })).toBeNull();
+    expect(melodyDescription()).toBeNull();
   });
 });
 

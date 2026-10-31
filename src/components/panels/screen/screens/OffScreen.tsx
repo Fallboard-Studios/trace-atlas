@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
+import { THEME_PICK, canonicalPicks, pickOrderOf, type AspectId, type AspectPick } from '@/data/bands/aspects';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
@@ -14,7 +15,7 @@ import { useLoadingStore } from '@/stores/loadingStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
-import { themeDescription, themeName } from '@/utils/loadingNames';
+import { aspectDescription, aspectName, asThemeLabel, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
 import { killTimeline } from '@/animation/timelineMap';
 import { OFF_SCREEN_FADE_TIMELINE, OFF_SCREEN_REF_KEY, skipOffScreenBoot, startOffScreenBoot } from '@/animation/offScreenTheatre';
@@ -57,6 +58,23 @@ const THEME_SCHEMA: RadioButtonSchema = {
   appearance: 'muted',
   options: THEME_IDS.map((id) => ({ value: id, humanLabel: themeName(id) })),
 };
+
+/** The Melody row (Task 31; spec assumptions 17 and 21): a muted multiple RadioButton labelled by the family — the
+ *  as-theme member first, then the three options in canonical order (pickOrderOf), each on or off on its own. */
+const MELODY_SCHEMA: RadioButtonSchema = {
+  id: 'offMelody',
+  type: 'radio',
+  ...familyLabels('melody'),
+  appearance: 'muted',
+  multiple: true,
+  options: pickOrderOf('melody').map((pick) => ({
+    value: pick,
+    humanLabel: pick === THEME_PICK ? asThemeLabel() : aspectName('melody', pick),
+  })),
+};
+
+/** The Melody row's value for a world with no picks: one array, so the memoized row sees the same props each render. */
+const NO_PICKS: readonly AspectPick[] = [];
 
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
@@ -113,7 +131,16 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * (the decided pick rules, docs/sketches/off-screen.html), the loaded save stays attached — the seed is still the
  * save's, under another theme, so Keep overwrites it — and dirty is read again. The readout carries describeWorld's
  * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
- * both; the phone shell stacks them (OffScreen.css). The Melody row is Task 31.
+ * both; the phone shell stacks them (OffScreen.css).
+ *
+ * The Melody row (Task 31; assumptions 17 and 21) sits under the theme row's line: a muted multiple RadioButton — As
+ * theme, then the three options in canonical order — showing the loaded world's picks for Current and the picked
+ * payload's after a save or preset pick, as the theme row does. A change sends the whole set, canonical, as
+ * `retransmitWorld({ aspects: { melody } })` (an empty list when the row is cleared — the deal re-runs over the same
+ * seed and plot), with the same drop to Current, the same attached save and the same dirty read as a theme pick. Its
+ * own description line names the aspect toggled on last while it is still on, else the last of the set in canonical
+ * order, else — the as-theme member alone, or nothing — the as-theme sentence; a world pick resets the toggle memory, so
+ * a save reads as its own set. Roll touches neither row: rollWorld leaves the loading store alone (assumption 14).
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -122,6 +149,8 @@ export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
+  // The Melody aspect toggled on most recently (Task 31), for the row's description line; null after a world pick.
+  const [lastMelodyOn, setLastMelodyOn] = useState<AspectId | null>(null);
   // Only the chooser reads it; a first visit (hint only) never builds the payload.
   const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
 
@@ -169,6 +198,8 @@ export function OffScreen() {
   );
 
   const onChange = useCallback((value: string) => {
+    // A world pick shows the set as that world carries it: nothing toggled (Task 31).
+    setLastMelodyOn(null);
     if (value === CURRENT_VALUE) {
       setPick(CURRENT_PICK);
       return;
@@ -250,6 +281,31 @@ export function OffScreen() {
   const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
   // The theme the Loading row shows: the pick's own after a save or preset pick, the loaded world's for Current.
   const shownTheme: ThemeId = 'identity' in pick ? pick.identity.theme : loadedTheme;
+  // The Melody row's set (Task 31), by the same rule.
+  const shownMelody: readonly AspectPick[] =
+    ('identity' in pick ? pick.identity.aspects.melody : loadedAspects.melody) ?? NO_PICKS;
+  // The described aspect: the one toggled on last while it is still on, else the last of the set in canonical order,
+  // else (the as-theme member alone, or nothing) the as-theme member itself, whose sentence says so.
+  const shownMelodyAspects = shownMelody.filter((p): p is AspectId => p !== THEME_PICK);
+  const describedMelody: AspectPick =
+    (lastMelodyOn && shownMelodyAspects.includes(lastMelodyOn)
+      ? lastMelodyOn
+      : shownMelodyAspects[shownMelodyAspects.length - 1]) ?? THEME_PICK;
+
+  // A Melody change (Task 31): the set, canonical, through retransmitWorld — the deal re-runs over the same seed and
+  // plot — so the world row drops back to Current; the loaded save stays attached and dirty is read again, as for a
+  // theme pick. The aspect toggled on, if one was, becomes the described one.
+  const onMelodyChange = useCallback(
+    (picks: string[]) => {
+      const next = canonicalPicks('melody', picks as AspectPick[]);
+      const turnedOn = next.find((p): p is AspectId => p !== THEME_PICK && !shownMelody.includes(p));
+      if (turnedOn) setLastMelodyOn(turnedOn);
+      retransmitWorld({ aspects: { melody: next } });
+      setPick(CURRENT_PICK);
+      setDirty(isWorldDirty());
+    },
+    [shownMelody],
+  );
 
   return (
     <div className="off-screen" ref={rootRef} onPointerDown={skipOffScreenBoot}>
@@ -274,7 +330,11 @@ export function OffScreen() {
             </div>
             <div className="off-screen__axis">
               <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
-              <p className="off-screen__description">{themeDescription(shownTheme)}</p>
+              <p className="off-screen__description off-screen__description--theme">{themeDescription(shownTheme)}</p>
+              <RadioButton schema={MELODY_SCHEMA} value={shownMelody} onChange={onMelodyChange} />
+              <p className="off-screen__description off-screen__description--melody">
+                {aspectDescription('melody', describedMelody)}
+              </p>
             </div>
           </div>
           <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
