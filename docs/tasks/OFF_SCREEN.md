@@ -1453,12 +1453,28 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
   **Estimated scope:** S (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] All automated acceptance criteria across all tasks are met.
-- [ ] Docs reflect the shipped API — every documented name spot-checked against source.
-- [ ] The Checkpoint 0, A, B, C, D records are filled in (browser, hash, figures, sign-offs).
-- [ ] Any outstanding manual check explicitly flagged here if not performed — never silently skipped.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] All automated acceptance criteria across all tasks are met.
+- [x] Docs reflect the shipped API — every documented name spot-checked against source.
+- [x] The Checkpoint 0, A, B, C, D records are filled in (browser, hash, figures, sign-offs).
+- [x] Any outstanding manual check explicitly flagged here if not performed — never silently skipped.
+- [x] Ready for Crawford's PR.
+
+**Checkpoint: Complete record (2026-10-31, `feature/off-screen` at `795f924c`, Phase 5 docs only — no code changed
+after `25ff9999`):**
+- `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`
+  warnings as every checkpoint. `npm run build`: 4.84 s, the usual over-500 kB chunk warning.
+- `npm test`: two full runs. The first read 341 of 342 files / 12 883 of 12 884 tests, one failure whose name the
+  output filter did not capture (the same shape as Checkpoint A's one unnamed miss); the second, with the whole output
+  saved, read 342 files / 12 884 tests, all green. Not chased, per the repo's rule on flakes; recorded here so a
+  recurrence under a name has a trail.
+- Phase 5: 73a82f98 (Task 36), 30c3575f (Task 35's grids and the checkpoint ticks on Crawford's word), ab6f8d39
+  (Task 37, `AUDIO_SYSTEM.md` added to its files), 795f924c (Task 38). Every documented identifier was read from the
+  tree before it was written; two stale claims found and corrected on the way (`killAll` on power-off, the swells'
+  power-cycle clear).
+- **Flagged, not performed by me:** the Pixel `perf:audio` A/B counts for Checkpoints A and D (ticked on Crawford's
+  "checkpoints passed"; the HUD figures were not handed over). **Open for Crawford:** the PR; the copy stand-ins in
+  `src/content/` and the three preset links (roadmap 57's Open list).
 
 ## Risks and Mitigations
 
