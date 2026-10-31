@@ -4,6 +4,10 @@ import { useSessionStore, isWorldDirty } from './sessionStore';
 import { useAudioStore } from './audioStore';
 import { listSessions, loadSession, saveNamedSession } from '../utils/sessionStorageEngine';
 import { buildSessionPayload } from '../utils/sessionDiff';
+import { generateCompanyName } from '../systems/spawnSystem';
+
+/** The suggestion Math.random yields when both its draws (the adjective, then the noun) return `r`. */
+const suggestionAt = (r: number) => generateCompanyName(() => r * 2 - 1, 0);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -106,6 +110,61 @@ describe('keepCurrentWorld', () => {
     expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
     expect(listSessions().map((s) => s.name)).toEqual([name]);
   });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6: with nothing loaded, Keep writes a new row. The name the session carries
+  // (a suggestion, or a name typed in Comms) can already belong to a save, and that save is never overwritten.
+  describe('never overwrites a save that is not the loaded one (review R6)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('with a save already named as the session and nothing loaded, Keep writes a new row and leaves that save untouched', () => {
+      const other = { ...buildSessionPayload(), swellFrequency: 1 };
+      saveNamedSession('Quiet Harbour', other);
+      const savedAt = listSessions()[0].savedAt;
+
+      const name = useSessionStore.getState().keepCurrentWorld();
+
+      expect(name).not.toBe('Quiet Harbour');
+      expect(loadSession('Quiet Harbour')).toEqual(JSON.parse(JSON.stringify(other)));
+      expect(listSessions().find((s) => s.name === 'Quiet Harbour')?.savedAt).toBe(savedAt);
+      expect(listSessions().map((s) => s.name).sort()).toEqual(['Quiet Harbour', name].sort());
+      expect(useSessionStore.getState()).toMatchObject({ currentLoadedSessionName: name, currentSessionName: name });
+    });
+
+    it('skips a suggestion that names a save: the next one that names none is used', () => {
+      const taken = suggestionAt(0);
+      const free = suggestionAt(0.99);
+      expect(free).not.toBe(taken); // precondition
+      saveNamedSession(taken, buildSessionPayload());
+      useSessionStore.setState({ currentSessionName: '' }); // blank: Keep draws a suggestion
+      vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(0.99);
+
+      expect(useSessionStore.getState().keepCurrentWorld()).toBe(free);
+      expect(listSessions()).toHaveLength(2);
+    });
+
+    it('when every draw names a save, the suggestion is numbered: " 2", then " 3"', () => {
+      const taken = suggestionAt(0);
+      saveNamedSession(taken, buildSessionPayload());
+      useSessionStore.setState({ currentSessionName: taken });
+      vi.spyOn(Math, 'random').mockReturnValue(0); // every suggestion is the taken name
+
+      expect(useSessionStore.getState().keepCurrentWorld()).toBe(taken + ' 2');
+      useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: taken });
+      expect(useSessionStore.getState().keepCurrentWorld()).toBe(taken + ' 3');
+      expect(listSessions()).toHaveLength(3);
+    });
+
+    it('with a save loaded, Keep still overwrites that save, whatever the session is named', () => {
+      saveNamedSession('Dusk Run', { ...buildSessionPayload(), swellFrequency: 1 });
+      saveNamedSession('Quiet Harbour', { ...buildSessionPayload(), swellFrequency: 2 });
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+
+      expect(useSessionStore.getState().keepCurrentWorld()).toBe('Dusk Run');
+      expect(loadSession('Dusk Run')?.swellFrequency).toBe(buildSessionPayload().swellFrequency);
+      expect(loadSession('Quiet Harbour')?.swellFrequency).toBe(2);
+      expect(listSessions()).toHaveLength(2);
+    });
+  });
 });
 
 describe('detachLoadedSession', () => {
@@ -132,6 +191,19 @@ describe('detachLoadedSession', () => {
     useSessionStore.getState().detachLoadedSession();
     expect(useSessionStore.getState().currentSessionName).toBe('Quiet Harbour');
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6: the fresh suggestion is the next Keep's name, so it names no save either.
+  it('suggests a name no save holds: a suggestion that names a save is skipped (review R6)', () => {
+    localStorage.clear();
+    const taken = suggestionAt(0);
+    saveNamedSession(taken, { ...buildSessionPayload(), swellFrequency: 1 });
+    const spy = vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(0.99);
+
+    useSessionStore.getState().detachLoadedSession();
+
+    expect(useSessionStore.getState().currentSessionName).toBe(suggestionAt(0.99));
+    spy.mockRestore();
   });
 });
 
