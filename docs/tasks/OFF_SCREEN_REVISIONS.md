@@ -620,8 +620,8 @@ note that four family rows make the 1600 × 900 desk column scroll by 75 px.
   if the diff runs past five files of code.
 
 ### Checkpoint D: The wash
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean. (Types and lint clean; the suite had one failure that
-      passes alone, recorded below; the Complete run is its one re-run.)
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. (Types and lint clean; the suite had one failure that
+      passes alone, recorded below. Ticked at Checkpoint: Complete, where its one re-run passed.)
 - [ ] Browser: Roll, a preset pick, a theme pick, Foundry's Retransmit and a Load each fade through blue; a reload and
       a link arrival do not; reduced motion cuts; `perf:idle` off-state figure recorded. (Headless half recorded below;
       the look of the wash is Crawford's.)
@@ -672,7 +672,7 @@ and the review.
 
 ### Phase 5: Docs
 
-- [ ] **Task 14: Spec amendments, the four system docs, the grids, roadmap 57**
+- [x] **Task 14: Spec amendments, the four system docs, the grids, roadmap 57** (929f11d5; beyond the plan's list, every other spec passage the revisions made stale carries its own dated note — assumptions 8, 10, 11 and 14–18, the capability map, §1.1 and §1.3–1.6, the file map, the §5 test lists and §7 Q11 — and two content-key names the first build had already changed are corrected; the global grid gets a sentence, since no aspect reaches it, not a table; the robot grid's three new tables are marked placeholders, not "listened-to", since Task 11 is open; then 7a99db57, six source comments the revisions made stale, comment-only)
 
   **Description:** `docs/specs/OFF_SCREEN.md`: assumption 21 (no as-theme member; an empty list is every robot as
   theme), assumption 23 (the aspect rows in `cabinet`), §3 ("nothing pops" → the aspect rows pop; three kinds → four if
@@ -702,10 +702,28 @@ and the review.
   **Estimated scope:** M (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every open question below answered and its task built or struck.
-- [ ] Any manual check not performed is flagged here, never silently skipped.
-- [ ] Ready for Crawford's PR (one PR for the parent plan and this one, or two — his call).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] Every open question below answered and its task built or struck. (All six answered; every task built but
+      Task 11, the listen, which is Crawford's ear.)
+- [x] Any manual check not performed is flagged here, never silently skipped. (Below.)
+- [ ] Ready for Crawford's PR (one PR for the parent plan and this one, or two — his call). (Ready on the automated
+      side; the checks below are his first.)
+
+**Checkpoint: Complete record (2026-10-31, `feature/off-screen` at `7a99db57`):** `npm run build:types` clean;
+`npm run lint` 0 errors (the 4 pre-existing warnings); `npx vitest run` 344 files, 13 017 tests, all passed;
+`npm run build` built (the usual over-500 kB chunk warning). The suite run is also the one re-run of Checkpoint D's
+single failure, the audio store's global relink case: it passed, so that was load, not code.
+
+**Not performed, flagged for Crawford:**
+- Task 11's listen: the Envelope, Distance and Voice columns are the plan's placeholders, in `aspects.ts` and the robot
+  grid's three new tables.
+- The Looks at Checkpoints A–D: the phone's padding and the still veil; the list on the desk and the phone; the aspect
+  rows popping, and four rows scrolling the 1600 × 900 desk column by 75 px; the wash's colour and feel, off and on.
+  Each checkpoint's headless half is recorded under it.
+- The human reviews at Checkpoints A–D.
+- Checkpoint C's Pixel `perf:audio` A/B on the densest, wettest world against `main`.
+- Copy: the stand-ins for Roll, a save row's "saved …", the three families' labels, names and sentences, and the
+  Melody row's `none` sentence (`home.ts`); a relative "saved 2 days ago" needs a helper of its own, if wanted.
 
 ## Risks and Mitigations
 
