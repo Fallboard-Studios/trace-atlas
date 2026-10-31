@@ -72,14 +72,16 @@ function buildAttenuationStyle(name: string): AttenuationStyle {
  *  place a fresh dayStartTimestamp gets produced; retransmitAttenuationStyleOnly
  *  deliberately never calls this for its preserved locale (the inversion
  *  this phase's spec flags as easiest to get backwards — see
- *  docs/specs/archive/ATTENUATION_STYLE.md §1.1/§3). */
-function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: number }): Locale {
+ *  docs/specs/archive/ATTENUATION_STYLE.md §1.1/§3). A locale rebuilt at its
+ *  own plot hands its `dayStartTimestamp` in, so the plot keeps its hour
+ *  (rebuildCurrentLocaleInPlace; docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R22). */
+function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: number }, dayStartTimestamp?: number): Locale {
   return {
     id: generateUUID(),
     attenuationStyleId,
     name: `Plot ${coordinates.x}, ${coordinates.y}`,
     coordinates,
-    dayStartTimestamp: Date.now() - (Math.abs(coordinates.x % 24) / 24) * DAY_DURATION_MS,
+    dayStartTimestamp: dayStartTimestamp ?? Date.now() - (Math.abs(coordinates.x % 24) / 24) * DAY_DURATION_MS,
     createdAtMeasure: getCurrentMeasure(),
     robots: [],
     actors: [],
@@ -259,9 +261,14 @@ function rebuildsLocale(action: Exclude<RetransmitAction, { mode: 'noop' }>): bo
  *  only a stream of "no composite reserved" warnings from anything that
  *  later tries to write to it (audio swells, note scheduling). Reordered
  *  2026-09-28 — see docs/todo/backlog.md for the bug this fixes. */
-function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId: string | undefined, coordinates: { x: number; y: number }): void {
+function retransmitCoordsOnly(
+  oldAttenuationStyle: AttenuationStyle,
+  oldLocaleId: string | undefined,
+  coordinates: { x: number; y: number },
+  dayStartTimestamp?: number,
+): void {
   if (oldLocaleId) useLocaleStore.getState().removeLocale(oldLocaleId);
-  const newLocale = buildLocale(oldAttenuationStyle.id, coordinates);
+  const newLocale = buildLocale(oldAttenuationStyle.id, coordinates, dayStartTimestamp);
   useLocaleStore.getState().addLocale(oldAttenuationStyle.id, newLocale);
   initializeLocale(newLocale.id, { startSystems: useUIStore.getState().isPoweredOn });
   useAttenuationStyleStore.getState().setCurrentLocale(oldAttenuationStyle.id, newLocale.id);
@@ -288,14 +295,16 @@ function regenerateGlobalHalfFromSeed(attenuationStyle: AttenuationStyle): void 
 /**
  * Rebuild the loaded locale at its own plot under the current Attenuation Style - the coordsOnly rebuild - so the
  * robots, the companies and the deal regenerate under the bands now installed (assumption 10). The robot ids are a
- * function of the plot alone, so the same robots come back, drawn afresh.
+ * function of the plot alone, so the same robots come back, drawn afresh. The plot keeps its hour: the old locale's
+ * dayStartTimestamp carries into the new one, so a theme change never snaps the sky back to the plot's arrival hour
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R22; Crawford, Open Question 4).
  */
 function rebuildCurrentLocaleInPlace(): void {
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   const localeId = attenuationStyle?.currentLocaleId;
-  const coordinates = localeId ? useLocaleStore.getState().getLocaleById(localeId)?.coordinates : undefined;
-  if (!attenuationStyle || !coordinates) return;
-  retransmitCoordsOnly(attenuationStyle, localeId, coordinates);
+  const locale = localeId ? useLocaleStore.getState().getLocaleById(localeId) : undefined;
+  if (!attenuationStyle || !locale) return;
+  retransmitCoordsOnly(attenuationStyle, localeId, locale.coordinates, locale.dayStartTimestamp);
 }
 
 /**

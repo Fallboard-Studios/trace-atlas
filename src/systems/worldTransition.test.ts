@@ -74,7 +74,7 @@ import * as audioSwellsModule from './audioSwells';
 import * as workLoopModule from './workLoop';
 import * as robotSystemsModule from './robotSystems';
 import { MAX_ROBOTS } from '../constants';
-import { computeLocaleHour } from '../constants/time';
+import { computeLocaleHour, DAY_DURATION_MS } from '../constants/time';
 import { DockingState, JobType } from '../types/Robot';
 import type { Robot } from '../types/Robot';
 
@@ -993,6 +993,55 @@ describe('worldTransition', () => {
       expect(getWorldState()).toBe('cold');
       expect(params().get('theme')).toBe('calm');
       expect(params().get('seed')).toBe(before.style.name);
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R22 (Crawford: keep it, Open Question 4): the rebuild a theme change makes
+    // stands at the same plot, so it keeps the plot's hour - the day is still DAY_DURATION_MS from the one
+    // dayStartTimestamp - where it used to snap the sky back to the plot's arrival hour. A move to another plot stamps
+    // that plot's own.
+    describe('the hour across a rebuild (review R22)', () => {
+      const later = (locale: { dayStartTimestamp: number }) => locale.dayStartTimestamp + 90_000_000;
+
+      it("a theme retransmit keeps the locale's dayStartTimestamp, though time has moved on", () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        retransmitWorld({ coordinates: { x: 500, y: 500 } });
+        const before = currentWorld().locale;
+        vi.spyOn(Date, 'now').mockReturnValue(later(before));
+        retransmitWorld({ theme: 'calm' });
+        const after = currentWorld().locale;
+        expect(after.id).not.toBe(before.id);
+        expect(after.dayStartTimestamp).toBe(before.dayStartTimestamp);
+      });
+
+      it('a name change carrying a theme keeps it too: the plot is rebuilt in place under the new name', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        retransmitWorld({ coordinates: { x: 501, y: 500 } });
+        const before = currentWorld().locale;
+        vi.spyOn(Date, 'now').mockReturnValue(later(before));
+        retransmitWorld({ attenuationStyleName: 'Brinemouth', theme: 'bold' });
+        const after = currentWorld();
+        expect(after.style.name).toBe('Brinemouth');
+        expect(after.locale.coordinates).toEqual(before.coordinates);
+        expect(after.locale.dayStartTimestamp).toBe(before.dayStartTimestamp);
+      });
+
+      it("a coordinates retransmit stamps the new plot's own, from now", () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        const before = currentWorld().locale;
+        const now = later(before);
+        vi.spyOn(Date, 'now').mockReturnValue(now);
+        retransmitWorld({ coordinates: { x: 7, y: 8 } });
+        expect(currentWorld().locale.dayStartTimestamp).toBe(now - (7 / 24) * DAY_DURATION_MS);
+      });
+
+      it("a theme riding on a plot move stamps the new plot's own too", () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        const before = currentWorld().locale;
+        const now = later(before);
+        vi.spyOn(Date, 'now').mockReturnValue(now);
+        retransmitWorld({ coordinates: { x: 9, y: 9 }, theme: 'bold' });
+        expect(currentWorld().locale.dayStartTimestamp).toBe(now - (9 / 24) * DAY_DURATION_MS);
+      });
     });
 
     // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: aspects are robot-side, so picks alone re-deal the live roster in

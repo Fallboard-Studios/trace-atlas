@@ -200,6 +200,10 @@ worth a second look):
     mirrored. Nothing global regenerates and the locale is not rebuilt. A loading riding on a plot or style change
     rebuilds as before. The global half's regeneration now ends by pushing the new LFO bank and links to the engine
     whenever the bank is primed (`pushLfoBankAndLinksToEngine`, R2), so a theme picked while paused reaches the lanes.
+    *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R22; Crawford, its Open
+    Question 4):* the locale re-initialised at the same identity keeps the old one's `dayStartTimestamp`, so a theme
+    change keeps the plot's hour rather than snapping the sky back to the plot's arrival hour. A plot move still stamps
+    the new plot's own.
 11. **Identity on the link, as plain params.** `theme=<id>` (the reserved param, now written and read) and one param
     per family, named by the family, carrying the set as a comma list in canonical option order:
     `melody=hypnotic,mechanical`, `envelope=plucked,held&distance=remote&voice=woody`. Written only when not `classic`

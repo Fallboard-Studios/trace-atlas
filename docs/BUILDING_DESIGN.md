@@ -318,6 +318,12 @@ defines it. `AttenuationStyleView` writes that hour to `uiStore`'s
 `WaterColumn.tsx` — passes it straight to `getLighting(hour)` from
 `src/utils/lightingUtils.ts`.
 
+A locale's `dayStartTimestamp` is stamped once, by `buildLocale`
+(`src/systems/worldTransition.ts`), `abs(x % 24)` hours into the day. A locale
+rebuilt at its own plot — a theme change — takes its predecessor's, so the hour
+carries across the rebuild; a move to another plot stamps its own
+(`docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md` R22).
+
 ### Current lighting implementation
 
 - `getLighting(hour)` uses a sine-based cycle over the 24-hour day, wrapping at
