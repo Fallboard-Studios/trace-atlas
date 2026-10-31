@@ -1402,7 +1402,10 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 37: `UI_SHELL.md`, `SESSION_STORAGE.md`, `MELODY_SYSTEM.md`, `COMPANIES.md` — the off screen, the identity, the deal**
+- [x] **Task 37: `UI_SHELL.md`, `SESSION_STORAGE.md`, `MELODY_SYSTEM.md`, `COMPANIES.md` — the off screen, the identity, the deal**
+  (plus `docs/AUDIO_SYSTEM.md`, not in the Files list: the band table and the resolver live there as "The band table",
+  which the other docs link to, and its sends and tempo paragraphs now read through `getBand`; the grids' theme columns
+  went with Task 35; every name spot-checked against the tree at 30c3575f)
 
   **Description:** The off screen's two axes, the gate, Keep, the veil and theatre; payload v3 and the `theme` /
   `melody` link params, the address-bar mirror; the band table and the resolver (where the bands live now, how a theme
