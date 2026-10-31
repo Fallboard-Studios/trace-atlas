@@ -51,7 +51,8 @@ interface ButtonProps {
  * `schema.appearance === 'muted'` (docs/tasks/OFF_SCREEN.md Task 13) swaps the CabinetBox for a flat
  * `.sc-button__flat` face of the same height — RadioButton's muted, for a button: no walls, no pop timeline,
  * no hover pop, no glow; the engaged state is a border the stylesheet draws. It is the powered-off screen's
- * Roll and Keep — nothing there comes off the plate (docs/specs/OFF_SCREEN.md §3).
+ * Roll and Keep, which stay flat there while only the aspect rows pop (docs/specs/OFF_SCREEN.md §3, as amended by
+ * docs/tasks/OFF_SCREEN_REVISIONS.md Task 9).
  */
 function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName: nameOverride, expanded, controls }: ButtonProps) {
   const schemaName = resolveAccessibleName(schema);

@@ -1,8 +1,9 @@
 /* The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md assumption 18). It sits over
    the still world (WorldView, z-index 0); its backdrop is the veil below — the screen's own child, so it fades with
-   the screen on the flip (Task 16b). The picker is a muted RadioButton: flat boxes, one light fill for the pick.
-   Nothing here lifts off the plate. The root never scrolls: it holds the veil, the dark layer and the column, and the
-   column is what scrolls on the phone (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2), so the veil stays over the glass. */
+   the screen on the flip (Task 16b). The Transmission picker is RadioButton's list and the theme row is muted: flat,
+   one light fill for the pick. Only the aspect family rows lift off the plate (docs/tasks/OFF_SCREEN_REVISIONS.md
+   Task 9). The root never scrolls: it holds the veil, the dark layer and the column, and the column is what scrolls,
+   on the phone (revisions Task 2) and on a desk it outgrows (Task 9), so the veil stays over the glass. */
 .off-screen {
   position: absolute;
   inset: 0;

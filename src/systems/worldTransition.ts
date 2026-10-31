@@ -41,8 +41,8 @@ export interface RetransmitInput {
    *  integers by CoordsInput). */
   coordinates?: { x: number; y: number };
   /** The loading (docs/specs/OFF_SCREEN.md assumption 10; band-table T25): present when the off screen's theme row or
-   *  Melody row picked, or when a payload carries them (applySessionPayload passes both). Read against the loading
-   *  store: the loaded theme again, or an equal pick set, is no change at all. */
+   *  an aspect family row picked, or when a payload carries them (applySessionPayload passes both). Read against the
+   *  loading store: the loaded theme again, or an equal pick set, is no change at all. */
   theme?: ThemeId;
   aspects?: Partial<Record<AspectFamilyId, AspectId[]>>;
 }

@@ -132,8 +132,8 @@ interface RadioButtonProps<V extends RadioButtonValue = string> extends RadioBut
  *
  *  `schema.appearance === 'muted'` (docs/tasks/LAYOUT_REWORK.md Task 27) swaps each CabinetBox for a
  *  flat `.sc-radio-button__flat` face of the same height: no walls, no pop timeline, no hover pop, no
- *  glow, the selected one a monochrome fill (RadioButton.css). It is the powered-off screen's picker —
- *  nothing there comes off the plate.
+ *  glow, the selected one a monochrome fill (RadioButton.css). It is the powered-off screen's theme row,
+ *  flat while that screen's aspect rows pop (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9).
  *
  *  `schema.multiple` (docs/specs/OFF_SCREEN.md assumption 23; docs/tasks/OFF_SCREEN.md Task 29) is the
  *  set variant: `value` is a `string[]`, the Root is Radix's `type="multiple"` (a `group` of
@@ -145,8 +145,8 @@ interface RadioButtonProps<V extends RadioButtonValue = string> extends RadioBut
  *  the value prop round-trips; clearing the last option is `onChange([])` (there is no
  *  deselect-to-empty event to swallow, and `onDeselect` is never called). The stale-hover reset above
  *  compares the selection by content, not array identity, so a parent re-render handing a fresh array
- *  of the same values does not drop a live hover. The off screen's Melody row is the first consumer,
- *  in `muted`.
+ *  of the same values does not drop a live hover. The off screen's aspect family rows are the consumers,
+ *  in `cabinet` (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9; the Melody row was the first, in `muted`).
  *
  *  `schema.appearance === 'list'` (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3; Crawford's notes 1 and 2 of
  *  2026-10-31) is the off screen's Transmission list: every option is a full-width row

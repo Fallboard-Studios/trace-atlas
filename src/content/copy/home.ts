@@ -18,7 +18,7 @@ export const home = {
   // The Current row's eyebrow (docs/specs/OFF_SCREEN.md assumption 8): the row itself is named by describeWorld
   // (the loaded world, or the loaded save's name in front of it) — data, not copy.
   'home.off.current': { human: 'Current' },
-  // The Loading axis's group heading (the theme row and the Melody row), read from docs/tasks/OFF_SCREEN.md
+  // The Loading axis's group heading (the theme row and the aspect family rows), read from docs/tasks/OFF_SCREEN.md
   // Task 30 on; listed in content.test.ts's AWAITING_CONSUMER until then.
   'home.off.loading': { human: 'Loading' },
   // Roll (spec assumption 14): the action on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4) — a fresh

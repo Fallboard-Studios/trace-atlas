@@ -149,8 +149,9 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  control's `value` is a `string[]` and `onChange` receives the whole list, each option independently
    *  on or off — a Radix ToggleGroup of type "multiple", a `group` of `aria-pressed` buttons rather than
    *  a radiogroup. In the cabinet appearance every selected option is popped; in `muted` each carries
-   *  the selected fill. The off screen's Melody row is the first consumer; omitted (every other
-   *  consumer), the control is the single-value radio it always was. */
+   *  the selected fill. The off screen's aspect family rows are the consumers, in the cabinet appearance
+   *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9); omitted (every other consumer), the control is the
+   *  single-value radio it always was. */
   multiple?: true;
 }
 
@@ -172,8 +173,9 @@ export interface ButtonSchema extends ControlSchemaBase {
   type: 'button';
   /** 'cabinet' (the default, omitted by every consumer before the off screen's Roll and Keep) is the popped cabinetry
    *  box. 'muted' (docs/tasks/OFF_SCREEN.md Task 13; docs/specs/OFF_SCREEN.md §3) is RadioButton's muted for a button:
-   *  a flat face of the box's own height with no walls, no pop and no glow — the powered-off screen's look, where
-   *  nothing comes off the plate. A disabled muted button dims (the held-off look) rather than vanishing. */
+   *  a flat face of the box's own height with no walls, no pop and no glow — the powered-off screen's look for Roll
+   *  and Keep, flat while its aspect rows pop (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9). A disabled muted button
+   *  dims (the held-off look) rather than vanishing. */
   appearance?: 'cabinet' | 'muted';
 }
 
