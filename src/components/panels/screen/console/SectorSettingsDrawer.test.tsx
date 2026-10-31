@@ -34,6 +34,7 @@ import { describeWorld } from '@/utils/describeWorld';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { useUIStore } from '@/stores/uiStore';
 import { attachSceneWash } from '@/systems/worldChange';
+import { useSessionStore } from '@/stores/sessionStore';
 import { CONTENT, labels } from '@/content';
 
 // ========================================
@@ -232,6 +233,54 @@ describe('SectorSettingsDrawer', () => {
     } finally {
       detach();
     }
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R7: a Retransmit that reaches the request always moves the name or the plot,
+  // so the world is no longer the loaded save's. It lets the save go when the change runs, as the off screen's Roll does,
+  // so Current stops naming it and Keep writes a new row.
+  describe('Retransmit detaches the loaded save (review R7)', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      useUIStore.setState({ sceneWash: 'clear' });
+    });
+
+    it('with a save loaded, a Retransmit to new coordinates lets it go once the cover lands, the session renamed', () => {
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+      const detach = attachSceneWash();
+      try {
+        render(<SectorSettingsDrawer />);
+        const [xInput] = screen.getAllByRole('spinbutton');
+        fireEvent.change(xInput, { target: { value: '42' } });
+        fireEvent.click(screen.getByText('Retransmit'));
+        expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run'); // it waits with the world
+        act(() => useUIStore.getState().setSceneWash('covered'));
+        expect(retransmitWorldMock).toHaveBeenCalledTimes(1);
+        expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+        expect(useSessionStore.getState().currentSessionName).not.toBe('Dusk Run');
+      } finally {
+        detach();
+      }
+    });
+
+    it('a new Attenuation Style name lets the loaded save go too', () => {
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+      render(<SectorSettingsDrawer />);
+      const attenuationStyleInput = screen.getAllByRole('textbox').find((el) => (el as HTMLInputElement).value === 'Pelagos')!;
+      fireEvent.change(attenuationStyleInput, { target: { value: 'Brinemouth' } });
+      fireEvent.click(screen.getByText('Retransmit'));
+      expect(retransmitWorldMock).toHaveBeenCalledWith({ attenuationStyleName: 'Brinemouth' });
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    });
+
+    it('with nothing loaded, nothing changes: the session keeps the name it carries', () => {
+      useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'My Own Name' });
+      render(<SectorSettingsDrawer />);
+      const [xInput] = screen.getAllByRole('spinbutton');
+      fireEvent.change(xInput, { target: { value: '42' } });
+      fireEvent.click(screen.getByText('Retransmit'));
+      expect(retransmitWorldMock).toHaveBeenCalledTimes(1);
+      expect(useSessionStore.getState()).toMatchObject({ currentLoadedSessionName: null, currentSessionName: 'My Own Name' });
+    });
   });
 
   it('no longer renders the old "Enable automatic effects" toggle — relocated and reshaped into the Audio Rig drawer\'s Ping Variance Automation slider (docs/tasks/archive/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
