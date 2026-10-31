@@ -331,7 +331,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
 ### Phase 3: Aspects (notes 4, 3, 5)
 
-- [ ] **Task 6: `aspects.ts` and its readers — the `'theme'` pick goes**
+- [x] **Task 6: `aspects.ts` and its readers — the `'theme'` pick goes** (942b0234; `AspectPick` is deleted outright rather than kept as an alias of `AspectId`; the empty row's sentence is `home.off.melodyDescription.none`, the old as-theme sentence's words as the stand-in; tests outside the plan's list that used `'theme'` as a pick in fixtures — SectorSettingsDrawer, seedBaseline, sessionDiff, sessionShareUtils, worldIdentity, worldTransition, spawnSystem — take real ids, intent unchanged; 4 mutants, all killed)
 
   **Description:** `AspectPick = AspectId`; `THEME_PICK` deleted; `pickOrderOf(family)` is the family's options in
   `ASPECT_IDS` order; `canonicalPicks` / `canonicalAspects` unchanged otherwise; `dealAspects` loses its `'theme'`
@@ -363,7 +363,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
   **Estimated scope:** M (many small edits, one idea)
 
-- [ ] **Task 7: `aspects.ts`, `bandKeys.ts` — the Envelope and Distance families: keys and placeholder columns**
+- [x] **Task 7: `aspects.ts`, `bandKeys.ts` — the Envelope and Distance families: keys and placeholder columns** (114f3f88; the key sets sit beside `MELODY_BAND_KEYS` in `aspects.ts`, so `bandKeys.ts` needed nothing; `ASPECT_IDS` gives way to `ASPECT_IDS_BY_FAMILY` with `AspectIdOf<F>`, and `resolveBands` reads a column through a widened lookup so another family's id moves nothing; `isAspectOf` is the membership the family-keyed readers use; the intent checks also pin the shaped bands, since a shaped stage is drawn from its own band and Classic's 0.03-0.25 shaped attack would undo a pluck; 12 mutants, all killed)
 
   **Description:** `ASPECT_FAMILY_IDS` becomes `['melody', 'envelope', 'distance']`; `ASPECT_IDS` is per family now
   (`ASPECT_IDS_BY_FAMILY`, with `AspectId` the union: `hypnotic | mechanical | wandering | plucked | swelling | held |
@@ -395,7 +395,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
   **Estimated scope:** M
 
-- [ ] **Task 8: `spawnSystem.ts` — `deriveEnvelopeFields`, `deriveSendFields`; the deal pass per family; the engine push**
+- [x] **Task 8: `spawnSystem.ts` — `deriveEnvelopeFields`, `deriveSendFields`; the deal pass per family; the engine push** (eb334995; **the Envelope push is `updateVoiceEnvelope`, not `reReserveVoice`** — the plan's own rule is "the same calls a hand edit makes", and the hand edit (`applyAdsr`) writes the envelope live, curves included, with no rebuild; Distance pushes all five sends through `updateRobotSends(robotSendLevels(robot))`; Melody now regenerates only a Melody-dealt robot; the compose helpers take their bands, so the deal reads every band from its own theme; the per-family pass is a `switch`; 11 mutants, 10 killed, the survivor — accumulating the robot as dealt so far — removed until Voice needed it)
 
   **Description:** Extract the ADSR draw (the two curve rolls against the shaped shares, then the four stages from
   their bands) from `generateAudioAttributes` into `deriveEnvelopeFields(noiseMap, offset, bands)` and the five-send
@@ -432,7 +432,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
   **Estimated scope:** M (one wide file; mechanical extraction plus the loop)
 
-- [ ] **Task 9: `OffScreen.tsx` / `.css` — the family rows, generic, in the cabinet appearance**
+- [x] **Task 9: `OffScreen.tsx` / `.css` — the family rows, generic, in the cabinet appearance** (52cd93fe; one handler sends the **whole** loading with the changed family replaced — `retransmitWorld` replaces the aspects whole, so a family-only send would drop the others' picks; the description memory is per family; found at the Look: the desk column outgrew a 1280 × 720 screen and the centred, clipped column cut the label and the footer off, so the column scrolls on the desk too with `justify-content: safe center`, and each description sits half the gap under its row; 7 mutants, all killed)
 
   **Description:** The Loading axis renders one `multiple` `RadioButton` per `ASPECT_FAMILY_IDS` entry (schema from
   `familyLabels` / `aspectName`, value from the shown identity's list, a change handler sending the whole canonical
@@ -467,7 +467,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
   **Estimated scope:** M
 
-- [ ] **Task 10: Voice — `PickBand`, the waveform draws, the family** *(decided 2026-10-31: the `PickBand` path)*
+- [x] **Task 10: Voice — `PickBand`, the waveform draws, the family** *(decided 2026-10-31: the `PickBand` path)* (f511af0b; the pick draws over [0, total weight], so Classic's five unit weights are the old [0, 5] call and its integer edges Math.floor's index exactly — pinned over 400 robots against an independent oracle, base and layers; a draw at the very top lands on the last weighted waveform; the Voice push is `reReserveVoice` **and** `primeRobotLinks`, the structural edit's `rebuildVoice` — the rebuild disposes the nodes the LFO links were wired to; Voice keys: waveform, filterFreq, accentFilterFreq, accentFilterQ, layerGain; 15 mutants, all killed after the Woody and Hollow cases were made to pin the bands' outcomes; with four family rows the desk column at 1600 × 900 scrolls 75 px — a Look note for Crawford)
 
   **Description:** If Crawford takes the recommendation: `bandKeys.ts` gains a fourth kind, `PickBand`
   (`{ weights: Record<WaveformType, number> }`), one key `robot.waveform`, Classic's weights equal; the base-waveform
@@ -501,7 +501,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
   **Estimated scope:** M
 
-- [ ] **Task 11: The listen — the new families' numbers**
+- [ ] **Task 11: The listen — the new families' numbers** (NOT DONE — Crawford's ear. The build ran unattended on 2026-10-31, so the placeholder columns of Tasks 7 and 10 stand as written; `npx vitest run src/data/bands` passes with them. When he listens, the agreed numbers replace them in `aspects.ts` and the grids' aspect tables.)
 
   **Description:** On one seed, Crawford listens to each new option alone against Classic and against one theme and
   adjusts the placeholder bands until each is itself; the agreed numbers go into `aspects.ts` and the grids' aspect
@@ -523,13 +523,28 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
   **Estimated scope:** S (data; the time is listening)
 
 ### Checkpoint C: Aspects
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
 - [ ] Browser: four (or five) aspect rows popping on hover and select; a Plucked pick audibly shortens a company's
       notes; a Cavern pick sinks one into the rooms; the company detail's "Loaded Under" line names every dealt
       family; a save made under two families reloads with the rows set; its link carries
-      `melody=…&envelope=…&space=…`; no "as theme" anywhere.
+      `melody=…&envelope=…&space=…`; no "as theme" anywhere. (Headless half recorded below; the two by-ear items are
+      Crawford's.)
 - [ ] `npm run perf:audio` Pixel A/B on a Perilous + Plucked + Cavern world against `main` (the densest, wettest case).
-- [ ] Reviewed with human before Phase 4.
+      (Not run: the Pixel is Crawford's.)
+- [ ] Reviewed with human before Phase 4. (Pending, as at A and B.)
+
+**Checkpoint C record (2026-10-31, `feature/off-screen` at `96c557d2`, automated half):** `npm run build:types` clean;
+`npm run lint` 0 errors (the 4 pre-existing warnings); `npx vitest run` 342 files, 12 979 tests, all passed;
+`npm run build` built (the usual over-500 kB chunk warning). Headless Chrome, the real app at 1600 × 900: Hypnotic,
+Mechanical, Wandering, Plucked, Swelling, Held, Near, Far, Remote, Glassy, Woody, Hollow render as cabinet boxes in
+four family rows; a click pops the box (front offset 4,2 against the rest's 2,1) with the accent fill, a hover pops it
+too; picking Wandering, Plucked, Held, Remote and Woody left the address bar at
+`?seed=…&x=…&y=…&melody=wandering&envelope=plucked,held&distance=remote&voice=woody` and the readout at
+`… · Wandering · Plucked + Held · Remote · Woody`; no console errors. The company detail's line across four families
+is pinned by a unit case (96c557d2: "Hypnotic + Held + Remote + Woody", in family order); a save carrying Distance
+Remote and two Envelope picks reloads with those rows set (OffScreen.test.tsx). No "as theme" in `src/` outside the
+stale-pick tests. Still Crawford's: the Plucked and Remote listens, Task 11's numbers, the Pixel A/B, and the Look
+note that four family rows make the 1600 × 900 desk column scroll by 75 px.
 
 ---
 
