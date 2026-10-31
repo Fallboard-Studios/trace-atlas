@@ -37,6 +37,18 @@ export const home = {
   'home.off.presets.a': { human: 'Kryndara' },
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },
+  // The Loading axis's names (docs/specs/OFF_SCREEN.md assumption 17), the sketch's lists as stand-ins until Crawford's
+  // pass: one entry per theme id and per Melody option id, read by describeWorld's tail (band-table T28) and, from Task
+  // 30, by the two rows. The content grammar allows four key segments, so the family sits as one segment -
+  // home.off.melody.<id>, not the spec's home.off.aspect.melody.<id>. The one-line descriptions join at Task 30.
+  'home.off.theme.classic': { human: 'Classic' },
+  'home.off.theme.calm': { human: 'Calm' },
+  'home.off.theme.bold': { human: 'Bold' },
+  'home.off.theme.adventurous': { human: 'Adventurous' },
+  'home.off.theme.perilous': { human: 'Perilous' },
+  'home.off.melody.hypnotic': { human: 'Hypnotic' },
+  'home.off.melody.mechanical': { human: 'Mechanical' },
+  'home.off.melody.wandering': { human: 'Wandering' },
   // The readout well's accessible name; what it shows is describeWorld's string for the pick, so it carries no
   // template of its own (docs/tasks/OFF_SCREEN.md Task 10).
   'home.off.readout': {

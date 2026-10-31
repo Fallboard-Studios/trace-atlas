@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { describeWorld } from './describeWorld';
+import { labels } from '@/content';
 
 /*
  * docs/tasks/OFF_SCREEN.md Task 9 (spec assumption 8): one name for a world, shared by the off screen's Current
@@ -41,5 +42,51 @@ describe('describeWorld', () => {
     const before = structuredClone(identity);
     expect(describeWorld(identity)).toBe(describeWorld(identity));
     expect(identity).toEqual(before);
+  });
+
+  // band-table T28 (docs/specs/OFF_SCREEN.md assumption 17): the theme and aspects tail, names from content.
+  describe('the theme and aspects tail', () => {
+    const plot = { attenuationStyleName: 'tr3nch-2', coordinates: { x: -30, y: -30 } };
+
+    it('Classic with no picks is the bare shape, unchanged', () => {
+      expect(describeWorld({ ...plot, theme: 'classic', aspects: {} })).toBe('tr3nch-2 · (-30, -30)');
+      expect(describeWorld({ ...plot, theme: 'classic', aspects: { melody: [] } })).toBe('tr3nch-2 · (-30, -30)');
+    });
+
+    it('a theme other than Classic appends its name', () => {
+      expect(describeWorld({ ...plot, theme: 'calm', aspects: {} })).toBe('tr3nch-2 · (-30, -30) · Calm');
+    });
+
+    it('the picks append their names joined with " + ", in the list\'s order, the as-theme member omitted', () => {
+      expect(describeWorld({ ...plot, theme: 'calm', aspects: { melody: ['theme', 'hypnotic', 'mechanical'] } })).toBe(
+        'tr3nch-2 · (-30, -30) · Calm · Hypnotic + Mechanical',
+      );
+    });
+
+    it('picks under Classic append without a theme segment; a list of only the as-theme member appends nothing', () => {
+      expect(describeWorld({ ...plot, theme: 'classic', aspects: { melody: ['wandering'] } })).toBe('tr3nch-2 · (-30, -30) · Wandering');
+      expect(describeWorld({ ...plot, theme: 'classic', aspects: { melody: ['theme'] } })).toBe('tr3nch-2 · (-30, -30)');
+    });
+
+    it('a labelled world carries the tail after the plot', () => {
+      expect(describeWorld({ attenuationStyleName: 'dusk', coordinates: { x: 12, y: 68 }, theme: 'bold', aspects: { melody: ['hypnotic'] } }, 'Dusk Run')).toBe(
+        'Dusk Run · dusk (12, 68) · Bold · Hypnotic',
+      );
+    });
+
+    it('reads every name from content, so a copy change moves the readout', () => {
+      const tail = describeWorld({ ...plot, theme: 'perilous', aspects: { melody: ['hypnotic', 'mechanical', 'wandering'] } });
+      expect(tail).toBe(
+        `tr3nch-2 · (-30, -30) · ${labels('home.off.theme.perilous').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.mechanical').humanLabel} + ${labels('home.off.melody.wandering').humanLabel}`,
+      );
+      for (const theme of ['classic', 'calm', 'bold', 'adventurous', 'perilous'] as const) {
+        expect(labels(`home.off.theme.${theme}`).humanLabel.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('an identity with no loading (a pick built from a bare name and plot) reads as before', () => {
+      expect(describeWorld(plot)).toBe('tr3nch-2 · (-30, -30)');
+      expect(describeWorld(plot, 'Night')).toBe('Night · tr3nch-2 (-30, -30)');
+    });
   });
 });
