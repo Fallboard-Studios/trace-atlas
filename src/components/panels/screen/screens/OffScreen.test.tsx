@@ -107,17 +107,22 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
 // docs/tasks/OFF_SCREEN.md Task 16a (spec assumption 18): the veil is the screen's own backdrop, under the content, and
 // the lore footer is the last thing in the column — on a first visit (under the hint) and on a returning one (under
 // the chooser) alike. Presence and order only here; the blur and the dim are Crawford's look.
+//
+// docs/tasks/OFF_SCREEN_REVISIONS.md Task 2 (Crawford's note 6): the column scrolls on the phone and the veil must not
+// scroll with it, so the root holds the veil, the dark layer and a scroll column, and the column holds everything
+// else. Structure only (jsdom has no layout); the veil staying put is the Look.
 describe('OffScreen — the veil and the lore footer', () => {
   const veil = (container: HTMLElement) => container.querySelector('.off-screen__veil');
   const footer = () => screen.getByText(human('home.off.footer'));
+  const column = (container: HTMLElement) => container.querySelector('.off-screen__scroll');
 
-  it('a first visit has the veil as the first child, decorative, and the footer as the last', () => {
+  it('a first visit has the veil as the first child, decorative, and the footer as the last in the column', () => {
     const { container } = render(<OffScreen />);
     const root = container.querySelector('.off-screen')!;
     expect(veil(container)).not.toBeNull();
     expect(veil(container)!.getAttribute('aria-hidden')).toBe('true');
     expect(root.firstElementChild).toBe(veil(container));
-    expect(root.lastElementChild).toBe(footer());
+    expect(column(container)!.lastElementChild).toBe(footer());
     expect(footer().classList.contains('off-screen__footer')).toBe(true);
   });
 
@@ -126,9 +131,43 @@ describe('OffScreen — the veil and the lore footer', () => {
     const { container } = render(<OffScreen />);
     const root = container.querySelector('.off-screen')!;
     expect(root.firstElementChild).toBe(veil(container));
-    expect(root.lastElementChild).toBe(footer());
+    expect(column(container)!.lastElementChild).toBe(footer());
     const picker = container.querySelector('.off-screen__picker')!;
     expect(picker.compareDocumentPosition(footer()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each([
+    ['a first visit', false],
+    ['a returning visit', true],
+  ])('%s: the root holds the veil, the dark layer and the scroll column, and nothing else', (_, heard) => {
+    if (heard) markHeardWorld();
+    const { container } = render(<OffScreen />);
+    const root = container.querySelector('.off-screen')!;
+    const children = Array.from(root.children);
+    expect(children).toHaveLength(3);
+    expect(children[0]).toBe(veil(container));
+    expect(children[1]).toBe(container.querySelector('.off-screen__dark'));
+    expect(children[2]).toBe(column(container));
+  });
+
+  it('the etch, the chooser and the footer scroll in the column, never beside the veil', () => {
+    markHeardWorld();
+    const { container } = render(<OffScreen />);
+    const scroll = column(container)!;
+    expect(scroll.parentElement).toBe(container.querySelector('.off-screen'));
+    expect(Array.from(scroll.children).map((c) => c.className)).toEqual([
+      'off-screen__etch',
+      'off-screen__picker',
+      'off-screen__footer',
+    ]);
+    expect(footer().parentElement).not.toBe(veil(container)!.parentElement);
+    expect(scroll.contains(screen.getByRole('group', { name: human('home.off.transmission') }))).toBe(true);
+  });
+
+  it('the column carries no aria-hidden: only the veil and the dark layer are decorative', () => {
+    const { container } = render(<OffScreen />);
+    expect(column(container)!.getAttribute('aria-hidden')).toBeNull();
+    expect(container.querySelector('.off-screen__dark')!.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('the footer is one line of etched text, not a control, and the veil takes no clicks', () => {

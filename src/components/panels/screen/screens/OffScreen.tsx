@@ -113,7 +113,8 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
  * writes a new row rather than overwriting the save. The veil (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
- * column in both gate states.
+ * column in both gate states. The column is the root's third child, `.off-screen__scroll`, after the veil and the
+ * dark layer (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2): it is what scrolls on the phone, so the veil stays put.
  *
  * The boot theatre (assumption 18, animation/offScreenTheatre.ts): on mount the dark layer over the content holds
  * for half a second, then flickers off — a 'ui' timeline in timelineMap, so it runs over the paused world; a tap
@@ -312,38 +313,42 @@ export function OffScreen() {
       <div className="off-screen__veil" aria-hidden="true" />
       {/* The boot theatre's dark layer: opaque over everything at first paint, faded and hidden by the timeline. */}
       <div className="off-screen__dark" ref={darkRef} aria-hidden="true" />
-      <div className="off-screen__etch">
-        <h2 className="off-screen__label">{LABEL.humanLabel}</h2>
-        {LABEL.loreLabel && <p className="off-screen__lore">{LABEL.loreLabel}</p>}
-        <p className="off-screen__hint">{POWER_HINT}</p>
-      </div>
-      {heardWorld && (
-        <div className="off-screen__picker">
-          {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
-          <div className="off-screen__axes">
-            <div className="off-screen__axis">
-              <RadioButton schema={schema} value={pick.value} onChange={onChange} />
-              <div className="off-screen__actions">
-                <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
-                <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
+      {/* The column (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2): it scrolls on the phone, so the veil and the dark
+          layer — the root's own children — stay put over the whole glass while it moves under them. */}
+      <div className="off-screen__scroll">
+        <div className="off-screen__etch">
+          <h2 className="off-screen__label">{LABEL.humanLabel}</h2>
+          {LABEL.loreLabel && <p className="off-screen__lore">{LABEL.loreLabel}</p>}
+          <p className="off-screen__hint">{POWER_HINT}</p>
+        </div>
+        {heardWorld && (
+          <div className="off-screen__picker">
+            {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
+            <div className="off-screen__axes">
+              <div className="off-screen__axis">
+                <RadioButton schema={schema} value={pick.value} onChange={onChange} />
+                <div className="off-screen__actions">
+                  <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
+                  <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
+                </div>
+              </div>
+              <div className="off-screen__axis">
+                <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
+                <p className="off-screen__description off-screen__description--theme">{themeDescription(shownTheme)}</p>
+                <RadioButton schema={MELODY_SCHEMA} value={shownMelody} onChange={onMelodyChange} />
+                <p className="off-screen__description off-screen__description--melody">
+                  {aspectDescription('melody', describedMelody)}
+                </p>
               </div>
             </div>
-            <div className="off-screen__axis">
-              <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
-              <p className="off-screen__description off-screen__description--theme">{themeDescription(shownTheme)}</p>
-              <RadioButton schema={MELODY_SCHEMA} value={shownMelody} onChange={onMelodyChange} />
-              <p className="off-screen__description off-screen__description--melody">
-                {aspectDescription('melody', describedMelody)}
-              </p>
-            </div>
+            <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
+              {readout}
+            </p>
+            {dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>}
           </div>
-          <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
-            {readout}
-          </p>
-          {dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>}
-        </div>
-      )}
-      <p className="off-screen__footer">{FOOTER}</p>
+        )}
+        <p className="off-screen__footer">{FOOTER}</p>
+      </div>
     </div>
   );
 }

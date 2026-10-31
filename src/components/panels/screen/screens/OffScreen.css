@@ -1,8 +1,17 @@
 /* The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md assumption 18). It sits over
    the still world (WorldView, z-index 0); its backdrop is the veil below — the screen's own child, so it fades with
    the screen on the flip (Task 16b). The picker is a muted RadioButton: flat boxes, one light fill for the pick.
-   Nothing here lifts off the plate. */
+   Nothing here lifts off the plate. The root never scrolls: it holds the veil, the dark layer and the column, and the
+   column is what scrolls on the phone (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2), so the veil stays over the glass. */
 .off-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* The column: the etch, the chooser and the footer, centred on the desk. Over the veil, under the dark layer. */
+.off-screen__scroll {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -28,11 +37,6 @@
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   pointer-events: none;
-}
-
-.off-screen > :not(.off-screen__veil):not(.off-screen__dark) {
-  position: relative;
-  z-index: 1;
 }
 
 /* The boot theatre's dark layer (docs/tasks/OFF_SCREEN.md Task 16b): opaque black over the whole screen at first
@@ -204,8 +208,9 @@
    docs/tasks/OFF_SCREEN_REVISIONS.md Task 1), and a short screen (a phone on its side) scrolls rather than
    clipping the picker. The label is sized to fit 320 px and a long word breaks before it runs past the
    glass. The picker takes the screen's width, its options centred and wrapping, a little tighter than the
-   desk's. The readout wraps, centred and balanced, so a long save name takes a second line. */
-#screen-viewport[data-shell='phone'] .off-screen {
+   desk's. The readout wraps, centred and balanced, so a long save name takes a second line. The column scrolls, not
+   the screen, so the veil stays put over the glass (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2). */
+#screen-viewport[data-shell='phone'] .off-screen__scroll {
   justify-content: flex-start;
   padding-top: calc(var(--power-corner-height) + 12px);
   gap: var(--spacing-lg);
