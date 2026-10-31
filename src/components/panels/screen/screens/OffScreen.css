@@ -10,7 +10,11 @@
   overflow: hidden;
 }
 
-/* The column: the etch, the chooser and the footer, centred on the desk. Over the veil, under the dark layer. */
+/* The column: the etch, the chooser and the footer, centred on the desk. Over the veil, under the dark layer. It scrolls
+   on the desk too once the family rows (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9) make it taller than a short screen
+   (1280 x 720 measured 722 px of content in 644): `safe center` centres the column while it fits and starts it at the
+   top once it does not, where plain `center` pushed the label and the footer out of reach at both ends. A browser
+   without `safe` keeps the plain centring of the declaration before it. */
 .off-screen__scroll {
   position: absolute;
   inset: 0;
@@ -19,10 +23,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  justify-content: safe center;
   gap: var(--spacing-xl);
   padding: var(--spacing-lg);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* The veil (Crawford, 2026-10-30: it stays): a blur and a dim over the faint world until the flip. A backdrop filter
@@ -141,11 +147,12 @@
   justify-content: center;
 }
 
-/* The one-line description under the theme row (Task 30; spec §1.6, the Guide's part): the sketch's .desc — small,
-   italic, the etched grey. Two lines of height are held whatever the sentence takes, so a shorter sentence after a
-   theme pick does not lift the readout below it. */
+/* The one-line description under the theme row (Task 30; spec §1.6, the Guide's part) and under each family row
+   (revisions Task 9): the sketch's .desc — small, italic, the etched grey. Two lines of height are held whatever the
+   sentence takes, so a shorter sentence after a pick does not lift the rows below it. A line belongs to the row above
+   it, so it sits half the column's gap under that row and the full gap above the next one. */
 .off-screen__description {
-  margin: 0;
+  margin: calc(var(--spacing-md) / -2) 0 0;
   min-height: 2.6em;
   max-width: 100%;
   padding: 0 6px;
@@ -232,8 +239,6 @@
   justify-content: flex-start;
   padding-top: calc(var(--power-corner-height) + 12px);
   gap: var(--spacing-lg);
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 #screen-viewport[data-shell='phone'] .off-screen__label {

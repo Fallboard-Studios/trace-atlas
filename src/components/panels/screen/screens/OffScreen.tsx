@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
-import { canonicalPicks, pickOrderOf, type AspectId } from '@/data/bands/aspects';
+import { ASPECT_FAMILY_IDS, canonicalPicks, pickOrderOf, type AspectFamilyId, type AspectId } from '@/data/bands/aspects';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
@@ -60,20 +60,48 @@ const THEME_SCHEMA: RadioButtonSchema = {
   options: THEME_IDS.map((id) => ({ value: id, humanLabel: themeName(id) })),
 };
 
-/** The Melody row (Task 31; spec assumptions 17 and 21): a muted multiple RadioButton labelled by the family — the three
- *  options in canonical order (pickOrderOf), each on or off on its own. No "As theme" option
- *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6, Crawford's note 4): the row cleared is every robot as theme. */
-const MELODY_SCHEMA: RadioButtonSchema = {
-  id: 'offMelody',
-  type: 'radio',
-  ...familyLabels('melody'),
-  appearance: 'muted',
-  multiple: true,
-  options: pickOrderOf('melody').map((id) => ({ value: id, humanLabel: aspectName('melody', id) })),
-};
+/** The family rows (Task 31's Melody row, made generic by docs/tasks/OFF_SCREEN_REVISIONS.md Task 9): per family in
+ *  ASPECT_FAMILY_IDS, a multiple RadioButton labelled by the family — its options in canonical order (pickOrderOf), each
+ *  on or off on its own, no "As theme" option (revisions Task 6: the row cleared is every robot as theme). The cabinet
+ *  appearance (Crawford's note 5): the aspect boxes pop on hover and select, the only thing on this screen that does.
+ *  Static: the names are content; a new family is a data change. */
+const FAMILY_SCHEMAS = Object.fromEntries(
+  ASPECT_FAMILY_IDS.map((family): [AspectFamilyId, RadioButtonSchema] => [
+    family,
+    {
+      id: `off${family[0].toUpperCase()}${family.slice(1)}`,
+      type: 'radio',
+      ...familyLabels(family),
+      multiple: true,
+      options: pickOrderOf(family).map((id) => ({ value: id, humanLabel: aspectName(family, id) })),
+    },
+  ]),
+) as Record<AspectFamilyId, RadioButtonSchema>;
 
-/** The Melody row's value for a world with no picks: one array, so the memoized row sees the same props each render. */
+/** A family row's value with no picks: one array, so the memoized row sees the same props each render. */
 const NO_PICKS: readonly AspectId[] = [];
+
+/** One family's row and the line under it (revisions Task 9). The row hands its family back with the list, so one
+ *  stable handler in OffScreen serves every family. */
+function AspectFamilyRow({
+  family,
+  value,
+  described,
+  onChange,
+}: {
+  family: AspectFamilyId;
+  value: readonly AspectId[];
+  described: AspectId | null;
+  onChange: (family: AspectFamilyId, picks: string[]) => void;
+}) {
+  const onRowChange = useCallback((picks: string[]) => onChange(family, picks), [family, onChange]);
+  return (
+    <>
+      <RadioButton schema={FAMILY_SCHEMAS[family]} value={value} onChange={onRowChange} />
+      <p className={`off-screen__description off-screen__description--${family}`}>{aspectDescription(family, described)}</p>
+    </>
+  );
+}
 
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
@@ -136,14 +164,17 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
  * both; the phone shell stacks them (OffScreen.css).
  *
- * The Melody row (Task 31; assumptions 17 and 21) sits under the theme row's line: a muted multiple RadioButton — the
- * three options in canonical order, no "As theme" (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6) — showing the loaded
- * world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change sends
- * the whole set, canonical, as `retransmitWorld({ aspects: { melody } })` (an empty list when the row is cleared — every
- * robot as theme; the deal re-runs over the same seed and plot), with the same drop to Current, the same attached save
- * and the same dirty read as a theme pick. Its own description line names the aspect toggled on last while it is still
- * on, else the last of the set in canonical order, else the family's own `none` sentence; a world pick resets the toggle
- * memory, so a save reads as its own set. Roll touches neither row: rollWorld leaves the loading store alone
+ * The family rows (Task 31's Melody row, one per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 9; assumptions
+ * 17 and 21) sit under the theme row's line, in ASPECT_FAMILY_IDS order — Melody, Envelope, Distance: each a multiple
+ * RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme row,
+ * the list, Roll and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
+ * loaded world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change
+ * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
+ * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the deal
+ * re-runs over the same seed and plot, with the same drop to Current, the same attached save and the same dirty read as
+ * a theme pick. Each row's description line names the aspect toggled on last in that family while it is still on, else
+ * the last of its set in canonical order, else the family's own `none` sentence; a world pick resets every family's
+ * toggle memory, so a save reads as its own sets. Roll touches no row: rollWorld leaves the loading store alone
  * (assumption 14).
  */
 export function OffScreen() {
@@ -153,8 +184,9 @@ export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
-  // The Melody aspect toggled on most recently (Task 31), for the row's description line; null after a world pick.
-  const [lastMelodyOn, setLastMelodyOn] = useState<AspectId | null>(null);
+  // Per family, the aspect toggled on most recently (Task 31, per family since revisions Task 9), for its row's
+  // description line; emptied by a world pick.
+  const [lastOn, setLastOn] = useState<Partial<Record<AspectFamilyId, AspectId>>>({});
   // Only the chooser reads it; a first visit (hint only) never builds the payload.
   const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
 
@@ -204,8 +236,8 @@ export function OffScreen() {
   );
 
   const onChange = useCallback((value: string) => {
-    // A world pick shows the set as that world carries it: nothing toggled (Task 31).
-    setLastMelodyOn(null);
+    // A world pick shows each set as that world carries it: nothing toggled (Task 31).
+    setLastOn({});
     if (value === CURRENT_VALUE) {
       setPick(CURRENT_PICK);
       return;
@@ -294,27 +326,32 @@ export function OffScreen() {
   const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
   // The theme the Loading row shows: the pick's own after a save or preset pick, the loaded world's for Current.
   const shownTheme: ThemeId = 'identity' in pick ? pick.identity.theme : loadedTheme;
-  // The Melody row's set (Task 31), by the same rule.
-  const shownMelody: readonly AspectId[] =
-    ('identity' in pick ? pick.identity.aspects.melody : loadedAspects.melody) ?? NO_PICKS;
-  // The described aspect: the one toggled on last while it is still on, else the last of the set in canonical order,
-  // else none — the row cleared, whose own sentence says every probe takes its melody from the theme.
-  const describedMelody: AspectId | null =
-    (lastMelodyOn && shownMelody.includes(lastMelodyOn) ? lastMelodyOn : shownMelody[shownMelody.length - 1]) ?? null;
+  // The family rows' sets (Task 31; per family since revisions Task 9), by the same rule.
+  const shownAspects = 'identity' in pick ? pick.identity.aspects : loadedAspects;
+  const shownOf = (family: AspectFamilyId): readonly AspectId[] => shownAspects[family] ?? NO_PICKS;
+  // A family's described aspect: the one toggled on last while it is still on, else the last of its set in canonical
+  // order, else none — the row cleared, whose own sentence says every probe takes that family from the theme.
+  const describedOf = (family: AspectFamilyId): AspectId | null => {
+    const shown = shownOf(family);
+    const last = lastOn[family];
+    return (last && shown.includes(last) ? last : shown[shown.length - 1]) ?? null;
+  };
 
-  // A Melody change (Task 31): the set, canonical, through retransmitWorld — the deal re-runs over the same seed and
-  // plot — so the world row drops back to Current; the loaded save stays attached and dirty is read again, as for a
-  // theme pick. The aspect toggled on, if one was, becomes the described one.
-  const onMelodyChange = useCallback(
-    (picks: string[]) => {
-      const next = canonicalPicks('melody', picks as AspectId[]);
-      const turnedOn = next.find((p) => !shownMelody.includes(p));
-      if (turnedOn) setLastMelodyOn(turnedOn);
-      retransmitWorld({ aspects: { melody: next } });
+  // A family change (Task 31; per family since revisions Task 9): the whole loading through retransmitWorld, this family's
+  // set replaced, canonical, and every other family's carried as shown — retransmitWorld replaces the aspects whole — so
+  // the deal re-runs over the same seed and plot; the world row drops back to Current, the loaded save stays attached and
+  // dirty is read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one.
+  const onFamilyChange = useCallback(
+    (family: AspectFamilyId, picks: string[]) => {
+      const next = canonicalPicks(family, picks as AspectId[]);
+      const shown = shownAspects[family] ?? NO_PICKS;
+      const turnedOn = next.find((p) => !shown.includes(p));
+      if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
+      retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
       setPick(CURRENT_PICK);
       setDirty(isWorldDirty());
     },
-    [shownMelody],
+    [shownAspects],
   );
 
   return (
@@ -343,10 +380,16 @@ export function OffScreen() {
               <div className="off-screen__axis">
                 <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
                 <p className="off-screen__description off-screen__description--theme">{themeDescription(shownTheme)}</p>
-                <RadioButton schema={MELODY_SCHEMA} value={shownMelody} onChange={onMelodyChange} />
-                <p className="off-screen__description off-screen__description--melody">
-                  {aspectDescription('melody', describedMelody)}
-                </p>
+                {/* The family rows (revisions Task 9): one per family, from the data. */}
+                {ASPECT_FAMILY_IDS.map((family) => (
+                  <AspectFamilyRow
+                    key={family}
+                    family={family}
+                    value={shownOf(family)}
+                    described={describedOf(family)}
+                    onChange={onFamilyChange}
+                  />
+                ))}
               </div>
             </div>
             <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">

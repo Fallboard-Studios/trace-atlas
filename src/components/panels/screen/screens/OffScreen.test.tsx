@@ -49,7 +49,8 @@ import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/tim
 import { getRef } from '@/utils/refs';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { CONTENT, fill } from '@/content';
-import type { AspectId, AspectIdOf } from '@/data/bands/aspects';
+import { ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectFamilyId, type AspectId, type AspectIdOf } from '@/data/bands/aspects';
+import type { LoadingIdentity } from '@/data/bands/loadingIdentity';
 import type { SessionPayload } from '@/types/session';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
@@ -261,11 +262,11 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     for (const id of ['calm', 'bold', 'adventurous', 'perilous'] as const) expect(checked(id)).toBe('false');
   });
 
-  it('is muted, like the Transmission row: a flat face per theme, no cabinet box', () => {
-    const { container } = render(<OffScreen />);
+  it('is muted: a flat face per theme, no cabinet box (the aspect rows pop, the theme row does not; revisions Task 9)', () => {
+    render(<OffScreen />);
     expect(themeRow().closest('.sc-radio-button')?.classList.contains('sc-radio-button--muted')).toBe(true);
     expect(within(themeRow()).getAllByRole('radio').every((r) => r.querySelector('.sc-radio-button__flat'))).toBe(true);
-    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+    expect(themeRow().closest('.sc-radio-button')!.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
   it('a theme pick is one retransmitWorld with the theme alone: no payload applied, no roll, no sound', () => {
@@ -454,18 +455,21 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(within(melodyRow()).queryAllByRole('radio')).toHaveLength(0);
   });
 
-  it('is a muted multiple RadioButton in the Loading column, under the theme row', () => {
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 9 (Crawford's note 5): the aspect rows take the cabinet appearance, so they pop.
+  it('is a cabinet multiple RadioButton in the Loading column, under the theme row, before the other families', () => {
     const { container } = render(<OffScreen />);
     const root = melodyRow().closest('.sc-radio-button')!;
-    expect(root.classList.contains('sc-radio-button--muted')).toBe(true);
+    expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
     expect(root.classList.contains('sc-radio-button--multiple')).toBe(true);
+    expect(root.querySelectorAll('.sc-cabinet-box')).toHaveLength(3);
     const column = container.querySelectorAll('.off-screen__axis')[1] as HTMLElement;
     expect(column.contains(melodyRow())).toBe(true);
     expect(within(column).getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual([
       human('home.off.loading'),
       human('home.off.melody'),
+      human('home.off.envelope'),
+      human('home.off.distance'),
     ]);
-    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
   it('toggling two aspects calls retransmitWorld with both, in canonical order whatever the click order', () => {
@@ -593,10 +597,10 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(melodyDescription()?.textContent).toBe(sentence('hypnotic'));
   });
 
-  it("the two description lines are text, one under each row, and the three aspect sentences and the row's own are distinct", () => {
+  it("the description lines are text, one under each row, and the three aspect sentences and the row's own are distinct", () => {
     const { container } = render(<OffScreen />);
     const lines = container.querySelectorAll('.off-screen__description');
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(4); // the theme's, then one per family (revisions Task 9)
     expect(lines[0].classList.contains('off-screen__description--theme')).toBe(true);
     expect(lines[1].classList.contains('off-screen__description--melody')).toBe(true);
     expect(lines[1].tagName).toBe('P');
@@ -611,6 +615,140 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     render(<OffScreen />);
     expect(screen.queryByRole('group', { name: human('home.off.melody') })).toBeNull();
     expect(melodyDescription()).toBeNull();
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVISIONS.md Task 9 (Crawford's notes 3 and 5): one row per family, from the data, each a cabinet
+// multiple RadioButton that pops; each row sends the whole loading with its own list replaced, and keeps its own
+// description line by the Melody row's rules.
+describe('OffScreen — the family rows (revisions Task 9)', () => {
+  beforeEach(() => markHeardWorld());
+  afterEach(() => vi.mocked(retransmitWorld).mockReset());
+  const row = (family: AspectFamilyId) => screen.getByRole('group', { name: human(`home.off.${family}`) });
+  const option = (family: AspectFamilyId, name: string) => within(row(family)).getByRole('button', { name });
+  const pressedIn = (family: AspectFamilyId) =>
+    within(row(family)).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.getAttribute('aria-label'));
+  const description = (family: AspectFamilyId) => document.querySelector(`.off-screen__description--${family}`)?.textContent;
+  const sentence = (family: AspectFamilyId, id: string) => human(`home.off.${family}Description.${id}` as keyof typeof CONTENT);
+  const name = (family: AspectFamilyId, id: string) => human(`home.off.${family}.${id}` as keyof typeof CONTENT);
+  const retransmitSetsStore = () =>
+    vi.mocked(retransmitWorld).mockImplementation((input) => {
+      const { theme, aspects, setLoading } = useLoadingStore.getState();
+      setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
+    });
+  const load = (aspects: LoadingIdentity['aspects']) => act(() => useLoadingStore.getState().setLoading({ theme: 'classic', aspects }));
+
+  it('renders one row per family in ASPECT_FAMILY_IDS order, each a cabinet multiple group of its options, named from content', () => {
+    const { container } = render(<OffScreen />);
+    const column = container.querySelectorAll('.off-screen__axis')[1] as HTMLElement;
+    const familyRows = ASPECT_FAMILY_IDS.map((family) => row(family));
+    expect(within(column).getAllByRole('group').slice(1)).toEqual(familyRows);
+    for (const family of ASPECT_FAMILY_IDS) {
+      const root = row(family).closest('.sc-radio-button')!;
+      expect(root.classList.contains('sc-radio-button--multiple')).toBe(true);
+      expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
+      expect(within(row(family)).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(
+        ASPECT_IDS_BY_FAMILY[family].map((id) => name(family, id)),
+      );
+      expect(root.querySelectorAll('.sc-cabinet-box')).toHaveLength(ASPECT_IDS_BY_FAMILY[family].length);
+      expect(pressedIn(family)).toEqual([]);
+    }
+  });
+
+  it('toggling Plucked sends the whole loading: Envelope with Plucked, Melody and Distance carried as they were', () => {
+    load({ melody: ['hypnotic'], distance: ['remote'] });
+    render(<OffScreen />);
+    fireEvent.click(option('envelope', name('envelope', 'plucked')));
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['remote'] } });
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(AudioEngine.start).not.toHaveBeenCalled();
+  });
+
+  it('a second toggle in a family sends the set in canonical order, and clearing a family sends its empty list, the others kept', () => {
+    retransmitSetsStore();
+    load({ melody: ['wandering'] });
+    render(<OffScreen />);
+    fireEvent.click(option('distance', name('distance', 'remote')));
+    fireEvent.click(option('distance', name('distance', 'near')));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: ['near', 'remote'] } });
+    expect(pressedIn('distance')).toEqual([name('distance', 'near'), name('distance', 'remote')]);
+    fireEvent.click(option('distance', name('distance', 'near')));
+    fireEvent.click(option('distance', name('distance', 'remote')));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: [] } });
+    expect(pressedIn('melody')).toEqual([human('home.off.melody.wandering')]);
+  });
+
+  it('a family change drops the world row to Current and reads dirty again, as a Melody change does', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
+    live.payload = live.marker('dealt');
+    fireEvent.click(option('envelope', name('envelope', 'held')));
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect((screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a save with Distance remote selects Remote, and the readout tail joins the families in family order', () => {
+    const save: SessionPayload = {
+      ...savedPayload('dusk'),
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] },
+    };
+    saveNamedSession('Dusk Run', save);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(pressedIn('distance')).toEqual([name('distance', 'remote')]);
+    expect(pressedIn('envelope')).toEqual([name('envelope', 'plucked'), name('envelope', 'held')]);
+    expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
+    expect(
+      readout().textContent!.endsWith(
+        ` · ${human('home.off.melody.hypnotic')} · ${name('envelope', 'plucked')} + ${name('envelope', 'held')} · ${name('distance', 'remote')}`,
+      ),
+    ).toBe(true);
+  });
+
+  it("each family's line follows its own toggles, and a world pick resets them to the set's own", () => {
+    retransmitSetsStore();
+    const save: SessionPayload = { ...savedPayload('dusk'), aspects: { envelope: ['plucked', 'swelling'] } };
+    saveNamedSession('Dusk Run', save);
+    render(<OffScreen />);
+    for (const family of ASPECT_FAMILY_IDS) expect(description(family)).toBe(sentence(family, 'none'));
+    fireEvent.click(option('envelope', name('envelope', 'held')));
+    fireEvent.click(option('envelope', name('envelope', 'plucked')));
+    expect(description('envelope')).toBe(sentence('envelope', 'plucked')); // the last toggled on, not the last in order
+    expect(description('distance')).toBe(sentence('distance', 'none'));
+    fireEvent.click(option('distance', name('distance', 'far')));
+    expect(description('distance')).toBe(sentence('distance', 'far'));
+    expect(description('envelope')).toBe(sentence('envelope', 'plucked')); // one family's toggle leaves another's line
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(description('envelope')).toBe(sentence('envelope', 'swelling')); // the save's set, the last in canonical order
+    expect(description('distance')).toBe(sentence('distance', 'none'));
+  });
+
+  it('Roll leaves every family alone', () => {
+    load({ envelope: ['held'], distance: ['near', 'far'] });
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
+    expect(rollWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(pressedIn('envelope')).toEqual([name('envelope', 'held')]);
+    expect(pressedIn('distance')).toEqual([name('distance', 'near'), name('distance', 'far')]);
+  });
+
+  it('every family sentence and name is its own, and none is blank', () => {
+    const words = ASPECT_FAMILY_IDS.flatMap((family) => [
+      ...ASPECT_IDS_BY_FAMILY[family].map((id) => sentence(family, id)),
+      sentence(family, 'none'),
+    ]);
+    expect(new Set(words).size).toBe(words.length);
+    expect(words.every((w) => w.trim().length > 0)).toBe(true);
+  });
+
+  it('is behind the gate: no family row on a first visit', () => {
+    localStorage.clear();
+    render(<OffScreen />);
+    for (const family of ASPECT_FAMILY_IDS) expect(screen.queryByRole('group', { name: human(`home.off.${family}`) })).toBeNull();
   });
 });
 
@@ -661,11 +799,11 @@ describe('OffScreen — Roll (spec assumption 14)', () => {
   beforeEach(() => markHeardWorld());
   const roll = () => screen.getByRole('button', { name: human('home.off.roll') });
 
-  it('is a flat button beside the Current row — nothing comes off the plate', () => {
-    const { container } = render(<OffScreen />);
+  it('is a flat button beside the Current row — it does not come off the plate', () => {
+    render(<OffScreen />);
     expect(roll()).toBeTruthy();
-    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
-    expect(container.querySelector('.sc-button--muted')).not.toBeNull();
+    expect(roll().querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+    expect(roll().classList.contains('sc-button--muted')).toBe(true);
   });
 
   it('one click is one rollWorld(), and nothing is applied: the roll is the retransmit', () => {
@@ -828,12 +966,12 @@ describe('OffScreen — the Transmission list and Roll on Current', () => {
 
   it('draws the Transmission row in the list appearance, every option a row', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
-    const { container } = render(<OffScreen />);
+    render(<OffScreen />);
     const root = picker().closest('.sc-radio-button')!;
     expect(root.classList.contains('sc-radio-button--list')).toBe(true);
     expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
     expect(root.querySelectorAll('.sc-radio-button__row')).toHaveLength(5);
-    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+    expect(root.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
   it('puts Roll in the Current row, beside its radio and outside it', () => {
@@ -1068,16 +1206,35 @@ describe('OffScreen — the well naming the pick', () => {
   });
 });
 
-describe('OffScreen — muted: nothing comes off the plate', () => {
+// Crawford's note 5 (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9): the aspect rows pop on hover and select; everything else
+// on the off screen stays flat — the Transmission list, the theme row, Roll and Keep (his answer 5).
+describe('OffScreen — only the aspect rows come off the plate', () => {
   beforeEach(() => markHeardWorld());
 
-  it('has no cabinet box, wall or popped class anywhere in its DOM, picked or not', () => {
+  it('the Transmission list, the theme row, Roll and Keep carry no cabinet box, wall or popped class, picked or not', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
-    const { container } = render(<OffScreen />);
+    render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
-    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
-    expect(container.querySelector('[class*="popped"]')).toBeNull();
-    expect(container.querySelector('.sc-radio-button--muted')).not.toBeNull();
+    const flat = [
+      picker().closest('.sc-radio-button')!,
+      screen.getByRole('group', { name: human('home.off.loading') }).closest('.sc-radio-button')!,
+      screen.getByRole('button', { name: human('home.off.roll') }),
+      screen.getByRole('button', { name: human('home.off.keep') }),
+    ];
+    for (const part of flat) {
+      expect(part.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+      expect(part.querySelector('[class*="popped"]')).toBeNull();
+    }
+  });
+
+  it('every cabinet box on the screen belongs to an aspect row', () => {
+    const { container } = render(<OffScreen />);
+    const boxes = Array.from(container.querySelectorAll('.sc-cabinet-box'));
+    expect(boxes.length).toBe(ASPECT_FAMILY_IDS.reduce((n, family) => n + ASPECT_IDS_BY_FAMILY[family].length, 0));
+    const familyRoots = ASPECT_FAMILY_IDS.map((family) =>
+      screen.getByRole('group', { name: human(`home.off.${family}`) }).closest('.sc-radio-button'),
+    );
+    for (const box of boxes) expect(familyRoots).toContain(box.closest('.sc-radio-button'));
   });
 });
 
