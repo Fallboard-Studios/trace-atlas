@@ -31,7 +31,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
-import { initializeLocale, retransmitWorld, startLocaleSystems } from './worldTransition';
+import { initializeLocale, retransmitWorld, rollWorld, startLocaleSystems } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
@@ -758,6 +758,55 @@ describe('worldTransition', () => {
       const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
       retransmitWorld({ attenuationStyleName: 'Saltwhistle' });
       expect(workStart).not.toHaveBeenCalled();
+    });
+  });
+
+  // Roll (docs/tasks/OFF_SCREEN.md Task 13, spec assumption 14): a fresh random Attenuation Style and coordinates,
+  // through retransmitWorld's full-reset branch. Once the loading store exists it rides along untouched (Task 31).
+  describe('rollWorld', () => {
+    function currentWorld() {
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      return { style, locale: useLocaleStore.getState().getLocaleById(style.currentLocaleId!)! };
+    }
+
+    it('retransmits to a fresh random Attenuation Style at coordinates drawn through randomCoordinate, and rebuilds the roster', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      rollWorld();
+      const { style, locale } = currentWorld();
+      expect(style.name).not.toBe(DEFAULT_PELAGOS.name);
+      expect(style.name).toMatch(/^[a-z0-9]{1,8}$/); // generateRandomAttenuationStyleName's shape
+      // The suite pins randomCoordinate to an alternating 12 / 68 (vitest.setup.ts), so a rolled plot is drawn from it.
+      expect(new Set([locale.coordinates.x, locale.coordinates.y])).toEqual(new Set([12, 68]));
+      expect(locale.robots).toHaveLength(MAX_ROBOTS);
+      expect(locale.actors.length).toBeGreaterThan(0);
+    });
+
+    it('produces a fresh identity on every call: two rolls, two names, two locales', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      rollWorld();
+      const first = currentWorld();
+      rollWorld();
+      const second = currentWorld();
+      expect(second.style.name).not.toBe(first.style.name);
+      expect(second.locale.id).not.toBe(first.locale.id);
+      expect(useAttenuationStyleStore.getState().attenuationStyles).toHaveLength(1);
+    });
+
+    it('is a world change: a paused world is cold after a roll, so the next flip starts (Task 8)', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      setWorldState('paused');
+      rollWorld();
+      expect(getWorldState()).toBe('cold');
+    });
+
+    it('follows the power state like any retransmit: powered on, the new world starts its systems', () => {
+      useUIStore.setState({ isPoweredOn: true });
+      initializeLocale(DEFAULT_LOCALE_ID);
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      rollWorld();
+      expect(workStart).toHaveBeenCalledTimes(1);
+      expect(workStart).toHaveBeenCalledWith(currentWorld().style.currentLocaleId);
+      expect(getWorldState()).toBe('running');
     });
   });
 });

@@ -18,9 +18,13 @@ vi.mock('@/utils/sessionDiff', () => ({
 vi.mock('@/engine/AudioEngine', () => ({
   AudioEngine: { start: vi.fn() },
 }));
+vi.mock('@/systems/worldTransition', () => ({
+  rollWorld: vi.fn(),
+}));
 
 import { OffScreen } from './OffScreen';
 import { applySessionPayload } from '@/utils/sessionDiff';
+import { rollWorld } from '@/systems/worldTransition';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { saveNamedSession } from '@/utils/sessionStorageEngine';
@@ -64,6 +68,7 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByRole('group')).toBeNull();
     expect(screen.queryByTestId('off-screen-readout')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull(); // no Roll either: nothing on a first visit is answerable
   });
 
   it('a device that has heard a world sees the chooser, with Current selected', () => {
@@ -137,6 +142,41 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(0) }).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
+  });
+});
+
+describe('OffScreen — Roll (spec assumption 14)', () => {
+  beforeEach(() => markHeardWorld());
+  const roll = () => screen.getByRole('button', { name: human('home.off.roll') });
+
+  it('is a flat button beside the Current row — nothing comes off the plate', () => {
+    const { container } = render(<OffScreen />);
+    expect(roll()).toBeTruthy();
+    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+    expect(container.querySelector('.sc-button--muted')).not.toBeNull();
+  });
+
+  it('one click is one rollWorld(), and nothing is applied: the roll is the retransmit', () => {
+    render(<OffScreen />);
+    fireEvent.click(roll());
+    expect(rollWorld).toHaveBeenCalledTimes(1);
+    expect(applySessionPayload).not.toHaveBeenCalled();
+  });
+
+  it('returns the pick to Current, and the readout names Current again', () => {
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
+    expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(roll());
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('false');
+    expect(readout().textContent).toBe(currentLabel());
+  });
+
+  it('never starts the AudioEngine: only the power switch starts sound', () => {
+    render(<OffScreen />);
+    fireEvent.click(roll());
+    expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 });
 

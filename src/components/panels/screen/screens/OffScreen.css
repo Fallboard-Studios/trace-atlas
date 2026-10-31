@@ -63,6 +63,16 @@
   justify-content: center;
 }
 
+/* The actions beside Current — Roll (docs/tasks/OFF_SCREEN.md Task 13) and Keep (Task 14): the RadioButton's row is
+   its own, so they sit in this row right under the Transmission options, centred, flat like them (muted Buttons). */
+.off-screen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  max-width: 100%;
+}
+
 /* A well (in = read, as the breadcrumb and the meta box): the pick's name and code. Its height is held
    when nothing is picked, so the row above does not shift on the first pick. */
 .off-screen__readout {

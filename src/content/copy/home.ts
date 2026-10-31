@@ -21,6 +21,9 @@ export const home = {
   // The Loading axis's group heading (the theme row and the Melody row), read from docs/tasks/OFF_SCREEN.md
   // Task 30 on; listed in content.test.ts's AWAITING_CONSUMER until then.
   'home.off.loading': { human: 'Loading' },
+  // Roll (spec assumption 14): the action beside Current — a fresh random Attenuation Style and plot under the chosen
+  // Loading. An action, not a radio. Stand-in copy until Crawford's pass.
+  'home.off.roll': { human: 'Roll' },
   'home.off.presets.a': { human: 'Kryndara' },
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },

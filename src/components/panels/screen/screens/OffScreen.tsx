@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
+import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { applySessionPayload } from '@/utils/sessionDiff';
+import { rollWorld } from '@/systems/worldTransition';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -9,7 +11,7 @@ import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
 import { labels } from '@/content';
-import type { RadioButtonSchema } from '@/types/controls';
+import type { ButtonSchema, RadioButtonSchema } from '@/types/controls';
 import type { SessionPayload } from '@/types/session';
 import type { WorldIdentity } from '@/utils/seedBaseline';
 import './OffScreen.css';
@@ -29,6 +31,9 @@ const POWER_HINT = labels('home.off.powerHint').humanLabel;
 const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
+
+/** Roll (spec assumption 14): an action beside Current, muted like the options — nothing pops while the power is off. */
+const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
 
 /** What a pick is: Current — the loaded world, described live from the stores — or a save / preset, described
  *  from its own payload under its name, so the well names what was picked even before the world has rebuilt. */
@@ -53,7 +58,9 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * and never starts audio: only the power switch does (powerController). Current is the loaded world, so picking
  * it applies nothing. A save pick also names the session after the save, as loading it from the Sessions list
  * does, so a later Save overwrites it. A save that has since vanished from storage applies nothing and is not
- * claimed as the pick. The Loading axis (the theme and Melody rows) is the themes phase's.
+ * claimed as the pick. Roll (assumption 14) is the action beside Current: a fresh random world through rollWorld —
+ * a retransmit, so the pick returns to Current and the row renames from the stores. The Loading axis (the theme
+ * and Melody rows) is the themes phase's.
  */
 export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
@@ -122,6 +129,12 @@ export function OffScreen() {
     setPick({ value, name, identity: { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates } });
   }, []);
 
+  // Roll is the retransmit itself: the stores change under the Current row, which renames from them.
+  const onRoll = useCallback(() => {
+    rollWorld();
+    setPick(CURRENT_PICK);
+  }, []);
+
   const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
 
   return (
@@ -134,6 +147,9 @@ export function OffScreen() {
       {heardWorld && (
         <div className="off-screen__picker">
           <RadioButton schema={schema} value={pick.value} onChange={onChange} />
+          <div className="off-screen__actions">
+            <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
+          </div>
           <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
             {readout}
           </p>

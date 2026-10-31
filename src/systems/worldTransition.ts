@@ -17,6 +17,7 @@ import { startAudioSwells, stopAudioSwells } from './audioSwells';
 import { setWorldState } from './worldState';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
+import { generateRandomAttenuationStyleName, randomCoordinate } from '../utils/seedUtils';
 import { DAY_DURATION_MS } from '../constants/time';
 import type { AttenuationStyle } from '../types/attenuationStyle';
 import type { Locale } from '../types/locale';
@@ -330,4 +331,17 @@ export function retransmitWorld(input: RetransmitInput): void {
       retransmitBoth(oldAttenuationStyle, oldLocaleId, action.attenuationStyleName, action.coordinates);
       break;
   }
+}
+
+/**
+ * Roll (docs/specs/OFF_SCREEN.md assumption 14): a fresh random Attenuation Style at a fresh random plot, through
+ * retransmitWorld's full reset — the off screen's "another world, please". Nothing else moves: the loading store (the
+ * theme and the aspects, once it exists) rides along untouched, the pick returns to Current on the screen, and like
+ * every retransmit it follows the power state and leaves a paused world cold (Task 8).
+ */
+export function rollWorld(): void {
+  retransmitWorld({
+    attenuationStyleName: generateRandomAttenuationStyleName(),
+    coordinates: { x: randomCoordinate(), y: randomCoordinate() },
+  });
 }
