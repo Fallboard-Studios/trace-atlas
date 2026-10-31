@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useShareStatus } from './useShareStatus';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useLoadingStore } from '@/stores/loadingStore';
 import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { describeWorld } from '@/utils/describeWorld';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { CoordsInput } from '@/components/ui/controls/CoordsInput';
@@ -31,7 +33,11 @@ const RANDOM_COORDS_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomCoords', 
  * never submit on their own — the user still presses Retransmit separately,
  * per docs/specs/archive/SECTOR_SETTINGS.md §5. The curated shortcut rows that
  * sat beside them are gone (docs/specs/OFF_SCREEN.md assumption 13): a curated
- * world is a Transmission preset on the off screen now.
+ * world is a Transmission preset on the off screen now. The status line is
+ * describeWorld(identity) (assumption 19; docs/tasks/OFF_SCREEN.md Task 33) —
+ * the seed and the plot, then the theme and the picks when they are not
+ * Classic — so it reads byte for byte as the off screen's Current row and
+ * readout do.
  */
 export function SectorSettingsDrawer() {
   const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
@@ -45,6 +51,9 @@ export function SectorSettingsDrawer() {
   // it through, untouched), so narrowing to it directly lets this component skip re-rendering for
   // all of that ambient churn and re-render only when coordinates actually change.
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
+  // The loaded world's loading, two narrow reads, for the status line (Task 33).
+  const theme = useLoadingStore((s) => s.theme);
+  const aspects = useLoadingStore((s) => s.aspects);
   const { shareStatus, share } = useShareStatus();
 
   const [attenuationStyleNameDraft, setAttenuationStyleNameDraft] = useState(currentAttenuationStyle?.name ?? '');
@@ -83,7 +92,10 @@ export function SectorSettingsDrawer() {
       <div className="sector-settings-drawer__status">
         <DualLabel loreLabel={STATUS_HEADER_SCHEMA.loreLabel} humanLabel={STATUS_HEADER_SCHEMA.humanLabel} />
         <div className="sector-settings-drawer__status-line">
-          {currentAttenuationStyle?.name ?? '—'} · ({coordinates?.x ?? '—'}, {coordinates?.y ?? '—'})
+          {/* The stores hold a current world from module load on, so the dashes never show in the app. */}
+          {currentAttenuationStyle && coordinates
+            ? describeWorld({ attenuationStyleName: currentAttenuationStyle.name, coordinates, theme, aspects })
+            : '— · (—, —)'}
         </div>
         {/* Copy link shares the LIVE world, like the Sessions panel's Share live, which stays
             (docs/specs/SHORT_WORLD_LINK.md assumption 9): one encoder behind both buttons. */}

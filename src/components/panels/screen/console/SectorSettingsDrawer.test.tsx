@@ -30,6 +30,8 @@ import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/loca
 import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import { copySessionLink } from '@/utils/sessionShareUtils';
+import { describeWorld } from '@/utils/describeWorld';
+import { useLoadingStore } from '@/stores/loadingStore';
 import { CONTENT, labels } from '@/content';
 
 // ========================================
@@ -79,6 +81,47 @@ describe('SectorSettingsDrawer', () => {
   it('renders the status header reflecting the current Attenuation Style and coordinates', () => {
     render(<SectorSettingsDrawer />);
     expect(screen.getByText(/Pelagos/)).toBeTruthy();
+  });
+
+  // docs/tasks/OFF_SCREEN.md Task 33 (spec assumption 19): the status line is describeWorld(identity) - one helper, three
+  // readers (the off screen's Current row, its readout, this line) agree byte for byte.
+  describe('the status line through describeWorld (docs/tasks/OFF_SCREEN.md Task 33)', () => {
+    const line = (container: HTMLElement) => container.querySelector('.sector-settings-drawer__status-line')!.textContent;
+    const identity = () => {
+      const { theme, aspects } = useLoadingStore.getState();
+      return { attenuationStyleName: 'Pelagos', coordinates: { x: 5, y: 9 }, theme, aspects };
+    };
+
+    beforeEach(() => useLoadingStore.setState({ theme: 'classic', aspects: {} }));
+
+    it('for a Classic world it is `AS · (x, y)`, as today', () => {
+      const { container } = render(<SectorSettingsDrawer />);
+      expect(line(container)).toBe('Pelagos · (5, 9)');
+      expect(line(container)).toBe(describeWorld(identity()));
+    });
+
+    it('for a Calm world with one pick it carries ` · Calm · Hypnotic`', () => {
+      useLoadingStore.setState({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      const { container } = render(<SectorSettingsDrawer />);
+      expect(line(container)).toBe('Pelagos · (5, 9) · Calm · Hypnotic');
+      expect(line(container)).toBe(describeWorld(identity()));
+    });
+
+    it('follows the loading store and the plot live', () => {
+      const { container } = render(<SectorSettingsDrawer />);
+      act(() => useLoadingStore.setState({ theme: 'perilous', aspects: { melody: ['theme', 'wandering'] } }));
+      expect(line(container)).toBe('Pelagos · (5, 9) · Perilous · Wandering');
+      act(() =>
+        useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, coordinates: { x: -3, y: 12 } } } }),
+      );
+      expect(line(container)).toBe('Pelagos · (-3, 12) · Perilous · Wandering');
+    });
+
+    it('the as-theme member alone adds no tail', () => {
+      useLoadingStore.setState({ theme: 'classic', aspects: { melody: ['theme'] } });
+      const { container } = render(<SectorSettingsDrawer />);
+      expect(line(container)).toBe('Pelagos · (5, 9)');
+    });
   });
 
   // docs/tasks/OFF_SCREEN.md Task 12 (spec assumption 13): the shortcut rows are gone — the off screen's presets are
