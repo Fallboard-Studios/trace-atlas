@@ -3,14 +3,18 @@ import { useGSAP } from '@gsap/react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
+import { loadingOf } from '@/data/bands/loadingIdentity';
+import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
 import { applySessionPayload } from '@/utils/sessionDiff';
-import { rollWorld } from '@/systems/worldTransition';
+import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useLoadingStore } from '@/stores/loadingStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
+import { themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
 import { killTimeline } from '@/animation/timelineMap';
 import { OFF_SCREEN_FADE_TIMELINE, OFF_SCREEN_REF_KEY, skipOffScreenBoot, startOffScreenBoot } from '@/animation/offScreenTheatre';
@@ -43,14 +47,27 @@ const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('ho
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
 
+/** The Loading axis's theme row (docs/tasks/OFF_SCREEN.md Task 30; spec assumption 17): the five ids in THEME_IDS
+ *  order under the Loading heading — the row's own label, as Transmission is the world row's — muted like it. Static:
+ *  the names are content. */
+const THEME_SCHEMA: RadioButtonSchema = {
+  id: 'offTheme',
+  type: 'radio',
+  ...labels('home.off.loading'),
+  appearance: 'muted',
+  options: THEME_IDS.map((id) => ({ value: id, humanLabel: themeName(id) })),
+};
+
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
 /** What a pick is: Current — the loaded world, described live from the stores — or a save / preset, described
- *  from its own payload under its name, so the well names what was picked even before the world has rebuilt. */
+ *  from its own payload under its name, so the well names what was picked even before the world has rebuilt. The
+ *  identity is whole (Task 30): the payload's loading, read leniently by loadingOf, sets the Loading rows and the
+ *  readout's tail. */
 type TransmissionPick =
   | { value: typeof CURRENT_VALUE }
-  | { value: string; name: string; identity: Pick<WorldIdentity, 'attenuationStyleName' | 'coordinates'> };
+  | { value: string; name: string; identity: WorldIdentity };
 
 const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
 
@@ -85,8 +102,18 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * anywhere on the screen skips it, reduced motion skips it outright, and the rocker outside the screen works
  * throughout. The screen registers its root under the off-screen ref so powerController's power-on can await
  * fadeOffScreen() — the screen and its veil to transparent — before the power flag flips and ScreenViewport
- * unmounts it. Both timelines are killed, and the ref dropped, on unmount. The Loading axis (the theme and Melody
- * rows) is the themes phase's.
+ * unmounts it. Both timelines are killed, and the ref dropped, on unmount.
+ *
+ * The Loading axis (docs/tasks/OFF_SCREEN.md Task 30; spec assumptions 9 and 17, §1.6): the second column, under the
+ * Loading heading — the theme row, a muted RadioButton of the five themes, and one muted sentence under it describing
+ * the shown theme (the Guide's small part: the same content entry the Guide will read). The row shows the loaded
+ * world's theme from the loading store while Current is the pick, and the picked save's or preset's own (its payload,
+ * through loadingOf) after a pick — the two agree once the retransmit has run, but the row never waits on it. A theme
+ * pick is `retransmitWorld({ theme })`: the seed and the plot stay, the tweaks go, the world row drops back to Current
+ * (the decided pick rules, docs/sketches/off-screen.html), the loaded save stays attached — the seed is still the
+ * save's, under another theme, so Keep overwrites it — and dirty is read again. The readout carries describeWorld's
+ * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
+ * both; the phone shell stacks them (OffScreen.css). The Melody row is Task 31.
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -104,9 +131,17 @@ export function OffScreen() {
   const currentLocaleId = currentAttenuationStyle?.currentLocaleId;
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
   const loadedSessionName = useSessionStore((s) => s.currentLoadedSessionName);
+  // The loaded world's loading (Task 30): two narrow reads, so only a theme or pick-list change re-renders this.
+  const loadedTheme = useLoadingStore((s) => s.theme);
+  const loadedAspects = useLoadingStore((s) => s.aspects);
   // The stores hold a current world from module load on (their defaults), so the fallback never shows in the app.
   const currentLabel = describeWorld(
-    { attenuationStyleName: currentAttenuationStyle?.name ?? '', coordinates: coordinates ?? { x: 0, y: 0 } },
+    {
+      attenuationStyleName: currentAttenuationStyle?.name ?? '',
+      coordinates: coordinates ?? { x: 0, y: 0 },
+      theme: loadedTheme,
+      aspects: loadedAspects,
+    },
     loadedSessionName ?? undefined,
   );
 
@@ -158,7 +193,20 @@ export function OffScreen() {
     } else {
       detachLoadedSession();
     }
-    setPick({ value, name, identity: { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates } });
+    setPick({
+      value,
+      name,
+      identity: { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loadingOf(payload) },
+    });
+    setDirty(isWorldDirty());
+  }, []);
+
+  // A theme pick (Task 30): the loading alone moves — the same seed and plot, drawn again under the new bands — so the
+  // world row drops back to Current. The loaded save stays attached (see the component note), and dirty is read again.
+  const onThemeChange = useCallback((value: string) => {
+    if (!isThemeId(value)) return;
+    retransmitWorld({ theme: value });
+    setPick(CURRENT_PICK);
     setDirty(isWorldDirty());
   }, []);
 
@@ -200,6 +248,8 @@ export function OffScreen() {
   }, []);
 
   const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
+  // The theme the Loading row shows: the pick's own after a save or preset pick, the loaded world's for Current.
+  const shownTheme: ThemeId = 'identity' in pick ? pick.identity.theme : loadedTheme;
 
   return (
     <div className="off-screen" ref={rootRef} onPointerDown={skipOffScreenBoot}>
@@ -213,10 +263,19 @@ export function OffScreen() {
       </div>
       {heardWorld && (
         <div className="off-screen__picker">
-          <RadioButton schema={schema} value={pick.value} onChange={onChange} />
-          <div className="off-screen__actions">
-            <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
-            <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
+          {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
+          <div className="off-screen__axes">
+            <div className="off-screen__axis">
+              <RadioButton schema={schema} value={pick.value} onChange={onChange} />
+              <div className="off-screen__actions">
+                <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
+                <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
+              </div>
+            </div>
+            <div className="off-screen__axis">
+              <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
+              <p className="off-screen__description">{themeDescription(shownTheme)}</p>
+            </div>
           </div>
           <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
             {readout}

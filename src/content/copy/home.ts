@@ -38,9 +38,9 @@ export const home = {
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },
   // The Loading axis's names (docs/specs/OFF_SCREEN.md assumption 17), the sketch's lists as stand-ins until Crawford's
-  // pass: one entry per theme id and per Melody option id, read by describeWorld's tail (band-table T28) and, from Task
-  // 30, by the two rows. The content grammar allows four key segments, so the family sits as one segment -
-  // home.off.melody.<id>, not the spec's home.off.aspect.melody.<id>. The one-line descriptions join at Task 30.
+  // pass: one entry per theme id and per Melody option id, read by describeWorld's tail (band-table T28) and by the two
+  // rows (Tasks 30 and 31) through src/utils/loadingNames.ts. The content grammar allows four key segments, so the
+  // family sits as one segment - home.off.melody.<id>, not the spec's home.off.aspect.melody.<id>.
   'home.off.theme.classic': { human: 'Classic' },
   'home.off.theme.calm': { human: 'Calm' },
   'home.off.theme.bold': { human: 'Bold' },
@@ -49,6 +49,14 @@ export const home = {
   'home.off.melody.hypnotic': { human: 'Hypnotic' },
   'home.off.melody.mechanical': { human: 'Mechanical' },
   'home.off.melody.wandering': { human: 'Wandering' },
+  // One sentence per theme (assumption 17; spec §1.6, the Guide's part): the muted line under the theme row (Task 30),
+  // and the entry the Guide's Themes page will read. STAND-INS for Crawford's pass - each names what its column moves
+  // across the v1 key list (assumption 16: tempo, density, rests, attack and release, the two sends, the filter).
+  'home.off.themeDescription.classic': { human: 'The receiver as it shipped: every band at its surveyed range.' },
+  'home.off.themeDescription.calm': { human: 'Slower and sparser: longer rests, softer attacks, a longer wash of reverb.' },
+  'home.off.themeDescription.bold': { human: 'Up front: denser rhythms, sharper attacks, a drier and brighter room.' },
+  'home.off.themeDescription.adventurous': { human: 'Wider roaming: tempo, density and tone swing further from the middle.' },
+  'home.off.themeDescription.perilous': { human: 'The densest loading: fast, crowded and bright, with hardly a rest.' },
   // The readout well's accessible name; what it shows is describeWorld's string for the pick, so it carries no
   // template of its own (docs/tasks/OFF_SCREEN.md Task 10).
   'home.off.readout': {

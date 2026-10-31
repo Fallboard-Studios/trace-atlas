@@ -99,12 +99,34 @@
   color: rgba(200, 220, 230, 0.88);
 }
 
+/* The chooser takes the screen's width up to the sketch's chooser cap (docs/sketches/off-screen.html, .chooser.two),
+   so the two axes below have columns to sit in rather than shrinking to their options. */
 .off-screen__picker {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-md);
-  max-width: 100%;
+  width: 100%;
+  max-width: 1240px;
+}
+
+/* The two axes (docs/tasks/OFF_SCREEN.md Task 30; the sketch's two-column chooser, decided 2026-10-30): Transmission
+   left — which world — and Loading right — how it loads — as two equal columns, each its own centred stack; the
+   readout, a sibling after this grid, spans under both. The phone shell stacks the columns (below). */
+.off-screen__axes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md) var(--spacing-xl);
+  align-items: start;
+  width: 100%;
+}
+
+.off-screen__axis {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-width: 0;
 }
 
 .off-screen__picker .sc-radio-button {
@@ -113,6 +135,25 @@
 
 .off-screen__picker .sc-radio-button__root {
   justify-content: center;
+}
+
+/* The one-line description under the theme row (Task 30; spec §1.6, the Guide's part): the sketch's .desc — small,
+   italic, the etched grey. Two lines of height are held whatever the sentence takes, so a shorter sentence after a
+   theme pick does not lift the readout below it. */
+.off-screen__description {
+  margin: 0;
+  min-height: 2.6em;
+  max-width: 100%;
+  padding: 0 6px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: rgba(200, 220, 230, 0.6);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 /* The actions beside Current — Roll (docs/tasks/OFF_SCREEN.md Task 13) and Keep (Task 14): the RadioButton's row is
@@ -178,6 +219,12 @@
 
 #screen-viewport[data-shell='phone'] .off-screen__picker {
   width: 100%;
+}
+
+/* One column on the phone (Task 30): Transmission, then Loading below the fold, then the readout. */
+#screen-viewport[data-shell='phone'] .off-screen__axes {
+  grid-template-columns: 1fr;
+  gap: var(--spacing-lg);
 }
 
 #screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__flat {

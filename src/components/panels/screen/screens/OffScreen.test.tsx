@@ -29,17 +29,20 @@ vi.mock('@/engine/AudioEngine', () => ({
 }));
 vi.mock('@/systems/worldTransition', () => ({
   rollWorld: vi.fn(),
+  retransmitWorld: vi.fn(),
 }));
 
 import { OffScreen } from './OffScreen';
 import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
-import { rollWorld } from '@/systems/worldTransition';
+import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
+import { THEME_IDS } from '@/data/bands/themes';
 import { listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
 import { markHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useLoadingStore } from '@/stores/loadingStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/timelineMap';
@@ -69,6 +72,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   live.payload = live.marker('live');
   useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'Quiet Harbour' });
+  // The loaded world's loading (Task 30): Classic, nothing dealt, unless a test moves it.
+  useLoadingStore.setState({ theme: 'classic', aspects: {} });
 });
 
 describe('OffScreen — the gate (spec assumption 7)', () => {
@@ -195,10 +200,179 @@ describe('OffScreen — content', () => {
     expect(screen.getByText(CONTENT['home.off.label'].lore!)).toBeTruthy();
     expect(screen.getByText(human('home.off.powerHint'))).toBeTruthy();
   });
+});
 
-  it('has no Theme row (the themes phase builds it)', () => {
+describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.md Task 30; spec assumptions 9, 17, §1.6)', () => {
+  beforeEach(() => markHeardWorld());
+  const themeRow = () => screen.getByRole('group', { name: human('home.off.loading') });
+  const themeNames = () => within(themeRow()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
+  const themeRadio = (id: (typeof THEME_IDS)[number]) => within(themeRow()).getByRole('radio', { name: human(`home.off.theme.${id}`) });
+  const checked = (id: (typeof THEME_IDS)[number]) => themeRadio(id).getAttribute('aria-checked');
+  const description = () => document.querySelector('.off-screen__description');
+  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
+  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
+  const calmSave = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'calm' });
+
+  it('lists the five themes in order under the Loading heading, Classic selected for a Classic world', () => {
     render(<OffScreen />);
-    expect(screen.queryByText(/theme/i)).toBeNull();
+    expect(themeNames()).toEqual(THEME_IDS.map((id) => human(`home.off.theme.${id}`)));
+    expect(checked('classic')).toBe('true');
+    for (const id of ['calm', 'bold', 'adventurous', 'perilous'] as const) expect(checked(id)).toBe('false');
+  });
+
+  it('is muted, like the Transmission row: a flat face per theme, no cabinet box', () => {
+    const { container } = render(<OffScreen />);
+    expect(themeRow().closest('.sc-radio-button')?.classList.contains('sc-radio-button--muted')).toBe(true);
+    expect(within(themeRow()).getAllByRole('radio').every((r) => r.querySelector('.sc-radio-button__flat'))).toBe(true);
+    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+  });
+
+  it('a theme pick is one retransmitWorld with the theme alone: no payload applied, no roll, no sound', () => {
+    render(<OffScreen />);
+    fireEvent.click(themeRadio('calm'));
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(rollWorld).not.toHaveBeenCalled();
+    expect(AudioEngine.start).not.toHaveBeenCalled();
+  });
+
+  it('a theme pick drops the world row to Current, and the readout names the loaded world again', () => {
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
+    expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(themeRadio('bold'));
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('false');
+    expect(readout().textContent).toBe(currentLabel());
+  });
+
+  it('re-clicking the selected theme retransmits nothing', () => {
+    render(<OffScreen />);
+    fireEvent.click(themeRadio('classic'));
+    expect(retransmitWorld).not.toHaveBeenCalled();
+  });
+
+  it('keeps the loaded save attached through a theme pick: the seed is the save, under another theme', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    fireEvent.click(themeRadio('calm'));
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+    expect(radioNames()[0]).toBe(currentLabel('Dusk Run'));
+  });
+
+  it('recomputes dirty after a theme pick: Keep lights and the warning shows once the world differs from its save', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(keep().disabled).toBe(true);
+    expect(warning()).toBeNull();
+    live.payload = live.marker('themed'); // what the retransmit does to the live world
+    fireEvent.click(themeRadio('calm'));
+    expect(keep().disabled).toBe(false);
+    expect(warning()).not.toBeNull();
+  });
+
+  it('follows the loading store for the loaded world: the row, the Current row and the readout take the store theme', () => {
+    render(<OffScreen />);
+    act(() => useLoadingStore.setState({ theme: 'bold' }));
+    expect(checked('bold')).toBe('true');
+    expect(checked('classic')).toBe('false');
+    const expected = describeWorld({ ...liveIdentity(), theme: 'bold', aspects: {} });
+    expect(expected.endsWith(' · ' + human('home.off.theme.bold'))).toBe(true);
+    expect(readout().textContent).toBe(expected);
+    expect(radioNames()[0]).toBe(expected);
+  });
+
+  it('a save pick with a theme selects it in the row, and the readout carries the tail', () => {
+    const save = calmSave();
+    saveNamedSession('Dusk Run', save);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(checked('calm')).toBe('true');
+    expect(checked('classic')).toBe('false');
+    expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
+    expect(readout().textContent!.endsWith(' · ' + human('home.off.theme.calm'))).toBe(true);
+  });
+
+  it('a save pick with picks shows them in the readout tail too (the Melody row itself is Task 31)', () => {
+    const save: SessionPayload = { ...savedPayload('dusk'), theme: 'perilous', aspects: { melody: ['hypnotic', 'wandering'] } };
+    saveNamedSession('Dusk Run', save);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
+    expect(readout().textContent).toContain(human('home.off.melody.hypnotic') + ' + ' + human('home.off.melody.wandering'));
+  });
+
+  it('a preset pick sets the row from its link: the placeholder links carry no theme, so Classic', () => {
+    saveNamedSession('Dusk Run', calmSave());
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(checked('calm')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
+    expect(checked('classic')).toBe('true');
+    expect(checked('calm')).toBe('false');
+  });
+
+  it('a theme the app does not know in a save reads as Classic, as loadingOf reads it', () => {
+    saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'frantic' } as unknown as SessionPayload);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(checked('classic')).toBe('true');
+  });
+
+  it('picking Current again returns the row to the loaded world theme', () => {
+    saveNamedSession('Dusk Run', calmSave());
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(checked('calm')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: currentLabel('Dusk Run') }));
+    expect(checked('classic')).toBe('true');
+  });
+
+  it('shows the picked theme sentence under the row: Classic for a Classic world, the save theme after a save pick, the store theme for Current', () => {
+    saveNamedSession('Dusk Run', calmSave());
+    render(<OffScreen />);
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.classic'));
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.calm'));
+    act(() => useLoadingStore.setState({ theme: 'perilous' }));
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.calm'));
+    fireEvent.click(screen.getByRole('radio', { name: describeWorld({ ...liveIdentity(), theme: 'perilous', aspects: {} }, 'Dusk Run') }));
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.perilous'));
+  });
+
+  it('the description is one line of text, not a control, and every theme has its own sentence', () => {
+    render(<OffScreen />);
+    const line = description()!;
+    expect(line.tagName).toBe('P');
+    expect(line.getAttribute('role')).toBeNull();
+    expect(within(line as HTMLElement).queryAllByRole('radio')).toHaveLength(0);
+    const sentences = THEME_IDS.map((id) => human(`home.off.themeDescription.${id}`));
+    expect(new Set(sentences).size).toBe(THEME_IDS.length);
+    expect(sentences.every((s) => s.trim().length > 0)).toBe(true);
+  });
+
+  it('lays the two axes in one container, Transmission (with Roll and Keep) first and Loading second, the readout after both', () => {
+    const { container } = render(<OffScreen />);
+    const axes = container.querySelector('.off-screen__axes')!;
+    const columns = Array.from(axes.children) as HTMLElement[];
+    expect(columns).toHaveLength(2);
+    expect(columns.every((c) => c.classList.contains('off-screen__axis'))).toBe(true);
+    expect(within(columns[0]).getByRole('group', { name: human('home.off.transmission') })).toBeTruthy();
+    expect(within(columns[0]).getByRole('button', { name: human('home.off.roll') })).toBeTruthy();
+    expect(within(columns[0]).getByRole('button', { name: human('home.off.keep') })).toBeTruthy();
+    expect(within(columns[1]).getByRole('group', { name: human('home.off.loading') })).toBeTruthy();
+    expect(within(columns[1]).getByText(human('home.off.themeDescription.classic'))).toBeTruthy();
+    expect(axes.nextElementSibling).toBe(readout());
+  });
+
+  it('is behind the gate too: a device that has never heard a world sees no Loading axis', () => {
+    localStorage.clear();
+    render(<OffScreen />);
+    expect(screen.queryByRole('group', { name: human('home.off.loading') })).toBeNull();
+    expect(description()).toBeNull();
   });
 });
 
@@ -427,10 +601,11 @@ describe('OffScreen — the Transmission row', () => {
     expect(dividers[0].nextElementSibling).toBe(screen.getByRole('radio', { name: presetName(0) }));
   });
 
-  it('has Current selected before a pick, and nothing else', () => {
+  it('has Current selected before a pick, and nothing else in the world row', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
-    for (const radio of screen.getAllByRole('radio')) {
+    // Scoped to the Transmission group: the Loading axis (Task 30) is a second radio group with its own selection.
+    for (const radio of within(picker()).getAllByRole('radio')) {
       expect(radio.getAttribute('aria-checked')).toBe(radio.getAttribute('aria-label') === currentLabel() ? 'true' : 'false');
     }
   });

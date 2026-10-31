@@ -1,40 +1,17 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, THEME_PICK, type AspectFamilyId, type AspectId } from '../data/bands/aspects';
-import type { ThemeId } from '../data/bands/themes';
+import { ASPECT_FAMILY_IDS, THEME_PICK, type AspectId } from '../data/bands/aspects';
+import { ASPECT_NAME_KEY, THEME_NAME_KEY, aspectName, themeName } from './loadingNames';
 import type { WorldIdentity } from './seedBaseline';
-import { labels, type ContentKey } from '@/content';
-
-// ========================================
-// CONSTANTS
-// ========================================
-
-/** The one entry per theme id (docs/specs/OFF_SCREEN.md assumption 17), named here as literals so the content guard
- *  sees each read and the type sees every id. */
-const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
-  classic: 'home.off.theme.classic',
-  calm: 'home.off.theme.calm',
-  bold: 'home.off.theme.bold',
-  adventurous: 'home.off.theme.adventurous',
-  perilous: 'home.off.theme.perilous',
-};
-
-/** The one entry per aspect option, per family (the family is a key segment: the content grammar allows four). */
-const ASPECT_NAME_KEY: Record<AspectFamilyId, Record<AspectId, ContentKey>> = {
-  melody: {
-    hypnotic: 'home.off.melody.hypnotic',
-    mechanical: 'home.off.melody.mechanical',
-    wandering: 'home.off.melody.wandering',
-  },
-};
 
 // ========================================
 // TYPES
 // ========================================
 
-/** What describeWorld reads: the seed and the plot, and the loading when the caller has it. A pick built from a bare
- *  name and plot (OffScreen's presets and saves until Task 30) carries none and reads as Classic with no picks. */
+/** What describeWorld reads: the seed and the plot, and the loading when the caller has it. A caller with a bare name
+ *  and plot (Foundry's status line until Task 33) carries none and reads as Classic with no picks. The key maps the names
+ *  come from live in loadingNames.ts, shared with the off screen's rows and the detail screens' "loaded under" line. */
 export type DescribedWorld = Pick<WorldIdentity, 'attenuationStyleName' | 'coordinates'> &
   Partial<Pick<WorldIdentity, 'theme' | 'aspects'>>;
 
@@ -57,11 +34,11 @@ export function describeWorld(identity: DescribedWorld, label?: string): string 
   const plot = `(${coordinates.x}, ${coordinates.y})`;
   const head = label ? `${label} · ${attenuationStyleName} ${plot}` : `${attenuationStyleName} · ${plot}`;
   const tail: string[] = [];
-  if (theme !== 'classic' && theme in THEME_NAME_KEY) tail.push(labels(THEME_NAME_KEY[theme]).humanLabel);
+  if (theme !== 'classic' && theme in THEME_NAME_KEY) tail.push(themeName(theme));
   for (const family of ASPECT_FAMILY_IDS) {
     const names = (aspects[family] ?? [])
       .filter((pick): pick is AspectId => pick !== THEME_PICK && pick in ASPECT_NAME_KEY[family])
-      .map((pick) => labels(ASPECT_NAME_KEY[family][pick]).humanLabel);
+      .map((pick) => aspectName(family, pick));
     if (names.length > 0) tail.push(names.join(' + '));
   }
   return [head, ...tail].join(' · ');
