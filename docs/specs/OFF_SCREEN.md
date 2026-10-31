@@ -349,6 +349,11 @@ worth a second look):
       it.
     - The re-deal reads the live companies, so a robot moved to another company takes that company's aspect at the
       next aspect change; until then it keeps what it rolled.
+
+    *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R13):* the derive
+    functions now live in `systems/robotFieldDerivation.ts`, and the deal (`deriveFamilyFields`,
+    `applyDealToBaselines`, `generateDealtRosterBaseline`, `applyAspectDeal`, `redealAspects` and the engine push) in
+    `systems/aspectDeal.ts`. Both moved out of `spawnSystem.ts` unchanged.
 23. **`RadioButton` gains a `multiple` variant** — a design-system addition, Crawford's call (2026-10-30: "it should use
     the cabinetry effect just like buttons and toggles do already"). `RadioButtonSchema.multiple?: true` makes `value`
     a `string[]` and `onChange(string[])`; each option is independently selectable; in the `cabinet` appearance every
@@ -656,6 +661,11 @@ missed six new files the first plan built:
 - `src/utils/worldIdentity.ts`: `currentWorldIdentity`, what the bar mirrors (Task 15).
 - `src/data/bands/loadingIdentity.ts`: `LoadingIdentity` and `loadingOf` (Task 20).
 - `src/utils/loadingNames.ts`: the theme and aspect name and description keys (Task 30).
+
+*Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R13):* two more, split out
+of `spawnSystem.ts` with no behaviour changed:
+- `src/systems/robotFieldDerivation.ts`: each family's derive function and the bands spawn reads them under.
+- `src/systems/aspectDeal.ts`: the deal, on a baseline, on the live roster, and in place on an aspect change.
 
 `stores/localeStore.ts` is unchanged: `loadedUnder` is `Robot.loadedUnder` (`types/Robot.ts`). The content files are
 `home.ts`, `ui.ts`, `session.ts`, `sector.ts`, `company.ts` and `probe.ts`, not `settings.ts` (§1.4).

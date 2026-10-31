@@ -12,7 +12,8 @@ import { useAudioStore, pushLfoBankAndLinksToEngine } from '../stores/audioStore
 import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
-import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal, redealAspects } from './spawnSystem';
+import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
+import { applyAspectDeal, redealAspects } from './aspectDeal';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells, cancelSwellForRobotAttribute } from './audioSwells';

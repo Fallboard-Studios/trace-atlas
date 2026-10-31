@@ -3,7 +3,8 @@
 // ========================================
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type Robot, type ADSREnvelope, type RobotFilterType } from '../types/Robot';
 import type { Company } from '../types/Company';
-import { generateDealtRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
+import type { RobotAudioBaseline } from '../systems/spawnSystem';
+import { generateDealtRosterBaseline } from '../systems/aspectDeal';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
 import {

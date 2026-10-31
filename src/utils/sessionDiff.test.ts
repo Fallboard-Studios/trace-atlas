@@ -50,7 +50,8 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGO
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
-import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal, redealAspects } from '../systems/spawnSystem';
+import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
+import { applyAspectDeal, redealAspects } from '../systems/aspectDeal';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';

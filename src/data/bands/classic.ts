@@ -132,7 +132,7 @@ export const CLASSIC: BandTable = {
   // Never near 0: the mono fold is a hand setting only. The widener has no dark state.
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 
-  // ---- Robots (spawnSystem.ts) ---------------------------------------------------------------------------------------
+  // ---- Robots (spawnSystem.ts, robotFieldDerivation.ts) --------------------------------------------------------------
   // ADSR. Roadmap Phase 9 unified attack/decay/release to one flat 0-5 s range, kept narrower than the Ping Contour
   // drawer's 0-10 s edit range; all three have since been narrowed to their sliders' 0-2 s (ENVELOPE_TIME_MAX_SECONDS),
   // so a seeded value is always one the slider can show.

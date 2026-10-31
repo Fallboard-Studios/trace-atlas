@@ -210,7 +210,7 @@ fraction — same fix as Automatic Effects above, always lands on a whole percen
 
 ⁶ No `step` in the schema — defaults to `1`; both Density and Pitch Repeat seed a continuous float
 across their full displayed range with no rounding.
-⁷ Integer-valued by construction (`seedToggleValue`, `spawnSystem.ts`: `0` for "off," otherwise an
+⁷ Integer-valued by construction (`seedToggleValue`, `robotFieldDerivation.ts`: `0` for "off," otherwise an
 integer `1`–`8`) — correctly step-aligned, unlike Density/Pitch Repeat above.
 
 ### Melody — Frequency

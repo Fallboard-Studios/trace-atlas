@@ -40,7 +40,7 @@ export interface SendBand {
 
 /**
  * A 1-8 toggle field (Motif Length, Note Variance): a draw under `offShare` lands the field off (value 0); the rest of
- * the draw maps uniformly onto the whole numbers [min, max] (seedToggleValue, spawnSystem.ts).
+ * the draw maps uniformly onto the whole numbers [min, max] (seedToggleValue, robotFieldDerivation.ts).
  */
 export interface ToggleBand {
   offShare: number;
@@ -51,7 +51,7 @@ export interface ToggleBand {
 /**
  * A weighted pick among the waveforms (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a fresh draw lands on waveform w with
  * a share of weights[w] / the total. The draw spans [0, total] and picks the first waveform, in WAVEFORMS order, whose
- * cumulative weight it falls under (spawnSystem.ts's pickWaveform), so Classic's five equal unit weights - cumulative
+ * cumulative weight it falls under (robotFieldDerivation.ts's pickWaveform), so Classic's five equal unit weights - cumulative
  * edges 1 to 5 - give exactly the index Math.floor of the old [0, 5] draw gave. A zero weight is never drawn.
  */
 export interface PickBand {
