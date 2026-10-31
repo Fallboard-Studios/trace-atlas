@@ -1,11 +1,38 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { overlayBands, resolveBands } from './resolveBands';
 import { CLASSIC } from './classic';
 import { ROBOT_LIT_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
+import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
+import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS, type AspectPick } from './aspects';
+
+// ========================================
+// MOCKS
+// ========================================
+
+// Every real column is {} until the listen (plan Task 34), so the overlay direction is proved on injected columns: Calm
+// moves bpm, Hypnotic moves noteVariance. The originals are spread, so every other export is the real one.
+const injected = vi.hoisted(() => ({
+  calm: { bpm: { min: 150, max: 160 } },
+  hypnotic: { 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
+}));
+
+vi.mock('./themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./themes')>();
+  return { ...actual, THEMES: { ...actual.THEMES, calm: injected.calm } };
+});
+
+vi.mock('./aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: { ...actual.ASPECT_FAMILIES, melody: { ...melody, options: { ...melody.options, hypnotic: injected.hypnotic } } },
+  };
+});
 
 // ========================================
 // FIXTURES
@@ -209,5 +236,85 @@ describe('overlayBands - replace, never widen (spec §1.5)', () => {
     const themed = overlayBands(CLASSIC, { 'robot.rhythmicDensity': { min: 40, max: 60 } });
     const aspected = overlayBands(themed, { 'robot.rhythmicDensity': { min: 70, max: 95 } });
     expect(aspected['robot.rhythmicDensity']).toStrictEqual({ min: 70, max: 95 });
+  });
+});
+
+describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 19)', () => {
+  it('names five themes, Classic first, and every theme has a column; Classic\'s is empty', () => {
+    expect(THEME_IDS).toEqual(['classic', 'calm', 'bold', 'adventurous', 'perilous']);
+    expect(Object.keys(THEMES).sort()).toEqual([...THEME_IDS].sort());
+    expect(THEMES.classic).toStrictEqual({});
+  });
+
+  it('names one family, melody, with three options in canonical order and the four Melody keys', () => {
+    expect(ASPECT_FAMILY_IDS).toEqual(['melody']);
+    expect(ASPECT_IDS).toEqual(['hypnotic', 'mechanical', 'wandering']);
+    expect(ASPECT_FAMILIES.melody.keys).toEqual([
+      'robot.rhythmicDensity',
+      'robot.noteVariance',
+      'robot.rhythmicMotifLength',
+      'robot.pitchRepeat',
+    ]);
+    expect(Object.keys(ASPECT_FAMILIES.melody.options).sort()).toEqual([...ASPECT_IDS].sort());
+  });
+
+  it('a theme column with one key replaces only it: Calm differs from Classic at bpm and nowhere else', () => {
+    const calm = resolveBands('calm', {});
+    expect(calm.bpm).toStrictEqual({ min: 150, max: 160 });
+    const { bpm: _calmBpm, ...restCalm } = calm;
+    const { bpm: _classicBpm, ...restClassic } = CLASSIC;
+    expect(restCalm).toStrictEqual(restClassic);
+  });
+
+  it('a theme with an empty column resolves to Classic exactly (the placeholder columns are silent)', () => {
+    for (const theme of ['bold', 'adventurous', 'perilous'] as const) {
+      expect(resolveBands(theme, {}), theme).toStrictEqual(CLASSIC);
+    }
+  });
+
+  it('an aspect option replaces only its family keys: Hypnotic differs from Classic at noteVariance and nowhere else', () => {
+    const hypnotic = resolveBands('classic', { melody: 'hypnotic' });
+    expect(hypnotic['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
+    const { 'robot.noteVariance': _a, ...restHypnotic } = hypnotic;
+    const { 'robot.noteVariance': _b, ...restClassic } = CLASSIC;
+    expect(restHypnotic).toStrictEqual(restClassic);
+  });
+
+  it('a theme and an aspect compose: Calm plus Hypnotic carries both moves, the aspect over the theme', () => {
+    const both = resolveBands('calm', { melody: 'hypnotic' });
+    expect(both.bpm).toStrictEqual({ min: 150, max: 160 });
+    expect(both['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
+    expect(Object.keys(both)).toHaveLength(78);
+  });
+
+  it('an aspect with an empty option column leaves the theme\'s table as it was', () => {
+    expect(resolveBands('calm', { melody: 'wandering' })).toStrictEqual(resolveBands('calm', {}));
+  });
+
+  it('a family given undefined is no aspect at all', () => {
+    expect(resolveBands('classic', { melody: undefined })).toStrictEqual(CLASSIC);
+  });
+
+  it('returns a fresh table each time, never the Classic constant itself', () => {
+    expect(resolveBands('classic', {})).not.toBe(CLASSIC);
+  });
+
+  it('types: an aspect option cannot name a key outside its family, and a theme column cannot leave the v1 key list', () => {
+    type MelodyOption = (typeof ASPECT_FAMILIES)['melody']['options']['hypnotic'];
+    const inFamily: MelodyOption = { 'robot.pitchRepeat': { min: 0, max: 10 } };
+    expect(inFamily).toBeDefined();
+    // @ts-expect-error - bpm is a world band, not a Melody key (spec §3: themes world-wide, aspects robot-side)
+    const foreign: MelodyOption = { bpm: { min: 1, max: 2 } };
+    expect(foreign).toBeDefined();
+    const allowed: ThemeColumn = { 'robot.rests': { min: 0, max: 10 }, 'filterLPF.frequency': { min: 500, max: 1000 } };
+    expect(allowed).toBeDefined();
+    // @ts-expect-error - robot.dynamics is outside the v1 theme key list (spec assumption 16)
+    const outside: ThemeColumn = { 'robot.dynamics': { min: 0, max: 10 } };
+    expect(outside).toBeDefined();
+    // @ts-expect-error - an unknown theme id
+    const unknownTheme: ThemeId = 'moody';
+    expect(unknownTheme).toBe('moody');
+    const asTheme: AspectPick = 'theme';
+    expect(asTheme).toBe('theme');
   });
 });

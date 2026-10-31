@@ -2,21 +2,9 @@
 // IMPORTS
 // ========================================
 import { CLASSIC } from './classic';
-import type { BandKey, BandTable } from './bandKeys';
-
-// ========================================
-// STUBS (Task 19 moves these into themes.ts and aspects.ts)
-// ========================================
-
-/** The theme ids. Task 19 names the five; until then only Classic exists. */
-export type ThemeId = 'classic';
-/** The aspect family and option ids. Task 19 names them; loose until then, so the resolver's loop types over an empty
- *  table (no family has an option yet). */
-export type AspectFamilyId = string;
-export type AspectId = string;
-
-const THEMES: Record<ThemeId, Partial<BandTable>> = { classic: {} };
-const ASPECT_FAMILIES: Record<AspectFamilyId, { keys: readonly BandKey[]; options: Record<AspectId, Partial<BandTable>> }> = {};
+import { THEMES, type ThemeId } from './themes';
+import { ASPECT_FAMILIES, type AspectFamilyId, type AspectId } from './aspects';
+import type { BandTable } from './bandKeys';
 
 // ========================================
 // FUNCTIONS
