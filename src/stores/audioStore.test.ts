@@ -40,9 +40,14 @@ vi.mock('../engine/audioEngine/globalFx', () => ({
   wireGlobalFxChain: vi.fn(),
 }));
 
+// Whether the engine's LFO Bank is primed (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): false by default, as before
+// the first power-on; a test sets it true to stand for a bank AudioEngine.start() has built.
+const bankPrimed = vi.hoisted(() => ({ value: false }));
+
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7).
 vi.mock('../engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => bankPrimed.value),
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
     setBankRate: vi.fn(),
@@ -58,7 +63,7 @@ vi.mock('../engine/lfoEngine', () => ({
 }));
 
 // Whether the AudioContext is running (roadmap 17.2.8): false by default, as at module load before any
-// user gesture; a test sets it true to stand for a powered-on engine.
+// user gesture; a test sets it true to stand for a powered-on engine, false with the bank primed for a pause.
 const engineRunning = vi.hoisted(() => ({ value: false }));
 vi.mock('../engine/lfoShared', () => ({ isAudioContextRunning: () => engineRunning.value }));
 
@@ -741,25 +746,32 @@ describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding
   });
 });
 
-describe('useAudioStore - an Attenuation Style switch re-primes a running bank and its global links (roadmap 17.2.8)', () => {
+// The push follows the bank, not the context (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): a primed bank takes the
+// new lanes and links while the context runs and while a pause has it suspended; before the first start primes the
+// bank from the store, nothing is pushed, even with the context already running.
+describe('useAudioStore - an Attenuation Style switch re-primes a primed bank and its global links (roadmap 17.2.8)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     engineRunning.value = false;
+    bankPrimed.value = false;
   });
   afterEach(() => {
     engineRunning.value = false;
+    bankPrimed.value = false;
   });
 
   /** Loads the store with the engine off (module load comes before any gesture), then switches to a new
-   *  Attenuation Style with the engine `running` or not; mock calls are cleared just before the switch. */
-  async function switchStyle(running: boolean) {
+   *  Attenuation Style with the bank `primed` or not and the context `running` or not; mock calls are cleared just
+   *  before the switch. */
+  async function switchStyle({ primed, running }: { primed: boolean; running: boolean }) {
     const { useAudioStore } = await import('./audioStore');
     const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
     const { AudioEngine: engine } = await import('../engine/AudioEngine');
     const before = useAudioStore.getState();
     useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-reprime', name: 'ZenithReprime' });
+    bankPrimed.value = primed;
     engineRunning.value = running;
     vi.clearAllMocks();
     useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-reprime');
@@ -767,7 +779,7 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
   }
 
   it('pushes every lane of the new bank to the running engine, resolved for the engine', async () => {
-    const { before, after, lfoEngine } = await switchStyle(true);
+    const { before, after, lfoEngine } = await switchStyle({ primed: true, running: true });
 
     // The switch has to change the bank, or this test would pass on the old lanes by coincidence.
     expect(after.lfoBank).not.toEqual(before.lfoBank);
@@ -790,7 +802,7 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
   });
 
   it('relinks every global target with the new links', async () => {
-    const { before, after, lfoEngine } = await switchStyle(true);
+    const { before, after, lfoEngine } = await switchStyle({ primed: true, running: true });
 
     expect(after.globalLfoLinks).not.toEqual(before.globalLfoLinks);
     for (const target of GLOBAL_LFO_TARGET_IDS) {
@@ -800,7 +812,7 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
   });
 
   it("relinks only after the new globalAudio reached the engine (a link's swing reads the target's current value)", async () => {
-    const { lfoEngine, engine } = await switchStyle(true);
+    const { lfoEngine, engine } = await switchStyle({ primed: true, running: true });
 
     expect(lfoEngine.linkTarget).toHaveBeenCalled(); // or the order below holds vacuously (min of nothing)
     expect(engine.setGlobalEQ).toHaveBeenCalled();
@@ -813,8 +825,33 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
     expect(firstLink).toBeGreaterThan(lastTargetPush);
   });
 
-  it('pushes nothing to the bank engine when the AudioContext is not running', async () => {
-    const { before, after, lfoEngine } = await switchStyle(false);
+  it('pushes every lane and relinks every global target while a pause has the context suspended, once the bank is primed', async () => {
+    const { before, after, lfoEngine } = await switchStyle({ primed: true, running: false });
+
+    expect(after.lfoBank).not.toEqual(before.lfoBank);
+    for (const lane of LFO_LANE_IDS) {
+      const engineLane = resolveLaneForEngine(after.lfoBank[lane], after.bpm);
+      expect(lfoEngine.setBankShape).toHaveBeenCalledWith(lane, engineLane.shape);
+      expect(vi.mocked(lfoEngine.setBankRate).mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, engineLane.rate]);
+      expect(lfoEngine.setBankRateDrift).toHaveBeenCalledWith(lane, engineLane.rateDrift);
+      expect(lfoEngine.setBankDepthDrift).toHaveBeenCalledWith(lane, engineLane.depthDrift);
+    }
+    for (const target of GLOBAL_LFO_TARGET_IDS) {
+      expect(lfoEngine.linkTarget).toHaveBeenCalledWith(target, after.globalLfoLinks[target]);
+    }
+  });
+
+  it('pushes nothing while the context runs but the bank is not yet primed: the first start primes it from the store', async () => {
+    const { lfoEngine } = await switchStyle({ primed: false, running: true });
+
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
+  });
+
+  it('pushes nothing to the bank engine before the bank is primed (the context not running either)', async () => {
+    const { before, after, lfoEngine } = await switchStyle({ primed: false, running: false });
 
     expect(after.lfoBank).not.toEqual(before.lfoBank); // the store still reseeds
     expect(lfoEngine.setBankShape).not.toHaveBeenCalled();

@@ -41,7 +41,7 @@ import { regenerateMelody } from '../engine/regenerateMelody';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
 import { primeRobotLinks } from '../systems/robotLfoLinks';
-import { isAudioContextRunning } from '../engine/lfoShared';
+import { lfoEngine } from '../engine/lfoEngine';
 
 // ========================================
 // FUNCTIONS
@@ -539,18 +539,19 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
 
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): independently optional, same convention as the
   // pacing fields above -- absent (a pre-this-change payload) leaves retransmitWorld's own fresh
-  // reseed untouched. When the audio context is already running (loading a session mid-session,
-  // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
-  // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
-  // this same store state once the context actually starts. The running branch REPLACES each lane
-  // rather than merging it: a setLfoBank merge cannot delete a key, so a Free lane in the payload
-  // would keep the live lane's stale `sync` (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
+  // reseed untouched. Once the LFO bank is primed (any load after the first power-on, the context
+  // running or suspended by a pause: docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2), pushed through
+  // replaceLfoBankLane/setGlobalLfoLink too, so the change reaches the engine without a power cycle;
+  // before that a plain data-only write -- AudioEngine.start() primes the bank from this same store
+  // state. The pushing branch REPLACES each lane rather than merging it: a setLfoBank merge cannot
+  // delete a key, so a Free lane in the payload would keep the live lane's stale `sync`
+  // (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
   const backfilledBank = backfillLfoBank(payload.lfoBank);
   const lfoBank =
     backfilledBank &&
     (Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, sanitizeLaneSync(backfilledBank[lane])])) as Record<LfoLaneId, BankLfoSettings>);
   if (lfoBank) {
-    if (isAudioContextRunning()) {
+    if (lfoEngine.isBankPrimed()) {
       for (const lane of LFO_LANE_IDS) useAudioStore.getState().replaceLfoBankLane(lane, lfoBank[lane]);
     } else {
       useAudioStore.setState({ lfoBank });
@@ -558,7 +559,7 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   }
   const globalLfoLinks = backfillGlobalLfoLinks(payload.globalLfoLinks);
   if (globalLfoLinks) {
-    if (isAudioContextRunning()) {
+    if (lfoEngine.isBankPrimed()) {
       for (const target of GLOBAL_LFO_TARGET_IDS) useAudioStore.getState().setGlobalLfoLink(target, globalLfoLinks[target]);
     } else {
       useAudioStore.setState({ globalLfoLinks });

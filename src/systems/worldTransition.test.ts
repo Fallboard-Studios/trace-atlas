@@ -63,6 +63,10 @@ import { getSeededVal } from '../utils/getSeededVal';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import { initializeLocale, retransmitWorld, rollWorld, startLocaleSystems } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
+import { lfoEngine } from '../engine/lfoEngine';
+import * as lfoShared from '../engine/lfoShared';
+import { resolveLaneForEngine } from '../utils/tempoSync';
+import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells } from './audioSwells';
@@ -1010,6 +1014,78 @@ describe('worldTransition', () => {
       for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'mechanical' });
       retransmitWorld({ aspects: {} });
       for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toBeUndefined();
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2: an unchanged style fires no style-sync, so the loading change pushes
+    // the regenerated bank and global links itself, to a primed bank only: the context running, or suspended by a pause.
+    // Before the first start primes the bank from the store, nothing is pushed.
+    describe('the regenerated LFO bank and global links reach a primed engine', () => {
+      /** The engine's bank and link setters, stubbed: this file never builds the lanes. linkTarget answers as an
+       *  unprimed engine does. */
+      const stubBankEngine = () => ({
+        shape: vi.spyOn(lfoEngine, 'setBankShape').mockImplementation(() => {}),
+        rate: vi.spyOn(lfoEngine, 'setBankRate').mockImplementation(() => {}),
+        rateDrift: vi.spyOn(lfoEngine, 'setBankRateDrift').mockImplementation(() => {}),
+        depthDrift: vi.spyOn(lfoEngine, 'setBankDepthDrift').mockImplementation(() => {}),
+        link: vi.spyOn(lfoEngine, 'linkTarget').mockImplementation(() => false),
+      });
+      /** The call orders of the global links only: a robot's link carries its id as a third argument. */
+      const globalLinkOrders = (link: ReturnType<typeof stubBankEngine>['link']) =>
+        link.mock.calls.flatMap((call, i) => (call.length === 2 ? [link.mock.invocationCallOrder[i]] : []));
+
+      it('a theme pick pushes every lane of the new bank and relinks every global target, after they regenerate, with the context suspended', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+        vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
+        const spies = spyRegenerators();
+        const engine = stubBankEngine();
+
+        retransmitWorld({ theme: 'calm' });
+
+        const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
+        for (const lane of LFO_LANE_IDS) {
+          const engineLane = resolveLaneForEngine(lfoBank[lane], bpm);
+          expect(engine.shape).toHaveBeenCalledWith(lane, engineLane.shape);
+          // The tempo reseed re-pushes the old bank's synced lanes first: the new bank's rate is each lane's last word.
+          expect(engine.rate.mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, engineLane.rate]);
+          expect(engine.rateDrift).toHaveBeenCalledWith(lane, engineLane.rateDrift);
+          expect(engine.depthDrift).toHaveBeenCalledWith(lane, engineLane.depthDrift);
+        }
+        for (const target of GLOBAL_LFO_TARGET_IDS) expect(engine.link).toHaveBeenCalledWith(target, globalLfoLinks[target]);
+        expect(globalLinkOrders(engine.link)).toHaveLength(GLOBAL_LFO_TARGET_IDS.length);
+        expect(engine.shape.mock.invocationCallOrder[0]).toBeGreaterThan(spies.lfoBank.mock.invocationCallOrder[0]);
+        expect(Math.min(...globalLinkOrders(engine.link))).toBeGreaterThan(spies.globalLfoLinks.mock.invocationCallOrder[0]);
+      });
+
+      it('pushes nothing before the bank is primed, even with the context running: the first start primes from the store', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+        vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
+        const engine = stubBankEngine();
+
+        retransmitWorld({ theme: 'calm' });
+
+        expect(engine.shape).not.toHaveBeenCalled();
+        expect(engine.rateDrift).not.toHaveBeenCalled();
+        expect(engine.depthDrift).not.toHaveBeenCalled();
+        expect(globalLinkOrders(engine.link)).toEqual([]);
+      });
+
+      it('a theme riding on a plot move pushes too; a plain plot move regenerates no global half and pushes nothing', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
+        const engine = stubBankEngine();
+
+        retransmitWorld({ coordinates: { x: 500, y: 500 } });
+
+        expect(engine.shape).not.toHaveBeenCalled();
+        expect(globalLinkOrders(engine.link)).toEqual([]);
+
+        retransmitWorld({ coordinates: { x: 600, y: 600 }, theme: 'calm' });
+
+        expect(engine.shape).toHaveBeenCalledTimes(LFO_LANE_IDS.length);
+        expect(globalLinkOrders(engine.link)).toHaveLength(GLOBAL_LFO_TARGET_IDS.length);
+      });
     });
   });
 

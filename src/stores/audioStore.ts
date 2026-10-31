@@ -7,7 +7,6 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
-import { isAudioContextRunning } from '../engine/lfoShared';
 import {
   generateGlobalAudioSettings,
   generateLfoBankSettings,
@@ -748,14 +747,22 @@ function syncGlobalAudioToCurrentAttenuationStyle(): void {
   useAudioStore.getState().regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
-  // The two regenerates are data-only (they also run at module load, before any gesture), so a switch on a
-  // powered-on engine pushes the new bank and links here (roadmap 17.2.8): every lane, then every global link.
+  // The two regenerates are data-only (they also run at module load, before any gesture), so a switch pushes the
+  // new bank and links here (roadmap 17.2.8) once the engine has a bank: every lane, then every global link.
   // Last on purpose: the bpm reseed above re-pushed the OLD bank's synced lanes, and linkTarget's swing reads
   // each target's current value, which the globalAudio push above has just set.
-  if (isAudioContextRunning()) pushLfoBankAndLinksToEngine();
+  pushLfoBankAndLinksToEngine();
 }
 
-function pushLfoBankAndLinksToEngine(): void {
+/**
+ * The store's whole LFO Bank and every global link to the engine, once the bank is primed
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): with the context running, or suspended by a pause, since a world
+ * changed while the tablet is off must still reach the lanes. Before the first start there is no bank, and
+ * AudioEngine.start() primes it from this same store state. The style-sync above ends with it, and so does
+ * worldTransition's loading change, which keeps the style and so fires no style-sync.
+ */
+export function pushLfoBankAndLinksToEngine(): void {
+  if (!lfoEngine.isBankPrimed()) return;
   const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
   for (const lane of LFO_LANE_IDS) pushLaneToEngine(lane, lfoBank[lane], bpm);
   for (const target of GLOBAL_LFO_TARGET_IDS) lfoEngine.linkTarget(target, globalLfoLinks[target]);

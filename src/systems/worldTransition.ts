@@ -6,8 +6,9 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useUIStore } from '../stores/uiStore';
 // audioStore registers the useAttenuationStyleStore subscription that reseeds bpm/globalAudio/lfoBank/globalLfoLinks on
 // a style change (finalizeAttenuationStyleTransition relies on it), so it must be loaded wherever a retransmit can run;
-// a loading change under an unchanged style calls the same four regenerators itself (regenerateGlobalHalfFromSeed).
-import { useAudioStore } from '../stores/audioStore';
+// a loading change under an unchanged style calls the same four regenerators and the same push itself
+// (regenerateGlobalHalfFromSeed).
+import { useAudioStore, pushLfoBankAndLinksToEngine } from '../stores/audioStore';
 import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
@@ -253,7 +254,10 @@ function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId
  * The global half from seed under the bands now installed - bpm, the Audio Rig, the LFO Bank, the global links, in the
  * style-sync subscription's order (audioStore.ts) - for a loading change under an unchanged Attenuation Style, where
  * that subscription does not fire (docs/specs/OFF_SCREEN.md assumption 10; band-table T25). The seed-once fields (ping
- * variance, the swells, humanize) carry forward, as on a style switch.
+ * variance, the swells, humanize) carry forward, as on a style switch. It ends as the subscription does, with the new
+ * bank and links pushed to a primed engine (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): a theme picked while the
+ * tablet is paused must still reach the lanes, because a primed bank is never primed again (the next start's
+ * primeLfoBank is a no-op).
  */
 function regenerateGlobalHalfFromSeed(attenuationStyle: AttenuationStyle): void {
   const audio = useAudioStore.getState();
@@ -261,6 +265,7 @@ function regenerateGlobalHalfFromSeed(attenuationStyle: AttenuationStyle): void 
   audio.regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
   audio.regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   audio.regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
+  pushLfoBankAndLinksToEngine();
 }
 
 /**

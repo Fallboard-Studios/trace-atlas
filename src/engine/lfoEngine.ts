@@ -262,6 +262,13 @@ function primeLfoBank(settings: Record<LfoLaneId, BankLfoSettings>): void {
   primed = true;
 }
 
+/** Whether primeLfoBank has built the lanes. The gate for every store-to-engine bank push
+ *  (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): the lanes outlive a pause, so a write while the context is suspended
+ *  still reaches their nodes, and before the first prime there is nothing to write to — start() primes from the store. */
+function isBankPrimed(): boolean {
+  return primed;
+}
+
 /** Current settings for a lane — DEFAULT_BANK_LFO until primeLfoBank has run, mirroring the old
  *  per-target engine's getLfoSettings fallback. Always a fresh copy — callers never mutate the engine's own. */
 function getBankSettings(lane: LfoLaneId): BankLfoSettings {
@@ -445,6 +452,7 @@ function setBusFilterLinksEnabled(enabled: boolean): void {
 
 export const lfoEngine = {
   primeLfoBank,
+  isBankPrimed,
   setBankShape,
   setBankRate,
   setBankRateDrift,
