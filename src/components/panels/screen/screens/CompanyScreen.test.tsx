@@ -531,6 +531,26 @@ describe('CompanyScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Ta
     expect(well.textContent).toContain(caption.lore);
   });
 
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Checkpoint C: the deal now seats four families; the line names every one the
+  // company was dealt, in family order, joined as describeWorld joins a family's picks.
+  it('names every dealt family, in family order, when every member carries the same record', () => {
+    const record = { voice: 'woody', melody: 'hypnotic', distance: 'remote', envelope: 'held' };
+    const robots = useLocaleStore.getState().locales[localeId]!.robots.map((r) =>
+      r.companyId === RUST.id ? { ...r, loadedUnder: record } : r,
+    );
+    useLocaleStore.getState().setLocaleData(localeId, { robots } as unknown as Partial<Locale>);
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)[2].querySelector('.robot-screen__meta-value')?.textContent).toBe(
+      [
+        human('home.off.melody.hypnotic'),
+        human('home.off.envelope.held'),
+        human('home.off.distance.remote'),
+        human('home.off.voice.woody'),
+      ].join(' + '),
+    );
+  });
+
   it('is text, not a control', () => {
     dealTo(RUST.id, 'mechanical');
     openCompany(RUST.id);
