@@ -85,6 +85,9 @@ export function SectorSettingsDrawer() {
     if (coordinates && (coordsDraft.x !== coordinates.x || coordsDraft.y !== coordinates.y)) {
       input.coordinates = coordsDraft;
     }
+    // Nothing edited - an emptied name reads as none, as retransmitWorld reads it - is no world change: nothing waits,
+    // and no wash fades over an unchanged world (found at the revisions plan's Checkpoint D).
+    if (!input.attenuationStyleName && !input.coordinates) return;
     // A user-gesture world change: it waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13).
     requestWorldChange(() => retransmitWorld(input));
   }

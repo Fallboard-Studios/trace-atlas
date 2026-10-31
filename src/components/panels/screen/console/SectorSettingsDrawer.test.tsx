@@ -183,10 +183,35 @@ describe('SectorSettingsDrawer', () => {
     expect(retransmitWorldMock).toHaveBeenCalledWith({ coordinates: { x: 42, y: 9 } });
   });
 
-  it('clicking Retransmit with neither field edited passes an empty input', () => {
-    render(<SectorSettingsDrawer />);
-    fireEvent.click(screen.getByText('Retransmit'));
-    expect(retransmitWorldMock).toHaveBeenCalledWith({});
+  // Found at Checkpoint D of docs/tasks/OFF_SCREEN_REVISIONS.md: with nothing edited retransmitWorld does nothing (its
+  // no-op branch), so the drawer asks for nothing - no retransmit, and no wash fading over an unchanged world. Letting go
+  // of the wash runs whatever was waiting, so the empty mock after detach shows nothing was queued either.
+  it('clicking Retransmit with neither field edited asks for no world change: no wash, no retransmit', () => {
+    useUIStore.setState({ sceneWash: 'clear' });
+    const detach = attachSceneWash();
+    try {
+      render(<SectorSettingsDrawer />);
+      fireEvent.click(screen.getByText('Retransmit'));
+      expect(useUIStore.getState().sceneWash).toBe('clear');
+    } finally {
+      detach();
+    }
+    expect(retransmitWorldMock).not.toHaveBeenCalled();
+  });
+
+  it('an emptied Attenuation Style name alone is no world change either (retransmitWorld reads it as absent)', () => {
+    useUIStore.setState({ sceneWash: 'clear' });
+    const detach = attachSceneWash();
+    try {
+      render(<SectorSettingsDrawer />);
+      const attenuationStyleInput = screen.getAllByRole('textbox').find((el) => (el as HTMLInputElement).value === 'Pelagos')!;
+      fireEvent.change(attenuationStyleInput, { target: { value: '' } });
+      fireEvent.click(screen.getByText('Retransmit'));
+      expect(useUIStore.getState().sceneWash).toBe('clear');
+    } finally {
+      detach();
+    }
+    expect(retransmitWorldMock).not.toHaveBeenCalled();
   });
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 13 (Crawford's note 7): Retransmit is a user-gesture world change, so it waits
