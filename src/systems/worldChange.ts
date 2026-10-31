@@ -2,12 +2,11 @@
 // IMPORTS
 // ========================================
 import { useUIStore } from '../stores/uiStore';
+import { prefersReducedMotion } from '../utils/reducedMotion';
 
 // ========================================
 // MODULE STATE
 // ========================================
-
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
 /** The change waiting for the cover. A closure, so runtime-only and never in a store (CLAUDE.md); the last request wins. */
 let pending: (() => void) | null = null;
@@ -17,11 +16,6 @@ let washes = 0;
 // ========================================
 // FUNCTIONS
 // ========================================
-
-/** The theatre's test (animation/offScreenTheatre.ts reads the same query through gsap.matchMedia; nothing here is GSAP). */
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(REDUCED_MOTION).matches;
-}
 
 /** The cover has landed: run the pending change - and any change it asks for in turn - then uncover, whatever happens,
  *  so a throwing change never leaves the wash standing over the world; the throw is logged, since nothing awaits this.

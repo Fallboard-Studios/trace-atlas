@@ -4,7 +4,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/store
 import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { useSessionStore } from '@/stores/sessionStore';
-import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { retransmitChangesWorld, retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
 import { requestWorldChange } from '@/systems/worldChange';
 import { describeWorld } from '@/utils/describeWorld';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
@@ -87,8 +87,9 @@ export function SectorSettingsDrawer() {
       input.coordinates = coordsDraft;
     }
     // Nothing edited - an emptied name reads as none, as retransmitWorld reads it - is no world change: nothing waits,
-    // and no wash fades over an unchanged world (found at the revisions plan's Checkpoint D).
-    if (!input.attenuationStyleName && !input.coordinates) return;
+    // and no wash fades over an unchanged world (found at the revisions plan's Checkpoint D). retransmitWorld's own
+    // no-op rule decides (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R16).
+    if (!retransmitChangesWorld(input)) return;
     // A user-gesture world change: it waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13). It always
     // moves the name or the plot, so the world is no longer the loaded save's: the save is let go when the change runs,
     // as the off screen's Roll lets it go (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R7).

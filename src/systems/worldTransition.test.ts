@@ -61,7 +61,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
-import { initializeLocale, retransmitWorld, rollWorld, startLocaleSystems } from './worldTransition';
+import { initializeLocale, retransmitChangesWorld, retransmitWorld, rollWorld, startLocaleSystems } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { lfoEngine } from '../engine/lfoEngine';
 import * as lfoShared from '../engine/lfoShared';
@@ -281,6 +281,35 @@ describe('worldTransition', () => {
 
       releaseVoiceSpy.mockRestore();
       selectRobotSpy.mockRestore();
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R16: the no-op rule, exported once, so Foundry's Retransmit asks it rather
+  // than keeping its own copy (the drawer raises no wash over a no-op).
+  describe('retransmitChangesWorld — the no-op rule, shared (review R16)', () => {
+    it('is false for an input that changes nothing: none at all, an emptied name, the loaded theme again, an equal pick set', () => {
+      useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['wandering', 'hypnotic'] } });
+      expect(retransmitChangesWorld({})).toBe(false);
+      expect(retransmitChangesWorld({ attenuationStyleName: '' })).toBe(false);
+      expect(retransmitChangesWorld({ theme: 'calm' })).toBe(false);
+      expect(retransmitChangesWorld({ aspects: { melody: ['hypnotic', 'wandering', 'hypnotic'] } })).toBe(false);
+      expect(retransmitChangesWorld({ theme: 'calm', aspects: { melody: ['wandering', 'hypnotic'] } })).toBe(false);
+    });
+
+    it('is true for an input that changes the world: a coordinate, a name, a theme, a pick', () => {
+      expect(retransmitChangesWorld({ coordinates: { x: 1, y: 2 } })).toBe(true);
+      expect(retransmitChangesWorld({ attenuationStyleName: 'Brinemouth' })).toBe(true);
+      expect(retransmitChangesWorld({ theme: 'bold' })).toBe(true);
+      expect(retransmitChangesWorld({ aspects: { envelope: ['held'] } })).toBe(true);
+    });
+
+    it('only asks: it changes no store and rebuilds nothing', () => {
+      const localesBefore = useLocaleStore.getState().locales;
+      const attenuationStylesBefore = useAttenuationStyleStore.getState().attenuationStyles;
+      expect(retransmitChangesWorld({ coordinates: { x: 1, y: 2 }, theme: 'bold', aspects: { voice: ['woody'] } })).toBe(true);
+      expect(useLocaleStore.getState().locales).toBe(localesBefore);
+      expect(useAttenuationStyleStore.getState().attenuationStyles).toBe(attenuationStylesBefore);
+      expect(useLoadingStore.getState()).toMatchObject({ theme: 'classic', aspects: {} });
     });
   });
 

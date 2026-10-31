@@ -5,7 +5,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 const retransmitWorldMock = vi.fn();
-vi.mock('@/systems/worldTransition', () => ({
+// The retransmit itself is stubbed; the no-op rule the drawer asks first is the real one (review R16), so these cases
+// pin the drawer to retransmitWorld's own rule rather than to a copy.
+vi.mock('@/systems/worldTransition', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/systems/worldTransition')>()),
   retransmitWorld: (input: unknown) => retransmitWorldMock(input),
 }));
 

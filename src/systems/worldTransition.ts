@@ -227,6 +227,14 @@ function resolveRetransmitAction(input: RetransmitInput): RetransmitAction {
   return { mode: 'both', attenuationStyleName: attenuationStyleName!, coordinates: coordinates!, loading };
 }
 
+/** Whether `input` changes the world at all: false for exactly the inputs retransmitWorld treats as a no-op (nothing
+ *  named, an emptied name, the loaded theme again, an equal pick set). Asks only - it writes nothing. A caller that must
+ *  know before asking for a world change, as Foundry's Retransmit does to raise no wash over a no-op
+ *  (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R16), reads the rule here instead of keeping a copy. */
+export function retransmitChangesWorld(input: RetransmitInput): boolean {
+  return resolveRetransmitAction(input).mode !== 'noop';
+}
+
 /** Whether an action rebuilds the loaded locale: every mode but two. The aspects-only one re-deals the live roster in
  *  place; the Attenuation-Style-only one re-parents the locale untouched unless a loading change rides on it. */
 function rebuildsLocale(action: Exclude<RetransmitAction, { mode: 'noop' }>): boolean {
