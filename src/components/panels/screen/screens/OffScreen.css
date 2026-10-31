@@ -160,8 +160,26 @@
   text-wrap: balance;
 }
 
-/* The actions beside Current — Roll (docs/tasks/OFF_SCREEN.md Task 13) and Keep (Task 14): the RadioButton's row is
-   its own, so they sit in this row right under the Transmission options, centred, flat like them (muted Buttons). */
+/* The Transmission list (docs/tasks/OFF_SCREEN_REVISIONS.md Task 5; the sketch's .r rows): the list takes the
+   column's full width, rows as RadioButton's list draws them. Roll sits at the Current row's end as the sketch's small
+   flat button — a face shorter than the row and a smaller label, so the row keeps the list's rhythm — a little in
+   from the row's edge. Nothing lifts off the plate. */
+.off-screen .sc-radio-button__trailing {
+  padding-right: 6px;
+}
+
+.off-screen .sc-radio-button__trailing .sc-button__flat {
+  height: 26px;
+  padding: 0 10px;
+}
+
+.off-screen .sc-radio-button__trailing .sc-button__label {
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+}
+
+/* Keep under the list (Task 14; revisions Task 4): the RadioButton's rows are its own, so it sits in this row right
+   under the Transmission list, centred, flat like it (a muted Button). */
 .off-screen__actions {
   display: flex;
   flex-wrap: wrap;
@@ -235,6 +253,11 @@
 
 #screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__flat {
   padding: 0 10px;
+}
+
+/* The list's rows on the phone: the same tighter side padding as the boxes. */
+#screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__list-item {
+  padding: 4px 10px;
 }
 
 #screen-viewport[data-shell='phone'] .off-screen__readout {

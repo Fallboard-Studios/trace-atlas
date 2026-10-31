@@ -202,6 +202,16 @@
   background: rgba(207, 214, 220, 0.08);
 }
 
+/* A hover brightens an unselected row's border, never lifts it: the muted button's engaged state, for a row
+   (docs/tasks/OFF_SCREEN_REVISIONS.md Task 5). A disabled row stays still. */
+.sc-radio-button__row:not([data-state='on']):hover {
+  border-color: rgba(207, 214, 220, 0.22);
+}
+
+.sc-radio-button__row:has(> [data-disabled]):hover {
+  border-color: transparent;
+}
+
 /* The row's radio: the dot, the face and the meta on one line, taking the width the trailing slot leaves. */
 .sc-radio-button__list-item {
   display: flex;
