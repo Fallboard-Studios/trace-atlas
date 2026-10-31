@@ -1,6 +1,6 @@
 import { useUIStore } from '@/stores/uiStore';
-import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 import { lerp } from '@/utils/math';
+import { waterColumnColors } from '@/utils/waterColumnColors';
 
 // ========================================
 // TYPES
@@ -31,16 +31,13 @@ const GLOW_OMIT_THRESHOLD = 0.2;
  *
  * `d = 1 - nightDepth` (0 at deepest night, 1 at noon). Gradient stops and glow opacity are
  * rounded to whole percent so they step once every ~2 s like the facades, instead of churning on
- * every sub-percent change in the continuous lighting curve.
+ * every sub-percent change in the continuous lighting curve. The sea's two stops come from
+ * waterColumnColors, shared with the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13).
  */
 export function WaterColumn({ localeId, width, height }: WaterColumnProps) {
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
 
-  const { eastL, westL } = getLighting(localTime);
-  const d = 1 - getNightDepth(eastL, westL);
-
-  const topL = Math.round(lerp(8, 30, d));
-  const bottomL = Math.round(lerp(4, 12, d));
+  const { d, top, bottom } = waterColumnColors(localTime);
   const glowOpacity = Math.round(0.08 * d * 100) / 100;
   const glowCx = lerp(300, 1620, localTime / 24);
 
@@ -50,8 +47,8 @@ export function WaterColumn({ localeId, width, height }: WaterColumnProps) {
     <g data-water={localeId}>
       <defs>
         <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor={`hsl(200, 45%, ${topL}%)`} />
-          <stop offset="100%" stopColor={`hsl(230, 45%, ${bottomL}%)`} />
+          <stop offset="0%" stopColor={top} />
+          <stop offset="100%" stopColor={bottom} />
         </linearGradient>
       </defs>
       <rect fill={`url(#${gradientId})`} width={width} height={height} />

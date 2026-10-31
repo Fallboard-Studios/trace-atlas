@@ -31,6 +31,9 @@ import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/loca
 import { useUIStore } from '@/stores/uiStore';
 import { retransmitWorld } from '@/systems/worldTransition';
 import { stopRobotLifecycle } from '@/systems/robotSystems';
+import { requestWorldChange } from '@/systems/worldChange';
+import { WORLD_WASH_REF_KEY } from '@/animation/sceneWash';
+import { getRef } from '@/utils/refs';
 import type { HubTile } from '@/types/hub';
 
 const UI_INITIAL_STATE = useUIStore.getState();
@@ -236,5 +239,60 @@ describe('WorldView — hands the scroller to the camera module', () => {
     rerender(<WorldView />);
 
     expect(registerDeckScroller).not.toHaveBeenCalled();
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVISIONS.md Task 13 (Crawford's note 7): the scene wash lives in the world view - over the
+// scene, under the meta box - registered for its animation module while mounted, so a user-gesture world change waits
+// for it. The fades are animation/sceneWash.test.ts's; here the shared GSAP stub completes each one on a microtask.
+describe('WorldView — the scene wash (revisions Task 13)', () => {
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    // The desk shell (the meta box shows on it), motion not reduced.
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: !query.includes('reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('is a decorative, empty layer right after the scroller, before the meta box', () => {
+    const { container } = render(<WorldView />);
+    const wash = container.querySelector('.world-view__wash')!;
+    expect(wash).not.toBeNull();
+    expect(wash.getAttribute('aria-hidden')).toBe('true');
+    expect(wash.children).toHaveLength(0);
+    expect(wash.parentElement).toBe(container.querySelector('.world-view'));
+    expect(wash.previousElementSibling).toBe(container.querySelector('.world-view__scroller'));
+    expect(wash.nextElementSibling).toBe(container.querySelector('.world-view > .meta-box'));
+    expect(wash.nextElementSibling).not.toBeNull();
+  });
+
+  it('registers the wash under its ref on mount and drops it on unmount', () => {
+    const { container, unmount } = render(<WorldView />);
+    expect(getRef(WORLD_WASH_REF_KEY)).toBe(container.querySelector('.world-view__wash'));
+    unmount();
+    expect(getRef(WORLD_WASH_REF_KEY)).toBeUndefined();
+  });
+
+  it('while mounted, a world change waits for the cover and runs once it lands; after unmount it runs at once', async () => {
+    const { unmount } = render(<WorldView />);
+    const change = vi.fn();
+    act(() => requestWorldChange(change));
+    expect(useUIStore.getState().sceneWash).toBe('covering');
+    expect(change).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(change).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(useUIStore.getState().sceneWash).toBe('clear'));
+    unmount();
+    const later = vi.fn();
+    requestWorldChange(later);
+    expect(later).toHaveBeenCalledTimes(1);
+    expect(useUIStore.getState().sceneWash).toBe('clear');
   });
 });
