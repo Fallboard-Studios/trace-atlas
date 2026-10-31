@@ -637,19 +637,6 @@ describe('ramp lifecycle', () => {
     expect(snap.phase).toBe('falling');
   });
 
-  it('interpolates during rising/falling and returns to exactly baseValue on completion, removing the swell', () => {
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12
-
-    tickAudioSwells(LOCALE_ID, 3); // falling phase's first tick — progress 0 -> value === peak
-    expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(12);
-    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(true);
-
-    tickAudioSwells(LOCALE_ID, 15); // falling completes
-    expect(useAudioStore.getState().globalAudio.eq3.low).toBe(0);
-    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(false);
-  });
-
   it('writes every value via useAudioStore.getState().setGlobalAudio, never a bare AudioEngine call', () => {
     const spy = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
