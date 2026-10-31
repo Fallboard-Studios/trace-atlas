@@ -1237,53 +1237,58 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     vi.mocked(retransmitWorld).mockReset();
   });
   const wash = () => useUIStore.getState().sceneWash;
-  const land = () => act(() => useUIStore.getState().setSceneWash('covered'));
+  // The change runs just after the call that lands the cover (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12), so the
+  // act is awaited.
+  const land = () =>
+    act(async () => {
+      useUIStore.getState().setSceneWash('covered');
+    });
   const checked = (name: string) => screen.getByRole('radio', { name }).getAttribute('aria-checked');
 
   // The pick shows at the click since docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3 (the rows draw from the intent).
-  it('a preset pick applies its payload only once the wash has covered the world, and the pick shows at the click', () => {
+  it('a preset pick applies its payload only once the wash has covered the world, and the pick shows at the click', async () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
     expect(wash()).toBe('covering');
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(checked(presetName(1))).toBe('true');
-    land();
+    await land();
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
     expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[1]));
     expect(checked(presetName(1))).toBe('true');
     expect(wash()).toBe('uncovering');
   });
 
-  it('two picks before the cover lands: only the last is applied', () => {
+  it('two picks before the cover lands: only the last is applied', async () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
-    land();
+    await land();
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
     expect(applySessionPayload).toHaveBeenCalledWith(savedPayload('dusk'));
     expect(checked('Dusk Run')).toBe('true');
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
   });
 
-  it('Roll rolls once covered; the pick returns to Current at the click (R3)', () => {
+  it('Roll rolls once covered; the pick returns to Current at the click (R3)', async () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(2) }));
-    land();
+    await land();
     act(() => useUIStore.getState().setSceneWash('clear'));
     fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
     expect(rollWorld).not.toHaveBeenCalled();
     expect(checked(currentLabel())).toBe('true');
-    land();
+    await land();
     expect(rollWorld).toHaveBeenCalledTimes(1);
     expect(checked(currentLabel())).toBe('true');
   });
 
-  it('a theme pick retransmits once covered', () => {
+  it('a theme pick retransmits once covered', async () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
     expect(retransmitWorld).not.toHaveBeenCalled();
-    land();
+    await land();
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
   });
@@ -1294,17 +1299,17 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   describe('every click made while a change waits counts (review R3)', () => {
     const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0];
 
-    it('a theme pick then a toggle: one request at the cover, carrying both, and no re-deal before it', () => {
+    it('a theme pick then a toggle: one request at the cover, carrying both, and no re-deal before it', async () => {
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(retransmitWorld).not.toHaveBeenCalled();
-      land();
+      await land();
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm', aspects: { envelope: ['held'] } });
     });
 
-    it('a preset then Current applies nothing: the cover lands and lifts with no change, and Current stays picked', () => {
+    it('a preset then Current applies nothing: the cover lands and lifts with no change, and Current stays picked', async () => {
       const cancel = vi.spyOn(worldChange, 'cancelWorldChange');
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
@@ -1312,7 +1317,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       fireEvent.click(screen.getByRole('radio', { name: currentLabel() }));
       expect(cancel).toHaveBeenCalledTimes(1); // the waiting change is dropped, not left to run as a no-op
       expect(checked(currentLabel())).toBe('true');
-      land();
+      await land();
       expect(applySessionPayload).not.toHaveBeenCalled();
       expect(retransmitWorld).not.toHaveBeenCalled();
       expect(wash()).toBe('uncovering');
@@ -1320,14 +1325,14 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       cancel.mockRestore();
     });
 
-    it("a preset then a toggle leaves the preset's world with the toggle: the apply, then one aspects retransmit", () => {
+    it("a preset then a toggle leaves the preset's world with the toggle: the apply, then one aspects retransmit", async () => {
       const preset = presetPayload(TRANSMISSION_PRESETS[0])!;
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(applySessionPayload).not.toHaveBeenCalled();
       expect(retransmitWorld).not.toHaveBeenCalled();
-      land();
+      await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(applySessionPayload).toHaveBeenCalledWith(preset);
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
@@ -1336,11 +1341,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(checked(currentLabel())).toBe('true'); // a toggle drops the world row to Current, as it always has
     });
 
-    it("a preset then a theme pick leaves the preset's world under that theme: the apply, then one theme retransmit", () => {
+    it("a preset then a theme pick leaves the preset's world under that theme: the apply, then one theme retransmit", async () => {
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
       fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
-      land();
+      await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[0]));
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
@@ -1348,12 +1353,12 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(order(vi.mocked(applySessionPayload))).toBeLessThan(order(vi.mocked(retransmitWorld)));
     });
 
-    it("a save then Roll: the roll wins, then the save's loading is laid over the rolled world, as two clicks without the wash", () => {
+    it("a save then Roll: the roll wins, then the save's loading is laid over the rolled world, as two clicks without the wash", async () => {
       saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'calm' });
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
       fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
-      land();
+      await land();
       expect(applySessionPayload).not.toHaveBeenCalled();
       expect(rollWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
@@ -1377,37 +1382,37 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(applySessionPayload).not.toHaveBeenCalled();
     });
 
-    it('dims Keep between a click and the cover landing: it would save a world the rows no longer show', () => {
+    it('dims Keep between a click and the cover landing: it would save a world the rows no longer show', async () => {
       render(<OffScreen />);
       const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
       expect(keep().disabled).toBe(false); // precondition: the unsaved live world lights it
       fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
       expect(keep().disabled).toBe(true);
-      land();
+      await land();
       expect(keep().disabled).toBe(false);
     });
 
-    it("a theme pick then a preset: the preset's own loading wins, as applying it would, so nothing is laid over it", () => {
+    it("a theme pick then a preset: the preset's own loading wins, as applying it would, so nothing is laid over it", async () => {
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
       fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
       expect(checked(human('home.off.theme.classic'))).toBe('true'); // the preset's own theme, shown at the click
-      land();
+      await land();
       expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[0]));
       expect(retransmitWorld).not.toHaveBeenCalled();
     });
 
-    it('a save that carries its own loading applies alone: its loading is the one intended, so nothing is laid over it', () => {
+    it('a save that carries its own loading applies alone: its loading is the one intended, so nothing is laid over it', async () => {
       const calmRun = { ...savedPayload('calm-run'), theme: 'calm', aspects: { melody: ['hypnotic'] } } as SessionPayload;
       saveNamedSession('Calm Run', calmRun);
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
-      land();
+      await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).not.toHaveBeenCalled();
     });
 
-    it('two world picks still keep only the last, with the pick shown at each click', () => {
+    it('two world picks still keep only the last, with the pick shown at each click', async () => {
       saveNamedSession('Dusk Run', savedPayload('dusk'));
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
@@ -1415,7 +1420,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
       expect(checked('Dusk Run')).toBe('true');
       expect(checked(presetName(0))).toBe('false');
-      land();
+      await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(applySessionPayload).toHaveBeenCalledWith(savedPayload('dusk'));
       expect(retransmitWorld).not.toHaveBeenCalled();
@@ -1462,7 +1467,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
   });
 
-  it('dirty is read after the change: Keep lights only once the cover has landed', () => {
+  it('dirty is read after the change: Keep lights only once the cover has landed', async () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
@@ -1473,7 +1478,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
     fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.bold') }));
     expect(keep().disabled).toBe(true);
-    land();
+    await land();
     expect(keep().disabled).toBe(false);
   });
 

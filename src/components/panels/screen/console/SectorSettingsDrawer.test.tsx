@@ -217,7 +217,7 @@ describe('SectorSettingsDrawer', () => {
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 13 (Crawford's note 7): Retransmit is a user-gesture world change, so it waits
   // under the scene wash; a wash is attached by hand and the test lands the cover through the store.
-  it('Retransmit goes through the world change request: it waits for the cover, then retransmits once', () => {
+  it('Retransmit goes through the world change request: it waits for the cover, then retransmits once', async () => {
     useUIStore.setState({ sceneWash: 'clear' });
     const detach = attachSceneWash();
     try {
@@ -227,7 +227,10 @@ describe('SectorSettingsDrawer', () => {
       fireEvent.click(screen.getByText('Retransmit'));
       expect(useUIStore.getState().sceneWash).toBe('covering');
       expect(retransmitWorldMock).not.toHaveBeenCalled();
-      act(() => useUIStore.getState().setSceneWash('covered'));
+      // The change runs just after the call that lands the cover (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12).
+      await act(async () => {
+        useUIStore.getState().setSceneWash('covered');
+      });
       expect(retransmitWorldMock).toHaveBeenCalledTimes(1);
       expect(retransmitWorldMock).toHaveBeenCalledWith({ coordinates: { x: 42, y: 9 } });
     } finally {
@@ -244,7 +247,7 @@ describe('SectorSettingsDrawer', () => {
       useUIStore.setState({ sceneWash: 'clear' });
     });
 
-    it('with a save loaded, a Retransmit to new coordinates lets it go once the cover lands, the session renamed', () => {
+    it('with a save loaded, a Retransmit to new coordinates lets it go once the cover lands, the session renamed', async () => {
       useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
       const detach = attachSceneWash();
       try {
@@ -253,7 +256,9 @@ describe('SectorSettingsDrawer', () => {
         fireEvent.change(xInput, { target: { value: '42' } });
         fireEvent.click(screen.getByText('Retransmit'));
         expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run'); // it waits with the world
-        act(() => useUIStore.getState().setSceneWash('covered'));
+        await act(async () => {
+          useUIStore.getState().setSceneWash('covered');
+        });
         expect(retransmitWorldMock).toHaveBeenCalledTimes(1);
         expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
         expect(useSessionStore.getState().currentSessionName).not.toBe('Dusk Run');

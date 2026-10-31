@@ -50,12 +50,13 @@ function fade(wash: Element, opacity: number, then: Extract<SceneWash, 'covered'
  * nothing here touches the audio. Returns the stop - unsubscribe, kill the fade, detach - which WorldView calls on
  * unmount; with no element registered there is nothing to start and the stop does nothing.
  *
- * The fade-out starts on the first tick after the one the change ran in. The change - a whole world rebuilt - runs
- * synchronously inside the cover's completion, which GSAP calls from its root timeline mid-tick, and can hold the main
- * thread for a few hundred milliseconds; a tween made then is stamped at that tick's start, and the next tick, after the
- * rebuild, would find most of its 0.5 s gone (measured headless on a Roll: about 75 ms of the fade-out showed). A
- * listener on GSAP's own ticker that skips the frame it was added in starts the fade once the root has caught up - the
- * root updates first on every tick - so all of it is seen.
+ * The fade-out starts on the first tick after the one the change ran in. The change - a whole world rebuilt - runs just
+ * after the cover's completion, which GSAP calls from its root timeline mid-tick: the request module hands it to a
+ * resolved promise, so it runs once GSAP's frame callback has returned (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12),
+ * and can hold the main thread for a few hundred milliseconds. A tween made then is still stamped at that tick's start,
+ * and the next tick, after the rebuild, would find most of its 0.5 s gone (measured headless on a Roll: about 75 ms of
+ * the fade-out showed). A listener on GSAP's own ticker that skips the frame it was added in starts the fade once the
+ * root has caught up - the root updates first on every tick - so all of it is seen.
  */
 export function startSceneWash(): () => void {
   const wash = getRef(WORLD_WASH_REF_KEY);

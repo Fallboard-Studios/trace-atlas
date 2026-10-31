@@ -22,6 +22,9 @@ const wash = (): SceneWash => useUIStore.getState().sceneWash;
 const setWash = (state: SceneWash) => useUIStore.getState().setSceneWash(state);
 const reduceMotion = (reduce: boolean) =>
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduce && query.includes('prefers-reduced-motion: reduce') }));
+/** docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12: the cover's change runs on a resolved promise queued when 'covered' is
+ *  set, off the call that set it (GSAP's onComplete, in the app). Awaiting one more resolved promise lets it run. */
+const handOff = () => Promise.resolve();
 
 beforeEach(() => {
   useUIStore.setState({ sceneWash: 'clear' });
@@ -46,8 +49,9 @@ describe('uiStore.sceneWash', () => {
     }
   });
 
-  it("passes straight on from 'covered' to 'uncovering': the request module, loaded here, runs the cover's change on it", () => {
+  it("passes on from 'covered' to 'uncovering': the request module, loaded here, runs the cover's change on it", async () => {
     setWash('covered');
+    await handOff();
     expect(wash()).toBe('uncovering');
   });
 });
@@ -66,32 +70,62 @@ describe('requestWorldChange, with a wash mounted', () => {
     expect(change).not.toHaveBeenCalled();
   });
 
-  it("runs the change once when the wash reaches 'covered', then sets 'uncovering'", () => {
+  it("runs the change once when the wash reaches 'covered', then sets 'uncovering'", async () => {
     const change = vi.fn(() => expect(wash()).toBe('covered'));
     requestWorldChange(change);
     setWash('covered');
+    await handOff();
     expect(change).toHaveBeenCalledTimes(1);
     expect(wash()).toBe('uncovering');
   });
 
-  it('a second request before the cover lands replaces the first: only the second runs', () => {
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12: in the app 'covered' is set by the cover timeline's onComplete, which
+  // GSAP calls mid-tick; a whole world rebuilt in there would run on GSAP's call stack, and a throw would unwind through
+  // its ticker. The change waits for the call that landed the cover to return.
+  it("runs the change after the call that set 'covered' has returned, not inside it", async () => {
+    const change = vi.fn();
+    requestWorldChange(change);
+    setWash('covered');
+    expect(change).not.toHaveBeenCalled();
+    expect(wash()).toBe('covered');
+    await handOff();
+    expect(change).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second request before the cover lands replaces the first: only the second runs', async () => {
     const first = vi.fn();
     const second = vi.fn();
     requestWorldChange(first);
     requestWorldChange(second);
     expect(wash()).toBe('covering');
     setWash('covered');
+    await handOff();
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it("exactly one run per cover: 'uncovering' then 'clear' runs nothing more, nor does a second 'covered' with no request", () => {
+  it('a request after the cover lands but before its change has run replaces it too: the newest runs under this cover', async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    requestWorldChange(first);
+    setWash('covered');
+    requestWorldChange(second);
+    expect(wash()).toBe('covered');
+    await handOff();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(wash()).toBe('uncovering');
+  });
+
+  it("exactly one run per cover: 'uncovering' then 'clear' runs nothing more, nor does a second 'covered' with no request", async () => {
     const change = vi.fn();
     requestWorldChange(change);
     setWash('covered');
+    await handOff();
     setWash('clear');
     expect(change).toHaveBeenCalledTimes(1);
     setWash('covered');
+    await handOff();
     expect(change).toHaveBeenCalledTimes(1);
     expect(wash()).toBe('uncovering');
   });
@@ -104,34 +138,72 @@ describe('requestWorldChange, with a wash mounted', () => {
     expect(wash()).toBe('clear');
   });
 
-  it("a request while the wash is uncovering covers again, and its change runs at the next 'covered'", () => {
+  it("a request while the wash is uncovering covers again, and its change runs at the next 'covered'", async () => {
     const first = vi.fn();
     const second = vi.fn();
     requestWorldChange(first);
     setWash('covered');
+    await handOff();
     expect(wash()).toBe('uncovering');
     requestWorldChange(second);
     expect(wash()).toBe('covering');
     expect(second).not.toHaveBeenCalled();
     setWash('covered');
+    await handOff();
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it('a request made inside the running change runs before the wash uncovers', () => {
+  it('a request made inside the running change runs before the wash uncovers', async () => {
     const inner = vi.fn();
     requestWorldChange(() => requestWorldChange(inner));
     setWash('covered');
+    await handOff();
     expect(inner).toHaveBeenCalledTimes(1);
     expect(wash()).toBe('uncovering');
   });
 
-  it('a change that throws still uncovers, so the wash never sticks over the world', () => {
+  it('a change that throws still uncovers, so the wash never sticks over the world; the throw is logged, not thrown at the cover', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const boom = new Error('boom');
     requestWorldChange(() => {
-      throw new Error('boom');
+      throw boom;
     });
-    expect(() => setWash('covered')).toThrow('boom');
+    expect(() => setWash('covered')).not.toThrow();
+    await handOff();
     expect(wash()).toBe('uncovering');
+    expect(logged).toHaveBeenCalledWith(expect.any(String), boom);
+    logged.mockRestore();
+  });
+
+  // The hand-off opens a window between the cover landing and its change running. Anything that lets the cover go in
+  // that window - the wash unmounting, a reduced-motion request - has already run or dropped the change and cleared the
+  // state; the hand-off then finds the state no longer 'covered' and leaves it alone.
+  it("the wash unmounting after the cover lands runs the change at once, and the hand-off leaves the state 'clear'", async () => {
+    const change = vi.fn();
+    requestWorldChange(change);
+    setWash('covered');
+    detach();
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(wash()).toBe('clear');
+    await handOff();
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(wash()).toBe('clear');
+  });
+
+  it("a reduced-motion request after the cover lands runs at once, and the hand-off runs nothing and leaves 'clear'", async () => {
+    const waiting = vi.fn();
+    const now = vi.fn();
+    requestWorldChange(waiting);
+    setWash('covered');
+    reduceMotion(true);
+    requestWorldChange(now);
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(wash()).toBe('clear');
+    await handOff();
+    expect(waiting).not.toHaveBeenCalled();
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(wash()).toBe('clear');
   });
 });
 
@@ -144,12 +216,13 @@ describe('cancelWorldChange, with a wash mounted', () => {
   });
   afterEach(() => detach());
 
-  it("drops the pending change: the cover still lands and lifts, and nothing runs", () => {
+  it("drops the pending change: the cover still lands and lifts, and nothing runs", async () => {
     const change = vi.fn();
     requestWorldChange(change);
     cancelWorldChange();
     expect(wash()).toBe('covering');
     setWash('covered');
+    await handOff();
     expect(change).not.toHaveBeenCalled();
     expect(wash()).toBe('uncovering');
     setWash('clear');
@@ -157,23 +230,25 @@ describe('cancelWorldChange, with a wash mounted', () => {
     expect(change).not.toHaveBeenCalled();
   });
 
-  it('with nothing pending does nothing: the state stands, clear or uncovering', () => {
+  it('with nothing pending does nothing: the state stands, clear or uncovering', async () => {
     cancelWorldChange();
     expect(wash()).toBe('clear');
     requestWorldChange(vi.fn());
     setWash('covered');
+    await handOff();
     expect(wash()).toBe('uncovering');
     cancelWorldChange();
     expect(wash()).toBe('uncovering');
   });
 
-  it('a request after a cancel runs at the next cover, the cancelled one never', () => {
+  it('a request after a cancel runs at the next cover, the cancelled one never', async () => {
     const cancelled = vi.fn();
     const next = vi.fn();
     requestWorldChange(cancelled);
     cancelWorldChange();
     requestWorldChange(next);
     setWash('covered');
+    await handOff();
     expect(cancelled).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
   });
@@ -206,7 +281,7 @@ describe('requestWorldChange, with nothing to cover the change', () => {
     expect(wash()).toBe('clear');
   });
 
-  it('a reduced-motion request replaces a pending one: the pending change never runs, the wash clears', () => {
+  it('a reduced-motion request replaces a pending one: the pending change never runs, the wash clears', async () => {
     const detach = attachSceneWash();
     const pending = vi.fn();
     requestWorldChange(pending);
@@ -217,6 +292,7 @@ describe('requestWorldChange, with nothing to cover the change', () => {
     expect(now).toHaveBeenCalledTimes(1);
     expect(wash()).toBe('clear');
     setWash('covered');
+    await handOff();
     expect(pending).not.toHaveBeenCalled();
     detach();
   });

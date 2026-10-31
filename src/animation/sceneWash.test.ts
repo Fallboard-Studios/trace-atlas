@@ -96,15 +96,18 @@ const tick = () => {
   recorded.ticker.frame += 1;
   for (const listener of [...recorded.ticker.listeners]) listener(0, 16, recorded.ticker.frame);
 };
-/** A timeline lands where real GSAP calls it: inside a tick (its root timeline updates first on every tick). */
-const finish = (timeline: RecordedTimeline) => {
+/** A timeline lands where real GSAP calls it: inside a tick (its root timeline updates first on every tick). Then the
+ *  tick returns, and the cover's change runs on the promise the request module queued at 'covered'
+ *  (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12), as it does in a browser once GSAP's frame callback is done. */
+const finish = async (timeline: RecordedTimeline) => {
   recorded.ticker.frame += 1;
   timeline.onComplete?.();
   for (const listener of [...recorded.ticker.listeners]) listener(0, 16, recorded.ticker.frame);
+  await Promise.resolve();
 };
 /** The cover lands, the change runs, and the next frame starts the fade-out: the uncover timeline. */
-const coverAndStartUncover = () => {
-  finish(last());
+const coverAndStartUncover = async () => {
+  await finish(last());
   tick();
   return last();
 };
@@ -135,7 +138,7 @@ afterEach(() => {
 // ========================================
 
 describe('startSceneWash (revisions Task 13)', () => {
-  it("covers on 'covering': a 'ui' timeline 'scene-wash' takes the wash to opaque over 0.5 s, and its completion sets 'covered'", () => {
+  it("covers on 'covering': a 'ui' timeline 'scene-wash' takes the wash to opaque over 0.5 s, and its completion sets 'covered'", async () => {
     const change = vi.fn();
     requestWorldChange(change);
     expect(wash()).toBe('covering');
@@ -145,13 +148,13 @@ describe('startSceneWash (revisions Task 13)', () => {
     expect(cover.tweens).toEqual([{ target: el, vars: expect.objectContaining({ opacity: 1, duration: SCENE_WASH_SECONDS }) }]);
     expect(SCENE_WASH_SECONDS).toBe(0.5);
     expect(change).not.toHaveBeenCalled();
-    finish(cover);
+    await finish(cover);
     expect(change).toHaveBeenCalledTimes(1);
   });
 
-  it("uncovers after the change: on the next frame a second timeline takes the wash to transparent over 0.5 s, and its completion sets 'clear'", () => {
+  it("uncovers after the change: on the next frame a second timeline takes the wash to transparent over 0.5 s, and its completion sets 'clear'", async () => {
     requestWorldChange(vi.fn());
-    finish(last());
+    await finish(last());
     expect(wash()).toBe('uncovering');
     // Not in the frame the change ran in: a tween made then would be stamped before the rebuild and jump ahead after it.
     expect(recorded.timelines).toHaveLength(1);
@@ -159,34 +162,34 @@ describe('startSceneWash (revisions Task 13)', () => {
     expect(recorded.timelines).toHaveLength(2);
     const uncover = last();
     expect(uncover.tweens).toEqual([{ target: el, vars: expect.objectContaining({ opacity: 0, duration: SCENE_WASH_SECONDS }) }]);
-    finish(uncover);
+    await finish(uncover);
     expect(wash()).toBe('clear');
     expect(recorded.ticker.listeners).toHaveLength(0);
   });
 
-  it('one request is one cover and one uncover: two timelines, not more', () => {
+  it('one request is one cover and one uncover: two timelines, not more', async () => {
     requestWorldChange(vi.fn());
-    finish(coverAndStartUncover());
+    await finish(await coverAndStartUncover());
     tick();
     expect(recorded.timelines).toHaveLength(2);
   });
 
-  it('a request before the fade-out has started cancels it: the cover holds for the new change, no uncover on the next frame', () => {
+  it('a request before the fade-out has started cancels it: the cover holds for the new change, no uncover on the next frame', async () => {
     requestWorldChange(vi.fn());
-    finish(last());
+    await finish(last());
     const second = vi.fn();
     requestWorldChange(second);
     expect(wash()).toBe('covering');
     tick();
     expect(recorded.timelines).toHaveLength(2);
     expect(last().tweens[0].vars).toEqual(expect.objectContaining({ opacity: 1 }));
-    finish(last());
+    await finish(last());
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it('the stop removes a fade-out still waiting for its frame', () => {
+  it('the stop removes a fade-out still waiting for its frame', async () => {
     requestWorldChange(vi.fn());
-    finish(last());
+    await finish(last());
     stop();
     tick();
     expect(recorded.timelines).toHaveLength(1);
@@ -194,12 +197,12 @@ describe('startSceneWash (revisions Task 13)', () => {
     stop = () => undefined;
   });
 
-  it("paints the cover in the sea's own colours at the hour it starts, the water column's two stops", () => {
+  it("paints the cover in the sea's own colours at the hour it starts, the water column's two stops", async () => {
     useUIStore.setState({ activeLocaleLocalTime: 0 });
     requestWorldChange(vi.fn());
     const night = waterColumnColors(0);
     expect(recorded.sets.at(-1)).toEqual({ target: el, vars: { backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` } });
-    finish(coverAndStartUncover());
+    await finish(await coverAndStartUncover());
     useUIStore.setState({ activeLocaleLocalTime: 12 });
     requestWorldChange(vi.fn());
     const noon = waterColumnColors(12);
@@ -207,16 +210,16 @@ describe('startSceneWash (revisions Task 13)', () => {
     expect(noon.top).not.toBe(night.top);
   });
 
-  it('a new state kills the running tween first: a request while uncovering kills the fade-out and covers again', () => {
+  it('a new state kills the running tween first: a request while uncovering kills the fade-out and covers again', async () => {
     requestWorldChange(vi.fn());
-    const uncover = coverAndStartUncover();
+    const uncover = await coverAndStartUncover();
     const second = vi.fn();
     requestWorldChange(second);
     expect(uncover.kill).toHaveBeenCalled();
     expect(wash()).toBe('covering');
     expect(last()).not.toBe(uncover);
     expect(last().tweens[0].vars).toEqual(expect.objectContaining({ opacity: 1 }));
-    finish(last());
+    await finish(last());
     expect(second).toHaveBeenCalledTimes(1);
   });
 
@@ -231,9 +234,9 @@ describe('startSceneWash (revisions Task 13)', () => {
     expect(getTimeline(SCENE_WASH_TIMELINE)).toBeUndefined();
   });
 
-  it('touches no audio through a whole cycle: the callbacks only set the store', () => {
+  it('touches no audio through a whole cycle: the callbacks only set the store', async () => {
     requestWorldChange(vi.fn());
-    finish(coverAndStartUncover());
+    await finish(await coverAndStartUncover());
     expect(wash()).toBe('clear');
     expect(recorded.audio).toEqual([]);
   });

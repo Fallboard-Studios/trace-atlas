@@ -24,21 +24,29 @@ function prefersReducedMotion(): boolean {
 }
 
 /** The cover has landed: run the pending change - and any change it asks for in turn - then uncover, whatever happens,
- *  so a throwing change never leaves the wash standing over the world. */
+ *  so a throwing change never leaves the wash standing over the world; the throw is logged, since nothing awaits this.
+ *  Unless the cover was let go first: the wash unmounting, or a reduced-motion request, has run or dropped the change
+ *  and cleared the state, which stays as it is. */
 function runPending(): void {
+  if (useUIStore.getState().sceneWash !== 'covered') return;
   try {
     while (pending) {
       const change = pending;
       pending = null;
       change();
     }
+  } catch (err) {
+    console.error('[worldChange] the world change failed', err);
   } finally {
     useUIStore.getState().setSceneWash('uncovering');
   }
 }
 
+// 'covered' is set by the cover timeline's onComplete, which GSAP calls mid-tick (animation/sceneWash.ts), so the change
+// - a whole world rebuilt, AudioEngine calls included - runs once that call has returned, never on GSAP's call stack
+// (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12). Not musical timing: nothing here is scheduled against the clock.
 useUIStore.subscribe((state, prev) => {
-  if (state.sceneWash === 'covered' && prev.sceneWash !== 'covered') runPending();
+  if (state.sceneWash === 'covered' && prev.sceneWash !== 'covered') void Promise.resolve().then(runPending);
 });
 
 /**
@@ -46,9 +54,9 @@ useUIStore.subscribe((state, prev) => {
  * his answer 4: the change waits for the cover, 0.5 s each way). `change` is the caller's whole synchronous body - the
  * retransmit or the apply, then its own follow-ups - and is kept here, not in a store, until the scene wash
  * (animation/sceneWash.ts) is opaque: the request sets uiStore.sceneWash to 'covering'; the wash's timeline sets
- * 'covered' when it lands, which runs the change once and sets 'uncovering'; the wash fades and sets 'clear'. A request
- * while 'covering' replaces the pending change (the last pick wins; the first never runs); one while 'uncovering' covers
- * again. Under prefers-reduced-motion, or with no wash mounted - nothing would ever cover the change - it runs at once
+ * 'covered' when it lands, which runs the change once - just after, off the timeline's callback - and sets 'uncovering';
+ * the wash fades and sets 'clear'. A request while 'covering', or 'covered' before the change has run, replaces the
+ * pending change (the last pick wins; the first never runs); one while 'uncovering' covers again. Under prefers-reduced-motion, or with no wash mounted - nothing would ever cover the change - it runs at once
  * and the state is left 'clear', dropping anything pending (the newer request wins). Semantic state only: nothing here
  * touches GSAP or the audio, and the boot paths (bootWorld, the link boot, applySessionPayload's own retransmit) never
  * come through here.

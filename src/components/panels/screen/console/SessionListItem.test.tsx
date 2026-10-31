@@ -154,7 +154,7 @@ describe('SessionListItem -- named entry', () => {
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 13 (Crawford's note 7): a Load is a user-gesture world change, so it waits under
   // the scene wash, the session's names moving with the world; a wash is attached by hand and the store lands the cover.
-  it('clicking Load goes through the world change request: it applies and names the session once the cover lands', () => {
+  it('clicking Load goes through the world change request: it applies and names the session once the cover lands', async () => {
     useUIStore.setState({ sceneWash: 'clear' });
     const detach = attachSceneWash();
     try {
@@ -164,7 +164,10 @@ describe('SessionListItem -- named entry', () => {
       expect(useUIStore.getState().sceneWash).toBe('covering');
       expect(applySessionPayload).not.toHaveBeenCalled();
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-      act(() => useUIStore.getState().setSceneWash('covered'));
+      // The change runs just after the call that lands the cover (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12).
+      await act(async () => {
+        useUIStore.getState().setSceneWash('covered');
+      });
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(applySessionPayload).toHaveBeenCalledWith(fakePayload);
       expect(useSessionStore.getState().currentLoadedSessionName).toBe('Deep Dive');
