@@ -408,13 +408,16 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Checkpoint A: Power is a pause
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Browser (desktop + Pixel): flip off mid-phrase, wait 30 s, flip on — the music resumes mid-phrase, every robot is
+- [x] Browser (desktop + Pixel): flip off mid-phrase, wait 30 s, flip on — the music resumes mid-phrase, every robot is
       where it was, batteries unchanged, the day light has moved; a second cycle behaves the same; a fresh reload's first
-      flip still starts from measure 0; Retransmit while off, then flip → the new world starts.
-- [ ] `npm run perf:audio` Pixel A/B against `main`: no rise in underruns in the worst-case run; HUD counts recorded here.
+      flip still starts from measure 0; Retransmit while off, then flip → the new world starts. (Crawford, 2026-10-31,
+      "checkpoints passed" — see Checkpoint D.)
+- [x] `npm run perf:audio` Pixel A/B against `main`: no rise in underruns in the worst-case run; HUD counts recorded here.
+      (Crawford, 2026-10-31, under "checkpoints passed"; counts not handed over.)
 - [x] `npm run perf` off-state busy recorded against `main`'s off state (expected lower) — measured as below; the harness
       has no powered-off-after-on step, so the running / paused / resumed comparison stood in for it.
-- [ ] Reviewed with human before Phase 2.
+- [x] Reviewed with human before Phase 2. (Crawford, 2026-10-31, after the fact — Phases 2–4 were built on his
+      go-ahead with this box open; see Checkpoint D.)
 
 **Checkpoint A record (2026-10-30, `feature/off-screen` at `a3699da5`, automated half):**
 - `npm run build:types` clean. `npm run lint`: 0 errors, 4 warnings — all `react-refresh/only-export-components` in
@@ -697,7 +700,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Checkpoint B: The six stories
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Browser, desktop and phone, the sketch's six stories by hand: bare first visit (hint only → flip → flip off →
+- [x] (Crawford, 2026-10-31, "checkpoints passed" — see Checkpoint D.) Browser, desktop and phone, the sketch's six stories by hand: bare first visit (hint only → flip → flip off →
       chooser); returning with no saves; with saves (pick → preview → flip); link first visit (hint only, the friend's
       world); link returning (Current named; the URL stands until a pick); link with saves (Keep makes a row). Keep dims
       after a keep; the URL follows picks and Roll and drops `s`; Factory Reset returns the device to a first visit.
@@ -705,7 +708,7 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 - [x] `npm run perf:idle` on the off state against the Checkpoint A figure: no rise with the veil — measured as below
       against the Phase 1 tip, since Checkpoint A recorded `npm run perf` busy, not idle paint: redrawn area flat,
       rastered area +0.05 screens/frame from the veil's blur; whether that holds on the Pixel is Crawford's run.
-- [ ] Reviewed with human before Phase 3.
+- [x] Reviewed with human before Phase 3. (Crawford, 2026-10-31, after the fact — see Checkpoint D.)
 
 **Checkpoint B record (2026-10-30, `feature/off-screen` at `538e6eb3`, automated half):**
 - `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`
@@ -1084,11 +1087,11 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Checkpoint C: Nothing audible changed
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Browser: a Classic world sounds and looks as it did at Checkpoint B; a saved session from before Phase 3 loads as
+- [x] (Crawford, 2026-10-31, "checkpoints passed" — see Checkpoint D.) Browser: a Classic world sounds and looks as it did at Checkpoint B; a saved session from before Phase 3 loads as
       Classic; a share link from before Phase 3 loads; `?theme=calm` on a URL loads a world (the columns are still empty,
       so it sounds Classic) and the readout says Calm. (The readout's Calm waits for Task 30 — see the record below; the
       address bar is the check until then.)
-- [ ] Reviewed with human before Phase 4.
+- [x] Reviewed with human before Phase 4. (Crawford, 2026-10-31, after the fact — see Checkpoint D.)
 
 **Checkpoint C record (2026-10-30, `feature/off-screen` at `f5a56c38`, automated half):**
 - `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`
@@ -1309,7 +1312,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 35: The listen — real numbers in the columns and the grids**
+- [x] **Task 35: The listen — real numbers in the columns and the grids** (Crawford's listen, 2026-10-31: "checkpoints
+  passed, btw, everything sounds good" — Task 34's placeholder columns stand as the final bands, so `themes.ts` and
+  `aspects.ts` are unchanged and the key list did not widen; the grids gained their theme and aspect tables the same
+  day — a section per grid rather than a column per theme in the main tables, since the global grid's ten columns had
+  no room for five more and the robot grid has no Loading Range column at all — with a status line saying the numbers
+  are the listened-to placeholders)
 
   **Description:** On one seed, Crawford listens to the five themes and the three aspects (each aspect alone against
   Classic and against one theme) and adjusts the placeholder bands until each is audibly itself; the agreed numbers go
@@ -1321,12 +1329,13 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
   recognisable on a company. Numbers recorded under Checkpoint D.
 
   **Acceptance criteria:**
-  - [ ] Crawford's sign-off per theme and per aspect recorded here with the final bands.
-  - [ ] Grids and tables agree (the grid is the source of truth).
+  - [x] Crawford's sign-off per theme and per aspect recorded here with the final bands (one sign-off for all eight
+        columns, as above; the bands are Task 34's, listed in the two grids).
+  - [x] Grids and tables agree (the grid is the source of truth).
 
   **Verification:**
-  - [ ] `npx vitest run src/data/bands` passes with the final numbers.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/data/bands` passes with the final numbers.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 31, 34.
 
@@ -1337,11 +1346,14 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Checkpoint D: The listen
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Browser: the Loading axis on desktop and phone; a theme pick re-rolls the same world audibly differently; two
+- [x] Browser: the Loading axis on desktop and phone; a theme pick re-rolls the same world audibly differently; two
       Melody picks show up as different companies (the company detail's line says which); a save made under Calm +
-      Hypnotic reloads with the rows set; its share link carries `theme=calm&melody=hypnotic`.
-- [ ] `npm run perf:audio` Pixel A/B on a Perilous world (the densest column) against `main`.
-- [ ] Reviewed with human before docs.
+      Hypnotic reloads with the rows set; its share link carries `theme=calm&melody=hypnotic`. (Crawford, 2026-10-31.)
+- [x] `npm run perf:audio` Pixel A/B on a Perilous world (the densest column) against `main`. (Crawford, 2026-10-31,
+      under "checkpoints passed"; the HUD counts were not handed over and are not recorded here.)
+- [x] Reviewed with human before docs. (Crawford, 2026-10-31: "checkpoints passed, btw, everything sounds good" —
+      the listen, the Looks of Tasks 29 and 30 and the browser checks of Checkpoints A–D in one; Phase 5 started on
+      that word.)
 
 **Checkpoint D record (2026-10-31, `feature/off-screen` at `25ff9999`, automated half; Task 35 open):**
 - `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`

@@ -86,3 +86,36 @@ please review/edit both here and in that file together.
 | Highlight | PRIORITIZED | `audioMode: 'highlight'` | Audio Setting value — amber status dot |
 | Emitting | ACOUSTIC EMISSION ACTIVE | `AUDIBILITY_LABELS.emitting` | Card Status value (Roadmap 15.2) — true audibility (not muted, and not excluded by another robot's Solo), not just this robot's own audioMode |
 | Disabled | ACOUSTIC EMISSION SUPPRESSED | `AUDIBILITY_LABELS.disabled` | Card Status value (Roadmap 15.2) |
+
+## Loading ranges by theme and aspect (roadmap 57, the off screen)
+
+Every seeded robot value above is drawn into a **band** from one table, `src/data/bands/` (`docs/specs/OFF_SCREEN.md` assumption 15; `docs/AUDIO_SYSTEM.md`'s "The band table"): `classic.ts` holds the Classic bands — the seeded ranges, lit shares and toggle thresholds this grid's Notes column names, lifted byte for byte — and `spawnSystem.ts` reads each at the point of the draw through `getBand(key)`. The world's **theme** (`themes.ts`, picked on the off screen's Loading axis) is a column that replaces whole bands for the keys it names, on assumption 16's v1 key list, and leaves the rest Classic's; a **Melody aspect** (`aspects.ts`) is a column over the four Melody keys only, seated per robot by the deal (`docs/COMPANIES.md`, "The deal") and applied by re-deriving those four fields from the robot's own spawn index under the aspect's bands (`deriveMelodyFields`), so a dealt robot is exactly what it would have been had it spawned under the aspect. `Robot.loadedUnder` records which aspect a robot was dealt; the robot screen's and company screen's "Loaded Under" line shows it. The global rows a theme moves (the tempo and the Low-Pass cutoff) are in `GLOBAL_CHAIN_GRID.md`'s own section. `themes.ts` and `aspects.ts` are the mechanical transcription of these two tables; `resolveBands.test.ts` pins every column to its key list and inside the field's full range.
+
+**Status (2026-10-31):** the numbers are the plan's Task 34 placeholders, which Crawford's listen (`docs/tasks/OFF_SCREEN.md` Task 35) kept as built. A dash means the theme leaves that band Classic's.
+
+**Themes.** A range band is `min–max`; a lit band (`SendBand`) is `min–max · lit`, the share of fresh robots that draw from the range (the rest seed the field's plain value: a linear curve with the plain Attack / Release band, a send of exactly 0).
+
+| Band key | Row above | Classic | Calm | Bold | Adventurous | Perilous |
+|---|---|---|---|---|---|---|
+| `robot.rhythmicDensity` | Density | 0–100 | 0–55 | 40–90 | — | 70–100 |
+| `robot.rests` | Rests | 10–60 | 30–70 | 5–35 | 0–80 | 0–20 |
+| `robot.attack` | Attack, s (a linear-curve robot) | 0–2 | 0.15–2 | 0–0.4 | — | 0–0.15 |
+| `robot.release` | Release, s (a linear-curve robot) | 0–2 | 0.4–2 | 0–1 | — | 0–0.6 |
+| `robot.shapedAttack` | Attack, s, of a robot whose Attack Shape is not Linear · the share of robots that are | 0.03–0.25 · 0.21 | — | 0.03–0.12 · 0.4 | 0.03–0.25 · 0.35 | 0.03–0.1 · 0.5 |
+| `robot.shapedRelease` | Release, s, of a robot whose Release Shape is not Linear · the share | 0.15–0.8 · 0.275 | — | — | 0.15–0.8 · 0.4 | 0.15–0.4 · 0.4 |
+| `reverbSend` | Reverb (0–1) · share carrying it | 0.1–0.6 · 1 | 0.3–0.6 · 1 | 0.1–0.35 · 1 | 0.05–0.8 · 1 | 0.05–0.3 · 1 |
+| `delaySend` | Delay (0–1) · share carrying it | 0–0.3 · 0.75 | 0.1–0.3 · 0.75 | 0–0.2 · 0.6 | 0–0.5 · 0.75 | 0–0.15 · 0.5 |
+
+**Melody aspects.** The family's four keys. A toggle band (`ToggleBand`, Motif Length and Note Variance) is `offShare · min–max`: a draw under `offShare` lands the field off (0), the rest maps uniformly onto the whole numbers of the span (`seedToggleValue`). The Classic column is what an as-theme robot draws under Classic; under another theme the Density band is that theme's (above) and the other three stay Classic's, since no theme column names them.
+
+| Band key | Row above | Classic | Hypnotic | Mechanical | Wandering |
+|---|---|---|---|---|---|
+| `robot.rhythmicDensity` | Density | 0–100 | 40–60 | 70–95 | 20–50 |
+| `robot.noteVariance` | Note Variance | 0.15 · 1–8 | 0 · 1–2 | 0 · 1–3 | 0 · 6–8 |
+| `robot.rhythmicMotifLength` | Motif Length | 0.15 · 1–8 | — | 0 · 6–8 | 0.85 · 1–8 |
+| `robot.pitchRepeat` | Pitch Repeat | 0–100 | 50–100 | 30–70 | 0–30 |
+
+- **Hypnotic** — a note or two, circled: the variance toggle always on and narrow (1–2 of the 8 indices), medium density, and a high Pitch Repeat so a tiled motif keeps its pitches. Motif Length is the theme's.
+- **Mechanical** — a long motif always on (6–8 steps), narrow variance (1–3), high density: the same long cell, hardly a gap.
+- **Wandering** — wide variance (6–8), the motif off on about 85 % of robots (and 1–8 when on), low-to-medium density and little repeat: free onsets over the measure, few pitches held.
+- **As theme** (`'theme'` in a pick list) is not a column: a group dealt it keeps the theme's bands, which is how a mixed fleet keeps plain robots beside the aspects.
